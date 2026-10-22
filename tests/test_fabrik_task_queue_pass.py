@@ -481,3 +481,25 @@ def test_a_second_design_is_ignored_with_only_a_note() -> None:
     assert (
         "re-run, or the record stays at phase 1. A second `--design` is ignored, with only a NOTE. Add a"
     ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_a_terminal_resting_on_another_partys_act_names_who_performs_it() -> None:
+    """Row 1792612721, the second verdict on held what-do-terminal-names: a terminal naming a live effect on shared
+    state (a port, a service, a deploy) said nothing about who triggers it. The rule lives in the run-record fragment,
+    which 36 of the 39 commands that open a record include (the other three prescribe a terminal no third party
+    acts on), and the terminal names the hand-off, since a close cannot wait for an act that comes after it."""
+    live = re.sub(
+        r"<!--.*?-->",
+        "",
+        (ROOT / "commands" / "_fragments" / "run-record.md").read_text(),
+        flags=re.S,
+    )
+    frag = re.sub(r"\s+", " ", live)
+    section = frag[frag.index("`--surface` is what makes") : frag.index("Close it EXACTLY ONE")]
+    assert (
+        "Where the outcome rests on an act this run does not perform (a deploy, a service restart, a port another"
+        " process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and"
+        " `--evidence` says whether they had acted at the close."
+    ) in section
+    src = re.sub(r"<!--.*?-->", "", SRC.read_text(), flags=re.S)
+    assert src.index("{{include:run-record}}") < src.index("## SIZE")
