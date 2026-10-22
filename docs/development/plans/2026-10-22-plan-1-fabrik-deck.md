@@ -212,6 +212,8 @@ as `code_server` does (`:83-97`); `catalog(registry, opt_root) -> list[{"name","
 
 ## Phase C — install (second unit), profile, launcher, docs
 
+✅ EXECUTED 2026-10-22 (6f3e15d53 build, 3f2f4b864 + 2c671ca8c review fixes; receipt docs/development/reviews/2026-10-22-plan-1-fabrik-deck-phase-3-review.md, passes 14 → 3 → 0; § Acceptance handed to the coordinator, answered A behind a pause, D-1128)
+
 Appetite: 150
 
 Implements spec § Chosen approach (Profile, Launcher), § Lifecycle (Supervision) and Tests 8-10.
