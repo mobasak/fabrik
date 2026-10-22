@@ -1,6 +1,6 @@
 # Fabrik Deck — attention hook, board server, profile, launcher
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** fleet
 Spec: `docs/superpowers/specs/2026-10-21-fabrik-deck-design.md` (CONVERGED, approved D-1106) · Work item: W-42d1ccb5 ·
 already built: the code-server unit (W-e89a9b5b, D-1107, merged 73eec28ca).
@@ -85,6 +85,8 @@ Selections: the board sends `Content-Security-Policy: frame-ancestors 'none'` (d
 var with a default or a flag (row 3); tests assert files, HTTP status and JSON (row 5).
 
 ## Phase A — the attention hook and its registration
+
+✅ EXECUTED 2026-10-22 (c194e70b5 build, 42b2253cd + 6dcf9462f review fixes; receipt docs/development/reviews/2026-10-22-plan-1-fabrik-deck-phase-1-review.md, passes 9 → 1 → 0)
 
 Appetite: 90
 
