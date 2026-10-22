@@ -698,6 +698,326 @@ def _stale_after_s() -> float:
     return v if math.isfinite(v) else 900.0
 
 
+# ── THE LANE (W-18f559d9, D-1113) ──────────────────────────────────────────────────────────────
+# Past 90% of the 5-hour window with nothing to rotate to, D-306 let every session spend the last
+# points, so they went to whoever asked first and the sessions that merge and keep the records had
+# none left. At `urgent-90` the lane holds every session EXCEPT (a) the bound merge owner of a
+# coordinator_mode repo and (b) the bound owner of an open P0 item; a held session keeps the wall's
+# allow-list plus the finishing verbs below. Every doubt is NOT exempt (held — it can still commit,
+# push, mail and close, and the wall stays the safety net); a hook timeout fails OPEN (Claude Code
+# runs the tool), so the one subprocess runs under `_LANE_TIMEOUT_S` and only when (a) can pass.
+# Identity comes from the identity store ONLY (whoami_agent.py's format, read here — this hook is
+# fleet-synced and imports nothing from scripts/), scoped to THIS repo's git common dir; CLAUDE_AGENT
+# is never read, so a `claude -p` child inheriting a coordinator's env is held (ruling 2).
+# ⚠️ COBRA (D-253): the cheapest way past the lane is to bind a session as the merge owner
+# (`whoami_agent.py --as coordinator --force`) or to give yourself a P0 — both are same-user acts
+# the store and the item files already record (a forced bind writes `force: true`, an item names its
+# owner), and a held builder cannot run either verb; the coordinator assigns P0, rarely (ruling 1).
+# Known costs, stated not fixed: an exempt session's native subagents share its sid and are exempt
+# too; the owner cache is same-user writable, no new trust boundary.
+_LANE_TIMEOUT_S = 2.0
+_HUB_DECISIONS_PY = "/opt/fabrik/scripts/decisions.py"  # the Stop hook's `_MERGE_OWNER_ARGV` copy
+_LANE_CACHE_MAX = 64
+_LANE_READ_MAX = 8 * 1024 * 1024
+# whoami_agent.py `_NAME_RE` (fullmatch): a name outside it is never a binding
+_AGENT_NAME_RE = re.compile(r"[a-z0-9-]{1,32}")
+_ITEM_ID_RE = re.compile(r"W-[0-9a-f]{8}")
+_ITEM_RESOLVED = frozenset({"done", "dropped", "closed"})
+# The finishing verbs, the LANE's alone (never the wall's): send the merge request for finished
+# work, and renew or release a claim. Same anchors as `_ALLOWED_BASH`'s `scripts/` branch.
+_LANE_BASH = re.compile(
+    r"^[ \t]*python3?(?:\.\d+)?[ \t]+(?:/opt/[\w-][\w.-]*/)?scripts/"
+    r"(?:merge_request\.py[ \t]+(?:request|send)"
+    r"|work\.py[ \t]+(?:claim|release)[ \t]+W-[0-9a-f]{8})(?=[ \t]|$)",
+    re.ASCII,
+)
+# tools a parked session still needs to finish: a subagent's hand-back is text, and a merge
+# request is finished by the SendMessage lines `merge_request.py request` prints
+_LANE_TOOLS = frozenset({"SubagentHandback", "SendMessage"})
+
+
+def _lane_bash_allowed(command: str, cwd: str | None = None) -> bool:
+    """The finishing verbs, under every veto `_bash_allowed` applies to one segment."""
+    masked = _mask_quoted(command)
+    if _NOT_A_BLANK.search(masked) or _BRACE_EXPANSION.search(masked):
+        return False
+    segments, _relocated = _resolve(command, cwd)
+    return len(segments) == 1 and _segment_allowed(segments[0], _LANE_BASH)
+
+
+def _regular_text(path: Path) -> str | None:
+    """A REGULAR file's text (bounded), else None — a FIFO here would hang every tool call."""
+    try:
+        if not path.is_file():
+            return None
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            return fh.read(_LANE_READ_MAX)
+    except OSError:
+        return None
+
+
+def _git_common(start: Path) -> Path | None:
+    """The git COMMON dir of the repo holding `start`, by a filesystem walk (no git subprocess on
+    the per-tool path): a `.git` directory IS the common dir; a linked worktree's `.git` FILE names
+    its gitdir, whose `commondir` file (or `<common>/worktrees/<n>` layout) names the common dir.
+    None on anything else — a `.git` that is neither, an unreadable one, no repo above `start`."""
+    try:
+        for d in (start, *start.parents):
+            dot = d / ".git"
+            if dot.is_dir():
+                return Path(os.path.realpath(dot))
+            if not os.path.lexists(dot):
+                continue
+            text = _regular_text(dot)
+            if text is None or not text.startswith("gitdir:"):
+                return None
+            gd = Path(text.split("\n", 1)[0][len("gitdir:") :].strip())
+            gd = Path(os.path.realpath(gd if gd.is_absolute() else d / gd))
+            cd = _regular_text(gd / "commondir")
+            if cd is not None and cd.strip():
+                rel = Path(cd.strip())
+                return Path(os.path.realpath(rel if rel.is_absolute() else gd / rel))
+            if gd.parent.name == "worktrees":
+                return gd.parent.parent
+            return None
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _lane_project_dir(cwd: str | None = None) -> str | None:
+    """The repo the lane judges: CLAUDE_PROJECT_DIR, else this hook's own repo, else the payload
+    cwd — the first that sits in a git repo. Never the cwd first: a coordinator's seats work in
+    scratch directories, and judging the scratch would hold the coordinator."""
+    here = Path(__file__).resolve()
+    for cand in (
+        os.environ.get("CLAUDE_PROJECT_DIR"),
+        str(here.parents[2]) if len(here.parents) > 2 else None,
+        cwd,
+    ):
+        if cand and os.path.isabs(cand) and _git_common(Path(cand)) is not None:
+            return cand
+    return None
+
+
+def _bound_name(sid: str, common: Path) -> str:
+    """The LAST valid binding for `sid` scoped to `common` in the identity store, or "".
+    `$AGENT_IDENTITY_FILE` else `$HOME/.claude/state/agent-identity.jsonl` (whoami_agent.py
+    `store_path`); a corrupt line or a malformed name is skipped, as `resolve_agent_name` does."""
+    raw = os.environ.get("AGENT_IDENTITY_FILE")
+    store = Path(raw) if raw else Path.home() / ".claude" / "state" / "agent-identity.jsonl"
+    text = _regular_text(store)
+    if not text or not sid:
+        return ""
+    want = os.path.realpath(common)
+    name = ""
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(row, dict) or row.get("session_id") != sid:
+            continue
+        top = row.get("toplevel")
+        if not (isinstance(top, str) and os.path.isabs(top) and os.path.realpath(top) == want):
+            continue
+        cand = str(row.get("name") or "")
+        if _AGENT_NAME_RE.fullmatch(cand):
+            name = cand
+    return name
+
+
+def _merge_owner(main: Path) -> str:
+    """The repo's declared merge owner via the HUB `decisions.py --merge-owner` (run, never
+    copied), or "". Cached in `<state>/lane-owner-cache.json` keyed by the ledger's realpath,
+    mtime_ns and size and the resolver's realpath and mtime_ns; any cache error ignores the cache."""
+    dpy = os.environ.get("QUOTA_STOP_DECISIONS_PY") or _HUB_DECISIONS_PY
+    ledger = main / "docs" / "DECISIONS.md"
+    try:
+        if not ledger.is_file() or not os.path.isfile(dpy):
+            return ""
+        ls, ds = ledger.stat(), os.stat(dpy)
+        key = (
+            f"{os.path.realpath(ledger)}|{ls.st_mtime_ns}|{ls.st_size}|"
+            f"{os.path.realpath(dpy)}|{ds.st_mtime_ns}"
+        )
+    except OSError:
+        return ""
+    cache_path = _state_dir() / "lane-owner-cache.json"
+    cache: dict = {}
+    try:
+        loaded = json.loads(_regular_text(cache_path) or "{}")
+        cache = loaded if isinstance(loaded, dict) else {}
+    except ValueError:
+        cache = {}
+    hit = cache.get(key)
+    if isinstance(hit, str):
+        return hit
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_AGENT"}
+    try:
+        import subprocess
+
+        res = subprocess.run(
+            [sys.executable, "-I", dpy, "--merge-owner", str(main)],
+            cwd=str(main),
+            env=env,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=_LANE_TIMEOUT_S,
+        )
+    except Exception:
+        return ""
+    if res.returncode == 0:
+        lines = (res.stdout or "").strip().splitlines()
+        owner = lines[0].strip() if lines else ""
+    elif res.returncode == 3:
+        owner = ""  # UNDECLARED: nobody owns the repo — a real answer, cached like one
+    else:
+        return ""
+    cache.pop(key, None)
+    cache[key] = owner
+    while len(cache) > _LANE_CACHE_MAX:
+        cache.pop(next(iter(cache)))
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_path.with_name(f".{cache_path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(cache), encoding="utf-8")
+        os.replace(tmp, cache_path)
+    except OSError:
+        pass
+    return owner
+
+
+def _open_p0_items(main: Path, common: Path, name: str) -> list[str]:
+    """Ids of the OPEN items with `priority` the int 0 whose `owner` is `name` (casefold): status
+    not done/dropped/closed and no closed marker under `<common>/fabrik-work/closed/`."""
+    key = name.casefold()
+    closed = common / "fabrik-work" / "closed"
+    out: list[str] = []
+    try:
+        files = sorted((main / ".fabrik" / "work").glob("W-*.json"))
+    except OSError:
+        return []
+    for f in files:
+        try:
+            item = json.loads(_regular_text(f) or "null")
+        except ValueError:
+            continue
+        if not isinstance(item, dict):
+            continue
+        iid = item.get("id") if isinstance(item.get("id"), str) else f.stem
+        prio = item.get("priority")
+        if not (
+            _ITEM_ID_RE.fullmatch(iid)
+            and isinstance(prio, int)
+            and not isinstance(prio, bool)
+            and prio == 0
+            and item.get("status") not in _ITEM_RESOLVED
+            and str(item.get("owner") or "").strip().casefold() == key
+        ):
+            continue
+        try:
+            if (closed / f"{iid}.json").exists() or (closed / iid).exists():
+                continue
+        except OSError:
+            continue
+        out.append(iid)
+    return out
+
+
+def _claimed_items(common: Path, sid: str | None, now: float | None = None) -> list[str]:
+    """Ids this session holds a LIVE claim on (`<common>/fabrik-work/claims/<id>.json`, live while
+    `at + lease_s > now` — work.py `_is_live`); never raises."""
+    if not sid:
+        return []
+    now = time.time() if now is None else now
+    out: list[str] = []
+    try:
+        files = sorted((common / "fabrik-work" / "claims").glob("W-*.json"))
+    except OSError:
+        return []
+    for f in files:
+        try:
+            rec = json.loads(_regular_text(f) or "null")
+            if not (isinstance(rec, dict) and rec.get("session") == sid):
+                continue
+            if float(rec.get("at") or 0) + float(rec.get("lease_s") or 0) > now and (
+                _ITEM_ID_RE.fullmatch(f.stem)
+            ):
+                out.append(f.stem)
+        except (ValueError, TypeError, OverflowError):
+            continue
+    return out
+
+
+def lane_exempt(sid: str | None, project_dir: str | None) -> tuple[bool, str]:
+    """(exempt, why) for this session at the lane. Never raises; every doubt is (False, why)."""
+    try:
+        if not isinstance(sid, str) or not sid:
+            return False, "no session id"
+        if not project_dir or not os.path.isabs(project_dir):
+            return False, "no repo to judge"
+        common = _git_common(Path(project_dir))
+        if common is None or common.name != ".git":
+            return False, "not in a git checkout"
+        main = common.parent
+        name = _bound_name(sid, common)
+        if not name:
+            return False, "no agent name is bound to this session in this repo"
+        try:
+            cfg = json.loads(_regular_text(main / ".fabrik" / "work" / "config.json") or "null")
+        except ValueError:
+            cfg = None
+        if isinstance(cfg, dict) and cfg.get("coordinator_mode") is True:
+            owner = _merge_owner(main)
+            if owner and owner.strip().casefold() == name.casefold():
+                return True, f"{name} is this coordinator_mode repo's merge owner"
+        p0 = _open_p0_items(main, common, name)
+        if p0:
+            return True, f"{name} owns open P0 item {', '.join(p0[:5])}"
+        return False, f"bound as {name}: not the merge owner, and no open P0 item is yours"
+    except Exception as exc:  # the hook must never raise on its own defect
+        return False, f"lane check failed ({type(exc).__name__})"
+
+
+def _stamp_promise(stamp: Path) -> float | None:
+    """Line 1 of the stamp — the tick's promised resume epoch — when it is a positive number."""
+    text = _regular_text(stamp)
+    if text is None:
+        return None
+    try:
+        v = float(text.split("\n", 1)[0].strip())
+    except ValueError:
+        return None
+    return v if math.isfinite(v) and v > 0 else None
+
+
+def _posture_reset() -> float | None:
+    """The posture's `active.windows.five_hour.resets_at`, when it is a positive finite number."""
+    try:
+        doc = json.loads(_regular_text(_state_dir() / "quota-posture.json") or "null")
+        v = doc["active"]["windows"]["five_hour"]["resets_at"]
+    except (ValueError, TypeError, KeyError):
+        return None
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v) if math.isfinite(v) and v > 0 else None
+
+
+def _lane_lift(stamp: Path) -> str:
+    at = _stamp_promise(stamp) or _posture_reset()
+    when = (
+        f"at {time.strftime('%H:%M', time.localtime(at))}"
+        if at is not None
+        else "when the 5-hour window resets"
+    )
+    return f"The lane lifts {when}, or earlier when a successor appears — the lift wakes an armed watch"
+
+
 def decide(
     tool: str,
     command: str | None,
@@ -709,9 +1029,18 @@ def decide(
     tier: str = _STAMP_TIER_WALLED,
     battery: bool = False,
     cwd: str | None = None,
+    exempt: bool | None = None,
+    why: str = "",
+    items: tuple[str, ...] = (),
+    lift: str = "",
 ) -> tuple[str, str]:
     """Decision. Returns (action, reason) with action ∈ {"allow", "deny", "allow_warn"}. Pure but
-    for `cwd`: a `cd` prefix is resolved against the filesystem to find the session's own root."""
+    for `cwd`: a `cd` prefix is resolved against the filesystem to find the session's own root.
+
+    `exempt` is the LANE verdict at `urgent-90` (`lane_exempt`): True → allow with the lane nudge;
+    False → the wall's allow-list plus the finishing verbs, denied with the park text naming the
+    session's claimed `items` and the `lift`. `None` means the caller never judged the lane — a pure probe — and keeps D-306's
+    warning-tier allow; `main()` always judges it."""
     if not stamp_exists:
         return "allow", ""
     stale_after = _stale_after_s()
@@ -722,12 +1051,20 @@ def decide(
             "freezes the fleet; check `crontab -l` and ~/.claude/rotate-tick.log"
         )
     if tier == _STAMP_TIER_URGENT:
-        # The WARNING tier: the fleet is at 90% of the session window with nothing to rotate to,
-        # which leaves real runway. Killing a running seat here wastes everything already spent
-        # on it, so THIS hook holds nothing — the band may still hold new work, which is the
-        # sibling hook's business — and every tool call says the wall is next, because the
-        # cheapest way to arrive at it is to not notice.
-        return "allow_warn", _nudge()
+        # The LANE (D-1113): the fleet is at 90% of the session window with nothing to rotate to.
+        # The runway is real, so an EXEMPT session keeps working — a seat mid-flight is not killed
+        # — and is told the wall is next; every other session parks with the wall's allow-list
+        # plus the finishing verbs, so the last points go to merging and keeping the records.
+        if exempt is None or exempt:
+            return "allow_warn", _nudge(why if exempt else None)
+        if tool == "Bash":
+            if command is not None and (
+                _bash_allowed(command, cwd) or _lane_bash_allowed(command, cwd)
+            ):
+                return "allow", ""
+        elif tool in _READ_TOOLS or _READ_MCP.match(tool) or tool in _LANE_TOOLS:
+            return "allow", ""
+        return "deny", _park_reason(tool or "tool", sid, why=why, items=items, lift=lift)
     if tool == "Bash":
         # the vetoes read the MASKED segment (operators only); the allow-list reads the RAW
         # segment, because the leading command word is never quoted in a command we would allow.
@@ -740,16 +1077,23 @@ def decide(
     return "deny", _reason(tool or "tool", sid, battery)
 
 
-def _nudge() -> str:
-    """The WARNING tier's one line. It asks for a CHECKPOINT, never a stop: the work in flight is
-    exactly what the runway is for. THIS hook denies nothing while it prints — but it cannot say
-    that nothing is denied, because `quota_posture_hook.py` holds new fan-out and new runs on the
-    band, and at this tier that band is routinely RED. The wording must stay true of the SYSTEM,
-    not just of this file."""
+def _nudge(why: str | None = None) -> str:
+    """The LANE's line for a session that CONTINUES (or a pure probe that never judged the lane).
+    It asks for a CHECKPOINT, never a stop: the work in flight is exactly what the runway is for.
+    THIS hook denies this session nothing while it prints — but it cannot say that nothing is
+    denied, because `quota_posture_hook.py` holds new fan-out and new runs on the band, and at this
+    tier that band is routinely RED. The wording must stay true of the SYSTEM, not just of this
+    file."""
+    who = (
+        f"you continue ({why})"
+        if why
+        else "the merge owner and the owners of open P0 items continue"
+    )
     return (
-        "quota-stop: FLEET QUOTA LOW — the active account is at the urgent-drain line with no "
-        "account to rotate to. THE FLEET-WIDE HOLD HAS NOT ARMED, so your in-flight work is not "
-        "being cut short here. Whether a NEW fan-out or a new run is held depends on the band — "
+        "quota-stop: FLEET QUOTA LANE — the active account is at the urgent-drain line with no "
+        f"account to rotate to; builders park and {who}. THE FLEET-WIDE HOLD (the wall) HAS NOT "
+        "ARMED, so your in-flight work is not being cut short here. Whether a NEW fan-out or a "
+        "new run is held depends on the band — "
         "read the QUOTA line on your prompt, or run `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`. CHECKPOINT as you "
         "go so the "
         "wall costs you "
@@ -759,17 +1103,50 @@ def _nudge() -> str:
     )
 
 
-def _reason(tool: str, sid: str | None = None, battery: bool = False) -> str:
-    """The one message every held session reads. It carries the LITERAL session id in the arm
-    order when the payload names one — CLAUDE.md's arm rule needs a literal sid (an empty arg
-    exits the watch as you arm it), and the relief wake reaches ONLY an armed watch."""
-    who = (
+def _literal_sid(sid: str | None) -> str:
+    """The sid as the arm order may carry it (the arm regex's own class, 1–80 alnum and `._-`)."""
+    return (
         sid
         if isinstance(sid, str)
         and 0 < len(sid) <= 80
         and all((c.isascii() and c.isalnum()) or c in "._-" for c in sid)
         else "<your sid>"
     )
+
+
+def _park_reason(
+    tool: str, sid: str | None, *, why: str = "", items: tuple[str, ...] = (), lift: str = ""
+) -> str:
+    """The LANE's park order. Every backticked command in it passes the lane's allow-list
+    (`test_the_park_message_names_the_item_and_lift_and_orders_only_allowed_commands`), and
+    `claude_rotate.py --status` is never ordered — it is not on the list. The head carries
+    `fleet-exhausted`, the phrase `command_run.py::_WALL_REASON` keys a pasted reason on."""
+    who = _literal_sid(sid)
+    mine = ", ".join(items) if items else "none"
+    return (
+        "FLEET QUOTA LANE — the fleet-exhausted stamp stands at its urgent-90 tier: the 5-hour "
+        "window is at the urgent-drain line with no account to rotate to, so only the merge owner "
+        "of a coordinator_mode repo and the owner of an open P0 item continue"
+        + (f" ({why})" if why else "")
+        + f". {tool} is held. PARK NOW — your items: {mine}. Commit your own work with explicit "
+        "pathspecs (`git commit -m '<msg>' -- <paths>` — single-quote the message), "
+        "`git push`, close your run record with "
+        "`python3 scripts/command_run.py blocked --wall --command <command> --reason '<why>'` "
+        "(resumable by start --resume-from), send the merge request for finished work "
+        "(`python3 scripts/merge_request.py request --review <receipt> --item <W-id>`), then end "
+        "the turn. Reads, git, command_run.py, mail.py, thread_anchor.py, the claim verbs "
+        "(`python3 scripts/work.py claim <W-id>`), SubagentHandback, SendMessage, the self-watch "
+        f"arm and TaskStop stay allowed. {lift or _lane_lift(_stamp())}; ARM the self-watch NOW "
+        'if it is not: Bash(run_in_background: true, command: "bash '
+        f'/opt/fabrik/scripts/sysadmin/selfwatch_arm.sh {who}").'
+    )
+
+
+def _reason(tool: str, sid: str | None = None, battery: bool = False) -> str:
+    """The one message every held session reads. It carries the LITERAL session id in the arm
+    order when the payload names one — CLAUDE.md's arm rule needs a literal sid (an empty arg
+    exits the watch as you arm it), and the relief wake reaches ONLY an armed watch."""
+    who = _literal_sid(sid)
     head = (
         "BATTERY HOLD — the laptop is on battery at or below the hold line, and your context may "
         "be lost when it dies."
@@ -817,15 +1194,34 @@ def main() -> int:
         age = time.time() - _tick_log().stat().st_mtime
     except OSError:
         age = None
+    sid = payload.get("session_id") if isinstance(payload.get("session_id"), str) else None
+    cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else None
+    exempt: bool | None = None
+    why, items, lift = "", (), ""
+    if exists and tier == _STAMP_TIER_URGENT and age is not None and age <= _stale_after_s():
+        # the lane is judged only while it is in force; every doubt inside is NOT exempt
+        project = _lane_project_dir(cwd)
+        exempt, why = lane_exempt(sid, project)
+        if not exempt:
+            try:
+                common = _git_common(Path(project)) if project else None
+                items = tuple(_claimed_items(common, sid)) if common else ()
+            except Exception:
+                items = ()
+            lift = _lane_lift(_stamp())
     action, reason = decide(
         tool,
         cmd if isinstance(cmd, str) else None,
         stamp_exists=exists,
         tick_age_s=age,
-        sid=(payload.get("session_id") if isinstance(payload, dict) else None),
+        sid=sid,
         tier=tier,
         battery=exists and _stamp_is_battery(_stamp()),
-        cwd=payload.get("cwd") if isinstance(payload.get("cwd"), str) else None,
+        cwd=cwd,
+        exempt=exempt,
+        why=why,
+        items=items,
+        lift=lift,
     )
     if action == "deny":
         # ONLY the current PreToolUse contract: the installed CLI (2.1.258) deprecates the legacy
