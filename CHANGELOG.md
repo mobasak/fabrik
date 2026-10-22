@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review-probe-catalogue: a copy of the base pin tree is made writable before the pins are laid over it, and again after (2026-10-23)
+
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation: `review_loop_ledger.py pin` writes the pin and its `<pins_dir>.base` tree read-only, files and directories. A seat that copies the base tree therefore runs `chmod -R u+w <dest>` right after that copy and before laying the pins over it, and again after it, because a pin file the base lacks lands read-only. Before this, five of fourteen seats in one review hit Permission denied (mail 01M5HTCCA9 from infra-2). `tests/test_review_queue_pass.py` pins the clause.
+
 ### Fixed — the QUOTA-line format sample shows the LANE clause (2026-10-22)
 
 - The sample in both CLAUDE.md twins and `quota_posture_hook.py`'s docstring listed no `band LANE` clause while the sentence above it says the line prints `band LANE on 5h` at the urgent-90 tier; the sample now carries the optional `[[ · band LANE on 5h — builders park, coordinators continue] · ⚠️ CHECKPOINT NOW …]` tail after `successor`, where the hook appends it — the LANE words only while the rotation tick is fresh, which the bands sentence now says too; `docs/workstation/hooks-index.md`'s copy of the sample matches (W-a784a444, fabrik-lib's finding). The band field itself stays GREEN, AMBER, RED or WALL.
