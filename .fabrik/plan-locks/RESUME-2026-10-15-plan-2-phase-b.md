@@ -6,6 +6,11 @@ Branch: worktree-intel, last commit = the Phase A EXECUTED commit (after dc904d6
 .fabrik/plan-locks/2026-10-15-plan-2-review-seat-write-isolation.json (active).
 Parked at the 5-hour quota checkpoint (D-1113: past 90%, commit, push, seed, start nothing new).
 
+First: `command_run.py step --phase 2` is refused until a Phase A review receipt exists. Write
+docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-phase-A-review.md from the scoped run's
+ledger (the plan's Evidence § Step 8 rounds 1-5 and the close's evidence: confirmed 11 → 10 → 9 → 1 → 0, readers,
+neuters, replay), then step to phase 2.
+
 Next: Phase B — Finish, from step 1.
 1. The whole-plan /fabrik-review (D7 floor: the whole-plan diff by file, a Sonnet and a Haiku finder per slice as
    Agent-tool seats, D-961), receipt docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md.
