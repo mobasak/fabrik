@@ -640,11 +640,18 @@ def _foreign_role_reasons(
         parts += [
             "SELECT 'is granted to ' || mem.rolname FROM pg_auth_members m "  # nosec B608
             f"JOIN pg_roles mem ON mem.oid = m.member WHERE m.roleid = {rid}",
-            # the inner join drops the shared (NULL dbid) CONNECT grant on its own database
+            # grants on objects inside another database (rows carrying that database's oid)
             "SELECT 'holds ' || count(*) || ' grant(s) or policy row(s) in database ' || db.datname "  # nosec B608
             "FROM pg_shdepend s JOIN pg_database db ON db.oid = s.dbid "
             f"WHERE s.refclassid = 'pg_authid'::regclass AND s.refobjid = {rid} AND s.deptype <> 'o' "
             f"AND db.datname IS DISTINCT FROM {own} GROUP BY db.datname",
+            # ...and on SHARED objects (dbid 0): another database's CONNECT/TEMP, a tablespace, a parameter
+            # ACL. Only the role's grants on its own database (CONNECT, which grant_payments_role gives) are
+            # its own; a database it owns is reported by the first row, never twice.
+            "SELECT 'holds ' || count(*) || ' grant(s) on shared object(s) outside its own database' "  # nosec B608
+            f"FROM pg_shdepend s WHERE s.dbid = 0 AND s.refclassid = 'pg_authid'::regclass AND s.refobjid = {rid} "
+            "AND NOT (s.classid = 'pg_database'::regclass AND (s.deptype = 'o' OR s.objid = "
+            f"(SELECT oid FROM pg_database WHERE datname = {own}))) HAVING count(*) > 0",
         ]
     out = _run_sql(
         "\\set ON_ERROR_STOP on\n" + "\nUNION ALL\n".join(parts) + f";\nSELECT '{_GUARD_END}';",
@@ -654,7 +661,13 @@ def _foreign_role_reasons(
     if not lines or lines[-1] != _GUARD_END:
         raise RuntimeError(f"foreign-role guard for {role}: unreadable answer, refusing to proceed")
     reasons = lines[:-1]
-    if escalation and own_db:
+    if escalation:
+        if (
+            not own_db
+        ):  # the own-database read is half of the escalation guard; never skip it silently
+            raise RuntimeError(
+                f"foreign-role guard for {role}: the escalation read needs the role's own database"
+            )
         reasons += _own_db_ownership(role, rid, own_db, container)
     return reasons
 

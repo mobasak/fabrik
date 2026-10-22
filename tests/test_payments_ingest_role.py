@@ -617,6 +617,7 @@ def test_the_escalation_guard_reads_every_escalation_shape() -> None:
     assert cluster.count("is a member of") == 1 and "WHERE m.member = " in cluster
     assert "'is granted to ' || mem.rolname" in cluster and "WHERE m.roleid = " in cluster
     assert "grant(s) or policy row(s) in database " in cluster and "s.deptype <> 'o'" in cluster
+    assert "WHERE s.dbid = 0 AND" in cluster and "grant(s) on shared object(s)" in cluster
     # own-database ownership runs as its own call, quiet, in the role's own database
     assert own.startswith("\\set ON_ERROR_STOP on\n\\set QUIET on\n\\c ti\n")
     assert "s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())" in own
@@ -679,3 +680,11 @@ def test_mint_passes_escalation_and_the_backstop_names_memberships() -> None:
     alter_sql = run.call_args_list[0].args[0]
     assert "pg_catalog.pg_auth_members m WHERE m.member = r.oid OR m.roleid = r.oid" in alter_sql
     assert alter_sql.index("pg_auth_members") < alter_sql.index('ALTER ROLE "ti_payments_ingest"')
+
+
+def test_the_escalation_guard_refuses_to_run_without_the_own_database() -> None:
+    with (
+        patch.object(pg, "_run_sql", return_value=f"{pg._GUARD_END}\n"),
+        pytest.raises(RuntimeError, match="own database"),
+    ):
+        pg._foreign_role_reasons("ti_payments_ingest", own_db=None, escalation=True)

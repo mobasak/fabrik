@@ -283,6 +283,7 @@ def test_a_payments_role_holding_a_grant_in_another_database_is_refused() -> Non
             RuntimeError, match="grant\\(s\\) or policy row\\(s\\) in database other"
         ):
             _mint(s)
+        assert _one(s, f"SELECT rolcreatedb FROM pg_roles WHERE rolname = '{PAY}'") == "t"
 
 
 def test_a_payments_role_owning_a_function_in_its_own_database_is_refused() -> None:
@@ -295,3 +296,25 @@ def test_a_payments_role_owning_a_function_in_its_own_database_is_refused() -> N
         )
         with pytest.raises(RuntimeError, match=f"1 object\\(s\\) in its own database {DB}"):
             _mint(s)
+        assert _one(s, f"SELECT rolcreatedb FROM pg_roles WHERE rolname = '{PAY}'") == "t"
+
+
+@pytest.mark.parametrize(
+    "grant",
+    [
+        'GRANT CONNECT ON DATABASE "other" TO "{role}";',
+        'GRANT CREATE ON TABLESPACE pg_default TO "{role}";',
+        'GRANT SET ON PARAMETER work_mem TO "{role}";',
+    ],
+)
+def test_a_payments_role_holding_a_grant_on_a_shared_object_is_refused(grant: str) -> None:
+    """Grants on shared objects carry no database (dbid 0); a join to pg_database alone never sees them."""
+    with scratch_pg() as s:
+        _mint_clean(s)
+        s.run_sql('CREATE DATABASE "other";')
+        s.run_sql(grant.format(role=PAY))
+        with pytest.raises(
+            RuntimeError, match="grant\\(s\\) on shared object\\(s\\) outside its own database"
+        ):
+            _mint(s)
+        assert _one(s, f"SELECT rolcreatedb FROM pg_roles WHERE rolname = '{PAY}'") == "t"
