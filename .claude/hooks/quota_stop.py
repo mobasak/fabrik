@@ -20,7 +20,7 @@ tier), and `claude_rotate.py` itself, whose picture turns the tier into the WALL
 ⚠️ THE STAMP CARRIES TWO TIERS AND ONLY ONE OF THEM HOLDS (D-306). Its second line names which
 arm armed it. `walled` is the wall itself — a window at/over `ROTATE_THRESHOLD`, its `caps.json`
 cap, or 100. `urgent-90` is the SESSION window at `ROTATE_URGENT_DRAIN_PCT` (90) with no
-validated successor: EIGHT points of runway remain on the default `ROTATE_THRESHOLD` of 98. That
+validated successor: NINE points of runway remain on the default `ROTATE_THRESHOLD` of 99. That
 gap is on the SESSION window alone — `urgent` tests `five_hour` and a `caps.json` cap is applied
 to `seven_day`, so a cap never shortens it; it walls the weekly window on its own axis and can
 open an episode at `walled` outright. That runway is the whole reason the

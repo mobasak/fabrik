@@ -3413,7 +3413,7 @@ def _env_float(name: str, default: float) -> float:
 def _rotate_threshold() -> float:
     """The flip-away threshold on either quota window — ONE source for every call site.
 
-    Default **98** (operator rule 2026-09-08: "we can switch a lot faster now so i want to utilize
+    Default **99** since 2026-10-14 (below); before that **98** (operator rule 2026-09-08: "we can switch a lot faster now so i want to utilize
     them better — switch as soon as it reaches 98% session limit"). This SUPERSEDES the 95 of
     2026-09-03, and it is the same 98 that lost that day, so the reason it wins now is the part to
     keep: what changed is not the burst, it is the COST of losing the race.

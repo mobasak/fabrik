@@ -140,7 +140,7 @@ mode (≥1 scaffolded dir under `~/.claude-fleet/` — the login-once architectu
 telemetry + advisories ONLY — pinned-identity grouping, freshest-token quota with a
 cached-with-age fallback, ≥`ROTATE_DRAIN_THRESHOLD` (85) fires one advisory Telegram per
 account per 24h + drain fabrik-mail to that account's mapped repos; the FLIP LEG re-points the
-`active` pointer when the active account trips — the 5h leg at `ROTATE_THRESHOLD` (98, D-201), the weekly
+`active` pointer when the active account trips — the 5h leg at `ROTATE_THRESHOLD` (99 since 2026-10-14; 98 under D-201), the weekly
 leg at its `caps.json` cap — on the PROJECTED reading (reading + the burn since the previous tick, remembered in `state/tick-last-reading.json` — a line checked every 5 minutes must be crossed BEFORE the wall, D-103), to the perishable-first sibling with proven headroom (walled / cap-walled / ≥threshold /
 no-5h-budget siblings excluded), DWELL-EXEMPT — a trip is a wall, never churn (D-104); and at session ≥ 90 with NO
 eligible successor the wall advisory fires early as the operator's URGENT mail — stop gracefully, hook

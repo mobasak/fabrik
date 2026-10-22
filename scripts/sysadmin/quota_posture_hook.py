@@ -32,8 +32,8 @@ be trapped, so every failure path here returns 0.
 carries a TIER on its second line. At ``walled`` ``quota_stop.py`` owns the deny and this
 hook is SILENT on ``PreToolUse``; the tier is read BEFORE the band, so a lagging RED
 posture cannot produce a second, differently worded deny for the same call. At
-``urgent-90`` — the session window at the urgent-drain line with no successor, EIGHT points
-before the wall on the default ``ROTATE_THRESHOLD`` of 98 — ``quota_stop.py`` runs the LANE
+``urgent-90`` — the session window at the urgent-drain line with no successor, NINE points
+before the wall on the default ``ROTATE_THRESHOLD`` of 99 — ``quota_stop.py`` runs the LANE
 (W-18f559d9, D-1113): it ALLOWS only the bound merge owner of a coordinator_mode repo and the
 bound owner of an open P0 item and parks everyone else, so this hook keeps holding on its own
 band — an exempt session's new fan-out included — or a genuine fleet RED would pass both hooks
