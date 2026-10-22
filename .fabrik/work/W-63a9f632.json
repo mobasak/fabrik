@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T12:17:32.286948Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-63a9f632",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4YNBHERG5SVFGKPXFECNQAH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "re: coordinator role — NOT carried yet: two facts in fabrik-lib contradict it; settle with us first"
+}
