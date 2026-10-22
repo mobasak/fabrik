@@ -60,9 +60,13 @@ scripts/rund --name tests -- /opt/fabrik/scripts/capped_run.sh -- pytest -x  # b
 
 What it does on every launch:
 
-- **One total for the box.** It re-asserts a runtime-only ceiling on the shared `fabrik-tests.slice`
-  (`FABRIK_TEST_SLICE_MAX`, default 12G). Every capped run on the box shares that total, nested or
-  concurrent.
+- **Admission first.** It waits while MemAvailable is under 3 GiB or memory PSI `some avg10` is over 10, up to
+  `FABRIK_TEST_ADMIT_WAIT` seconds (default 300, and never more than half the run's time limit), then starts and says
+  so; the seconds waited count against the run's time limit; an unreadable meminfo or PSI starts at once
+  and says so.
+- **One total for the box.** It re-asserts a runtime-only ceiling on the shared `fabrik-agents-tests.slice`
+  (`FABRIK_TEST_SLICE_MAX`, default 12G), which nests under `fabrik-agents.slice` so the agents' parent ceiling bounds
+  it too. Every capped run on the box shares that total, nested or concurrent.
 - **A ceiling and a time limit per run.** It runs the command in its own scope in that slice, with a
   memory ceiling (`--mem` or `FABRIK_TEST_MEM_MAX`, default 4G, no swap) and a time limit (`--timeout`
   or `FABRIK_TEST_TIMEOUT`, default 1800 s).

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — agents_up relaunch: attach-first, wake prompt, one parent memory ceiling, tmux 3.4 fix (2026-10-22)
+
+- `agents_up.sh` attaches to a repo's grid when one is already up and launches only when none exists (D-1108, W-e841ac37) — only a session recording a DIFFERENT root refuses; it gains `--detach` (and detaches with no terminal), resumes builders with a wake prompt, `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 200, and uses `=name:` for every tmux option read and write, which tmux 3.4 needs (W-1961cc42). The per-pane MemoryMax is gone; the parent `fabrik-agents.slice` gets MemoryHigh = MemTotal − max(4G, floor) and MemoryMax = MemTotal − max(2G, floor − 2G), floor `FABRIK_AGENT_NONAGENT_FLOOR` (12G), the minimum margins when the floor leaves nothing, D-1075's 16G under 8G or unreadable (W-0b8a0fba). `capped_run.sh` nests under `fabrik-agents-tests.slice` and waits on a MemAvailable/PSI admission band, at most half its time limit, the seconds waited taken off the run's limit (W-6e656dac T05).
+
 ### Added — Seat dispatchers skip while a /hibernate pause is marked (2026-10-22)
 
 - `claude_broker.py` (a paused request gets a 503, audited, no window charged), `cloud_dispatch.py dispatch` (exits 0 before any registry or ledger work) and the fleet-synced `rivals_run.py` (checks once in `main()`) ask `hibernate.py paused` before any new seat; every other exit, a timeout or a missing script proceeds — the check fails open on a host without the hub checkout. Every seat they start carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and starts at `oom_score_adj` 500 (W-6e656dac T03b).
