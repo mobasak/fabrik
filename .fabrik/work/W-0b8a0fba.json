@@ -15,7 +15,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure per-pane peaks over a day (systemd-cgtop or MemoryPeak), raise FABRIK_AGENT_SLICE_MAX from 16G toward the box's real headroom (47 GB total, ~22 GB in use by processes), or make the slice ceiling a function of MemTotal and live pane count; keep MemorySwapMax=0; regression test on the computed ceiling",
+  "next": "measure per-pane peaks over a day (systemd-cgtop or MemoryPeak), raise FABRIK_AGENT_SLICE_MAX from 16G toward the box's real headroom (47 GB total, ~22 GB in use by processes), or make the slice ceiling a function of MemTotal and live pane count; keep MemorySwapMax=0; regression test on the computed ceiling 2026-10-22 13:35:02: kaizen's pane scope (run-u44.scope, MemoryMax=3G) hit its ceiling during its full /fabrik-review gate — the kernel OOM-killed semgrep-core (pid 27924, anon-rss 1.36 GB) INSIDE the pane cgroup, systemd failed the scope with result oom-kill (3.0G memory peak) and kaizen's claude died with it ('Resume this session with: claude --resume a3816a70…' left in the pane). Same class as intel ×2, dev1 and infra on 10-21. Fact for the fix: a hub builder running the gate's semgrep leg needs more than 3G; the coordinator relaunched kaizen at 6G (scratch kaizen-run6.sh); every hub builder should launch at the 6G line until T05 sizes the caps from measurement, and the gate's static tier (semgrep ~1.4 GB) is the known spike.",
   "note": "",
   "owner": "infra",
   "priority": 1,
