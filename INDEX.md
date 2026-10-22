@@ -461,6 +461,7 @@ docs/
 │   │   ├── 2026-10-15-plan-2-review-seat-write-isolation.md
 │   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
 │   │   ├── 2026-10-21-plan-3-own-scrape-slice-1a.md
+│   │   ├── 2026-10-22-plan-1-least-operator-approval.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
