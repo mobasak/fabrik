@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T12:06:32.808634Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-77ab84ca",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra (mail.py, review_loop_ledger.py); kaizen for the fragment wording; right-now + /fabrik-review-scoped each",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a seat probe wrote the live work store — the D-1129 sandbox class; two small code fixes",
+  "status": "open",
+  "title": "mail.py claim/ack/requeue write the LIVE work store even when FABRIK_MAIL_ROOT points at a scratch mail root: _note_mail_claim (mail.py:1672-1685) and _mail_store (:1641-1669) resolve the store from _main_checkout(), so a review seat's probe (claim as infra-2 on a scratch root, 2026-10-22) created a real kind:mail item W-b8c69d00 in the hub store (dropped). Fix the class: honour a FABRIK_WORK_ROOT override or skip the store link when FABRIK_MAIL_ROOT is not the default; say in that claim/ack/requeue write the work store; and the finder-brief fragment (commands/_fragments/subagents-core.md) should name it. Also: review_loop_ledger.py pin refuses a SYMLINK ('its bytes may live outside the repo'), so a symlink-only change cannot be pinned — pin the target or the readlink text instead."
+}

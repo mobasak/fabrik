@@ -8,7 +8,7 @@ One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,arch
 
     send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] [--auto]
           [--to-agent <role>] [--broadcast] < body
-          (hub-bound sends REQUIRE --to-agent coordinator|infra|fleet|intel|kaizen, --broadcast, or a
+          (hub-bound sends REQUIRE --to-agent coordinator|infra|fleet|intel|kaizen (or <beat>-<N>), --broadcast, or a
           kind=reply thread — the addressing guard; see the refusal text)
     list  [--repo <repo>] [--agent <role>]
     read  <id> [--repo <repo>]
@@ -546,6 +546,15 @@ def _frontmatter(
 # guards key on membership here. Project mailboxes keep free-form roles (_safe_agent is
 # shape-only). Adding a future beat = extend this tuple (plus the charter file).
 HUB_BEATS = ("coordinator", "infra", "fleet", "intel", "kaizen")
+# A hub AGENT is a beat or a numbered builder of one, `<beat>-<N>` (D-1128: coordinators create builders on
+# demand — infra-2, infra-3). Agent names address mail and replies; the ownership map's tokens stay BEATS, so mail
+# a map routes goes to the beat and a reply goes to the requester's own name (W-fa004224).
+_HUB_AGENT_RE = _re.compile(rf"(?:{'|'.join(HUB_BEATS)})(?:-[1-9][0-9]{{0,2}})?")
+
+
+def is_hub_agent(name: str) -> bool:
+    """True for a hub beat or a numbered builder of one (`infra`, `infra-2`; never `infra-0`, `infra-x`)."""
+    return bool(name) and _HUB_AGENT_RE.fullmatch(name) is not None
 
 
 def _safe_agent(name: str) -> str:
@@ -1426,10 +1435,10 @@ def send(
                 )
             to_agent = owner
             routed.append(_routed_line("map", "map", owner, f"ownership map ({routing.reason})"))
-        if to_agent and to_agent not in HUB_BEATS:
+        if to_agent and not is_hub_agent(to_agent):
             raise MailRefusedError(
-                f"unknown hub beat {to_agent!r} — a typo'd beat hides mail from every "
-                f"`list --agent` view; hub beats: {', '.join(HUB_BEATS)}"
+                f"unknown hub beat {to_agent!r} — a typo'd name hides mail from every "
+                f"`list --agent` view; hub agents: {', '.join(HUB_BEATS)} or <beat>-<N>"
             )
         # Threaded replies are exempt BY KIND (kind=="reply" with a --re), never by
         # parent resolvability: keying on resolvability broke the sanctioned --auto
@@ -1450,9 +1459,9 @@ def send(
             me = _caller_agent()
             asker = parent.get("from-agent") or ""
             inherited = parent.get("agent") or ""
-            if asker in HUB_BEATS and asker != me and parent.get("from") == to:
+            if is_hub_agent(asker) and asker != me and parent.get("from") == to:
                 to_agent = asker
-            elif inherited in HUB_BEATS and inherited != me:
+            elif is_hub_agent(inherited) and inherited != me:
                 to_agent = inherited
             elif inherited and inherited == me:
                 print(
@@ -2232,12 +2241,12 @@ def route(
     repo = repo or _current_repo()
     _safe_name(repo, "repo")
     agent = _safe_agent(to_agent or "")  # raises on an unsafe role BEFORE any mutation
-    if repo == "fabrik" and agent and agent not in HUB_BEATS:
+    if repo == "fabrik" and agent and not is_hub_agent(agent):
         # Same harm as the send guard, one verb later: a typo'd beat hides the message
         # from all three `list --agent` views. Clearing ('') stays legal — reversibility
         # is the point of route-as-filter.
         raise MailRefusedError(
-            f"unknown hub beat {agent!r} — hub beats: {', '.join(HUB_BEATS)} (or '' to clear)"
+            f"unknown hub beat {agent!r} — hub agents: {', '.join(HUB_BEATS)} or <beat>-<N> (or '' to clear)"
         )
     path = _mail_root() / repo / "inbox" / f"{msg_id}.md"
     try:
@@ -2979,7 +2988,7 @@ def main(argv: list[str] | None = None) -> int:
     p_send.add_argument(
         "--to-agent",
         dest="to_agent",
-        help="intra-mailbox addressee ROLE (coordinator/infra/fleet/intel/kaizen) — a filter, "
+        help="intra-mailbox addressee ROLE (coordinator/infra/fleet/intel/kaizen, or a numbered builder <beat>-<N>) — a filter, "
         "never a lock; "
         "`map` addresses a hub send to the ownership map's owner of its cited paths",
     )
@@ -3039,7 +3048,7 @@ def main(argv: list[str] | None = None) -> int:
         "--to-agent",
         dest="to_agent",
         default="",
-        help="role (coordinator/infra/fleet/intel/kaizen); omit or pass '' to CLEAR the addressee",
+        help="role (coordinator/infra/fleet/intel/kaizen, or <beat>-<N>); omit or pass '' to CLEAR the addressee",
     )
     p_route.add_argument("--repo")
     p_route.add_argument(

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T11:44:49.896049Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-b8c69d00",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5HP7QG7TKN8KAD02XK3D589",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "a review seat's mail probe (claim as infra-2 on a scratch mail root) created this item in the LIVE work store — seat pollution, not work; the sandbox item W-72dfd448 (D-1129) is the class fix",
+  "owner": "infra-2",
+  "priority": 2,
+  "status": "dropped",
+  "title": "probe"
+}
