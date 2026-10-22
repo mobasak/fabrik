@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — anchored span for CLAUDE.md heavy-surface list; rule drift from fabrik-lib mail",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "§ 1a's heavy-surface list should be an ANCHORED span so the next divergence is a gate warning, not a mail (fabrik-lib 01M2TT9K70EH8MJ4G5Q2BYTJVA)"
 }

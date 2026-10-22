@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A fix for an escaping defect repeats the defect in its own acceptance test unless an independent reader executes the test (2026-10-22)
+
+W-80ffca68 removed `\|` from rule-pack code spans. The design's TERMINAL line proved the result with `grep -rno '`[^`]*\|[^`]*`' … | wc -l` → 0 — in GNU BRE a single `\|` is alternation, so that pattern matches nearly every line with a backtick (120 hits in one pack, 23,147 over the tree) and could never reach 0. Both design critique seats caught it by running it; the author had measured the real count with a different spelling and pasted the design from memory.
+- **A claim with a checkable referent is a script, not prose.** The grep in the design was never executed as written; the fixed-string form (`grep -rnF '\|'`) was, and became the terminal.
+- **The second markdown walk is where the review earned its cost.** A hand-written fence/comment/table state machine looked right and passed its author's 7 graders; the Sonnet finder's out-of-grammar probes (a 4-backtick fence, a `~~~` inside a backtick fence, a `<!--` inside a fence, an escaped backtick, a span across cells, a BOM, a tab) found 9 fail-open or false-positive shapes in it, each then pinned by a grader and a mutant. Probe a parser against inputs outside its grammar before the pin, not after a seat does.
+
 ## A "is this source fresh?" signal needs a quiet day and an unrelated update tested before it ships (2026-10-22)
 
 W-02472911 built the token-waste series. Its red-master count reads git, and a stale ref must not publish a measured 0.

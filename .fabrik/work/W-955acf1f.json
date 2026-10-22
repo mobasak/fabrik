@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — lane table wording in CLAUDE.md, fabrik-lib waiting",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "The lane table's \"a governance-sync path\" reads as inapplicable in every repo that is a sync SOURCE (fabrik-lib 01M2TT9K70EH8MJ4G5Q2BYTJVA)"
 }
