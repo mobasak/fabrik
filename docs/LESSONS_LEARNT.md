@@ -1,6 +1,13 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A "is this source fresh?" signal needs a quiet day and an unrelated update tested before it ships (2026-10-22)
+
+W-02472911 built the token-waste series. Its red-master count reads git, and a stale ref must not publish a measured 0.
+- **Each freshness rule failed on a case the next review found.** Version 1 (the tip is past the day) made every quiet day on master unknown forever. Version 2 (tip, reflog or FETCH_HEAD mtime) let a fetch of another branch vouch for a stale ref. Version 3 counts FETCH_HEAD only when it names the ref's branch. Two review rounds went to one heuristic. Both test cases, a quiet day and an unrelated update, were writable on day one.
+- **"Unknown is never 0" cuts both ways.** A rotation transcript without usage was first unknown, then 0 (to stop a dead session blanking a day), then unknown again: an agent binds its name through a model call, so no usage means not flushed yet. Settle the meaning of an absent value from how the source is produced, before choosing a side.
+- **An idempotent publish freezes whatever it first writes.** A day published partial or as a false 0 is never corrected. Unknown days need a retry window (`publish_recent`, three days), and a value is published only when its source can vouch for the whole day.
+
 ## A credential check that cannot tell a refused key from a refused network must say so, not guess (2026-10-19)
 
 W-3350006b made mcp_health present exa's and firecrawl's keys.
