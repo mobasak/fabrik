@@ -263,6 +263,7 @@ re-opens on M1 activation data.
 | `scripts/sysadmin/kaizen_coroner.py` | post-hoc death/revival reconstruction + session closure + the hole metric |
 | `scripts/sysadmin/kaizen_outcomes.py` | outcome tier: rework miner, fleet-health sweep, premature-stop reader |
 | `scripts/sysadmin/kaizen_backfill.py` | one-time transcript-era backfill + the noise-floor report |
+| `scripts/sysadmin/kaizen_waste.py` | the token-waste tier (D-1118): six daily waste series + breakdown, `--backfill`, `--rebaseline`; categories and control rules in `docs/reference/kaizen-waste-define.md` |
 | `scripts/sysadmin/weekly_catchup.sh` | wake-proof stamp-check runner (daily kaizen jobs + weekly audits) |
 | `scripts/sysadmin/archived/kaizen_metrics.py` | the RETIRED weekly v1 meter (M0 operator ruling) |
 | `scripts/sysadmin/kaizen_shrink_audit.py` / `kaizen_immune_list.py` | the M0 census engine + immune registry |
@@ -282,7 +283,12 @@ re-opens on M1 activation data.
 (latest point + delta vs the prior point, highest series version per metric) and `--send` posts it
 to the operator's Telegram via `send-telegram.sh`. Built on the operator's challenge — the
 collector had published real series for days into a log nobody is shown; measurement without a
-reader is wallpaper. An EMPTY store composes a loud warning, never a quiet skip.
+reader is wallpaper. An EMPTY store composes a loud warning, never a quiet skip. Points are read in DAY
+order (a backfill appends older days after a daily publish). The message opens with the waste series'
+CONTROL section (D-1118): an `OUT OF CONTROL ↑` line per series above its frozen 3-sigma limits or 8 in a
+row above its centre, an `IMPROVED ↓` line for a downward shift to re-baseline, then the baselines still short
+of 14 points; a failure inside the section prints `CONTROL unavailable` and leaves the rest of the digest
+intact — rules in `docs/reference/kaizen-waste-define.md`.
 
 Cron (⚠️ operator-installed — agent crontab writes are classifier-blocked on this box):
 
@@ -397,5 +403,6 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/kaizen_collect.py`
 - `scripts/sysadmin/kaizen_collect_v2.py`
 - `scripts/sysadmin/kaizen_digest.py`
+- `scripts/sysadmin/kaizen_waste.py`
 - `scripts/sysadmin/vps_script_drift.py`
 <!-- END related-scripts -->
