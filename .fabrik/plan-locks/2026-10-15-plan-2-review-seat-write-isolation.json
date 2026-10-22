@@ -1,0 +1,16 @@
+{
+  "plan": "docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md",
+  "owned_paths": [
+    ".claude/hooks/seat_guard.py",
+    "tests/test_seat_guard.py",
+    "docs/workstation/hooks-index.md",
+    "docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md",
+    "docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md",
+    "docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md"
+  ],
+  "branch": "worktree-intel",
+  "started_at": "2026-10-21T23:42:53+00:00",
+  "status": "active",
+  "baseline_commit": "9fa2aef1f",
+  "baseline_gate": "final_gate --check success at 9fa2aef1f (no red checks)"
+}

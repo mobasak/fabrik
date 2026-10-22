@@ -168,6 +168,13 @@ an interpreter re-opens this design with approach D (below) or a filesystem-leve
   hub seats to the Agent tool: the Agent-tool briefs (`commands/_fragments/subagents-core.md`,
   `commands/_fragments/no-workflow-hub.md`, each review command's seat brief) name a `seat-` folder under
   `RUN-SCRATCH` too. So no scratch root is added.
+  **As built (D-XXXX): the census was wrong, and a scratch root IS added.** The plan's step-7 replay of 54,727 real
+  seat commands found 2,713 new refusals. 418 were hub seats writing their D-836 run folder `<repo>/.tmp/runs/<sid>/`,
+  and 1,863 were fabrik-lib seats writing the `<worktree>/.tmp/<run>/seat-…` folders their briefs name. So a path
+  inside a repo's gitignored `.tmp/` is scratch, minus another session's `.tmp/runs/<sid>/` and the ancestors `.tmp`
+  and `.tmp/runs`. The same replay added three more reads: a variable assigned a literal on the line, `$PWD`, and a
+  `for` loop over plain words; it also fixed the extractor to honour escapes and double quotes. The residue is 42
+  refusals (0.08%); the plan's Evidence carries each class.
 - The tool list of `fabrik-reviewer` becomes a tested contract: granting it Write/Edit/NotebookEdit fails a test.
 - Non-seat agents and the lead: no change.
 

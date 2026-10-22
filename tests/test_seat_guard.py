@@ -391,3 +391,253 @@ def test_malformed_seat_payloads_produce_nothing() -> None:
     base = {"tool_name": "Bash", "agent_id": "a", "agent_type": "fabrik-reviewer"}
     for ti in ("notadict", None, {"command": None}, {"command": ["ls"]}, {}):
         assert _run("", raw=json.dumps({**base, "tool_input": ti})) == "", ti
+
+
+# --- W-72dfd448: a seat writes only under its scratch dir (plan 2026-10-15-plan-2, D-1116) -------------------------
+# Spec docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md § The delta; the rows are the plan's
+# Phase A Behavior Contract, A1-A11.
+
+AGENT_DEF = REPO / "commands" / "_agents" / "fabrik-reviewer.md"
+
+
+def _frontmatter_tools() -> list[str]:
+    text = AGENT_DEF.read_text(encoding="utf-8")
+    head = text.split("---", 2)[1]
+    line = next(ln for ln in head.splitlines() if ln.startswith("tools:"))
+    return [t.strip() for t in line.split(":", 1)[1].split(",") if t.strip()]
+
+
+def test_a1_the_review_seat_holds_no_file_writing_tool() -> None:
+    tools = _frontmatter_tools()
+    assert tools, "the tools: line is empty"
+    assert not set(tools) & {"Write", "Edit", "NotebookEdit", "MultiEdit"}, tools
+
+
+def test_a2_the_lead_and_other_agents_may_write_anywhere() -> None:
+    for agent in (None, "general-purpose"):
+        for cmd in ("echo x > Makefile", "rm -rf src"):
+            assert not _denied(_run(cmd, agent_type=agent)), (agent, cmd)
+
+
+def test_a3_a_seat_redirect_to_a_live_path_is_denied_naming_it() -> None:
+    for cmd in (
+        "echo x > Makefile",
+        "echo x >> docs/a.md",
+        "ls | tee Makefile",
+        "cmd &> out.log",
+        "cmd >& out.log",
+        "cmd &>2",
+        "cmd <> Makefile",
+        "> Makefile",
+        "{ echo x; } > Makefile",
+        "(true) > Makefile",
+        "for i in a; do echo; done > Makefile",
+        "exec 3> Makefile",
+        f"cp {SCRATCH}/a 2 >/dev/null",
+    ):
+        out = _run(cmd)
+        assert _denied(out), cmd
+        assert "outside it" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"], (
+            cmd
+        )
+
+
+def test_a4_dev_fd_and_scratch_destinations_are_allowed() -> None:
+    for cmd in (
+        "cmd > /dev/null 2>&1",
+        "cmd 2>&1 | head",
+        "cmd >&2",
+        f"echo x > {SCRATCH}/a",
+        f"cd {SCRATCH} && echo x > a",
+        f"mkdir -p {SCRATCH}/d 2>/dev/null",
+        f"truncate -s 0 {SCRATCH}/f",
+        f"rm -f {SCRATCH}/*.tmp",
+        "dd if=f of=/dev/null",
+        "ls | tee /dev/stderr",
+        "cmd > /dev/stdout",
+        "curl -s -o /dev/null https://example.com",
+        f"gzip -c f > {SCRATCH}/f.gz",
+        'echo "2>x"',
+    ):
+        assert not _denied(_run(cmd)), cmd
+
+
+def test_a5_reads_of_the_live_tree_into_scratch_are_allowed() -> None:
+    for cmd in (
+        f"cp /opt/fabrik/Makefile {SCRATCH}/",
+        f"cp -r src {SCRATCH}/s",
+        "cat Makefile",
+        "perl -Mstrict -ne print Makefile",
+    ):
+        assert not _denied(_run(cmd)), cmd
+
+
+def test_a6_a_seat_write_verb_aimed_at_the_live_tree_is_denied() -> None:
+    for cmd in (
+        f"cp {SCRATCH}/x Makefile",
+        "mv a b",
+        f"mv Makefile {SCRATCH}/",
+        f"rsync --remove-source-files Makefile {SCRATCH}/",
+        "rm -rf src",
+        "unlink f",
+        "gzip Makefile",
+        "touch x",
+        "mkdir d",
+        "truncate -s 0 f",
+        "sed -i s/a/b/ f",
+        "sed -Ei s/a/b/ f",
+        "sed --in-place=.bak s/a/b/ f",
+        "perl -pi -e 1 f",
+        "perl -i -pe 1 f",
+        "dd if=/dev/zero of=f",
+        "install -t bin x",
+        f"cp -rt src {SCRATCH}/x",
+        "install -d live",
+        f"ln -s {SCRATCH}/x",
+        "sort -o f in",
+        "bash -c 'rm -rf src'",
+        "cd src > log",
+        "echo x > /dev/../opt/fabrik/Makefile",
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a7_unknown_home_brace_glob_and_ancestor_destinations_are_denied() -> None:
+    slug_dir = SCRATCH.rsplit("/", 2)[0]  # /tmp/claude-1000/-opt-x
+    for cmd in (
+        'rm -rf "$D"',
+        "echo x > $(pwd)/x",
+        "touch ~/x",
+        f"cd {SCRATCH} && touch ~/x",
+        "rm -rf /tmp/*",
+        "rm -rf /tmp/claude-1000",
+        f"rm -rf {slug_dir}",
+        f"touch {SCRATCH}/{{x,/../../opt/f}}",
+        f"rm {SCRATCH}/*/../../opt/f",
+        "rm -rf /tmp/cl*",
+        f"rm -rf {slug_dir[:-2]}*",
+        'cp /tmp/s/a "2">/dev/null',
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a8_an_untokenisable_write_is_denied_and_a_bare_echo_is_not() -> None:
+    assert _denied(_run('echo "x > Makefile'))
+    assert not _denied(_run('echo "unterminated'))
+    assert not _denied(_run('echo "unterminated 2>/dev/null'))
+
+
+def test_a9_a_crash_in_the_write_rule_fails_open_and_keeps_the_git_rule(monkeypatch) -> None:
+    spec = importlib.util.spec_from_file_location("seat_guard_write_raise", HOOK)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    def boom(*a, **k):
+        raise RuntimeError("write rule bug")
+
+    monkeypatch.setattr(mod, "_write_reason", boom)
+
+    def run(command: str) -> dict | None:
+        payload = {
+            "agent_id": "a",
+            "agent_type": "fabrik-reviewer",
+            "session_id": SID,
+            "cwd": "/opt/fabrik",
+            "scratchpad_dir": SCRATCH,
+            "tool_name": "Bash",
+            "tool_input": {"command": command},
+        }
+        monkeypatch.setattr(mod.sys, "stdin", io.StringIO(json.dumps(payload)))
+        buf = io.StringIO()
+        monkeypatch.setattr(mod.sys, "stdout", buf)
+        assert mod.main() == 0
+        return json.loads(buf.getvalue())["hookSpecificOutput"] if buf.getvalue().strip() else None
+
+    out = run("echo x > Makefile")
+    assert out is not None and "permissionDecision" not in out and "updatedInput" in out
+    out = run("touch x; git reset --hard")
+    assert out is not None and out.get("permissionDecision") == "deny"
+    assert _run("", raw="not json") == ""
+
+
+def test_a10_env_dash_c_moves_the_cwd_for_its_own_command_only() -> None:
+    assert _denied(_run(f"env -C {SCRATCH} true; rm -rf src"))
+    assert _denied(_run(f"env -C {SCRATCH} true; git reset --hard"))
+    assert not _denied(_run(f"env -C {SCRATCH} touch x"))
+
+
+def test_a11_a_here_string_hides_nothing() -> None:
+    assert _denied(_run("cat <<< hi\ngit reset --hard\nhi"))
+
+
+def test_a12_a_repo_tmp_run_folder_is_scratch_but_not_a_siblings() -> None:
+    # the false-refusal replay (D-1116 condition 2): seats are briefed into the D-836 run folder and fabrik-lib's
+    # `<worktree>/.tmp/<run>/seat-…` folders
+    for cmd in (
+        f"mkdir -p /opt/fabrik/.tmp/runs/{SID}/fabrik-review-x/seat-sonnet",
+        "mkdir -p /opt/fabrik-lib/.claude/worktrees/dev1/.tmp/sb116/seat-opus/tree",
+        "cd .tmp/w1/seat && echo x > out.txt",
+    ):
+        assert not _denied(_run(cmd)), cmd
+    for cmd in (
+        "rm -rf /opt/fabrik/.tmp/runs/other-sid/fabrik-review-x",
+        "rm -rf /opt/fabrik/.tmp/runs",
+        "rm -rf /opt/fabrik/.tmp",
+        "rm -rf /opt/fabrik/.tmp/*",
+        "rm -rf /opt/fabrik/.tmp/../src",
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a13_a_variable_assigned_a_literal_on_the_line_is_resolved() -> None:
+    for cmd in (
+        f"S={SCRATCH}/run; mkdir -p $S/seat && cp Makefile $S/seat/",
+        f"export S={SCRATCH}; P=${{S}}/pins; mkdir -p $P",
+        f"S={SCRATCH}\ncd $S && touch x",
+    ):
+        assert not _denied(_run(cmd)), cmd
+    for cmd in (
+        "S=/opt/fabrik; rm -rf $S/src",
+        f"S={SCRATCH}; S=$(pwd); rm -rf $S/x",
+        f"(S={SCRATCH}); rm -rf $S/x",
+        f"S={SCRATCH} true; rm -rf $S/x",
+        'rm -rf "$D"',
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a14_quoting_escapes_and_dry_runs_are_read_as_the_shell_reads_them() -> None:
+    # the replay's extractor classes: an escaped backtick, a quote inside the other quote, <( ) in double quotes
+    for cmd in (
+        'grep -n "only a \\`<date>-plan\\`" f',
+        'grep "intel\'s \\`x > y\\`" f',
+        "echo '$(touch x)'",
+        'echo "a <(b) >(c)"',
+        "rsync -an src/ /opt/elsewhere/",
+        "rsync --dry-run src/ /opt/elsewhere/",
+        f"cd {SCRATCH} && S=$PWD && touch $S/x",
+    ):
+        assert not _denied(_run(cmd)), cmd
+    for cmd in (
+        'echo "$(touch x)"',
+        "echo `touch x`",
+        "rsync -a src/ /opt/elsewhere/",
+        "S=$PWD; touch $S/x",
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a15_a_for_loop_over_plain_words_is_resolved_and_a_path_word_is_not() -> None:
+    assert not _denied(
+        _run(f"cd {SCRATCH}; for m in prune lock; do rm -rf mm_$m; cp -r src mm_$m; done")
+    )
+    assert not _denied(_run(f"for m in a b; do mkdir -p {SCRATCH}/m$m; done"))
+    for cmd in (
+        f"for m in a ../../../opt/x; do rm -rf {SCRATCH}/$m; done",
+        f"for m in a ..; do rm -rf {SCRATCH}/x/$m/..; done",
+        f"for m in $(ls); do rm -rf {SCRATCH}/$m; done",
+        f"for m; do rm -rf {SCRATCH}/$m; done",
+        "for m in a b; do rm -rf mm_$m; done",
+    ):
+        assert _denied(_run(cmd)), cmd

@@ -1,6 +1,6 @@
 # Plan — review seats: write isolation in the seat guard (W-72dfd448)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** intel
 **Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring, re-grounded at 21744dd43 (2026-10-22; seat_guard.py and
@@ -165,6 +165,10 @@ delta 2, 3 and 5, cited rather than restated):
 - **Given** raw non-JSON stdin, and a seat payload whose new write path raises (injected in-process with `monkeypatch`, the one grader outside `_run()`), **When** the hook runs, **Then** no deny from the write rule — no output for raw stdin, only the existing `updatedInput` envelope for the seat (fail open) — and on `touch x; git reset --hard` with the write path raising, the git rule still denies (A9)
 - **Given** the same seat, **When** `env -C <scratch> true; rm -rf src` or `env -C <scratch> true; git reset --hard`, **Then** denied (the cwd move is scoped to its command); `env -C <scratch> touch x` is allowed (A10)
 - **Given** the same seat, **When** `cat <<< hi` followed on later lines by `git reset --hard` and `hi`, **Then** denied (a here-string hides nothing) (A11)
+- **Given** the same seat, **When** `mkdir -p /opt/fabrik/.tmp/runs/<its sid>/<run>/seat-x`, `mkdir -p <worktree>/.tmp/<run>/seat-x/tree`, `cd .tmp/w1/seat && echo x > out.txt`, **Then** allowed (a repo's gitignored run scratch); `rm -rf` of another sid's `.tmp/runs/<sid>/…`, of `.tmp/runs`, `.tmp`, `.tmp/*` or `.tmp/../src`, **Then** denied (A12 — added by the step-7 replay)
+- **Given** the same seat, **When** a variable is assigned a literal earlier on the line (`S=<scratch>/run; mkdir -p $S/seat`, `export S=…; P=${S}/pins`), **Then** it is resolved and allowed; a reassignment to `$(pwd)`, a subshell's assignment, an env prefix (`S=… true`) and an unassigned `"$D"` stay unknown and denied (A13 — step-7 replay)
+- **Given** the same seat, **When** an escaped backtick in double quotes, a `'` inside double quotes, `<( )` inside double quotes, `$(…)` inside single quotes, `rsync -an`/`--dry-run`, or `cd <scratch> && S=$PWD && touch $S/x`, **Then** allowed; `echo "$(touch x)"`, `` echo `touch x` ``, `rsync -a src/ /opt/elsewhere/` and `S=$PWD; touch $S/x` from the repo, **Then** denied (A14 — step-7 replay)
+- **Given** the same seat, **When** `for m in a b; do … <scratch>/m$m; done` or the loop run inside scratch, **Then** allowed; a loop word with `/` or `..`, `for m in $(ls)`, `for m;` and a loop writing `mm_$m` in the repo, **Then** denied (A15 — step-7 replay)
 - **Mocked:** only A9's crash injection (`monkeypatch` on the new write path, in-process); every other grader runs the real hook as a subprocess on a synthetic payload (`_run()`); A1 reads the real agent definition.
 
 ## Phase B — Finish
@@ -366,6 +370,86 @@ $ _strip_heredocs('cat <<-EOF\n\tbody\n\tEOF\nls')          -> 'cat <<-EOF\nls'
 ```text
 'cp /tmp/a 2 >/dev/null' -> [('cp', 3), ('/tmp/a', 10), ('2', 12), ('>', 14), ('/dev/null', 22)]
 'cp /tmp/a 2>/dev/null'  -> [('cp', 3), ('/tmp/a', 10), ('2', 12), ('>', 13), ('/dev/null', 21)]
+```
+
+- **Executed 2026-10-22 — Phase A, steps 1-5.** A3 and A6-A11 were seen red against today's hook first. The rows
+  green today were proven by a neuter in a throwaway worktree of `9fa2aef1f`
+  (`git worktree add --detach <scratch>/rv/probe HEAD`, edited hook and tests copied in, each neuter applied alone,
+  its rows run, the file restored). Two plan wordings did not hold. A4's glob neuter is "treat every glob as unknown":
+  "judge a glob by its whole path" does not redden, because the whole path is still inside scratch. And `echo "2>x"`
+  has no possible red, because shlex keeps quoted punctuation inside one token; the quote check's red is A7's
+  `"2">x`.
+
+```text
+RED  A1 add Write to the tools line: 1 failed, 43 deselected
+RED  A2 drop decide()'s early return: 1 failed, 43 deselected
+RED  A4 drop the /dev exemption / the fd-dup exemption / treat every glob as unknown / drop the gzip -c exemption: 1 failed each
+RED  A5 judge cp sources as destinations / drop the -M/-m/-I exclusion: 1 failed each
+RED  A8 match every > in the fallback: 1 failed
+RED  A9 let the write rule's exception escape: 1 failed
+RED  A10 judge env -C operands against the cwd before it: 1 failed
+all neuters red
+```
+
+- **Step 7, the false-refusal replay (D-1116 condition 2).** Population: every
+  `~/.claude/projects/*/*/subagents/agent-*.meta.json` with `agentType: fabrik-reviewer` whose transcript holds a
+  Bash `tool_use` dated 2026-10-01 or later. That covers every repo's seats, not only the hub's. Subagent transcripts
+  are pruned after 3 days (CLAUDE.md § Pointers, D-736), so the window really covers about 2026-10-19 to 2026-10-22.
+  Each command went through the new `decide()` and the old one (HEAD's hook), using the seat's own cwd, its lead's
+  session id and that session's scratchpad.
+  "New refusals" are commands the old hook allowed and the new one refuses.
+
+```text
+first replay (steps 1-6 hook):  seats=2005 commands=54727 old_refusals=92 new_refusals=2713 errors=0
+  1992 /opt/fabrik-lib/.claude/worktrees/<wt>/.tmp/…   418 /opt/fabrik/.tmp/runs/<sid>/…   ~250 `S=<scratch>…; … $S/…`
+final replay (fixed hook):       seats=2011 commands=54965 old_refusals=92 new_refusals=42 errors=0
+```
+
+  The 2,713 refusals were false refusals in four classes, each fixed with a grader: the repo run scratch
+  `<repo>/.tmp/…` (A12), a literal variable assigned on the line (A13), the extractor's quote handling plus `$PWD` and
+  `rsync -n` (A14), and a `for` loop over plain words (A15). This disproves the census above: seats were briefed
+  into `.tmp/runs/<sid>/` (the D-836 RUN-SCRATCH) and into fabrik-lib's `<worktree>/.tmp/<run>/`. Nine of the 42
+  remaining refusals are true positives, writes the rule exists to stop:
+
+  - `rm` of `/opt/fabrik/.claude/worktrees/fleet/p.py`;
+  - `mv` of `…/fleet/r2.tar` and of `…/fabrik-lib-sentinel/base.tar`;
+  - `printf … > p4.py` and `> scratchp.py` written into a live worktree;
+  - a double-quoted `$(touch pwned)` that bash ran in infra's worktree;
+  - `touch`/`rm` under `~/.claude/bin/backups`.
+
+  The other 33 refusals:
+
+  - 9 are commands bash rejects too (`bash -n` errors), so no cost.
+  - 9 are an unknown value inside the seat's own scratch: `$(…)`, a function's `$1`, a loop over words containing `/`,
+    an unset `$R`. These fail closed, as spec § The delta requires.
+  - The rest (8 + 7) are the stated cost. 8 are writes into `/tmp/claude-<uid>/` outside any session tree
+    (`x133b`, `sb083-dummy-never.sql`), dirs those seats improvised. 7 are mis-parses: a single-quoted literal `$` in
+    a path (4, one seat's injection probe), a quoted `{` in `HEAD^{tree}`, nested `bash -c` quoting, and one
+    shlex/bash split on a double-quoted `\$b\$`.
+
+  The cost is 15 refusals in 54,965 seat commands (0.027%), and each refusal names its fix (write under scratch).
+  Fifteen old git refusals no longer fire. Every one is `git -C $S/…` or `$PWD/wt` resolving to the seat's own
+  scratch, or a git word inside quoted printf data. Each was read and is correct.
+
+```text
+RED  A12 no repo .tmp scratch / any run sid is ours / .tmp itself is scratch: 1 failed each
+RED  A13 no expansion / a computed value keeps the old literal / a subshell's vars survive / an env prefix sets a shell var: 1 failed each
+all neuters red
+```
+
+- **Step 7b, the live probe (D-1116 condition 3, before merge).** One Haiku `fabrik-reviewer` Agent-tool seat ran
+  against the edited hook in this worktree:
+
+```text
+1. cd <scratch>/rv/seat-probe && pwd                         ALLOWED  <scratch>/rv/seat-probe
+2. printf x > <scratch>/rv/seat-probe/ok && cat …/ok           ALLOWED  x
+3. printf x > /opt/fabrik/.claude/worktrees/intel/.seat-probe-5ce9d888
+   REFUSED  PreToolUse:Bash hook error: seat guard (review seats run in the lead's shared tree): a review seat writes
+   only under its scratch dir — /opt/fabrik/.claude/worktrees/intel/.seat-probe-5ce9d888 is outside it. run a git
+   write only as `git -C <absolute repo under your scratch dir>` … never kill by pattern — kill a numeric pid you started.
+$ ls /opt/fabrik/.claude/worktrees/intel/.seat-probe-5ce9d888
+ls: cannot access '…/.seat-probe-5ce9d888': No such file or directory
+$ git status --short    # only this phase's own edits; no file from the seat
 ```
 
 - External: https://code.claude.com/docs/en/hooks (subagent `agent_id`/`agent_type`; exact-string matchers) and
