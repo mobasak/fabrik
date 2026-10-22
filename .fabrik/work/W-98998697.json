@@ -3,7 +3,7 @@
   "created": "2026-10-22T22:30:59.783150Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "0b85d126b03aa52b6c4b0f16dbc612c887d8bf4f",
   "id": "W-98998697",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-1105 (panel ruling) says the deploy STOPS on an escalated payments login; infrastructure.py:684 records the registrar refusal via _nonfatal, so a deploy ships past a fail-closed security rule — one code change plus its test; orchestrator deploy path is fleet's beat",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
