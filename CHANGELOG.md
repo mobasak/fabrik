@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Token-waste series in the kaizen instrument, with control charts in the daily digest (2026-10-22)
+`scripts/sysadmin/kaizen_waste.py` (W-02472911, D-1118, D-1120) publishes six daily waste series from the existing ledgers: context and output per API call, review-seat share, quota-wall rate, context rebuilt per session rotation, and red-master fix commits. Each series has a per-agent and per-command breakdown, `--backfill` and `--rebaseline`. `kaizen_collect_v2.daily()` publishes the series lazily and fail-open. `kaizen_digest.py` reads points in day order and opens with a CONTROL section that applies frozen XmR / c-chart limits, 8-in-a-row and a 20-close floor. Categories and rules are in `docs/reference/kaizen-waste-define.md`.
+
 ### Fixed — Firecrawl proxy grader reads recrawl, retrieve and "scrapers at Firecrawl"; a reader's "read" is no fetch (2026-10-22)
 `tests/test_firecrawl_proxy_basic.py` (W-ddb716ca): `MENTION` now catches re-crawl and retrieve in every inflection and the verb-then-`at Firecrawl` form, and its 40-character far lookahead no longer counts `read`, which false-redded "Firecrawl docs are easy to read" (`read` still counts right after Firecrawl). One fixture per change, each proven red when its change is undone.
 
