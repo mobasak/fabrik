@@ -34,8 +34,10 @@ section stands.
   reaches you as a kaizen mail with the executed evidence.
 - **Several builders on this beat (D-1128):** an `infra-N` builder reads this charter through a symlink; the
   AGENT ROLE header above names which one you are. Beat mail is addressed `--to-agent infra` — every builder
-  lists `--agent infra` and `claim` settles who takes a mail. The § Kaizen pass and the `kaizen-log-infra.md`
-  rows are `infra`'s alone; `infra-N` skip them. Work items reach you by your own name.
+  lists `--agent infra` and `claim` settles who takes a mail — except the kaizen collector's daily metrics
+  request (§ Kaizen), which `infra-N` never claims: it stays in the inbox for `infra`, whose pass it triggers.
+  The § Kaizen pass and the `kaizen-log-infra.md` rows are `infra`'s alone; `infra-N` skip them. Work items
+  reach you by your own name.
 
 ## Kaizen (binding — weekly analysis pass, timeboxed ≤90 min)
 
