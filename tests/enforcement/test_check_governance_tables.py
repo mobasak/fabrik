@@ -189,3 +189,183 @@ def test_unreadable_contract_is_reported_not_raised(tmp_path, monkeypatch, capsy
     assert rc_gate == 0, "warn_only contract: an unreadable contract must not exit non-zero"
     assert rc_strict == 1, "--strict must still carry the regression signal"
     assert "could not be read" in out
+
+
+# --- the code-span rule (W-80ffca68): a pipe spelled to survive a TABLE, inside a code span -------
+#
+# Inside a table row GFM un-escapes `\|` to `|` but the RAW reader (how a rule pack reaches an agent)
+# sees `\|` — invalid Python, JS or URL. Outside a row both readers see `\|`, where GNU BRE alternation
+# is legitimate, so the rule is scoped to rows inside a delimiter-confirmed table. Each guard's subject
+# is written several LEGITIMATE ways (core/45-testing-strategy § Banned Patterns), never one spelling.
+
+_PACK_REL = ".windsurf/rules/core/10-python.md"
+_SPAN_PINNED_REMEDY = (
+    "a table-escaped pipe inside a CODE SPAN is `|` to the rendered reader and a literal "
+    "backslash-pipe to the RAW reader (invalid Python, JS or URL; alternation in GNU BRE) — rephrase so "
+    "the span carries no pipe: move the alternation into prose beside the span, split the span in two, "
+    "or lift the example into a fenced block; never an HTML entity (`&#124;` stays literal for BOTH "
+    "readers)."
+)
+
+
+def _pack(root: Path, body: str) -> Path:
+    p = root / _PACK_REL
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+_TABLE = "| Don't | Do |\n|---|---|\n"
+
+
+def test_span_pipe_in_a_rule_pack_row_is_reported(tmp_path, monkeypatch, capsys):
+    """B1 — five legitimate spellings of the defect, each in its own pack row; file:line and the span named;
+    the gate's own call stays rc 0 (warn_only) while --strict carries the signal."""
+    mod = _load()
+    root = _root(tmp_path, _GOOD)
+    rows = [
+        "| `Optional[str]` | `str \\| None` |",  # Python union
+        "| `process.env.X \\|\\| 'default'` | throw |",  # JS or-fallback, two pipes
+        '| `auth.x` | `{reason: "a" \\| "b"}` |',  # schema literal
+        "| states | `/login?reason=invalid\\|wrong-browser` |",  # URL alternation
+        "| cls | ``f(x) → (a, b) \\| None`` |",  # a double-backtick span
+        "| cls | ``a ` b \\| None`` |",  # a double-backtick span holding a single backtick: ONE span
+    ]
+    # Shapes a review seat found the first walk MISSED, each a real table GFM renders (markdown_it):
+    later = (
+        "\n```\n~~~\n```\n"
+        + _TABLE
+        + "| t | `tilde \\| inside` |\n"  # a ~~~ line closes no ``` fence
+        "\n    ```\n" + _TABLE + "| i | `indent4 \\| marker` |\n"  # a marker indented 4 is code
+        "\n```html\n<!-- opener inside a fence\n```\n" + _TABLE + "| c | `after \\| comment` |\n"
+        "\n" + _TABLE + "| e | use \\` and `escaped \\| then` |\n"  # an escaped backtick is text
+        "| f | `x | `cell \\| split` |\n"  # cells are split before spans: no span crosses a cell
+    )
+    _pack(root, "\ufeff" + _TABLE + "\n".join(rows) + "\n" + later)  # a BOM hides nothing
+    rc_gate = _run(mod, root, [], monkeypatch)
+    out = capsys.readouterr().out
+    assert rc_gate == 0, "warn_only contract: a span finding must not fail the gate"
+    assert "ADVISORY" in out
+    for lineno in (3, 4, 5, 6, 7, 8):
+        assert f"{_PACK_REL}:{lineno}:" in out, f"row {lineno} missing from:\n{out}"
+    assert out.count(": code span carries a table-escaped pipe") == 11, out
+    for span in (
+        "`tilde \\| inside`",
+        "`indent4 \\| marker`",
+        "`after \\| comment`",
+        "`escaped \\| then`",
+        "`cell \\| split`",
+    ):
+        assert f"The span: {span}" in out, f"{span} missed:\n{out}"
+    assert "The span: `str \\| None`" in out
+    assert "The span: ``a ` b \\| None``" in out, "a double-backtick span is ONE span"
+    assert _run(mod, root, ["--strict"], monkeypatch) == 1
+
+
+def test_span_pipe_outside_a_table_row_is_not_reported(tmp_path, monkeypatch, capsys):
+    """B2 — outside a row both readers see `\\|`, where GNU BRE alternation is legitimate."""
+    mod = _load()
+    root = _root(tmp_path, _GOOD)
+    _pack(
+        root,
+        "Use `grep -n 'return\\|raise'` over the function.\n"
+        "- a bullet with `a \\| b` in it\n"
+        "A paragraph line ending in a pipe `x \\| y` |\n" + _TABLE + "| a | b |\n"
+        "Prose right under a table: `grep 'a\\|b'` is BRE, both readers agree.\n",
+    )
+    assert _run(mod, root, ["--strict"], monkeypatch) == 0
+    assert ": code span carries a table-escaped pipe" not in capsys.readouterr().out
+
+
+def test_span_pipe_in_a_fence_is_not_reported(tmp_path, monkeypatch, capsys):
+    """B3 — a fenced example of a bad row (or a fenced BRE command) is not a table."""
+    mod = _load()
+    root = _root(tmp_path, _GOOD)
+    _pack(
+        root,
+        "```\n" + _TABLE + "| x | `str \\| None` |\n```\n"
+        "~~~bash\n" + _TABLE + "| x | `str \\| None` |\n~~~\n"  # a tilde fence is a fence too
+        "````\n```\n"
+        + _TABLE
+        + "| x | `str \\| None` |\n```\n````\n"  # an inner ``` closes no ````
+        "\n    | h | h |\n    |---|---|\n    | x | `str \\| None` |\n"  # indent 4 is a code block
+        "\n\t| h | h |\n\t|---|---|\n\t| x | `str \\| None` |\n",  # a tab is four columns
+    )
+    assert _run(mod, root, ["--strict"], monkeypatch) == 0
+    assert ": code span carries a table-escaped pipe" not in capsys.readouterr().out
+
+
+def test_entity_pipe_in_a_row_span_is_reported(tmp_path, monkeypatch, capsys):
+    """B4 — the COBRA counter: an HTML pipe entity is the cheapest way to silence a `\\|` finding, and
+    GFM leaves it LITERAL inside a code span (measured with markdown_it) — wrong for both readers."""
+    mod = _load()
+    root = _root(tmp_path, _GOOD)
+    rows = [
+        "| a | `str &#124; None` |",
+        "| b | `str &#0124; None` |",  # leading zeros are valid CommonMark
+        "| c | `str &#x7c; None` |",
+        "| d | `str &#X7C; None` |",
+        "| e | `str &vert; None` |",
+        "| f | `str &verbar; None` |",
+        "| g | `str &VerticalLine; None` |",
+    ]
+    _pack(root, _TABLE + "\n".join(rows) + "\n")
+    assert _run(mod, root, ["--strict"], monkeypatch) == 1
+    assert capsys.readouterr().out.count(": code span carries a table-escaped pipe") == 7
+
+
+def test_rule_pack_rows_are_width_checked(tmp_path, monkeypatch, capsys):
+    """B5 — the width rule now covers the packs too, in EVERY subdirectory of `.windsurf/rules/` (a roster
+    narrowed to `core/` survived the first draft of this file: every grader wrote its pack there), and the
+    OK line reports the two rosters apart."""
+    mod = _load()
+    root = _root(tmp_path, _GOOD)
+    saas = ".windsurf/rules/saas/60-saas-ui.md"
+    _pack(root, _TABLE + "| a | run `grep -c '^| I'` here |\n")
+    (root / saas).parent.mkdir(parents=True)
+    (root / saas).write_text(_TABLE + "| s | run `grep -c '^| I'` here |\n", encoding="utf-8")
+    assert _run(mod, root, ["--strict"], monkeypatch) == 1
+    out = capsys.readouterr().out
+    assert f"{_PACK_REL}:3: table row renders 3 cells" in out
+    assert f"{saas}:3: table row renders 3 cells" in out, (
+        "a pack outside core/ must be on the roster"
+    )
+    _pack(root, _TABLE + "| a | b |\n")
+    (root / saas).write_text(_TABLE + "| s | t |\n", encoding="utf-8")
+    assert _run(mod, root, [], monkeypatch) == 0
+    assert "across 1 contract(s) + 2 pack(s)" in capsys.readouterr().out
+
+
+def test_span_remediation_is_the_pinned_text(tmp_path, monkeypatch, capsys):
+    """B6 — the span advice ships to ~46 repos; it is pinned byte-for-byte like REMEDY and must reach stdout."""
+    mod = _load()
+    assert mod.SPAN_REMEDY == _SPAN_PINNED_REMEDY, (
+        "the shipped span remedy changed — update the pin ONLY after re-checking it against markdown_it "
+        "on both readers (rendered row vs raw) and that it still names no entity as a remedy"
+    )
+    root = _root(tmp_path, _GOOD)
+    _pack(root, _TABLE + "| a | `str \\| None` |\n")
+    _run(mod, root, [], monkeypatch)
+    assert _SPAN_PINNED_REMEDY in capsys.readouterr().out
+
+
+def test_prose_escape_in_a_row_is_not_a_span_finding(tmp_path, monkeypatch, capsys):
+    """B7 — `\\|` in a row OUTSIDE any span is the sanctioned prose escape; and a lone `|…|` line with no
+    delimiter row is a paragraph to GFM, not a table, so a span there is left alone."""
+    mod = _load()
+    root = _root(tmp_path, _GOOD)
+    _pack(
+        root,
+        _TABLE + "| a | either this \\| or that, with `code` beside it |\n"
+        "\n| lone | `str \\| None` |\n"
+        "\n<!--\n" + _TABLE + "| c | `str \\| None` |\n-->\n"
+        "\n"
+        + _TABLE
+        + "| d | ok |\n```\n```\n| lone2 | `str \\| None` |\n"  # a fence ends the table
+        "\n"
+        + _TABLE
+        + "| e | ok |\n<!--\nx\n-->\n| lone3 | `str \\| None` |\n"  # so does a comment
+        "\n" + _TABLE + "| g | \\`not code \\| x\\` |\n",  # escaped backticks make no span
+    )
+    assert _run(mod, root, ["--strict"], monkeypatch) == 0
+    assert ": code span carries a table-escaped pipe" not in capsys.readouterr().out

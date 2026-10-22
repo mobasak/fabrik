@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — synced template lane-table wording",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "The lane table's hub-only references, as seen from a project repo (routed from T04b)"
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md
+# AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | .windsurf/rules/ | tests/enforcement/test_check_governance_tables.py
 """A governance RULE that lives in a markdown table row must survive rendering.
 
 GFM splits a table row on every `|` — inside a code span too — and DISCARDS the cells past the
@@ -26,6 +26,31 @@ justified by its fire rate, not by the idea):
     127/34,415/1,117 — the same scan with `*/archive/*` silently excluded, a bound nobody declared,
     on the check that guards the denominator rule. A reviewer could not reproduce it, which is how it
     was caught. Re-derive it before quoting it: the tree moves.)
+  * Scope today (W-80ffca68, 2026-10-22): the two governance contracts PLUS every `.windsurf/rules/**/*.md`
+    file (57 packs at 778bf73f7, synced to ~46 repos; EVERY markdown file under that directory, pack or
+    not — a table row there meets the same two readers) — the packs measured 0 width fires over 2096
+    row-shaped lines (each starts and ends with a pipe, fences skipped: 218 headers + 218 delimiter rows +
+    1660 body rows — a plain leading-pipe grep also counts two TypeScript union lines and says 2098), so
+    widening the width rule to them is free; `docs/` and `commands/` stay out (the 128 wallpaper
+    fires above). The packs joined for the SECOND rule below.
+
+THE SECOND RULE — a pipe spelled to survive a table, inside a CODE SPAN (`_piped_spans`). Inside a table
+row GFM un-escapes `\\|` to `|` even inside a code span (markdown_it: `` `str \\| None` `` → `str | None`),
+but a rule pack reaches an agent RAW, where `str \\| None` is invalid Python, `process.env.X \\|\\| 'default'`
+invalid JS and `invalid\\|wrong-browser` a non-URL — the two readers disagree, exactly and only inside a
+table row (outside, GFM leaves `\\|` literal and both agree; a GNU BRE `grep 'a\\|b'` there is legitimate,
+and `commands/` carries five such spans, which is why this rule is scoped to delimiter-confirmed table
+rows and the commands stay out). Measured before the fix: 13 of 13 backslash-pipes in the packs sat in
+row code spans (`app-audit-log.md` 9, `10-python.md`, `12-node.md`, `self-healing.md`, `60-saas-ui.md`
+one each); 0 in prose; 0 in the two contracts. The remedy is in `SPAN_REMEDY`.
+  * COBRA (D-253): the cheapest way to silence a `\\|` finding is `&#124;` — and GFM does NOT decode an
+    entity inside a code span (`str &amp;#124; None` rendered), so it is wrong for BOTH readers: the same
+    defect, caught by the same regex (decimal and hex forms with leading zeros, the three named entities).
+    The known gaps of both walks — shapes GFM renders as a table or as text that this stdlib walk reads
+    otherwise — are ENUMERATED with their probe inputs, their fail direction and their live count (each 0 over
+    the 57 packs + 2 contracts on 2026-10-22) in work item W-76c49aa8, the one owner of that list; this
+    docstring does not restate it. Unicode pipe look-alikes stay out by design: the regex names the GFM
+    escape and the HTML entity spellings, nothing else.
 
 Fail direction: ADVISORY on landing, per the standing rollout law (advisory first, fire rate
 measured, promoted on evidence). Expected rate is zero; one fire is a real regression.
@@ -55,6 +80,14 @@ from pathlib import Path
 _PIPE = re.compile(r"(?<!\\)\|")
 # A GFM delimiter row: the line under a header that makes a table a table.
 _DELIM = re.compile(r"^\|(?:\s*:?-+:?\s*\|)+$")
+# A code span — single or double backticks, the closer the same run as the opener.
+_SPAN = re.compile(r"(`+)(.+?)\1")
+# A fence marker: three or more backticks or tildes at the line start (GFM closes a fence only with the
+# same character in a run at least as long — `_piped_spans` carries the opening run to compare).
+_FENCE = re.compile(r"^(`{3,}|~{3,})")
+# A pipe spelled to survive a table: the GFM escape, or an HTML entity (decimal or hex, leading zeros
+# allowed by CommonMark, or one of the three named forms) — see THE SECOND RULE in the module docstring.
+_SPAN_PIPE = re.compile(r"\\\||&#0*124;|&#[xX]0*7[cC];|&(?:vert|verbar|VerticalLine);")
 
 # THE REMEDY, as its own constant — it is ADVICE that ships to ~46 repos, so it is the most
 # consequential string in this file and it must be editable only deliberately. An earlier draft
@@ -69,16 +102,29 @@ REMEDY = (
     "changes what the example command does."
 )
 
+# The second remedy — pinned byte-for-byte by `test_span_remediation_is_the_pinned_text` for the same reason.
+SPAN_REMEDY = (
+    "a table-escaped pipe inside a CODE SPAN is `|` to the rendered reader and a literal "
+    "backslash-pipe to the RAW reader (invalid Python, JS or URL; alternation in GNU BRE) — rephrase so "
+    "the span carries no pipe: move the alternation into prose beside the span, split the span in two, "
+    "or lift the example into a fenced block; never an HTML entity (`&#124;` stays literal for BOTH "
+    "readers)."
+)
+
 # The governance contracts: a rule truncated here is a rule the fleet cannot read.
 _TARGETS = ("CLAUDE.md", "templates/governance/CLAUDE.md")
+# The rule packs — the same contract, synced to ~46 repos (W-80ffca68); read by glob so a new pack joins
+# without an edit here. An absent directory yields nothing: the roster line names both counts so a lost
+# glob is visible.
+_PACK_GLOB = ".windsurf/rules/**/*.md"
 
 
 def _root() -> Path:
     """The repo this script belongs to — resolved from __file__, never the cwd.
 
     A hub `git worktree` carries the full tree and must resolve to itself; a synced project copy
-    lands at <project>/scripts/enforcement/ and resolves to the project, where the only target is
-    its own CLAUDE.md (the template's destination).
+    lands at <project>/scripts/enforcement/ and resolves to the project, where the targets are its
+    own CLAUDE.md (the template's destination) and its synced `.windsurf/rules/` packs.
     """
     return Path(__file__).resolve().parent.parent.parent
 
@@ -144,6 +190,68 @@ def _overflowing_rows(text: str) -> list[tuple[int, int, int, str]]:
     return out
 
 
+def _piped_spans(text: str) -> list[tuple[int, str]]:
+    r"""Code spans inside a delimiter-confirmed table row that carry a table-escaped pipe.
+
+    Its own walk, deliberately: `_overflowing_rows`' state machine (header reset on every non-row
+    line, next-line delimiter read) is load-bearing for the width rule and is not refactored here.
+    The boundaries, each one measured against markdown_it by a review seat before it was written:
+    FENCES are skipped and tracked by CHARACTER and LENGTH as GFM does (a ```` fence is closed only
+    by four or more backticks, never by an inner ```; a `~~~` line inside a backtick fence closes
+    nothing; a marker indented 4+ is code, not a fence); a multi-line HTML COMMENT is skipped, and an
+    opener inside a fence is fence content, not a comment; a TAB counts as four columns, so a
+    tab-indented table is the code block GFM makes of it; a BOM before the first line is dropped; a
+    run of `|…|` lines counts only when its first line is followed by a `_DELIM` row — a lone
+    `| a | b |` paragraph line is not a table to GFM, so its `\|` stays literal for both readers and
+    is left alone; the row is split into CELLS on unescaped pipes before spans are read, as GFM does,
+    so a span never crosses a cell; and a backslash-escaped backtick is text, never a delimiter. A
+    `\|` in a row OUTSIDE any span is the sanctioned prose escape and never a finding here.
+    """
+    out: list[tuple[int, str]] = []
+    lines = text.lstrip("\ufeff").split("\n")
+    fence: str | None = None  # the opening run (``` or ~~~~), None outside a fence
+    commented = False
+    in_table = False
+    for idx, raw in enumerate(lines):
+        expanded = raw.expandtabs(4)
+        stripped = expanded.strip()
+        indent = len(expanded) - len(expanded.lstrip(" "))
+        if commented:
+            if "-->" in stripped:
+                commented = False
+            continue
+        marker = _FENCE.match(stripped) if indent < 4 else None
+        if fence is not None:
+            if marker and marker.group(1)[0] == fence[0] and len(marker.group(1)) >= len(fence):
+                fence = None
+            continue
+        if marker:
+            fence = marker.group(1)
+            in_table = False
+            continue
+        if stripped.startswith("<!--") and "-->" not in stripped:
+            commented = True
+            in_table = False
+            continue
+        is_row = (
+            indent < 4 and stripped.startswith("|") and stripped.endswith("|") and len(stripped) > 1
+        )
+        if not is_row:
+            in_table = False
+            continue
+        if not in_table:
+            nxt = lines[idx + 1].expandtabs(4).strip() if idx + 1 < len(lines) else ""
+            if not _DELIM.match(nxt):
+                continue  # a pipe-led paragraph line, not a table
+            in_table = True
+        for cell in _PIPE.split(stripped[1:-1]):
+            cell = cell.replace("\\`", "\x00")  # an escaped backtick is text, not a span delimiter
+            for m in _SPAN.finditer(cell):
+                if _SPAN_PIPE.search(m.group(2)):
+                    out.append((idx + 1, m.group(0).replace("\x00", "\\`")))
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=(__doc__ or "governance table integrity").splitlines()[0]
@@ -151,18 +259,20 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--strict",
         action="store_true",
-        help="exit 1 when a row overflows (regression tests and a future promotion to blocking; "
-        "the gate never passes this — see the exit-code contract in the module docstring)",
+        help="exit 1 on a finding — a row that overflows, or a code span carrying a table-escaped pipe "
+        "(regression tests and a future promotion to blocking; the gate never passes this — see the "
+        "exit-code contract in the module docstring)",
     )
     opts = ap.parse_args(argv)
     root = _root()
-    checked = 0
+    contracts = [root / rel for rel in _TARGETS if (root / rel).is_file()]
+    packs = sorted(p for p in root.glob(_PACK_GLOB) if p.is_file())
+    checked = len(contracts) + len(
+        packs
+    )  # a project copy has no templates/ tree — absence is not a defect
     findings: list[str] = []
-    for rel in _TARGETS:
-        path = root / rel
-        if not path.is_file():
-            continue  # a project copy has no templates/ tree — absence is not a defect
-        checked += 1
+    for path in contracts + packs:
+        rel = path.relative_to(root).as_posix()
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -178,8 +288,15 @@ def main(argv: list[str] | None = None) -> int:
                 f"  ⚠ {rel}:{lineno}: table row renders {cells} cells against a "
                 f"{header}-cell header — {REMEDY} The row: {preview}…"
             )
+        for lineno, span in _piped_spans(text):
+            findings.append(
+                f"  ⚠ {rel}:{lineno}: code span carries a table-escaped pipe — {SPAN_REMEDY} "
+                f"The span: {span}"
+            )
     if not checked:
-        print("check_governance_tables: SKIPPED — no governance contract found under this root")
+        print(
+            "check_governance_tables: SKIPPED — no governance contract or rule pack found under this root"
+        )
         return 0
     if findings:
         print(
@@ -188,7 +305,8 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(findings))
         return 1 if opts.strict else 0
     print(
-        f"check_governance_tables: OK — every table row renders at its header width across {checked} contract(s)"
+        "check_governance_tables: OK — every table row renders at its header width and no code span "
+        f"carries a table-escaped pipe across {len(contracts)} contract(s) + {len(packs)} pack(s)"
     )
     return 0
 
