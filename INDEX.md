@@ -1318,6 +1318,7 @@ docs/
 │       ├── 2026-10-20-w-75cafe7a-resume-wake-close-review.md
 │       ├── 2026-10-20-w-c230cb2e-workitem-merge-driver-review.md
 │       ├── 2026-10-21-own-scrape-slice-1a-plan-review.md
+│       ├── 2026-10-22-w4c894cef-rotation-rule-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
