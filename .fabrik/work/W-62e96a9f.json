@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — stale governance trailer table told to ~46 repos",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "The project-facing trailer table has drifted from the hub's — ~46 repos are told a stale, incomplete contract"
 }
