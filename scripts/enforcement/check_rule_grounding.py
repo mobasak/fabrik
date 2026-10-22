@@ -49,21 +49,6 @@ from pathlib import Path
 PLANS_DIR = Path("docs") / "development" / "plans"
 
 CONVERGED_RE = re.compile(r"^\**Status:?\**:?\s*\**\s*CONVERGED", re.IGNORECASE | re.M)
-
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
-
-
-def _converged(text: str) -> bool:
-    """True when a `CONVERGED_RE` match's `Status` key sits outside every inline code span (W-f365c610, D-1114: a
-    quoted `Status: CONVERGED` is prose, so a DRAFT that quotes one is not graded as converged). Fail direction: a
-    document whose only match is span-hidden is not graded, which is the DRAFT behaviour; one real match still
-    grades. Measured over 7,201 fleet docs: the reading changed for this checker's own population only where a
-    quoted CONVERGED was the sole match (a RETIRED fabrik-lib spec)."""
-    return any(not hidden for _, hidden in _fences.status_candidates(text, CONVERGED_RE))
-
-
 DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-")
 DIGEST_HEAD_RE = re.compile(r"^##\s+Constraints Digest\b", re.M | re.IGNORECASE)
 FILESCOPE_HEAD_RE = re.compile(r"^##\s+File Scope\b", re.M | re.IGNORECASE)
@@ -278,7 +263,7 @@ def _audit_full(root: Path) -> tuple[int, list[Finding], list[tuple[str, str]]]:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if not _converged(text):
+        if not CONVERGED_RE.search(text):
             continue
         examined += 1
         name = path.name
