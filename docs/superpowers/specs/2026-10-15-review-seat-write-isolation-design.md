@@ -1,7 +1,7 @@
 # Review seats — write isolation in the seat guard (design)
 
-Status: CONVERGED
-Size: small (≈470 lines: ≈250 hook, ≈220 tests, one doc row; across `.claude/hooks/seat_guard.py`, `tests/test_seat_guard.py` and `docs/workstation/hooks-index.md`)
+Status: DRAFT
+Size: small (amendment 2026-10-22: ≈150 hook lines and ≈180 test lines over the converged build, across `.claude/hooks/seat_guard.py`, `tests/test_seat_guard.py` and `docs/workstation/hooks-index.md`)
 Profile: delta
 Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791209046, 1791049341, 1791225410) · upgraded from `/fabrik-task` on `tradeoffs` (design seed `/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-task-2026-10-15T22-15-12-0300/design.md`)
 
@@ -28,12 +28,159 @@ Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791
 | I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN, delivered differently | § The delta — no write tool (pinned, delta 1) and a shell-write rule (delta 2); defence-in-depth against accidental writes, not a mounted read-only tree (§ The delta, its blind-spot paragraph) |
 | I2 | "launch finder and refuter seats with cwd set to a fresh scratch directory (or isolation: worktree), never the caller's main checkout" (01M4PHYNXJ row 1791049341) | IN, delivered differently | § Rejected alternatives — A (worktree) and the cwd option, which does not exist; the guard covers both dispatch paths instead, the seats' cwd unchanged |
 | I3 | "hand seats a ready probe script" (01M4PHYNXJ row 1791225410) | OUT-OF-SCOPE | W-f7bf9a54 — a separate change with its own measure (seat turns spent building probes) |
+| I4 | D-1129, the Opus + Fable panel (unanimous): "Review-seat write isolation becomes a filesystem fence, not a growing shell grammar" | IN | § Amendment 2026-10-22 — the fence |
+| I5 | The whole-plan review round 1: 21 confirmed parser holes (receipt `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md` § Round 1 findings) | IN | § Amendment — what the fence closes, and the fallback that fails closed where it cannot run |
+| I6 | W-9013addb, "a heredoc misread through a `"$(…)"` inside double quotes still hides later lines" | IN | § Amendment — under the fence the misread can hide no write; in the fallback the construct is unmodelled and refused |
+| I7 | The panel's cobra: "bind too much writable space (`--bind /tmp`, or the whole repo `.tmp`) so that 'writes in scratch work' passes" | IN | § Amendment — Validation 9 asserts the bind set exactly |
+| I8 | The panel's underivables: bwrap on other hosts; the harness's cwd tracking, background tasks and the worktree guard around a rewritten command | IN | § Amendment — Open unknowns, each resolved by a named build proof |
 
 ## Goal
 
 A review seat cannot write outside its scratch directory by mistake — it holds no file-writing tool, and a shell command
 whose destination is a literal path outside scratch is refused — on BOTH dispatch paths, without changing the seats'
 working directory, their briefs, or the lead session.
+
+## Amendment 2026-10-22 — the fence (D-1129)
+
+**Why the design changes.** The parent's tripwire (§ The delta, its last paragraph) re-opens this design "with approach D
+or a filesystem-level fence" on a confirmed interpreter write. The whole-plan review's round 1 confirmed 21 holes of the
+same class against the converged parser, all executed (the receipt above, § Round 1 findings). Examples:
+- `env -C /tmp bash -c "cd $PWD && git reset --hard"`;
+- a conditional `cd`; `kill 1234 -1`; writes to `/dev/shm`;
+- a heredoc body holding `$(…)`.
+
+At the pin b0fa6d66d the panel's Opus seat replayed `decide()`. It allowed `touch /dev/shm/x`,
+`true || cd /tmp; rm -rf src`, `kill 1234 -1` and an interpreter `shutil.rmtree`, and it refused `if (( n > 3 ))`. The
+Opus + Fable panel ruled unanimously (D-1129): stop growing the grammar and fence the filesystem.
+
+**The goal, restated.** A review seat's shell command CANNOT write outside its scratch: the operating system refuses
+it, whatever the command's syntax, interpreter or nesting. The fence applies on both dispatch paths and leaves the
+seats' working directory, their briefs and the lead session unchanged.
+
+**The design.**
+1. **The fence rides the existing rewrite.**
+   - `seat_guard.py` already answers every allowed seat Bash call with `updatedInput`, which replaces the command
+     before it runs and carries no `permissionDecision` (`rewrite()`, `:1419-1437`; `main()` `:1457-1460`). Today it
+     prefixes `export PYTHON_DOTENV_DISABLED=1`.
+   - The amendment makes that rewrite wrap the seat's whole command as `/usr/bin/bwrap <args> -- /bin/bash -c
+     <shlex.quote(command)>`, keeping the dotenv prefix inside it.
+   - The wrapper is keyed on the same `agent_id` + `agent_type in SEAT_TYPES` test as today (`:566-567`). So the lead
+     and every non-seat agent are never wrapped, and no brief, cwd, Workflow script or settings file changes.
+2. **The bind set is the policy.**
+   - Bound in this order: `--ro-bind / /`, `--dev /dev`, `--proc /proc`, `--tmpfs /dev/shm`, then the writable binds.
+   - Writable binds: `--bind <scratchpad_dir> <scratchpad_dir>` (the payload's session scratchpad, which holds the
+     run's `RUN-SCRATCH` and its `seat-*` folders), and `--bind <repo>/.tmp/runs/<sid> …` when that run folder exists
+     (D-836's durable SCRATCH, the 418 hub refusals of the parent's replay).
+   - Then `--setenv TMPDIR <scratchpad_dir>`, `--unshare-pid`, `--die-with-parent`, and `--chdir <payload cwd>`.
+   - Nothing else is writable: not the live tree, `$HOME`, `~/.claude`, `/tmp` outside the scratchpad, another
+     session's scratch, or the repo's other `.tmp` folders. The parent's repo-wide `.tmp` rule is dropped: it exposed
+     live coordinator state (round 1, W9).
+   - The network is NOT unshared, because briefs allow local probes of `localhost` services.
+3. **The fallback is the parser, failing closed.**
+   - When `/usr/bin/bwrap` is absent or not executable, or a probe run (`bwrap --ro-bind / / true`) fails because user
+     namespaces are refused (Ubuntu 24.04's AppArmor default, below), the hook keeps today's parser.
+   - In that mode a seat command holding any construct the parser does not model is REFUSED, never allowed: heredoc
+     to a shell, `eval`/`source`, `$'…'`, `((`/`[[`, an unknown wrapper, a conditional `cd`, or a `$(…)` in a write or
+     cd position.
+   - The refusal message says which mode the hook is in.
+   - The probe result is cached per hook process, never written to disk.
+4. **The kill and git rules stay**, as cheap early refusals with good messages. Under the fence they are
+   defence-in-depth: `--unshare-pid` already makes a `kill` of an outside pid fail (ESRCH), and a git write to the live
+   tree fails (EROFS).
+
+**Executed on this box (2026-10-22, the lead session).**
+- Ubuntu 24.04.3 LTS on WSL2 kernel `6.18.33.2-microsoft-standard-WSL2`.
+- `/usr/bin/bwrap` is bubblewrap 0.9.0, mode `-rwxr-xr-x`, not setuid.
+- `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` does not exist, so the AppArmor userns restriction is
+  absent here.
+- Inside `bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /dev/shm --bind <seat> <seat> --unshare-pid
+  --die-with-parent --chdir <worktree> python3 -c …`:
+  - the write into `<seat>` succeeded;
+  - writes to `<worktree>/zz_fence_probe`, `~/zz_fence_probe` and `/tmp/zz_fence_probe` each raised
+    `Read-only file system`, and none of the three files exists afterwards;
+  - `os.getcwd()` was the worktree, and `os.getpid()` was 2 (its own pid namespace).
+- With `--setenv TMPDIR <seat>`, `tempfile.NamedTemporaryFile` landed in the seat folder.
+- The panel's seats (the reports in this run's panel folder) reproduced EROFS for `perl -pi` on a live README, for
+  `touch $HOME/x`, and for an interpreter `open(…,'w')`. `.venv/bin/python` ran inside the fence.
+- Per-call cost: 20 runs each of `bash -c true` gave 1.3 ms, and of the full wrapper 15.7 ms, so about 14 ms more per
+  seat command.
+
+**External facts (fetched 2026-10-22).**
+- Claude Code's own Bash sandbox uses bubblewrap on Linux and WSL2: "the sandbox relies on `bubblewrap` and `socat`".
+  Its check is "`touch ~/sandbox-probe` | … `Read-only file system` on Linux and WSL2". On Ubuntu 24.04 "the default
+  AppArmor policy prevents bubblewrap from creating the user namespaces it needs", unless
+  `kernel.apparmor_restrict_unprivileged_userns` is 0 or absent. That sandbox is session-wide: "subagents … use the
+  same sandbox configuration" — https://code.claude.com/docs/en/sandboxing (WebFetch).
+- bwrap's options, verbatim:
+  - "bwrap is an unprivileged low-level sandboxing tool";
+  - "the user namespace is required if bwrap is not run as root";
+  - `--ro-bind` "Bind mount the host path SRC readonly on DEST"; `--bind` "Bind mount the host path SRC on DEST";
+  - `--unshare-pid` "Create a new pid namespace";
+  - `--die-with-parent` "Ensures child process (COMMAND) dies when bwrap's parent dies";
+  - `--chdir` "Change directory to DIR"
+  — https://manpages.debian.org/unstable/bubblewrap/bwrap.1.en.html (WebFetch).
+- "`PreToolUse`: `updatedInput` directly under `hookSpecificOutput` replaces a tool's arguments before it runs", and a
+  subagent's tool events "fire the same configured hooks as in the main conversation, and the input carries the
+  `agent_id` and `agent_type`" — https://code.claude.com/docs/en/hooks (WebFetch).
+- The parent's sources still stand: OS enforcement is the boundary and hooks are defence-in-depth (NVIDIA, cited in
+  § External dependencies), and a Bash-string deny list was bypassed by `perl -i` (issue 40408).
+
+**Approaches (D-1129).**
+- **Chosen: the fence through the hook's rewrite, with the parser as a fail-closed fallback.**
+- **Rejected: (a) the fail-closed parser alone.** Five Phase A rounds plus round 1 left 21 holes, and the parent's own
+  blind spots (interpreters, scripts, `find`/`xargs`, deep nesting) cannot be parsed by construction.
+- **Rejected: (c) Claude Code's built-in sandbox.** It is session-wide, so it would fence the lead too. The parent cut
+  it on the same page, and it is still session-wide on 2026-10-22.
+- **Rejected: a per-seat Unix user.** It needs root to create users and sudo per command.
+- **Rejected: Landlock directly.** It is built in here (ABI 7, per the panel's syscall probe), but it needs a helper
+  binary or Python ctypes in the hook path. bwrap already ships it on this box and is what Claude Code itself uses.
+
+**Contract deltas (MIRROR — the shapes that now fail).**
+- A seat command that writes anywhere outside its scratchpad or run folder now fails at the OS with EROFS. Before, the
+  parser either missed the write or refused it.
+- These now fail:
+  - a probe that runs `pytest` in the live tree without `-p no:cacheprovider` (its `.pytest_cache` write);
+  - a tool that writes a cache under `$HOME` (`~/.cache`) — the build measures which seat tools do;
+  - `git` commands that need to write the live index;
+  - a seat writing a fabrik-lib `<worktree>/.tmp/<run>/seat-…` folder. These were 1,863 replay commands, so the build
+    must decide them: bind that folder when the payload cwd's repo holds it, or brief the fabrik-lib seats to use the
+    scratchpad.
+- The lead and non-seat agents: no change.
+- A host without usable bwrap gets the parser in its stricter fail-closed form.
+
+**Validation (each a test or an executed proof, red first).**
+1. Each of the 21 round-1 commands, run for real through the rewritten command on a scratch copy, fails with
+   EROFS/ESRCH and leaves the live tree unchanged.
+2. An interpreter write (`python3 -c open(<live>,'w')`, `perl -pi`, `shutil.rmtree`) to a live path fails inside the
+   fence, with the parser deleted from the path (wrapper-only run).
+3. Writes into the seat folder, the run folder and `TMPDIR` succeed; `cwd` is the payload's.
+4. The test file's allow cases, plus a fresh 3-day harvest of real seat commands, give the same exit code and stdout
+   wrapped and unwrapped. False reds are reported per N.
+5. The lead (no `agent_id`) and a non-seat agent get no wrapper.
+6. The rewrite round-trips quoting: a command holding every quote, `$`, newline and heredoc form runs unchanged inside.
+7. Fallback: with bwrap absent or the probe failing, the parser runs, refuses an unmodelled construct, and says it is
+   in fallback mode. A grader neuters the wrapper and sees red.
+8. `--die-with-parent`: a seat's backgrounded child dies when the call ends.
+9. The bind set is asserted exactly ({scratchpad_dir, the run folder when it exists}). The cobra counter is that
+   adding `/tmp` or the repo `.tmp` turns a test red.
+10. One live `fabrik-reviewer` seat through the Agent tool, before the merge, writes its seat folder and gets EROFS on
+    a live path. Its cwd tracking and a `run_in_background` call still work.
+
+**Open unknowns, each closed by a build proof.**
+- (U1) Whether Claude Code's own worktree isolation guard reads the original command or the rewritten one; Validation
+  10 shows it.
+- (U2) Whether read-only git commands (`git status`) fail when they cannot refresh the index under a read-only tree.
+  The lead's session could not probe it (the worktree guard refuses git under a launcher), so the build runs it in a
+  probe worktree.
+- (U3) bwrap on other synced hosts. The fallback covers an absent or refused bwrap, and the refusal names the mode.
+- (U4) Whether `$HOME` caches written by seat tools need a writable bind. The build's harvest replay (Validation 4)
+  counts them.
+
+**Lifecycle.**
+- The fence is the boundary; the parser is the fallback.
+- **Retirement:** the fence moves to Claude Code's sandbox if that ever gains a per-subagent configuration (the
+  parent's retirement clause, unchanged).
+- **Tripwire:** a confirmed seat write outside scratch through the fence re-opens this design.
 
 ## What exists today (grounded, read at 4efc5d325)
 
@@ -90,6 +237,7 @@ working directory, their briefs, or the lead session.
 | a non-trivial behavior's test proves something only if it has been SEEN RED | `.windsurf/rules/core/45-testing-strategy.md:22` |
 | No cosmetic assertions | `.windsurf/rules/core/45-testing-strategy.md:21` |
 | Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it. | `.windsurf/rules/core/10-python.md:38` |
+| Every code-shipping ticket must produce exactly one entry. | `.windsurf/rules/core/40-documentation.md:134` |
 
 ## The delta — B: widen the seat guard (judge panel 3/3)
 
@@ -213,6 +361,10 @@ Each behaviour gets a test in `tests/test_seat_guard.py`, seen red first:
 7. The scanner fixes of delta 5: `env -C` scoped to its command; a here-string hides nothing.
 
 ## Decisions taken
+
+- **The fence over the grammar** (D-1129, 2026-10-22). The Opus + Fable panel was unanimous after round 1 confirmed 21
+  parser holes. It supersedes "B over A and D" below for the BOUNDARY: B's parser stays, but only as the fail-closed
+  fallback (§ Amendment 2026-10-22).
 
 - **B over A and D** (D-913) — the judge panel (three Sonnet seats, 2026-10-15) ranked B first unanimously: it covers both
   dispatch paths, builds on the existing hook, and needs no brief, cwd or retention change; each judge named the
