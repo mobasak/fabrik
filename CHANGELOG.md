@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — Fabrik Deck launcher pins the distro it runs in when WSL_DISTRO_NAME is unset (2026-10-23)
 
-`fabrik_deck.py launcher` and `install --desktop` no longer refuse in a code-server, tmux or unit shell, none of which carries `$WSL_DISTRO_NAME`: an omitted `--distro` is now a non-empty `$WSL_DISTRO_NAME`, else the distro the script runs in, read from `wslpath -w /` (`\\wsl.localhost\<distro>\`), and stderr says it was derived. Never the Windows default distro, which can be another one. An explicit `--distro` (even `''`) is untouched; an underivable one is refused naming both remedies; a desktop-less `install` never probes. W-b364b48d, D-1137.
+`fabrik_deck.py launcher` and `install --desktop` no longer refuse in a code-server, tmux or unit shell, none of which carries `$WSL_DISTRO_NAME`: an omitted `--distro` is now a non-blank `$WSL_DISTRO_NAME`, else the distro the script runs in, read from `wslpath -w /` (`\\wsl.localhost\<distro>\`), and stderr says when it came from `wslpath`. Never the Windows default distro, which can be another one. An explicit `--distro` (even `''`) is untouched; an underivable one is refused naming both remedies; a desktop-less `install` never probes. W-b364b48d, D-1137.
 
 ### Fixed — A payments login escalated out of band is refused on re-apply, never stripped (2026-10-23)
 

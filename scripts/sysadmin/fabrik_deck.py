@@ -890,7 +890,7 @@ WSLPATH = "/usr/bin/wslpath"  # in-distro (a symlink to /init): needs no Windows
 
 
 def _default_distro() -> str:
-    """A non-empty $WSL_DISTRO_NAME, else the distro this script runs in, from `wslpath -w /`; '' on failure.
+    """A non-blank $WSL_DISTRO_NAME, else the distro this script runs in, from `wslpath -w /`; '' on failure.
 
     A shell systemd or linger started (code-server, tmux, the units) has no WSL_DISTRO_NAME (W-b364b48d). The .bat
     must pin THIS distro — the units and the hub live here — never the Windows default (`wsl.exe -l -v`'s `*` row),
