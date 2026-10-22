@@ -138,7 +138,10 @@ def transcript_roots() -> list[Path]:
     if raw:
         return [Path(p) for p in raw.split(os.pathsep) if p]
     home = Path.home()
-    return [home / ".claude" / "projects", *map(Path, sorted(glob.glob(str(home / ".claude-fleet/*/projects"))))]
+    return [
+        home / ".claude" / "projects",
+        *map(Path, sorted(glob.glob(str(home / ".claude-fleet/*/projects")))),
+    ]
 
 
 def _jsonl(path: Path) -> list[dict]:
@@ -199,7 +202,9 @@ def _ratio(
     num = sum(num_of(r) for r in rows)
     den = sum(den_of(r) for r in rows)
     if den <= 0:
-        return MetricResult.unavailable(mid, f"no top-level close with a denominator ({detail})"), []
+        return MetricResult.unavailable(
+            mid, f"no top-level close with a denominator ({detail})"
+        ), []
     value = scale * num / den
     cut: list[dict] = [_bd("total", "closes", len(rows), len(rows), len(rows))]
     for by, key_of in (("agent", _agent), ("command", lambda r: str(r.get("command") or "?"))):
@@ -311,11 +316,19 @@ def _birth_context(path: Path) -> int | None:
                     row = json.loads(line)
                 except ValueError:
                     continue
-                usage = (row.get("message") or {}).get("usage") if row.get("type") == "assistant" else None
+                usage = (
+                    (row.get("message") or {}).get("usage")
+                    if row.get("type") == "assistant"
+                    else None
+                )
                 if isinstance(usage, dict):
                     return sum(
                         _int(usage, k)
-                        for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+                        for k in (
+                            "input_tokens",
+                            "cache_creation_input_tokens",
+                            "cache_read_input_tokens",
+                        )
                     )
     except OSError:
         return None
@@ -342,7 +355,9 @@ def rotation_rebuild(day: str) -> tuple[MetricResult, list[dict]]:
             rotations.append((name, sid))
         names.add(name)
     if not rotations:
-        return MetricResult(mid, "0 (no rotation)", "", True, 0, 0, 0), [_bd("total", "rotations", 0, 0, 0)]
+        return MetricResult(mid, "0 (no rotation)", "", True, 0, 0, 0), [
+            _bd("total", "rotations", 0, 0, 0)
+        ]
     roots = transcript_roots()
     per_agent: dict[str, int] = collections.Counter()
     found, unfound, total = 0, 0, 0
@@ -380,7 +395,14 @@ def red_master_rework(day: str) -> tuple[MetricResult, list[dict]]:
     end = start + dt.timedelta(days=1)
     try:
         arrivals = _git(
-            ["log", ref, "--first-parent", f"--since={start.isoformat()}", f"--until={end.isoformat()}", "--format=%H %P"]
+            [
+                "log",
+                ref,
+                "--first-parent",
+                f"--since={start.isoformat()}",
+                f"--until={end.isoformat()}",
+                "--format=%H %P",
+            ]
         )
         shas: list[str] = []
         for line in arrivals.splitlines():
@@ -455,16 +477,24 @@ def _write_breakdown(day: str, cuts: dict[str, list[dict]], state: Path | None) 
 def publish_day(day: str, today: str | None = None, state: Path | None = None) -> list[Path]:
     today = today or dt.date.today().isoformat()
     if day >= today:
-        raise ValueError(f"refusing to publish {day}: only days before today ({today}) are complete")
+        raise ValueError(
+            f"refusing to publish {day}: only days before today ({today}) are complete"
+        )
     computed = compute_day(day)
     results = {mid: m for mid, (m, _) in computed.items()}
     written = kc.publish_series(day, results, registry(), state)
     published = {p.name.split("@", 1)[0] for p in written}
-    _write_breakdown(day, {mid: cut for mid, (m, cut) in computed.items() if m.measurable and mid in published}, state)
+    _write_breakdown(
+        day,
+        {mid: cut for mid, (m, cut) in computed.items() if m.measurable and mid in published},
+        state,
+    )
     return written
 
 
-def backfill(since: str | None = None, today: str | None = None, state: Path | None = None) -> list[Path]:
+def backfill(
+    since: str | None = None, today: str | None = None, state: Path | None = None
+) -> list[Path]:
     today = today or dt.date.today().isoformat()
     first = since or _first_day(_jsonl(feedback_path()), "tok_msgs")
     if first is None:
@@ -486,7 +516,12 @@ def rebaseline(metric: str, from_day: str, reason: str, state: Path | None = Non
         raise ValueError("a rebaseline names its reason (the improvement it follows)")
     path = baselines_path(state)
     path.parent.mkdir(parents=True, exist_ok=True)
-    row = {"metric": metric, "from": from_day, "reason": reason.strip(), "at": dt.datetime.now().astimezone().isoformat()}
+    row = {
+        "metric": metric,
+        "from": from_day,
+        "reason": reason.strip(),
+        "at": dt.datetime.now().astimezone().isoformat(),
+    }
     with kc._store_lock(path), open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")
     return path
@@ -518,14 +553,25 @@ def main(argv: list[str] | None = None) -> int:
     day = a.day or (dt.date.today() - dt.timedelta(days=1)).isoformat()
     if a.publish:
         if day > publish_bound(dt.date.today().isoformat()):
-            print(f"kaizen_waste: {day} is past the publish bound — the collector has not published it", file=sys.stderr)
+            print(
+                f"kaizen_waste: {day} is past the publish bound — the collector has not published it",
+                file=sys.stderr,
+            )
             return 2
         for p in publish_day(day):
             print(p)
         return 0
     computed = compute_day(day)
     if a.json:
-        print(json.dumps({mid: {"cell": m.cell, "value": m.value, "detail": m.detail, "breakdown": cut} for mid, (m, cut) in computed.items()}, indent=1))
+        print(
+            json.dumps(
+                {
+                    mid: {"cell": m.cell, "value": m.value, "detail": m.detail, "breakdown": cut}
+                    for mid, (m, cut) in computed.items()
+                },
+                indent=1,
+            )
+        )
         return 0
     for mid, (m, _) in computed.items():
         print(f"{mid}: {m.cell if m.measurable else DASH} {('— ' + m.detail) if m.detail else ''}")

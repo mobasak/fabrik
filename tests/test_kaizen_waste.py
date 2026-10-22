@@ -234,7 +234,16 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
         date="2026-10-09T11:00:00",
     )
     _git(repo, "checkout", "-q", "master")
-    _git(repo, "merge", "-q", "--no-ff", "w", "-m", "merge(w): red master fix", date=f"{DAY}T09:00:00")
+    _git(
+        repo,
+        "merge",
+        "-q",
+        "--no-ff",
+        "w",
+        "-m",
+        "merge(w): red master fix",
+        date=f"{DAY}T09:00:00",
+    )
     # a direct first-parent commit on DAY
     _git(
         repo,
@@ -279,7 +288,10 @@ def test_backfill_is_idempotent_bounded_and_writes_breakdown(env):
     assert days == ["2026-10-08", "2026-10-09", DAY]
     assert kw.backfill(since="2026-10-08", today="2026-10-20") == []  # idempotent
     assert [json.loads(x)["day"] for x in ctx.read_text().splitlines()] == days
-    bd = [json.loads(x) for x in (env / "kaizen" / "waste-breakdown@v1.jsonl").read_text().splitlines()]
+    bd = [
+        json.loads(x)
+        for x in (env / "kaizen" / "waste-breakdown@v1.jsonl").read_text().splitlines()
+    ]
     keys = {(r["day"], r["metric"], r["by"], r["key"]) for r in bd}
     assert (DAY, "waste_context_per_call", "agent", "intel") in keys
     assert (DAY, "waste_context_per_call", "command", "fabrik-task") in keys
@@ -298,8 +310,19 @@ def _points(env: Path, metric: str, values: list[float], start: str = "2026-09-0
     with open(d / f"{metric}@v1.jsonl", "a", encoding="utf-8") as fh, open(bd, "a") as bfh:
         for day, v in reversed(list(zip(days, values, strict=True))):
             fh.write(json.dumps({"day": day, "metric": metric, "value": v, "cell": f"{v}"}) + "\n")
-            for by, key, val in (("total", "closes", 30), ("agent", "kaizen", 7), ("agent", "intel", 3)):
-                row = {"day": day, "metric": metric, "by": by, "key": key, "numerator": val, "value": val}
+            for by, key, val in (
+                ("total", "closes", 30),
+                ("agent", "kaizen", 7),
+                ("agent", "intel", 3),
+            ):
+                row = {
+                    "day": day,
+                    "metric": metric,
+                    "by": by,
+                    "key": key,
+                    "numerator": val,
+                    "value": val,
+                }
                 bfh.write(json.dumps(row) + "\n")
         fh.write("{not json\n")
     return days
@@ -324,6 +347,14 @@ def test_digest_control_section_frozen_limits_and_rules(env):
     # the 8-in-a-row rule fires inside the limits
     _points(env, "waste_output_per_call", [*base, *([101.5] * 8)], start="2026-07-01")
     assert "OUT OF CONTROL ↑ waste_output_per_call" in kd.compose(env / "kaizen")
+    # a rare event count (mostly 0) is judged on a c-chart, never "flat": 4 fixes in a day alarms
+    _points(
+        env,
+        "waste_red_master_rework",
+        [0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 4],
+        start="2026-05-01",
+    )
+    assert "OUT OF CONTROL ↑ waste_red_master_rework" in kd.compose(env / "kaizen")
     # a short baseline says so instead of judging
     _points(env, "waste_wall_rate", [1, 2, 3], start="2026-06-01")
     assert "waste_wall_rate: baseline 2/14 — no limits yet" in kd.compose(env / "kaizen")
