@@ -92,7 +92,9 @@ def test_low_battery_arms_the_hold(box):
     assert box.stamp.read_text() == "0\nbattery\n"
     assert _deny(box.stamp) == "deny"
     assert any(r.get("event") == "battery-hold" for r in _ledger(box.state))
-    box.stamp.write_text("0\nurgent-90\n")  # the quota's WARNING tier holds nothing
+    # the quota's urgent-90 tier is the D-1113 lane, no full hold: a pure probe (no lane verdict)
+    # is not denied, and the battery raises the stamp over it
+    box.stamp.write_text("0\nurgent-90\n")
     assert (
         hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0, tier="urgent-90")[0] != "deny"
     )

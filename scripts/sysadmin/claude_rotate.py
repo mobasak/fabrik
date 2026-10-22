@@ -6326,7 +6326,7 @@ def _print_picture(pic: dict) -> None:
         print(
             "picture: hold "
             + (
-                f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — warning only, the wall-tier hold is not armed)'} since "
+                f"{'HELD' if _hold_is_wall(hold) else 'LANE (urgent-90, D-1113 — builders parked; coordinator_mode merge owners and open-P0 owners continue; the wall-tier hold is not armed)'} since "
                 f"{_fmt_when(hold.get('since'))}, resume promised "
                 + (
                     _fmt_when(hold["resume_promised"])
@@ -6562,9 +6562,10 @@ def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
 
 
 def _hold_is_wall(hold: dict | None) -> bool:
-    """Is the live hold the one that actually HOLDS? The WALL band asserts that
-    `quota_stop.py` is default-denying every world-changing tool, and since D-306 only the
-    `walled` tier does. A hold dict with no tier is a pre-tier stamp — fails closed, like
+    """Is the live hold the one that holds EVERY session? The WALL band asserts that
+    `quota_stop.py` is default-denying every world-changing tool to everyone, and only the
+    `walled` tier does; `urgent-90` is the D-1113 lane, which parks builders and lets the merge
+    owner and open-P0 owners continue, so it is not the wall. A hold dict with no tier is a pre-tier stamp — fails closed, like
     :func:`_stamp_tier`; no hold at all is no wall, and a hold that is not a dict is one this
     reader cannot read, so it fails closed too (W-06733560 item 7)."""
     if hold is None:
@@ -7719,14 +7720,30 @@ def _humanize_lead(seconds: int) -> str:
 
 
 def _urgent_drain_message(
-    active_email: str, reason: str, relief: tuple[float, str, str] | None
+    active_email: str,
+    reason: str,
+    relief: tuple[float, str, str] | None,
+    *,
+    walled: bool = True,
 ) -> str:
-    """The operator's wording, with the concrete time the repos must hook themselves to."""
+    """The operator's wording, with the concrete time the repos must hook themselves to.
+
+    `walled=False` is the `urgent-90` tier, the D-1113 LANE: `quota_stop.py` parks builders and
+    lets the merge owner of a coordinator_mode repo and the owner of an open P0 item continue, so
+    the message says exactly that (review round 1 F9) — told to stop, those two would leave the
+    runway the lane keeps for them unspent. The default is the wall's wording, true at every tier
+    a caller that does not say which would send."""
+    who = (
+        "STOP YOUR WORK ASAP, GRACEFULLY: reach a commit-and-push checkpoint now, then stop."
+        if walled
+        else "BUILDERS: STOP YOUR WORK ASAP, GRACEFULLY: reach a commit-and-push checkpoint now, "
+        "then stop. The merge owner of a coordinator_mode repo and the owner of an open P0 item "
+        "continue until the wall itself arrives, checkpointing as they go (the D-1113 lane)."
+    )
     head = (
         f"URGENT — fleet quota: the active account {active_email} cannot continue — {reason} — "
         "and NO other account is available to switch to (every sibling is session-exhausted, "
-        "weekly-walled or cap-walled). STOP YOUR WORK ASAP, GRACEFULLY: reach a "
-        "commit-and-push checkpoint now, then stop."
+        f"weekly-walled or cap-walled). {who}"
     )
     if relief is None:
         # The board's URL is env-derived (the dashboard's own knobs), never a literal — the
@@ -7756,7 +7773,7 @@ def _urgent_drain_message(
         local = datetime.fromtimestamp(resume).strftime("%a %d %b %H:%M %Z").strip()
         utc = datetime.fromtimestamp(resume, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     except (OverflowError, OSError, ValueError):
-        return _urgent_drain_message(active_email, reason, None)
+        return _urgent_drain_message(active_email, reason, None, walled=walled)
     # WHOSE window it is changes what the reader must DO. "NEXT ACCOUNT AVAILABLE: mob@" reads as
     # "switch to mob@" when mob@ is the account you are already on — and a stopped repo acts on
     # this text. When the soonest relief is the active account's own session rolling over, say so
@@ -8251,8 +8268,13 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         default=0.0,
     )
     relief = _next_session_relief(accounts, str(row["email"]), now)
+    # read ONCE: it picks the stamp's tier below, and a battery stamp is a full hold like `walled`
+    battery = _battery_low()
     msg = _urgent_drain_message(
-        str(row["email"]), _drain_trigger_reason(row, session_pct, walled, threshold), relief
+        str(row["email"]),
+        _drain_trigger_reason(row, session_pct, walled, threshold),
+        relief,
+        walled=bool(walled) or battery,
     )
     _tick_telegram(msg)
     repos = _mailbox_repos()  # a fleet-wide wall concerns every project → broadcast
@@ -8271,7 +8293,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
                 # `urgent-90` (the D-1113 lane, which lets coordinators and P0 owners through), and
                 # only mains power may lift it (W-83a8ee68)
                 _STAMP_TIER_BATTERY
-                if _battery_low()
+                if battery
                 else _STAMP_TIER_WALLED
                 if walled
                 else _STAMP_TIER_URGENT,

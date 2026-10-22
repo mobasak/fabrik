@@ -17,7 +17,7 @@ episode's first write), `_rearm_wall_stamp` (rebuilds it from the episode's ledg
 on it: this hook, `scripts/sysadmin/quota_posture_hook.py` (which stands down only at the `walled`
 tier), and `claude_rotate.py` itself, whose picture turns the tier into the WALL band.
 
-⚠️ THE STAMP CARRIES TWO TIERS AND ONLY ONE OF THEM HOLDS (D-306). Its second line names which
+⚠️ THE STAMP CARRIES TWO TIERS AND ONLY ONE OF THEM HOLDS EVERY SESSION (D-306). Its second line names which
 arm armed it. `walled` is the wall itself — a window at/over `ROTATE_THRESHOLD`, its `caps.json`
 cap, or 100. `urgent-90` is the SESSION window at `ROTATE_URGENT_DRAIN_PCT` (90) with no
 validated successor: EIGHT points of runway remain on the default `ROTATE_THRESHOLD` of 98. That

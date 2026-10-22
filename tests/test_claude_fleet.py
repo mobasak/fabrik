@@ -4983,6 +4983,23 @@ def test_urgent_drain_message_carries_the_operator_wording_and_the_resume_instan
     assert "STOP YOUR WORK ASAP" in none and "no resume time can be given" in none
 
 
+def test_the_urgent_drain_message_names_the_lane_only_at_urgent_ninety():
+    """Review round 1 F9 (W-18f559d9, D-1113): the message mailed every repo "STOP YOUR WORK ASAP …
+    then stop", but at `urgent-90` the lane lets a coordinator_mode merge owner and a P0 owner
+    continue. At that tier it tells builders to stop and names the two who continue; at the wall,
+    where everyone is held, it still tells everyone to stop. Both the dated and undated paths."""
+    reason = "its 5-hour session window is 91% CONSUMED"
+    relief = (float(FLEET_NOW + 3000), "soon@x", "session")
+    for rel in (relief, None, (1e300, "b@x", "session")):
+        urgent = cr._urgent_drain_message("act@x", reason, rel, walled=False)
+        assert "BUILDERS" in urgent and "STOP YOUR WORK ASAP" in urgent, urgent
+        assert "merge owner of a coordinator_mode repo" in urgent, urgent
+        assert "open P0 item" in urgent and "continue" in urgent, urgent
+        wall = cr._urgent_drain_message("act@x", "walled", rel, walled=True)
+        assert "STOP YOUR WORK ASAP" in wall and "merge owner" not in wall, wall
+        assert "BUILDERS" not in wall, wall
+
+
 def test_urgent_tier_fires_at_ninety_with_no_successor_and_names_the_resume_time(
     tmp_path, monkeypatch
 ):
@@ -8160,7 +8177,9 @@ def test_the_tier_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
 
 def test_status_does_not_call_a_nudge_a_hold(tmp_path, monkeypatch, capsys):
     """`--status` is the contract's named authority on the hold. It printed `HELD` on mere
-    truthiness, so at the `urgent-90` tier the operator read HELD while nothing was held."""
+    truthiness, so at the `urgent-90` tier the operator read HELD while only builders were. That
+    tier is the D-1113 lane (review round 1 F7): builders parked, the merge owner and open-P0
+    owners continue, the wall-tier hold not armed — and `--status` says exactly that."""
     base = {
         "accounts": [],
         "queue": [],
@@ -8170,14 +8189,16 @@ def test_status_does_not_call_a_nudge_a_hold(tmp_path, monkeypatch, capsys):
     }
     cr._print_picture(base)
     warn = capsys.readouterr().out
-    assert "WARNING" in warn, warn
+    assert "LANE" in warn and "builders parked" in warn, warn
+    assert "merge owners" in warn and "open-P0 owners continue" in warn, warn
     assert "not armed" in warn.lower(), f"say what is NOT armed: {warn}"
+    assert "HELD" not in warn and "warning only" not in warn, warn
     assert "nothing is held" not in warn.lower(), (
         f"--status must not claim nothing is held: the band may be denying new work: {warn}"
     )
     cr._print_picture({**base, "hold": {**base["hold"], "tier": "walled"}})
     held = capsys.readouterr().out
-    assert "HELD" in held and "WARNING" not in held, held
+    assert "HELD" in held and "LANE" not in held, held
 
 
 def test_the_tier_raise_never_harms_the_live_stamp_and_leaves_no_litter(
@@ -9693,7 +9714,8 @@ def test_no_resume_wake_without_a_real_sleep_gap(tmp_path, monkeypatch, record, 
 )
 def test_a_standing_hold_suppresses_the_resume_wake(tmp_path, monkeypatch, capsys, stamp, wakes):
     """While the stamp reads walled (a wall, the battery, a torn file, a dangling link) a resume
-    wakes nobody and says so — the hold's own lift wakes them; `urgent-90` holds nothing."""
+    wakes nobody and says so — the hold's own lift wakes them; `urgent-90` is the D-1113 lane,
+    which parks builders but is no full hold, so a resume there still wakes."""
     clock, locks, fd = _resume_box(tmp_path, monkeypatch)
     monkeypatch.setattr(cr, "_battery_leg", lambda *a, **k: None)  # the stamp is the test's
     try:
