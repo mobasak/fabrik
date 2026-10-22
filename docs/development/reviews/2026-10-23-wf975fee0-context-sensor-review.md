@@ -1,8 +1,9 @@
 # Review â€” wf975fee0-context-sensor
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = f0d9b590a7104937a8d6c324ddfada911eab5503; `git diff HEAD -- scripts/sysadmin/transcript_size_check.py tests/test_transcript_size_check.py tests/test_hub_write_root.py docs/workstation/hooks-index.md docs/workstation/session-history-retention.md docs/CONFIGURATION.md .env.example INDEX.md` md5 5e628f4ee8e505d147e8ac667a123720 (61582 bytes)
+**Surface:** `git rev-parse HEAD` = 06d77b762f996bf742fef34f6de9be7a4bbf2441; range tip 122a7c5a9e34c7bc8593fb8d96ca9f10b1c41055; `git diff f0d9b590a..122a7c5a9e34c7bc8593fb8d96ca9f10b1c41055 -- scripts/sysadmin/transcript_size_check.py tests/test_transcript_size_check.py tests/test_hub_write_root.py docs/workstation/hooks-index.md docs/workstation/session-history-retention.md docs/CONFIGURATION.md .env.example INDEX.md` md5 2f43bc764d3ee38caca5110b59e08178 (67688 bytes)
 **Command:** /fabrik-review Â· **Changed:** `scripts/sysadmin/transcript_size_check.py`, `tests/test_transcript_size_check.py`, `tests/test_hub_write_root.py`, `docs/workstation/hooks-index.md`, `docs/workstation/session-history-retention.md`, `docs/CONFIGURATION.md`, `.env.example`, `INDEX.md`
+**Lane:** fabrik-task
 
 ## Coverage Checklist
 
@@ -277,22 +278,13 @@ with rows, and is not checked otherwise. `RECORDED â€” measured` and `RECORDED â
 {
   "status": "success",
   "tier": 2,
-  "passed": 69,
+  "passed": 57,
   "failed": 0,
-  "skipped": 3,
+  "skipped": 1,
   "skipped_checks": [
-    "bandit",
-    "semgrep",
-    "pytest"
+    "static tier"
   ],
   "advisory": [
-    {
-      "check": "pytest (NOT RUN)",
-      "output": "this repo's CI does not invoke pytest, so the gate does not either \u2014 PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no red to prevent, and a hub-scale suite would brick every completion gate), but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it yourself: `python -m pytest tests/ -q`, or make the gate run it every time with `mkdir -p .fabrik && touch .fabrik/run-pytest` \u2014 required if this repo retires its GitHub workflows, since deleting them otherwise disarms this check \u2014 the suite is OUTSIDE this gate",
-      "truncated": false,
-      "omitted_lines": 0,
-      "rerun": null
-    },
     {
       "check": "Vendored Drift (sync-excluded repos)",
       "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 48 identical \u00b7 11 declared-design \u00b7 29 UNREVIEWED diff \u00b7 12 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~20 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
@@ -351,7 +343,7 @@ with rows, and is not checked otherwise. `RECORDED â€” measured` and `RECORDED â
     },
     {
       "check": "Feedback duty",
-      "output": "feedback duty: 38 close(s) in 14d, all carried a verdict",
+      "output": "feedback duty: 37 close(s) in 14d, all carried a verdict",
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
@@ -365,7 +357,7 @@ with rows, and is not checked otherwise. `RECORDED â€” measured` and `RECORDED â
     },
     {
       "check": "Corpus Weight (byte ratchet)",
-      "output": "corpus-weight: CLAUDE.md 121429 B \u00b7 baseline 98610 (+22819) \u00b7 base origin/master (\u2014)\ncorpus-weight: templates/governance/CLAUDE.md 117879 B \u00b7 baseline 91060 (+26819) \u00b7 base origin/master (\u2014)\ncorpus-weight: commands/_sources 1258651 B \u00b7 baseline 1053408 (+205243) \u00b7 base origin/master (\u2014)\ncorpus-weight: commands/_fragments 218250 B \u00b7 baseline 119777 (+98473) \u00b7 base origin/master (\u2014)\ncorpus-weight: commands/_agents 40918 B \u00b7 baseline 24465 (+16453) \u00b7 base origin/master (\u2014)\ncorpus-weight: .windsurf/rules 1809828 B \u00b7 baseline 1319893 (+489935) \u00b7 base origin/master (\u2014)\ncorpus-weight: OK \u2014 no owned surface grew vs origin/master\ncorpus-weight: worktree \u2014 reporting only, nothing written",
+      "output": "corpus-weight: CLAUDE.md 121429 B \u00b7 baseline 98610 (+22819) \u00b7 base origin/infra-rotate-due (\u2014)\ncorpus-weight: templates/governance/CLAUDE.md 117879 B \u00b7 baseline 91060 (+26819) \u00b7 base origin/infra-rotate-due (\u2014)\ncorpus-weight: commands/_sources 1258651 B \u00b7 baseline 1053408 (+205243) \u00b7 base origin/infra-rotate-due (\u2014)\ncorpus-weight: commands/_fragments 218250 B \u00b7 baseline 119777 (+98473) \u00b7 base origin/infra-rotate-due (\u2014)\ncorpus-weight: commands/_agents 40918 B \u00b7 baseline 24465 (+16453) \u00b7 base origin/infra-rotate-due (\u2014)\ncorpus-weight: .windsurf/rules 1809828 B \u00b7 baseline 1319893 (+489935) \u00b7 base origin/infra-rotate-due (\u2014)\ncorpus-weight: OK \u2014 no owned surface grew vs origin/infra-rotate-due\ncorpus-weight: worktree \u2014 reporting only, nothing written",
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
@@ -448,51 +440,11 @@ with rows, and is not checked otherwise. `RECORDED â€” measured` and `RECORDED â
       "rerun": null
     }
   ],
-  "blocking": 44,
+  "blocking": 34,
   "checks": [
     {
-      "name": "ruff-format (--check)",
-      "outcome": "pass"
-    },
-    {
-      "name": "ruff",
-      "outcome": "pass"
-    },
-    {
-      "name": "check json",
-      "outcome": "pass"
-    },
-    {
-      "name": "check yaml",
-      "outcome": "pass"
-    },
-    {
-      "name": "mypy",
-      "outcome": "pass"
-    },
-    {
-      "name": "bandit (diff-sensed skip \u2014 no src/ changes)",
+      "name": "static tier (diff-sensed skip)",
       "outcome": "skipped"
-    },
-    {
-      "name": "bandit scripts/ (HIGH only)",
-      "outcome": "pass"
-    },
-    {
-      "name": "semgrep (diff-sensed skip \u2014 no src/ changes)",
-      "outcome": "skipped"
-    },
-    {
-      "name": "pytest (NOT RUN)",
-      "outcome": "skipped"
-    },
-    {
-      "name": "sqlfluff-lint",
-      "outcome": "pass"
-    },
-    {
-      "name": "vulture",
-      "outcome": "pass"
     },
     {
       "name": "Convergence Evidence (plans + reviews)",
@@ -571,10 +523,6 @@ with rows, and is not checked otherwise. `RECORDED â€” measured` and `RECORDED â
       "outcome": "advisory"
     },
     {
-      "name": "Schema Sync (DB Models)",
-      "outcome": "pass"
-    },
-    {
       "name": "Frozen Chain (contract pins)",
       "outcome": "advisory"
     },
@@ -584,10 +532,6 @@ with rows, and is not checked otherwise. `RECORDED â€” measured` and `RECORDED â
     },
     {
       "name": "Doc Sync Matrix",
-      "outcome": "pass"
-    },
-    {
-      "name": "Decision Ledger (unique ids)",
       "outcome": "pass"
     },
     {
@@ -729,6 +673,13 @@ with rows, and is not checked otherwise. `RECORDED â€” measured` and `RECORDED â
   ],
   "failures": [],
   "warnings": [
+    {
+      "check": "static tier (diff-sensed skip)",
+      "output": "\u26a0 static checks skipped \u2014 only .md files in the diff; this green asserts nothing about lint/type debt",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
     {
       "check": "Coverage Checklist (reviews)",
       "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~13 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-10-09-w-b63ffe1a-gate-scope-wording-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-10-18-seat-guard-network-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 1 changed + 0 unintegrated review artifact(s)",
