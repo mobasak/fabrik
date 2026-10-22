@@ -231,7 +231,8 @@ def _posture_hot(act: dict) -> float | None:
 def _hold_is_wall(hold: object) -> bool:
     """Does the picture's hold actually HOLD? MIRRORED from `claude_rotate.py::_hold_is_wall` (this
     script shells out to the tick and imports none of it): since D-306 only the `walled` tier
-    default-denies tools; at `urgent-90` quota_stop.py denies nothing, so the band decides the cap
+    default-denies tools for every session; at `urgent-90` quota_stop.py parks only the builders the D-1113
+    lane does not exempt (a coordinator or a P0 owner keeps dispatching), so the band decides the cap
     (W-37003fa1). No hold → no wall; a hold that is not a dict, or a dict with no tier (pre-tier) or
     an unknown one → the wall: fail closed, the direction a seat budget must never be lenient in."""
     if hold is None:

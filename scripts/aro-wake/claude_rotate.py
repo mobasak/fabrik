@@ -3413,7 +3413,7 @@ def _env_float(name: str, default: float) -> float:
 def _rotate_threshold() -> float:
     """The flip-away threshold on either quota window — ONE source for every call site.
 
-    Default **98** (operator rule 2026-09-08: "we can switch a lot faster now so i want to utilize
+    Default **99** since 2026-10-14 (below); before that **98** (operator rule 2026-09-08: "we can switch a lot faster now so i want to utilize
     them better — switch as soon as it reaches 98% session limit"). This SUPERSEDES the 95 of
     2026-09-03, and it is the same 98 that lost that day, so the reason it wins now is the part to
     keep: what changed is not the burst, it is the COST of losing the race.
@@ -3435,8 +3435,8 @@ def _rotate_threshold() -> float:
     before leaning on it.
 
     ⚠️ The 5 points this gives up were the margin, so the fallback carries the weight: with NO
-    eligible successor the URGENT-DRAIN mail fires at ``_urgent_drain_pct()`` = 90, eight points
-    below this line, and tells every repo when to resume. That ordering (90 < 98) is the design,
+    eligible successor the URGENT-DRAIN mail fires at ``_urgent_drain_pct()`` = 90, nine points
+    below this line, and tells every repo when to resume. That ordering (90 < 99) is the design,
     not a coincidence — if you raise this, check that one first. `ROTATE_THRESHOLD` overrides.
 
     ⚠️ The numbers above stop on 2026-08-15 because the FLEET tick never wrote the
@@ -6326,7 +6326,7 @@ def _print_picture(pic: dict) -> None:
         print(
             "picture: hold "
             + (
-                f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — warning only, the wall-tier hold is not armed)'} since "
+                f"{'HELD' if _hold_is_wall(hold) else 'LANE (urgent-90 — builders parked; coordinator_mode merge owners and open-P0 owners continue)'} since "
                 f"{_fmt_when(hold.get('since'))}, resume promised "
                 + (
                     _fmt_when(hold["resume_promised"])
@@ -6435,7 +6435,7 @@ def _fleet_exhaustion_stamp() -> Path:
 # `_fleet_active_wall_advisory` writes it on `walled OR urgent`: `walled` is the real wall (a
 # window at/over `ROTATE_THRESHOLD`, its `caps.json` cap, or 100 — `_flip_churn_excluded`), while
 # `urgent` is the SESSION window at `_urgent_drain_pct()` = 90 with no VALIDATED successor, which
-# is EIGHT points earlier on the default `ROTATE_THRESHOLD` of 98 and exists precisely to give a
+# is NINE points earlier on the default `ROTATE_THRESHOLD` of 99 and exists precisely to give a
 # graceful stop its runway (D-111). That gap is on the SESSION window alone: `urgent` tests
 # `five_hour` while a `caps.json` cap is applied to `seven_day` (`_flip_churn_excluded`), so a cap
 # never shortens it — it walls the weekly window on its own axis.
@@ -6563,9 +6563,10 @@ def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
 
 def _hold_is_wall(hold: dict | None) -> bool:
     """Is the live hold the one that actually HOLDS? The WALL band asserts that
-    `quota_stop.py` is default-denying every world-changing tool, and since D-306 only the
-    `walled` tier does. A hold dict with no tier is a pre-tier stamp — fails closed, like
-    :func:`_stamp_tier`; no hold at all is no wall, and a hold that is not a dict is one this
+    `quota_stop.py` is default-denying every world-changing tool for EVERY session, and since
+    D-306 only the `walled` tier does; `urgent-90` is the D-1113 lane, which parks builders but
+    lets a coordinator_mode merge owner and an open-P0 owner continue. A hold dict with no tier
+    is a pre-tier stamp — fails closed, like :func:`_stamp_tier`; no hold at all is no wall, and a hold that is not a dict is one this
     reader cannot read, so it fails closed too (W-06733560 item 7)."""
     if hold is None:
         return False
@@ -7195,8 +7196,8 @@ def _stamp_raw_tier(stamp: Path) -> str | None:
 
 
 def _battery_arm(now: float) -> None:
-    """Low battery and no hold (no stamp, or the quota's softer `urgent-90`, which holds nothing)
-    → write the battery stamp. A `walled` quota stamp already holds and is left alone."""
+    """Low battery and no full hold (no stamp, or the quota's softer `urgent-90`, the D-1113 lane, which
+    parks builders only) → write the battery stamp. A `walled` quota stamp already holds and is left alone."""
     if not _battery_low():
         return
     stamp = _fleet_exhaustion_stamp()
@@ -7534,7 +7535,7 @@ def _urgent_drain_pct() -> float:
     """The SESSION line at which, with NO eligible successor, every repo is told to stop
     gracefully and hook itself to the next session reset. Default **90** (operator rule
     2026-09-03: "when we see 90% session limit reached and if no account is available we must
-    send an URGENT mail to repos"). Below the flip line on purpose: the flip (`_rotate_threshold`, 98 since D-201 — read it there,
+    send an URGENT mail to repos"). Below the flip line on purpose: the flip (`_rotate_threshold`, 99 since 2026-10-14 — read it there,
     never from this sentence) is the
     remedy when a successor exists; this is the remedy when none does, and it needs the five
     points of runway a graceful stop takes. ``ROTATE_URGENT_DRAIN_PCT`` overrides. The quota posture (D-269) reads it as the RED line too — on the hottest window, successor or not — so a session's band and the drain mail share one number."""
@@ -7721,12 +7722,17 @@ def _humanize_lead(seconds: int) -> str:
 def _urgent_drain_message(
     active_email: str, reason: str, relief: tuple[float, str, str] | None
 ) -> str:
-    """The operator's wording, with the concrete time the repos must hook themselves to."""
+    """The operator's wording, with the concrete time the repos must hook themselves to.
+
+    Latched once per episode, so the text must be true at BOTH tiers: an episode that opens at
+    `urgent-90` and later walls sends no second notice (W-18f559d9 F9)."""
     head = (
         f"URGENT — fleet quota: the active account {active_email} cannot continue — {reason} — "
         "and NO other account is available to switch to (every sibling is session-exhausted, "
-        "weekly-walled or cap-walled). STOP YOUR WORK ASAP, GRACEFULLY: reach a "
-        "commit-and-push checkpoint now, then stop."
+        "weekly-walled or cap-walled). BUILDERS — STOP YOUR WORK ASAP, GRACEFULLY: reach a "
+        "commit-and-push checkpoint now, then stop. Only a coordinator_mode repo's merge owner "
+        "and the owner of an open P0 item continue, checkpointing as they go, and only while the "
+        "hold is at its 90-line lane tier (D-1113) — at the wall every session stops."
     )
     if relief is None:
         # The board's URL is env-derived (the dashboard's own knobs), never a literal — the
@@ -8111,8 +8117,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     95%). (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
     walled, row = _active_account_walled(accounts, threshold)
     # URGENT tier (operator rule 2026-09-03): the active account's SESSION at/over 90 with no
-    # eligible successor is the same emergency as the wall, EIGHT points earlier (five until D-201
-    # moved the flip line 95 -> 98 on 2026-09-08) — the runway a
+    # eligible successor is the same emergency as the wall, NINE points earlier (five until D-201
+    # moved the flip line 95 -> 98 on 2026-09-08, eight until it moved to 99 on 2026-10-14) — the runway a
     # graceful stop needs. Same latch, same re-arm, one message per episode.
     session_pct = None
     if row is not None and isinstance(row.get("five_hour"), dict):
@@ -8236,9 +8242,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         if not stamp.exists():
             _rearm_wall_stamp(stamp, str(row["email"]), now)
         # ⚠️ The MESSAGE is latched; the TIER is not (D-306). An episode opens at whichever arm
-        # fired first, and `urgent` fires up to eight points before `walled` — so without this
-        # the stamp says `urgent-90` for the whole episode and `quota_stop.py` holds nothing once
-        # the account actually walls. One-way: never the reverse.
+        # fired first, and `urgent` fires up to nine points before `walled` — so without this
+        # the stamp says `urgent-90` for the whole episode and `quota_stop.py` keeps only the lane
+        # (D-1113: coordinators and P0 owners continue) once the account actually walls. One-way: never the reverse.
         if walled:
             _upgrade_stamp_tier_to_walled(stamp)
         return  # already advised for this wall episode — one fact, one message
@@ -8268,7 +8274,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             _stamp_body(
                 str(int(relief[0]) + _drain_resume_lead_s() if relief else 0),
                 # on a low battery the stamp stays the battery's: a wall must never SOFTEN it to
-                # `urgent-90` (which holds nothing), and only mains power may lift it (W-83a8ee68)
+                # `urgent-90` (the D-1113 lane, which lets coordinators and P0 owners through), and
+                # only mains power may lift it (W-83a8ee68)
                 _STAMP_TIER_BATTERY
                 if _battery_low()
                 else _STAMP_TIER_WALLED
@@ -8307,7 +8314,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     never does. The flip leg (operator redesign 2026-08-15 — one active account for ALL
     projects): resolve the ``active`` pointer; missing/dangling → flip to the best account
     immediately (dwell-exempt repair — holding a dangling pointer is a fleet outage); the
-    active account ≥ROTATE_THRESHOLD (default 98 since D-201) on EITHER window → flip to the account with
+    active account ≥ROTATE_THRESHOLD (default 99 since 2026-10-14) on EITHER window → flip to the account with
     the most weekly-then-session headroom among credentialed, un-walled siblings. The flip
     moves zero credential bytes and is refused by the pause marker + the 30-min dwell (inside
     :func:`_flip_active`); telemetry and the wall advisory below run REGARDLESS (T01 semantics —

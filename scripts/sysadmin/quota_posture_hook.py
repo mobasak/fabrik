@@ -32,11 +32,13 @@ be trapped, so every failure path here returns 0.
 carries a TIER on its second line. At ``walled`` ``quota_stop.py`` owns the deny and this
 hook is SILENT on ``PreToolUse``; the tier is read BEFORE the band, so a lagging RED
 posture cannot produce a second, differently worded deny for the same call. At
-``urgent-90`` — the session window at the urgent-drain line with no successor, EIGHT points
-before the wall on the default ``ROTATE_THRESHOLD`` of 98 — ``quota_stop.py`` ALLOWS, so this hook keeps holding on its own
-band, or a genuine fleet RED would pass both hooks unheld. That tier also puts the
-CHECKPOINT clause on the prompt line: the turn boundary is the last moment an agent can
-checkpoint by choice rather than be denied mid-edit.
+``urgent-90`` — the session window at the urgent-drain line with no successor, NINE points
+before the wall on the default ``ROTATE_THRESHOLD`` of 99 — ``quota_stop.py`` runs the LANE
+(W-18f559d9, D-1113): it ALLOWS only the bound merge owner of a coordinator_mode repo and the
+bound owner of an open P0 item and parks everyone else, so this hook keeps holding on its own
+band — an exempt session's new fan-out included — or a genuine fleet RED would pass both hooks
+unheld. That tier also puts the ``band LANE`` CHECKPOINT clause on the prompt line: the turn
+boundary is the last moment an agent can checkpoint by choice rather than be denied mid-edit.
 
 FIRE RATE (FIX DIRECTIVE 5), measured over 2,361 rotation-tick rows on 2026-09-16:
 AMBER (>=85) 6.0%, RED (>=90) 4.7%, the 98 flip line 0. Signal, not wallpaper.
@@ -69,6 +71,8 @@ the only form of this claim that cannot rot.
 Env keys, declared here and nowhere else:
   ``ROTATE_STATE_DIR``       the state dir holding the posture file and the stamp
   ``QUOTA_POSTURE_STALE_S``  the staleness bound in seconds (default 900 = 3 ticks)
+  ``QUOTA_STOP_TICK_LOG``    quota_stop.py's tick log, read for the LANE clause's freshness
+  ``QUOTA_STOP_TICK_STALE_S`` quota_stop.py's tick staleness bound (default 900), read the same way
   ``COMMAND_RUN_DIR``        the run-record dir (through the LOCAL copy below)
   ``COMMAND_RUN_STALE_H``    how old a ``running`` record may be and still keep its seats (12)
   ``QUOTA_POSTURE_SETTINGS`` ``os.pathsep``-joined settings files for --install/--check
@@ -265,10 +269,31 @@ def _live_tier() -> str | None:
 
 
 def _wall_stamp_stands() -> bool:
-    """Is `quota_stop.py` holding? Only the `walled` tier holds since D-306 — at `urgent-90` it
-    ALLOWS, so this hook must keep doing its own job there or a genuine fleet RED passes both
-    hooks unheld."""
+    """Does `quota_stop.py` hold EVERY session? Only at the `walled` tier. At `urgent-90` it runs
+    the LANE — it parks builders and lets the merge owner and P0 owners continue — so this hook
+    must keep doing its own job there or an exempt session's fleet-RED fan-out passes both hooks
+    unheld."""
     return _live_tier() == _STAMP_TIER_WALLED
+
+
+def _tick_fresh(now: float) -> bool:
+    """The freshness `quota_stop.py` gates its hold on, read the same way (COPIED — that hook is
+    standalone): the tick log (`QUOTA_STOP_TICK_LOG`, default `~/.claude/rotate-tick.log`) moved
+    within `QUOTA_STOP_TICK_STALE_S` (default 900; garbage or non-finite → 900). On a stale or
+    missing log `quota_stop.py` fails OPEN and holds nothing, so the line must not say the lane
+    holds (review round 1 F6)."""
+    raw = os.environ.get("QUOTA_STOP_TICK_STALE_S", "900")
+    try:
+        bound = float(raw)
+    except (TypeError, ValueError):
+        bound = 900.0
+    if not math.isfinite(bound):
+        bound = 900.0
+    log = os.environ.get("QUOTA_STOP_TICK_LOG") or str(Path.home() / ".claude" / "rotate-tick.log")
+    try:
+        return now - Path(log).stat().st_mtime <= bound
+    except OSError:
+        return False
 
 
 # ── the line ───────────────────────────────────────────────────────────────────────
@@ -396,21 +421,42 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
     return out
 
 
-# ⚠️ The TURN-BOUNDARY nudge (D-306). A tool call is too late to checkpoint gracefully — by then
-# the agent is mid-edit — so the warning tier is announced HERE, where the next thing that happens
-# is the agent choosing what to do. It asks for a checkpoint, never a stop: at `urgent-90` real
-# runway remains and stopping early is the waste the operator's directive forbids (D-299).
+# ⚠️ The TURN-BOUNDARY nudge (D-306), now the LANE's (W-18f559d9, D-1113). A tool call is too late
+# to checkpoint gracefully — by then the agent is mid-edit — so the tier is announced HERE, where the
+# next thing that happens is the agent choosing what to do. At `urgent-90` quota_stop.py parks every
+# session but the bound merge owner of a coordinator_mode repo and the bound owner of an open P0
+# item, so the line names the lane and the checkpoint: the runway is real, and it is kept for the
+# sessions that merge and keep the records (the exemption is quota_stop.py's to judge, not this
+# line's — the line tells both kinds of reader what their side does).
 _CHECKPOINT = (
-    " · ⚠️ CHECKPOINT NOW — the fleet is at the urgent-drain line with no account to rotate to. "
-    "The fleet-wide hold has NOT armed, so nothing you have in flight is being cut short; a new "
+    " · band LANE on 5h — builders park, coordinators continue · ⚠️ CHECKPOINT NOW — the fleet "
+    "is at the urgent-drain line with no account to rotate to. A builder's next world-changing "
+    "tool is held: commit, push, close your run record (`command_run.py blocked --wall`) and end "
+    "the turn. The merge owner of a coordinator_mode repo and the owner of an open P0 item "
+    "continue, though a new fan-out or a new run may still be held by the band above. Commit, "
+    "push and keep your run record current while you still can"
+)
+# The same tier with a STALE tick: quota_stop.py fails open and parks nobody, so the clause keeps
+# the checkpoint ask and drops the lane (F6).
+_CHECKPOINT_STALE = (
+    " · ⚠️ CHECKPOINT NOW — the fleet is at the urgent-drain line with no account to rotate to, "
+    "but the rotation tick has gone stale, so the lane is not enforced until it runs again; a new "
     "fan-out or a new run may still be held by the band above. Commit, push and keep your run "
     "record current while you still can"
 )
 
 
 def _format_line(
-    posture: dict, band: str | None, *, is_fable: bool = False, checkpoint: bool = False
+    posture: dict,
+    band: str | None,
+    *,
+    is_fable: bool = False,
+    checkpoint: bool = False,
+    lane_enforced: bool = True,
 ) -> str:
+    """The QUOTA line. `checkpoint` adds the urgent-90 clause — the LANE's while `lane_enforced`
+    (quota_stop.py's tick freshness, `_tick_fresh`), the hold-free checkpoint ask otherwise."""
+    clause = (_CHECKPOINT if lane_enforced else _CHECKPOINT_STALE) if checkpoint else ""
     act = posture.get("active") if isinstance(posture.get("active"), dict) else {}
     wins = act.get("windows") if isinstance(act.get("windows"), dict) else {}
     fleet = posture.get("fleet") if isinstance(posture.get("fleet"), dict) else {}
@@ -421,7 +467,7 @@ def _format_line(
         f"QUOTA: {act.get('slug') or '—'} · 5h {_pct(fh)} ({_forecast(fh)}) · "
         f"weekly {_pct(wk)} ({_forecast(wk)}) · Fable {_pct(wins.get('fable'))} · "
         f"band {band or '?'}{_fleet_clause(posture, band, is_fable=is_fable)} · "
-        f"successor {succ_slug or 'none'}" + (_CHECKPOINT if checkpoint else "")
+        f"successor {succ_slug or 'none'}" + clause
     )
 
 
@@ -1077,6 +1123,7 @@ def main(argv: list[str] | None = None) -> int:
                     band,
                     is_fable=is_fable,
                     checkpoint=_live_tier() == _STAMP_TIER_URGENT,
+                    lane_enforced=_tick_fresh(now),
                 )
             )
         return 0

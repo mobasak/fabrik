@@ -2212,3 +2212,126 @@ def test_an_origin_only_notice_attachment_closes_its_seat(
     lines = [_launch_line("a1b2c3d4e5f60718"), notice]
     out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_originnotice", _stamped(), lines)
     assert _blocks_on_run_record(out), out
+
+
+# --- W-18f559d9 (D-1113): the Stop hook's urgent branch exempts the lane's sessions ---------------
+
+_LANE_GATE = """#!/usr/bin/env python3
+import json, os, pathlib, sys
+pathlib.Path(os.environ["LANE_GATE_RAN"]).write_text("ran")
+print(json.dumps({"status": "success", "failures": []}))
+"""
+
+
+def test_the_stop_hooks_urgent_branch_exempts_the_same_sessions(tmp_path: Path) -> None:
+    """Behaviour 6: at `urgent-90` a session quota_stop.py lets continue (the bound merge owner of
+    a coordinator_mode repo) takes the NORMAL Stop path — the gate is evaluated, the ordinary causes
+    speak — while a parked builder keeps the one-shot urgent checkpoint block. The verdict comes
+    from quota_stop.py's own `lane_exempt`, loaded by file path: one source, never a copy."""
+    import datetime as _dt
+    import tempfile as _tf
+
+    p = tmp_path / "proj"
+    (p / "scripts").mkdir(parents=True)
+    (p / "scripts" / "final_gate.py").write_text(_LANE_GATE)
+    (p / ".fabrik" / "work").mkdir(parents=True)
+    (p / ".fabrik" / "work" / "config.json").write_text(json.dumps({"coordinator_mode": True}))
+    (p / "docs").mkdir()
+    (p / "docs" / "DECISIONS.md").write_text(
+        "| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n"
+        "| D-001 | 2026-10-22 | operator | MERGE OWNER: coordinator — merges | t | h |\n"
+    )
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*git, "init", "-q", "-b", "master"], cwd=p, check=True, timeout=15)
+    subprocess.run([*git, "add", "-A"], cwd=p, check=True, timeout=15)
+    subprocess.run([*git, "commit", "-q", "-m", "base"], cwd=p, check=True, timeout=15)
+    (p / "mine.py").write_text("session work")
+    later = (_dt.datetime.now(_dt.UTC) + _dt.timedelta(seconds=60)).isoformat()
+    tr = tmp_path / "transcript.jsonl"
+    tr.write_text(
+        json.dumps(
+            {
+                "type": "assistant",
+                "timestamp": later,
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Write",
+                            "input": {"file_path": str(p / "mine.py")},
+                        }
+                    ]
+                },
+            }
+        )
+        + "\n"
+    )
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text("0\nurgent-90\n")
+    tick = tmp_path / "tick.log"
+    tick.write_text("tick\n")
+    store = tmp_path / "agent-identity.jsonl"
+    common = str((p / ".git").resolve())
+    store.write_text(
+        json.dumps({"session_id": "lane-coord-b6", "name": "coordinator", "toplevel": common})
+        + "\n"
+        + json.dumps({"session_id": "lane-build-b6", "name": "infra", "toplevel": common})
+        + "\n"
+    )
+    ran = tmp_path / "gate-ran"
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    env = {
+        k: v for k, v in os.environ.items() if k not in ("CLAUDE_AGENT", "QUOTA_STOP_TICK_STALE_S")
+    }
+    env.update(
+        {
+            "ROTATE_STATE_DIR": str(state),
+            "QUOTA_STOP_TICK_LOG": str(tick),
+            "COMMAND_RUN_DIR": str(runs),
+            "AGENT_IDENTITY_FILE": str(store),
+            "CLAUDE_PROJECT_DIR": str(p),
+            "QUOTA_STOP_DECISIONS_PY": str(
+                Path(__file__).resolve().parents[1] / "scripts" / "decisions.py"
+            ),
+            "LANE_GATE_RAN": str(ran),
+        }
+    )
+    tmpd = Path(_tf.gettempdir())
+
+    def stop(sid: str) -> str:
+        ran.unlink(missing_ok=True)
+        (tmpd / f"fabrik-gate-baseline-{sid}.json").write_text("[]")
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(_HOOK)],
+                input=json.dumps(
+                    {
+                        "session_id": sid,
+                        "cwd": str(p),
+                        "hook_event_name": "Stop",
+                        "transcript_path": str(tr),
+                    }
+                ),
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
+            )
+            return proc.stdout.strip()
+        finally:
+            for suffix in (".attempts", ".urgent", ".urgent-arm"):
+                (tmpd / f"fabrik-gate-stop-{sid}{suffix}").unlink(missing_ok=True)
+            (tmpd / f"fabrik-gate-baseline-{sid}.json").unlink(missing_ok=True)
+
+    held = stop("lane-build-b6")
+    assert held, "a parked builder still gets the urgent checkpoint block"
+    assert json.loads(held)["reason"].startswith(hook._URGENT_PREFIX), held
+    assert not ran.exists(), "the gate is not run for a parked builder"
+    exempt = stop("lane-coord-b6")
+    assert exempt, "the coordinator's uncommitted work still blocks — on the NORMAL path"
+    reason = json.loads(exempt)["reason"]
+    assert not reason.startswith(hook._URGENT_PREFIX), reason
+    assert "mine.py" in reason, reason
+    assert ran.exists(), "an exempt session's Stop evaluates the gate, as outside the tier"

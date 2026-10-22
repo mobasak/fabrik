@@ -1334,6 +1334,26 @@ def _claim_arm_block(sid: str | None) -> bool:
     return True
 
 
+def _lane_continues(sid: str | None, cwd: str) -> bool:
+    """W-18f559d9 (D-1113): True when quota_stop.py's LANE lets this session continue at
+    `urgent-90` (the bound merge owner of a coordinator_mode repo, or the bound owner of an open P0
+    item) — such a session takes the NORMAL Stop path. ONE source: `lane_exempt` is loaded from
+    quota_stop.py beside this hook by file path, never copied and never via sys.path. Any load or
+    call error is False, which keeps the urgent checkpoint — today's behaviour."""
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_quota_stop_lane", Path(__file__).resolve().parent / "quota_stop.py"
+        )
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        exempt, _why = mod.lane_exempt(sid, mod._lane_project_dir(cwd))
+        return exempt is True
+    except Exception:
+        return False
+
+
 def _urgent_checkpoint(
     root: Path,
     sid: str | None,
@@ -1345,10 +1365,12 @@ def _urgent_checkpoint(
 ) -> str | None:
     """W-37003fa1 — the Stop at the `urgent-90` tier. Returns ONE block reason, or None to end the turn.
 
-    D-306: at `urgent-90` quota_stop.py denies nothing and ORDERS a checkpoint — commit, push, keep
-    the run record current. So those three are the checkpoint items, and they block ONCE per
-    session per urgent episode, together; every other cause stands down with its debt named. Never
-    through the CAP-3 counters: a warn-through RE-ARMS a counter (attempts → 0), so cap 1 per cause
+    D-306, as the LANE refines it (W-18f559d9, D-1113): at `urgent-90` quota_stop.py PARKS this
+    session — the lane's exempt sessions never reach here (`_lane_continues`) — with the wall's
+    allow-list plus the finishing verbs, and ORDERS a checkpoint: commit, push, keep the run record
+    current. Every one of those is allowed while parked. So those three are the checkpoint items,
+    and they block ONCE per session per urgent episode, together; every other cause stands down
+    with its debt named. Never through the CAP-3 counters: a warn-through RE-ARMS a counter (attempts → 0), so cap 1 per cause
     blocked seven stops in a row (executed by the design critique). The gate is not run — a full
     `final_gate.py --lean` subprocess to name checks no one may fix now — and the coordinator is not
     consulted; neither is counted as stood down, because neither was evaluated.
@@ -4901,7 +4923,13 @@ def main(argv: list[str]) -> int:
                     urgent = _stamp_tier(_state / "fleet-exhausted") == _STAMP_TIER_URGENT
                 except Exception:
                     urgent = False
-                if not urgent:
+                # W-18f559d9 (D-1113): at the urgent tier the LANE's exempt session (the bound
+                # merge owner, or the owner of an open P0) is not parked, so it takes the NORMAL
+                # path below — gate and causes as outside the tier — never the wall's yield
+                lane_free = urgent and _lane_continues(sid, str(root))
+                if lane_free:
+                    urgent = False
+                if not urgent and not lane_free:
                     with contextlib.suppress(OSError):
                         _urgent_sidecar(sid).unlink(missing_ok=True)
                     # W-117b1916: the wall yields everything (D-158) — but one arm-only block per
