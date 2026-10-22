@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "read ~/.claude/state/command-feedback.jsonl (tok_cache_read, tok_seat_*) and the posture/transcript sizes; produce a one-page measurement with the per-turn prefix in tokens by component and the top five cuts with projected weekly savings; board the cuts as items for their beats (CLAUDE.md wording = kaizen/infra, hooks = infra); no change to any contract inside this item",
+  "next": "RE-SHAPED by D-1118 (operator: measure it like lean six sigma): not a one-off page but a STANDING daily series inside the kaizen instrument (kaizen_collect.py / kaizen_digest.py) — token waste by category per day, per agent and per command: (1) prefix re-read per turn (tok_cache_read / turns), (2) review seats and re-verify rounds (tok_seat_*, rounds), (3) session rotations per agent (new bindings in agent-identity.jsonl) and the context rebuilt after each, (4) waiting at quota walls (blocked --wall closes, hold minutes), (5) re-work after a red master, (6) output verbosity (tok_out per run); each series with a baseline and control limits (mean plus/minus 3 sigma over the trailing 14 days, out-of-control flagged in the daily digest). Measurement code is intel's; kaizen reads the digest and opens the items (W-4b371b8c). First deliverable: the series backfilled over the ledgers' history, the digest line, a one-page DEFINE of the categories; no contract or command edits inside this item",
   "note": "",
   "owner": "intel",
   "priority": 0,

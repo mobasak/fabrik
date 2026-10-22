@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-02472911"
+  ],
+  "created": "2026-10-22T07:14:56.838632Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4b371b8c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "wait for the series (W-02472911) to land; then a daily read of the digest's out-of-control lines; one item per category to its beat; the charter beat line is added by the coordinator",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "operator ask (HIGH): the fleet is quota-bound; a standing daily read plus item filing, one session per day; kaizen's beat (ways of working, the feedback loop)",
+  "status": "open",
+  "title": "Kaizen owns the token-waste improvement loop (D-1118, operator: 'our kaizen agent should adress the issues'): read the daily token-waste series the instrument produces (W-02472911), and for every category out of its control limits open ONE item to its beat — command and rule wording yourself via /fabrik-command-improve, hook/script code to infra, review-loop code to intel — each item measured before and after; first targets from the 2026-10-22 baseline: the per-turn prefix (CLAUDE.md ~121 KB + hook injections), review seat and round floors for small diffs, session rotation count and the context rebuilt after each /clear"
+}
