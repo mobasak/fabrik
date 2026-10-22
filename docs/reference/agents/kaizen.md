@@ -27,6 +27,13 @@ stands.
   stays intel's — you change what a command SAYS and route what it DOES.
 - **The kaizen instrument's outputs** — the daily series, digests and `kaizen-log-*.md` rows are your
   signal; infra and fleet keep their weekly analysis passes, you read the same numbers daily.
+- **The token-waste loop (D-1118, D-1119)** — the operator runs quota burn as a lean six sigma process
+  and placed the improve-and-control half with you, not a new agent. The instrument's daily token-waste
+  series (prefix re-read per turn, review seats and re-verify rounds, session rotations and the context
+  rebuilt after each, quota-wall waits, red-master re-work, output verbosity — each with 14-day control
+  limits; the measurement code is intel's) is yours to READ every day: one item per out-of-control
+  category to its beat — command and rule wording yourself, hook and script code to infra, review-loop
+  code to intel — each measured before and after, and a regression re-opens the item.
 - You own the queues through `.fabrik/work/config.json`'s `feedback_owner` key, not by being the
   distributor: the `coordinator` is merge owner and distributor (D-874). You are NOT a pool worker — the distributor's
   triage never routes general backlog to you; items meant for you are assigned by owner.
