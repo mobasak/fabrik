@@ -1590,3 +1590,82 @@ def test_a_derived_distro_name_cmd_would_split_is_refused(no_env_distro, monkeyp
         m.main(["launcher", "--desktop", str(tmp_path / "desk"), "--hub", "/opt/fabrik"])
     assert exit_.value.code == 2
     assert not (tmp_path / "desk" / "Fabrik Deck.bat").exists()
+
+
+def test_the_derived_notice_is_for_wslpath_only(no_env_distro, monkeypatch, tmp_path, capsys):
+    m = no_env_distro
+    monkeypatch.setenv("WSL_DISTRO_NAME", "FromEnv")
+    m.main(["launcher", "--desktop", str(tmp_path / "desk"), "--hub", "/opt/fabrik"])
+    assert "derived" not in capsys.readouterr().err
+
+
+def test_a_blank_environment_name_falls_back_to_wslpath(no_env_distro, monkeypatch, tmp_path):
+    m = no_env_distro
+    monkeypatch.setenv("WSL_DISTRO_NAME", "  ")
+    monkeypatch.setattr(
+        m, "WSLPATH", str(_fake_wslpath(tmp_path, "\\\\wsl.localhost\\Ubuntu-24.04\\\n"))
+    )
+    assert m._default_distro() == "Ubuntu-24.04"
+
+
+def test_a_wslpath_timeout_is_no_distro(no_env_distro, monkeypatch):
+    m = no_env_distro
+
+    def hang(*a, **k):
+        raise subprocess.TimeoutExpired(a[0], k.get("timeout"))
+
+    monkeypatch.setattr(m.subprocess, "run", hang)
+    assert m._default_distro() == ""
+
+
+def test_an_explicit_empty_distro_is_refused_never_derived(
+    no_env_distro, monkeypatch, tmp_path, capsys
+):
+    m = no_env_distro
+    monkeypatch.setattr(
+        m, "WSLPATH", str(_fake_wslpath(tmp_path, "\\\\wsl.localhost\\Ubuntu-24.04\\\n"))
+    )
+    with pytest.raises(SystemExit) as exit_:
+        m.main(
+            [
+                "launcher",
+                "--desktop",
+                str(tmp_path / "desk"),
+                "--hub",
+                "/opt/fabrik",
+                "--distro",
+                "",
+            ]
+        )
+    assert exit_.value.code == 2 and "is not a WSL distro name" in capsys.readouterr().err
+    assert not (tmp_path / "wslpath.log").exists()
+
+
+def _record_install(m, monkeypatch) -> list:
+    calls: list = []
+    monkeypatch.setattr(m.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(m, "install", lambda *a: calls.append(a))
+    return calls
+
+
+def test_install_without_a_desktop_never_probes(no_env_distro, monkeypatch, tmp_path):
+    m = no_env_distro
+    monkeypatch.setattr(
+        m, "WSLPATH", str(_fake_wslpath(tmp_path, "\\\\wsl.localhost\\Ubuntu-24.04\\\n"))
+    )
+    calls = _record_install(m, monkeypatch)
+    m.main(["install", "--hub", str(tmp_path)])
+    assert len(calls) == 1 and calls[0][3] == ""
+    assert not (tmp_path / "wslpath.log").exists()
+
+
+def test_install_with_a_desktop_and_no_distro_refuses_exit_1(
+    no_env_distro, monkeypatch, tmp_path, capsys
+):
+    m = no_env_distro
+    monkeypatch.setattr(m, "WSLPATH", str(tmp_path / "absent"))
+    calls = _record_install(m, monkeypatch)
+    with pytest.raises(SystemExit) as exit_:
+        m.main(["install", "--hub", str(tmp_path), "--desktop", str(tmp_path / "desk")])
+    assert exit_.value.code == 1 and "none derived" in capsys.readouterr().err
+    assert calls == []

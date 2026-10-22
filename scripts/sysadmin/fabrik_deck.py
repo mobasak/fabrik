@@ -894,9 +894,9 @@ def _default_distro() -> str:
 
     A shell systemd or linger started (code-server, tmux, the units) has no WSL_DISTRO_NAME (W-b364b48d). The .bat
     must pin THIS distro — the units and the hub live here — never the Windows default (`wsl.exe -l -v`'s `*` row),
-    which can be another distro. '' reaches _bat_check, which refuses it.
+    which can be another distro. On '' the caller, _distro, refuses.
     """
-    env = os.environ.get("WSL_DISTRO_NAME", "")
+    env = os.environ.get("WSL_DISTRO_NAME", "").strip()
     if env:
         return env
     try:
@@ -912,7 +912,13 @@ def _default_distro() -> str:
     m = re.fullmatch(
         r"\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\", r.stdout.decode(errors="replace").strip()
     )
-    return m.group(1) if r.returncode == 0 and m else ""
+    if r.returncode != 0 or not m:
+        return ""
+    print(
+        f"fabrik_deck: --distro derived as {m.group(1)} (pass --distro to override)",
+        file=sys.stderr,
+    )
+    return m.group(1)
 
 
 def _bat_check(desktop: Path, distro: str, browser: str, code: int) -> Path:
@@ -1116,9 +1122,6 @@ def _distro(explicit: str | None, code: int) -> str:
             "no --distro given and none derived from $WSL_DISTRO_NAME or `wslpath -w /`: "
             "set WSL_DISTRO_NAME or pass --distro",
         )
-    print(
-        f"fabrik_deck: --distro derived as {derived} (pass --distro to override)", file=sys.stderr
-    )
     return derived
 
 
