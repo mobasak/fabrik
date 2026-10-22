@@ -779,6 +779,8 @@ def test_a21_round_3_no_tree_walk_only_mkdir_makes_and_multiline_quotes(tmp_path
         f"mkdir {real}/no/a; cd {real}/no/a; rm -rf src",  # no -p and no parent: mkdir fails
         "echo 'a\n<<EOF b'\ngit -C /opt/fabrik reset --hard\nEOF",  # a quote open across lines
         'echo "a\n<<EOF b"\nrm -rf /opt/fabrik/src\nEOF',
+        # a quote the scanner misreads as open never lets the next line open a heredoc (review round 4)
+        'x="$(echo "\'")"\necho \' <<EOF\'\ngit -C /opt/fabrik reset --hard\nEOF',
     ):
         assert _denied(_run(cmd)), cmd
 

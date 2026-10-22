@@ -520,6 +520,13 @@ replay after round 1 (cd taken as succeeded): seats=2037 commands=55791 old_refu
 seats=2066 commands=56669 old_refusals=94 new_refusals=43 errors=0   (each cd taken as succeeded)
 ```
 
+  Round 4 was the remainder round: the fixed set only. All of round 3's items were fixed, or are now stated costs;
+  no input exceeded 0.01 s against the 5 s budget, and 15,000 fuzzed commands raised nothing. One own-fix loosening
+  remained: the quote carry misread `x="$(echo "'")"` as leaving `'` open, so a heredoc opener on the next line hid
+  a `git reset --hard`. It was fixed monotonically: a line that starts inside a carried quote never opens a
+  heredoc, so the carry can only suppress one. The new A21 row went red on revert. `command_run.py` printed
+  `⚠️ SCOPE GROWTH` (10/6 → 9/8 → 1/1).
+
 - **Step 7b, the live probe (D-1116 condition 3, before merge).** One Haiku `fabrik-reviewer` Agent-tool seat ran
   against the edited hook in this worktree:
 

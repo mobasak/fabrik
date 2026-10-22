@@ -310,8 +310,14 @@ def _strip_heredocs(command: str) -> str:
                 pending.pop(0)
             continue
         out.append(line)
+        quote_in = quote
         live, _, quote = _line_syntax(line, quote)
-        pending.extend(m.group(2) for m in _HEREDOC.finditer(line) if m.start() in live)
+        if (
+            not quote_in
+        ):  # a line that starts inside a carried quote opens no heredoc: the scanner may
+            # misread a quote it does not model (`"$(echo "'")"`), and opening one would hide the lines
+            # after it, so a carried quote may only ever SUPPRESS a heredoc (review round 4)
+            pending.extend(m.group(2) for m in _HEREDOC.finditer(line) if m.start() in live)
     return "\n".join(out)
 
 
