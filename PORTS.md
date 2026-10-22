@@ -24,13 +24,13 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 
 | Port | Service | Project | URL |
 |------|---------|---------|-----|
-| ~~8000~~ | ~~Coolify~~ | — | **retired 2026-05-30 — not deployed** (decommissioned; port 8000 is now bound only on the mesh IP, by glitchtip-web below. `coolify` survives only as a Docker-network name — see Notes) |
+| ~~8000~~ | ~~Coolify~~ | — | **retired 2026-05-30 — not deployed** (decommissioned; on vps1, port 8000 is now bound only on the mesh IP, by glitchtip-web below. `coolify` survives only as a Docker-network name — see Notes) |
 | 3001 | Gatus | gatus | https://status.vps1.ocoron.com |
 | 9898 | Backrest | backrest | https://backup.vps1.ocoron.com (Duplicati on 8200 retired 2026-04-17) |
 | ~~19999~~ | ~~Netdata~~ | — | **retired 2026-05-30 — not deployed** (removed; port 19999 now free) |
 | — | browserless | infra/vps1/browserless/compose.yaml | https://browser.vps1.ocoron.com (Traefik → internal 3000; no host port) |
 | — | gotenberg | infra/vps1/gotenberg/compose.yaml | https://pdf.vps1.ocoron.com (Traefik → internal 3000; no host port) |
-| ~~9000/9001~~ | ~~minio~~ | — | **never deployed** (its spec was retired 2026-06-17 to `specs/.archive/`; ports 9000/9001 free) |
+| ~~9000/9001~~ | ~~minio~~ | — | **not deployed** (its spec was retired 2026-06-17 to `specs/.archive/`; ports 9000/9001 free) |
 | — | apprise | infra/vps1/apprise/compose.yaml | https://notify.vps1.ocoron.com (Traefik over the fabrik network; internal 8000, no host port) |
 | — | meilisearch | infra/vps1/meilisearch/compose.yaml | https://search.vps1.ocoron.com (Traefik → internal 7700; no host port) |
 | 9091 | authelia | infra/vps1/authelia/compose.yaml | https://auth.vps1.ocoron.com; mesh only: `10.99.0.1:9091` (pushgateway holds 9091 on `127.0.0.1` — different addresses) |

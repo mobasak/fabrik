@@ -262,7 +262,7 @@ GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is the error-tracker sou
 
 - `GLITCHTIP_SECRET_KEY` — Django secret key, set on vps1 beside the live compose (a host fact; the hub `.env` does not carry it). **Never regenerate it** — a changed key invalidates every session.
 
-The hub `.env` carries none of the stack's settings — only the API keys the GlitchTip registrar reads (`GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG`; `src/fabrik/drivers/glitchtip.py`).
+The hub `.env` carries none of the stack's settings — only the API settings the GlitchTip registrar reads (`GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG`; `src/fabrik/drivers/glitchtip.py`).
 
 ### Watchdog DB access — `WATCHDOG_DB_URL_RO` / `WATCHDOG_DB_URL_RW` (auto-injected, do NOT set by hand)
 

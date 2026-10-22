@@ -16,5 +16,5 @@
   "owner": "",
   "priority": 2,
   "status": "open",
-  "title": "infra/vps1 mirrors lack settings the retired specs/infrastructure files declared (D-1097): healthchecks for authelia, browserless, gotenberg, meilisearch and n8n; gotenberg CHROMIUM_DISABLE_JAVASCRIPT / CHROMIUM_ALLOW_LIST; n8n N8N_HOST, N8N_PROTOCOL, WEBHOOK_URL, GENERIC_TIMEZONE, N8N_DIAGNOSTICS_ENABLED, N8N_VERSION_NOTIFICATIONS_ENABLED (may live in its env_file). Decide per setting, against the live /opt/<svc>/compose.yaml and .env on vps1, whether the live stack should carry it; the specs are recoverable with git show <the retiring commit>^:specs/infrastructure/<svc>.yaml"
+  "title": "infra/vps1 mirrors lack settings the retired specs/infrastructure files declared (D-1097): healthchecks for authelia, browserless, gotenberg, meilisearch and n8n; gotenberg CHROMIUM_DISABLE_JAVASCRIPT / CHROMIUM_ALLOW_LIST; n8n N8N_HOST, N8N_PROTOCOL, WEBHOOK_URL, GENERIC_TIMEZONE, N8N_DIAGNOSTICS_ENABLED, N8N_VERSION_NOTIFICATIONS_ENABLED (may live in its env_file). Decide per setting, against the live /opt/<svc>/compose.yaml and .env on vps1, whether the live stack should carry it; the specs are recoverable with git show 6914c2f03^:specs/infrastructure/<svc>.yaml"
 }

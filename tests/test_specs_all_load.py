@@ -44,4 +44,6 @@ def test_exemptions_exist_and_never_cover_services() -> None:
     for name in EXEMPT_DIRS:
         assert (SPECS / name).is_dir(), f"stale exemption: specs/{name}/ does not exist"
         assert not "services".startswith(name), f"specs/{name}/ would exempt specs/services/"
-    assert any(p.parent.name == "services" for p in _spec_files()), "no specs/services/*.yaml reached the guard"
+    assert any(p.parent.name == "services" for p in _spec_files()), (
+        "no specs/services/*.yaml reached the guard"
+    )
