@@ -122,7 +122,8 @@ exact load the operator asked to remove. Fifteen such gates were boarded in one 
 - **D5 — the Stop hook (infra ticket, mailed with the exact diff).** `_DECISION_GATE_RE` keeps its tokens and is checked first;
   in autonomy mode the hook then requires a split `Panel:` line for every `ground: gate` block that is not operator-kept, as it
   does for design approval today. Operator-kept means the Why line carries the label `operator-kept:` with one of D1's five
-  tokens, or names spend or an irreversible act; a design or plan approval is never operator-kept. The `:3104` and `:3115`
+  tokens (a `not` just before the label voids it), or names spend or an irreversible act; a Why line naming design or
+  plan approval is never operator-kept, money words included. The `:3104` and `:3115`
   comments follow D1. `tests/test_decision_panel.py:440-446` flips to the panel case and `:388-393`'s gate half takes the
   label; the new cases cover each token, five spellings of the label, prose without it, and the design-approval guard.
 
