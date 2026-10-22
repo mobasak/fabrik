@@ -457,6 +457,7 @@ docs/
 │   │   ├── 2026-10-15-plan-2-review-seat-write-isolation.md
 │   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
 │   │   ├── 2026-10-21-plan-3-own-scrape-slice-1a.md
+│   │   ├── 2026-10-22-plan-1-least-operator-approval.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -1232,6 +1233,7 @@ docs/
 │       ├── 2026-10-17-plan-1-command-centre-dashboard-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-plan-review.md
 │       ├── 2026-10-17-plan-1-merge-owner-grammar-review.md
+│       ├── 2026-10-22-plan-1-least-operator-approval-plan-review.md
 │       ├── 2026-10-17-stop-hook-uncommitted-vs-running-review-review.md
 │       ├── 2026-10-17-test-caps-w162398ef-review.md
 │       ├── 2026-10-17-w-177082fc-review-loop-candidate-file-review.md
@@ -1679,6 +1681,7 @@ docs/
 │       ├── 2026-10-18-external-services-page-design.md
 │       ├── 2026-10-18-saas-skeleton-chat-auth-design.md
 │       ├── 2026-10-21-own-scrape-tools-design.md
+│       ├── 2026-10-22-least-operator-approval-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
