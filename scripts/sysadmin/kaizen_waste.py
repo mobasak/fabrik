@@ -400,7 +400,8 @@ def rotation_rebuild(day: str) -> tuple[MetricResult, list[dict]]:
         # a partial total published as the day's value would be frozen low for good (the
         # publish is idempotent per day): the day stays unmeasured until every transcript reads
         return MetricResult.unavailable(
-            mid, f"{unfound} of {len(rotations)} rotation transcript(s) unfound"
+            mid,
+            f"{unfound} of {len(rotations)} rotation transcript(s) unfound or without usage yet",
         ), []
     cut = [_bd("total", "rotations", found, found, found)]
     cut += [_bd("agent", k, v, 1, v) for k, v in sorted(per_agent.items())]
@@ -421,8 +422,9 @@ def _git(args: list[str]) -> str:
 
 def _refreshed_at(ref: str) -> float:
     """When ``ref`` last learned the remote's state: the newest of its tip's commit time, its newest
-    reflog entry (a push or a fetch that moved it) and FETCH_HEAD's mtime (any fetch, even one that
-    changed nothing). A quiet day on master has no commit after it, but the ref still refreshes."""
+    reflog entry (a push or a fetch that moved it) and FETCH_HEAD's mtime when its last fetch carried
+    the ref's branch (such a fetch counts even when it changed nothing). A quiet day on master has no
+    commit after it, but the ref still refreshes."""
     stamps = [float(_git(["log", "-1", "--format=%ct", ref]).strip() or 0)]
     try:
         last = _git(["reflog", "show", "--date=unix", "-1", ref])
