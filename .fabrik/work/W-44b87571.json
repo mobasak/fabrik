@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T11:02:29.235314Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-44b87571",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1120",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per line: guard the headline with the digest's _num, add an identity-store freshness check, and refuse a waste publish on a store with no non-waste series",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Token-waste review residue (W-02472911 /fabrik-review, recorded not fixed): kaizen_digest's ordinary headline lines print a bool/string/NaN/huge-int point raw and compare a duplicate day with itself (pre-existing, not the control section); waste_rotation_rebuild cannot tell a stopped identity hook from a day without rotations; a store with no non-waste series lets a waste publish move kaizen_collect_v2's newest-day guard; the FETCH_HEAD branch match keys on the ref's last path part and any remote"
+}
