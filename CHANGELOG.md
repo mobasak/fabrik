@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The seven specs/infrastructure files are retired; the infra/vps1 mirrors are the only repo copy (2026-10-22)
+
+`specs/infrastructure/{apprise,authelia,browserless,glitchtip,gotenberg,meilisearch,n8n}.yaml` failed `load_spec`, no code read them, and each had drifted from the `infra/vps1/<svc>/compose.yaml` mirror of the live stack. They are deleted; their load-bearing comments (ARM64 support, the browserless v2 TOKEN and env names, the GlitchTip secret-key warning, the n8n auth note, the Authelia config pointer) now head the mirrors, with no setting changed. `docs/DEPLOYMENT_ARCHITECTURE.md` § 3.1, `PORTS.md`, `docs/CONFIGURATION.md`, `.env.example`, `infra/README.md` and six other docs name the mirrors; the unused `GLITCHTIP_SECRET_KEY`/`GLITCHTIP_REDIS_URL` lines leave `.env.example`. `tests/test_specs_all_load.py` keeps every YAML under `specs/` appliable. Spec-only settings the mirrors lack are item W-24025e50 (W-b64d9cd7, D-1097, D-1117).
+
 ### Fixed — A re-applied payments role loses its settings in every database, not only its own (2026-10-22)
 
 `mint_payments_role` reset a re-applied payments role's per-database settings only in the project's database, so a setting attached out of band in any other database (for example `row_security = off`) survived every re-apply. It now walks `pg_db_role_setting` for that role and resets it in each database that holds one, skipping a database dropped in between. The unit test pins the refusal guard's and the loop's role filters; the real-Postgres test plants three settings (counted before the re-mint) and a bystander role's setting that must survive (W-3c302832, D-1115).
