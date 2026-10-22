@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "one paragraph edit in two synced files; /fabrik-task row 1 with the full /fabrik-review; one commit after it; the mechanism (how a pane gets its /clear keys) is infra's W-f975fee0 — the rule text names 'ask your coordinator to rotate you' until that lands",
+  "next": "Measured 2026-10-22 12:45: fabrik-lib-dev1/dev2/sentinel transcripts at 760/799/930 MB, never rotated (no forced re-bind in 7 days except sentinel once), because the ROTATE hook line (transcript_size_check.py) addresses a window holder and fabrik-lib's coordinator reaches builders by SendMessage only; the operator read the repeated hook line as '/clear typed several times'. The rule wording should (a) say the ROTATE line is advice printed by a hook, nothing was typed, (b) name WHO acts on it in a tmux grid: the repo coordinator over tmux (D-1034), at the item boundary (D-1119), with the whoami re-bind, and (c) pair with infra's W-f975fee0 rotate verb. Operator's standing question 2026-10-22: when will agents use /clear — answer in the rule.",
   "note": "",
   "owner": "kaizen",
   "priority": 1,
