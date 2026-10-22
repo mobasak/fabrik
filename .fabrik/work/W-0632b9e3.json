@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T11:48:11.268385Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0632b9e3",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task on scripts/review_loop_ledger.py pin (governance-sync path: full /fabrik-review at phase 4); decide import-hop vs overlaid archive in DESIGN with the two critique seats",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "review_loop_ledger.py pin: a pinned test that imports a sibling module (plan_appetite, check_plans, _fences) fails on import in the seat — make the pin self-sufficient: follow the pinned tests' imports one hop, or have pin write the base archive with the pins overlaid and name it in the brief (mail 01M5HP8FTJ, /fabrik-review row 1792613761.9043047)"
+}
