@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_install_user_hooks.py | docs/workstation/hooks-index.md | scripts/sysadmin/user_hook_gate.py | scripts/sysadmin/selfwatch_check.py
+# AFTER-EDIT: tests/test_install_user_hooks.py | docs/workstation/hooks-index.md | scripts/sysadmin/user_hook_gate.py | scripts/sysadmin/selfwatch_check.py | docs/workstation/fabrik-deck.md
 """Install / verify the USER-LEVEL hook registrations in every account dir (review 2026-09-06, B10).
 
 The three entries — the self-watch arm check, and the gate that runs the hub's mcp_watch.py and
@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 HUB = "/opt/fabrik"
+DECK_HOOK = f"python3 {HUB}/scripts/sysadmin/fabrik_deck.py hook"
 ENTRIES = {
     "UserPromptSubmit": [
         f"python3 {HUB}/scripts/sysadmin/selfwatch_check.py",
@@ -38,6 +39,7 @@ ENTRIES = {
         # separately measured — the stamp is the counter-measure to that shape, not a claim that
         # the measurement was repeated here (review 2026-10-11, wiring-docs-S2).
         f"python3 {HUB}/scripts/sysadmin/transcript_size_check.py",
+        DECK_HOOK,
     ],
     "PreToolUse": [
         f"python3 {HUB}/scripts/sysadmin/user_hook_gate.py {HUB}/.claude/hooks/quota_stop.py",
@@ -58,13 +60,20 @@ ENTRIES = {
     # its own copy to defer to.
     "Stop": [
         f"python3 {HUB}/scripts/sysadmin/worktree_transcript_link.py",
+        DECK_HOOK,
     ],
     # Operator mail 01M4AR32MY (2026-10-07): a session's stdio MCP servers outlive it (48 Maestro
     # JVMs, ~11 GB swap after a hibernate resume). SessionEnd reaps the ones already REPARENTED
     # (pid 1 / the vscode-server root) and older than two minutes — never a live session's child.
     "SessionEnd": [
         f"python3 {HUB}/scripts/sysadmin/mcp_orphan_reaper.py --hook",
+        DECK_HOOK,
     ],
+    # The Fabrik Deck's attention hook (docs/workstation/fabrik-deck.md, plan 2026-10-22-plan-1-fabrik-deck): one
+    # file per session waiting on the operator, which the Deck board reads. No matcher — the hook filters the
+    # notification type itself and always exits 0, so it can never block a session.
+    "Notification": [DECK_HOOK],
+    "PostToolUse": [DECK_HOOK],
 }
 TIMEOUT_S = 10
 
