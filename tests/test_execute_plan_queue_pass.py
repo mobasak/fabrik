@@ -312,3 +312,39 @@ def test_the_loop_step_names_the_phase_review_artifact() -> None:
     ) in item_3b
     assert 'goes through `--review-waived "<reason>"`' in item_3b
     assert '`--review-waived "Profile: small' in item_3b
+
+
+def test_a_closed_scoped_review_record_is_never_the_phase_artifact() -> None:
+    """Rows 1792642635, 1792631003 and 1792629452 (after 1792498266): plans closing a phase with /fabrik-review-scoped
+    expected its record to satisfy `step`; `_phase_review_exists` reads only docs/development/reviews/."""
+    assert (
+        "A closed `/fabrik-review-scoped` run record is never the receipt `step` reads: `step` reads only a file under"
+        " `docs/development/reviews/`, and item 3, not `step`, makes a phase's review the full `/fabrik-review` without"
+        " `Profile: small`, its receipt the one this item names."
+    ) in _section("**Every phase's review exit", "4. **All HARD STOPS")
+
+
+def test_a_cwd_dependent_check_runs_as_its_own_call() -> None:
+    """Row 1792595903, the second verdict on held cd-dependent-checks-run-alone: a batched cd-dependent check read
+    another check's directory, and a bare `cd` persists across the Bash tool's calls."""
+    assert (
+        "a check that needs a working directory other than the repo root runs as its own Bash call in a subshell,"
+        " `(cd <dir> && <check>)`, since the Bash tool keeps a bare `cd` for every later call, never chained with another"
+        " check, and its exit is read before the next runs"
+    ) in _section("run phase validation gate", "fix any gate failures")
+
+
+def test_the_coder_brief_fences_tests_off_the_live_database() -> None:
+    """Rows 1792630640 and 1792643127: a coder's tests reached the live database because a deleted `.env` was taken
+    for a fence; with an unreachable host the database tests are reported as not run, never as passing."""
+    assert (
+        "5. A worktree whose `.env` is deleted or absent is not a database fence, since a suite can still reach a live"
+        " database through a default or the shell's environment: run the tests with each database variable the suite"
+        " reads ({the variable names}) set to {an isolated test database, or an unreachable URL such as"
+        " `postgresql://fence.invalid/fence_test`, whose `_test` name passes a throwaway-name guard}, and with the"
+        " unreachable URL report the database tests as not run, never as passing: their connection errors are the"
+        " fence, not a defect to fix."
+    ) in _section("## Before you start", "## Global Constraints")
+    assert "and its item 5 database fence) + the ticket" in _section(
+        "**Fixup ROUTING", "**Epic containment"
+    )

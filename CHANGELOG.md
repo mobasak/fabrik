@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan queue pass: the phase receipt, a coder's database fence, a cwd-dependent check (2026-10-23)
+
+- `commands/_sources/fabrik-execute-plan.md` gets three changes, all graded in `tests/test_execute_plan_queue_pass.py`:
+  - **Phase receipt.** Item 3b says a closed `/fabrik-review-scoped` run record is never the receipt `step` reads, since `step` reads only a file under `docs/development/reviews/`. Item 3, not `step`, makes a phase's review the full `/fabrik-review` without `Profile: small`.
+  - **Database fence.** The coder briefing template treats a deleted `.env` as no fence. It runs the tests with each database variable the suite reads set to an isolated test database or an unreachable `postgresql://fence.invalid/fence_test` URL, and reports database tests behind that URL as not run, never as passing.
+  - **Working directory.** The phase gate runs a check that needs a working directory other than the repo root as its own call, in a subshell.
+- The other 20 queue rows were rejected with reasons (W-2923e7c6).
+
 ### Fixed — review-probe-catalogue: a copy of the base pin tree is made writable before the pins are laid over it, and again after (2026-10-23)
 
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation: `review_loop_ledger.py pin` writes the pin and its `<pins_dir>.base` tree read-only, files and directories. A seat that copies the base tree therefore runs `chmod -R u+w <dest>` right after that copy and before laying the pins over it, and again after it, because a pin file the base lacks lands read-only. Before this, five of fourteen seats in one review hit Permission denied (mail 01M5HTCCA9 from infra-2). `tests/test_review_queue_pass.py` pins the clause.
