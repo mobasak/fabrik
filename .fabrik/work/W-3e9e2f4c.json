@@ -3,7 +3,7 @@
   "created": "2026-10-16T21:33:46.820646Z",
   "creator": "infra",
   "effort": "high",
-  "evidence": "",
+  "evidence": "78a86bab9972599c5b944a84532a316598e82b17",
   "id": "W-3e9e2f4c",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 2,
   "score_reason": "operator 2026-10-16 asked for the whole dashboard to be user-friendly; a second GUI redesign = major; held behind the one major in flight",
-  "status": "open",
+  "status": "done",
   "tags": [
     "dashboard",
     "medium"
