@@ -1355,6 +1355,7 @@ docs/
 │       ├── 2026-10-22-payments-role-reapply-review.md
 │       ├── 2026-10-22-plan-1-least-operator-approval-plan-review.md
 │       ├── 2026-10-22-retire-specs-infrastructure-review.md
+│       ├── 2026-10-22-w4c894cef-rotation-rule-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
