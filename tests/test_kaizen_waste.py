@@ -233,6 +233,10 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
         "docs: Measured since the change, registered on master",
         date="2026-10-09T11:00:00",
     )
+    # fix-shaped but only a substring lookalike: the word boundary alone excludes it
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "fix: tidy hooks registered on master")
+    # the real phrase in a non-fix subject: the fix-shape alone excludes it
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "docs: note the red master episode")
     _git(repo, "checkout", "-q", "master")
     _git(
         repo,
@@ -296,11 +300,16 @@ def test_backfill_is_idempotent_bounded_and_writes_breakdown(env):
     assert (DAY, "waste_context_per_call", "agent", "intel") in keys
     assert (DAY, "waste_context_per_call", "command", "fabrik-task") in keys
     assert len(bd) == len(keys)  # one row per (day, metric, by, key) after two runs
+    # a racing second writer of the same (day, metric) adds nothing
+    kw._write_breakdown(DAY, {"waste_context_per_call": [{"by": "agent", "key": "x"}]}, None)
+    assert len((env / "kaizen" / "waste-breakdown@v1.jsonl").read_text().splitlines()) == len(bd)
     with pytest.raises(ValueError):
         kw.publish_day("2026-10-20", today="2026-10-20")  # never today
 
 
-def _points(env: Path, metric: str, values: list[float], start: str = "2026-09-01") -> list[str]:
+def _points(
+    env: Path, metric: str, values: list[float], start: str = "2026-09-01", closes: int = 30
+) -> list[str]:
     d0 = dt.date.fromisoformat(start)
     days = [(d0 + dt.timedelta(days=i)).isoformat() for i in range(len(values))]
     d = env / "kaizen" / "series"
@@ -311,7 +320,7 @@ def _points(env: Path, metric: str, values: list[float], start: str = "2026-09-0
         for day, v in reversed(list(zip(days, values, strict=True))):
             fh.write(json.dumps({"day": day, "metric": metric, "value": v, "cell": f"{v}"}) + "\n")
             for by, key, val in (
-                ("total", "closes", 30),
+                ("total", "closes", closes),
                 ("agent", "kaizen", 7),
                 ("agent", "intel", 3),
             ):
@@ -358,3 +367,8 @@ def test_digest_control_section_frozen_limits_and_rules(env):
     # a short baseline says so instead of judging
     _points(env, "waste_wall_rate", [1, 2, 3], start="2026-06-01")
     assert "waste_wall_rate: baseline 2/14 — no limits yet" in kd.compose(env / "kaizen")
+    # a ratio day under 20 closes is plotted, never judged, however far out it reads
+    _points(env, "waste_context_per_call", [500], start="2026-09-17", closes=5)
+    lines = kd.compose(env / "kaizen").splitlines()
+    assert "waste_context_per_call: 2026-09-17 under 20 closes — plotted, not judged" in lines
+    assert not any(ln.startswith("OUT OF CONTROL ↑ waste_context_per_call") for ln in lines)
