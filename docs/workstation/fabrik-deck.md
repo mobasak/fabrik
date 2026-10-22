@@ -197,11 +197,13 @@ a terminal as the operator's user. Both servers bind `127.0.0.1` only; the board
 
 ## Acceptance
 
-The spec's open unknowns need the operator's hands and a reboot. Each row is a step and what to record here after it;
-the coordinator boards it as a gate, because `wsl --shutdown` and a Windows reboot end every session.
+The spec's open unknowns need the operator's hands and a reboot. Each row is a step and what to record here after it.
+The operator agreed to run them (D-1128) once the branch is merged and `install` and `up` have run, and the coordinator
+says when: step 0 comes first, because `wsl --shutdown` and a Windows reboot end every session.
 
 | # | Step | Record |
 |---|---|---|
+| 0 | The coordinator pauses every repo's agents the `/hibernate` way (each commits, pushes and parks its run) | that every agent reported parked, before step 1 starts |
 | 1 | Open 3 repo tabs from the board, tile 2 of them, close Vivaldi, reopen it | whether the board, the 3 tabs and the tiling all return |
 | 2 | Tile and untile a repo tab mid-chat; leave one tab and the board in the background past Vivaldi's hibernation delay; make a session wait | whether a chat view reloads, and whether the browser notification fires |
 | 3 | `wsl --shutdown`, then a Windows reboot; after each, from Windows `curl.exe -s -o NUL -w "%{http_code}" http://localhost:8443/` and `:8445/` | the codes; if forwarding fails, which fallback worked (restart WSL; reaching the NAT address would need the servers bound there, an exposure change put to the operator first) |

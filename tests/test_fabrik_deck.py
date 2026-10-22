@@ -1458,3 +1458,15 @@ def test_config_yaml_replaces_only_top_level_keys():
     assert new[:3] == ["foo:", "  auth: x", "  cert: 1"]
     assert new.count("auth: none") == 1 and not any(line.startswith('"auth"') for line in new)
     assert "# auth: y" in new and "bind-addr: 127.0.0.1:8443" in new and "cert: false" in new
+
+
+def test_profile_rewrites_a_number_where_the_deck_wants_a_boolean(box):
+    box.settings.parent.mkdir(parents=True)
+    box.settings.write_text(
+        json.dumps({**PROFILE, "window.autoDetectColorScheme": 0, "workbench.statusBar.visible": 1})
+    )
+    assert box.run("profile").returncode == 0
+    got = json.loads(box.settings.read_text())
+    assert (
+        got["window.autoDetectColorScheme"] is False and got["workbench.statusBar.visible"] is True
+    )

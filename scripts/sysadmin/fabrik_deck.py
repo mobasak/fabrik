@@ -33,8 +33,8 @@ is refused (the browser must be a Windows path to an .exe).
 
 up — the .bat's WSL leg: export XDG_RUNTIME_DIR when the user bus is there (a .bat carries none; with no bus it says
 so, starts nothing and exits 1), start each unit that is not active and whose port is free (a held port is named on
-stderr and that unit left stopped), print the board port — none when another process holds it, so the .bat never
-opens a foreign page.
+stderr and that unit left stopped), print the board port — none when another process holds it (known only with a
+bus), so the .bat never opens a foreign page.
 
 install — the session-archive installer's steps (scripts/sysadmin/install_session_archive_timer.sh), for both units.
 Every check runs before the first write, so a refusal (exit 1) leaves every file as it was: linger must be on; `--hub`
@@ -101,6 +101,10 @@ KEEP = (
 )
 DEFAULT_PORT = 8443
 DECK_PORT = 8445
+# The browser-facing origin: Windows forwards only `localhost` into WSL, and it is a secure context with no cert
+# (spec § Chosen approach). The board and the code-server bind 127.0.0.1; this is the name a browser on Windows uses,
+# never a service address, so the localhost ban's database rule does not apply.
+BROWSER_ORIGIN = "http://localhost"  # noqa  # browser-facing loopback name, not a backing service (see above)
 HUB = Path(__file__).resolve().parents[2]
 
 
@@ -184,7 +188,7 @@ def _atomic_write(path: Path, text: str, new_mode: int = 0o644) -> None:
     mode = path.stat().st_mode & 0o777 if path.exists() else new_mode
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
         os.chmod(tmp, mode)
         os.replace(tmp, path)
@@ -457,7 +461,7 @@ li a{color:var(--link);text-decoration:none;font-weight:600}
 <ul id="list"></ul>
 <script>
 "use strict";
-const CODE_PORT = __CODE_PORT__;
+const CODE_ORIGIN = "__CODE_ORIGIN__";
 let repos = [], waiting = [], known = null;
 const list = document.getElementById("list"), q = document.getElementById("q");
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -466,7 +470,7 @@ function row(name, path, waits) {
   li.append(el("span", waits.length ? "dot" : "dot idle"));
   if (path) {
     const a = el("a", "", name);
-    a.href = "http://localhost:" + CODE_PORT + "/?folder=" + encodeURIComponent(path);
+    a.href = CODE_ORIGIN + "/?folder=" + encodeURIComponent(path);
     a.target = "_blank"; a.rel = "noopener";
     li.append(a);
   } else li.append(el("strong", "", name));
@@ -504,7 +508,7 @@ def _handler(registry: Path, opt_root: Path, state: Path, code_port: int, rows: 
     good = {
         "rows": rows
     }  # the last catalog that read cleanly: a registry being rewritten never empties the board
-    board = BOARD.replace("__CODE_PORT__", str(code_port)).encode()
+    board = BOARD.replace("__CODE_ORIGIN__", f"{BROWSER_ORIGIN}:{code_port}").encode()
 
     built = {"at": time.monotonic()}
     lock = threading.Lock()
@@ -657,7 +661,7 @@ def serve(registry: Path, opt_root: Path) -> None:
         httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     except OSError as exc:
         _die(2, f"cannot listen on 127.0.0.1:{port}: {exc}")
-    print(f"fabrik_deck: serving http://localhost:{port}/ (state {state})", flush=True)
+    print(f"fabrik_deck: serving {BROWSER_ORIGIN}:{port}/ (state {state})", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
@@ -775,10 +779,9 @@ def _read_settings(path: Path) -> dict | None:
     if not path.exists():
         return None
     try:
-        text = path.read_text()
-        data = (
-            json.loads(text) if text.strip() else {}
-        )  # code-server treats an empty file as no settings
+        text = path.read_text(encoding="utf-8")
+        # code-server treats an empty file as no settings
+        data = json.loads(text) if text.strip() else {}
     except (OSError, ValueError) as exc:
         _die(1, f"{path} is not plain JSON ({type(exc).__name__}: {exc}); left untouched")
     if not isinstance(data, dict):
@@ -800,7 +803,9 @@ def _backup(path: Path, backups: Path) -> None:
 
 def _profile_text(current: dict | None) -> str | None:
     """The new settings.json text, or None when the file already holds every Deck value (no backup, no rewrite)."""
-    if current is not None and all(k in current and current[k] == v for k, v in PROFILE.items()):
+    if current is not None and all(
+        k in current and type(current[k]) is type(v) and current[k] == v for k, v in PROFILE.items()
+    ):
         return None
     return json.dumps({**(current or {}), **PROFILE}, indent=4, ensure_ascii=False) + "\n"
 
@@ -852,6 +857,7 @@ VIVALDI = r"C:\Users\user\AppData\Local\Vivaldi\Application\vivaldi.exe"
 
 def _bat_text(hub: Path, distro: str, browser: str) -> str:
     image = browser.replace("/", "\\").rsplit("\\", 1)[-1]
+    board = f"{BROWSER_ORIGIN}:%PORT%"
     up = f"wsl.exe --distribution {distro} --exec /usr/bin/python3 {hub}/scripts/sysadmin/fabrik_deck.py up"
     lines = [
         "@echo off",
@@ -862,14 +868,14 @@ def _bat_text(hub: Path, distro: str, browser: str) -> str:
         'if "%PORT%"=="" (echo Fabrik Deck: WSL did not answer with the board port. & pause & exit /b 1)',
         "set TRIES=0",
         ":wait",
-        'curl.exe -s -m 2 -o NUL -w "%%{http_code}" http://localhost:%PORT%/ | findstr 200 >NUL && goto ready',
+        f'curl.exe -s -m 2 -o NUL -w "%%{{http_code}}" {board}/ | findstr 200 >NUL && goto ready',
         "set /a TRIES+=1",
-        "if %TRIES% GEQ 30 (echo Fabrik Deck: http://localhost:%PORT%/ did not answer within 30 s. & pause & exit /b 1)",
+        f"if %TRIES% GEQ 30 (echo Fabrik Deck: {board}/ did not answer within 30 s. & pause & exit /b 1)",
         "timeout /t 1 /nobreak >NUL",
         "goto wait",
         ":ready",
         f'if not exist "%~dp0{FIRST_RUN}" (',
-        f'  start "" "{browser}" http://localhost:%PORT%/',
+        f'  start "" "{browser}" {board}/',
         f'  echo opened> "%~dp0{FIRST_RUN}"',
         "  exit /b 0",
         ")",
