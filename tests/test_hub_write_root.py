@@ -345,6 +345,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/snapshot_vps_state.py": "untracked: writes .tmp/vps-snapshot-<label>.json (gitignored `.tmp/`)",
     "scripts/sysadmin/archive_transcripts.py": "untracked: reads the gitignored .env (SESSION_ARCHIVE_ENV_FILE); writes the archive under ~/.claude/archive and uploads it to B2, no tracked-file write",
     "scripts/sysadmin/claude_rotate.py": "untracked: rotate-ledger.jsonl under ~/.claude/state, outside the repo",
+    "scripts/sysadmin/fabrik_deck.py": "untracked: `--hub` defaults to /opt/fabrik as the checkout the systemd unit runs it from; writes go to ~/.config/fabrik-deck and ~/.config/systemd/user, outside the repo",
     "scripts/sysadmin/detect_reversals.py": "untracked: writes logs/lessons-pending.jsonl + logs/sysadmin-actions.jsonl (gitignored `logs/`)",
     "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json (not tracked — `git ls-files .mcp.json` is empty)",
     "scripts/sysadmin/install_user_hooks.py": "untracked: installs into the user's own ~/.claude hooks, outside the repo",
