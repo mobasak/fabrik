@@ -248,7 +248,7 @@ Appetite: 60
 **Steps** (sequential):
 
 1. Kaizen mails infra (`mail.py send --to fabrik --to-agent infra --kind request`, the D-035 contract) the diff below
-   — the prototype script `apply_hook_diff4.py` inline (it carries the comment block above verbatim) — and the Behaviour Contract B1–B7, and pings it live.
+   — the prototype script `apply_hook_diff5.py` inline (it carries the comment block above verbatim) — and the Behaviour Contract B1–B7, and pings it live.
 2. Infra writes B1–B7 in `tests/test_decision_panel.py`. B1 and B6's prose cases are red on today's hook; B6's
    design- and plan-approval cases pass today and are proven red on mutants that drop `not design_gate and` and
    `not why_design and`; the negated-label cases on one that drops the `_OPERATOR_KEPT_NEGATED_RE` check. B2–B5 and B7 pass today and
@@ -272,7 +272,8 @@ The diff (spec D5; infra may reshape it, the behaviour is fixed):
 # beside _DECISION_GROUNDS (:3074) — the classes D-1110 keeps for the operator:
 # D-1110: the gate classes the operator keeps. A `ground: gate` block reaches the operator
 # unpaneled only when its Why line carries the explicit label `operator-kept: <token>` from this
-# closed set (a `not` just before the label voids it), or names spend or an irreversible act
+# closed set (a `not` just before a label voids that one; a later un-negated label still
+# counts), or names spend or an irreversible act
 # (every real-money spend stays the operator's while the operator's ceiling is 0; an
 # irreversible act has no rollback). Every other gate class is the panel's: in autonomy mode its
 # block passes only with a SPLIT `Panel:` line. A Why line naming design or plan approval is
@@ -299,9 +300,11 @@ _NO_GATE_CLASS = (...)  # the existing "names no gate class" refusal text, moved
         design_gate = why_design or _DESIGN_ASK_RE.search(fields["Question"])
         if not _DECISION_GATE_RE.search(why):
             return False, _NO_GATE_CLASS
-        label = _OPERATOR_KEPT_RE.search(why)
-        if label and _OPERATOR_KEPT_NEGATED_RE.search(why[: label.start()]):
-            label = None
+        label = next(
+            (m for m in _OPERATOR_KEPT_RE.finditer(why)
+             if not _OPERATOR_KEPT_NEGATED_RE.search(why[: m.start()])),
+            None,
+        )
         operator_kept = (not why_design and _OPERATOR_CLASS_RE.search(why)) or (
             not design_gate and label
         )
@@ -329,7 +332,7 @@ GATE comment widens from a design-approval gate to every panel-decided class (D-
 
 - **Given** autonomy mode and a `ground: gate` block "deploy — Gate 2, deploy to our own VPS" with no `Panel:` line, **When** the hook parses it, **Then** it is refused naming D-1110 (B1)
 - **Given** autonomy mode and that block with a verified split `Panel:` line, **When** the hook parses it, **Then** it passes as `gate` (B2)
-- **Given** autonomy mode and an unpaneled block carrying the label — written five ways: "operator-kept: public", "Operator-kept: public", "**operator-kept:** public", "operator kept: `public`", "OPERATOR-KEPT:public" — and once with each other token (above-ceiling, recurring, operator-minted, unbacked), **When** the hook parses each, **Then** each passes as `gate` (B3)
+- **Given** autonomy mode and an unpaneled block carrying the label — written five ways: "operator-kept: public", "Operator-kept: public", "**operator-kept:** public", "operator kept: `public`", "OPERATOR-KEPT:public" — and once with each other token (above-ceiling, recurring, operator-minted, unbacked), and once after a negated label ("not operator-kept: public; operator-kept: recurring hosting"), **When** the hook parses each, **Then** each passes as `gate` (B3)
 - **Given** autonomy mode and an unpaneled block naming spend ("spend — $5 of API credits", "spend — inside the ceiling") or "irreversible — drop and recreate the database", or a spend block whose Question asks to approve a spec ("spend — $40/month hosting" with "Do you approve the hosting cost in the spec?"), **When** the hook parses each, **Then** each passes as `gate` (B4)
 - **Given** autonomy mode OFF (a project repo), **When** the hook parses the B1 block, **Then** it passes as today (B5)
 - **Given** autonomy mode and an unpaneled block whose Why line uses prose instead of the label — "not customer-facing", "a customer-facing production deploy", "our own public docs site", "no backup needed", "the republic VPS", "operator-kept: whatever", "not operator-kept: public", "**not** operator-kept: public", "not  operator-kept: public" (two spaces), "operator-kept: public-api docs" — or a Why line naming design or plan approval that carries the label, names a `public-api` path, or mentions money or an irreversible act ("design approval of …-spend-ledger-design.md", "design approval of the irreversible-migration spec …", "plan approval of … , spends no money"), **When** the hook parses each, **Then** each is refused as panel-decided (B6)
@@ -606,6 +609,11 @@ FAILED tests/test_decision_panel.py::test_deploy_gate_needs_no_panel
 2 failed, 469 passed, 2 skipped in 19.07s
 ```
 
+- Phase B's diff after pass 4 (v5: the first UN-negated label counts, `finditer` over the line), `apply_hook_diff5.py`
+  on a fresh copy at 87cfa3895; the v5 probe (`test_zz_probe_b5.py`, the v4 cases plus "not operator-kept: public;
+  operator-kept: recurring hosting", expected to pass) and the suites: 36 OK, 0 BAD; `2 failed, 470 passed, 2 skipped
+  in 21.35s`, the two failures the two tests Phase B step 2 substitutes.
+
 - Baseline of the four suites the phases touch:
 
 ```text
@@ -653,3 +661,4 @@ $ /opt/fabrik/scripts/capped_run.sh -- timeout 300 .venv/bin/python -m pytest te
 | Pass 1 | opus×1 (Phase B, Global Constraints, File Scope, Constraints Digest, Coverage Checklist, Evidence; spec The delta, Validation, Lifecycle) + sonnet×1 (every other section of both) · all axes · shape: agent-tool | found: 25, new: 25, confirmed: 21, fixed: 21, unexecuted: 0, edits: 21 | method: citation — full pass; 4 candidates were duplicates across the slices (the template Why line, `--check`, D1's scope, the stale lock commit); the orchestrator re-ran the hook diff (v1 then v2) in a throwaway worktree and the probes above | 7eaaaafc… → dc800cd7… |
 | Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners, resumed with their pass-1 context) · their own 25 claims re-verified over the fix diff since 87cfa3895 + one hop; the opus seat re-ran its probes on the v2 diff · shape: agent-tool | found: 10, new: 10, confirmed: 8, fixed: 8, unexecuted: 0, edits: 8 | method: re-derivation — delta over Phase A steps 2, 4–7, Phase B, Coverage, Evidence and spec D1, D4, D5, Goal; the composed skill-description lengths re-computed (release 995, deploy 982, deploy-plan-review 959 of 1024); 1 REJECTED by design (money or irreversible matched anywhere → operator, the Coverage row says why), 1 a note with no change (release `:31`); the orchestrator re-ran the v3 diff (29 probe cases, 0 wrong) | 28011870… → 2b2a843b… |
 | Pass 3 | opus×1 + sonnet×1 (the round-1 slice owners) · their own claims over the pass-2 fix diff + one hop; the opus seat re-probed the v3 diff (24 cases), the sonnet seat ran A6's regex over today's and the planned text · shape: agent-tool | found: 5, new: 5, confirmed: 5, fixed: 5, unexecuted: 0, edits: 5 | method: re-derivation — delta over Phase B's diff, B4, B6, step 2's mutants, A6, Coverage, Evidence and spec D5; every one residue of a pass-2 fix (a design approval naming money skipped D-613; a bold or double-spaced `not`; A6's `(?! on)` also skipped "ONLY"; a stale Coverage row; the prototype's stale comment); the orchestrator rebuilt the prototype whole as v4 and re-ran it (35 probe cases, 0 wrong; the suites 2 named red, 469 green) | e7cde0c6… → 572839bf… |
+| Pass 4 | opus×1 + sonnet×1 (the round-1 slice owners) · their own claims over the pass-3 fix diff + one hop; the opus seat probed v4 with 35 cases, the sonnet seat re-ran A6 red on today's text and green on the planned text · shape: agent-tool | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — delta over Phase B's diff, B3 and Evidence; the one finding fail-closed residue of pass 3 (a negated first label hid a later valid one); sonnet slice confirmed 0; the orchestrator re-ran v5 (36 probe cases, 0 wrong) | 243e3e88… → see Pass 5 |
