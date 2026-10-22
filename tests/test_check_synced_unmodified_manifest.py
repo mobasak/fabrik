@@ -460,6 +460,10 @@ def test_a_complete_manifest_applies_both_lists(
     assert "synced.py" in out, out
     assert "PORTS.md" not in out, out
     assert "libs/retired_mod" not in out, out
+    # W-85e4e5e4: the drift message is read by a PROJECT agent, who has no sync script to run —
+    # it names the hub as the distributor and never tells the reader to re-sync.
+    assert "re-sync" not in out, out
+    assert "the hub distributes it" in out, out
 
 
 def test_a_manifest_that_swaps_its_module_class_cannot_answer_through_it(

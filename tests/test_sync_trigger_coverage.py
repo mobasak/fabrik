@@ -394,6 +394,12 @@ def test_a_relocated_hub_warns_that_the_sync_cannot_fire(tmp_path):
     rc, out = _run_in(_hub_like(tmp_path, with_manifest=True))
     assert rc == 0, out
     assert "CANNOT FIRE" in out and "distributes nothing" in out, out
+    # W-85e4e5e4: the inert reason is a WORKTREE (the pwd guard), and the contract tells a
+    # worktree agent its change ships when the hub merges it — the remedy printed beside the
+    # verdict says the same and never offers the `--force` push (CLAUDE.md § Sync-consciousness:
+    # a worktree's copy ships a mix neither tree holds).
+    assert "when the hub merges it" in out, out
+    assert "--force" not in out, "the worktree remedy must not offer the --force push"
 
 
 def test_the_main_checkout_gets_no_inert_caveat():

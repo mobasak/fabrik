@@ -544,8 +544,8 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"⚠ but the sync CANNOT FIRE from this checkout — {inert}.")
                 print(
-                    "  Commit from the main checkout, or run "
-                    "scripts/sync_enforcement_to_projects.py --force yourself."
+                    "  Commit from the main checkout — a worktree's change ships when the hub "
+                    "merges it; the script runs from the MAIN checkout only."
                 )
             return 0
         print("✓ sync-trigger coverage: every synced surface triggers a sync or is declared")

@@ -280,8 +280,8 @@ def main() -> int:
             print(f"   - {rel}")
         print()
         print("You edited a synced copy (it differs from what was distributed to this")
-        print("project). Revert it (the next sync restores it), or make the change in")
-        print("/opt/fabrik/<path> + re-sync if it's correct for ALL projects. Never fork here.")
+        print("project). Revert it (the next sync restores it), or, if the change is right for")
+        print("ALL projects, edit /opt/fabrik/<path>: the hub distributes it. Never fork here.")
         manifest = FABRIK_ROOT / MANIFEST_REL
         # `is False`, never falsy: a manifest that cannot be examined (None) is "cannot tell". A
         # clean False means every stat on the way resolved, so `exists()` below cannot raise.
