@@ -76,7 +76,9 @@ def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> 
             "(a coordinator keeps doing its standing jobs)",
         ),
     )
-    assert "run `/clear <agent>-<date>` now" not in _bullet(rel), "the old 'run it now' instruction survives"
+    assert "run `/clear <agent>-<date>` now" not in _bullet(rel), (
+        "the old 'run it now' instruction survives"
+    )
 
 
 @pytest.mark.parametrize("rel", CONTRACTS)

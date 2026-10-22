@@ -18,6 +18,10 @@ All notable changes to this project will be documented in this file.
 ### Added — Fabrik Deck attention hook: one file per session waiting on the operator (2026-10-22)
 
 `scripts/sysadmin/fabrik_deck.py hook` writes `<state>/attention/<session_id>.json` (`{cwd, type, origin, at}`) on a waiting `Notification` (`permission_prompt`, `idle_prompt`, `elicitation_dialog`) and on `Stop`, and clears it on `UserPromptSubmit`, `SessionEnd` and a `PostToolUse` after a permission prompt; the state dir comes from `FABRIK_DECK_STATE`, else the Deck env file, else `~/.local/state/fabrik-deck`. It prints nothing on stdout and exits 0 on every path (dispatched before argparse). `install_user_hooks.py` `ENTRIES` registers it on those five events (it takes effect when `install_user_hooks.py` is run, which the plan does from the main checkout after merge); `docs/workstation/hooks-index.md` and `docs/workstation/fabrik-deck.md` document it, with a measured mean of 47 ms per `PostToolUse` call (max 116 ms) (W-42d1ccb5, plan 2026-10-22-plan-1-fabrik-deck Phase A, D-1121).
+### Changed — /fabrik-task queue pass: a terminal that rests on another party's act names the hand-off (2026-10-22)
+
+- `commands/_fragments/run-record.md`, rendered into every command that includes it (36 of the 39 that open a run record): where a run's outcome rests on an act it does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close. `tests/test_fabrik_task_queue_pass.py` pins it. The other 10 queue rows were rejected with reasons, and the two code rows were mailed to infra (W-82a196a7).
+
 ### Fixed — mail.py addresses numbered hub builders (infra-2) (2026-10-22)
 
 - `--to-agent infra-2`, `route <id> --to-agent infra-2` and a reply to mail infra-2 sent were refused or mis-addressed because the hub guard knew only the five beat names; a merge request from an on-demand builder (D-1128) would merge and then fail its reply. `is_hub_agent` accepts a beat or `<beat>-<N>`; ownership-map tokens stay beats (D-1130, W-fa004224).
