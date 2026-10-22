@@ -864,7 +864,7 @@ def _run_tier(tmp_path: Path, payload: object, tier: str | None) -> subprocess.C
 
 
 def test_the_urgent_ninety_tier_is_the_lane_not_a_free_pass(lane):
-    """The 90-with-no-successor arm fires eight points before the wall (D-111). D-306 let EVERY
+    """The 90-with-no-successor arm fires nine points before the wall (D-111). D-306 let EVERY
     session spend that runway, so the last points went to whoever asked first (D-1113). The lane
     keeps the runway for the sessions that merge and keep the records — the exempt one is
     ALLOWED (a seat mid-flight is not killed) and told to checkpoint; everyone else is held."""

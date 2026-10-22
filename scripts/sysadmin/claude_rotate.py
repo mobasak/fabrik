@@ -3435,8 +3435,8 @@ def _rotate_threshold() -> float:
     before leaning on it.
 
     ⚠️ The 5 points this gives up were the margin, so the fallback carries the weight: with NO
-    eligible successor the URGENT-DRAIN mail fires at ``_urgent_drain_pct()`` = 90, eight points
-    below this line, and tells every repo when to resume. That ordering (90 < 98) is the design,
+    eligible successor the URGENT-DRAIN mail fires at ``_urgent_drain_pct()`` = 90, nine points
+    below this line, and tells every repo when to resume. That ordering (90 < 99) is the design,
     not a coincidence — if you raise this, check that one first. `ROTATE_THRESHOLD` overrides.
 
     ⚠️ The numbers above stop on 2026-08-15 because the FLEET tick never wrote the
@@ -6435,7 +6435,7 @@ def _fleet_exhaustion_stamp() -> Path:
 # `_fleet_active_wall_advisory` writes it on `walled OR urgent`: `walled` is the real wall (a
 # window at/over `ROTATE_THRESHOLD`, its `caps.json` cap, or 100 — `_flip_churn_excluded`), while
 # `urgent` is the SESSION window at `_urgent_drain_pct()` = 90 with no VALIDATED successor, which
-# is EIGHT points earlier on the default `ROTATE_THRESHOLD` of 98 and exists precisely to give a
+# is NINE points earlier on the default `ROTATE_THRESHOLD` of 99 and exists precisely to give a
 # graceful stop its runway (D-111). That gap is on the SESSION window alone: `urgent` tests
 # `five_hour` while a `caps.json` cap is applied to `seven_day` (`_flip_churn_excluded`), so a cap
 # never shortens it — it walls the weekly window on its own axis.
@@ -7535,7 +7535,7 @@ def _urgent_drain_pct() -> float:
     """The SESSION line at which, with NO eligible successor, every repo is told to stop
     gracefully and hook itself to the next session reset. Default **90** (operator rule
     2026-09-03: "when we see 90% session limit reached and if no account is available we must
-    send an URGENT mail to repos"). Below the flip line on purpose: the flip (`_rotate_threshold`, 98 since D-201 — read it there,
+    send an URGENT mail to repos"). Below the flip line on purpose: the flip (`_rotate_threshold`, 99 since 2026-10-14 — read it there,
     never from this sentence) is the
     remedy when a successor exists; this is the remedy when none does, and it needs the five
     points of runway a graceful stop takes. ``ROTATE_URGENT_DRAIN_PCT`` overrides. The quota posture (D-269) reads it as the RED line too — on the hottest window, successor or not — so a session's band and the drain mail share one number."""
@@ -8117,8 +8117,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     95%). (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
     walled, row = _active_account_walled(accounts, threshold)
     # URGENT tier (operator rule 2026-09-03): the active account's SESSION at/over 90 with no
-    # eligible successor is the same emergency as the wall, EIGHT points earlier (five until D-201
-    # moved the flip line 95 -> 98 on 2026-09-08) — the runway a
+    # eligible successor is the same emergency as the wall, NINE points earlier (five until D-201
+    # moved the flip line 95 -> 98 on 2026-09-08, eight until it moved to 99 on 2026-10-14) — the runway a
     # graceful stop needs. Same latch, same re-arm, one message per episode.
     session_pct = None
     if row is not None and isinstance(row.get("five_hour"), dict):
@@ -8242,7 +8242,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         if not stamp.exists():
             _rearm_wall_stamp(stamp, str(row["email"]), now)
         # ⚠️ The MESSAGE is latched; the TIER is not (D-306). An episode opens at whichever arm
-        # fired first, and `urgent` fires up to eight points before `walled` — so without this
+        # fired first, and `urgent` fires up to nine points before `walled` — so without this
         # the stamp says `urgent-90` for the whole episode and `quota_stop.py` keeps only the lane
         # (D-1113: coordinators and P0 owners continue) once the account actually walls. One-way: never the reverse.
         if walled:
@@ -8314,7 +8314,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     never does. The flip leg (operator redesign 2026-08-15 — one active account for ALL
     projects): resolve the ``active`` pointer; missing/dangling → flip to the best account
     immediately (dwell-exempt repair — holding a dangling pointer is a fleet outage); the
-    active account ≥ROTATE_THRESHOLD (default 98 since D-201) on EITHER window → flip to the account with
+    active account ≥ROTATE_THRESHOLD (default 99 since 2026-10-14) on EITHER window → flip to the account with
     the most weekly-then-session headroom among credentialed, un-walled siblings. The flip
     moves zero credential bytes and is refused by the pause marker + the 30-min dwell (inside
     :func:`_flip_active`); telemetry and the wall advisory below run REGARDLESS (T01 semantics —

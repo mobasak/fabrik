@@ -89,7 +89,7 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   `relief` trigger tier at the drain line; it only invokes `--tick`, which no longer flips there.
 - **URGENT drain at 90 with NO successor (`_urgent_drain_pct`, `ROTATE_URGENT_DRAIN_PCT`):**
   when the ACTIVE account's session is at/over **90** and `_validated_pick` finds no eligible sibling (every
-  one session-exhausted, weekly-walled or cap-walled), the wall advisory fires EIGHT POINTS EARLY — the runway a graceful stop needs; the ordering (90 < the flip line) is the design, graded by
+  one session-exhausted, weekly-walled or cap-walled), the wall advisory fires NINE POINTS EARLY on the default threshold of 99 — the runway a graceful stop needs; the ordering (90 < the flip line) is the design, graded by
   `test_the_no_successor_mail_always_precedes_the_flip_line` — as one Telegram + one broadcast fabrik-mail to every mailbox repo, in the operator's
   words: **STOP YOUR WORK ASAP, GRACEFULLY, and HOOK YOURSELF TO RESUME 2 MINUTES AFTER the next session
   reset** (`_drain_resume_lead_s`, 120 s) — with that instant as local time, UTC and epoch, plus a copy-paste

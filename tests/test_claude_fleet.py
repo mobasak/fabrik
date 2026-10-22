@@ -7853,7 +7853,7 @@ def test_status_names_the_fable_band_when_it_differs_from_the_one_it_prints():
 #
 # `_fleet_active_wall_advisory` writes the fleet-exhausted stamp on `walled OR urgent`, where
 # `urgent` is the SESSION window at `ROTATE_URGENT_DRAIN_PCT` (90) with no validated successor —
-# eight points before the wall, and deliberately so: that is the runway a graceful stop
+# nine points before the wall, and deliberately so: that is the runway a graceful stop
 # needs (D-111). `quota_stop.py` read only `.exists()`, so the WARNING tier produced the same
 # fleet-wide default-deny as the wall and killed in-flight work with headroom still on the
 # clock. The tier the ledger row has always carried now rides in the stamp too.
@@ -7890,7 +7890,7 @@ def _fire_advisory(tmp_path, monkeypatch, row: dict, threshold: float = 98.0) ->
 
 def test_the_wall_stamp_records_which_tier_armed_it(tmp_path, monkeypatch):
     """The two arms are not the same event and the stamp must say which fired. A 5h at 92 with
-    no successor is the LANE tier (eight points of runway left, D-1113); a 5h at 99 is the wall."""
+    no successor is the LANE tier (nine points of runway left, D-1113); a 5h at 99 is the wall."""
     warn = _fire_advisory(tmp_path / "w", monkeypatch, _advisory_row(92.0, 40.0))
     assert warn.exists(), "the urgent-90 arm still writes the stamp — the latch is unchanged"
     assert cr._stamp_tier(warn) == "urgent-90", (
@@ -7933,7 +7933,7 @@ def test_the_resume_promise_survives_the_tier_line(tmp_path):
 def test_the_wall_band_is_the_walled_tier_alone(tmp_path, monkeypatch):
     """The WALL band means `quota_stop.py` is holding every world-changing tool. Once the
     warning tier stops holding, a stamp is no longer proof of that — so the band reads the tier
-    too, or the contract's WALL sentence becomes false eight points early."""
+    too, or the contract's WALL sentence becomes false nine points early."""
     assert cr._hold_is_wall({"tier": "walled"}) is True
     assert cr._hold_is_wall({"tier": "urgent-90"}) is False
     assert cr._hold_is_wall({"since": 1.0}) is True, "a tier-less hold fails closed, like the file"
@@ -7983,7 +7983,7 @@ def test_the_tier_is_raised_when_an_episode_escalates_to_a_real_wall(tmp_path, m
     """⚠️ THE SEVEREST DEFECT THIS REVIEW FOUND, confirmed independently by two seats.
 
     The stamp is written ONCE per episode and the message latch returns before that write, so the
-    tier froze at whichever arm fired FIRST — and `urgent` fires eight points before `walled`. An
+    tier froze at whichever arm fired FIRST — and `urgent` fires nine points before `walled`. An
     episode that opened at the 90-line and then reached a real 100% wall kept saying `urgent-90`,
     so `quota_stop.py` held NOTHING at that wall until the promised resume or a full week.
     """
