@@ -35,9 +35,9 @@ stands.
   line the digest flags out of control is one finding: a wording cause in a command or rule pack is your
   own edit (Method step 3 below); a cause in a file the beat map gives another agent (the hub `CLAUDE.md`
   is infra's) or in code is one item you open (`work.py add`, the series' value as its evidence) and the
-  coordinator assigns — the item, not step 3's mail, is this loop's route for code. The before and after are the series' value at the flag and after the change
-  lands, for your own edits as for the items; a later flag on the same category opens a new item that
-  names the closed one. The token series only.
+  coordinator assigns — the item, not step 3's mail, is this loop's route for code. The before and after
+  are the series' value at the flag and after the change lands, for your own edits as for the items; a
+  later flag on the same category opens a new item that names the closed one. The token series only.
 - You own the queues through `.fabrik/work/config.json`'s `feedback_owner` key, not by being the
   distributor: the `coordinator` is merge owner and distributor (D-874). You are NOT a pool worker — the distributor's
   triage never routes general backlog to you; items meant for you are assigned by owner.
