@@ -826,3 +826,141 @@ def test_serve_tolerates_a_damaged_session_agents_file(deck, damage):
     deck.start()
     assert _repos(deck)["fabrik"]["agents"] == []
     assert deck.get("/")[0] == 200
+
+
+@pytest.mark.parametrize("method", ["TRACE", "CONNECT", "FOO"])
+def test_serve_refuses_an_unlisted_method_405_and_a_foreign_host_421(deck, method):
+    deck.start()
+    assert deck.get("/api/repos", method=method)[0] == 405
+    assert deck.get("/api/repos", method=method, host="evil.example:80")[0] == 421
+
+
+def test_serve_host_guard_covers_every_route(deck):
+    deck.start()
+    for route in ("/", "/api/attention", "/api/events", "/nope"):
+        assert deck.get(route, host="evil.example:80")[0] == 421, route
+
+
+@pytest.mark.parametrize("at", ["NaN", "Infinity", "-Infinity", "1" + "0" * 400])
+def test_serve_a_non_finite_attention_time_is_dropped_and_the_json_stays_valid(deck, at):
+    deck.start()
+    (deck.state / "attention").mkdir(parents=True)
+    bad = deck.state / "attention" / f"{FAB}.json"
+    bad.write_text('{"cwd": "/x", "type": "t", "origin": "other", "at": AT}'.replace("AT", at))
+    deck.attend(OTH, str(deck.fabrik))
+    status, _, body = deck.get("/api/attention")
+    assert status == 200
+    sessions = {a["session"] for a in json.loads(body, parse_constant=lambda c: pytest.fail(c))}
+    assert sessions == {OTH}
+    if not at.startswith("1"):  # a time no clock wrote is pruned; an unparsable one is skipped
+        assert not bad.exists()
+
+
+def test_serve_maps_a_cwd_through_a_symlinked_repo(deck, tmp_path):
+    real = _git_repo(tmp_path / "real" / "r2")
+    (deck.opt / "r2").symlink_to(real)
+    deck.start()
+    deck.attend(FAB, f"{deck.opt}/r2/x")
+    deck.attend(OTH, f"{real}/y")
+    by = {a["session"]: a["repo"] for a in _attn(deck)}
+    assert by[FAB] == "r2" and by[OTH] == "r2"
+
+
+def test_serve_an_unremovable_stale_attention_file_does_not_break_the_reader(deck):
+    deck.start()
+    deck.attend(FAB, str(deck.fabrik), at=time.time() - 25 * 3600)
+    deck.attend(OTH, str(deck.fabrik))
+    (deck.state / "attention").chmod(0o500)
+    try:
+        assert {a["session"] for a in _attn(deck)} == {OTH}
+    finally:
+        (deck.state / "attention").chmod(0o700)
+
+
+def test_serve_keeps_the_last_good_catalog_when_the_registry_turns_bad(deck):
+    deck.start()
+    before = _repos(deck)
+    deck.registry.write_text("projects: [unclosed\n")
+    time.sleep(0.1)
+    assert _repos(deck) == before
+
+
+@pytest.mark.parametrize("registry", ["missing", "projects: [unclosed\n"])
+def test_serve_exits_2_on_an_unreadable_registry(box, tmp_path, registry):
+    path = tmp_path / "p.yaml"
+    if registry != "missing":
+        path.write_text(registry)
+    args = [
+        sys.executable,
+        str(SCRIPT),
+        "serve",
+        "--registry",
+        str(path),
+        "--opt-root",
+        str(tmp_path),
+    ]
+    env = dict(box.env, FABRIK_DECK_PORT=str(_free_port()))
+    r = subprocess.run(args, env=env, capture_output=True, text=True, timeout=30)
+    assert r.returncode == 2 and "registry" in r.stderr
+
+
+def test_serve_exits_2_on_a_bad_code_port(box, tmp_path):
+    path = tmp_path / "p.yaml"
+    path.write_text("projects: {}\n")
+    args = [
+        sys.executable,
+        str(SCRIPT),
+        "serve",
+        "--registry",
+        str(path),
+        "--opt-root",
+        str(tmp_path),
+    ]
+    env = dict(box.env, FABRIK_DECK_PORT=str(_free_port()), FABRIK_DECK_CODE_PORT="0")
+    r = subprocess.run(args, env=env, capture_output=True, text=True, timeout=30)
+    assert r.returncode == 2 and "FABRIK_DECK_CODE_PORT" in r.stderr
+
+
+def test_serve_catalog_is_cached_between_sse_frames():
+    spec = importlib.util.spec_from_file_location("fabrik_deck_cache_probe", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    calls = []
+    m._catalog = lambda registry, opt_root: calls.append(1) or []
+    handler = m._handler(Path("/r"), Path("/o"), Path("/s"), 8443, [])
+    for _ in range(20):
+        handler.current()
+    assert len(calls) <= 1, "the catalog is rebuilt at most once per CATALOG_TTL"
+
+
+def test_serve_a_malformed_request_still_carries_the_frame_and_cache_headers(deck):
+    deck.start()
+    with socket.create_connection(("127.0.0.1", deck.port), timeout=5) as s:
+        s.sendall(b"GET / HTTP/1.1\r\nX: " + b"a" * 70000 + b"\r\n\r\n")
+        reply = s.recv(65536).decode(errors="replace")
+    assert reply.startswith("HTTP/") and " 431 " in reply.splitlines()[0]
+    assert "frame-ancestors 'none'" in reply and "no-store" in reply
+
+
+def test_serve_events_carry_the_repos_so_a_new_repo_shows_without_a_reload(deck):
+    deck.start()
+    c = http.client.HTTPConnection("127.0.0.1", deck.port, timeout=5)
+    c.putrequest("GET", "/api/events", skip_host=True)
+    c.putheader("Host", f"localhost:{deck.port}")
+    c.endheaders()
+    r = c.getresponse()
+    line = ""
+    while not line.startswith("data:"):
+        line = r.fp.readline().decode()
+    c.close()
+    frame = json.loads(line[5:])
+    assert {r["name"] for r in frame["repos"]} >= {"fabrik", "fabrik-lib"}
+    assert frame["attention"] == []
+
+
+def test_serve_attention_carries_the_matched_repo_path(deck):
+    deck.start()
+    deck.attend(FAB, str(deck.fabrik))
+    deck.attend(OTH, "/elsewhere")
+    by = {a["session"]: a["path"] for a in _attn(deck)}
+    assert by[FAB] == str(deck.fabrik.resolve()) and by[OTH] is None

@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import pwd
 import re
@@ -56,6 +57,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import NoReturn
@@ -256,12 +258,12 @@ def hook() -> None:
 
 # --- serve: the board, its catalog and the attention reader (plan 2026-10-22-plan-1-fabrik-deck, Phase B) ---------
 
-AGENTS_MAX = (
-    1 << 20
-)  # bytes of a repo's `.fabrik/session-agents.json` read at most (scripts/agent_status.py:189)
-ATTENTION_TTL = (
-    24 * 3600
-)  # an attention file older than this is a session that died without SessionEnd
+# bytes of a repo's `.fabrik/session-agents.json` read at most (scripts/agent_status.py:189)
+AGENTS_MAX = 1 << 20
+# an attention file older than this is a session that died without SessionEnd
+ATTENTION_TTL = 24 * 3600
+# seconds a built catalog is reused: a build takes ~30 ms and every SSE client reads it twice a second
+CATALOG_TTL = 10.0
 
 
 def _session_agents(repo: Path) -> dict[str, str]:
@@ -301,15 +303,20 @@ def _catalog(registry: Path, opt_root: Path) -> list[dict]:
         pass
     if isinstance(projects, dict):
         for name, spec in projects.items():
-            if isinstance(spec, dict) and isinstance(spec.get("path"), str):
+            if (
+                isinstance(spec, dict)
+                and isinstance(spec.get("path"), str)
+                and spec["path"].startswith("/")
+            ):
                 candidates.append((str(name), Path(spec["path"])))
     rows, seen = [], set()
     for name, path in candidates:
-        try:
+        try:  # one bad entry (a NUL in a path, an unsearchable directory) skips that entry, never the catalog
             real = path.resolve()
             if real in seen or not real.is_dir():
                 continue
-        except (OSError, RuntimeError):
+            git = (real / ".git").exists()
+        except (OSError, RuntimeError, ValueError):
             continue
         seen.add(real)
         agents = _session_agents(real)
@@ -317,7 +324,7 @@ def _catalog(registry: Path, opt_root: Path) -> list[dict]:
             {
                 "name": name,
                 "path": str(real),
-                "git": (real / ".git").exists(),
+                "git": git,
                 "agents": sorted(set(agents.values())),
                 "_agents": agents,
             }
@@ -325,10 +332,12 @@ def _catalog(registry: Path, opt_root: Path) -> list[dict]:
     return sorted(rows, key=lambda r: r["name"].lower())
 
 
+def _public(rows: list[dict]) -> list[dict]:
+    return [{k: v for k, v in r.items() if not k.startswith("_")} for r in rows]
+
+
 def catalog(registry: Path, opt_root: Path) -> list[dict]:
-    return [
-        {k: v for k, v in r.items() if not k.startswith("_")} for r in _catalog(registry, opt_root)
-    ]
+    return _public(_catalog(registry, opt_root))
 
 
 def _label(sid: str, origin: str, repo: str, agents: dict[str, str]) -> str:
@@ -355,20 +364,41 @@ def attention(state: Path, rows: list[dict], now: float) -> list[dict]:
         try:
             rec = json.loads(f.read_text(errors="replace"))
             at = float(rec["at"])
-        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            OverflowError,
+            RecursionError,
+        ):
             continue
-        if now - at > ATTENTION_TTL:
-            f.unlink(missing_ok=True)
+        if not math.isfinite(at) or now - at > ATTENTION_TTL:
+            # stale, or a time no clock wrote (NaN would also make the JSON invalid for the board's JSON.parse)
+            try:
+                f.unlink(missing_ok=True)
+            except OSError:
+                pass
             continue
         sid = f.stem
-        parts = Path(str(rec.get("cwd") or "/")).parts
-        match = next((r for p, r in by_parts if parts[: len(p)] == p), None)
+        cwd = str(rec.get("cwd") or "/")
+        # Catalog paths are resolved, so the cwd is matched as written (normalised) and resolved: a repo reached
+        # through a symlink still maps, and `..` never leaves a lexical match behind.
+        try:
+            forms = {os.path.normpath(cwd), os.path.realpath(cwd)}
+        except (OSError, ValueError):
+            forms = {os.path.normpath(cwd)}
+        match = next(
+            (r for p, r in by_parts if any(Path(c).parts[: len(p)] == p for c in forms)), None
+        )
         repo = match["name"] if match else "other"
         origin = str(rec.get("origin") or "other")
         out.append(
             {
                 "session": sid,
                 "repo": repo,
+                "path": match["path"] if match else None,
                 "label": _label(sid, origin, repo, match["_agents"] if match else {}),
                 "type": str(rec.get("type") or ""),
                 "at": at,
@@ -420,9 +450,9 @@ function render() {
   const f = q.value.trim().toLowerCase(), rows = [];
   for (const r of repos) {
     if (f && !r.name.toLowerCase().includes(f) && !r.path.toLowerCase().includes(f)) continue;
-    rows.push(row(r.name, r.path, waiting.filter(w => w.repo === r.name)));
+    rows.push(row(r.name, r.path, waiting.filter(w => w.path === r.path)));
   }
-  const other = waiting.filter(w => w.repo === "other");
+  const other = waiting.filter(w => w.path === null);
   if (other.length && (!f || "other".includes(f))) rows.push(row("other", "", other));
   list.replaceChildren(...rows);
 }
@@ -434,9 +464,8 @@ function notifyNew() {
 }
 q.addEventListener("input", render);
 document.getElementById("notify").addEventListener("click", () => { if ("Notification" in window) Notification.requestPermission(); });
-fetch("/api/repos").then(r => r.json()).then(d => { repos = d; render(); });
 const es = new EventSource("/api/events");
-es.onmessage = ev => { waiting = JSON.parse(ev.data); notifyNew(); render(); };
+es.onmessage = ev => { const d = JSON.parse(ev.data); repos = d.repos; waiting = d.attention; notifyNew(); render(); };
 </script></body></html>
 """
 
@@ -449,29 +478,41 @@ def _handler(registry: Path, opt_root: Path, state: Path, code_port: int, rows: 
     }  # the last catalog that read cleanly: a registry being rewritten never empties the board
     board = BOARD.replace("__CODE_PORT__", str(code_port)).encode()
 
+    built = {"at": time.monotonic()}
+    lock = threading.Lock()
+
     def current() -> list[dict]:
-        try:
-            good["rows"] = _catalog(registry, opt_root)
-        except Exception:  # noqa: BLE001 — keep serving the last good catalog
-            pass
-        return good["rows"]
+        with lock:
+            if time.monotonic() - built["at"] >= CATALOG_TTL:
+                built["at"] = time.monotonic()
+                try:
+                    good["rows"] = _catalog(registry, opt_root)
+                except Exception:  # noqa: BLE001 — keep serving the last good catalog
+                    pass
+            return good["rows"]
 
     class Handler(http.server.BaseHTTPRequestHandler):
         server_version = "fabrik-deck"
         protocol_version = "HTTP/1.1"
+        timeout = 30  # an idle or half-sent request never holds its thread for ever
 
         def log_message(self, format: str, *args: object) -> None:  # noqa: A002 — the base class's name
             pass  # one line per request would flood the journal; refusals are logged where they happen
 
-        def _send(self, code: int, ctype: str, body: bytes, close: bool = False) -> None:
+        def end_headers(self) -> None:
+            # Here, not in _send, so the base class's own error pages (a malformed request line) carry them too.
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+            super().end_headers()
+
+        def _send(self, code: int, ctype: str, body: bytes) -> None:
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
-            if close:
-                self.send_header("Connection", "close")
-                self.close_connection = True
+            if code == 405:
+                self.send_header("Allow", "GET")
+            self.send_header("Connection", "close")
+            self.close_connection = True
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(body)
@@ -486,12 +527,12 @@ def _handler(registry: Path, opt_root: Path, state: Path, code_port: int, rows: 
             sys.stderr.write(
                 f"fabrik_deck: {self.command} refused — Host {host[:80]!r} is not this board\n"
             )
-            self._send(421, "text/plain; charset=utf-8", b"misdirected request\n", close=True)
+            self._send(421, "text/plain; charset=utf-8", b"misdirected request\n")
             return False
 
         def _refuse(self) -> None:
             if self._host_ok():
-                self._send(405, "text/plain; charset=utf-8", b"method not allowed\n", close=True)
+                self._send(405, "text/plain; charset=utf-8", b"method not allowed\n")
 
         def do_POST(self) -> None:
             self._refuse()
@@ -511,6 +552,13 @@ def _handler(registry: Path, opt_root: Path, state: Path, code_port: int, rows: 
         def do_HEAD(self) -> None:
             self._refuse()
 
+        def __getattr__(self, name: str):
+            # BaseHTTPRequestHandler answers a method with no do_<METHOD> with 501 before any check runs, so every
+            # other method (TRACE, CONNECT, a made-up verb) gets the same Host guard and 405.
+            if name.startswith("do_"):
+                return self._refuse
+            raise AttributeError(name)
+
         def do_GET(self) -> None:
             if not self._host_ok():
                 return
@@ -518,8 +566,7 @@ def _handler(registry: Path, opt_root: Path, state: Path, code_port: int, rows: 
             if route == "/":
                 self._send(200, "text/html; charset=utf-8", board)
             elif route == "/api/repos":
-                rows = [{k: v for k, v in r.items() if not k.startswith("_")} for r in current()]
-                self._send(200, "application/json", json.dumps(rows).encode())
+                self._send(200, "application/json", json.dumps(_public(current())).encode())
             elif route == "/api/attention":
                 self._send(
                     200,
@@ -534,8 +581,6 @@ def _handler(registry: Path, opt_root: Path, state: Path, code_port: int, rows: 
         def _events(self) -> None:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
             self.send_header("Connection", "close")
             self.close_connection = True
             self.end_headers()
@@ -543,15 +588,22 @@ def _handler(registry: Path, opt_root: Path, state: Path, code_port: int, rows: 
             try:
                 while True:
                     now = time.time()
-                    frame = json.dumps(attention(state, current(), now))
+                    rows = current()
+                    frame = json.dumps(
+                        {"repos": _public(rows), "attention": attention(state, rows, now)}
+                    )
                     if frame != last or now - sent_at >= 2:
                         self.wfile.write(f"data: {frame}\n\n".encode())
                         self.wfile.flush()
                         last, sent_at = frame, now
                     time.sleep(0.5)
-            except (BrokenPipeError, ConnectionResetError):
+            except (
+                OSError,
+                ValueError,
+            ):  # a gone client: a reset, an abort, a timeout, a closed file
                 return
 
+    Handler.current = staticmethod(current)  # type: ignore[attr-defined]
     return Handler
 
 

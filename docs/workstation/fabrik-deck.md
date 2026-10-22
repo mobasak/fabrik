@@ -116,16 +116,21 @@ under no repo shows in an `other` row. *Enable notifications* asks the browser o
 session.
 
 The waiting session's repo is the catalog path that is the longest whole-component prefix of its cwd, so a worktree
-under `<repo>/.claude/worktrees/` maps to `<repo>` and `/opt/fabrik-lib` never maps to `/opt/fabrik`. Its label is the
+under `<repo>/.claude/worktrees/` maps to `<repo>` and `/opt/fabrik-lib` never maps to `/opt/fabrik`; catalog paths
+are resolved, so the cwd is matched both as written and resolved, and a repo reached through a symlink still maps. The
+board matches a waiting session to its row by that path, never by name, so two rows sharing a name cannot share a dot. Its label is the
 agent name from that repo's `.fabrik/session-agents.json` (read bounded at 1 MiB; a damaged file reads as no
 agents), else `coordinator (<repo> tab)` for a Deck tab, `session <8 chars> (tmux)` for a tmux pane, `session <8
 chars>` otherwise. Attention files older than 24 h — a session that died without `SessionEnd` — are deleted as they
-are read.
+are read, and so is one whose time is not a finite number; a file that does not parse is skipped.
 
 Routes: `/`, `/api/repos`, `/api/attention`, `/api/events` (server-sent events: a frame on every change and every
-2 s). It binds 127.0.0.1 only, answers GET only (405 otherwise) and refuses any Host other than `localhost:<port>` or
-`127.0.0.1:<port>` with 421, because a page reached by DNS rebinding would otherwise read the catalog. Every response
-carries `Content-Security-Policy: frame-ancestors 'none'` and `Cache-Control: no-store`. A bad port, a bound port or
+2 s, carrying `{repos, attention}`, so a repo that appears while the board is open gets its row without a reload). The
+catalog is rebuilt at most every 10 s. It binds 127.0.0.1 only, answers GET only — every other method, TRACE and
+unknown verbs included, gets 405 with `Allow: GET` — and refuses any Host other than `localhost:<port>` or
+`127.0.0.1:<port>` with 421, because a page reached by DNS rebinding would otherwise read the catalog. Every response,
+the server's own error pages included, carries `Content-Security-Policy: frame-ancestors 'none'` and `Cache-Control:
+no-store`, and closes its connection; an idle connection is dropped after 30 s. A bad port, a bound port or
 an unreadable registry at startup exits 2. Until the Deck plan's Phase C installs it as a second unit, start it by
 hand: `python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py serve`.
 
