@@ -3,7 +3,7 @@
   "created": "2026-10-21T23:01:21.656597Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "40f7b270bdeba3bc184896e5a01398845f9e46d6",
   "id": "W-18f559d9",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 0,
   "score_reason": "operator ask tonight (HIGH): every builder lost its last item to the wall; hooks + rotation + one paragraph, one or two sessions",
-  "status": "open",
+  "status": "done",
   "title": "Operator 2026-10-22: the 90% PRIORITY LANE on the 5-hour window — past 90% of the fleet's session window with no successor, builders checkpoint and start nothing new unless their claimed item is URGENT/P0 or a merge one step from landing; coordinators (merge owners) keep working through the last 10%; the true-wall hold stays; the weekly window keeps its bands. Supersedes the same-night 'work to 99%' relay"
 }
