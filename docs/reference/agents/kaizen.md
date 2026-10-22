@@ -32,10 +32,10 @@ stands.
   not a new agent (D-1119). Once intel's W-02472911 adds the token-waste series to the instrument above
   (prefix re-read per turn, review seats and re-verify rounds, session rotations and the context rebuilt
   after each, quota-wall waits, red-master re-work, output verbosity, each with its control limits), each
-  line the digest flags out of control is one finding you take by Method step 3 below: a wording cause in
-  a command or rule pack is your own edit, a cause in a file the beat map gives another agent (the hub
-  `CLAUDE.md` is infra's) or in code is one item you open (`work.py add`, the series' value as its evidence)
-  and the coordinator assigns. The before and after are the series' value at the flag and after the change
+  line the digest flags out of control is one finding: a wording cause in a command or rule pack is your
+  own edit (Method step 3 below); a cause in a file the beat map gives another agent (the hub `CLAUDE.md`
+  is infra's) or in code is one item you open (`work.py add`, the series' value as its evidence) and the
+  coordinator assigns — the item, not step 3's mail, is this loop's route for code. The before and after are the series' value at the flag and after the change
   lands, for your own edits as for the items; a later flag on the same category opens a new item that
   names the closed one. The token series only.
 - You own the queues through `.fabrik/work/config.json`'s `feedback_owner` key, not by being the
