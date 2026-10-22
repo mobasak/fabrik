@@ -374,8 +374,9 @@ def attention(state: Path, rows: list[dict], now: float) -> list[dict]:
             RecursionError,
         ):
             continue
-        if not math.isfinite(at) or now - at > ATTENTION_TTL:
-            # stale, or a time no clock wrote (NaN would also make the JSON invalid for the board's JSON.parse)
+        if not math.isfinite(at) or now - at > ATTENTION_TTL or at - now > 3600:
+            # stale, or a time no clock wrote: NaN would make the board's JSON invalid, and a time more than an
+            # hour ahead would never expire
             try:
                 f.unlink(missing_ok=True)
             except OSError:
@@ -385,10 +386,12 @@ def attention(state: Path, rows: list[dict], now: float) -> list[dict]:
         cwd = str(rec.get("cwd") or "/")
         # Catalog paths are resolved, so the cwd is matched as written (normalised) and resolved: a repo reached
         # through a symlink still maps, and `..` never leaves a lexical match behind.
-        try:
-            forms = {os.path.normpath(cwd), os.path.realpath(cwd)}
-        except (OSError, ValueError):
-            forms = {os.path.normpath(cwd)}
+        forms = {os.path.normpath(cwd)}
+        if os.path.isabs(cwd):  # a relative cwd would resolve against the server's own directory
+            try:
+                forms.add(os.path.realpath(cwd))
+            except (OSError, ValueError):
+                pass
         match = next(
             (r for p, r in by_parts if any(Path(c).parts[: len(p)] == p for c in forms)), None
         )

@@ -755,6 +755,28 @@ def test_serve_default_port_is_the_deck_port_not_code_server():
     assert m._parse_port(None) == 8443
 
 
+def test_serve_binds_8445_when_the_port_is_unset(monkeypatch, tmp_path):
+    import http.server
+
+    spec = importlib.util.spec_from_file_location("fabrik_deck_bind_probe", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    registry = tmp_path / "p.yaml"
+    registry.write_text("projects: {}\n")
+    monkeypatch.delenv("FABRIK_DECK_PORT", raising=False)
+    monkeypatch.setenv("FABRIK_DECK_STATE", str(tmp_path / "state"))
+    bound = []
+
+    def fake_server(address, handler):
+        bound.append(address)
+        raise SystemExit(0)
+
+    monkeypatch.setattr(http.server, "ThreadingHTTPServer", fake_server)
+    with pytest.raises(SystemExit):
+        m.serve(registry, tmp_path)
+    assert bound == [("127.0.0.1", 8445)]
+
+
 def test_serve_exits_2_on_a_bad_or_bound_port(box, tmp_path):
     registry = tmp_path / "p.yaml"
     registry.write_text("projects: {}\n")
@@ -841,7 +863,7 @@ def test_serve_host_guard_covers_every_route(deck):
         assert deck.get(route, host="evil.example:80")[0] == 421, route
 
 
-@pytest.mark.parametrize("at", ["NaN", "Infinity", "-Infinity", "1" + "0" * 400])
+@pytest.mark.parametrize("at", ["NaN", "Infinity", "-Infinity", "1" + "0" * 400, "99999999999"])
 def test_serve_a_non_finite_attention_time_is_dropped_and_the_json_stays_valid(deck, at):
     deck.start()
     (deck.state / "attention").mkdir(parents=True)
@@ -867,6 +889,8 @@ def test_serve_maps_a_cwd_through_a_symlinked_repo(deck, tmp_path):
 
 
 def test_serve_an_unremovable_stale_attention_file_does_not_break_the_reader(deck):
+    if os.geteuid() == 0:
+        pytest.skip("root unlinks through a read-only directory")
     deck.start()
     deck.attend(FAB, str(deck.fabrik), at=time.time() - 25 * 3600)
     deck.attend(OTH, str(deck.fabrik))
@@ -877,12 +901,20 @@ def test_serve_an_unremovable_stale_attention_file_does_not_break_the_reader(dec
         (deck.state / "attention").chmod(0o700)
 
 
-def test_serve_keeps_the_last_good_catalog_when_the_registry_turns_bad(deck):
-    deck.start()
-    before = _repos(deck)
-    deck.registry.write_text("projects: [unclosed\n")
-    time.sleep(0.1)
-    assert _repos(deck) == before
+def test_serve_keeps_the_last_good_catalog_when_the_registry_turns_bad():
+    # In-process with CATALOG_TTL 0: through the server the 10 s cache would answer before the registry is re-read.
+    spec = importlib.util.spec_from_file_location("fabrik_deck_fallback_probe", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    m.CATALOG_TTL = 0
+
+    def broken(registry, opt_root):
+        raise ValueError("the registry is half-written")
+
+    m._catalog = broken
+    good = [{"name": "fabrik", "path": "/opt/fabrik", "git": True, "agents": [], "_agents": {}}]
+    handler = m._handler(Path("/r"), Path("/o"), Path("/s"), 8443, good)
+    assert handler.current() == good
 
 
 @pytest.mark.parametrize("registry", ["missing", "projects: [unclosed\n"])
@@ -964,3 +996,18 @@ def test_serve_attention_carries_the_matched_repo_path(deck):
     deck.attend(OTH, "/elsewhere")
     by = {a["session"]: a["path"] for a in _attn(deck)}
     assert by[FAB] == str(deck.fabrik.resolve()) and by[OTH] is None
+
+
+def test_attention_a_relative_cwd_never_resolves_against_the_server_dir(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("fabrik_deck_relcwd_probe", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    state = tmp_path / "state"
+    (state / "attention").mkdir(parents=True)
+    rec = {"cwd": "src", "type": "turn_ended", "origin": "other", "at": time.time()}
+    (state / "attention" / f"{FAB}.json").write_text(json.dumps(rec))
+    monkeypatch.chdir(repo)
+    rows = [{"name": "repo", "path": str(repo.resolve()), "_agents": {}}]
+    assert [a["repo"] for a in m.attention(state, rows, time.time())] == ["other"]

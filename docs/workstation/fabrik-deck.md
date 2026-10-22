@@ -117,12 +117,14 @@ session.
 
 The waiting session's repo is the catalog path that is the longest whole-component prefix of its cwd, so a worktree
 under `<repo>/.claude/worktrees/` maps to `<repo>` and `/opt/fabrik-lib` never maps to `/opt/fabrik`; catalog paths
-are resolved, so the cwd is matched both as written and resolved, and a repo reached through a symlink still maps. The
+are resolved, so an absolute cwd is matched both as written and resolved, and a repo reached through a symlink still
+maps; a relative cwd is never resolved (it would resolve against the server's own directory). The
 board matches a waiting session to its row by that path, never by name, so two rows sharing a name cannot share a dot. Its label is the
 agent name from that repo's `.fabrik/session-agents.json` (read bounded at 1 MiB; a damaged file reads as no
 agents), else `coordinator (<repo> tab)` for a Deck tab, `session <8 chars> (tmux)` for a tmux pane, `session <8
 chars>` otherwise. Attention files older than 24 h — a session that died without `SessionEnd` — are deleted as they
-are read, and so is one whose time is not a finite number; a file that does not parse is skipped.
+are read, and so is one whose time is not a finite number or lies more than an hour ahead; a file that does not parse
+is skipped.
 
 Routes: `/`, `/api/repos`, `/api/attention`, `/api/events` (server-sent events: a frame on every change and every
 2 s, carrying `{repos, attention}`, so a repo that appears while the board is open gets its row without a reload). The
