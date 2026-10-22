@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_up.py
-# agents_up.sh [--print] <repo> — open a repo's builder agents side by side in one tmux window (D-1031).
+# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side in one tmux window (D-1031).
 #
 # Every repo's launcher (W-66e2f6a7 retired ~/bin/hub-up). The builders come from the repo's own registry,
 # <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), when it has one, and otherwise from the identity
@@ -13,18 +13,26 @@
 # place — the main checkout is the coordinator's, and a builder resumed there would edit main's tree and read main's
 # CLAUDE.md (W-6c7c3292) — so a name with no worktree gets no pane (said on stderr), and no builder left refuses
 # (exit 2). It resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports
-# the grid and launches nothing: a `session <name>` line, then per builder `pane <name> <sid> <folder> <status>`,
-# `cap <name> <MemoryMax> <TasksMax>` (or `cap <name> uncapped`) and `run <name> <command>`.
+# the grid and launches nothing: a `session <name>` line, a `slice <name> MemoryHigh=<v> MemoryMax=<v>` line, then per
+# builder `pane <name> <sid> <folder> <status>`, `cap <name> <TasksMax>` (or `cap <name> uncapped`) and `run <name>
+# <command>`. --detach builds the grid (or finds it up) and never attaches (the boot sweep and cron have no terminal);
+# a caller with no terminal on stdin/stdout detaches the same way and says so (W-1961cc42).
 #
 # Every pane runs WHOLE — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
-# fabrik-agents.slice, with MemoryMax ($FABRIK_AGENT_MEM_MAX, 3G), MemorySwapMax=0 and TasksMax
-# ($FABRIK_AGENT_TASKS_MAX, 1024); the slice's own ceiling ($FABRIK_AGENT_SLICE_MAX, 16G, no swap) is re-asserted at
-# each launch, never by --print (W-56b3f90d: a sibling project's worker storm starved every agent on 2026-10-20).
-# Without swap 0 a cap only pushes a runaway into swap, which is the starvation itself. The slice sits under
-# fabrik.slice beside fabrik-tests.slice (systemd reads a dash as nesting), and the LAST launch's slice ceiling holds
-# for every grid. No reachable user manager → the panes run uncapped, said on stderr AND inside each pane; a manager
-# that answers but refuses the slice ceiling refuses the launch (exit 2), as capped_run.sh does. Cobra (D-253): the
-# cheapest pass is a pane that only LOOKS capped; the test stub records the systemd-run argv the pane really runs.
+# fabrik-agents.slice, with MemorySwapMax=0 and TasksMax ($FABRIK_AGENT_TASKS_MAX, 1024) and NO MemoryMax of its own
+# ($FABRIK_AGENT_MEM_MAX is retired: warned about, ignored; a pane OOM-killed at 3G lost a review's seats). The parent
+# slice is the one ceiling, re-asserted at each new grid, never by --print: MemoryHigh = MemTotal - max(4G, floor) and
+# MemoryMax = MemTotal - max(2G, floor - 2G), whole G, floor = $FABRIK_AGENT_NONAGENT_FLOOR (12G; W-0b8a0fba), MemTotal
+# read from $FABRIK_PROC_ROOT/meminfo (/proc); under 8G or unreadable keeps D-1075's 16G
+# MemoryMax and says so (a floor that leaves nothing uses the minimum margins MemTotal-4G / MemTotal-2G instead); $FABRIK_AGENT_SLICE_MAX still overrides the derived MemoryMax. The slice sits under fabrik.slice
+# and fabrik-agents-tests.slice (capped_run.sh) nests under it by the dashed name. No reachable user manager: the
+# interactive path REFUSES (exit 2) unless FABRIK_AGENTS_UNCAPPED=1, and --detach (the boot path) launches uncapped
+# with D-1075's warning on stderr AND inside each pane; a manager that answers but refuses the ceiling refuses the
+# launch (exit 2), as capped_run.sh does. Each pane runs `claude -n <name> --resume <sid> "<wake prompt>"` with
+# CLAUDE_CODE_RETRY_WATCHDOG=1 and oom_score_adj 200 (W-6e656dac L1/L4/L5); no --permission-mode is passed, so
+# permissions.defaultMode decides. Cobra (D-253): the cheapest pass is a pane that only LOOKS capped, or an
+# FABRIK_AGENTS_UNCAPPED=1 left in a profile; the test stub records the systemd-run argv the pane really runs, and the
+# override is said on stderr at every launch that uses it.
 #
 # Names and session ids reach a shell command string, so the registry is validated first: a session id must be a
 # lowercase UUID, a name must match [a-z0-9][a-z0-9-]{0,31} and no key may repeat; one bad row refuses the whole launch
@@ -57,9 +65,16 @@ export CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/active"
 export CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/active"
 
 print=0
-if [ "${1:-}" = "--print" ]; then print=1; shift; fi
+detach=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --print) print=1; shift ;;
+    --detach) detach=1; shift ;;
+    *) break ;;
+  esac
+done
 if [ $# -ne 1 ] || [ -z "$1" ]; then
-  echo "usage: agents_up.sh [--print] <repo>" >&2
+  echo "usage: agents_up.sh [--print] [--detach] <repo>" >&2
   exit 2
 fi
 if [ ! -d "$1" ]; then
@@ -279,13 +294,57 @@ size_ok() {
   case "$n" in "" | 0* | *[!0-9]* | ??????????*) return 1 ;; esac
   case "$unit" in K) [ "$n" -ge 1024 ] ;; M | G) [ "$n" -ge 1 ] ;; *) return 1 ;; esac
 }
-MEM_MAX=${FABRIK_AGENT_MEM_MAX:-3G}
 TASKS_MAX=${FABRIK_AGENT_TASKS_MAX:-1024}
-SLICE_MAX=${FABRIK_AGENT_SLICE_MAX:-16G}
 SLICE=fabrik-agents.slice
-size_ok "$MEM_MAX" || { echo "agents_up: bad FABRIK_AGENT_MEM_MAX '$MEM_MAX' (e.g. 3G; 1M to 999999999G)" >&2; exit 2; }
-size_ok "$SLICE_MAX" || { echo "agents_up: bad FABRIK_AGENT_SLICE_MAX '$SLICE_MAX' (e.g. 16G; 1M to 999999999G)" >&2; exit 2; }
 case "$TASKS_MAX" in "" | 0* | *[!0-9]* | ???????*) echo "agents_up: bad FABRIK_AGENT_TASKS_MAX '$TASKS_MAX' (1 to 999999)" >&2; exit 2 ;; esac
+if [ -n "${FABRIK_AGENT_MEM_MAX:-}" ]; then
+  echo "agents_up: FABRIK_AGENT_MEM_MAX is retired (no pane gets a MemoryMax of its own; the $SLICE ceiling bounds them all) — ignored" >&2
+fi
+# The slice ceiling (W-6e656dac L5, refined by W-0b8a0fba): MemoryHigh = MemTotal - max(4G, floor) and MemoryMax =
+# MemTotal - max(2G, floor - 2G), in whole G, where floor ($FABRIK_AGENT_NONAGENT_FLOOR, 12G) is what the box's
+# non-agent processes (Windows, VS Code, the system) keep. MemTotal is read through the FABRIK_PROC_ROOT seam; under 8G,
+# unreadable keeps D-1075's 16G MemoryMax (and says so); a floor that leaves nothing uses the minimum margins. FABRIK_AGENT_SLICE_MAX still
+# overrides the derived MemoryMax; whichever way, MemoryHigh is re-asserted so no stale runtime value outlives it.
+PROC_ROOT=${FABRIK_PROC_ROOT:-/proc}
+FLOOR_RAW=${FABRIK_AGENT_NONAGENT_FLOOR:-12G}
+FLOOR_G=${FLOOR_RAW%G}
+case "$FLOOR_G" in "" | *[!0-9]* | ????*) echo "agents_up: bad FABRIK_AGENT_NONAGENT_FLOOR '$FLOOR_RAW' (whole G, 0 to 999: e.g. 12G)" >&2; exit 2 ;; esac
+FLOOR_G=$((10#$FLOOR_G))
+SLICE_HIGH=infinity
+SLICE_MAX=16G
+CEILING_NOTE=""
+MARGIN_NOTE=""
+MEMTOTAL_KB="$(awk '/^MemTotal:/ { print $2; exit }' "$PROC_ROOT/meminfo" 2>/dev/null)"
+case "$MEMTOTAL_KB" in
+  "" | *[!0-9]*) CEILING_NOTE="MemTotal is unreadable ($PROC_ROOT/meminfo)" ;;
+  *)
+    TOTAL_G=$((MEMTOTAL_KB / 1048576))
+    if [ "$TOTAL_G" -lt 8 ]; then
+      CEILING_NOTE="MemTotal is ${TOTAL_G}G, under 8G"
+    else
+      HIGH_G=$((TOTAL_G - (FLOOR_G > 4 ? FLOOR_G : 4)))
+      MAXG=$((TOTAL_G - (FLOOR_G - 2 > 2 ? FLOOR_G - 2 : 2)))
+      if [ "$HIGH_G" -lt 1 ]; then
+        # a floor that leaves nothing must never LOOSEN the cap (16G would exceed an 8-16G box): fall to the minimum margins
+        MARGIN_NOTE="a non-agent floor of ${FLOOR_G}G leaves nothing of MemTotal ${TOTAL_G}G — using the minimum margins (MemoryHigh=MemTotal-4G, MemoryMax=MemTotal-2G)"
+        SLICE_HIGH="$((TOTAL_G - 4))G"
+        SLICE_MAX="$((TOTAL_G - 2))G"
+      else
+        SLICE_HIGH="${HIGH_G}G"
+        SLICE_MAX="${MAXG}G"
+      fi
+    fi
+    ;;
+esac
+if [ -n "${FABRIK_AGENT_SLICE_MAX:-}" ]; then
+  size_ok "$FABRIK_AGENT_SLICE_MAX" || { echo "agents_up: bad FABRIK_AGENT_SLICE_MAX '$FABRIK_AGENT_SLICE_MAX' (e.g. 16G; 1M to 999999999G)" >&2; exit 2; }
+  SLICE_MAX="$FABRIK_AGENT_SLICE_MAX"
+  SLICE_HIGH=infinity
+elif [ -n "$CEILING_NOTE" ]; then
+  echo "agents_up: $CEILING_NOTE — keeping D-1075's 16G ceiling" >&2
+elif [ -n "$MARGIN_NOTE" ]; then
+  echo "agents_up: $MARGIN_NOTE" >&2
+fi
 # A launch from a .bat (`wsl.exe --exec bash -l`) carries no XDG_RUNTIME_DIR, and without it every systemctl/systemd-run
 # answers "Failed to connect to bus" — so set it when the user bus is there, as capped_run.sh does.
 if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -S "/run/user/$(id -u)/bus" ]; then
@@ -334,7 +393,7 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
   # (`PATH="$PATH"`) — three fixed copies of a WSL PATH (4 KB here) brought a pane command to ~14 KB, near the size
   # tmux takes in one message (review round 1).
   local env base inner path_now
-  base='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}"'
+  base='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}" CLAUDE_CODE_RETRY_WATCHDOG=1'
   path_now="$(printf 'PATH=%q' "$PATH")"
   env="$base $(printf 'CLAUDE_CONFIG_DIR=%q CLAUDE_QUOTA_HOME=%q' "$CLAUDE_CONFIG_DIR" "$CLAUDE_QUOTA_HOME") CLAUDE_AGENT=$1"
   # the store the launcher read: the panes' whoami must write the same one, or the next launch never sees the re-bind
@@ -344,7 +403,7 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
   local penv killed
   if [ "$CAPPED" = 1 ]; then
     penv="$env PATH=\"\$PATH\""  # inside the scope: the PATH the outer env -i set
-    killed="[$1 was killed (exit 137, SIGKILL) — in this capped pane most likely at its memory ceiling, MemoryMax=$MEM_MAX]"
+    killed="[$1 was killed (exit 137, SIGKILL) — in this capped pane most likely at the $SLICE memory ceiling (MemoryMax=$SLICE_MAX)]"
   else
     penv="$env $path_now"
     killed="[$1 was killed (exit 137, SIGKILL)]"
@@ -359,25 +418,34 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
     # folder name is printed, never run or expanded
     local hint
     hint="[$1 exited — run: claude -n $1 --resume $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]"
-    inner="$penv claude -n $1 --resume $2; rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $(squote "$hint"); exec $penv bash -l"
+    # the relaunch's first turn (L4): re-arm the self-watch (background tasks are not restored), then `woke`, resuming
+    # only on exit 0 — so a daily relaunch outside any pause just carries on. No --permission-mode: the session's own
+    # settings (permissions.defaultMode) decide. oom_score_adj 200 (raising needs no privilege) ranks a builder pane
+    # above the coordinators in the kernel's OOM order.
+    local wake
+    wake="You were relaunched by agents_up. First re-arm your self-watch: run bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh $2 in the background. Then carry on as usual."
+    # the `hibernate.py woke --self` step joins this prompt with W-6e656dac T01a: master's woke still answers 0 on
+    # any past lift and prints no seed, so ordering it here would send every relaunched builder after a seed
+    inner="echo 200 > /proc/self/oom_score_adj 2>/dev/null; $penv claude -n $1 --resume $2 \"$wake\"; rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $(squote "$hint"); exec $penv bash -l"
   fi
   if [ "$CAPPED" = 1 ]; then
     # the WHOLE pane in one scope, so the shell it keeps — and whatever is re-run there — stays inside the cap; a
     # scope that cannot be made leaves a pane that says so, never one that closes without a word. It opens NO shell:
     # the same branch runs when the kept shell itself exits non-zero, and a shell here would be outside the cap
     # (review round 2), so it only waits for Enter
-    echo "$env $path_now systemd-run --user --scope --quiet --slice=$SLICE -p MemoryMax=$MEM_MAX -p MemorySwapMax=0 -p TasksMax=$TASKS_MAX -- bash -c $(squote "$inner") || { echo \"[$1: the capped scope ended with exit \$? — if nothing ran above, systemd-run could not start it; press Enter to close this pane]\"; read -r _; }"
+    echo "$env $path_now systemd-run --user --scope --quiet --slice=$SLICE -p MemorySwapMax=0 -p TasksMax=$TASKS_MAX -- bash -c $(squote "$inner") || { echo \"[$1: the capped scope ended with exit \$? — if nothing ran above, systemd-run could not start it; press Enter to close this pane]\"; read -r _; }"
   else
     echo "echo '[UNCAPPED: no systemd user manager answered at launch — this pane has no memory or task bound]'; $inner"
   fi
 }
 
 cap_of() {  # $1 = name
-  if [ "$CAPPED" = 1 ]; then echo "cap $1 $MEM_MAX $TASKS_MAX"; else echo "cap $1 uncapped"; fi
+  if [ "$CAPPED" = 1 ]; then echo "cap $1 $TASKS_MAX"; else echo "cap $1 uncapped"; fi
 }
 
 if [ "$print" = 1 ]; then
   echo "session $S"
+  [ "$CAPPED" = 1 ] && echo "slice $SLICE MemoryHigh=$SLICE_HIGH MemoryMax=$SLICE_MAX"
   while read -r name sid; do
     dir="$(dir_of "$name")"
     [ -n "$dir" ] || continue
@@ -394,34 +462,50 @@ fi
 # manager); reattaching to a running grid starts nothing, so it never needs it. A manager that answers but refuses it
 # is an error, never a silent fall-through to an unbounded total.
 slice_ceiling() {
-  [ "$CAPPED" = 1 ] || return 0
-  systemctl --user set-property --runtime "$SLICE" "MemoryMax=$SLICE_MAX" MemorySwapMax=0 >/dev/null 2>&1 && return 0
-  echo "agents_up: the user manager refused the $SLICE ceiling (MemoryMax=$SLICE_MAX) — not launching" >&2
+  if [ "$CAPPED" != 1 ]; then
+    # the .bat path never starts a pane with no bound unless the operator said so; the boot path (--detach) always
+    # comes back, with the warning already printed above (D-1075)
+    if [ "$detach" = 1 ] || [ "${FABRIK_AGENTS_UNCAPPED:-}" = 1 ]; then return 0; fi
+    echo "agents_up: no systemd user manager answers, so the panes would have no memory or task bound — not launching; start the user manager, or set FABRIK_AGENTS_UNCAPPED=1 to launch uncapped anyway" >&2
+    exit 2
+  fi
+  systemctl --user set-property --runtime "$SLICE" "MemoryHigh=$SLICE_HIGH" "MemoryMax=$SLICE_MAX" MemorySwapMax=infinity >/dev/null 2>&1 && return 0
+  echo "agents_up: the user manager refused the $SLICE ceiling (MemoryHigh=$SLICE_HIGH MemoryMax=$SLICE_MAX) — not launching" >&2
   exit 2
 }
 
-# A session is named after the folder only, so a grid already up under this name must be THIS repo's. The root is
+# tmux 3.4 answers `no such session: =<name>` to an OPTION command (show-options / set-option) given the bare exact
+# target `=<name>` while has-session, list-panes and attach accept it (measured on a scratch `tmux -L` server, W-1961cc42);
+# the trailing colon (`=<name>:`) names the same session and every command accepts it, so options use it.
+# A session is named after the folder only, so a grid already up under this name is attached unless it records a
+# DIFFERENT root (D-1108); one recording no root is adopted or attached with a warning. The root is
 # recorded just after the session is created, so an empty owner may be a launch still building it: re-read once.
 owned_here() {
   local owner
-  owner="$(tmux show-options -t "=$S" -v @agents_up_root 2>/dev/null)"
+  owner="$(tmux show-options -t "=$S:" -v @agents_up_root 2>/dev/null)"
   if [ -z "$owner" ]; then
     sleep 1
-    owner="$(tmux show-options -t "=$S" -v @agents_up_root 2>/dev/null)"
+    owner="$(tmux show-options -t "=$S:" -v @agents_up_root 2>/dev/null)"
   fi
   [ "$owner" = "$ROOT" ] && return 0
+  # only a DEFINITE other owner (a non-empty root that is not ours) refuses; a grid that is up is attached whatever
+  # the read returned (W-e841ac37), so an empty owner below attaches with a warning
+  if [ -n "$owner" ]; then
+    echo "agents_up: tmux session $S belongs to $owner — not attaching; kill or rename it first" >&2
+    return 1
+  fi
   # a grid a hand-built launcher made (fabrik-lib's ~/bin/fabrik-lib-up) records no root but tags each pane with its
   # agent: adopt it when every pane is one of THIS repo's builders, so moving to the generated launcher never shows an
-  # error pane; any other unrecorded session is still refused (W-bb6c9d9a)
-  if [ -z "$owner" ] && adoptable; then
-    tmux set-option -t "=$S" @agents_up_root "$ROOT" >/dev/null
+  # error pane; any other unrecorded session is attached with a warning (W-e841ac37)
+  if adoptable; then
+    tmux set-option -t "=$S:" @agents_up_root "$ROOT" >/dev/null
     echo "agents_up: adopted the $S grid a hand-built launcher made — every pane is one of this repo's builders" >&2
     # its panes were started without this script's env allow-list, so they may carry the VS Code session's variables
     echo "agents_up: those panes keep the environment they started with; for clean panes: tmux kill-session -t =$S, then launch again" >&2
     return 0
   fi
-  echo "agents_up: tmux session $S belongs to ${owner:-something other than agents_up} — not attaching; kill or rename it first" >&2
-  return 1
+  echo "agents_up: could not confirm that tmux session $S is this repo's (it records no root and not every pane is one of this repo's builders) — attaching to it anyway" >&2
+  return 0
 }
 
 adoptable() {  # every pane of the session carries an @agent that names one of this repo's builders
@@ -438,7 +522,7 @@ adoptable() {  # every pane of the session carries an @agent that names one of t
 
 if tmux has-session -t "=$S" 2>/dev/null; then
   owned_here || exit 2
-  echo "agents_up: the $S grid is already up — attaching as it is; a registry change takes effect after: tmux kill-session -t =$S" >&2
+  echo "agents_up: the $S grid is already up — leaving it as it is; a registry change takes effect after: tmux kill-session -t =$S" >&2
 else
   slice_ceiling
   first=1
@@ -460,8 +544,8 @@ else
         fi
         exit 1
       fi
-      tmux set-option -t "=$S" @agents_up_root "$ROOT" >/dev/null ||
-        echo "agents_up: could not record the root on $S — a relaunch will refuse this grid until it is killed" >&2
+      tmux set-option -t "=$S:" @agents_up_root "$ROOT" >/dev/null ||
+        echo "agents_up: could not record the root on $S — a relaunch cannot confirm this grid is this repo's and will attach it with a warning" >&2
       first=0
     elif ! tmux split-window -t "=$S:$W" -c "$dir" "$cmd"; then
       echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
@@ -474,6 +558,15 @@ else
   [ "$raced" = 1 ] || tmux select-pane -t "=$S:$W.0"
 fi
 tmux source-file "$HOME/.tmux.conf" 2>/dev/null
+# --detach (the boot sweep, cron: no terminal) stops here; so does any caller with no terminal, which says so
+if [ "$detach" = 1 ]; then
+  echo "agents_up: --detach — the $S grid is up, not attaching (attach with: tmux attach -t =$S)" >&2
+  exit 0
+fi
 # run from inside tmux (a hub pane), attaching would nest; switch the client instead
 [ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$S"
+if [ ! -t 0 ] || [ ! -t 1 ]; then
+  echo "agents_up: no terminal on stdin/stdout, so there is nothing to attach — the $S grid is up and left detached (attach with: tmux attach -t =$S)" >&2
+  exit 0
+fi
 exec tmux attach -t "=$S"

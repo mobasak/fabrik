@@ -1,6 +1,6 @@
 # Fabrik Deck — attention hook, board server, profile, launcher
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** fleet
 Spec: `docs/superpowers/specs/2026-10-21-fabrik-deck-design.md` (CONVERGED, approved D-1106) · Work item: W-42d1ccb5 ·
 already built: the code-server unit (W-e89a9b5b, D-1107, merged 73eec28ca).
@@ -40,7 +40,9 @@ Intake: 6 items — 5 IN, 1 OUT-OF-SCOPE (W-a02d1c86), 0 ASK.
 ## Global Constraints
 
 - Box-local tooling in the hub: no `specs/services/*.yaml`, no `shape:`, no VPS, no compose (spec § Shape / infra implications).
-- Stdlib only in `scripts/sysadmin/fabrik_deck.py` except PyYAML for the catalog (system `/usr/bin/python3` has PyYAML 6.0.1 — Evidence E1).
+- Stdlib only in `scripts/sysadmin/fabrik_deck.py` except PyYAML for the catalog, imported INSIDE `catalog()` and never
+  at module top, so the hook — which every session runs under whatever `python3` is first on PATH — never needs it
+  (system `/usr/bin/python3` has PyYAML 6.0.1 — Evidence E1).
 - 12-Factor: III — every port and path from env or a flag with a default; XI — logs to stdout only, never a logfile
   (journald holds it); VIII — no daemonizing, no PID file; each server runs in the foreground of its unit. No
   migrations, no backing services, no sticky sessions apply here.
@@ -84,6 +86,8 @@ var with a default or a flag (row 3); tests assert files, HTTP status and JSON (
 
 ## Phase A — the attention hook and its registration
 
+✅ EXECUTED 2026-10-22 (c194e70b5 build, 42b2253cd + 6dcf9462f review fixes; receipt docs/development/reviews/2026-10-22-plan-1-fabrik-deck-phase-1-review.md, passes 9 → 1 → 0)
+
 Appetite: 90
 
 Implements spec § Chosen approach item 4 and Tests 1-2.
@@ -102,19 +106,22 @@ written temp-then-rename; subcommand `fabrik_deck.py hook` (stdin JSON).
 - Given `TMUX` (it wins when both are set) or `FABRIK_DECK=1` in the environment, When the hook writes, Then `origin` is `tmux` or `deck`, else `other` (spec § Tests 2)
 - Given malformed JSON, a non-dict payload, a session id holding `/`, or an unwritable state dir, When the hook runs, Then it exits 0 with empty stdout (spec § Tests 2)
 - Given no `FABRIK_DECK_STATE` in the environment but one in the env file, When the hook runs, Then it writes under the file's directory (R-P10)
+- Given a `python3` without PyYAML (a shadowing `yaml.py` that raises ImportError on PYTHONPATH), When the hook runs, Then it exits 0 with empty stdout
 - Given the five ENTRIES rows, When `install_user_hooks.py` installs into a temp home holding a foreign Notification entry, Then each event carries exactly one `fabrik_deck.py hook` command and the foreign entry survives
 
 **Steps.**
 1. Probe: `/usr/bin/python3 --version` and `.venv/bin/python -m pytest --version` — expect both print a version.
 2. TDD, risky path first: in `tests/test_fabrik_deck.py` give `box.run` an `input=` argument (`:94-103` has none) and
-   write the first seven tests above (the eighth is step 4's); run `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_fabrik_deck.py -k hook`
+   write the first eight tests above (the ninth is step 4's); run `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_fabrik_deck.py -k hook`
    — expect them to FAIL (no `hook` subcommand).
 3. In `scripts/sysadmin/fabrik_deck.py`: factor `_env_path` out of `install` (`:211`); add `_state_dir` (reads the
    file with `_read_env(text, warn=False)` — no stderr in every session); add `hook()`: read stdin only when not a
    TTY, `json.loads` in a `try`, require a dict and a `session_id` str without `/` (`worktree_transcript_link.py:100`),
    branch on `hook_event_name` (`scripts/thread_anchor.py:1122` reads the same key) per the contract, write by
    `_atomic_write` (`:139-151`) under `<state>/attention/`, catch `Exception` → one stderr line, `sys.exit(0)`.
-   Restructure `main()` (`:262-284`): a branch per subcommand, the `systemd-analyze` check only for `install`.
+   Restructure `main()` (`:262-284`): `hook` is dispatched BEFORE argparse (`argv[:1] == ['hook']`) inside a
+   `try … except BaseException` that exits 0, so neither argparse's `SystemExit(2)` nor any import can block a session;
+   a branch per other subcommand, the `systemd-analyze` check only for `install`.
    Add `docs/workstation/hooks-index.md` and `scripts/sysadmin/install_user_hooks.py` to the `# AFTER-EDIT:` header (`:2`).
    Gate: the step-2 command — expect all `hook` tests green.
 4. In `scripts/sysadmin/install_user_hooks.py` `ENTRIES` (`:29-68`): append
@@ -128,8 +135,9 @@ written temp-then-rename; subcommand `fabrik_deck.py hook` (stdin JSON).
    `Stop`, `PostToolUse`, `SessionEnd`, the command, its contract and its tests, and stating that an answered
    permission DENIAL fires PostToolUseFailure, so that dot clears at Stop or the next prompt. Gate:
    `command grep -c "fabrik_deck.py hook" docs/workstation/hooks-index.md` — expect ≥1; `command grep -c PostToolUse docs/workstation/hooks-index.md` — expect ≥1.
-6. Measure the hook's cost on PostToolUse with no file: 20 runs of `/usr/bin/time -f %e /usr/bin/python3 scripts/sysadmin/fabrik_deck.py hook < <payload file>`; record the mean in `docs/workstation/fabrik-deck.md` (the spec accepted 22-35 ms for a bare start); then time the
-   SessionEnd pair the same way — this hook plus `scripts/sysadmin/mcp_orphan_reaper.py` with NO flag (its dry run;
+6. Measure the hook's cost on PostToolUse with no file: 20 runs of `FABRIK_DECK_STATE=<scratch dir> /usr/bin/time -f %e /usr/bin/python3 scripts/sysadmin/fabrik_deck.py hook < <payload file>`
+   (never the live state dir); record the mean in `docs/workstation/fabrik-deck.md` (the spec accepted 22-35 ms for a bare start); then time the
+   SessionEnd pair the same way, `FABRIK_DECK_STATE=<scratch dir>` again — this hook plus `scripts/sysadmin/mcp_orphan_reaper.py` with NO flag (its dry run;
    `--hook` means `--apply` and kills processes, `scripts/sysadmin/mcp_orphan_reaper.py:25-37`), which share the
    1.5 s SessionEnd budget — and record that their sum stays under 1.5 s.
 7. Closing sequence: (1) the phase gates above, green; (2) a `CHANGELOG.md` entry atop `[Unreleased]`, stage the
@@ -142,6 +150,8 @@ written temp-then-rename; subcommand `fabrik_deck.py hook` (stdin JSON).
    provenance trailers.
 
 ## Phase B — the Deck server, catalog and board
+
+✅ EXECUTED 2026-10-22 (e55ec3c98 build, c2dd08328 + 4d0d63481 review fixes; receipt docs/development/reviews/2026-10-22-plan-1-fabrik-deck-phase-2-review.md, passes 9 → 3 → 0)
 
 Appetite: 150
 
@@ -189,7 +199,9 @@ as `code_server` does (`:83-97`); `catalog(registry, opt_root) -> list[{"name","
    change, flushes each frame, and returns on `BrokenPipeError`/`ConnectionResetError`.
 5. The board (`GET /`): one HTML page with inline JS, no third-party code; a search box; one row per repo with the
    dot and agent name when waiting, the link `http://localhost:<code port>/?folder=<path>` opening a new tab; an
-   `other` row; an *Enable notifications* button that calls `Notification.requestPermission()` on the click and then
+   `other` row — every name, label and path is put into the DOM with `textContent` only (never `innerHTML`), and the
+   folder link is built with `encodeURIComponent(path)`, since names come from repo-controlled `session-agents.json`;
+   an *Enable notifications* button that calls `Notification.requestPermission()` on the click and then
    notifies on each NEW waiting session. `FABRIK_DECK_CODE_PORT` supplies the code port.
 6. Gate: the step-1 command — expect all green; plus a live smoke against a temp state dir:
    `curl -s -o /dev/null -w "%{http_code}" -H "Host: localhost:<port>" http://127.0.0.1:<port>/api/repos` — expect `200`.
@@ -200,6 +212,8 @@ as `code_server` does (`:83-97`); `catalog(registry, opt_root) -> list[{"name","
 
 ## Phase C — install (second unit), profile, launcher, docs
 
+✅ EXECUTED 2026-10-22 (6f3e15d53 build, 3f2f4b864 + 2c671ca8c review fixes; receipt docs/development/reviews/2026-10-22-plan-1-fabrik-deck-phase-3-review.md, passes 14 → 3 → 0; § Acceptance handed to the coordinator, answered A behind a pause, D-1128)
+
 Appetite: 150
 
 Implements spec § Chosen approach (Profile, Launcher), § Lifecycle (Supervision) and Tests 8-10.
@@ -209,19 +223,22 @@ Implements spec § Chosen approach (Profile, Launcher), § Lifecycle (Supervisio
 any write; env defaults gain `FABRIK_DECK_PORT=8445` and `FABRIK_DECK_STATE=<home>/.local/state/fabrik-deck`
 (absolute — systemd does not expand `~`); `install` backs up `~/.config/code-server/config.yaml` to
 `~/.local/share/code-server/User/backups/` and writes `bind-addr`, `auth: none`, `cert: false` (mode kept 0600);
-`profile`; `launcher --desktop DIR [--distro D] [--browser PATH]`; `up` (the .bat's WSL leg: export
-`XDG_RUNTIME_DIR=/run/user/<uid>` when its bus socket exists — `scripts/sysadmin/agents_up.sh:289-293` — start any
-inactive unit, print the Deck port).
+`profile`; `launcher --desktop DIR [--distro D] [--browser PATH]`; `up [--runtime-dir DIR]` (the .bat's WSL leg; DIR default `/run/user`: export
+`XDG_RUNTIME_DIR=<DIR>/<uid>` when its bus socket exists — `scripts/sysadmin/agents_up.sh:289-293` — start each
+inactive unit whose port no other process holds (a held port is named on stderr and that unit left stopped), print
+the Deck port).
 
 **Behavior Contract.**
 - Given a settings.json with other keys, When `profile` runs, Then a backup exists first, the listed keys hold the Deck's values and every other key is unchanged; a file that does not parse as JSON is left untouched and the run exits 1 (spec § Tests 8)
 - Given an existing `Fabrik Deck.bat` without the marker, When `launcher` runs, Then it refuses (rc 2) and leaves the file; with the marker or no file, Then it writes CRLF ASCII text with the marker on line 2 (spec § Tests 9)
 - Given a temp home, When `install` runs, Then both unit files carry `EnvironmentFile=` the env file's absolute path (D-1107) and `RestartPreventExitStatus=2`, and each passes `systemd-analyze --user verify` printing nothing (spec § Tests 10)
-- Given an existing `~/.config/code-server/config.yaml`, When `install` runs, Then a backup exists first and the file holds `bind-addr: 127.0.0.1:<FABRIK_DECK_CODE_PORT>`, `auth: none`, `cert: false`, mode 0600
-- Given `up` with a bus socket at `/run/user/<uid>/bus` and `XDG_RUNTIME_DIR` unset, When it runs, Then it exports it, starts only the inactive units and prints the Deck port
+- Given an existing `~/.config/code-server/config.yaml` with an extra `password:` line, When `install` runs, Then a backup exists first and the file holds `bind-addr: 127.0.0.1:<FABRIK_DECK_CODE_PORT>`, `auth: none`, `cert: false` and the `password:` line unchanged, mode 0600
+- Given `up --runtime-dir <tmp>` with a bus socket at `<tmp>/<uid>/bus` and `XDG_RUNTIME_DIR` unset, When it runs, Then it exports it, starts only the inactive units whose port is free (a unit whose port another process holds stays stopped and is named on stderr) and prints the Deck port; with no socket there, Then it leaves `XDG_RUNTIME_DIR` unset
 - Given `install --desktop DIR`, Then the profile keys are applied and `DIR/Fabrik Deck.bat` exists; without `--desktop`, no `.bat` is written
 - Given the written `.bat`, Then it holds the 30-try `curl.exe` wait on the Deck port with `%%` doubled, the `tasklist`/`find` check, and the first-run marker file write after the board answered
 - Given a foreign file at either unit path, When `install` runs, Then it refuses before writing anything
+- Given a settings.json that is not JSON, When `install` runs, Then it exits 1 and no unit, env or config file is written
+- Given an active `fabrik-deck-code.service` holding 8443, When `install --start` runs, Then it does not refuse on that port (a port is checked only for a unit that is not active)
 
 **Steps.**
 1. TDD: write the tests for the rows above; re-expect the single-unit tests — `tests/test_fabrik_deck.py:111` (UNIT),
@@ -230,8 +247,10 @@ inactive unit, print the Deck port).
    only the code port), each named in the step that changes it; run `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_fabrik_deck.py` — expect the new ones to FAIL.
 2. Generalise `_render_unit(hub, env_file, subcommand, description)`; loop the foreign check, the verify and the
    writes over both units, every check before the first write (the comment at `:228` binds), the Deck port parsed like the code port
-   (`:234-237`) before any write; `--start` checks both ports; `install` then applies `profile`, and with `--desktop`
-   writes the launcher.
+   (`:234-237`) before any write; `--start` checks both ports; `install` parses settings.json (json) and config.yaml BEFORE its first
+   write — config.yaml line by line as `key: value` pairs with the stdlib (it holds three such lines today; PyYAML stays
+   inside `catalog()`), keeping its other keys, such as a `password` line, as they are — then applies `profile`, and with
+   `--desktop` writes the launcher; `--start` checks a port only for a unit that is not already active.
 3. `profile`: `json.loads`; on failure exit 1 naming the file; `mkdir` the backups folder; copy the file there with a
    timestamp; merge the spec's nine keys; `_atomic_write`.
 4. `launcher`: the .bat text — `@echo off`, the marker line, then `for /f %%p in ('wsl.exe --distribution <d> --exec
@@ -242,7 +261,8 @@ inactive unit, print the Deck port).
    afterwards. ASCII only, CRLF, refuse a non-marker file (`scripts/sysadmin/agents_bat.py:227-253`).
 5. Docs: `docs/workstation/fabrik-deck.md` — the board, the hook and its measured cost, `profile`, the launcher (with
    the OneDrive desktop path, `docs/reference/repo-coordinator-rollout.md:287`), the three env variables, rollback
-   (spec § Lifecycle, Retirement), the accepted auth-none exposure, and § Acceptance (below); `docs/CONFIGURATION.md` +
+   (spec § Lifecycle, Retirement — the hook registrations are removed from every account dir BEFORE the script is
+   reverted, or the registered `hook` call would hit an older script), the accepted auth-none exposure, and § Acceptance (below); `docs/CONFIGURATION.md` +
    `.env.example` — `FABRIK_DECK_PORT`, `FABRIK_DECK_CODE_PORT`, `FABRIK_DECK_STATE`; `INDEX.md` — rewrite the rows at
    `INDEX.md:1714`, `:2104` and `:2301`, which describe only code-server; § Acceptance — the spec's open-unknown rows
    2-6 as operator steps, each with what to record.
@@ -262,7 +282,11 @@ inactive unit, print the Deck port).
 
 After the coordinator merges: (1) the hooks-index row is on master; (2) from the main checkout,
 `.venv/bin/python scripts/sysadmin/install_user_hooks.py` (new sessions pick the hook up at start); (3)
-`/usr/bin/python3 scripts/sysadmin/fabrik_deck.py install --start --desktop "<desktop>"`. The spec's
+`/usr/bin/python3 scripts/sysadmin/fabrik_deck.py install --desktop "<desktop>"` (no `--start`: the hand-started
+code-server holds 8443 today) and `fabrik_deck.py up`, which starts the board unit and leaves `fabrik-deck-code` stopped while the hand-started
+code-server holds 8443 (`up` skips a unit whose port another process holds). Then the code-server cutover —
+`systemctl --user restart fabrik-deck-code` (D-1107's order; it ends every open Deck tab's claude process, and only
+then does `auth: none` from the rewritten config.yaml take effect) — boards through the coordinator first. The spec's
 OPEN unknowns (spec § Open / blocking unknowns rows 2-6: Vivaldi session restore, tiling reload, `localhost`
 forwarding across `wsl --shutdown` and a Windows reboot, a second launch, memory per tab) need the operator's hands
 and a reboot: Phase C step 6b hands § Acceptance to the coordinator as a gate (DECISION NEEDED, ground: gate —
@@ -289,6 +313,9 @@ destructive, the reboot ends every session), and its results land in the doc.
 - docs/CONFIGURATION.md
 - .env.example
 - docs/development/reviews/2026-10-22-plan-1-fabrik-deck-review.md
+
+`CHANGELOG.md` and `INDEX.md` are edited by the phases too; they are governance files the plan grammar keeps out of
+File Scope (`scripts/enforcement/check_plan_tickets.py::GOVERNANCE_FILES`), committed under the shared-tree rules.
 
 ## Evidence
 
@@ -515,3 +542,5 @@ https://help.vivaldi.com/desktop/tabs/tab-tiling/ (spec).
 | Pass 1 | opus×1 (slice O: rule and grammar sections) + sonnet×1 (slice S: Phases A-C) · all axes | found: 19, new: 19, confirmed: 18, fixed: 18, unexecuted: 0, edits: 19 | method: citation — full pass over pin-1; the lead executed each confirmed item (`_parse_port` default, D-1107 absolute env path, `check_doc_sync.py:420-421` no-op on nothing staged, 501 for an undefined method, the INDEX rows, the 10-python anchor); one duplicate (S2 = O3); the rubric paste left to the closing round | 9468182c… → 55db8569… |
 | Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over the pass-1 hunks + one hop | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0, edits: 8 | method: re-derivation — delta over 886e1ffaf's hunks; all 7 own-fix (round 1): the reaper timing ran `--hook` (= `--apply`, kills processes; lead read `mcp_orphan_reaper.py:25-37`), 405 vs five handlers, exit-2 / install-profile / R-P10-fixture untested, Phase C step after its closing sequence, Self-audit (a) stale | 06a6a653… → 282c9c52… |
 | Pass 3 | opus×1 + sonnet×1 (round-1 owners) · delta over the pass-2 hunks + one hop | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the pass-2 hunks: reaper anchor `scripts/sysadmin/mcp_orphan_reaper.py:25-37` re-read, the six do_* handlers in row and step, Phase C numbering 1-6, 6b, 7, Self-audit (a) targets; standing clean since pass 1: digest quotes, grounding anchors, interfaces. RECORDED — measured (O: the dry-run timing omits `--grace` waits when orphans exist — Phase A executor notes it in docs/workstation/fabrik-deck.md); RECORDED — measured (O: `install` must parse settings.json before its first write — Phase C executor, step 2's every-check-before-first-write rule) | 98370cea… → 98370cea… ✓ → **CONVERGED** |
+| Pass 4 | opus×1 + sonnet×1 (round-1 owners) · delta over the approval panel's changes (D-1110; opus and fable both sound-with-changes, every concern accepted) | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 6 | method: re-derivation — the panel hunks: `up` was defined as starting every inactive unit while the post-merge text said it starts only the board (with the hand-started code-server on 8443 it would loop the code unit), now it skips a unit whose port another process holds; config.yaml's parse vs PyYAML-in-`catalog()` settled (stdlib `key: value` lines) with a row that the `password:` line survives | a3ab22c4… → (pin-5) |
+| Pass 5 | opus×1 + sonnet×1 (round-1 owners) · delta over the pass-4 fixes + one hop | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — fix4 hunks: the `up` Interfaces line, row and post-merge text agree; the launcher reads `up`'s stdout only (the held-port line is stderr); the config.yaml row matches step 2; the one unverified claim ("three such lines today") executed by the lead: `cut -d: -f1 ~/.config/code-server/config.yaml` → bind-addr, auth, cert; standing clean: every other class | 7f4a341c… → 7f4a341c… ✓ → **CONVERGED** |

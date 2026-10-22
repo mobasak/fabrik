@@ -294,7 +294,7 @@ export function requireInternalToken(req, res, next) {
 | `console.log` in production paths | `pino` with structured fields | Breaks Loki query model + wastes GlitchTip |
 | Alpine base image | the current-LTS `-slim` base per § Runtime + Docker | musl-libc compatibility issues with native modules |
 | Buffered payload > 10 MB in memory | streamed via `pipeline()` | OOM on shared 12 GB VPS |
-| `process.env.X \|\| 'default'` for secrets | Startup throw on missing | Silent prod misconfig |
+| A defaulted secret — `process.env.X` with the double-pipe or-fallback to a literal (the form § Configuration bans) | Startup throw on missing | Silent prod misconfig |
 | `npm install` of vendor SDK (`stripe`, `openai`, `@anthropic-ai/sdk`) | OpenRouter for LLM, PayTR/iyzico/Paddle for billing | TR entity rules; gateway abstraction rule |
 
 ---

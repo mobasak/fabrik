@@ -512,7 +512,7 @@ def test_an_existing_extensionless_root_file_still_grades(tmp_path):
 
 
 def test_an_escaped_pipe_is_one_cell_and_matches_on_both_sides(tmp_path):
-    """A pack table carries `\\|` (core/12-node.md:297 has `process.env.X \\|\\| 'default'`); a digest
+    """A pack table carried `\\|` (core/12-node.md's secrets row had `process.env.X \\|\\| 'default'` until W-80ffca68); a digest
     quoting it must escape it to stay one cell, and `_norm` compares both sides un-escaped."""
     root = _root(tmp_path)
     pack = root / PACK_REL

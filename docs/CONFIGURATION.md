@@ -478,6 +478,25 @@ Read by `scripts/sysadmin/claude_rotate.py --tick` from the process environment;
 
 - `CLAUDE_RESUME_GAP_MIN` — the gap, in minutes, from the last tick's end to this tick's start beyond which the tick reads a host sleep and wakes every armed self-watch (default `15`). A value under `12` falls back to `15`, because one missed `*/5` slot already makes a 10–11 minute gap; a non-finite value falls back too.
 
+### Fabrik Deck — `FABRIK_DECK_PORT` / `FABRIK_DECK_CODE_PORT` / `FABRIK_DECK_STATE` (WSL box, D-1106)
+
+Kept in `~/.config/fabrik-deck/env`, which the two systemd units load as their `EnvironmentFile=`; `serve` and
+`code-server` read the two ports from the process environment only; `serve` and the hook take `FABRIK_DECK_STATE`
+from the process environment, else from the file; `install` and `up` read the file only, so a value set just in a
+shell does not reach them.
+None of them goes in a project `.env`. `fabrik_deck.py install` writes the defaults and never overwrites a line you changed. How the Deck
+works: `docs/workstation/fabrik-deck.md`.
+
+- `FABRIK_DECK_PORT` — the board's port on 127.0.0.1 (default `8445`).
+- `FABRIK_DECK_CODE_PORT` — code-server's port on 127.0.0.1 (default `8443`); the board's repo links point at it.
+- `FABRIK_DECK_STATE` — the folder holding `attention/`, one file per session waiting on the operator (default
+  `<home>/.local/state/fabrik-deck`; written absolute, as systemd does not expand `~`; when read, a `~` is
+  expanded and a value still relative falls back to the default).
+
+`install` also seeds the code-server workbench's environment into the same file — `FABRIK_DECK=1` (marks a Deck tab,
+the hook's `origin: deck`), `CLAUDE_CONFIG_DIR`, `CLAUDE_QUOTA_HOME`, `PATH`, `DISPLAY` and `WAYLAND_DISPLAY`; their
+defaults are in `docs/workstation/fabrik-deck.md` § The two services.
+
 ### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
 
 The Behavior Contract's substance-mechanical layer: `mutmut` (dev dependency, `pyproject.toml [dev]`) proves the tests **kill mutants**, not just cover lines. `scripts/enforcement/check_mutation.py` is registered in `final_gate` as **advisory** — but through the gate it **never actually mutates**: `final_gate.py` deliberately strips `FABRIK_MUTMUT` before invoking this one child (a set flag would start a session-detached mutmut that the gate's 120s outer timeout then orphans on the shared box) and restores it after, so a gate run always prints the pointer and exits 0 regardless of the flag. A REAL run happens only by **direct invocation** (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the **Sunday 05:00 cron** (diff-scoped + weekly, never a per-PR blocking gate per `45-testing-strategy.md`); it mutates only **committed** changed Python (never the dirty worktree, never `tests/` or the vendored `libs/`), and **always exits 0**.
@@ -514,12 +533,35 @@ runaway is a named failure, never a host outage. `docs/reference/long-command-mo
   swap). The completion gate's pytest leg, `merge_request.py` and `kaizen_outcomes.py` launch tests
   through it.
 - `FABRIK_TEST_SLICE_MAX`: the total for every capped run on the box together, set on
-  `fabrik-tests.slice` at runtime on each launch (default `12G`).
+  `fabrik-agents-tests.slice` at runtime on each launch (default `12G`). The dashed name nests it under
+  `fabrik-agents.slice`, so the agents' parent ceiling (below) bounds the test jobs too.
+- `FABRIK_TEST_ADMIT_WAIT`: the admission band's bound in seconds (default `300`, 0 to 9999), itself capped at half
+  the run's time limit. Before a start the runner waits while `MemAvailable` is under 3 GiB or memory PSI `some avg10`
+  is over 10, then starts and says so; the seconds waited come off the run's time limit;
+  an unreadable meminfo or PSI starts at once and says so. `FABRIK_PROC_ROOT` (default `/proc`) is the test seam for
+  both reads.
 - `FABRIK_TEST_TIMEOUT`: one run's time limit in seconds (default `1800`). The gate passes its own
   900 s.
 - `FABRIK_TEST_RSS_MAX`: the hub suite's in-process guard (`tests/memguard.py`, started by
   `tests/conftest.py`). It kills a pytest process tree whose summed PSS passes this size and prints
   the traceback (default `3G`, below the runner's 4G so the traceback prints before the kernel kills).
+
+### Agent grid memory — `FABRIK_AGENT_NONAGENT_FLOOR` / `FABRIK_AGENT_SLICE_MAX` / `FABRIK_AGENT_TASKS_MAX` (WSL box, W-6e656dac)
+
+Read from the process environment by `scripts/sysadmin/agents_up.sh`. Panes have no `MemoryMax` of their own;
+`FABRIK_AGENT_MEM_MAX` is retired (a set value is warned about and ignored). One parent slice,
+`fabrik-agents.slice`, holds every pane and every capped test job: `MemoryHigh` = MemTotal − max(4G, floor) and
+`MemoryMax` = MemTotal − max(2G, floor − 2G), in whole G.
+
+- `FABRIK_AGENT_NONAGENT_FLOOR`: what the non-agent processes (Windows, VS Code, the system) keep at `MemoryHigh`
+  (floor − 2G at `MemoryMax`), in whole G
+  (default `12G`; the `G` is optional). A MemTotal under 8G, or an unreadable one keeps
+  D-1075's 16G `MemoryMax` and says so; a floor that leaves nothing uses the minimum margins (MemTotal − 4G / MemTotal − 2G), also said.
+- `FABRIK_AGENT_SLICE_MAX`: overrides the derived `MemoryMax` (and clears `MemoryHigh`).
+- `FABRIK_AGENT_TASKS_MAX`: `TasksMax` per pane (default `1024`).
+- `FABRIK_AGENTS_UNCAPPED=1`: lets an interactive launch proceed when no user manager answers (otherwise it
+  refuses); `agents_up.sh --detach`, the boot path, launches uncapped with a warning regardless.
+- `FABRIK_PROC_ROOT`: the `/proc` seam MemTotal is read through (tests).
 
 Sizes are `<digits><K|M|G>`, from 1M to 999999999G, and a timeout is 1 to 604800 seconds. The runner
 refuses a bad value with exit 2; the guard falls back to its default and says so. `FABRIK_TEST_SLICE`

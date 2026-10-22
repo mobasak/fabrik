@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T12:16:22.473282Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-724f3b8d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: review the named rows on worktree-fleet and reply to the mail; the hook is installed only after the Deck merge (operator gate W-1c7d7e0f)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "another active agent's (fleet) review request on infra's beat; a read + reply",
+  "status": "open",
+  "tags": [
+    "mail-01m5hk0ch6mz1tq76jmqe515yn"
+  ],
+  "title": "mail 01M5HK0CH6MZ1TQ76JMQE515YN (fleet, 2026-10-22): review request — the Deck attention hook (plan 2026-10-22-plan-1-fabrik-deck Phase A, W-42d1ccb5) adds DECK_HOOK to scripts/sysadmin/install_user_hooks.py ENTRIES and a hooks-index row, infra's beat; fleet asks for infra's review of the ENTRIES rows + the hooks-index row, plus one pre-existing installer finding named in the mail; not merged yet (build c194e70b5, receipt c00a9b07f)"
+}

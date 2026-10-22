@@ -640,7 +640,9 @@ def test_every_charter_names_the_current_merge_owner() -> None:
         for p in REAL_AGENT_FILES
         if p.read_text(encoding="utf-8").startswith("# Agent charter")
     }
-    assert set(charters) == set(roles), (sorted(charters), roles)
+    # a numbered builder of a beat (D-1128: infra-2, infra-3) carries its beat's charter, often as a symlink to it
+    builders = {name for name in charters if name not in roles and mail.is_hub_agent(name)}
+    assert set(charters) - builders == set(roles), (sorted(charters), roles)
     canonical = (
         f"**Merges:** the merge owner is `{owner}` (`scripts/decisions.py --merge-owner` reads it from the "
         "ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`."

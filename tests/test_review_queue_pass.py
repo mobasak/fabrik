@@ -1259,3 +1259,45 @@ def test_each_slice_runs_a_mutant_per_added_guard() -> None:
         " copy made from the pin, under the explicit"
         " `timeout` its brief names (`/fabrik-review`'s D8 mutation-seat lesson); one reader mutates the guarded behaviour;"
     ) in _norm(CAT)
+
+
+def test_the_lead_creates_each_seat_folder_before_dispatch() -> None:
+    """Row 1792628374 (held lead-creates-seat-dirs-before-dispatch, second verdict): a seat wrote into a folder nothing
+    had made; the lead now makes it before the dispatching message and the seat's own mkdir stays as a no-op."""
+    core = _norm(ROOT / "commands" / "_fragments" / "subagents-core.md")
+    assert (
+        "for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder"
+        " with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to"
+        " run that same `mkdir -p` first (a no-op once the folder exists);"
+    ) in core
+    assert "nothing creates it for the seat" not in core
+
+
+def test_obligation_three_names_the_committed_fix_form_where_it_starts() -> None:
+    """Row 1792667105: a nested review ran `--init` before reading the committed-fix exception buried mid-obligation.
+    The exception is named, scoped to `/fabrik-review` as the body scopes it, at the obligation's first words."""
+    tc = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "3. **Persist** (one exception, the ⚠️ below: `/fabrik-review` over work whose fixes are COMMITTED during the"
+        " review writes a DRAFT now, its `--init` given `--out` into the run's `SCRATCH:` folder (the session"
+        " scratchpad when `start` printed none), and the receipt only after the last fix commit; every other review"
+        " and command creates the receipt NOW): create"
+        " `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` NOW,"
+    ) in tc
+    assert (
+        "One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review"
+        in tc
+    )
+
+
+def test_a_base_pin_copy_is_made_writable_before_the_overlay() -> None:
+    """Mail 01M5HTCCA90Q94CVXND6APC11B (infra-2, W-80ffca68's review): five of fourteen seats hit Permission denied
+    overlaying pins onto a copy of the base tree, which `review_loop_ledger.py pin --base` writes read-only; a pin file
+    the base lacks lands read-only after the overlay, so the copy is made writable before it and again after it."""
+    live = re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", "", CAT.read_text(), flags=re.S))
+    bullet = live[live.index("- Overlay and pin currency:") : live.index("## Loop bookkeeping")]
+    assert (
+        "`pin` writes the pin and its `<pins_dir>.base` tree read-only, files and directories, so a seat that copies the"
+        " base tree runs `chmod -R u+w <dest>` right after that copy and before laying the pins over it, and again after"
+        " it, since a pin file the base lacks lands read-only;"
+    ) in bullet

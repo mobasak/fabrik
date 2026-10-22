@@ -1926,8 +1926,8 @@ def run_consistency_checks(
     # rule for every rendered reader while the raw file still reads fine. Measured 2026-09-10: the
     # denominator HARD STOP row had carried three of them since 2026-09-03 and rendered as 2 cells —
     # its FIFTH shape cut mid-sentence, its SIXTH gone — in the hub contract and in the template that
-    # ships to ~46 repos. Scoped to the governance
-    # contracts on purpose — the same rule over the wider markdown scope is wallpaper. The measured
+    # ships to ~46 repos. Scoped to the governance contracts + the synced rule packs
+    # (`.windsurf/rules/**`, W-80ffca68); docs/ and commands/ stay out — wallpaper there. The measured
     # fire rate and its denominator live in the check's own module docstring, single-sourced: a
     # comment restating another file's numbers is the drift class, and this one had already gone
     # stale against the docstring beside it. ADVISORY on landing per the standing rollout law.
