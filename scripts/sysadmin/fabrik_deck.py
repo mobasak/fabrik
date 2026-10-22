@@ -1110,10 +1110,10 @@ def _distro(explicit: str | None, code: int) -> str:
     if explicit is not None:
         return explicit
     derived = _default_distro()
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", derived):
+    if not derived:  # an unsafe derived name is _bat_check's refusal, like an explicit one
         _die(
             code,
-            f"no --distro given and none derived ({derived!r} from $WSL_DISTRO_NAME or `wslpath -w /`): "
+            "no --distro given and none derived from $WSL_DISTRO_NAME or `wslpath -w /`: "
             "set WSL_DISTRO_NAME or pass --distro",
         )
     print(
