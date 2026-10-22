@@ -1,0 +1,26 @@
+{
+  "block_digest": "8b9c9c7fedb6c3bf5e2688879a791d47a45e0e8d5ef975608b2636048819e6d9",
+  "blocked_by": [],
+  "created": "2026-10-22T04:20:22.827607Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-1a4020e2",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b4d3d8eca8388193ada6bcbc703edec578d394c18a876983aec8a185b1cb5c1a"
+  ],
+  "next": "",
+  "note": "operator 2026-10-22: 'i cant afford more account yet.' — no new accounts or plan; the fleet lives inside the five weekly allocations with planned walls (B), and the operator wants burn cut structurally (C) by making the agents search less — evaluating bgts-context-engine for that",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you want more weekly capacity, or do we live inside the five accounts' weekly allocations with planned walls?",
+  "status": "done",
+  "title": "Do you want more weekly capacity, or do we live inside the five accounts' weekly allocations with planned walls?"
+}

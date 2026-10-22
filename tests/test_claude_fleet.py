@@ -4983,6 +4983,19 @@ def test_urgent_drain_message_carries_the_operator_wording_and_the_resume_instan
     assert "STOP YOUR WORK ASAP" in none and "no resume time can be given" in none
 
 
+def test_urgent_drain_message_tells_builders_to_stop_and_the_lane_owners_to_continue():
+    """W-18f559d9 review F9: the mail went to every repo saying "STOP YOUR WORK ASAP … then stop",
+    yet at the 90-line lane (D-1113) a coordinator_mode merge owner and an open-P0 owner CONTINUE.
+    The message is latched per episode, so an episode that opens at `urgent-90` and then walls
+    sends no second notice: the text must stay true at both tiers — builders stop, the two exempt
+    owners continue only at the lane, and at the wall every session stops."""
+    for relief in (None, (float(1_800_003_000), "soon@x", "session")):
+        msg = cr._urgent_drain_message("act@x", "its 5-hour session window is 91% CONSUMED", relief)
+        assert "BUILDERS" in msg and "STOP YOUR WORK ASAP" in msg, msg
+        assert "merge owner" in msg and "coordinator_mode" in msg and "open P0" in msg, msg
+        assert "D-1113" in msg and "at the wall every session stops" in msg, msg
+
+
 def test_urgent_tier_fires_at_ninety_with_no_successor_and_names_the_resume_time(
     tmp_path, monkeypatch
 ):
@@ -7840,7 +7853,7 @@ def test_status_names_the_fable_band_when_it_differs_from_the_one_it_prints():
 #
 # `_fleet_active_wall_advisory` writes the fleet-exhausted stamp on `walled OR urgent`, where
 # `urgent` is the SESSION window at `ROTATE_URGENT_DRAIN_PCT` (90) with no validated successor —
-# eight points before the wall, and deliberately so: that is the runway a graceful stop
+# nine points before the wall, and deliberately so: that is the runway a graceful stop
 # needs (D-111). `quota_stop.py` read only `.exists()`, so the WARNING tier produced the same
 # fleet-wide default-deny as the wall and killed in-flight work with headroom still on the
 # clock. The tier the ledger row has always carried now rides in the stamp too.
@@ -7877,7 +7890,7 @@ def _fire_advisory(tmp_path, monkeypatch, row: dict, threshold: float = 98.0) ->
 
 def test_the_wall_stamp_records_which_tier_armed_it(tmp_path, monkeypatch):
     """The two arms are not the same event and the stamp must say which fired. A 5h at 92 with
-    no successor is the WARNING (eight points of runway left); a 5h at 99 is the wall itself."""
+    no successor is the LANE tier (nine points of runway left, D-1113); a 5h at 99 is the wall."""
     warn = _fire_advisory(tmp_path / "w", monkeypatch, _advisory_row(92.0, 40.0))
     assert warn.exists(), "the urgent-90 arm still writes the stamp — the latch is unchanged"
     assert cr._stamp_tier(warn) == "urgent-90", (
@@ -7920,7 +7933,7 @@ def test_the_resume_promise_survives_the_tier_line(tmp_path):
 def test_the_wall_band_is_the_walled_tier_alone(tmp_path, monkeypatch):
     """The WALL band means `quota_stop.py` is holding every world-changing tool. Once the
     warning tier stops holding, a stamp is no longer proof of that — so the band reads the tier
-    too, or the contract's WALL sentence becomes false eight points early."""
+    too, or the contract's WALL sentence becomes false nine points early."""
     assert cr._hold_is_wall({"tier": "walled"}) is True
     assert cr._hold_is_wall({"tier": "urgent-90"}) is False
     assert cr._hold_is_wall({"since": 1.0}) is True, "a tier-less hold fails closed, like the file"
@@ -7970,7 +7983,7 @@ def test_the_tier_is_raised_when_an_episode_escalates_to_a_real_wall(tmp_path, m
     """⚠️ THE SEVEREST DEFECT THIS REVIEW FOUND, confirmed independently by two seats.
 
     The stamp is written ONCE per episode and the message latch returns before that write, so the
-    tier froze at whichever arm fired FIRST — and `urgent` fires eight points before `walled`. An
+    tier froze at whichever arm fired FIRST — and `urgent` fires nine points before `walled`. An
     episode that opened at the 90-line and then reached a real 100% wall kept saying `urgent-90`,
     so `quota_stop.py` held NOTHING at that wall until the promised resume or a full week.
     """
@@ -8160,7 +8173,9 @@ def test_the_tier_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
 
 def test_status_does_not_call_a_nudge_a_hold(tmp_path, monkeypatch, capsys):
     """`--status` is the contract's named authority on the hold. It printed `HELD` on mere
-    truthiness, so at the `urgent-90` tier the operator read HELD while nothing was held."""
+    truthiness, so at the `urgent-90` tier the operator read HELD while only builders were held.
+    Since D-1113 that tier is the LANE (W-18f559d9): it says so, names who is parked and who
+    continues, and never reads as the all-session wall."""
     base = {
         "accounts": [],
         "queue": [],
@@ -8170,14 +8185,16 @@ def test_status_does_not_call_a_nudge_a_hold(tmp_path, monkeypatch, capsys):
     }
     cr._print_picture(base)
     warn = capsys.readouterr().out
-    assert "WARNING" in warn, warn
-    assert "not armed" in warn.lower(), f"say what is NOT armed: {warn}"
+    assert "LANE" in warn and "HELD" not in warn, warn
+    assert "builders parked" in warn and "open-P0 owners continue" in warn, (
+        f"say who is parked and who continues: {warn}"
+    )
     assert "nothing is held" not in warn.lower(), (
         f"--status must not claim nothing is held: the band may be denying new work: {warn}"
     )
     cr._print_picture({**base, "hold": {**base["hold"], "tier": "walled"}})
     held = capsys.readouterr().out
-    assert "HELD" in held and "WARNING" not in held, held
+    assert "HELD" in held and "LANE" not in held, held
 
 
 def test_the_tier_raise_never_harms_the_live_stamp_and_leaves_no_litter(
@@ -9693,7 +9710,8 @@ def test_no_resume_wake_without_a_real_sleep_gap(tmp_path, monkeypatch, record, 
 )
 def test_a_standing_hold_suppresses_the_resume_wake(tmp_path, monkeypatch, capsys, stamp, wakes):
     """While the stamp reads walled (a wall, the battery, a torn file, a dangling link) a resume
-    wakes nobody and says so — the hold's own lift wakes them; `urgent-90` holds nothing."""
+    wakes nobody and says so — the hold's own lift wakes them; `urgent-90` (the D-1113 lane, which
+    parks builders but holds no session all-out) does not suppress the wake."""
     clock, locks, fd = _resume_box(tmp_path, monkeypatch)
     monkeypatch.setattr(cr, "_battery_leg", lambda *a, **k: None)  # the stamp is the test's
     try:

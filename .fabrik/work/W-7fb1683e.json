@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — blocked on other repo wiring",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium",
     "waits-fabrik-lib-sb110"

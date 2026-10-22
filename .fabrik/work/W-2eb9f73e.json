@@ -16,11 +16,11 @@
     "spec": ""
   },
   "next": "guard the root patch in both fix_project branches: skip + report a symlinked or non-file .gitignore, catch UnicodeDecodeError; tests for the three trees. Found by plan-1 Phase A review-scoped (O3, O4)",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — gitignore patch edge cases, pre-existing",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "medium"

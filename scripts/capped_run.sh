@@ -8,9 +8,16 @@
 # memory ceiling can, because the kernel enforces it on the whole process tree.
 #
 # What it does, every launch:
-#   1. re-asserts a RUNTIME-only total ceiling on the shared slice `fabrik-tests.slice`
-#      (FABRIK_TEST_SLICE_MAX, default 12G): every capped run on the box — nested or concurrent —
-#      shares that total, so the HOST stays bounded; nothing persists past the user manager;
+#   0. ADMISSION BAND (W-6e656dac L5): while MemAvailable < 3 GiB or memory PSI `some avg10` > 10 the
+#      start waits, up to min(FABRIK_TEST_ADMIT_WAIT (default 300), --timeout / 2) seconds, then starts anyway
+#      and says so; the seconds waited come off the run's time limit, which therefore keeps at least half;
+#      an unreadable meminfo or PSI (read through the FABRIK_PROC_ROOT seam, default /proc) starts at
+#      once and says so. Exit codes and the "killed at the memory ceiling" prefix are untouched;
+#   1. re-asserts a RUNTIME-only total ceiling on the shared slice `fabrik-agents-tests.slice`
+#      (FABRIK_TEST_SLICE_MAX, default 12G). systemd reads the dash as nesting, so the slice sits
+#      INSIDE `fabrik-agents.slice` and that parent's MemoryHigh/MemoryMax bound the test jobs too:
+#      every capped run on the box — nested or concurrent — shares that total; nothing persists past
+#      the user manager;
 #   2. runs <cmd> in a named scope in that slice with its own ceiling (--mem / FABRIK_TEST_MEM_MAX,
 #      default 4G), no swap, and RuntimeMaxSec (--timeout / FABRIK_TEST_TIMEOUT, default 1800 s),
 #      under coreutils `timeout` as a backstop;
@@ -23,13 +30,15 @@
 # Cobra (D-253): the cheapest way past "tests run capped" is to launch bare; the rule (CLAUDE.md
 # HARD STOPS) plus the hub suite's own in-process guard (tests/memguard.py) and the capped gate leg
 # are the counters. The slice name (FABRIK_TEST_SLICE) exists so the tests never touch the shared one.
+# Cobra on the admission band: the cheapest pass is FABRIK_TEST_ADMIT_WAIT=0 (no wait at all); the wait
+# is bounded on purpose (a stuck box must not hang every gate), and each expired or skipped band is SAID.
 set -u
 
 die() { echo "capped_run: $*" >&2; exit 2; }
 
 mem=${FABRIK_TEST_MEM_MAX:-4G}
 tmo=${FABRIK_TEST_TIMEOUT:-1800}
-slice=${FABRIK_TEST_SLICE:-fabrik-tests.slice}
+slice=${FABRIK_TEST_SLICE:-fabrik-agents-tests.slice}
 slice_max=${FABRIK_TEST_SLICE_MAX:-12G}
 
 while [ $# -gt 0 ]; do
@@ -60,6 +69,45 @@ case "$tmo" in "" | 0* | *[!0-9]* | ???????*) die "bad timeout '$tmo' (--timeout
 [ "$tmo" -le 604800 ] || die "bad timeout '$tmo' (--timeout / FABRIK_TEST_TIMEOUT: 1 to 604800 seconds)"
 case "$slice" in *[!A-Za-z0-9_.-]* | "" | -*) die "bad slice name '$slice' (FABRIK_TEST_SLICE)" ;; *.slice) ;;
   *) die "bad slice name '$slice' (FABRIK_TEST_SLICE must end in .slice)" ;; esac
+
+admit_wait=${FABRIK_TEST_ADMIT_WAIT:-300}
+case "$admit_wait" in *[!0-9]* | ?????*) die "bad admission wait '$admit_wait' (FABRIK_TEST_ADMIT_WAIT: 0 to 9999 seconds)" ;; esac
+# the wait is bounded by half the run's own limit, so a run always keeps at least half of it
+[ "$admit_wait" -le "$((tmo / 2))" ] || admit_wait=$((tmo / 2))
+proc=${FABRIK_PROC_ROOT:-/proc}
+
+# The admission band: prints why the box is busy (rc 0), nothing when it is fine (rc 1), or why the band cannot
+# be judged (rc 2) — an unreadable meminfo or PSI is never read as "busy".
+admit_busy() {
+  local kb psi
+  kb=$(awk '/^MemAvailable:/ { print $2; exit }' "$proc/meminfo" 2>/dev/null)
+  psi=$(awk '/^some / { for (i = 2; i <= NF; i++) if ($i ~ /^avg10=/) { sub("avg10=", "", $i); print $i; exit } }' "$proc/pressure/memory" 2>/dev/null)
+  case "$kb" in "" | *[!0-9]*) echo "meminfo ($proc/meminfo) has no MemAvailable"; return 2 ;; esac
+  case "$psi" in "" | *[!0-9.]*) echo "memory PSI ($proc/pressure/memory) has no 'some avg10'"; return 2 ;; esac
+  if [ "$kb" -lt 3145728 ]; then echo "MemAvailable $((kb / 1024)) MiB < 3 GiB"; return 0; fi
+  if awk -v p="$psi" 'BEGIN { exit !(p + 0 > 10) }'; then echo "memory PSI some avg10=$psi > 10"; return 0; fi
+  return 1
+}
+waited=0
+announced=0
+while why=$(admit_busy); rc_admit=$?; [ "$rc_admit" = 0 ]; do
+  if [ "$waited" -ge "$admit_wait" ]; then
+    echo "capped_run: admission: starting anyway after ${waited}s — still busy ($why): $*" >&2
+    break
+  fi
+  if [ "$announced" = 0 ]; then
+    echo "capped_run: admission: waiting up to ${admit_wait}s — $why (the seconds waited count against the ${tmo}s time limit)" >&2
+    announced=1
+  fi
+  sleep 1
+  waited=$((waited + 1))
+done
+# the wait counts against the run's own limit: callers bound the whole wrapper at timeout + 60 s
+if [ "$waited" -gt 0 ]; then
+  tmo=$((tmo - waited))
+  [ "$tmo" -ge 1 ] || tmo=1
+fi
+[ "$rc_admit" = 2 ] && echo "capped_run: admission: unreadable — $why; starting at once" >&2
 
 if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -S "/run/user/$(id -u)/bus" ]; then
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"  # cron and stripped hook envs lack it (C5)

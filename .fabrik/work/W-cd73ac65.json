@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "measure: run kaizen_collect_v2.py's hole_count logic for 2026-10-11 and list the 105 transcripts; compare with kaizen_coroner.py's window and instrumentation rule (markers_seen, inconclusive_instrumented); name which reader is wrong",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — measurement disagreement",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

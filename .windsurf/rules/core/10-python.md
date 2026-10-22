@@ -318,7 +318,7 @@ These three fire in `**/*.py` — the only glob that catches where config is loa
 | `localhost` for DB/Redis host | `postgres-main` / `redis-main` via `DATABASE_URL` / `REDIS_URL` |
 | Discrete `DB_HOST`/`DB_PORT`/`DB_NAME` env vars for the app | Single `DATABASE_URL` — env provides the full URL |
 | `tempfile.gettempdir()` / `/tmp` | Project-relative `.tmp` (volume-mounted if persistence needed) |
-| `List[str]` / `Optional[str]` | `list[str]` / `str \| None` |
+| `List[str]` / `Optional[str]` | `list[str]` / `str` unioned with `None` by the PEP 604 pipe operator (§ Typing Standards spells it) |
 | `async def` mixed with sync `.query().all()` | SQLAlchemy async: `select()` + `await session.execute()` |
 | Bare-string `.execute("SELECT 1")` | `text("SELECT 1")` (modern SQLAlchemy requires it) |
 | Sync HTTP/IO in an async route (blocks the event loop) | `httpx.AsyncClient`; `run_in_executor` for unavoidable sync libs |

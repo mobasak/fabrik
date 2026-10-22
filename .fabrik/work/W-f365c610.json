@@ -2,19 +2,22 @@
   "blocked_by": [],
   "created": "2026-10-21T23:13:46.044094Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-f365c610",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
-    "decision": "D-1114",
+    "decision": "D-1131",
     "plan": "",
     "spec": ""
   },
-  "next": "route each reader through _fences.status_candidates (D-1114) or the span-aware mask, stating each fail direction; measure fleet reads old vs new",
+  "next": "RE-SCOPED by intel 2026-10-22 (branch intel-w-f365c610 at d28a16c58, pushed, NOT merged; /fabrik-review round 1 confirmed 4): the two CONVERGED readers (check_rule_grounding, check_spec_convergence) already fail CLOSED and routing them through _fences.status_candidates made them fail OPEN (a stray backtick on an earlier header hides a real Status: CONVERGED) — keep them as they are; check_convergence._mask_spans on the shared span model trades the wrapped-comment fail-open for stray-backtick fail-opens (419 of 60,000 fuzz docs; 0 live instances either way over 7,201 fleet docs). NEXT: Opus+Fable panel decides whether to build a fail-closed reading (each check refuses when EITHER span model refuses), then build it on that branch, whose four graders exist; after the quota lift, alongside the W-72dfd448 design question",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "re-scored on intel's measure: still a fail-open class in enforcement (HIGH), one panel question plus a build on an existing branch with graders written; not merge-ready until the panel decides",
   "status": "open",
   "title": "Other enforcement Status readers ignore inline code spans: check_convergence _mask_spans masks single-line spans only (the ticket-Status ban at :464 fails closed on a wrapped span; the ledger/board/<!-- rules at :449/:1059/:1310/:1322 fail open), and check_rule_grounding:51 / check_spec_convergence:53 CONVERGED_RE count a quoted CONVERGED (fail open)"
 }

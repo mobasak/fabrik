@@ -73,6 +73,7 @@
 | [2026-10-18-plan-1-external-services-inventory-T02-review.md](docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T02-review.md) | /fabrik-review wave-2 receipt for the W-3e9e2f4c plan set's T02 (the inventory module): four passes, confirmed 17 → 5 → 5 → 0, scope-growth stop after pass 3, residue routed to W-da612c6e |
 | [2026-10-18-plan-1-external-services-inventory-T03-review.md](docs/development/reviews/2026-10-18-plan-1-external-services-inventory-T03-review.md) | /fabrik-review wave-3 receipt for the W-3e9e2f4c plan set's T03 (the static file; `dashboard_server.py` retired): three passes, confirmed 6 → 3 → 0, the third the round-1 seats over their own slices |
 | [2026-10-18-work-edit-render-review.md](docs/development/reviews/2026-10-18-work-edit-render-review.md) | /fabrik-review receipt for the `work.py edit` verb and `render`'s tree scope (kaizen mail 01M55ZNVH7, D-990): five passes, confirmed 4 → 10 → 4 → 1 → 0, the in-lane scope-growth stop after pass 3 |
+| [2026-10-22-w-80ffca68-rule-pack-pipe-spans-review.md](docs/development/reviews/2026-10-22-w-80ffca68-rule-pack-pipe-spans-review.md) | /fabrik-review receipt for W-80ffca68 (13 rule-pack code spans carrying a table-escaped pipe rephrased; `check_governance_tables.py` gains the code-span rule and reads the packs): four passes through Agent-tool seats, confirmed 13 → 2 → 1 → 0, the later ones the round-1 seats over their own slices and then over the fixed set alone after the lane's scope-growth stop |
 | [2026-10-17-plan-1-command-centre-dashboard.md](docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard/2026-10-17-plan-1-command-centre-dashboard.md) | CONVERGED plan set (W-573fae88, /fabrik-plan-review 5 passes): the command-centre dashboard built in seven tickets — the UI kit, the server wiring, the Overview, Work, Accounts and other views, then the integration that retires the old page layer |
 | [2026-10-17-command-centre-dashboard-plan-review.md](docs/development/reviews/2026-10-17-command-centre-dashboard-plan-review.md) | /fabrik-plan-review receipt for the command-centre plan set: five passes, confirmed 36 → 13 → 6 → 1 → 0, CONVERGED |
 | [2026-10-14-coordinator-role-spec-review.md](docs/development/reviews/2026-10-14-coordinator-role-spec-review.md) | /fabrik-spec-review receipt for the coordinator role spec: 6-pass Pass Ledger, the Opus + Fable panel's accepted changes, the plan-time inputs the planner must settle |
@@ -368,7 +369,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-20T04:29 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-22T14:25 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -457,6 +458,8 @@ docs/
 │   │   ├── 2026-10-15-plan-2-review-seat-write-isolation.md
 │   │   ├── 2026-10-17-plan-1-merge-owner-grammar.md
 │   │   ├── 2026-10-21-plan-3-own-scrape-slice-1a.md
+│   │   ├── 2026-10-22-plan-1-fabrik-deck.md
+│   │   ├── 2026-10-22-plan-1-least-operator-approval.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -1304,14 +1307,59 @@ docs/
 │       ├── 2026-10-19-watchdog-sb103-text-sync-review.md
 │       ├── 2026-10-19-wba306861-head-source-unread-review.md
 │       ├── 2026-10-19-wc751bca6-merge-request-retry-review.md
+│       ├── 2026-10-20-master-red-gate-cites-review.md
 │       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-1-review.md
 │       ├── 2026-10-20-plan-2-payments-fulfilment-role-phase-2-review.md
+│       ├── 2026-10-20-w-276255e7-linear-fences-r3-review.md
 │       ├── 2026-10-20-w-281e3ed2-seat-isolation-no-disguise-review.md
+│       ├── 2026-10-20-w-2fd7cfd1-node-pack-paytr-line-review.md
+│       ├── 2026-10-20-w-34fce72d-plan-review-queue-review.md
 │       ├── 2026-10-20-w-36c2607c-vault-symlink-review.md
 │       ├── 2026-10-20-w-3cdc8bd6-coroner-retry-review.md
+│       ├── 2026-10-20-w-47d91afa-enforcement-orphan-prune-review.md
+│       ├── 2026-10-20-w-55905ee1-link-whitespace-line-ending-review.md
+│       ├── 2026-10-20-w-60629ce4-review.md
+│       ├── 2026-10-20-w-69f51003-link-check-code-examples-review.md
 │       ├── 2026-10-20-w-75cafe7a-resume-wake-close-review.md
+│       ├── 2026-10-20-w-78e51f33-seat-copy-links-r2-review.md
+│       ├── 2026-10-20-w-7caa8a90-lock-owned-paths-review.md
+│       ├── 2026-10-20-w-89474fc1-review.md
+│       ├── 2026-10-20-w-8f9a7d2c-code-span-headers-r2-review.md
+│       ├── 2026-10-20-w-bb97199e-sync-file-set-from-head-review.md
+│       ├── 2026-10-20-w-bc457e27-panel-attachment-handbacks-review.md
 │       ├── 2026-10-20-w-c230cb2e-workitem-merge-driver-review.md
+│       ├── 2026-10-20-w-c6d19bda-preplan-registry-review.md
+│       ├── 2026-10-20-w-cc9b0532-prometheus-reload-outcome-review.md
+│       ├── 2026-10-20-w-d0e5a017-pause-worker-pack-line-review.md
+│       ├── 2026-10-20-w-d537275a-refuse-symlinked-sync-sources-review.md
+│       ├── 2026-10-20-w-f599a88c-registrar-role-collision-review.md
+│       ├── 2026-10-20-w693ee1ca-payments-fulfilment-packs-r2-review.md
+│       ├── 2026-10-21-claude-tab-router-review.md
+│       ├── 2026-10-21-fabrik-deck-spec-review.md
 │       ├── 2026-10-21-own-scrape-slice-1a-plan-review.md
+│       ├── 2026-10-21-own-scrape-tools-spec-review.md
+│       ├── 2026-10-21-payments-fulfilment-grant-wording-review.md
+│       ├── 2026-10-21-plan-3-own-scrape-slice-1a-phase-1-review.md
+│       ├── 2026-10-21-plan-3-own-scrape-slice-1a-phase-2-review.md
+│       ├── 2026-10-21-w-16c00597-linear-code-span-blanker-review.md
+│       ├── 2026-10-21-w-1b9ae5f2-stop-hook-attachment-rows-review.md
+│       ├── 2026-10-21-w-1e9ae1e5-review.md
+│       ├── 2026-10-21-w-6424f2e8-panel-brief-queued-prompt-review.md
+│       ├── 2026-10-21-w-6904b41e-contract-regions-linear-review.md
+│       ├── 2026-10-21-w-a7cff030-status-in-code-span-review.md
+│       ├── 2026-10-21-w-b2bbc1f1-plan-lock-discovery-review.md
+│       ├── 2026-10-21-w-b9af1d47-code-span-links-review.md
+│       ├── 2026-10-21-w-c638bb08-review.md
+│       ├── 2026-10-21-w-c83c550c-worktree-editable-imports-review.md
+│       ├── 2026-10-21-w-d2eef742-plan-fence-strips-review.md
+│       ├── 2026-10-21-w4801e4c3-container-memory-alerts-review.md
+│       ├── 2026-10-22-payments-role-reapply-review.md
+│       ├── 2026-10-22-plan-1-least-operator-approval-plan-review.md
+│       ├── 2026-10-22-retire-specs-infrastructure-review.md
+│       ├── 2026-10-22-w-02472911-kaizen-waste-series-review.md
+│       ├── 2026-10-22-w18f559d9-ninety-lane-review.md
+│       ├── 2026-10-22-w4c894cef-rotation-rule-review.md
+│       ├── 2026-10-22-wfa004224-hub-agent-names-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1346,6 +1394,7 @@ docs/
 │   │   ├── fleet-doc-audit-2026-09-30.md
 │   │   ├── fleet-doc-audit-2026-10-07.md
 │   │   ├── fleet-doc-audit-2026-10-14.md
+│   │   ├── fleet-doc-audit-2026-10-21.md
 │   │   ├── fleet-doc-audit-latest.md
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
@@ -1426,6 +1475,8 @@ docs/
 │   ├── agents
 │   │   ├── coordinator.md
 │   │   ├── fleet.md
+│   │   ├── infra-2.md
+│   │   ├── infra-3.md
 │   │   ├── infra.md
 │   │   ├── intel.md
 │   │   ├── kaizen-log-fleet.md
@@ -1455,13 +1506,16 @@ docs/
 │   ├── external-services-registry.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
 │   ├── fabrik-mail.md
+│   ├── fabrik-scrape-mcp.md
 │   ├── fabrik-task-lane.md
 │   ├── fabrik-vultr.md
 │   ├── fixtures
 │   │   └── glitchtip-webhook.json
 │   ├── gui-toolchain.md
 │   ├── health-monitoring.md        # Health monitoring patterns
+│   ├── hibernate.md
 │   ├── jev-decision-model-map.md
+│   ├── kaizen-waste-define.md
 │   ├── kilo
 │   │   ├── AGGREGATOR_ROADMAP.md
 │   │   ├── AI_VENDOR_ACCESS.md
@@ -1678,7 +1732,9 @@ docs/
 │       ├── 2026-10-17-merge-owner-grammar-design.md
 │       ├── 2026-10-18-external-services-page-design.md
 │       ├── 2026-10-18-saas-skeleton-chat-auth-design.md
+│       ├── 2026-10-21-fabrik-deck-design.md
 │       ├── 2026-10-21-own-scrape-tools-design.md
+│       ├── 2026-10-22-least-operator-approval-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -1785,6 +1841,7 @@ docs/
 | [roadmap.md](docs/archive/roadmap.md) | Original 8-phase build plan (archived — 7/8 phases shipped; superseded by `CHANGELOG.md` + the live docs) |
 | [drivers.md](docs/reference/modules/drivers.md) | Fabrik driver API (DNS, GPU providers, registrars) |
 | [templates.md](docs/reference/modules/templates.md) | Available deployment templates |
+| [kaizen-waste-define.md](docs/reference/kaizen-waste-define.md) | Token waste DEFINE (D-1118, W-02472911): the six daily waste series `kaizen_waste.py` publishes (context and output per call, rotation rebuild, seat share, red-master rework, quota-wall rate) — formula, unit, source, first day, counter pair, cheapest gaming, blind spot — and the digest's control rules (XmR / c-chart, frozen 14-point baseline, 20-close floor, 8-in-a-row, `--rebaseline`). |
 | [hibernate.md](docs/reference/hibernate.md) | /hibernate — who gets the pause (live session records, each repo's merge owner), when the box is safe to sleep, and how a woken agent knows it slept (`scripts/sysadmin/hibernate.py`) |
 | [gui-toolchain.md](docs/reference/gui-toolchain.md) | Standing decision — the MCP/skill/tool stack for building high-quality GUIs (Playwright MCP visual loop, shadcn MCP, frontend-design, axe/screenshot gate); verified 2026-07-06 |
 | [ai-media-generation-provider-map.md](docs/reference/ai-media-generation-provider-map.md) | Every generative-media provider (video/image/audio/3D/editing/assembly) + whether we can automate it (API/SDK/CLI/MCP) without a GUI; per-provider reach verdict, how-to-reach, AND real-world monetization use cases; ranked gaps (Photoroom, Runway, HeyGen/Tavus…) + highest-ROI business plays; compiled 2026-07-25, monetization pass 2026-07-26 |
@@ -1876,7 +1933,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [check_commit_trailers.py](scripts/check_commit_trailers.py) | **commit-msg** hook (hub-local, not synced) rejecting a commit whose `Agent-Role:` trailer git cannot parse — the last point the message is still editable, since a pushed bad block needs a force-push. Delegates to `git interpret-trailers --parse`. Tests: `/opt/ai-model-catalog/engine/tests/test_commit_trailer_guard.py (ai-model-catalog)`. |
 | [install_post_commit_hook.sh](scripts/install_post_commit_hook.sh) | Installs the hub's **post-commit** governance sync as a PLAIN git hook (hub-local, not synced), never pre-commit's post-commit stage, whose whole-tree stash reverted siblings' edits during the ~60 s sync (D-369). Idempotent; replaces pre-commit's shim, refuses a foreign hook; re-run by `wsl_startup_hook.sh`. Tests: `tests/enforcement/test_governance_sync_postcommit.py`. |
 | [install_pre_push_hook.sh](scripts/install_pre_push_hook.sh) | Installs the hub's **pre-push** gate (pre-commit's pre-push stage) SERIALIZED under one `flock` (W-cd77f476): heals a self-copy or empty `pre-push.legacy`, never rewrites a current hook, reports a foreign legacy (exit 3). Run by `wsl_startup_hook.sh` from every shell. Tests: `tests/test_install_pre_push_hook.py`. |
-| [capped_run.sh](scripts/capped_run.sh) | D-935: run one command (a test suite, as a rule) under kernel cgroup ceilings — a per-run memory ceiling and time limit inside the shared `fabrik-tests.slice` total; exit 137 at the ceiling, 124 at the time limit |
+| [capped_run.sh](scripts/capped_run.sh) | D-935: run one command (a test suite, as a rule) under kernel cgroup ceilings — a per-run memory ceiling and time limit inside the shared `fabrik-agents-tests.slice` total, after a MemAvailable/PSI admission wait; exit 137 at the ceiling, 124 at the time limit |
 | [final_gate.py](scripts/final_gate.py) | Pre-commit quality gate (33 enforcement scripts) |
 | [mail.py](scripts/mail.py) | fabrik-mail store + protocol — `send/list/read/claim/ack/requeue/digest/should-reply/who + loop-safety (--auto guards, hops)` for the durable hub↔project AI mailbox (`/opt/fabrik-mail/<repo>/{inbox,archive}`). tmp-then-O_EXCL publish, hand-rolled Crockford-base32 ULID ids (no dep), machinery-presence recipient validation + star-topology enforcement, secret-refusal, 64 KB cap, malformed-quarantine, hub-guarded Telegram digest. Tests: `tests/test_mail.py`. |
 | [merge_request.py](scripts/merge_request.py) | the merge-request loop's one box script (plan 2026-09-30-plan-1-merge-request-loop): `request` — from a linked worktree whose branch is pushed as itself — mails the merge owner and a distinct distributor a script-written body and prints the `SendMessage` doorbell lines; `merge [<id>]` — the owner's only merge path: lock, records, preflight refusals, pure-insertion ledger resolve, owner tests, CAS, carry into a dirty main checkout, push, hub sync, reply and ack; `resume <id>` finishes a stranded or rejected run. Fleet-synced (CORE_SCRIPTS). Tests: `tests/test_merge_request_send.py`, `tests/test_merge_request_merge.py`. |

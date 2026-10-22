@@ -7,7 +7,7 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v1 | 2026-10-20T04:29 -->
+<!-- AUTO-GENERATED:PLANS v1 | 2026-10-22T13:08 -->
 <!-- Phase: epic rows = the epic's phase in its `depends_on` order (1 = no upstream dependency; `cycle` = a dependency cycle); plan rows = Board progress, checked/total task boxes (`-` = no boxes). Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, or an epic's frontmatter `owner`; `—` = untagged (`--adopt` fills it). Regenerate: python scripts/docs_updater.py --sync -->
 <!-- Merge owner: coordinator | source: D-874 -->
 | Epic/Plan | Owner | Status | Phase |
@@ -39,8 +39,11 @@ All feature/execution/design plans live in `docs/development/plans/`.
 | [2026-10-15-plan-1-coordinator-role.md](plans/2026-10-15-plan-1-coordinator-role.md) | infra | EXECUTED | 0/5 |
 | [2026-10-15-plan-1-scratch-lifecycle.md](plans/2026-10-15-plan-1-scratch-lifecycle.md) | fleet | EXECUTED | 0/1 |
 | [2026-10-15-plan-2-apply-template-defaults-parity.md](plans/2026-10-15-plan-2-apply-template-defaults-parity.md) | fleet | EXECUTED | 0/4 |
-| [2026-10-15-plan-2-review-seat-write-isolation.md](plans/2026-10-15-plan-2-review-seat-write-isolation.md) | intel | DRAFT | 0/1 |
+| [2026-10-15-plan-2-review-seat-write-isolation.md](plans/2026-10-15-plan-2-review-seat-write-isolation.md) | intel | CONVERGED | 0/1 |
 | [2026-10-17-plan-1-merge-owner-grammar.md](plans/2026-10-17-plan-1-merge-owner-grammar.md) | intel | EXECUTED | 0/1 |
+| [2026-10-21-plan-3-own-scrape-slice-1a.md](plans/2026-10-21-plan-3-own-scrape-slice-1a.md) | intel | IN_PROGRESS | 0/3 |
+| [2026-10-22-plan-1-fabrik-deck.md](plans/2026-10-22-plan-1-fabrik-deck.md) | fleet | CONVERGED | 0/3 |
+| [2026-10-22-plan-1-least-operator-approval.md](plans/2026-10-22-plan-1-least-operator-approval.md) | kaizen | CONVERGED | 0/1 |
 <!-- AUTO-GENERATED:PLANS:END -->
 
 ---

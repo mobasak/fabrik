@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A fix for an escaping defect repeats the defect in its own acceptance test unless an independent reader executes the test (2026-10-22)
+
+W-80ffca68 removed `\|` from rule-pack code spans. The design's TERMINAL line proved the result with `grep -rno '`[^`]*\|[^`]*`' … | wc -l` → 0 — in GNU BRE a single `\|` is alternation, so that pattern matches nearly every line with a backtick (120 hits in one pack, 23,147 over the tree) and could never reach 0. Both design critique seats caught it by running it; the author had measured the real count with a different spelling and pasted the design from memory.
+- **A claim with a checkable referent is a script, not prose.** The grep in the design was never executed as written; the fixed-string form (`grep -rnF '\|'`) was, and became the terminal.
+- **The second markdown walk is where the review earned its cost.** A hand-written fence/comment/table state machine looked right and passed its author's 7 graders; the Sonnet finder's out-of-grammar probes (a 4-backtick fence, a `~~~` inside a backtick fence, a `<!--` inside a fence, an escaped backtick, a span across cells, a BOM, a tab) found 9 fail-open or false-positive shapes in it, each then pinned by a grader and a mutant. Probe a parser against inputs outside its grammar before the pin, not after a seat does.
+
+## A "is this source fresh?" signal needs a quiet day and an unrelated update tested before it ships (2026-10-22)
+
+W-02472911 built the token-waste series. Its red-master count reads git, and a stale ref must not publish a measured 0.
+- **Each freshness rule failed on a case the next review found.** Version 1 (the tip is past the day) made every quiet day on master unknown forever. Version 2 (tip, reflog or FETCH_HEAD mtime) let a fetch of another branch vouch for a stale ref. Version 3 counts FETCH_HEAD only when it names the ref's branch. Two review rounds went to one heuristic. Both test cases, a quiet day and an unrelated update, were writable on day one.
+- **"Unknown is never 0" cuts both ways.** A rotation transcript without usage was first unknown, then 0 (to stop a dead session blanking a day), then unknown again: an agent binds its name through a model call, so no usage means not flushed yet. Settle the meaning of an absent value from how the source is produced, before choosing a side.
+- **An idempotent publish freezes whatever it first writes.** A day published partial or as a false 0 is never corrected. Unknown days need a retry window (`publish_recent`, three days), and a value is published only when its source can vouch for the whole day.
+
 ## A credential check that cannot tell a refused key from a refused network must say so, not guess (2026-10-19)
 
 W-3350006b made mcp_health present exa's and firecrawl's keys.

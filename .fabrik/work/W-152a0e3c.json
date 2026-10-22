@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "Pick one tense for dry-run previews in scaffold.fix_project and align the backfill test",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — dry-run wording alignment",
-  "status": "open",
+  "status": "dropped",
   "title": "fix_project dry-run entries mix tenses with the live run ('opencode.json (refresh from master)', 'project.yaml (backfill has_user_guide: …)') and tests/test_backfill_has_user_guide.py:123 pins the dry-run wording — found by the W-526528b6 review (A-core-H1..H3)"
 }

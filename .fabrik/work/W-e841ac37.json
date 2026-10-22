@@ -15,7 +15,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "fold into W-6e656dac T05 with W-1961cc42: agents_bat.py emits an attach-or-launch commandline; agents_up.sh gains an attach path that does not depend on the ownership read; update the rollout doc; regression tests in tests/test_agents_up.py and the agents_bat tests",
+  "next": "fold into W-6e656dac T05 with W-1961cc42: agents_bat.py emits an attach-or-launch commandline; agents_up.sh gains an attach path that does not depend on the ownership read; update the rollout doc; regression tests in tests/test_agents_up.py and the agents_bat tests. 2026-10-22 12:00: the coordinator hand-wrote the tabbed launcher the operator asked for — 'All Agents (tabbed).bat' in the desktop 'terminal agents' folder: one maximised wt window, one new-tab per repo (fabrik, fabrik-lib, youtube) each running agents_up.sh /opt/<repo> (attach when the grid is up, launch when not), fragments rewritten first; proven live (3 tmux clients attached). agents_bat.py should GENERATE that file (marker line 2) and derive its tab list from the repos whose grid it accepts, so it stops being hand-kept.",
   "note": "",
   "owner": "infra",
   "priority": 1,

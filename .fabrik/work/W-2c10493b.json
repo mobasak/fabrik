@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "**[infra] `_task_series_nested` is O(|review-scoped| x |others|) over the fleet-wide append-only ledger (2026-09-18)** — measured on synthetic ledgers: 500 rows 0.04 s, 5,000 rows 0.25 s, 20,000 rows 3.89 s, i.e. 4x the rows for 15.6x the time. Harmless at today's size and `--queue` applies no default `--since`, but the ledger spans ~46 repos and only grows. A dict keyed on `sid` makes it linear. Recorded by T02's review as \"not urgent\"; the trigger to act is the first `--queue` run that feels slow, or the row count passing ~10k. Low.",
-  "note": "migrated-digest:88d318d55285",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — harmless at today's ledger size",
-  "status": "open",
+  "status": "dropped",
   "title": "**`_task_series_nested` is O(|review-scoped| x |others|) over the fleet-wide append-only ledger (2026-09-18)** — measured on synthetic ledgers: 500 rows 0.04 s, 5,000 rows 0.25 s, 20,000 rows 3.89 ..."
 }

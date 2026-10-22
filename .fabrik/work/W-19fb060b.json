@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "**[infra]** **Gate behavior question: a STAGED plan with no HEAD commit reds every session's diff-scoped gate un-attributably** (fleet `01M16Q0KQ`, two live occurrences): should `check_test_proposal`/the gate skip index-only plans, or warn-attributing to the stager? Needs a decided semantics, not a patch — the red is real work-in-flight, the tax is cross-session.",
-  "note": "migrated-digest:25b75fafdaf7",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — gate attribution false red un-attributable, needs decided semantics",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

@@ -13,6 +13,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 _HOOK = Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "quota_stop.py"
 _spec = importlib.util.spec_from_file_location("quota_stop", _HOOK)
 hook = importlib.util.module_from_spec(_spec)
@@ -861,20 +863,19 @@ def _run_tier(tmp_path: Path, payload: object, tier: str | None) -> subprocess.C
     )
 
 
-def test_the_urgent_ninety_tier_nudges_instead_of_holding(tmp_path):
-    """The 90-with-no-successor arm fires eight points before the wall — that runway is the
-    whole point of it (D-111). Holding there kills in-flight work with quota still on the clock,
-    which is the premature stop D-299 forbids. So: ALLOW, and say what is coming."""
-    r = _run_tier(tmp_path, {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}}, "urgent-90")
-    assert r.returncode == 0
-    assert "permissionDecision" not in r.stdout, (
-        f"the warning tier must not deny — it has runway left: {r.stdout!r}"
-    )
-    assert "checkpoint" in r.stderr.lower(), f"it must still say what to do: {r.stderr!r}"
-    assert "command_run.py" in r.stderr, "the nudge names the checkpoint verbs"
-    # and the heavy tool is allowed too — a seat mid-flight is exactly what must not be killed
-    a = _run_tier(tmp_path, {"tool_name": "Agent", "tool_input": {"prompt": "p"}}, "urgent-90")
-    assert "permissionDecision" not in a.stdout, a.stdout
+def test_the_urgent_ninety_tier_is_the_lane_not_a_free_pass(lane):
+    """The 90-with-no-successor arm fires nine points before the wall (D-111). D-306 let EVERY
+    session spend that runway, so the last points went to whoever asked first (D-1113). The lane
+    keeps the runway for the sessions that merge and keep the records — the exempt one is
+    ALLOWED (a seat mid-flight is not killed) and told to checkpoint; everyone else is held."""
+    r = lane.run({"tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "session_id": "nob"})
+    assert r.returncode == 0 and _denied(r), r.stdout
+    lane.bind("sc", "coordinator")
+    for tool in ("Edit", "Agent"):
+        a = lane.run({"tool_name": tool, "tool_input": {"prompt": "p"}, "session_id": "sc"})
+        assert "permissionDecision" not in a.stdout, a.stdout
+        assert "checkpoint" in a.stderr.lower(), f"it must still say what to do: {a.stderr!r}"
+        assert "command_run.py" in a.stderr, "the nudge names the checkpoint verbs"
 
 
 def test_the_walled_tier_still_holds_every_world_changing_tool(tmp_path):
@@ -1044,3 +1045,522 @@ def test_battery_stamp_message(tmp_path):
     assert "selfwatch_arm.sh s1" in battery, "the arm order still names the literal sid"
     quota = reason_for("0\nwalled\n")
     assert quota.startswith("FLEET QUOTA EXHAUSTED"), quota
+
+
+# ── THE LANE (W-18f559d9, D-1113): at `urgent-90` builders park, coordinators continue ─────────
+#
+# Every fixture below is hermetic: a tmp repo (real `git init`), a tmp identity store, a tmp
+# rotation state dir and tick log, and the merge-owner resolver reached through the
+# `QUOTA_STOP_DECISIONS_PY` seam — never the live hub ledger, store or stamp.
+
+_DECISIONS_PY = Path(__file__).resolve().parents[1] / "scripts" / "decisions.py"
+_WHOAMI_PY = Path(__file__).resolve().parents[1] / "scripts" / "whoami_agent.py"
+
+
+def _git_q(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    ).stdout.strip()
+
+
+class _Lane:
+    """One repo (with a linked worktree), one identity store, one quota state at `urgent-90`."""
+
+    def __init__(self, tmp: Path, monkeypatch) -> None:
+        self.tmp = tmp
+        self.main = tmp / "repo"
+        self.main.mkdir()
+        _git_q(self.main, "init", "-q", "-b", "master")
+        _git_q(self.main, "commit", "-q", "--allow-empty", "-m", "base")
+        self.wt = tmp / "repo-wt"
+        _git_q(self.main, "worktree", "add", "-q", str(self.wt), "-b", "wt")
+        self.common = Path(
+            _git_q(self.main, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        )
+        self.work = self.main / ".fabrik" / "work"
+        self.work.mkdir(parents=True)
+        self.config({"coordinator_mode": True})
+        (self.main / "docs").mkdir()
+        self.owner("coordinator")
+        self.store = tmp / "agent-identity.jsonl"
+        self.store.write_text("")
+        self.state = tmp / "state"
+        self.state.mkdir()
+        self.tick = tmp / "rotate-tick.log"
+        self.tick.write_text("tick: ok\n")
+        self.stamp("0", "urgent-90")
+        self.decisions = _DECISIONS_PY
+        self.env = {
+            "ROTATE_STATE_DIR": str(self.state),
+            "QUOTA_STOP_TICK_LOG": str(self.tick),
+            "AGENT_IDENTITY_FILE": str(self.store),
+            "CLAUDE_PROJECT_DIR": str(self.main),
+            "QUOTA_STOP_DECISIONS_PY": str(self.decisions),
+        }
+        for k, v in self.env.items():
+            monkeypatch.setenv(k, v)
+        monkeypatch.delenv("CLAUDE_AGENT", raising=False)
+        monkeypatch.delenv("QUOTA_STOP_TICK_STALE_S", raising=False)
+        self.mp = monkeypatch
+
+    def config(self, cfg: object) -> None:
+        (self.work / "config.json").write_text(cfg if isinstance(cfg, str) else json.dumps(cfg))
+
+    def owner(self, name: str) -> None:
+        (self.main / "docs" / "DECISIONS.md").write_text(
+            "# Decisions\n\n| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n"
+            f"| D-001 | 2026-10-22 | operator | MERGE OWNER: {name} — merges | test | here |\n"
+        )
+
+    def bind(self, sid: str, name: str, toplevel: Path | str | None = None) -> None:
+        row = {
+            "session_id": sid,
+            "name": name,
+            "toplevel": str(self.common if toplevel is None else toplevel),
+            "at": int(time.time()),
+        }
+        with self.store.open("a") as fh:
+            fh.write(json.dumps(row) + "\n")
+
+    def item(self, iid: str, **fields: object) -> None:
+        doc = {"id": iid, "status": "open", "priority": 0, "owner": "infra", **fields}
+        (self.work / f"{iid}.json").write_text(json.dumps(doc))
+
+    def closed(self, iid: str) -> None:
+        d = self.common / "fabrik-work" / "closed"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{iid}.json").write_text(json.dumps({"id": iid, "status": "done"}))
+
+    def claim(self, iid: str, sid: str, lease_s: int = 7200) -> None:
+        d = self.common / "fabrik-work" / "claims"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{iid}.json").write_text(
+            json.dumps({"session": sid, "at": time.time(), "lease_s": lease_s})
+        )
+
+    def stamp(self, promise: str, tier: str) -> None:
+        (self.state / "fleet-exhausted").write_text(f"{promise}\n{tier}\n")
+
+    def run(self, payload: dict, **extra_env: str) -> subprocess.CompletedProcess:
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_AGENT"}
+        env.update(self.env)
+        env.update(extra_env)
+        return subprocess.run(
+            [sys.executable, str(_HOOK)],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+
+
+@pytest.fixture
+def lane(tmp_path, monkeypatch):
+    return _Lane(tmp_path, monkeypatch)
+
+
+def _denied(r: subprocess.CompletedProcess) -> bool:
+    return '"permissionDecision": "deny"' in r.stdout
+
+
+def _at_lane(cmd: str) -> str:
+    return hook.decide(
+        "Bash", cmd, stamp_exists=True, tick_age_s=10.0, tier="urgent-90", exempt=False
+    )[0]
+
+
+def test_a_builder_is_parked_at_the_lane_with_the_finishing_verbs(lane):
+    """Behaviour 1: a bound builder (not the merge owner, owning no open P0) is HELD at `urgent-90`
+    — the wall's allow-list plus the finishing verbs — where D-306 used to allow everything."""
+    lane.bind("sb", "infra")
+    exempt, _why = hook.lane_exempt("sb", str(lane.main))
+    assert exempt is False
+    for tool, inp in (
+        ("Edit", {"file_path": "x.py"}),
+        ("Write", {"file_path": "x.py", "content": "x"}),
+        ("Agent", {"prompt": "p"}),
+        ("Bash", {"command": "python3 scripts/foo.py"}),
+        ("Bash", {"command": "pytest tests/"}),
+    ):
+        r = lane.run({"tool_name": tool, "tool_input": inp, "session_id": "sb"})
+        assert _denied(r), (tool, inp, r.stdout, r.stderr)
+    for tool in ("SubagentHandback", "Read", "SendMessage"):
+        r = lane.run({"tool_name": tool, "tool_input": {}, "session_id": "sb"})
+        assert not _denied(r), (tool, r.stdout)
+    for cmd in (
+        "git commit -m 'park' -- a.py",
+        "git push",
+        "python3 scripts/command_run.py blocked --wall --command fabrik-task --reason 'quota wall'",
+        "python3 scripts/merge_request.py request --review r.md --item W-0123abcd",
+        "python3 /opt/fabrik/scripts/merge_request.py request --review r.md",
+        "python3 scripts/work.py claim W-0123abcd",
+        "python3 scripts/work.py release W-0123abcd",
+        "python3 scripts/mail.py send --to fabrik --body x",
+        "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh sb",
+    ):
+        assert _at_lane(cmd) == "allow", cmd
+    for cmd in (
+        "python3 scripts/work.py done W-0123abcd",
+        "python3 scripts/work.py claim W-0123abcd && touch m",
+        "python3 scripts/work.py claim",
+        "python3 x/scripts/work.py claim W-0123abcd",
+        "python3 scripts/merge_request.py merge",
+        "python3 scripts/merge_request.py request > out",
+    ):
+        assert _at_lane(cmd) == "deny", cmd
+    # the finishing verbs are the LANE's, never the wall's: at `walled` they stay held
+    for tool, cmd in (("Bash", "python3 scripts/work.py claim W-0123abcd"),
+                      ("SubagentHandback", None), ("SendMessage", None)):  # fmt: skip
+        assert (
+            hook.decide(tool, cmd, stamp_exists=True, tick_age_s=10.0, tier="walled")[0] == "deny"
+        ), tool
+
+
+def test_only_a_bound_coordinator_mode_merge_owner_continues(lane):
+    """Behaviour 2: the merge owner of a coordinator_mode repo, bound by session id in THIS repo's
+    scope, is exempt; the same name without coordinator_mode, a CLAUDE_AGENT with no binding, and a
+    binding scoped to another repo are all held (rulings 1-2: CLAUDE_AGENT is never read)."""
+    lane.bind("sc", "coordinator")
+    assert hook.lane_exempt("sc", str(lane.main))[0] is True
+    # from the linked worktree: one repo, one common dir
+    assert hook.lane_exempt("sc", str(lane.wt))[0] is True
+    r = lane.run({"tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "session_id": "sc"})
+    assert not _denied(r), r.stdout
+    assert "lane" in r.stderr.lower() and "checkpoint" in r.stderr.lower(), r.stderr
+    # CLAUDE_PROJECT_DIR wins over the payload cwd (a coordinator working in a scratch dir)
+    r = lane.run(
+        {"tool_name": "Edit", "tool_input": {}, "session_id": "sc", "cwd": str(lane.tmp / "state")}
+    )
+    assert not _denied(r), r.stdout
+    # casefold on both sides of the comparison
+    lane.owner("Coordinator")
+    assert hook.lane_exempt("sc", str(lane.main))[0] is True
+    lane.owner("coordinator")
+    # no coordinator_mode → held
+    lane.config({"coordinator_mode": False})
+    assert hook.lane_exempt("sc", str(lane.main))[0] is False
+    lane.config({"coordinator_mode": "true"})  # a string is not the flag
+    assert hook.lane_exempt("sc", str(lane.main))[0] is False
+    lane.config({"coordinator_mode": True})
+    # CLAUDE_AGENT=coordinator with NO binding → held, in-process and end-to-end
+    lane.mp.setenv("CLAUDE_AGENT", "coordinator")
+    assert hook.lane_exempt("unbound", str(lane.main))[0] is False
+    r = lane.run(
+        {"tool_name": "Edit", "tool_input": {}, "session_id": "unbound"}, CLAUDE_AGENT="coordinator"
+    )
+    assert _denied(r), r.stdout
+    lane.mp.delenv("CLAUDE_AGENT")
+    # a binding for ANOTHER repo's toplevel → held
+    lane.bind("sx", "coordinator", toplevel=lane.tmp / "other" / ".git")
+    assert hook.lane_exempt("sx", str(lane.main))[0] is False
+    # a later row rebinding the sid wins
+    lane.bind("sc", "infra")
+    assert hook.lane_exempt("sc", str(lane.main))[0] is False
+
+
+def test_the_owner_of_an_open_p0_continues(lane):
+    """Behaviour 3 (ruling 1): the bound OWNER of an open P0 item is exempt — no live claim needed;
+    a P1 item, a done item and an item with a closed marker are not."""
+    lane.bind("sp", "infra")
+    lane.item("W-aaaaaaaa", priority=1)
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", priority=0, status="done")
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", priority=False)  # a bool is never the int 0
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", priority="0")
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", owner="fleet")
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", owner="INFRA")
+    exempt, why = hook.lane_exempt("sp", str(lane.main))
+    assert exempt is True and "W-aaaaaaaa" in why, why
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sp"})
+    assert not _denied(r), r.stdout
+    lane.closed("W-aaaaaaaa")
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sp"})
+    assert _denied(r), r.stdout
+
+
+def test_the_park_message_names_the_item_and_lift_and_orders_only_allowed_commands(lane):
+    """Behaviour 4: the park message names the session's claimed items (or none) and the lift —
+    the stamp's promised resume, else the posture's five_hour reset — and every command it orders
+    passes the lane's own allow-list (an order the hook then denies strands a parked session)."""
+    import re as _re
+
+    lane.bind("sm", "infra")
+
+    def reason() -> str:
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sm"}, TZ="UTC")
+        return json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+
+    promise = int(time.time()) + 3 * 3600
+    lane.stamp(str(promise), "urgent-90")
+    msg = reason()
+    assert time.strftime("%H:%M", time.gmtime(promise)) in msg, msg
+    assert "or earlier when a successor appears" in msg, msg
+    assert "your items: none" in msg, msg
+    assert "fleet-exhausted" in msg, "command_run.py's _WALL_REASON keys on this phrase"
+    assert "claude_rotate.py --status" not in msg, "--status is denied at the lane — never order it"
+    lane.claim("W-bbbbbbbb", "sm")
+    lane.claim("W-cccccccc", "someone-else")
+    lane.claim("W-dddddddd", "sm", lease_s=-10)  # expired
+    lane.stamp("0", "urgent-90")
+    resets = time.time() + 2 * 3600
+    (lane.state / "quota-posture.json").write_text(
+        json.dumps({"active": {"windows": {"five_hour": {"resets_at": resets}}}})
+    )
+    msg = reason()
+    assert "your items: W-bbbbbbbb" in msg and "W-cccccccc" not in msg, msg
+    assert "W-dddddddd" not in msg, msg
+    assert time.strftime("%H:%M", time.gmtime(resets)) in msg, msg
+    (lane.state / "quota-posture.json").unlink()
+    msg = reason()
+    assert "when the 5-hour window resets" in msg, msg
+    assert "selfwatch_arm.sh sm" in msg, "the arm order carries the literal sid"
+    fill = {"<msg>": "m", "<paths>": "a.py", "<command>": "fabrik-task", "<why>": "quota wall",
+            "<receipt>": "r.md", "<W-id>": "W-0123abcd"}  # fmt: skip
+    orders = _re.findall(r"`([^`]+)`", msg) + _re.findall(r'command: "(bash [^"]+)"', msg)
+    assert len(orders) >= 4, orders
+    for order in orders:
+        for k, v in fill.items():
+            order = order.replace(k, v)
+        assert "<" not in order, f"an unfilled placeholder in an order: {order!r}"
+        assert _at_lane(order) == "allow", order
+
+
+def test_every_lane_error_holds_and_never_raises(lane, tmp_path):
+    """Behaviour 5: every unreadable input — store, config, item, ledger, resolver — makes the
+    session NOT exempt (held, still able to commit, push and close), never raises, and returns
+    within the hook's budget even when the resolver hangs."""
+    lane.bind("se", "coordinator")
+    assert hook.lane_exempt("se", str(lane.main))[0] is True  # the positive control
+    (lane.state / "lane-owner-cache.json").unlink(missing_ok=True)
+    for sid, proj in ((None, str(lane.main)), ("", str(lane.main)), ("se", None),
+                      ("se", str(tmp_path / "nowhere")), ("se", "relative/dir")):  # fmt: skip
+        assert hook.lane_exempt(sid, proj)[0] is False, (sid, proj)
+    # the store: garbage, a directory, a FIFO (must not hang)
+    good = lane.store.read_text()
+    lane.store.write_text('not json\n{"session_id": 3}\n[1]\n')
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.store.unlink()
+    lane.store.mkdir()
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.store.rmdir()
+    os.mkfifo(lane.store)
+    t0 = time.time()
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    assert time.time() - t0 < 3
+    lane.store.unlink()
+    lane.store.write_text(good)
+    # the config: corrupt, not a dict, missing
+    for cfg in ("{", "[]", "null"):
+        lane.config(cfg)
+        assert hook.lane_exempt("se", str(lane.main))[0] is False, cfg
+    (lane.work / "config.json").unlink()
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.config({"coordinator_mode": True})
+    # the ledger missing; the resolver missing, failing, printing UNDECLARED, hanging
+    (lane.main / "docs" / "DECISIONS.md").unlink()
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.owner("coordinator")
+    for n, body in enumerate(
+        (
+            "import sys; sys.exit(1)",
+            "print('UNDECLARED'); raise SystemExit(3)",
+            "import time; time.sleep(30)",
+        )
+    ):
+        stub = tmp_path / f"stub{n}.py"
+        stub.write_text(body + "\n")
+        lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(stub))
+        t0 = time.time()
+        assert hook.lane_exempt("se", str(lane.main))[0] is False, body
+        assert time.time() - t0 < 3.5, f"the resolver ran past its budget: {body}"
+    lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(tmp_path / "absent.py"))
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(lane.decisions))
+    # a corrupt item is skipped, never fatal; a corrupt cache is ignored
+    lane.bind("se", "infra")
+    (lane.work / "W-eeeeeeee.json").write_text("{")
+    lane.item("W-ffffffff")
+    assert hook.lane_exempt("se", str(lane.main))[0] is True
+    lane.bind("se", "coordinator")
+    (lane.state / "lane-owner-cache.json").write_text("{ torn")
+    assert hook.lane_exempt("se", str(lane.main))[0] is True
+    # a `.git` that is neither a directory nor a gitdir file → held
+    odd = tmp_path / "odd"
+    odd.mkdir()
+    (odd / ".git").write_text("garbage\n")
+    assert hook.lane_exempt("se", str(odd))[0] is False
+    # end to end with the store gone: the hook still answers (held), exit 0
+    lane.store.unlink()
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "se"})
+    assert r.returncode == 0 and _denied(r), (r.stdout, r.stderr)
+
+
+def test_the_merge_owner_is_cached_by_ledger_and_resolver_stamp(lane, tmp_path):
+    """The resolver spawns once per (ledger, resolver) state: a second call reads the cache, a
+    ledger edit re-resolves; a repo without coordinator_mode spawns nothing; the child never sees
+    CLAUDE_AGENT and runs isolated (`-I`)."""
+    calls = tmp_path / "calls"
+    stub = tmp_path / "stub_decisions.py"
+    stub.write_text(
+        "import pathlib\n"
+        f"with pathlib.Path({str(calls)!r}).open('a') as fh: fh.write('x')\n"
+        "print('coordinator')\n"
+    )
+    lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(stub))
+    lane.bind("sk", "coordinator")
+    assert hook.lane_exempt("sk", str(lane.main))[0] is True
+    assert hook.lane_exempt("sk", str(lane.main))[0] is True
+    assert calls.read_text() == "x", "the second call must read the cache"
+    led = lane.main / "docs" / "DECISIONS.md"
+    st = led.stat()
+    os.utime(led, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
+    assert hook.lane_exempt("sk", str(lane.main))[0] is True
+    assert calls.read_text() == "xx", "a ledger change must re-resolve"
+    lane.config({})
+    calls.unlink()
+    assert hook.lane_exempt("sk", str(lane.main))[0] is False
+    assert not calls.exists(), "no coordinator_mode: the resolver must not spawn"
+    probe = tmp_path / "probe_decisions.py"
+    seen = tmp_path / "seen"
+    probe.write_text(
+        "import os, pathlib, sys\n"
+        f"pathlib.Path({str(seen)!r}).write_text("
+        "repr((os.environ.get('CLAUDE_AGENT'), sys.flags.isolated)))\n"
+        "print('coordinator')\n"
+    )
+    lane.config({"coordinator_mode": True})
+    lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(probe))
+    lane.mp.setenv("CLAUDE_AGENT", "coordinator")
+    assert hook.lane_exempt("sk", str(lane.main))[0] is True
+    assert seen.read_text() == "(None, 1)", seen.read_text()
+
+
+def test_the_hooks_identity_reader_agrees_with_whoami(lane):
+    """The hook reads the identity store itself (it is fleet-synced and imports nothing from
+    scripts/). Graded against `whoami_agent.py::resolve_agent_name` on one store with CLAUDE_AGENT
+    unset: several sids, a corrupt line, a malformed name, a later row winning."""
+    spec = importlib.util.spec_from_file_location("whoami_parity", _WHOAMI_PY)
+    who = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(who)
+    lane.bind("s1", "infra")
+    lane.bind("s2", "fleet")
+    with lane.store.open("a") as fh:
+        fh.write("{corrupt\n\n[]\n")
+        fh.write(json.dumps({"session_id": "s1", "name": "Bad Name", "toplevel": str(lane.common)}))
+        fh.write("\n")
+    lane.bind("s1", "kaizen")  # the later row wins
+    lane.bind("s3", "intel")
+    for sid in ("s1", "s2", "s3", "s4"):
+        lane.mp.setenv("CLAUDE_CODE_SESSION_ID", sid)
+        assert hook._bound_name(sid, lane.common) == who.resolve_agent_name(), sid
+    assert hook._bound_name("s1", lane.common) == "kaizen"
+
+
+def test_an_out_of_range_lift_epoch_never_crashes_the_park(lane):
+    """F1 (review round 1, executed): a stamp promise or a posture `five_hour.resets_at` outside the
+    platform's time_t range made `time.localtime` raise, `main()` exited 1 with no JSON, and Claude
+    Code ran the tool — a parked builder escaped. Every such epoch, a negative one and a past one
+    still give the deny JSON at rc 0, with the fallback lift text."""
+    lane.bind("so", "infra")
+    for promise in ("1e20", "1e300", "1e18", "-5", str(int(time.time()) - 3600)):
+        lane.stamp(promise, "urgent-90")
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"})
+        assert r.returncode == 0 and _denied(r), (promise, r.returncode, r.stdout, r.stderr)
+        msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "when the 5-hour window resets" in msg, (promise, msg)
+    lane.stamp("0", "urgent-90")
+    for resets in (1e20, 1e300, -5, time.time() - 3600):
+        (lane.state / "quota-posture.json").write_text(
+            json.dumps({"active": {"windows": {"five_hour": {"resets_at": resets}}}})
+        )
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"})
+        assert r.returncode == 0 and _denied(r), (resets, r.returncode, r.stdout, r.stderr)
+        msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "when the 5-hour window resets" in msg, (resets, msg)
+    # review round 2: an integer past float range (JSON reads it as an int, `float()` overflows) and a
+    # posture nested past the recursion limit (`json.loads` raises RecursionError) — neither may raise
+    for raw in (
+        '{"active":{"windows":{"five_hour":{"resets_at":1' + "0" * 400 + "}}}}",
+        "[" * 100_000 + "]" * 100_000,
+    ):
+        (lane.state / "quota-posture.json").write_text(raw)
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"})
+        assert r.returncode == 0 and _denied(r), (raw[:40], r.returncode, r.stdout, r.stderr[-300:])
+        msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "when the 5-hour window resets" in msg, (raw[:40], msg)
+    # a past stamp promise falls through to a live posture reset
+    lane.stamp(str(int(time.time()) - 3600), "urgent-90")
+    resets = time.time() + 2 * 3600
+    (lane.state / "quota-posture.json").write_text(
+        json.dumps({"active": {"windows": {"five_hour": {"resets_at": resets}}}})
+    )
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"}, TZ="UTC")
+    msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+    assert time.strftime("%H:%M", time.gmtime(resets)) in msg, msg
+
+
+def test_a_lift_on_another_day_names_the_date():
+    """F1: a lift that is not today names its date, or `at 08:30` reads as this morning."""
+    now = time.time()
+    later = now + 3 * 86400
+    lift = hook._render_lift(later, now)
+    assert time.strftime("%Y-%m-%d", time.localtime(later)) in lift, lift
+    assert time.strftime("%H:%M", time.localtime(later)) in lift, lift
+    soon = now + 60
+    if time.localtime(soon).tm_yday == time.localtime(now).tm_yday:
+        assert hook._render_lift(soon, now) == f"at {time.strftime('%H:%M', time.localtime(soon))}"
+    assert hook._render_lift(1e300, now) is None
+    assert hook._render_lift(now - 10, now) is None
+
+
+def test_the_finishing_verbs_take_no_trailing_arguments():
+    """F3 + F4 (review round 1, executed): `merge_request.py send` is no verb, and the claim branch
+    admitted any trailing args (`--session <other sid>`, `--repo /etc`, a second id). The claim
+    verbs take exactly one id; `request` takes only `--review`, `--item` and `--base`."""
+    for cmd in (
+        "python3 scripts/work.py claim W-0123abcd",
+        "python3 /opt/fabrik/scripts/work.py release W-0123abcd",
+        "python3 scripts/merge_request.py request --review r.md",
+        "python3 scripts/merge_request.py request --review /opt/fabrik/.tmp/runs/a/b.json "
+        "--item W-0123abcd --base master",
+        "python3 scripts/merge_request.py request --item W-0123abcd --review r.md",
+    ):
+        assert _at_lane(cmd) == "allow", cmd
+    for cmd in (
+        "python3 scripts/merge_request.py send",
+        "python3 scripts/merge_request.py send --to x",
+        "python3 scripts/work.py claim W-0123abcd --session other-sid",
+        "python3 scripts/work.py claim W-0123abcd --repo /etc",
+        "python3 scripts/work.py release W-0123abcd W-4567cdef",
+        "python3 scripts/work.py claim W-0123abcdx",
+        "python3 scripts/merge_request.py request --review r.md --force",
+        "python3 scripts/merge_request.py request --review r.md --item x",
+        "python3 scripts/merge_request.py request --review --base",
+        "python3 scripts/merge_request.py request extra",
+        "python3 scripts/merge_request.py requestx --review r.md",
+    ):
+        assert _at_lane(cmd) == "deny", cmd
+
+
+def test_a_p0_item_its_owner_cannot_work_exempts_nobody(lane):
+    """F5 (review round 1, executed): a `blocked` or `awaiting-operator` P0 still exempted its
+    owner, who cannot work it. Open is status exactly `open` (work.py STATUSES)."""
+    lane.bind("sq", "infra")
+    lane.item("W-abababab")
+    assert hook.lane_exempt("sq", str(lane.main))[0] is True  # the positive control
+    for status in ("blocked", "awaiting-operator", "done", "dropped", "", None, "OPEN"):
+        lane.item("W-abababab", status=status)
+        assert hook.lane_exempt("sq", str(lane.main))[0] is False, status
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sq"})
+    assert _denied(r), r.stdout

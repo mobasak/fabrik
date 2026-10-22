@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "after fleet's scaffold change, add server/ to final_gate's ruff/mypy roots when the dir exists, with a grader on a scaffolded static-site",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — gate never lints project server/; false green but awaiting fleet config",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "infra",
     "medium"

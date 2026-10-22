@@ -3,7 +3,7 @@
   "created": "2026-10-21T05:06:10.878900Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "bea2d18bb3bbda26d11471642bfc4ad76d0dfc1f",
   "id": "W-30b7ce3f",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "MEDIUM: a real undersize (560 genuine over-85% working-set samples in a week) with no outage reported, nobody blocked; LOW effort: one memory limit, one deploy behind the operator's gate",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],

@@ -16,11 +16,11 @@
     "spec": "docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md"
   },
   "next": "**[fleet]** **PostgreSQL 16 → 18 upgrade** (WSL dev + VPS hub): plan [`2026-10-06-plan-1-postgresql-18-upgrade/`](development/plans/2026-10-06-plan-1-postgresql-18-upgrade/2026-10-06-plan-1-postgresql-18-upgrade.md) (spec D-617) — hub branch and runbook ready; the WSL and hub windows are operator gates; the runbook is docs/operations/postgres-major-upgrade-runbook.md (supersedes archived/2026-05-25-postgresql-18-upgrade.md)",
-  "note": "migrated-digest:1f6d760e62b0",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — operator-run upgrade windows from ready runbook",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium",
     "waits-pg18-windows"

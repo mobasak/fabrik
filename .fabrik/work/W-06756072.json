@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T01:08:57.282240Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-06756072",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "a rule update on the governance template (HIGH): the coordinator rollout step 8 needs D-943/D-558/D-961 in the synced template; one template section, one session",
   "status": "open",
   "title": "Coordinator rollout step 8 cannot land in a SYNCED repo — the governance template needs D-943 / D-558 / D-961"
 }

@@ -244,6 +244,7 @@
 - [scripts/review_receipt.py](../INDEX.md) (owner: infra): Review-artifact skeleton — `--init` emits the grammar `check_review_coverage.py` grades.
 - [scripts/review_rubric.py](../INDEX.md) (owner: infra): Armed-review rubric extractor — turns Tier-3 reviews from "reviewer reads the packs
 - [scripts/rivals_run.py](../INDEX.md) (owner: infra): Hub-side driver for the vendored `competitor-intel` engine — the executable half of `/fabrik-rivals`.
+- [scripts/scrape_ledger.py](../INDEX.md) (owner: infra): Probe the fabrik-scrape MCP server, harvest the URLs research seats fetch, and grade a capability ledger.
 - [scripts/scratch_sweep.py](../INDEX.md) (owner: infra): Sweep YOUR OWN session scratch, YOUR OWN agent worktrees, and DEAD sessions' scratch — never blindly.
 - [scripts/seed_real_ports.py](../INDEX.md) (owner: infra): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
 - [scripts/select_rules.py](../INDEX.md) (owner: infra): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.
@@ -259,10 +260,12 @@
 - [scripts/sysadmin/ci_health_probe.py](../INDEX.md) (owner: infra): Fleet CI-health probe — catch CI that NEVER RAN, and the quota curve that kills it.
 - [scripts/sysadmin/claude_broker.py](../INDEX.md) (owner: infra): Completion-only container broker — subscription-billed Claude for Docker workloads.
 - [scripts/sysadmin/claude_rotate.py](../INDEX.md) (owner: infra): NB: this file is vendored BYTE-IDENTICAL into scripts/sysadmin/ and scripts/aro-wake/
+- [scripts/sysadmin/claude_tab_router.py](../INDEX.md) (owner: infra): claude_tab_router.py — the VS Code chat-tab ROUTER behind claude-agent-wrapper.sh (W-ea993618).
 - [scripts/sysadmin/detect_reversals.py](../INDEX.md) (owner: infra): Detect operator reversals of AI actions (trio plan Phase 5.1.a).
 - [scripts/sysadmin/dispatch_headroom.py](../INDEX.md) (owner: infra): dispatch_headroom — the seat budget for a native fan-out, from the BOX and the FLEET, not from prose.
 - [scripts/sysadmin/emit_mcp_project_config.py](../INDEX.md) (owner: infra): Emit each /opt repo's project-scope `.mcp.json` from the MCP split rulings.
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](../INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
+- [scripts/sysadmin/fabrik_deck.py](../INDEX.md) (owner: infra): fabrik_deck.py code-server | install [--hub DIR] [--start] — the Fabrik Deck's code-server as a systemd user service.
 - [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): FEEDBACK relay — closes the loop the operator asked for five times (D-055, then the 6th ask:
 - [scripts/sysadmin/hibernate.py](../INDEX.md) (owner: infra): hibernate.py — the machinery behind /hibernate (W-1e9ae1e5): find every repo's live agents, hand out the pause
 - [scripts/sysadmin/incident_context.py](../INDEX.md) (owner: infra): Incident context marshaller — the HOST side of the pool-diagnosis path.
@@ -375,6 +378,7 @@
 - [ui-verify](/opt/fabrik-lib/ui-verify/README.md) (owner: external:fabrik-lib): ui-verify
 - [watchdog](/opt/fabrik-lib/watchdog/README.md) (owner: external:fabrik-lib): watchdog — per-project AI self-heal sidecar (poll → diagnose → act → escalate)
 - [web-scrape](/opt/fabrik-lib/web-scrape/README.md) (owner: external:fabrik-lib): web-scrape — deterministic scrape primitive: httpx for static, vps1 browserless for JS-rendered
+- [web-scrape-mcp](/opt/fabrik-lib/web-scrape-mcp/README.md) (owner: external:fabrik-lib): web-scrape-mcp
 - [web-tools](/opt/fabrik-lib/web-tools/README.md) (owner: external:fabrik-lib): web-tools
 - [webhooks](/opt/fabrik-lib/webhooks/README.md) (owner: external:fabrik-lib): Webhooks
 - [xlsx-io](/opt/fabrik-lib/xlsx-io/README.md) (owner: external:fabrik-lib): xlsx-io — structure-preserving text extract/apply for spreadsheets

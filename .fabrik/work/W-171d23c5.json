@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "Paddle's seller handbook requires acceptance before purchase and recommends the links in the post-purchase email; the legal-pages spec (docs/superpowers/specs/2026-09-29-saas-skeleton-legal-pages-design.md) ships the pages only — wire the acceptance into the Paddle checkout/billing UI (core/85-payments-billing.md)",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — checkout terms acceptance; real value, fleet template, nobody blocked",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

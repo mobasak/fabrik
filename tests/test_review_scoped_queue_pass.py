@@ -883,9 +883,10 @@ def test_a_brief_tells_each_seat_to_create_its_folder_first() -> None:
     `RUN-SCRATCH: none` case the folder sits under a session scratchpad `start` may not have found."""
     core = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text())
     assert (
-        "so nothing durable is written there (resume artifacts go to `SCRATCH:`), and the brief tells each seat to"
-        " create its folder first with `mkdir -p` on the absolute path, since nothing creates it for the seat;"
-        in core
+        "so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs"
+        " itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on"
+        " its absolute path before the dispatching message, while the brief still tells the seat to run that same"
+        " `mkdir -p` first (a no-op once the folder exists);" in core
     )
 
 

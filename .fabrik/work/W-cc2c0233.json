@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "## [infra] `libs/alerting` Telegram fallback sends legacy Markdown without escaping (2026-09-02, owner: infra)\n\n`libs/alerting/telegram.py` sends `*{title}*\\n{body}` with `parse_mode: \"Markdown\"` and its own error map names\nbad Markdown as a 400. An alert whose title or body carries an unbalanced `*` or `_` (a step label such as\n`gather_envs_reconsolidate`, a log path, a glob) is REJECTED on exactly the fallback leg that fires when the\nprimary SSH→apprise leg is down — the operator gets nothing. The external-services chain's own body was made\nparity-safe in review pass 25 (CC5), but the label and the log path still carry underscores and every other\ncaller is exposed. Fix at the root: escape the four legacy-Markdown metacharacters in `telegram.py` (or drop\n`parse_mode`), with a grader that sends a title containing `a_b*c` through the formatter. Measured 2026-09-02:\nthe chain body had 1 `*` and 11 `_` before CC5; the alerting docstring's `body: up to ~500 chars` was exceeded (896).",
-  "note": "migrated-digest:03898b7aa8e0",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — Telegram fallback Markdown escaping",
-  "status": "open",
+  "status": "dropped",
   "title": "`libs/alerting` Telegram fallback sends legacy Markdown without escaping (2026-09-02, owner: infra)"
 }

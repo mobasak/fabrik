@@ -4,8 +4,10 @@
   ],
   "created": "2026-10-04T08:01:29.339289Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-c20c4a4e",
+  "impact": "low",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -17,7 +19,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "LOW: a field report (advisory) about the multi-window model; read, fold the actionable lines into open items, ack; one session",
   "status": "open",
   "tags": [
     "medium"

@@ -4,8 +4,10 @@
   ],
   "created": "2026-09-26T13:31:47.618971Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-08eeaee1",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,7 +18,8 @@
   "next": "",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "likely STALE: prune_transcripts.py (Phase C) ships nightly since D-736 and the restore path exists; fleet verifies and closes or re-scopes; one session at most",
   "status": "open",
   "tags": [
     "medium",

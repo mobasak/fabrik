@@ -7,12 +7,17 @@ fake `ps` on the launcher's own PATH (`$HOME/.local/bin`) stands in for the live
 from __future__ import annotations
 
 import json
+import os
+import pty
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-UP = ROOT / "scripts" / "sysadmin" / "agents_up.sh"
+# AGENTS_UP_UNDER_TEST: the red-on-revert proof points the suite at the pre-change script (a copy, never the tracked one)
+UP = Path(os.environ.get("AGENTS_UP_UNDER_TEST") or ROOT / "scripts" / "sysadmin" / "agents_up.sh")
+GIB = 1024 * 1024  # kB per GiB
 
 DEV1 = "610c3b1c-a5ef-4ba0-a662-f3f87399a58b"
 DEV2 = "413b420e-3b36-4d13-b4f6-ee3f71f98de2"
@@ -78,6 +83,7 @@ def _home(
     repo root's transcript is also put under each of its linked worktrees, where the pane starts, unless `root_only`."""
     home = tmp / "home"
     (home / ".local" / "bin").mkdir(parents=True, exist_ok=True)
+    _meminfo(home, 27)
     ps = home / ".local" / "bin" / "ps"
     # answers only the launcher's exact question: every claude process, full width (-ww)
     ps.write_text(
@@ -103,6 +109,20 @@ def _home(
     return home
 
 
+def _meminfo(home: Path, gib: int | None) -> Path:
+    """The fake /proc root `_run` points FABRIK_PROC_ROOT at: MemTotal of `gib` GiB, or no meminfo at all (None)."""
+    proc = home / "proc"
+    proc.mkdir(parents=True, exist_ok=True)
+    meminfo = proc / "meminfo"
+    if gib is None:
+        meminfo.unlink(missing_ok=True)
+    else:
+        meminfo.write_text(
+            f"MemTotal:       {gib * GIB} kB\nMemAvailable:   1 kB\n", encoding="utf-8"
+        )
+    return proc
+
+
 def _copies(root: Path, root_only: bool) -> list[Path]:
     wts = root / ".claude" / "worktrees"
     if root_only or not wts.is_dir():
@@ -113,14 +133,34 @@ def _copies(root: Path, root_only: bool) -> list[Path]:
     ]
 
 
-def _run(*args: str, home: Path, **env: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["bash", str(UP), *args],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        env={"PATH": "/usr/bin:/bin", "HOME": str(home), **env},
-    )
+def _run(*args: str, home: Path, tty: bool = False, **env: str) -> subprocess.CompletedProcess[str]:
+    """Run the launcher. `tty=True` gives it a pty for stdin and stdout (an interactive caller, so it may attach);
+    otherwise stdin and stdout are pipes, as in a coordinator's Bash tool, a cron job or a hook."""
+    full = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(home),
+        "FABRIK_PROC_ROOT": str(home / "proc"),
+        **env,
+    }
+    if not tty:
+        return subprocess.run(
+            ["bash", str(UP), *args], capture_output=True, text=True, timeout=30, env=full
+        )
+    master, slave = pty.openpty()
+    try:
+        done = subprocess.run(
+            ["bash", str(UP), *args],
+            stdin=slave,
+            stdout=slave,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30,
+            env=full,
+        )
+    finally:
+        os.close(slave)
+        os.close(master)
+    return subprocess.CompletedProcess(done.args, done.returncode, "", done.stderr)
 
 
 def _panes(out: str) -> list[str]:
@@ -150,7 +190,10 @@ def test_print_lists_one_pane_per_builder_without_the_coordinator(tmp_path: Path
         f"pane fabrik-lib-sentinel {SENT} {_wt(repo, 'fabrik-lib-sentinel')} ok",
     ], out.stdout
     run = [ln for ln in out.stdout.splitlines() if ln.startswith("run fabrik-lib-dev1 ")]
-    assert len(run) == 1 and f"claude -n fabrik-lib-dev1 --resume {DEV1};" in run[0], out.stdout
+    assert (
+        len(run) == 1
+        and f'claude -n fabrik-lib-dev1 --resume {DEV1} "You were relaunched' in run[0]
+    ), out.stdout
 
 
 def test_a_running_session_is_never_resumed_twice(tmp_path: Path) -> None:
@@ -182,7 +225,7 @@ def test_a_running_session_is_never_resumed_twice(tmp_path: Path) -> None:
     # a running session's pane only prints a message; it never starts claude
     assert _inner(run["dev1"]).startswith('echo "[dev1 is already running elsewhere'), run["dev1"]
     assert _inner(run["dev2"]).startswith('echo "[dev2 is already running elsewhere'), run["dev2"]
-    assert _inner(run["sentinel"]).startswith("env -i "), run["sentinel"]
+    assert _inner(run["sentinel"]).startswith(OOM_LINE + "env -i "), run["sentinel"]
     # the shell a running session's pane keeps is clean too, never the tmux server's environment
     assert _inner(run["dev1"]).rstrip().endswith("bash -l") and "; exec env -i " in _inner(
         run["dev1"]
@@ -267,7 +310,7 @@ def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
         if ln.startswith("--user ")
     ]
     assert len(scoped) == 1 and scoped[0].startswith(
-        "--user --scope --quiet --slice=fabrik-agents.slice -p MemoryMax=3G -p MemorySwapMax=0 -p TasksMax=1024 -- bash -c "
+        "--user --scope --quiet --slice=fabrik-agents.slice -p MemorySwapMax=0 -p TasksMax=1024 -- bash -c "
     ), scoped
 
 
@@ -362,6 +405,18 @@ def test_the_session_name_is_the_repo_basename(tmp_path: Path) -> None:
 
 FAKE_TMUX = """#!/bin/sh
 echo "$*" >> "$HOME/tmux.log"
+# tmux 3.4 (W-1961cc42): an option command given the bare exact target `=name` answers "no such session" while
+# `=name:` works — the fake fails the same way, so a regression to the bare form is red here, not only on the box
+case "$1" in
+  show-options|set-option)
+    prev=""
+    for a in "$@"; do
+      if [ "$prev" = "-t" ]; then
+        case "$a" in =*:*) ;; =*) echo "no such session: $a" >&2; exit 1 ;; esac
+      fi
+      prev="$a"
+    done ;;
+esac
 case "$1" in
   has-session) [ -f "$HOME/tmux-has" ] ;;
   show-options)
@@ -420,19 +475,19 @@ def test_a_new_grid_records_its_repo_and_attaches(tmp_path: Path) -> None:
     further builder, every target exact (`=`), then attach."""
     repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
     home = _tmux_home(tmp_path, repo, has=False, owner=None)
-    out = _run(str(repo), home=home)
+    out = _run(str(repo), home=home, tty=True)
     assert out.returncode == 0, out.stderr
     log = _log(home)
     assert log[0] == "has-session -t =fabrik-lib", log
     assert any(ln.startswith("new-session -d -s fabrik-lib -n agents -c ") for ln in log), log
-    assert f"set-option -t =fabrik-lib @agents_up_root {repo}" in log, log
+    assert f"set-option -t =fabrik-lib: @agents_up_root {repo}" in log, log
     assert sum(ln.startswith("split-window -t =fabrik-lib:agents ") for ln in log) == 1, log
     assert "select-pane -t =fabrik-lib:agents.0" in log, log  # a fresh grid opens on its first pane
     assert log[-1] == "attach -t =fabrik-lib", log
     # a root that cannot be recorded is said, because every later launch would refuse the grid
     failed = _tmux_home(tmp_path / "setfail", repo, has=False, owner=None)
     (failed / "tmux-setfail").write_text("", encoding="utf-8")
-    out = _run(str(repo), home=failed)
+    out = _run(str(repo), home=failed, tty=True)
     assert out.returncode == 0 and "could not record the root" in out.stderr, out.stderr
     assert _log(failed)[-1] == "attach -t =fabrik-lib", _log(failed)
 
@@ -443,14 +498,13 @@ def test_an_existing_grid_is_reattached_only_when_it_is_this_repos(tmp_path: Pat
     records a root (after the one re-read an in-progress launch is given)."""
     repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
     mine = _tmux_home(tmp_path / "mine", repo, has=True, owner=str(repo))
-    out = _run(str(repo), home=mine)
+    out = _run(str(repo), home=mine, tty=True)
     assert out.returncode == 0, out.stderr
     assert not any(ln.startswith(("new-session", "split-window")) for ln in _log(mine)), _log(mine)
     assert _log(mine)[-1] == "attach -t =fabrik-lib", _log(mine)
     # "other-tagged": another folder's recorded grid is never adopted, even when its panes carry this repo's names
     for label, owner in (
         ("other", "/opt/elsewhere/fabrik-lib"),
-        ("none", None),
         ("other-tagged", "/opt/elsewhere/fabrik-lib"),
     ):
         home = _tmux_home(tmp_path / label, repo, has=True, owner=owner)
@@ -465,15 +519,16 @@ def test_an_existing_grid_is_reattached_only_when_it_is_this_repos(tmp_path: Pat
 def test_a_hand_built_grid_of_this_repos_builders_is_adopted(tmp_path: Path) -> None:
     """W-bb6c9d9a: fabrik-lib's ~/bin/fabrik-lib-up builds a grid under the same name with no recorded root, but tags
     every pane with its agent. That grid is adopted — its root recorded, reattached as it is — only when every pane is
-    one of this repo's builders; a stranger pane, an untagged pane or no pane at all still refuses."""
+    one of this repo's builders; a stranger pane, an untagged pane or no pane at all is NOT adopted, but a grid that is
+    up is attached whatever the root read returned (W-e841ac37): it attaches with a warning, root unrecorded."""
     repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
     ours = _tmux_home(tmp_path / "ours", repo, has=True, owner=None)
     (ours / "tmux-panes").write_text("%1 dev1\n%2 dev2\n", encoding="utf-8")
-    out = _run(str(repo), home=ours)
+    out = _run(str(repo), home=ours, tty=True)
     assert out.returncode == 0 and "adopted" in out.stderr, out.stderr
     # its panes skipped the env allow-list, and the operator is told how to get clean ones
     assert "keep the environment they started with" in out.stderr, out.stderr
-    assert f"set-option -t =fabrik-lib @agents_up_root {repo}" in _log(ours), _log(ours)
+    assert f"set-option -t =fabrik-lib: @agents_up_root {repo}" in _log(ours), _log(ours)
     assert not any(ln.startswith(("new-session", "split-window")) for ln in _log(ours)), _log(ours)
     assert _log(ours)[-1] == "attach -t =fabrik-lib", _log(ours)
     for label, panes in (
@@ -483,12 +538,25 @@ def test_a_hand_built_grid_of_this_repos_builders_is_adopted(tmp_path: Path) -> 
     ):
         home = _tmux_home(tmp_path / label, repo, has=True, owner=None)
         (home / "tmux-panes").write_text(panes, encoding="utf-8")
-        out = _run(str(repo), home=home)
-        assert out.returncode == 2 and "not attaching" in out.stderr, (label, out.stderr)
-        assert not any(ln.startswith(("attach", "set-option")) for ln in _log(home)), (
+        out = _run(str(repo), home=home, tty=True)
+        assert out.returncode == 0, (label, out.stderr)
+        assert "could not confirm that tmux session fabrik-lib is this repo's" in out.stderr, (
+            label,
+            out.stderr,
+        )
+        assert "adopted" not in out.stderr and "not attaching" not in out.stderr, out.stderr
+        assert not any(
+            ln.startswith(("set-option", "new-session", "split-window")) for ln in _log(home)
+        ), (
             label,
             _log(home),
         )
+        assert _log(home)[-1] == "attach -t =fabrik-lib", (label, _log(home))
+    # no panes at all and no recorded root (a failed root write): attached with the warning, never refused
+    home = _tmux_home(tmp_path / "bare", repo, has=True, owner=None)
+    out = _run(str(repo), home=home, tty=True)
+    assert out.returncode == 0 and "attaching to it anyway" in out.stderr, out.stderr
+    assert _log(home)[-1] == "attach -t =fabrik-lib", _log(home)
 
 
 def test_a_launch_racing_another_attaches_only_to_this_repos_grid(tmp_path: Path) -> None:
@@ -506,7 +574,7 @@ def test_a_launch_racing_another_attaches_only_to_this_repos_grid(tmp_path: Path
         if race:
             (home / "tmux-newfail").write_text("", encoding="utf-8")
         (home / "tmux-owner-late").write_text("", encoding="utf-8")
-        out = _run(str(repo), home=home)
+        out = _run(str(repo), home=home, tty=True)
         log = _log(home)
         assert out.returncode == rc, (label, out.stderr, log)
         reads = [ln for ln in log if ln.startswith("show-options")]
@@ -946,6 +1014,9 @@ def test_a_missing_binding_and_a_newer_unbound_session_are_said(tmp_path: Path) 
     assert "a newer session" not in out.stderr, out.stderr
 
 
+OOM_LINE = "echo 200 > /proc/self/oom_score_adj 2>/dev/null; "
+
+
 def _inner(run_line: str) -> str:
     """The pane command a `run` line carries: inside the scope's `bash -c '<it>'` when capped, else the line itself."""
     import shlex
@@ -1152,34 +1223,107 @@ def test_a_failed_merge_owner_lookup_refuses(tmp_path: Path) -> None:
 
 def test_panes_run_capped_in_the_agents_slice(tmp_path: Path) -> None:
     """Every pane — claude, its hint and the shell it keeps — runs inside one `systemd-run --user --scope` in
-    fabrik-agents.slice with MemoryMax, MemorySwapMax=0 (else a cap only pushes into swap) and TasksMax; --print
-    reports each cap and never touches the slice, and a launch sets the slice's own ceiling first."""
+    fabrik-agents.slice with MemorySwapMax=0 and TasksMax and NO MemoryMax of its own (the parent slice's ceiling bounds
+    them all, W-6e656dac L5); --print reports each cap and never touches the slice, and a launch sets the slice's own
+    ceiling first. A set FABRIK_AGENT_MEM_MAX is retired: warned about and ignored."""
     repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
     home = _tmux_home(tmp_path, repo, has=False, owner=None)
     out = _run(
         "--print", str(repo), home=home, FABRIK_AGENT_MEM_MAX="2G", FABRIK_AGENT_TASKS_MAX="512"
     )
     assert out.returncode == 0, out.stderr
+    assert "FABRIK_AGENT_MEM_MAX is retired" in out.stderr and "ignored" in out.stderr, out.stderr
     assert [ln for ln in out.stdout.splitlines() if ln.startswith("cap ")] == [
-        "cap dev1 2G 512",
-        "cap dev2 2G 512",
+        "cap dev1 512",
+        "cap dev2 512",
     ]
     for ln in out.stdout.splitlines():
         if ln.startswith("run "):
             assert (
-                " systemd-run --user --scope --quiet --slice=fabrik-agents.slice -p MemoryMax=2G -p MemorySwapMax=0"
+                " systemd-run --user --scope --quiet --slice=fabrik-agents.slice -p MemorySwapMax=0"
                 " -p TasksMax=512 -- bash -c '" in ln
             ), ln
+            assert "MemoryMax" not in ln.split(" -- bash -c ")[0], ln
             assert "claude -n" in _inner(ln) or "already running" in _inner(ln), ln
     assert "set-property" not in (home / "systemctl.log").read_text(encoding="utf-8")
     out = _run(str(repo), home=home, FABRIK_AGENT_SLICE_MAX="12G")
     assert out.returncode == 0, out.stderr
     calls = (home / "systemctl.log").read_text(encoding="utf-8").splitlines()
     assert (
-        "--user set-property --runtime fabrik-agents.slice MemoryMax=12G MemorySwapMax=0" in calls
+        "--user set-property --runtime fabrik-agents.slice MemoryHigh=infinity MemoryMax=12G"
+        " MemorySwapMax=infinity" in calls
     ), calls
     created = [ln for ln in _log(home) if ln.startswith(("new-session", "split-window"))]
     assert len(created) == 2 and all("systemd-run --user --scope" in ln for ln in created), created
+
+
+def _slice_line(home: Path, repo: Path, **env: str) -> tuple[str, str]:
+    out = _run("--print", str(repo), home=home, **env)
+    assert out.returncode == 0, out.stderr
+    line = next(ln for ln in out.stdout.splitlines() if ln.startswith("slice "))
+    return line, out.stderr
+
+
+def test_the_slice_ceiling_follows_memtotal_and_the_nonagent_floor(tmp_path: Path) -> None:
+    """W-6e656dac L5 + W-0b8a0fba: MemoryHigh = MemTotal - max(4G, floor) and MemoryMax = MemTotal - max(2G,
+    floor - 2G), whole G, floor = FABRIK_AGENT_NONAGENT_FLOOR (12G); a 27 GiB box gets 15G/17G, a floor of 1G gives the
+    plain MemTotal-4G / MemTotal-2G, MemTotal rounds DOWN to whole G, and the launch sets exactly that — never swap."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    line, err = _slice_line(home, repo)
+    assert line == "slice fabrik-agents.slice MemoryHigh=15G MemoryMax=17G", (line, err)
+    assert "D-1075" not in err, err
+    line, _ = _slice_line(home, repo, FABRIK_AGENT_NONAGENT_FLOOR="1G")
+    assert line == "slice fabrik-agents.slice MemoryHigh=23G MemoryMax=25G", line
+    line, _ = _slice_line(home, repo, FABRIK_AGENT_NONAGENT_FLOOR="6")  # whole G, the G is optional
+    assert line == "slice fabrik-agents.slice MemoryHigh=21G MemoryMax=23G", line
+    (home / "proc" / "meminfo").write_text(f"MemTotal: {27 * GIB + GIB - 1} kB\n", encoding="utf-8")
+    line, _ = _slice_line(home, repo)  # 27.99 GiB is 27 whole G
+    assert line == "slice fabrik-agents.slice MemoryHigh=15G MemoryMax=17G", line
+    out = _run(str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    calls = (home / "systemctl.log").read_text(encoding="utf-8").splitlines()
+    assert (
+        "--user set-property --runtime fabrik-agents.slice MemoryHigh=15G MemoryMax=17G MemorySwapMax=infinity"
+        in calls
+    ), calls
+    # the override replaces the derived MemoryMax and clears MemoryHigh
+    line, _ = _slice_line(home, repo, FABRIK_AGENT_SLICE_MAX="20G")
+    assert line == "slice fabrik-agents.slice MemoryHigh=infinity MemoryMax=20G", line
+
+
+def test_a_small_or_unreadable_memtotal_keeps_the_old_ceiling_and_says_so(tmp_path: Path) -> None:
+    """Under 8G, unreadable, or a floor that leaves nothing: D-1075's 16G MemoryMax, said on stderr; and a bad floor
+    refuses."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    for label, setup, why in (
+        ("small", lambda: _meminfo(home, 7), "MemTotal is 7G, under 8G"),
+        ("unreadable", lambda: _meminfo(home, None), "MemTotal is unreadable"),
+        (
+            "garbled",
+            lambda: (home / "proc" / "meminfo").write_text("MemTotal: lots kB\n"),
+            "unreadable",
+        ),
+    ):
+        setup()
+        line, err = _slice_line(home, repo)
+        assert line == "slice fabrik-agents.slice MemoryHigh=infinity MemoryMax=16G", (label, line)
+        assert why in err and "keeping D-1075's 16G ceiling" in err, (label, err)
+    # a floor that leaves nothing never LOOSENS the cap: the minimum margins, said (an 8G box is not given 16G)
+    for gib in (8, 12):
+        _meminfo(home, gib)
+        line, err = _slice_line(home, repo)
+        assert line == f"slice fabrik-agents.slice MemoryHigh={gib - 4}G MemoryMax={gib - 2}G", (
+            gib,
+            line,
+        )
+        assert "leaves nothing" in err and "minimum margins" in err and "16G" not in err, err
+    _meminfo(home, 8)
+    line, _ = _slice_line(home, repo, FABRIK_AGENT_NONAGENT_FLOOR="2G")
+    assert line == "slice fabrik-agents.slice MemoryHigh=4G MemoryMax=6G", line
+    out = _run("--print", str(repo), home=home, FABRIK_AGENT_NONAGENT_FLOOR="12X")
+    assert out.returncode == 2 and "bad FABRIK_AGENT_NONAGENT_FLOOR '12X'" in out.stderr, out.stderr
 
 
 def test_an_oom_kill_is_named_in_the_hint(tmp_path: Path) -> None:
@@ -1200,8 +1344,8 @@ def test_an_oom_kill_is_named_in_the_hint(tmp_path: Path) -> None:
         stdin=subprocess.DEVNULL,
     )
     assert (
-        "[dev1 was killed (exit 137, SIGKILL) — in this capped pane most likely at its memory ceiling, MemoryMax=3G]"
-        in got.stdout
+        "[dev1 was killed (exit 137, SIGKILL) — in this capped pane most likely at the fabrik-agents.slice memory"
+        " ceiling (MemoryMax=17G)]" in got.stdout
     ), got.stdout + got.stderr
     assert "[dev1 exited — run: claude -n dev1 --resume" in got.stdout, got.stdout
     # an uncapped pane names the kill and never claims a ceiling it does not have
@@ -1283,10 +1427,8 @@ def test_a_malformed_cap_refuses(tmp_path: Path) -> None:
     repo = _repo(tmp_path, {DEV1: "dev1"})
     home = _home(tmp_path, transcripts=((repo, DEV1),))
     for var, value in (
-        ("FABRIK_AGENT_MEM_MAX", "0G"),
-        ("FABRIK_AGENT_MEM_MAX", "3"),
-        ("FABRIK_AGENT_MEM_MAX", "3X"),
-        ("FABRIK_AGENT_MEM_MAX", "512K"),
+        ("FABRIK_AGENT_SLICE_MAX", "0G"),
+        ("FABRIK_AGENT_SLICE_MAX", "512K"),
         ("FABRIK_AGENT_SLICE_MAX", "16"),
         ("FABRIK_AGENT_SLICE_MAX", "1T"),
         ("FABRIK_AGENT_TASKS_MAX", "0"),
@@ -1300,10 +1442,10 @@ def test_a_malformed_cap_refuses(tmp_path: Path) -> None:
         "--print",
         str(repo),
         home=home,
-        FABRIK_AGENT_MEM_MAX="1024K",
+        FABRIK_AGENT_SLICE_MAX="1024K",
         FABRIK_AGENT_TASKS_MAX="999999",
     )
-    assert ok.returncode == 0 and "cap dev1 1024K 999999" in ok.stdout, ok.stderr
+    assert ok.returncode == 0 and "cap dev1 999999" in ok.stdout, ok.stderr
 
 
 def test_the_bus_is_found_without_xdg_and_a_refused_slice_refuses(tmp_path: Path) -> None:
@@ -1322,7 +1464,7 @@ def test_the_bus_is_found_without_xdg_and_a_refused_slice_refuses(tmp_path: Path
     )
     out = _run("--print", str(repo), home=home)  # _run passes no XDG_RUNTIME_DIR
     if bus.is_socket():
-        assert "cap dev1 3G 1024" in out.stdout, (out.stdout, out.stderr)
+        assert "cap dev1 1024" in out.stdout, (out.stdout, out.stderr)
         assert f"XDG_RUNTIME_DIR=/run/user/{os.getuid()}" in out.stdout, out.stdout
     else:
         assert "cap dev1 uncapped" in out.stdout, out.stdout
@@ -1330,15 +1472,203 @@ def test_the_bus_is_found_without_xdg_and_a_refused_slice_refuses(tmp_path: Path
     out = _run(str(repo), home=home, XDG_RUNTIME_DIR=str(tmp_path))
     assert out.returncode == 2, out.stderr
     assert (
-        "refused the fabrik-agents.slice ceiling (MemoryMax=16G) — not launching" in out.stderr
+        "refused the fabrik-agents.slice ceiling (MemoryHigh=15G MemoryMax=17G) — not launching"
+        in out.stderr
     ), out.stderr
     log = _log(home) if (home / "tmux.log").exists() else []
     assert not any(ln.startswith(("new-session", "attach")) for ln in log), log
     # reattaching to this repo's running grid starts nothing, so a refused ceiling never blocks it
     (home / "tmux-has").write_text("", encoding="utf-8")
     (home / "tmux-owner").write_text(f"{repo}\n", encoding="utf-8")
-    out = _run(str(repo), home=home, XDG_RUNTIME_DIR=str(tmp_path))
+    out = _run(str(repo), home=home, tty=True, XDG_RUNTIME_DIR=str(tmp_path))
     assert out.returncode == 0 and _log(home)[-1] == "attach -t =fabrik-lib", (
         out.stderr,
         _log(home),
     )
+
+
+# --- T05 (W-6e656dac): --detach, the wake prompt and watchdog, the uncapped policy, the non-TTY caller (W-1961cc42) ---
+
+
+def test_detach_builds_the_grid_and_never_attaches(tmp_path: Path) -> None:
+    """`--detach` stops before attach/switch-client — from inside tmux too, with the grid new or already up, and
+    whether or not a terminal is there — and says so."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    new = _tmux_home(tmp_path / "new", repo, has=False, owner=None)
+    out = _run("--detach", str(repo), home=new, tty=True, TMUX="/tmp/tmux-1000/default,1,0")
+    assert out.returncode == 0, out.stderr
+    log = _log(new)
+    assert any(ln.startswith("new-session -d -s fabrik-lib") for ln in log), log
+    assert f"set-option -t =fabrik-lib: @agents_up_root {repo}" in log, log
+    assert not any(ln.startswith(("attach", "switch-client")) for ln in log), log
+    assert "--detach — the fabrik-lib grid is up, not attaching" in out.stderr, out.stderr
+    up = _tmux_home(tmp_path / "up", repo, has=True, owner=str(repo))
+    out = _run(
+        str(repo), "--detach", home=up, tty=True
+    )  # flags lead: this is a usage error, never an attach
+    assert out.returncode == 2 and "usage:" in out.stderr, out.stderr
+    out = _run("--detach", str(repo), home=up, tty=True)
+    assert out.returncode == 0 and "leaving it as it is" in out.stderr, out.stderr
+    assert not any(ln.startswith(("new-session", "split-window", "attach")) for ln in _log(up)), (
+        _log(up)
+    )
+
+
+def test_a_caller_with_no_terminal_detaches_and_says_so(tmp_path: Path) -> None:
+    """W-1961cc42: from a non-TTY shell (a coordinator's Bash tool) the grid is built, its root is recorded (the option
+    write uses the target tmux 3.4 accepts) and the script detaches saying so, instead of failing at `attach`."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run(str(repo), home=home)  # pipes for stdin and stdout
+    assert out.returncode == 0, out.stderr
+    log = _log(home)
+    assert f"set-option -t =fabrik-lib: @agents_up_root {repo}" in log, log
+    assert "could not record the root" not in out.stderr, out.stderr
+    assert "no terminal on stdin/stdout" in out.stderr and "left detached" in out.stderr, out.stderr
+    assert "tmux attach -t =fabrik-lib" in out.stderr, out.stderr
+    assert not any(ln.startswith("attach") for ln in log), log
+
+
+def test_an_up_grid_is_attached_not_rebuilt_and_the_owner_read_uses_the_option_target(
+    tmp_path: Path,
+) -> None:
+    """W-e841ac37: without --detach a grid that is already up is ATTACHED (a terminal) and never rebuilt, and the
+    ownership read that gates it uses the target tmux 3.4 accepts (the fake fails the bare `=name` form)."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=True, owner=str(repo))
+    out = _run(str(repo), home=home, tty=True)
+    assert out.returncode == 0, out.stderr
+    log = _log(home)
+    assert "show-options -t =fabrik-lib: -v @agents_up_root" in log, log
+    assert not any(ln.startswith(("new-session", "split-window")) for ln in log), log
+    assert log[-1] == "attach -t =fabrik-lib", log
+
+
+def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_path: Path) -> None:
+    """The relaunch (L1, L4, L5): `claude -n <name> --resume <sid> "<wake prompt>"` with CLAUDE_CODE_RETRY_WATCHDOG=1 in
+    the allow-listed env and oom_score_adj 200 set before claude starts; the prompt orders the self-watch arm and
+    names no `hibernate.py woke` until T01a's lift-only woke is on this branch; no --permission-mode is passed (permissions.defaultMode decides). The
+    pane command is EXECUTED against a fake claude that prints its argv and env."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    fake = home / ".local" / "bin" / "claude"
+    fake.write_text(
+        '#!/bin/sh\nprintf "ARG<%s>\\n" "$@"\nenv | grep -E "^CLAUDE_CODE_RETRY_WATCHDOG="\n'
+        "grep oom_score_adj /dev/null; cat /proc/self/oom_score_adj | sed 's/^/OOM=/'\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    out = _run("--print", str(repo), home=home)
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run dev1 "))
+    got = subprocess.run(
+        ["/bin/sh", "-c", run[len("run dev1 ") :]],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        stdin=subprocess.DEVNULL,
+    )
+    args = re.findall(r"^ARG<(.*)>$", got.stdout, flags=re.M)
+    assert args[:4] == ["-n", "dev1", "--resume", DEV1] and len(args) == 5, got.stdout
+    prompt = args[4]
+    assert f"selfwatch_arm.sh {DEV1}" in prompt, prompt
+    assert "hibernate.py woke" not in prompt and "seed" not in prompt, prompt
+    assert "carry on as usual" in prompt, prompt
+    assert "CLAUDE_CODE_RETRY_WATCHDOG=1" in got.stdout, got.stdout
+    assert re.search(r"^OOM=(200|[3-9]\d\d|1000)$", got.stdout, flags=re.M), got.stdout
+    assert "--permission-mode" not in run and "--dangerously" not in run, run
+    # the quoting survives the nested single quotes of the scope's `bash -c '<inner>'` for ANY folder name
+    assert '"' not in prompt and "'" not in prompt and "$" not in prompt, prompt
+
+
+def test_an_up_grid_with_no_readable_root_is_attached_on_a_real_server(tmp_path: Path) -> None:
+    """W-e841ac37 on a real scratch tmux server: a same-named grid that records no root and is not this repo's builders
+    (made by hand) is attached-to (left detached for a non-TTY caller) with the warning, never refused."""
+    server = f"t05o-{os.getpid()}"
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    real = shutil.which("tmux")
+    assert real, "tmux is the launcher's own dependency"
+    wrapper = home / ".local" / "bin" / "tmux"
+    wrapper.write_text(f'#!/bin/sh\nexec {real} -L {server} "$@"\n', encoding="utf-8")
+    wrapper.chmod(0o755)
+    try:
+        subprocess.run(
+            [real, "-L", server, "new-session", "-d", "-s", "fabrik-lib", "sleep 120"], check=True
+        )
+        out = _run(str(repo), home=home)
+        assert out.returncode == 0, out.stderr
+        assert "attaching to it anyway" in out.stderr and "left detached" in out.stderr, out.stderr
+        assert "not attaching" not in out.stderr, out.stderr
+    finally:
+        subprocess.run([real, "-L", server, "kill-server"], capture_output=True)
+
+
+def test_an_uncapped_start_is_refused_on_the_bat_path_and_allowed_on_the_boot_path(
+    tmp_path: Path,
+) -> None:
+    """No user manager: the interactive path refuses naming why (exit 2, nothing launched) unless
+    FABRIK_AGENTS_UNCAPPED=1; --detach (the boot path) launches uncapped with D-1075's warning."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    (home / "manager-down").write_text("", encoding="utf-8")
+    out = _run(str(repo), home=home, tty=True)
+    assert out.returncode == 2, out.stderr
+    assert "not launching" in out.stderr and "FABRIK_AGENTS_UNCAPPED=1" in out.stderr, out.stderr
+    assert not (home / "tmux.log").exists() or not any(
+        ln.startswith("new-session") for ln in _log(home)
+    ), _log(home)
+    out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_UNCAPPED="1")
+    assert out.returncode == 0 and "UNCAPPED" in out.stderr, out.stderr
+    assert any(ln.startswith("new-session") for ln in _log(home)), _log(home)
+    boot = _tmux_home(tmp_path / "boot", repo, has=False, owner=None)
+    (boot / "manager-down").write_text("", encoding="utf-8")
+    out = _run("--detach", str(repo), home=boot)
+    assert out.returncode == 0 and "WARNING — no systemd-run on PATH" in out.stderr, out.stderr
+    assert any(ln.startswith("new-session") for ln in _log(boot)), _log(boot)
+    # a grid already up needs no start, so it is never refused for lacking a manager
+    up = _tmux_home(tmp_path / "up", repo, has=True, owner=str(repo))
+    (up / "manager-down").write_text("", encoding="utf-8")
+    out = _run(str(repo), home=up, tty=True)
+    assert out.returncode == 0 and _log(up)[-1] == "attach -t =fabrik-lib", (out.stderr, _log(up))
+
+
+def test_on_a_real_tmux_server_the_root_is_recorded_and_a_relaunch_finds_its_own_grid(
+    tmp_path: Path,
+) -> None:
+    """W-1961cc42 measured on a scratch `tmux -L` server (the box's tmux 3.4 behaviour is in the log): a non-TTY launch
+    builds the grid and records the root readably; a second launch — non-TTY, no --detach — finds the grid up, does NOT
+    refuse it, and builds nothing; --detach on the up grid exits 0."""
+    server = f"t05-{os.getpid()}"
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    wrapper = home / ".local" / "bin" / "tmux"
+    real = shutil.which("tmux")
+    assert real, "tmux is the launcher's own dependency"
+    wrapper.write_text(f'#!/bin/sh\nexec {real} -L {server} "$@"\n', encoding="utf-8")
+    wrapper.chmod(0o755)
+    claude = home / ".local" / "bin" / "claude"
+    claude.write_text("#!/bin/sh\nsleep 120\n", encoding="utf-8")
+    claude.chmod(0o755)
+
+    def tmux(*a: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([real, "-L", server, *a], capture_output=True, text=True, timeout=20)
+
+    try:
+        first = _run(str(repo), home=home)
+        assert first.returncode == 0, first.stderr
+        assert "could not record the root" not in first.stderr, first.stderr
+        assert "left detached" in first.stderr, first.stderr
+        got = tmux("show-options", "-t", "=fabrik-lib:", "-v", "@agents_up_root")
+        assert got.stdout.strip() == str(repo), (got.stdout, got.stderr)
+        panes = tmux("list-panes", "-s", "-t", "=fabrik-lib", "-F", "x").stdout.split()
+        second = _run(str(repo), home=home)
+        assert second.returncode == 0, second.stderr
+        assert "not attaching" not in second.stderr and "leaving it as it is" in second.stderr, (
+            second.stderr
+        )
+        assert tmux("list-panes", "-s", "-t", "=fabrik-lib", "-F", "x").stdout.split() == panes
+        third = _run("--detach", str(repo), home=home)
+        assert third.returncode == 0 and "--detach" in third.stderr, third.stderr
+    finally:
+        tmux("kill-server")

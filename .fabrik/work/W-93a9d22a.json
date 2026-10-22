@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T12:16:22.289435Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-93a9d22a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra-3 after the red test: /fabrik-task (command_run.py + Stop hook = heavy surface, full /fabrik-review)",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "five code rows from kaizen's queue pass; infra's beat; fits infra-3's scripts/hooks class",
+  "status": "open",
+  "tags": [
+    "mail-01m5hp8fqqsjemmbjbfr6gg7bx"
+  ],
+  "title": "mail 01M5HP8FQQSJEMMBJBFR6GG7BX (kaizen's /fabrik-review queue pass, 2026-10-22): five feedback rows that need CODE in infra's beat — command_run.py round --classes-swept must refuse a class the same round's confirmed findings name; a 'waiting on a dispatched agent' run-record state so the Stop hook does not demand action while a seat is out; round refused while the dispatch stamp has seats out (per-seat return record); plus two more in the mail — read the mail for rows 4-5"
+}
