@@ -151,6 +151,8 @@ written temp-then-rename; subcommand `fabrik_deck.py hook` (stdin JSON).
 
 ## Phase B — the Deck server, catalog and board
 
+✅ EXECUTED 2026-10-22 (e55ec3c98 build, c2dd08328 + 4d0d63481 review fixes; receipt docs/development/reviews/2026-10-22-plan-1-fabrik-deck-phase-2-review.md, passes 9 → 3 → 0)
+
 Appetite: 150
 
 Implements spec § Chosen approach item 2 and Tests 3-7.
