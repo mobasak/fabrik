@@ -3,7 +3,7 @@
   "created": "2026-09-24T23:27:47.704007Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "be03b59e4f5194ae7fa4ab570bdb2d49b7d3682a",
   "id": "W-80ffca68",
   "impact": "high",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — rule pack code-span literal pipes",
-  "status": "open",
+  "status": "done",
   "title": "Eleven code spans in the rule packs carry `\\|`, which is a LITERAL pipe in every language they illustrate"
 }

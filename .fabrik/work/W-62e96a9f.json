@@ -3,7 +3,7 @@
   "created": "2026-09-24T23:27:47.739749Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "4fc59617b1970c6ef7496b98efcd51f6353ef7a8",
   "id": "W-62e96a9f",
   "impact": "high",
   "kind": "backlog",
@@ -18,6 +18,9 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — stale governance trailer table told to ~46 repos",
-  "status": "open",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
   "title": "The project-facing trailer table has drifted from the hub's — ~46 repos are told a stale, incomplete contract"
 }

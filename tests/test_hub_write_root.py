@@ -354,7 +354,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sysadmin/quota_posture_hook.py": "untracked: quota posture state under ~/.claude, outside the repo",
     "scripts/sysadmin/selfwatch_check.py": "untracked: self-watch arm marker under ~/.claude, outside the repo (invokes selfwatch_arm.sh by path)",
     "scripts/sysadmin/send-telegram.sh": "untracked: reads gitignored .env.sysadmin only; sends to the Telegram API, no local tracked-file write",
-    "scripts/sysadmin/transcript_size_check.py": "untracked: reads the default SESSION_ARCHIVE_ENV_FILE `/opt/fabrik/.env` and PRINTS a `/opt/fabrik/scripts/whoami_agent.py` command; its one write is the rotate-advised stamp under ~/.claude/state",
+    "scripts/sysadmin/transcript_size_check.py": "untracked: reads the default SESSION_ARCHIVE_ENV_FILE `/opt/fabrik/.env` and PRINTS a `/opt/fabrik/scripts/whoami_agent.py` command; its one write is the rotate-advised stamp under ~/.claude/state (the context sensor's under its .ctx/ subdir)",
     "scripts/sysadmin/vps_script_drift.py": "untracked: reads the hub HEAD via git (honours $FABRIK_ROOT) and the VPS copies over ssh; its watermark lives under ~/.claude/state, no tracked-file write",
     "src/fabrik/drivers/modal_provider.py": "untracked: reads gitignored .env.sysadmin + a fixed template dir; its Modal deployment output is written into the TARGET project, not a hub-hardcoded tracked path",
     # ── other-repo: the write target is a DIFFERENT store/repo than the hub's own tree ──

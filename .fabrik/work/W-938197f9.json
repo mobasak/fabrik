@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T23:20:38.274286Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-938197f9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-spec: the two windows, the cobra measure for each, and the sensor the Stop hook reads; then plan and build",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "a builder blocked by the Stop hook while its own seats run past 25 minutes loses the run; the fix is a design trade-off between two windows, a spec first",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "A 'waiting on a dispatched agent' state for the Stop hook: W-4c7edc74 stands the hook down only inside the dispatch stamp's 25-minute window (its cobra note); a seat out longer (yt1's row in mail 01M5HP8FQQ, ask 2) hits the ceiling itself. Lifting it trades a seat-activity window against a launch-age window — spec-chain sized (infra-3's sizing of W-93a9d22a, 2026-10-23)"
+}

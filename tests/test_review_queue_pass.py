@@ -1288,3 +1288,16 @@ def test_obligation_three_names_the_committed_fix_form_where_it_starts() -> None
         "One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review"
         in tc
     )
+
+
+def test_a_base_pin_copy_is_made_writable_before_the_overlay() -> None:
+    """Mail 01M5HTCCA90Q94CVXND6APC11B (infra-2, W-80ffca68's review): five of fourteen seats hit Permission denied
+    overlaying pins onto a copy of the base tree, which `review_loop_ledger.py pin --base` writes read-only; a pin file
+    the base lacks lands read-only after the overlay, so the copy is made writable before it and again after it."""
+    live = re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", "", CAT.read_text(), flags=re.S))
+    bullet = live[live.index("- Overlay and pin currency:") : live.index("## Loop bookkeeping")]
+    assert (
+        "`pin` writes the pin and its `<pins_dir>.base` tree read-only, files and directories, so a seat that copies the"
+        " base tree runs `chmod -R u+w <dest>` right after that copy and before laying the pins over it, and again after"
+        " it, since a pin file the base lacks lands read-only;"
+    ) in bullet

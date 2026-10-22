@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:55:31.887053Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-46437b10",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-point every cite in that doc at the function it names on current master (anchor by symbol where the doc allows), run render_doc_script_links.py --check",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "15 stale cites in a hub-only workflow doc mislead readers but gate nothing; one doc pass",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "docs/workflows/FINAL_GATE_WORKFLOW.md carries 15 stale path:line cites into scripts/final_gate.py (each shown wrong at 778bf73f7 too; listed in the A5-wf row of docs/development/reviews/2026-10-22-final-gate-refusal-remedy-review.md) — residue (3) from infra-3's W-f46bca45 review, 2026-10-23"
+}

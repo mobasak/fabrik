@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T12:36:13.824502Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4e756979",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1118",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "a builder measures the cause: for each of the 29 fixes, the merge that turned master red and whether it was tested merged onto current main before landing (CLAUDE.md coordinator job 4); then one fix at the cause, never per symptom",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "the token-waste series' first out-of-control line (red-master rework: 29 fix commits since 09-29, infra paid 15); the fix sits in merge_request.py testing a branch on current main before it lands — infra's script, one measurement pass + one change; fits infra-3's scripts class",
+  "status": "open",
+  "tags": [
+    "kaizen-waste"
+  ],
+  "title": "waste_red_master_rework is OUT OF CONTROL ↑ (D-1118): 29 red-master fix commits since 2026-09-29 against a 0 baseline (2026-09-07..09-20, c-chart); today 1 of 306 arrivals. Who paid: infra 15, fleet 7, intel 4, kaizen 3. Cause to find: merges landing on a moving main (a branch green alone, red once merged onto current main)."
+}

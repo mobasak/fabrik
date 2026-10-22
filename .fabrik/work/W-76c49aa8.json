@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-22T12:19:43.578813Z",
   "creator": "infra-2",
+  "effort": "low",
   "evidence": "",
   "id": "W-76c49aa8",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,12 +15,14 @@
   },
   "next": "each gap with its probe input and fail direction (probes in the W-80ffca68 review's seat folders): blockquote table with a bad span → both walks []; row with no leading or no trailing pipe → []; table nested in a list item (indent 4) → [] (GFM: code block only outside a list); closing fence + info string inside an open fence → the span walk closes the fence (false positive) or skips the next real table (miss); header wider than its delimiter → the width rule reports HEADER width disagrees, the span walk still fires inside the non-table (false positive). Each 0 live over the 57 packs + 2 contracts on 2026-10-22. Extend _overflowing_rows and _piped_spans together (one tokenizer) or keep them recorded; add a span-rule fixture to scripts/sysadmin/liveness_audit.py:1638-1645 (its copy-form probe exercises only the width rule)",
   "note": "",
-  "owner": "",
+  "owner": "infra-2",
   "priority": 3,
+  "score_reason": "infra-2's own follow-on from W-80ffca68 (the two markdown walks' shared GFM gaps + a liveness_audit fixture); a fill-in, batched behind its P1 rule-text items",
   "status": "open",
   "tags": [
     "enforcement",
-    "infra"
+    "infra",
+    "queued"
   ],
   "title": "check_governance_tables.py: the GFM shapes both markdown walks misread (blockquote tables; rows with no leading or trailing pipe; list-nested tables; a closing fence followed by an info string; a header wider than its delimiter row, which the width rule reports while the span rule still reads it as a table) and a liveness_audit.py copy-form fixture for the code-span rule"
 }
