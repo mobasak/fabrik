@@ -1,6 +1,5 @@
-"""/fabrik-plan-review feedback queue answered in one pass (D-735): the panel's ACCEPTED delta round, recorded.
-
-The rule lives in the shared design-critique fragment; the advisory it calls expected is executed against command_run.
+"""/fabrik-plan-review feedback queue answered in one pass per run (D-735): each test pins one subject's rule in the
+section of fabrik-plan-review.md, design-critique.md or term-edit.md whose reader acts on it.
 """
 
 import importlib.util
@@ -145,13 +144,14 @@ def test_a_seat_grades_its_pinned_plan_set_copy() -> None:
         r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
     )
     assert (
-        "don't route around the gate. A seat that runs the check grades its pinned copy, never the live set the "
-        "orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory name, "
-        "outside any docs/development/plans/ directory> --allow-external`, run from the repo root. A seat that "
-        "imports or runs the plan's pinned code builds an archive of the base SHA with the pins laid over it, as "
-        "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` § Seat isolation (`PIN_IMPORT`) says, never "
-        "imports from the live checkout and never puts the pins dir alone on `sys.path`. - **Breadth "
-        "advisory (mechanical, at the same moment):**"
+        "don't route around the gate. A seat that runs the check grades its pinned copy, never the live set "
+        "the orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory "
+        "name, outside any docs/development/plans/ directory> --allow-external`, run from the repo root. A "
+        "seat that imports or runs code the plan cites builds an archive of the base SHA with the pinned "
+        "files laid over it (the `PIN_IMPORT` recipe in `.claude/workflows/fabrik-review-loop.js`, which "
+        "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` § Seat isolation names), never imports "
+        "from the live checkout and never puts the pins dir alone on `sys.path`. - **Breadth advisory "
+        "(mechanical, at the same moment):**"
     ) in text
 
 
@@ -228,21 +228,22 @@ def test_a_run_lives_in_the_plan_and_is_re_run_before_each_later_pin() -> None:
     """Rows 1792489145, 1792560450, 1792561946, 1792543087: a prototype's corpus sat in scratch, a spec's consumer CI
     snippet went unexecuted, and a folded fix was pinned without re-running the predecessor corpus."""
     assert _span("(another schema, a column-level grant). ", " 3. **Constraints-Digest audit") == (
-        "A field a hook, script or grader the plan specifies will read is a closed token (a fixed label, an enum, a"
-        " key), probed before the first pin with its negations and look-alikes, never matched as prose; a grader the"
-        " plan puts over prose checks presence only, and what the prose means is a named review check from round 1."
-        " Each such run's script, corpus and output go inline in the plan's Evidence from round 1, never only in"
-        " scratch, which the seats' pinned copy of the plan does not carry; before every later pin at which a fix or a"
-        " folded panel change touches what a run exercised, it is re-run over its whole corpus, a changed predicate's"
-        " old and new versions side by side, each difference named as intended or a defect, its output replacing the"
-        " earlier run's in the Evidence before that pin. The round-1 brief hands that enumeration to the seats as"
-        " their grid: one row per input class the change's kind implies (the absent, empty and unread copy of each"
-        " shape a read rule reads; coarser, same and finer for a lookup; every install layout the repo's docs teach"
-        " for a path rule; every host form for a network surface), each row carrying the output the code gave before"
-        " the change beside the one the plan intends, and a seat raises a class the grid lacks as a candidate. Under"
-        " the `Size: small`"
-        " joint loop the same holds for a command the spec prescribes for a consumer to run (a CI step, through a"
-        " shell stand-in for its runner)."
+        "A field a hook, script or grader the plan specifies will read is a closed token (a fixed label, an "
+        "enum, a key), probed before the first pin with its negations and look-alikes, never matched as "
+        "prose; a grader the plan puts over prose checks presence only, and what the prose means is a named "
+        "review check from round 1. Each such run's script, corpus and output go inline in the plan's "
+        "Evidence from round 1, never only in scratch, which the seats' pinned copy of the plan does not "
+        "carry; before every later pin at which a fix or a folded panel change touches what a run exercised, "
+        "it is re-run over its whole corpus, a changed predicate's old and new versions side by side, each "
+        "difference named as intended or a defect, its output replacing the earlier run's in the Evidence "
+        "before that pin. The round-1 brief hands the input classes that run enumerated to the seats as their"
+        " grid: one row per input class the change's kind implies (the absent, empty and unread copy of each "
+        "shape a read rule reads; coarser, same and finer for a lookup; every install layout the repo's docs "
+        "teach for a path rule; every host form for a network surface), each row carrying the output the code"
+        " gave before the change (`none — new` for a path the plan adds) beside the one the plan intends, and"
+        " a seat raises a class the grid lacks as a candidate. Under the `Size: small` joint loop the same "
+        "holds for a command the spec prescribes for a consumer to run (a CI step, through a shell stand-in "
+        "for its runner)."
     )
 
 
@@ -298,11 +299,12 @@ def test_round_one_hands_the_seats_an_input_grid() -> None:
     seats, so each round re-found one more class."""
     item2 = _between(_live(SRC), "2. **Coverage Checklist.**", "3. **Constraints-Digest audit")
     assert (
-        "The round-1 brief hands that enumeration to the seats as their grid: one row per input class the change's kind"
-        " implies (the absent, empty and unread copy of each shape a read rule reads; coarser, same and finer for a"
-        " lookup; every install layout the repo's docs teach for a path rule; every host form for a network surface),"
-        " each row carrying the output the code gave before the change beside the one the plan intends, and a seat"
-        " raises a class the grid lacks as a candidate."
+        "The round-1 brief hands the input classes that run enumerated to the seats as their grid: one row "
+        "per input class the change's kind implies (the absent, empty and unread copy of each shape a read "
+        "rule reads; coarser, same and finer for a lookup; every install layout the repo's docs teach for a "
+        "path rule; every host form for a network surface), each row carrying the output the code gave before"
+        " the change (`none — new` for a path the plan adds) beside the one the plan intends, and a seat "
+        "raises a class the grid lacks as a candidate."
     ) in item2
 
 
@@ -322,9 +324,10 @@ def test_a_seat_runs_pinned_code_from_an_archive_with_the_pins_laid_over_it() ->
     dir alone on sys.path."""
     pre = _between(_live(SRC), "**Convergence precondition (mechanical):**", "## Phase 1")
     assert (
-        "A seat that imports or runs the plan's pinned code builds an archive of the base SHA with the pins laid over"
-        " it, as `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` § Seat isolation (`PIN_IMPORT`) says,"
-        " never imports from the live checkout and never puts the pins dir alone on `sys.path`."
+        "A seat that imports or runs code the plan cites builds an archive of the base SHA with the pinned "
+        "files laid over it (the `PIN_IMPORT` recipe in `.claude/workflows/fabrik-review-loop.js`, which "
+        "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` § Seat isolation names), never imports "
+        "from the live checkout and never puts the pins dir alone on `sys.path`."
     ) in pre
 
 
@@ -346,24 +349,20 @@ def test_critique_seats_run_one_plain_command_per_call() -> None:
         _live(FRAG), "the house rules every seat brief carries:", "- its concerns, ranked"
     )
     assert (
-        "and one plain command per Bash call: the seat's own `mkdir -p` on its absolute folder first, then absolute"
-        " paths, never `cd` or `&&`."
+        "and one plain command per Bash call: the seat's own `mkdir -p` on its absolute folder first, then "
+        "absolute paths, never `cd`, `&&`, a pipe or a `$VAR`."
     ) in rules
 
 
 def test_a_scripted_fix_replaces_exactly_once() -> None:
-    """Row 1792630747 (after held fix-script-exact-once-replace): a substitution script wrote a no-op."""
+    """Row 1792630747 (after held fix-script-exact-once-replace): a substitution script wrote a no-op; the fix residue
+    the hygiene script catches stays named as the hygiene script's."""
+    residue = _between(_live(TERM_EDIT), "(1) **RESIDUE", "(2) **PIN**")
     assert (
-        "and a scripted fix replaces each old string exactly once, exiting non-zero when the old string is absent,"
-        " occurs twice or equals the new one, so it never writes a no-op"
-    ) in _between(_live(TERM_EDIT), "(1) **RESIDUE", "(2) **PIN**")
-
-
-def test_a_rule_the_review_added_defaults_to_deletion() -> None:
-    """Row 1792626973 (after held delete-mechanism-on-repeat): residue twice in a rule the review itself added."""
-    assert (
-        "(a deletion is that rewrite, and the default when the yielding site is a rule this review itself added rather"
-        " than a correction of the reviewed text itself)"
-    ) in _between(
-        _live(TERM_EDIT), "TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE", "; class rewrite —"
+        "the orchestrator's own fix residue is caught by the hygiene script, never by a seat;"
+        in residue
     )
+    assert (
+        "a scripted fix states how many times each old string occurs (once by default) and writes nothing unless every"
+        " one matches that count and differs from its new text, so it never writes a no-op or a half edit;"
+    ) in residue
