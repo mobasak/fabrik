@@ -95,15 +95,21 @@ exact load the operator asked to remove. Fifteen such gates were boarded in one 
   `unbacked`. Every spend stays the operator's while the ceiling is 0, and every irreversible act always, label or not (an
   irreversible act has no rollback, which every panel-decided class needs). Money and irreversible are matched anywhere on
   the Why line, a negation included: a false match sends a block to the operator, never money to the panel. A builder's block reaches the operator only through
-  its coordinator. A label, not prose, because the reader is a hook: prose matching read "not customer-facing", a `public-api`
+  its coordinator. `operator-minted` covers D-1110's own parenthetical — credentials, or an act at a third-party dashboard,
+  email verification or payment provider. A target is customer-facing when its service spec says `is_public: true` and its
+  users are not us; in doubt, the operator. A design or plan approval is the panel's whatever it names, and never approves the
+  spend, recurring contract, operator-minted credential or public publish it describes — that act boards its own gate when
+  taken. A label, not prose, because the reader is a hook: prose matching read "not customer-facing", a `public-api`
   path and a template Why line as operator-kept (the plan's pass-1 probe). The exact clause is the plan's Phase A step 2. No
   D-id is written into this paragraph (the twin test allows only the D-054 rewrite); the hub § Autonomy carries D-1110. The
   template's hub-request bullet (`templates/governance/CLAUDE.md:415-416`), which sends the whole closed list to the operator,
-  follows the same split.
+  follows the same split, and so do two more sentences the panel found: the contracts' "Legitimate" example block (now a
+  labelled customer-facing Gate 2) and § The coordinator role's Escalation, which sent every gate to the operator.
 - **D2 — hub § Autonomy (`CLAUDE.md:639`).** "`gate` and `owned` stay the operator's — a panel never approves a gate class (…)"
   becomes: `owned` stays the operator's, and so do the gate classes § FINAL OUTPUT keeps for the operator (D-1110); the panel
   decides every other gate class, and a coordinator validates its two reports against the repo and the box before acting on
-  them. Two sentences join it: a coordinator asks the operator a clarifying question only when the answer materially changes the
+  them; a seat that finds the act is one the operator keeps answers `operator-kept: <token>`, never an approval, and either
+  seat answering so sends the block to the operator. Two sentences join it: a coordinator asks the operator a clarifying question only when the answer materially changes the
   work and the repo is silent, batched as at most one short list per session; an act Claude Code's auto-mode classifier still refuses
   after a panel approves it is put to the operator once per class, as a settings permission rule (D-1110).
 - **D3 — `commands/_fragments/design-gate-panel.md`.** Its line 2 ("for design approval only, it supersedes D-558's …") points at
@@ -116,13 +122,17 @@ exact load the operator asked to remove. Fifteen such gates were boarded in one 
   :251-258, its block written only for a customer-facing deploy or a split, with one Why-line variant per case),
   `fabrik-release.md` (:2, :6, :188, :198, :205-212 — the VPS path hands to the deploy triad with no approval of its own, the
   store path keeps the operator's block) and the NEXT-map strings at `commands/assemble_commands.py:71`, `:73`.
-  `fabrik-deploy.md:240` and `:311` (operator acts, not approvals) are read and kept; `:105` follows the hard gate, and
+  An agreeing panel's Gate 2 go is written as a `PANEL APPROVED (<plan path>)` brief with its `Panel: … → both-approve`
+  line, which the hook already checks against the seats' text, and the coordinator validates both reports before the deploy
+  is dispatched. `fabrik-deploy.md:242`'s OPERATOR-GATE Why line gains `operator-kept: operator-minted`; `:311` is read and
+  kept; `:105` follows the hard gate, and
   `:359`'s Why line (publishing to users) gains `operator-kept: public`. The other five
   command sources' single mentions are read and changed only where they state the old model.
 - **D5 — the Stop hook (infra ticket, mailed with the exact diff).** `_DECISION_GATE_RE` keeps its tokens and is checked first;
   in autonomy mode the hook then requires a split `Panel:` line for every `ground: gate` block that is not operator-kept, as it
   does for design approval today. Operator-kept means the Why line carries the label `operator-kept:` with one of D1's five
-  tokens (a `not` just before the label voids it), or names spend or an irreversible act; a Why line naming design or
+  tokens (a `not` just before the label voids it; a label with any other token is refused by name, never read as
+  panel-decided), or names spend or an irreversible act; a Question-only design match does not cancel a label; a Why line naming design or
   plan approval is never operator-kept, money words included. The `:3104` and `:3115`
   comments follow D1. `tests/test_decision_panel.py:440-446` flips to the panel case and `:388-393`'s gate half takes the
   label; the new cases cover each token, five spellings of the label, prose without it, and the design-approval guard.
@@ -198,8 +208,9 @@ No money. Agent time: one plan of about five tickets; the hook ticket is infra's
 
 ## Decisions taken
 
-D-1110 (operator) is the design; this spec takes three decisions under it, each reversible: one plan and one merge (B); the token
-list kept, the panel/operator split written as a separate clause; `gate` + `Panel:` for a split panel-decided gate, no new ground.
+D-1110 (operator) is the design; this spec takes four decisions under it, each reversible: one plan and one merge (B); the token
+list kept, the panel/operator split written as a separate clause; `gate` + `Panel:` for a split panel-decided gate, no new ground;
+and every irreversible act is the operator's (an irreversible act has no rollback).
 
 ## Lifecycle
 
