@@ -131,6 +131,12 @@ def _hook(payload: dict, *, state: Path, runs: Path | None = None, extra_env=Non
     """Drive the hook as the CLI does: JSON on stdin, JSON or a bare line on stdout, rc always 0."""
     env = dict(os.environ)
     env["ROTATE_STATE_DIR"] = str(state)
+    # hermetic tick freshness (the LANE clause reads it, F6): a fresh tmp log, never the live one
+    tick = state.parent / "rotate-tick.fresh.log"
+    tick.parent.mkdir(parents=True, exist_ok=True)
+    tick.write_text("tick: ok\n")
+    env["QUOTA_STOP_TICK_LOG"] = str(tick)
+    env.pop("QUOTA_STOP_TICK_STALE_S", None)
     if runs is not None:
         env["COMMAND_RUN_DIR"] = str(runs)
     env.update(extra_env or {})
@@ -1363,8 +1369,9 @@ def test_a_clamped_fable_band_explains_itself_instead_of_naming_a_cool_window(tm
 
 def test_the_prompt_line_nudges_a_checkpoint_at_the_warning_tier(tmp_path):
     """The turn boundary is the only moment an agent can checkpoint BEFORE it is denied. At the
-    `urgent-90` tier nothing is held yet — `quota_stop.py` allows — so this line is the warning
-    that buys the graceful stop the runway exists for."""
+    `urgent-90` tier `quota_stop.py` runs the lane — it parks builders at their next
+    world-changing tool and lets the merge owner and P0 owners continue — so this line is the
+    warning that lets a builder checkpoint by choice before the park."""
     state = tmp_path / "state"
     _posture(state)
     (state / "fleet-exhausted").write_text("0\nurgent-90\n")
@@ -1401,6 +1408,37 @@ def test_the_quota_line_names_the_lane_at_the_urgent_tier(tmp_path):
     (state / "fleet-exhausted").unlink()
     clear = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s3"}, state=state).stdout
     assert "LANE" not in clear, clear
+
+
+def test_a_stale_tick_never_claims_the_lane_holds(tmp_path):
+    """Review round 1 F6 (executed): with the tick log 120 m stale quota_stop.py fails OPEN and holds
+    nothing, yet the line said "A builder's next world-changing tool is held". The LANE clause is
+    gated on the same freshness quota_stop.py reads (`QUOTA_STOP_TICK_LOG`,
+    `QUOTA_STOP_TICK_STALE_S`, default 900, non-finite → 900); a stale tick keeps the checkpoint
+    ask without the hold."""
+    state = tmp_path / "state"
+    _posture(state, band="RED", successor=None)
+    (state / "fleet-exhausted").write_text("0\nurgent-90\n")
+    log = tmp_path / "tick.log"
+    log.write_text("tick: ok\n")
+    env = {"QUOTA_STOP_TICK_LOG": str(log)}
+    lane = "band LANE on 5h — builders park, coordinators continue"
+    held = "next world-changing tool is held"
+    ups = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    fresh = _hook(ups, state=state, extra_env=env).stdout
+    assert lane in fresh and held in fresh, fresh
+    old = time.time() - 120 * 60
+    os.utime(log, (old, old))
+    for extra in ({}, {"QUOTA_STOP_TICK_STALE_S": "nan"}, {"QUOTA_STOP_TICK_STALE_S": "junk"}):
+        stale = _hook(ups, state=state, extra_env={**env, **extra}).stdout
+        assert "CHECKPOINT NOW" in stale, (extra, stale)
+        assert lane not in stale and held not in stale, (extra, stale)
+    # a raised bound makes the same tick fresh again
+    wide = _hook(ups, state=state, extra_env={**env, "QUOTA_STOP_TICK_STALE_S": "99999"}).stdout
+    assert lane in wide, wide
+    # no tick log at all is stale too — quota_stop.py fails open on it
+    gone = _hook(ups, state=state, extra_env={"QUOTA_STOP_TICK_LOG": str(tmp_path / "x")}).stdout
+    assert lane not in gone and held not in gone, gone
 
 
 def test_the_pretooluse_leg_defers_only_to_a_real_wall(tmp_path):
