@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Firecrawl proxy grader reads recrawl, retrieve and "scrapers at Firecrawl"; a reader's "read" is no fetch (2026-10-22)
+`tests/test_firecrawl_proxy_basic.py` (W-ddb716ca): `MENTION` now catches re-crawl and retrieve in every inflection and the verb-then-`at Firecrawl` form, and its 40-character far lookahead no longer counts `read`, which false-redded "Firecrawl docs are easy to read" (`read` still counts right after Firecrawl). One fixture per change, each proven red when its change is undone.
+
 ### Changed — /fabrik-review-scoped queue pass: a redactor runs a base differential and a URL parser names its classes (2026-10-22)
 
 - `commands/_fragments/review-probe-catalogue.md`, the Parsers hunt line: a regex redactor also runs beside the parent commit's redactor over one generated input corpus named in the brief, and the URL request-target grammar names its parser-differential classes in the round-1 brief (IDNA and numeric IPv4 hosts among them). `tests/test_review_scoped_queue_pass.py` pins it; the other 13 queue rows were rejected with reasons (W-20754b77).

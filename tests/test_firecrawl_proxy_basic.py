@@ -35,18 +35,27 @@ CORPUS = [
     for p in sorted((ROOT / "commands" / d).glob("*.md"))
 ]
 
-# a fetch verb in any inflection, never a lookalike ("ready", "scrapbook"); `read` only next to Firecrawl (W-ddb716ca:
-# forty characters away it is a reader's "read" — "Firecrawl docs are easy to read")
+# a fetch verb in any inflection, never a lookalike ("ready", "scrapbook"); forty characters from Firecrawl, `read`
+# after "easy/hard/simple/clear/difficult to" is a reader's (W-ddb716ca: "Firecrawl docs are easy to read")
 _FETCH = (
-    r"scrap(?:e|es|ed|ing|ers?)|(?:re-?)?crawl(?:s|ed|ing|ers?)?|retriev(?:e|es|ed|ing)"
+    r"(?:re-?)?scrap(?:e|es|ed|ing|ers?)|(?:re-?)?crawl(?:s|ed|ing|ers?)?|retriev(?:e|es|ed|ing|ers?)"
     r"|fetch(?:es|ed|ing)?|re-fetch"
 )
-_VERB = r"(?:" + _FETCH + r"|read(?:s|ing)?)\b"
-_FAR_VERB = r"(?:" + _FETCH + r")\b"
+_READ = r"read(?:s|ing)?"
+_VERB = r"(?:" + _FETCH + r"|" + _READ + r")\b"
+_FAR_VERB = (
+    r"(?:"
+    + _FETCH
+    + r"|(?<!easy to )(?<!hard to )(?<!simple to )(?<!clear to )(?<!difficult to )"
+    + _READ
+    + r")\b"
+)
 MENTION = re.compile(
     r"firecrawl_(?:\w*scrape|crawl)\b|mcp__firecrawl__\*"
     r"|\bfirecrawl(?:['’]s)?[\s-]+(?:\w+\s+){0,2}?(?:" + _VERB + r")"
-    r"|\b(?:" + _VERB + r")\s+(?:\S+\s+){0,5}?(?:with|via|through|using|by|from|at)\s+firecrawl\b"
+    r"|\b(?:" + _VERB + r")\s+(?:\S+\s+){0,5}?(?:with|via|through|using|by|from)\s+firecrawl\b"
+    # `at` only after a fetch verb two plain words off ("Point the scrapers at Firecrawl"), never "look at Firecrawl"
+    r"|\b(?:" + _FETCH + r")\b\s+(?:\w+\s+){0,2}?at\s+firecrawl\b"
     r"|\bfirecrawl\w*(?:\(\))?\.\s*(?:scrap|crawl)\w*"
     r"|\bfirecrawl\b(?=[^.;→\n]{0,60}`maxAge)"
     r"|\bfirecrawl\b(?=[^.;→\n]{0,40}\b(?:" + _FAR_VERB + r"))",
@@ -172,6 +181,13 @@ FIXTURES = {
     "Firecrawl retrieves the page for the seat.": 1,
     "Point the scrapers at Firecrawl via its API.": 1,
     "Firecrawl docs are easy to read.": 0,
+    "Firecrawl is used to read pages.": 1,
+    "Firecrawl, given a URL, then reads and returns markdown.": 1,
+    "read the docs at Firecrawl": 0,
+    "Scrape nothing; look at Firecrawl.": 0,
+    "Fetch the page and look at Firecrawl docs.": 0,
+    "Firecrawl retrievers run nightly.": 1,
+    "Firecrawl rescrapes the page.": 1,
 }
 
 
