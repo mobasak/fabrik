@@ -277,7 +277,7 @@ Appetite: 60
 **Steps** (sequential):
 
 1. Kaizen mails infra (`mail.py send --to fabrik --to-agent infra --kind request`, the D-035 contract) the diff below
-   — the prototype script `apply_hook_diff6.py` inline (it carries the comment block above verbatim) — and the Behaviour Contract B1–B7, and pings it live.
+   — the prototype script `apply_hook_diff7.py` inline (it carries the comment block above verbatim) — and the Behaviour Contract B1–B7, and pings it live.
 2. Infra writes B1–B7 in `tests/test_decision_panel.py`. B1 and B6's prose cases are red on today's hook; B6's
    design- and plan-approval cases pass today and are proven red on mutants that drop `not design_gate and` and
    `not why_design and`; the negated-label cases on one that drops the `_OPERATOR_KEPT_NEGATED_RE` check. B2–B5 and B7 pass today and
@@ -308,8 +308,10 @@ The diff (spec D5; infra may reshape it, the behaviour is fixed):
 # block passes only with a SPLIT `Panel:` line. A Why line naming design or plan approval is
 # never operator-kept (D-613). A label, not prose, because prose matching read "not
 # customer-facing" and a `public-api` path as operator-kept. Money and irreversible are matched
-# anywhere on the line, a negation included, and beat a design match that comes from the
-# Question alone: a false match sends a block to the operator, never money to the panel.
+# anywhere on the line, a negation included; money, irreversible and a valid label beat a
+# design match that comes from the Question alone: a false match sends a block to the operator,
+# never money to the panel. In autonomy mode a line whose only un-negated labels carry an
+# unknown token is refused by name.
 # COBRA (D-253): the cheapest way past is a false label, or a stray money word, on a
 # panel-decided block; the block then reaches the coordinator, which validates the class
 # against the Question line.
@@ -335,7 +337,7 @@ _NO_GATE_CLASS = (...)  # the existing "names no gate class" refusal text, moved
              if not _OPERATOR_KEPT_NEGATED_RE.search(why[: m.start()])),
             None,
         )
-        if label is None and any(
+        if _PANEL_MODE and label is None and any(
             not _OPERATOR_KEPT_NEGATED_RE.search(why[: m.start()])
             for m in _OPERATOR_KEPT_ANY_RE.finditer(why)
         ):
@@ -370,8 +372,8 @@ GATE comment widens from a design-approval gate to every panel-decided class (D-
 - **Given** autonomy mode and that block with a verified split `Panel:` line, **When** the hook parses it, **Then** it passes as `gate` (B2)
 - **Given** autonomy mode and an unpaneled block carrying the label — written five ways: "operator-kept: public", "Operator-kept: public", "**operator-kept:** public", "operator kept: `public`", "OPERATOR-KEPT:public" — and once with each other token (above-ceiling, recurring, operator-minted, unbacked), once after a negated label ("not operator-kept: public; operator-kept: recurring hosting"), once as the OPERATOR-GATE handoff ("deploy — operator-kept: operator-minted — the plan's OPERATOR-GATE step, …"), and once with a Question that asks to approve a spec ("deploy — Gate 2, operator-kept: public" with "Do you approve the deploy described in the spec?"), **When** the hook parses each, **Then** each passes as `gate` (B3)
 - **Given** autonomy mode and an unpaneled block naming spend ("spend — $5 of API credits", "spend — inside the ceiling") or "irreversible — drop and recreate the database", or a spend block whose Question asks to approve a spec ("spend — $40/month hosting" with "Do you approve the hosting cost in the spec?"), **When** the hook parses each, **Then** each passes as `gate` (B4)
-- **Given** autonomy mode OFF (a project repo), **When** the hook parses the B1 block, **Then** it passes as today (B5)
-- **Given** autonomy mode and an unpaneled block whose Why line uses prose instead of the label — "not customer-facing", "a customer-facing production deploy", "our own public docs site", "no backup needed", "the republic VPS", "not operator-kept: public", "**not** operator-kept: public", "not  operator-kept: public" (two spaces), "operator-kept: public-api docs" — or a Why line naming design or plan approval that carries the label, names a `public-api` path, or mentions money or an irreversible act ("design approval of …-spend-ledger-design.md", "design approval of the irreversible-migration spec …", "plan approval of … , spends no money"), **When** the hook parses each, **Then** each is refused as panel-decided; and a label with any other token ("operator-kept: whatever", "operator-kept: public-facing") is refused with "carries a token outside", never read as panel-decided (B6)
+- **Given** autonomy mode OFF (a project repo), **When** the hook parses the B1 block and a block carrying `operator-kept: whatever`, **Then** each passes as today (B5)
+- **Given** autonomy mode and an unpaneled block whose Why line uses prose instead of the label — "not customer-facing", "a customer-facing production deploy", "our own public docs site", "no backup needed", "the republic VPS", "not operator-kept: public", "**not** operator-kept: public", "not  operator-kept: public" (two spaces), "operator-kept: public-api docs" — or a Why line naming design or plan approval that carries the label, names a `public-api` path, or mentions money or an irreversible act ("design approval of …-spend-ledger-design.md", "design approval of the irreversible-migration spec …", "plan approval of … , spends no money"), **When** the hook parses each, **Then** each is refused as panel-decided; and a line whose only un-negated labels carry another token ("operator-kept: whatever", "operator-kept: public-facing") is refused with "carries a token outside", never read as panel-decided, while an unknown token beside a valid label leaves the valid one counting (B6)
 - **Given** autonomy mode and a `ground: gate` block whose Why names no gate class, **When** the hook parses it, **Then** it is refused with "names no gate class", not with the panel refusal (B7)
 - **Mocked:** nothing — the tests drive the real `parse_decision_block` over synthetic transcripts in `tmp_path`, as the file's existing cases do.
 
@@ -656,6 +658,11 @@ FAILED tests/test_decision_panel.py::test_deploy_gate_needs_no_panel
   spec-Question label cases, "operator-kept: public-facing") and the suites: 41 OK, 0 BAD; `2 failed, 475 passed, 2
   skipped in 25.99s`, the two failures the tests Phase B step 2 substitutes.
 
+- Phase B's diff after pass 6 (v7: `_PANEL_MODE` guards the unknown-token refusal, so a project repo keeps
+  today's rule; the prototype carries the plan's comment block), `apply_hook_diff7.py` on a fresh copy at
+  87cfa3895; the v7 probe (`test_zz_probe_b7.py`: the v6 cases, an unknown token beside a valid label, and three
+  autonomy-off cases) and the suites: 45 OK, 0 BAD; `2 failed, 479 passed, 2 skipped in 24.16s`, the two failures the tests Phase B step 2 substitutes.
+
 - Baseline of the four suites the phases touch:
 
 ```text
@@ -705,3 +712,5 @@ $ /opt/fabrik/scripts/capped_run.sh -- timeout 300 .venv/bin/python -m pytest te
 | Pass 3 | opus×1 + sonnet×1 (the round-1 slice owners) · their own claims over the pass-2 fix diff + one hop; the opus seat re-probed the v3 diff (24 cases), the sonnet seat ran A6's regex over today's and the planned text · shape: agent-tool | found: 5, new: 5, confirmed: 5, fixed: 5, unexecuted: 0, edits: 5 | method: re-derivation — delta over Phase B's diff, B4, B6, step 2's mutants, A6, Coverage, Evidence and spec D5; every one residue of a pass-2 fix (a design approval naming money skipped D-613; a bold or double-spaced `not`; A6's `(?! on)` also skipped "ONLY"; a stale Coverage row; the prototype's stale comment); the orchestrator rebuilt the prototype whole as v4 and re-ran it (35 probe cases, 0 wrong; the suites 2 named red, 469 green) | e7cde0c6… → 572839bf… |
 | Pass 4 | opus×1 + sonnet×1 (the round-1 slice owners) · their own claims over the pass-3 fix diff + one hop; the opus seat probed v4 with 35 cases, the sonnet seat re-ran A6 red on today's text and green on the planned text · shape: agent-tool | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — delta over Phase B's diff, B3 and Evidence; the one finding fail-closed residue of pass 3 (a negated first label hid a later valid one); sonnet slice confirmed 0; the orchestrator re-ran v5 (36 probe cases, 0 wrong) | 243e3e88… → 4c3e4f05… |
 | Pass 5 | opus×1 + sonnet×1 (the round-1 slice owners) · their own claims over the pass-4 fix diff + one hop; the opus seat probed v5 with 42 cases (the `finditer` change's own input space included), the sonnet seat listed the diff's hunks and re-checked its slice's one-hop sections · shape: agent-tool | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — delta over Phase B's code block, B3, step 1 and Evidence; 42 probe cases 0 wrong, the suite 43 passed with the two substituted tests deselected; standing clean since earlier passes: every other class | 4c3e4f05… → 4c3e4f05… ✓ |
+| Panel | opus×1 + fable×1, the operator's stand-ins (D-613), one brief, neither shown the other · shape: agent-tool | 8 + 8 concerns, 13 distinct after overlap, all ACCEPTED and folded (the receipt's panel table) | panel — both VERDICT lines `sound-with-changes`; the orchestrator executed each concern before accepting it and rebuilt the prototype as v6 (41 cases right) | 4c3e4f05… → 4e7c8ff9… |
+| Pass 6 | opus×1 + sonnet×1 (the round-1 slice owners) · the panel fold + one hop — the critique step's delta round; the opus seat probed v6 with 56 cases, autonomy on and off | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 3 | method: re-derivation — the unknown-token refusal fired with autonomy off (B5 broken), the prototype's comment lagged the plan, D5 over-stated the refusal; sonnet slice confirmed 0; v7 rebuilt and probed (45 cases right) | 4e7c8ff9… → see Pass 7 |
