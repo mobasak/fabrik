@@ -3,7 +3,7 @@
 Two WSL out-of-memory crashes on 2026-10-17 came from one test process growing to ~32 GB (an
 unpatched `ssh()` handing `yaml.safe_load` a MagicMock; replayed, ~300 MB/s). These tests drive the
 real `scripts/capped_run.sh` under `systemd-run --user`, each in its OWN throwaway slice: the shared
-`fabrik-tests.slice` total is a box-wide value other sessions' runs depend on, so no test ever sets
+`fabrik-agents-tests.slice` total is a box-wide value other sessions' runs depend on, so no test ever sets
 it. Every allocation here is bounded far below the box (a few hundred MB at most).
 """
 
@@ -404,7 +404,8 @@ def test_the_gate_names_a_ceiling_kill_only_when_the_runner_reports_one(monkeypa
     import final_gate as fg
 
     mark = (
-        "capped_run: killed at the memory ceiling (4G per run, 12G for fabrik-tests.slice) — pytest"
+        "capped_run: killed at the memory ceiling (4G per run, 12G for fabrik-agents-tests.slice)"
+        " — pytest"
     )
     for code, out, named in (
         (137, "F\n1 failed\n" + mark, True),
@@ -422,3 +423,165 @@ def test_this_hub_session_is_capped(request):
     assert memguard.WATCHDOG is not None and memguard.WATCHDOG.poll() is None, "no live watchdog"
     assert request.config.pluginmanager.hasplugin("timeout"), "pytest-timeout is not loaded"
     assert request.config.getini("timeout") == "600"
+
+
+# --- T05 (W-6e656dac): the nested slice and the admission band ---------------------------------------------------
+
+FAKE_SYSTEMCTL = """#!/bin/sh
+echo "$*" >> "$HOME/systemctl.log"
+exit 0
+"""
+FAKE_SYSTEMD_RUN = """#!/bin/sh
+echo "$*" >> "$HOME/systemd-run.log"
+while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done
+shift
+exec "$@"
+"""
+
+
+def _stub_home(tmp_path: Path) -> Path:
+    """A HOME whose `systemctl`/`systemd-run` are logging stubs: no real slice is ever touched."""
+    home = tmp_path / "stubhome"
+    (home / "bin").mkdir(parents=True)
+    for tool, text in (("systemctl", FAKE_SYSTEMCTL), ("systemd-run", FAKE_SYSTEMD_RUN)):
+        (home / "bin" / tool).write_text(text, encoding="utf-8")
+        (home / "bin" / tool).chmod(0o755)
+    return home
+
+
+def _proc(
+    tmp_path: Path, avail_kb: int | None, psi: str | None = "0.00", name: str = "proc"
+) -> Path:
+    """A fake /proc root: MemAvailable and (optionally) the memory PSI line. None leaves the file out."""
+    root = tmp_path / name
+    (root / "pressure").mkdir(parents=True, exist_ok=True)
+    if avail_kb is not None:
+        (root / "meminfo").write_text(
+            f"MemTotal:       28000000 kB\nMemAvailable:   {avail_kb} kB\n", encoding="utf-8"
+        )
+    if psi is not None:
+        (root / "pressure" / "memory").write_text(
+            f"some avg10={psi} avg60=0.00 avg300=0.00 total=1\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n",
+            encoding="utf-8",
+        )
+    return root
+
+
+def _admit_env(home: Path, proc: Path, wait: str) -> dict[str, str]:
+    return {
+        "PATH": f"{home}/bin:/usr/bin:/bin",
+        "HOME": str(home),
+        "FABRIK_PROC_ROOT": str(proc),
+        "FABRIK_TEST_ADMIT_WAIT": wait,
+    }
+
+
+def test_the_run_nests_under_the_agents_slice(tmp_path):
+    """The default slice is fabrik-agents-tests.slice — systemd nests it under fabrik-agents.slice by the dashed name,
+    so the parent's ceiling bounds the test jobs — and the 12G cap on it is kept."""
+    home = _stub_home(tmp_path)
+    run = _capped("--", "true", env=_admit_env(home, _proc(tmp_path, 8_000_000), "0"))
+    assert run.returncode == 0, run.stderr
+    sysctl = (home / "systemctl.log").read_text(encoding="utf-8")
+    assert (
+        "set-property --runtime fabrik-agents-tests.slice MemoryMax=12G MemorySwapMax=0" in sysctl
+    ), sysctl
+    assert "--slice=fabrik-agents-tests.slice" in (home / "systemd-run.log").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_healthy_box_starts_at_once_and_says_nothing(tmp_path):
+    home = _stub_home(tmp_path)
+    t0 = time.monotonic()
+    run = _capped("--", "true", env=_admit_env(home, _proc(tmp_path, 8_000_000), "30"))
+    assert run.returncode == 0 and "admission" not in run.stderr, run.stderr
+    assert time.monotonic() - t0 < 10
+
+
+def test_low_memory_waits_up_to_the_bound_then_starts_and_says_so(tmp_path):
+    """MemAvailable under 3 GiB holds the start for FABRIK_TEST_ADMIT_WAIT seconds, then the job runs anyway."""
+    home = _stub_home(tmp_path)
+    t0 = time.monotonic()
+    run = _capped("--", "true", env=_admit_env(home, _proc(tmp_path, 2_000_000), "2"))
+    took = time.monotonic() - t0
+    assert run.returncode == 0, run.stderr
+    assert took >= 2, took
+    assert "admission: waiting" in run.stderr and "MemAvailable" in run.stderr, run.stderr
+    assert "starting anyway after 2s" in run.stderr, run.stderr
+
+
+def test_the_admission_wait_counts_against_the_runs_time_limit(tmp_path):
+    """Callers bound the whole wrapper at timeout + 60 s, so the seconds waited come off the run's own limit
+    (RuntimeMaxSec) and the wait line says so; the wait is itself bounded at half the limit, so a run keeps at least half."""
+    home = _stub_home(tmp_path)
+    env = _admit_env(home, _proc(tmp_path, 2_000_000), "2")
+    run = _capped("--timeout", "100", "--", "true", env=env)
+    assert run.returncode == 0, run.stderr
+    assert "count against the 100s time limit" in run.stderr, run.stderr
+    assert "RuntimeMaxSec=98 " in (home / "systemd-run.log").read_text(encoding="utf-8")
+    (home / "systemd-run.log").unlink()
+    # a wait as long as the limit would be a guaranteed time-out: the wait itself is bounded at half the limit
+    long_wait = _admit_env(home, _proc(tmp_path, 2_000_000, name="busy"), "300")
+    run = _capped("--timeout", "6", "--", "true", env=long_wait)
+    assert run.returncode == 0, run.stderr
+    assert "waiting up to 3s" in run.stderr and "starting anyway after 3s" in run.stderr, run.stderr
+    assert "RuntimeMaxSec=3 " in (home / "systemd-run.log").read_text(encoding="utf-8")
+    (home / "systemd-run.log").unlink()
+    healthy = _admit_env(home, _proc(tmp_path, 8_000_000, name="ok"), "30")
+    assert _capped("--timeout", "100", "--", "true", env=healthy).returncode == 0
+    assert "RuntimeMaxSec=100 " in (home / "systemd-run.log").read_text(encoding="utf-8")
+
+
+def test_memory_pressure_holds_the_start_too(tmp_path):
+    """PSI `some avg10` over 10 is the second trigger, with MemAvailable healthy."""
+    home = _stub_home(tmp_path)
+    run = _capped("--", "true", env=_admit_env(home, _proc(tmp_path, 8_000_000, psi="42.50"), "1"))
+    assert run.returncode == 0, run.stderr
+    assert "admission: waiting" in run.stderr and "PSI" in run.stderr, run.stderr
+    assert "starting anyway after 1s" in run.stderr, run.stderr
+
+
+def test_the_wait_ends_as_soon_as_the_box_recovers(tmp_path):
+    home = _stub_home(tmp_path)
+    proc = _proc(tmp_path, 1_000_000)
+    env = _admit_env(home, proc, "30")
+    t0 = time.monotonic()
+    child = subprocess.Popen(
+        [str(CAPPED), "--", "true"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    time.sleep(2)
+    (proc / "meminfo").write_text(
+        "MemTotal: 28000000 kB\nMemAvailable: 9000000 kB\n", encoding="utf-8"
+    )
+    _, err = child.communicate(timeout=30)
+    assert child.returncode == 0, err
+    assert time.monotonic() - t0 < 20
+    assert "admission: waiting" in err and "starting anyway" not in err, err
+
+
+def test_an_unreadable_meminfo_or_psi_starts_at_once_and_says_so(tmp_path):
+    home = _stub_home(tmp_path)
+    for label, proc in (
+        ("no-meminfo", _proc(tmp_path, None, name="p1")),
+        ("no-psi", _proc(tmp_path, 1_000_000, psi=None, name="p2")),
+    ):
+        t0 = time.monotonic()
+        run = _capped("--", "true", env=_admit_env(home, proc, "30"))
+        assert run.returncode == 0, (label, run.stderr)
+        assert time.monotonic() - t0 < 10, label
+        assert "admission: unreadable" in run.stderr and "starting at once" in run.stderr, (
+            label,
+            run.stderr,
+        )
+
+
+def test_a_bad_admission_wait_exits_2(tmp_path):
+    home = _stub_home(tmp_path)
+    for bad in ("x", "-1", "99999"):
+        run = _capped("--", "true", env=_admit_env(home, _proc(tmp_path, 8_000_000), bad))
+        assert run.returncode == 2 and "FABRIK_TEST_ADMIT_WAIT" in run.stderr, (bad, run.stderr)
