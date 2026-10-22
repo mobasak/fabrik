@@ -1470,3 +1470,123 @@ def test_profile_rewrites_a_number_where_the_deck_wants_a_boolean(box):
     assert (
         got["window.autoDetectColorScheme"] is False and got["workbench.statusBar.visible"] is True
     )
+
+
+# --- W-b364b48d: the default distro when WSL_DISTRO_NAME is unset ------------------------------------------------
+def _deck_module():
+    spec = importlib.util.spec_from_file_location("fabrik_deck_distro_probe", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def _fake_wslpath(tmp_path: Path, out: str, rc: int = 0) -> Path:
+    """A wslpath stand-in printing ``out`` for `-w /`, and logging that it ran."""
+    exe = tmp_path / "wslpath"
+    _exe(
+        exe,
+        f"#!{sys.executable}\nimport sys\nopen({str(tmp_path / 'wslpath.log')!r}, 'a').write(' '.join(sys.argv[1:]))\n"
+        f"sys.stdout.write({out!r})\nsys.exit({rc})\n",
+    )
+    return exe
+
+
+@pytest.fixture
+def no_env_distro(monkeypatch, tmp_path):
+    m = _deck_module()
+    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
+    (tmp_path / "desk").mkdir()
+    return m
+
+
+def test_default_distro_prefers_a_non_empty_environment(no_env_distro, monkeypatch, tmp_path):
+    m = no_env_distro
+    monkeypatch.setenv("WSL_DISTRO_NAME", "Mine")
+    monkeypatch.setattr(m, "WSLPATH", str(_fake_wslpath(tmp_path, "\\\\wsl.localhost\\Other\\\n")))
+    assert m._default_distro() == "Mine"
+    assert not (tmp_path / "wslpath.log").exists()
+
+
+@pytest.mark.parametrize("env", [None, ""])
+@pytest.mark.parametrize(
+    "out", ["\\\\wsl.localhost\\Ubuntu-24.04\\\n", "\\\\wsl$\\Ubuntu-24.04\\\n"]
+)
+def test_default_distro_reads_this_distro_from_wslpath(
+    no_env_distro, monkeypatch, tmp_path, env, out
+):
+    m = no_env_distro
+    if env is not None:
+        monkeypatch.setenv("WSL_DISTRO_NAME", env)
+    monkeypatch.setattr(m, "WSLPATH", str(_fake_wslpath(tmp_path, out)))
+    assert m._default_distro() == "Ubuntu-24.04"
+    assert (tmp_path / "wslpath.log").read_text() == "-w /"
+
+
+@pytest.mark.parametrize("case", ["missing", "rc", "not-a-unc"])
+def test_default_distro_is_empty_when_wslpath_cannot_name_one(
+    no_env_distro, monkeypatch, tmp_path, case
+):
+    m = no_env_distro
+    if case == "missing":
+        exe = tmp_path / "absent"
+    elif case == "rc":
+        exe = _fake_wslpath(tmp_path, "\\\\wsl.localhost\\Ubuntu-24.04\\\n", rc=1)
+    else:
+        exe = _fake_wslpath(tmp_path, "C:\\\n")
+    monkeypatch.setattr(m, "WSLPATH", str(exe))
+    assert m._default_distro() == ""
+
+
+def test_launcher_without_a_distro_refuses_naming_both_remedies(
+    no_env_distro, monkeypatch, tmp_path, capsys
+):
+    m = no_env_distro
+    monkeypatch.setattr(m, "WSLPATH", str(tmp_path / "absent"))
+    with pytest.raises(SystemExit) as exit_:
+        m.main(["launcher", "--desktop", str(tmp_path / "desk"), "--hub", "/opt/fabrik"])
+    assert exit_.value.code == 2
+    err = capsys.readouterr().err
+    assert "WSL_DISTRO_NAME" in err and "--distro" in err and "none derived" in err
+    assert not (tmp_path / "desk" / "Fabrik Deck.bat").exists()
+
+
+def test_launcher_without_a_distro_pins_this_distro(no_env_distro, monkeypatch, tmp_path, capsys):
+    m = no_env_distro
+    monkeypatch.setattr(
+        m, "WSLPATH", str(_fake_wslpath(tmp_path, "\\\\wsl.localhost\\Ubuntu-24.04\\\n"))
+    )
+    m.main(["launcher", "--desktop", str(tmp_path / "desk"), "--hub", "/opt/fabrik"])
+    text = (tmp_path / "desk" / "Fabrik Deck.bat").read_bytes().decode("ascii")
+    assert "wsl.exe --distribution Ubuntu-24.04 --exec" in text
+    assert "--distro derived as Ubuntu-24.04" in capsys.readouterr().err
+
+
+def test_an_explicit_distro_wins_and_nothing_is_derived(no_env_distro, monkeypatch, tmp_path):
+    m = no_env_distro
+    monkeypatch.setenv("WSL_DISTRO_NAME", "FromEnv")
+    monkeypatch.setattr(m, "WSLPATH", str(_fake_wslpath(tmp_path, "\\\\wsl.localhost\\Other\\\n")))
+    m.main(
+        [
+            "launcher",
+            "--desktop",
+            str(tmp_path / "desk"),
+            "--hub",
+            "/opt/fabrik",
+            "--distro",
+            "Explicit",
+        ]
+    )
+    text = (tmp_path / "desk" / "Fabrik Deck.bat").read_bytes().decode("ascii")
+    assert "--distribution Explicit --exec" in text
+    assert not (tmp_path / "wslpath.log").exists()
+
+
+def test_a_derived_distro_name_cmd_would_split_is_refused(no_env_distro, monkeypatch, tmp_path):
+    m = no_env_distro
+    monkeypatch.setattr(
+        m, "WSLPATH", str(_fake_wslpath(tmp_path, "\\\\wsl.localhost\\Ub&calc\\\n"))
+    )
+    with pytest.raises(SystemExit) as exit_:
+        m.main(["launcher", "--desktop", str(tmp_path / "desk"), "--hub", "/opt/fabrik"])
+    assert exit_.value.code == 2
+    assert not (tmp_path / "desk" / "Fabrik Deck.bat").exists()

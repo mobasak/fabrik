@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Fabrik Deck launcher pins the distro it runs in when WSL_DISTRO_NAME is unset (2026-10-23)
+
+`fabrik_deck.py launcher` and `install --desktop` no longer refuse in a code-server, tmux or unit shell, none of which carries `$WSL_DISTRO_NAME`: an omitted `--distro` is now a non-empty `$WSL_DISTRO_NAME`, else the distro the script runs in, read from `wslpath -w /` (`\\wsl.localhost\<distro>\`), and stderr says it was derived. Never the Windows default distro, which can be another one. An explicit `--distro` (even `''`) is untouched; an underivable one is refused naming both remedies; a desktop-less `install` never probes. W-b364b48d, D-1137.
+
 ### Fixed — A payments login escalated out of band is refused on re-apply, never stripped (2026-10-23)
 
 `mint_payments_role`'s re-apply now refuses, before any ALTER and leaving the login as it is (D-1105), a payments role that is a member of any role, is granted to another role, holds a grant in another database, or owns a persistent object in its own database, or holds a grant on a shared object (another database, a tablespace, a parameter). A live session's temp table or temp function in its own database is not counted, the guard's own-database read fails closed on anything it cannot parse, and the re-apply's DO backstop refuses a membership too. The other callers of `_foreign_role_reasons` are unchanged (`escalation` defaults off), and a superuser is still refused by the re-apply's DO block (W-98debf05, D-1136).

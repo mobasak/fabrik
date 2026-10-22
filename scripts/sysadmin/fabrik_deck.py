@@ -29,7 +29,8 @@ launcher --desktop DIR — write "Fabrik Deck.bat" there: it runs `up` in WSL, w
 from Windows, then the first time opens the board (and records that in a marker file beside the .bat); afterwards it
 starts the browser only when it is not running, with no URL, so the browser's session restore brings the tabs back. A
 .bat whose second line is not our marker is never overwritten (exit 2); a hub, distro or browser value cmd would split
-is refused (the browser must be a Windows path to an .exe).
+is refused (the browser must be a Windows path to an .exe). --distro defaults to $WSL_DISTRO_NAME, else this distro
+(`wslpath -w /`); neither naming one is refused.
 
 up — the .bat's WSL leg: export XDG_RUNTIME_DIR when the user bus is there (a .bat carries none; with no bus it says
 so, starts nothing and exits 1), start each unit that is not active and whose port is free (a held port is named on
@@ -885,6 +886,35 @@ def _bat_text(hub: Path, distro: str, browser: str) -> str:
     return "\r\n".join(lines) + "\r\n"
 
 
+WSLPATH = "/usr/bin/wslpath"  # in-distro (a symlink to /init): needs no Windows interop and no environment
+
+
+def _default_distro() -> str:
+    """A non-empty $WSL_DISTRO_NAME, else the distro this script runs in, from `wslpath -w /`; '' on failure.
+
+    A shell systemd or linger started (code-server, tmux, the units) has no WSL_DISTRO_NAME (W-b364b48d). The .bat
+    must pin THIS distro — the units and the hub live here — never the Windows default (`wsl.exe -l -v`'s `*` row),
+    which can be another distro. '' reaches _bat_check, which refuses it.
+    """
+    env = os.environ.get("WSL_DISTRO_NAME", "")
+    if env:
+        return env
+    try:
+        r = subprocess.run(
+            [WSLPATH, "-w", "/"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    m = re.fullmatch(
+        r"\\\\wsl(?:\.localhost|\$)\\([^\\]+)\\", r.stdout.decode(errors="replace").strip()
+    )
+    return m.group(1) if r.returncode == 0 and m else ""
+
+
 def _bat_check(desktop: Path, distro: str, browser: str, code: int) -> Path:
     """Refuse (exit `code`) a value cmd would split or expand, or a .bat this script did not write; the target."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", distro or ""):
@@ -1075,6 +1105,23 @@ def install(hub: Path, start: bool, desktop: Path | None, distro: str, browser: 
         print(f"{unit}: {r.stdout.strip() or r.stderr.strip()}")
 
 
+def _distro(explicit: str | None, code: int) -> str:
+    """An explicit --distro (even '') is never second-guessed; an omitted one is derived, or refused (exit `code`)."""
+    if explicit is not None:
+        return explicit
+    derived = _default_distro()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", derived):
+        _die(
+            code,
+            f"no --distro given and none derived ({derived!r} from $WSL_DISTRO_NAME or `wslpath -w /`): "
+            "set WSL_DISTRO_NAME or pass --distro",
+        )
+    print(
+        f"fabrik_deck: --distro derived as {derived} (pass --distro to override)", file=sys.stderr
+    )
+    return derived
+
+
 def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["hook"]:
@@ -1099,8 +1146,8 @@ def main(argv: list[str] | None = None) -> None:
     def bat_flags(p: argparse.ArgumentParser) -> None:
         p.add_argument(
             "--distro",
-            default=os.environ.get("WSL_DISTRO_NAME", ""),
-            help="the WSL distro the .bat starts",
+            default=None,
+            help="the WSL distro the .bat starts (default: $WSL_DISTRO_NAME, else this distro, from wslpath -w /)",
         )
         p.add_argument("--browser", default=VIVALDI, help="the Windows browser the .bat opens")
 
@@ -1156,13 +1203,14 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "profile":
         profile()
     elif args.cmd == "launcher":
-        launcher(args.desktop, args.distro, args.browser, args.hub)
+        launcher(args.desktop, _distro(args.distro, 2), args.browser, args.hub)
     elif args.cmd == "up":
         up(args.runtime_dir)
     else:
         if shutil.which("systemd-analyze") is None:
             _die(1, "systemd-analyze is not installed")
-        install(args.hub.resolve(), args.start, args.desktop, args.distro, args.browser)
+        distro = _distro(args.distro, 1) if args.desktop is not None else ""
+        install(args.hub.resolve(), args.start, args.desktop, distro, args.browser)
 
 
 if __name__ == "__main__":

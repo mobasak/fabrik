@@ -69,7 +69,7 @@ hub script or `~/.local/bin/code-server` missing; a foreign unit file at either 
 printing anything for either unit; a port in the env file that does not parse, or the two ports equal; an env file
 that is not UTF-8; a `config.yaml` that cannot be read; a settings.json that is not a plain JSON object (an empty one
 counts as no settings); a backup that cannot be written; with `--desktop`, a desktop that is not a directory, a
-`Fabrik Deck.bat` this script did not write, a missing distro (`$WSL_DISTRO_NAME` unset and no `--distro`), or a
+`Fabrik Deck.bat` this script did not write, a missing distro (no `--distro`, `$WSL_DISTRO_NAME` unset or empty, and `wslpath -w /` naming none), or a
 distro or browser value `cmd` would split; and with `--start`, something listening on the port of a unit that is not
 active (an active unit holds its own port, so it is not refused). A failing `systemctl` after the files are written
 exits 1 and leaves them in place. It ends by printing `systemctl --user is-enabled` for each unit.
@@ -176,7 +176,9 @@ run exits 1 naming it; remove the comments, or set the keys by hand.
 
 `fabrik_deck.py launcher --desktop DIR [--distro D] [--browser PATH]` (and `install --desktop`) writes
 `DIR/Fabrik Deck.bat` — the operator's desktop is `/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop`
-(`docs/reference/repo-coordinator-rollout.md`). `--distro` defaults to `$WSL_DISTRO_NAME`, `--browser` to
+(`docs/reference/repo-coordinator-rollout.md`). `--distro` defaults to `$WSL_DISTRO_NAME`, else the distro the script runs in (`wslpath -w /`, which needs no
+environment — a code-server, tmux or unit shell has no `$WSL_DISTRO_NAME`; never the Windows default distro, which can
+be another one), `--browser` to
 `C:\Users\user\AppData\Local\Vivaldi\Application\vivaldi.exe` (it must be a Windows path to an `.exe`), `--hub` to
 `/opt/fabrik` (letters, digits and `/ . _ -` only). A double-click:
 
