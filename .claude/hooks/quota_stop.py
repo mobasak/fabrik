@@ -29,7 +29,7 @@ clock — the premature stop the operator's "utilize quotas utmost" directive fo
 allowing every session gave the last points to whoever asked first (D-1113). So the warning tier
 is the LANE (W-18f559d9): `lane_exempt` lets the bound merge owner of a coordinator_mode repo and
 the bound owner of an open P0 item continue with a nudge, and PARKS every other session with the
-wall's allow-list plus the finishing verbs (`merge_request.py request|send`, `work.py
+wall's allow-list plus the finishing verbs (`merge_request.py request`, `work.py
 claim|release <W-id>`, SubagentHandback, SendMessage) and a park message naming its claimed items
 and the lift time; `final_gate_stop.py` loads `lane_exempt` from this file for its urgent branch.
 The wall tier holds everyone. A stamp that does not plainly name a
@@ -728,13 +728,18 @@ _LANE_READ_MAX = 8 * 1024 * 1024
 # whoami_agent.py `_NAME_RE` (fullmatch): a name outside it is never a binding
 _AGENT_NAME_RE = re.compile(r"[a-z0-9-]{1,32}")
 _ITEM_ID_RE = re.compile(r"W-[0-9a-f]{8}")
-_ITEM_RESOLVED = frozenset({"done", "dropped", "closed"})
 # The finishing verbs, the LANE's alone (never the wall's): send the merge request for finished
-# work, and renew or release a claim. Same anchors as `_ALLOWED_BASH`'s `scripts/` branch.
+# work, and renew or release a claim. Same anchors as `_ALLOWED_BASH`'s `scripts/` branch, and
+# anchored at the END too: an open tail admitted `work.py claim <id> --session <another sid>`,
+# `--repo /etc` and a second id (review round 1 F4, executed). `request` takes only the three
+# options its argparse defines (`--review`, `--item`, `--base`), each value a plain word that is
+# not an option; `merge_request.py` has no `send` verb (F3).
+_LANE_VALUE = r"[\w./@+~][\w./@+~:-]*"
 _LANE_BASH = re.compile(
     r"^[ \t]*python3?(?:\.\d+)?[ \t]+(?:/opt/[\w-][\w.-]*/)?scripts/"
-    r"(?:merge_request\.py[ \t]+(?:request|send)"
-    r"|work\.py[ \t]+(?:claim|release)[ \t]+W-[0-9a-f]{8})(?=[ \t]|$)",
+    rf"(?:merge_request\.py[ \t]+request(?:[ \t]+--(?:review|base)[ \t]+{_LANE_VALUE}"
+    r"|[ \t]+--item[ \t]+W-[0-9a-f]{8})*"
+    r"|work\.py[ \t]+(?:claim|release)[ \t]+W-[0-9a-f]{8})[ \t]*\Z",
     re.ASCII,
 )
 # tools a parked session still needs to finish: a subagent's hand-back is text, and a merge
@@ -900,7 +905,8 @@ def _merge_owner(main: Path) -> str:
 
 def _open_p0_items(main: Path, common: Path, name: str) -> list[str]:
     """Ids of the OPEN items with `priority` the int 0 whose `owner` is `name` (casefold): status
-    not done/dropped/closed and no closed marker under `<common>/fabrik-work/closed/`."""
+    exactly `open` (a `blocked` or `awaiting-operator` item is one its owner cannot work — work.py
+    STATUSES) and no closed marker under `<common>/fabrik-work/closed/`."""
     key = name.casefold()
     closed = common / "fabrik-work" / "closed"
     out: list[str] = []
@@ -922,7 +928,7 @@ def _open_p0_items(main: Path, common: Path, name: str) -> list[str]:
             and isinstance(prio, int)
             and not isinstance(prio, bool)
             and prio == 0
-            and item.get("status") not in _ITEM_RESOLVED
+            and item.get("status") == "open"
             and str(item.get("owner") or "").strip().casefold() == key
         ):
             continue
@@ -990,8 +996,23 @@ def lane_exempt(sid: str | None, project_dir: str | None) -> tuple[bool, str]:
         return False, f"lane check failed ({type(exc).__name__})"
 
 
-def _stamp_promise(stamp: Path) -> float | None:
-    """Line 1 of the stamp — the tick's promised resume epoch — when it is a positive number."""
+# A lift epoch is believed only inside this window around now: `time.localtime` raises on an epoch
+# outside the platform's time_t (1e20 — the hook then exited 1 with no JSON and Claude Code ran the
+# tool, review round 1 F1), and no 5-hour window resets more than a weekly window away.
+_LIFT_PAST_S = 86400.0
+_LIFT_FUTURE_S = 8 * 86400.0
+
+
+def _plausible_epoch(v: object, now: float) -> float | None:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    v = float(v)
+    ok = math.isfinite(v) and now - _LIFT_PAST_S < v < now + _LIFT_FUTURE_S
+    return v if ok else None
+
+
+def _stamp_promise(stamp: Path, now: float | None = None) -> float | None:
+    """Line 1 of the stamp — the tick's promised resume epoch — when it is a plausible epoch."""
     text = _regular_text(stamp)
     if text is None:
         return None
@@ -999,28 +1020,39 @@ def _stamp_promise(stamp: Path) -> float | None:
         v = float(text.split("\n", 1)[0].strip())
     except ValueError:
         return None
-    return v if math.isfinite(v) and v > 0 else None
+    return _plausible_epoch(v, time.time() if now is None else now)
 
 
-def _posture_reset() -> float | None:
-    """The posture's `active.windows.five_hour.resets_at`, when it is a positive finite number."""
+def _posture_reset(now: float | None = None) -> float | None:
+    """The posture's `active.windows.five_hour.resets_at`, when it is a plausible epoch."""
     try:
         doc = json.loads(_regular_text(_state_dir() / "quota-posture.json") or "null")
         v = doc["active"]["windows"]["five_hour"]["resets_at"]
     except (ValueError, TypeError, KeyError):
         return None
-    if isinstance(v, bool) or not isinstance(v, (int, float)):
+    return _plausible_epoch(v, time.time() if now is None else now)
+
+
+def _render_lift(at: float, now: float) -> str | None:
+    """`at HH:MM` today, `at YYYY-MM-DD HH:MM` another day; None for a past or unrenderable epoch."""
+    if not (math.isfinite(at) and at > now):
         return None
-    return float(v) if math.isfinite(v) and v > 0 else None
+    try:
+        lt, nt = time.localtime(at), time.localtime(now)
+        fmt = "%H:%M" if (lt.tm_year, lt.tm_yday) == (nt.tm_year, nt.tm_yday) else "%Y-%m-%d %H:%M"
+        return f"at {time.strftime(fmt, lt)}"
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 def _lane_lift(stamp: Path) -> str:
-    at = _stamp_promise(stamp) or _posture_reset()
-    when = (
-        f"at {time.strftime('%H:%M', time.localtime(at))}"
-        if at is not None
-        else "when the 5-hour window resets"
-    )
+    """The lift line: the stamp's promise, else the posture's reset, the first still ahead."""
+    now = time.time()
+    when = None
+    for at in (_stamp_promise(stamp, now), _posture_reset(now)):
+        if at is not None and (when := _render_lift(at, now)) is not None:
+            break
+    when = when or "when the 5-hour window resets"
     return f"The lane lifts {when}, or earlier when a successor appears — the lift wakes an armed watch"
 
 

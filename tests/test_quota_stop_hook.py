@@ -1197,7 +1197,6 @@ def test_a_builder_is_parked_at_the_lane_with_the_finishing_verbs(lane):
         "git commit -m 'park' -- a.py",
         "git push",
         "python3 scripts/command_run.py blocked --wall --command fabrik-task --reason 'quota wall'",
-        "python3 scripts/merge_request.py send",
         "python3 scripts/merge_request.py request --review r.md --item W-0123abcd",
         "python3 /opt/fabrik/scripts/merge_request.py request --review r.md",
         "python3 scripts/work.py claim W-0123abcd",
@@ -1466,3 +1465,91 @@ def test_the_hooks_identity_reader_agrees_with_whoami(lane):
         lane.mp.setenv("CLAUDE_CODE_SESSION_ID", sid)
         assert hook._bound_name(sid, lane.common) == who.resolve_agent_name(), sid
     assert hook._bound_name("s1", lane.common) == "kaizen"
+
+
+def test_an_out_of_range_lift_epoch_never_crashes_the_park(lane):
+    """F1 (review round 1, executed): a stamp promise or a posture `five_hour.resets_at` outside the
+    platform's time_t range made `time.localtime` raise, `main()` exited 1 with no JSON, and Claude
+    Code ran the tool — a parked builder escaped. Every such epoch, a negative one and a past one
+    still give the deny JSON at rc 0, with the fallback lift text."""
+    lane.bind("so", "infra")
+    for promise in ("1e20", "1e300", "1e18", "-5", str(int(time.time()) - 3600)):
+        lane.stamp(promise, "urgent-90")
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"})
+        assert r.returncode == 0 and _denied(r), (promise, r.returncode, r.stdout, r.stderr)
+        msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "when the 5-hour window resets" in msg, (promise, msg)
+    lane.stamp("0", "urgent-90")
+    for resets in (1e20, 1e300, -5, time.time() - 3600):
+        (lane.state / "quota-posture.json").write_text(
+            json.dumps({"active": {"windows": {"five_hour": {"resets_at": resets}}}})
+        )
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"})
+        assert r.returncode == 0 and _denied(r), (resets, r.returncode, r.stdout, r.stderr)
+        msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "when the 5-hour window resets" in msg, (resets, msg)
+    # a past stamp promise falls through to a live posture reset
+    lane.stamp(str(int(time.time()) - 3600), "urgent-90")
+    resets = time.time() + 2 * 3600
+    (lane.state / "quota-posture.json").write_text(
+        json.dumps({"active": {"windows": {"five_hour": {"resets_at": resets}}}})
+    )
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"}, TZ="UTC")
+    msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+    assert time.strftime("%H:%M", time.gmtime(resets)) in msg, msg
+
+
+def test_a_lift_on_another_day_names_the_date():
+    """F1: a lift that is not today names its date, or `at 08:30` reads as this morning."""
+    now = time.time()
+    later = now + 3 * 86400
+    lift = hook._render_lift(later, now)
+    assert time.strftime("%Y-%m-%d", time.localtime(later)) in lift, lift
+    assert time.strftime("%H:%M", time.localtime(later)) in lift, lift
+    soon = now + 60
+    if time.localtime(soon).tm_yday == time.localtime(now).tm_yday:
+        assert hook._render_lift(soon, now) == f"at {time.strftime('%H:%M', time.localtime(soon))}"
+    assert hook._render_lift(1e300, now) is None
+    assert hook._render_lift(now - 10, now) is None
+
+
+def test_the_finishing_verbs_take_no_trailing_arguments():
+    """F3 + F4 (review round 1, executed): `merge_request.py send` is no verb, and the claim branch
+    admitted any trailing args (`--session <other sid>`, `--repo /etc`, a second id). The claim
+    verbs take exactly one id; `request` takes only `--review`, `--item` and `--base`."""
+    for cmd in (
+        "python3 scripts/work.py claim W-0123abcd",
+        "python3 /opt/fabrik/scripts/work.py release W-0123abcd",
+        "python3 scripts/merge_request.py request --review r.md",
+        "python3 scripts/merge_request.py request --review /opt/fabrik/.tmp/runs/a/b.json "
+        "--item W-0123abcd --base master",
+        "python3 scripts/merge_request.py request --item W-0123abcd --review r.md",
+    ):
+        assert _at_lane(cmd) == "allow", cmd
+    for cmd in (
+        "python3 scripts/merge_request.py send",
+        "python3 scripts/merge_request.py send --to x",
+        "python3 scripts/work.py claim W-0123abcd --session other-sid",
+        "python3 scripts/work.py claim W-0123abcd --repo /etc",
+        "python3 scripts/work.py release W-0123abcd W-4567cdef",
+        "python3 scripts/work.py claim W-0123abcdx",
+        "python3 scripts/merge_request.py request --review r.md --force",
+        "python3 scripts/merge_request.py request --review r.md --item x",
+        "python3 scripts/merge_request.py request --review --base",
+        "python3 scripts/merge_request.py request extra",
+        "python3 scripts/merge_request.py requestx --review r.md",
+    ):
+        assert _at_lane(cmd) == "deny", cmd
+
+
+def test_a_p0_item_its_owner_cannot_work_exempts_nobody(lane):
+    """F5 (review round 1, executed): a `blocked` or `awaiting-operator` P0 still exempted its
+    owner, who cannot work it. Open is status exactly `open` (work.py STATUSES)."""
+    lane.bind("sq", "infra")
+    lane.item("W-abababab")
+    assert hook.lane_exempt("sq", str(lane.main))[0] is True  # the positive control
+    for status in ("blocked", "awaiting-operator", "done", "dropped", "", None, "OPEN"):
+        lane.item("W-abababab", status=status)
+        assert hook.lane_exempt("sq", str(lane.main))[0] is False, status
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sq"})
+    assert _denied(r), r.stdout
