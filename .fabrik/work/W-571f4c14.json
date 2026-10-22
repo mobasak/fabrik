@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:55:32.432162Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-571f4c14",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "mutate the guarded surface (a short password on a diff line) in a throwaway worktree and watch the grader go red; if it stays green, fix the grader with the mutant as its test",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 3,
+  "score_reason": "an unexecuted claim that a grader is vacuous; one mutation run settles it; the D-597 surface is infra's",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Is the D-597 short-password diff-line grader vacuous? infra-3's W-f46bca45 review recorded the claim unexecuted (residue 5, 2026-10-23): a grader that cannot fail passes against broken code"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:53:31.041349Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d58de7ab",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5GH4EN7BCVHJF65AEGFX1NR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib db-pool idle backends (hub 01M5F32DHR, W-628287d8): triage measured — the stated mechanism does not reproduce; a smaller real defect remains, spec in progress"
+}

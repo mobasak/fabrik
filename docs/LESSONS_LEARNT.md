@@ -1,6 +1,13 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A parity grader needs ONE text: a project-facing rewrite that differs from the hub's row can never be graded byte-identical (2026-10-23)
+
+W-62e96a9f set out to give the fleet template a project-facing `Agent-Role` row and grade the hub's and the template's trailer sections identical minus the `Agent-Name` row. The first design did both at once and so could never go green — the two critique seats proved it by applying the design to a copy. The fix was to put the hub's row in scope and write one cell true in every repo that reads it (the dispatcher runs in every repo with a GitHub origin, the hub included), which also exposed a third, fleet-synced copy of the table in a rule pack.
+- **When a grader says "identical except X", every other difference must be removed in the SAME change** — including the hub's own text; "hub unchanged" in OUT contradicted Behaviour 1.
+- **A cell read by a headless worker must say who writes the value, not that a tool writes it** — the dispatcher's `claude -p` worker reads the project's CLAUDE.md while its brief tells it to write `ci-fix`; "a value that tool writes, never one you choose" would have made it sign `primary`.
+- **Grep the fleet-synced surfaces for the SAME table before fixing one copy** — `core/40-documentation.md` carried a third copy with a retired enum; one grep over `.windsurf/`, `templates/` and `commands/` for the row's leading cell found it in a second.
+
 ## A fix for an escaping defect repeats the defect in its own acceptance test unless an independent reader executes the test (2026-10-22)
 
 W-80ffca68 removed `\|` from rule-pack code spans. The design's TERMINAL line proved the result with `grep -rno '`[^`]*\|[^`]*`' … | wc -l` → 0 — in GNU BRE a single `\|` is alternation, so that pattern matches nearly every line with a backtick (120 hits in one pack, 23,147 over the tree) and could never reach 0. Both design critique seats caught it by running it; the author had measured the real count with a different spelling and pasted the design from memory.
