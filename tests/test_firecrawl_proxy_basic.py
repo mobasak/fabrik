@@ -29,21 +29,33 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-CORPUS = [p for d in ("_sources", "_agents", "_fragments") for p in sorted((ROOT / "commands" / d).glob("*.md"))]
+CORPUS = [
+    p
+    for d in ("_sources", "_agents", "_fragments")
+    for p in sorted((ROOT / "commands" / d).glob("*.md"))
+]
 
-# a fetch verb in any inflection, never a lookalike ("ready", "scrapbook")
-_VERB = r"(?:scrap(?:e|es|ed|ing|ers?)|crawl(?:s|ed|ing|ers?)?|read(?:s|ing)?|fetch(?:es|ed|ing)?|re-fetch)\b"
+# a fetch verb in any inflection, never a lookalike ("ready", "scrapbook"); `read` only next to Firecrawl (W-ddb716ca:
+# forty characters away it is a reader's "read" — "Firecrawl docs are easy to read")
+_FETCH = (
+    r"scrap(?:e|es|ed|ing|ers?)|(?:re-?)?crawl(?:s|ed|ing|ers?)?|retriev(?:e|es|ed|ing)"
+    r"|fetch(?:es|ed|ing)?|re-fetch"
+)
+_VERB = r"(?:" + _FETCH + r"|read(?:s|ing)?)\b"
+_FAR_VERB = r"(?:" + _FETCH + r")\b"
 MENTION = re.compile(
     r"firecrawl_(?:\w*scrape|crawl)\b|mcp__firecrawl__\*"
     r"|\bfirecrawl(?:['’]s)?[\s-]+(?:\w+\s+){0,2}?(?:" + _VERB + r")"
-    r"|\b(?:" + _VERB + r")\s+(?:\S+\s+){0,5}?(?:with|via|through|using|by|from)\s+firecrawl\b"
+    r"|\b(?:" + _VERB + r")\s+(?:\S+\s+){0,5}?(?:with|via|through|using|by|from|at)\s+firecrawl\b"
     r"|\bfirecrawl\w*(?:\(\))?\.\s*(?:scrap|crawl)\w*"
     r"|\bfirecrawl\b(?=[^.;→\n]{0,60}`maxAge)"
-    r"|\bfirecrawl\b(?=[^.;→\n]{0,40}\b(?:" + _VERB + r"))",
+    r"|\bfirecrawl\b(?=[^.;→\n]{0,40}\b(?:" + _FAR_VERB + r"))",
     re.I,
 )
 PIN = re.compile(r"""["']?proxy["']?\s*[:=]\s*["']basic["']""")
-OTHER = re.compile(r"\b(?:stealth|auto|automatic|enhanced)\b|\bdefault\s+proxy\b|\bproxy\s+default\b", re.I)
+OTHER = re.compile(
+    r"\b(?:stealth|auto|automatic|enhanced)\b|\bdefault\s+proxy\b|\bproxy\s+default\b", re.I
+)
 NEG = re.compile(
     r"\b(?:never|not|no|nor|neither|without|instead|drop\w*|omit\w*|unless|avoid\w*|skip\w*|except|cannot)\b"
     r"|n['’]t\b",
@@ -155,6 +167,11 @@ FIXTURES = {
     "the Firecrawl scrapbook of notes.": 0,
     "Run Firecrawl crawlers over the site.": 1,
     "Point Firecrawl scrapers at the docs.": 1,
+    # W-ddb716ca: three more spellings of a Firecrawl fetch, and a reader's "read" that is none
+    "Firecrawl recrawls the docs nightly.": 1,
+    "Firecrawl retrieves the page for the seat.": 1,
+    "Point the scrapers at Firecrawl via its API.": 1,
+    "Firecrawl docs are easy to read.": 0,
 }
 
 
