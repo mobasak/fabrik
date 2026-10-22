@@ -19,5 +19,8 @@
   "priority": 0,
   "score_reason": "URGENT: operator 2026-10-21 'ok lets build it asap' on the one-window tab router; infra (the author of stage 1) is on the hibernate build, also an operator ask, so under D-983 the HIGH work goes to fleet, whose current item W-3c302832 is LOW; effort LOW-ish: one wrapper script, a picker, tests, a box doc — one session",
   "status": "open",
+  "tags": [
+    "waits-merge"
+  ],
   "title": "Option C trial (operator 2026-10-20: 'how can we try this fastest?'): a claudeCode.claudeProcessWrapper script that sets CLAUDE_AGENT from the folder a VS Code chat tab starts in (the repo's merge owner via decisions.py --merge-owner) and applies the memory cap, so every repo's coordinator can run as a chat tab in ONE VS Code window; staged: (1) a log-only wrapper proves the launch contract (argv, cwd, env), (2) identity from cwd with a plain-claude fallback, (3) the cap; multi-root folder behaviour measured in step 1"
 }

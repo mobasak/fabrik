@@ -23,6 +23,7 @@ DEFS = {
         "firecrawl",
         "postgres-pro",
         "serena",
+        "fabrik-scrape",
         "playwright",
         "chrome-devtools",
         "shadcn",
@@ -63,7 +64,7 @@ def test_the_hub_carrying_a_heavy_server_fails_and_names_the_emitter(check, tmp_
 
 
 def test_a_subset_passes_and_an_omitted_allowed_server_is_legal(check, tmp_path):
-    repo(tmp_path, "some-api", "python-api", ["session-recall", "exa"])  # no postgres-pro: legal
+    repo(tmp_path, "some-api", "python-api", ["session-recall", "exa", "fabrik-scrape"])  # no postgres-pro: legal
     repo(tmp_path, "app", "mobile-app", ["session-recall", "maestro", "mobile-mcp"])
     rep = check.audit(tmp_path, HUB, DEFS)
     assert rep["failures"] == [] and rep["checked"] == 2

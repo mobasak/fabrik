@@ -17,10 +17,10 @@
     "d378d11fbabb2e94ad989b75e5ef9fc1c447fe06d80424760723e1b646222886"
   ],
   "next": "",
-  "note": "",
+  "note": "superseded: the panel split (Opus: reviewed change; Fable: owned, the diff and marker writer unnamed); infra then showed the hibernate plan W-6e656dac already carries it — T04 moves claude-selfwatch.sh into a tracked reviewed copy with hibernate and resume lift kinds, T06's rotation-tick lift leg writes the marker, and the live file changes only through T04's installer behind T06's operator gate. No hand edit; nothing for the operator here",
   "owner": "",
   "priority": 2,
   "question": "May infra make a 3-line edit to the self-watch script `~/.claude/bin/claude-selfwatch.sh`, after backing it up to `~/.claude/bin/backups/`, so that a wake after sleep says \"the box RESUMED from sleep at HH:MM\" and can arrive in under 2 minutes?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May infra make a 3-line edit to the self-watch script `~/.claude/bin/claude-selfwatch.sh`, after backing it up to `~/.claude/bin/backups/`, so that a wake after sleep says \"the box RESUMED from sleep at HH:MM\" and can arrive in under 2 minutes?"
 }

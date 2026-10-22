@@ -22,5 +22,8 @@
   "priority": 2,
   "question": "May the operator replace the Brave Search API key (BRAVE_API_KEY) with a new one from the Brave dashboard, in ~/.config/fabrik/subagents.env and its four copies (~/.claude.json, /opt/fabrik/.mcp.json, /opt/fabrik-lib/.mcp.json, /opt/fabrik/.env), with backups first?",
   "status": "awaiting-operator",
+  "tags": [
+    "waits-brave-email"
+  ],
   "title": "May the operator replace the Brave Search API key (BRAVE_API_KEY) with a new one from the Brave dashboard, in ~/.config/fabrik/subagents.env and its four copies (~/.claude.json, /opt/fabrik/.mcp.json, /opt/fabrik-lib/.mcp.json, /opt/fabrik/.env), with backups first?"
 }

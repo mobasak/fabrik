@@ -1,0 +1,26 @@
+{
+  "block_digest": "e7d15a9233861d184868209398844896af253d7a178874e92be5d34ac7bfcaa1",
+  "blocked_by": [],
+  "created": "2026-10-21T14:02:57.874648Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-a9a06d3b",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "612ff4034be8cc58ebd7b5fbc9ba16329464980071c3ee707797edb042b75561"
+  ],
+  "next": "",
+  "note": "no it should not bound password, also our ip is dynamic not static",
+  "owner": "",
+  "priority": 2,
+  "question": "May the browser-served VS Code (code-server) run in WSL bound to the WSL address 172.24.194.28, port 8443, with password login and a self-signed certificate, so Brave on Windows can reach it for the Deck proof?",
+  "status": "done",
+  "title": "May the browser-served VS Code (code-server) run in WSL bound to the WSL address 172.24.194.28, port 8443, with password login and a self-signed certificate, so Brave on Windows can reach it for the Deck proof?"
+}

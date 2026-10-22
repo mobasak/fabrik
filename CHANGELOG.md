@@ -4,6 +4,68 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped queue pass: a redactor runs a base differential and a URL parser names its classes (2026-10-22)
+
+- `commands/_fragments/review-probe-catalogue.md`, the Parsers hunt line: a regex redactor also runs beside the parent commit's redactor over one generated input corpus named in the brief, and the URL request-target grammar names its parser-differential classes in the round-1 brief (IDNA and numeric IPv4 hosts among them). `tests/test_review_scoped_queue_pass.py` pins it; the other 13 queue rows were rejected with reasons (W-20754b77).
+
+### Changed — /fabrik-command-improve queue pass: audit-seat reporting, pinned-span placement, rewrap, size-cap, copy-recipe and row-check rules (2026-10-21)
+
+- `commands/_sources/fabrik-command-improve.md`: the audit seat returns its report as hand-back text and quotes each line it cites verbatim; new text goes where its subject reads and a pinned span is re-anchored to cover it (D-1111, an Opus + Fable panel); a rewrap is bounded to the lengthened lines under a raw-line pin; a size-capped target is sized, or its cap raised, before the draft; the seat-rule homes name the copy recipe `BASE_PIN` and the import recipe `PIN_IMPORT`; the review seats say whether each answered row's line names its timing and venue. `tests/test_command_improve_queue_pass.py` pins them (W-6aac0ac8).
+
+### Changed — /fabrik-review queue pass: seven brief and probe rules from the feedback queue (2026-10-21)
+
+- `commands/_sources/fabrik-review.md`: the example Pass ledger names the file loop's Sonnet + Haiku seats; the leak baseline also hashes the shared repository `config` and lists its hooks. `commands/_fragments/subagents-core.md`: a fix made between round-1 waves is in the next wave's pin. `commands/_fragments/review-probe-catalogue.md`: the input class takes every arrival order of duplicate records; a seat's scratch repository is checked before its first write and runs hermetic; a measured count names what it leaves out; each slice runs a mutant per added guard. `tests/test_review_queue_pass.py` pins the six rules (W-ac1b7d77).
+
+### Fixed — plan Status reads reject a Status line hidden in a code span, and never lose a real one (2026-10-22)
+W-a7cff030 (D-1114). An example span that wrapped onto a `**Status:** DRAFT` line came before a plan's real Status, and first-match read the example. This hit check_plan_quality's spine read and its two severity reads (fail open: a quoted DRAFT downgraded checks) and check_convergence's two archived-plan reads (fail closed: a false "archived while DRAFT"). The Opus + Fable panel ruled the fix: every read matches the ORIGINAL text through `_fences.status_candidates`, skips a candidate whose key a code span hides, and takes the reader's strict branch when only hidden ones exist. Blanking spans before matching was the rejected draft: it let a stray backtick erase a real Status line. Across the fleet the parsed values are unchanged (216 tickets, 1 522 plan files). `tests/enforcement/test_status_in_code_span.py` has 13 cases; 8 of them fail on that rejected draft.
+
+### Fixed — Behavior-Contract region parsing is linear in check_phase_tests and check_test_proposal (2026-10-21)
+W-6904b41e. Both checks sliced the whole rest of the plan once per `**Behavior Contract**` label, and
+check_phase_tests also did it once per `## Behavior Contract` heading. 8 000 labels took ~5 s, and 4x the input took
+12-22x the time. They now read forward from each match: a lazy `_lines_from` keeps `str.splitlines`' boundaries, and
+the next heading is searched in place. A bold label is checked against the sorted heading spans with one bisect,
+instead of against every span (labels x headings). On 8 000 labels: 0.06 s and 0.04 s on this box. A mixed document
+of 4 000 headings and 4 000 labels went from 1.44 s to 0.03 s. Output is identical on all 488 plan files
+in the hub. `tests/enforcement/test_contract_regions_linear.py` counts copied characters, so no timing is read; its
+copy-count tests fail on the old code.
+
+### Fixed — payments pack: the fulfilment grant refuses a fingerprinted role since fabrik-lib SB-096 (2026-10-21)
+
+- `.windsurf/rules/core/85-payments-billing.md`: line 45 said the fulfilment grant does not refuse a tenant-facing role. Since fabrik-lib SB-096 it refuses PUBLIC, a SUPERUSER or BYPASSRLS role and a role holding a privilege on a payments table the lane does not grant; a tenant-facing role without one still passes and gets `purchases` INSERT and cross-org `jobs` SELECT, UPDATE, so the dedicated-login rule stands (fleet mail 01M5DYBVJT; review `docs/development/reviews/2026-10-21-payments-fulfilment-grant-wording-review.md`).
+
+### Changed — /fabrik-task: the inputs table records each input's live counts from an executed read (2026-10-21)
+
+- `commands/_sources/fabrik-task.md`: beside each input, phase 2's table records its live row count, the values those rows hold and the duplicates of any key the design cuts rows by, from an executed read of those rows; phase 2 tables each tag a parser the change adds or extends reads, quoted inside its own content too; the vendored-copy census counts `.claude/worktrees/` apart. SIZE_CAP 26238 -> 26506 (D-1103), 53 bytes cut from the `--design` once-only sentence. `tests/test_fabrik_task_queue_pass.py` pins the three rules and the cut sentence. The rest of the 41-row queue was rejected with reasons (W-be343c22).
+
+### Changed — /fabrik-review-scoped: a brief names the bound on the evidence it hands a seat (2026-10-21)
+
+- `commands/_fragments/review-probe-catalogue.md`: a measurement or proof a brief hands a seat names, up front, the bound that limits it, so the seat attacks it as bounded. `tests/test_review_scoped_queue_pass.py` pins it, and the input-class grader now compares its whole bullet by equality, so a decoy bullet carrying the anchor fails (W-d4468ce4).
+
+### Fixed — /fabrik-execute-plan: the plan-stem prefix keeps a receipt findable only when the stem has one (2026-10-21)
+
+- `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
+
+### Changed — the vendored web-tools pins Firecrawl to the basic proxy (2026-10-21)
+W-10146d20, plan 3 Phase B step 2. `libs/web_tools.py` is re-vendored from fabrik-lib main c7ab67e4 (their D-539/D-540).
+Every Firecrawl payload (sync and async scrape, crawl, search) now sends `proxy: "basic"` unless code passes another
+one: the LLM tools (`execute_web_tool`) ignore a `proxy` in a model's `arguments`, and only direct callers pass
+`firecrawl_proxy=`. Each billed call logs its caller and URL. fabrik-lib's two tests now run against the hub copy:
+`tests/test_web_tools_firecrawl_proxy.py` (71 passed, 53 red on the previous copy @8337a7f) and
+`tests/test_web_tools_firecrawl_log.py` (20 passed).
+
+### Added — fabrik-scrape: a local MCP server for research page reads (2026-10-21)
+W-10146d20, plan 3 Phase B (D-1102). `libs/web_scrape_mcp/` vendors fabrik-lib's web-scrape-mcp with the web-scrape and doc-crawl copies it needs; `scripts/sysadmin/systemd/fabrik-scrape-mcp.service` runs it sandboxed on loopback :8034; `mcp_defs.json` and the emitter's universal set register it for every repo; `scripts/scrape_ledger.py` probes it and grades a capability ledger. Not live yet: building its venv, installing the unit and re-emitting every repo's `.mcp.json` is an operator gate after merge. See `docs/reference/fabrik-scrape-mcp.md`.
+### Changed — Firecrawl calls in commands pin the basic proxy (2026-10-21)
+W-10146d20, plan 3 Phase A (D-1101). Every Firecrawl scrape or crawl instruction in `fabrik-spec`, `fabrik-spec-review`, `fabrik-plan-after-chat`, `fabrik-vision` and the `fabrik-researcher` agent now passes `proxy: "basic"`: Firecrawl's default `auto` mode retries a blocked page through stealth proxies at a higher credit price, and the own-scrape spec allows only the basic proxy until a tested slice-1d check. `tests/test_firecrawl_proxy_basic.py` guards every such instruction; a clause it refuses is reworded, and a review of any later change to a pinned clause reads it for meaning.
+### Added — plan approved: own scrape tool, slice 1a, hub side (2026-10-21)
+W-10146d20; D-1101. `docs/development/plans/2026-10-21-plan-3-own-scrape-slice-1a.md` converged over eight review passes (receipt `docs/development/reviews/2026-10-21-own-scrape-slice-1a-plan-review.md`). Phase A, pinning the basic proxy on every Firecrawl line in the command corpus, can start now; Phases B and C wait for fabrik-lib's merge of the scrape server and the web-tools call log. Nothing is built yet.
+### Added — design approved: Fabrik's own scrape tool replaces Firecrawl for research reads (2026-10-21)
+W-10146d20; D-1100 (approves D-1093's direction). The spec `docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md`
+converged over 15 review passes and an Opus + Fable approval panel. Research seats will read pages through `fabrik-scrape`,
+an MCP server over fabrik-lib web-scrape, doc-crawl and pdf-extract; Firecrawl (out of credits until 2026-11-12) stays a
+fallback pinned to its basic proxy and closed until a tested check of the proxy it used. Rollout is staged: a scrape-only
+slice first (rendering off), crawl and PDF next, rendering after a vps1 redirect test. Nothing is built yet; fabrik-lib
+receives the slice-1a requests next.
 ### Changed — The seven specs/infrastructure files are retired; the infra/vps1 mirrors are the only repo copy (2026-10-22)
 
 `specs/infrastructure/{apprise,authelia,browserless,glitchtip,gotenberg,meilisearch,n8n}.yaml` failed `load_spec`, no code read them, and each had drifted from the `infra/vps1/<svc>/compose.yaml` mirror of the live stack. They are deleted; their load-bearing comments (ARM64 support, the browserless v2 TOKEN and env names, the GlitchTip secret-key warning, the n8n auth note, the Authelia config pointer) now head the mirrors, with no setting changed. `docs/DEPLOYMENT_ARCHITECTURE.md` § 3.1, `PORTS.md`, `docs/CONFIGURATION.md`, `.env.example`, `infra/README.md` and six other docs name the mirrors; the unused `GLITCHTIP_SECRET_KEY`/`GLITCHTIP_REDIS_URL` lines leave `.env.example`. `tests/test_specs_all_load.py` keeps every YAML under `specs/` appliable. Spec-only settings the mirrors lack are item W-24025e50 (W-b64d9cd7, D-1097, D-1117).

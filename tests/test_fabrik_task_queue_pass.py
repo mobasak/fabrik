@@ -447,3 +447,37 @@ def test_design_amend_runs_while_the_task_record_is_on_top() -> None:
         "and counted on the close as `design_amends`. The amend runs while the `fabrik-task` record is the top one,"
         " never under a nested run."
     ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_the_inputs_table_comes_from_measures_read_of_the_live_rows() -> None:
+    """Rows 1792587704, 1792574009, 1792544635: a cut key's duplicates and a filtered field's constant value were
+    found by the critiques, because the table was filled before any live row was read."""
+    assert (
+        "That grammar admits every spelling MEASURE recorded. Beside each input the table records its live row count,"
+        " the values those rows hold and the duplicates of any key the design cuts rows by, from an executed read of"
+        " those rows, never assumed. A marker-block"
+    ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_design_tables_each_new_parser_tag_quoted_inside_its_content() -> None:
+    """Row 1792573888 (a recurrence of held design-list-input-grammar): a parser over model output met its own tag
+    quoted inside the content it wraps."""
+    assert (
+        "nested and duplicate. So is each tag a parser it adds or extends reads, plus that tag quoted inside its own content."
+    ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_the_vendored_copy_census_counts_the_worktrees_apart() -> None:
+    """Row 1792585649: `find /opt` counted every `.claude/worktrees/` checkout and the inflated count went into the
+    design."""
+    assert (
+        "(`find /opt` by the file's name, `.claude/worktrees/` counted apart) under every spelling"
+        in _section("## Phase 2", "## Phase 3")
+    )
+
+
+def test_a_second_design_is_ignored_with_only_a_note() -> None:
+    """D-1103 cut the once-only sentence to its one fact: command_run.py prints a NOTE and the step carries on."""
+    assert (
+        "re-run, or the record stays at phase 1. A second `--design` is ignored, with only a NOTE. Add a"
+    ) in _section("## Phase 2", "## Phase 3")

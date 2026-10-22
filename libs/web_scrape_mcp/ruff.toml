@@ -1,0 +1,6 @@
+# Vendored fabrik-lib code is never linted or reformatted here: a fix would fork it from canonical (README
+# `VENDORED_FROM`). pyproject.toml's extend-exclude carries the same rule for the hub's other vendored libs; plan 3
+# (W-10146d20) leaves pyproject.toml untouched, so this subtree carries its own. serve.py is excluded too: it is the
+# fabrik-lib README's block, verbatim.
+extend = "../../pyproject.toml"
+extend-exclude = ["serve.py", "web_scrape_mcp", "web_scrape", "doc_crawl", "tests"]

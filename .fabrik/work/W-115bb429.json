@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T18:43:36.765827Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-115bb429",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5DYES0P4535FQBWX8MS5Y55",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: request — a mypy ratchet leg in final_gate.py, so a project can carry a frozen mypy debt block without the gate's mypy row becoming the only place debt can grow unseen."
+}

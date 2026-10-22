@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T19:18:57.574690Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b4f91d69",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "claim the mail; move StartLimit* to [Unit] in each affected unit source, re-install, verify with systemctl show; scoped review",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a bug with no one blocked (MEDIUM): a few unit files, one session",
+  "status": "open",
+  "tags": [
+    "mail-01m5fxgy2c",
+    "medium"
+  ],
+  "title": "intel finding 01M5FXGY2C: the citation-verifier systemd units put StartLimitIntervalSec/StartLimitBurst in [Service], where systemd ignores them (they belong in [Unit]) — the restart cap is silently off"
+}

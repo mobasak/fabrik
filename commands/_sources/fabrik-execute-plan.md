@@ -314,7 +314,25 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    `@testing-library/react-native` + Maestro `assertScreenshot`; **extension:** `@axe-core/playwright`
    `bypassCSP:true` + `toHaveScreenshot` (400px popup) + `size-limit`), then dispatch **`/design-review`** (or the
    `design-review` subagent) for the rendered critique. Every finding terminates FIXED or REFUTED; iterate until
-   `/fabrik-review` reaches its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED). The next phase begins only after that exit. Non-GUI phases skip the screen steps above, never what follows. ⚠️ **Every phase's review exit — GUI or not — must EMIT AN ARTIFACT** — a non-empty file under `docs/development/reviews/` whose name contains `phase-<N>` (written at or after the run record's start, or starting with the plan's `<date>-plan-<n>-` prefix), or in DISPATCHER mode the ticket receipt `<plan-stem>-T<id>-review.md` bound to the plan the record's `--surface` names. `check_review_coverage.py`'s subject is that DIRECTORY, so a phase review that writes nothing there leaves the gate with NO SUBJECT and it passes on an empty set: transdoc shipped 17 phases that way and the first real adversarial gate found 71 defects, including a dead job queue. `command_run.py step --phase N+1` now REFUSES until phase N's artifact exists; an unavoidable skip goes through `--review-waived "<reason>"`, which is recorded in the run record rather than silent. A run resuming at phase N reaches the earlier phases' receipts through the plan-prefix form, which `step` reads from the record's `--surface` — so that run's `--surface` names the plan file and every phase receipt carries the prefix (only a `<date>-plan-<n>` stem has the escape); the waiver is for a phase that has none. ⚠️ **Under `Profile: small` this and item 3 bind at once and cannot both be satisfied**: the per-phase pass is `/fabrik-review-scoped`, whose round ledger IS its artifact and which writes no file by design — so `--review-waived "Profile: small — /fabrik-review-scoped, ledger is the artifact"` IS the sanctioned exit there, not an unavoidable skip. Say it in the record and move on; the Finish review writes the whole-plan receipt `check_review_coverage.py` grades (fabrik-lib 01M2JWEMFRFN3H, who resolved it by writing a file anyway because the exit was then named only here).
+   `/fabrik-review` reaches its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED). The next phase
+   begins only after that exit. Non-GUI phases skip the screen steps above, never what follows. ⚠️ **Every phase's
+   review exit — GUI or not — must EMIT AN ARTIFACT** — a non-empty file under `docs/development/reviews/` whose name
+   contains `phase-<N>` (written at or after the run record's start, or starting with the plan's `<date>-plan-<n>-`
+   prefix), or in DISPATCHER mode the ticket receipt `<plan-stem>-T<id>-review.md` bound to the plan the record's
+   `--surface` names. `check_review_coverage.py`'s subject is that DIRECTORY, so a phase review that writes nothing
+   there leaves the gate with NO SUBJECT and it passes on an empty set: transdoc shipped 17 phases that way and the
+   first real adversarial gate found 71 defects, including a dead job queue. `command_run.py step --phase N+1` now
+   REFUSES until phase N's artifact exists; an unavoidable skip goes through `--review-waived "<reason>"`, which is
+   recorded in the run record rather than silent. A run resuming at phase N reaches the earlier phases' receipts through
+   the plan-prefix form, which `step` reads from the record's `--surface` — so that run's `--surface` names the plan
+   file and every phase receipt carries the prefix (only a `<date>-plan-<n>` stem has the escape); the waiver is for a
+   phase that has none, or for an unprefixed plan's earlier receipt that a resume without a seed cannot see (named in
+   the reason). ⚠️ **Under `Profile: small` this and item 3 bind at once and cannot both be satisfied**: the per-phase
+   pass is `/fabrik-review-scoped`, whose round ledger IS its artifact and which writes no file by design — so
+   `--review-waived "Profile: small — /fabrik-review-scoped, ledger is the artifact"` IS the sanctioned exit there, not
+   an unavoidable skip. Say it in the record and move on; the Finish review writes the whole-plan receipt
+   `check_review_coverage.py` grades (fabrik-lib 01M2JWEMFRFN3H, who resolved it by writing a file anyway because the
+   exit was then named only here).
 4. **All HARD STOPS still apply** — except the commit restriction is suspended for plan-scoped commits. Never `git add -A`. Never push unless the plan says to.
    Never run `ruff format` by hand beyond the plan's `## File Scope (owned paths)` — a wholesale format rewrites a
    sibling's lines nobody reviews; the bare gate run already formats only your staged and unpushed changes.
@@ -458,7 +476,15 @@ for each PHASE in dependency order:
     commit the phase CODE (authors run on committed HEAD via git worktree add --detach) → /fabrik-generate-tests on THIS phase's ## Behavior Contract: native seats author one test per behavior the implementer did NOT already TDD (one seat per behavior, disjoint test files, self-verified collection; the pool is OFF, D-181), you review test-quality + git apply the survivors → re-run the phase gate (now incl. the authored tests). Skip only if the phase added no user-observable behavior.
     /fabrik-review on phase's changed surface (code + the authored tests) — its review-loop workflow, one Workflow call per pass → execute the confirmed → prove-before-fix
     iterate: fix → the next pass over the slice ledgers → repeat until its closing pass confirms 0, THEN next phase
-    → before the phase's closing commit (the one that stages the plan file), write its receipt to docs/development/reviews/ as `<plan-stem>-phase-<N>-review.md`, `<plan-stem>` being the plan file's whole stem, which starts with its `<date>-plan-<n>-` prefix (that prefix keeps it findable after a resume); under `Profile: small` there is no file, so pass item 3b's `--review-waived` on the next `step` call instead — `step --phase N+1` refuses without one (item 3b's artifact rule)
+    → before the phase's closing commit (the one that stages the plan file), write its receipt to
+    docs/development/reviews/ as `<plan-stem>-phase-<N>-review.md`, `<plan-stem>` being the plan file's whole stem (when
+    it starts with a `<date>-plan-<n>-` prefix, that prefix keeps it findable after a resume; without one, a resumed run
+    finds the earlier receipts only when it was started with `command_run.py start --resume-from <seed>`, which keeps
+    the original start time, and a seed exists only after a `blocked` close at the quota wall (`--wall`, or a reason
+    naming the wall) or an operator's pause (`--paused`); after a crash or a `handoff`,
+    waive each earlier phase whose receipt the gate cannot see, naming that receipt in the reason); under `Profile:
+    small` there is no file, so pass item 3b's `--review-waived` on the next
+    `step` call instead — `step --phase N+1` refuses without one (item 3b's artifact rule)
     fix CONFIRMED findings → commit review fixes with Agent-Role: review-fix trailer
     re-run gate until clean
     UPDATE THE PLAN FILE: mark this phase ✅ EXECUTED <date> (<commit>) [+ flip Status on the first/last phase]

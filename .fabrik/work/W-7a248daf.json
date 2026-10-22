@@ -17,10 +17,10 @@
     "25874a7b985382da0db8b726acce0e03455459b43d85096f765129db6531f52b"
   ],
   "next": "",
-  "note": "",
+  "note": "panel unanimous: not now. sync-vps-sysadmin.sh has no dry-run or backup and uses raw ssh vps outside the D-973 jump; add an itemized preview, a per-host tarball of the target dirs and the jump route, re-run the drift census fresh, then re-board",
   "owner": "",
   "priority": 2,
   "question": "May the operator run scripts/sync-vps-sysadmin.sh from the main checkout to bring vps1, vps2 and vps3 back to the hub's committed sysadmin scripts (15 DRIFT, 8 MISSING and 1 MODE rows in mail 01M4BXBJ9A)?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May the operator run scripts/sync-vps-sysadmin.sh from the main checkout to bring vps1, vps2 and vps3 back to the hub's committed sysadmin scripts (15 DRIFT, 8 MISSING and 1 MODE rows in mail 01M4BXBJ9A)?"
 }

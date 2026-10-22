@@ -115,9 +115,9 @@ applies is tried as a read of its output (stdout, a record, an exported function
 why the read cannot serve. Each input the design branches on is tabulated whole in a `design.md` table, outside the
 Behaviours list: every value a state it reads can hold, the unit another tool's rule is evaluated per (window, agent,
 repo), every path through a guard (a forced refresh after a write as well as the periodic one); a parser it adds
-takes a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded. A
+takes a strict grammar and fails closed on the rest. That grammar admits every spelling MEASURE recorded. Beside each input the table records its live row count, the values those rows hold and the duplicates of any key the design cuts rows by, from an executed read of those rows, never assumed. A
 marker-block or append-only file the change writes is tabled absent, begin without end, end without begin, nested and
-duplicate.
+duplicate. So is each tag a parser it adds or extends reads, plus that tag quoted inside its own content.
 
 {{include:design-critique}}
 
@@ -156,8 +156,7 @@ DECISION amend: the design is recorded after the critiques fold.
 
 `--design` stores that file's TEXT whole (no cap — D-314), so the
 design outlives the scratch. A refusal discards the `step`: fix the file and
-re-run, or the record stays at phase 1. It lands ONCE — a second `--design` is ignored with a NOTE
-while everything else reads like success. Add a `## Behaviours` list — each naming its test, at
+re-run, or the record stays at phase 1. A second `--design` is ignored, with only a NOTE. Add a `## Behaviours` list — each naming its test, at
 most 7 (an 8th is the `behaviours` UPGRADE, *(v2)*) — and name every file the build will touch,
 the Behaviours' tests, deletions and a rename's both paths included, under line-start UPPERCASE
 `APPROACH:`/`MIRROR:` labels, before any line opening with a field word or a `#` (fenced or not),
@@ -172,7 +171,7 @@ MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what cha
 each branch of a changed function, every resolver of the same identity, consumers of a moved or
 deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an
 executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
-whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) and every vendored copy outside it (`find /opt` by the file's name) under every spelling of the identifier and its rule's key
+whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) and every vendored copy outside it (`find /opt` by the file's name, `.claude/worktrees/` counted apart) under every spelling of the identifier and its rule's key
 verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape
 or stdout (grep its tests for `== {` and `len(`), every Python reader of a name by an `ast.walk` census beside the
 grep, never `tree.body` alone (a function-local or `try:` import sits below it; a string-named import, `getattr` or

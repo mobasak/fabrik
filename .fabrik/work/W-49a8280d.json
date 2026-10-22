@@ -17,10 +17,10 @@
     "fa375929037dcfd74f7105e72349b05ec9af5042b198ff2ec7cf44495299af0b"
   ],
   "next": "",
-  "note": "",
+  "note": "panel unanimous: obsolete. The draft report no longer exists anywhere on the box after the 19:31 WSL restart; re-draft as a new item if still wanted; a send to Anthropic stays the operator's",
   "owner": "",
   "priority": 2,
   "question": "Send the drafted out-of-memory report (`scratchpad/anthropic-report-exthost-oom.md`) to Anthropic as a Claude Code bug report?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Send the drafted out-of-memory report (`scratchpad/anthropic-report-exthost-oom.md`) to Anthropic as a Claude Code bug report?"
 }

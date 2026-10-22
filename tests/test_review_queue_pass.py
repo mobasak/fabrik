@@ -1188,3 +1188,74 @@ def test_a_dead_resumed_seat_is_re_dispatched_fresh() -> None:
     banner = _norm(_BANNER)
     after = banner[banner.index(clause) + len(clause) :]
     assert after.startswith(", and the close or the Pass row records `shape: agent-tool`.")
+
+
+SUB = ROOT / "commands" / "_fragments" / "subagents-core.md"
+
+
+def test_the_example_ledger_names_the_file_loops_seat_mix() -> None:
+    """Row 1792607399: the example Pass rows named an Opus finder the file loop no longer seats (D-344)."""
+    text = _norm(SRC)
+    assert "| Pass 1 | sonnet×3 + haiku×3 | found: 5," in text
+    assert "| Pass 2 | sonnet×1 + haiku×1 | found: 2," in text
+    assert "| Pass 3 | sonnet×3 + haiku×3 | found: 1," in text
+    assert "Note pass 3: the finders raised one FRESH candidate" in text
+    assert "opus×1 + sonnet×3" not in text
+
+
+def test_a_fix_between_round_one_waves_is_in_the_delta_surface() -> None:
+    """Row 1792593605 (held trimmed-wave-round-recording): a fix made between waves had no stated pin or diff."""
+    assert (
+        "since round 1 is not complete until every slice is read. A fix the lead makes between waves is in the next"
+        " wave's pin, as every fix is in the pin cut after it. **By SECTION,"
+    ) in _norm(SUB)
+
+
+def test_the_input_class_takes_every_order_of_duplicate_records() -> None:
+    """Row 1792587658 (held dedupe-identity-mechanism): a fix keeping one of two duplicates met an unprobed order."""
+    assert (
+        "the real committed files' shapes counted by an independent parser, and every order its duplicate records"
+        " can arrive in when the fix keeps one of them) and probe it again before each delta;"
+    ) in _norm(CAT)
+
+
+def test_a_seat_scratch_repo_is_checked_and_git_runs_hermetic() -> None:
+    """Rows 1792560934 (held gitdir-shim-recipe) and 1792559094 (held third-party-cli-empty-home): a scratch init
+    that failed left git on the live repo, and a git test read the box's config."""
+    cat = _norm(CAT)
+    assert (
+        "is checked before its first git write: `git -C <it> rev-parse --show-toplevel` prints its own path, since an"
+        " init that failed under the hub's `.tmp/` leaves every later git call on the live repo."
+    ) in cat
+    assert (
+        "runs with `GIT_CONFIG_GLOBAL` at an empty file, `GIT_CONFIG_NOSYSTEM=1`, and `HOME` and `XDG_CONFIG_HOME` at"
+        " empty folders under its scratch, with `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and"
+        " `GIT_COMMITTER_EMAIL` set when it commits, since the empty config holds no identity (an older git ignores"
+        " `GIT_CONFIG_GLOBAL` and reads `$HOME/.gitconfig`), and"
+        " a test that a hook stays silent first shows that hook fire on a positive control. - Every file a grader reads"
+    ) in cat
+    leak = next(line for line in SRC.read_text().splitlines() if line.startswith("- **Leak check"))
+    assert leak.endswith(
+        "so a live process that vanished shows in the same diff. The baseline also holds the `md5sum` of the `config`"
+        " file in the directory `git rev-parse --path-format=absolute --git-common-dir` prints, since a remote or"
+        " `core.hooksPath` a seat writes there shows in no status; a hook file under that directory's `hooks/` is in"
+        " neither, so the baseline lists it too."
+    )
+
+
+def test_a_measured_count_names_what_it_leaves_out() -> None:
+    """Row 1792558448 (held count-from-population-same-script): an expected count hid the files it excluded."""
+    assert (
+        "a measured count names its population and each file or site it leaves out (a guard file, a file holding"
+        " several sites), a closing brief names"
+    ) in _norm(CAT)
+
+
+def test_each_slice_runs_a_mutant_per_added_guard() -> None:
+    """Row 1792544238 (held mutant-sweep-seat-for-new-function): two added guards had no test until a seat's mutant."""
+    assert (
+        "a regression test fails when the caller is reverted; each slice's seats write and run one mutant of their own"
+        " per guard the change adds in their slice, written afresh rather than re-run from the lead's pre-pin list, on a"
+        " copy made from the pin, under the explicit"
+        " `timeout` its brief names (`/fabrik-review`'s D8 mutation-seat lesson); one reader mutates the guarded behaviour;"
+    ) in _norm(CAT)

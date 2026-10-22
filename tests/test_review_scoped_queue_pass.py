@@ -21,6 +21,25 @@ def _section(text: str, start: str, end: str | None) -> str:
     return text[i : text.index(end, i + len(start))] if end else text[i:]
 
 
+def _own_section(path: Path, heading: str) -> str:
+    """The flattened LIVE text under the `## ` line `heading`, up to the next level-1 or level-2 heading line.
+
+    HTML comments are removed first (an unclosed one to the end of the file), and the section is cut on raw lines,
+    so a rule moved into a comment, or below a heading inserted above it, has no anchor; a setext or HTML heading
+    inside the section is refused outright.
+    """
+    raw = re.sub(r"<!--.*?(?:-->|\Z)", " ", path.read_text(encoding="utf-8"), flags=re.S)
+    starts = [m.end() for m in re.finditer(rf"(?m)^{re.escape(heading)}[ \t]*$", raw)]
+    assert len(starts) == 1, f"section heading not unique or moved: {heading!r} x{len(starts)}"
+    rest = raw[starts[0] :]
+    nxt = re.search(r"(?m)^ {0,3}#{1,2}[ \t]", rest)
+    section = rest[: nxt.start()] if nxt else rest
+    # a setext underline counts only under a text line (a lone `---` after a blank line is a thematic break)
+    setext = r"(?m)^ {0,3}\S[^\n]*\n {0,3}(?:=+|-+)[ \t]*$"
+    assert not re.search(setext + r"|(?i:<h[1-6][\s>])", section), "a heading inside the section"
+    return re.sub(r"\s+", " ", section)
+
+
 def test_the_command_points_at_the_catalogue_before_the_first_pin() -> None:
     """Step 5 names the catalogue by its hub path, and the file exists in this tree."""
     assert (
@@ -975,15 +994,17 @@ def test_a_channel_sentence_is_executed_on_each_channel() -> None:
 
 def test_the_input_class_names_every_reader_of_a_printed_command() -> None:
     """Row 1792455756: a printed command was swept for one shell only, not a paste or another locale."""
-    cat = _norm(CAT)
-    bullet, _ = _clause_after(cat, "- Enumerate the fix's input class whole (", "PATH), ")
-    assert bullet.endswith(
-        "every Unicode whitespace class, every reader of a shell recipe or printed command (its own shell, a paste,"
-        " another shell or locale; IFS, noglob, PATH), "
-    ), "the input-class bullet's head no longer leads to the reader clause"
-    assert bullet.startswith("boundary, empty, unset, mandated,"), (
-        "the head is a decoy, not the input-class bullet"
+    # the live text of the rule's own section only: a decoy in a comment or another section never stands in for it
+    cat = _own_section(
+        CAT, "## Before the first pin, and again before each delta pin (the lead executes)"
     )
+    bullet, _ = _clause_after(cat, "- Enumerate the fix's input class whole (", "PATH), ")
+    # W-d4468ce4: equality, never a prefix and a suffix — a decoy bullet carrying the anchor passed both ends
+    assert bullet == (
+        "boundary, empty, unset, mandated, non-dict/non-string, a fix's identity or dedup key (byte vs text read, line"
+        " endings, recycled ids such as inode reuse), every Unicode whitespace class, every reader of a shell recipe or"
+        " printed command (its own shell, a paste, another shell or locale; IFS, noglob, PATH), "
+    ), "the input-class bullet's head no longer leads to the reader clause"
     clause, rest = _clause_after(cat, "every Unicode whitespace class, ", "PATH), ")
     assert clause == (
         "every reader of a shell recipe or printed command (its own shell, a paste, another shell or locale; IFS,"
@@ -1001,3 +1022,37 @@ def test_the_rewrap_waits_for_the_files_own_pins() -> None:
         " bounding the rewrap to the lines the edit lengthened, and run those tests again after it;"
     )
     assert rest.startswith(" re-read an inserted sentence with the one after it")
+
+
+def test_a_brief_names_the_bound_on_the_evidence_it_hands_a_seat() -> None:
+    """Row 1792560743 (a recurrence of held hub-head-proof-limit-up-front): a capped peak was handed to seats as an
+    unbounded measurement, so they could not attack its bound."""
+    clause, rest = _clause_after(
+        _own_section(CAT, "## Loop bookkeeping"),
+        "the slice ledger is round 1's claim count even at zero confirmed. ",
+        "never as unbounded. ",
+    )
+    assert clause == (
+        "A measurement or proof a brief hands a seat names, up front, the bound that limits it (a peak capped by the"
+        " very limit being sized, a re-vendor's byte identity read at HEAD because neither the copy's header nor its"
+        " vendoring commit's trailer records a SHA), so the seat attacks it as bounded, never as unbounded. "
+    ), "the bound rule's wording changed"
+    assert rest.startswith("- Lint or format findings"), (
+        "a sentence was inserted after the bound rule"
+    )
+
+
+def test_a_redactor_and_url_parser_name_their_differential_and_input_classes() -> None:
+    """Rows 1792613497 (held guard-cut-fuzz-differential, edited before only for a swapped call), 1792596820 (the third
+    verdict on the redactor line) and 1792596053 (held check-whatwg-uts-46-rules-on): a redactor change met its
+    defects only in a base differential, and a URL parser's differential classes were found one round at a time."""
+    hunt = _own_section(CAT, "## The brief's hunt lines (name the ones the shape has)")
+    assert (
+        "a regex redactor is also timed on a 100k-character input and probed at its truncation edges, and run beside"
+        " the parent commit's redactor over one generated input corpus, its generator and size named in the brief, each"
+        " output that differs classed intended or a defect in the seat's report), the request-target grammar for URLs"
+        " with its parser-differential classes named in the round-1 brief (a backslash, a percent-encoded host, an IDNA"
+        " host under its UTS-46 mapping, a numeric or shortened IPv4 host, whitespace and control characters, `@` in"
+        " userinfo, a `#` or `?` before the `@`, a malformed port, an unclosed `[`, no scheme), comment and brace shapes"
+        " for config, the real interpreter (dash) and the parent commit as oracles;" in hunt
+    )

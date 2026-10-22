@@ -137,13 +137,13 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
 
 - Order: **repo-first** (`grep docs/`, `docs/reference/`, `AFCL.md`) → then **live research**:
   `WebSearch` / `WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
-  `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape` on the library's OFFICIAL docs site for framework/API detail (`WebFetch` only to locate
+  `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape` (scrape with `proxy: "basic"`) on the library's OFFICIAL docs site for framework/API detail (`WebFetch` only to locate
   the page) → the **`gh` CLI** (`gh search code` / `gh api -H 'Accept: application/vnd.github.raw'
   repos/<o>/<r>/contents/<path>` / `gh release list`) to read a dependency's
   ACTUAL source, confirm a signature, or check its latest release/open issues when docs are thin or a
   claim needs verifying against the real repo (authenticated, zero idle processes — D-014 retired the github MCP).
 - Capture the **real** endpoint / signature / auth model / limits / pricing from a RAW fetch (`firecrawl_scrape`
-  as markdown with `maxAge: 0`, the raw `gh api` call above, the raw file — a `WebFetch` reply summarises, below) and **cite the source URL + the date you fetched
+  as markdown with `maxAge: 0` and `proxy: "basic"`, the raw `gh api` call above, the raw file — a `WebFetch` reply summarises, below) and **cite the source URL + the date you fetched
   it** in the spec — the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the
   error-code page beside the endpoint page when the design retries or re-sends, and a design that survives both
   readings when two vendor pages contradict each other. A build-tool setting the design relies on (any bundler,
@@ -259,9 +259,9 @@ build this — never pick an approach from training memory or first instinct:
 - Bias explicitly toward **low/no-maintenance** (managed/boring/proven over shiny; fewer components; within
   the fabrik self-host default) and **lean** (the smallest design that meets the goal — YAGNI).
 - **Cite the source + date** for each best-practice/leanness claim in the spec's Chosen-approach section, and
-  **actually fetch it this session** (`WebFetch` / `firecrawl_scrape`) — a claim you didn't
+  **actually fetch it this session** (`WebFetch` / `firecrawl_scrape` with `proxy: "basic"`) — a claim you didn't
   open is memory. ⚠️ **To QUOTE, fetch the RAW document** (`raw.githubusercontent.com`, view-source,
-  `firecrawl_scrape` with `maxAge: 0`, a live fetch) and match the string — normalising whitespace first (raw HTML wraps lines
+  `firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`, a live fetch) and match the string — normalising whitespace first (raw HTML wraps lines
   mid-sentence; a bare `grep -c` on a true quote returns 0 and flags a REAL quote as fabricated): a `WebFetch` reply is a small model's ANSWER about the page,
   not an extract, and quoting it ships a sentence the page does not contain. When the raw-fetch tools are down, you
   make that fetch from the shell (the division of labour below).

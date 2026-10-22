@@ -425,6 +425,12 @@ As of 2026-09-02 it carries the full AI-supplier set, each **validated live befo
   canary roster (deduped union; `anthropic/*` always excluded). Default `8`; hub-local tunable,
   read at batch start. See `docs/reference/canary-grounding.md`.
 
+### fabrik-scrape endpoint — `FABRIK_SCRAPE_MCP_URL`
+
+- `FABRIK_SCRAPE_MCP_URL` — the MCP endpoint `scripts/scrape_ledger.py` grades a ledger against when no `--server`
+  is given. Default `http://127.0.0.1:8034/mcp`, the loopback service `fabrik-scrape-mcp.service` runs. Set it only to
+  grade a server on another port, such as a scratch copy. See `docs/reference/fabrik-scrape-mcp.md`.
+
 ### Subagent flywheel — `SUBAGENT_RUNS_DSN` / `SUBAGENT_PROJECT` (hub-injected; do NOT hand-set the DSN)
 
 The vendored `libs/subagents` pool scores every run to `fabrik_analytics.subagent_runs` via `record_agent_run`, which `pick_models(task_type)` learns from. The module autoloads both vars from `.env` (`_dotenv.py`, non-overriding — a real `export` or a deploy-injected value always wins):

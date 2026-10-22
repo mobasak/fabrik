@@ -137,7 +137,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-1070 (infra, 2026-10-20): 25756 -> 26238 — a nested full /fabrik-review over committed work keeps its rows in a
 # `<durable>` draft during the passes and makes its receipt ONCE, after the last --commit, the gate run before that
 # --init (kaizen mail 01M5BSVANZ, rows 1792464865, 1792450211); the raise landed late — W-60629ce4 shipped over the cap.
-SIZE_CAP = 26238
+# D-1103 (kaizen, 2026-10-21): 26238 -> 26506 — an executed read of each input's live rows fills the inputs
+# table's counts and values; phase 2 tables each tag a parser it adds or extends reads, quoted inside its own
+# content; the census counts `.claude/worktrees/` apart (rows 1792587704, 1792574009, 1792544635, 1792573888, 1792585649); 53 bytes cut.
+SIZE_CAP = 26506
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -910,7 +913,9 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     ) in text
     assert "heredoc" not in raw and "`cat <it> >>`" not in raw
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
-    assert raw.count("<durable>") == 11  # D-1070 adds the nested review's draft (phase 4) and its --out (phase 5)
+    assert (
+        raw.count("<durable>") == 11
+    )  # D-1070 adds the nested review's draft (phase 4) and its --out (phase 5)
     for site in (
         "`<durable>/measure.md`, beside phase 2's `design.md`",
         "`<durable>/design.md`. A mechanism copied",

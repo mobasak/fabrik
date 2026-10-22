@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-6e656dac"
+  ],
+  "created": "2026-10-21T19:57:30.498055Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e841ac37",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fold into W-6e656dac T05 with W-1961cc42: agents_bat.py emits an attach-or-launch commandline; agents_up.sh gains an attach path that does not depend on the ownership read; update the rollout doc; regression tests in tests/test_agents_up.py and the agents_bat tests",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator ask tonight (HIGH): the launcher the operator clicks must show the agents; one script pair and a doc, one session, folded into T05",
+  "status": "open",
+  "title": "The '<Repo> Agents.bat' launchers and docs/reference/repo-coordinator-rollout.md must match D-1108: attach to the EXISTING tmux grid when one is up (tabbed, one tab per repo, small-font profile), launch only when none exists; today the .bat refuses a grid it did not create (W-1961cc42) and the coordinator opens the windows by hand after every relaunch"
+}

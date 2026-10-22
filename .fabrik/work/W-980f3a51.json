@@ -21,7 +21,8 @@
   "status": "open",
   "tags": [
     "fleet",
-    "medium"
+    "medium",
+    "waits-fabrik-lib"
   ],
   "title": "templates/i18n-kit/scripts/validate_i18n.py Level 2 lags fabrik-lib's i18n: it fails the run on drift (a measured false-red: 7 of 12 correct UI labels), samples only youtube's six key prefixes (auth. queue. watchlists. common. failure. nav.) so other projects check few or no strings, and passes product context to the back-translator; fabrik-lib SB-107 (drift warns, could-not-run fails) and SB-136 (sample every key, fail-closed _context.json scope, blind call) fix both (mails 01M5AFMZV4, 01M5ANKQ1T, 2026-10-19, owner: fleet)"
 }
