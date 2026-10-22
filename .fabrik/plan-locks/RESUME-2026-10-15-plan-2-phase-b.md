@@ -1,5 +1,24 @@
 ## RESUME
 
+**UPDATE 2026-10-22 07:40 — Phase B step 1 (the whole-plan /fabrik-review) ran round 1 and parked.** Seven seats,
+45 candidates, 21 code defects confirmed by execution (two loosen the git rule against the pre-plan hook, one
+makes the hook fail open), plus test and doc findings. All are listed in
+docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md § Round 1 findings. The run
+parked because the fleet's weekly quota was at its wall: every account but ob at 99%, ob at 81% of a 95 cap.
+
+Before any more patching, answer the foundation question with the Opus + Fable panel (CLAUDE.md § Autonomy)
+or a spec amendment (/fabrik-spec, Profile: delta). The question: keep growing a hand-written shell grammar, or
+change approach? Candidates:
+(a) fail closed: a seat's command holding any construct the scanner does not model refuses — heredoc to a shell,
+    eval/source, `$'…'`, `((`/`[[`, an unknown wrapper, a conditional cd — and the false-red cost is measured by
+    the replay;
+(b) narrow scratch to seat folders only (`seat-*` under the run scratch) and drop the repo `.tmp` rule;
+(c) the spec's approach D or a filesystem-level fence.
+Then fix per the decision, run the replay, and run round 2 with the same seven seats re-verifying their own
+slices.
+
+The W-72dfd448 branch must NOT be merged before this; the hook change is only live for this worktree's own seats.
+
 Item: W-72dfd448 (review seats may write only inside their own scratch folder).
 Plan: docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md (Phase A EXECUTED 2026-10-22).
 Branch: worktree-intel, last commit = the Phase A EXECUTED commit (after dc904d604). Lock:
