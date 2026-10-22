@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the context sensor: ROTATE-DUE and COMPACT-DUE lines at the item boundary (2026-10-23)
+
+- `scripts/sysadmin/transcript_size_check.py` (the user-level UserPromptSubmit hook) gains a second, independent check: the last main-chain usage row's context (input + cache_creation + cache_read, the status line's figure) against the session's window (`ROTATE_CONTEXT_WINDOW`, else the statusline cache's model id, else 1M) prints `ROTATE-DUE at your next item boundary … message your coordinator `rotate <agent>`` from 40% and `COMPACT-DUE mid-item … `compact <agent> <focus>`` from 85%, once per step and once per drop (a compaction re-arms it). The size line now names the item boundary and the coordinator instead of "run /clear now" (W-f975fee0 slice 1, D-1119, D-1123).
+
 ### Fixed — the QUOTA-line format sample shows the LANE clause (2026-10-22)
 
 - The sample in both CLAUDE.md twins and `quota_posture_hook.py`'s docstring listed no `band LANE` clause while the sentence above it says the line prints `band LANE on 5h` at the urgent-90 tier; the sample now carries the optional `[[ · band LANE on 5h — builders park, coordinators continue] · ⚠️ CHECKPOINT NOW …]` tail after `successor`, where the hook appends it — the LANE words only while the rotation tick is fresh, which the bands sentence now says too; `docs/workstation/hooks-index.md`'s copy of the sample matches (W-a784a444, fabrik-lib's finding). The band field itself stays GREEN, AMBER, RED or WALL.
