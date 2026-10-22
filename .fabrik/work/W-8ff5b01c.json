@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "review-probe-catalogue § Seat isolation — say the base pin tree is mode 0444 and chmod BEFORE the overlay (five seats hit Permission denied in one review)"
 }

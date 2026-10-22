@@ -3,7 +3,7 @@
   "created": "2026-10-22T11:20:49.247209Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "79f4a879c2e684ada174589c400dbd9300bd80cb",
   "id": "W-a784a444",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "a rule-text defect inside a hub-owned shared span (the QUOTA format sample contradicts the D-306/D-1125 sentence beside it); one-line fix in both twins + a fabrik-lib copy request; found by fabrik-lib 2026-10-22",
-  "status": "open",
+  "status": "done",
   "title": "fabrik-lib finding (W-ffcb313b, 2026-10-22): in the shared QUOTA-line paragraph of both contracts (hub CLAUDE.md § Pointers + templates/governance/CLAUDE.md), the format sample 'band <GREEN|AMBER|RED|WALL>' lists no LANE band, while the D-306/D-1125 span added by ddee2222f says the prompt line prints 'band LANE on 5h' — the sample and the sentence disagree inside one hub-owned span; fix the sample (both twins + fabrik-lib's copy via a request) and keep test_governance_template_split green"
 }

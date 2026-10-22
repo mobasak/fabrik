@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:43:45.239826Z",
+  "creator": "infra-2",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-200754ac",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "the pack's section (lines ~98-127) carries the two blank-line traps and a verify line but not the wrapped-value trap the hub and the template carry; W-62e96a9f aligned only its two table rows and graded them. Either replace the pack's prose with a pointer to the owning section, or extend test_the_trailer_sections_differ_only_in_the_agent_name_row to a three-way identity with the pack's own exclusions",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a rule pack restating CLAUDE.md's trailer prose is a second source of truth but misleads nobody yet; one pointer edit",
+  "status": "open",
+  "tags": [
+    "infra",
+    "queued"
+  ],
+  "title": ".windsurf/rules/core/40-documentation.md § Agent Provenance Trailers restates the contract's trap prose in a shorter copy (no third trap, its own verify line) — point at CLAUDE.md § Agent Provenance Trailers or mirror it under a grader"
+}
