@@ -514,12 +514,35 @@ runaway is a named failure, never a host outage. `docs/reference/long-command-mo
   swap). The completion gate's pytest leg, `merge_request.py` and `kaizen_outcomes.py` launch tests
   through it.
 - `FABRIK_TEST_SLICE_MAX`: the total for every capped run on the box together, set on
-  `fabrik-tests.slice` at runtime on each launch (default `12G`).
+  `fabrik-agents-tests.slice` at runtime on each launch (default `12G`). The dashed name nests it under
+  `fabrik-agents.slice`, so the agents' parent ceiling (below) bounds the test jobs too.
+- `FABRIK_TEST_ADMIT_WAIT`: the admission band's bound in seconds (default `300`, 0 to 9999), itself capped at half
+  the run's time limit. Before a start the runner waits while `MemAvailable` is under 3 GiB or memory PSI `some avg10`
+  is over 10, then starts and says so; the seconds waited come off the run's time limit;
+  an unreadable meminfo or PSI starts at once and says so. `FABRIK_PROC_ROOT` (default `/proc`) is the test seam for
+  both reads.
 - `FABRIK_TEST_TIMEOUT`: one run's time limit in seconds (default `1800`). The gate passes its own
   900 s.
 - `FABRIK_TEST_RSS_MAX`: the hub suite's in-process guard (`tests/memguard.py`, started by
   `tests/conftest.py`). It kills a pytest process tree whose summed PSS passes this size and prints
   the traceback (default `3G`, below the runner's 4G so the traceback prints before the kernel kills).
+
+### Agent grid memory — `FABRIK_AGENT_NONAGENT_FLOOR` / `FABRIK_AGENT_SLICE_MAX` / `FABRIK_AGENT_TASKS_MAX` (WSL box, W-6e656dac)
+
+Read from the process environment by `scripts/sysadmin/agents_up.sh`. Panes have no `MemoryMax` of their own;
+`FABRIK_AGENT_MEM_MAX` is retired (a set value is warned about and ignored). One parent slice,
+`fabrik-agents.slice`, holds every pane and every capped test job: `MemoryHigh` = MemTotal − max(4G, floor) and
+`MemoryMax` = MemTotal − max(2G, floor − 2G), in whole G.
+
+- `FABRIK_AGENT_NONAGENT_FLOOR`: what the non-agent processes (Windows, VS Code, the system) keep at `MemoryHigh`
+  (floor − 2G at `MemoryMax`), in whole G
+  (default `12G`; the `G` is optional). A MemTotal under 8G, or an unreadable one keeps
+  D-1075's 16G `MemoryMax` and says so; a floor that leaves nothing uses the minimum margins (MemTotal − 4G / MemTotal − 2G), also said.
+- `FABRIK_AGENT_SLICE_MAX`: overrides the derived `MemoryMax` (and clears `MemoryHigh`).
+- `FABRIK_AGENT_TASKS_MAX`: `TasksMax` per pane (default `1024`).
+- `FABRIK_AGENTS_UNCAPPED=1`: lets an interactive launch proceed when no user manager answers (otherwise it
+  refuses); `agents_up.sh --detach`, the boot path, launches uncapped with a warning regardless.
+- `FABRIK_PROC_ROOT`: the `/proc` seam MemTotal is read through (tests).
 
 Sizes are `<digits><K|M|G>`, from 1M to 999999999G, and a timeout is 1 to 604800 seconds. The runner
 refuses a bad value with exit 2; the guard falls back to its default and says so. `FABRIK_TEST_SLICE`

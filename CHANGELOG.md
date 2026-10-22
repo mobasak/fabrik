@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — agents_up relaunch: attach-first, wake prompt, one parent memory ceiling, tmux 3.4 fix (2026-10-22)
+
+- `agents_up.sh` attaches to a repo's grid when one is already up and launches only when none exists (D-1108, W-e841ac37) — only a session recording a DIFFERENT root refuses; it gains `--detach` (and detaches with no terminal), resumes builders with a wake prompt that re-arms the self-watch (its `hibernate.py woke` step waits for W-6e656dac T01a), `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 200, and uses `=name:` for every tmux option read and write, which tmux 3.4 needs (W-1961cc42). The per-pane MemoryMax is gone (D-1109: no memory cap per agent); the parent `fabrik-agents.slice` gets MemoryHigh = MemTotal − max(4G, floor) and MemoryMax = MemTotal − max(2G, floor − 2G), floor `FABRIK_AGENT_NONAGENT_FLOOR` (12G), the minimum margins when the floor leaves nothing, D-1075's 16G under 8G or unreadable (W-0b8a0fba). With no user manager an interactive launch now refuses (exit 2) unless `FABRIK_AGENTS_UNCAPPED=1`; `--detach` launches uncapped with a warning. `capped_run.sh` nests under `fabrik-agents-tests.slice` and waits on a MemAvailable/PSI admission band, at most half its time limit (`FABRIK_TEST_ADMIT_WAIT`, default 300 s), the seconds waited taken off the run's limit. Cherry-picked onto master from W-6e656dac's T05 (1d56acd55) ahead of the rest of that plan.
+
 ### Fixed — Firecrawl proxy grader reads recrawl, retrieve and "scrapers at Firecrawl"; a reader's "read" is no fetch (2026-10-22)
 `tests/test_firecrawl_proxy_basic.py` (W-ddb716ca): `MENTION` now catches re-crawl and retrieve in every inflection and the verb-then-`at Firecrawl` form, and its 40-character far lookahead no longer counts `read`, which false-redded "Firecrawl docs are easy to read" (`read` still counts right after Firecrawl). One fixture per change, each proven red when its change is undone.
 
