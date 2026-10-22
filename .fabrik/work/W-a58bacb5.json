@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:55:32.176892Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a58bacb5",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fix the ellipsis condition to compare position, make the clip test's premise independent of the temp-root length; red-prove both",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 3,
+  "score_reason": "cosmetic refusal-row output and a test premise tied to the temp-root length; no gate verdict changes; the author's own surface",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "final_gate.py SUITE REFUSED remedy row: two cosmetic residues — a '…' is printed even when the quoted paragraph is contiguous with the tail (the paragraph break compares text, not position), and the new clip test's len(where) < 300 premise goes red on a temp root over ~300 chars (body passes at 514) — residue (4) recorded by W-f46bca45's scope-growth stop, 2026-10-23"
+}
