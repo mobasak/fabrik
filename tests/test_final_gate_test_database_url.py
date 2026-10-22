@@ -46,7 +46,8 @@ def project(tmp_path, monkeypatch):
     (root / "tests" / "test_db.py").write_text(DB_TEST, encoding="utf-8")
     monkeypatch.setattr(fg, "PROJECT_ROOT", root)
     monkeypatch.setattr(fg, "PYTHON", sys.executable)
-    monkeypatch.delenv(KEY, raising=False)
+    for k in (KEY, "TEST_APP_DATABASE_URL", "TEST_MIGRATION_DATABASE_URL", "TEST_REDIS_URL"):
+        monkeypatch.delenv(k, raising=False)  # the box environment never shapes a row (Bx-3)
     monkeypatch.chdir(root)
     return root
 
@@ -133,12 +134,12 @@ def test_the_sentinel_makes_a_missing_key_red(project):
     (project / ".fabrik" / "require-test-database-url").touch()
     name, ok, text = _row()
     assert not ok and "DB SUITE NOT RUN" in name, (name, text)
-    assert str(project / ".env.local") in text and str(project / ".env") in text
+    assert f"{project / '.env.local'}, {project / '.env'}" in text, text  # both paths, not a prefix
 
 
 def test_the_skip_advisory_names_the_missing_key_only_for_db_gated_suites(project):
     _, ok, text = _row()
-    assert ok and KEY in text and str(project / ".env") in text, text
+    assert ok and KEY in text, text
     # The exact sentence, graded: the exit-4 branch shares it through `_tdb_missing_hint`, and a
     # reword there must not drift this one (critique seats O5/F6c, W-f46bca45)
     where = f"{project / '.env.local'}, {project / '.env'}"
@@ -296,62 +297,128 @@ def test_two_keys_sharing_a_password_or_a_prefix_each_keep_their_label(rls_proje
 
 
 # A suite that REFUSES to run without the key — transdoc's conftest shape (01M171R8, W-f46bca45):
-# pytest exit 4 at collection, its own remedy an `export` into a shell and a database name the
-# gate's disposable bar refuses. The row must put the gate's OWN channel (.env.local, D-597) first.
+# pytest exit 4 at collection, a MULTI-LINE refusal that names the key on its FIRST line (transdoc's
+# is 31 lines; the row's 15-line tail never shows that line), an `export` remedy for a shell and a
+# database name the gate's disposable bar refuses. The row must put the gate's OWN channel
+# (.env.local, D-597) first and keep the key-naming line in the quote.
+REFUSAL_LINES = (
+    [f"{KEY} is not set; this run collected 365 test(s) that need a real Postgres, and a"]
+    + ["Postgres server IS reachable on this box.", ""]  # the headline wraps, then a blank line
+    + [f"line {n} of the suite's own explanation" for n in range(4, 20)]
+    + ["Remedy: createdb shop_test_$USER; export " + KEY + "=..."]
+)
 REFUSING_CONFTEST = f'''
 import os, pytest
 
 def pytest_collection_modifyitems(config, items):
     if not os.getenv("{KEY}", ""):
-        raise pytest.UsageError(
-            "{KEY} is not set; refusing. Remedy: createdb shop_test_$USER; export {KEY}=..."
-        )
+        raise pytest.UsageError({chr(10).join(REFUSAL_LINES)!r})
 '''
 
-# The same refusal, worded without the key: the gate cannot read cause from it
-SILENT_CONFTEST = """
+# The same refusal, worded without the key: the gate cannot read cause from it. The conftest also
+# PRINTS a line that mentions the key, which is not a refusal about it (review A-2).
+SILENT_CONFTEST = f"""
 import os, pytest
 
 def pytest_collection_modifyitems(config, items):
+    print("note: {KEY} is irrelevant to this refusal")
     if not os.getenv("TEST_DB_READY", ""):
         raise pytest.UsageError("the database fixture is not configured; refusing")
 """
 
+HINT_TAIL = "Add a disposable database URL (name ending `_test`, `throwaway` or `scratch`) to .env.local to run it here."
+
 
 @pytest.fixture
-def refusing_project(project):
+def refusing_project(project, monkeypatch):
     (project / "tests" / "conftest.py").write_text(REFUSING_CONFTEST, encoding="utf-8")
+    monkeypatch.delenv("TEST_DB_READY", raising=False)  # SILENT_CONFTEST reads it
     return project
+
+
+def _quote(text: str) -> str:
+    return text.split("channel is the line above):", 1)[1]
 
 
 def test_a_refusing_db_suite_is_told_the_gates_own_env_file_remedy(refusing_project):
     name, ok, text = _row()
     assert not ok and name == "pytest (SUITE REFUSED \u2014 usage error)", (name, text)
-    assert "Remedy: createdb" in text, text  # the suite's own remedy is still quoted
-    assert "its message names the key" in text and "does not persist into the gate" in text, text
-    assert ".env.local" in text and "<project>_<you>_test" in text, text
-    assert text.index(".env.local") < text.index("Remedy: createdb"), text  # the gate's line first
-    assert "The suite's own message follows" in text, text
-    assert ".env.local" in fg.clip_output(text)["output"], text  # survives the display clip
+    where = f"{refusing_project / '.env.local'}, {refusing_project / '.env'}"
+    causal = fg._tdb_missing_hint(
+        where,
+        "the suite refused to run without it \u2014 its message names the key \u2014 and it "
+        "refuses here on every completion gate: an export typed in an agent's shell does not "
+        "persist into the gate, which reads the key from .env.local (then .env), where the "
+        "database name must end _test, throwaway or scratch (<project>_<you>_test, not "
+        "<project>_test_<you>)",
+    )
+    assert causal in text, text  # the shared sentence, whole, through the one helper
+    assert "\n" + causal + "\n" in text, text  # on its own line, like every other \u26a0 row
+    assert "its export remedy is for a shell; the gate's channel is the line above):" in text, text
+    assert text.index(HINT_TAIL) < text.index("Remedy: createdb"), text  # the gate's line first
+    quote = _quote(text)
+    assert "ERROR: " + REFUSAL_LINES[0] + "\n" + REFUSAL_LINES[1] + "\n\u2026" in quote, quote
+    # the key-naming line AND its wrapped continuation (its paragraph), then the elision
+    assert "line 4 of the suite" not in quote.split("\u2026")[0], (
+        quote
+    )  # the paragraph ends at the blank line
+    assert "Remedy: createdb" in quote and "\u2026" in quote, quote  # the suite's own remedy too
+    assert HINT_TAIL in fg.clip_output(text)["output"], text
 
     (refusing_project / ".env.local").write_text(f"{KEY}={GOOD}\n", encoding="utf-8")
     name, ok, text = _row()
     assert name == "pytest" and "from .env.local" in text, (name, text)  # the refusal is gone
 
 
+def test_the_remedy_survives_a_row_long_enough_to_be_clipped(refusing_project):
+    padded = REFUSAL_LINES[:1] + [f"padding line {n} " + "x" * 200 for n in range(30)]
+    (refusing_project / "tests" / "conftest.py").write_text(
+        REFUSING_CONFTEST.replace(repr(chr(10).join(REFUSAL_LINES)), repr(chr(10).join(padded))),
+        encoding="utf-8",
+    )
+    where = f"{refusing_project / '.env.local'}, {refusing_project / '.env'}"
+    assert len(where) < 300, (
+        where
+    )  # the premise: a hint with two short paths sits inside the 1400-char head
+    _, ok, text = _row()
+    clipped = fg.clip_output(text)
+    assert not ok and clipped["truncated"], (len(text), clipped)
+    assert HINT_TAIL in clipped["output"], clipped["output"]
+
+
 def test_a_refusal_silent_about_the_key_gets_the_hedged_hint(refusing_project):
     (refusing_project / "tests" / "conftest.py").write_text(SILENT_CONFTEST, encoding="utf-8")
-    name, ok, text = _row()  # tests/test_db.py still READS the key
+    name, ok, text = _row()  # tests/test_db.py still READS the key; the output mentions it
     assert not ok and "SUITE REFUSED" in name, (name, text)
-    assert "a suite that refuses without it" in text and ".env.local" in text, text
-    assert "its message names the key" not in text, text
+    assert "a suite that refuses without it" in text and HINT_TAIL in text, text
+    assert "does not persist into the gate" in text, text
+    assert "its message names the key" not in text, text  # a printed mention is not a refusal
+    assert "(when it is about the key, the gate's channel is the line above):" in text, text
+    assert "its export remedy is for a shell" not in text, text
 
 
 def test_a_refusal_unrelated_to_the_key_gets_no_env_file_hint(refusing_project):
     (refusing_project / "tests" / "conftest.py").write_text(SILENT_CONFTEST, encoding="utf-8")
     (refusing_project / "tests" / "test_db.py").write_text(
         "def test_x():\n    pass\n", encoding="utf-8"
-    )  # nothing under tests/ reads the key and the refusal does not name it
+    )  # nothing under tests/ reads the key and the refusal is not about it
     name, ok, text = _row()
     assert not ok and "SUITE REFUSED" in name, (name, text)
-    assert ".env.local" not in text and "The refusal message names the remedy:" in text, text
+    assert HINT_TAIL not in text, text
+    assert (  # byte for byte the pre-W-f46bca45 header: one line, then the quote
+        "exit 4: the suite refused to run (conftest/usage error, not a failing test). "
+        "The refusal message names the remedy:\n"
+    ) in text, text
+
+
+def test_a_resolved_key_gets_no_hint_even_when_the_refusal_names_the_key(refusing_project):
+    (refusing_project / ".env.local").write_text(f"{KEY}={GOOD}\n", encoding="utf-8")
+    (refusing_project / "tests" / "conftest.py").write_text(  # refuses whatever the key says
+        f"import pytest\n\ndef pytest_collection_modifyitems(config, items):\n"
+        f'    raise pytest.UsageError("{KEY} is set but the fixture role is wrong; refusing")\n',
+        encoding="utf-8",
+    )
+    name, ok, text = _row()
+    assert not ok and "SUITE REFUSED" in name, (name, text)
+    assert HINT_TAIL not in text and "the line above" not in text, text  # the key IS resolved
+    assert "not a failing test). The refusal message names the remedy:\n" in text, text

@@ -1,7 +1,8 @@
 # Review — final-gate-refusal-remedy
 
-**Status:** IN-PROGRESS
-**Surface:** `git rev-parse HEAD` = 778bf73f7b13b4a2dc430b6347d7c48b3bd14d50; `git diff HEAD -- scripts/final_gate.py tests/test_final_gate_test_database_url.py` md5 34dcb567fba8e63149193dff62a93e54 (9350 bytes)
+**Status:** CONVERGED
+**Surface:** `git rev-parse HEAD` = f1b0a3ef581421767814624ab0919b7e9466b1fa; `git diff HEAD -- scripts/final_gate.py tests/test_final_gate_test_database_url.py` md5 cda837d08f82c2ba1b04ff84736a8382 (14835 bytes)
+**Lane:** fabrik-task (W-f46bca45; the scope-growth stop fired at pass 3 in-lane: the window's four own-fix defects were fixed in that pass, nothing routed, pass 4 re-verifies the fixed set alone)
 **Command:** /fabrik-review · **Changed:** `scripts/final_gate.py`, `tests/test_final_gate_test_database_url.py`
 
 ## Coverage Checklist
@@ -98,14 +99,14 @@ $ python scripts/review_rubric.py --changed scripts/final_gate.py tests/test_fin
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/final_gate.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_final_gate_test_database_url.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/final_gate.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (A1 hedged header, A2 substring predicate → `_tdb_named_error_lines`, A3 the 15-line tail dropped the key line → quoted above it, A9 unconditional name clause, A10 hint on its own line; hunted: `_run_pytest_suite` exit-4 and skip branches, `_tdb_missing_hint`, `_suite_reads_test_database_url`, `_resolve_test_database_url`, `skip_advisory`, `clip_output`, the `--json` envelope; readers CLAUDE.md:266, templates/governance/CLAUDE.md:238, docs/workflows/FINAL_GATE_WORKFLOW.md:226-240, tests/test_final_gate_advisory_display.py:446-453, tests/test_governance_template_split.py `_GATE_CITES`) |
+| Hunt: `tests/test_final_gate_test_database_url.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (B1 vacuous clip assertion → actionable clause + a real-clip test, B2 one-line fixture → 20-line refusal with the key on line 1 and the quote asserted, B3 box-env leak → `delenv` of TEST_DB_READY and the family keys, B4 hedged test → asserts the channel clause and its own header, B5 shared sentence → the helper's whole output asserted, B6 ordering by the actionable clause; red-on-base: tests 1 and 3 red with the fix reverted, test 4 a negative guard killed by mutants M6/M9) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | CLEAN (`scripts/final_gate.py::_run_pytest_suite` exit-4 branch: the row stays RED on every path; a missed predicate fails open on the MESSAGE only — the hedged line, or none — never on the verdict; `_tdb_named_error_lines` fails closed on cause: a printed mention or a traceback quote is not a refusal) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (no pool; 3 native seats stamped and closed by `round --seats 3`; the one limit on the surface is `clip_output`'s 1400/600 head/tail, probed at both sides — a 1486-char transdoc row unclipped, a padded 3,000+-char row clipped with the remedy surviving in `tests/test_final_gate_test_database_url.py::test_the_remedy_survives_a_row_long_enough_to_be_clipped`) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (A2: `_TDB_KEY in out` was a bare substring over the whole output — now the key on an `ERROR`/`E `-prefixed line; A3: the `[-15:]` tail boundary dropped the key line — the key-naming lines are quoted above it with `…`; the row NAME is prefix-matched by the `checks` roster and unchanged; the `<TEST_APP_DATABASE_URL>` redaction label does not contain the key as a substring, executed) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (B2: the tail-only predicate mutant M8 survived 9/9 on the seat's copy → the 20-line fixture kills it; the lead's battery on a scratch copy of the fix: M8 tail-only predicate, M9 any-line predicate, M10 quote drops the key lines, M11 hedged export header, M12 hint glued to the header line — all five dead by the named test, each shown applied by a 1-2 line diff; B-sonnet's M1-M7 on the pre-fix pin all dead) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (the D-row's census: 14 repos reach the leg = 7 by `.fabrik/run-pytest` + 7 by CI text under /opt at depth 1, listed by name in `measure.md`; 0 of 14 need another invocation; transdoc raw refusal = 31 lines counted with `cat -n`; the quote keeps at most 3 key-naming lines, stated in `_run_pytest_suite`) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (every CONFIRMED row below was executed by the lead: the three probe shapes in `run-fabrik-review-…/probe/shapes.py`, the transdoc replay through the fixed gate (row 1486 chars, key line quoted, remedy in the clip head), the B3 leak with `TEST_DB_READY=1`, the mutation battery, `tests/test_governance_template_split.py` red then green on the cite remap) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -131,6 +132,10 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×2 + haiku×1 (A-sonnet, A-haiku over `scripts/final_gate.py`; B-sonnet over the test file; B-haiku TRIMMED by the quota cap — next wave) | found: 17, new: 17, confirmed: 13, fixed: 13, unexecuted: 0 | method: citation — full partitioned pass over pin d2d82985 (base 778bf73f7, working tree); shape: agent-tool (D-961); seats: A-sonnet 5/7 · A-haiku 5/6 · B-sonnet 6/6 (confirmed/raised per seat, candidates unioned — A1, A2 and the sentinel-drift note raised by both A seats credit both); hygiene 0 hits at start; every candidate executed by the lead (§ Dispositions); stop: confirmed 13; fix: +116 −52 lines (`git diff HEAD --numstat`, the WIP commit f1b0a3ef5 as HEAD) over `scripts/final_gate.py`, `tests/test_final_gate_test_database_url.py`, `docs/workflows/FINAL_GATE_WORKFLOW.md`, `CLAUDE.md`, `templates/governance/CLAUDE.md`, `tests/test_governance_template_split.py` for 13 confirmed; round-zero probe — the fix's input class (a refusal naming the key on an ERROR line, a printed mention, a traceback quote, a 1-line and a 31-line refusal, a key from env vs file, a row under and over the 2000-char clip) executed in `probe/shapes.py` and the transdoc replay; mutants M8-M12 dead on the copy |
+| Pass 2 | native haiku×1 (B-haiku — the full-pass WAVE over slice B the quota cap trimmed from pass 1, on pin 25b66429 cut after the pass-1 fixes) | found: 2, new: 2, confirmed: 1, fixed: 1, unexecuted: 0 | method: citation — wave over slice B (`tests/test_final_gate_test_database_url.py`), every assertion classed equality / substring / ordering, HINT_TAIL byte-equal to the helper's tail, the 20-line fixture shown rendering multi-line, the whole file 27 passed from an archive, ruff clean, the seat's own ellipsis mutant dead; stop: confirmed 1; fix: 2 assertion lines (Bw-1); shape: agent-tool |
+| Pass 3 | native sonnet×2 + haiku×2 (the round-1 seats over their OWN slices on pin 01c78b96: A-sonnet, A-haiku over `scripts/final_gate.py` + the docs; B-sonnet, B-haiku over the test file) | found: 9, new: 9, confirmed: 4, fixed: 5, unexecuted: 0 | method: re-derivation — every slice claim re-executed and found DEFECT_ABSENT (A1 A2 A3 A5-contracts A7 A9 A10 · B1-B6 Bw-1), B-sonnet's M1-M12 all dead on a fresh copy, reverse-order and box-env runs green; fresh: A-X-1s the no-hint row's header changed shape while the doc said unchanged, A-X-1h the quoted key line is a mid-sentence fragment (executed on transdoc), A-H3 the key-line cap was silent, Bx-1 the `not tdb` guard on the causal predicate was ungraded (mutant M13 survived) — 4 own-fix CONFIRMED and FIXED in the same round (`own-fix: round 1` hunks), Bx-2 the padded clip test's root-length premise FIXED defensively (an explicit premise assertion), Bx-3 the D-597 `project` fixture's env leak fixed in the same hunk and named, never counted; A-X-2 and A5-workflow-cites RECORDED, the empty-`out` dangling newline REFUTED; stop: confirmed 4; fix: +31 −12 lines; shape: agent-tool; round-zero probe — the fixed quote assembly run on transdoc (paragraph of 2 lines then `…`), the no-hint row diffed byte for byte against the base row, the three new graders seen red on the pre-fix copy |
+| Pass 4 | native sonnet×2 + haiku×2 (the round-1 seats over their OWN slices on pin b78d8205 — the round-3 FIXED SET alone; dispatched 4 against a `dispatch_headroom.py` box cap of 3 read after the send, named here) | found: 4, new: 3, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — every round-3 claim re-executed on the p4 pin and found DEFECT_ABSENT: the no-hint row diffed byte for byte against the base gate's on the same refusing project (two seats, independently), the transdoc replay's quote is the ERROR line with its continuation then `…` (row 1528 chars, unclipped), M13 dead by the new resolved-key test on two seats' fresh copies, the box-env whole-file run 28 passed, reverse-order run green, M17-M19 dead; the three fresh residue candidates and one re-raise are RECORDED (§ Residual), none counted (the scope-growth stop's remainder rule, D-355); classes not touched standing-clean from pass 1; stop: closable → EXIT |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -139,10 +144,65 @@ Row shapes (quoted here, so the gate does not read them as passes):
 | Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |
 ```
 
+
+## Dispositions (every candidate any seat raised, one terminal state each; 32 candidates → 19 FIXED + 2 REFUTED + 10 RECORDED + 1 pre-existing fixed-and-named)
+
+| id | raised by | claim | disposition |
+|---|---|---|---|
+| A1 | A-sonnet A-1, A-haiku A-1 | the swapped "export remedy" header is printed for the HEDGED branch too | FIXED(1) · LOCAL — executed (`probe/shapes.py` HEDGED case printed "its ex…"); the hedged branch now prints "(when it is about the key, the gate's channel is the line above):"; grader `test_a_refusal_silent_about_the_key_gets_the_hedged_hint` (mutant M11 dead) |
+| A2 | A-sonnet A-2, A-haiku A-2 | `_TDB_KEY in out` fires the causal wording on an unrelated refusal whose output merely mentions the key | FIXED(1) · LOCAL — executed (a conftest that PRINTS the key then raises an unrelated UsageError got the causal line); cause is now read from `ERROR`/`E `-prefixed lines (`_tdb_named_error_lines`); graders: the silent and unrelated tests (M9 dead) |
+| A3 | A-haiku A-3 | the 15-line tail drops transdoc's key-naming `ERROR:` line 1 of 31 | FIXED(1) · LOCAL — executed (`cat -n` of the raw refusal; the replay's quote lacked it); the key-naming lines (≤3) are quoted above the tail with `…`; grader asserts `ERROR: <line 1>` in the quote (M10 dead); transdoc replay now quotes it |
+| A4 | A-sonnet A-3 | a settings-class suite whose refusal does not print the key gets no hint | RECORDED — measured (`_TDB_READS` matches getenv/environ only, a pre-existing reach D-597 chose; no worse than base; the D-row names the limit) |
+| A5 | A-haiku A-4 | the change shifts nine line cites in CLAUDE.md:266 and templates/governance/CLAUDE.md:238 and the workflow doc's | FIXED(1) · LOCAL — executed (difflib remap, every anchor re-read by content; `test_the_gate_rows_line_citations_land_on_what_they_name` red → green with its keys moved, the constructs untouched); the workflow doc's `:1148`, `:1195-1197`, `:1198-1204`, `:198-242` were stale BEFORE this change and are remapped by content in the same edit |
+| A6 | A-sonnet A-4 | CLAUDE.md:266 and the template describe the exit-4 row without the new hint | REFUTED (the sentence there — the row "carries neither" the `-x` remedy nor skip counts — stays true; D-284 gives the leg's semantics ONE prose home and row TEXTS live in `docs/workflows/FINAL_GATE_WORKFLOW.md`'s table, which gained the row) |
+| A7 | A-haiku A-5 | FINAL_GATE_WORKFLOW.md:238 says the sentence is appended to a GREEN run only | FIXED(1) · LOCAL — the row's When cell says the same sentence opens the RED refusal row, and that row was added beneath it |
+| A8 | A-sonnet A-5, A-haiku note | the sentinel row keeps its own copy of the "set in neither" sentence | RECORDED — by design (D-597) — its remedy differs (`or delete the sentinel`) and it fires before pytest; the helper docstring says so |
+| A9 | A-sonnet A-6 | "a database name the refusal suggests is refused" is asserted when no name is suggested | FIXED(1) · LOCAL — reworded to "where the database name must end _test, throwaway or scratch" |
+| A10 | A-haiku A-6 | the ⚠ hint is glued to the header line, unlike every other ⚠ row | FIXED(1) · LOCAL — the hint starts its own line; grader asserts `\n⚠ …\n` (M12 dead) |
+| A11 | A-sonnet A-7 | a long row's clip drops the middle (the follows line, the first quote lines) | RECORDED — measured (`clip_output`'s head/tail is pre-existing; the hint sits in the 1400-char head by design and `test_the_remedy_survives_a_row_long_enough_to_be_clipped` proves the remedy survives a 3,000+-char row) |
+| B1 | B-sonnet B-1 | the `clip_output` assertion is vacuous (1299 chars, never clipped; `.env.local` sits in `where`) | FIXED(1) · LOCAL — asserts the actionable clause, plus the padded real-clip test |
+| B2 | B-sonnet B-2 | the one-line fixture never exercises the full-`out` predicate; mutant M8 (tail-only) survived 9/9 | FIXED(1) · LOCAL — 20-line refusal with the key on line 1; the lead's M8 now dead by `test_a_refusing_db_suite_is_told_the_gates_own_env_file_remedy` |
+| B3 | B-sonnet B-3 | the refusing fixtures are not isolated from the box environment | FIXED(1) · LOCAL — executed (`TEST_DB_READY=1` made the hedged fixture stop refusing: row `pytest`); `delenv` of TEST_DB_READY and the family keys in `refusing_project` |
+| B4 | B-sonnet B-4 | the hedged test never asserts the channel clause or its header | FIXED(1) · LOCAL — asserts "does not persist into the gate" and the hedged header, and the absence of the export header |
+| B5 | B-sonnet B-5 | nothing proves the exit-4 row reuses the helper's sentence | FIXED(1) · LOCAL — the causal test asserts `_tdb_missing_hint(where, …)`'s whole output in the row |
+| B6 | B-sonnet B-6 | the ordering assertion is satisfied by `.env.local` inside `where` | FIXED(1) · LOCAL — ordered by the actionable clause |
+| Bw-1 | B-haiku (wave) | `str(project / ".env") in text` at the sentinel and skip-advisory tests is satisfied by `.env` being a substring of `.env.local` | FIXED(2) · LOCAL — executed by the seat (`substring .env inside a .env.local-only where: True`); both assert the whole `where` pair (`<p>/.env.local, <p>/.env`) now — pre-existing D-597 lines, inside this change's test file |
+| Bw-2 | B-haiku (wave) | `not re.search(r"[+-] ab$", …)` at the short-password test may be vacuous if pytest prints no diff line | RECORDED — measured (a D-597 grader outside this change's hunks, proven red in that review's round 2 per its docstring; destination: the coordinator's residue list with this merge request) |
+| A-X-1s | A-sonnet (closing) | the no-hint row's header broke onto two lines while the new doc row said it prints unchanged | FIXED(3) · LOCAL — own-fix: round 1; the no-hint branch keeps the pre-change one-line header byte for byte; grader `test_a_refusal_unrelated_to_the_key_gets_no_env_file_hint` asserts the exact header line |
+| A-X-1h | A-haiku (closing) | the quoted key line is a mid-sentence fragment (`… and a` then `…`) — its wrapped continuation was dropped | FIXED(3) · LOCAL — own-fix: round 1; executed on transdoc; the first key-naming line is quoted with its paragraph (to the next blank line, ≤4 lines); grader asserts the continuation line and the paragraph's end |
+| A-X-2 | A-haiku (closing), A-sonnet (closing) | an `E `-prefixed traceback line of an unrelated import error that names the key would read as causal | RECORDED — measured (executed shapes: a conftest `KeyError` on the key IS about the key; the `from settings import TEST_DATABASE_URL` shape was not reproduced; the D-row names the predicate's limit: cause is read from ERROR/E lines that name the key) |
+| A-H3 | A-haiku (closing) | `named[:3]` dropped key-naming lines beyond the third silently | FIXED(3) · LOCAL — own-fix: round 1; the cap is now one paragraph by design, stated in the code comment and the doc row |
+| A5-wf | A-haiku (closing) | 15 other `path:line` cites in `docs/workflows/FINAL_GATE_WORKFLOW.md` point at the wrong code | RECORDED — measured (executed against the base tree: every one of them was already wrong at 778bf73f7 — the base line held other code too — so none was created by this change's hunks; destination: the coordinator's residue list with this merge request, a docs item for the hub-only workflow doc) |
+| A-X-e | A-sonnet (closing) | an empty pytest `out` leaves a dangling newline after the header | REFUTED (pytest prints its summary line on every exit-4 run — all six shapes executed this review printed `no tests ran in …`; `out` is never empty on that path) |
+| Bx-1 | B-sonnet (closing) | the `if not tdb` guard on `named` is ungraded — mutant M13 survived 11/11 | FIXED(3) · LOCAL — own-fix: round 1; grader `test_a_resolved_key_gets_no_hint_even_when_the_refusal_names_the_key` (a resolved key + a refusal naming it → the one-line header, no hint) |
+| Bx-2 | B-sonnet (closing) | the padded clip test fails on a tmp root over ~300 characters (the hint embeds two absolute paths) | FIXED(3) · LOCAL — defensively: the test asserts its premise (`len(where) < 300`) so a long root fails loudly with the reason; the product limit is A11's and is recorded there |
+| Bx-3 | B-sonnet (closing) | the D-597 `project` fixture clears only TEST_DATABASE_URL, so `test_the_pytest_leg_takes_test_database_url_from_env_files_in_order` fails on a box exporting a family key | pre-existing, outside the hunks — fixed in the same hunk and named (the family keys are cleared in `project`), never counted |
+| A-N-1 | A-sonnet (round 4) | the `…` marker is inserted even when the quoted paragraph is contiguous with the tail (key on line 5, tail from line 6) | RECORDED — measured (a remainder-round own-fix residue: cosmetic, the marker then claims an omission that is not there; destination: the coordinator's residue item — `…` only when a line is skipped between the paragraph and the tail) |
+| A-N-2 | A-sonnet (round 4) | the paragraph loop breaks on a line whose TEXT equals a tail line, not its position | RECORDED — measured (remainder-round residue, low: a repeated indented line shortens the quote; destination: the same residue item) |
+| A-H3r | A-haiku (round 4) | a second key-naming line above the tail and outside the first paragraph is dropped behind the `…` | RECORDED — by design (A-H3, round 3) — one paragraph by design, stated in the code comment and the doc row; the causal wording stays backed by the quoted first line |
+| Bx-2p | B-sonnet (round 4) | the clip test's `len(where) < 300` premise reds on a deep temp root (514 chars on the seat's scratch) although the body passes there — the bound is stricter than the product needs | RECORDED — measured (a remainder-round own-fix residue of my round-3 defensive fix; on this box's `/tmp/pytest-of-*` roots it holds; destination: the coordinator's residue item — derive the bound from the clipper's line rule or pin a short basetemp) |
+
+Lane answers executed: A-sonnet's "honour a project-declared env" second approach — REFUTED (D-597 already injects `.env.local`'s key into the pytest child; the design's census stands); A-haiku's "quote the key line instead of a hedged prepend" — settled by A3 (both); B-sonnet's "extract a pure `_exit4_hint`" — REFUTED as a trade-off (an equivalent implementation; the subprocess graders drive the consumer's real entry point, term-coverage rule 5). Escape: the change touches `CLAUDE.md`, `templates/governance/CLAUDE.md`, `docs/workflows/FINAL_GATE_WORKFLOW.md` and `tests/test_governance_template_split.py` beyond the two declared files — the lane's `--design-amend` names them. Mechanism: none added.
+
 ## Residual
 
 Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
 grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading is an EXAMPLE, never rows).
+
+| id | disposition |
+|---|---|
+| A4 | RECORDED — measured (`_TDB_READS` matches getenv/environ reads only — a settings-class suite whose refusal does not print the key gets no hint, as before this change; the D-row names the limit) |
+| A8 | RECORDED — by design (D-597) — the sentinel row's remedy differs (`or delete the sentinel`) and it fires before pytest runs |
+| A11 | RECORDED — measured (`clip_output`'s 1400/600 head and tail pre-date this change; the hint sits in the head by design and the padded-row test proves the remedy survives) |
+| A6 | REFUTED (CLAUDE.md:266 and templates/governance/CLAUDE.md:238 say only that the row carries neither the `-x` remedy nor skip counts, which stays true; row texts have one home, the workflow doc's table, which gained the row) |
+| Bw-2 | RECORDED — measured (the short-password diff-line grader predates this change and sits outside its hunks; its vacuity is a claim the wave did not execute — routed to the coordinator as residue) |
+| A-X-2 | RECORDED — measured (the causal predicate reads cause from `ERROR`/`E ` lines naming the key; an unrelated import error quoting the key symbol would read as causal — not reproduced; D-1134 names the limit) |
+| A5-wf | RECORDED — measured (15 pre-existing stale cites in the hub-only workflow doc, each shown wrong at the base tree too; routed to the coordinator as residue for a docs item) |
+| A-X-e | REFUTED (pytest prints its summary line on every exit-4 run; `out` is never empty there — six executed shapes) |
+| A-N-1 | RECORDED — measured (a false `…` when the quoted paragraph is contiguous with the tail; cosmetic; routed to the coordinator's residue item) |
+| A-N-2 | RECORDED — measured (the paragraph break compares text, not position; a repeated line shortens the quote; routed with A-N-1) |
+| A-H3r | RECORDED — by design (A-H3, round 3) — one quoted paragraph by design, documented in the code comment and the doc row |
+| Bx-2p | RECORDED — measured (the clip test's premise bound of 300 is stricter than the clipper needs — a 514-char `where` still passed the body; reds only on a deep temp root; routed to the coordinator's residue item) |
 
 ### Verdict grammar — an EXAMPLE, never rows
 
@@ -164,7 +224,13 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — Independent finders: FIXED (3 seats, 17 candidates, every one executed)
+
+### Phase 2 — Execute every candidate: FIXED (13 confirmed, 1 refuted, 3 recorded)
+
+### Phase 3 — Prove and fix: FIXED (13 fixes, graders red-first or mutant-proven, M8-M12 dead)
+
+### Phase 4 — Converge: CLEAN (pass 4, the round-1 seats over the round-3 fixed set, confirmed 0 · fixed 0 · unexecuted 0; four residue candidates recorded with destinations)
 
 ## Gate
 
@@ -173,8 +239,494 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "failure",
+  "tier": 2,
+  "passed": 68,
+  "failed": 1,
+  "skipped": 3,
+  "skipped_checks": [
+    "bandit",
+    "semgrep",
+    "pytest"
+  ],
+  "advisory": [
+    {
+      "check": "pytest (NOT RUN)",
+      "output": "this repo's CI does not invoke pytest, so the gate does not either \u2014 PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no red to prevent, and a hub-scale suite would brick every completion gate), but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it yourself: `python -m pytest tests/ -q`, or make the gate run it every time with `mkdir -p .fabrik && touch .fabrik/run-pytest` \u2014 required if this repo retires its GitHub workflows, since deleting them otherwise disarms this check \u2014 the suite is OUTSIDE this gate",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 53 identical \u00b7 11 declared-design \u00b7 24 UNREVIEWED diff \u00b7 12 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~15 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nnce-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/88-saas-launch-checklist.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 15,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Routing Policy (operator deny + allowlist)",
+      "output": "check_routing_policy: OK \u2014 6 of 6 task kinds have a routing section, 30 routable model entries, all allowed and none denied",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Governance Tables (rules must render)",
+      "output": "check_governance_tables: OK \u2014 every table row renders at its header width across 2 contract(s)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Plan-lock release",
+      "output": "0 stale | 0 likely-stale | 0 half-applied | 0 plan-field-stale | 0 orphan | 0 foreign | 0 unknown-status | 0 unevaluable\nOK - 0 stale of 99 plan lock(s) examined (1 non-terminal evaluated | 98 terminal/unevaluable | 0 foreign)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rivals dossier",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Spec convergence",
+      "output": "spec convergence: 66 CONVERGED spec(s) examined, 17 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 32 more finding(s) - rerun with --all, or name the spec(s)\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rule grounding (plans)",
+      "output": "rule grounding: 6 CONVERGED in-window plan(s) examined, 0 with findings (artifact-only; reading quality is the review's)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Citations resolve (path:line lands)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Feedback duty",
+      "output": "feedback duty: 38 close(s) in 14d, all carried a verdict",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Trigger routing (advertised phrase -> its own command)",
+      "output": "trigger routing: 160 advertised phrase(s) - 108 reach their own command, 52 route nowhere, 0 mis-routed (sees whether an advertised phrase reaches its own command; cannot tell whether the phrase is one an operator would ever type, and deliberately does not grade phrases that route nowhere)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Corpus Weight (byte ratchet)",
+      "output": "corpus-weight: CLAUDE.md 121067 B \u00b7 baseline 98610 (+22457) \u00b7 base origin/master (-201)\ncorpus-weight: templates/governance/CLAUDE.md 117384 B \u00b7 baseline 91060 (+26324) \u00b7 base origin/master (-201)\ncorpus-weight: commands/_sources 1258651 B \u00b7 baseline 1053408 (+205243) \u00b7 base origin/master (\u2014)\ncorpus-weight: commands/_fragments 217204 B \u00b7 baseline 119777 (+97427) \u00b7 base origin/master (-1046)\ncorpus-weight: commands/_agents 40918 B \u00b7 baseline 24465 (+16453) \u00b7 base origin/master (\u2014)\ncorpus-weight: .windsurf/rules 1809206 B \u00b7 baseline 1319893 (+489313) \u00b7 base origin/master (-360)\ncorpus-weight: OK \u2014 no owned surface grew vs origin/master\ncorpus-weight: worktree \u2014 reporting only, nothing written",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Frozen Chain (contract pins)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Data Contract Backing Legend",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Mutation (opt-in FABRIK_MUTMUT)",
+      "output": "MUTATION (advisory): skipped in the per-commit gate \u2014 mutation testing is diff-scoped + nightly (45-testing-strategy.md), not per-PR blocking. Run it on changed code with:\n    FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Doc stub fill",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Script Coupling Header",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "User-Level Hooks Registered",
+      "output": "user-level hooks: present in every account dir",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Retired-Tech Tripwire",
+      "output": "WARN: docs/CAPABILITIES.md:63: unmarked retired-tech mention: - [authelia](SERVICES.md) (owner: fleet): Authelia access-control rule provisioning for the Coolify-managed container.\nWARN: docs/CAPABILITIES.md:72: unmarked retired-tech mention: - [meilisearch](SERVICES.md) (owner: fleet): MeiliSearch index provisioning on the shared Coolify-managed instance.\nWARN: docs/CAPABILITIES.md:228: unmarked retired-tech mention: - [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrap\nWARN: docs/CONFIGURATION.md:947: unmarked retired-tech mention: DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this, for the exception path only\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:391: unmarked retired-tech mention: | `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules. Only 80/443 serve traffic; the script also RETURNs\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:422: unmarked retired-tech mention: - **Allowed public TCP ports:** 80, 443 (the only ports serving traffic). The iptables script also still allows 6001/600\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:467: unmarked retired-tech mention: | **Iptables DOCKER-USER** | All Docker ports | `/etc/iptables/add-docker-user-rules.sh`. 80/443 serve traffic; 6001/600\nWARN: docs/PROJECT_CATALOG.md:32: unmarked retired-tech mention: | **obsidian-agents** | Obsidian plugin: right-\n\u2026 [truncated: ~28 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_retired_terms.py` for the FULL set; NEVER scope a fix to this preview] \u2026\ntion: - **Kilo CLI Health Check** - `check_kilo_health.sh` (shared with Tier 2, `tier >= 2`)\nWARN: docs/workflows/FINAL_GATE_WORKFLOW.md:516: unmarked retired-tech mention: - `scripts/check_kilo_health.sh` \u2014 Kilo CLI Health Check (Tier 2/3; appended outside `run_optional_check` \u2014 appended dir\nWARN: docs/workstation/WSL2-DNS-FIX.md:24: unmarked retired-tech mention: 5. Node.js relies on `getaddrinfo()`, so Kilo CLI fails\nWARN: docs/workstation/WSL2-DNS-FIX.md:157: unmarked retired-tech mention: Verified by: Kilo CLI connectivity test\ncheck_retired_terms: 39 WARN(s) \u2014 advisory only, not blocking",
+      "truncated": true,
+      "omitted_lines": 28,
+      "rerun": "python scripts/enforcement/check_retired_terms.py"
+    },
+    {
+      "check": "Rule-pack reachability",
+      "output": "\u23ed  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt (provisioning not requested)\n\u23ed  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt (provisioning not requested)\n\u23ed  Offline scaffold: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt (provisioning not requested)\n  reachable: core/75-workers-jobs.md @ file-worker \u2014 via worker\n  reachable: core/app-audit-log.md @ saas-skeleton \u2014 via server/db/schema.sql\n  reachable: core/app-audit-log.md @ python-api \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ python-api-gpu \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ node-api \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ file-api \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ file-worker \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ office-extension \u2014 via server/db/schema.sql\n  reachable: core/app-audit-log.md @ chrome-extension \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ mobile-app \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ desktop-app \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ static-site \u2014 via server/db/schema.sql\n  reachable: core/app-audit-log.md @ docusaurus \u2014 via db/schema.sql\n  reachable: saas/88-saas-launch-checklist.md @ saas-skeleton \u2014 via app/(marketing)/terms\n  reachable: saas/95-multi-tenant-saas.md @ saas-skeleton \u2014 via server/src/fastapi_user_auth/rls\nExamined 4 pack(s) / 15 claim-pair(s) declaring applies_to for a checked type (of 13 scaffold type(s) checked).\nOK \u2014 every VERIFIABLE applies_to claim reaches at least one emitted path (15 of 4 examined pack(s) verified).",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": ".env.example Completeness",
+      "output": "\u2705 .env.example check PASSED (no new env vars)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Phase Tests (plan-window)",
+      "output": "PHASE-TESTS (advisory): OK \u2014 no active plan window shipping behavior without tests.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Ticket Breadth (plan sets)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ],
+  "blocking": 43,
+  "checks": [
+    {
+      "name": "ruff-format (--check)",
+      "outcome": "pass"
+    },
+    {
+      "name": "ruff",
+      "outcome": "pass"
+    },
+    {
+      "name": "check json",
+      "outcome": "pass"
+    },
+    {
+      "name": "check yaml",
+      "outcome": "pass"
+    },
+    {
+      "name": "mypy",
+      "outcome": "pass"
+    },
+    {
+      "name": "bandit (diff-sensed skip \u2014 no src/ changes)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "bandit scripts/ (HIGH only)",
+      "outcome": "pass"
+    },
+    {
+      "name": "semgrep (diff-sensed skip \u2014 no src/ changes)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "pytest (NOT RUN)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "sqlfluff-lint",
+      "outcome": "pass"
+    },
+    {
+      "name": "vulture",
+      "outcome": "pass"
+    },
+    {
+      "name": "Convergence Evidence (plans + reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Coverage Checklist (reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Vendored Drift (sync-excluded repos)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Review hygiene",
+      "outcome": "pass"
+    },
+    {
+      "name": "Routing Policy (operator deny + allowlist)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Governance Tables (rules must render)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Certification Coverage (advisory; board mix-up BLOCKS)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-lock release",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rivals dossier",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Spec convergence",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule grounding (plans)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Citations resolve (path:line lands)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Feedback duty",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Trigger routing (advertised phrase -> its own command)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Secrets (Zero Hardcoding)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hardcoded localhost/127.0.0.1 Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "Imports Resolvable (clean checkout)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Lint Ratchet (repo-wide, no new debt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Corpus Weight (byte ratchet)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Schema Sync (DB Models)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Frozen Chain (contract pins)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Data Contract Backing Legend",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc Sync Matrix",
+      "outcome": "pass"
+    },
+    {
+      "name": "Decision Ledger (unique ids)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Subagent Flywheel (pool-or-declare \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mutation (opt-in FABRIK_MUTMUT)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc stub fill",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Script Coupling Header",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc-Script Links",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc-Script Coverage (ratchet)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Print/Console.log Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "No Host Ports on Traefik Services",
+      "outcome": "pass"
+    },
+    {
+      "name": "Full Traefik Label Set (\u00a77)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Spec <-> Project DB Name Match (Phase 1c)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mail Ownership Map (beat-owners.json)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Undeclared Imports (requirements.txt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Fabrik-Synced Files Unmodified",
+      "outcome": "pass"
+    },
+    {
+      "name": "Project Structure",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hooks Index Fresh",
+      "outcome": "fail"
+    },
+    {
+      "name": "MCP Scope (.mcp.json \u2286 ruling)",
+      "outcome": "pass"
+    },
+    {
+      "name": "User-Level Hooks Registered",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Sync Trigger Coverage",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc Link Integrity (live tree)",
+      "outcome": "pass"
+    },
+    {
+      "name": "INDEX.md \u2194 docs tree drift",
+      "outcome": "pass"
+    },
+    {
+      "name": "Retired-Tech Tripwire",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule-pack reachability",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Behavior Contract Proposal",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-Set Contract (Spine+Tickets)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Stage-Skip Artifact Gate (spec freshness + FROZEN header shape)",
+      "outcome": "pass"
+    },
+    {
+      "name": "README.md (Primary Entry Point)",
+      "outcome": "pass"
+    },
+    {
+      "name": ".env.example Completeness",
+      "outcome": "advisory"
+    },
+    {
+      "name": "User Guide Presence",
+      "outcome": "pass"
+    },
+    {
+      "name": "Phase Tests (plan-window)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Command Corpus (references resolve \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Ticket Breadth (plan sets)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Work items (sync)",
+      "outcome": "pass"
+    },
+    {
+      "name": "epic_order --check",
+      "outcome": "pass"
+    },
+    {
+      "name": "Kilo CLI Health Check",
+      "outcome": "pass"
+    }
+  ],
+  "failures": [
+    {
+      "check": "Hooks Index Fresh",
+      "output": "\u274c hooks-index STALE \u2014 2 live hook(s) not in docs/workstation/hooks-index.md:\n   - PostToolUse\n   - fabrik_deck.py\nAdd a row for each (or remove the retired hook from its config).",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ],
+  "warnings": [
+    {
+      "check": "Coverage Checklist (reviews)",
+      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~13 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-10-09-w-b63ffe1a-gate-scope-wording-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-10-18-seat-guard-network-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 1 changed + 0 unintegrated review artifact(s)",
+      "truncated": true,
+      "omitted_lines": 13,
+      "rerun": "python scripts/enforcement/check_review_coverage.py"
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 53 identical \u00b7 11 declared-design \u00b7 24 UNREVIEWED diff \u00b7 12 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~15 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nnce-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/88-saas-launch-checklist.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 15,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Work items (sync)",
+      "output": "\u26a0 work-store drift (advisory until blocking):\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-09-17-review-scoped-scope-growth-exit-design.md\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-09-19-enforcement-git-decoder-design.md\nDRIFT 2 (blocking)  docs/development/plans/2026-10-06-plan-1-worktree-venv-isolation.md\nDRIFT 2 (blocking)  docs/development/plans/2026-10-14-plan-2-one-door-lane.md\nDRIFT 3 (blocking)  docs/development/plans/2026-09-06-plan-1-session-history-retention.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-08-22-plan-1-fabrik-mail-loop-safety.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-10-03-plan-1-scaffold-retired-agent-surface.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard/2026-10-17-plan-1-command-centre-dashboard.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md\nDRIFT 6 (blocking)  .fabrik/work/W-0924446b.json\nDRIFT 6 (blocking)  .fabrik/work/W-1eed5ff7.json\nDRIFT 6 (blocking)  .fabrik/work/W-27a2d3c0.j\n\u2026 [truncated: ~5 line(s) omitted \u2014 tail follows \u2014 run `python scripts/work.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nocking)  .fabrik/work/W-be89830e.json\nDRIFT 6 (blocking)  .fabrik/work/W-da7adc2a.json\nDRIFT 6 (blocking)  .fabrik/work/W-ec5b4795.json\nDRIFT 7 (advisory)  docs/STRATEGIC_BACKLOG.md\nDRIFT 8 (advisory)  docs/development/plans/2026-06-29-plan-watchdog-deploy-side.md\nDRIFT 8 (advisory)  docs/development/plans/2026-07-06-plan-1-universal-watchdog.md\nDRIFT 8 (advisory)  docs/development/plans/2026-07-12-plan-1-wavespeed-integration.md\nDRIFT 8 (advisory)  docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md\nDRIFT 8 (advisory)  docs/development/plans/2026-10-02-plan-3-coordinator-assignment.md",
+      "truncated": true,
+      "omitted_lines": 5,
+      "rerun": "python scripts/work.py"
+    }
+  ]
+}
 ```
+GATE-SCOPE: out-of-surface — Hooks Index Fresh; findings naming this surface: 0 of 2; measured by: `python3 scripts/enforcement/check_hooks_index.py` in a throwaway worktree at 778bf73f7 (the base, before this change) printing the same 2 hooks (PostToolUse, fabrik_deck.py) missing from docs/workstation/hooks-index.md
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
 `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>`,

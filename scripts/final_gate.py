@@ -541,6 +541,16 @@ def _tdb_missing_hint(where: str, consequence: str) -> str:
     )
 
 
+def _tdb_named_error_lines(out: str) -> list[str]:
+    """The lines of a pytest run's output that REFUSE and name TEST_DATABASE_URL: pytest prints
+    a UsageError as `ERROR: <message>` and a failing import or assertion as `E   <text>`. The
+    exit-4 row claims CAUSE only from these — a comment a conftest prints, or a traceback source
+    line that merely quotes the key, is not a refusal about it (review A-2)."""
+    return [
+        ln for ln in out.splitlines() if _TDB_KEY in ln and ln.lstrip().startswith(("ERROR", "E "))
+    ]
+
+
 # Rows whose check has NO failing exit path — declared at registration with
 # `warn_only=True`. They can never turn the gate red, and until 2026-08-16 they printed
 # the SAME `[PASS]` as a check that genuinely blocks, so a green gate could not be read:
@@ -1312,14 +1322,14 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
         # headline), and it claims CAUSE only when the refusal's full output names the key; a
         # suite that merely reads the key gets the hedged line, and any other refusal nothing.
         hint = ""
+        named = _tdb_named_error_lines(out) if not tdb else []
         if not tdb:
             channel = (
                 "an export typed in an agent's shell does not persist into the gate, which reads "
-                "the key from .env.local (then .env), and a database name the refusal suggests is "
-                "refused here unless it ends _test, throwaway or scratch (<project>_<you>_test, "
-                "not <project>_test_<you>)"
+                "the key from .env.local (then .env), where the database name must end _test, "
+                "throwaway or scratch (<project>_<you>_test, not <project>_test_<you>)"
             )
-            if _TDB_KEY in out:
+            if named:
                 hint = _tdb_missing_hint(
                     where,
                     "the suite refused to run without it \u2014 its message names the key \u2014 "
@@ -1331,20 +1341,41 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
                     "a suite that refuses without it refuses here on every completion gate: "
                     + channel,
                 )
-        follows = (
-            "The suite's own message follows (its export remedy is for a shell; the gate's "
-            "channel is the line above):"
-            if hint
-            else "The refusal message names the remedy:"
-        )
+        lines = out.splitlines()
+        tail_lines = lines[-15:]
+        # The tail has already lost the suite's headline (transdoc's refusal names the key on
+        # line 1 of 31): quote the FIRST key-naming line with its paragraph (to the next blank
+        # line, at most 4 lines — a wrapped sentence, never a fragment) above the tail, so the
+        # row never says "its message names the key" over a quote that does not show it
+        # (review A-3, A-X-1). One paragraph by design: a later key-naming line is in the tail
+        # or behind the `\u2026`.
+        above: list[str] = []
+        if named and named[0] not in tail_lines:
+            start = lines.index(named[0])
+            for ln in lines[start : start + 4]:
+                if not ln.strip() or ln in tail_lines:
+                    break
+                above.append(ln)
+        quoted = "\n".join(above + (["\u2026"] if above else []) + tail_lines)
+        if named:
+            follows = (
+                "The suite's own message follows (its export remedy is for a shell; the gate's "
+                "channel is the line above):"
+            )
+        elif hint:
+            follows = (
+                "The suite's own message follows (when it is about the key, the gate's channel "
+                "is the line above):"
+            )
+        else:
+            follows = "The refusal message names the remedy:"
+        # With no hint the row keeps its pre-W-f46bca45 one-line header, byte for byte: a repo
+        # that never resolves the key sees no change at all (review A-X-1).
+        head = "exit 4: the suite refused to run (conftest/usage error, not a failing test)."
         return (
             "pytest (SUITE REFUSED — usage error)",
             False,
-            "exit 4: the suite refused to run (conftest/usage error, not a failing test). "
-            + (hint + "\n" if hint else "")
-            + follows
-            + "\n"
-            + "\n".join(out.splitlines()[-15:]),
+            (head + "\n" + hint + "\n" + follows if hint else head + " " + follows) + "\n" + quoted,
         )
     else:
         tail = "\n".join(out.splitlines()[-30:])
