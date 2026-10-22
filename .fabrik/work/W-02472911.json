@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T06:58:53.377553Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-02472911",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read ~/.claude/state/command-feedback.jsonl (tok_cache_read, tok_seat_*) and the posture/transcript sizes; produce a one-page measurement with the per-turn prefix in tokens by component and the top five cuts with projected weekly savings; board the cuts as items for their beats (CLAUDE.md wording = kaizen/infra, hooks = infra); no change to any contract inside this item",
+  "note": "",
+  "owner": "intel",
+  "priority": 0,
+  "score_reason": "operator ask tonight (HIGH): the fleet is quota-bound and the operator cannot add accounts; one measurement from existing ledgers, one session; intel's benchmark beat",
+  "status": "open",
+  "title": "Measured 2026-10-22 over 417 closed runs in 48h: 14,217M input-side tokens, 99% of them CACHE READS of the per-turn prefix (fresh input 0.15M, output 21M); review seats are 20% of input. The fleet's quota burn is prefix size x turn count, not code search. Operator ruling: no new accounts ('i cant afford more account yet'), so cut burn structurally: measure the per-turn prefix by component (CLAUDE.md ~121 KB + agents-fabrik-core, hook injections, the transcript's live context) across the four hub builders, and propose the cut list ranked by tokens saved per turn (prefix slimming under D-331, /clear rotation discipline, seat and round floors for small diffs)"
+}
