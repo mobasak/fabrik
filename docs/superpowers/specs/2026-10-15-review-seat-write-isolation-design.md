@@ -29,7 +29,7 @@ Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791
 | I2 | "launch finder and refuter seats with cwd set to a fresh scratch directory (or isolation: worktree), never the caller's main checkout" (01M4PHYNXJ row 1791049341) | IN, delivered differently | § Rejected alternatives — A (worktree) and the cwd option, which does not exist; the guard covers both dispatch paths instead, the seats' cwd unchanged |
 | I3 | "hand seats a ready probe script" (01M4PHYNXJ row 1791225410) | OUT-OF-SCOPE | W-f7bf9a54 — a separate change with its own measure (seat turns spent building probes) |
 | I4 | D-1129, the Opus + Fable panel (unanimous): "Review-seat write isolation becomes a filesystem fence, not a growing shell grammar" | IN | § Amendment 2026-10-22 — the fence |
-| I5 | The whole-plan review round 1: 21 confirmed parser holes (receipt `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md` § Round 1 findings) | IN | § Amendment — what the fence closes, and the fallback that fails closed where it cannot run |
+| I5 | The whole-plan review round 1: 21 confirmed code defects, about 15 of them let-throughs (receipt `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md` § Round 1 findings) | IN | § Amendment — what the fence closes, and the fallback that fails closed where it cannot run |
 | I6 | W-9013addb, "a heredoc misread through a `"$(…)"` inside double quotes still hides later lines" | IN | § Amendment — under the fence the misread can hide no write; in the fallback the construct is unmodelled and refused |
 | I7 | The panel's cobra: "bind too much writable space (`--bind /tmp`, or the whole repo `.tmp`) so that 'writes in scratch work' passes" | IN | § Amendment — Validation 9 asserts the bind set exactly |
 | I8 | The panel's underivables: bwrap on other hosts; the harness's cwd tracking, background tasks and the worktree guard around a rewritten command | IN | § Amendment — Open unknowns, each resolved by a named build proof |
@@ -56,9 +56,14 @@ refused `if (( n > 3 ))`. The Opus + Fable panel ruled unanimously (D-1129): sto
 filesystem.
 
 **The goal, restated (it replaces § Goal while the fence runs; § Goal stays the fallback mode's goal).** A review seat's
-shell command cannot write outside its session's scratch, and cannot reach a host service that writes for it: the
-operating system refuses it whatever the command's syntax, interpreter or nesting. The fence applies on both dispatch
-paths, and leaves the seats' briefs and the lead session unchanged.
+shell command cannot write outside its session's scratch, and cannot reach the masked host services that write for it
+(the docker daemon, D-Bus and the user runtime sockets, tmux): the operating system refuses it whatever the command's
+syntax, interpreter or nesting. The fence applies on both dispatch paths, and leaves the seats' briefs and the lead
+session unchanged.
+- **Residuals, accepted.** Other sockets and every localhost TCP service stay reachable, because the network is not
+  unshared (executed in round 2: a fenced python got `+PONG` from Redis on 127.0.0.1:6379). The hook's settings entry
+  fails open (`[ -f "$f" ] || exit 0; python3 "$f"; exit 0`, `timeout: 5`), so a missing hook file, an import crash or
+  a timeout runs the seat command unwrapped, as the seat guard's entry has done since it shipped.
 
 **The design.**
 1. **The fence rides the existing rewrite.**
@@ -69,8 +74,8 @@ paths, and leaves the seats' briefs and the lead session unchanged.
      with the dotenv prefix inside it. The wrap applies whether or not the command already starts with
      `export PYTHON_DOTENV_DISABLED=1`: the `_ALREADY_OFF` early return (`:1434-1435`) skips only the added prefix,
      never the wrap.
-   - **Fail closed for a seat.** If building the wrapper raises (a missing `scratchpad_dir`, a `cwd` that is not a
-     directory), the seat's call is DENIED with the reason, never run unwrapped. The non-seat path keeps today's
+   - **Fail closed for a seat.** If building the wrapper raises (a `cwd` that is not a directory), the seat's call is
+     DENIED with the reason, never run unwrapped. The non-seat path keeps today's
      fail-open.
    - `updatedInput` without a `permissionDecision` is not documented (the hooks page documents it combined with
      `allow` or `ask`). The hook has relied on it since D-801, and the hooks-index row records it working live on
@@ -85,15 +90,26 @@ paths, and leaves the seats' briefs and the lead session unchanged.
    - Then the writable binds:
      - `--bind <scratchpad_dir>` (the payload's session scratchpad);
      - `--bind <run folder>` when it exists. The run folder is `<toplevel of the payload cwd's main checkout>/.tmp/runs/<sid>/`
-       (D-836 durable SCRATCH, resolved with `git rev-parse --git-common-dir` the way `command_run.py` resolves it).
+       (D-836 durable SCRATCH, resolved with `git rev-parse --git-common-dir` the way `command_run.py` resolves it);
+     - `--bind <the session run record's scratch>` when that folder exists outside the run folder: a seeded or resumed
+       run reuses the seed's folder, named after the seed's `session_id` (`command_run.py:1621-1623`). The hook reads
+       the record at `command_run.py`'s `_record_path(sid)` (`~/.claude/state/command-runs/<sid>.json`, or under
+       `COMMAND_RUN_DIR`), takes its `scratch` key, and binds it only when it resolves under `<main checkout>/.tmp/runs/`,
+       the same root `command_run.py` checks before it reuses a seed's folder (`Path(prev).resolve().is_relative_to(root.resolve())`, `:1610`).
+     - The lookups are one `git rev-parse` (2 ms measured) and one small JSON read per seat call, inside the hook's
+       5-second timeout.
    - Then `--setenv TMPDIR <scratchpad_dir>`, `--unshare-pid`, `--die-with-parent`, and `--chdir <payload cwd>`.
    - **Width, stated (a residual, accepted).** The hook does not know a seat's own folder, so the fence is per SESSION.
      A seat can still write its siblings' folders and the lead's pins in the same scratchpad, never anything else.
    - The parent's repo-wide `.tmp` scratch rule is dropped (round 1, W9). The network is not unshared, because briefs
      allow local probes.
 3. **Mode detection, and the fallback.**
-   - The hook runs the exact argument vector it will use, with `/bin/true`, once per bwrap binary. It caches the result
-     in `/tmp/claude-<uid>/seat-guard-bwrap.json`, keyed by the binary's path, mtime and the kernel release.
+   - The hook probes namespace creation once: the fixed flag set (masks and binds over a private temporary folder, never
+     a per-call path) running `/bin/true`. It caches the result in `/tmp/claude-<uid>/seat-guard-bwrap.json`, keyed by
+     the binary's path and mtime, the kernel release, the `kernel.apparmor_restrict_unprivileged_userns` value and a
+     hash of the flag set, so a changed policy or flag set re-probes. A per-call failure is never cached. One the
+     hook can see before it answers (a `cwd` that is not a directory) denies that call (Fail closed, above); a bind
+     source that vanishes after the answer surfaces as bwrap's error exit, which writes nothing.
    - When that probe fails, or `/usr/bin/bwrap` is absent, the hook is in FALLBACK mode. The fallback triggers are:
      - user namespaces are refused (Ubuntu 24.04's AppArmor default when
        `kernel.apparmor_restrict_unprivileged_userns` is 1);
@@ -139,7 +155,7 @@ paths, and leaves the seats' briefs and the lead session unchanged.
   isolation". The fix is needed only when `sysctl kernel.apparmor_restrict_unprivileged_userns` returns 1 (the page:
   "If the command returns `0`, skip this step … the key doesn't exist and you can skip this step").
 - That sandbox is session-wide: "subagents run in the same process as the parent session and use the same sandbox
-  configuration" — https://code.claude.com/docs/en/sandboxing (WebFetch; exa).
+  configuration" — https://code.claude.com/docs/en/sandboxing (WebFetch; exa's 25,000-character fetch stops before it).
 - bwrap, verbatim:
   - "bwrap is an unprivileged low-level sandboxing tool";
   - "the user namespace is required if bwrap is not run as root";
@@ -151,7 +167,7 @@ paths, and leaves the seats' briefs and the lead session unchanged.
 - "`PreToolUse`: `updatedInput` directly under `hookSpecificOutput` replaces a tool's arguments before it runs".
   "Claude Code evaluates permission rules and a Bash command's auto-background eligibility against the input your hook
   returns". A subagent's tool events "fire the same configured hooks as in the main conversation, and the input carries
-  the `agent_id` and `agent_type` common input fields" — https://code.claude.com/docs/en/hooks (WebFetch; exa).
+  the `agent_id` and `agent_type` common input fields" — https://code.claude.com/docs/en/hooks (WebFetch).
 - The parent's sources still stand: OS enforcement is the boundary and hooks are defence-in-depth (NVIDIA, § External
   dependencies), and a Bash-string deny list was bypassed by `perl -i` (issue 40408).
 
@@ -207,7 +223,8 @@ paths, and leaves the seats' briefs and the lead session unchanged.
    - a grader that neuters the mode check, so fallback reads as fence, goes red;
    - a wrapper-build error on a seat payload denies the call.
 8. `--die-with-parent`: a backgrounded child is gone when the call ends.
-9. The bind set is asserted exactly: {scratchpad_dir, the run folder when it exists}, writable; the three service masks
+9. The bind set is asserted exactly: {scratchpad_dir, the run folder when it exists, the run record's scratch when it
+   exists outside the run folder and under `.tmp/runs/`}, writable; the three service masks
    present; nothing else writable. The cobra counter is that adding `/tmp` or the repo `.tmp` turns a test red.
 10. One live `fabrik-reviewer` seat through the Agent tool, before the merge:
     - it writes its seat folder;
@@ -233,8 +250,8 @@ paths, and leaves the seats' briefs and the lead session unchanged.
 - **Growth, with measured triggers:**
   - a host service a seat reaches through a socket joins the masks when a probe finds it;
   - a new writable bind joins only with a named brief that needs it and a test.
-- **The parser:** it stays the fallback. Its write rule is retired outright once every synced host reports fence mode
-  for 30 days, measured by the mode cache.
+- **The parser:** it stays the fallback while any host may lack bwrap or allow it no user namespace. No retirement
+  trigger is set: the mode cache is a local file and nothing collects it across hosts.
 - **Retirement:** the fence moves to Claude Code's sandbox if that gains a per-subagent configuration (the parent's
   retirement clause).
 - **Tripwire:** a confirmed seat write outside scratch through the fence re-opens this design.
@@ -400,9 +417,10 @@ an interpreter re-opens this design with approach D (below) or a filesystem-leve
 
 ## Cost
 
-(Fallback mode. The fence adds about 14 ms per seat call and one `statusMessage` edit in `.claude/settings.json`: § Amendment.)
+(Fallback mode. The fence adds about 14 ms per seat call, one `statusMessage` edit in `.claude/settings.json` and one
+small mode-cache file under `/tmp/claude-<uid>/`: § Amendment.)
 
-One hook file (+≈250 lines), its tests (+≈220 lines), one doc row. No disk, no retention, no brief or settings change.
+One hook file (+≈250 lines), its tests (+≈220 lines), one doc row. No retention, no brief change.
 No new hook invocation: the Bash hook already runs on every seat command.
 
 ## Validation
@@ -424,8 +442,8 @@ No new hook invocation: the Bash hook already runs on every seat command.
 ## Decisions taken
 
 - **The fence over the grammar** (D-1129, 2026-10-22). The Opus + Fable panel was unanimous after round 1 confirmed 21
-  parser holes. It supersedes "B over A and D" below for the BOUNDARY: B's parser stays, but only as the fail-closed
-  fallback (§ Amendment 2026-10-22).
+  code defects (about 15 of them let-throughs). It supersedes "B over A and D" below for the BOUNDARY: B's parser stays as the fail-closed
+  fallback, and its kill and git rules also run in fence mode as early refusals (§ Amendment 2026-10-22).
 
 - **B over A and D** (D-913) — the judge panel (three Sonnet seats, 2026-10-15) ranked B first unanimously: it covers both
   dispatch paths, builds on the existing hook, and needs no brief, cwd or retention change; each judge named the
