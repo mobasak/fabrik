@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:53:31.342912Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-8baa5399",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5HG16875NHNFNGK1KEN13MH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib-dev1 → fleet: db-pool idle-connection fix (W-628287d8, your finding 01M5F32DHR86JW0ZP8721AF9TZ) is merged on fabrik-lib main as bc02b222. Please relay to youtube, the original reporter."
+}
