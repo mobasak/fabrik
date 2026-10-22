@@ -158,3 +158,140 @@ def test_create_database_refuses_a_role_that_is_a_member_of_another() -> None:
         with pytest.raises(RuntimeError, match="is a member of grp"):
             _create_database(s, "solo")
         assert _one(s, "SELECT count(*) FROM pg_database WHERE datname = 'solo'") == "0"
+
+
+# --- W-98debf05: a payments role escalated out of band is refused on re-apply, never stripped (D-1105) ---------
+PAY = f"{DB}_payments_ingest"
+
+
+def _mint(s: ScratchPg):
+    with s.as_driver():
+        return pg.mint_payments_role(DB, "ingest")
+
+
+def _mint_clean(s: ScratchPg) -> None:
+    s.run_sql(f'CREATE DATABASE "{DB}";')
+    assert _mint(s)["status"] == "created"
+    s.run_sql(f'ALTER ROLE "{PAY}" CREATEDB;')  # the attribute the narrowing ALTER would strip
+
+
+def test_a_payments_role_made_a_member_of_another_role_is_refused_untouched() -> None:
+    with scratch_pg() as s:
+        _mint_clean(s)
+        s.run_sql(f'GRANT pg_write_all_data TO "{PAY}";')
+        with pytest.raises(RuntimeError, match="is a member of pg_write_all_data"):
+            _mint(s)
+        # left as it is (D-1105): the membership stays and the ALTER never ran
+        member = (
+            "SELECT count(*) FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid "
+            f"WHERE g.rolname = 'pg_write_all_data' AND m.member = (SELECT oid FROM pg_roles WHERE rolname = '{PAY}')"
+        )
+        assert _one(s, member) == "1"
+        assert _one(s, f"SELECT rolcreatedb FROM pg_roles WHERE rolname = '{PAY}'") == "t"
+
+
+def test_a_payments_role_owning_a_table_in_its_own_database_is_refused_untouched() -> None:
+    with scratch_pg() as s:
+        _mint_clean(s)
+        s.run_sql(f'\\c {DB}\nCREATE TABLE mine (id int);\nALTER TABLE mine OWNER TO "{PAY}";')
+        with pytest.raises(RuntimeError, match=f"in its own database {DB}"):
+            _mint(s)
+        owner = f"\\c {DB}\nSELECT tableowner FROM pg_tables WHERE tablename = 'mine';"
+        assert _one(s, owner).splitlines()[-1] == PAY
+        assert _one(s, f"SELECT rolcreatedb FROM pg_roles WHERE rolname = '{PAY}'") == "t"
+
+
+def test_a_payments_role_holding_a_live_temp_table_is_re_applied() -> None:
+    """A live session of the role may hold a temp table and a temp function in its own database; neither is an
+    escalation (the function has no pg_class row, so only the pg_temp exclusion keeps it out)."""
+    import subprocess
+    import time
+
+    with scratch_pg() as s:
+        _mint_clean(s)
+        s.run_sql(f'GRANT TEMP ON DATABASE "{DB}" TO "{PAY}";')
+        # a second session holds the temp table open while the re-apply's guard runs
+        holder = subprocess.Popen(
+            ["docker", "exec", "-i", s.container, "psql", "-U", "postgres", "-tA"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        try:
+            holder.stdin.write(
+                f'\\c {DB}\nSET ROLE "{PAY}";\nCREATE TEMP TABLE t1 (x int);\n'
+                "CREATE FUNCTION pg_temp.tf() RETURNS int LANGUAGE sql AS 'SELECT 1';\n"
+                "SELECT pg_sleep(60);\n"
+            )
+            holder.stdin.flush()
+            live = (
+                "SELECT count(*) FROM pg_shdepend WHERE deptype = 'o' "
+                f"AND refobjid = (SELECT oid FROM pg_roles WHERE rolname = '{PAY}')"
+            )
+            deadline = time.time() + 20
+            while _one(s, live) != "2":
+                assert time.time() < deadline, "the temp table never appeared"
+                time.sleep(0.2)
+            assert _mint(s)["status"] == "exists"
+        finally:
+            holder.kill()
+            holder.wait(timeout=10)
+        assert _one(s, f"SELECT rolcreatedb FROM pg_roles WHERE rolname = '{PAY}'") == "f"
+
+
+def test_a_payments_role_re_applied_after_its_own_grants_is_not_refused() -> None:
+    with scratch_pg() as s:
+        _mint_clean(s)
+        with s.as_driver():
+            pg.grant_payments_role(DB, "ingest")
+        assert _mint(s)["status"] == "exists"
+        assert _one(s, f"SELECT rolcreatedb FROM pg_roles WHERE rolname = '{PAY}'") == "f"
+
+
+def test_a_superuser_payments_role_is_refused_and_left_a_superuser() -> None:
+    with scratch_pg() as s:
+        _mint_clean(s)
+        s.run_sql(f'ALTER ROLE "{PAY}" SUPERUSER;')
+        with pytest.raises(RuntimeError, match="is a superuser"):
+            _mint(s)
+        assert _one(s, f"SELECT rolsuper FROM pg_roles WHERE rolname = '{PAY}'") == "t"
+
+
+def test_a_payments_role_granted_to_another_role_is_refused_untouched() -> None:
+    """`GRANT <payments role> TO attacker` hands the money tables to another login (lateral escalation)."""
+    with scratch_pg() as s:
+        _mint_clean(s)
+        s.run_sql('CREATE ROLE "attacker" LOGIN;')
+        s.run_sql(f'GRANT "{PAY}" TO "attacker";')
+        with pytest.raises(RuntimeError, match="is granted to attacker"):
+            _mint(s)
+        granted = (
+            "SELECT count(*) FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid "
+            f"WHERE r.rolname = '{PAY}'"
+        )
+        assert _one(s, granted) == "1"
+        assert _one(s, f"SELECT rolcreatedb FROM pg_roles WHERE rolname = '{PAY}'") == "t"
+
+
+def test_a_payments_role_holding_a_grant_in_another_database_is_refused() -> None:
+    with scratch_pg() as s:
+        _mint_clean(s)
+        s.run_sql('CREATE DATABASE "other";')
+        s.run_sql(f'\\c other\nCREATE TABLE secret (id int);\nGRANT ALL ON secret TO "{PAY}";')
+        with pytest.raises(
+            RuntimeError, match="grant\\(s\\) or policy row\\(s\\) in database other"
+        ):
+            _mint(s)
+
+
+def test_a_payments_role_owning_a_function_in_its_own_database_is_refused() -> None:
+    """A non-relation object: the LEFT JOIN to pg_class finds no row, and it must still count."""
+    with scratch_pg() as s:
+        _mint_clean(s)
+        s.run_sql(
+            f"\\c {DB}\nCREATE FUNCTION handed() RETURNS int LANGUAGE sql AS 'SELECT 1';\n"
+            f'ALTER FUNCTION handed() OWNER TO "{PAY}";'
+        )
+        with pytest.raises(RuntimeError, match=f"1 object\\(s\\) in its own database {DB}"):
+            _mint(s)

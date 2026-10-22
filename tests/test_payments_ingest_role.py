@@ -594,3 +594,88 @@ def test_drop_database_cleans_orphan_payments_ingest_role_when_db_absent() -> No
         result = pg.drop_database(_PI_DB)
     assert result["status"] == "not_found"
     assert any(f'"{_PI_ROLE}"' in c for c in calls if "DROP ROLE IF EXISTS" in c)
+
+
+# --- W-98debf05: the escalation guard (D-1105: refuse, never strip) -----------------------------------------------
+def _guard_sql(**kwargs) -> list[str]:
+    with patch.object(pg, "_run_sql", return_value=f"{pg._GUARD_END}\n") as run:
+        assert pg._foreign_role_reasons("ti_payments_ingest", own_db="ti", **kwargs) == []
+    return [c.args[0] for c in run.call_args_list]
+
+
+def test_the_guard_without_escalation_runs_one_query_and_reads_no_membership() -> None:
+    """The other callers (create_database, watchdog, analytics) keep today's single query."""
+    (sql,) = _guard_sql()
+    assert "pg_auth_members" not in sql and "rolsuper" not in sql and "\\c " not in sql
+    (dep,) = _guard_sql(any_dependency=True)
+    assert dep.count("is a member of") == 1 and "rolsuper" not in dep
+
+
+def test_the_escalation_guard_reads_every_escalation_shape() -> None:
+    cluster, own = _guard_sql(escalation=True)
+    assert "rolsuper" not in cluster  # the DO block refuses a superuser with its recovery steps
+    assert cluster.count("is a member of") == 1 and "WHERE m.member = " in cluster
+    assert "'is granted to ' || mem.rolname" in cluster and "WHERE m.roleid = " in cluster
+    assert "grant(s) or policy row(s) in database " in cluster and "s.deptype <> 'o'" in cluster
+    # own-database ownership runs as its own call, quiet, in the role's own database
+    assert own.startswith("\\set ON_ERROR_STOP on\n\\set QUIET on\n\\c ti\n")
+    assert "s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())" in own
+    assert "NOT (s.classid = 'pg_class'::regclass AND c.relpersistence = 't')" in own
+    assert "n.nspname LIKE 'pg\\_temp\\_%'" in own
+    assert own.rstrip().endswith(f"SELECT '{pg._GUARD_END}';")
+    # with any_dependency the forward membership row is not emitted twice
+    cluster2, _ = _guard_sql(escalation=True, any_dependency=True)
+    assert cluster2.count("is a member of") == 1
+
+
+@pytest.mark.parametrize(
+    "own_answer",
+    [
+        'You are now connected to database "ti" as user "postgres".\n__end__\n',
+        "owns 1 object(s) in its own database ti\n",
+        "",
+    ],
+)
+def test_an_own_database_answer_that_is_not_a_reason_fails_closed(own_answer: str) -> None:
+    with (
+        patch.object(pg, "_run_sql", side_effect=[f"{pg._GUARD_END}\n", own_answer]),
+        pytest.raises(RuntimeError, match="unreadable answer"),
+    ):
+        pg._foreign_role_reasons("ti_payments_ingest", own_db="ti", escalation=True)
+
+
+def test_an_own_database_reason_is_returned() -> None:
+    answer = f"owns 2 object(s) in its own database ti\n{pg._GUARD_END}\n"
+    with patch.object(
+        pg, "_run_sql", side_effect=[f"is a member of grp\n{pg._GUARD_END}\n", answer]
+    ):
+        assert pg._foreign_role_reasons("ti_payments_ingest", own_db="ti", escalation=True) == [
+            "is a member of grp",
+            "owns 2 object(s) in its own database ti",
+        ]
+
+
+def test_the_escalated_refusal_keeps_the_collision_remedy_and_adds_d1105() -> None:
+    with pytest.raises(RuntimeError) as err:
+        pg._refuse_foreign_role(
+            "ti_payments_ingest", ["is a member of grp"], "payments role", escalated=True
+        )
+    msg = str(err.value)
+    assert "rename one project's database with `depends.postgres`" in msg
+    assert "reports FAILED (D-1105)" in msg and "by hand, then re-apply" in msg
+    with pytest.raises(RuntimeError) as plain:
+        pg._refuse_foreign_role("ti_wd_rw", ["owns database x"], "watchdog role")
+    assert "D-1105" not in str(plain.value)
+
+
+def test_mint_passes_escalation_and_the_backstop_names_memberships() -> None:
+    with (
+        patch.object(pg, "_role_exists", return_value=True),
+        patch.object(pg, "_foreign_role_reasons", return_value=[]) as guard,
+        patch.object(pg, "_run_sql") as run,
+    ):
+        pg.mint_payments_role("ti", "ingest")
+    assert guard.call_args.kwargs.get("escalation") is True
+    alter_sql = run.call_args_list[0].args[0]
+    assert "pg_catalog.pg_auth_members m WHERE m.member = r.oid OR m.roleid = r.oid" in alter_sql
+    assert alter_sql.index("pg_auth_members") < alter_sql.index('ALTER ROLE "ti_payments_ingest"')
