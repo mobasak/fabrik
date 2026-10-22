@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-21T23:50:29.423984Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-24025e50",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,12 @@
   },
   "next": "read each live compose and env_file on vps1 (read-only), list which settings are live, then propose the healthcheck additions as one gated redeploy",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "MEDIUM: settings the retired specs declared and the live mirrors lack (5 healthchecks, gotenberg env, n8n env), decided per setting against the live hosts; nobody blocked",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "infra/vps1 mirrors lack settings the retired specs/infrastructure files declared (D-1097): healthchecks for authelia, browserless, gotenberg, meilisearch and n8n; gotenberg CHROMIUM_DISABLE_JAVASCRIPT / CHROMIUM_ALLOW_LIST; n8n N8N_HOST, N8N_PROTOCOL, WEBHOOK_URL, GENERIC_TIMEZONE, N8N_DIAGNOSTICS_ENABLED, N8N_VERSION_NOTIFICATIONS_ENABLED (may live in its env_file). Decide per setting, against the live /opt/<svc>/compose.yaml and .env on vps1, whether the live stack should carry it; the specs are recoverable with git show 6914c2f03^:specs/infrastructure/<svc>.yaml"
 }
