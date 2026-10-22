@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The 90% lane: builders park, coordinators continue (2026-10-22)
+
+- At the fleet-exhausted stamp's `urgent-90` tier (the 5-hour window at 90% with no account to rotate to — never the weekly), `.claude/hooks/quota_stop.py` no longer lets every session spend the last points (D-306's allow-all): it runs the D-1113 lane. Only two kinds of session continue, each bound by session id in the identity store and scoped to the repo's git common dir (`CLAUDE_AGENT` is never read): the merge owner of a `coordinator_mode` repo and the owner of an open P0 item. Every other session is parked with the wall's allow-list plus the finishing verbs (`merge_request.py request`, `work.py claim|release <W-id>`, SubagentHandback, SendMessage) and a park message naming its items and the lift time. Every lane error parks the session; the lift line can never crash the hook. `final_gate_stop.py`'s urgent branch exempts the same sessions; the QUOTA line says `band LANE on 5h — builders park, coordinators continue` while the tick is fresh; the urgent-drain mail and `claude_rotate.py --status` say the lane; the contracts and workstation docs describe it, and the urgent-90 runway is nine points on the default threshold of 99 (W-18f559d9, D-1125).
+
 ### Changed — /fabrik-review-scoped queue pass: a redactor runs a base differential and a URL parser names its classes (2026-10-22)
 
 - `commands/_fragments/review-probe-catalogue.md`, the Parsers hunt line: a regex redactor also runs beside the parent commit's redactor over one generated input corpus named in the brief, and the URL request-target grammar names its parser-differential classes in the round-1 brief (IDNA and numeric IPv4 hosts among them). `tests/test_review_scoped_queue_pass.py` pins it; the other 13 queue rows were rejected with reasons (W-20754b77).
