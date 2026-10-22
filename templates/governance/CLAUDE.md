@@ -499,8 +499,19 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   transcripts, `~/.claude/tasks` and shell snapshots are pruned after 3 days too and are NEVER archived. Old history is
   searched through session-recall (§ Past sessions are searchable) or put back with `/opt/fabrik/.venv/bin/python
   /opt/fabrik/scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug <slug>]` (`--status` and
-  `--verify-ledger` are the morning check). When the transcript-size `ROTATE:` line appears, run
-  `/clear <agent>-<date>` now; a window bound to an agent name then re-binds with
+  `--verify-ledger` are the morning check). Rotating the session (`/clear <agent>-<date>`, hub D-1119) happens at an
+  item boundary, never mid-item — the item (a work-store item, or the task you were given) closed, committed and
+  pushed, no run record `running` — when the next work is unrelated to the last, and may happen at some boundary after the transcript-size `ROTATE:` line. That line is advice the hook prints once per 100 MB step
+  from `ROTATE_ADVISE_MB` (200 MB by default), never a command typed for you, whatever its own "run … now" says: once
+  it has appeared, start no new item, and if a second `ROTATE:` line arrives inside the same item, its next stopping
+  point is the boundary — close the run `handoff --command <run> --reason '<why>' --resume <artifact>` (the item stays
+  open and the RESUME block seeds the successor; never `blocked --wall`, the quota wall). No agent can type a slash
+  command into its own prompt: at the boundary a builder messages its coordinator `rotate <name>` and waits for the
+  keys; the coordinator — for whom the ask is not a work item — sends `/clear <agent>-<date>` to the pane tagged
+  `@agent <name>` with `tmux send-keys` (hub D-1034, until `agents_up.sh` gains a rotate verb, W-f975fee0), then a
+  resume prompt telling the builder to re-bind (below) and to read only the memory notes, `work.py next` and the run's
+  seed, never the old transcript; a coordinator, a builder with no pane, or a single-window repo's one agent tells the
+  operator once and keeps working until the operator types it. A window bound to an agent name then re-binds with
   `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force` (whoami's flag, not git's: the holder the line
   names is this window's own claude process). The pruner's current mode and every rule:
   `/opt/fabrik/docs/workstation/session-history-retention.md`.

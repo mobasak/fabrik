@@ -3071,6 +3071,35 @@ _DECISION_GATE_RE = re.compile(
     r"|\bprod(?:uction)? data\b",
     re.I,
 )
+# D-1110: the gate classes the operator keeps. A `ground: gate` block reaches the operator
+# unpaneled only when its Why line carries the explicit label `operator-kept: <token>` from this
+# closed set (a `not` just before a label voids that one; a later un-negated label still
+# counts), or names spend or an irreversible act
+# (every real-money spend stays the operator's while the operator's ceiling is 0; an
+# irreversible act has no rollback). Every other gate class is the panel's: in autonomy mode its
+# block passes only with a SPLIT `Panel:` line. A Why line naming design or plan approval is
+# never operator-kept (D-613). A label, not prose, because prose matching read "not
+# customer-facing" and a `public-api` path as operator-kept. Money and irreversible are matched
+# anywhere on the line, a negation included; money, irreversible and a valid label beat a
+# design match that comes from the Question alone: a false match sends a block to the operator,
+# never money to the panel. In autonomy mode a line whose only un-negated labels carry an
+# unknown token is refused by name.
+# COBRA (D-253): the cheapest way past is a false label, or a stray money word, on a
+# panel-decided block; the block then reaches the coordinator, which validates the class
+# against the Question line.
+_OPERATOR_KEPT_RE = re.compile(
+    r"\boperator[- ]kept\b[*_]{0,2}[ \t]*:[*_]{0,2}[ \t]*[*_`]{0,2}"
+    r"(?:public|above-ceiling|recurring|operator-minted|unbacked)(?![\w-])",
+    re.I,
+)
+_OPERATOR_KEPT_NEGATED_RE = re.compile(r"\bnot[\s*_`]*$", re.I)
+_OPERATOR_KEPT_ANY_RE = re.compile(r"\boperator[- ]kept\b[*_]{0,2}[ \t]*:", re.I)
+_OPERATOR_CLASS_RE = re.compile(r"\bspend(?:s|ing)?\b|\breal money\b|\$\d|\birreversible\b", re.I)
+_NO_GATE_CLASS = (
+    '`ground: gate` names no gate class on its "Why it is yours" line — one of '
+    "deploy · destructive · irreversible · spend (real money) · publish · "
+    "credentials · design approval · plan approval · Gate 1 · Gate 2 · production data"
+)
 _DECISION_GROUNDS = ("gate", "underivable", "owned")
 # Matched after `_decision_heading` normalises the line (bold, backticks, a leading emoji/⚠️/#/bullet,
 # a trailing colon); a `>`-quoted line never counts, and neither does one inside a fence.
@@ -4237,11 +4266,26 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
         return False, f"unknown ground {ground!r} — one of gate · underivable · owned"
     why = fields["Why it is yours"]
     if ground == "gate":
-        design_gate = re.search(
-            r"\b(?:design|plan) approval\b", why, re.I
-        ) or _DESIGN_ASK_RE.search(fields["Question"])
-        if _PANEL_MODE and design_gate:
-            if not _SEARCHED_EVIDENCE_RE.search(why):
+        why_design = re.search(r"\b(?:design|plan) approval\b", why, re.I)
+        design_gate = why_design or _DESIGN_ASK_RE.search(fields["Question"])
+        if not _DECISION_GATE_RE.search(why):
+            return False, _NO_GATE_CLASS
+        label = next(
+            (m for m in _OPERATOR_KEPT_RE.finditer(why)
+             if not _OPERATOR_KEPT_NEGATED_RE.search(why[: m.start()])),
+            None,
+        )
+        if _PANEL_MODE and label is None and any(
+            not _OPERATOR_KEPT_NEGATED_RE.search(why[: m.start()])
+            for m in _OPERATOR_KEPT_ANY_RE.finditer(why)
+        ):
+            return False, (
+                "`operator-kept:` carries a token outside public · above-ceiling · recurring · "
+                "operator-minted · unbacked"
+            )
+        operator_kept = not why_design and (_OPERATOR_CLASS_RE.search(why) or label)
+        if _PANEL_MODE and not operator_kept:
+            if design_gate and not _SEARCHED_EVIDENCE_RE.search(why):
                 return False, (
                     "a design/plan-approval gate names the artifact it asks about (its path) — "
                     "autonomy mode refuses the bare phrase"
@@ -4249,17 +4293,13 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
             problem = _panel_problem(
                 fields.get("Panel", ""),
                 transcript_path,
-                ground="a design-approval gate (D-613: only a split panel reaches the operator)",
+                ground="a panel-decided gate (D-1110: only a split panel reaches the operator; "
+                "an operator-kept class carries `operator-kept: public|above-ceiling|recurring|"
+                "operator-minted|unbacked`)",
                 outcomes=("split",),
             )
             if problem:
                 return False, problem
-        if not _DECISION_GATE_RE.search(why):
-            return False, (
-                '`ground: gate` names no gate class on its "Why it is yours" line — one of '
-                "deploy · destructive · irreversible · spend (real money) · publish · "
-                "credentials · design approval · plan approval · Gate 1 · Gate 2 · production data"
-            )
         return True, "gate"
     if ground == "underivable":
         i = why.lower().find("searched:")
