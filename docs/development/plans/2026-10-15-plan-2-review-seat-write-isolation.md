@@ -169,6 +169,10 @@ delta 2, 3 and 5, cited rather than restated):
 - **Given** the same seat, **When** a variable is assigned a literal earlier on the line (`S=<scratch>/run; mkdir -p $S/seat`, `export S=…; P=${S}/pins`), **Then** it is resolved and allowed; a reassignment to `$(pwd)`, a subshell's assignment, an env prefix (`S=… true`) and an unassigned `"$D"` stay unknown and denied (A13 — step-7 replay)
 - **Given** the same seat, **When** an escaped backtick in double quotes, a `'` inside double quotes, `<( )` inside double quotes, `$(…)` inside single quotes, `rsync -an`/`--dry-run`, or `cd <scratch> && S=$PWD && touch $S/x`, **Then** allowed; `echo "$(touch x)"`, `` echo `touch x` ``, `rsync -a src/ /opt/elsewhere/` and `S=$PWD; touch $S/x` from the repo, **Then** denied (A14 — step-7 replay)
 - **Given** the same seat, **When** `for m in a b; do … <scratch>/m$m; done` or the loop run inside scratch, **Then** allowed; a loop word with `/` or `..`, `for m in $(ls)`, `for m;` and a loop writing `mm_$m` in the repo, **Then** denied (A15 — step-7 replay)
+- **Given** the same seat, **When** a kill or git target is a variable (`P=4242; kill -9 $P`, `S=<scratch>; git -C $S reset --hard`), **Then** denied, as before Phase A — variables are resolved for write destinations and `cd` only (A16 — review round 1)
+- **Given** the same seat, **When** the line may have changed a variable since its literal assignment (`unset`, `read`, `printf -v`, `declare -g`, `eval`, `+=`, a `do`/`then` body, a pipeline or background assignment, one after `false &&`, a value with whitespace or a glob, a `bash -c` child, a loop variable mid-path over `tmp opt`), **Then** denied; an unbroken `&&` chain and `$PWD` after `cd <scratch> &&` stay allowed (A17 — round 1)
+- **Given** the same seat, **When** `grep -n '>' Makefile`, `grep -c ";" Makefile`, a `#` inside a multi-line quoted script, or a trailing comment holding `>`, **Then** allowed; `touch '$S'`, `touch \$S`, a nested backtick, a `$'…'` hiding `$(…)` or a backtick, a heredoc opener inside quotes or after `#`, `bash -e -c "git status; git reset --hard"`, **Then** denied (A18 — round 1)
+- **Given** the same seat, **When** `cd <existing scratch>; touch x` or `mkdir -p <scratch>/new/x; cd <scratch>/new/x; touch y`, **Then** allowed; `cd <scratch>/missing; touch x`, `cd <scratch> | cat; touch x`, an earlier `curl -o /etc/x`, `rsync` whose `-n` is an option's value or follows `--`, an untokenisable `curl -o`/`&>`, `/home/u/.tmp/x`, `kill ²; pkill -f mail`, **Then** denied; a repo inside another session's `/tmp` tree lends no `.tmp` scratch (A19, A19b — round 1)
 - **Mocked:** only A9's crash injection (`monkeypatch` on the new write path, in-process); every other grader runs the real hook as a subprocess on a synthetic payload (`_run()`); A1 reads the real agent definition.
 
 ## Phase B — Finish
@@ -436,6 +440,41 @@ RED  A12 no repo .tmp scratch / any run sid is ours / .tmp itself is scratch: 1 
 RED  A13 no expansion / a computed value keeps the old literal / a subshell's vars survive / an env prefix sets a shell var: 1 failed each
 all neuters red
 ```
+
+- **Step 8, `/fabrik-review-scoped` round 1** (ROUTED-TO-FINISH: a hook path, `Profile: small`). Three
+  author-blind `fabrik-reviewer` seats (Sonnet, Haiku, Opus) ran on pin `pins-1` of `40a2ac5d7` plus the work tree.
+  They raised 33 candidates, which reduce to 11 confirmed root causes, all fixed:
+
+  - **R1:** variable resolution reached the kill and git rules. `P=4242; read P <<< -1; kill -9 $P` and
+    `S=<scratch>; unset S; git … reset --hard` were allowed where the old hook refused them.
+  - **R2:** the variable table missed `unset`, `read`, `printf -v`, `declare`, `eval`, `+=`, conditional bodies,
+    pipelines, background jobs, `&&`/`||`, and values with whitespace or a glob.
+  - **R3:** `bash -c` inherited variables.
+  - **R4:** a loop judged only its first value.
+  - **R5:** `'$S'` was expanded, and a quoted `'>'` read as a redirect.
+  - **R6:** `.tmp` counted anywhere, outside a repo and inside another session's `/tmp` tree.
+  - **R7:** `$'…'` and nested backticks hid substitutions.
+  - **R8:** a heredoc opener inside quotes or after `#` counted, and shlex's comment cut swallowed the next line.
+  - **R9:** `kill ²` raised and the whole hook failed open.
+  - **R10:** `rsync -n` was read from option values, only the last `curl -o` was judged, and the fallback missed
+    `sort`/`curl`/`wget` and `&>`.
+  - **R11:** a pipeline `cd`, or a `cd` into a missing directory, moved the cwd.
+
+  Graders A16-A19b cover them. Every fix was undone alone in a throwaway worktree and its rows watched red (25
+  neuters); the first ANSI-C row stayed green because `_protect` caught it too, so a backtick row only the
+  extractor sees was added and went red. Recorded as blind spots rather than fixed: a symlink made earlier on the
+  same line, and a `$(…)` body not seeing the outer line's variables (a false refusal).
+
+```text
+RED R1 kill/git words see expanded variables · RED R2 ×7 · RED R3 · RED R4 · RED R5 · RED R7 ×2 · RED R8 ×3
+RED R9 · RED R10 ×4 · RED R11 ×2 · RED R6 ×2 — all neuters red
+replay after round 1 (cd taken as succeeded): seats=2037 commands=55791 old_refusals=94 new_refusals=40 errors=0
+```
+
+  The six old refusals the new hook no longer makes were each read: three are quoted printf data the old hook
+  misread, and three are `S=<scratch>; cd $S; git init`, where `cd` now resolves the literal into scratch. Of
+  6,785 `cd X` lines not guarded by `&&`, 179 make X earlier on the same line; `mkdir -p x; cd x` is therefore
+  counted as existing.
 
 - **Step 7b, the live probe (D-1116 condition 3, before merge).** One Haiku `fabrik-reviewer` Agent-tool seat ran
   against the edited hook in this worktree:

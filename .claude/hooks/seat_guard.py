@@ -42,12 +42,20 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
     ``sed``/``perl``; ``dd of=``. ``/dev/…`` (lexically) is never a destination; ``~``, ``$``, a substitution, a brace or
     a ``..`` after a glob is outside scratch; a glob is judged by the directory before it; ``/tmp``,
     ``/tmp/claude-<uid>`` and ``/tmp/claude-<uid>/<slug>`` are never this seat's. An ``env -C`` moves the cwd for its
-    own command only. Scratch here also means a repo's gitignored ``.tmp/`` (the D-836 run folder
-    ``.tmp/runs/<sid>/`` and fabrik-lib's ``.tmp/<run>/`` seat folders), minus another session's ``.tmp/runs/<sid>/``
-    and the ancestors ``.tmp`` and ``.tmp/runs``. A variable assigned a literal earlier on the line, ``$PWD``, and a
-    ``for`` loop over plain words (none a ``/``, ``.`` or ``..``) are resolved; any other variable stays unknown.
-    ``rsync -n`` writes nothing. (These came from replaying 54,727 real seat commands, D-1116 condition 2.)
-    The rule runs inside its own ``try``: a bug in it never disarms the kill and git rules.
+    own command only. Scratch here also means a repo's ``.tmp/`` (gitignored by convention, not checked) — a ``.tmp`` whose parent holds
+    ``.git``, outside ``/tmp`` (the D-836 run folder ``.tmp/runs/<sid>/`` and fabrik-lib's ``.tmp/<run>/`` seat
+    folders) — minus another session's ``.tmp/runs/<sid>/`` and the ancestors ``.tmp`` and ``.tmp/runs``. For the
+    write rule and a ``cd`` target only (the kill and git rules still refuse any ``$``), a variable is resolved when
+    the line assigned it a literal unconditionally — at depth 0 of ``do``/``then``/``{``, not in a pipeline or a
+    background job, not after ``&&``/``||`` unless the ``&&`` chain is unbroken — and nothing since could have
+    changed it (``unset``, ``read``, ``printf -v``, ``declare``, ``eval``, ``export -n``, ``+=`` forget it); a value
+    with whitespace, a glob, ``~``, ``{`` or a ``$`` is never resolved; ``$PWD`` is the tracked cwd; a ``for`` loop
+    over plain words is judged once per value; a ``bash -c`` script starts with no variables. A quoted or escaped
+    operator or ``$`` is data (``grep '>' f``, ``touch '$S'``). A ``cd`` in a pipeline changes nothing, and a ``cd``
+    not guarded by ``&&`` into a directory that is missing (and not made earlier on the line) leaves the cwd
+    unknown. ``rsync -n`` writes nothing. (These came from replaying 55,791 real seat commands, D-1116 condition 2,
+    and from the Phase A review's round 1.) The rule runs inside its own ``try``: a bug in it never disarms the kill
+    and git rules.
     Blind spots, verbatim from the spec § The delta: **The blind spot, stated (COBRA, D-253):** the cheapest way
     past the rule is a write the Bash string does not show — an interpreter (`python -c "open(p,'w')"`,
     `shutil.rmtree`), a script file, a write whose destinations come from stdin or a search (`xargs rm`, `find
@@ -62,6 +70,13 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
     before it tracks `cd`): `cd <scratch> && v=$(touch x)` is refused and `cd <live> && v=$(touch x)` started in
     scratch is missed — accepted until a seat trips it, the tripwire below. **Tripwire:** a confirmed seat write to
     a live tree through an interpreter re-opens this design with approach D (below) or a filesystem-level fence.
+    Also blind, found by the Phase A review: a symlink made earlier on the same line (``ln -s /opt/x <scratch>/l;
+    rm -rf <scratch>/l/src`` — the guard resolves links that exist when it runs), and a ``$(…)`` body never sees a
+    variable the outer line assigned (a false refusal, not a miss). Round 2 added: a ``case`` arm is conditional;
+    ``IFS= read``, ``builtin read``, ``command unset``, ``printf -vS`` clear the table; ``$'…'`` and ``$((…))`` are
+    data to the comment and heredoc scanners; a ``cd`` into a missing directory is certain only within its ``&&``
+    chain; only ``mkdir``/``install -d``/``cp -r``/``rsync``/``git worktree add``/``git clone``/a ``venv`` make a
+    directory a later ``cd`` may enter; a glob is also judged by what it matches now (a link already in scratch).
   * Fail-CLOSED for a seat whose command cannot be tokenised AND mentions a git write verb, a
     kill word, or a write (a write verb as a command word, an in-place sed/perl, an output redirect
     other than to /dev/… or an fd); otherwise fail-open (any error, a malformed payload) with exit 0
@@ -83,7 +98,9 @@ seat marker is the candidate if scripted writes recur.
 
 from __future__ import annotations
 
+import glob
 import io
+import itertools
 import json
 import os
 import re
@@ -144,6 +161,9 @@ def _tokens_at(command: str) -> list[tuple[str, int]]:
     lex = shlex.shlex(stream, posix=True, punctuation_chars=";&|()<>\n")
     lex.whitespace = " \t\r"
     lex.whitespace_split = True
+    lex.commenters = (
+        ""  # `_strip_comments` already cut them; shlex's own cut swallowed the newline after one
+    )
     out: list[tuple[str, int]] = []
     try:
         while True:
@@ -187,6 +207,95 @@ _OP_ORDER = (
 SUBST = "__SUBST__"
 
 
+def _ansi_end(s: str, i: int) -> int:
+    """The offset just past the ``$'…'`` word starting at ``i`` (``\\'`` does not close it)."""
+    j = i + 2
+    while j < len(s) and s[j] != "'":
+        j += 2 if s[j] == "\\" else 1
+    return min(j + 1, len(s))
+
+
+def _arith_end(s: str, i: int) -> int:
+    """The offset just past the ``$((…))``/``((…))`` starting at ``i`` (a ``<<`` in it is a shift, not a heredoc)."""
+    j = s.find("))", i)
+    return len(s) if j == -1 else j + 2
+
+
+def _line_syntax(line: str) -> tuple[set[int], int]:
+    """The offsets of ``line`` the shell reads as syntax (outside quotes, not escaped) and where its unquoted
+    ``#`` comment starts (``len(line)`` when it has none) — so a ``<<EOF`` inside quotes or after ``#`` opens no
+    heredoc, and a comment hides no next line (review round 1)."""
+    live: set[int] = set()
+    i, n, quote = 0, len(line), ""
+    while i < n:
+        c = line[i]
+        if quote:
+            if c == "\\" and quote == '"':
+                i += 2
+                continue
+            if c == quote:
+                quote = ""
+            i += 1
+            continue
+        if c == "\\":
+            i += 2
+            continue
+        if line.startswith(
+            "$'", i
+        ):  # review round 2: ANSI-C quoting is data, `\\'` does not close it
+            i = _ansi_end(line, i)
+            continue
+        if line.startswith("$((", i) or (
+            line.startswith("((", i) and (i == 0 or line[i - 1] in " \t;&|(")
+        ):
+            i = _arith_end(line, i)
+            continue
+        if c in "'\"":
+            quote = c
+        elif c == "#" and (i == 0 or line[i - 1] in " \t;&|("):
+            return live, i
+        else:
+            live.add(i)
+        i += 1
+    return live, n
+
+
+def _strip_comments(command: str) -> str:
+    """Each line cut at its unquoted ``#`` comment, keeping the newline (shlex's own cut swallowed it)."""
+    out: list[str] = []
+    i, n, quote = (
+        0,
+        len(command),
+        "",
+    )  # the quote state carries across lines (a multi-line `-c '…'` script)
+    while i < n:
+        c = command[i]
+        if quote:
+            if c == "\\" and quote == '"':
+                out.append(command[i : i + 2])
+                i += 2
+                continue
+            quote = "" if c == quote else quote
+        elif c == "\\":
+            out.append(command[i : i + 2])
+            i += 2
+            continue
+        elif command.startswith("$'", i):
+            end = _ansi_end(command, i)
+            out.append(command[i:end])
+            i = end
+            continue
+        elif c in "'\"":
+            quote = c
+        elif c == "#" and (i == 0 or command[i - 1] in " \t\n;&|("):
+            j = command.find("\n", i)
+            i = n if j == -1 else j  # drop the comment, keep its newline
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 def _strip_heredocs(command: str) -> str:
     """Drop heredoc BODIES (data written to a file), keeping the line that opens them."""
     out: list[str] = []
@@ -197,8 +306,61 @@ def _strip_heredocs(command: str) -> str:
                 pending.pop(0)
             continue
         out.append(line)
-        pending.extend(m.group(2) for m in _HEREDOC.finditer(line))
+        live = _line_syntax(line)[0]
+        pending.extend(m.group(2) for m in _HEREDOC.finditer(line) if m.start() in live)
     return "\n".join(out)
+
+
+# a character the shell takes literally (quoted or escaped) that would otherwise read as an operator or a
+# variable: mapped to a private-use stand-in so `'>'` is a word and `'$S'` is never expanded (review round 1)
+_LITERAL = ";&|()<>$"
+_STAND_IN = {c: chr(0xE000 + ord(c)) for c in _LITERAL}
+_UNSTAND = {v: k for k, v in _STAND_IN.items()}
+
+
+def _protect(command: str) -> str:
+    """``command`` with every quoted or escaped ``;&|()<>$`` replaced by its stand-in (``$`` stays live inside
+    double quotes, as in the shell). Runs after ``_extract_substitutions``, so a ``$(…)`` is already a placeholder."""
+    out: list[str] = []
+    i, n, quote = 0, len(command), ""
+    while i < n:
+        c = command[i]
+        if quote == "'":
+            out.append(_STAND_IN.get(c, c))
+            quote = "" if c == "'" else quote
+            i += 1
+            continue
+        if c == "\\" and i + 1 < n:
+            nxt = command[
+                i + 1
+            ]  # an escaped operator or `$` is a literal character; anything else as written
+            out.append(_STAND_IN[nxt] if nxt in _STAND_IN else command[i : i + 2])
+            i += 2
+            continue
+        if quote == '"':
+            out.append(c if c in '"$' else _STAND_IN.get(c, c))
+            quote = "" if c == '"' else quote
+            i += 1
+            continue
+        if command.startswith("$'", i):
+            j = i + 2
+            while j < n and command[j] != "'":
+                j += 2 if command[j] == "\\" else 1
+            body = command[
+                i + 2 : j
+            ]  # ANSI-C quoting: all literal; shlex reads it as a plain '…' word
+            out.append("'" + "".join(_STAND_IN.get(ch, ch) for ch in body.replace("'", "")) + "'")
+            i = j + 1
+            continue
+        if c in "'\"":
+            quote = c
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _shown(text: str) -> str:
+    return "".join(_UNSTAND.get(ch, ch) for ch in text)
 
 
 def _extract_substitutions(command: str) -> tuple[list[str], str]:
@@ -213,6 +375,15 @@ def _extract_substitutions(command: str) -> tuple[list[str], str]:
                 command[i : i + 2]
             )  # an escaped quote, backtick or `$` is data (W-72dfd448 replay)
             i += 2
+            continue
+        if command.startswith("$'", i) and not in_double:
+            j = (
+                i + 2
+            )  # ANSI-C quoting: `\'` does not close it, so a plain `'` scan would misplace the end
+            while j < n and command[j] != "'":
+                j += 2 if command[j] == "\\" else 1
+            out.append(command[i : j + 1])
+            i = j + 1
             continue
         if c == "'" and not in_double:
             j = command.find("'", i + 1)
@@ -238,7 +409,9 @@ def _extract_substitutions(command: str) -> tuple[list[str], str]:
                     j += 2 if command[j] == "\\" else 1
                 if j >= n:
                     raise _UnparseableError("unclosed backtick")
-                inner.append(command[i + 1 : j])
+                # the shell un-escapes `\\`, `` \` `` and `\$` in a backtick body before running it, so a
+                # nested `` \`…\` `` is a substitution of its own
+                inner.append(re.sub(r"\\([\\`$])", r"\1", command[i + 1 : j]))
                 i = j + 1
             else:
                 depth, j = 1, i + 2
@@ -283,10 +456,14 @@ class _Cmd(list):
     """One simple command's words, plus ``redirs``: the ``(operator, target)`` of every redirect on it."""
 
     redirs: list[tuple[str, str]]
+    before: str  # the operator that preceded it ("" at the start of the line)
+    sep: str  # the operator that ended it ("" at the end of the line)
 
-    def __init__(self) -> None:
+    def __init__(self, before: str = "") -> None:
         super().__init__()
         self.redirs = []
+        self.before = before
+        self.sep = ""
 
 
 def _glued_fd(prev: tuple[str, int | None], op: tuple[str, int | None], source: str) -> bool:
@@ -312,8 +489,9 @@ def _simple_commands(tokens: list, source: str = "") -> list[list[str]]:
         tok, at = items[k]
         if tok in _OPS:
             if cur or cur.redirs:
+                cur.sep = tok
                 out.append(cur)
-            cur = _Cmd()
+            cur = _Cmd(before=tok)
             if tok in ("(", ")"):
                 out.append([tok])  # subshell scope marker
             prev = None
@@ -429,7 +607,8 @@ def _kill_reason(words: list[str]) -> str:
         if not seen_signal and _KILL_SIGNAL.match(a):
             i, seen_signal = i + 1, True
             continue
-        if re.match(r"^%[1-9]\d*$", a) or (a.isdigit() and int(a) > 1):
+        # ASCII digits only: `str.isdigit()` is true for `²`, which `int()` refuses (a raise fails the whole hook open)
+        if re.fullmatch(r"%[1-9][0-9]*", a) or (re.fullmatch(r"[0-9]+", a) and int(a) > 1):
             i += 1
             continue
         return f"`kill {a}` is not a single positive pid (0, 1, a negative group or a substitution can hit every session)"
@@ -621,7 +800,15 @@ def _dest_outside(path: str, base: str, ctx: dict) -> bool:
     """True when a write to ``path`` (relative to ``base``) may land outside this seat's scratch."""
     if not path:
         return False
-    if path.startswith("~") or SUBST in path or "$" in path or "{" in path or SUBST in base:
+    if (
+        path.startswith("~")
+        or SUBST in path
+        or "$" in path
+        or "{" in path
+        or (
+            SUBST in base and not os.path.isabs(path)
+        )  # an unknown cwd matters to a relative path only
+    ):
         return True  # home, a substitution, a variable or a brace expansion: unknown, so outside
     full = path if os.path.isabs(path) else os.path.join(base, path)
     lexical = os.path.normpath(full)
@@ -631,6 +818,13 @@ def _dest_outside(path: str, base: str, ctx: dict) -> bool:
         first = min(full.index(c) for c in _GLOB if c in full)
         if ".." in full[first:].split("/"):
             return True  # a `..` after a glob can climb out of the directory the glob starts in
+        for hit in itertools.islice(
+            glob.iglob(full), 256
+        ):  # review round 2: `<scratch>/*/` through a link
+            if not _in_scratch(os.path.realpath(hit), ctx) and not _repo_tmp(
+                os.path.realpath(hit), ctx
+            ):
+                return True
         full = full[: full.rindex("/", 0, first)] or "/"
     real = os.path.realpath(full)
     if _ANCESTOR.match(real):
@@ -639,26 +833,56 @@ def _dest_outside(path: str, base: str, ctx: dict) -> bool:
 
 
 def _repo_tmp(real: str, ctx: dict) -> bool:
-    """A path inside a repo's gitignored ``.tmp/`` — the D-836 run scratch ``.tmp/runs/<sid>/`` and the seat
+    """A path inside a repo's ``.tmp/`` (gitignored by convention; the test is a parent holding ``.git``) — the D-836 run scratch ``.tmp/runs/<sid>/`` and the seat
     folders fabrik-lib's briefs name — minus another session's ``.tmp/runs/<sid>/`` and the ancestors ``.tmp`` and
-    ``.tmp/runs`` (the false-refusal replay, D-1116 condition 2: 2,280 of 2,713 refusals were these folders)."""
+    ``.tmp/runs`` (the false-refusal replay, D-1116 condition 2: 2,280 of 2,713 refusals were these folders). A
+    repo is a directory holding ``.git`` (a dir, or a worktree's file); a path under ``/tmp`` is the ``/tmp`` rule's,
+    so another session's ``/tmp`` tree never becomes scratch through a ``.tmp`` inside it (review round 1)."""
+    if real == "/tmp" or real.startswith("/tmp/"):
+        return False
     parts = real.split("/")
-    if ".tmp" not in parts:
-        return False
-    rest = [p for p in parts[parts.index(".tmp") + 1 :] if p]
-    if not rest:
-        return False
-    if rest[0] == "runs":
-        return len(rest) > 1 and (not ctx.get("sid") or rest[1] == ctx["sid"])
-    return True
+    for k, part in enumerate(parts):
+        if part != ".tmp" or not os.path.exists("/".join(parts[:k]) + "/.git"):
+            continue
+        rest = [p for p in parts[k + 1 :] if p]
+        if not rest:
+            return False
+        if rest[0] == "runs":
+            return len(rest) > 1 and (not ctx.get("sid") or rest[1] == ctx["sid"])
+        return True
+    return False
 
 
 _VAR = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
-_ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
+_ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)(\+?)=(.*)$")
+# builtins that set or unset a variable some other way than `NAME=value`: one in a command forgets the table
+_VAR_BUILTINS = frozenset(
+    {
+        "unset",
+        "read",
+        "mapfile",
+        "readarray",
+        "declare",
+        "typeset",
+        "local",
+        "eval",
+        "let",
+        "getopts",
+        "source",
+        ".",
+    }
+)
+_OPENS, _CLOSES = frozenset({"do", "then", "{"}), frozenset({"done", "fi", "}"})
+_UNSAFE_VALUE = re.compile(r"[\s*?\[{~`$]|" + re.escape(SUBST))
+_UNSAFE_LOOP = re.compile(r"[\s{~`$]|" + re.escape(SUBST))
+
+
+_LOOP_CAP = 64  # destinations judged per word at most; past it the word stays unknown
 
 
 def _expand(word: str, ctx: dict) -> str:
-    """``$NAME``/``${NAME}`` replaced by a literal this command line assigned earlier; any other stays (unknown)."""
+    """``$NAME``/``${NAME}`` replaced by a literal the line assigned earlier, as the WRITE rule judges it
+    (the kill and git rules never see a resolved variable); anything else stays (unknown)."""
     known = dict(ctx.get("vars") or {})
     cwd = ctx.get("cwd") or SUBST
     if SUBST not in cwd and "$" not in cwd:
@@ -666,41 +890,110 @@ def _expand(word: str, ctx: dict) -> str:
     return _VAR.sub(lambda m: known.get(m.group(1) or m.group(2), m.group(0)), word)
 
 
-def _record_assignments(words: list[str], ctx: dict) -> None:
-    """A line of bare assignments (``S=/tmp/x``, ``export S=…``) sets shell variables; a literal value is
-    remembered, anything else (a substitution, an unknown variable) forgets the name."""
-    if (
-        len(words) >= 2
-        and words[0] == "for"
-        and _ASSIGN.match(words[1] + "=")
-        and "=" not in words[1]
-    ):
-        # `for m in a b c`: every value lands in one directory when none is a path piece (`/`, `.`, `..`)
-        values = [_expand(v, ctx) for v in words[3:]] if words[2:3] == ["in"] else []
-        if values and all(
-            v not in (".", "..") and not any(ch in v for ch in ("/", "$", "`", SUBST))
-            for v in values
-        ):
-            ctx.setdefault("vars", {})[words[1]] = values[0]
-        else:
-            ctx.setdefault("vars", {}).pop(words[1], None)
-        return
-    body = words[1:] if words and words[0] in ("export", "readonly", "declare", "local") else words
-    if not body or not all(_ASSIGN.match(w) for w in body):
-        return
+def _expansions(word: str, ctx: dict) -> list[str]:
+    """Every word a ``for`` loop's variables can make of ``word``, one per value so each is judged (review
+    round 1: ``for d in tmp opt; do rm -rf /$d/fabrik``), each then ``_expand``-ed; just ``_expand(word)`` when
+    no loop variable is in it or the combinations pass ``_LOOP_CAP``."""
+    out = [word]
+    for name, values in (ctx.get("loopvars") or {}).items():
+        pattern = re.compile(r"\$(\{" + re.escape(name) + r"\}|" + re.escape(name) + r"\b)")
+        if name in (ctx.get("vars") or {}) or not pattern.search(word):
+            continue
+        out = [pattern.sub(lambda _m, v=v: v, w) for w in out for v in values]
+        if len(out) > _LOOP_CAP:
+            return [_expand(word, ctx)]
+    return [_expand(w, ctx) for w in out]
+
+
+def _record_assignments(raw: list[str], ctx: dict) -> None:
+    """Keep the variable table conservative (review round 1): a ``NAME=literal`` line is remembered only when it
+    runs unconditionally in this shell — at depth 0 of ``do``/``then``/``{``, not in a pipeline or background job,
+    not after ``&&``/``||``. Any other assignment forgets its name; a builtin that sets variables another way
+    (``unset``, ``read``, ``printf -v``, ``declare``, ``eval``, …) or ``export -n`` forgets the whole table. A
+    value holding whitespace, a glob, ``~``, ``{``, a variable or a substitution is never remembered."""
+    words = list(raw)
     known = ctx.setdefault("vars", {})
-    for w in body:
-        name, value = _ASSIGN.match(w).groups()  # type: ignore[union-attr]
-        value = _expand(value, ctx)
-        if "$" in value or SUBST in value or "`" in value:
-            known.pop(name, None)
+    loop = ctx.setdefault("loopvars", {})
+    while words and words[0] in _KEYWORDS:
+        if words[0] in _OPENS:
+            ctx["depth"] = ctx.get("depth", 0) + 1
+        elif words[0] in _CLOSES:
+            ctx["depth"] = max(0, ctx.get("depth", 0) - 1)
+        words = words[1:]
+    if not words:
+        return
+    if words[0] == "case":
+        ctx["depth"] = ctx.get("depth", 0) + 1  # every arm runs conditionally (review round 2)
+    elif words[0] == "esac":
+        ctx["depth"] = max(0, ctx.get("depth", 0) - 1)
+    head = words[0]
+    if head == "for" and len(words) >= 2:
+        values = [_expand(v, ctx) for v in words[3:]] if words[2:3] == ["in"] else []
+        # a plain word, or a glob with no `/` (its matches are names in the cwd; never one starting `.`,
+        # which can match `.`/`..`); the name must be an identifier (review round 2: `for * in` raised)
+        ok = (
+            re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", words[1])
+            and values
+            and all(
+                not v.startswith(".") and "/" not in v and not _UNSAFE_LOOP.search(v)
+                for v in values
+            )
+        )
+        known.pop(words[1], None)
+        if ok:
+            loop[words[1]] = values
         else:
+            loop.pop(words[1], None)
+        return
+    # the command word behind assignments and `builtin`/`command` (review round 2: `IFS= read -r S`)
+    cmd = (
+        [w for w in words if not _ASSIGN.match(w)]
+        if not all(_ASSIGN.match(w) for w in words)
+        else []
+    )
+    while cmd and cmd[0] in ("builtin", "command"):
+        cmd = cmd[1:]
+        while cmd and cmd[0].startswith(
+            "-"
+        ):  # `command -p printf …`: its own flags, never the next word's
+            cmd = cmd[1:]
+    if cmd and (
+        cmd[0] in _VAR_BUILTINS
+        or (cmd[0] == "printf" and any(w.startswith("-v") for w in cmd))
+        or (cmd[0] == "export" and "-n" in cmd)
+    ):
+        known.clear()
+        loop.clear()
+        return
+    body = words[1:] if head in ("export", "readonly") else words
+    if not body or not all(_ASSIGN.match(w) for w in body):
+        return  # a command, maybe with `NAME=x` env prefixes, which set no shell variable
+    before, sep = getattr(raw, "before", ""), getattr(raw, "sep", "")
+    # inside an unbroken `a && S=x && b` chain the assignment is certain for the rest of the chain only
+    chained = before == "&&" and sep == "&&"
+    steady = (
+        ctx.get("depth", 0) == 0
+        and (before not in ("|", "&", "|&", "&&", "||") or chained)
+        and sep not in ("|", "&", "|&")
+    )
+    for w in body:
+        name, plus, value = _ASSIGN.match(w).groups()  # type: ignore[union-attr]
+        value = _expand(value, ctx)
+        loop.pop(name, None)
+        if steady and not plus and not _UNSAFE_VALUE.search(value):
             known[name] = value
+            if chained:
+                ctx.setdefault("chain", []).append(name)
+        else:
+            known.pop(name, None)
 
 
-def _operands(args: list[str], takes_value: frozenset[str]) -> tuple[list[str], dict[str, str]]:
+def _operands(
+    args: list[str], takes_value: frozenset[str], collect: list[str] | None = None
+) -> tuple[list[str], dict[str, str]]:
     """Positional operands, and the values of the options in ``takes_value`` (``-x V``, ``-xV``,
-    ``--long V``, ``--long=V``). A short flag cluster ending in a value option takes the next word."""
+    ``--long V``, ``--long=V``). A short flag cluster ending in a value option takes the next word.
+    ``collect`` receives EVERY value given, where ``vals`` keeps only the last (``curl -o a u1 -o b u2``)."""
     ops: list[str] = []
     vals: dict[str, str] = {}
     i = 0
@@ -717,6 +1010,8 @@ def _operands(args: list[str], takes_value: frozenset[str]) -> tuple[list[str], 
                 elif i + 1 < len(args):
                     vals[name] = args[i + 1]
                     i += 1
+                if collect is not None and name in vals:
+                    collect.append(vals[name])
         elif a.startswith("-") and len(a) > 1:
             for k in range(1, len(a)):
                 flag = "-" + a[k]
@@ -726,6 +1021,8 @@ def _operands(args: list[str], takes_value: frozenset[str]) -> tuple[list[str], 
                     elif i + 1 < len(args):
                         vals[flag] = args[i + 1]
                         i += 1
+                    if collect is not None and flag in vals:
+                        collect.append(vals[flag])
                     break
                 vals.setdefault("cluster:" + a[k], "")
         else:
@@ -750,6 +1047,40 @@ _EVERY_OPERAND = {
     "gunzip": frozenset({"-S", "--suffix"}),
 }
 _TARGET_DIR = frozenset({"-t", "--target-directory"})
+# rsync options that take a value, so a value that looks like `-n` is never read as the dry-run flag
+_RSYNC_VALUE = frozenset(
+    {
+        "-e",
+        "--rsh",
+        "--exclude",
+        "--include",
+        "--filter",
+        "-f",
+        "-T",
+        "--temp-dir",
+        "-B",
+        "--block-size",
+        "--log-file",
+        "--partial-dir",
+        "--backup-dir",
+        "--compare-dest",
+        "--copy-dest",
+        "--link-dest",
+        "--exclude-from",
+        "--include-from",
+        "--files-from",
+        "--chmod",
+        "--chown",
+        "--rsync-path",
+        "--out-format",
+        "--password-file",
+        "-M",
+        "--remote-option",
+        "--suffix",
+        "--usermap",
+        "--groupmap",
+    }
+)
 
 
 def _destinations(words: list[str], cwd: str) -> list[tuple[str, str]]:
@@ -785,21 +1116,21 @@ def _destinations(words: list[str], cwd: str) -> list[tuple[str, str]]:
         elif len(ops) >= 2:
             out = [ops[-1]]
     elif name == "rsync":
-        ops, _ = _operands(
-            args, frozenset({"-e", "--rsh", "--exclude", "--include", "--filter", "-f"})
-        )
+        ops, vals = _operands(args, _RSYNC_VALUE)
         local = [o for o in ops if not re.match(r"^[^/]*:", o)]
-        if "--dry-run" in args or "n" in _short_flags(args):
-            return []  # a dry run writes nothing
-        out = local if "--remove-source-files" in args else local[-1:]
+        flags = args[: args.index("--")] if "--" in args else args
+        if "--dry-run" in flags or "cluster:n" in vals:
+            return []  # a dry run writes nothing (an `-n` that is an option's VALUE is not one)
+        out = local if "--remove-source-files" in flags else local[-1:]
     elif name in ("sort", "curl", "wget"):
         opt = {
             "sort": ("-o", "--output"),
             "curl": ("-o", "--output"),
             "wget": ("-O", "--output-document"),
         }[name]
-        _, vals = _operands(args, frozenset(opt))
-        out = [v for v in (vals.get(opt[0]), vals.get(opt[1])) if v and v != "-"]
+        given: list[str] = []
+        _operands(args, frozenset(opt), given)
+        out = [v for v in given if v and v != "-"]
     elif name == "sed":
         inplace = any(a.startswith("--in-place") for a in args) or any(
             a.startswith("-") and not a.startswith("--") and "i" in a[1:] for a in args
@@ -844,13 +1175,15 @@ def _write_reason(
     words: list[str], redirs: list[tuple[str, str]], ctx: dict, cwd_before: str
 ) -> str:
     """'' or the reason this command writes outside the seat's scratch (W-72dfd448)."""
-    dests = [(target, cwd_before) for _, target in redirs]
+    dests = [(e, cwd_before) for _, target in redirs for e in _expansions(target, ctx)]
     if words:
-        dests += _destinations(words, ctx["cwd"])
+        dests += [(e, b) for p, b in _destinations(words, ctx["cwd"]) for e in _expansions(p, ctx)]
     for path, base in dests:
         if _dest_outside(path, base, ctx):
             shown = path if os.path.isabs(path) or SUBST in base else os.path.join(base, path)
-            return f"a review seat writes only under its scratch dir — {shown} is outside it"
+            return (
+                f"a review seat writes only under its scratch dir — {_shown(shown)} is outside it"
+            )
     return ""
 
 
@@ -864,11 +1197,70 @@ def _safe_write_reason(
         return ""
 
 
+def _child(ctx: dict, inherit: bool) -> dict:
+    """The context a nested scan starts from: a ``$(…)`` body inherits the shell's variables; a ``bash -c``
+    child does not (only exported ones reach it, so the table starts empty — review round 1)."""
+    return {
+        **ctx,
+        "targets": [],
+        "dirs": [],
+        "depth": 0,
+        "vars": dict(ctx.get("vars") or {}) if inherit else {},
+        "loopvars": dict(ctx.get("loopvars") or {}) if inherit else {},
+    }
+
+
+def _made_dirs(words: list[str], cwd: str) -> list[str]:
+    """Directories a command creates, for a later ``cd`` on the line (review round 2: only real creators —
+    ``mkdir`` (ancestors too with ``-p``), ``install -d``, ``cp -r``/``rsync`` targets, ``git worktree add``,
+    ``git clone``, a ``venv`` — never a path an ``rm`` or ``touch`` merely names)."""
+    name, args = os.path.basename(words[0]), words[1:]
+    pos = [a for a in args if not a.startswith("-")]
+    out: list[str] = []
+    if name == "mkdir":
+        for d in pos:
+            full = os.path.normpath(os.path.join(cwd, d))
+            out.append(full)
+            while "p" in _short_flags(args) or "--parents" in args:
+                full = os.path.dirname(full)
+                if full in ("/", ""):
+                    break
+                out.append(full)
+    elif name == "install" and "d" in _short_flags(args):
+        out = [os.path.normpath(os.path.join(cwd, d)) for d in pos]
+    elif name in ("cp", "rsync") and len(pos) >= 2:
+        out = [os.path.normpath(os.path.join(cwd, pos[-1]))]
+    elif name == "git" and "worktree" in pos and "add" in pos:
+        rest = pos[pos.index("add") + 1 :]
+        out = [os.path.normpath(os.path.join(cwd, rest[0]))] if rest else []
+    elif name == "git" and "clone" in pos and len(pos) >= pos.index("clone") + 3:
+        out = [os.path.normpath(os.path.join(cwd, pos[pos.index("clone") + 2]))]
+    elif "venv" in pos and pos[-1] != "venv":
+        out = [os.path.normpath(os.path.join(cwd, pos[-1]))]
+    return [d for d in out if SUBST not in d and "$" not in d]
+
+
+def _cd_target(arg: str, raw: list[str], ctx: dict) -> str:
+    """Where a ``cd`` leaves the shell. A ``cd`` that may fail (its directory missing now) and is not
+    guarded by ``&&`` leaves the cwd unknown: the next command runs wherever the shell already was. A
+    directory an earlier command on the line writes (``mkdir -p x; cd x``) counts as existing."""
+    target = os.path.join(ctx["cwd"], arg)
+    if SUBST in target or "$" in target:
+        return target
+    if os.path.isdir(target) or os.path.normpath(target) in (ctx.get("made") or set()):
+        return target
+    if getattr(raw, "sep", "") == "&&":
+        ctx["cd_unsure"] = True  # certain only while the `&&` chain lasts (review round 2)
+        return target
+    return SUBST
+
+
 def _scan(command: str, ctx: dict, depth: int) -> str:
     raw_command = command
     try:
-        command = _strip_heredocs(command)
+        command = _strip_comments(_strip_heredocs(command))
         inner, command = _extract_substitutions(command)
+        command = _protect(command)
         cmds = _simple_commands(_split_punct(_tokens_at(command)), command)
     except _UnparseableError:
         writes = "|".join(
@@ -880,41 +1272,51 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
         # a write verb as a command word (not a path piece or an option: `/tmp/cp`, `--rm`), an in-place
         # sed/perl, or an output redirect to something other than /dev/… or an fd (W-72dfd448)
         if re.search(
-            r"(?<![-/.\w])(tee|cp|mv|install|rsync|ln|rm|rmdir|unlink|shred|touch|mkdir|truncate|gzip|gunzip|dd)\b"
+            r"(?<![-/.\w])(tee|cp|mv|install|rsync|ln|rm|rmdir|unlink|shred|touch|mkdir|truncate|gzip|gunzip|dd"
+            r"|sort|curl|wget)\b"
             r"|\b(sed|perl)\b[^;&|\n]*\s-\w*i"
-            r"|(?<![<>&\d])\d*>{1,2}\|?\s*(?!/dev/|&|\d)\S",
+            r"|(?:(?<![<>&\d])\d*|(?<![<>&])&)>{1,2}\|?\s*(?!/dev/|&)\S",
             raw_command,
         ):
             return "the command cannot be tokenised and names a write (a review seat writes only under its scratch dir)"
         return ""
     if depth < 3:
         for sub in inner:
-            reason = _scan(
-                sub,
-                {**ctx, "targets": [], "dirs": [], "vars": dict(ctx.get("vars") or {})},
-                depth + 1,
-            )
+            reason = _scan(sub, _child(ctx, inherit=True), depth + 1)
             if reason:
                 return reason
-    scopes: list[tuple[str, list[str], dict[str, str]]] = []
+    scopes: list[tuple] = []
     for raw in cmds:
         if raw == ["("]:
-            scopes.append((ctx["cwd"], list(ctx.get("dirs", [])), dict(ctx.get("vars") or {})))
+            scopes.append(
+                (
+                    ctx["cwd"],
+                    list(ctx.get("dirs", [])),
+                    dict(ctx.get("vars") or {}),
+                    dict(ctx.get("loopvars") or {}),
+                )
+            )
             continue
         if raw == [")"]:
             if scopes:
-                ctx["cwd"], ctx["dirs"], ctx["vars"] = (
-                    scopes.pop()
-                )  # a subshell's cd, pushd and variables die with it
+                # a subshell's cd, pushd and variables die with it
+                ctx["cwd"], ctx["dirs"], ctx["vars"], ctx["loopvars"] = scopes.pop()
             continue
         ctx["targets"], ctx["git_dir"], ctx["work_tree"] = [], False, False
+        if getattr(raw, "before", "") != "&&":
+            for name in ctx.pop("chain", []):  # the `&&` chain that made these certain has ended
+                (ctx.get("vars") or {}).pop(name, None)
+            if ctx.pop("cd_unsure", False):
+                ctx["cwd"] = (
+                    SUBST  # a `cd <missing> && …` may have failed: the shell is wherever it was
+                )
         cwd_before = ctx["cwd"]
-        redirs = [(op, _expand(t, ctx)) for op, t in getattr(raw, "redirs", [])]
-        _record_assignments(list(raw), ctx)
-        words = _strip([_expand(w, ctx) for w in raw], ctx)
+        words = _strip(list(raw), ctx)
         # the write rule runs first, so a redirect on an empty, keyword, cd or bash -c line is judged;
-        # redirects resolve against the cwd before an `env -C`, operands against the moved one
-        reason = _safe_write_reason(words, redirs, ctx, cwd_before)
+        # redirects resolve against the cwd before an `env -C`, operands against the moved one; this
+        # line's own assignments are recorded after it is judged (the shell expands its words first)
+        reason = _safe_write_reason(words, getattr(raw, "redirs", []), ctx, cwd_before)
+        _record_assignments(raw, ctx)
         if reason:
             return reason
         if not words:
@@ -926,8 +1328,14 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
             if head == "pushd":
                 ctx.setdefault("dirs", []).append(ctx["cwd"])
             args = [w for w in words[1:] if not w.startswith("-") or w == "-"]
-            if args:
-                ctx["cwd"] = os.path.join(ctx["cwd"], args[0]) if args[0] != "-" else SUBST
+            if (
+                args
+                and getattr(raw, "sep", "") not in ("|", "&", "|&")
+                and getattr(raw, "before", "") not in ("|", "|&")
+            ):
+                ctx["cwd"] = (
+                    _cd_target(_expand(args[0], ctx), raw, ctx) if args[0] != "-" else SUBST
+                )
             continue
         if head == "popd":
             if ctx.get("dirs"):
@@ -938,16 +1346,14 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
                 if w.startswith("-") and not w.startswith("--") and "c" in w[1:]:
                     rest = [x for x in words[k + 1 :] if not x.startswith("-")]
                     if rest:
-                        reason = _scan(
-                            rest[0],
-                            {**ctx, "targets": [], "dirs": [], "vars": dict(ctx.get("vars") or {})},
-                            depth + 1,
-                        )
+                        # the script is shell text again: its quoted operators were stand-ins only for THIS line
+                        reason = _scan(_shown(rest[0]), _child(ctx, inherit=False), depth + 1)
                         if reason:
                             return reason
                     break
             ctx["cwd"] = cwd_before
             continue
+        ctx.setdefault("made", set()).update(_made_dirs(words, ctx["cwd"]))
         reason = _kill_reason(words) or _git_reason(words, ctx)
         ctx["cwd"] = cwd_before  # `env -C` moves the cwd for its own command only
         if reason:

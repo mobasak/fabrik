@@ -576,7 +576,7 @@ def test_a12_a_repo_tmp_run_folder_is_scratch_but_not_a_siblings() -> None:
     # `<worktree>/.tmp/<run>/seat-…` folders
     for cmd in (
         f"mkdir -p /opt/fabrik/.tmp/runs/{SID}/fabrik-review-x/seat-sonnet",
-        "mkdir -p /opt/fabrik-lib/.claude/worktrees/dev1/.tmp/sb116/seat-opus/tree",
+        f"mkdir -p {REPO}/.tmp/sb116/seat-opus/tree",  # a worktree: its `.git` is a file
         "cd .tmp/w1/seat && echo x > out.txt",
     ):
         assert not _denied(_run(cmd)), cmd
@@ -628,11 +628,21 @@ def test_a14_quoting_escapes_and_dry_runs_are_read_as_the_shell_reads_them() -> 
         assert _denied(_run(cmd)), cmd
 
 
-def test_a15_a_for_loop_over_plain_words_is_resolved_and_a_path_word_is_not() -> None:
+def test_a15_a_for_loop_over_plain_words_is_resolved_and_a_path_word_is_not(tmp_path) -> None:
+    real = str(tmp_path)  # an existing scratch dir: a `cd` into it is certain past the `&&` chain
     assert not _denied(
-        _run(f"cd {SCRATCH}; for m in prune lock; do rm -rf mm_$m; cp -r src mm_$m; done")
+        _run(f"cd {real} && for m in prune lock; do rm -rf mm_$m; cp -r src mm_$m; done")
     )
     assert not _denied(_run(f"for m in a b; do mkdir -p {SCRATCH}/m$m; done"))
+    # every value is judged, so a loop variable may sit mid-path (review round 1)
+    assert not _denied(_run(f"cd {real} && for m in m1 m2; do mkdir -p $m/tests; done"))
+    # a glob loop word with no `/` is a name in the cwd (review round 2)
+    assert not _denied(_run(f"cd {real}; for f in *.json; do sort $f -o $f.sorted; done"))
+    for cmd in (
+        "for * in x; do :; done; rm -rf /opt/fabrik/src",  # an invalid name never disarms the rule
+        f"cd {real}; for f in .*; do rm -rf $f/x; done",  # `.*` can match `..`
+    ):
+        assert _denied(_run(cmd)), cmd
     for cmd in (
         f"for m in a ../../../opt/x; do rm -rf {SCRATCH}/$m; done",
         f"for m in a ..; do rm -rf {SCRATCH}/x/$m/..; done",
@@ -641,3 +651,125 @@ def test_a15_a_for_loop_over_plain_words_is_resolved_and_a_path_word_is_not() ->
         "for m in a b; do rm -rf mm_$m; done",
     ):
         assert _denied(_run(cmd)), cmd
+
+
+# --- review round 1 (W-72dfd448 Phase A /fabrik-review-scoped): the classes its three readers confirmed ---------
+
+
+def test_a16_a_variable_never_loosens_the_kill_or_git_rule() -> None:
+    # a resolved variable judges WRITE destinations only; the kill and git rules keep refusing `$P`/`$S`
+    for cmd in (
+        "P=4242; read P <<< -1; kill -9 $P",
+        "P=4242; kill -9 $P",
+        f"S={SCRATCH}; git -C $S reset --hard",
+        f"S={SCRATCH}; unset S; git --git-dir=$S/opt/fabrik/.git --work-tree=$S/opt/fabrik reset --hard",
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a17_the_variable_table_forgets_what_the_shell_may_have_changed() -> None:
+    for cmd in (
+        f"S={SCRATCH}; unset S; rm -rf $S/x",
+        f"S={SCRATCH}; read S <<< /opt/fabrik; rm -rf $S/x",
+        f"S={SCRATCH}; printf -v S %s /opt/fabrik; rm -rf $S/x",
+        f"S={SCRATCH}; declare -g S=/opt/fabrik; rm -rf $S/x",
+        f"S={SCRATCH}; eval S=/opt/fabrik; rm -rf $S/x",
+        f"S=/opt/fabrik; S+={SCRATCH}; touch $S/f",  # really /opt/fabrik/tmp/…
+        f"S=/opt/fabrik; for i in 1; do S={SCRATCH}; done; rm $S/f",  # a loop may run zero times
+        f"S=/opt/fabrik; if false; then S={SCRATCH}; fi; rm $S/f",
+        f"S={SCRATCH} | true; touch $S/f",
+        f"S={SCRATCH} & touch $S/f",
+        f"false && S={SCRATCH}; touch $S/f",
+        f'S="{SCRATCH} /opt/fabrik/f"; touch $S',
+        f"S={SCRATCH}/*; rm -rf $S",
+        f"S={SCRATCH}; bash -c 'touch $S/f'",
+        "for d in tmp opt; do rm -rf /$d/fabrik; done",
+    ):
+        assert _denied(_run(cmd)), cmd
+    for cmd in (
+        f"S={SCRATCH} && mkdir -p $S/a && touch $S/a/b",
+        f"cd {SCRATCH} && S=$PWD && touch $S/x",
+        f"S={SCRATCH}; v=$(true); touch $S/f",
+    ):
+        assert not _denied(_run(cmd)), cmd
+
+
+def test_a18_a_quoted_or_escaped_character_is_data() -> None:
+    for cmd in (
+        "grep -n '>' Makefile",
+        'grep -c ";" Makefile',
+        "grep -n '$S' Makefile",
+        "python3 -c 'import sys\n# a comment\nprint(1)' > /dev/null",  # `#` inside a multi-line quoted script
+        "grep -c x Makefile # count, then compare > 3",  # a comment is not a redirect
+    ):
+        assert not _denied(_run(cmd)), cmd
+    for cmd in (
+        f"S={SCRATCH}; touch '$S'",
+        f"S={SCRATCH}; touch \\$S",
+        "echo `echo \\`git -C /opt/fabrik reset --hard\\``",
+        "echo $'\\'' $(git -C /opt/fabrik reset --hard) \\'",
+        "echo $'\\'' `git -C /opt/fabrik reset --hard` \\'",  # only the extractor sees this one
+        'echo "<<EOF"\nrm -rf /opt/fabrik/src',
+        "echo hi # <<EOF\nrm -rf /opt/fabrik/src",
+        'bash -e -c "git status; git reset --hard"',
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a19_cd_scope_repeated_options_tmp_roots_and_the_fallback(tmp_path) -> None:
+    real = str(tmp_path)  # an existing directory under /tmp: the seat's scratch
+    assert not _denied(_run(f"cd {real}; touch x"))
+    assert not _denied(_run(f"mkdir -p {real}/new/x; cd {real}/new/x; touch y"))  # made on the line
+    for cmd in (
+        f"cd {real}/missing; touch x",  # the cd fails, so the touch lands in the repo
+        f"cd {real} | cat; touch x",  # a pipeline's cd changes nothing
+        "curl -o /etc/x http://u1 -o /tmp/a http://u2",
+        "rsync -a --exclude -n src/ /opt/elsewhere/",
+        "rsync -a -e'ssh -n' a /opt/elsewhere/",
+        "rsync -a -- -n src/ /opt/elsewhere/",
+        'curl -o /etc/x "http://u',
+        'echo hi &> /etc/x "x',
+        "rm -rf /home/u/.tmp/x",
+        "touch /tmp/claude-1000/-opt-x/sid-other/proj/.tmp/x",
+        "kill ²; pkill -f mail",
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a20_round_2_wrapped_builtins_case_arms_hidden_heredocs_cd_chains_and_globs(
+    tmp_path,
+) -> None:
+    real = str(tmp_path)
+    os.symlink("/opt/fabrik", f"{real}/l")  # a link already inside scratch
+    for cmd in (
+        f"S={SCRATCH}; IFS= read -r S <<< /opt/fabrik; rm -rf $S/src",
+        f"S={SCRATCH}; builtin read S <<< /opt/fabrik; rm -rf $S/src",
+        f"S={SCRATCH}; command unset S; rm -rf $S/src",
+        f"S={SCRATCH}; command printf -v S %s /opt/fabrik; rm -rf $S/src",
+        f"S={SCRATCH}; printf -vS %s /opt/fabrik; rm -rf $S/src",
+        f"S=/opt/fabrik; case z in a) S={SCRATCH};; esac; rm -rf $S/src",
+        "echo $'\\'' x ' <<EOF'\nrm -rf /opt/fabrik/src\nEOF",
+        "echo $((a<<b))\nrm -rf /opt/fabrik/src\nb",  # a shift, not a heredoc that hides the rm
+        f"cd {real}/missing && echo ok; rm -rf src",  # the chain ended; the cd may have failed
+        f"rm -rf {real}/gone; cd {real}/gone; rm -rf src",  # `rm` names a dir, it does not make one
+        f"rm -rf {real}/*/",  # the glob matches the link into /opt/fabrik
+    ):
+        assert _denied(_run(cmd)), cmd
+    for cmd in (
+        f"git -C {real} worktree add {real}/wt HEAD; cd {real}/wt; touch f",
+        f"python3 -m venv {real}/v; cd {real}/v; touch f",
+        f"mkdir {real}/n; cd {real}/n; touch f",
+    ):
+        assert not _denied(_run(cmd)), cmd
+
+
+def test_a19b_a_repo_inside_another_sessions_tmp_tree_lends_it_no_scratch() -> None:
+    import shutil
+    import uuid
+
+    other = f"/tmp/claude-{os.getuid()}/-opt-seat-guard-test/{uuid.uuid4()}"
+    try:
+        os.makedirs(f"{other}/proj/.git")  # a repo (a probe worktree) inside ANOTHER session's tree
+        assert _denied(_run(f"touch {other}/proj/.tmp/x"))
+    finally:
+        shutil.rmtree(os.path.dirname(other), ignore_errors=True)

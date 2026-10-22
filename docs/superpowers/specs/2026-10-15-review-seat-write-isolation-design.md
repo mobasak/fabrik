@@ -171,10 +171,13 @@ an interpreter re-opens this design with approach D (below) or a filesystem-leve
   **As built (D-XXXX): the census was wrong, and a scratch root IS added.** The plan's step-7 replay of 54,727 real
   seat commands found 2,713 new refusals. 418 were hub seats writing their D-836 run folder `<repo>/.tmp/runs/<sid>/`,
   and 1,863 were fabrik-lib seats writing the `<worktree>/.tmp/<run>/seat-…` folders their briefs name. So a path
-  inside a repo's gitignored `.tmp/` is scratch, minus another session's `.tmp/runs/<sid>/` and the ancestors `.tmp`
+  inside a repo's `.tmp/` (one whose parent holds `.git`; gitignored by convention) is scratch, minus another session's `.tmp/runs/<sid>/` and the ancestors `.tmp`
   and `.tmp/runs`. The same replay added three more reads: a variable assigned a literal on the line, `$PWD`, and a
   `for` loop over plain words; it also fixed the extractor to honour escapes and double quotes. The residue is 42
-  refusals (0.08%); the plan's Evidence carries each class.
+  refusals (0.08%); the plan's Evidence carries each class. The Phase A review's round 1 then made the variable
+  table conservative (and kept every variable away from the kill and git rules), read quoted operators as data, and
+  bounded `.tmp` to a repo's; the replay after it leaves 40 new refusals in 55,791 commands (0.07%), measured with
+  every `cd` taken as succeeded because the seats' scratch directories have been swept since they ran.
 - The tool list of `fabrik-reviewer` becomes a tested contract: granting it Write/Edit/NotebookEdit fails a test.
 - Non-seat agents and the lead: no change.
 
