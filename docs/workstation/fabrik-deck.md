@@ -5,9 +5,9 @@ ask: *"i want single vs code looking window for any repos to open any agents in 
 extension"*. Each repo is a code-server (VS Code web) workbench in its own Vivaldi tab, tiled side by side or kept as
 tabs, reached at `http://localhost:8443/?folder=/opt/<repo>` with no password.
 
-This page grows with the Deck plan (the board, the attention hook, the profile, the launcher). Today it covers the
-part built first: **code-server as a systemd user service** (W-e89a9b5b), because a hand-started code-server died with
-the 2026-10-21 WSL restart and the operator lost every repo tab.
+This page grows with the Deck plan (the board, the attention hook, the profile, the launcher). Today it covers
+**code-server as a systemd user service** (W-e89a9b5b), built first because a hand-started code-server died with the
+2026-10-21 WSL restart and the operator lost every repo tab, then the **attention hook** and the **board** (W-42d1ccb5).
 
 ## code-server as a service
 
@@ -103,6 +103,31 @@ argument, an unwritable state dir, a closed stderr — so it cannot block a sess
 exception: `python3` itself exits 2, which blocks, so the registrations are removed before the script ever is (see
 Rollback). A `FABRIK_DECK_STATE` that is relative after `~` expansion falls back to the default, so nothing is written
 into a session's working directory.
+
+## Board
+
+`scripts/sysadmin/fabrik_deck.py serve [--registry PATH] [--opt-root DIR]` serves the board at
+`http://localhost:<FABRIK_DECK_PORT>/` (default 8445; the registry defaults to `<hub>/data/projects.yaml`, the scan
+root to `/opt`). One row per repo — the git repositories directly under `/opt`, named by their directory, then the
+registry's other paths, named by their key; a path that no longer exists is dropped and a registry path that is not a
+repository is listed with `git: false`. A row shows a dot and the waiting agent's name while a session there waits,
+and its name links to `http://localhost:<FABRIK_DECK_CODE_PORT>/?folder=<path>` in a new tab. A session whose cwd is
+under no repo shows in an `other` row. *Enable notifications* asks the browser once, then notifies on each new waiting
+session.
+
+The waiting session's repo is the catalog path that is the longest whole-component prefix of its cwd, so a worktree
+under `<repo>/.claude/worktrees/` maps to `<repo>` and `/opt/fabrik-lib` never maps to `/opt/fabrik`. Its label is the
+agent name from that repo's `.fabrik/session-agents.json` (read bounded at 1 MiB; a damaged file reads as no
+agents), else `coordinator (<repo> tab)` for a Deck tab, `session <8 chars> (tmux)` for a tmux pane, `session <8
+chars>` otherwise. Attention files older than 24 h — a session that died without `SessionEnd` — are deleted as they
+are read.
+
+Routes: `/`, `/api/repos`, `/api/attention`, `/api/events` (server-sent events: a frame on every change and every
+2 s). It binds 127.0.0.1 only, answers GET only (405 otherwise) and refuses any Host other than `localhost:<port>` or
+`127.0.0.1:<port>` with 421, because a page reached by DNS rebinding would otherwise read the catalog. Every response
+carries `Content-Security-Policy: frame-ancestors 'none'` and `Cache-Control: no-store`. A bad port, a bound port or
+an unreadable registry at startup exits 2. Until the Deck plan's Phase C installs it as a second unit, start it by
+hand: `python3 /opt/fabrik/scripts/sysadmin/fabrik_deck.py serve`.
 
 ## Rollback
 

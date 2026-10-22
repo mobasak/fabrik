@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: docs/workstation/fabrik-deck.md | tests/test_fabrik_deck.py | docs/workstation/hooks-index.md | scripts/sysadmin/install_user_hooks.py
-"""fabrik_deck.py code-server | install [--hub DIR] [--start] — the Fabrik Deck's code-server as a systemd user service.
+"""fabrik_deck.py code-server | serve | hook | install [--hub DIR] [--start] — the Fabrik Deck's code-server as a systemd user service.
 
 The Deck (docs/superpowers/specs/2026-10-21-fabrik-deck-design.md, D-1106) shows every repo as a code-server workbench
 in a Vivaldi tab. A hand-started code-server died with the 2026-10-21 WSL restart and nothing restarted it
@@ -12,6 +12,15 @@ the keep-list below in its environment, so the starting session's variables (`CL
 messaging token) never reach the workbenches' claude processes. code-server's extension host then re-resolves the
 login shell's environment for its children, which is how node and the login profile reach them. Logs go to stdout,
 which the unit hands to the journal (`journalctl --user -u fabrik-deck-code`).
+
+serve — the board on 127.0.0.1:<FABRIK_DECK_PORT, default 8445>: one row per repo (the git repositories under
+`--opt-root`, then the registry's other paths), a dot and the agent's name while a session there waits on the
+operator, a link opening that repo in code-server. Routes: `/`, `/api/repos`, `/api/attention`, `/api/events` (SSE).
+GET only (405 otherwise), and a Host other than localhost/127.0.0.1 at the bound port is refused 421, because a page
+reached by DNS rebinding would otherwise read the catalog. Attention files older than 24 h are deleted as they are
+read. A bad port, a bound port or an unreadable registry at startup exits 2.
+
+hook — see hook() below; registered by scripts/sysadmin/install_user_hooks.py.
 
 install — the session-archive installer's steps (scripts/sysadmin/install_session_archive_timer.sh). Every check runs
 before the first write, so a refusal (exit 1) leaves both files as they were: linger must be on; `--hub` holds no
@@ -43,11 +52,13 @@ import pwd
 import re
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import NoReturn
 
 UNIT_NAME = "fabrik-deck-code.service"
 MARKER = "# Written by scripts/sysadmin/fabrik_deck.py install (W-e89a9b5b) — re-run it rather than editing this file."
@@ -66,17 +77,19 @@ KEEP = (
     "FABRIK_DECK",
 )
 DEFAULT_PORT = 8443
+DECK_PORT = 8445
+HUB = Path(__file__).resolve().parents[2]
 
 
-def _die(code: int, msg: str) -> None:
+def _die(code: int, msg: str) -> NoReturn:
     print(f"fabrik_deck: {msg}", file=sys.stderr)
     sys.exit(code)
 
 
-def _parse_port(raw: str | None) -> int | None:
+def _parse_port(raw: str | None, default: int = DEFAULT_PORT) -> int | None:
     """The port, or None when `raw` is not an ASCII integer in 1-65535 (`"²".isdigit()` is True, so isascii first)."""
     if raw is None:
-        return DEFAULT_PORT
+        return default
     if raw.isascii() and raw.isdigit() and 1 <= int(raw) <= 65535:
         return int(raw)
     return None
@@ -241,6 +254,336 @@ def hook() -> None:
         path.unlink(missing_ok=True)
 
 
+# --- serve: the board, its catalog and the attention reader (plan 2026-10-22-plan-1-fabrik-deck, Phase B) ---------
+
+AGENTS_MAX = (
+    1 << 20
+)  # bytes of a repo's `.fabrik/session-agents.json` read at most (scripts/agent_status.py:189)
+ATTENTION_TTL = (
+    24 * 3600
+)  # an attention file older than this is a session that died without SessionEnd
+
+
+def _session_agents(repo: Path) -> dict[str, str]:
+    """`{session id: agent name}` from the repo's `.fabrik/session-agents.json` — a regular file, read bounded, a JSON
+    object; anything else (damaged, truncated past the bound, a directory) reads as no agents."""
+    reg = repo / ".fabrik" / "session-agents.json"
+    try:
+        if not stat.S_ISREG(reg.stat().st_mode):
+            return {}
+        with reg.open("rb") as fh:
+            data = json.loads(fh.read(AGENTS_MAX).decode("utf-8", "replace"))
+    except (OSError, ValueError, RecursionError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}
+
+
+def _catalog(registry: Path, opt_root: Path) -> list[dict]:
+    """Every repo once: the git repositories directly under `opt_root` (named by their directory), then the registry's
+    paths not already seen (named by their key). A missing path is dropped; a registry path that is not a repository is
+    kept with `git: false`. Each row carries `_agents`, the session map the attention reader labels with."""
+    import yaml  # the unit runs /usr/bin/python3, which carries PyYAML; imported here so `hook` never pays for it
+
+    data = yaml.safe_load(registry.read_text()) or {}
+    projects = data.get("projects") if isinstance(data, dict) else None
+    candidates: list[tuple[str, Path]] = []
+    try:
+        with os.scandir(opt_root) as it:
+            for entry in sorted(it, key=lambda e: e.name):
+                try:
+                    if entry.is_dir() and (Path(entry.path) / ".git").exists():
+                        candidates.append((entry.name, Path(entry.path)))
+                except OSError:  # an unreadable entry, such as /opt/containerd
+                    continue
+    except OSError:
+        pass
+    if isinstance(projects, dict):
+        for name, spec in projects.items():
+            if isinstance(spec, dict) and isinstance(spec.get("path"), str):
+                candidates.append((str(name), Path(spec["path"])))
+    rows, seen = [], set()
+    for name, path in candidates:
+        try:
+            real = path.resolve()
+            if real in seen or not real.is_dir():
+                continue
+        except (OSError, RuntimeError):
+            continue
+        seen.add(real)
+        agents = _session_agents(real)
+        rows.append(
+            {
+                "name": name,
+                "path": str(real),
+                "git": (real / ".git").exists(),
+                "agents": sorted(set(agents.values())),
+                "_agents": agents,
+            }
+        )
+    return sorted(rows, key=lambda r: r["name"].lower())
+
+
+def catalog(registry: Path, opt_root: Path) -> list[dict]:
+    return [
+        {k: v for k, v in r.items() if not k.startswith("_")} for r in _catalog(registry, opt_root)
+    ]
+
+
+def _label(sid: str, origin: str, repo: str, agents: dict[str, str]) -> str:
+    if sid in agents:
+        return agents[sid]
+    if origin == "deck":
+        return f"coordinator ({repo} tab)"
+    if origin == "tmux":
+        return f"session {sid[:8]} (tmux)"
+    return f"session {sid[:8]}"
+
+
+def attention(state: Path, rows: list[dict], now: float) -> list[dict]:
+    """The waiting sessions, each mapped to the catalog repo whose path is the longest whole-component prefix of its
+    cwd (so /opt/fabrik-lib never matches /opt/fabrik, and a worktree cwd maps to its repo), else `other`. Files older
+    than ATTENTION_TTL are deleted on the way."""
+    by_parts = sorted(((Path(r["path"]).parts, r) for r in rows), key=lambda t: -len(t[0]))
+    out: list[dict] = []
+    try:
+        files = sorted((state / "attention").glob("*.json"))
+    except OSError:
+        return out
+    for f in files:
+        try:
+            rec = json.loads(f.read_text(errors="replace"))
+            at = float(rec["at"])
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            continue
+        if now - at > ATTENTION_TTL:
+            f.unlink(missing_ok=True)
+            continue
+        sid = f.stem
+        parts = Path(str(rec.get("cwd") or "/")).parts
+        match = next((r for p, r in by_parts if parts[: len(p)] == p), None)
+        repo = match["name"] if match else "other"
+        origin = str(rec.get("origin") or "other")
+        out.append(
+            {
+                "session": sid,
+                "repo": repo,
+                "label": _label(sid, origin, repo, match["_agents"] if match else {}),
+                "type": str(rec.get("type") or ""),
+                "at": at,
+            }
+        )
+    return sorted(out, key=lambda a: a["at"])
+
+
+BOARD = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fabrik Deck</title>
+<style>
+:root{color-scheme:dark;--bg:#1f1f1f;--fg:#ccc;--dim:#888;--line:#333;--dot:#e5a50a;--link:#4daafc}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
+header{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+input{flex:1;background:#2a2a2a;color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px 8px}
+button{background:#2a2a2a;color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px 10px;cursor:pointer}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;gap:10px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line)}
+li a{color:var(--link);text-decoration:none;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--dot);flex:none}
+.idle{background:transparent}
+.who,.path{color:var(--dim)}
+.path{margin-left:auto;font-size:12px}
+</style></head><body>
+<header><input id="q" type="search" placeholder="Filter repos" autofocus>
+<button id="notify" type="button">Enable notifications</button></header>
+<ul id="list"></ul>
+<script>
+"use strict";
+const CODE_PORT = __CODE_PORT__;
+let repos = [], waiting = [], known = null;
+const list = document.getElementById("list"), q = document.getElementById("q");
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function row(name, path, waits) {
+  const li = el("li");
+  li.append(el("span", waits.length ? "dot" : "dot idle"));
+  if (path) {
+    const a = el("a", "", name);
+    a.href = "http://localhost:" + CODE_PORT + "/?folder=" + encodeURIComponent(path);
+    a.target = "_blank"; a.rel = "noopener";
+    li.append(a);
+  } else li.append(el("strong", "", name));
+  if (waits.length) li.append(el("span", "who", waits.map(w => w.label).join(", ")));
+  if (path) li.append(el("span", "path", path));
+  return li;
+}
+function render() {
+  const f = q.value.trim().toLowerCase(), rows = [];
+  for (const r of repos) {
+    if (f && !r.name.toLowerCase().includes(f) && !r.path.toLowerCase().includes(f)) continue;
+    rows.push(row(r.name, r.path, waiting.filter(w => w.repo === r.name)));
+  }
+  const other = waiting.filter(w => w.repo === "other");
+  if (other.length && (!f || "other".includes(f))) rows.push(row("other", "", other));
+  list.replaceChildren(...rows);
+}
+function notifyNew() {
+  const ids = new Set(waiting.map(w => w.session));
+  if (known && "Notification" in window && Notification.permission === "granted")
+    for (const w of waiting) if (!known.has(w.session)) new Notification(w.repo + " is waiting", { body: w.label, tag: w.session });
+  known = ids;
+}
+q.addEventListener("input", render);
+document.getElementById("notify").addEventListener("click", () => { if ("Notification" in window) Notification.requestPermission(); });
+fetch("/api/repos").then(r => r.json()).then(d => { repos = d; render(); });
+const es = new EventSource("/api/events");
+es.onmessage = ev => { waiting = JSON.parse(ev.data); notifyNew(); render(); };
+</script></body></html>
+"""
+
+
+def _handler(registry: Path, opt_root: Path, state: Path, code_port: int, rows: list[dict]):
+    import http.server
+
+    good = {
+        "rows": rows
+    }  # the last catalog that read cleanly: a registry being rewritten never empties the board
+    board = BOARD.replace("__CODE_PORT__", str(code_port)).encode()
+
+    def current() -> list[dict]:
+        try:
+            good["rows"] = _catalog(registry, opt_root)
+        except Exception:  # noqa: BLE001 — keep serving the last good catalog
+            pass
+        return good["rows"]
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        server_version = "fabrik-deck"
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, format: str, *args: object) -> None:  # noqa: A002 — the base class's name
+            pass  # one line per request would flood the journal; refusals are logged where they happen
+
+        def _send(self, code: int, ctype: str, body: bytes, close: bool = False) -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+            if close:
+                self.send_header("Connection", "close")
+                self.close_connection = True
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+
+        def _host_ok(self) -> bool:
+            # DNS rebinding: a hostile page reaches this socket under ITS name (quota_dashboard.py:2806-2850).
+            port = self.server.server_address[1]  # type: ignore[index]  # an AF_INET (host, port) pair
+            hosts = self.headers.get_all("Host") or []
+            host = hosts[0].strip().lower() if len(hosts) == 1 else ""
+            if host in (f"localhost:{port}", f"127.0.0.1:{port}"):
+                return True
+            sys.stderr.write(
+                f"fabrik_deck: {self.command} refused — Host {host[:80]!r} is not this board\n"
+            )
+            self._send(421, "text/plain; charset=utf-8", b"misdirected request\n", close=True)
+            return False
+
+        def _refuse(self) -> None:
+            if self._host_ok():
+                self._send(405, "text/plain; charset=utf-8", b"method not allowed\n", close=True)
+
+        def do_POST(self) -> None:
+            self._refuse()
+
+        def do_PUT(self) -> None:
+            self._refuse()
+
+        def do_DELETE(self) -> None:
+            self._refuse()
+
+        def do_PATCH(self) -> None:
+            self._refuse()
+
+        def do_OPTIONS(self) -> None:
+            self._refuse()
+
+        def do_HEAD(self) -> None:
+            self._refuse()
+
+        def do_GET(self) -> None:
+            if not self._host_ok():
+                return
+            route = self.path.split("?", 1)[0]
+            if route == "/":
+                self._send(200, "text/html; charset=utf-8", board)
+            elif route == "/api/repos":
+                rows = [{k: v for k, v in r.items() if not k.startswith("_")} for r in current()]
+                self._send(200, "application/json", json.dumps(rows).encode())
+            elif route == "/api/attention":
+                self._send(
+                    200,
+                    "application/json",
+                    json.dumps(attention(state, current(), time.time())).encode(),
+                )
+            elif route == "/api/events":
+                self._events()
+            else:
+                self._send(404, "text/plain; charset=utf-8", b"not found\n")
+
+        def _events(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+            self.send_header("Connection", "close")
+            self.close_connection = True
+            self.end_headers()
+            last, sent_at = None, 0.0
+            try:
+                while True:
+                    now = time.time()
+                    frame = json.dumps(attention(state, current(), now))
+                    if frame != last or now - sent_at >= 2:
+                        self.wfile.write(f"data: {frame}\n\n".encode())
+                        self.wfile.flush()
+                        last, sent_at = frame, now
+                    time.sleep(0.5)
+            except (BrokenPipeError, ConnectionResetError):
+                return
+
+    return Handler
+
+
+def serve(registry: Path, opt_root: Path) -> None:
+    # Every startup failure exits 2, as code_server() does: the unit's RestartPreventExitStatus=2 stops there.
+    import http.server
+
+    raw = os.environ.get("FABRIK_DECK_PORT")
+    port = _parse_port(raw, DECK_PORT)
+    if port is None:
+        _die(2, f"FABRIK_DECK_PORT={raw!r} is not a port (1-65535)")
+    raw_code = os.environ.get("FABRIK_DECK_CODE_PORT")
+    code_port = _parse_port(raw_code)
+    if code_port is None:
+        _die(2, f"FABRIK_DECK_CODE_PORT={raw_code!r} is not a port (1-65535)")
+    try:
+        rows = _catalog(registry, opt_root)
+    except Exception as exc:  # noqa: BLE001 — an unreadable or malformed registry is a startup failure
+        _die(2, f"cannot read the registry {registry}: {type(exc).__name__}: {exc}")
+    state = _state_dir(_home(), os.environ)
+    handler = _handler(registry, opt_root, state, code_port, rows)
+    try:
+        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
+    except OSError as exc:
+        _die(2, f"cannot listen on 127.0.0.1:{port}: {exc}")
+    print(f"fabrik_deck: serving http://localhost:{port}/ (state {state})", flush=True)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
 def _render_unit(hub: Path, env_file: Path) -> str:
     return (
         f"{MARKER}\n"
@@ -380,9 +723,18 @@ def main(argv: list[str] | None = None) -> None:
         "--start", action="store_true", help="also start it (refused while the port is in use)"
     )
     sub.add_parser("hook", help="the attention hook (stdin: the hook event JSON); always exits 0")
+    srv = sub.add_parser("serve", help="the board on 127.0.0.1:<FABRIK_DECK_PORT, default 8445>")
+    srv.add_argument(
+        "--registry", type=Path, default=HUB / "data" / "projects.yaml", help="the project registry"
+    )
+    srv.add_argument(
+        "--opt-root", type=Path, default=Path("/opt"), help="the directory scanned for repositories"
+    )
     args = ap.parse_args(argv)
     if args.cmd == "code-server":
         code_server()
+    elif args.cmd == "serve":
+        serve(args.registry, args.opt_root)
     else:
         if shutil.which("systemd-analyze") is None:
             _die(1, "systemd-analyze is not installed")

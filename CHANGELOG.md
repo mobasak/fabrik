@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Fabrik Deck board: one row per repo, a dot while its agent waits (2026-10-22)
+
+`scripts/sysadmin/fabrik_deck.py serve` serves the board on 127.0.0.1:`FABRIK_DECK_PORT` (default 8445): the repo catalog (git repositories under `/opt` plus the registry's other paths, each once, missing paths dropped, non-repositories flagged `git: false`), the waiting sessions mapped to their repo by whole path components and labelled from `.fabrik/session-agents.json`, attention files older than 24 h deleted, live updates over server-sent events, a link per repo into code-server, and browser notifications on request. GET only, a foreign Host refused 421, `frame-ancestors 'none'` on every response; a startup failure exits 2. `_parse_port` gained a default parameter. Documented in `docs/workstation/fabrik-deck.md` § Board (W-42d1ccb5, plan 2026-10-22-plan-1-fabrik-deck Phase B, D-1121).
+
 ### Added — Fabrik Deck attention hook: one file per session waiting on the operator (2026-10-22)
 
 `scripts/sysadmin/fabrik_deck.py hook` writes `<state>/attention/<session_id>.json` (`{cwd, type, origin, at}`) on a waiting `Notification` (`permission_prompt`, `idle_prompt`, `elicitation_dialog`) and on `Stop`, and clears it on `UserPromptSubmit`, `SessionEnd` and a `PostToolUse` after a permission prompt; the state dir comes from `FABRIK_DECK_STATE` or the Deck env file. It prints nothing on stdout and exits 0 on every path (dispatched before argparse). `install_user_hooks.py` `ENTRIES` registers it on those five events (applied only after merge); `docs/workstation/hooks-index.md` and `docs/workstation/fabrik-deck.md` document it, with a measured 47 ms per call (W-42d1ccb5, plan 2026-10-22-plan-1-fabrik-deck Phase A, D-1121).

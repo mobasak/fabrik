@@ -560,3 +560,269 @@ def test_hook_never_writes_a_relative_state_dir_into_the_session_cwd(box, tmp_pa
     else:
         expected = box.home / ".local" / "state" / "fabrik-deck"
     assert _att(expected).exists()
+
+
+# --- the Deck server, catalog and board (plan 2026-10-22-plan-1-fabrik-deck, Phase B; spec § Tests 3-7) -----------
+import http.client  # noqa: E402
+import importlib.util  # noqa: E402
+import time  # noqa: E402
+
+FAB = "11111111-aaaa-bbbb-cccc-000000000001"
+TMX = "22222222-aaaa-bbbb-cccc-000000000002"
+DCK = "33333333-aaaa-bbbb-cccc-000000000003"
+OTH = "44444444-aaaa-bbbb-cccc-000000000004"
+
+
+def _git_repo(path: Path, worktree_file: bool = False) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    if worktree_file:
+        (path / ".git").write_text("gitdir: /elsewhere\n")
+    else:
+        (path / ".git").mkdir(exist_ok=True)
+    return path
+
+
+@pytest.fixture()
+def deck(box, tmp_path):
+    """Start `serve` against a temp /opt and registry; yields a helper that talks HTTP to it."""
+    opt = tmp_path / "opt"
+    fabrik = _git_repo(opt / "fabrik")
+    lib = _git_repo(opt / "fabrik-lib")
+    plain = opt / "plain"
+    plain.mkdir(parents=True)
+    registry = tmp_path / "projects.yaml"
+    registry.write_text(
+        "projects:\n"
+        f"  fabrik-dup:\n    path: {fabrik}\n"
+        f"  gone:\n    path: {opt / 'gone'}\n"
+        f"  plain:\n    path: {plain}\n"
+        "  nopath:\n    type: x\n"
+    )
+    state = tmp_path / "state"
+    procs = []
+
+    class Deck:
+        pass
+
+    d = Deck()
+    d.opt, d.fabrik, d.lib, d.plain, d.registry, d.state = opt, fabrik, lib, plain, registry, state
+
+    def start(state_in_env: bool = True, **extra):
+        port = _free_port()
+        env = dict(box.env, FABRIK_DECK_PORT=str(port), FABRIK_DECK_CODE_PORT="18443")
+        if state_in_env:
+            env["FABRIK_DECK_STATE"] = str(state)
+        env.update(extra)
+        p = subprocess.Popen(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "serve",
+                "--registry",
+                str(registry),
+                "--opt-root",
+                str(opt),
+            ],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        procs.append(p)
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+                break
+            except OSError:
+                if p.poll() is not None:
+                    raise AssertionError(f"serve exited early: {p.stderr.read()}")
+                time.sleep(0.05)
+        d.port, d.proc = port, p
+        return d
+
+    def get(path: str, method: str = "GET", host: str | None = None):
+        c = http.client.HTTPConnection("127.0.0.1", d.port, timeout=5)
+        c.putrequest(method, path, skip_host=True)
+        c.putheader("Host", host or f"localhost:{d.port}")
+        c.endheaders()
+        r = c.getresponse()
+        body = r.read()
+        c.close()
+        return r.status, dict(r.getheaders()), body
+
+    def attend(
+        sid: str, cwd: str, kind: str = "turn_ended", origin: str = "other", at: float | None = None
+    ):
+        (state / "attention").mkdir(parents=True, exist_ok=True)
+        rec = {"cwd": cwd, "type": kind, "origin": origin, "at": time.time() if at is None else at}
+        (state / "attention" / f"{sid}.json").write_text(json.dumps(rec))
+
+    d.start, d.get, d.attend = start, get, attend
+    yield d
+    for p in procs:
+        p.terminate()
+        try:
+            p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            p.kill()
+
+
+def _repos(d) -> dict:
+    status, _, body = d.get("/api/repos")
+    assert status == 200
+    return {r["name"]: r for r in json.loads(body)}
+
+
+def _attn(d) -> list:
+    status, _, body = d.get("/api/attention")
+    assert status == 200
+    return json.loads(body)
+
+
+def test_serve_catalog_is_the_registry_and_opt_union(deck):
+    deck.start()
+    repos = _repos(deck)
+    paths = [r["path"] for r in repos.values()]
+    assert len(paths) == len(set(paths)), "each repo once"
+    assert str(deck.fabrik) in paths and str(deck.lib) in paths
+    assert not any(p.endswith("/gone") for p in paths), "a missing path is dropped"
+    assert repos["plain"]["git"] is False and repos["fabrik-lib"]["git"] is True
+
+
+def test_serve_attention_maps_worktree_cwds_and_component_boundaries(deck):
+    deck.start()
+    deck.attend(FAB, f"{deck.fabrik}/.claude/worktrees/fleet/sub")
+    deck.attend(TMX, f"{deck.lib}/x")
+    deck.attend(OTH, "/somewhere/else")
+    by = {a["session"]: a for a in _attn(deck)}
+    assert by[FAB]["repo"] == "fabrik"
+    assert by[TMX]["repo"] == "fabrik-lib", (
+        "/opt/fabrik-lib must not match /opt/fabrik by string prefix"
+    )
+    assert by[OTH]["repo"] == "other"
+
+
+def test_serve_attention_labels(deck):
+    agents = deck.fabrik / ".fabrik"
+    agents.mkdir()
+    (agents / "session-agents.json").write_text(json.dumps({FAB: "fleet"}))
+    deck.start()
+    deck.attend(FAB, str(deck.fabrik))
+    deck.attend(DCK, str(deck.fabrik), origin="deck")
+    deck.attend(TMX, str(deck.fabrik), origin="tmux")
+    deck.attend(OTH, str(deck.fabrik))
+    by = {a["session"]: a["label"] for a in _attn(deck)}
+    assert by[FAB] == "fleet"
+    assert by[DCK] == "coordinator (fabrik tab)"
+    assert by[TMX] == f"session {TMX[:8]} (tmux)"
+    assert by[OTH] == f"session {OTH[:8]}"
+
+
+def test_serve_prunes_attention_older_than_24h(deck):
+    deck.start()
+    deck.attend(FAB, str(deck.fabrik), at=time.time() - 25 * 3600)
+    deck.attend(OTH, str(deck.fabrik), at=time.time() - 23 * 3600)
+    sessions = {a["session"] for a in _attn(deck)}
+    assert sessions == {OTH}
+    assert not (deck.state / "attention" / f"{FAB}.json").exists()
+    assert (deck.state / "attention" / f"{OTH}.json").exists()
+
+
+def test_serve_refuses_a_foreign_host_and_every_method_but_get(deck):
+    deck.start()
+    assert deck.get("/api/repos", host="evil.example:80")[0] == 421
+    assert deck.get("/api/repos", host=f"localhost:{deck.port + 1}")[0] == 421
+    for method in ("POST", "PUT", "HEAD", "DELETE"):
+        assert deck.get("/api/repos", method=method)[0] == 405, method
+    assert deck.get("/api/repos", host=f"127.0.0.1:{deck.port}")[0] == 200
+
+
+def test_serve_board_is_served_with_frame_ancestors_none(deck):
+    deck.start()
+    status, headers, body = deck.get("/")
+    assert status == 200 and headers["Content-Type"].startswith("text/html")
+    assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
+    page = body.decode()
+    assert "innerHTML" not in page and "encodeURIComponent" in page and "18443" in page
+
+
+def test_serve_default_port_is_the_deck_port_not_code_server():
+    spec = importlib.util.spec_from_file_location("fabrik_deck_under_test", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    assert m._parse_port(None, m.DECK_PORT) == 8445
+    assert m._parse_port(None) == 8443
+
+
+def test_serve_exits_2_on_a_bad_or_bound_port(box, tmp_path):
+    registry = tmp_path / "p.yaml"
+    registry.write_text("projects: {}\n")
+    args = [
+        sys.executable,
+        str(SCRIPT),
+        "serve",
+        "--registry",
+        str(registry),
+        "--opt-root",
+        str(tmp_path),
+    ]
+    r = subprocess.run(
+        args, env=dict(box.env, FABRIK_DECK_PORT="abc"), capture_output=True, text=True, timeout=30
+    )
+    assert r.returncode == 2 and r.stderr.strip() and r.stdout == ""
+    with socket.socket() as held:
+        held.bind(("127.0.0.1", 0))
+        held.listen(1)
+        port = held.getsockname()[1]
+        env = dict(box.env, FABRIK_DECK_PORT=str(port))
+        r = subprocess.run(args, env=env, capture_output=True, text=True, timeout=30)
+    assert r.returncode == 2 and r.stderr.strip()
+
+
+def test_serve_and_hook_share_a_state_dir_set_only_in_the_env_file(deck, box):
+    box.env_file.parent.mkdir(parents=True)
+    box.env_file.write_text(f"FABRIK_DECK_STATE={deck.state}\n")
+    deck.start(state_in_env=False)
+    payload = {"hook_event_name": "Stop", "session_id": FAB, "cwd": str(deck.fabrik)}
+    r = box.run("hook", input=json.dumps(payload))
+    assert r.returncode == 0
+    assert FAB in {a["session"] for a in _attn(deck)}
+
+
+def test_serve_events_stream_a_new_waiting_session(deck):
+    deck.start()
+    c = http.client.HTTPConnection("127.0.0.1", deck.port, timeout=5)
+    c.putrequest("GET", "/api/events", skip_host=True)
+    c.putheader("Host", f"localhost:{deck.port}")
+    c.endheaders()
+    r = c.getresponse()
+    assert r.status == 200 and r.getheader("Content-Type").startswith("text/event-stream")
+    deck.attend(FAB, str(deck.fabrik))
+    deadline = time.time() + 3
+    seen = False
+    while time.time() < deadline and not seen:
+        line = r.fp.readline().decode()
+        seen = line.startswith("data:") and FAB in line
+    c.close()
+    assert seen, "a data frame carrying the new session within 3 s"
+    time.sleep(2.5)
+    assert deck.get("/api/repos")[0] == 200, "the server keeps serving after the client left"
+    deck.proc.terminate()
+    _, err = deck.proc.communicate(timeout=5)
+    assert "Traceback" not in err
+
+
+@pytest.mark.parametrize("damage", ["not json", "[1, 2]", "big", "dir"])
+def test_serve_tolerates_a_damaged_session_agents_file(deck, damage):
+    target = deck.fabrik / ".fabrik" / "session-agents.json"
+    target.parent.mkdir()
+    if damage == "big":
+        target.write_text(json.dumps({FAB: "x" * (1 << 20)}))
+    elif damage == "dir":
+        target.mkdir()
+    else:
+        target.write_text(damage)
+    deck.start()
+    assert _repos(deck)["fabrik"]["agents"] == []
+    assert deck.get("/")[0] == 200
