@@ -368,7 +368,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-22T13:08 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-22T14:25 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -1355,6 +1355,8 @@ docs/
 │       ├── 2026-10-22-payments-role-reapply-review.md
 │       ├── 2026-10-22-plan-1-least-operator-approval-plan-review.md
 │       ├── 2026-10-22-retire-specs-infrastructure-review.md
+│       ├── 2026-10-22-w-02472911-kaizen-waste-series-review.md
+│       ├── 2026-10-22-w18f559d9-ninety-lane-review.md
 │       ├── 2026-10-22-w4c894cef-rotation-rule-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
@@ -1471,6 +1473,8 @@ docs/
 │   ├── agents
 │   │   ├── coordinator.md
 │   │   ├── fleet.md
+│   │   ├── infra-2.md
+│   │   ├── infra-3.md
 │   │   ├── infra.md
 │   │   ├── intel.md
 │   │   ├── kaizen-log-fleet.md
@@ -1509,6 +1513,7 @@ docs/
 │   ├── health-monitoring.md        # Health monitoring patterns
 │   ├── hibernate.md
 │   ├── jev-decision-model-map.md
+│   ├── kaizen-waste-define.md
 │   ├── kilo
 │   │   ├── AGGREGATOR_ROADMAP.md
 │   │   ├── AI_VENDOR_ACCESS.md
