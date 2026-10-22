@@ -177,7 +177,8 @@ an interpreter re-opens this design with approach D (below) or a filesystem-leve
   refusals (0.08%); the plan's Evidence carries each class. The Phase A review's round 1 then made the variable
   table conservative (and kept every variable away from the kill and git rules), read quoted operators as data, and
   bounded `.tmp` to a repo's; the replay after it leaves 40 new refusals in 55,791 commands (0.07%), measured with
-  every `cd` taken as succeeded because the seats' scratch directories have been swept since they ran.
+  every `cd` taken as succeeded because the seats' scratch directories have been swept since they ran. After the
+  review's round 3 (a glob judged by one listing of its directory, only `mkdir` making a `cd` target), 43 in 56,669.
 - The tool list of `fabrik-reviewer` becomes a tested contract: granting it Write/Edit/NotebookEdit fails a test.
 - Non-seat agents and the lead: no change.
 

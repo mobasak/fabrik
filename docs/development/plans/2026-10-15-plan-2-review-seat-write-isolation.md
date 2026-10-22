@@ -476,6 +476,50 @@ replay after round 1 (cd taken as succeeded): seats=2037 commands=55791 old_refu
   6,785 `cd X` lines not guarded by `&&`, 179 make X earlier on the same line; `mkdir -p x; cd x` is therefore
   counted as existing.
 
+- **Step 8, rounds 2 and 3** (the round-1 seats re-verified their own claims on pins `pins-2` and `pins-3`, then
+  hunted each round's fix diff plus one hop).
+
+  Round 2 confirmed 10, 6 of them own-fix:
+  - `for * in x` made `re.compile` raise and switched the write rule off for the line;
+  - `$'…'` hid a heredoc from the line scanner;
+  - an `&&`-guarded `cd` stayed certain after its chain;
+  - wrapped `IFS= read`/`builtin`/`command`/`printf -vS` did not clear the table;
+  - glob loop words were refused;
+  - creators of a `cd` target were missing.
+
+  The other 4 were the artifact's own:
+  - `case` arms;
+  - `$((a<<b))` as a heredoc opener;
+  - the "gitignored" wording;
+  - a glob through a link in scratch.
+
+  Round 3 confirmed 9, 8 of them own-fix in round 2's code:
+  - the new glob walk took 48 s against the hook's 5 s timeout (`.claude/settings.json:150-151`), so the hook could
+    be killed undecided;
+  - a `venv` word, a failing `cp`/`git clone`, or a `mkdir` without a parent "made" a directory;
+  - `for d in *` through a link;
+  - a variable `mkdir` operand;
+  - `--depth` in a clone;
+  - a subshell's unsure `cd`.
+
+  The ninth was pre-existing: a multi-line quoted string faked a heredoc. Silence at round 3 left the verdict to the
+  lead. Most defects were the review's own, so this is the scope-growth stop (D-355). Round 3 subtracted rather
+  than patched:
+  - no tree walk: a glob's own directory is listed once for a link out;
+  - only `mkdir` makes a directory;
+  - the quote state carries across lines.
+
+  The rest are recorded costs:
+  - `git worktree add x; cd x`, `tar -C`, `unzip -d` and `venv` need `&&`;
+  - `rm -rf <scratch>/*` beside a link out is refused;
+  - a link in a deeper glob directory is not seen.
+
+  Graders A20, A21. Red on revert: 13 round-2 neuters and 7 round-3 neuters, all red. Replay after round 3:
+
+```text
+seats=2066 commands=56669 old_refusals=94 new_refusals=43 errors=0   (each cd taken as succeeded)
+```
+
 - **Step 7b, the live probe (D-1116 condition 3, before merge).** One Haiku `fabrik-reviewer` Agent-tool seat ran
   against the edited hook in this worktree:
 

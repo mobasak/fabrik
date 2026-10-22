@@ -75,8 +75,12 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
     variable the outer line assigned (a false refusal, not a miss). Round 2 added: a ``case`` arm is conditional;
     ``IFS= read``, ``builtin read``, ``command unset``, ``printf -vS`` clear the table; ``$'…'`` and ``$((…))`` are
     data to the comment and heredoc scanners; a ``cd`` into a missing directory is certain only within its ``&&``
-    chain; only ``mkdir``/``install -d``/``cp -r``/``rsync``/``git worktree add``/``git clone``/a ``venv`` make a
-    directory a later ``cd`` may enter; a glob is also judged by what it matches now (a link already in scratch).
+    chain; only a ``mkdir`` (ancestors with ``-p``; without it, only under an existing parent) makes a directory a
+    later ``cd`` on the line may enter — so ``git worktree add x; cd x``, ``tar -C``, ``unzip -d`` and a ``venv``
+    refuse the next relative write until joined with ``&&`` (a stated cost, review round 3); a glob is refused
+    when the directory it expands in holds a link out of scratch (one listing, never a walk — the hook has 5 s), so
+    ``rm -rf <scratch>/*`` there is refused even though it would remove only the link, and a link in a deeper
+    directory the glob passes through is not seen.
   * Fail-CLOSED for a seat whose command cannot be tokenised AND mentions a git write verb, a
     kill word, or a write (a write verb as a command word, an in-place sed/perl, an output redirect
     other than to /dev/… or an fd); otherwise fail-open (any error, a malformed payload) with exit 0
@@ -98,9 +102,7 @@ seat marker is the candidate if scripted writes recur.
 
 from __future__ import annotations
 
-import glob
 import io
-import itertools
 import json
 import os
 import re
@@ -221,12 +223,13 @@ def _arith_end(s: str, i: int) -> int:
     return len(s) if j == -1 else j + 2
 
 
-def _line_syntax(line: str) -> tuple[set[int], int]:
+def _line_syntax(line: str, quote: str = "") -> tuple[set[int], int, str]:
     """The offsets of ``line`` the shell reads as syntax (outside quotes, not escaped) and where its unquoted
     ``#`` comment starts (``len(line)`` when it has none) — so a ``<<EOF`` inside quotes or after ``#`` opens no
-    heredoc, and a comment hides no next line (review round 1)."""
+    heredoc, and a comment hides no next line (review round 1). ``quote`` is the quote still open from the line
+    before, and the third value the one still open after this line (review round 3: a multi-line string)."""
     live: set[int] = set()
-    i, n, quote = 0, len(line), ""
+    i, n = 0, len(line)
     while i < n:
         c = line[i]
         if quote:
@@ -253,11 +256,11 @@ def _line_syntax(line: str) -> tuple[set[int], int]:
         if c in "'\"":
             quote = c
         elif c == "#" and (i == 0 or line[i - 1] in " \t;&|("):
-            return live, i
+            return live, i, quote
         else:
             live.add(i)
         i += 1
-    return live, n
+    return live, n, quote
 
 
 def _strip_comments(command: str) -> str:
@@ -300,13 +303,14 @@ def _strip_heredocs(command: str) -> str:
     """Drop heredoc BODIES (data written to a file), keeping the line that opens them."""
     out: list[str] = []
     pending: list[str] = []
+    quote = ""
     for line in command.split("\n"):
         if pending:
             if line.strip("\t ") == pending[0]:
                 pending.pop(0)
             continue
         out.append(line)
-        live = _line_syntax(line)[0]
+        live, _, quote = _line_syntax(line, quote)
         pending.extend(m.group(2) for m in _HEREDOC.finditer(line) if m.start() in live)
     return "\n".join(out)
 
@@ -818,18 +822,36 @@ def _dest_outside(path: str, base: str, ctx: dict) -> bool:
         first = min(full.index(c) for c in _GLOB if c in full)
         if ".." in full[first:].split("/"):
             return True  # a `..` after a glob can climb out of the directory the glob starts in
-        for hit in itertools.islice(
-            glob.iglob(full), 256
-        ):  # review round 2: `<scratch>/*/` through a link
-            if not _in_scratch(os.path.realpath(hit), ctx) and not _repo_tmp(
-                os.path.realpath(hit), ctx
-            ):
-                return True
         full = full[: full.rindex("/", 0, first)] or "/"
+        if _links_out(full, ctx):
+            return True  # a glob here can expand through a link that points out of scratch
     real = os.path.realpath(full)
     if _ANCESTOR.match(real):
         return True  # an ancestor of other sessions' scratch is never this seat's
     return not (_in_scratch(full, ctx) or _repo_tmp(real, ctx))
+
+
+_LIST_CAP = (
+    4096  # entries read from one directory at most; a bigger one counts as holding a link out
+)
+
+
+def _links_out(directory: str, ctx: dict) -> bool:
+    """True when ``directory`` (the one a glob expands in) holds a symlink pointing outside scratch, or is too big
+    to list. One ``os.scandir`` of that directory only — never a walk, so the hook's 5 s budget holds (review
+    round 3: a tree walk took 48 s). A link in a deeper directory the glob passes through is not seen."""
+    try:
+        with os.scandir(directory) as it:
+            for k, entry in enumerate(it):
+                if k >= _LIST_CAP:
+                    return True
+                if entry.is_symlink():
+                    real = os.path.realpath(entry.path)
+                    if not (_in_scratch(real, ctx) or _repo_tmp(real, ctx)):
+                        return True
+    except OSError:
+        return False  # a directory that is not there holds no link
+    return False
 
 
 def _repo_tmp(real: str, ctx: dict) -> bool:
@@ -1210,34 +1232,31 @@ def _child(ctx: dict, inherit: bool) -> dict:
     }
 
 
-def _made_dirs(words: list[str], cwd: str) -> list[str]:
-    """Directories a command creates, for a later ``cd`` on the line (review round 2: only real creators —
-    ``mkdir`` (ancestors too with ``-p``), ``install -d``, ``cp -r``/``rsync`` targets, ``git worktree add``,
-    ``git clone``, a ``venv`` — never a path an ``rm`` or ``touch`` merely names)."""
-    name, args = os.path.basename(words[0]), words[1:]
-    pos = [a for a in args if not a.startswith("-")]
+def _made_dirs(words: list[str], ctx: dict) -> list[str]:
+    """Directories a ``mkdir`` creates, for a later ``cd`` on the line: every operand and its ancestors with
+    ``-p``; without it, an operand whose parent exists or was made. Nothing else counts (review round 3: a ``cp``,
+    ``git clone`` or ``venv`` may fail or make a file, and a ``cd`` after it would then stay in the old cwd)."""
+    if os.path.basename(words[0]) != "mkdir":
+        return []
+    args = words[1:]
+    parents = "p" in _short_flags(args) or "--parents" in args
+    ops, _ = _operands(args, _EVERY_OPERAND["mkdir"])
+    made = ctx.get("made") or set()
     out: list[str] = []
-    if name == "mkdir":
-        for d in pos:
-            full = os.path.normpath(os.path.join(cwd, d))
+    for d in ops:
+        full = _expand(d, ctx)
+        if SUBST in full or "$" in full or any(c in full for c in _GLOB + "{~"):
+            continue
+        full = os.path.normpath(os.path.join(ctx["cwd"], full))
+        if not parents and not (
+            os.path.isdir(os.path.dirname(full)) or os.path.dirname(full) in made
+        ):
+            continue
+        out.append(full)
+        while parents and os.path.dirname(full) not in ("/", "", full):
+            full = os.path.dirname(full)
             out.append(full)
-            while "p" in _short_flags(args) or "--parents" in args:
-                full = os.path.dirname(full)
-                if full in ("/", ""):
-                    break
-                out.append(full)
-    elif name == "install" and "d" in _short_flags(args):
-        out = [os.path.normpath(os.path.join(cwd, d)) for d in pos]
-    elif name in ("cp", "rsync") and len(pos) >= 2:
-        out = [os.path.normpath(os.path.join(cwd, pos[-1]))]
-    elif name == "git" and "worktree" in pos and "add" in pos:
-        rest = pos[pos.index("add") + 1 :]
-        out = [os.path.normpath(os.path.join(cwd, rest[0]))] if rest else []
-    elif name == "git" and "clone" in pos and len(pos) >= pos.index("clone") + 3:
-        out = [os.path.normpath(os.path.join(cwd, pos[pos.index("clone") + 2]))]
-    elif "venv" in pos and pos[-1] != "venv":
-        out = [os.path.normpath(os.path.join(cwd, pos[-1]))]
-    return [d for d in out if SUBST not in d and "$" not in d]
+    return out
 
 
 def _cd_target(arg: str, raw: list[str], ctx: dict) -> str:
@@ -1294,13 +1313,16 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
                     list(ctx.get("dirs", [])),
                     dict(ctx.get("vars") or {}),
                     dict(ctx.get("loopvars") or {}),
+                    ctx.get("cd_unsure", False),
                 )
             )
             continue
         if raw == [")"]:
             if scopes:
                 # a subshell's cd, pushd and variables die with it
-                ctx["cwd"], ctx["dirs"], ctx["vars"], ctx["loopvars"] = scopes.pop()
+                ctx["cwd"], ctx["dirs"], ctx["vars"], ctx["loopvars"], ctx["cd_unsure"] = (
+                    scopes.pop()
+                )
             continue
         ctx["targets"], ctx["git_dir"], ctx["work_tree"] = [], False, False
         if getattr(raw, "before", "") != "&&":
@@ -1353,7 +1375,7 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
                     break
             ctx["cwd"] = cwd_before
             continue
-        ctx.setdefault("made", set()).update(_made_dirs(words, ctx["cwd"]))
+        ctx.setdefault("made", set()).update(_made_dirs(words, ctx))
         reason = _kill_reason(words) or _git_reason(words, ctx)
         ctx["cwd"] = cwd_before  # `env -C` moves the cwd for its own command only
         if reason:

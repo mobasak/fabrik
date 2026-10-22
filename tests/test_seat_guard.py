@@ -756,11 +756,31 @@ def test_a20_round_2_wrapped_builtins_case_arms_hidden_heredocs_cd_chains_and_gl
     ):
         assert _denied(_run(cmd)), cmd
     for cmd in (
-        f"git -C {real} worktree add {real}/wt HEAD; cd {real}/wt; touch f",
-        f"python3 -m venv {real}/v; cd {real}/v; touch f",
         f"mkdir {real}/n; cd {real}/n; touch f",
+        f"S={real}; mkdir -p $S/a/b; cd $S/a/b; touch f",  # a variable mkdir operand (review round 3)
+        f"cd {real}; (cd {real}/nope && true); touch f",  # a subshell's unsure cd dies with it
     ):
         assert not _denied(_run(cmd)), cmd
+
+
+def test_a21_round_3_no_tree_walk_only_mkdir_makes_and_multiline_quotes(tmp_path) -> None:
+    import time
+
+    real = str(tmp_path)
+    os.symlink("/opt/fabrik", f"{real}/l")
+    t0 = time.monotonic()
+    assert _denied(_run("rm -rf /opt/*/*/*/*/*/*/zz-none /opt/fabrik/src"))
+    assert time.monotonic() - t0 < 4, "the hook has 5 s; a glob must never walk a tree"
+    for cmd in (
+        f"cd {real}; for d in *; do touch $d/zz-new; done",  # `*` reaches the link into /opt/fabrik
+        f"echo venv {real}/v; cd {real}/v; rm -rf src",  # no command makes a dir by naming `venv`
+        f"cp /nope/x {real}/r; cd {real}/r; touch x",  # a cp may fail or make a file
+        f"git clone -q /nope {real}/c; cd {real}/c; touch x",
+        f"mkdir {real}/no/a; cd {real}/no/a; rm -rf src",  # no -p and no parent: mkdir fails
+        "echo 'a\n<<EOF b'\ngit -C /opt/fabrik reset --hard\nEOF",  # a quote open across lines
+        'echo "a\n<<EOF b"\nrm -rf /opt/fabrik/src\nEOF',
+    ):
+        assert _denied(_run(cmd)), cmd
 
 
 def test_a19b_a_repo_inside_another_sessions_tmp_tree_lends_it_no_scratch() -> None:
