@@ -11,7 +11,7 @@
   "kind": "task",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1119",
     "plan": "",
     "spec": ""
   },
