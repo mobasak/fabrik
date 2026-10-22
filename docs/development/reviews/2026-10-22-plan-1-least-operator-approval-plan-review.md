@@ -2,7 +2,7 @@
 
 **Command:** /fabrik-plan-review
 **Surface:** `docs/development/plans/2026-10-22-plan-1-least-operator-approval.md` + `docs/superpowers/specs/2026-10-22-least-operator-approval-design.md` (`Size: small`, one joint loop)
-**Governing decision:** D-1110 (operator) · **Approval row:** APPROVAL_ROW_ID
+**Governing decision:** D-1110 (operator) · **Approval row:** D-1122
 **Seats:** agent-tool (the hub never calls the Workflow tool, D-961); round-1 slices `opus-rule` (Phase B, Global Constraints, File Scope, Constraints Digest, Coverage Checklist, Evidence; spec The delta, Validation, Lifecycle) and `sonnet-breadth` (every other section of both)
 
 ## Pass Ledger
@@ -15,7 +15,9 @@
 | Pass 4 | the round-1 slice owners | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — fail-closed residue (a negated first label hid a later one); v5 probed (36 cases) | 243e3e88… → 4c3e4f05… |
 | Pass 5 | the round-1 slice owners | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — 42 probe cases 0 wrong; the loop's quiet round | 4c3e4f05… → 4c3e4f05… ✓ |
 | Panel | opus×1 + fable×1, the operator's stand-ins (D-613), one brief, neither shown the other | 8 + 8 concerns, 13 distinct after overlap; all ACCEPTED and folded (v6 probed, 41 cases) | panel | 4c3e4f05… → 4e7c8ff9… |
-| Pass 6 | the round-1 slice owners · the panel fold + one hop (the critique step's ONE delta round) | PASS6_COUNTERS | method: re-derivation — PASS6_METHOD | 4e7c8ff9… → PASS6_END |
+| Pass 6 | the round-1 slice owners · the panel fold + one hop (the critique step's delta round) | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0 | method: re-derivation — the unknown-token refusal fired with autonomy off, the prototype's comment lagged, D5 over-stated the refusal; v7 probed (45 cases) | 4e7c8ff9… → b86a3afe… |
+| Pass 7 | the round-1 slice owners · the pass-6 fixes + one hop | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — opus slice clean (56 cases on and off, comment block 16 = 16); the Self-audit missed step 2b | b86a3afe… → 9ef5a325… |
+| Pass 8 | sonnet×1 (the only slice a hunk reached) · the one clause + one hop | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the step-2b mapping re-derived against A2 and A3; the closing round | 9ef5a325… → 9ef5a325… ✓ → **CONVERGED** |
 
 ## Design panel (D-613, widened to every gate class by D-1110)
 
@@ -40,7 +42,7 @@
 | 12 | (machinery, both) the brief's `mkdir … && cd …` breaks the seats' one-plain-command rule | noted | the panel brief template in this run; filed in the close's FEEDBACK |
 | 13 | (attacks that held, both) money never reaches the panel; negated-label, `public-api`, "republic" regexes correct; projects keep today's rule (B5); ≈40 lines, not over-built | — | — |
 
-Panel: opus="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-22-least-operator-approval-design.md" fable="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-22-least-operator-approval-design.md" → both-approve (every concern ACCEPTED and folded; the delta round confirmed 0)
+Panel: opus="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-22-least-operator-approval-design.md" fable="VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-22-least-operator-approval-design.md" → both-approve (every concern ACCEPTED and folded; the delta rounds closed at confirmed 0, pass 8)
 
 ## Ask ↔ spec (from the spec's own Intake Inventory)
 

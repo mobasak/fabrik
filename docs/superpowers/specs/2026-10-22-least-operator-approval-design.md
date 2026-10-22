@@ -1,6 +1,6 @@
 # Least operator approval — the gate model rewritten to D-1110 — design
 
-Status: DRAFT
+Status: CONVERGED
 Size: small (≈40 code lines, 2 code files — `commands/assemble_commands.py` and `.claude/hooks/final_gate_stop.py`; the rest is contract and command text)
 Profile: delta
 Owner: kaizen · Work item: W-4a03df79 · governing decision D-1110 (operator, 2026-10-22)
