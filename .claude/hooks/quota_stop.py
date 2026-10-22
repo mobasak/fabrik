@@ -24,9 +24,15 @@ validated successor: EIGHT points of runway remain on the default `ROTATE_THRESH
 gap is on the SESSION window alone — `urgent` tests `five_hour` and a `caps.json` cap is applied
 to `seven_day`, so a cap never shortens it; it walls the weekly window on its own axis and can
 open an episode at `walled` outright. That runway is the whole reason the
-arm exists (D-111). Holding there killed in-flight subagents with quota still on the clock —
-the premature stop the operator's "utilize quotas utmost" directive forbids (D-299) — so the
-warning tier ALLOWS and nudges, and the wall tier holds. A stamp that does not plainly name a
+arm exists (D-111). Holding EVERY session there killed in-flight subagents with quota still on the
+clock — the premature stop the operator's "utilize quotas utmost" directive forbids (D-299) — but
+allowing every session gave the last points to whoever asked first (D-1113). So the warning tier
+is the LANE (W-18f559d9): `lane_exempt` lets the bound merge owner of a coordinator_mode repo and
+the bound owner of an open P0 item continue with a nudge, and PARKS every other session with the
+wall's allow-list plus the finishing verbs (`merge_request.py request|send`, `work.py
+claim|release <W-id>`, SubagentHandback, SendMessage) and a park message naming its claimed items
+and the lift time; `final_gate_stop.py` loads `lane_exempt` from this file for its urgent branch.
+The wall tier holds everyone. A stamp that does not plainly name a
 tier (every stamp written before this field, or an unreadable one) is read as `walled`: the
 unknown case must never be the lenient one, because the lenient reading drops the fleet's only
 hard stop at a real wall.

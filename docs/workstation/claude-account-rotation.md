@@ -140,11 +140,16 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   The synced PreToolUse hook `quota_stop.py` turns the `walled` tier
   into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
   instruction (commit + push, close the run record, end the turn); reads, git, the record
-  tools, `Monitor` and `TaskStop` stay open. At `urgent-90` it holds NOTHING and writes a
-  CHECKPOINT nudge instead — killing an in-flight seat that still has quota to finish is the
-  premature stop D-299 forbids — and `quota_posture_hook.py` puts the same nudge on the next
-  prompt line, the last moment an agent can checkpoint by choice rather than be denied mid-edit;
-  that hook also keeps enforcing its own band at `urgent-90`, since nothing else is; the hold lifts the moment the tick clears the stamp (an
+  tools, `Monitor` and `TaskStop` stay open. At `urgent-90` it runs the LANE (W-18f559d9,
+  D-1113): the bound merge owner of a `coordinator_mode` repo and the bound owner of an open P0
+  item CONTINUE with a CHECKPOINT nudge — killing their in-flight seats would be the premature
+  stop D-299 forbids — and every other session is PARKED with the wall's allow-list plus the
+  finishing verbs (`merge_request.py request|send`, `work.py claim|release <W-id>`), so the last
+  points go to merging and keeping the records rather than to whoever asks first. The weekly
+  window never arms the lane (`urgent` tests `five_hour` alone). `quota_posture_hook.py` puts
+  `band LANE on 5h — builders park, coordinators continue` on the next prompt line, the last
+  moment an agent can checkpoint by choice rather than be denied mid-edit; that hook also keeps
+  enforcing its own band at `urgent-90`, an exempt session included; the hold lifts the moment the tick clears the stamp (an
   unclearable stamp keeps the hold and wakes nobody — `_clear_stamp`) — and (the RELIEF WAKE, D-177/D-178) the same unlink — the relief site and
   the transient-dwell site alike — writes `<lockdir>/<safe-sid>.holdlifted` (the lift epoch) for every
   session whose self-watch is ARMED (`_wake_held_sessions`: a held `selfwatch.lock`, the one decider
