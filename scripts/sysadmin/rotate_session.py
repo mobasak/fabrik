@@ -620,7 +620,9 @@ def _focus_ok(focus: str) -> bool:
 def _input_line(screen: str) -> str | None:
     """The text after the last `❯` on the screen, or None when no prompt is visible."""
     lines = [ln for ln in screen.splitlines() if ln.lstrip().startswith("❯")]
-    return lines[-1].strip().replace("❯", "", 1).strip() if lines else None  # strip() takes the U+00A0 too
+    return (
+        lines[-1].strip().replace("❯", "", 1).strip() if lines else None
+    )  # strip() takes the U+00A0 too
 
 
 def _capture(pane: str) -> str:
@@ -630,25 +632,34 @@ def _capture(pane: str) -> str:
 
 def _send(pane: str, text: str) -> None:
     """Type `text` and SUBMIT it (W-b92aa5cf). An Enter sent right behind a `-l` paste is swallowed by the paste, so
-    the text sat unsent in every rotated pane: paste, wait until the input line shows it and two captures agree (the
-    paste settled), send C-m as its own call, then require the input line to be empty again — the proof it submitted.
-    A text still in the input line raises `unsent`, rowed `typed-unsent`; nothing is re-sent (keys are never retried)."""
+    the text sat unsent in every rotated pane. Now: paste; wait until the INPUT LINE shows this text (its first 20
+    characters, or Claude Code's collapsed `[Pasted text`) unchanged over two captures — the input line only, so a
+    ticking status line cannot stall it and a placeholder or a stale `❯` history line cannot pass for the paste; send
+    C-m as its own call; then require the input line to hold something other than the settled text (empty, a
+    placeholder after /clear, a dialog) — a blank redraw frame is no reading and is waited out. A text still there
+    raises `unsent`, rowed `typed-unsent:<step>`; nothing is re-sent (keys are never retried)."""
     if _tmux("send-keys", "-t", pane, "-l", "--", text).returncode != 0:
         raise CheckFailedError("send", "tmux refused the keys")
-    prev, deadline = None, time.time() + _wait_s(10)
-    while time.time() < deadline:
-        screen = _capture(pane)
-        if _input_line(screen) and screen == prev:
-            break
-        prev = screen
-        time.sleep(0.5)
-    else:
-        raise CheckFailedError("unsent", "the pasted text never showed in the input line")
-    if _tmux("send-keys", "-t", pane, "C-m").returncode != 0:
-        raise CheckFailedError("send", "tmux refused the Enter")
+    head, seen, prev, settled = text[:20], False, None, None
     deadline = time.time() + _wait_s(10)
     while time.time() < deadline:
-        if screen_ok(_capture(pane)):
+        line = _input_line(_capture(pane))
+        shown = bool(line) and (head in line or line.startswith("[Pasted text"))
+        seen = seen or shown
+        if shown and line == prev:
+            settled = line
+            break
+        prev = line if shown else None
+        time.sleep(0.5)
+    if settled is None:
+        why = "never settled" if seen else "never showed in the input line"
+        raise CheckFailedError("unsent", f"the pasted text {why}")
+    if _tmux("send-keys", "-t", pane, "C-m").returncode != 0:
+        raise CheckFailedError("send", "tmux refused the Enter")
+    deadline = time.time() + _wait_s(20)
+    while time.time() < deadline:
+        line = _input_line(_capture(pane))
+        if line is not None and line != settled:
             return
         time.sleep(0.5)
     raise CheckFailedError("unsent", "the text is still in the input line after C-m")
@@ -734,6 +745,7 @@ def _one(claimed: Path) -> dict:
     try:
         sent_at = time.time()
         if data["mode"] == "compact":
+            step = "compact-send"  # a row names WHICH text stayed unsent (review r1)
             _send(data["pane"], f"/compact {data['focus']}")
             step = "compact"
             deadline = time.time() + _wait_s(60)

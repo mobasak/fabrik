@@ -145,12 +145,13 @@ ended at a turn end, no run record running, no seat in flight, the worktree clea
 empty. It then writes ONE data-only request (`~/.claude/state/rotate-requests/<repo>--<agent>.json`; one at a
 time). The user unit `fabrik-rotate.path` starts `fabrik-rotate.service` (`rotate_session.py execute`), which
 re-runs every check, types `/clear <agent>-<date>` (or `/compact <focus>`) — each text pasted, then `C-m` as its own
-call once the paste shows in the input line, then the input line must read empty again (an Enter sent right behind the
-paste was swallowed, W-b92aa5cf) — waits for the registry's new session id,
+call once the input line shows that text unchanged over two captures, then the input line must hold something other
+than that text (empty, a placeholder, a dialog) (an Enter sent right behind the paste was swallowed, W-b92aa5cf) —
+waits for the registry's new session id,
 then types one resume prompt — re-arm the self-watch (a /clear may kill or orphan background shells), re-bind with
 `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force`, read only the memory notes, `work.py next` and
 the run's seed — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
-`partial:<step>`, `typed-unsent:<step>` — a text left in the input line —, and the verb's `aborted:<check>`) in
+`partial:<step>`, `typed-unsent:<step>` — a text that never showed, never settled, or stayed in the input line after `C-m` —, and the verb's `aborted:<check>`) in
 `~/.claude/state/rotations.jsonl`. Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
 reports). The previous session stays resumable and is archived that night.

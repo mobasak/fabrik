@@ -35,7 +35,9 @@ a = sys.argv[1:]
 if a[0] == "list-panes":
     print("\\n".join(st["panes"]))
 elif a[0] == "capture-pane":
-    sys.stdout.write(st["screen"])
+    st["caps"] = st.get("caps", 0) + 1  # a C-m with no capture since the paste is the incident's race
+    json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
+    sys.stdout.write(st["screen"] + ("  clock %d\\n" % st["caps"] if st.get("tick") else ""))
 elif a[0] == "send-keys":
     with open(os.environ["FAKE_TMUX_STATE"] + ".keys", "a") as fh:
         fh.write(json.dumps(a[1:]) + "\\n")
@@ -43,11 +45,19 @@ elif a[0] == "send-keys":
     if hook and "-l" in a:
         exec(hook, {"text": a[-1], "os": os, "json": json})
     st = json.load(open(os.environ["FAKE_TMUX_STATE"]))  # the hook may have rewritten the state
-    # the input line, as Claude Code shows it: a paste fills it; a separate C-m submits and empties it (W-b92aa5cf)
-    if "-l" in a and not st.get("no_echo"):
-        st["screen"] = st["screen"].replace("❯\\u00a0", "❯ " + a[-1][:60], 1)
-    elif a[-1] == "C-m" and not st.get("swallow_submit"):
-        st["screen"] = "\\n".join("❯\\u00a0" if ln.startswith("❯") else ln for ln in st["screen"].split("\\n"))
+    # the input line, as Claude Code shows it (W-b92aa5cf): a paste fills it; a C-m sent before the paste was ever
+    # captured is swallowed (the incident's race); a later C-m submits it, leaving an empty box or a placeholder
+    if "-l" in a:
+        st["caps"] = 0
+        if not st.get("no_echo"):
+            st["screen"] = "\\n".join(
+                "❯ " + a[-1][:60] if ln.startswith("❯") else ln for ln in st["screen"].split("\\n"))
+    elif a[-1] in ("C-m", "Enter") and st.get("caps", 0) and not st.get("swallow_submit"):
+        box = "❯ Try \\"refactor this\\"" if st.get("placeholder") else "❯\\u00a0"
+        st["screen"] = "\\n".join(box if ln.startswith("❯") else ln for ln in st["screen"].split("\\n"))
+    if a[-1] == "C-m" and st.get("fail_cm"):
+        json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
+        sys.exit(1)
     json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
 sys.exit(st.get("rc", 0))
 """
@@ -880,3 +890,20 @@ def test_w_b92aa5cf_a_swallowed_submit_is_rowed_typed_unsent(world):
         assert sum(k[-1] == "C-m" for k in _keys(world)) == enters, _keys(world)
         Path(str(world["state"]) + ".keys").unlink()
         _set(world, **{flag: False})
+
+
+def test_w_b92aa5cf_review_r1_settle_on_the_input_line_and_map_only_unsent(world):
+    """Review r1: a status line ticking every capture must not stall the settle (it reads the input line only); a
+    placeholder the fresh box shows after /clear is a submit, not unsent text; a refused C-m is `partial:send`, never
+    `typed-unsent`. Past the send, no new session id appears in this fixture, so a submitted /clear rows
+    `partial:queued`."""
+    for flags, want in (
+        ({"tick": True}, "partial:queued"),
+        ({"placeholder": True}, "partial:queued"),
+        ({"fail_cm": True}, "partial:send"),
+    ):
+        _set(world, screen=IDLE_SCREEN, **flags)
+        _write_request(world, trigger="ctx")
+        rs.execute()
+        assert _rows(world)[-1]["outcome"] == want, (flags, _rows(world)[-1])
+        _set(world, **dict.fromkeys(flags, False))
