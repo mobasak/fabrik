@@ -3,7 +3,7 @@
   "created": "2026-10-22T12:16:22.289435Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "388a6fca73f64837e5bc263c0e199f916b12911d",
   "id": "W-93a9d22a",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "five code rows from kaizen's queue pass; infra's beat; fits infra-3's scripts/hooks class",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5hp8fqqsjemmbjbfr6gg7bx"
   ],
