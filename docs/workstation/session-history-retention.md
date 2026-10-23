@@ -156,6 +156,15 @@ the run's seed — and records every outcome (`ok`, `refused:<check>` — `reque
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
 reports). The previous session stays resumable and is archived that night.
 
+The pane's input box must be empty for a rotation: check 5 reads every row of the box down to its closing rule, and the
+dim placeholder of a fresh box counts as empty. Text someone left unsent in the box blocks it; the coordinator clears it
+with `agents_up.sh rotate-session <agent> --stale-input discard --operator-ok "<the operator's words>"` (W-ee19169d):
+the request records the box's exact text, and the unit acts only when the box still holds exactly that text on two
+captures 2 s apart and once more right before the key. It then sends one fast double Escape, which Claude Code uses to
+clear a non-empty box (C-u deletes only the current row). On an empty box a double Escape opens the Rewind menu, which
+the unit closes and refuses. The box must read empty before the normal rotation runs, and the discarded text and the
+operator's words are written to the row.
+
 Nothing types a rotation unasked, but two listings offer them (W-f975fee0 slice 3): `rotate_session.py due
 [--mb-only] [--mail]` lists every live agent at or past 40% of its context window or `ROTATE_ADVISE_MB`, the caller
 and the coordinators included, pool seats never, with its action — the exact `agents_up.sh rotate-session <agent>
