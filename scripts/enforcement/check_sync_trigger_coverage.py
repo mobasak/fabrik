@@ -560,10 +560,15 @@ def main(argv: list[str] | None = None) -> int:
                         "merges it; the script runs from the MAIN checkout only."
                     )
                 else:
+                    # The wrapper is the TRACKED scripts/governance_sync_postcommit.sh (the path the
+                    # verdict line prints); scripts/install_post_commit_hook.sh only rewrites the
+                    # .git/hooks shims that exec it, so "reinstall the hook" would leave the state
+                    # as it is (closing pass B-new-1).
                     print(
-                        "  The hook's wrapper is missing or unreadable — reinstall it "
-                        "(scripts/install_post_commit_hook.sh); until it runs, no commit from here "
-                        "distributes."
+                        "  The hook's wrapper is missing or unreadable — restore the tracked file the "
+                        "verdict names (git checkout -- <that path>; scripts/install_post_commit_hook.sh "
+                        "only rewrites the .git/hooks shims that call it); until it runs, no commit "
+                        "from here distributes."
                     )
             return 0
         print("✓ sync-trigger coverage: every synced surface triggers a sync or is declared")

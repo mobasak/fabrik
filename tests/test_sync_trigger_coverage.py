@@ -403,7 +403,7 @@ def test_a_relocated_hub_warns_that_the_sync_cannot_fire(tmp_path):
         "the script runs from the MAIN checkout only.\n"
     ) in out, out
     assert "--force" not in out, "the worktree remedy must not offer the --force push"
-    assert "reinstall it" not in out, "a worktree is not a broken hook"
+    assert "restore the tracked file" not in out, "a worktree is not a broken hook"
 
 
 def test_a_missing_wrapper_names_the_reinstall_not_the_worktree_route(
@@ -426,10 +426,15 @@ def test_a_missing_wrapper_names_the_reinstall_not_the_worktree_route(
     assert chk.main([]) == 0
     out = capsys.readouterr().out
     assert "CANNOT FIRE" in out and "cannot read" in out, out
+    # The remedy restores the TRACKED wrapper, never "reinstall the hook": the installer only
+    # rewrites the .git/hooks shims that exec the wrapper, so it cannot restore a missing one
+    # (closing pass B-new-1).
     assert (
-        "  The hook's wrapper is missing or unreadable — reinstall it "
-        "(scripts/install_post_commit_hook.sh); until it runs, no commit from here distributes.\n"
+        "  The hook's wrapper is missing or unreadable — restore the tracked file the verdict "
+        "names (git checkout -- <that path>; scripts/install_post_commit_hook.sh only rewrites the "
+        ".git/hooks shims that call it); until it runs, no commit from here distributes.\n"
     ) in out, out
+    assert "reinstall" not in out, "the installer cannot restore the wrapper the state is about"
     assert "Commit from the main checkout" not in out, "a broken hook is not a worktree"
     assert "--force" not in out, "no inert state advises the --force push"
 
