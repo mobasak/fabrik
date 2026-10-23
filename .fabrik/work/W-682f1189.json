@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T07:16:53.068431Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-682f1189",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen owns the loop (D-627): spec the row shape and the cursor semantics in a /fabrik-task; the reader script itself is infra code (mail infra per kaizen's charter) — hub first, then the same reader over every repo's AFCL/LESSONS via the nightly collector",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "the operator wants lessons to change commands and rules; today no loop reads either file; a cursor plus a row shape is one script and one kaizen edit",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Operator 2026-10-23: 'does kaizen read AFCL and LESSONS_LEARNT incrementally … so update commands and rules if necessary?' — today NOTHING reads AFCL.md (58 lines) or docs/LESSONS_LEARNT.md (7,661 lines) as a learning input: kaizen's loop consumes only the command-feedback queue and mail; the two files are touched only by link/structure checks. Build the incremental reader: a cursor per file (last processed heading or commit) in ~/.claude/state, new entries since the cursor rendered as verdict-shaped rows into kaizen's queue (or one digest mail to kaizen per day), each entry then answered by a command/rule edit or a reject with a reason, like a feedback row"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T07:16:53.270146Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9be0b1c1",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one clause in CLAUDE.md's beat list (and the template's twin if it carries it): rules WORDING kaizen, rules rendering/sync/checks infra; synced path, full review",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "a beat-list clause that contradicts the map every reader is told to trust; one sentence on a synced path",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "CLAUDE.md § FEEDBACK IS RECIPROCAL lists .windsurf/rules/ under INFRA's beat, while .fabrik/beat-owners.json (D-815, D-627) gives .windsurf/rules/** to KAIZEN (wording) with rendering and checks staying infra's — the contract and the map disagree and the map holds; align the paragraph (operator asked 2026-10-23 who owns the rules)"
+}
