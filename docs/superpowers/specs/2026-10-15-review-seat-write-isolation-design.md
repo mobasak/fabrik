@@ -59,9 +59,11 @@ filesystem.
 shell command cannot write outside its session's scratch, and cannot reach the masked host services that write for it
 (the docker daemon, D-Bus and the user runtime sockets, tmux, and on WSL, where the masks hold, the Windows interop that
 launches host processes outside every Linux namespace): the operating system refuses it whatever the command's
-syntax, interpreter or nesting. The fence applies on both dispatch paths and leaves the lead session unchanged. Seat
-briefs change in one respect only: a `cd` no longer carries to the next call (Contract deltas), so a brief's "first
-`cd` to your seat folder" becomes a same-line `cd` or absolute paths.
+syntax, interpreter or nesting. The fence applies on both dispatch paths and leaves the lead session and the corpus seat
+brief unchanged: that brief already assumes a `cd` does not carry, "The shell returns to the LIVE checkout before every
+Bash call, so every path … is ABSOLUTE under SCRATCH" (`.claude/workflows/fabrik-review-loop.js:230`). A brief changes
+only where it names a scratch path outside the session scratchpad (a repo `.tmp` folder, `/tmp`) or relies on a `cd`
+carrying to the next call (Contract deltas).
 - **Residuals, accepted.** Other sockets and every localhost TCP service stay reachable, because the network is not
   unshared (executed in round 2: a fenced python got `+PONG` from Redis on 127.0.0.1:6379). The hook's settings entry
   fails open (`[ -f "$f" ] || exit 0; python3 "$f"; exit 0`, `timeout: 5`), so a missing hook file, an import crash or
@@ -91,6 +93,8 @@ briefs change in one respect only: a `cd` no longer carries to the next call (Co
      - `--tmpfs /tmp/tmux-<uid>`;
      - on WSL: `--tmpfs /run/WSL` (the interop sockets), `--tmpfs /mnt` (the drvfs mounts that hold every Windows
        executable), and `--unsetenv WSL_INTEROP`.
+     - `--tmpfs /mnt` is skipped when the payload cwd or the scratchpad lies under `/mnt` (a repo on drvfs), since
+       masking it would hide the seat's own cwd; that host keeps interop as its recorded residual.
      - Every mask is added only when its path exists: bwrap cannot create a mount point under the read-only root
        (executed in pass 5: a mask on a missing `/run/…sock` exits rc 1, "Can't create file … Read-only file
        system"). `--unsetenv` is not a path and always applies.
@@ -460,7 +464,7 @@ an interpreter re-opens this design with approach D (below) or a filesystem-leve
 (Fallback mode. The fence adds about 14 ms per seat call, one `statusMessage` edit in `.claude/settings.json` and one
 small mode-cache file under `/tmp/claude-<uid>/`: § Amendment.)
 
-One hook file (+≈250 lines), its tests (+≈220 lines), one doc row. No retention, no brief change.
+One hook file (+≈250 lines), its tests (+≈220 lines), one doc row. No retention, no corpus brief change.
 No new hook invocation: the Bash hook already runs on every seat command.
 
 ## Validation
