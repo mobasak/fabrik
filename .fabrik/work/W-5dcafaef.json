@@ -9,11 +9,11 @@
   "kind": "backlog",
   "legacy": false,
   "links": {
-    "decision": "",
-    "plan": "",
+    "decision": "D-1169",
+    "plan": "docs/development/plans/2026-10-23-plan-1-spoke-watchdog-apprise-mesh-gate.md",
     "spec": "docs/superpowers/specs/2026-10-23-spoke-watchdog-apprise-mesh-gate-design.md"
   },
-  "next": "spec CONVERGED (D-1166, 65ff7aa11): run /fabrik-plan-after-chat docs/superpowers/specs/2026-10-23-spoke-watchdog-apprise-mesh-gate-design.md, build, then one deploy gate in the spec's Lifecycle order (attachment lock + refused-attach probe first); ACCEPTANCE unchanged: remove the D-1156 opt-out from specs/services/spoke-canary.yaml and apply it as the spoke-watchdog proof",
+  "next": "plan CONVERGED (D-1169, 47c563c9d): run /fabrik-execute-plan docs/development/plans/2026-10-23-plan-1-spoke-watchdog-apprise-mesh-gate.md — Phases A-B build inline, Phase C ends at ONE deploy gate (attachment lock + gate up + probes) BEFORE the merge request",
   "note": "",
   "owner": "fleet",
   "priority": 1,
