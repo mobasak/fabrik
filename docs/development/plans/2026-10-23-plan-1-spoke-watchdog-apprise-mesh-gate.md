@@ -133,22 +133,28 @@ Appetite: 120
   (`src/fabrik/orchestrator/infrastructure.py:1591`, preflight) — both production paths of `fabrik apply`.
 
 **Behavior Contract** (spec § Testing approach `:316-337`; one test each, highest risk first):
-1. A spoke target's sidecar env carries `http://10.99.0.1:8202/notify/alerts`; vps1 keeps
-   `http://apprise:8000/notify/alerts`; a URL naming another host, or a userinfo URL, is untouched.
-2. A real spoke apply calls the driver (no refusal) and `provision()` provisions the watchdog roles and analytics for
-   vps2 (`record_failure`/`provision_watchdog_roles` true).
-3. The preflight, exactly the parse rule probed in § Evidence Phase A (v2, 14 cases): both files present (+ `gate
-   reachable` on a spoke) → driver runs; one missing → a red row naming that file; both missing → both named;
-   `gate unreachable` → "gate unreachable from <target>"; a missing file AND `gate unreachable` → both named in one
-   row; empty, extra, duplicated or contradictory lines, a gate line on vps1, or no gate line on a spoke → "could
-   not check <target>: unexpected output"; `RuntimeError`, `TimeoutExpired`, `JumpConfigError` → "could not check
-   <target>: …"; every failure records `watchdog:` in `ctx.registrar_failures` naming the target and the ssh alias
-   hit, and never calls the driver; a spec-only `target_vps` (no `ctx.target_vps`) is probed on that spoke.
-4. An openrouter-only provider (`llm_provider_primary` and `llm_provider_fallback` both not `claude-code`) makes no
-   ssh call.
-5. A dry run makes no ssh call; it logs "would check the Claude login files on <target>" only when the provider
-   pair names `claude-code`.
-6. `resolve_applicability` (the `fabrik plan` text) no longer names D-1153 for a spoke.
+- (1) **Given** a spoke target, **When** the sidecar env is rendered, **Then** it carries
+  `http://10.99.0.1:8202/notify/alerts`; vps1 keeps `http://apprise:8000/notify/alerts`; a URL naming another host,
+  or a userinfo URL, is untouched.
+- (2) **Given** a spoke target whose preflight passes, **When** a real apply runs, **Then** it calls the driver (no
+  refusal) and `provision()` provisions the watchdog roles and analytics for vps2
+  (`record_failure`/`provision_watchdog_roles` true).
+- (3) **Given** the preflight's ssh output, exactly the parse rule probed in § Evidence Phase A (v2, 14 cases),
+  **When** the registrar reads it, **Then**: both files present (+ `gate reachable` on a spoke) → driver runs; one
+  missing → a red row naming that file; both missing → both named; `gate unreachable` → "gate unreachable from
+  <target>"; a missing file AND `gate unreachable` → both named in one row; empty, extra, duplicated or
+  contradictory lines, a gate line on vps1, or no gate line on a spoke → "could not check <target>: unexpected
+  output"; `RuntimeError`, `TimeoutExpired`, `JumpConfigError` → "could not check <target>: …"; every failure
+  records `watchdog:` in `ctx.registrar_failures` naming the target and the ssh alias hit, and never calls the
+  driver; a spec-only `target_vps` (no `ctx.target_vps`) is probed on that spoke.
+- (4) **Given** an openrouter-only provider (`llm_provider_primary` and `llm_provider_fallback` both not
+  `claude-code`), **When** the watchdog registrar runs, **Then** it makes no ssh call.
+- (5) **Given** a dry run, **When** the watchdog registrar runs, **Then** it makes no ssh call and logs "would check
+  the Claude login files on <target>" only when the provider pair names `claude-code`.
+- (6) **Given** a spoke target, **When** `resolve_applicability` renders the `fabrik plan` text, **Then** it no
+  longer names D-1153.
+- **Mocked:** `fabrik.drivers.ssh.ssh` (the preflight probe's output and exceptions) and `WatchdogDriver.provision`; the
+  registrar, the URL rewrite and the parse rule run real.
 
 **Steps.**
 1. Preflight probe of the toolchain: `.venv/bin/python -c "import fabrik, pytest; print('ok')"` → `ok`.
@@ -248,17 +254,21 @@ Appetite: 60
 - Consumes: Phase A's spoke URL `http://10.99.0.1:8202/notify/alerts` (the gate's only admitted path).
 
 **Behavior Contract.**
-1. `docker compose -f infra/vps1/apprise/compose.yaml config` renders (with the external network and volume
-   declared) and shows the gate service with `container_name: apprise-mesh-gate`, `ports` `10.99.0.1:8202:8202`,
-   memory 32M, the config mounted at `/etc/nginx/conf.d/default.conf`, and no `depends_on`.
-2. The gate policy, run locally against the mirror's own config — every row of the spec's probe (`:469-483`):
-   `POST /notify/alerts` → 200, upstream sees `POST /notify/alerts`; `POST /notify/alerts?tag=all` → 200, upstream
-   sees no query; `GET`, `HEAD`, `PUT /notify/alerts` → 403; `POST /notify/alerts/`, `/notify/`, `/notify`,
-   `/NOTIFY/alerts` → 403; `POST /notify/%61lerts`, `/notify//alerts`, `/notify/alerts/../alerts` → 200, upstream
-   sees `POST /notify/alerts`; `GET /get/alerts`, `/json/urls/alerts`, `/details`, `/metrics`, `/` → 403;
-   `POST /add/alerts` → 403; `GET /healthz` → 200; a 900 KB POST → 200, a 1.1 MB POST → 413; 24 rapid POSTs → 21
-   × 200 then 503.
-3. spoke-canary loads through `load_spec` with no `watchdog:` override (WatchdogConfig defaults).
+- (1) **Given** the edited `infra/vps1/apprise/compose.yaml` (with the external network and volume declared),
+  **When** `docker compose -f infra/vps1/apprise/compose.yaml config` renders it, **Then** it shows the gate service
+  with `container_name: apprise-mesh-gate`, `ports` `10.99.0.1:8202:8202`, memory 32M, the config mounted at
+  `/etc/nginx/conf.d/default.conf`, and no `depends_on`.
+- (2) **Given** the gate run locally against the mirror's own config, **When** every row of the spec's probe
+  (`:469-483`) is sent, **Then**: `POST /notify/alerts` → 200, upstream sees `POST /notify/alerts`;
+  `POST /notify/alerts?tag=all` → 200, upstream sees no query; `GET`, `HEAD`, `PUT /notify/alerts` → 403;
+  `POST /notify/alerts/`, `/notify/`, `/notify`, `/NOTIFY/alerts` → 403; `POST /notify/%61lerts`,
+  `/notify//alerts`, `/notify/alerts/../alerts` → 200, upstream sees `POST /notify/alerts`; `GET /get/alerts`,
+  `/json/urls/alerts`, `/details`, `/metrics`, `/` → 403; `POST /add/alerts` → 403; `GET /healthz` → 200; a 900 KB
+  POST → 200, a 1.1 MB POST → 413; 24 rapid POSTs → 21 × 200 then 503.
+- (3) **Given** `specs/services/spoke-canary.yaml` after step 5, **When** it loads through `load_spec`, **Then** it
+  has no `watchdog:` override (WatchdogConfig defaults).
+- **Mocked:** nothing — the upstream is a local echo stub standing in for apprise; compose, nginx and `load_spec`
+  run real.
 
 Behaviours 1 and 2 are probes of a config file, run before the edit (no gate service in the render; nothing on
 `127.0.0.1:18202`) and after it; behaviour 3's check is run before step 5's edit and prints `enabled=False` — its red.
