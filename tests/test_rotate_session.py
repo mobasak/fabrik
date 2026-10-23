@@ -1172,7 +1172,7 @@ def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path):
     regf = tmp_path / "repo" / ".fabrik" / "session-agents.json"
     regf.parent.mkdir(parents=True)
     regf.write_text(json.dumps({other: "dev2", SID: "dev1", third: "dev3"}, indent=2))
-    monkeypatch.setattr(rs, "_session_registry", lambda repo: regf)
+    monkeypatch.setattr(rs, "_session_registry", lambda repo, sid: regf)
     _clear_hook(world, monkeypatch, bind=True)
     _write_request(world)
     rs.execute()
@@ -1191,7 +1191,7 @@ def test_wb72231b8_an_unsent_resume_still_repoints(world, monkeypatch, tmp_path)
     regf = tmp_path / "repo" / ".fabrik" / "session-agents.json"
     regf.parent.mkdir(parents=True)
     regf.write_text(json.dumps({SID: "dev1"}))
-    monkeypatch.setattr(rs, "_session_registry", lambda repo: regf)
+    monkeypatch.setattr(rs, "_session_registry", lambda repo, sid: regf)
     _clear_hook(world, monkeypatch, bind=False)
     real_send = rs._send
 
@@ -1208,15 +1208,40 @@ def test_wb72231b8_an_unsent_resume_still_repoints(world, monkeypatch, tmp_path)
     assert json.loads(regf.read_text()) == {NEW: "dev1"}
 
 
-def test_wb72231b8_registry_path_needs_a_real_checkout(tmp_path):
-    repo = tmp_path / "repo"
-    (repo / ".git").mkdir(parents=True)
-    assert rs._session_registry(str(repo)) == repo / ".fabrik" / "session-agents.json"
-    assert rs._session_registry("relative/repo") is None
-    assert rs._session_registry(str(tmp_path / "nogit")) is None
+def test_wb72231b8_registry_path_needs_a_real_checkout(tmp_path, monkeypatch):
+    """Review r1: `resolve` matches a pane by the repo's folder name alone, so the registry is written only for the
+    checkout whose `.git` the rotated session's newest binding names — never another checkout of the same name, a
+    symlinked repo or `.fabrik`, or a path that cannot be resolved."""
+    repo, clone = tmp_path / "repo", tmp_path / "elsewhere" / "repo"
+    for r in (repo, clone):
+        (r / ".git").mkdir(parents=True)
+    rows = [{"session_id": SID, "name": "dev1", "toplevel": str(repo / ".git")}]
+    monkeypatch.setattr(rs, "_bindings", lambda: rows)
+    assert rs._session_registry(str(repo), SID) == repo / ".fabrik" / "session-agents.json"
+    assert rs._session_registry(str(clone), SID) is None  # same folder name, another checkout
+    assert rs._session_registry(str(repo), NEW) is None  # no binding for that session
+    assert rs._session_registry("relative/repo", SID) is None
+    assert rs._session_registry(str(repo) + "\0x", SID) is None
     link = tmp_path / "link"
     link.symlink_to(repo)
-    assert rs._session_registry(str(link)) is None  # not its own realpath
+    assert rs._session_registry(str(link), SID) is None  # not its own realpath
+    (repo / ".fabrik").symlink_to(clone)
+    assert rs._session_registry(str(repo), SID) is None  # `.fabrik` points elsewhere
+
+
+def test_wb72231b8_registry_over_the_readers_cap_is_refused(tmp_path, monkeypatch):
+    """Review r1: the readers stop at REGISTRY_MAX bytes, so neither an input over it nor an output that indentation
+    grows past it is written."""
+    regf = tmp_path / "session-agents.json"
+    regf.write_text(json.dumps({SID: "dev1"}))
+    monkeypatch.setattr(rs, "REGISTRY_MAX", 10)
+    before = regf.read_bytes()
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:over 1 MiB"
+    monkeypatch.setattr(
+        rs, "REGISTRY_MAX", len(before) + 2
+    )  # the input fits; the indented output does not
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:over 1 MiB"
+    assert regf.read_bytes() == before and not list(tmp_path.glob(".session-agents.*"))
 
 
 @pytest.mark.parametrize(

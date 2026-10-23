@@ -170,11 +170,21 @@ _SID = re.compile(
 REGISTRY_MAX = 1 << 20  # bytes of the registry read at most (agent_status.py:189)
 
 
-def _session_registry(repo: str) -> Path | None:
-    """The repo's `.fabrik/session-agents.json` (sid -> agent name) — only for an absolute repo that is its own realpath
-    and a git checkout, so a free-text `--repo` naming the same grid slug never writes somewhere else (W-b72231b8)."""
-    p = Path(repo)
-    if not p.is_absolute() or os.path.realpath(repo) != str(p) or not (p / ".git").exists():
+def _session_registry(repo: str, sid: str) -> Path | None:
+    """The repo's `.fabrik/session-agents.json` (sid -> agent name) — only for an absolute repo that is its own realpath,
+    whose `.fabrik` is no symlink, and whose `<repo>/.git` is the git common dir the rotated session's newest binding
+    names: `resolve` matches a pane by the repo's folder name alone, so another checkout of the same name would
+    otherwise be written (W-b72231b8, review r1)."""
+    try:
+        p = Path(repo)
+        if not p.is_absolute() or os.path.realpath(repo) != str(p):
+            return None
+        if os.path.realpath(p / ".fabrik") != str(p / ".fabrik"):
+            return None
+    except (OSError, ValueError):  # a NUL or a lone surrogate in a hand-written request
+        return None
+    tops = [r.get("toplevel") for r in _bindings() if r.get("session_id") == sid]
+    if not tops or tops[-1] != str(p / ".git"):
         return None
     return p / ".fabrik" / "session-agents.json"
 
@@ -227,10 +237,16 @@ def _repoint_registry(path: Path, old_sid: str, new_sid: str, name: str) -> str:
             out = {(new_sid if k == old_sid else k): v for k, v in reg.items()}
         else:
             return "no-entry"
+        text = json.dumps(out, indent=2) + "\n"
+        if (
+            len(text.encode("utf-8")) > REGISTRY_MAX
+        ):  # its readers stop at REGISTRY_MAX and would read a torn file
+            return "refused:over 1 MiB"
+        # a hand edit landing between the re-read below and os.replace is still lost: hand edits are what this retires
         fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".session-agents.", suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(json.dumps(out, indent=2) + "\n")
+                fh.write(text)
             os.chmod(tmp, stat.S_IMODE(st.st_mode))
             if path.read_bytes() != raw:  # a hand edit since the read: never overwrite it
                 return "refused:changed on disk"
@@ -1008,7 +1024,7 @@ def _one(claimed: Path) -> dict:
             return row
         row["new_sid"] = new_sid
         # W-b72231b8: the pane runs the new session now, bound or not — re-point before anything else can fail
-        reg_file = _session_registry(data["repo"])
+        reg_file = _session_registry(data["repo"], data["sid"])
         row["registry"] = (
             "refused:repo"
             if reg_file is None
