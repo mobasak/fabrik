@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "edit both copies byte-identically where tests/test_governance_template_split.py pins them; full /fabrik-review (governance-sync path); confirm the sync lands it in every repo",
+  "next": "operator 2026-10-23: 'i said all coordinators, existing and future. they should.' Edit CLAUDE.md:504-506 + templates/governance/CLAUDE.md:517-519 (byte-identical where tests/test_governance_template_split.py pins them); full /fabrik-review; then verify the sync lands it in the three synced coordinator repos (tryton-crm, web-ecommerce-factory, youtube each carry the stale 'once infra's W-f975fee0 slice 2 lands' line today) and that the scaffolder emits it for new repos. fabrik-lib is sync-excluded with NO rotation text: the coordinator mailed fabrik-lib the request.",
   "note": "",
   "owner": "kaizen",
   "priority": 1,
