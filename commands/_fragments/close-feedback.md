@@ -149,7 +149,7 @@ the record stays `running` (and the Stop hook blocks the turn) until a substanti
 | **infra** | rendering, sync and checks of `commands/` and `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`, the box mesh, fabrik-mail |
 | **fleet** | `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding, `docs/PROJECT_CATALOG.md` |
 | **intel** | models, benchmarks, the flywheel, author-blind review |
-| **kaizen** | FEEDBACK verdicts, a command's or rule's WORDING (`commands/_sources/`, `commands/_fragments/`, `.windsurf/rules/` — `.fabrik/beat-owners.json`), ways of working — the feedback loop (not the code behind it) |
+| **kaizen** | FEEDBACK verdicts, a command's or rule's WORDING (the hub's `commands/_sources/`, `commands/_fragments/` and `.windsurf/rules/`, per `/opt/fabrik/.fabrik/beat-owners.json`), ways of working — the feedback loop (not the code behind it) |
 
 ```bash
 python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel|kaizen> --kind finding --ack required
