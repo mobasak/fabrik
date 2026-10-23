@@ -218,11 +218,14 @@ refused, and by `ensure-apprise-alerts-config.sh --check` returning 200.
   sudo -n sh -c 'for f in "$@"; do if test -f "$f"; then echo "present $f"; else echo "missing $f"; fi; done' _ <home>.json <home>/.credentials.json
   ```
 
-  `<home>` is `VPS_CLAUDE_HOME`.
+  `<home>` is `VPS_CLAUDE_HOME`. Both paths are passed through `shlex.quote`, because the value comes from the
+  operator's `FABRIK_VPS_CLAUDE_HOME`.
 - **How the result is read:**
   - When sudo works, the script exits 0 whatever it finds, so every `missing <f>` line names the absent file.
-  - A `RuntimeError` (sudo refused, an ssh transport failure, rc 255) or a `TimeoutExpired` is "could not check
-    <target>: <the error's one-line text>". It never reads as missing.
+  - Any exception from the call is "could not check <target>: <the error's one-line text>" and never reads as
+    missing. That covers a `RuntimeError` (sudo refused, an ssh transport failure, rc 255), a `TimeoutExpired`,
+    and the `ValueError` subclasses `SshHostError` and `JumpConfigError` (`src/fabrik/drivers/ssh.py:104`,
+    `:121`). It is caught as `Exception`, like the driver call below it (`infrastructure.py:1628-1650`).
 - **Either failure** records `_nonfatal(ctx, "watchdog", …)` naming the target, which `FABRIK_VPS_SSH_HOST` was
   swapped to, and skips the sidecar. The app stays deployed and the apply ends red, as D-1153's refusal did.
 - **Why every target and not only spokes:** the mount requirement is identical on vps1, so one rule with no branch
@@ -249,8 +252,8 @@ from 10/8, which covers the mesh. The spokes' drop list guards spoke-published p
 - A spoke sidecar resolves nothing by name.
 - Its only Apprise touchpoint is `10.99.0.1:8202`, and the gate's only upstream is `apprise:8000` over the vps1
   `fabrik` bridge.
-- No request other than `POST /notify/alerts` reaches Apprise, and that one arrives with a fixed URI, no query and
-  no attachment parsing.
+- No request other than `POST /notify/alerts` reaches Apprise, and that one arrives with a fixed URI and no query.
+  It is processed with no attachment parsing once U4's refused-`attach` probe has passed.
 - No Apprise secret or configuration leaves vps1. The sidecar's own Postgres DSN does travel to the spoke, as every
   spoke app's has since D-904.
 
@@ -271,12 +274,13 @@ from 10/8, which covers the mesh. The spokes' drop list guards spoke-published p
   - the URL rewrite: vps2 → `10.99.0.1:8202`; vps1 unchanged; another host untouched; a userinfo URL untouched;
   - the refusal is gone: the driver is called for vps2, and the roles and analytics are provisioned;
   - the preflight: present; one file missing (named); both missing; `RuntimeError` → "could not check"; a timeout
-    → "could not check"; an openrouter-only provider skips the check; a dry run makes no ssh;
+    → "could not check"; a `JumpConfigError` → "could not check"; an openrouter-only provider skips the check; a dry run makes no ssh;
   - `fabrik plan` text no longer names D-1153.
 - **Existing tests, rewritten:**
   - `tests/test_watchdog_spoke_preflight.py`: the refusal tests are inverted into the above, the plan test is
     re-pointed, and `test_a_vps1_watchdog_is_unchanged` patches the preflight;
-  - `TestWatchdogSpokeRouting` asserts the vps2 driver call runs with the host swapped.
+  - `TestWatchdogSpokeRouting` patches the preflight (its specs default to `claude-code`) and asserts that the
+    vps2 driver call runs with the host swapped.
 - **The gate's policy** is proven by the probe in § Derivations. The deploy gate's live probes are its production
   proof.
 
@@ -314,11 +318,14 @@ from 10/8, which covers the mesh. The spokes' drop list guards spoke-published p
      - from a vps2 container, `POST /notify/alerts` answers 2xx;
      - `GET /get/alerts` answers 403;
      - a public-source connect to 8202 is dropped.
-  3. `docker compose up -d apprise` for the attachment lock; a POST with `attach` is refused, and
-     `ensure-apprise-alerts-config.sh --check` answers 200.
+  3. `docker compose up -d apprise` for the attachment lock. This recreates the one Apprise container, so every
+     vps1 caller, Gatus included, loses its alert path for the seconds of the restart; run it at a quiet moment.
+     Then a POST with `attach` is refused, and `ensure-apprise-alerts-config.sh --check` answers 200.
   4. Merge the code, then apply spoke-canary with its watchdog on vps2.
 - **Rollback**, in reverse order:
-  1. Re-add the canary opt-out and revert the code merge, so no new spoke sidecar points at the gate.
+  1. Re-add the canary opt-out, revert the code merge so no new spoke sidecar points at the gate, and remove
+     spoke-canary's running `<id>-watchdog` sidecar on vps2 by hand. An `enabled: false` re-apply leaves a running
+     sidecar in place, and it would keep posting to a dead port.
   2. `docker compose rm -sf apprise-mesh-gate`.
   3. Drop the attachment env and `up -d apprise`.
 - **Growth.**
