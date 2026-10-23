@@ -1,6 +1,6 @@
 # Spoke watchdogs alert through a mesh-only Apprise gate — design
 
-Status: DRAFT
+Status: CONVERGED
 Owner: fleet · Work item: W-5dcafaef · supersedes the spoke branch of D-1153 and lifts D-1156 on acceptance
 
 **Profile verdict:** the full section set. `Profile: delta` does not apply, because the gate is a new component.
