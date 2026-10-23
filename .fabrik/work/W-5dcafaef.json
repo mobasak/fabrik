@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T05:11:20.969461Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5dcafaef",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "size it: a port allocation + live vps1 compose change is deploy-gated; spec the URL rewrite and preflight, then board the publish through the coordinator",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "deploy",
+    "fleet"
+  ],
+  "title": "Mesh-publish apprise for spoke watchdogs, then lift W-37dda1e1's spoke refusal: apprise has no mesh port (10.99.0.1:8000 is glitchtip; 8000 is in the spokes' FABRIK_MESH_ONLY_PORTS drop list) — allocate a port in PORTS.md, publish it in the live /opt/apprise/compose.yaml (deploy gate) and mirror infra/vps1/apprise, rewrite the sidecar URL for spokes, add WatchdogConfig.apprise_url if an override is wanted, and add the hardened spoke login preflight the W-37dda1e1 critiques specified (sudo test -f <home>.json and <home>/.credentials.json, only when claude-code is primary or fallback, distinct text for an ssh failure vs MISSING, the target the ssh actually hits)"
+}

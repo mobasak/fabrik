@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a spoke-targeted watchdog is refused instead of shipped unable to alert (2026-10-23)
+
+A spoke (`target_vps` other than vps1) got a watchdog sidecar whose alert URL is vps1's `apprise` container, which a spoke cannot reach (no mesh port; the Traefik route is 2FA-gated), and no legal spec can point it elsewhere. `InfrastructureProvisioner._provision_watchdog` now records a non-fatal refusal for a spoke target on real and dry runs alike — the app stays up, its watchdog is withheld, `fabrik apply` exits 2 — naming the remedy (`watchdog.enabled: false`, or W-5dcafaef, which mesh-publishes apprise and adds a spoke login preflight). `spoke-canary`'s apply is red until one of those. W-37dda1e1, D-1153.
+
 ### Changed — /fabrik-review-scoped queue pass: where the lead runs a command it keeps (2026-10-23)
 
 - `commands/_fragments/review-probe-catalogue.md`, the first bullet of § Before the first pin, kept any command that writes a live store, sends, commits, deploys or reaches a host with the lead, but never said where the lead runs it.

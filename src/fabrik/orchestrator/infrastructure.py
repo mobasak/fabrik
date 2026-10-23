@@ -1583,7 +1583,26 @@ class InfrastructureProvisioner:
         to a WARNING (non-fatal — every registrar's failure is bounded) if the
         driver module isn't present yet. That keeps `fabrik apply` working on
         existing specs that don't depend on the watchdog while T-P2 finishes.
+
+        A spoke-targeted watchdog is refused, real and dry run alike (W-37dda1e1): its sidecar could not
+        alert — vps1's apprise has no mesh port and its Traefik route is 2FA-gated, and no legal spec can point
+        the sidecar elsewhere (WatchdogConfig has no apprise_url). Non-fatal, unlike the deploy-aborting
+        `_assert_error_webhook_colocated` (orchestrator/__init__.py): the app is healthy and stays up; only its
+        watchdog is withheld, and the apply ends red.
         """
+        target = getattr(ctx, "target_vps", None) or "vps1"
+        if target != "vps1":
+            self._nonfatal(
+                ctx,
+                "watchdog",
+                RuntimeError(
+                    f"a watchdog on {target} could not alert: vps1's apprise is not reachable from a spoke "
+                    "(no mesh port; its Traefik route is 2FA-gated), so the sidecar is not provisioned. Set "
+                    "`watchdog.enabled: false` in this spec, or wait for apprise to be mesh-published with a "
+                    "spoke login preflight (W-37dda1e1's follow-up)"
+                ),
+            )
+            return
         if dry_run:
             logger.info(
                 "[dry-run] watchdog: would build fabrik/watchdog:%s + inject sidecar service "
