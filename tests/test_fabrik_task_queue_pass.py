@@ -503,3 +503,28 @@ def test_a_terminal_resting_on_another_partys_act_names_who_performs_it() -> Non
     ) in section
     src = re.sub(r"<!--.*?-->", "", SRC.read_text(), flags=re.S)
     assert src.index("{{include:run-record}}") < src.index("## SIZE")
+
+
+def test_measure_runs_a_probes_imports_under_the_repo_venv() -> None:
+    """Rows 1792766698, 1792734746: an oracle probe imported the system python's markdown_it, which lacks linkify,
+    and had to be re-pointed at the venv."""
+    assert (
+        "an independent parser for a parsed format (each library a probe imports run under the repo's"
+        " `.venv/bin/python`: a system `python3` may lack it or an extra)"
+    ) in _section("## Phase 1", "## Phase 2")
+
+
+def test_review_says_a_path_it_adds_is_amended_after_the_nested_review() -> None:
+    """Row 1792765470 (a recurrence of held design-amend-needs-top-record, stated in phase 2): --design-amend was
+    refused while the nested review was the top record, and phase 4 did not say when the amend runs."""
+    assert (
+        "and a path it adds is `--design-amend`ed once the nested review has closed (phase 2)."
+    ) in _section("## Phase 4", "## Phase 5")
+
+
+def test_mirror_searches_other_repos_tests_and_gates_for_a_changed_path() -> None:
+    """Row 1792731898: MIRROR read the consumer's script but not its tests, and both critiques spent their top
+    concern on a hard-failing live-hub test one directory over; a name-only `find /opt` finds copies, not citers."""
+    assert (
+        "docs), every other `/opt` repo's tests and merge gates citing a changed path, and every vendored copy outside"
+    ) in _section("## Phase 2", "## Phase 3")
