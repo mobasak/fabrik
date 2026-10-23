@@ -380,20 +380,25 @@ build.
 
 **Panel decision (2026-10-23, D-1160): P2, with changes.** Both design-approval seats chose P2 (Opus, and a second Opus
 standing in for Fable, which was at its usage limit): the only option where the operating system enforces the boundary
-and the harness owns the wrapper, so no call has to get past the classifier; P1's allow rule is itself a hole for every
+and the harness owns the wrapper, so no seat call is rewritten past the classifier (whether sandboxed calls and
+the launch pass it is item 4's proof); P1's allow rule is itself a hole for every
 agent; P3 leaves about 15 let-throughs and so does not meet the ask. The changes both seats required, now binding:
 1. **The reviewer session, specified.** Review seats are dispatched from a dedicated reviewer session, never from a
    lead that writes the live tree. Its cwd is a fresh scratch directory that is NOT a linked worktree (a worktree cwd
    opens the main repository's shared `.git` to writes, sandboxing.md:530). It runs with
    `--settings '{"sandbox":{"enabled":true,"allowUnsandboxedCommands":false,"filesystem":{"denyWrite":["/opt"]}}}'`:
-   array settings merge across scopes, so the user-wide `additionalDirectories: ["/opt"]` cannot be dropped per
-   session, only denied; `~/.claude/settings.json` is untouched and no permission gate is needed. Whether `denyWrite`
+   whether `--settings` can drop the user-wide `permissions.additionalDirectories: ["/opt"]` is not documented
+   (sandboxing.md:266 states merging for the sandbox's own filesystem arrays only; `--setting-sources` would drop the
+   whole user source, its hooks included), so the write is denied instead; `~/.claude/settings.json` is untouched and no permission gate is needed. Whether `denyWrite`
    overrides an added directory is not documented — the first proof establishes it. `allowUnsandboxedCommands: false`
    given by `--settings` makes the sandbox admin-required, so repository settings cannot loosen it. Seats read the
    tree by absolute path and `git -C`.
 2. **The launcher, named.** The lead starts the reviewer session as a headless `claude -p` with that `--settings`,
-   the review brief on stdin, and the run's receipt and seat reports written into the run's scratch, which the lead
-   reads back. The launch is itself a lead Bash call the classifier judges; the first proof runs it. Owner: intel
+   the review brief on stdin, and the receipt and seat reports written into the reviewer session's own scratch under
+   `/tmp` (the D-836 run folder sits under `/opt`, which item 1 denies), which the lead reads back into its run folder.
+   `seat_guard.py` is registered only in the repository's `.claude/settings.json`, which a scratch cwd does not load,
+   so the launcher's `--settings` carries the hook registration too (the `fabrik-reviewer` definition is user-level
+   and loads from any cwd). The launch is itself a lead Bash call the classifier judges; the first proof runs it. Owner: intel
    builds the launcher; kaizen owns the review commands' wording that points at it.
 3. **The per-seat layer stays.** The sandbox is per SESSION, so every seat in a run can write every other seat's
    folder; and a seat dispatched directly through the Agent tool from a lead gets no sandbox at all. `seat_guard.py`'s
@@ -402,6 +407,7 @@ agent; P3 leaves about 15 let-throughs and so does not meet the ask. The changes
    and the cross-seat width is an accepted residual.
 4. **The first proof, before any build, in `defaultMode: auto`.** From the reviewer session: a seat subagent's `touch`
    on the live tree fails with EROFS; a scratch write succeeds; a write into the main repo's `.git/refs` is refused;
+   the reviewer session's own scratch accepts the receipt; `seat_guard` fires on a seat call in that session;
    a `localhost` probe and a `docker` call are recorded (private localhost and docker's incompatibility are costs);
    the launch from the lead passes the classifier. The review briefs that rely on a localhost probe are listed and each
    is accepted as `unverified` or rerouted.
