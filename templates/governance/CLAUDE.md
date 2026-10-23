@@ -69,7 +69,7 @@ window — say so.
 
    | # | Test | → |
    |---|---|---|
-   | 1 | touches a governance-sync path — a PUBLIC CONTRACT for ~46 repos? *(executable — the `governance-sync` files-filter in `/opt/fabrik/.pre-commit-config.yaml`, the HUB's copy; this repo's own is stale and narrower)* | **`/fabrik-task` with the full `/fabrik-review`** at phase 4 |
+   | 1 | touches a governance-sync path — a PUBLIC CONTRACT for ~46 repos? *(executable — `start` runs the `governance-sync` files-filter in `/opt/fabrik/.pre-commit-config.yaml`, the HUB's copy, over your declared paths wherever `.fabrik/synced.lock` exists; this repo's own filter is stale and narrower. A hit the lock lists (`.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`) is a RECEIVED copy, and so is every lock path the filter misses (e.g. `CLAUDE.md`; `libs/health_probe`, from the hub manifest's `VENDORED_DIRS`) except the ledgers it marks `SEEDED_NOT_ENFORCED` (`docs/DECISIONS.md` is yours; `PORTS.md` stays the hub registry's read-only copy, D-380): outcome (i) above, never this lane. A hit the lock does not list is no copy of the hub's — a hub-only path, or an orphan of a retired sync path — and `start` still routes it here: take the lane with its full review, as yours. A path OTHER repos receive FROM this one no filter here sees: declare `heavy=yes` (row 1b), as fabrik-lib does for `health-probe/`, the source of your `libs/health_probe`)* | **`/fabrik-task` with the full `/fabrik-review`** at phase 4 |
    | 1b | a heavy surface the regex cannot see — a gate/hook/enforcement path outside that filter, a vendored surface (anything under `libs/` copied from fabrik-lib rather than imported; hub D-137), auth, schema, migrations (a `migrations/` or `alembic/versions/` segment at any depth, which the gate reads itself), concurrency, or operator-named work (the operator explicitly asked for the full `/fabrik-review`, or asked by name for a code or config change — naming alone never routes up a diff with no code surface, the "No code surface at all" paragraph's set)? *(declared `heavy=yes`)* | **`/fabrik-task` with the full `/fabrik-review`** at phase 4 |
    | 2 | needs a NEW MECHANISM — a verb, flag, schema, hook, table or cron? *(declared `mechanism=yes` — RECORDED, never a refusal on its own: a mechanism that is reversible, trips no module test and settles no trade-off carries no question the build cannot answer, so it takes the lane and the D-row names it; one that also trips 3, 4 or 5 is spec-chain work, and one on a sync path or heavy surface takes the full review — operator ruling 2026-09-20, D-315, loosening D-293)* | the lane, unless another row fires |
    | 3 | is the one decision ONE-WAY — structural, public, expensive to unwind? *(declared `oneway=yes`)* | the spec chain — the § Binding block lives there |
@@ -502,16 +502,18 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   (`--status` and `--verify-ledger` are the morning check). Rotating the session (`/clear <agent>-<date>`, hub D-1119,
   hub D-1123) happens at an item boundary, never mid-item — the item (a work-store item, or the task you were given)
   closed, committed and pushed, no run record `running`, no seat in flight, the worktree clean — and is due there once
-  the context reaches 40% of the window (input + cache_creation + cache_read of the last usage row; a ROTATE-DUE line
-  will say so once W-f975fee0 lands) or the transcript reaches the size at which the `ROTATE:` line prints; it may
+  the context reaches 40% of the window (input + cache_creation + cache_read of the last usage row; the
+  `transcript_size_check.py` hook's `ROTATE-DUE` line says so) or the transcript reaches the size at which the
+  `ROTATE:` line prints; it may
   also happen there when the next work is unrelated to the last, and no age or item-count trigger exists. The
   `ROTATE:` line is advice the hook prints once per 100 MB step from `ROTATE_ADVISE_MB` (200 MB by default), never a
-  command typed for you, whatever its own "run … now" says: once a rotation is due, start no new item, so the item in
-  hand closing is the boundary; mid-item at 85% of the window the coordinator sends a focused `/compact` instead, once
-  W-f975fee0's sensor reports it. No agent can type a slash command into its own prompt: at the boundary a builder
+  command typed for you: once a rotation is due, start no new item, so the item in hand closing is the boundary;
+  mid-item at 85% of the window, which the hook's `COMPACT-DUE` line reports, the coordinator sends a focused
+  `/compact` instead. No agent can type a slash command into its own prompt: at the boundary a builder
   messages its coordinator `rotate <name>` and waits for the keys; the coordinator — for whom the ask is not a work
   item — rotates that pane only when it is at its prompt with an empty input line, else aborts, never queues
-  (`agents_up.sh rotate-session <name>` once infra's W-f975fee0 lands; until then `/clear <agent>-<date>` to the pane
+  (`agents_up.sh rotate-session <name>` once infra's W-f975fee0 slice 2 lands, hub D-1135; until then `/clear
+  <agent>-<date>` to the pane
   tagged `@agent <name>` with `tmux send-keys`, hub D-1034), then sends a resume prompt telling the builder to re-bind
   (below) and to read only the memory notes, `work.py next` and the run's seed, never the old transcript; a builder
   with no pane asks its coordinator the same way, and the coordinator tells the operator; a coordinator, or a

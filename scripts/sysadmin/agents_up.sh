@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_up.py
-# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side in one tmux window (D-1031).
+# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side in one tmux window (D-1031). Also: agents_up.sh rotate-session <name> [--compact FOCUS] [--trigger T] (W-f975fee0).
 #
 # Every repo's launcher (W-66e2f6a7 retired ~/bin/hub-up). The builders come from the repo's own registry,
 # <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), when it has one, and otherwise from the identity
@@ -63,6 +63,14 @@ set -u
 export PATH="$HOME/.local/bin:$PATH"
 export CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/active"
 export CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/active"
+
+# `agents_up.sh rotate-session <name> [--compact FOCUS] [--trigger T]` (W-f975fee0, D-1135): the coordinator's verb —
+# rotate_session.py checks the pane and writes one request; the fabrik-rotate user unit types it. Dispatched before the
+# grid's own arguments; the repo is the caller's git toplevel.
+if [ "${1:-}" = "rotate-session" ]; then
+  shift
+  exec python3 "$(cd "$(dirname "$0")" && pwd)/rotate_session.py" request "$@"
+fi
 
 print=0
 detach=0

@@ -2258,3 +2258,98 @@ def test_the_distribution_sentence_is_one_literal_text_in_both_contracts() -> No
                 f"{rel}: still carries the retired address {retired!r} — only the hub's MAIN "
                 "checkout runs the sync script; a project never re-syncs"
             )
+
+
+# ── W-955acf1f: lane row 1 in the fleet template says what "a governance-sync path" IS in a project ──
+# Read in a project, row 1 grounded the test in the HUB's regex and named nothing of the repo's own.
+# What `start` does there: `command_run._sync_applies` is True wherever the `.fabrik/synced.lock` the
+# sync writes exists, so the hub regex runs over the declared paths — and a hit the lock lists
+# (`.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`: 175 of a sample lock's 218 paths,
+# 2026-10-23) is a RECEIVED copy, outcome (i) above the table, never this lane; the lock paths the regex
+# misses (`CLAUDE.md`; `libs/health_probe`, distributed by the manifest's `VENDORED_DIRS`) are received
+# copies too — except the ledgers the manifest marks `SEEDED_NOT_ENFORCED` (`docs/DECISIONS.md` is the
+# project's own); a regex hit the lock does NOT list is an orphan of a retired sync path
+# (`docs/reference/prebuilt-app-containers.md`, in 38 of 49 projects); a repo that is itself a SOURCE
+# declares `heavy=yes` (fabrik-lib's own rule for `health-probe/`, the source of `libs/health_probe`).
+# The row now says so, and this grader binds each clause to the code it describes, so a regex, manifest
+# or predicate change that outlives the row reds here (D-284: a paraphrase of code drifts; re-derive).
+
+_ROW1_RECIPIENT_ANCHORS = (
+    "`.fabrik/synced.lock`",
+    "`.windsurf/rules/`",
+    "`scripts/enforcement/`",
+    "`.claude/hooks/`",
+    "`libs/health_probe`",
+    "`VENDORED_DIRS`",
+    "`SEEDED_NOT_ENFORCED`",
+    "`docs/DECISIONS.md`",
+    "outcome (i)",
+    "`heavy=yes`",
+    "`health-probe/`",
+    # review pass 1 (B-2, A-1): the load-bearing clauses the first eleven did not pin
+    "`PORTS.md`",
+    "`CLAUDE.md`",
+    "RECEIVED copy",
+    "orphan of a retired sync path",
+    "row 1b",
+)
+
+
+def test_the_templates_row_1_binds_its_recipient_clause_to_the_gates_own_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Input domain: the template's lane row 1 (its Test cell), `scripts/command_run.py`'s sync
+    predicates and `scripts/fabrik_synced_manifest.py`'s `VENDORED_DIRS` / `SEEDED_NOT_ENFORCED`,
+    all from this checkout — `_sync_filter_source` reads the hub's `.pre-commit-config.yaml` by
+    the absolute `/opt/fabrik` path unless `FABRIK_HUB_ROOT` names another root, so the test points
+    it at THIS checkout (review pass 1, B-1: a live-hub read would red or green independently of
+    the tree under test); `tmp_path` must sit outside any git checkout, since `_sync_verdict` asks
+    git for a main checkout before it looks for the lock (pytest's default tmp root does).
+
+    Two halves, both needed. The ANCHOR half is red on base (the row carried none of the sixteen
+    phrases); the CODE half is green on base and pins what the phrases claim — the cheapest pass
+    would be to add the words without the facts, which is why each fact is executed here:
+    `libs/health_probe` is vendored by the manifest (not the regex), `docs/DECISIONS.md` is seeded
+    (project-owned), the hub regex matches the three received directories the row names and NOT the
+    two lock paths it calls misses, and the synced lock is what makes `_sync_applies` True in a repo
+    that is not the hub."""
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    row1 = {r[0]: r for r in _lane_table(tpl, _STEP0_END_TPL)[1:]}["1"]
+    cell = row1[1]
+    missing = [a for a in _ROW1_RECIPIENT_ANCHORS if a not in cell]
+    assert not missing, f"the template's lane row 1 does not name its recipient clause: {missing}"
+    assert (
+        "|" not in cell
+    )  # the cell splitter is a bare split on the pipe; a stray one would be two cells
+
+    manifest = _load("fabrik_synced_manifest", "scripts/fabrik_synced_manifest.py")
+    assert "libs/health_probe" in manifest.VENDORED_DIRS, manifest.VENDORED_DIRS
+    # both seeded ledgers are named by the row — DECISIONS as the project's, PORTS by its own row
+    assert {"docs/DECISIONS.md", "PORTS.md"} <= set(manifest.SEEDED_NOT_ENFORCED), (
+        manifest.SEEDED_NOT_ENFORCED
+    )
+    # the paths the row calls received are destinations the manifest distributes (B-3) — the
+    # manifest lists `.windsurf/` and `.claude/` as whole trees, so only the file-level ones are
+    # asked for by name here
+    dests = {p for paths in manifest.gitignore_dest_paths().values() for p in paths}
+    assert {"scripts/enforcement/", "CLAUDE.md", "libs/health_probe/", "PORTS.md"} <= dests, dests
+    cr = _load("command_run", "scripts/command_run.py")
+    monkeypatch.setenv("FABRIK_HUB_ROOT", str(FABRIK))
+    src = cr._sync_filter_source()
+    assert src, "the hub's governance-sync filter could not be read — the row's test is about it"
+    pat = re.compile(src)
+    for received in (
+        ".windsurf/rules/core/10-python.md",
+        "scripts/enforcement/check_x.py",
+        ".claude/hooks/final_gate_stop.py",
+    ):
+        assert pat.search(received), (
+            f"the hub regex no longer matches {received}; row 1 names it as a hit"
+        )
+    for missed in ("libs/health_probe/health_probe.py", "CLAUDE.md"):
+        assert not pat.search(missed), f"the hub regex now matches {missed}; row 1 calls it a miss"
+    recipient = tmp_path / "recipient"
+    (recipient / ".fabrik").mkdir(parents=True)
+    assert cr._sync_applies(recipient) is False, "a plain directory with no lock reads synced"
+    (recipient / ".fabrik" / "synced.lock").write_text("{}", encoding="utf-8")
+    assert cr._sync_applies(recipient) is True, "the synced lock is what makes a repo a recipient"

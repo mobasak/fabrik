@@ -1,6 +1,13 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A lane test a project cannot see is described by what it DOES there, keyed on the artifact the code keys on (2026-10-23)
+
+W-955acf1f: lane row 1 named the hub's regex to a reader whose repo the regex never mentions. The first design keyed "received copy" on the regex; both critiques broke it by execution — a project's `docs/DECISIONS.md` is lock-listed yet project-owned (`SEEDED_NOT_ENFORCED`), and a regex-matched path the manifest retired sits outside 38 of 49 locks. The review then caught two more pointers the fixes wrote without opening: a `PORTS.md` "row below" the lane table does not have, and a docstring count the anchors had outgrown.
+- **Key a reader-facing claim on the artifact the code keys on** — `_sync_verdict` keys on `.fabrik/synced.lock`, so "received" is "lock-listed minus seeded", not "regex-matched".
+- **Census the whole fleet before writing "every"** — one project's lock said 175 of 218; 49 locks found the orphan class the sample hid.
+- **Open every referent a fix cites before the pin** — a row, a section, a sibling repo's path (`health-probe/`, not `libs/`), a count in a docstring; the round-zero pointer rule is not only for synced-file pointers.
+
 ## A sentence in a synced paragraph is read by every repo that receives it, so its "you" must be true for each reader (2026-10-23)
 
 W-85e4e5e4: the shared-tree paragraph's close told its reader to run the hub's fleet-distribution script "yourself". In the hub's main checkout that is the rule; in a hub worktree it ships a mix neither tree holds; in a project it names a script the repo does not have. The paragraph is byte-shared (the template's line is a prefix of the hub's), 49 synced copies plus the hub carry it, no grader bound the two copies, and the same instruction sat in the template's HARD STOPS row and in two synced checks' messages.

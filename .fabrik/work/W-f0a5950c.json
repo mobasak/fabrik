@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T04:02:03.957006Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f0a5950c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "either pin the gate to the venv interpreter in the docs that tell agents how to run it, or add the stubs to the venv so both interpreters agree; one grader",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a false red under the wrong interpreter only; pin or stubs, one grader",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "final_gate.py under the SYSTEM python3 reds mypy on 3 missing types-requests stubs in src/fabrik/ (audit.py:383, drivers/grafana.py:54, drivers/glitchtip.py:68); the venv interpreter is green — pre-existing, seen on two infra-3 MRs (2026-10-23)"
+}
