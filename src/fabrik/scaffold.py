@@ -5795,14 +5795,16 @@ def _live_docker_runs(makefile: str, sealed: frozenset[str]) -> list[str]:
 
     An allow-list, not a parser: the Makefile comes from our own template, so a line whose raw text holds
     `docker [container] run` — however spaced, in quotes, backticks, `sh -c`, a comment or a later command, or split
-    across backslash continuations, which are joined first as the shell joins them — passes only when, stripped, it IS
+    across backslash continuations, joined first as make and the shell join them (an odd run of backslashes before the
+    newline; one recipe tab dropped; nothing inserted) — passes only when, stripped, it IS
     a sealed line the scaffold produced. Any other spelling, a sealed run included, is template drift and is refused,
     as a drifted smoke line already is. Not covered: docker reached without that text (`$(DOCKER) run`, options before
-    `run`, `docker compose run`, `create`+`start`, a split or quoted `docker` or `run` word) — W-b6f4b941.
+    `run`, `docker compose run`, `create`+`start`, a `docker` or `run` word quoted or escaped from within, such as
+    `d''ocker` or `doc\\ker`) — W-b6f4b941.
     """
     return [
         ln.strip()
-        for ln in re.sub(r"\\\n[ \t]*", " ", makefile).splitlines()
+        for ln in re.sub(r"(?<!\\)((?:\\\\)*)\\\n\t?", r"\1", makefile).splitlines()
         if _DOCKER_RUN_TEXT.search(ln) and ln.strip() not in sealed
     ]
 

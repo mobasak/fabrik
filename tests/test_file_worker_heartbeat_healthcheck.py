@@ -420,6 +420,8 @@ _LIVE_RUNS = {
 
 # sealed, but not the line the scaffold writes: drift, refused like any drifted smoke line
 _DRIFTED_SEALED_RUNS = [
+    # split mid-line with no space before the `\`: make + sh run `smoke-test--network none …`, not the sealed line
+    "\t@docker run -d --name smoke-test\\\n\t--network none -e WORKER_SMOKE=1 --env-file .env $(PROJECT_NAME) || true\n",
     "\t@docker run  --network none  -e WORKER_SMOKE=1 $(PROJECT_NAME) || true\n",
     "\t@docker container run --network=none --env=WORKER_SMOKE=1 $(PROJECT_NAME)\n",
 ]
@@ -456,3 +458,18 @@ def test_a_word_that_only_starts_with_run_is_not_a_run():
         scaffold._live_docker_runs("\t@echo docker runner\n\t@docker running-total\n", sealed) == []
     )
     assert scaffold._live_docker_runs("\t@echo docker run\n", sealed) == ["@echo docker run"]
+
+
+def test_continuations_join_as_make_and_the_shell_join_them():
+    assert scaffold._live_docker_runs("\t@docker \\\n\t\trun -d img\n", frozenset()) == [
+        "@docker \trun -d img"
+    ]
+    # an escaped backslash ends no line: the next line stands alone
+    assert (
+        scaffold._live_docker_runs(
+            "\t@echo x\\\\\n\t@docker run -d img\n", frozenset({"@docker run -d img"})
+        )
+        == []
+    )
+    # `docker\` + `run` is the one word `dockerrun` to the shell: no run
+    assert scaffold._live_docker_runs("\t@docker\\\n\trun -d img\n", frozenset()) == []
