@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T00:11:40.145291Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-2d393a8a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: change the remedy to git restore --source=HEAD --staged --worktree -- <path> and re-pin the whole-line assertion in tests/test_sync_trigger_coverage.py",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "check_sync_trigger_coverage's missing-wrapper remedy names git checkout -- <path>, which restores from the INDEX: a staged deletion restores nothing and a sibling's uncommitted edit is discarded (W-85e4e5e4 review pass 3, both slice-B seats)"
+}

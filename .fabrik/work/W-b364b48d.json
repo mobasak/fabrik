@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-22T22:12:52.547427Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "03559e5030c288eadbc8b08d39bc5305c7220b48",
   "id": "W-b364b48d",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "title": "Fabrik Deck: fabrik_deck.py install/launcher refuse when WSL_DISTRO_NAME is unset (a code-server-hosted shell has none) — the --distro default resolves to '' and the run stops; fall back to the WSL default distro (wsl.exe -l -q, or /etc/os-release / the running distro's name) before refusing; reported by the coordinator at post-merge step 3 (2026-10-23, 03205d013)"
 }

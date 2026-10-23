@@ -1,6 +1,5 @@
-"""/fabrik-plan-review feedback queue answered in one pass (D-735): the panel's ACCEPTED delta round, recorded.
-
-The rule lives in the shared design-critique fragment; the advisory it calls expected is executed against command_run.
+"""/fabrik-plan-review feedback queue answered in one pass per run (D-735): each test pins one subject's rule in the
+section of fabrik-plan-review.md, design-critique.md or term-edit.md whose reader acts on it.
 """
 
 import importlib.util
@@ -145,10 +144,14 @@ def test_a_seat_grades_its_pinned_plan_set_copy() -> None:
         r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
     )
     assert (
-        "don't route around the gate. A seat that runs the check grades its pinned copy, never the live set the "
-        "orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory name, "
-        "outside any docs/development/plans/ directory> --allow-external`, run from the repo root. - **Breadth "
-        "advisory (mechanical, at the same moment):**"
+        "don't route around the gate. A seat that runs the check grades its pinned copy, never the live set "
+        "the orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory "
+        "name, outside any docs/development/plans/ directory> --allow-external`, run from the repo root. A "
+        "seat that imports or runs code the plan cites builds an archive of the base SHA with the pinned "
+        "files laid over it (the `PIN_IMPORT` recipe in `.claude/workflows/fabrik-review-loop.js`, which "
+        "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` § Seat isolation names), never imports "
+        "from the live checkout and never puts the pins dir alone on `sys.path`. - **Breadth advisory "
+        "(mechanical, at the same moment):**"
     ) in text
 
 
@@ -225,13 +228,22 @@ def test_a_run_lives_in_the_plan_and_is_re_run_before_each_later_pin() -> None:
     """Rows 1792489145, 1792560450, 1792561946, 1792543087: a prototype's corpus sat in scratch, a spec's consumer CI
     snippet went unexecuted, and a folded fix was pinned without re-running the predecessor corpus."""
     assert _span("(another schema, a column-level grant). ", " 3. **Constraints-Digest audit") == (
-        "Each such run's script, corpus and output go inline in the plan's Evidence from round 1, never only in"
-        " scratch, which the seats' pinned copy of the plan does not carry; before every later pin at which a fix or a"
-        " folded panel change touches what a run exercised, it is re-run over its whole corpus, a changed predicate's"
-        " old and new versions side by side, each difference named as intended or a defect, its output replacing the"
-        " earlier run's in the Evidence before that pin. Under the `Size: small`"
-        " joint loop the same holds for a command the spec prescribes for a consumer to run (a CI step, through a"
-        " shell stand-in for its runner)."
+        "A field a hook, script or grader the plan specifies will read is a closed token (a fixed label, an "
+        "enum, a key), probed before the first pin with its negations and look-alikes, never matched as "
+        "prose; a grader the plan puts over prose checks presence only, and what the prose means is a named "
+        "review check from round 1. Each such run's script, corpus and output go inline in the plan's "
+        "Evidence from round 1, never only in scratch, which the seats' pinned copy of the plan does not "
+        "carry; before every later pin at which a fix or a folded panel change touches what a run exercised, "
+        "it is re-run over its whole corpus, a changed predicate's old and new versions side by side, each "
+        "difference named as intended or a defect, its output replacing the earlier run's in the Evidence "
+        "before that pin. The round-1 brief hands the input classes that run enumerated to the seats as their"
+        " grid: one row per input class the change's kind implies (the absent, empty and unread copy of each "
+        "shape a read rule reads; coarser, same and finer for a lookup; every install layout the repo's docs "
+        "teach for a path rule; every host form for a network surface), each row carrying the output the code"
+        " gave before the change (`none — new` for a path the plan adds) beside the one the plan intends, and"
+        " a seat raises a class the grid lacks as a candidate. Under the `Size: small` joint loop the same "
+        "holds for a command the spec prescribes for a consumer to run (a CI step, through a shell stand-in "
+        "for its runner)."
     )
 
 
@@ -267,3 +279,90 @@ def test_each_ticket_carries_the_substituted_value_rule() -> None:
     assert _span("- **Behavior Contract ≤8 G/W/T rows** ", ", each grounded") == (
         "(and the Behavior Contract pillar's substituted-test-value rule holds for the ticket)"
     )
+
+
+SRC = ROOT / "commands" / "_sources" / "fabrik-plan-review.md"
+TERM_EDIT = ROOT / "commands" / "_fragments" / "term-edit.md"
+
+
+def _live(path: Path) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", "", path.read_text(), flags=re.S))
+
+
+def _between(text: str, start: str, end: str) -> str:
+    i = text.index(start)
+    return text[i : text.index(end, i + len(start))]
+
+
+def test_round_one_hands_the_seats_an_input_grid() -> None:
+    """Seven rows (1792643487 … 1792593942): the orchestrator enumerated the input classes; nothing handed them to the
+    seats, so each round re-found one more class."""
+    item2 = _between(_live(SRC), "2. **Coverage Checklist.**", "3. **Constraints-Digest audit")
+    assert (
+        "The round-1 brief hands the input classes that run enumerated to the seats as their grid: one row "
+        "per input class the change's kind implies (the absent, empty and unread copy of each shape a read "
+        "rule reads; coarser, same and finer for a lookup; every install layout the repo's docs teach for a "
+        "path rule; every host form for a network surface), each row carrying the output the code gave before"
+        " the change (`none — new` for a path the plan adds) beside the one the plan intends, and a seat "
+        "raises a class the grid lacks as a candidate."
+    ) in item2
+
+
+def test_a_field_a_reader_reads_is_a_closed_token() -> None:
+    """Rows 1792654902 and 1792595691 (after held free-text-parser-to-structured-channel): prose matching kept growing
+    negation lists."""
+    item2 = _between(_live(SRC), "2. **Coverage Checklist.**", "3. **Constraints-Digest audit")
+    assert (
+        "A field a hook, script or grader the plan specifies will read is a closed token (a fixed label, an enum, a"
+        " key), probed before the first pin with its negations and look-alikes, never matched as prose; a grader the"
+        " plan puts over prose checks presence only, and what the prose means is a named review check from round 1."
+    ) in item2
+
+
+def test_a_seat_runs_pinned_code_from_an_archive_with_the_pins_laid_over_it() -> None:
+    """Rows 1792656795 and 1792642953: seats imported pinned code from the live checkout; PIN_IMPORT forbids the pins
+    dir alone on sys.path."""
+    pre = _between(_live(SRC), "**Convergence precondition (mechanical):**", "## Phase 1")
+    assert (
+        "A seat that imports or runs code the plan cites builds an archive of the base SHA with the pinned "
+        "files laid over it (the `PIN_IMPORT` recipe in `.claude/workflows/fabrik-review-loop.js`, which "
+        "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` § Seat isolation names), never imports "
+        "from the live checkout and never puts the pins dir alone on `sys.path`."
+    ) in pre
+
+
+def test_a_step_that_runs_a_script_is_grounded_against_its_parser() -> None:
+    """Row 1792643178 (after held execute-gate-recipes-round1): a step's script mode went unchecked; `--help` runs a
+    script with no parser for real, so the read comes first."""
+    phase2 = _between(_live(SRC), "## Phase 2", "## Phase 3")
+    assert (
+        "A step that runs a script names its mode (the subcommand or flags), and the review grounds that command"
+        " against the script's argument parser read at the pinned SHA, running `--help` only once that read shows the"
+        " script parses arguments; a mode the parser does not accept is a finding."
+    ) in phase2
+
+
+def test_critique_seats_run_one_plain_command_per_call() -> None:
+    """Rows 1792657810 and 1792663298: the house-rules list omitted the one-plain-command rule, so leads wrote
+    `mkdir … && cd …` into critique briefs."""
+    rules = _between(
+        _live(FRAG), "the house rules every seat brief carries:", "- its concerns, ranked"
+    )
+    assert (
+        "and one plain command per Bash call: the seat's own `mkdir -p` on its absolute folder first, then "
+        "absolute paths, never `cd`, `&&`, a pipe or a `$VAR`."
+    ) in rules
+
+
+def test_a_scripted_fix_replaces_exactly_once() -> None:
+    """Row 1792630747 (after held fix-script-exact-once-replace): a substitution script wrote a no-op; the fix residue
+    the hygiene script catches stays named as the hygiene script's."""
+    residue = _between(_live(TERM_EDIT), "(1) **RESIDUE", "(2) **PIN**")
+    assert (
+        "the orchestrator's own fix residue is caught by the hygiene script, never by a seat;"
+        in residue
+    )
+    assert (
+        "a scripted fix states how many times each old string occurs (once by default) and writes nothing unless every"
+        " one matches that count and differs from its new text, so it never writes a no-op or a half edit;"
+    ) in residue

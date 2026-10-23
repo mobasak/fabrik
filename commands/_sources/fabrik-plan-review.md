@@ -98,7 +98,11 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   review findings: fix them in the set,
   don't route around the gate. A seat that runs the check grades its pinned copy, never the live set the
   orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory name, outside any
-  docs/development/plans/ directory> --allow-external`, run from the repo root.
+  docs/development/plans/ directory> --allow-external`, run from the repo root. A seat that imports or runs code the
+  plan cites builds an archive of the base SHA with the pinned files laid over it (the `PIN_IMPORT` recipe in
+  `.claude/workflows/fabrik-review-loop.js`, which `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` § Seat
+  isolation names), never imports from
+  the live checkout and never puts the pins dir alone on `sys.path`.
 - **Breadth advisory (mechanical, at the same moment):** `python scripts/enforcement/check_ticket_breadth.py
   --plan-dir <dir>` (from the repo root) — run it with the precondition above, BEFORE the `CONVERGED`
   flip, because the plan set is still editable here and is not editable after. It exits 0 on every
@@ -144,11 +148,20 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
    so no seat is the first to execute it. A predicate, matcher or filter the plan changes is also run on a scratch
    copy against the tests that assert its current behaviour, each failure named as the change the plan intends or a
    defect, and against every input shape its grammar admits beyond the plan's own cases (another schema, a
-   column-level grant). Each such run's script, corpus and output go inline in the plan's Evidence from round 1,
+   column-level grant). A field a hook, script or grader the plan specifies will read is a closed token (a fixed
+   label, an enum, a key), probed before the first pin with its negations and look-alikes, never matched as prose; a
+   grader the plan puts over prose checks presence only, and what the prose means is a named review check from round
+   1. Each such run's script, corpus and output go inline in the plan's Evidence from round 1,
    never only in scratch, which the seats' pinned copy of the plan does not carry; before every later pin at which a
    fix or a folded panel change touches what a run exercised, it is re-run over its whole corpus, a changed
    predicate's old and new versions side by side, each difference named as intended or a defect, its output
-   replacing the earlier run's in the Evidence before that pin. Under the `Size:
+   replacing the earlier run's in the Evidence before that pin. The round-1 brief hands the input classes that run
+   enumerated to the seats as their grid: one row per input class the change's kind implies (the absent, empty and
+   unread copy of each shape a
+   read rule reads; coarser, same and finer for a lookup; every install layout the repo's docs teach for a path rule;
+   every host form for a network surface), each row carrying the output the code gave before the change (`none — new`
+   for a path the plan adds) beside the one the plan intends, and a seat raises a class the grid lacks as a candidate.
+   Under the `Size:
    small` joint loop the same holds for a command the spec prescribes for a consumer to run (a CI step, through a
    shell stand-in for its runner).
 3. **Constraints-Digest audit (the rule-grounding floor, 2026-08-30).** The rubric run from step 1
@@ -355,7 +368,10 @@ enumerate its coverage (what it actually read and executed); an empty round with
 
 ## Phase 2 — Make every step executable
 
-Embed a concrete, runnable validation gate into every step (the exact command + expected result).
+Embed a concrete, runnable validation gate into every step (the exact command + expected result). A step that runs a
+script names its mode (the subcommand or flags), and the review grounds that command against the script's argument
+parser read at the pinned SHA, running `--help` only once that read shows the script parses arguments; a mode the
+parser does not accept is a finding.
 **Reject any gate that shells out to `fabrik …`** — it is a hub-side CLI (`/opt/fabrik` only), unrunnable from a
 project's WSL dev; rewrite it as an inspection-based assert (read the spec `shape:`, grep the compose, assert on a
 file). Make the creation/execution of the **FULL** gate `python scripts/final_gate.py --check --json` (Tier 2 —

@@ -2043,7 +2043,9 @@ def test_a_plan_step_the_operator_owns_ends_behind_a_gate_block_in_both_contract
         assert needle in command, needle
 
 
-def test_the_plan_execution_halt_list_names_the_quota_wall_and_an_operator_pause_in_both_contracts() -> None:
+def test_the_plan_execution_halt_list_names_the_quota_wall_and_an_operator_pause_in_both_contracts() -> (
+    None
+):
     """W-8008e144: the plan-execution override said "The ONLY legitimate halts are the three BLOCKED cases" while the
     same files' RED band closes a run `blocked --wall` and D-993 closes an operator's pause `blocked --paused`. Both
     contracts now name those two stops inside the same sentence, which keeps its pinned opening."""
@@ -2056,12 +2058,14 @@ def test_the_plan_execution_halt_list_names_the_quota_wall_and_an_operator_pause
     for rel in ("CLAUDE.md", TEMPLATE_REL):
         text = _normalised(FABRIK / rel)
         assert sentence in text, rel
-        assert "## Pointers" in text and "`blocked --wall`" in text[text.index("## Pointers") :], rel
+        assert "## Pointers" in text and "`blocked --wall`" in text[text.index("## Pointers") :], (
+            rel
+        )
     hub = _normalised(FABRIK / "CLAUDE.md")
     assert "Anything short of those three" not in hub
     assert "hub D-993). Anything short of those: keep going. A step the plan assigns" in hub
     close = (
-        "--reason \"<one of the three BLOCKED cases>\"`**, or the same close with `--wall` (its reason the quota"
+        '--reason "<one of the three BLOCKED cases>"`**, or the same close with `--wall` (its reason the quota'
         " wall's) or `--paused` (its reason the operator's words) at the quota wall or an operator's pause (§"
         " Behavior, the plan-execution override)."
     )
@@ -2069,7 +2073,9 @@ def test_the_plan_execution_halt_list_names_the_quota_wall_and_an_operator_pause
         assert close in _normalised(FABRIK / rel), rel
 
 
-def test_coordinator_job_7_carries_the_charters_builder_confirms_condition_in_both_contracts() -> None:
+def test_coordinator_job_7_carries_the_charters_builder_confirms_condition_in_both_contracts() -> (
+    None
+):
     """W-77812e10 (feedback row 1792345477, tryton-crm): job (7) gave the coordinator a finished plan's EXECUTED flip
     and archive move with no condition, so a project agent read the flip as the coordinator's alone while
     /fabrik-execute-plan's Finish step 5 gives it to the live run. The paragraph now carries coordinator.md's
@@ -2082,3 +2088,173 @@ def test_coordinator_job_7_carries_the_charters_builder_confirms_condition_in_bo
         assert clause in _normalised(FABRIK / rel), rel
     charter = _normalised(FABRIK / "docs" / "reference" / "agents" / "coordinator.md")
     assert "once every ticket is merged and its builder confirms no run will resume it" in charter
+
+
+# ── W-62e96a9f: the § Agent Provenance Trailers section is ONE text across the hub contract and the
+# fleet template, graded by SUBTRACTION — the whole section with its one sanctioned divergence (the
+# `Agent-Name` row: hub = CLAUDE_AGENT + charter injection, template = "write it by hand", c9f8b0de5)
+# replaced by a placeholder must compare equal. A claim-span grader proves the spans it names and
+# nothing about the rows around them, which is how the template's Agent-Role row lost `ci-fix` beside
+# a span that was graded byte-identical. The row's VALUES are read from the writers that emit them.
+
+_TRAILERS_HEADING = "\n## Agent Provenance Trailers"
+_AGENT_NAME_ROW_PREFIX = "| `Agent-Name` |"
+_AGENT_NAME_PLACEHOLDER = (
+    "| `Agent-Name` | <the one sanctioned divergence — hub vs project wording> |"
+)
+_AUTOMATION_WRITERS = ("scripts/ci_fix_dispatcher.py", "scripts/sysadmin/rules_currency_watch.py")
+_WRITER_CLAUSE = "any other session never writes it"
+_PACK_REL = ".windsurf/rules/core/40-documentation.md"
+
+
+def _trailer_section(text: str, rel: str) -> str:
+    """The § Agent Provenance Trailers section — the heading counted exactly once first, so an absent or
+    renamed heading reds here instead of letting two empty strings compare equal."""
+    assert text.count(_TRAILERS_HEADING) == 1, (
+        f"{rel}: expected exactly one Agent Provenance Trailers heading"
+    )
+    body = text.split(_TRAILERS_HEADING, 1)[1]
+    return _TRAILERS_HEADING + body.split("\n## ", 1)[0]
+
+
+def _with_agent_name_placeholder(section: str, rel: str) -> str:
+    """The section with its ONE Agent-Name row replaced in place — never dropped, so a moved row reds."""
+    lines = section.split("\n")
+    rows = [i for i, ln in enumerate(lines) if ln.startswith(_AGENT_NAME_ROW_PREFIX)]
+    assert len(rows) == 1, f"{rel}: expected exactly one Agent-Name row, found {len(rows)}"
+    lines[rows[0]] = _AGENT_NAME_PLACEHOLDER
+    return "\n".join(lines)
+
+
+def _agent_role_row(section: str, rel: str) -> list[str]:
+    rows = [ln for ln in section.split("\n") if ln.startswith("| `Agent-Role` |")]
+    assert len(rows) == 1, f"{rel}: expected exactly one Agent-Role row, found {len(rows)}"
+    cells = [c.strip() for c in re.split(r"(?<!\\)\|", rows[0].strip().strip("|"))]
+    assert len(cells) == 3, (
+        f"{rel}: the Agent-Role row renders {len(cells)} cells, not 3: {rows[0][:80]}"
+    )
+    return cells
+
+
+def test_the_trailer_sections_differ_only_in_the_agent_name_row() -> None:
+    """W-62e96a9f: hub and template § Agent Provenance Trailers are byte-identical once each file's one
+    `Agent-Name` row is replaced by the same placeholder — that row is the only sanctioned divergence
+    (the hub's names `CLAUDE_AGENT` and the injected charter; the template's tells a project agent to
+    sign by hand). Everything else in the section — the Agent-Role values, the traps, the verify
+    paragraph — is one text, and a divergence anywhere else reds with its diff."""
+    hub = _with_agent_name_placeholder(_trailer_section(_hub_text(), "CLAUDE.md"), "CLAUDE.md")
+    tpl_text = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    tpl = _with_agent_name_placeholder(_trailer_section(tpl_text, TEMPLATE_REL), TEMPLATE_REL)
+    if hub != tpl:
+        import difflib
+
+        delta = "\n".join(
+            difflib.unified_diff(
+                hub.split("\n"), tpl.split("\n"), "hub", "template", lineterm="", n=0
+            )
+        )
+        raise AssertionError(
+            f"CLAUDE.md vs {TEMPLATE_REL}: the trailer sections diverge outside the Agent-Name row:\n"
+            + delta
+        )
+
+
+def test_the_agent_role_rows_carry_every_value_the_hubs_automation_writes() -> None:
+    """W-62e96a9f: `scripts/ci_fix_dispatcher.py` briefs a `claude -p` worker INSIDE a project's tree to
+    commit with `Agent-Role: ci-fix`, and `scripts/sysadmin/rules_currency_watch.py` writes the same value
+    into the hub; `check_commit_trailers.py` constrains presence, never the value, so the contract rows
+    are the only text a reader has for those values. The values are READ from the writers, so a rename
+    there reds the rows; every row carries the one-line clause that bars every other writer; the pack's
+    Agent-Name row points at CLAUDE.md's section and carries no role enum. Known limit: the regex takes
+    every `Agent-Role: <value>` literal in those two files — a comment naming another role would be
+    demanded of the rows (none today), and an interpolated value (`{role}`) yields nothing, so it is
+    silently dropped — the non-empty assertion reds only when no literal remains."""
+    written: set[str] = set()
+    for rel in _AUTOMATION_WRITERS:
+        written |= set(
+            re.findall(r"Agent-Role: ([a-z-]+)", (FABRIK / rel).read_text(encoding="utf-8"))
+        )
+    assert written, (
+        f"no Agent-Role value found in {_AUTOMATION_WRITERS} — the regex or the writers moved"
+    )
+    rows_by_file: dict[str, str] = {}
+    for rel in ("CLAUDE.md", TEMPLATE_REL, _PACK_REL):
+        text = (FABRIK / rel).read_text(encoding="utf-8")
+        section = _trailer_section(text, rel)
+        cells = _agent_role_row(section, rel)  # asserts exactly one row, naming the file
+        rows_by_file[rel] = next(
+            ln for ln in section.split("\n") if ln.startswith("| `Agent-Role` |")
+        )
+        for value in sorted(written):
+            assert f"`{value}`" in cells[1], (
+                f"{rel}: the Agent-Role values omit `{value}`: {cells[1]}"
+            )
+        assert _WRITER_CLAUSE in cells[2], (
+            f"{rel}: the When cell lacks the writer clause: {cells[2][:90]}"
+        )
+    assert len(set(rows_by_file.values())) == 1, (
+        "the Agent-Role row is ONE text across the three files — it differs: "
+        + " / ".join(f"{k}: {v[:60]}" for k, v in rows_by_file.items())
+    )
+    pack = _trailer_section((FABRIK / _PACK_REL).read_text(encoding="utf-8"), _PACK_REL)
+    name_rows = [ln for ln in pack.split("\n") if ln.startswith(_AGENT_NAME_ROW_PREFIX)]
+    assert len(name_rows) == 1, (
+        f"{_PACK_REL}: expected exactly one Agent-Name row, found {len(name_rows)}"
+    )
+    assert "§ Agent Provenance Trailers owns the rule" in name_rows[0], (
+        f"{_PACK_REL}: the Agent-Name row must point at CLAUDE.md's section, not restate the rule"
+    )
+    assert "most projects omit" not in name_rows[0], (
+        f"{_PACK_REL}: the Agent-Name row still says most projects omit"
+    )
+    enum = re.findall(r"`(coordinator|infra|fleet|intel|kaizen)`", name_rows[0])
+    assert not enum, f"{_PACK_REL}: the Agent-Name row still carries a role enum: {enum}"
+
+
+# ── W-85e4e5e4: the shared-tree paragraph's distribution sentence addresses THREE readers ──
+# The plumbing warning ("no COMMIT hook runs … the post-commit sync NEVER FIRES") is read in the
+# hub's main checkout, in every hub worktree and in 49 synced project copies (2026-10-23 census:
+# 50 of 51 /opt/*/CLAUDE.md carry it — the 50th is the hub's own contract; fabrik-lib's hand-kept
+# contract lacks it). Its old close — "distribute with `scripts/sync_enforcement_to_projects.py
+# --force` yourself" — was right for the first reader only: a worktree copy ships a mix neither
+# tree holds (CLAUDE.md § Sync-consciousness) and no project has the script (`ls
+# /opt/*/scripts/sync_enforcement_to_projects.py` → only the hub's), so a project agent either
+# no-ops or runs the hub's working-tree push from /opt/fabrik (the D-202 hazard). The template's
+# own Fabrik-synced HARD STOPS row told the same reader to "+ re-sync". Nothing pinned the copies:
+# the sentence sits in no T6_CLAIMS fragment, so a one-file edit passed the whole suite.
+
+_DISTRIBUTION_SENTENCE = (
+    "and on a governance-sync trigger surface the post-commit sync NEVER FIRES — distributing is "
+    "the hub MAIN checkout's job alone: a session there runs "
+    "`scripts/sync_enforcement_to_projects.py --force` itself, a hub worktree's change ships when "
+    "the hub merges it, and a project never runs that script (its synced copies are the hub's to "
+    "change — § HARD STOPS)."
+)
+# The two retired addresses, checked over the WHOLE file: a copy pasted elsewhere, or a second
+# "yourself" sentence beside the pinned one, would otherwise survive.
+_RETIRED_DISTRIBUTION_ADDRESSES = ("--force` yourself", "+ re-sync")
+
+
+def test_the_distribution_sentence_is_one_literal_text_in_both_contracts() -> None:
+    """Input domain: the two contracts as committed (`CLAUDE.md`, the fleet template); the
+    sync-excluded `/opt/fabrik-lib/CLAUDE.md` lacks the sentence and is not read.
+
+    A LITERAL pin, not a slice-and-substring check: red on base (the literal is absent from both
+    files, and both carry a retired address), equal across the two files by construction, and
+    immune to the cobra a substring grader admits — a sentence that carries the three phrases yet
+    tells a project to run the script with a trailing "unless …". Its cost is the T6 discipline
+    already in force for this paragraph: a legitimate rewording edits the constant too."""
+    for rel in ("CLAUDE.md", TEMPLATE_REL):
+        text = (FABRIK / rel).read_text(encoding="utf-8")
+        count = text.count(_DISTRIBUTION_SENTENCE)
+        assert count == 1, (
+            f"{rel}: the distribution sentence must occur exactly once, found {count} — the hub "
+            "contract and the fleet template carry ONE text that names the hub MAIN checkout as the "
+            "only runner of the sync script, a worktree's merge as its route, and a project as never "
+            "running it"
+        )
+        for retired in _RETIRED_DISTRIBUTION_ADDRESSES:
+            assert retired not in text, (
+                f"{rel}: still carries the retired address {retired!r} — only the hub's MAIN "
+                "checkout runs the sync script; a project never re-syncs"
+            )
