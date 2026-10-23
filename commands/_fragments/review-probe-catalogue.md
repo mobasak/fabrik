@@ -191,7 +191,10 @@ it, or name in the brief why the shape does not have it.
 - Sweep: a corrected claim or quote across every file the change touched (test docstrings included), whitespace- and
   wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix
   writes that restates a rule already stated elsewhere, found at its source by that restated rule's terms and two
-  rewordings of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; every doc line,
+  rewordings of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; a fix that
+  narrows, widens or splits a rule's subject is held to `/fabrik-review`'s replaced-form rule, "the shapes enumerated
+  from the OLD form before the fix is drafted, never from the new one": here each case the old subject covered that no
+  new clause covers, or that two now cover, listed in your report with where each now lands; every doc line,
   docstring, comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module
   that no longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks, in
   the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix outdates), and
@@ -203,9 +206,7 @@ it, or name in the brief why the shape does not have it.
   line), never renumbered by hand, and the remap runs after each round's fix, before the next pin, over every anchor a
   brief or mutant list carries.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
-  corrected fact stated at the original claim's scope; a fix that narrows a rule's subject lists, before the pin, each
-  case the old subject covered that the new wording drops, and names where each now lands or that it is dropped on
-  purpose; every clause on a count-fixed line, and every reworded README
+  corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
   claim, checked against the code lines it names, and a sentence (a comment, a docstring, a doc line) describing a
   matcher, regex or guard written from its input space executed on both sides (punctuation, underscore, empty, the
   lead's escape variants and every one the seats returned) before the pin, never from its subject's own docstring; a

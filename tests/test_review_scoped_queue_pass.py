@@ -1141,12 +1141,21 @@ def test_a_seat_runs_a_mutant_against_whole_test_files() -> None:
     )
 
 
-def test_a_narrowing_fix_lists_the_cases_its_new_wording_drops() -> None:
+def test_a_fix_reshaping_a_rule_subject_lists_the_old_cases_before_drafting() -> None:
     """Row 1792730405 (a recurrence of held fix-narrowed-input-strands-defensive-guards): a round-1 fix split a rule's
-    subject, and the cases the new wording no longer covered cost the next two rounds."""
+    subject, and the cases the new wording no longer covered cost the next two rounds. The Sweep bullet, read before
+    the draft, points at /fabrik-review's replaced-form rule and quotes it verbatim."""
     cat = re.sub(r"\s+", " ", CAT.read_text())
+    quote = (
+        "the shapes enumerated from the OLD form before the fix is drafted, never from the new one"
+    )
     assert (
-        "corrected fact stated at the original claim's scope; a fix that narrows a rule's subject lists, before the"
-        " pin, each case the old subject covered that the new wording drops, and names where each now lands or that"
-        " it is dropped on purpose; every clause on a count-fixed line"
+        "held to `/fabrik-review-scoped` step 3's rule for what is already stated; a fix that narrows, widens or splits"
+        " a rule's subject is held to `/fabrik-review`'s replaced-form rule, \""
+        + quote
+        + '": here each case the old'
+        " subject covered that no new clause covers, or that two now cover, listed in your report with where each now"
+        " lands;"
     ) in cat
+    review = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text())
+    assert quote in review

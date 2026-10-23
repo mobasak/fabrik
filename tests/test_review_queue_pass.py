@@ -717,7 +717,11 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
     assert (
         "each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix writes that"
         " restates a rule already stated elsewhere, found at its source by that restated rule's terms and two rewordings"
-        " of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; every doc line, docstring,"
+        " of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; a fix that narrows,"
+        " widens or splits a rule's subject is held to `/fabrik-review`'s replaced-form rule, \"the shapes enumerated"
+        ' from the OLD form before the fix is drafted, never from the new one": here each case the old subject covered'
+        " that no new clause covers, or that two now cover, listed in your report with where each now lands; every doc"
+        " line, docstring,"
         " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
         " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
         " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
