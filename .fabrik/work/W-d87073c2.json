@@ -3,7 +3,7 @@
   "created": "2026-10-21T19:01:06.277342Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "fd3825e2e05969ed673cfe6560e214d87caa6ed2",
   "id": "W-d87073c2",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: a security issue (default admin password shared by three consumers); one runbook plus one window, one session",
-  "status": "open",
+  "status": "done",
   "title": "Runbook for W-a2ee211b (panel 2026-10-21): scoped logins for GlitchTip and postgres_exporter on vps1, then rotate the postgres admin password — list every consumer first (glitchtip web+worker compose:7,35; monitoring compose:185; untracked infra/vps1/postgres/.env:2; hub .env PG_/POSTGRES_ keys; site-provisioner DATABASE_URL; /opt/backups/pre-backup.sh), keep the old password for rollback, rotate before the PG18 hub window, hand the operator the new password"
 }

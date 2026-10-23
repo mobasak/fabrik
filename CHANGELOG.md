@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `agents_up.sh rotate-session`: a session rotation typed by a user unit, never by an agent (2026-10-23)
+
+- The coordinator's verb (`scripts/sysadmin/rotate_session.py request`) checks that the agent's pane is idle at an item boundary (registry status, transcript turn end, no run record, no seat in flight, worktree clean and pushed, empty input) and writes one data-only request; the new user units `fabrik-rotate.path`/`.service` (`install_rotate_unit.sh`) re-run every check, type `/clear` (or `/compact <focus>`) and one resume prompt, verify the new session and record every outcome in `~/.claude/state/rotations.jsonl`. The auto-mode classifier refuses an agent's own `tmux send-keys` into a pane, which is why a unit types (W-f975fee0 slice 2, D-1135).
+### Fixed — Session-history bullet: the ROTATE-DUE and COMPACT-DUE lines are described as shipped (2026-10-23)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`, the Session history (D-736) bullet, after W-f975fee0 slice 1 (D-1139) shipped the context sensor:
+  - the 40% rotation trigger names the `transcript_size_check.py` hook's `ROTATE-DUE` line, no longer "once W-f975fee0 lands";
+  - the 85% mid-item `/compact` names the hook's `COMPACT-DUE` line;
+  - the "whatever its own 'run … now' says" caveat is gone, because the `ROTATE:` line no longer says "now";
+  - `agents_up.sh rotate-session` waits on W-f975fee0 slice 2 (D-1135).
+- `tests/test_session_rotation_rule.py` pins the new phrases and fails on any of the three stale ones. Asked by infra in mail 01M5JZ2TG4.
+
 ### Changed — /fabrik-plan-review queue pass: the input grid, closed-token fields, pinned-code archives, plain seat commands, all-or-nothing fix scripts (2026-10-23)
 
 - `commands/_sources/fabrik-plan-review.md`:
