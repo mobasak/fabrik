@@ -291,12 +291,13 @@ measured before anything blocks). `reply`/`relay` are exempt (closure traffic).
 
 The hook (`mail_notify.py`) resolves the repo by the git main-checkout basename (`$MAIN` — worktrees
 lie; `/opt`-only), reads the current repo's inbox, and injects at most 3 summaries, oldest first (then
-`+N more — run mail.py list`), under a header counting the inbox total. On `UserPromptSubmit` a digest
-byte-identical to the last full one this session was shown, under 30 minutes old, prints as ONE line —
-`## 📬 fabrik-mail — <total> unread in <repo>, unchanged since the last full digest above — python scripts/mail.py list`,
-with `<total>` the inbox's message files — because every
-printed copy stays in the session's context (its sha256 per session under `MAIL_NOTIFY_STATE_DIR`, default
-`~/.claude/state/mail-notify/`, written after the print; `SessionStart` always prints in full; W-25f6b2a3).
+`+N more — run mail.py list`), under a header counting the inbox's message files (dot-names skipped, as
+`mail.py list` skips them; an unparseable file counts until `list` quarantines it). Every printed copy stays
+in the session's context, so on `UserPromptSubmit` a digest byte-identical to the last full one this session
+was shown, under 30 minutes old, prints as ONE line instead —
+`## 📬 fabrik-mail — <total> unread in <repo>, unchanged since the last full digest above — python scripts/mail.py list`
+(its sha256 per session under `MAIL_NOTIFY_STATE_DIR`, default `~/.claude/state/mail-notify/`, written after the
+print; `SessionStart` always prints in full; W-25f6b2a3).
 Each summary:
 
 ```

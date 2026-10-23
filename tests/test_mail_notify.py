@@ -183,6 +183,7 @@ def test_digest_shows_three_rows_under_the_total(monkeypatch, capsys, mailbox):
     # the total is every message file, wherever an unparseable one sorts against the cap
     (mailbox / "01AAA.md").write_text("no frontmatter\n")
     (mailbox / "01ZZZ.md").write_text("no frontmatter\n")
+    (mailbox / ".01TMP.md").write_text("a dot-name `mail.py list` skips\n")
     assert _prompt(monkeypatch, capsys).startswith("## 📬 fabrik-mail — 7 unread in testrepo")
 
 

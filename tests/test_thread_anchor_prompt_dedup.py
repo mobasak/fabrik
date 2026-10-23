@@ -65,8 +65,9 @@ def test_unchanged_block_prints_pointer_and_change_reprints(tmp_path):
     digest.write_text(json.dumps(rec))
     assert _hook(tmp_path) == changed
     assert _hook(tmp_path).strip() == POINTER.format(s="s1")
-    # just under the bound still points; a future time never does
-    for at, pointer in ((time.time() - 1800 + 0.5, True), (time.time() + 100, False)):
+    # inside the bound still points (a 10 s margin: each call starts an interpreter); a future
+    # time never does — the exact edge is graded in-process, below
+    for at, pointer in ((time.time() - 1790, True), (time.time() + 100, False)):
         digest.write_text(json.dumps({**json.loads(digest.read_text()), "at": at}))
         assert (_hook(tmp_path).strip() == POINTER.format(s="s1")) is pointer, at
     # SessionStart always prints in full, even unchanged
@@ -110,6 +111,14 @@ def _in_process(monkeypatch, tmp_path, payload: dict) -> str:
     monkeypatch.setattr(ta, "cmd_clear_decision", lambda *a, **k: None)
     monkeypatch.setattr(ta.sys, "stdin", io.StringIO(json.dumps(payload)))
     return ta
+
+
+def test_the_refresh_bound_is_thirty_minutes(monkeypatch, tmp_path):
+    ta = _in_process(monkeypatch, tmp_path, {})
+    path = ta._prompt_digest_path("s1")
+    for age, fresh in ((1799.5, True), (1800.5, False)):  # read as literals, never from the code
+        path.write_text(json.dumps({"digest": "d", "at": time.time() - age}))
+        assert ta._prompt_is_fresh("s1", "d") is fresh, age
 
 
 def test_a_rescue_warning_is_never_hidden_and_the_digest_follows_the_print(monkeypatch, tmp_path):
