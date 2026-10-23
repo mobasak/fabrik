@@ -1115,3 +1115,26 @@ def test_w_ee19169d_review_r2_exact_box_at_the_key_and_rewind_only_without_a_box
     row = _rows(world)[-1]
     assert row["outcome"] == "refused:stale-input" and "did not read empty" in row["reason"], row
     assert _keys(world) == [["-t", "%5", "Escape", "Escape"]], _keys(world)
+
+
+def test_w1783a9fe_resume_prompt_steers_off_the_isolation_prompt():
+    """W-1783a9fe: a rotated builder's first turn prints 40-47 KB, the harness saves it to a file, and paging that file
+    with `sed` on a shell variable stops Claude Code's worktree-isolation check for a person. The resume prompt sends the
+    notes and any saved output to the Read tool and every command to a plain call of its own; its prefix and re-bind
+    command stay as `_send` and the fake tmux match them."""
+    text = rs.resume_prompt("dev1")
+    assert text.startswith("You were rotated"), text
+    assert "/opt/fabrik/scripts/whoami_agent.py --as dev1 --force" in text, text
+    assert "and carry on. Read your memory notes and seed with the Read tool, not cat" in text, text
+    assert (
+        "run each command, git included, as a separate Bash call (the self-watch arm stays in the background)"
+        in text
+    )
+    assert "saved to a file with the Read tool" in text, text
+    # review r1: the measured case put the variable in sed's EXPRESSION (`sed -n "${n}p"`), not the file name
+    assert (
+        "never give sed, awk or head a shell variable or $( ), in the file name or the expression"
+        in text
+    ), text
+    for kept in ("selfwatch_arm.sh", "never the previous transcript"):
+        assert kept in text, kept

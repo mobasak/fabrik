@@ -150,7 +150,9 @@ than that text (empty, a placeholder, a dialog) (an Enter sent right behind the 
 waits for the registry's new session id,
 then types one resume prompt — re-arm the self-watch (a /clear may kill or orphan background shells), re-bind with
 `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force`, read only the memory notes, `work.py next` and
-the run's seed — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
+the run's seed, the notes and any output the harness saved to a file through the Read tool and each command as a
+separate Bash call, never sed, awk or head on a shell variable (Claude Code's worktree isolation stops on that for a
+person — W-1783a9fe, D-1173) — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
 `partial:<step>`, `typed-unsent:<step>` — a text that never showed, never settled, or stayed in the input line after `C-m` —, and the verb's `aborted:<check>`) in
 `~/.claude/state/rotations.jsonl`. Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`

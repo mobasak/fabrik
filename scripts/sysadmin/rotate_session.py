@@ -797,7 +797,14 @@ def resume_prompt(name: str) -> str:
         f"You were rotated at an item boundary (D-1119). First re-arm your self-watch: run bash "
         f"/opt/fabrik/scripts/sysadmin/selfwatch_arm.sh <your session id> in the background. Then run python3 "
         f"/opt/fabrik/scripts/whoami_agent.py --as {name} --force. Then read only your memory notes, python3 "
-        f"scripts/work.py next and your run's seed if one is named there — never the previous transcript — and carry on."
+        f"scripts/work.py next and your run's seed if one is named there — never the previous transcript — and carry on. "
+        # W-1783a9fe: one Bash call reading all of the above printed 40-47 KB, the harness saved it to a file, and paging
+        # that file with sed on a shell variable stopped Claude Code's worktree-isolation check for a person (10 min in
+        # intel's pane); the Read tool opens the same saved file with no prompt (measured)
+        f"Read your memory notes and seed with the Read tool, not cat; run each command, git included, as a separate "
+        f"Bash call (the self-watch arm stays in the background); open any output the harness saved to a file with "
+        f"the Read tool (offset and limit) — never give sed, awk or head a shell variable or $( ), in the file name "
+        f"or the expression."
     )
 
 

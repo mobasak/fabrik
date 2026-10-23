@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the resume prompt after a /clear rotation no longer leads a builder into a permission prompt (2026-10-23)
+
+- `rotate_session.py::resume_prompt` now tells the rotated builder to read its notes, its seed and any output the
+  harness saved to a file with the Read tool, to run each command as a separate Bash call (the self-watch arm stays in
+  the background), and never to give sed, awk or head a shell variable. One Bash call of 40-47 KB, paged with
+  `sed -n '…' $f`, stopped Claude Code's worktree-isolation check for a person (intel waited 10 min). The path, which
+  resolves through a symlink into `~/.claude/projects`, was measured not to be the trigger (W-1783a9fe, D-1173).
+  Test: `tests/test_rotate_session.py::test_w1783a9fe_resume_prompt_steers_off_the_isolation_prompt`.
+
 ### Changed — command-improve: handles are copied from the latest --queue output and grepped back as the whole first field (2026-10-23)
 
 - `commands/_sources/fabrik-command-improve.md` PHASE 1, beside the `ts` definition: the lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyped or taken from a seat's report, maps a seat's row back to its line by verdict text, and before `--reject`, the trailer or `--mark-answered` takes a handle greps that output for it as a line's whole first field (`command grep -P '^\Q<ts>\E\t'`) — a truncated or wrong-line handle no longer passes. Answers `/fabrik-command-improve` feedback rows 1792765907, 1792734774, 1792707211 (recurrence of the held mark-handles-from-take-output subject); reviewed by `/fabrik-review-scoped` (6→3→3 own-fix, scope-growth stop, remainder round 0).
