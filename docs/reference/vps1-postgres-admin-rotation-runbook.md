@@ -14,9 +14,10 @@ go, relayed by the coordinator. Every file edited on vps1 is backed up first
 - `infra/vps1/glitchtip/compose.yaml:11` and `:39` (web and worker): `DATABASE_URL: postgresql://postgres:postgres@postgres-main:5432/glitchtip`
 - `infra/vps1/monitoring/compose.yaml:185` (postgres-exporter): `DATA_SOURCE_NAME: postgresql://postgres:postgres@postgres-main:5432/postgres?sslmode=disable`
 
-Both files are MIRRORS. The live stacks are the hand-maintained composes on vps1: `/opt/glitchtip/compose.yaml` per
-`infra/vps1/glitchtip/compose.yaml:2`, and the monitoring stack per `src/fabrik/drivers/prometheus.py:91-92`. No
-deployer applies these mirrors, so every edit below lands on the live file first and is mirrored in git after.
+Both files are MIRRORS. GlitchTip's live stack is the hand-maintained `/opt/glitchtip/compose.yaml` on vps1
+(`infra/vps1/glitchtip/compose.yaml:2`). The monitoring compose is a mirror too (`src/fabrik/drivers/prometheus.py:91-92`
+names the mirror only), and its live path is found in step 1. No deployer applies these mirrors, so every edit below
+lands on the live file first and is mirrored in git after.
 
 ## Consumers of the admin login
 
@@ -25,13 +26,13 @@ The fourth column says whether a rotation breaks the consumer.
 | # | Consumer | Where | Uses the password? |
 |---|---|---|---|
 | 1 | GlitchTip web + worker | live `/opt/glitchtip/compose.yaml` on vps1; mirror `infra/vps1/glitchtip/compose.yaml:11`, `:39` | yes, until step 3 moves it to its own login |
-| 2 | postgres_exporter | live monitoring compose on vps1; mirror `infra/vps1/monitoring/compose.yaml:185` | yes, until step 3 moves it to its own login |
+| 2 | postgres_exporter | live monitoring compose on vps1 (path found in step 1); mirror `infra/vps1/monitoring/compose.yaml:185` | yes, until step 3 moves it to its own login |
 | 3 | `postgres-main` itself | `infra/vps1/postgres/compose.yaml:7` reads the untracked `infra/vps1/postgres/.env` (`POSTGRES_PASSWORD`, line 2) | only at first init of an empty data directory; the file must still match, so that a rebuild does not resurrect the old password |
 | 4 | Hub `.env`, `POSTGRES_HOST=postgres-main` / `POSTGRES_USER=postgres` / `POSTGRES_PASSWORD` | `/opt/fabrik/.env` | the value is updated in step 5. Nothing in `src/` reads it; `scripts/gather_envs.py:173` only classifies the name. The `PG_*` keys point at the WSL `localhost` database and are out of scope |
 | 5 | Every scaffolded app whose `.env` lacks `DATABASE_URL` | the fallback `DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/…}` in `templates/python-api/compose.yaml.j2:46`, `templates/node-api/compose.yaml.j2:29`, `templates/saas-skeleton/compose.yaml.j2:25`, `templates/chrome-extension/compose.yaml.j2:31`, `templates/_partials/_companion_service.yaml.j2:40`, `apps/example-api/compose.yaml:21` | yes, for any deployed app that relies on the fallback. Step 1 lists them |
 | 6 | site-provisioner `DATABASE_URL` | the vps1 `.env` beside `infra/vps1/site-provisioner/compose.yaml` (untracked) | yes if it names `postgres` (step 1 reads it) |
 | 7 | `/opt/backups/pre-backup.sh` | on vps1 | yes if it connects over TCP as `postgres`; no if it uses `docker exec` (step 1 reads it) |
-| 8 | Hub callers over the container's local socket | `src/fabrik/drivers/postgres.py:136`, `src/fabrik/audit.py:183`, `scripts/vps_sync.py:453`, `scripts/audit/06-backup.sh:103`, `scripts/bootstrap/bootstrap-hub.sh:1217,1232,1286,1330,1343,1765`, `docs/operations/deployment.md:537` — all `docker exec … psql -U postgres` or `pg_dump -U postgres` | **no**: local socket authentication never checks a role password, whatever its method. Step 1 confirms the `local` lines |
+| 8 | Hub callers over the container's local socket | `src/fabrik/drivers/postgres.py:136`, `src/fabrik/audit.py:183`, `scripts/vps_sync.py:453`, `scripts/audit/06-backup.sh:103`, `scripts/bootstrap/bootstrap-hub.sh:1217,1232,1286,1330,1343,1765`, `docs/operations/deployment.md:537` — all `docker exec … psql -U postgres` or `pg_dump -U postgres` | **no, as long as** the `local` line for `postgres` is `trust`: they send no password. Under `scram-sha-256`, `md5` or `password` they would break after step 4, and `peer` already fails because `docker exec` runs as root. Step 1 stops on anything but `trust` |
 | 9 | Anything else connecting as `postgres` over TCP | vps1 itself, the hub and the spokes over WireGuard (`infra/vps1/postgres/compose.yaml:24` binds `10.99.0.1:5432`) | found only live: step 1's file sweep and `pg_stat_activity` with `client_addr` |
 
 ## Steps
@@ -46,7 +47,8 @@ sudo docker exec postgres-main psql -U postgres -tAc 'show server_version'
 sudo docker exec postgres-main sh -c 'grep -vE "^\s*(#|$)" "$PGDATA/pg_hba.conf"'
 # rows 5, 6, 7, 9: every file on the box that can log in as the superuser (names only)
 sudo grep -rIlE 'postgres(ql)?://postgres:|user=postgres|-U postgres|PGPASSWORD|POSTGRES_PASSWORD' /opt 2>/dev/null
-sudo sed -E 's/(PGPASSWORD=|PASSWORD=|:\/\/[^:]+:)[^@ ]*/\1***/g' /opt/backups/pre-backup.sh | grep -nE 'psql|pg_dump|PGPASSWORD'
+sudo grep -rIl 'postgres-exporter' /opt --include='*compose*.y*ml' 2>/dev/null   # the live monitoring compose (row 2)
+sudo sed -E 's/((PG)?PASSWORD=|[Pp]assword=|:\/\/[^:]+:)[^@ "]*/\1***/g' /opt/backups/pre-backup.sh | grep -niE 'psql|pg_dump|password'
 # row 9: live TCP sessions by login. Re-run across a day; a cron consumer shows only when it runs
 sudo docker exec postgres-main psql -U postgres -tAc "select usename, application_name, client_addr, count(*) from pg_stat_activity where client_addr is not null group by 1,2,3 order by 1"
 # the exporter's reach: databases where PUBLIC lost CONNECT (each needs a GRANT in step 3)
@@ -58,6 +60,8 @@ sudo docker exec postgres-main psql -U postgres -d glitchtip -tAc "select relkin
 Add every hit outside rows 1-8 to the table before going on.
 
 **Stop if:**
+- The `local` line that matches `postgres` (`local all all`, or `local all postgres`) is anything but `trust`.
+  Row 8's passwordless callers would break at step 4.
 - `pg_hba.conf` has a `host … trust` line for a non-loopback address. The password would then protect nothing, and
   that is a different fix.
 - Any consumer is found that step 5 cannot update.
@@ -72,7 +76,7 @@ with `umask 077`, so the files are mode 0600. Keep them until step 6.
 
 A password never goes on a command line, into the SQL text, or into the server log:
 - A failing statement is logged verbatim (`log_min_error_statement`).
-- promtail ships the container logs to Loki (`infra/vps1/monitoring/compose.yaml:35`).
+- promtail mounts the Docker container logs (`infra/vps1/monitoring/compose.yaml:35`) and ships them to Loki.
 
 So roles are created without a password, and each password is set at psql's no-echo prompt, which sends only a
 SCRAM hash. Feed the SQL file on stdin from a `chmod 600` copy on vps1, then delete the copy:
@@ -84,18 +88,20 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'postgres_exporter') THEN CREATE ROLE postgres_exporter LOGIN; END IF;
 END $$;
 GRANT pg_monitor TO postgres_exporter;
--- plus: GRANT CONNECT ON DATABASE <db> TO postgres_exporter;  for each database step 1 listed
+-- one line per database step 1 listed (none listed: no line):
+-- GRANT CONNECT ON DATABASE <db> TO postgres_exporter;
 ALTER DATABASE glitchtip OWNER TO glitchtip;
 \c glitchtip
 BEGIN;
 ALTER SCHEMA public OWNER TO glitchtip;
 DO $$ DECLARE r record; BEGIN
-  -- tables, partitions, foreign tables, views, matviews, and every sequence a column does not own
+  -- tables, partitions, foreign tables, views, matviews, composite types, and every sequence a column does not own
   FOR r IN SELECT format('ALTER %s %I.%I OWNER TO glitchtip',
              CASE c.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW'
-                            WHEN 'f' THEN 'FOREIGN TABLE' ELSE 'TABLE' END, n.nspname, c.relname) AS q
+                            WHEN 'f' THEN 'FOREIGN TABLE' WHEN 'c' THEN 'TYPE' ELSE 'TABLE' END, n.nspname, c.relname) AS q
            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-           WHERE n.nspname = 'public' AND c.relkind IN ('r','p','S','v','m','f')
+           WHERE n.nspname = 'public' AND c.relkind IN ('r','p','S','v','m','f','c')
+             AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')
              AND NOT (c.relkind = 'S' AND EXISTS (SELECT 1 FROM pg_depend d
                        WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
                          AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a','i')))
@@ -103,21 +109,23 @@ DO $$ DECLARE r record; BEGIN
   -- functions and procedures, extension members excluded
   FOR r IN SELECT format('ALTER ROUTINE %s OWNER TO glitchtip', p.oid::regprocedure) AS q
            FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
-             AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+             AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
   LOOP EXECUTE r.q; END LOOP;
   -- enums, domains, ranges, multiranges
   FOR r IN SELECT format('ALTER %s %s OWNER TO glitchtip', CASE t.typtype WHEN 'd' THEN 'DOMAIN' ELSE 'TYPE' END,
                          t.oid::regtype) AS q
            FROM pg_type t WHERE t.typnamespace = 'public'::regnamespace AND t.typtype IN ('e','d','r','m')
-             AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = t.oid AND d.deptype = 'e')
+             AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_type'::regclass AND d.objid = t.oid AND d.deptype = 'e')
   LOOP EXECUTE r.q; END LOOP;
 END $$;
 COMMIT;
 ```
 
-The block was executed against a scratch PostgreSQL 16 cluster holding a serial, an identity column, a partitioned
-table, a view, a function, an enum and a domain. Afterwards every public object was owned by `glitchtip`, and
-`ALTER TABLE` on the partitioned parent succeeded as `glitchtip`. Identity and serial sequences follow their table.
+The block, before composite types and the `classid` filters were added, was executed on a scratch PostgreSQL 16
+cluster holding a serial, an identity column, a partitioned table, a view, a function, an enum, a domain and a range
+type. Afterwards every public object was owned by `glitchtip` (the range's multirange with it), and `ALTER TABLE` on
+the partitioned parent succeeded as `glitchtip`. Identity and serial sequences follow their table. Extension members
+(`pg_trgm`, `citext`) stay with their extension, and the checks below exclude them.
 
 Then set the two passwords at the prompt, in `sudo docker exec -it postgres-main psql -U postgres`:
 `\password glitchtip`, then `\password postgres_exporter`.
@@ -126,9 +134,12 @@ Then set the two passwords at the prompt, in `sudo docker exec -it postgres-main
 
 ```sql
 \c glitchtip
-select count(*) from pg_class where relnamespace='public'::regnamespace and relowner <> 'glitchtip'::regrole;
-select count(*) from pg_proc  where pronamespace='public'::regnamespace and proowner <> 'glitchtip'::regrole;
-select count(*) from pg_type  where typnamespace='public'::regnamespace and typtype in ('e','d','r','m') and typowner <> 'glitchtip'::regrole;
+select count(*) from pg_class c where relnamespace='public'::regnamespace and relowner <> 'glitchtip'::regrole
+  and not exists (select 1 from pg_depend d where d.classid='pg_class'::regclass and d.objid=c.oid and d.deptype='e');
+select count(*) from pg_proc p  where pronamespace='public'::regnamespace and proowner <> 'glitchtip'::regrole
+  and not exists (select 1 from pg_depend d where d.classid='pg_proc'::regclass and d.objid=p.oid and d.deptype='e');
+select count(*) from pg_type t  where typnamespace='public'::regnamespace and typtype in ('e','d','r','m') and typowner <> 'glitchtip'::regrole
+  and not exists (select 1 from pg_depend d where d.classid='pg_type'::regclass and d.objid=t.oid and d.deptype='e');
 ```
 
 **Move the two services.** Edit the LIVE composes on vps1, after backing them up. Each DSN goes into an untracked
@@ -147,14 +158,14 @@ Verify before step 4:
 ### 4. Rotate the admin password (gate: credentials)
 
 1. Save the exact current credential for rollback, into a `backups/` file with mode 0600:
-   `select rolpassword from pg_authid where rolname='postgres'`. This is the stored hash or verifier, and it is
-   never typed back as plaintext.
+   `sudo docker exec postgres-main psql -U postgres -tAc "select rolpassword from pg_authid where rolname='postgres'"`.
+   This is the stored SCRAM verifier. It contains `$`, so it never passes through a shell string again.
 2. List the live TCP sessions as `postgres` (step 1's query). These are the consumers that must change in step 5.
 3. In `sudo docker exec -it postgres-main psql -U postgres`, run `\password postgres` and enter the new admin
    password at the prompt.
 4. `ALTER ROLE` does not end open sessions. A password is checked only at connect, so a pooled consumer still on
-   the old password keeps working until it reconnects. Force the re-check now, inside the window:
-   `select pg_terminate_backend(pid) from pg_stat_activity where usename='postgres' and client_addr is not null`.
+   the old password keeps working until it reconnects. That re-check is forced in step 5, after the consumers are
+   updated, never before (terminating first would drop every not-yet-updated consumer).
 
 ### 5. Update every consumer that holds the password, then prove it
 
@@ -163,7 +174,8 @@ Verify before step 4:
 - Row 5: each app `.env` that relies on the fallback. Better, give it its own `DATABASE_URL` (its app role).
 - Rows 6 and 7, and anything step 1 added.
 
-Back up each file first. Then prove it.
+Back up each file first. Then force every TCP `postgres` session to reconnect with the new password, inside the window:
+`select pg_terminate_backend(pid) from pg_stat_activity where usename='postgres' and client_addr is not null`. Then prove it.
 
 - **Watch for stale credentials:** follow
   `sudo docker logs --since <step-4 time> postgres-main 2>&1 | grep 'password authentication failed for user "postgres"'`
@@ -181,9 +193,9 @@ operator confirms they hold it.
 
 | Undo | How |
 |---|---|
-| step 4 | `ALTER ROLE postgres PASSWORD '<the saved verifier>'` (PostgreSQL stores a pre-hashed value as is), fed on stdin from the 0600 file; then restore each step-5 file from its backup |
+| step 4 | copy the 0600 file into the container, then in `sudo docker exec -it postgres-main psql -U postgres`: `\set v \`cat /tmp/pg-verifier\`` and `ALTER ROLE postgres PASSWORD :'v';` (PostgreSQL stores a pre-hashed value as is). Assert `select rolpassword = :'v' from pg_authid where rolname='postgres'` returns `t`, delete the copy, then restore each step-5 file from its backup |
 | step 3, services | restore each live compose and `.env` from its backup and `docker compose up -d`; revert the mirror commit in the hub, or the next sync re-applies it |
-| step 3, ownership | kept on purpose: a superuser still reaches every object, and the scoped roles do no harm. To drop them, run the step-3 block with `OWNER TO postgres` first, or `DROP ROLE` fails with "owns objects" |
+| step 3, ownership | kept on purpose: a superuser still reaches every object, and the scoped roles do no harm. To drop them, first run the step-3 ownership block with every `OWNER TO glitchtip` changed to `OWNER TO postgres` (and `ALTER DATABASE glitchtip OWNER TO postgres`), or `DROP ROLE` fails with "owns objects" |
 
 ## Before and after the rotation
 
