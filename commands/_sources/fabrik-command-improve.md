@@ -392,7 +392,9 @@ unrelated commit, so pass the full sha of the edit and the checkout it was commi
 
 Same `ts` list as the trailer, and every handle must match a REAL row of that command's queue —
 copy them from `--queue` exactly, the whole `ts` with its fractional part (`1792030670` matches no row of
-`1792030670.5328414`), since a typo used to be accepted as answered work. It REFUSES a
+`1792030670.5328414`), since a typo used to be accepted as answered work. Every handle this loop passes — to
+`--reject`, the trailer and this call — is copied by the lead from `--queue` output with its row text beside it,
+never retyped and never taken from a seat's report. It REFUSES a
 commit that touches no corpus path (`commands/_sources/`, `commands/_fragments/`,
 `commands/_agents/`, `.windsurf/rules/`, either `CLAUDE.md`) — a verdict is answered by an EDIT,
 and marking is the one act in this loop that removes a row from view. Re-running it on
