@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rotate-session: a worktree builder's hard-linked transcript and a lagging registry no longer block every rotation (2026-10-23)
+
+- W-477d751a (P0). `rotate_session.py`'s `_transcript` counted transcript NAMES; a worktree builder's transcript sits under its worktree project and the main checkout's as hard-linked names of one file, so every builder's `rotate-session` aborted "2 transcripts". It now counts files by inode, and a name it cannot stat fails closed.
+- Check 0 no longer requires the session registry's `status` to read idle: measured 2026-10-23, infra-2 ended 13 turns and infra-3 8 while their records read "busy" from the 06:00 resume. Check 0 is now the transcript unwritten for 30 s; the registry stays a veto only when it changed after the last turn end, and only for 300 s after that change.
+- Check 1 skips the metadata rows a resume writes after a turn end (`pr-link`, `frame-link`, `system/informational`), which refused idle resumed sessions as "mid-turn", and refuses a turn end whose time it cannot read.
+- `tests/test_hub_write_root.py` allowlists `rotate_session.py` (it only types `/opt/fabrik` paths into a pane; its writes are under `~/.claude/state`), turning master's red `test_every_hub_root_write_hit_is_converted_or_allowlisted` green.
+- Graded in `tests/test_rotate_session.py` (five new tests; ten mutants killed, one equivalent guard removed).
+
 ### Changed — /fabrik-review-scoped queue pass: a seat's mutant run takes the mutant bullet's test set (2026-10-23)
 
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation, which every test-running seat applies whole, told seats to run tests "by exact node id". A seat that re-ran a mutant by one node id, or by a `-k` carried from an earlier brief, missed the other tests pinning the same text.

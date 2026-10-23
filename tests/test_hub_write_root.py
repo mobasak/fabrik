@@ -352,6 +352,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sysadmin/prune_transcripts.py": "untracked: `/opt/fabrik/.env` is only the default SESSION_ARCHIVE_ENV_FILE it reads; its writes (prune ledger and logs under ~/.claude/archive, unlinks and rmtree under ~/.claude, `--restore` back into ~/.claude/projects) are all outside the repo",
     "scripts/sysadmin/quota_dashboard.py": "untracked: quota dashboard state under ~/.claude, outside the repo",
     "scripts/sysadmin/quota_posture_hook.py": "untracked: quota posture state under ~/.claude, outside the repo",
+    "scripts/sysadmin/rotate_session.py": "untracked: TYPES a resume prompt naming /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh and /opt/fabrik/scripts/whoami_agent.py into an agent's pane; its writes (request files, the rotations log) are under ~/.claude/state, outside the repo",
     "scripts/sysadmin/selfwatch_check.py": "untracked: self-watch arm marker under ~/.claude, outside the repo (invokes selfwatch_arm.sh by path)",
     "scripts/sysadmin/send-telegram.sh": "untracked: reads gitignored .env.sysadmin only; sends to the Telegram API, no local tracked-file write",
     "scripts/sysadmin/transcript_size_check.py": "untracked: reads the default SESSION_ARCHIVE_ENV_FILE `/opt/fabrik/.env` and PRINTS a `/opt/fabrik/scripts/whoami_agent.py` command; its one write is the rotate-advised stamp under ~/.claude/state (the context sensor's under its .ctx/ subdir)",

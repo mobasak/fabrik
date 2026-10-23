@@ -14,10 +14,11 @@ and the identity store, and appends one row per outcome to the rotations log. Ke
 QUEUED, not refused, so every check fails CLOSED and nothing is ever queued or retried.
 
 RESOLVE: the tmux session agents_up names from the repo folder; panes deduped by id; exactly one `@agent` == name; its one
-descendant `claude`; that pid's registry record (procStart must match) gives sid, cwd, status; the newest identity binding
-of name in that toplevel must name that sid. CHECKS: (0) registry status idle|shell for 30 s; (1) the transcript's last
+descendant `claude`; that pid's registry record (procStart must match) gives sid and cwd; the newest identity binding
+of name in that toplevel must name that sid. CHECKS: (0) the transcript unwritten for 30 s (the registry's status lags, W-477d751a); (1) the transcript's last
 timestamped row is a system turn end (turn_duration | stop_hook_summary), only away_summary / queue-operation / untimed
-rows after it; (2) no run record frame running; (3) no pool seat whose parent chain reaches the claude pid, and no
+rows after it, and the metadata rows a resume writes (pr-link, frame-link, system informational); a registry that
+turned busy AFTER that turn end vetoes; (2) no run record frame running; (3) no pool seat whose parent chain reaches the claude pid, and no
 background Agent launch in the last 8 MB without its task-notification (no stamp precondition, an unreadable tail
 aborts); (4) the worktree clean and pushed; (5) the screen's last `❯` line is empty between `─` rules.
 
@@ -51,6 +52,7 @@ HERE = Path(__file__).resolve().parent
 STALE_S = 60
 ORPHAN_S = 900  # past the service's TimeoutStartSec (600 s): a `.claimed` nobody can still hold
 IDLE_S = 30
+VETO_S = 300  # a registry flip after the last turn end vetoes this long; measured flips led a turn's first write by 0.02 s
 SEAT_TAIL = 8 * 1024 * 1024
 TURN_END = ("turn_duration", "stop_hook_summary")
 FIELDS = {
@@ -298,10 +300,20 @@ def _transcript(proc: Path, home: Path, pid: int, sid: str) -> Path:
         for kv in (proc / str(pid) / "environ").read_bytes().split(b"\0"):
             if kv.startswith(b"CLAUDE_CONFIG_DIR="):
                 config = Path(kv.split(b"=", 1)[1].decode())
-    found = sorted((config or home / ".claude").glob(f"projects/*/{sid}.jsonl"))
-    if len(found) != 1:
-        raise CheckFailedError("transcript", f"{len(found)} transcripts for session {sid}")
-    return found[0]
+    # A worktree session's transcript sits under its worktree project AND the main checkout's, as hard-linked names
+    # of ONE file (W-477d751a): count files by inode, never names. A name stat cannot follow fails closed.
+    files: dict[tuple[int, int], Path] = {}
+    for f in sorted((config or home / ".claude").glob(f"projects/*/{sid}.jsonl")):
+        try:
+            st = f.stat()
+        except OSError as exc:
+            raise CheckFailedError(
+                "transcript", f"{f.name}: unreadable ({type(exc).__name__})"
+            ) from exc
+        files.setdefault((st.st_dev, st.st_ino), f)
+    if len(files) != 1:
+        raise CheckFailedError("transcript", f"{len(files)} transcripts for session {sid}")
+    return next(iter(files.values()))
 
 
 # ── checks ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -324,17 +336,23 @@ def _tail_rows(path: Path, size: int) -> list[dict]:
     return rows
 
 
-def _idle_row_check(rows: list[dict]) -> None:
+def _idle_row_check(rows: list[dict]) -> float:
+    """The last turn end's time; raises unless the tail ends at one. Metadata rows written after a turn end — a resume
+    writes pr-link, frame-link and system/informational rows (W-477d751a review: 129 pr-link rows after a turn end,
+    quiet for up to 55 min) — are not a turn start."""
     for r in reversed(rows):
         kind, sub = r.get("type"), r.get("subtype")
         if (
             not r.get("timestamp")
-            or kind == "queue-operation"
-            or (kind == "system" and sub == "away_summary")
+            or kind in ("queue-operation", "pr-link", "frame-link")
+            or (kind == "system" and sub in ("away_summary", "informational"))
         ):
             continue
         if kind == "system" and sub in TURN_END:
-            return
+            ended = _ts(r.get("timestamp"))
+            if not ended:
+                raise CheckFailedError("idle", "the last turn end has no readable time")
+            return ended
         content = (
             (r.get("message") or {}).get("content") if isinstance(r.get("message"), dict) else None
         )
@@ -410,18 +428,37 @@ def screen_ok(screen: str) -> bool:
 def run_checks(t: dict) -> Path:
     """Checks 0-5 for a resolved target; returns its transcript path. Raises CheckFailedError at the first failure."""
     home, proc = _home(), _proc()
-    reg = t["reg"]
-    upd = reg.get("statusUpdatedAt")
-    if reg.get("status") not in ("idle", "shell") or not isinstance(upd, (int, float)):
-        raise CheckFailedError("status", f"the session is {reg.get('status')!r}")
-    if time.time() - upd / 1000 < IDLE_S:
-        raise CheckFailedError("status", f"the session went idle less than {IDLE_S} s ago")
     path = _transcript(proc, home, t["pid"], t["sid"])
+    # Check 0 is the transcript's quiet time, never the registry's `status` (W-477d751a): measured 2026-10-23, infra-2
+    # ended 13 turns and infra-3 8 after their records last changed (both "busy" since the 06:00 resume), so the
+    # registry read busy for idle builders. Check 1 below still requires a turn end as the last real row.
+    try:
+        quiet = time.time() - path.stat().st_mtime
+    except OSError as exc:
+        raise CheckFailedError("status", f"transcript unreadable ({exc})") from exc
+    if quiet < IDLE_S:
+        raise CheckFailedError("status", f"the transcript changed less than {IDLE_S} s ago")
     try:
         rows = _tail_rows(path, 2 * 1024 * 1024)
     except OSError as exc:
         raise CheckFailedError("idle", f"transcript unreadable ({exc})") from exc
-    _idle_row_check(rows)
+    ended = _idle_row_check(rows)
+    # The registry is a VETO only when it changed AFTER that turn end — a turn started since — and only for VETO_S after
+    # that change, so its stale "busy" (measured above) never blocks and a busy stamp a resume leaves with no turn after
+    # it expires; a turn whose first transcript write is still pending is what this catches. It is best effort: measured
+    # 2026-10-23, a registry flip came 0.01-0.02 s before a turn's first write (n=3) but one flipped 1037 s AFTER it,
+    # and the gap from a turn start to its first write cannot be read from row timestamps at all.
+    reg = t["reg"]
+    upd = reg.get("statusUpdatedAt")
+    if (
+        reg.get("status") not in ("idle", "shell")
+        and isinstance(upd, (int, float))
+        and upd / 1000 > ended
+        and time.time() - upd / 1000 < VETO_S
+    ):
+        raise CheckFailedError(
+            "status", f"the registry turned {reg.get('status')!r} after the last turn end"
+        )
     rec = hib._run_record(home, t["sid"])
     if rec is None:
         raise CheckFailedError("record", "run record unreadable")
