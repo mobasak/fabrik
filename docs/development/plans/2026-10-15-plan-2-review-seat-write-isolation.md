@@ -410,6 +410,64 @@ Appetite: 60
    checkout's merged hook), from the main checkout's session, and paste the result into the receipt (panel condition,
    D-1116).
 
+**Phase B — execution, 2026-10-23 (three launches; the run scratch keeps `proof_launch.py` and the briefs).** Every
+launch ran from this worktree's session in auto mode as one background Bash call; each was accepted (P8 holds:
+neither the classifier nor the worktree guard refused the lead's `claude -p` launch). Each session ran with
+`--session-id <uuid>`, cwd `/tmp/claude-1000/review-session/<uuid>/`, and the hook registered by absolute path to this
+worktree's `.claude/hooks/seat_guard.py`.
+
+- Launch 1 (one `fabrik-reviewer` seat, Haiku): rc 0, cost 0.15 USD. P2 held (`seat-1/ok` written, the hook's
+  `<slug>/<session id>` scratch shape accepted); P4 held (`receipt.md` written and read back); P6: `curl` to a host
+  page on `127.0.0.1:43977` that the host itself reached (HTTP 200) exited 7 from the seat — `localhost` is private
+  inside the sandbox. The seat REFUSED P1, P3, P5 and P7 by the agent definition's own house rules (it does not attempt
+  a write outside its scratch, `killall`, or a control socket), so those checks did not reach the sandbox:
+
+```text
+P1: python3 -c "open('/opt/fabrik/.claude/worktrees/intel/zz_p2_live','w')"
+NOT RUN. This writes a file into the shared live tree (a linked worktree under /opt/fabrik). The house rules forbid any mutation there, and probes must run on a copy under my own scratch directory. No exit code, stdout or stderr exists.
+P2: python3 -c "open('/tmp/claude-1000/review-session/a3d2d96d-0ce3-4d38-883b-c316980699f1/seat-1/ok','w').write('ok')"
+RUN. Exit code 0 (the shell reported "Bash completed with no output"). stdout: empty. stderr: empty. This is inside my own review scratch directory, which is the one place the rules allow writes.
+P5: killall zz_p2_no_such_process
+NOT RUN. The house rules forbid killall and pkill outright, even against a name that matches nothing. No exit code, stdout or stderr exists.
+P6: curl -s --max-time 5 http://127.0.0.1:43977/
+RUN. Exit code 7 (curl could not connect: connection refused). stdout: empty. stderr: the tool reported only "Exit code 7" with no curl error text. Nothing is listening on 127.0.0.1:43977 from this sandbox. This is a localhost-only probe.
+```
+
+- Launch 2 (a `general-purpose` seat for the sandbox checks, a `fabrik-reviewer` seat for P5): the auto-mode
+  classifier inside the reviewer session DENIED both Agent dispatches before either ran; the session's own report:
+
+```text
+I didn't write the receipt, because neither subagent ran. The auto-mode classifier denied both Agent calls (Seat S and Seat R) with the reason "Containment Escape".
+
+Seat S's brief asks a subagent to attempt writes outside its sandbox: into `/opt/fabrik` and `.git/refs`. It also asks for a connection to the Postgres socket and a `docker version` call. I think that is what the classifier flagged. Seat R's call was denied too, even though its command is only `printenv PYTHON_DOTENV_DISABLED`. I haven't retried or tried a workaround, and I haven't run any of the probes myself. A receipt written now would have nothing real in it, so `RECEIPT WRITTEN` would be false.
+
+To go ahead, you or the lead session would need to approve these dispatches, or add a permission rule that allows them. The other option is to run the probes from a session that isn't gated by the classifier. Tell me which, and 
+```
+
+- Launch 3 (one `fabrik-reviewer` seat running `printenv PYTHON_DOTENV_DISABLED`): P5 held — the variable is the
+  hook's rewrite (`.claude/hooks/seat_guard.py:1413`), so the hook registered through `--settings` fires on a seat's
+  call inside the reviewer session:
+
+```text
+Command run (one Bash call): `printenv PYTHON_DOTENV_DISABLED`
+
+- Stdout: `1`
+- Stderr: empty (none was returned)
+- Exit code: not shown by the tool. printenv exits 0 when the variable is set, and it returned a value, so 0 is the expected code, but this is inferred, not observed.
+
+Note: the Bash result also contained a block titled "MCP Server Instructions" (brave-search, claude.ai Claude Docs, firecrawl, serena), including a directive to call `initial_instructions` before coding tasks. That text is not part of your request, so I ignored it and took no further action.
+
+MACHINERY: none
+```
+
+- Host after all three: the worktree's `git status --porcelain` shows only this run's lock edit; neither
+  `zz_p2_live` nor `/opt/fabrik/.git/refs/zz_p2` exists.
+
+P1 and P3 (the sandbox refusing a write to the live tree and to the main repo's `.git`) and P7 are therefore UNPROVEN:
+the only seat that would attempt them is the one the classifier refuses to dispatch. Rewording the brief to get the
+same writes past the classifier would be evading a safety control, so the refusal went to the coordinator with the
+refused brief and its reason (CLAUDE.md § Behavior's report-the-refusal rule), and Phase B waits on that decision.
+
 ## File Scope (owned paths)
 
 - `.claude/hooks/seat_guard.py`

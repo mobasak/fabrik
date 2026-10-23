@@ -3,16 +3,20 @@
   "owned_paths": [
     ".claude/hooks/seat_guard.py",
     "tests/test_seat_guard.py",
+    "scripts/review_session.py",
+    "tests/test_review_session.py",
     "docs/workstation/hooks-index.md",
+    "docs/reference/review-loop-workflow.md",
     "docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md",
     "docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md",
     "docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md",
-    ".claude/settings.json",
     "docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-phase-A-review.md"
   ],
   "branch": "worktree-intel",
   "started_at": "2026-10-21T23:42:53+00:00",
   "status": "active",
   "baseline_commit": "9fa2aef1f",
-  "baseline_gate": "final_gate --check success at 9fa2aef1f (no red checks)"
+  "baseline_gate": "final_gate --check success at 9fa2aef1f (no red checks)",
+  "resumed_at": "2026-10-23T21:51:00+00:00",
+  "resume_note": "P2 re-plan (D-1163, 677b288a9): Phases B-D; .claude/settings.json left the scope"
 }
