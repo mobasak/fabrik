@@ -250,6 +250,26 @@ also does, when the repo has a store:
   block's digest, so a block answered and then re-asked word for word in a new message whose Stop
   write failed still gets its item. A write that still fails prints one warning line naming the count,
   so a lost write is never silent.
+- **The pending file — when the slot write was skipped too (W-e64aa44a, D7 W4-O3).** The slot write
+  runs under the per-session lock (≤ 1 s) and the store write under the store lock (≤ 2 s), each
+  fail-open; with both busy at one Stop the block was in neither place and the second chance had
+  nothing to read. Now, when the slot write was skipped (the lock busy, or a save that did not land)
+  and the block is not an echo, the Stop side first lands the block in a
+  lock-free file beside the slot — `~/.claude/state/threads/<session>.pending-<digest16>.json`, the
+  slot's `decision` shape plus `session` — BEFORE the store wait, so even a Stop hook killed at its
+  5 s budget leaves it on disk; the store taking the block unlinks it at once. The second chance
+  lists pending files by their own glob (they never take a slot's place in the slot scan's 50-newest
+  window, and the listing has no mtime filter of its own), rescues each live one for this repo with
+  its own session as the item's creator, unlinks them once every entry is in the store, keeps them
+  while the store is busy or momentarily unreadable, skips (unread, kept) one over the size cap,
+  and sweeps — without rescuing — any file older than 7 days (its mtime, or its `ts`), without a
+  session, or whose name does not carry its message digest — before the store check, so a
+  store-less repo's leftovers age out too.
+  The operator's answer settles a pending block exactly as it settles a slot block: the answering
+  prompt's rescue mints the item when the store is free, and the clear that follows drops exactly
+  the pending files that rescue collected for this session — never one a later Stop wrote, and
+  nothing when no rescue ran — so a question answered while the store was busy is never minted
+  later and an unread block survives the answer.
 - **The NEXT rules (spec D3).** The Stop harvest and `scripts/sysadmin/next_census.py`'s fleet
   measurement sort a NEXT's text with the SAME function, `work.classify_next` (T05a) — but they answer
   different questions with it, never one shared verdict: the harvest classifies only the turn's LAST

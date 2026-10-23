@@ -400,22 +400,126 @@ def _load(session: str) -> dict:
     return state
 
 
-def _save(session: str, state: dict) -> None:
+def _write_atomic(p: Path, obj: dict, label: str = "state") -> bool:
     """Atomic write through a UNIQUE temp in the same directory — two writers never share a temp
-    name, and a killed hook never leaves a torn file. Fail-open with one stderr line."""
+    name, and a killed hook never leaves a torn file. Fail-open with one stderr line; returns
+    whether the file landed."""
     tmp = ""
     try:
-        p = _state_path(session)
         p.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=p.name + ".", suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(json.dumps(state, indent=1))
+        try:
+            f = os.fdopen(fd, "w", encoding="utf-8")
+        except Exception:
+            os.close(fd)
+            raise
+        with f:
+            f.write(json.dumps(obj, indent=1))
         os.replace(tmp, p)
+        return True
     except Exception as e:
-        _warn(f"state not saved — {type(e).__name__}: {e}")  # losing one write beats a blocked turn
+        # losing one write beats a blocked turn
+        _warn(f"{label} not saved — {type(e).__name__}: {e}")
         if tmp:
             with contextlib.suppress(OSError):
                 os.unlink(tmp)
+        return False
+
+
+def _save(session: str, state: dict) -> bool:
+    return _write_atomic(_state_path(session), state)
+
+
+# ── the lock-free pending file (W-e64aa44a, D7 W4-O3) ────────────────────────
+# A DECISION block the Stop harvest could not put in the session slot (the per-session flock was
+# busy) is written HERE, before the store call, so the block exists on disk before the ≤ 2 s
+# store wait and the git calls that can push the Stop hook's 5 s subprocess budget on a loaded
+# box — exactly the box where both locks are busy. One file per (session, message digest): a
+# repeat of the same message replaces an equivalent file, two writers need no lock. The store
+# taking the block unlinks it at once; otherwise the next prompt's rescue reads it like a slot
+# and unlinks it once the store holds the item. Listed by its own glob, outside `_state_files`'s
+# mtime filter and 50-newest cap (a slot's mtime moves on every prompt and would starve it).
+_PENDING_GLOB = "*.pending-*.json"
+
+
+def _pending_path(session: str, msg: str) -> Path:
+    slot = _state_path(session)
+    return slot.with_name(f"{slot.stem}.pending-{msg[:16]}.json")
+
+
+def _spool_pending(session: str, block: str, msg: str, ts: float, repo: Path) -> Path | None:
+    """Write the pending file — the slot's own ``decision`` shape plus ``session`` — and return its
+    path when it landed, else None (one stderr line, fail-open)."""
+    path = _pending_path(session, msg)
+    dec = {"ts": ts, "text": block, "msg": msg, "repo": str(repo), "session": session}
+    return path if _write_atomic(path, {"decision": dec}, label="pending DECISION") else None
+
+
+def _is_pending(path: Path) -> bool:
+    return ".pending-" in path.name
+
+
+def _collect_pending(
+    repo: Path, cutoff: float, deadline: float = math.inf
+) -> tuple[list[tuple[str, str, str]], list[Path]]:
+    """Every live pending file for ``repo`` as a rescue entry (text, msg, its own session) with its
+    path. A file whose mtime is before ``cutoff`` is unlinked UNREAD; one over _RESCUE_MAX_BYTES is
+    skipped unread and kept; one whose ``ts`` is before ``cutoff``, or whose shape is garbage (no session
+    string, a name whose digest is not its ``msg``, no text, not JSON) is unlinked after the read,
+    so one bad file never keeps the healthy ones waiting; a file that cannot be READ right now
+    (an OSError) is kept for the next prompt — a transient error must never destroy a live block;
+    another repo's live file is left for that repo's prompt. A file not reached before ``deadline``
+    waits for the next prompt. Each file's handling is guarded; the glob runs inside the caller's
+    try."""
+    entries: list[tuple[str, str, str]] = []
+    paths: list[Path] = []
+    for path in _state_dir().glob(_PENDING_GLOB):
+        if time.monotonic() >= deadline:
+            break
+        try:
+            st = path.stat()
+        except OSError:
+            continue  # gone or unreadable right now: the next prompt looks again
+        if st.st_mtime < cutoff:  # the age sweep comes FIRST: an oversize file ages out too
+            with contextlib.suppress(OSError):
+                path.unlink()
+            continue
+        if st.st_size > _RESCUE_MAX_BYTES:
+            continue  # never read, never unlinked: the slot path skips an oversize file the same way
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except OSError:
+            continue  # transient: kept
+        try:
+            top = json.loads(raw)
+            dec = top.get("decision") if isinstance(top, dict) else None
+            who = dec.get("session") if isinstance(dec, dict) else None
+            msg = dec.get("msg") if isinstance(dec, dict) else None
+            text = dec.get("text") if isinstance(dec, dict) else None
+            ts = _ts(dec) if isinstance(dec, dict) else None
+            if not (
+                isinstance(dec, dict)
+                and isinstance(who, str)
+                and who
+                and isinstance(msg, str)
+                and msg
+                and path.name.endswith(f".pending-{msg[:16]}.json")
+                and isinstance(text, str)
+                and text.strip()
+                and ts is not None
+                and ts >= cutoff
+            ):
+                with contextlib.suppress(OSError):
+                    path.unlink()
+                continue
+            if dec.get("repo") != str(repo):
+                continue
+            entries.append((text, msg, who))
+            paths.append(path)
+        except Exception:
+            with contextlib.suppress(OSError):  # not JSON, or a shape no reader can use
+                path.unlink()
+    return entries, paths
 
 
 @contextlib.contextmanager
@@ -460,7 +564,9 @@ def _update(session: str, fn: Callable[[dict], bool]) -> bool:
             return False
         state = _load(session)
         if fn(state):
-            _save(session, state)
+            # a save that did not land (review A-haiku: the slot path a directory, a full disk) is
+            # NOT applied — the harvest then spools the block instead of trusting the slot
+            return _save(session, state)
         return True
 
 
@@ -639,8 +745,22 @@ def cmd_harvest(
     # The echo guard reaches the store too: an answered message harvested again (the Stop hook's
     # retry re-reads the same text) never mints an item for a settled question (A-O3).
     store_block = block if stored else None
+    pending: Path | None = None
+    if store_block and not applied and repo is not None:
+        # The slot missed it: land the block in the lock-free pending file BEFORE the store wait,
+        # so a 5 s kill of this hook subprocess cannot lose it (D7 W4-O3, W-e64aa44a).
+        pending = _spool_pending(session, store_block, msg, now, repo)
     # accepted = the register ACCEPTED it and WROTE it: a skipped write kept no anchor
-    _store_harvest(repo, session, store_block, msg, nxt_text, next_anchored=anchored and applied)
+    got = _store_harvest(
+        repo, session, store_block, msg, nxt_text, next_anchored=anchored and applied
+    )
+    if got is not None and store_block:
+        # the store holds it: this message's pending file — this Stop's or an earlier one's twin
+        # for the same message — has nothing left to carry
+        with contextlib.suppress(OSError):
+            _pending_path(session, msg).unlink()
+    elif pending is not None:
+        _warn("DECISION block kept in a pending file until the work store takes it")
 
 
 def _store_harvest(
@@ -651,24 +771,27 @@ def _store_harvest(
     next_text: str | None,
     *,
     next_anchored: bool,
-) -> None:
+) -> str | None:
     """The Stop harvest's ONE store call (``work.on_harvest``, fail-open inside). Never raises.
     ``next_anchored`` (the register accepted the NEXT) is passed only to a ``work.py`` that
-    declares it (``_takes_next_anchored``)."""
+    declares it (``_takes_next_anchored``). Returns the decision item's id when the store wrote
+    (or already held) the block, else None — the caller's signal to keep or drop the pending file."""
     if repo is None:
-        return
+        return None
     w = _work()
     if w is None:
-        return
+        return None
     extra: dict[str, bool] = {}
     if _takes_next_anchored(w):
         extra["next_anchored"] = next_anchored
     try:
-        w.on_harvest(
+        got = w.on_harvest(
             repo, session=session, block=block, msg_digest=msg, next_text=next_text, **extra
         )
+        return got if isinstance(got, str) and got else None
     except Exception as e:
         _warn(f"work store not updated — {type(e).__name__}: {e}")
+        return None
 
 
 def _state_files(cutoff: float) -> list[Path]:
@@ -676,6 +799,8 @@ def _state_files(cutoff: float) -> list[Path]:
     are newer than ``cutoff`` and at most _RESCUE_MAX_BYTES — stat only, nothing is read here."""
     found: list[tuple[float, Path]] = []
     for path in _state_dir().glob("*.json"):
+        if _is_pending(path):
+            continue  # pending files have their own scan and must not evict a slot from the window
         try:
             st = path.stat()
         except OSError:
@@ -688,7 +813,7 @@ def _state_files(cutoff: float) -> list[Path]:
 
 def _rescue_decisions(
     session: str, repo: Path, deadline: float = math.inf
-) -> tuple[str | None, str]:
+) -> tuple[str | None, str, list[Path]]:
     """The second chance, on a prompt-side ``line --hook``: every session's DECISION slot for
     ``repo`` (≤ 7 days old, in the 50 newest state files of at most 256 KiB) goes to ONE
     ``ensure_decision_items`` call, whose first rule no-ops an entry whose MESSAGE digest an item
@@ -699,18 +824,27 @@ def _rescue_decisions(
     call. A step that would start past ``deadline`` (monotonic) is skipped, silently.
 
     Returns (``msg`` from this session's slot for ``repo`` if the rescue read a usable one, else
-    None; and a warning line, "" unless the write failed or the store was busy). Never raises."""
+    None; a warning line, "" unless the write failed or the store was busy; and the pending files
+    of THIS session this rescue collected — the only ones the prompt's answer may then drop, so a
+    file a concurrent Stop wrote after the collect, or one a skipped rescue never read, survives
+    the answer). Never raises."""
     seen: str | None = None
+    mine: list[Path] = []
     w = _work()
     if w is None or time.monotonic() >= deadline:
-        return seen, ""
+        return seen, "", mine
     try:
-        if not w.has_store(repo):
-            return seen, ""
-        own = _state_path(session)
         cutoff = time.time() - _RESCUE_MAX_AGE_S
-        entries: list[tuple[str, str, str]] = []
+        # the lock-free pending files (W-e64aa44a): swept and collected BEFORE the store check,
+        # so a store-less repo's leftovers age out too
+        entries, pending = _collect_pending(repo, cutoff, deadline)
+        mine = [q for q in pending if q.name.startswith(f"{_state_path(session).stem}.pending-")]
+        if not w.has_store(repo):
+            return seen, "", mine
+        own = _state_path(session)
         for path in _state_files(cutoff):
+            if _is_pending(path):
+                continue  # collected above by its own glob
             try:
                 dec = json.loads(path.read_text(encoding="utf-8")).get("decision")
             except Exception:
@@ -727,7 +861,7 @@ def _rescue_decisions(
             entries.append((text, msg, session if path == own else path.stem))
         left = deadline - time.monotonic()
         if not entries or left <= 0:
-            return seen, ""
+            return seen, "", mine
         ids = w.ensure_decision_items(
             repo,
             entries,
@@ -735,23 +869,37 @@ def _rescue_decisions(
             own_session=session,
         )
         if ids is None:  # the lock was not taken: nothing was checked, so nothing is known lost
-            return seen, _cap(
-                f"work: store busy — {len(entries)} DECISION slot(s) not re-checked against the "
-                f"work store of {repo} this prompt; the next prompt re-checks them"
+            return (
+                seen,
+                _cap(
+                    f"work: store busy — {len(entries)} DECISION slot(s) not re-checked against "
+                    f"the work store of {repo} this prompt; the next prompt re-checks them"
+                ),
+                mine,
             )
         failed = len(entries) - len(ids)
+        if failed <= 0:  # every entry is in the store: the pending files have done their job
+            for path in pending:
+                with contextlib.suppress(OSError):
+                    path.unlink()
     except Exception as e:
         _warn(f"DECISION rescue skipped — {type(e).__name__}: {e}")
-        return seen, ""
+        return seen, "", mine
     if failed <= 0:
-        return seen, ""
-    return seen, _cap(
-        f"work: ⚠ {failed} DECISION block(s) not written to the work store of {repo} (store "
-        "busy or write failed) — those questions are NOT tracked as work items"
+        return seen, "", mine
+    return (
+        seen,
+        _cap(
+            f"work: ⚠ {failed} DECISION block(s) not written to the work store of {repo} (store "
+            "busy or write failed) — those questions are NOT tracked as work items"
+        ),
+        mine,
     )
 
 
-def cmd_clear_decision(session: str, prompt: object, expect_msg: str | None = None) -> None:
+def cmd_clear_decision(
+    session: str, prompt: object, expect_msg: str | None = None, pending: list[Path] | None = None
+) -> None:
     """UserPromptSubmit: the operator's next prompt answers an open DECISION block — unless its
     WHOLE first token is on the closed _BUILTIN_SLASH list, case-insensitively (`/compact` is not
     an answer; `/contextualize x` and `/fabrik-deploy prod` are). A payload with no string
@@ -761,7 +909,10 @@ def cmd_clear_decision(session: str, prompt: object, expect_msg: str | None = No
 
     ``expect_msg`` is the slot's ``msg`` as the second chance read it: the slot is cleared only
     while it still carries that message — one a concurrent Stop harvest replaced in between is
-    left for its own next prompt. None (no rescue ran) clears exactly as before."""
+    left for its own next prompt. None (no rescue ran) clears exactly as before. ``pending`` is
+    the list of this session's pending files the same second chance COLLECTED (W-e64aa44a): the
+    answer drops exactly those — never a file a concurrent Stop wrote after the collect, and
+    nothing when no rescue ran — the pending twin of the ``expect_msg`` guard."""
     if not isinstance(prompt, str):
         return
     toks = prompt.split()
@@ -780,6 +931,14 @@ def cmd_clear_decision(session: str, prompt: object, expect_msg: str | None = No
         return True
 
     _update(session, apply)
+    # The answer also settles this session's PENDING blocks (W-e64aa44a): a slot block cleared
+    # here is never rescued later, and a pending file must behave the same — the rescue that ran
+    # just before this call already minted the item when the store was free; a file the store was
+    # too busy to take is an answered question and must not mint one on a later prompt. Only the
+    # files THAT rescue collected: a file it never read is not answered by this prompt.
+    for path in pending or []:
+        with contextlib.suppress(OSError):
+            path.unlink()
 
 
 def _thread_lines(state: dict, session: str, now: float) -> tuple[list[dict], str | None]:
@@ -1035,7 +1194,9 @@ def cmd_done(session: str, match: str) -> None:
         return True
 
     if not _update(session, apply):
-        said.append("nothing was closed — the session state is busy; run it again")
+        said.append(
+            "nothing was closed — the session state is busy or could not be saved; run it again"
+        )
     for s in said:
         print(s)
 
@@ -1121,15 +1282,16 @@ def main(argv: list[str] | None = None) -> int:
                 cmd_harvest(session, _final_message_text(transcript_path))
             event = payload.get("hook_event_name")
             seen: str | None = None
+            mine: list[Path] = []
             head: list[str] = []
             if repo is not None:
                 warning = ""
                 if event in ("UserPromptSubmit", "SessionStart"):
-                    seen, warning = _rescue_decisions(session, repo, store_deadline)
+                    seen, warning, mine = _rescue_decisions(session, repo, store_deadline)
                 block = _prompt_block(repo, session) if time.monotonic() < store_deadline else ""
                 head = [ln for ln in (block, warning) if ln]
             if event == "UserPromptSubmit":
-                cmd_clear_decision(session, payload.get("prompt"), expect_msg=seen)
+                cmd_clear_decision(session, payload.get("prompt"), expect_msg=seen, pending=mine)
             if payload.get("source") == "compact":
                 cwd = Path(str(payload.get("cwd") or os.getcwd())).resolve()
                 # the OPEN DECISION leaves WHERE YOU ARE only when the work block above was
