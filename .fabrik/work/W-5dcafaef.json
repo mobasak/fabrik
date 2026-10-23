@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "size it: a port allocation + live vps1 compose change is deploy-gated; spec the URL rewrite and preflight, then board the publish through the coordinator",
+  "next": "size it: a port allocation + live vps1 compose change is deploy-gated; spec the URL rewrite and preflight, board the publish through the coordinator; ACCEPTANCE: once a spoke watchdog can alert, lift D-1153's refusal AND remove the D-1156 opt-out (watchdog: {enabled: false}) from specs/services/spoke-canary.yaml (8b7ae0ee6), then apply the canary as the spoke-watchdog proof",
   "note": "",
   "owner": "fleet",
   "priority": 1,
