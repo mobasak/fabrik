@@ -108,3 +108,17 @@ def test_plan_names_the_spoke_refusal():
     hub = resolve_applicability({"id": "x", "watchdog": {"enabled": True}})["watchdog"]
     assert "refused on spoke vps2" in spoke[1] and "D-1153" in spoke[1]
     assert "refused" not in hub[1]
+
+
+def test_plan_does_not_call_a_switched_off_registrar_refused():
+    from fabrik.orchestrator.infrastructure import resolve_applicability
+
+    off = resolve_applicability(
+        {
+            "id": "x",
+            "target_vps": "vps2",
+            "watchdog": {"enabled": True},
+            "infra": {"watchdog": False},
+        }
+    )["watchdog"]
+    assert off[0] is False and "refused" not in off[1]

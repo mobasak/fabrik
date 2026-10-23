@@ -458,7 +458,7 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
             + ("" if _enabled(infra, "watchdog") else " (infra.watchdog=false override)")
             + (
                 f" — refused on spoke {spec['target_vps']} until apprise is mesh-published (D-1153)"
-                if (spec.get("target_vps") or "vps1") != "vps1"
+                if _enabled(infra, "watchdog") and (spec.get("target_vps") or "vps1") != "vps1"
                 else ""
             ),
         )
