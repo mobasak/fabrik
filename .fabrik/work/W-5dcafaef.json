@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "spoke-canary's apply is red by design since D-1153 until this lands or its spec drops the watchdog; the Apprise publish is deploy-gated and boards through the coordinator",
+  "score_reason": "spoke-canary runs with the watchdog opted out (D-1156) until this publishes Apprise on the mesh and lifts the refusal; its acceptance step is removing the opt-out and applying the canary as the spoke-watchdog proof; the Apprise publish is deploy-gated",
   "status": "open",
   "tags": [
     "deploy",
