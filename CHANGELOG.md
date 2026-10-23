@@ -17,6 +17,10 @@ All notable changes to this project will be documented in this file.
 - The rotation request directory is created 0700 by `request`, `execute` and `install_rotate_unit.sh`; a symlinked one refuses in all three, and one another uid owns refuses in `request` and `execute`. `fabrik-rotate.path` drops `MakeDirectory=`, which created nothing for a glob path. `transcript_size_check._threshold_mb` now treats `ROTATE_ADVISE_MB=inf` as unset instead of raising.
 - Reinstall after the merge (main checkout): `scripts/sysadmin/install_rotate_unit.sh` and `scripts/sysadmin/install_session_archive_timer.sh`. Graded in `tests/test_rotate_session.py` and `tests/test_hibernate.py`.
 
+### Fixed — a spoke-targeted watchdog is refused instead of shipped unable to alert (2026-10-23)
+
+A spoke (`target_vps` other than vps1) got a watchdog sidecar whose alert URL is vps1's `apprise` container, which a spoke cannot reach (no mesh port; the Traefik route is 2FA-gated), and no legal spec can point it elsewhere. `InfrastructureProvisioner._provision_watchdog` now records a non-fatal refusal for a spoke target on real and dry runs alike — the app stays up, its watchdog is withheld, `fabrik apply` exits 2 — naming the remedy (`watchdog.enabled: false`, or W-5dcafaef, which mesh-publishes apprise and adds a spoke login preflight); nothing only it needs is provisioned (no `<db>_wd_ro/_wd_rw` roles in the app's .env, no analytics failure), and `fabrik plan` names the refusal for a spec that declares a spoke `target_vps` (plan has no `--target-vps`). Supersedes D-904's spoke branch. `spoke-canary`'s apply is red until one of those. W-37dda1e1, D-1153.
+
 ### Changed — /fabrik-review-scoped queue pass: where the lead runs a command it keeps (2026-10-23)
 
 - `commands/_fragments/review-probe-catalogue.md`, the first bullet of § Before the first pin, kept any command that writes a live store, sends, commits, deploys or reaches a host with the lead, but never said where the lead runs it.
