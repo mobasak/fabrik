@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped queue pass: a seat's mutant run takes the mutant bullet's test set (2026-10-23)
+
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation, which every test-running seat applies whole, told seats to run tests "by exact node id". A seat that re-ran a mutant by one node id, or by a `-k` carried from an earlier brief, missed the other tests pinning the same text.
+- The seat line now hands a mutant run, or a re-run of one, to the `One mutant per clause` bullet's test set and selection rule, by pointing at that bullet rather than restating it. That carries the environment-bound deselection and all six selections.
+- Graded in `tests/test_review_scoped_queue_pass.py` (the whole bullet pinned with `==`, cut on raw lines inside § Seat isolation) and `tests/test_review_queue_pass.py`. Answers 2 rows; 16 were rejected with reasons, 1 is left open (W-a7d2f61f).
+
 ### Fixed — Session-history bullet: the ROTATE-DUE and COMPACT-DUE lines are described as shipped (2026-10-23)
 
 - `CLAUDE.md` and `templates/governance/CLAUDE.md`, the Session history (D-736) bullet, after W-f975fee0 slice 1 (D-1139) shipped the context sensor:
