@@ -246,6 +246,8 @@ def test_a_directory_pause_covers_a_dropped_second_window(tmp_path, monkeypatch)
     workers = work._workers(repo)
     assert "a" not in workers
     assert work._is_paused({"a": {"words": "w"}}, "infra", t["a"], workers) == "a"
+    # the main checkout is no linked tree: a pause named after its directory never covers the coordinator there
+    assert work._is_paused({repo.name: {"words": "w"}}, "coord", repo, workers) == ""
 
 
 def test_an_unnamed_window_beside_a_named_one_keeps_the_directory_name(tmp_path, monkeypatch):
