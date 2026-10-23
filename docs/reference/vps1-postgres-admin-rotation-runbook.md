@@ -48,7 +48,7 @@ sudo docker exec postgres-main sh -c 'grep -vE "^\s*(#|$)" "$PGDATA/pg_hba.conf"
 # rows 5, 6, 7, 9: every file on the box that can log in as the superuser (names only)
 sudo grep -rIlE 'postgres(ql)?://postgres:|user=postgres|-U postgres|PGPASSWORD|POSTGRES_PASSWORD' /opt 2>/dev/null
 sudo grep -rIl 'postgres-exporter' /opt --include='*compose*.y*ml' 2>/dev/null   # the live monitoring compose (row 2)
-sudo sed -E 's/((PG)?PASSWORD=|[Pp]assword=|:\/\/[^:]+:)[^@ "]*/\1***/g' /opt/backups/pre-backup.sh | grep -niE 'psql|pg_dump|password'
+sudo sed -E "s/((PG)?PASSWORD=|[Pp]assword=|:\/\/[^:]+:)(\"[^\"]*\"|'[^']*'|[^@ \"']*)/\1***/g" /opt/backups/pre-backup.sh | grep -niE 'psql|pg_dump|password'
 # row 9: live TCP sessions by login. Re-run across a day; a cron consumer shows only when it runs
 sudo docker exec postgres-main psql -U postgres -tAc "select usename, application_name, client_addr, count(*) from pg_stat_activity where client_addr is not null group by 1,2,3 order by 1"
 # the exporter's reach: databases where PUBLIC lost CONNECT (each needs a GRANT in step 3)
@@ -157,8 +157,8 @@ Verify before step 4:
 
 ### 4. Rotate the admin password (gate: credentials)
 
-1. Save the exact current credential for rollback, into a `backups/` file with mode 0600:
-   `sudo docker exec postgres-main psql -U postgres -tAc "select rolpassword from pg_authid where rolname='postgres'"`.
+1. Save the exact current credential for rollback, on vps1, into a 0600 file:
+   `(umask 077; sudo docker exec postgres-main psql -U postgres -tAc "select rolpassword from pg_authid where rolname='postgres'" > ~/pg-verifier)`.
    This is the stored SCRAM verifier. It contains `$`, so it never passes through a shell string again.
 2. List the live TCP sessions as `postgres` (step 1's query). These are the consumers that must change in step 5.
 3. In `sudo docker exec -it postgres-main psql -U postgres`, run `\password postgres` and enter the new admin
@@ -182,7 +182,7 @@ Back up each file first. Then force every TCP `postgres` session to reconnect wi
   for at least one full cron cycle (a day covers the nightly backup). **Any line is a stop.** Find that consumer, or
   roll back.
 - **Do not use `fabrik plan` or a registrar dry run as proof.** Neither sends SQL (`src/fabrik/drivers/postgres.py:132-134`).
-  The registrars also go through the local socket (row 8), which never checks a password.
+  The registrars also go through the local socket (row 8), which never checks a password under the `trust` line step 1 requires.
 
 ### 6. Hand the operator the new admin password
 
@@ -193,7 +193,7 @@ operator confirms they hold it.
 
 | Undo | How |
 |---|---|
-| step 4 | copy the 0600 file into the container, then in `sudo docker exec -it postgres-main psql -U postgres`: `\set v \`cat /tmp/pg-verifier\`` and `ALTER ROLE postgres PASSWORD :'v';` (PostgreSQL stores a pre-hashed value as is). Assert `select rolpassword = :'v' from pg_authid where rolname='postgres'` returns `t`, delete the copy, then restore each step-5 file from its backup |
+| step 4 | `sudo docker cp ~/pg-verifier postgres-main:/tmp/pg-verifier`, then in `sudo docker exec -it postgres-main psql -U postgres`: `\set v \`cat /tmp/pg-verifier\`` and `ALTER ROLE postgres PASSWORD :'v';` (PostgreSQL stores a pre-hashed value as is). Assert `select rolpassword = :'v' from pg_authid where rolname='postgres'` returns `t`; `sudo docker exec postgres-main rm /tmp/pg-verifier` and `rm ~/pg-verifier`; then restore each step-5 file from its backup |
 | step 3, services | restore each live compose and `.env` from its backup and `docker compose up -d`; revert the mirror commit in the hub, or the next sync re-applies it |
 | step 3, ownership | kept on purpose: a superuser still reaches every object, and the scoped roles do no harm. To drop them, first run the step-3 ownership block with every `OWNER TO glitchtip` changed to `OWNER TO postgres` (and `ALTER DATABASE glitchtip OWNER TO postgres`), or `DROP ROLE` fails with "owns objects" |
 
