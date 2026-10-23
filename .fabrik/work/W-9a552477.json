@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T18:21:43.097335Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9a552477",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after the db_write_allowlist field item; auth surface, full review; waits for GREEN",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-quota"
+  ],
+  "title": "fabrik-lib SB-103 follow-on 3: narrow the {db}_wd_rw grants (src/fabrik/drivers/postgres.py:718, :727 grant DML on ALL TABLES in public plus default privileges) to the allow-listed tables, generated from the db_write_allowlist field"
+}
