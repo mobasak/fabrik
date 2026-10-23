@@ -2209,3 +2209,52 @@ def test_the_agent_role_rows_carry_every_value_the_hubs_automation_writes() -> N
     )
     enum = re.findall(r"`(coordinator|infra|fleet|intel|kaizen)`", name_rows[0])
     assert not enum, f"{_PACK_REL}: the Agent-Name row still carries a role enum: {enum}"
+
+
+# ── W-85e4e5e4: the shared-tree paragraph's distribution sentence addresses THREE readers ──
+# The plumbing warning ("no COMMIT hook runs … the post-commit sync NEVER FIRES") is read in the
+# hub's main checkout, in every hub worktree and in 49 synced project copies (2026-10-23 census:
+# 50 of 51 /opt/*/CLAUDE.md carry it — the 50th is the hub's own contract; fabrik-lib's hand-kept
+# contract lacks it). Its old close — "distribute with `scripts/sync_enforcement_to_projects.py
+# --force` yourself" — was right for the first reader only: a worktree copy ships a mix neither
+# tree holds (CLAUDE.md § Sync-consciousness) and no project has the script (`ls
+# /opt/*/scripts/sync_enforcement_to_projects.py` → only the hub's), so a project agent either
+# no-ops or runs the hub's working-tree push from /opt/fabrik (the D-202 hazard). The template's
+# own Fabrik-synced HARD STOPS row told the same reader to "+ re-sync". Nothing pinned the copies:
+# the sentence sits in no T6_CLAIMS fragment, so a one-file edit passed the whole suite.
+
+_DISTRIBUTION_SENTENCE = (
+    "and on a governance-sync trigger surface the post-commit sync NEVER FIRES — distributing is "
+    "the hub MAIN checkout's job alone: a session there runs "
+    "`scripts/sync_enforcement_to_projects.py --force` itself, a hub worktree's change ships when "
+    "the hub merges it, and a project never runs that script (its synced copies are the hub's to "
+    "change — § HARD STOPS)."
+)
+# The two retired addresses, checked over the WHOLE file: a copy pasted elsewhere, or a second
+# "yourself" sentence beside the pinned one, would otherwise survive.
+_RETIRED_DISTRIBUTION_ADDRESSES = ("--force` yourself", "+ re-sync")
+
+
+def test_the_distribution_sentence_is_one_literal_text_in_both_contracts() -> None:
+    """Input domain: the two contracts as committed (`CLAUDE.md`, the fleet template); the
+    sync-excluded `/opt/fabrik-lib/CLAUDE.md` lacks the sentence and is not read.
+
+    A LITERAL pin, not a slice-and-substring check: red on base (the literal is absent from both
+    files, and both carry a retired address), equal across the two files by construction, and
+    immune to the cobra a substring grader admits — a sentence that carries the three phrases yet
+    tells a project to run the script with a trailing "unless …". Its cost is the T6 discipline
+    already in force for this paragraph: a legitimate rewording edits the constant too."""
+    for rel in ("CLAUDE.md", TEMPLATE_REL):
+        text = (FABRIK / rel).read_text(encoding="utf-8")
+        count = text.count(_DISTRIBUTION_SENTENCE)
+        assert count == 1, (
+            f"{rel}: the distribution sentence must occur exactly once, found {count} — the hub "
+            "contract and the fleet template carry ONE text that names the hub MAIN checkout as the "
+            "only runner of the sync script, a worktree's merge as its route, and a project as never "
+            "running it"
+        )
+        for retired in _RETIRED_DISTRIBUTION_ADDRESSES:
+            assert retired not in text, (
+                f"{rel}: still carries the retired address {retired!r} — only the hub's MAIN "
+                "checkout runs the sync script; a project never re-syncs"
+            )

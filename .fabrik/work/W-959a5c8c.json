@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T00:33:08.509120Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-959a5c8c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce one fresh Agent dispatch from a hub session with a trivial brief and watch where it stalls (harness log, the seat's transcript file, cgroup/scope start); fix the cause or file it upstream with the evidence",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "every review loop and panel on the box depends on fresh seat spawns; three hung in a row in one session; one reproduction with the harness log in hand sizes the cause; box mesh is infra's",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "New Agent-tool seat dispatches hang with no output and an empty seat folder (intel, 2026-10-23 ~03:30: a Fable seat for 50 min, then two Opus stand-ins for 20 and 10 min, all stopped by hand) while SendMessage to existing seats works in the same hour — box or harness machinery, not the brief; blocks W-72dfd448's second approval seat"
+}
