@@ -2368,15 +2368,33 @@ _HEAVY_SURFACE_ANCHOR = (
     ">5 files, or operator-named work"
 )
 _UNIVERSAL_HEADING = "## UNIVERSAL governance markers"
-_NUMBER_WORDS = {
-    n: w
-    for n, w in enumerate(
-        (
-            "zero one two three four five six seven eight nine ten eleven twelve thirteen "
-            "fourteen fifteen sixteen seventeen eighteen nineteen twenty"
-        ).split()
+_NUMBER_WORDS = dict(
+    enumerate(
+        [
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+            "thirteen",
+            "fourteen",
+            "fifteen",
+            "sixteen",
+            "seventeen",
+            "eighteen",
+            "nineteen",
+            "twenty",
+        ]
     )
-}
+)
 
 
 def _hub_universal_bullets(hub: str) -> list[tuple[str, str]]:
@@ -2427,7 +2445,9 @@ def test_the_templates_condensed_anchor_line_counts_the_hub_bullets() -> None:
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
     tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
     n = len(_hub_universal_bullets(hub))
-    assert n in _NUMBER_WORDS, f"the hub index declares {n} anchors; extend _NUMBER_WORDS past twenty"
+    assert n in _NUMBER_WORDS, (
+        f"the hub index declares {n} anchors; extend _NUMBER_WORDS past twenty"
+    )
     section = tpl.split(_UNIVERSAL_HEADING, 1)[1].split("\n## ", 1)[0]
     # The list runs from its lead-in to the paragraph that follows it; its shape is graded explicitly
     # (every line but the last ends ` ·`, the last ends `**.`), so a stray `.` inside the list is
