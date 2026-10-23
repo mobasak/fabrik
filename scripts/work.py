@@ -1029,7 +1029,10 @@ def _is_paused(paused: dict[str, dict], agent: str, tree: Path, workers: dict[st
     if agent and agent in paused:
         return agent
     by_tree = next((n for n, t in workers.items() if t == tree), "")
-    return by_tree if by_tree and by_tree in paused else ""
+    if by_tree and by_tree in paused:
+        return by_tree
+    # a worker keyed by its bound agent (W-84ad2ff1): a pause recorded under its directory name still covers it
+    return tree.name if by_tree and tree.name != by_tree and tree.name in paused else ""
 
 
 def _caller_pause(tree: Path, session: str) -> dict | None:
@@ -5292,11 +5295,103 @@ def _feedback_owner(main: Path) -> str:
     return str(cfg.get("distributor") or "").strip()
 
 
+_PROC_CACHE: dict[str, tuple[float, list[tuple[int, Path]] | None]] = {}
+_PROC_TTL_S = (
+    2.0  # one Stop hook reads the roster and presence a few times; a new window is seen within 2 s
+)
+
+
+def _claude_procs() -> list[tuple[int, Path]] | None:
+    """(pid, cwd) of every windowed `claude` process — comm `claude`, not a `-p`/`--print` child — read from /proc
+    (or the root in FABRIK_WORK_PROC); None when the process table cannot be read. ONE scan, shared by `_workers`
+    and `_present` and cached for `_PROC_TTL_S` per proc root, so a test that re-points the root gets a fresh one."""
+    root_s = os.environ.get("FABRIK_WORK_PROC") or "/proc"
+    hit = _PROC_CACHE.get(root_s)
+    if hit and time.monotonic() - hit[0] < _PROC_TTL_S:
+        return hit[1]
+    root = Path(root_s)
+    try:
+        entries = [e for e in root.iterdir() if e.name.isdigit()]
+    except OSError:
+        _PROC_CACHE[root_s] = (time.monotonic(), None)
+        return None
+    found: list[tuple[int, Path]] = []
+    for entry in entries:
+        try:
+            if (entry / "comm").read_text(encoding="utf-8").strip() != "claude":
+                continue
+            argv = _proc_argv(entry)
+            if argv and _argv_prints(argv):
+                continue  # a `claude -p` child in the tree is not a window (01M4PAJWV1)
+            found.append((int(entry.name), Path(os.readlink(entry / "cwd")).resolve()))
+        except OSError:
+            continue
+    _PROC_CACHE[root_s] = (time.monotonic(), found)
+    return found
+
+
+def _proc_agent(pid: int, rows: Callable[[], list[dict]]) -> str:
+    """The agent a claude process is bound to (W-84ad2ff1): `CLAUDE_AGENT` in its environ (how agents_up launches a
+    builder), else the whoami store's LAST row with this pid AND this pid_start — field 22 of its stat, whoami's own
+    unit and pid-reuse guard (whoami_agent.py `_pid_start`), which a /clear keeps — under the name rule; "" when
+    neither reads. Fail-open: an unreadable environ or stat, or no matching row, is no name."""
+    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc") / str(pid)
+    try:
+        for kv in (root / "environ").read_bytes().split(b"\0"):
+            if kv.startswith(b"CLAUDE_AGENT="):
+                name = kv.split(b"=", 1)[1].decode("utf-8", "replace").strip()
+                if _valid_name(name):
+                    return name
+    except OSError:
+        pass
+    try:
+        raw = (root / "stat").read_text(encoding="utf-8", errors="replace")
+        start = int(raw[raw.rindex(")") + 1 :].split()[19])
+    except (OSError, ValueError, IndexError):
+        return ""
+    bound = ""
+    for row in rows():
+        if _as_int(row.get("pid")) == pid and _as_int(row.get("pid_start")) == start:
+            bound = str(row.get("name") or "")  # LAST row wins, as whoami resolves
+    return bound if _valid_name(bound) else ""
+
+
+def _as_int(value: object) -> int | None:
+    """A stored pid or start time as an int (whoami_agent.py `_as_int`): a digit string counts, a bool never does."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def _whoami_rows() -> list[dict]:
+    """Every whoami store row, read through `WHOAMI_PY` (its own path and lock); [] when it cannot be read."""
+    try:
+        spec = importlib.util.spec_from_file_location("_work_whoami_rows", WHOAMI_PY)
+        if spec is None or spec.loader is None:
+            return []
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return list(mod._rows(mod.store_path()))
+    except Exception:
+        return []
+
+
 def _workers(main: Path) -> dict[str, Path]:
     """Registered `<main>/.claude/worktrees/<name>` trees that are not harness worktrees. A feedback
     owner that is not the distributor is NOT a pool worker: its tree is dropped here, so the doorbell
     rung never fires for it and the distributor's triage never routes general backlog to it — its
-    queue is the feedback ledger, not the pool (design critique, Opus #4)."""
+    queue is the feedback ledger, not the pool (design critique, Opus #4).
+
+    A tree holding a live window is named by the agent that window is bound to, not by its directory
+    (W-84ad2ff1: infra's window in `infra-uncapped` read as an empty worker below the floor). When every
+    named window in the tree gives one valid name N other than the directory: N is the distributor or
+    the (non-distributor) feedback owner → the tree leaves the pool; N's own-named tree is live too →
+    this is N's second window and leaves the pool; else the tree is keyed N, replacing an idle N tree.
+    Two stray live trees bound to one N, or an unreadable binding, keep their directory names."""
     base = (main / ".claude" / "worktrees").resolve()
     out: dict[str, Path] = {}
     owner = _feedback_owner(main)
@@ -5309,6 +5404,41 @@ def _workers(main: Path) -> dict[str, Path]:
             if owner and tree.name == owner and owner != distributor:
                 continue
             out[tree.name] = tree
+    procs = _claude_procs() if out else None
+    if not procs:
+        return out
+    rows: list[dict] | None = None
+
+    def _rows() -> list[dict]:
+        nonlocal rows
+        if rows is None:
+            rows = _whoami_rows()  # read only when some window carries no CLAUDE_AGENT
+        return rows
+
+    names: dict[str, set[str]] = {}
+    live: set[str] = set()
+    for pid, cwd in procs:
+        for key, tree in out.items():
+            if cwd == tree or tree in cwd.parents:
+                live.add(key)
+                agent = _proc_agent(pid, _rows)
+                if agent:
+                    names.setdefault(key, set()).add(agent)
+    bound = {k: next(iter(v)) for k, v in names.items() if len(v) == 1 and next(iter(v)) != k}
+    claims: dict[str, list[str]] = {}
+    for key, agent in bound.items():
+        claims.setdefault(agent, []).append(key)
+    for agent, keys in claims.items():
+        if agent == distributor or (owner and agent == owner and owner != distributor):
+            for key in keys:
+                out.pop(
+                    key, None
+                )  # never a pool worker under the coordinator's or the owner's name
+        elif agent in live and agent in out:
+            for key in keys:
+                out.pop(key, None)  # the agent's second window: its own tree is the worker
+        elif len(keys) == 1:
+            out[agent] = out.pop(keys[0])  # replaces an idle tree of that name
     return out
 
 
@@ -5377,22 +5507,11 @@ def _print_mode() -> bool:
 def _present(workers: dict[str, Path]) -> set[str] | None:
     """Workers with a live `claude` process inside their tree, read from /proc (or the root in
     FABRIK_WORK_PROC); None when the process table cannot be read — then nobody is topped up."""
-    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc")
-    try:
-        entries = [e for e in root.iterdir() if e.name.isdigit()]
-    except OSError:
+    procs = _claude_procs()
+    if procs is None:
         return None
     found: set[str] = set()
-    for entry in entries:
-        try:
-            if (entry / "comm").read_text(encoding="utf-8").strip() != "claude":
-                continue
-            argv = _proc_argv(entry)
-            if argv and _argv_prints(argv):
-                continue  # a `claude -p` child in the tree is not a window (01M4PAJWV1)
-            cwd = Path(os.readlink(entry / "cwd")).resolve()
-        except OSError:
-            continue
+    for _pid, cwd in procs:
         for name, tree in workers.items():
             if cwd == tree or tree in cwd.parents:
                 found.add(name)
