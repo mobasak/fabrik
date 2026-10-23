@@ -1,6 +1,15 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Two walks over one grammar drift apart; one walk with an executable oracle and a recorded-shapes list stays honest (2026-10-23)
+
+W-76c49aa8: check_governance_tables.py's width rule and span rule each tokenized markdown their own way, and the gaps between them (five shapes in the item, four more found by the critiques and the review) were only ever recorded in prose. Replacing both with one `_tables` walk and grading it against markdown_it over a named corpus turned "which shapes does the check misread" from a list someone remembers into a test that reds.
+- **An oracle test compares STARTS, not meanings** — say exactly what the oracle compares (table start lines) and name the shapes it cannot see (a lazy prose row differs in row count), or the test over-promises.
+- **A recorded shape needs its fail direction in the sentence that names it** — the previous attempt's gaps list was deleted twice for mis-attribution (W-80ffca68's receipt); the grader now asserts each name sits in the silent-miss or the false-positive sentence.
+- **Measure the fleet before writing "0 live"** — both critique seats ran the census over 50 repos (2,900 files) and one of them found the template's FIRST paragraph rendering as a table row in 49 copies; the item said 0 and was right only about the hub.
+- **Ship the oracle library's interpreter in the probe** — the first probe imported the system python's markdown_it (linkify not installed) and crashed; the venv's was the one that mattered.
+- **A seat brief names a pin only after `test -f` on it has printed** — three seats were dispatched against a pin whose extraction the shell guard had refused (a variable before `tar`), each costing an empty read.
+
 ## The first thing a new substring anchor catches is formatting, and the reader with a HARD test is the one to mail before the merge (2026-10-23)
 
 W-4bb2166c anchored § 1a's heavy-surface list for fabrik-lib's drift check. The design read the consumer's script (advisory, rc 0) and wrote "their gate prints a warning"; both critique seats executed one hop further and found `scripts/tests/test_check_governance_drift.py:103`, which reads the LIVE hub and asserts hard, run by fabrik-lib's merge gate on every `scripts/` merge — and fabrik-lib's copy carried the span only in bold, so the hub merge would have refused their next merge rather than printed a line.
