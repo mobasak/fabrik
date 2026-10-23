@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_convergence refuses when either code-span model refuses; `_fences` link tails and `<!--` read as CommonMark does (2026-10-23)
+
+- `scripts/enforcement/check_convergence.py` reads its closing-row, Board-row, ticket-Status and design-receipt rules under both its single-line span model and the shared `_fences` model, and refuses when either does; the D-497 grandfather needs both; a receipt whose two readings disagree on its route is graded on both (D-1131, D-1170). A wrapped code span holding `<!--` no longer hides a loud closing row or Board row.
+- `scripts/enforcement/_fences.py`: a link's `](…)` tail shields its backticks only when it parses as a link destination with an optional title, escapes included; a line-start `<!--` ends a paragraph, so a span no longer wraps across it.
+- check_rule_grounding and check_spec_convergence are unchanged, their CONVERGED readers pinned by `tests/test_status_readers_code_spans.py` (W-f365c610).
+
 ### Changed — design-gate panel: step 2 states the checks a panel revision owes before its reviewing round (2026-10-23)
 
 - `commands/_fragments/design-gate-panel.md` step 2 (rendered into `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-flows-review`, `/fabrik-ui-design-review`): before the round that reviews the revision is pinned, each change sits beside the ACCEPTED concern it answers (quoted whole) and its counter-case in the artifact or its review receipt; each added or changed sentence cites a durable source (code line, decision row, an artifact section the revision neither adds nor changes, or that concern entry — never the seat's report itself) and is written whole from it, not spliced; each new name is traced through every reader, process boundaries included. Step 3's approval row carries each change with its concern and counter-case. Answers `/fabrik-spec-review` feedback rows 1792767893, 1792279737, 1792592328, 1792609741, 1792558161; reviewed by `/fabrik-review-scoped` (4→6→6 own-fix, scope-growth stop, remainder round 0; residue W-15970d2a).
