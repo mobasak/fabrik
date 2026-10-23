@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-23T18:24:43.920130Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-a312d48c",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "replay fabrik-lib's two-clone repro on a scratch origin, then edit both CLAUDE.md twins (sync path, full review); waits for GREEN; reply to mail 01M5AP6D1Y when merged",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: a rule update in every repo's contract that can silently drop pushed commits; effort low: one recipe line in two pinned copies, full review (sync path); recipe wording is kaizen's as with W-031aac71",
   "status": "open",
   "tags": [
     "waits-quota"

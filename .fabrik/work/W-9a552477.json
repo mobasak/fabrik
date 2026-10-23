@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-23T18:21:43.097335Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-9a552477",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "after the db_write_allowlist field item; auth surface, full review; waits for GREEN",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: a security issue — DML granted on all public tables to watchdog roles; effort low: one driver function, auth surface so full review",
   "status": "open",
   "tags": [
     "waits-quota"

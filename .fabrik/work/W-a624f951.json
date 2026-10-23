@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-23T18:21:43.600674Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-a624f951",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "kaizen: reword the two packs from mail 01M5AKSQQ3 request 5",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: a rule update (pack wording) requested by another repo; effort low: six lines in two packs",
   "status": "open",
   "tags": [
     "waits-quota"

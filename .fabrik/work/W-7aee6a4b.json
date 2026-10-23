@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-10-23T18:21:42.609136Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-7aee6a4b",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +17,9 @@
   },
   "next": "design the field from mail 01M5AKSQQ3 requests 2 and 4 (schema surface, full review, at GREEN); when it lands, relay that mail's CONSUMER NOTE fleet-wide (re-vendor whole, new env, refused direct calls)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
+  "score_reason": "HIGH: another repo's request; effort high: a new spec field (contract surface) rendered to env plus a capability check — a major, held behind infra's in-flight W-d146dd3c",
   "status": "open",
   "tags": [
     "waits-quota"
