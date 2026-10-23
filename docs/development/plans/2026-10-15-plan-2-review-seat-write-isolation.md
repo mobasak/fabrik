@@ -1,6 +1,6 @@
 # Plan — review seats: write isolation in the seat guard (W-72dfd448)
 
-Status: DRAFT
+Status: CONVERGED
 Profile: small
 **Owner:** intel
 **Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring; Phase B first re-planned at 3dd31656e (the fence), and
@@ -1235,3 +1235,23 @@ files stay outside § File Scope by rule).
 Plan md5 per pass (start → end): pass 6 `4aad72460691d43faf42cd783873a771` → `35390d79b9a341c1ac324a3363ecb4cb`; pass 7
 `35390d79b9a341c1ac324a3363ecb4cb` → `7e0770757fa103d01455ce254dc5b781`; pass 8 `7e0770757fa103d01455ce254dc5b781` →
 `7e0770757fa103d01455ce254dc5b781` ✓ (before this ledger and the Status flip).
+
+Re-plan review (`/fabrik-plan-review`, 2026-10-23) over the P2 re-plan at 3a106fe96 (D-1160) — the same two-seat
+section partition: an Opus seat on § Global Constraints, § Phase B, § Phase C, § Phase D, the Coverage Checklist table
+and § Residual unknowns (slice A), a Sonnet seat on the header, § What this plan is, § Intake Inventory, § What we
+already agreed, § Context Ledger, § File Scope, the three new Evidence subsections and § Self-audit (slice B); the
+orchestrator executed every candidate (the hook imported and called, `claude --help`, every cite opened).
+
+| Pass | Finders | Counters | Method |
+|---|---|---|---|
+| Pass 9 | native opus×1 + sonnet×1 (slices A, B) | found: 24, new: 24, confirmed: 19, fixed: 19, unexecuted: 0, edits: 30 | method: citation — full pass over the re-planned sections; `decide()` run on the P1/P3/P2 shapes and the malformed payloads (§ Evidence, "Plan-review probes"); recorded as history: `:104` at Phase A's record, the fence-era step labels in the superseded evidence |
+| Pass 10 | same seats, own slices | found: 7, new: 4, confirmed: 6, fixed: 6, unexecuted: 0, edits: 6 | method: re-derivation — delta over the pass-9 hunks; `ci_fix_dispatcher.py:256`, the profile rule and C6's fields re-derived; own-fix 4 of 6; recorded: `cloud_dispatch.py:402-412` beside `:402-418` (both hold) |
+| Pass 11 | same seats, own slices | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — delta over the pass-10 hunks; own-fix 1 of 1; the scope-growth stop fired (2 of the last 3 rounds) |
+| Pass 12 | same seats, the fixed set only | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — the pass-11 sentence and every BLOCKED case in the plan; own-fix 1 of 1; class rewrite — Phase B step 5's report clause (passes 11, 12) |
+| Pass 13 | same seats (the round-1 slice owners) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the rewritten clause against `SessionResult` and the hook's refusal text (`.claude/hooks/seat_guard.py:1212-1214`); standing clean since pass 9: conformance, contradiction, grounding |
+
+Plan md5 per pass (start → end): pass 9 `06d872ea14833bca6fb3b478436873f2` → `f5d67b991da07c864522417b7e319823`; pass 10
+`f5d67b991da07c864522417b7e319823` → `18f991518fe76fd7e4db5a8333f04ded`; pass 11 `18f991518fe76fd7e4db5a8333f04ded` →
+`9cf96ea56b3b56d166fd53815fe2afe8`; pass 12 `9cf96ea56b3b56d166fd53815fe2afe8` → `7f52aa82a26621608084ed5fbdd07ddf`;
+pass 13 `7f52aa82a26621608084ed5fbdd07ddf` → `7f52aa82a26621608084ed5fbdd07ddf` ✓ (before this ledger and the Status
+flip).
