@@ -159,8 +159,9 @@ reports). The previous session stays resumable and is archived that night.
 The pane's input box must be empty for a rotation: check 5 reads every row of the box down to its closing rule, and the
 dim placeholder of a fresh box counts as empty. Text someone left unsent in the box blocks it; the coordinator clears it
 with `agents_up.sh rotate-session <agent> --stale-input discard --operator-ok "<the operator's words>"` (W-ee19169d):
-the request records the box's exact text, and the unit acts only when the box still holds exactly that text on two
-captures 2 s apart and once more right before the key. It then sends one fast double Escape, which Claude Code uses to
+the request records the box's text (its rows joined, whitespace collapsed), and the unit acts only when the box still
+reads exactly that text on two captures 2 s apart and every check passes again right before the key (the session idle
+— an Escape in a running turn would interrupt it). It then sends one fast double Escape, which Claude Code uses to
 clear a non-empty box (C-u deletes only the current row). On an empty box a double Escape opens the Rewind menu, which
 the unit closes and refuses. The box must read empty before the normal rotation runs, and the discarded text and the
 operator's words are written to the row.

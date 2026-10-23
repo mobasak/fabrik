@@ -588,11 +588,11 @@ def request(
             box, _ = _box_now(t["pane"])
             if box is None:
                 raise CheckFailedError("screen", "no input box is visible in the pane")
+            stale_text = box[:1000]  # the refusal row below still carries what was seen
             if len(box) > 1000:
                 raise CheckFailedError(
                     "stale-input", "the input box holds more than 1000 characters"
                 )
-            stale_text = box
         path = run_checks(t, stale_text)
     except CheckFailedError as exc:
         row = {
@@ -658,29 +658,57 @@ def _capture(pane: str) -> str:
     return cap.stdout if cap.returncode == 0 else ""
 
 
-_DIM = re.compile(
-    r"\x1b\[2m.*?(?:\x1b\[(?:0|22)?m|$)"
-)  # Claude Code draws the empty box's placeholder dim (SGR 2)
-_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+# every escape sequence tmux's `capture-pane -e` can emit: CSI (SGR with `;` or `:` parameters, private `>`/`?` forms),
+# OSC (a hyperlink, closed by BEL or ST) and the two-byte charset/keypad forms
+_ESC = re.compile(
+    r"\x1b(?:\[[0-9;:?>=!]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[()][0-9A-Za-z]|[=>78])"
+)
+
+
+def _undimmed(row: str) -> str:
+    """The row's text WITHOUT its dim cells (SGR 2 — Claude Code's placeholder, measured), every escape dropped. SGR is
+    walked as a terminal does: dim turns on with a 2 in any parameter list and off only with 0, 22 or an empty list —
+    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`)."""
+    out, dim, pos = [], False, 0
+    for m in _ESC.finditer(row):
+        if not dim:
+            out.append(row[pos : m.start()])
+        pos = m.end()
+        seq = m.group(0)
+        if seq.startswith("\x1b[") and seq.endswith("m"):
+            params = [p.split(":")[0] for p in seq[2:-1].split(";")] if len(seq) > 3 else [""]
+            for p in params:
+                if p in ("", "0", "22"):
+                    dim = False
+                elif p == "2":
+                    dim = True
+    if not dim:
+        out.append(row[pos:])
+    return "".join(out)
 
 
 def _box(screen: str) -> str | None:
-    """The INPUT BOX's text from a `capture-pane -e` screen (W-ee19169d): every row from the last `❯` row down to the
-    next `─` rule — a wrapped line continues on indented rows, a Shift+Enter line likewise (both measured) — joined with
-    single spaces; dim text (the fresh box's placeholder) is no text. "" for an empty box, None when no framed box is
-    visible. Check 5 reads this, never the `❯` row alone, which missed every row below it."""
+    """The INPUT BOX's text from a `capture-pane -e` screen (W-ee19169d): the last `❯` row with a `─` rule directly
+    above it, and every row down to the next `─` rule — a wrapped line continues on indented rows, a Shift+Enter line
+    likewise (both measured) — joined with single spaces, whitespace collapsed; dim text (the fresh box's placeholder)
+    is no text. "" for an empty box, None when no framed box is visible. Check 5 reads this, never the `❯` row alone,
+    which missed every row below it."""
     rows = screen.splitlines()
-    plain = [_ANSI.sub("", r) for r in rows]
-    starts = [i for i, r in enumerate(plain) if r.lstrip().startswith("❯")]
+    plain = [_ESC.sub("", r) for r in rows]
+    starts = [
+        i
+        for i, r in enumerate(plain)
+        if i > 0 and r.lstrip().startswith("❯") and plain[i - 1].strip().startswith("─")
+    ]
     if not starts:
         return None
     i = starts[-1]
     end = next((j for j in range(i + 1, len(rows)) if plain[j].strip().startswith("─")), None)
-    if end is None or i == 0 or not plain[i - 1].strip().startswith("─"):
+    if end is None:
         return None
     parts = []
     for k in range(i, end):
-        text = _ANSI.sub("", _DIM.sub("", rows[k]))
+        text = _undimmed(rows[k])
         if k == i:
             text = text.replace("❯", "", 1)
         parts.append(text)
@@ -693,18 +721,21 @@ def _box_now(pane: str) -> tuple[str | None, str]:
     return _box(screen), screen
 
 
-def _discard(pane: str, seen: str) -> None:
-    """Clear a stuck input box the coordinator's request saw (W-ee19169d), or raise `stale-input` having typed nothing
-    more than the clear itself. The box must still read exactly `seen` on two captures 2 s apart and once more right
-    before the key — the operator may be typing in that pane. Claude Code clears a NON-empty box on a fast double
-    Escape (one send-keys call; two sent 1.5 s apart do nothing); C-u deletes only the current row, leaving a
-    multi-line input behind (both measured 2026-10-23). A double Escape on an EMPTY box opens the Rewind menu: that is
-    closed with one Escape and refused."""
-    for wait in (0.0, 2.0, 0.0):
+def _discard(t: dict, seen: str) -> None:
+    """Clear a stuck input box the coordinator's request saw (W-ee19169d), or raise `stale-input`. Before the key the
+    box must read exactly `seen` on two captures 2 s apart (someone may be typing in that pane), and then EVERY check
+    re-runs (`run_checks` with `seen` — the session idle, its box still exactly `seen`) right before it: an Escape in a
+    running turn interrupts it (review r1). Claude Code clears a NON-empty box on a fast double Escape (one send-keys
+    call; two sent 1.5 s apart do nothing); C-u deletes only the current row (both measured 2026-10-23). After the key
+    a capture still showing `seen` is a redraw not yet drawn and is waited out, never acted on. A double Escape on an
+    EMPTY box opens the Rewind menu (measured) — no framed box and the word on screen — which gets ONE Escape and a
+    refusal; that Escape is the only key besides the pair."""
+    pane = t["pane"]
+    for wait in (0.0, 2.0):
         time.sleep(wait)
-        box, _ = _box_now(pane)
-        if box != seen:
+        if _box_now(pane)[0] != seen:
             raise CheckFailedError("stale-input", "the input box changed since the request")
+    run_checks(t, seen)
     if _tmux("send-keys", "-t", pane, "Escape", "Escape").returncode != 0:
         raise CheckFailedError("stale-input", "tmux refused the keys")
     deadline = time.time() + _wait_s(10)
@@ -712,13 +743,15 @@ def _discard(pane: str, seen: str) -> None:
         box, screen = _box_now(pane)
         if box == "":
             return
-        if "Rewind" in _ANSI.sub("", screen):
+        if box is None and "Rewind" in _ESC.sub("", screen):
             _tmux("send-keys", "-t", pane, "Escape")
             raise CheckFailedError(
                 "stale-input", "the double Escape opened the Rewind menu; closed"
             )
         time.sleep(0.5)
-    raise CheckFailedError("stale-input", "the input box still holds text after the double Escape")
+    raise CheckFailedError(
+        "stale-input", "the input box did not read empty after the double Escape"
+    )
 
 
 def _send(pane: str, text: str) -> None:
@@ -834,10 +867,14 @@ def _one(claimed: Path) -> dict:
                 "resolve", "the pane, its claude or its session changed since the request"
             )
         path = run_checks(t, stale_text)
-        if stale_text and _box_now(t["pane"])[0]:
-            _discard(
-                t["pane"], stale_text
-            )  # a refusal here typed at most the clear itself; nothing else follows
+        if stale_text:
+            box = _box_now(t["pane"])[0]
+            # a blank or redrawing frame is no reading — never paste behind unseen text (review r1)
+            if box is None:
+                raise CheckFailedError("screen", "no input box is visible in the pane")
+            # a refusal inside sends at most the Escape pair and one closing Escape
+            if box:
+                _discard(t, stale_text)
     except Exception as exc:  # noqa: BLE001 — before the first key every fault is a refusal, rowed, never a crash
         check = (
             exc.check

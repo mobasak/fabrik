@@ -40,6 +40,10 @@ elif a[0] == "capture-pane":
     st["caps"] = st.get("caps", 0) + 1
     if st.get("drift_at") and st["caps"] >= st["drift_at"]:  # someone types in the pane meanwhile (W-ee19169d)
         st["screen"] = st["screen"].replace("❯ go on", "❯ go on, and also", 1)
+    if st.get("blank_at") and st["caps"] == st["blank_at"]:  # one redraw frame with no box drawn (W-ee19169d r1)
+        json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
+        sys.stdout.write("redrawing\\n")
+        sys.exit(0)
     full = st.get("pending")
     if full is not None:
         caps = st["caps"]
@@ -1020,6 +1024,58 @@ def test_w_ee19169d_discard_refuses_a_changed_box_or_a_rewind(world):
             assert keys == [], (case, keys)  # nothing typed into a box someone is still writing in
         if case == "rewind":
             assert keys[-1] == ["-t", "%5", "Escape"]
+
+
+def test_w_ee19169d_review_r1_sgr_walk_rule_above_and_the_pre_key_rechecks(world, monkeypatch):
+    """Review r1: dim ends only on 0/22/empty (a combined `0;7m` cursor ends it, `2;3m` starts it); OSC links are
+    stripped; a `❯` row needs a rule directly above; the box is read twice 2 s apart and every check re-runs right
+    before the key; a box emptied meanwhile rotates without a key; a blank frame at the decision refuses; both 1000-
+    character caps and bad operator words refuse."""
+    assert rs._box(_boxed("❯ \x1b[2mTry\x1b[0;7mT\x1b[0m typed")) == "T typed"
+    assert rs._box(_boxed('❯ \x1b[2;3mTry "x"\x1b[0m')) == ""
+    assert rs._box(_boxed("❯ \x1b[2mTry\x1b[22m real")) == "real"
+    assert rs._box(_boxed("❯ \x1b]8;;file:///x\x1b\\go on\x1b]8;;\x1b\\")) == "go on"
+    assert rs._box(_boxed("❯ a", "  ❯ quoted")) == "a ❯ quoted"
+    assert rs._box(f"❯ go on\n{RULE}\n") is None
+    sleeps: list[float] = []
+    monkeypatch.setattr(rs.time, "sleep", lambda s: sleeps.append(s))
+    # execute's captures: check 5 (1), the pre-discard read (2), the discard's two reads (3, 4), run_checks again (5)
+    for drift, want in ((4, "refused:stale-input"), (5, "refused:screen")):
+        Path(str(world["state"]) + ".keys").unlink(missing_ok=True)
+        _stuck(world, drift_at=0, rewind=False)
+        assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+        _set(world, caps=0, drift_at=drift)
+        rs.execute()
+        assert _rows(world)[-1]["outcome"] == want and _keys(world) == [], drift
+    assert 2.0 in sleeps
+    # the box was emptied before execute: an ordinary rotation, no Escape; a blank frame at the decision: refused
+    for case in ("emptied", "blank"):
+        Path(str(world["state"]) + ".keys").unlink(missing_ok=True)
+        _stuck(world, drift_at=0, blank_at=0)
+        assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+        if case == "emptied":
+            _set(world, screen=IDLE_SCREEN, stuck=False)
+        else:
+            _set(world, caps=0, blank_at=2)
+        rs.execute()
+        row, keys = _rows(world)[-1], _keys(world)
+        assert ["-t", "%5", "Escape", "Escape"] not in keys, (case, keys)
+        assert row["outcome"] == ("partial:queued" if case == "emptied" else "refused:screen"), (
+            case,
+            row,
+        )
+    _set(world, blank_at=0)
+    _stuck(world, text="x" * 1001)
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 1
+    assert _rows(world)[-1]["outcome"] == "aborted:stale-input"
+    _write_request(world)
+    base = json.loads((world["req"] / "x--dev1.json").read_text())
+    for bad in (
+        {"stale_text": "x" * 1001, "operator_ok": "op"},
+        {"stale_text": "go on", "operator_ok": "a\nb"},
+    ):
+        with pytest.raises(rs.CheckFailedError, match="stale_text"):
+            rs._validate(dict(base, **bad))
 
 
 def test_w_ee19169d_request_fields_are_optional(world):
