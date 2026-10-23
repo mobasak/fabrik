@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T15:29:30.261930Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d9f067f4",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "confirm with the read-only status probe (operator gate, production data): 200 = key exists, 404 = alerts dead; if 404, create the 'alerts' key from the stateless URLs or move every caller to the stateless /notify/; add a canary that fails loud on a non-2xx escalate_apprise",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "if confirmed, every production alert path is silently dead; one probe decides it, the fix is a key or a URL convention plus a canary",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Possible live alerting gap on vps1: apprise-api master stores a hash-mode config at /config/<sha224('apprise'+key)[:2]>/ and answers POST /notify/<key> with 404 when nothing is stored (no fallback to APPRISE_STATELESS_URLS); the allowed listing shows only /config/0e + /config/store, not /config/22 (key 'alerts'), so every watchdog Tier C / deadman / budget-cap escalation (escalate_apprise logs a warning on >=300) and Backrest's curl (src/fabrik/drivers/backrest.py:102) may be posting into a 404 today — not yet live-verified (fleet, W-5dcafaef research, 2026-10-23)"
+}
