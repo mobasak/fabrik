@@ -115,7 +115,10 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   `.claude/worktrees/` and refreshes the set (residual R3). A secrets floor in the shared
   `info/exclude` keeps `.env`/`.mcp.json` ignored in every worktree before anything is copied.
 - The shared venv is safe only while `uv.lock` is byte-identical across an epic's branches; a
-  deps-changing ticket runs `uv sync` and it lands in the repo's venv (§ Environment inside a worktree).
+  deps-changing ticket's `uv sync` or install lands in the repo's venv, so it is a serialising act
+  (§ The shared runtime is NOT isolated). `.claude/hooks/seat_guard.py` refuses it from any session
+  whose write would land in a worktree's shared venv (W-46d148b0); run on it as it is with `uv run
+  --no-sync <cmd>`.
 
 ## Ownership surfaces (§ Ownership surfaces)
 
@@ -262,7 +265,8 @@ worker, one bind-mounted module — every worktree's code runs against it. So th
 a repo with a stateful dev stack is not the files but the **serialising acts**: any act that changes
 the runtime for every worktree at once — running a migration, reloading or upgrading a module
 (`trytond-admin -u <module>`), restarting the app or worker, starting, stopping or resetting a
-shared container, reseeding the dev database. Measured in tryton-crm on the model's first real day
+shared container, reseeding the dev database, syncing or installing into the repo's venv (a linked
+worktree's `.venv` is a symlink to it — trade-intelligence lost it twice in one day, 01M3RYGETK). Measured in tryton-crm on the model's first real day
 (01M3PM5H, D-442): 7 of 11 open items needed a module reload to APPLY.
 
 - **Develop in parallel; take the act from the merge owner.** Reading, reproducing, writing code
