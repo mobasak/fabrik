@@ -3,7 +3,7 @@
   "created": "2026-10-15T17:00:01.474511Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "7264b845297c4e73d0619d4ef3e3690df95da2b0",
   "id": "W-37dda1e1",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — spoke watchdog alert gaps, no breakage named",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet",
     "medium"
