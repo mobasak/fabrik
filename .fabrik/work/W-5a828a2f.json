@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-23T15:53:33.783524Z",
+  "creator": "infra-3",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-5a828a2f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce each listed shape against the seat guard's decide() (seat payload, cwd /opt/fabrik) — plus, found in W-46d148b0's closing pass and recorded here under its scope-growth stop: flock's ABBREVIATED long options (`flock --time 5 f -c 'pkill -f x'`, `flock --conf 3 f uv sync`) read the value as the lock file, so the command is never scanned (resolve a unique prefix among flock's long names in _flock_command); then size it: likely /fabrik-task with the full /fabrik-review (synced hook)",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 2,
+  "score_reason": "HIGH: security issue — review seats can kill or write git through tokeniser gaps in an enforcement hook; effort high: a dozen shapes + 5 s budget, fleet-synced hook, full /fabrik-review; held behind infra's in-flight major W-d146dd3c",
+  "status": "open",
+  "tags": [
+    "seat-isolation"
+  ],
+  "title": "seat_guard.py: review seats can still kill or write git through shapes the tokeniser misses (found reviewing W-46d148b0, pre-existing): a heredoc opener inside quotes, a comment or a here-string (<<<) drops the rest of the command; an apostrophe inside double quotes hides a later $( ); $( ) is scanned with the command's starting cwd, before its cd; eval, function bodies, setsid/doas are not unwrapped; xargs -n 1 kill and xargs git are not seen; git worktree move checks only its source; submodule update, sparse-checkout, read-tree, update-index, filter-branch read as read-only; several store-verb segments can exceed the 5 s hook budget (3 s git per segment)"
+}

@@ -7668,3 +7668,23 @@ document.
 - **Where it lives.** `src/fabrik/drivers/preflight.py` (`_hop_destination`, `_probe`, `verify_host_reachable`),
   `src/fabrik/drivers/ssh.py` (`parse_hop`, `jump_for`), `docs/DECISIONS.md` (D-973),
   `docs/development/reviews/2026-10-18-ssh-jump-preflight-w2b657bee-review.md`.
+
+## A percentage is two measurements — re-measure the denominator before designing around the numerator (2026-10-23)
+
+- **What happened.** W-25f6b2a3 reported every hub session "born at ~64% context" and asked for the rotation line
+  to measure growth above the birth prefix. The numerator was real: a 120,613-token first usage row. The first
+  design built the growth reading. An author-blind critique replayed the same session past 200k with no
+  compaction, which no 200k window can hold. The hook had read the window as 200k because it took a model id
+  without `[1m]` as proof of 200k, while this box runs Opus 5.5 and Fable 5.1 at 1M under the bare id. The fix
+  then moved to a read of the statusline tap's top-level size. Review pass 1 showed that read belonged to whichever
+  session rendered last, so it could re-create the original alarm. The final window is the env setting, else 1M.
+- **Mechanism.** A "too high at birth" percentage has two suspects, and the numerator is the one people see. A
+  derived denominator, taken from a model id or a cache another process writes, can be wrong while every number
+  printed beside it is correct.
+- **How to apply.** (1) Before designing around a ratio, execute both halves: the reading, and the window it is
+  divided by, checked against an observation that bounds it (here, a reading past the claimed window with no
+  compaction). (2) A shared cache whose top level is "the last writer's" is never a per-session source. (3) Size a
+  fallback by its measured fire rate: a mechanism that changes the answer for no measured session is deleted, not
+  guarded.
+- **Where it lives.** `scripts/sysadmin/transcript_size_check.py::_window`, `docs/DECISIONS.md` (D-1165),
+  `docs/development/reviews/2026-10-23-w-25f6b2a3-window-review.md`.

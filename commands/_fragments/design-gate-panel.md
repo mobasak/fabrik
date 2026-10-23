@@ -12,12 +12,20 @@ operator would — approve it, or name the changes it wants first — and opens 
    overrules the operator's stand-in. When Fable is unavailable, the second Opus seat stands in and the Panel
    line adds `fable unavailable: <reason>`.
 2. **Revise.** Apply every ACCEPTED change to the artifact — written as this command's own fix-shape rule says,
-   where it states one — and to any linked artifact it makes stale, then run
-   the ONE delta round the critique step names. spec-review and plan-review flip `Status: CONVERGED` only on its
-   `confirmed 0`, in the step-3 commit; flows-review and ui-design-review bump `Version:`, re-run the closing round and rewrite
-   `Independently reviewed: v<N+1>`.
-3. **Record.** Mint the approval row (`python3 scripts/decisions.py --reserve-id .`), staged with the
-   revisions and that flip: the artifact path and its final md5, each change the panel caused, and the line
+   where it states one — and to any linked artifact it makes stale. Before the round that reviews the revision
+   is pinned, each change is written beside the ACCEPTED concern it answers, quoted whole, and its counter-case
+   (the legitimate input the change must still pass), in the artifact or its review receipt, pinned with the
+   revision and copied into step 3's row; each sentence the revision adds or changes cites its source — the code
+   line it describes, a decision row, an artifact section the revision neither adds nor changes, or, for a
+   requirement no such source states, that concern entry; never the seat's report itself — and is written whole
+   from that source, not spliced into the old sentence; and each name the revision introduces is traced through
+   every reader it must reach, process boundaries included (an `env -i` keep-list, a systemd unit, a hook
+   environment). Then run the ONE delta round the critique step names. spec-review and plan-review flip `Status:
+   CONVERGED` only on its `confirmed 0`, in the step-3 commit; flows-review and ui-design-review bump
+   `Version:`, re-run the closing round and rewrite `Independently reviewed: v<N+1>`.
+3. **Record.** Mint the approval row (`python3 scripts/decisions.py --reserve-id .`), staged with the revisions
+   and that flip: the artifact path and its final md5, each change the panel caused with the concern it answers
+   and its counter-case, and the line
    `Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → both-approve`, each quoted whole. The ask↔spec
    comparison table is still built — in the artifact or its review receipt, not in chat. Commit and push.
 4. **Brief the operator** in at most ten lines under the heading `PANEL APPROVED (<artifact path>)`: what the

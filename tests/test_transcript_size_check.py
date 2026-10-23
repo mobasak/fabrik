@@ -292,11 +292,8 @@ def _transcript(path: Path, rows: list[dict], *, pad_mb: int = 0) -> None:
 @pytest.fixture
 def ctxbox(box, tmp_path, monkeypatch):
     transcript, stamps = box
-    cache = tmp_path / "statusline.json"
-    cache.write_text(json.dumps({"sessions": {"sid-1": {"model": {"id": "claude-opus-5-5[1m]"}}}}))
-    monkeypatch.setenv("STATUSLINE_CACHE_FILE", str(cache))
-    monkeypatch.delenv("ROTATE_CONTEXT_WINDOW", raising=False)
-    return transcript, stamps, cache
+    monkeypatch.delenv("ROTATE_CONTEXT_WINDOW", raising=False)  # the box's own .env is not read: `box` points
+    return transcript, stamps  # SESSION_ARCHIVE_ENV_FILE at a missing file, so the window is the 1M default
 
 
 def _ctx(transcript, rows, monkeypatch, capsys, **kw):
@@ -307,7 +304,7 @@ def _ctx(transcript, rows, monkeypatch, capsys, **kw):
 def test_ctx_line_at_forty_percent_names_the_boundary_and_the_coordinator(
     ctxbox, monkeypatch, capsys
 ):
-    transcript, _, _ = ctxbox
+    transcript, _ = ctxbox
     rc, out = _ctx(
         transcript, [_usage(2, 1_000, 409_000)], monkeypatch, capsys
     )  # 410,002 of 1M, a tiny file
@@ -328,7 +325,7 @@ def test_ctx_line_at_forty_percent_names_the_boundary_and_the_coordinator(
 
 
 def test_ctx_stamp_prints_once_per_step_and_rearms_after_a_drop(ctxbox, monkeypatch, capsys):
-    transcript, stamps, _ = ctxbox
+    transcript, stamps = ctxbox
 
     def at(pct):
         return _ctx(transcript, [_usage(0, 0, pct * 10_000)], monkeypatch, capsys)[1]
@@ -343,7 +340,7 @@ def test_ctx_stamp_prints_once_per_step_and_rearms_after_a_drop(ctxbox, monkeypa
 
 
 def test_ctx_line_at_eighty_five_percent_is_compact_due(ctxbox, monkeypatch, capsys):
-    transcript, _, _ = ctxbox
+    transcript, _ = ctxbox
     _rc, out = _ctx(transcript, [_usage(0, 0, 870_000)], monkeypatch, capsys)
     assert out.startswith("COMPACT-DUE mid-item: ctx 87% (870k of 1000k tokens)"), out
     assert "message your coordinator `compact fleet <one-line focus on the item in hand>`" in out
@@ -357,7 +354,7 @@ def test_ctx_line_at_eighty_five_percent_is_compact_due(ctxbox, monkeypatch, cap
 
 
 def test_ctx_reading_skips_compaction_sidechains_and_bad_rows(ctxbox, monkeypatch, capsys):
-    transcript, _, _ = ctxbox
+    transcript, _ = ctxbox
     good = _usage(0, 0, 600_000)
     compact = {"type": "system", "subtype": "compact_boundary"}
     cases = [
@@ -387,7 +384,7 @@ def test_ctx_reading_skips_compaction_sidechains_and_bad_rows(ctxbox, monkeypatc
 def test_ctx_line_for_a_coordinator_and_for_an_unbound_window(
     ctxbox, tmp_path, monkeypatch, capsys
 ):
-    transcript, _, _ = ctxbox
+    transcript, _ = ctxbox
     monkeypatch.setenv("CLAUDE_AGENT", "coordinator")
     out = _ctx(transcript, [_usage(0, 0, 500_000)], monkeypatch, capsys)[1]
     assert (
@@ -429,43 +426,36 @@ def test_mb_line_names_the_boundary_and_the_actor(box, monkeypatch, capsys):
     assert "now, then" not in out
 
 
-def test_ctx_window_env_cache_and_fallback(ctxbox, tmp_path, monkeypatch, capsys):
-    transcript, _, cache = ctxbox
+def test_ctx_window_env_and_default(ctxbox, tmp_path, monkeypatch, capsys):
+    transcript, _ = ctxbox
     rows = [_usage(0, 0, 90_000)]  # 90k: 45% of a 200k window, 9% of 1M
 
     def fresh(name):
         monkeypatch.setenv("ROTATE_STAMP_DIR", str(tmp_path / name))
 
-    fresh("a")
-    cache.write_text(json.dumps({"sessions": {"sid-1": {"model": {"id": "claude-opus-5-5"}}}}))
-    assert "ctx 45% (90k of 200k tokens)" in _ctx(transcript, rows, monkeypatch, capsys)[1]
-    fresh("b")
-    cache.write_text(json.dumps({"sessions": {"sid-1": {"model": {"id": "claude-opus-5-5[1m]"}}}}))
+    fresh("default")
+    assert tsc._window() == 1_000_000
     assert _ctx(transcript, rows, monkeypatch, capsys)[1] == ""
-    fresh("c")
-    cache.write_text("{broken")
-    assert _ctx(transcript, rows, monkeypatch, capsys)[1] == ""  # no readable cache: 1M
-    fresh("d")
+    fresh("env")
     monkeypatch.setenv("ROTATE_CONTEXT_WINDOW", "200000")
-    assert "of 200k tokens" in _ctx(transcript, rows, monkeypatch, capsys)[1]
-    cache.write_text(json.dumps({"sessions": {"sid-1": {"model": {"id": "claude-opus-5-5[1m]"}}}}))
-    for junk in ("0", "-5", "abc", ""):
-        fresh(f"e{junk or 'empty'}")
+    assert "ctx 45% (90k of 200k tokens)" in _ctx(transcript, rows, monkeypatch, capsys)[1]
+    for junk in ("0", "-5", "abc", "", "1.5"):
+        fresh(f"junk{junk or 'empty'}")
         monkeypatch.setenv("ROTATE_CONTEXT_WINDOW", junk)
-        assert _ctx(transcript, rows, monkeypatch, capsys)[1] == "", (
-            junk
-        )  # junk falls through to the cache's 1M
-    fresh("f")
+        assert tsc._window() == 1_000_000, junk  # junk falls through to the default
+        assert _ctx(transcript, rows, monkeypatch, capsys)[1] == "", junk
+    fresh("file")
     monkeypatch.delenv("ROTATE_CONTEXT_WINDOW")
     env = tmp_path / "hub.env"
     env.write_text("ROTATE_CONTEXT_WINDOW=200000\n")
     monkeypatch.setenv("SESSION_ARCHIVE_ENV_FILE", str(env))
+    assert tsc._window() == 200_000
     assert "of 200k tokens" in _ctx(transcript, rows, monkeypatch, capsys)[1]
 
 
 def test_ctx_edges_the_review_found(ctxbox, tmp_path, monkeypatch, capsys):
     """Round 1 of the W-f975fee0 review: each case below survived a mutant."""
-    transcript, stamps, cache = ctxbox
+    transcript, stamps = ctxbox
     good = _usage(0, 0, 500_000)
 
     def fresh(name):
@@ -505,13 +495,6 @@ def test_ctx_edges_the_review_found(ctxbox, tmp_path, monkeypatch, capsys):
         "ctx 50%"
         in _run({"session_id": "sid-1", "transcript_path": str(transcript)}, monkeypatch, capsys)[1]
     )
-    # a stale cache row naming a 200k model cannot hold a reading past 200k: the window is 1M
-    fresh("stale")
-    cache.write_text(json.dumps({"sessions": {"sid-1": {"model": {"id": "claude-opus-5-5"}}}}))
-    assert (
-        "ctx 45% (450k of 1000k tokens)"
-        in _ctx(transcript, [_usage(0, 0, 450_000)], monkeypatch, capsys)[1]
-    )
     # a session id that looks like the stamp dir cannot collide with it
     assert not tsc._SID_RE.fullmatch(".ctx")
 
@@ -519,7 +502,7 @@ def test_ctx_edges_the_review_found(ctxbox, tmp_path, monkeypatch, capsys):
 def test_ctx_unwritable_stamp_dir_still_tells_and_mb_line_comes_first(
     ctxbox, tmp_path, monkeypatch, capsys
 ):
-    transcript, _, _ = ctxbox
+    transcript, _ = ctxbox
     blocker = tmp_path / "not-a-dir"
     blocker.write_text("")
     monkeypatch.setenv("ROTATE_STAMP_DIR", str(blocker))  # mkdir of <file>/.ctx fails
@@ -540,7 +523,7 @@ def test_ctx_unwritable_stamp_dir_still_tells_and_mb_line_comes_first(
 def test_ctx_tail_cut_on_a_line_start_and_a_failing_lock(ctxbox, tmp_path, monkeypatch, capsys):
     """Round 2 of the W-f975fee0 review: a cut landing exactly on a row start keeps that row; a stamp lock that
     cannot be opened still tells a non-zero step (the advice repeats rather than going silent)."""
-    transcript, _, _ = ctxbox
+    transcript, _ = ctxbox
     row = json.dumps(_usage(0, 0, 900_000)).encode()
     pad = tsc.TAIL_BYTES - len(row) - 1
     tail = row + b"\n" + b" " * pad  # whitespace-only last line: no other usage row
@@ -552,3 +535,27 @@ def test_ctx_tail_cut_on_a_line_start_and_a_failing_lock(ctxbox, tmp_path, monke
     (locked / ".lock").mkdir(parents=True)  # opening a directory for append raises
     assert tsc._claim_ctx_step(locked, "sid-1", 50) is True
     assert tsc._claim_ctx_step(locked, "sid-1", 0) is False
+
+
+def test_ctx_a_bare_model_id_is_not_a_200k_window(ctxbox, tmp_path, monkeypatch, capsys):
+    """W-25f6b2a3: this box runs claude-opus-5-5 and claude-fable-5-1 at 1M under the bare id (32 of 153 and 8 of 8
+    transcripts read past 200k with no compaction), and the statusline cache keeps only that id per session, so the
+    sensor reads no window from it: this session's own second reading, 126k, read `ctx 63% (126k of 200k tokens)`
+    and ordered a rotation at birth. A cache naming the bare id, and one whose top level names a 200k window for it
+    (the last-rendered session's), both leave the window at 1M."""
+    transcript, _ = ctxbox
+    cache = tmp_path / "statusline.json"
+    monkeypatch.setenv("STATUSLINE_CACHE_FILE", str(cache))
+    born = [_usage(2, 90_726, 29_885), _usage(0, 0, 126_000)]
+    for body in (
+        {"sessions": {"sid-1": {"model": {"id": "claude-opus-5-5"}}}},
+        {
+            "model": {"id": "claude-opus-5-5"},
+            "context": {"usedPercent": 60, "size": 200_000},
+            "sessions": {"sid-1": {"model": {"id": "claude-opus-5-5"}}},
+        },
+    ):
+        cache.write_text(json.dumps(body))
+        assert _ctx(transcript, born, monkeypatch, capsys)[1] == "", body
+    assert _ctx(transcript, [_usage(0, 0, 399_999)], monkeypatch, capsys)[1] == ""
+    assert "ctx 40% (400k of 1000k tokens)" in _ctx(transcript, [_usage(0, 0, 400_000)], monkeypatch, capsys)[1]

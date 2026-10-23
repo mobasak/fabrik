@@ -21,6 +21,19 @@ All notable changes to this project will be documented in this file.
   `watchdog: enabled: false` opt-out; `PORTS.md`, `docs/infrastructure/vps-urls.md` and `docs/SERVICES.md` name
   the port. Not yet deployed — the live stack changes at the plan's deploy gate.
 
+### Changed — command-improve: handles are copied from the latest --queue output and grepped back as the whole first field (2026-10-23)
+
+- `commands/_sources/fabrik-command-improve.md` PHASE 1, beside the `ts` definition: the lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyped or taken from a seat's report, maps a seat's row back to its line by verdict text, and before `--reject`, the trailer or `--mark-answered` takes a handle greps that output for it as a line's whole first field (`command grep -P '^\Q<ts>\E\t'`) — a truncated or wrong-line handle no longer passes. Answers `/fabrik-command-improve` feedback rows 1792765907, 1792734774, 1792707211 (recurrence of the held mark-handles-from-take-output subject); reviewed by `/fabrik-review-scoped` (6→3→3 own-fix, scope-growth stop, remainder round 0).
+
+### Changed — design-gate panel: step 2 states the checks a panel revision owes before its reviewing round (2026-10-23)
+
+- `commands/_fragments/design-gate-panel.md` step 2 (rendered into `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-flows-review`, `/fabrik-ui-design-review`): before the round that reviews the revision is pinned, each change sits beside the ACCEPTED concern it answers (quoted whole) and its counter-case in the artifact or its review receipt; each added or changed sentence cites a durable source (code line, decision row, an artifact section the revision neither adds nor changes, or that concern entry — never the seat's report itself) and is written whole from it, not spliced; each new name is traced through every reader, process boundaries included. Step 3's approval row carries each change with its concern and counter-case. Answers `/fabrik-spec-review` feedback rows 1792767893, 1792279737, 1792592328, 1792609741, 1792558161; reviewed by `/fabrik-review-scoped` (4→6→6 own-fix, scope-growth stop, remainder round 0; residue W-15970d2a).
+
+### Changed — review probe catalogue: a fix that narrows, widens or splits a rule's subject lists the old subject's cases before drafting (2026-10-23)
+
+- The catalogue's Sweep bullet (§ Prose and docs fixes, which `/fabrik-review-scoped` step 3 sends the lead to before a rule sentence is drafted) holds such a fix to `/fabrik-review`'s "does the new form still hold EVERY shape the form it replaces held", quoted with its "the shapes enumerated from the OLD form before the fix is drafted, never from the new one": each case no new clause covers, two now cover or only the new wording reaches is listed with where it lands or, with its reason, that it is dropped on purpose, in the fix's Pass Ledger `method:` cell (`/fabrik-review`) or the report (`/fabrik-review-scoped`) (row 1792730405, the second sighting of held fix-narrowed-input-strands-defensive-guards).
+- Twelve other queued `/fabrik-review-scoped` rows were rejected with reasons after an Opus audit. Row 1792630929 (whether a remainder round fixes or records an own-fix defect that loosens a guard) stays open: the catalogue and term-coverage.md disagree, and its Opus + Fable panel is half done (the Fable seat hit its quota limit).
+
 ### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
 
 - MEASURE runs every probe under an interpreter shown to import its libraries and each extra it enables, since a system `python3` may lack one (rows 1792766698, 1792734746: the system markdown_it lacked linkify; 14 of the 15 project venvs that carry markdown_it lack linkify too).
@@ -31,6 +44,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-spec: a design that changes what existing readers read censuses them per reader kind before Phase 3 (2026-10-23)
 
 - The 1a local-claims bullet requires an executed reader census before Phase 3: a symbol, value or build script by call sites (callers followed transitively) plus name, basename and path greps; a table by its SQL statements, views, ORM models and migrations under bare and schema-qualified names; a matcher's corpus under the old pattern and the new; and a find-then-scan across repos for any subject another repo can read. Extends `/fabrik-plan-after-chat` Phase 1's reader census; W-e5769015.
+
+### Fixed — The context sensor stops reading a 1M session as 200k, so no hub session is told to rotate at birth (2026-10-23)
+
+- `scripts/sysadmin/transcript_size_check.py::_window` mapped every statusline model id without `[1m]` to a 200k window; Opus 5.5 and Fable 5.1 run 1M under the bare id on this box, so a hub session born at ~120k read "ctx 63%" and got `ROTATE-DUE` on its second prompt (and `rotate_session.py due` offered the same rotation). The window is now `ROTATE_CONTEXT_WINDOW`, else 1,000,000; the statusline cache is not read. W-25f6b2a3 slice 1, D-1165; `docs/CONFIGURATION.md`, `.env.example` and `docs/workstation/hooks-index.md` restate the mapping.
 
 ### Changed — /fabrik-plan-after-chat: the ~300-line shape trigger excludes only the pasted rubric output (2026-10-23)
 
@@ -46,6 +63,14 @@ All notable changes to this project will be documented in this file.
 
 - `rotate_session.py request --stale-input discard --operator-ok "<words>"` (also via `agents_up.sh rotate-session`): text left unsent in a builder's input box blocked every rotation, and the coordinator may not type into a pane (W-ee19169d, the operator: "find a way to send clear command to your agents as coordinator"). The request records the box's text (its rows joined, whitespace collapsed). The unit clears it only while the box still reads exactly that text and the session is idle, with one fast double Escape (measured on a live Claude Code: it clears a non-empty box; C-u deletes only the current row). The Rewind menu a double Escape opens on an empty box is closed and refused. The text and the operator's words are logged on the row.
 - Check 5 now reads the whole input box, so a second line or a wrapped row is seen and a fresh box's dim placeholder counts as empty. The two new request fields are optional and written only for a discard, so an older unit still reads an ordinary request from the new verb (a discard request needs the new unit). Graded in `tests/test_rotate_session.py`.
+
+### Added — a worktree session can no longer sync or install into the venv it shares with the main checkout (2026-10-23)
+
+- `.claude/hooks/seat_guard.py` (fleet-synced PreToolUse Bash hook) now refuses, for every session, a uv or pip write whose target venv resolves to the one a linked worktree shares through its `.venv` symlink: `uv run|sync|add|remove`, `uv version --bump`, `uv venv --clear`, `uv pip install|sync|uninstall`, `pip`/`python -m pip install|uninstall`, an installer under `uv run --no-sync`, and a `-e` of a worktree path. `uv run --no-sync` and `.venv/bin/python` run on the shared venv as it is; a pin the merge owner approved passes with an inline `FABRIK_SHARED_VENV_WRITE=1`. The kill and git checks stay seat-only; their tokeniser now applies the shell's comment rule, keeps a spaced digit argument (`kill 0 > f`), unwraps by basename and parses `flock` whole. Closes trade-intelligence's report 01M3RYGETKD5HQZRBTDF3EK3EK (W-46d148b0, D-1167); pre-existing seat-check gaps the review found are W-5a828a2f.
+
+### Fixed — a pool worker is named by the agent its live window is bound to, not its worktree directory (2026-10-23)
+
+- `scripts/work.py::_workers` named every `.claude/worktrees/<dir>` tree after its directory, so infra's live window in `infra-uncapped` read as an empty worker `infra-uncapped` below the floor and the coordinator's Stop hook demanded triage every turn (W-84ad2ff1). A tree holding a live windowed `claude` is now keyed by that window's bound agent: `CLAUDE_AGENT` in its environ, else the whoami row with its pid AND pid_start. `_rekey` decides every tree's fate against the unchanged directory map, independent of /proc order: dropped (bound to the coordinator or the feedback owner, or a second window of an agent whose own tree is live), kept (unbound, ambiguous, or an unnamed window beside a named one), or renamed. Any error falls back to the directory roster. A pause under a tree's directory name still covers it in the Stop hook, the floor, triage and `queue` (`_paused_workers`). Tests: `tests/test_work_roster_agent.py`, 22 cases, every clause's mutant killed by name. Reviewed by the full `/fabrik-review`.
 
 ### Fixed — a rotation's typed prompts now submit (2026-10-23)
 

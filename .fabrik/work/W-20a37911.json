@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-23T15:30:37.966510Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-20a37911",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,11 +15,13 @@
   },
   "next": "measure each of the three on master (src/fabrik/orchestrator/infrastructure.py:137-157, drivers/glitchtip create_project), size each separately",
   "note": "split into one item each (coordinator 2026-10-23): W-0d19682e stale vps1 watchdog sidecar for pre-D-904 spoke apps; W-bb2e31e5 portless shared-host URL not rewritten on a spoke; W-d0443373 glitchtip project created then _fetch_dsn raises, never recorded",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "LOW: review residue (stale sidecar cleanup, host-rewrite edge, glitchtip); an umbrella of three — owner splits it",
   "status": "dropped",
   "tags": [
-    "fleet"
+    "fleet",
+    "needs-split"
   ],
   "title": "W-fc3eddd8 review residue never filed (recorded only in W-37dda1e1 note): a spoke app provisioned before D-904 keeps a stale <id>-watchdog sidecar and compose overlay on vps1 (no cleanup); _rewrite_shared_infra_host matches only host:port, so a user-supplied redis_url/pg_dsn with no port stays unrewritten on a spoke; glitchtip create_project can POST then raise in _fetch_dsn, so the created project is never recorded or rolled back"
 }
