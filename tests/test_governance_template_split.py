@@ -2306,7 +2306,7 @@ def test_the_templates_row_1_binds_its_recipient_clause_to_the_gates_own_code(
     the tree under test); `tmp_path` must sit outside any git checkout, since `_sync_verdict` asks
     git for a main checkout before it looks for the lock (pytest's default tmp root does).
 
-    Two halves, both needed. The ANCHOR half is red on base (the row carried none of the eleven
+    Two halves, both needed. The ANCHOR half is red on base (the row carried none of the sixteen
     phrases); the CODE half is green on base and pins what the phrases claim — the cheapest pass
     would be to add the words without the facts, which is why each fact is executed here:
     `libs/health_probe` is vendored by the manifest (not the regex), `docs/DECISIONS.md` is seeded
