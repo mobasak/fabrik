@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:09:53.837133Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-010bb0d9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: /fabrik-task on scripts/sysadmin/claude_rotate.py (--tick offline path) + quota_posture_hook.py readers; regression test with a mocked network failure",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a stale hold parked every builder for 8 h after an outage although quota was fresh; one offline-path fix in the tick",
+  "status": "open",
+  "title": "Rotation tick stops writing posture during an internet outage and leaves a stale LANE hold standing: cron ran (/usr/sbin/cron alive) but ~/.claude/rotate-tick.log's last write was 2026-10-22 17:07; at 2026-10-23 01:06 claude_rotate.py --status read 'posture: STALE written 424m ago (readers fail open)' and 'picture: hold LANE (urgent-90) since Thu 16:33, resume promised Sat 11:01' while sarp read 8%/27%; a hand-run --tick at 01:08 wrote GREEN and 'hold none'. Fix the class: the tick must write a posture row (or an explicit 'offline' posture) and re-evaluate/clear the hold on every run even when the quota endpoints are unreachable; a stale posture past N minutes should clear a LANE/urgent hold rather than keep it. Observed also by fabrik-lib's coordinator (01:06)."
+}

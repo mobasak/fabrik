@@ -74,7 +74,14 @@ layer. The hub's T07 cut-over applies this for `fleet` and `intel`.
   **box-wide**: a bare `-n alpha` in a second repo is silently renamed and `@alpha` addressing breaks.
 - **`--worktree` is the launch form for a NEW window; a RUNNING window moves with `EnterWorktree`.**
   Either way, check the gitignored set `.worktreeinclude` lists arrived and copy any missing path in
-  from the main checkout (residual R1, below); an entry without it has no gate, no packs, no `.env`.
+  from the main checkout (residual R1, below); an entry without it has no gate, no packs, no `.env`. A missing
+  hook copy no longer blocks the prompt: every synced hook line but the two older silent guards (`agent_status.py`,
+  `seat_guard.py`) checks its script is a readable regular file and, when it is not, prints `HOOK MISSING: <path>`
+  with the remedy (copy the set from the main checkout, or have the hub re-run its sync) — on stdout at exit 0 for
+  `UserPromptSubmit`/`SessionStart` (context Claude sees), on stderr at the non-blocking exit 1 for `Stop`
+  (`final_gate_stop.py`) and `PreToolUse` (`quota_stop.py`), a transcript `hook error` notice on each — so the
+  damaged checkout runs WITHOUT that hook, nagging on every prompt and tool call until the set is copied in
+  (W-ed75e99d).
 - Commit messages go through a file: write the message with the Write tool to the session
   scratchpad and run `git commit -F <scratch>/msg` — a heredoc, even quoted (`<<'EOF'`; an unquoted
   one is refused outright), is a compound shape the isolation check may refuse.

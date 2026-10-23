@@ -5,8 +5,10 @@
   ],
   "created": "2026-09-30T10:55:09.248492Z",
   "creator": "intel",
+  "effort": "high",
   "evidence": "",
   "id": "W-d9b1f8ae",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -18,6 +20,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "mobile-app template drifts from its own rule pack (inert new-arch flag, hard-coded login form, missing tr locale, Sentry init) — fleet-wide scaffold correctness; several sessions",
   "status": "open",
   "tags": [
     "medium",

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T00:18:15.712049Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ce452a0d",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5JZ2TG4N0A7JSWDCT6HR943",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "kaizen's wording fix on the hub contract's rotation pointer, stale since 7ce4e3e38; one sentence and its pinned test",
+  "status": "done",
+  "title": "CLAUDE.md Session-history pointer — the ROTATE-DUE line has landed (W-f975fee0 slice 1, merged 7ce4e3e38)"
+}

@@ -7,7 +7,7 @@ Reads the posture file the rotation tick writes (`_quota_posture` in
 
 * **`UserPromptSubmit`** — prints ONE line to stdout, which the CLI lands as context:
   ``QUOTA: <slug> · 5h <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% ·
-  band <GREEN|AMBER|RED|WALL> · successor <slug or none>``.
+  band <GREEN|AMBER|RED|WALL> · successor <slug or none>[[ · band LANE on 5h — builders park, coordinators continue] · ⚠️ CHECKPOINT NOW …]``.
 * **`PreToolUse`** — at RED, HOLDS the two things that START new work: the ``Agent``
   tool outside a live run record, and a fresh ``command_run.py start`` outside the
   review family. Everything a checkpoint needs — edits, tests, git, ``done``,

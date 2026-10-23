@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "/fabrik-spec seeded from mails 01M39CVD (infra, 5 items), 01M39FQ6 (fabrik-lib re-vendor advisory, 2f46e7f9) and 01M39G1A (fabrik-lib SB-013(a): should the registrar inject FABRIK_ANALYTICS_URL?); surfaces src/fabrik/drivers/watchdog.py:541, spec_loader.py:450-522, drivers/postgres.py:1273,1554, orchestrator/infrastructure.py:546; cross-repo re-vendor mails per project",
-  "note": "",
+  "note": "low-impact high-effort umbrella (needs-split) with no single change to make — a time sink under the priority table (D-955); re-file each concrete fix as its own item with work.py add",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium",
     "needs-split"

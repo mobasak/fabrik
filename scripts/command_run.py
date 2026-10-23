@@ -3354,6 +3354,141 @@ def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, float] | str | None:
     return acc
 
 
+# ── W-93a9d22a: the Stop hook's seats-in-flight reader, copied VERBATIM with a `_hook_`/`_HOOK_`
+# prefix (`_SEAT_TAIL_BYTES` below already exists with another value — the unstamped-seat
+# nudge's). Never imported: the hook's presence and version beside this synced script is not
+# guaranteed in a project, so an import would leave `round`'s refusal silently inert there.
+# Parity is GRADED — `tests/test_command_run.py::test_seats_in_flight_matches_the_stop_hook`
+# compares source (prefix stripped), the four constants, the regex and a behaviour matrix.
+_HOOK_SEAT_STAMP_FRESH_S = 25 * 60
+
+_HOOK_SEAT_TAIL_BYTES = 8 * 1024 * 1024
+
+_HOOK_NOTIFY_RE = re.compile(r"<task-id>([^<\s]+)</task-id>.*?<status>([^<\s]+)</status>", re.S)
+
+_HOOK_CLOCK_SKEW_TOLERANCE_S = 60.0
+
+
+def _hook_line_age_s(obj: dict, now: float) -> float:
+    """Seconds since a transcript line's ISO ``timestamp``; +inf when absent or unparseable."""
+    import datetime as _dt
+
+    ts = obj.get("timestamp")
+    if not isinstance(ts, str):
+        return math.inf
+    try:
+        return now - _dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return math.inf
+
+
+def _hook_seats_in_flight(rec: dict, transcript_path: str) -> bool:
+    """True when this run's dispatched background seats are verifiably still running.
+
+    The stamp (``rec["dispatch"]``) must be live: a dict, not released, ``seats`` a positive
+    int, ``ts`` finite and at most 25 minutes old, and its ``round`` equal to the record's
+    current round count (recording a round closes the stamp). The transcript tail must show a
+    background Agent launched (``toolUseResult.status == "async_launched"``) or resumed
+    (``toolUseResult.resumedAgentId``) at most 25 minutes ago, with no later task notification
+    for that id. Only
+    ``user`` lines' structured ``toolUseResult`` counts as a launch — Bash or Read output
+    quoting the launch text carries no such field; notifications come from ``queue-operation``
+    enqueue lines that START with the notice tag, ``attachment`` lines whose ``commandMode`` or
+    ``origin.kind`` is task-notification, and task-notification ``user`` lines, so an assistant message, a seat's
+    hand-back or a peer message quoting a notice never counts (W-1b9ae5f2). Anything unreadable, absent or malformed returns False — the old block.
+
+    Cheapest way past it (D-253): stamp ``dispatch --seats 1`` and launch a real background
+    Agent that does not report, again every 25 minutes — each launch is a real seat costing
+    real quota, which costs more than finishing or closing the run.
+    """
+    try:
+        d = rec.get("dispatch")
+        if not isinstance(d, dict) or d.get("released"):
+            return False
+        seats, ts = d.get("seats"), d.get("ts")
+        if isinstance(seats, bool) or not isinstance(seats, int) or seats <= 0:
+            return False
+        if isinstance(ts, bool) or not isinstance(ts, (int, float)) or not math.isfinite(ts):
+            return False
+        age = time.time() - float(ts)
+        if age > _HOOK_SEAT_STAMP_FRESH_S or age < -_HOOK_CLOCK_SKEW_TOLERANCE_S:
+            return False
+        if d.get("round") != len(rec.get("rounds") or []):
+            return False
+        if not transcript_path:
+            return False
+        with open(transcript_path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - _HOOK_SEAT_TAIL_BYTES))
+            raw = f.read().decode("utf-8", errors="replace")
+        lines = raw.splitlines()
+        if size > _HOOK_SEAT_TAIL_BYTES and lines:
+            lines = lines[1:]  # the first line of a mid-file slice is almost surely partial
+        running: set[str] = set()
+        now = time.time()
+        for line in lines:
+            if not any(k in line for k in ("async_launched", "resumedAgentId", "<task-id>")):
+                continue
+            try:
+                obj = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(obj, dict):
+                continue
+            kind = obj.get("type")
+            text = None
+            if kind == "user":
+                tur = obj.get("toolUseResult")
+                if isinstance(tur, dict):
+                    aid = None
+                    if tur.get("status") == "async_launched":
+                        # an Agent seat carries `agentId`; the review-loop Workflow (the mandated
+                        # review fan-out) carries `taskId` with taskType `local_workflow`. Any other
+                        # async task (a background Bash) is not a seat and never counts.
+                        aid = tur.get("agentId") or (
+                            tur.get("taskId") if tur.get("taskType") == "local_workflow" else None
+                        )
+                    aid = aid or tur.get("resumedAgentId")
+                    # each seat is bounded by its OWN launch/resume line too: `dispatch` re-dates
+                    # the stamp, so a seat that never returns must not ride later stamps
+                    if (
+                        isinstance(aid, str)
+                        and aid
+                        and _hook_line_age_s(obj, now) <= _HOOK_SEAT_STAMP_FRESH_S
+                    ):
+                        running.add(aid)
+                origin = obj.get("origin")
+                content = (obj.get("message") or {}).get("content")
+                if isinstance(origin, dict) and origin.get("kind") == "task-notification":
+                    text = content if isinstance(content, str) else None
+                if text is None:
+                    continue
+            elif kind == "queue-operation" and obj.get("operation") == "enqueue":
+                # every real notice enqueue starts with the tag; an agent or cross-session message may QUOTE one
+                content = obj.get("content")
+                if isinstance(content, str) and content.lstrip().startswith("<task-notification>"):
+                    text = content
+            elif kind == "attachment" and isinstance(obj.get("attachment"), dict):
+                att = obj["attachment"]
+                origin = att.get("origin")
+                if att.get("commandMode") == "task-notification" or (
+                    isinstance(origin, dict) and origin.get("kind") == "task-notification"
+                ):
+                    text = att.get(
+                        "prompt"
+                    )  # a seat's hand-back (origin peer) quoting a notice never closes one
+            elif kind != "user":
+                continue
+            if isinstance(text, str):
+                for aid, status in _HOOK_NOTIFY_RE.findall(text):
+                    if status not in ("running", "in_progress"):
+                        running.discard(aid)
+        return bool(running)
+    except Exception:
+        return False
+
+
 def _transcript_path(sid: str, repo_root: str) -> Path | None:
     override = os.environ.get("COMMAND_RUN_TRANSCRIPT")
     if override:
@@ -3892,7 +4027,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "that omits it can never qualify, and when the other rounds are close enough that it "
         "would decide the verdict the stop prints UNCOMPUTABLE and names the round",
     )
-    p.add_argument("--classes-swept", default="", help="comma-separated, swept CLEAN")
+    p.add_argument(
+        "--classes-swept", default="", help="comma-separated, swept AND found clean this round"
+    )
     p.add_argument("--classes-new", default="", help="comma-separated, newly opened")
     p.add_argument(
         "--new",
@@ -6656,6 +6793,39 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 file=sys.stderr,
             )
             return 2
+        # W-93a9d22a: a round that confirms defects must leave them a class to live in — intel's
+        # (sits ABOVE every NOTE and advisory: a refused round prints nothing that says it went ahead)
+        # row 1792642621 swept the class its findings sat in and the record read "classes open:
+        # none". A ledger with NO class (per-unit and classless loops) is untouched; a round that
+        # opens any class with --classes-new passes (there is no per-finding class input, so a
+        # clean sweep beside a newly opened class is not checked).
+        _n_conf = args.confirmed if isinstance(args.confirmed, int) and args.confirmed > 0 else 0
+        _led = dict(rec.get("classes") or {})
+        _swept_now = _csv(args.classes_swept)
+        _after = {**_led, **dict.fromkeys(_swept_now, "clean")}
+        if (
+            _n_conf
+            and _after
+            and not _csv(args.classes_new)
+            and (_swept_now or all(v == "clean" for v in _after.values()))
+        ):
+            _named = [n for n in _swept_now if n in _led] or _swept_now
+            _how = (
+                f"swept {', '.join(_named)} clean"
+                if _swept_now
+                else "leaves every class the ledger knows clean"
+            )
+            msg = (
+                f"REFUSED — round --confirmed {_n_conf} but this round opens no class "
+                f"(--classes-new is empty) while it {_how}: a confirmed defect lives in a class — "
+                "open it with --classes-new <class> (a class both swept and re-found stays open; a class carried open from an earlier round is re-named the same way), "
+                "or leave its class out of --classes-swept, which marks a class swept AND found "
+                "clean (D-206: a fixing round is never the last look at the classes it touched); "
+                "nothing was recorded."
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 2
         if args.own_fix is not None and args.confirmed is None:
             print(
                 "[command_run] NOTE — round --own-fix given without --confirmed: the scope-growth "
@@ -6702,6 +6872,37 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
             return 2
         _seats = args.seats if args.seats is not None else _stamped
+        # W-93a9d22a: a FULL close typed while the stamp's seats are verifiably still out is a
+        # round nobody read — infra's row 1792629286 recorded one and the tool called it
+        # terminal. The hook's own reader decides (W-4c7edc74, `_hook_seats_in_flight`); a
+        # partial `--seats k` (0 < k < stamp) is the dispatcher-mode close and releases only
+        # what returned, so it is never refused here; `--seats 0` claims nobody ran and is.
+        _full_close = args.seats is None or args.seats <= 0 or args.seats >= _stamped
+        if _stamped and _full_close:
+            _tp_seats = _transcript_path(sid, str(rec.get("repo_root") or ""))
+            if _tp_seats is None or not _tp_seats.is_file() or not os.access(_tp_seats, os.R_OK):
+                _why_tp = (
+                    "no transcript for this session"
+                    if _tp_seats is None or not _tp_seats.is_file()
+                    else f"transcript unreadable: {_tp_seats}"
+                )
+                print(
+                    f"[command_run] NOTE — could not verify the {_stamped} stamped seat(s) returned "
+                    f"({_why_tp}); recording as typed",
+                    file=sys.stderr,
+                )
+            elif _hook_seats_in_flight(rec, str(_tp_seats)):
+                msg = (
+                    f"REFUSED — round while {_stamped} stamped seat(s) may still be in flight: a "
+                    "background Agent or Workflow of this session was launched or resumed <=25 min "
+                    "ago with no hand-back notification in the transcript; nothing was recorded. "
+                    "Wait for the notifications and record; a partial `round --seats <k>` (k below "
+                    "the stamp) releases only the seats that returned; a seat that never returns "
+                    "leaves the stamp 25 minutes after the dispatch."
+                )
+                sys.stderr.write(f"[command_run] {msg}\n")
+                print(msg)
+                return 2
         # the ledger this round is expected to state, said after every refusal (a refused round
         # prints none of it) and before the round is recorded (W-2d704438)
         for _line in _slice_expectation(rounds, rec.get("classes") or {}, slices, args.confirmed):

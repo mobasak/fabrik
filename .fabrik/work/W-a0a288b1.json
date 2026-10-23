@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T04:02:03.150556Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a0a288b1",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one sentence beside the UserPromptSubmit/Stop rows of hooks-index.md, under the Deck lock, same way as infra's ROTATE row",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "one sentence in a box-local doc; the gate reads green already",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "docs/workstation/hooks-index.md owes ONE sentence for the synced hook guard merged in 8bfd26bbf (W-ed75e99d, D-1148): a missing synced hook copy prints HOOK MISSING and exits 0/1 instead of blocking every prompt — the file sits in the Deck plan lock, so fleet applies it (routed from infra-3, 2026-10-23)"
+}

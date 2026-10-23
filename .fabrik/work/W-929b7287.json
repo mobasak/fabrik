@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T04:02:03.691255Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-929b7287",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find why the carry skipped this worktree (created by hand 2026-10-22 for D-1128) and whether infra-2's has it; add the symlink via the sanctioned carry, never a copy",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "one missing symlink in one hand-made worktree; seats worked around it",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "The hub worktree .claude/worktrees/infra-3 has NO .venv symlink although the synced settings list .venv under worktree.symlinkDirectories — an R1-class missing carry on a hub worktree; both of W-ed75e99d's critique seats hit it (infra-3 residue 3, 2026-10-23)"
+}

@@ -3,7 +3,7 @@
   "created": "2026-10-21T11:41:35.547000Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "f74d24b536db28a51a819fb5debc949a52e90d3b",
   "id": "W-10146d20",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: an operator ask (D-1093) and a reliability fix for every research run; effort: several sessions likely — intel sizes it at start and upgrades to the spec chain if the module test trips",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],

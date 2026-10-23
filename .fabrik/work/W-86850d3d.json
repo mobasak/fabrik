@@ -4,8 +4,10 @@
   ],
   "created": "2026-10-21T19:01:05.077631Z",
   "creator": "coordinator",
+  "effort": "low",
   "evidence": "",
   "id": "W-86850d3d",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -16,7 +18,8 @@
   "next": "merge master into fleet-alloy in its worktree, fix conflicts in configs/prometheus and infra/vps1/monitoring/compose.yaml, run the alloy tests, re-board W-3247bfdd with the D3 diff clean",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "prerequisite for the panel-approved Promtail-to-Alloy window (W-3247bfdd): merge master into fleet-alloy (3,955 behind) + re-run the alloy tests and the D7 review; one fleet session",
   "status": "open",
   "tags": [
     "medium"

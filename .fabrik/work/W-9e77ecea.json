@@ -5,8 +5,10 @@
   ],
   "created": "2026-09-27T23:37:00.182295Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-9e77ecea",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -18,6 +20,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "two scaffold emission paths disagree for the file-api template (12 findings from two project mails) — fleet-wide scaffold correctness; a spec-sized fix",
   "status": "open",
   "tags": [
     "medium",

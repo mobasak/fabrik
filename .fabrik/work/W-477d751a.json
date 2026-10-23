@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T03:42:48.815201Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-477d751a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "dedupe found paths by inode (os.stat st_ino/st_dev) or realpath before the len check; test with a hardlinked pair; the registry 'busy' that never flips (infra-2's record, statusUpdatedAt 06:20 while its pane sits idle at ❯) is a second check-0 finding to measure in the same pass",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "every worktree builder's rotation aborts on the first live use of the verb; one dedupe before a length check, red-proved with a hardlinked pair",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "rotate_session.py _transcript counts a HARDLINKED transcript twice — a worktree builder's session file sits under both projects/-opt-fabrik/ and projects/-opt-fabrik--claude-worktrees-<name>/ (same inode 9262445 for kaizen's a3816a70), so the verb aborts 'transcript: 2 transcripts for session …' and no worktree builder can rotate (kaizen 06:40, first live attempt after the D-1143 install)"
+}

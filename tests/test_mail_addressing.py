@@ -399,3 +399,67 @@ def test_a_from_agent_recorded_under_another_name_is_not_trusted(env, monkeypatc
     reply = mail.send(to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem)
     # `from: wef1` is not this mailbox, so its role is not trusted; the addressee is inherited
     assert _fm(reply).get("agent") == "intel"
+
+
+# --- W-fa004224 (D-1128): on-demand builders are named <beat>-<N>; mail addresses them by that name ---
+
+
+def test_a_numbered_builder_of_a_beat_is_a_hub_addressee(env):
+    """infra-2 and coordinator-12 address mail and route it; the shape is exact — no zero, no letters, no
+    unknown beat, at most three digits — so a typo still hides nothing."""
+    for name in ("infra-2", "infra-3", "fleet-10", "coordinator-12", "kaizen-999"):
+        assert mail.send(
+            to="fabrik", kind="finding", body=name, frm="alpha", to_agent=name
+        ).is_file(), name
+    for name in (
+        "infra-0",
+        "infra-x",
+        "infra-1000",
+        "devops-2",
+        "infra-",
+        "-2",
+        "infra2",
+        "Infra-2",
+    ):
+        with pytest.raises(mail.MailRefusedError, match="unknown hub beat"):
+            mail.send(to="fabrik", kind="finding", body=name, frm="alpha", to_agent=name)
+    mid = mail.send(to="fabrik", kind="finding", body="b", frm="alpha", broadcast=True).stem
+    mail.route(mid, "infra-2", repo="fabrik")
+    assert mail._parse(mail.read_msg(mid, "fabrik")).get("agent") == "infra-2"
+
+
+def test_a_reply_reaches_the_numbered_builder_that_asked(env, monkeypatch):
+    """merge_request.py replies `--kind reply --re <request>` to the requester's resolved name: a request from
+    infra-2 is answered to infra-2, never to the request's addressee (the coordinator) — W-fa004224."""
+    _as(monkeypatch, "infra-2")
+    parent = mail.send(to="fabrik", kind="request", body="mr", frm="fabrik", to_agent="coordinator")
+    assert _fm(parent).get("from-agent") == "infra-2"
+    _as(monkeypatch, "coordinator")
+    reply = mail.send(to="fabrik", kind="reply", body="merged", frm="fabrik", re=parent.stem)
+    assert _fm(reply).get("agent") == "infra-2"
+    explicit = mail.send(
+        to="fabrik", kind="reply", body="m", frm="fabrik", re=parent.stem, to_agent="infra-2"
+    )
+    assert _fm(explicit).get("agent") == "infra-2"
+
+
+def test_a_reply_inherits_a_numbered_builders_address_when_the_parent_names_no_asker(
+    env, monkeypatch
+):
+    """The second reply branch: a parent addressed `infra-2` that carries no `from-agent` (legacy, cron) keeps that
+    address for its reply — the asker branch alone does not cover it (review W-fa004224, F1)."""
+    _as(monkeypatch, "")
+    parent = mail.send(to="fabrik", kind="finding", body="f", frm="fabrik", to_agent="infra-2")
+    assert "from-agent" not in _fm(parent)
+    _as(monkeypatch, "coordinator")
+    reply = mail.send(to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem)
+    assert _fm(reply).get("agent") == "infra-2"
+
+
+def test_route_refuses_a_malformed_builder_name(env):
+    """`route` holds the same exact grammar as send (review W-fa004224, F2)."""
+    mid = mail.send(to="fabrik", kind="finding", body="b", frm="alpha", broadcast=True).stem
+    for name in ("infra-0", "infra-1000", "devops-2", "infra2"):
+        with pytest.raises(mail.MailRefusedError, match="unknown hub beat"):
+            mail.route(mid, name, repo="fabrik")
+    assert mail._parse(mail.read_msg(mid, "fabrik")).get("agent") is None

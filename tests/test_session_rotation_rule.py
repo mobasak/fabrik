@@ -60,13 +60,13 @@ def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> 
         rel,
         (
             "once a rotation is due, start no new item, so the item in hand closing is the boundary",
-            "mid-item at 85% of the window the coordinator sends a focused `/compact` instead, once W-f975fee0's sensor",
-            "`agents_up.sh rotate-session <name>` once infra's W-f975fee0 lands",
+            "mid-item at 85% of the window, which the hook's `COMPACT-DUE` line reports, the coordinator sends a focused `/compact` instead",
+            "`agents_up.sh rotate-session <name>` once infra's W-f975fee0 slice 2 lands",
             "messages its coordinator `rotate <name>` and waits for the keys",
             "a builder with no pane asks its coordinator the same way",
             "`STATE:` footer names the rotation and its `NEXT:` reads `none — terminal; awaiting the rotation`",
             "only when it is at its prompt with an empty input line, else aborts, never queues",
-            "a ROTATE-DUE line will say so once W-f975fee0 lands",
+            "the `transcript_size_check.py` hook's `ROTATE-DUE` line says so",
             "`tmux send-keys`",
             "`@agent <name>`",
             "telling the builder to re-bind",
@@ -76,7 +76,11 @@ def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> 
             "(a coordinator keeps doing its standing jobs)",
         ),
     )
-    assert "run `/clear <agent>-<date>` now" not in _bullet(rel), "the old 'run it now' instruction survives"
+    assert "run `/clear <agent>-<date>` now" not in _bullet(rel), (
+        "the old 'run it now' instruction survives"
+    )
+    for stale in ("once W-f975fee0 lands)", "W-f975fee0's sensor", "whatever its own"):
+        assert stale not in _bullet(rel), f"{rel}: the shipped sensor is still described as future: {stale!r}"
 
 
 @pytest.mark.parametrize("rel", CONTRACTS)

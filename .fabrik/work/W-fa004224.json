@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T11:42:50.340673Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "259cb772428c89b5a8c0b52052362b9d784a388c",
+  "id": "W-fa004224",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra, TODAY before infra-2's first merge request lands: /fabrik-task or right-now + /fabrik-review-scoped; mail.py is fleet-synced",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a bug that blocks a live flow today (infra-2/infra-3 merges and the ledger gate); one short infra pass",
+  "status": "done",
+  "title": "mail.py refuses --to-agent <beat>-N (HUB_BEATS is the five names): with on-demand builders (D-1128) merge_request.py's reply to a requester named infra-2 (its resolved name) is refused 'unknown hub beat' → MergePartialError, the merge lands but is never acked and every resume re-fails (merge_request.py:1607-1611, :1666-1685 → mail.py:548, :1429-1433); a reply to mail FROM infra-2 also mis-addresses (mail.py:1449-1456). Fix the class: accept (coordinator|infra|fleet|intel|kaizen)(-\\d+)? as a hub agent name in mail.py:1429, :2235 and mail_notify.py:100 together, routing beat mail to the beat and replies to the requester's own name; regression tests. Found by the Opus seat of the 07bb5cb8a review, executed on a fake mail root."
+}

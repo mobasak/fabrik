@@ -251,7 +251,9 @@ it, or name in the brief why the shape does not have it.
   creates lands in the clone's own `.git`; only a test that reads the live checkout's own branches, worktrees or stash
   runs in the lead's throwaway worktree. Ruff and mypy run from the repo root with the repo's own config (on a copy:
   ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff writes `.ruff_cache`
-  in its working directory and fails inside a read-only pin without `--no-cache`); tests run by exact node id, and a
+  in its working directory and fails inside a read-only pin without `--no-cache`); tests run by exact node id, except
+  a mutant run or a re-run of one, which takes the test set and the selection rule of the `One mutant per clause`
+  bullet above; and a
   brief over changed code names the tests that load each changed module (by import, or by path through a loader or a
   stub — found by grepping `tests/` for each changed file's stem, its name without `.py`, or an `__init__.py`'s package
   dotted name, and keeping the hits that import or load it) for every seat to run by the `PIN_IMPORT`/`PYTEST_PINS`
@@ -310,7 +312,10 @@ it, or name in the brief why the shape does not have it.
   CHANGELOG or ledger hunk) has that file pinned next pass, so the seat never reads the base copy.
 - Overlay and pin currency: the brief lists every pinned path, dot-dirs (`.fabrik/`) included; a seat copies each file
   to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never `cp -r <pin> <dest>` onto a
-  directory that exists, and checks each overlaid file's md5 against the manifest before its first run. `git archive`
+  directory that exists; `pin` writes the pin and its `<pins_dir>.base` tree read-only, files and directories, so a
+  seat that copies the base tree runs `chmod -R u+w <dest>` right after that copy and before laying the pins over
+  it, and again after it, since a pin file the base lacks lands read-only; and it checks each overlaid file's md5
+  against the manifest before its first run. `git archive`
   omits untracked files, so the pin also carries the gitignored inputs the tests read (the repo's `.worktreeinclude`
   list, `.env` excepted) and any sibling-repo symlink they follow. Each later pass's brief names its own pin dir and
   digest, cut after the last fix, never the round-1 pin, and seat scratch dirs from earlier rounds are kept until the

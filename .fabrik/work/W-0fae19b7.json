@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T00:23:02.329395Z",
+  "creator": "infra-2",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0fae19b7",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: when the UserPromptSubmit ROTATE-DUE line fired this session and the footer reads 'awaiting the rotation', the work-waiting cause stands down (the contract: once a rotation is due, start no new item)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "the Stop hook blocks a builder on the footer the rotation rule prescribes; one cause check plus its test",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "final_gate_stop.py's work-waiting cause ignores the rotation boundary: a turn ending 'NEXT: none — terminal; awaiting the rotation' after a ROTATE-DUE line is still blocked to claim the next item (infra-2, 2026-10-23, three attempts on W-85e4e5e4's close)"
+}

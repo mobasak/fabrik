@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T03:23:01.334196Z",
+  "creator": "infra-2",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a64a14d9",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: drop the retired path from the governance-sync files: filter in .pre-commit-config.yaml (and its D-row), or re-add it to the manifest if it is meant to ship; then decide whether the 38 orphan copies are pruned by the sync or deleted by each project",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a retired doc still in the sync regex leaves orphan copies in 38 projects; one regex edit plus the manifest check",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "The governance-sync regex still names docs/reference/prebuilt-app-containers.md, which neither fabrik_synced_manifest.py nor sync_enforcement_to_projects.py distributes any more — 38 of 49 projects hold a stale 2025-07 copy outside their synced.lock that trips lane row 1 as a 'sync path' (found by the W-955acf1f design critiques, 2026-10-23)"
+}
