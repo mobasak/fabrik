@@ -10,6 +10,15 @@ All notable changes to this project will be documented in this file.
 - § EXIT's ad-hoc merge recipe no longer builds `MAIN=$(git worktree list --porcelain | sed …)` for `git -C "$MAIN"`. That shape trips Claude Code's worktree-isolation prompt (D-1173). The recipe now runs `git worktree list` as its own call and uses the literal path (W-031aac71).
 - `tests/test_session_rotation_rule.py` pins the new clauses and refuses the stale ones. It was proven red on the old text.
 
+### Added — the rotation verb re-points the session registry itself (2026-10-23)
+
+- `rotate_session.py execute` now re-points `<repo>/.fabrik/session-agents.json` from the rotated agent's old session
+  id to the new one as soon as the new session is seen, before the resume prompt, so the coordinator no longer edits it
+  by hand. It writes only the checkout whose `.git` the old session's binding names, refuses every shape agents_up.sh
+  refuses, never adds an entry, keeps the mode, and never overwrites a hand edit made since its read. Each row records
+  `registry`, `resume_sent_at` and, when bound, `rebind_s`. The identity-store reader now skips a damaged line instead
+  of raising after the /clear (W-b72231b8 slice 1, D-1175; the late-bind grace is slice 2).
+
 ### Fixed — the resume prompt after a /clear rotation no longer leads a builder into a permission prompt (2026-10-23)
 
 - `rotate_session.py::resume_prompt` now tells the rotated builder to read its notes, its seed and any output the

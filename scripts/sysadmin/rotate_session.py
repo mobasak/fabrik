@@ -164,6 +164,103 @@ def _wait_s(default: float) -> float:
     return v if math.isfinite(v) and v > 0 else default
 
 
+_SID = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+)  # agents_up.sh's SID
+REGISTRY_MAX = 1 << 20  # bytes of the registry read at most (agent_status.py:189)
+
+
+def _session_registry(repo: str, sid: str) -> Path | None:
+    """The repo's `.fabrik/session-agents.json` (sid -> agent name) — only for an absolute repo that is its own realpath,
+    whose `.fabrik` is no symlink, and whose `<repo>/.git` is the git common dir the rotated session's newest binding
+    names: `resolve` matches a pane by the repo's folder name alone, so another checkout of the same name would
+    otherwise be written (W-b72231b8, review r1)."""
+    try:
+        p = Path(repo)
+        if not p.is_absolute() or os.path.realpath(repo) != str(p):
+            return None
+        if os.path.realpath(p / ".fabrik") != str(p / ".fabrik"):
+            return None
+    except (OSError, ValueError):  # a NUL or a lone surrogate in a hand-written request
+        return None
+    tops = [r.get("toplevel") for r in _bindings() if r.get("session_id") == sid]
+    if not tops or tops[-1] != str(p / ".git"):
+        return None
+    return p / ".fabrik" / "session-agents.json"
+
+
+def _repoint_registry(path: Path, old_sid: str, new_sid: str, name: str) -> str:
+    """Re-point `name`'s registry entry from `old_sid` to `new_sid` in place (W-b72231b8: the coordinator did it by hand
+    after every rotation) and return the state the row records. Nothing agents_up.sh refuses is ever written — a file
+    it would refuse is refused here unchanged — a missing entry is never added, and every failure is a returned state,
+    never an exception: the rotation itself already happened."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return "absent"
+    except OSError as exc:
+        return f"error:{type(exc).__name__}"
+    if not stat.S_ISREG(st.st_mode):
+        return "refused:not a regular file"
+    if not _SID.fullmatch(new_sid):
+        return "refused:the new id is not a session id"
+    if st.st_size > REGISTRY_MAX:
+        return "refused:over 1 MiB"
+
+    def no_repeats(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        keys = [k for k, _ in pairs]
+        if len(keys) != len(set(keys)):
+            raise KeyError("dup")
+        return dict(pairs)
+
+    try:
+        raw = path.read_bytes()
+        try:
+            reg = json.loads(raw.decode("utf-8"), object_pairs_hook=no_repeats)
+        except KeyError:
+            return "refused:a session id appears twice"
+        except (ValueError, RecursionError):
+            return "refused:not valid JSON"
+        if not isinstance(reg, dict) or not all(isinstance(v, str) for v in reg.values()):
+            return "refused:not an object of session id -> agent name"
+        if not all(_SID.fullmatch(k) for k in reg):
+            return "refused:a key is not a session id"
+        if not all(_NAME.fullmatch(v) for v in reg.values()):
+            return "refused:a value is not an agent name"
+        if new_sid in reg:
+            if reg[new_sid] != name:
+                return "refused:the new id already names another agent"
+            if reg.get(old_sid) != name:
+                return "current"
+            out = {k: v for k, v in reg.items() if k != old_sid}
+        elif reg.get(old_sid) == name:
+            out = {(new_sid if k == old_sid else k): v for k, v in reg.items()}
+        else:
+            return "no-entry"
+        text = json.dumps(out, indent=2) + "\n"
+        if (
+            len(text.encode("utf-8")) > REGISTRY_MAX
+        ):  # its readers stop at REGISTRY_MAX and would read a torn file
+            return "refused:over 1 MiB"
+        # a hand edit landing between the re-read below and os.replace is still lost: hand edits are what this retires
+        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".session-agents.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(text)
+            os.chmod(tmp, stat.S_IMODE(st.st_mode))
+            if path.read_bytes() != raw:  # a hand edit since the read: never overwrite it
+                return "refused:changed on disk"
+            os.replace(tmp, path)
+            tmp = ""
+        finally:
+            if tmp:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp)
+        return "repointed"
+    except OSError as exc:
+        return f"error:{type(exc).__name__}"
+
+
 def _tmux(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [os.environ.get("ROTATE_TMUX", "tmux"), *args], capture_output=True, text=True, timeout=10
@@ -257,8 +354,10 @@ def _registry(home: Path, proc: Path, pid: int) -> dict:
 def _bindings() -> list[dict]:
     rows = []
     try:
-        for line in _identity().read_text(encoding="utf-8").splitlines():
-            with contextlib.suppress(ValueError):
+        # a non-UTF-8 byte or a pathological nest skips its line, never raises: a raise here after the /clear rowed
+        # the rotation `partial:clear` and never sent the resume prompt (W-b72231b8 review r2)
+        for line in _identity().read_text(encoding="utf-8", errors="replace").splitlines():
+            with contextlib.suppress(ValueError, RecursionError):
                 r = json.loads(line)
                 if isinstance(r, dict):
                     rows.append(r)
@@ -926,7 +1025,15 @@ def _one(claimed: Path) -> dict:
             row["outcome"] = "partial:queued"
             return row
         row["new_sid"] = new_sid
+        # W-b72231b8: the pane runs the new session now, bound or not — re-point before anything else can fail
+        reg_file = _session_registry(data["repo"], data["sid"])
+        row["registry"] = (
+            "refused:repo"
+            if reg_file is None
+            else _repoint_registry(reg_file, data["sid"], new_sid, data["name"])
+        )
         step = "resume"
+        row["resume_sent_at"] = int(time.time())
         _send(data["pane"], resume_prompt(data["name"]))
         step, deadline = "rebind", time.time() + _wait_s(90)
         while time.time() < deadline:
@@ -937,6 +1044,11 @@ def _one(claimed: Path) -> dict:
             ]
             if hit:
                 row["predecessor_row"] = hit[-1].get("predecessor") == data["sid"]
+                at = hit[-1].get("at")
+                if isinstance(at, (int, float)) and not isinstance(at, bool) and math.isfinite(at):
+                    row["rebind_s"] = (
+                        int(at) - row["resume_sent_at"]
+                    )  # the bind's own time, not when it was seen
                 row["outcome"] = "ok"
                 return row
             time.sleep(1)
