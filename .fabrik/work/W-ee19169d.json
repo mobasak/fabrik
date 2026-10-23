@@ -3,7 +3,7 @@
   "created": "2026-10-23T14:34:55.969736Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "6f4589cbefd775335d04d736be262a417c3fad0b",
   "id": "W-ee19169d",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 0,
   "score_reason": "the operator asked for it by name; every rotation is blocked on stale input lines until it lands; one mode in one script, executed by the unit the classifier already permits",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
