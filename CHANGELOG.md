@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The context sensor stops reading a 1M session as 200k, so no hub session is told to rotate at birth (2026-10-23)
+
+- `scripts/sysadmin/transcript_size_check.py::_window` mapped every statusline model id without `[1m]` to a 200k window; Opus 5.5 and Fable 5.1 run 1M under the bare id on this box, so a hub session born at ~120k read "ctx 63%" and got `ROTATE-DUE` on its second prompt (and `rotate_session.py due` offered the same rotation). The window is now `ROTATE_CONTEXT_WINDOW`, else 1,000,000; the statusline cache is not read. W-25f6b2a3 slice 1, D-1165; `docs/CONFIGURATION.md`, `.env.example` and `docs/workstation/hooks-index.md` restate the mapping.
+
 ### Changed — /fabrik-plan-after-chat: the ~300-line shape trigger excludes only the pasted rubric output (2026-10-23)
 
 - The monolith's ~300-line trigger counts the plan's own text, pasted code and diffs included; only the `review_rubric.py` output this command's Phase 4 pastes is not counted. Answers two feedback rows that asked it verbatim; W-0543de93.
