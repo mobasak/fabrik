@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added — spoke watchdogs alert through a mesh-only Apprise gate; the spoke refusal is lifted (2026-10-23)
+### Added — spoke watchdogs are wired to alert through a mesh-only Apprise gate (deploy pending); the spoke refusal is lifted (2026-10-23)
 
-- W-5dcafaef, D-1166. A spoke-targeted watchdog sidecar now posts to `http://10.99.0.1:8202/notify/alerts`
+- W-5dcafaef, D-1166. A spoke-targeted watchdog sidecar is rendered with `http://10.99.0.1:8202/notify/alerts`
   (`_rewrite_mesh_gated_url` in `src/fabrik/orchestrator/infrastructure.py`, called by
   `WatchdogDriver._build_render_context`); vps1 keeps `http://apprise:8000/notify/alerts`.
 - The D-1153 spoke refusal is gone from `_provision_watchdog`, `provision()` and `fabrik plan`. In its place, a
@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 - `infra/vps1/apprise/compose.yaml` (the live stack's mirror) gains `apprise-mesh-gate`: `nginx:1.30-trixie`
   bound to `10.99.0.1:8202` only, admitting `POST /notify/alerts` alone (1 MB cap, 30/min per mesh source,
   burst 20; `/healthz` 200; all else 403), its policy inline as a compose `configs:` entry. Apprise gains
-  `APPRISE_ATTACH_SIZE: "0"`. Gatus probes the gate (`configs/gatus/apps/apprise.yaml`); `spoke-canary` drops its
+  `APPRISE_ATTACH_SIZE: "0"`. Gatus is configured to probe the gate (`configs/gatus/apps/apprise.yaml`); `spoke-canary` drops its
   `watchdog: enabled: false` opt-out; `PORTS.md`, `docs/infrastructure/vps-urls.md` and `docs/SERVICES.md` name
   the port. Not yet deployed — the live stack changes at the plan's deploy gate.
 
