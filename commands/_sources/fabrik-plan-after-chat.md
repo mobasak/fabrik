@@ -294,8 +294,8 @@ a recorded verdict, never a forced cancel.
 
 **⚠️ SHAPE DECISION FIRST — monolith or spine+tickets.** Emit the **spine+ticket plan SET** when ANY
 of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** of its
-own text (Phase 4's pasted `review_rubric.py` output is not counted) · any single phase's computed
-READ set (its files + Context Files:
+own text, pasted code and diffs included (only the `review_rubric.py` output this command's Phase 4
+pastes is not counted) · any single phase's computed READ set (its files + Context Files:
 `find <paths> -type f -exec cat {} + | wc -c` — one exact number for paths each listed ONCE (the gate drops
 exact repeats, rules packs, the exempt shared reads and generated artifacts, but a file beside its own
 directory, or `dir` beside `dir/`, counts twice there too), but CHECK STDERR: a typo'd or

@@ -356,8 +356,9 @@ def test_a_module_plan_reads_the_module_test_recipe_first() -> None:
 
 
 def test_the_line_trigger_does_not_count_the_pasted_rubric() -> None:
-    """Rows 1792643183, 1792630841: whether Phase 4's pasted rubric counts toward ~300 lines was asked twice."""
+    """Rows 1792643183, 1792630841: the ~300-line shape trigger excludes only the pasted rubric output."""
     assert (
-        "the projected monolith would exceed **~300 lines** of its own text (Phase 4's pasted"
-        " `review_rubric.py` output is not counted) · any single phase's"
-    ) in _flat()
+        "of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** of its"
+        " own text, pasted code and diffs included (only the `review_rubric.py` output this command's Phase 4"
+        " pastes is not counted) · any single phase's computed READ set"
+    ) in _span("**⚠️ SHAPE DECISION FIRST", "**The spine+ticket shape**")
