@@ -375,7 +375,7 @@ def test_a_template_with_no_smoke_rule_is_left_alone(makefile, tmp_path, monkeyp
     assert (project / "Makefile").exists()
 
 
-# W-1cb0d89f: any line that runs docker must BE a sealed smoke line the scaffold wrote; everything else is refused
+# W-1cb0d89f: any line holding `docker [container] run` text must BE the sealed smoke line the scaffold wrote
 _LIVE_RUNS = {
     # the substring check let these through
     "double-space": "\t@docker  run -d --env-file .env $(PROJECT_NAME)\n",
@@ -415,6 +415,7 @@ _LIVE_RUNS = {
     "dash-prefix": "\t-docker run -d $(PROJECT_NAME)\n",
     "plus-prefix": "\t+docker run -d $(PROJECT_NAME)\n",
     "continued": "\t@docker run -d \\\n\t\t$(PROJECT_NAME)\n",
+    "split-across-continuation": "\t@docker \\\n\t\trun -d $(PROJECT_NAME)\n",
 }
 
 # sealed, but not the line the scaffold writes: drift, refused like any drifted smoke line
@@ -447,3 +448,11 @@ def test_a_live_run_fails_the_scaffold(tmp_path, monkeypatch, case):
 def test_a_sealed_run_the_scaffold_did_not_write_is_refused_as_drift(tmp_path, monkeypatch, recipe):
     with pytest.raises(ValueError, match="live worker"):
         _scaffold_with_extra_target(tmp_path, monkeypatch, recipe)
+
+
+def test_a_word_that_only_starts_with_run_is_not_a_run():
+    sealed = frozenset()
+    assert (
+        scaffold._live_docker_runs("\t@echo docker runner\n\t@docker running-total\n", sealed) == []
+    )
+    assert scaffold._live_docker_runs("\t@echo docker run\n", sealed) == ["@echo docker run"]

@@ -5791,18 +5791,18 @@ _DOCKER_RUN_TEXT = re.compile(r"docker\s+(?:container\s+)?run\b")
 
 
 def _live_docker_runs(makefile: str, sealed: frozenset[str]) -> list[str]:
-    """Every Makefile line that runs docker and is not one of the `sealed` smoke lines this scaffold wrote (W-1cb0d89f).
+    """Every Makefile line holding `docker [container] run` text that is not one of the `sealed` smoke lines (W-1cb0d89f).
 
     An allow-list, not a parser: the Makefile comes from our own template, so a line whose raw text holds
-    `docker [container] run` — however spaced, in quotes, backticks, `sh -c`, a comment or a later command — passes
-    only when, stripped, it IS a sealed line the scaffold produced. Any other spelling, a sealed run included, is
-    template drift and is refused, as a drifted smoke line already is. Not covered: docker reached without that text
-    (`$(DOCKER) run`, options before `run`, `docker compose run`, `create`+`start`, a split or quoted `docker` word) —
-    W-b6f4b941.
+    `docker [container] run` — however spaced, in quotes, backticks, `sh -c`, a comment or a later command, or split
+    across backslash continuations, which are joined first as the shell joins them — passes only when, stripped, it IS
+    a sealed line the scaffold produced. Any other spelling, a sealed run included, is template drift and is refused,
+    as a drifted smoke line already is. Not covered: docker reached without that text (`$(DOCKER) run`, options before
+    `run`, `docker compose run`, `create`+`start`, a split or quoted `docker` or `run` word) — W-b6f4b941.
     """
     return [
         ln.strip()
-        for ln in makefile.splitlines()
+        for ln in re.sub(r"\\\n[ \t]*", " ", makefile).splitlines()
         if _DOCKER_RUN_TEXT.search(ln) and ln.strip() not in sealed
     ]
 
