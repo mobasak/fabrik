@@ -203,7 +203,9 @@ it, or name in the brief why the shape does not have it.
   line), never renumbered by hand, and the remap runs after each round's fix, before the next pin, over every anchor a
   brief or mutant list carries.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
-  corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
+  corrected fact stated at the original claim's scope; a fix that narrows a rule's subject lists, before the pin, each
+  case the old subject covered that the new wording drops, and names where each now lands or that it is dropped on
+  purpose; every clause on a count-fixed line, and every reworded README
   claim, checked against the code lines it names, and a sentence (a comment, a docstring, a doc line) describing a
   matcher, regex or guard written from its input space executed on both sides (punctuation, underscore, empty, the
   lead's escape variants and every one the seats returned) before the pin, never from its subject's own docstring; a

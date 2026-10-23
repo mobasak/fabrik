@@ -1139,3 +1139,14 @@ def test_a_seat_runs_a_mutant_against_whole_test_files() -> None:
         "never from the live tree beyond what the seat prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`, "
         "`GATE_PINS`) take from the live disk and name UNPINNED."
     )
+
+
+def test_a_narrowing_fix_lists_the_cases_its_new_wording_drops() -> None:
+    """Row 1792730405 (a recurrence of held fix-narrowed-input-strands-defensive-guards): a round-1 fix split a rule's
+    subject, and the cases the new wording no longer covered cost the next two rounds."""
+    cat = re.sub(r"\s+", " ", CAT.read_text())
+    assert (
+        "corrected fact stated at the original claim's scope; a fix that narrows a rule's subject lists, before the"
+        " pin, each case the old subject covered that the new wording drops, and names where each now lands or that"
+        " it is dropped on purpose; every clause on a count-fixed line"
+    ) in cat
