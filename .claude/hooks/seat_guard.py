@@ -2,6 +2,15 @@
 # AFTER-EDIT: tests/test_seat_guard.py, docs/workstation/hooks-index.md, .claude/settings.json
 """PreToolUse (Bash) seat guard — refuse a review seat's pattern kills, and its git and file writes outside scratch.
 
+FENCE MODE (W-72dfd448 Phase B, D-1129): where ``/usr/bin/bwrap`` runs, a seat's whole command is wrapped by
+``rewrite()`` in a bubblewrap filesystem fence — read-only everywhere but the scratchpad, the session's run folder
+and a seeded run's record scratch; docker, D-Bus, tmux and the WSL interop masked — so the OS, not this parser,
+is the boundary, and the write rule below does not run. Where bwrap cannot run (absent, the probe failing, no
+``scratchpad_dir``) the parser below is the FALLBACK: it refuses the constructs it does not model and fails
+closed for a seat on its own crash. Residuals either way: localhost TCP and other sockets, the per-session
+width, the settings entry's fail-open. COBRA (D-253): the test seams ``SEAT_GUARD_BWRAP`` and
+``SEAT_GUARD_CACHE`` choose inputs, never the mode, so a test cannot fake the fence by skipping the probe.
+
 Review seats (``agent_type`` in ``SEAT_TYPES``) run Bash in the LEAD's shared tree, and their
 isolation used to be brief prose only. Two incident classes hit live repos: a seat's
 ``git checkout/reset/commit`` in a main checkout destroyed the merge owner's uncommitted work
