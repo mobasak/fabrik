@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "Give the recipe a pageable home in the probe catalogue § Seat isolation + state a pins-only copy is not a test tree (scoped review); mail a stage-script ask to its code beat; reply to infra-2 and ack",
-  "note": "",
+  "note": "duplicate of W-f1191ec5 (same infra-2 mail 01M5MVZ2NF, the review-seat test-isolation recipe; older by 27 s) — kept the older per the charter",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "waits-quota"
   ],
