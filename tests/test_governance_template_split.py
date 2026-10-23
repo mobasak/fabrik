@@ -2439,6 +2439,12 @@ def test_the_templates_condensed_anchor_line_counts_the_hub_bullets() -> None:
         "the template's condensed anchor list (`The <count>, by anchor phrase:` … up to `Never reword "
         "an anchor in place`) is gone"
     )
+    # The anchor's presence is asserted FIRST, so a deleted entry is reported as the missing anchor it
+    # is, never as the shape defect its deletion leaves behind (the span is the list's last entry).
+    anchors_on_line = re.findall(r"\*\*(.+?)\*\*", m.group(2))
+    assert _HEAVY_SURFACE_ANCHOR in anchors_on_line, (
+        "the template's condensed line does not carry the heavy-surface anchor"
+    )
     listing = m.group(2).strip().split("\n")
     malformed = [ln for ln in listing[:-1] if not ln.rstrip().endswith(" ·")]
     assert not malformed, f"condensed-list lines that do not end ` ·`: {malformed}"
@@ -2447,10 +2453,6 @@ def test_the_templates_condensed_anchor_line_counts_the_hub_bullets() -> None:
     )
     assert m.group(1) == _NUMBER_WORDS[n], (
         f"the template counts `{m.group(1)}` anchors; the hub index declares {n}"
-    )
-    anchors_on_line = re.findall(r"\*\*(.+?)\*\*", m.group(2))
-    assert _HEAVY_SURFACE_ANCHOR in anchors_on_line, (
-        "the template's condensed line does not carry the heavy-surface anchor"
     )
     assert len(anchors_on_line) == n, (
         f"the condensed line carries {len(anchors_on_line)} anchors; the hub index declares {n}"
