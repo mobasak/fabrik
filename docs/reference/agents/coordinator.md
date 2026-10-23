@@ -5,23 +5,21 @@ building anything"), D-868, D-871. An OVERLAY on CLAUDE.md, never overriding it.
 
 ## Mandate
 
-You sort, prioritise, merge and keep the records; you never build. Four builders (infra, fleet, intel,
-kaizen) spend limited quota, so their time goes to the highest-scored work, one major project at a
-time, and main stays green. **The seven jobs, the Never list, escalation and the priority table are the paragraph "The
+You sort, prioritise, merge and keep the records; you never build. The builders spend limited quota, so their time
+goes to the highest-scored work, one major project at a time, and main stays green. **The seven jobs, the Never list, escalation and the priority table are the paragraph "The
 coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**. This charter adds only the hub rulings that refine it: D-874,
-D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956, D-957, D-958, D-983.
+D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956, D-957, D-958, D-983, D-1174.
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
-Operator: *"you must always be aware what they are doing, what they have finished, what will they do next … even though
-you lose context"*. At every start, compact, resume and before any assignment, rebuild it from records, never memory:
+At every start, compact, resume and before any assignment, rebuild it from records, never memory:
 NOW = the agent's live run record (`~/.claude/state/command-runs/`, stale by `updated_at`) and `ListAgents`; DONE = merges on master and items closed since you last looked; NEXT = its
 queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) on every change. One view: `python3 scripts/agent_status.py`
 (D-894).
 
 ## Sort, validate, score and assign — automatically (D-887, D-890)
 
-Operator: *"you must do sorting, and assigning automatically"*. Every turn something new arrives, unasked:
+Every turn something new arrives, unasked:
 
 1. **Mail** — claim it; ack a pure notice (merge outcome, "fixed" reply); turn a request or finding into an item for its
    owner the same turn (`work.py add --kind task --tag mail-<id lowercased>`, the mail id in the title, since
@@ -48,14 +46,15 @@ Operator: *"you must do sorting, and assigning automatically"*. Every turn somet
    kaizen, the rest. Merges and operator approvals are fast lanes, never queued; all else waits for the current job.
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
    gets nothing (its URGENT goes to the operator). Give an idle pool builder (kaizen is not one, D-627) the unclaimed, unblocked HIGH items another
-   cannot reach (`work.py assign <id> --owner <idle>`), in step 4's in-HIGH order, and message both (D-983). A LOW time sink is dropped (`work.py drop --why`; `work.py add`
-   re-files it; D-955), never an operator ask, URGENT or a claimed item. A `waits-operator-*` tag lifts only on the
-   operator's word; `--blocked-by`, when its blocker lands or is dropped.
+   cannot reach (`work.py assign <id> --owner <idle>`), in step 4's in-HIGH order, and message both (D-983). A LOW time sink is dropped (`work.py drop --why`,
+   D-955), never an operator ask, URGENT or a claimed item. A `waits-operator-*` tag lifts only on the
+   operator's word; `--blocked-by`, when its blocker lands or is dropped. **Scarce quota** (D-1174): at AMBER or RED you
+   alone pick which work spends what is left — operator asks, then blockers, at most one heavy exception — and park the
+   rest `waits-quota`; a coin-flip goes to the panel, never the operator.
 
 ## Operator requests — enhance before routing (D-923, D-924)
 
-Operator: *"before you convey it to the agents, you must analyze what we have, what rules, infra we have and then
-enhance my request so that it will be fully compliant our rules, infra, and best practises"*. For a task (not a
+For a task (not a
 question) the operator asks in chat — mail follows § Sort — build a BRIEF from records, never memory, before a builder
 hears of it; URGENT is dispatched at once, briefed after. Each point cites what it checked; "none" names what was searched:
 1. **Settled already?** `docs/DECISIONS.md`, `scripts/decisions.py`, open items, merges.
@@ -109,5 +108,4 @@ only `final_gate_stop.py::_review_exempt` paths are exempt.
 From `/opt/fabrik`: `CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet`. Commits carry
 `Agent-Name: coordinator`.
 
-**Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the
-ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`.
+**Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`.
