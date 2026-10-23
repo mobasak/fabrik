@@ -26,7 +26,7 @@ fallback ≈10, docstring ≈45); tests ≈220 lines in `tests/test_seat_guard.p
 
 ## What this plan is
 
-Four inline phases (A executed; B, C and D re-planned) the orchestrator codes itself in the `worktree-intel` worktree; no coder is dispatched:
+Four inline phases (A executed; B, C and D re-planned, so three still to run — `Profile: small`'s ≤3) the orchestrator codes itself in the `worktree-intel` worktree; no coder is dispatched:
 
 - **A — the guard**: the shell write rule, the unparseable fallback, the tool-list pin, the docstring and the
   hooks-index row and the two scanner fixes (spec § The delta items 1-5).
@@ -267,7 +267,9 @@ and nothing in Phase C starts until it is green.
      sandboxing.md:955); recorded either way.
    - P7 `docker version` and a unix-socket connect to `/var/run/postgresql/.s.PGSQL.5432` (when that socket exists)
      from the seat — recorded either way (sandboxing.md:842).
-5. Verdict: P1, P2, P3, P4, P5 and P8 MUST hold. One that fails is the spec's own question reopened, so the run stops
+5. Verdict: P1, P2, P3, P4, P5 and P8 MUST hold. A P2 refused by the hook's scratch rule (its reason names the path)
+   means the seats' payload did not carry the minted session id: that is a launcher fix (the directory shape), re-run
+   once, never a BLOCKED stop. One that fails is the spec's own question reopened, so the run stops
    `BLOCKED: an unresolvable spec contradiction` and the finding goes back to the panel as a spec amendment, never a
    build. P6 and P7 are the costs item 4 names, recorded.
 6. The briefs that need a live service, each dispositioned by P6/P7's outcome (the census is in § Evidence, "P2 re-plan
@@ -335,7 +337,8 @@ Implements `spec § Amendment 2026-10-23`, Panel decision items 2 and 3 (`spec:3
 **Steps** (sequential; inline in `worktree-intel`):
 1. Write the graders below; run `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_seat_guard.py
    tests/test_review_session.py -q` and watch each new row fail first. C1-C3 fail because the hook has no refusal table
-   and allows on a crash. C4-C7 fail because `scripts/review_session.py` does not exist. Each is also proven red on
+   and allows on a crash; C3's malformed-payload half is green today and is seen red by a named neuter, the crash-deny
+   wired without `decide()`'s early return. C4-C7 fail because `scripts/review_session.py` does not exist. Each is also proven red on
    revert in a throwaway worktree (`git worktree add --detach <scratch>/probe HEAD`), never in the shared checkout.
 2. Re-expect the two tests that pin the old fail-open, each edit stated:
    - `test_a_scan_that_raises_still_rewrites` (`tests/test_seat_guard.py:354`) is renamed
@@ -384,7 +387,7 @@ Implements `spec § Amendment 2026-10-23`, Panel decision items 2 and 3 (`spec:3
 - **Given** a seat payload, **When** the write rule raises, **Then** the call is denied with a reason naming the crash; **and** a seat payload whose `tool_input` is not a dict, or whose `command` is not a string, produces no output (C3)
 - **Given** `build_settings(<hook>)`, **When** it is read, **Then** the sandbox is enabled, unsandboxed commands are refused, `/opt` is in `denyWrite`, and the one PreToolUse entry on `Bash` runs the hook by that absolute path (C4)
 - **Given** `session_dir(<id>)`, **When** it is called, **Then** the directory is new, outside `/opt`, not inside a git work tree, and a seat write into it passes `decide()` for a payload carrying that session id; **and** a path under `/opt` or in a work tree is refused (C5)
-- **Given** `launch()` with the `claude` binary replaced by a stub on `PATH` that records its argv, cwd and stdin, **When** it runs, **Then** the argv carries `-p`, `--permission-mode auto`, `--permission-prompts none`, `--output-format json` and `--settings` with C4's JSON, the cwd is the session directory, and the brief arrives on stdin (C6)
+- **Given** `launch()` with the `claude` binary replaced by a stub on `PATH` that records its argv, cwd and stdin, **When** it runs, **Then** the argv carries `-p`, `--permission-mode auto`, `--permission-prompts none`, `--output-format json`, `--settings` with C4's JSON and `--session-id <id>`, where `<id>` is the cwd's last path segment and the result's `session_id`, the cwd is the session directory, and the brief arrives on stdin (C6)
 - **Given** the CLI with a stub that writes a file into its cwd, **When** it finishes, **Then** that file is copied into `--out`; **and** a stub that sleeps past `--timeout` exits 124 (C7)
 - **Mocked:** C6 and C7 put a stub `claude` on `PATH` (a script in `tmp_path`); C2 and C3 inject the crash in-process with `monkeypatch`, as `tests/test_seat_guard.py:354` and `:530` do; every other grader runs the real hook as a subprocess (`_run()`, `tests/test_seat_guard.py:24`) or the real functions. The live path is Phase B's proof and Phase D step 4.
 
@@ -1025,13 +1028,12 @@ $ grep -nEi 'localhost|127\.0\.0\.1|docker' commands/_fragments/review-probe-cat
 
 - Before new scripts (CLAUDE.md § Pointers): no script launches a reviewer session; the headless launchers are
   `scripts/cloud_dispatch.py:407` (stdin prompt, scratch cwd), `scripts/rivals_run.py:515-540` (argument prompt, the
-  two headless env flags), `scripts/ci_fix_dispatcher.py:234` (a tool-using worker, exit 124 on timeout) and
+  two headless env flags), `scripts/ci_fix_dispatcher.py:234` (a tool-using worker; exit 124 on timeout at `:256`) and
   `scripts/sysadmin/claude_broker.py:229-235` (the prompt after `--`). None is a general launcher the reviewer session
   could call, so `scripts/review_session.py` is new and borrows `cloud_dispatch.py`'s shape.
 - The briefs that need a live service: the catalogue's own grep (the last block above) finds the two seat probes,
   `commands/_fragments/review-probe-catalogue.md:105-106` (`docker compose … config`) and `:306-309` (a database
-  connect over TCP `localhost` or a unix socket); the other hits in the four review-family sources are review RULES
-  about the reviewed code (a `localhost` DB host, host `ports:`, a Dockerfile-pinned binary), not seat probes.
+  connect over TCP `localhost` or a unix socket).
 
 ### The refusal table's fire rate (2026-10-23)
 
