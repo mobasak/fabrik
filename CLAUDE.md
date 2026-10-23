@@ -419,12 +419,18 @@ but missing from its own `CLAUDE.md` — silent governance drift becomes a gate 
 - `final-output-block` — anchor **last 7 lines of every task-completing response** — every repo's agents close a task-completing response with the SAME seven lines (GATE · DOCS UPDATED · CHANGELOG · LESSONS LEARNT · DONE · NEXT · FEEDBACK); a contract that trims one line ships a different definition of done, and the Stop hook (fleet-synced) refuses a closing block that carries three or more of the seven keys but not all (D-173)
 - `clean-own-scratch` — anchor **CLEAN your own scratch** — a session's scratch is disposable by contract and nobody else may delete it blindly, so the owner sweeps it at task end and the janitor takes a DEAD session's scratch (an ACTIVE run folder inside it kept) and every session's consumed run folders, live ones included, while each `start` sweeps its own session's
 - `cobra-effect` — anchor **you get the behavior you measure** — a metric is an intervention, so for every gate, ratchet, counter, target or score the repo introduces, the cheapest way to satisfy it WITHOUT producing the outcome is written down in the same change, and a counter-measure (or a different measure) ships with it when that way is cheaper than the work (D-253)
+- `heavy-surface-list` — anchor **gate/hook/enforcement, a governance-sync path, auth/schema/migrations/concurrency, >5 files, or operator-named work** — five of the classes § Completion Contract 1a routes to the full `/fabrik-review`; a copy that drops or rewords one of these five lands that class one review lane lighter, silently. The span starts after class 1's `(D-315)` parenthetical — the one place a sync-excluded copy legitimately expands the list — and stops before the `lane row 1b` pointer, so class 1 and a class added outside the span's two ends are NOT covered: a new class goes inside the span, and a class change retires this bullet for a new one (the `Never reword an anchor in place` paragraph below)
 
 **Adding a universal rule:** write it in § EXIT / § HARD STOPS with its anchor, then add a bullet here —
 fabrik-lib's `check_governance_drift.py` PARSES this list from the hub file (the hub's list is canonical), so a
-new bullet propagates to the drift check without editing any sync-excluded repo's script.
+new bullet propagates to the drift check without editing any sync-excluded repo's script — and add the anchor
+to the template's condensed anchor line, re-counting its number word (`tests/test_governance_template_split.py`
+grades the count against this list and every anchor's presence in both files).
 **Never reword an anchor in place** — detectors key on the exact substring; reword the surrounding prose
-freely, keep the anchor verbatim. ⚠️ **Exact means CASE-exact, so an anchor is written lowercase and
+freely, keep the anchor verbatim. A rule whose anchored text must change RETIRES its bullet and adds a new one
+in the same change: the checker reports a declared anchor the hub's own rules no longer carry as an index/rule
+mismatch in every sync-excluded repo, so a reworded anchor left declared is a fleet-wide false alarm.
+⚠️ **Exact means CASE-exact, so an anchor is written lowercase and
 MID-sentence in the rule that carries it** — opening a sentence with it capitalises the first letter and
 the check reports the rule MISSING while it is plainly there.
 

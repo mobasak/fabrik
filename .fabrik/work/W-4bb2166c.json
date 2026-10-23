@@ -3,7 +3,7 @@
   "created": "2026-09-24T23:27:48.775410Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "11d0150172b999cccd5a39a4fc9b8956ee7e0cad",
   "id": "W-4bb2166c",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — anchored span for CLAUDE.md heavy-surface list; rule drift from fabrik-lib mail",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
