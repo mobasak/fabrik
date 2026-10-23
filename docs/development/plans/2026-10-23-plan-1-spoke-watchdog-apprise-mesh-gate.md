@@ -331,7 +331,8 @@ points spoke sidecars at it is merged.
    `SendMessage` lines, the request text quoting steps 6's probe codes so the coordinator merges a live gate. Then
    send kaizen the 30-ops landing (spec `:421-423`): write `<scratch>/kaizen-30ops.md` — asking that
    `.windsurf/rules/core/30-ops.md:290`'s mesh-published list gain `:8202` (the Apprise gate, `POST /notify/alerts`
-   only), citing D-1166 and the merge sha, its first line `Subject: 30-ops:290 gains the :8202 Apprise mesh gate
+   only), citing D-1166 and the pushed branch-tip sha the merge request names (the merge sha does not exist yet),
+   its first line `Subject: 30-ops:290 gains the :8202 Apprise mesh gate
    (D-1166)` — and run `python scripts/mail.py send --to fabrik --to-agent kaizen --kind request --body-file
    <scratch>/kaizen-30ops.md` (`scripts/mail.py:2966-2995`: the body comes from the file; there is no subject flag).
 8. After the coordinator merges: `fabrik apply specs/services/spoke-canary.yaml` (hub CLI, main checkout; the
@@ -747,6 +748,7 @@ libs/alerting/__init__.py
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (header, Global Constraints, Context Ledger, Constraints Digest, File Scope, Coverage Checklist, Evidence, Self-audit, Pass Ledger, Residuals) + sonnet×1 (What we agreed, Intake, Phases A-C) · all axes · shape: agent-tool (D-961) | found: 21, new: 21, confirmed: 20, fixed: 20, unexecuted: 0, edits: 26 | method: citation — full pass; every candidate executed by the orchestrator (the parse fail-opens re-run as rules2.py, 14 cases; `check_doc_sync.py:393-405` staged mode read; `work.py:6485-6499`; `mail.py:2966-2995`; the missing test path `ls`-ed; the curl image tag probed 200); 1 RECORDED — measured (wording; changes no behaviour: the provider read is the registrar's form of `watchdog.py:521`); flip gates at pass 1 on a flipped copy in a throwaway worktree: `check_convergence` graded it (red only on UNCHECKED rows and no re-derivation row), `check_rule_grounding` 5 CONVERGED in-window plans, 0 findings, `check_plan_quality` 0 findings and red on an Appetite-less mutant | 2a7f0ac3… → 6d251bd2… |
+| Pass 2 | the round-1 slice owners (opus×1 + sonnet×1) · their own claims over the pass-1 fix diff + one hop · shape: agent-tool | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — opus slice 8/8 claims re-verified, the v2 probe re-run from the pin (23 of 23 lines identical); sonnet slice 11/12 verified, S9 residue confirmed (own-fix: round 1 — C step 7's kaizen mail cited a merge sha before the merge); RECORDED — measured: probe 3 proves little since the gate binds only 10.99.0.1 (spec `:379` wording, W-2ce2df52); the step-6 Gatus follow-up commit lands after the `--range` doc-sync (trivial); nobody named to resume at step 8 (pre-existing); the probe's vps1-gate-line case keeps the vps2 label (the Phase A test passes `target="vps1"`); the ledger row cannot hold its own file's md5 (by construction) | 95e84baf… → 434d24fe… |
 
 ## Residual unknowns
 
