@@ -382,9 +382,9 @@ hand-maintains its governance, instead runs `check_governance_drift.py` against 
 **A bounded search returns "not found in N"** · **its row in `docs/DECISIONS.md` in the SAME change** ·
 **`NEXT: operator decision` HAS A BAR (the `DECISION NEEDED` block)** · **The header is the only hand-written half** ·
 **EVERY code-changing chunk of work gets a review-family pass** ·
-**gate/hook/enforcement, a governance-sync path, auth/schema/migrations/concurrency, >5 files, or operator-named work** ·
 **last 7 lines of every task-completing response** · **CLEAN your own scratch** ·
-**you get the behavior you measure**.
+**you get the behavior you measure** ·
+**gate/hook/enforcement, a governance-sync path, auth/schema/migrations/concurrency, >5 files, or operator-named work**.
 Never reword an anchor in place — drift detectors key on the exact substring, and exact means
 CASE-exact: write an anchor lowercase and MID-sentence in the rule that carries it, because opening a
 sentence with it capitalises the first letter and the check then reports the rule MISSING while it is

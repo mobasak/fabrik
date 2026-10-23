@@ -1657,7 +1657,7 @@ def _check_universal_anchors(text: str) -> None:
     assert text.count(start) == 1, "§ UNIVERSAL heading drifted"
     before, rest = text.split(start, 1)
     section, after = rest.split("\n## ", 1)
-    anchors = re.findall(r"^- `[a-z-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
+    anchors = re.findall(r"^- `[a-z0-9-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
     assert len(anchors) >= 14, f"the anchor list parsed short: {anchors}"
     body = before + "\n## " + after
     missing = [a for a in anchors if a not in body]
@@ -1797,7 +1797,7 @@ def test_every_universal_anchor_survives_in_the_templates_rules_outside_its_inde
     condensed index line, which always carries every anchor and so would prove nothing."""
     hub = _hub_text()
     section = hub.split("## UNIVERSAL governance markers", 1)[1].split("\n## ", 1)[0]
-    anchors = re.findall(r"^- `[a-z-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
+    anchors = re.findall(r"^- `[a-z0-9-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
     assert len(anchors) >= 14, f"the anchor list parsed short: {anchors}"
     tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
     start = "## UNIVERSAL governance markers"
@@ -2427,9 +2427,24 @@ def test_the_templates_condensed_anchor_line_counts_the_hub_bullets() -> None:
     hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
     tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
     n = len(_hub_universal_bullets(hub))
+    assert n in _NUMBER_WORDS, f"the hub index declares {n} anchors; extend _NUMBER_WORDS past twenty"
     section = tpl.split(_UNIVERSAL_HEADING, 1)[1].split("\n## ", 1)[0]
-    m = re.search(r"The (\w+), by anchor phrase:(.*?)\.\n", section, re.DOTALL)
-    assert m, "the template's condensed anchor line (`The <count>, by anchor phrase:`) is gone"
+    # The list runs from its lead-in to the paragraph that follows it; its shape is graded explicitly
+    # (every line but the last ends ` ·`, the last ends `**.`), so a stray `.` inside the list is
+    # reported as a shape defect, never as a missing anchor.
+    m = re.search(
+        r"The (\w+), by anchor phrase:(.*?)\nNever reword an anchor in place", section, re.DOTALL
+    )
+    assert m, (
+        "the template's condensed anchor list (`The <count>, by anchor phrase:` … up to `Never reword "
+        "an anchor in place`) is gone"
+    )
+    listing = m.group(2).strip().split("\n")
+    malformed = [ln for ln in listing[:-1] if not ln.rstrip().endswith(" ·")]
+    assert not malformed, f"condensed-list lines that do not end ` ·`: {malformed}"
+    assert listing[-1].rstrip().endswith("**."), (
+        f"the condensed list must end with its last anchor and a period: {listing[-1]!r}"
+    )
     assert m.group(1) == _NUMBER_WORDS[n], (
         f"the template counts `{m.group(1)}` anchors; the hub index declares {n}"
     )
