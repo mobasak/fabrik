@@ -3,7 +3,7 @@
   "created": "2026-10-23T05:55:14.278679Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2f10860b579ffe362bb8f54b77a2b1b1bdfbaa91",
   "id": "W-b92aa5cf",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 0,
   "score_reason": "every rotation so far left its resume prompt unsent, so the rotated builder stays idle until messaged and cannot rotate again; one ordering fix around the Enter plus a screen check",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
