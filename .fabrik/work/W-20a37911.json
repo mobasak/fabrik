@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T15:30:37.966510Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-20a37911",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each of the three on master (src/fabrik/orchestrator/infrastructure.py:137-157, drivers/glitchtip create_project), size each separately",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "W-fc3eddd8 review residue never filed (recorded only in W-37dda1e1 note): a spoke app provisioned before D-904 keeps a stale <id>-watchdog sidecar and compose overlay on vps1 (no cleanup); _rewrite_shared_infra_host matches only host:port, so a user-supplied redis_url/pg_dsn with no port stays unrewritten on a spoke; glitchtip create_project can POST then raise in _fetch_dsn, so the created project is never recorded or rolled back"
+}
