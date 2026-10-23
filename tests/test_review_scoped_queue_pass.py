@@ -1063,10 +1063,17 @@ def test_a_seat_runs_a_mutant_against_whole_test_files() -> None:
     """Rows 1792671972, 1792712311: § Seat isolation, which every test-running seat applies whole, scoped every seat
     run to an exact node id, so a mutant re-run by one node id or a carried `-k` missed the other tests pinning the
     same text; the mutant bullet's whole-file rule sat in the lead's section only. The seat's bullet now hands a mutant
-    run to that bullet's test set and selection rule, pinned whole so an added contradicting clause reds it."""
-    iso = _own_section(CAT, "## Seat isolation")
-    i = iso.index("- The brief names the fix as `git show <sha>`")
-    bullet = iso[i : iso.index(" - ", i + 3)]
+    run to that bullet's test set and selection rule, pinned whole (cut on raw lines, nested items included) so
+    an added contradicting clause reds it."""
+    raw = CAT.read_text(encoding="utf-8").split("\n")
+    top = raw.index("## Seat isolation")
+    start = next(
+        k
+        for k in range(top, len(raw))
+        if raw[k].startswith("- The brief names the fix as `git show <sha>`")
+    )
+    end = next(k for k in range(start + 1, len(raw)) if raw[k].startswith(("- ", "#")))
+    bullet = " ".join(" ".join(raw[start:end]).split())
     assert bullet == (
         "- The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a "
         "pathspec-scoped diff, never a bare range on a branch others commit to (a range carries every sibling "
