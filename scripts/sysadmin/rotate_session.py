@@ -354,8 +354,10 @@ def _registry(home: Path, proc: Path, pid: int) -> dict:
 def _bindings() -> list[dict]:
     rows = []
     try:
-        for line in _identity().read_text(encoding="utf-8").splitlines():
-            with contextlib.suppress(ValueError):
+        # a non-UTF-8 byte or a pathological nest skips its line, never raises: a raise here after the /clear rowed
+        # the rotation `partial:clear` and never sent the resume prompt (W-b72231b8 review r2)
+        for line in _identity().read_text(encoding="utf-8", errors="replace").splitlines():
+            with contextlib.suppress(ValueError, RecursionError):
                 r = json.loads(line)
                 if isinstance(r, dict):
                     rows.append(r)

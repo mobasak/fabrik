@@ -374,6 +374,8 @@ def test_execute_rotates_and_records(world, monkeypatch):
         and row["old_sid"] == SID
         and row["predecessor_row"] is True
     )
+    # W-b72231b8 review r2: /opt/x is no checkout the old session's binding names, so nothing is written
+    assert row["registry"] == "refused:repo", row
     assert row["trigger"] == "ctx" and row["ctx_pre"] == 450000
     keys = _keys(world)
     assert (
@@ -1227,6 +1229,30 @@ def test_wb72231b8_registry_path_needs_a_real_checkout(tmp_path, monkeypatch):
     assert rs._session_registry(str(link), SID) is None  # not its own realpath
     (repo / ".fabrik").symlink_to(clone)
     assert rs._session_registry(str(repo), SID) is None  # `.fabrik` points elsewhere
+
+
+def test_wb72231b8_a_damaged_identity_store_never_raises(world):
+    """Review r2: the registry path reads the identity store after the /clear; a non-UTF-8 byte or a deep nest in it
+    skips that line instead of raising into the rotation outcome."""
+    good = json.dumps({"session_id": SID, "name": "dev1", "toplevel": "/x/.git"})
+    world["identity"].write_bytes(b"\xff\xfe\n" + b"[" * 200_000 + b"\n" + good.encode() + b"\n")
+    rows = rs._bindings()
+    assert rows[-1]["session_id"] == SID  # the good line after the bad ones is still read
+    assert rs._session_registry("/x", SID) == Path("/x/.fabrik/session-agents.json")
+
+
+def test_wb72231b8_registry_os_errors_are_a_recorded_state(tmp_path):
+    """Review r2: an OSError on the write (a read-only folder) is the `error:<name>` state, never a raise."""
+    d = tmp_path / "ro"
+    d.mkdir()
+    regf = d / "session-agents.json"
+    regf.write_text(json.dumps({SID: "dev1"}))
+    d.chmod(0o500)
+    try:
+        assert rs._repoint_registry(regf, SID, NEW, "dev1") == "error:PermissionError"
+    finally:
+        d.chmod(0o700)
+    assert json.loads(regf.read_text()) == {SID: "dev1"}
 
 
 def test_wb72231b8_registry_over_the_readers_cap_is_refused(tmp_path, monkeypatch):
