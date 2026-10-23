@@ -44,21 +44,21 @@ minted here.
 | I22 | coordinator: "W-20a37911 … tagged needs-split … split it into one item each" | OUT-OF-SCOPE | W-20a37911 (its own split, after this item) |
 | I23 | grounder seat 3: `libs/alerting` and the Backrest hook use `http://apprise:8000` and "would break on spokes" | OUT-OF-SCOPE (refuted) | `libs/alerting/apprise.py:44-80` ssh-execs curl inside the vps1 apprise container; Backrest edits `/opt/backrest/config/config.json` on vps1 (`src/fabrik/drivers/backrest.py:58`) — both hub-side |
 
-Intake: 23 items — 18 IN (spec rows I1-I19 minus its 5 OUT), 5 + 4 OUT-OF-SCOPE (each named above), 0 ASK.
+Intake: 23 items — 14 IN (the spec's 19 rows minus its 5 OUT), 9 OUT-OF-SCOPE (the spec's 5 plus I20-I23, each named above), 0 ASK.
 
 ## Global Constraints
 
 - Shared backing services: `postgres-main:5432`, `redis-main:6379` by name on vps1; a spoke reaches them at
   `10.99.0.1` (`.windsurf/rules/core/30-ops.md:290`).
-- Every compose service declares `deploy.resources.limits.memory` and `container_name` (`30-ops.md:149`).
+- Every compose service declares `deploy.resources.limits.memory` and `container_name` (`30-ops.md:149`, `:150`).
 - No host `ports:` except a recorded exception; the gate's mesh-only bind is recorded by D-1166 (spec § Shape
   `:405-406`).
 - Debian, not Alpine, base images (`30-ops.md:24`): `nginx:1.30-trixie`.
 - 12-Factor: logs to stdout only (XI); no migrations from startup (XII); same backing services everywhere (X); no
   sticky sessions (VI); no daemonizing/PID files (VIII); idempotent jobs (IX); immutable releases, never hot-patch a
   container (V); granular env config, no secrets in code (III); shelled-out binaries pinned in the image (II).
-- Deploys are trigger-don't-execute, behind the operator's Gate-2 go relayed by the coordinator (fleet charter
-  § Escalation).
+- Every deploy act on vps1 or a spoke runs only after the operator's Gate-2 go, relayed by the coordinator
+  (`docs/reference/agents/fleet.md:63` § Escalation); fleet then runs it (spec § Personas, fleet).
 - Seats and tests: `.venv/bin/python -m pytest` through `/opt/fabrik/scripts/capped_run.sh`; never `uv sync` from
   this worktree.
 
@@ -66,12 +66,13 @@ Intake: 23 items — 18 IN (spec rows I1-I19 minus its 5 OUT), 5 + 4 OUT-OF-SCOP
 
 | Source | What binds | Grounded ref |
 |---|---|---|
-| `core/30-ops.md` | memory limit, container_name, no host ports (exception recorded), Debian base | `.windsurf/rules/core/30-ops.md:149`, `:24`, `:357`, `:290` |
-| `core/60-watchdog.md` | `escalate_apprise` is always allowed; the sidecar is on for every kind | `.windsurf/rules/core/60-watchdog.md:105` |
+| `core/30-ops.md` | memory limit, container_name, no host ports (exception recorded), Debian base | `.windsurf/rules/core/30-ops.md:149`, `:150`, `:24`, `:357`, `:290` |
+| `core/60-watchdog.md` | `escalate_apprise` is always allowed; the sidecar is on for every kind | `.windsurf/rules/core/60-watchdog.md:105`, `:27` |
 | `core/45-testing-strategy.md` | one test per behaviour, watched red first | `.windsurf/rules/core/45-testing-strategy.md:22` |
 | `core/10-python.md` | no dependency-file edits | `.windsurf/rules/core/10-python.md:38` |
 | `ai/50-agentic.md` | the sidecar's Claude lane rides the subscription OAuth files the preflight checks | `.windsurf/rules/ai/50-agentic.md:56` |
 | `core/self-healing.md` | no invented self-healing response — the gate adds none | `.windsurf/rules/core/self-healing.md:65` |
+| `core/40-documentation.md` | fenced code only in `PORTS.md`, `vps-urls.md` and the receipts | `.windsurf/rules/core/40-documentation.md:244` |
 | fabrik-lib `watchdog_sidecar` (vendored, unchanged) | POSTs `{title, body}` to `WATCHDOG_APPRISE_URL`, any 2xx = delivered, no retry on 503 | `/opt/fabrik-lib/watchdog/watchdog_sidecar/agent.py:561-576`, `:244` |
 | fabrik-lib reverse proxy | none exists — consume the official nginx image (spec vendor ladder `:284-291`) | no 🆕 candidate |
 | `agents-fabrik.md` § Infrastructure Services / Observability | Apprise on vps1, Gatus alerts through it | `/opt/fabrik/agents-fabrik.md:193`, `:221` |
@@ -89,11 +90,12 @@ Intake: 23 items — 18 IN (spec rows I1-I19 minus its 5 OUT), 5 + 4 OUT-OF-SCOP
 | Do not modify these files unless the ticket authorises it. | `.windsurf/rules/core/10-python.md:38` |
 | Agents run on the subscription's OAuth through the unmodified CLI | `.windsurf/rules/ai/50-agentic.md:56` |
 | If a failure class doesn't appear in the table above, the | `.windsurf/rules/core/self-healing.md:65` |
+| Fenced code blocks only — never indented code (AI treats it inconsistently) | `.windsurf/rules/core/40-documentation.md:244` |
 
 How each row binds: row 1 — the gate's `10.99.0.1:8202` bind is the D-1166-recorded exception (spec `:405-406`);
 row 2 — 32M; row 3 — `nginx:1.30-trixie`; row 4 — the gate makes `escalate_apprise` reachable from spokes; row 5 —
 every new test in Phase A is watched red; row 6 — no `pyproject.toml`/`uv.lock` edit; row 7 — the preflight checks
-the files that lane needs; row 8 — `unconstrained`: no self-healing step is added.
+the files that lane needs; row 8 — `unconstrained`: no self-healing step is added; row 9 — the doc edits of Phase B step 6 add table rows and prose only, any command they carry fenced.
 
 ## File Scope (owned paths)
 
@@ -121,7 +123,7 @@ Appetite: 120
   the check passes or is skipped, else the one-line failure text).
 - Consumes: `fabrik.drivers.ssh.ssh(cmd, timeout=30)` (`src/fabrik/drivers/ssh.py:182`, raises `RuntimeError` /
   `subprocess.TimeoutExpired` / `SshHostError` / `JumpConfigError`, `:104`, `:121`, `:195-200`);
-  `fabrik.orchestrator.deployer_ssh._target_vps_env` (`src/fabrik/orchestrator/deployer_ssh.py:149-157`);
+  `fabrik.orchestrator.deployer_ssh._host_env` (`src/fabrik/orchestrator/deployer_ssh.py:123-145`);
   `fabrik.drivers.watchdog.VPS_CLAUDE_HOME` (`src/fabrik/drivers/watchdog.py:143`).
 - Wired consumer: `WatchdogDriver` render at `src/fabrik/drivers/watchdog.py:546` (URL) and `_provision_watchdog`
   (`src/fabrik/orchestrator/infrastructure.py:1591`, preflight) — both production paths of `fabrik apply`.
@@ -131,14 +133,17 @@ Appetite: 120
    `http://apprise:8000/notify/alerts`; a URL naming another host, or a userinfo URL, is untouched.
 2. A real spoke apply calls the driver (no refusal) and `provision()` provisions the watchdog roles and analytics for
    vps2 (`record_failure`/`provision_watchdog_roles` true).
-3. The preflight: both files present (+ `gate reachable` on a spoke) → driver runs; one missing → a red row naming
-   that file; both missing → both named; empty/unexpected stdout → "could not check <target>: unexpected output";
-   `gate unreachable` → "gate unreachable from <target>"; `RuntimeError`, `TimeoutExpired`, `JumpConfigError` →
-   "could not check <target>: …"; every failure records `watchdog:` in `ctx.registrar_failures` naming the target
-   and the swapped `FABRIK_VPS_SSH_HOST`, and never calls the driver.
+3. The preflight, exactly the parse rule probed in § Evidence Phase A (v2, 14 cases): both files present (+ `gate
+   reachable` on a spoke) → driver runs; one missing → a red row naming that file; both missing → both named;
+   `gate unreachable` → "gate unreachable from <target>"; a missing file AND `gate unreachable` → both named in one
+   row; empty, extra, duplicated or contradictory lines, a gate line on vps1, or no gate line on a spoke → "could
+   not check <target>: unexpected output"; `RuntimeError`, `TimeoutExpired`, `JumpConfigError` → "could not check
+   <target>: …"; every failure records `watchdog:` in `ctx.registrar_failures` naming the target and the ssh alias
+   hit, and never calls the driver; a spec-only `target_vps` (no `ctx.target_vps`) is probed on that spoke.
 4. An openrouter-only provider (`llm_provider_primary` and `llm_provider_fallback` both not `claude-code`) makes no
    ssh call.
-5. A dry run makes no ssh call and logs "would check the Claude login files on <target>".
+5. A dry run makes no ssh call; it logs "would check the Claude login files on <target>" only when the provider
+   pair names `claude-code`.
 6. `resolve_applicability` (the `fabrik plan` text) no longer names D-1153 for a spoke.
 
 **Steps.**
@@ -155,7 +160,9 @@ Appetite: 120
      (behaviour 6); keep `test_plan_does_not_call_a_switched_off_registrar_refused` (`:113-126`) as-is;
    - `test_a_vps1_watchdog_is_unchanged` (`:46-57`) patches the ssh call with a passing vps1 stdout;
    - add the preflight matrix (behaviours 3-5) and the `_rewrite_mesh_gated_url` unit tests (behaviour 1: vps2,
-     vps1, `None` target, another host, a userinfo URL, a falsy URL) in this file;
+     vps1, `None` target, another host, a userinfo URL, a falsy URL) in this file, importing the new names INSIDE each
+     test function as the file already does for `resolve_applicability` (`:103`), so a missing name fails each test
+     red rather than erroring the whole file at collection;
    - in `tests/test_watchdog_driver.py`, extend `test_a_spoke_sidecar_reaches_the_shared_data_plane_by_mesh_ip`
      (`:146-158`) with `spoke.apprise_url == "http://10.99.0.1:8202/notify/alerts"` and
      `hub.apprise_url == "http://apprise:8000/notify/alerts"` (behaviour 1 at the render seam; no test asserts
@@ -173,14 +180,20 @@ Appetite: 120
      a falsy URL or `(target_vps or "vps1") == "vps1"`, else `url.replace(_APPRISE_HOST_AUTHORITY,
      _APPRISE_MESH_GATE_AUTHORITY)` — no `@` arm (spec `:205-209`);
    - delete the refusal block in `_provision_watchdog` (`:1607-1619`) and its docstring paragraph (`:1601-1605`);
-   - after the dry-run branch (`:1620-1627`; extend its log with "would check the Claude login files on <target>")
+   - add `import shlex` beside the module imports (`:87-94`);
+   - after the dry-run branch (`:1620-1627`; extend its log with "would check the Claude login files on <target>"
+     when the provider pair names `claude-code`)
      and before the driver import (`:1628`), call `self._watchdog_login_preflight(ctx, target)`; on a returned text,
      `self._nonfatal(ctx, "watchdog", RuntimeError(text))` and return;
    - `_watchdog_login_preflight`: read the provider pair from `ctx.spec["watchdog"]` with the driver's defaults
      (`claude-code`/`openrouter`, `src/fabrik/drivers/watchdog.py:596-597`); skip when neither is `claude-code`; build
      the spec's sudo command (`:229-231`) with `shlex.quote` on both paths, append the gate probe (`:238-240`) when
-     `target != "vps1"`; run `ssh(cmd, timeout=30)` inside `_target_vps_env(ctx)`; parse exactly as the spec's "How
-     the result is read" (`:245-257`); catch `Exception` → "could not check <target>: <one-line text>"; every text
+     `target != "vps1"`; run `ssh(cmd, timeout=30)` inside `_host_env(target)` — the target `_watchdog_target`
+     resolved, so a spec-only `target_vps` is probed on its own host (production always sets `ctx.target_vps`,
+     `src/fabrik/orchestrator/__init__.py:162`, `:537`, where the two agree); switch the driver call's
+     `with _target_vps_env(ctx):` (`:1646`) to the same `_host_env(target)`, so the preflight and the sidecar it
+     clears run on one host; parse with the v2 rule of § Evidence Phase A (spec "How the result is read",
+     `:245-257`, its "any other output" arm applied to extra, duplicated and contradictory lines); catch `Exception` → "could not check <target>: <one-line text>"; every text
      names `target` and the ssh alias actually hit — `fabrik.drivers.ssh._ssh_host()` read INSIDE the `with`
      (`_host_env` sets `FABRIK_VPS_SSH_HOST` to the raw target and restores it on exit,
      `src/fabrik/orchestrator/deployer_ssh.py:132-145`; on vps1 it is the default alias `vps`,
@@ -192,18 +205,24 @@ Appetite: 120
    - `resolve_applicability` (`:455-462`): drop the refusal clause;
    - `_watchdog_target` docstring (`:131-132`): drop the D-1153 refusal wording.
 4. In `src/fabrik/drivers/watchdog.py` after `:571`, add `apprise_url = _rewrite_mesh_gated_url(apprise_url,
-   target_vps)` and extend the local import at `:567`.
+   target_vps)` and extend the local import at `:566`.
 5. Re-point `tests/orchestrator/test_spoke_dsn_mesh.py::TestWatchdogSpokeRouting` (`:276-296`): patch the preflight
    to pass and assert `seen == ["vps2", None]` — the vps2 driver call runs with the host swapped, vps1 unswapped
    (`_host_env` writes the raw target, `src/fabrik/orchestrator/deployer_ssh.py:136-138`); rewrite its docstring.
 6. Run green: `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_watchdog_spoke_preflight.py
    tests/orchestrator/test_spoke_dsn_mesh.py tests/test_watchdog_driver.py -q` → all pass; then the slice the census
    names: `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/orchestrator
-   tests/test_watchdog_db_roles.py tests/test_registrar_failures_not_green.py tests/test_app_role_provision.py -q` →
-   all pass.
-7. Red-on-revert for behaviour 1 and 3 in a throwaway worktree (`git worktree add <scratch>/probe HEAD`): neuter the
-   rewrite call and the preflight call, run the two test files there, watch them fail, remove the worktree.
-8. Closing sequence: (1) the phase gate above green; (2) `python scripts/enforcement/check_doc_sync.py` + the
+   tests/test_watchdog_db_roles.py tests/test_app_role_provision.py -q` → all pass
+   (`tests/orchestrator/test_registrar_failures_not_green.py` runs inside `tests/orchestrator`).
+7. Red-on-revert for behaviours 1 and 3, BEFORE the step-8 commit, in a throwaway worktree that carries the
+   uncommitted phase: `git diff HEAD -- <the Phase A paths> > <scratch>/phase-a.diff`; `git worktree add --detach
+   <scratch>/probe HEAD`; `git -C <scratch>/probe apply <scratch>/phase-a.diff`; in the probe only, delete the
+   `_rewrite_mesh_gated_url` call in `watchdog.py` and the `_watchdog_login_preflight` call in `_provision_watchdog`;
+   run `tests/test_watchdog_driver.py` and `tests/test_watchdog_spoke_preflight.py` from inside the probe under
+   `capped_run.sh` (the root conftest pins the checkout it runs in) and watch behaviours 1 and 3 fail; `git worktree
+   remove --force <scratch>/probe`.
+8. Closing sequence: (1) the phase gate above green; (2) stage the phase's own paths (`git add <them>`), then
+   `python scripts/enforcement/check_doc_sync.py` (it reads the STAGED diff, `check_doc_sync.py:393-405`) + the
    docstring/comment rewrites of step 3 (the spec's code-resident landing sites `:418-419`); (3) **`/fabrik-review-scoped`
    on Phase A's changed surface** — a BLOCKING gate run to a closing pass that confirms zero defects (`Profile: small`:
    the heavy round is at Finish); (4) commit Phase A by explicit pathspec with Agent Provenance Trailers, push.
@@ -222,10 +241,17 @@ Appetite: 60
 1. `docker compose -f infra/vps1/apprise/compose.yaml config` renders (with the external network and volume
    declared) and shows the gate service with `container_name: apprise-mesh-gate`, `ports` `10.99.0.1:8202:8202`,
    memory 32M, the config mounted at `/etc/nginx/conf.d/default.conf`, and no `depends_on`.
-2. The gate policy, run locally against the mirror's own config (the spec's probe rows `:469-483`): `POST
-   /notify/alerts` → 200 upstream `POST /notify/alerts`; `GET /notify/alerts` → 403; `GET /get/alerts` → 403;
-   `/healthz` → 200; a 1.1 MB POST → 413.
+2. The gate policy, run locally against the mirror's own config — every row of the spec's probe (`:469-483`):
+   `POST /notify/alerts` → 200, upstream sees `POST /notify/alerts`; `POST /notify/alerts?tag=all` → 200, upstream
+   sees no query; `GET`, `HEAD`, `PUT /notify/alerts` → 403; `POST /notify/alerts/`, `/notify/`, `/notify`,
+   `/NOTIFY/alerts` → 403; `POST /notify/%61lerts`, `/notify//alerts`, `/notify/alerts/../alerts` → 200, upstream
+   sees `POST /notify/alerts`; `GET /get/alerts`, `/json/urls/alerts`, `/details`, `/metrics`, `/` → 403;
+   `POST /add/alerts` → 403; `GET /healthz` → 200; a 900 KB POST → 200, a 1.1 MB POST → 413; 24 rapid POSTs → 21
+   × 200 then 503.
 3. spoke-canary loads through `load_spec` with no `watchdog:` override (WatchdogConfig defaults).
+
+Behaviours 1 and 2 are probes of a config file, run before the edit (no gate service in the render; nothing on
+`127.0.0.1:18202`) and after it; behaviour 3's check is run before step 5's edit and prints `enabled=False` — its red.
 
 **Steps.**
 1. Probe: `docker version --format '{{.Client.Version}}'` and `docker compose version` → present in WSL.
@@ -240,14 +266,15 @@ Appetite: 60
    each row of behaviour 2; tear down with `docker compose -p gateprobe down` (no volumes exist in the probe).
 4. Edit `configs/gatus/apps/apprise.yaml`: add endpoint `apprise-mesh-gate`, group `apps`, url
    `http://10.99.0.1:8202/healthz`, `interval: 120s`, `[STATUS] == 200`, `alerts: [type: custom]` (spec `:305-308`;
-   the by-name fallback `http://apprise-mesh-gate:8202/healthz` is applied only if deploy step 3 says so).
+   the by-name fallback `http://apprise-mesh-gate:8202/healthz` is written only by Phase C step 6, on probe 4).
 5. Edit `specs/services/spoke-canary.yaml`: delete `:28-30` (the D-1153 comment and `watchdog: enabled: false`).
    Check: `.venv/bin/python -c "from fabrik.spec_loader import load_spec; s=load_spec('specs/services/spoke-canary.yaml'); print(s.watchdog)"`
    → the WatchdogConfig defaults (enabled).
 6. Docs (spec § Documentation landing sites `:408-427`): `PORTS.md` — a row `| 8202 | **apprise-mesh-gate** … |`
    after `:57`, mesh-only, and `:34`'s "no host port" rewritten; `docs/infrastructure/vps-urls.md` — `:149` clause
    replaced by the spoke URL, a § Mesh URLs row after `:168`, a mesh-only row after `:295`.
-7. Closing sequence: (1) behaviours 1-3 green; (2) `python scripts/enforcement/check_doc_sync.py`; (3)
+7. Closing sequence: (1) behaviours 1-3 green; (2) stage the phase's own paths, then
+   `python scripts/enforcement/check_doc_sync.py` (staged mode); (3)
    **`/fabrik-review-scoped` on Phase B's changed surface** — BLOCKING, to a closing pass confirming zero defects;
    (4) commit by explicit pathspec with trailers, push.
 
@@ -257,7 +284,9 @@ Appetite: 90
 
 **Behavior Contract.** The spec's § Validation (`:517-529`), verbatim as acceptance.
 
-**Steps.**
+**Steps.** The order is the spec's adoption order (`:366-381`): the gate is live and probed BEFORE the code that
+points spoke sidecars at it is merged.
+
 1. **The Finish `/fabrik-review`** over the whole-plan diff (base `0a398d12e` .. HEAD) — the D7 floor: ≥1 Opus
    authoritative seat plus one Sonnet and one Haiku seat per independent failure-class group
    (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <groups>` prints the seats), stamped first with
@@ -265,43 +294,80 @@ Appetite: 90
    `docs/development/reviews/2026-10-23-plan-1-spoke-watchdog-apprise-mesh-gate-review.md`; run to a closing pass
    that confirms zero defects.
 2. `/fabrik-docs-review` over the plan's doc surface to a fixed point.
-3. Kaizen mail (spec `:421-423`): `python scripts/mail.py send --to fabrik --to-agent kaizen --kind request` asking
-   that `.windsurf/rules/core/30-ops.md:290` list `:8202` (the Apprise gate, `POST /notify/alerts` only), citing
-   D-1166.
-4. Governance ledgers through the private-index recipe: `CHANGELOG.md` (one `### Added` entry); no new D-row (D-1166
+3. Governance ledgers through the private-index recipe: `CHANGELOG.md` (one `### Added` entry); no new D-row (D-1166
    records the approval and the 30-ops exception).
-5. `python scripts/final_gate.py --check --json` → `"status":"success"`, and
-   `python scripts/enforcement/check_convergence.py` → green. A green gate is necessary, not sufficient — the
-   Evidence below is the proof.
-6. `python3 scripts/merge_request.py request --review <the Finish receipt> --item W-5dcafaef`; send the printed
-   `SendMessage` lines.
-7. **Deploy gate (operator, `gate: deploy`)** — the run ends behind `DECISION NEEDED (ground: gate)` sent to the
-   coordinator, closed `handoff` with `## RESUME` naming step 8. Never executed before the operator's go.
-8. After the go, fleet runs spec § Lifecycle "Adoption" steps 1-3 (`:366-380`) in order — the attachment lock first
-   (backup the live compose; copy in the mirror; `docker compose up -d --no-deps apprise`; the refused-`attach` probe
-   and `ensure-apprise-alerts-config.sh --check` → 200; STOP if `attach` is not refused, U4), then `up -d --no-deps
-   apprise-mesh-gate`, then the four probes; the Gatus endpoint form follows probe 4.
-9. After the coordinator merges: `fabrik apply specs/services/spoke-canary.yaml` on vps2 from the main checkout;
-   its preflight prints `gate reachable`; one test alert from the vps2 sidecar container lands in Telegram. Record
-   the probe outputs in the Finish receipt's § Deploy evidence and `work.py done W-5dcafaef`.
+4. `python scripts/enforcement/check_doc_sync.py --range 0a398d12e..HEAD` (the whole-plan coverage receipt,
+   `check_doc_sync.py:396-401`), `python scripts/final_gate.py --check --json` → `"status":"success"`, and
+   `python scripts/enforcement/check_convergence.py` → green. A green gate is necessary, not sufficient — the Evidence
+   below is the proof. Push.
+5. **Deploy gate (operator, `gate: deploy`)** — a `DECISION NEEDED (ground: gate)` block sent to the coordinator by
+   `SendMessage` (the operator talks only to the coordinator, `docs/reference/agents/fleet.md:63`), naming steps 6
+   and 7 below as the acts; the run closes `handoff` with `## RESUME` naming step 6. Nothing below runs before the go.
+6. After the go, spec § Lifecycle adoption steps 1-3 (`:366-380`), on vps1 through
+   `ssh -o ProxyJump=vps2 vps` (the hub's route, D-973), in this order, each output recorded:
+   - **The attachment lock first.** `sudo cp /opt/apprise/compose.yaml /opt/apprise/compose.yaml.bak-<UTC stamp>`;
+     copy in the mirror from the pushed branch commit (`scp` of `infra/vps1/apprise/compose.yaml` to a temp path,
+     then `sudo install -m 0644` over `/opt/apprise/compose.yaml`); `cd /opt/apprise && sudo docker compose up -d
+     --no-deps apprise`.
+   - Probe U4: `sudo docker exec apprise curl -s -o /dev/null -w '%{http_code}' -X POST -F body=attach-probe
+     -F attach=http://apprise:8000/ http://localhost:8000/notify/alerts` — the attach URL is one Apprise CAN fetch,
+     so a refusal means parsing is off, never a failed fetch. Expected: a non-2xx code. A 2xx is the U4 stop: run
+     step 10's rollback, never bring the gate up.
+   - `sudo bash -s -- --check < scripts/sysadmin/ensure-apprise-alerts-config.sh` (the repo copy streamed over the
+     ssh) → exit 0, the alerts path answering 200.
+   - `cd /opt/apprise && sudo docker compose up -d --no-deps apprise-mesh-gate`.
+   - Probe 1, from a vps2 container (`ssh vps2`): `sudo docker run --rm curlimages/curl:8.10.1 -s -o /dev/null -w
+     '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"title":"[fabrik] gate probe","body":"vps2"}'
+     http://10.99.0.1:8202/notify/alerts` → `200`.
+   - Probe 2, the same container: `-s -o /dev/null -w '%{http_code}' http://10.99.0.1:8202/get/alerts` → `403`.
+   - Probe 3, from WSL (a public source): `curl -s -m 5 -o /dev/null -w '%{http_code}'
+     http://notify.vps1.ocoron.com:8202/healthz` → `000` (connect dropped by vps1's DOCKER-USER chain).
+   - Probe 4, from a vps1 container: `sudo docker run --rm --network fabrik curlimages/curl:8.10.1 -s -o /dev/null
+     -w '%{http_code}' http://10.99.0.1:8202/healthz` → `200` keeps B4's mesh URL; anything else rewrites
+     `configs/gatus/apps/apprise.yaml`'s gate endpoint to `http://apprise-mesh-gate:8202/healthz` on a follow-up
+     commit (explicit pathspec, trailers, pushed) before step 7.
+   - Any other unexpected result: step 10.
+7. `python3 scripts/merge_request.py request --review <the Finish receipt> --item W-5dcafaef`; send the printed
+   `SendMessage` lines, the request text quoting steps 6's probe codes so the coordinator merges a live gate. Then
+   send kaizen the 30-ops landing (spec `:421-423`): write `<scratch>/kaizen-30ops.md` — asking that
+   `.windsurf/rules/core/30-ops.md:290`'s mesh-published list gain `:8202` (the Apprise gate, `POST /notify/alerts`
+   only), citing D-1166 and the merge sha, its first line `Subject: 30-ops:290 gains the :8202 Apprise mesh gate
+   (D-1166)` — and run `python scripts/mail.py send --to fabrik --to-agent kaizen --kind request --body-file
+   <scratch>/kaizen-30ops.md` (`scripts/mail.py:2966-2995`: the body comes from the file; there is no subject flag).
+8. After the coordinator merges: `fabrik apply specs/services/spoke-canary.yaml` (hub CLI, main checkout; the
+   operator's step-5 go covers it) → green, the watchdog preflight passing on vps2 (the apply log shows no
+   `watchdog:` registrar failure).
+9. Acceptance (spec § Validation `:517-529`): `ssh vps2 "sudo docker exec spoke-canary-watchdog python -c
+   \"import httpx,os; print(httpx.post(os.environ['WATCHDOG_APPRISE_URL'], json={'title':'[fabrik] spoke watchdog
+   acceptance','body':'vps2'}, timeout=10).status_code)\""` → `200`, and the operator confirms the Telegram message
+   (relayed by the coordinator). Record every step-6, 8 and 9 output in the Finish receipt's `## Deploy evidence`,
+   commit it (explicit pathspec, trailers, pushed) with a message naming W-5dcafaef, send a follow-up merge request
+   for it, then `python3 scripts/work.py done W-5dcafaef --evidence <that commit's sha>`.
+10. **Rollback, on any failure in steps 6, 8 or 9** — spec § Lifecycle rollback (`:382-387`), in reverse order: re-add
+    spoke-canary's `watchdog: {enabled: false}` and ask the coordinator to revert the code merge (if merged);
+    `ssh vps2 "sudo docker rm -f spoke-canary-watchdog"` (an `enabled: false` re-apply leaves it running); `cd
+    /opt/apprise && sudo docker compose rm -sf apprise-mesh-gate`; restore `/opt/apprise/compose.yaml` from the step-6
+    backup and `sudo docker compose up -d --no-deps apprise`, then the `--check` → 200. Record the outputs and file
+    the finding as a new item (`python3 scripts/work.py add`), linked from W-5dcafaef.
 
 ## Coverage Checklist
 
 | Class | Status |
 |---|---|
-| ai/50-agentic (auth boundary of the Claude lane) | OPEN |
-| core/10-python | OPEN |
-| core/45-testing-strategy (watched red, one test per behaviour) | OPEN |
-| core/60-watchdog (escalation reachability) | OPEN |
-| core/self-healing | OPEN |
-| FLOOR core/35-security-auth (gate allow-list, no credential on the path) | OPEN |
-| FLOOR core/25-data-postgres (watchdog roles provisioned on spokes) | OPEN |
-| FLOOR core/30-ops (ports exception, memory, container_name) | OPEN |
-| 12-FACTOR | OPEN |
-| recurrence: mirror (every caller of a changed contract) | OPEN |
-| recurrence: denominator honesty | OPEN |
-| recurrence: doc drift | OPEN |
-| recurrence: test pins the old shape | OPEN |
+| ai/50-agentic (the Claude lane's login files the preflight checks) | CLEAN — the preflight checks the two OAuth files the sidecar mounts (`src/fabrik/drivers/watchdog.py:143`); no API key enters the path; hunted: Phase A step 3, `ai/50-agentic.md:56` |
+| core/10-python | CLEAN — no dependency-file edit; `shlex` is stdlib, added at `infrastructure.py:87-94` (pass 1, S11); hunted: Phase A steps 3-4 |
+| core/40-documentation (PORTS.md, vps-urls.md, the receipt) | CLEAN — the doc edits are table rows and prose; every command in the plan is fenced or inline; hunted: Phase B step 6, Phase C step 9 |
+| core/45-testing-strategy (watched red, one test per behaviour) | FIXED — red-on-revert now runs on a probe carrying the uncommitted phase (S1), new names import per test (S11), Phase B behaviour 3 is watched red (S10) |
+| core/60-watchdog (escalation reachability) | CLEAN — `escalate_apprise` reaches Apprise from spokes through the gate; the canary's opt-out is removed (Phase B step 5); hunted: `60-watchdog.md:27`, `:105` |
+| core/self-healing | CLEAN — no ladder step is added; hunted: every phase |
+| FLOOR core/35-security-auth (gate allow-list, no credential on the path) | CLEAN — the gate holds no secret and admits only `POST /notify/alerts`; the attachment lock is probed at deploy with a fetchable URL (C step 6); hunted: Phase B behaviour 2, spec `:142-201` |
+| FLOOR core/25-data-postgres (watchdog roles provisioned on spokes) | CLEAN — spoke roles ride the existing mesh DSN rewrite (`watchdog.py:568-571`); `watchdog_lives` drops its vps1 test (Phase A step 3); hunted: `infrastructure.py:764-784` |
+| FLOOR core/30-ops (ports exception, memory, container_name) | FIXED — the container_name mandate is now cited at `30-ops.md:150` (O4); the mesh-only port is D-1166's recorded exception |
+| 12-FACTOR | CLEAN — no logfile, no startup migration, no sticky session; the gate is an immutable image with a compose-inline config; hunted: Phase B step 2 |
+| fail-open vs fail-closed on every gate/guard | FIXED — the preflight parse read contradictory or duplicated lines and a vps1 gate line as a pass or a definite verdict (O3), and a missing file hid the gate result (O2); v2 probed over 14 cases |
+| cost/quota/limit accounting edges (unknown≠0, per-call vs batch) | CLEAN — the per-spoke rate (30/min, burst 20) and the 1m body cap are spec-probed rows of Phase B behaviour 2; the sidecar budget is unchanged |
+| boundary/sentinel/prefix collisions | CLEAN — the rewrite matcher is probed against `:80000`, a no-slash URL, a userinfo URL and another host (§ Evidence Phase A) |
+| behavior-without-a-test | FIXED — Phase B behaviours 1-2 are named as before/after probes and behaviour 3 gains its red (S10); every Phase A behaviour maps to a test step |
 
 ```
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
@@ -394,12 +460,12 @@ Appetite: 90
 
 ## MATCHED — packs whose globs hit the changed paths
 
-### ai/50-agentic.md  (hit: src/fabrik/orchestrator/infrastructure.py)
+### ai/50-agentic.md  (hit: src/fabrik/orchestrator/infrastructure.py, tests/orchestrator/test_spoke_dsn_mesh.py)
 - is never the only thing between the agent and an irreversible act.
 - **Auth boundary.** Agents run on the subscription's OAuth through the unmodified CLI, never `ANTHROPIC_API_KEY` (ai/00). Never pass `bare=True` on that lane: bare mode never reads OAuth credentials and fails with "Not logged in". A deployed service declares `shape.uses_claude_cli` and mounts the rotated `~/.claude`, never a static token. Anthropic's terms say subscription OAuth is for ordinary, individual use of Claude Code and its own apps; developers building products or services, including with the Agent SDK, should use an API key, and Anthropic does not permit routing requests through Free, Pro or Max credentials on behalf of their users, reserving the right to enforce that without notice. The operator's own development and automation through the unmodified CLI is the closest fit to that … (wrapped further — read the pack)
 - output, and some models never return them. Pick the rate per model from the bake-off browser (hub-only), using its tools chip.
 
-### core/10-python.md  (hit: src/fabrik/drivers/watchdog.py, src/fabrik/orchestrator/infrastructure.py, tests/test_watchdog_spoke_preflight.py)
+### core/10-python.md  (hit: src/fabrik/drivers/watchdog.py, src/fabrik/orchestrator/infrastructure.py, tests/orchestrator/test_spoke_dsn_mesh.py)
 **`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`.
 - Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
 - its own reviewed commit, never as a side effect of unrelated work.
@@ -422,7 +488,20 @@ Appetite: 90
 **BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (`<svc>` is a service that declares `.env.owner` (a `migrate` service), never the app service — the owner DSN is not in the app service's environment after the owner split (D-754), and `run` replaces the service's `command`, so a hand-off written there is bypassed) (see `30-ops.md` § Release & Admin Processes).
 | `alembic upgrade head` in `lifespan` / startup hook | One-off admin process against the deployed release: `docker compose run --rm <svc> alembic upgrade head`, `<svc>` a service that declares `.env.owner` (a `migrate` service), never the app service (D-754) (concurrent replicas race the version table) |
 
-### core/45-testing-strategy.md  (hit: tests/test_watchdog_spoke_preflight.py)
+### core/40-documentation.md  (hit: PORTS.md, docs/development/reviews/2026-10-23-plan-1-spoke-watchdog-apprise-mesh-gate-review.md, docs/infrastructure/vps-urls.md)
+- > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
+- **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
+- The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
+| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` ONLY when one of the hub's two unattended writers made the commit — the CI-fix dispatcher's `claude -p` run in THIS repo after a GitHub Actions failure, or the hub's own rules-version cron; any other session never writes it) |
+| `Agent-Name` | the name the operator gave your window — your `CLAUDE.md` § Agent Provenance Trailers owns the rule (in a project: write it by hand; never invent one) | every AI commit |
+- Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go below a blank line, above `Co-Authored-By`. ⚠️ The trailer block must be its OWN paragraph with NO blank line inside it: git parses only the LAST paragraph, and only if it is all-trailers. A blank line before `Co-Authored-By:` demotes everything above it to prose; so does a prose line glued to the top of the block. Measured 2026-08-15: 200 of the last 200 hub commits carried `Agent-Role:` and only 10 parsed, because the old example here shipped the blank line.
+- **⚠️ Link it or it is decoration.** *Measured:* requests for files that do NOT exist came ~zero from AI bots — agents never go looking. It follows (inference, not measurement) that a file only gets read when something points at it: reference it from the docs index or README.
+- ⚠️ **In the hub (`/opt/fabrik`) `llms.txt` is GENERATED** (`scripts/generate_capability_index.py`, refreshed daily) — never hand-edit it there; change the generator. A project has no such generator; an `llms.txt` it ships, hand-written or built by its own code, is its own.
+- either way. Cheap and reversible — never at the expense of `OPERATIONS.md`/`DEPLOYMENT.md`, which are the load-bearing agent interfaces (D-065).
+- **No skipped heading levels** — `##` to `###`, never `##` to `####`
+- **Fenced code blocks only** — never indented code (AI treats it inconsistently)
+
+### core/45-testing-strategy.md  (hit: tests/orchestrator/test_spoke_dsn_mesh.py, tests/test_watchdog_driver.py, tests/test_watchdog_spoke_preflight.py)
 - **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
 - **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
 - **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED — either write it first and watch it fail, or (after the fact) neuter the fix/feature, prove the test goes red, then RESTORE and re-run to green. The neutered state is never staged, committed, or left in the tree. A green test never seen red is unverified — a suite can pass with its guard deleted.
@@ -470,7 +549,7 @@ Appetite: 90
 - 4. **Self-healing without a visible signal.** A pause flag, breaker, or rate-limit reject that doesn't increment a counter and emit a structured log line is invisible — when it misfires, you can't tell. Every ladder step MUST emit a counter AND a `structlog.info()` (or `pino.info()`) row carrying the resource name + reason; without that, the next operator audit has no way to tell the difference between "step fired and recovered" and "step never ran". **Tier-D steps (stabilize / remediate / apply / rollback) are held to the same bar:** each MUST emit a counter + structured log AND write the `incidents` / `approvals` / `deploys` tables — an unaudited or irreversible code-remediation is not self-healing, it's an unreviewed deploy.
 - 2. **Fallback — `pause-state` (Redis-backed).** When `signups_per_ip_per_minute` for a specific IP stays high after the first defense's per-IP cap fires, the worker emits an incident; the watchdog sidecar reads the inbox and proposes Tier A `pause_worker` with `resource=signup_<ip_hash>` (the action accepts `^[a-z][a-z0-9_]{0,31}$` and a TTL of 5–3600 s, so truncate the hash to fit — and it runs only once the spec lists `watchdog.llm_actions: [pause_worker]`, above; until then that step escalates and the app sets this pause itself with `pause_state.set_global_pause(...)`). Every signup-handling worker checks `pause_state.is_paused("signup_<ip_hash>")` from the vendored fabrik-lib `pause-state` (the scaffold's own `pause_state.py` has no `is_paused`), with `PAUSE_KEY_PREFIX` equal to `<project_id>:pause:`, and bails without touching the DB. Never gate other workers on `is_globally_paused()` while per-IP keys share the prefix — it reports ANY key under it, so one IP would stop them all.
 
-# promote-to-check_*: 100 injected mandate(s) look deterministically greppable — their backtick literals, one line each (the full mandates are ABOVE, not repeated: re-emitting ~20 FLOOR lines verbatim doubled the rubric and got it skimmed — web-ecommerce-factory 01M1QEY5, 2026-09-05)
+# promote-to-check_*: 109 injected mandate(s) look deterministically greppable — their backtick literals, one line each (the full mandates are ABOVE, not repeated: re-emitting ~20 FLOOR lines verbatim doubled the rubric and got it skimmed — web-ecommerce-factory 01M1QEY5, 2026-09-05)
 - `fabrik-lib/fastapi-user-auth` `DELETE … RETURNING` `jti` `agents-fabrik.md § Supabase`
 - `chrome-extension` `chrome.identity.launchWebAuthFlow` `https://<ext-id>.chromiumapp.org/` `chrome.storage.session`
 - `desktop-app` `safeStorage` `desktop-app/72-desktop.md`
@@ -499,7 +578,8 @@ Appetite: 90
 
 - `src/fabrik/orchestrator/infrastructure.py:1607-1619` — the refusal block; `:764-766` — `watchdog_lives`;
   `:455-462` — the plan clause; `:137-157` — the shared rewrite the new function sits beside.
-- `src/fabrik/drivers/watchdog.py:546` — the default URL; `:560` `target_vps`; `:567-571` the existing spoke rewrite.
+- `src/fabrik/drivers/watchdog.py:546` — the default URL; `:560` `target_vps`; `:566` the local import; `:568-571`
+  the existing spoke rewrite.
 - `src/fabrik/drivers/ssh.py:182-241` — `ssh()`'s raise surface.
 
 ```
@@ -511,6 +591,104 @@ src/fabrik/orchestrator/infrastructure.py:1616:                    "this spec, o
 tests/test_watchdog_spoke_preflight.py:78:    assert any(f.startswith("watchdog:") and "W-5dcafaef" in f for f in ctx.registrar_failures)
 tests/test_watchdog_spoke_preflight.py:109:    assert "refused on spoke vps2" in spoke[1] and "D-1153" in spoke[1]
 specs/services/spoke-canary.yaml:28:# D-1153: a spoke watchdog cannot alert (apprise is vps1-only) and is refused; W-5dcafaef lifts this once mesh-published.
+```
+
+The two new rules (Phase A step 3) run before the first pin, over the Behavior Contract inputs plus near-misses (`/fabrik-plan-review` arming step 2). A spoke URL with no path (`http://apprise:8000`) stays untouched by design — the matcher includes the slash (spec `:207-209`) and the default URL always carries `/notify/alerts` (`src/fabrik/drivers/watchdog.py:546`).
+
+```python
+# Throwaway probe of the plan's two new rules (Phase A step 3), over the Behavior Contract inputs (v2).
+HUB = "10.99.0.1"
+A = "//apprise:8000/"
+G = f"//{HUB}:8202/"
+
+
+def rewrite(url, t):
+    if not url or (t or "vps1") == "vps1":
+        return url
+    return url.replace(A, G)
+
+
+for url, t in [
+    ("http://apprise:8000/notify/alerts", "vps2"),
+    ("http://apprise:8000/notify/alerts", "vps1"),
+    ("http://apprise:8000/notify/alerts", None),
+    ("http://other:8000/notify/alerts", "vps2"),
+    ("http://u:p@apprise:8000/notify/alerts", "vps2"),
+    ("", "vps2"),
+    (None, "vps2"),
+    ("http://apprise:80000/x", "vps2"),
+    ("http://apprise:8000", "vps2"),
+]:
+    print("rewrite", repr(url), t, "->", repr(rewrite(url, t)))
+
+H = "/home/ozgur/.claude"
+P = [H + ".json", H + "/.credentials.json"]
+GATE = ("gate reachable", "gate unreachable")
+
+
+def parse(out, spoke, target="vps2", alias="vps2"):
+    """None = pass; else the one-line failure text (spec :245-257)."""
+    lines = out.splitlines()
+    files = [ln for ln in lines if ln.startswith(("present ", "missing "))]
+    gate = [ln for ln in lines if ln in GATE]
+    named = [ln[8:] for ln in files]
+    if (
+        len(lines) != len(files) + len(gate)
+        or sorted(named) != sorted(P)
+        or len(gate) != (1 if spoke else 0)
+    ):
+        return f"could not check {target} ({alias}): unexpected output"
+    parts = [f"missing {ln[8:]}" for ln in files if ln.startswith("missing ")]
+    if gate and gate[0] == "gate unreachable":
+        parts.append(f"gate unreachable from {target}")
+    return f"{target} ({alias}): " + "; ".join(parts) if parts else None
+
+
+ok = f"present {P[0]}\npresent {P[1]}"
+for name, out, spoke in [
+    ("both present vps1", ok, False),
+    ("both present spoke", ok + "\ngate reachable", True),
+    ("spoke, no gate line", ok, True),
+    ("one missing", f"present {P[0]}\nmissing {P[1]}", False),
+    ("both missing", f"missing {P[0]}\nmissing {P[1]}", False),
+    ("empty", "", False),
+    ("banner", ok + "\nWelcome!", False),
+    ("gate unreachable", ok + "\ngate unreachable", True),
+    ("missing + gate unreachable", f"missing {P[0]}\npresent {P[1]}\ngate unreachable", True),
+    ("truncated", f"present {P[0]}", False),
+    ("other path", f"present {P[0]}\npresent /etc/x", False),
+    ("contradictory", f"present {P[0]}\nmissing {P[0]}\npresent {P[1]}", False),
+    ("gate line on vps1", ok + "\ngate unreachable", False),
+    ("two gate lines", ok + "\ngate reachable\ngate unreachable", True),
+]:
+    print("parse", name, "->", parse(out, spoke))
+```
+
+```
+$ python3 rules.py   # v2, after pass 1
+rewrite 'http://apprise:8000/notify/alerts' vps2 -> 'http://10.99.0.1:8202/notify/alerts'
+rewrite 'http://apprise:8000/notify/alerts' vps1 -> 'http://apprise:8000/notify/alerts'
+rewrite 'http://apprise:8000/notify/alerts' None -> 'http://apprise:8000/notify/alerts'
+rewrite 'http://other:8000/notify/alerts' vps2 -> 'http://other:8000/notify/alerts'
+rewrite 'http://u:p@apprise:8000/notify/alerts' vps2 -> 'http://u:p@apprise:8000/notify/alerts'
+rewrite '' vps2 -> ''
+rewrite None vps2 -> None
+rewrite 'http://apprise:80000/x' vps2 -> 'http://apprise:80000/x'
+rewrite 'http://apprise:8000' vps2 -> 'http://apprise:8000'
+parse both present vps1 -> None
+parse both present spoke -> None
+parse spoke, no gate line -> could not check vps2 (vps2): unexpected output
+parse one missing -> vps2 (vps2): missing /home/ozgur/.claude/.credentials.json
+parse both missing -> vps2 (vps2): missing /home/ozgur/.claude.json; missing /home/ozgur/.claude/.credentials.json
+parse empty -> could not check vps2 (vps2): unexpected output
+parse banner -> could not check vps2 (vps2): unexpected output
+parse gate unreachable -> vps2 (vps2): gate unreachable from vps2
+parse missing + gate unreachable -> vps2 (vps2): missing /home/ozgur/.claude.json; gate unreachable from vps2
+parse truncated -> could not check vps2 (vps2): unexpected output
+parse other path -> could not check vps2 (vps2): unexpected output
+parse contradictory -> could not check vps2 (vps2): unexpected output
+parse gate line on vps1 -> could not check vps2 (vps2): unexpected output
+parse two gate lines -> could not check vps2 (vps2): unexpected output
 ```
 
 ### Phase B
@@ -558,17 +736,25 @@ libs/alerting/__init__.py
   Findings merged: the spoke-canary comment cites D-1153 (not D-1156) — Phase B deletes `:28-30` whole; seat 3's
   "libs/alerting and Backrest break on spokes" refuted (I23); vps-urls.md hand rows survive the sync script.
 - (a) Coverage: every "What we already agreed" row maps to a phase — gate, attachment lock → B (mirror) + C (deploy);
-  URL, refusal lift, preflight → A; firewall → none (no change); acceptance → C9; lifecycle → C7-C9; docs → B6, A3,
-  C3.
+  URL, refusal lift, preflight → A; firewall → none (no change); acceptance → C8-C9; lifecycle → C5-C9, rollback
+  → C10; docs → B6, A3, C7.
 - (b) Signatures: `_rewrite_mesh_gated_url(url, target_vps)` is produced in A3 and consumed in A4 with the same name;
   the preflight returns `str | None` and is consumed once in `_provision_watchdog`.
 - Fixed point: not claimed — `/fabrik-plan-review` converges it.
+
+## Pass Ledger
+
+| Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 (header, Global Constraints, Context Ledger, Constraints Digest, File Scope, Coverage Checklist, Evidence, Self-audit, Pass Ledger, Residuals) + sonnet×1 (What we agreed, Intake, Phases A-C) · all axes · shape: agent-tool (D-961) | found: 21, new: 21, confirmed: 20, fixed: 20, unexecuted: 0, edits: 26 | method: citation — full pass; every candidate executed by the orchestrator (the parse fail-opens re-run as rules2.py, 14 cases; `check_doc_sync.py:393-405` staged mode read; `work.py:6485-6499`; `mail.py:2966-2995`; the missing test path `ls`-ed; the curl image tag probed 200); 1 RECORDED — measured (wording; changes no behaviour: the provider read is the registrar's form of `watchdog.py:521`); flip gates at pass 1 on a flipped copy in a throwaway worktree: `check_convergence` graded it (red only on UNCHECKED rows and no re-derivation row), `check_rule_grounding` 5 CONVERGED in-window plans, 0 findings, `check_plan_quality` 0 findings and red on an Appetite-less mutant | 2a7f0ac3… → 6d251bd2… |
 
 ## Residual unknowns
 
 - **Resolved:** the D-1156 vs D-1153 comment (Phase B deletes the lines whole); vps-urls.md sync safety; the env
   contract.
 - **Open — U3 (W-cb08c877):** docker before wg0 on vps1; owned there, the gate inherits it (spec `:455`).
-- **Open — U4, measured at deploy step C8:** the refused-`attach` probe; if not refused the gate is never brought up
-  and a new item is filed (spec `:456-458`).
-- **Open — the Gatus URL form:** decided by deploy probe 4 (C8), with both forms written in B4.
+- **Self-service — U4, measured at deploy (C step 6):** the refused-`attach` probe; if not refused, C step 10's
+  rollback runs, the gate is never brought up and a new item is filed (spec `:456-458`).
+- **Self-service — the Gatus URL form:** B4 writes the mesh form; if deploy probe 4 (C step 6) shows a vps1
+  container cannot reach the mesh IP, C step 6 rewrites the endpoint to `http://apprise-mesh-gate:8202/healthz` on
+  a follow-up commit before the merge request (C step 7).
