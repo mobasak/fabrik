@@ -1,6 +1,7 @@
 # Review seats — write isolation in the seat guard (design)
 
-Status: CONVERGED (2026-10-23, D-1145 — the D-1129 amendment, design approved by the Opus + Fable panel)
+Status: DRAFT (2026-10-23: amendment 2 after plan-2 Phase B Validation 10 failed; the D-1145 approval of the
+D-1129 amendment is superseded until /fabrik-spec-review's panel decides § Amendment 2026-10-23)
 Size: small (amendment 2026-10-22: ≈150 hook lines and ≈180 test lines over the converged build, across `.claude/hooks/seat_guard.py`, `tests/test_seat_guard.py` and `docs/workstation/hooks-index.md`)
 Profile: delta
 Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791209046, 1791049341, 1791225410) · upgraded from `/fabrik-task` on `tradeoffs` (design seed `/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-task-2026-10-15T22-15-12-0300/design.md`)
@@ -300,7 +301,67 @@ carrying to the next call (Contract deltas).
   trigger is set: the mode cache is a local file and nothing collects it across hosts.
 - **Retirement:** the fence moves to Claude Code's sandbox if that gains a per-subagent configuration (the parent's
   retirement clause).
-- **Tripwire:** a confirmed seat write outside scratch through the fence re-opens this design.
+- **Tripwire:** a confirmed seat write outside scratch through the fence re-opens this design. (It did not fire;
+  Validation 10 failed earlier, on the harness refusing the wrapper — § Amendment 2026-10-23.)
+
+## Amendment 2026-10-23 — Validation 10 failed: how a seat's isolation passes the harness (W-72dfd448)
+
+**Why this amendment exists.** Plan-2 Phase B built the fence of the D-1129 amendment (commits 0669c6c51 and
+4720a59fe, 68 graders, every neuter red on revert) and proved it outside the harness: every live write of the round-1
+false greens failed with EROFS (Validation 1), a bounded replay of 200 harvested seat commands matched on 198
+(Validation 4), and read-only git works under the read-only tree (U2). Then Validation 10 — one live `fabrik-reviewer`
+seat through the Agent tool — FAILED: the seat ran nothing. The harness judges the REWRITTEN command (U1 and U6
+answered negatively), and both of its judges refused the bwrap line:
+- the worktree isolation guard of a worktree-isolated session: "this command runs bwrap with the text /run/WSL in a
+  plain command, so what it runs cannot be shown not to be git. Refusing to run it";
+- the auto-mode classifier: "Permission for this action was denied by the Claude Code auto mode classifier. Reason:
+  [Auto-Mode Bypass]", and on the next call "[Containment Escape]".
+The evidence is the plan's Phase B block (`docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md`,
+commit 6dc45645f). The fence code is reverted at the branch tip (6dc45645f) and kept in history. So the premise of
+§ Amendment 2026-10-22's Design 1 — that `updatedInput`'s rewritten command runs — is false for a wrapped command in
+this harness: a design the classifier denies as a bypass is fighting the harness, not using it.
+
+**The question for the design-approval panel.** How does a review seat's write isolation pass the harness? Three
+options, each with the facts established for it:
+
+- **(a) Keep the hook's fence, and let the harness accept the wrapper.**
+  - Needs a `permissions.allow` rule for the exact wrapper prefix (for example `Bash(/usr/bin/bwrap --ro-bind / / *)`)
+    so the classifier does not judge it, AND a wrapper text the worktree guard can read (it refused on the `/run/WSL`
+    path text; whether it accepts any bwrap line is unproven).
+  - A permission rule is the operator's: no agent edits permission settings. If chosen, the exact rule boards to the
+    operator through the coordinator as a gate, with a live proof first (one seat, one wrapped `ls`, accepted).
+  - Cost: an allow rule for a wrapper prefix is itself a bypass shape — any command a session can phrase as that
+    prefix is auto-allowed; the rule must pin the full fixed flag set, and the classifier's verdict on it is unknown.
+- **(b) Use Claude Code's own Bash sandbox** (`sandbox.enabled`, the harness-owned bubblewrap on Linux and WSL2).
+  - Live facts on this box, 2026-10-23 (a headless `claude -p --model haiku --settings
+    '{"sandbox":{"enabled":true,"allowUnsandboxedCommands":false}}'` in a scratch git project): a write in the working
+    directory succeeded; a write in `/tmp` outside its temp dir failed with EROFS; a write to
+    `/opt/fabrik/.claude/worktrees/intel/zz_sb_live` — the LIVE worktree, outside the cwd — SUCCEEDED (removed after).
+  - Why: the sandbox writes the working directory, a per-user temp directory and every added directory by default
+    (https://code.claude.com/docs/en/sandboxing, "By default, sandboxed commands can write to the current working
+    directory, the per-user temp directory, and any directories you've added", fetched 2026-10-23, WebFetch), and this
+    box adds `/opt` user-wide (`~/.claude/settings.json` `permissions.additionalDirectories: ["/opt"]`).
+  - The sandbox is per SESSION: subagents share the session's configuration (the same page). So a seat's cwd — the
+    live repo — is writable, and narrowing it (dropping `/opt`, a `denyWrite` of the repo) binds the LEAD too, which
+    must write the repo. Sandboxed commands auto-approve with no prompt, so (b) does not fight the classifier.
+  - (b) therefore protects a seat only if the session that dispatches seats runs with a narrow sandbox and does not
+    write the live tree itself — for example review seats dispatched from a dedicated reviewer session whose cwd is
+    scratch. That is a change to how the review commands dispatch, not to the hook.
+- **(c) The parser alone** — Phase A as built, the hook's write rule; the round-1 review's 21 confirmed holes stand,
+  some closable by the fallback refusals of § Amendment 2026-10-22 Design 3 (heredoc or pipe into a shell,
+  `eval`/`source`, `$'…'`, `((`/`[[`, unknown wrappers, a conditional `cd`), which Phase B's code carried and which
+  could ship without the wrap. Cost: defence-in-depth against ACCIDENTAL writes only, the parent's stated position.
+
+**What the panel's choice changes.** (a) re-applies 0669c6c51/4720a59fe plus a guard-readable wrapper and the
+operator's rule; (b) is a new design of the dispatch (a reviewer session), with this hook unchanged; (c) ships the
+fallback refusals as the parser's tightening and closes W-72dfd448 with the holes stated. Validation for whichever is
+chosen begins with the live seat probe that failed here, run FIRST, before any build.
+
+**Harness facts recorded on the way** (not decided here): a Read of a tool-results file through the
+`~/.claude-fleet/active` symlink raised a "sensitive file" permission dialog that held this pane for hours
+(coordinator, 2026-10-23); seats in a worktree session meet the worktree guard on any command naming a git-looking
+shape, whatever the wrapper.
+
 
 ## What exists today (grounded, read at 4efc5d325)
 
