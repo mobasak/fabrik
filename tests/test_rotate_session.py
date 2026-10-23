@@ -160,7 +160,6 @@ def world(tmp_path, monkeypatch):
         "ROTATIONS_LOG": tmp_path / "rotations.jsonl",
         "AGENT_IDENTITY_FILE": identity,
         "ROTATE_WAIT_S": "3",
-        "STATUSLINE_CACHE_FILE": tmp_path / "none.json",
     }.items():
         monkeypatch.setenv(k, str(v))
     monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (False, "clean, pushed"))
