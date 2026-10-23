@@ -20,7 +20,8 @@
   "score_reason": "cosmetic refusal-row output and a test premise tied to the temp-root length; no gate verdict changes; the author's own surface",
   "status": "open",
   "tags": [
-    "queued"
+    "queued",
+    "waits-quota"
   ],
   "title": "final_gate.py SUITE REFUSED remedy row: two cosmetic residues — a '…' is printed even when the quoted paragraph is contiguous with the tail (the paragraph break compares text, not position), and the new clip test's len(where) < 300 premise goes red on a temp root over ~300 chars (body passes at 514) — residue (4) recorded by W-f46bca45's scope-growth stop, 2026-10-23"
 }
