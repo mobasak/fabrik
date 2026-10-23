@@ -158,7 +158,11 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
   as on the BLOCKING bullet below. A design rule that names stores (a matrix, an allowlist, an entity schema's
   fields) is preceded by an executed census of each store's current members, and its invariants are written against
   that census, never against one member. An executed in-repo measurement outranks a web answer about the repo's own
-  code; a vendored or installed third-party package's behaviour stays an external claim under this gate.
+  code; a vendored or installed third-party package's behaviour stays an external claim under this gate. A design
+  that changes what a function, value, table or pattern does, holds or matches carries `/fabrik-plan-after-chat`
+  Phase 1's reader census of it, executed before Phase 3 and cited in the spec; a reader that is itself a matcher (a
+  gate's pattern, a query on the table) is searched with that matcher's own pattern and flags, read from its call,
+  and a census across repos first lists them with `find`, dependency directories pruned.
 - **Freshness (CLAUDE.md):** the research must be run in THIS session. An external claim with no fresh cited
   source is a defect.
 - **BLOCKING:** you may NOT present approaches (Phase 3) until every external dependency is either

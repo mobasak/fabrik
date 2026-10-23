@@ -234,3 +234,20 @@ def test_the_downgrade_check_names_the_lane_ledger_path(monkeypatch, tmp_path: P
     assert cr._lane_ledger() == tmp_path / ".claude" / "state" / "lane-refusals.jsonl"
     monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "x" / "runs"))
     assert cr._lane_ledger() == tmp_path / "x" / "lane-refusals.jsonl"
+
+
+def test_a_design_that_changes_what_readers_read_runs_the_plan_reader_census() -> None:
+    """Rows 1792540718, 1792539852, 1792561636: a spec censuses the readers of what it changes, matchers with their
+    own flags, other repos found by a pruned find — inside the 1a local-claims bullet, before Phase 3."""
+    local = _section("**Local claims are executed, not cited:**", "- **Freshness (CLAUDE.md):**")
+    assert (
+        "A design that changes what a function, value, table or pattern does, holds or matches carries"
+        " `/fabrik-plan-after-chat` Phase 1's reader census of it, executed before Phase 3 and cited in the spec;"
+        " a reader that is itself a matcher (a gate's pattern, a query on the table) is searched with that"
+        " matcher's own pattern and flags, read from its call, and a census across repos first lists them with"
+        " `find`, dependency directories pruned."
+    ) in local
+    plan = _flat(ROOT / "commands" / "_sources" / "fabrik-plan-after-chat.md")
+    assert "census its production readers before any step that changes it" in plan, (
+        "the pointer's target moved"
+    )
