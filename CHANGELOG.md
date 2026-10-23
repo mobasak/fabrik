@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `agents_up.sh rotate-session`: a session rotation typed by a user unit, never by an agent (2026-10-23)
+
+- The coordinator's verb (`scripts/sysadmin/rotate_session.py request`) checks that the agent's pane is idle at an item boundary (registry status, transcript turn end, no run record, no seat in flight, worktree clean and pushed, empty input) and writes one data-only request; the new user units `fabrik-rotate.path`/`.service` (`install_rotate_unit.sh`) re-run every check, type `/clear` (or `/compact <focus>`) and one resume prompt, verify the new session and record every outcome in `~/.claude/state/rotations.jsonl`. The auto-mode classifier refuses an agent's own `tmux send-keys` into a pane, which is why a unit types (W-f975fee0 slice 2, D-1135).
+
 ### Changed — /fabrik-execute-plan queue pass: the phase receipt, a coder's database fence, a cwd-dependent check (2026-10-23)
 
 - `commands/_sources/fabrik-execute-plan.md` gets three changes, all graded in `tests/test_execute_plan_queue_pass.py`:

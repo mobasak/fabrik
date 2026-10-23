@@ -137,10 +137,20 @@ session-recall. The pruner keeps each agent's NEWEST session as well as each pro
 transcript passes `ROTATE_ADVISE_MB` (200 MB) the user-level hook prints one `ROTATE:` line per 100 MB
 step, and from 40% of the context window a `ROTATE-DUE` line at 40, 50, 60, 70 and 80% (`COMPACT-DUE` at
 85, 90 and 100%, W-f975fee0). Rotation waits for the next item boundary (D-1119): the builder messages its coordinator
-`rotate <agent>`, and the coordinator types `/clear <agent>-<date>`, then `python3
-/opt/fabrik/scripts/whoami_agent.py --as <agent> --force` — the holder the line names is this window's own
-claude process, so the `--force` is informed (the plain re-bind also succeeds when whoami finds that pid) —
-and one resume prompt; the previous session stays resumable and is archived that night.
+`rotate <agent>` (or `compact <agent> <focus>`), and the coordinator runs `agents_up.sh rotate-session <agent>
+[--compact <focus>] [--trigger ctx|mb|unrelated|compact|manual|lift]` from its repo (D-1135). That verb
+(`scripts/sysadmin/rotate_session.py request`) resolves the pane tagged `@agent <agent>`, its one `claude` process and
+that process's registry session, and aborts at the first failing check: the session idle for 30 s, the transcript
+ended at a turn end, no run record running, no seat in flight, the worktree clean and pushed, the pane's input line
+empty. It then writes ONE data-only request (`~/.claude/state/rotate-requests/<repo>--<agent>.json`; one at a
+time). The user unit `fabrik-rotate.path` starts `fabrik-rotate.service` (`rotate_session.py execute`), which
+re-runs every check, types `/clear <agent>-<date>` (or `/compact <focus>`), waits for the registry's new session id,
+then types one resume prompt — re-arm the self-watch (a /clear may kill or orphan background shells), re-bind with
+`python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force`, read only the memory notes, `work.py next` and
+the run's seed — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
+`partial:<step>`, and the verb's `aborted:<check>`) in `~/.claude/state/rotations.jsonl`. Nothing is queued or retried: keys typed mid-turn would
+queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
+reports). The previous session stays resumable and is archived that night.
 
 ## Checking it
 
@@ -159,5 +169,6 @@ means updating this page in the same change. This list is generated from those h
 
 - `scripts/sysadmin/archive_transcripts.py`
 - `scripts/sysadmin/prune_transcripts.py`
+- `scripts/sysadmin/rotate_session.py`
 - `scripts/sysadmin/transcript_size_check.py`
 <!-- END related-scripts -->
