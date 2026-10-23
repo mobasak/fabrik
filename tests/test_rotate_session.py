@@ -35,13 +35,42 @@ a = sys.argv[1:]
 if a[0] == "list-panes":
     print("\\n".join(st["panes"]))
 elif a[0] == "capture-pane":
-    sys.stdout.write(st["screen"])
+    # the input line, as Claude Code renders a paste (W-b92aa5cf): `stream` shows the head first, `pre_placeholder`
+    # shows the fresh box's hint for two captures first; each capture showing the full text counts toward the settle
+    st["caps"] = st.get("caps", 0) + 1
+    full = st.get("pending")
+    if full is not None:
+        caps = st["caps"]
+        shown = full
+        if st.get("stream") and caps == 1:
+            shown = full[:30]
+        if st.get("pre_placeholder") and caps <= 2:
+            shown = 'Try "x"'
+        st["full_seen"] = st.get("full_seen", 0) + (shown == full)
+        st["screen"] = "\\n".join(
+            "❯ " + shown if ln.startswith("❯") else ln for ln in st["screen"].split("\\n"))
+    json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
+    sys.stdout.write(st["screen"] + ("  clock %d\\n" % st["caps"] if st.get("tick") else ""))
 elif a[0] == "send-keys":
     with open(os.environ["FAKE_TMUX_STATE"] + ".keys", "a") as fh:
         fh.write(json.dumps(a[1:]) + "\\n")
     hook = st.get("on_send")
     if hook and "-l" in a:
         exec(hook, {"text": a[-1], "os": os, "json": json})
+    st = json.load(open(os.environ["FAKE_TMUX_STATE"]))  # the hook may have rewritten the state
+    # a C-m is swallowed until two captures showed the full paste — the paste is still settling (the incident's race:
+    # a C-m right behind the paste); after that it submits, leaving an empty box or a placeholder
+    if "-l" in a:
+        st["caps"], st["full_seen"] = 0, 0
+        st["pending"] = None if st.get("no_echo") else a[-1][:60]
+    elif a[-1] in ("C-m", "Enter") and st.get("full_seen", 0) >= 2 and not st.get("swallow_submit"):
+        st["pending"] = None
+        box = "❯ Try \\"refactor this\\"" if st.get("placeholder") else "❯\\u00a0"
+        st["screen"] = "\\n".join(box if ln.startswith("❯") else ln for ln in st["screen"].split("\\n"))
+    if a[-1] == "C-m" and st.get("fail_cm"):
+        json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
+        sys.exit(1)
+    json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
 sys.exit(st.get("rc", 0))
 """
 
@@ -334,8 +363,10 @@ def test_execute_rotates_and_records(world, monkeypatch):
     assert (
         keys[0][:4] == ["-t", "%5", "-l", "--"]
         and keys[0][4].startswith("/clear dev1-")
-        and keys[1] == ["-t", "%5", "Enter"]
+        and keys[1]
+        == ["-t", "%5", "C-m"]  # W-b92aa5cf: its own call, after the paste settled — never "Enter"
     )
+    assert keys[3] == ["-t", "%5", "C-m"] and all(k[-1] != "Enter" for k in keys)
     assert (
         keys[2][4].startswith("You were rotated")
         and "whoami_agent.py --as dev1 --force" in keys[2][4]
@@ -857,3 +888,46 @@ def test_review_round_one_slice_a(world, monkeypatch):
     hub0, lib0 = count("fabrik"), count("fabrik-lib")
     assert rs.mail_due(rows) == 1
     assert (count("fabrik"), count("fabrik-lib")) == (hub0, lib0 + 1)
+
+
+def test_w_b92aa5cf_a_swallowed_submit_is_rowed_typed_unsent(world):
+    """W-b92aa5cf: the resume prompt sat unsent in every rotated pane. A paste that never shows, or a C-m the pane
+    swallows, is rowed `typed-unsent:<step>` and nothing is retried; a submitted one leaves the input line empty."""
+    for flag, enters in (("swallow_submit", 1), ("no_echo", 0)):
+        _set(world, **{flag: True, "screen": IDLE_SCREEN, "pending": None})
+        _write_request(world, trigger="ctx")
+        rs.execute()
+        row = _rows(world)[-1]
+        assert row["outcome"] == "typed-unsent:send", (flag, row)
+        assert sum(k[-1] == "C-m" for k in _keys(world)) == enters, _keys(world)
+        Path(str(world["state"]) + ".keys").unlink()
+        _set(world, **{flag: False})
+
+
+def test_w_b92aa5cf_review_r1_settle_on_the_input_line_and_map_only_unsent(world):
+    """Review r1: a status line ticking every capture must not stall the settle (it reads the input line only); a
+    placeholder the fresh box shows after /clear is a submit, not unsent text; a refused C-m is `partial:send`, never
+    `typed-unsent`. Past the send, no new session id appears in this fixture, so a submitted /clear rows
+    `partial:queued`."""
+    for flags, want in (
+        ({"tick": True}, "partial:queued"),
+        ({"placeholder": True}, "partial:queued"),
+        ({"fail_cm": True}, "partial:send"),
+        (
+            {"stream": True},
+            "partial:queued",
+        ),  # review r2: C-m waits for two captures of the FULL text
+        (
+            {"pre_placeholder": True},
+            "partial:queued",
+        ),  # review r2: a hint before the echo is not the paste
+    ):
+        _set(world, screen=IDLE_SCREEN, pending=None, **flags)
+        _write_request(world, trigger="ctx")
+        rs.execute()
+        assert _rows(world)[-1]["outcome"] == want, (flags, _rows(world)[-1])
+        if (
+            want == "partial:queued"
+        ):  # the pane actually TOOK the submit — not a later echo mistaken for one
+            assert json.loads(world["state"].read_text())["pending"] is None, flags
+        _set(world, **dict.fromkeys(flags, False))
