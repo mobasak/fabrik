@@ -1057,3 +1057,15 @@ def test_a_redactor_and_url_parser_name_their_differential_and_input_classes() -
         " userinfo, a `#` or `?` before the `@`, a malformed port, an unclosed `[`, no scheme), comment and brace shapes"
         " for config, the real interpreter (dash) and the parent commit as oracles;" in hunt
     )
+
+
+def test_a_seat_runs_a_mutant_against_whole_test_files() -> None:
+    """Rows 1792671972, 1792712311: § Seat isolation, which every test-running seat applies whole, scoped every seat
+    run to an exact node id, so a mutant re-run by one node id or a carried `-k` missed the other tests pinning the
+    same text; the mutant bullet's whole-file rule sat in the lead's section only. The seat's line now names it."""
+    iso = _own_section(CAT, "## Seat isolation")
+    assert (
+        "tests run by exact node id, except a mutant or a re-run of one, which runs every test file the change touched"
+        " or added whole (the `One mutant per clause` bullet above), never a node id or `-k` carried from an earlier"
+        " brief, and a brief over changed code"
+    ) in iso
