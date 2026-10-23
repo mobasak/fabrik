@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T05:55:14.278679Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b92aa5cf",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "send Enter (C-m) only after the TUI has absorbed the paste (poll the screen for the prompt text, then C-m, then verify the input line is empty and a turn started); make the outcome row say 'typed-unsent' when the line is not empty; graders on a fake pane; the three panes are the live evidence",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "every rotation so far left its resume prompt unsent, so the rotated builder stays idle until messaged and cannot rotate again; one ordering fix around the Enter plus a screen check",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "rotate_session.py execute: the resume prompt it types after /clear never SUBMITS — all three rotated builders (infra 07:52, kaizen 08:18, infra-3 08:48) show the full resume text sitting unsent at ❯ in their input line; the Enter sent right after the -l paste (rotate_session.py:621) is swallowed by the paste, so the new session runs only when a message wakes it, the rebind never happens, and every later rotate-session aborts 'screen: not at an empty prompt' (memory: a long tmux prompt needs a separate C-m after the paste settles)"
+}
