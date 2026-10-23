@@ -86,7 +86,7 @@ Intake: 8 items — 6 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 - Seats never mutate git state; never read `~/.claude*`; seat scratch paths are absolute, and a seat `cd`s only on the same line as the command
   that needs it (a `cd` does not carry to the next call under the fence, `spec:210-238`); a seat never executes a script it has not read.
 - **Execution discipline (native seats only, D-181):** Phases A and B each end with `/fabrik-review-scoped` (the floor of three
-  native seats on different angles, stamped with `command_run.py dispatch`) and does not hand on until its closing pass
+  native seats on different angles, stamped with `command_run.py dispatch`) and do not hand on until its closing pass
   confirms zero defects. The Finish `/fabrik-review` partitions the whole-plan diff by file into a Sonnet and a Haiku
   finder per slice (D-344), the orchestrator executing every refutation and reproduction.
 
@@ -213,8 +213,9 @@ this box, Evidence); absent ⇒ the phase still builds, but steps 8-9 can only p
 BLOCKED missing-infra stop for Validation 1-3 and 8-10, never a skipped row.
 
 **Interfaces — Produces** (all in `.claude/hooks/seat_guard.py`; consumed inside it and by `tests/test_seat_guard.py`):
-- `_fence_mode(payload) -> dict` — computed ONCE per call in `main()` and passed to `rewrite()` and `decide()`, so the
-  two never disagree; the mode probe and its cache, `spec:129-135`; returns `{"mode": "fence"|"fallback",
+- `_fence_mode(payload) -> dict` — computed ONCE per call in `main()`, for a SEAT payload only (the lead and non-seat
+  agents never probe or read the cache), and passed to `rewrite()` and `decide()`, so the two never disagree; a raise
+  inside it means FALLBACK mode for that call, whose parser fails closed; the mode probe and its cache, `spec:129-135`; returns `{"mode": "fence"|"fallback",
   "interop": "open"|"masked"|"n/a", "why": str}`. The fallback triggers are `spec:136-139` (the payload's `scratchpad_dir` is one, so the
   function takes the payload); on WSL the interop probe is `spec:103-112`. A per-call failure is never cached (`spec:133-135`).
 - `_fence_argv(payload) -> list[str]` — the flag vector in the order `spec:88-124` gives (base binds, the masks of
@@ -243,14 +244,17 @@ BLOCKED missing-infra stop for Validation 1-3 and 8-10, never a skipped row.
   is a seam that skips the probe — so the seams choose INPUTS (binary, cache file), never the mode itself.
 
 **Steps** (sequential; the orchestrator codes inline in `worktree-intel`, Profile: small):
-1. Preflight (above). Make the red-on-revert worktree: `git worktree add --detach <run scratch>/probe HEAD`.
+1. Preflight (above). Make the proof worktree OUTSIDE every writable bind: `git worktree add --detach
+   /tmp/claude-<uid>/fence-probe-<sid> HEAD` (Global Constraints); it serves the red-on-revert neuters and steps 8-9,
+   and is removed after.
 2. Write the Phase B graders (Behaviour Contract below) in `tests/test_seat_guard.py`; run
    `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_seat_guard.py -q` and see each NEW
    row red against today's hook. B4 reads green today (the lead gets no rewrite) and every row's red is also proven on revert in
    the probe worktree, watched red and restored: B1 — let `_ALREADY_OFF` skip the wrap; B4 — drop the `agent_type`
    test from the wrap; B6 — `_fence_mode` always answering `fence` (the mode-check neuter spec Validation 7 names);
    B9 — add `--bind /tmp /tmp`, then the repo `.tmp`, to the argv; B10 — cache a per-call failure; B12 — record
-   `interop: masked` without running the launch.
+   `interop: open` without running the launch (on this WSL host the masks are expected to hold, so the true answer is
+   `masked` and the neutered value turns B12 red).
 3. Re-expect the existing tests that pin the old shape (each edit stated, none deleted silently):
    - `test_a_seat_command_runs_with_dotenv_disabled` (`tests/test_seat_guard.py:299`),
      `test_the_rewrite_keeps_the_other_inputs_and_is_not_doubled` (`:310`),
@@ -900,3 +904,18 @@ The orchestrator executed the refutations.
 
 Artifact hashes at the closing pass: plan `11a9471760f195df0a8e28c29424cf0d`, spec `1800d4ffef2c9344c42b7b11779a9a56`
 (before this ledger and the Status flips).
+
+Re-plan review (`/fabrik-plan-review`, 2026-10-23) over the Phase B/C re-plan at 3dd31656e — the same two-seat section
+partition: an Opus seat on § Global Constraints, § Phase B, § Phase C and § Residual unknowns (slice A), a Sonnet seat
+on every other re-planned section (slice B); the orchestrator executed every candidate (one refuted: the governance
+files stay outside § File Scope by rule).
+
+| Pass | Finders | Counters | Method |
+|---|---|---|---|
+| Pass 6 | native opus×1 + sonnet×1 (slices A, B) | found: 18, new: 18, confirmed: 15, fixed: 15, unexecuted: 0, edits: 30 | method: citation — full pass over the re-planned sections; the pinned hook run as a subprocess; the rubric re-run on the File Scope set; `git diff --numstat` on Phase A |
+| Pass 7 | same seats, own slices | found: 5, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 4 | method: re-derivation — delta over the pass-6 hunks; anchors re-run at 980caa393; own-fix 2 of 2 |
+| Pass 8 | same seats (the round-1 slice owners) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — delta over the pass-7 hunks; counts re-derived (55 tests, 1479 lines, 874/46 and 404/0); standing clean since pass 6: grounding, conformance, mirror |
+
+Plan md5 per pass (start → end): pass 6 `4aad72460691d43faf42cd783873a771` → `35390d79b9a341c1ac324a3363ecb4cb`; pass 7
+`35390d79b9a341c1ac324a3363ecb4cb` → `7e0770757fa103d01455ce254dc5b781`; pass 8 `7e0770757fa103d01455ce254dc5b781` →
+`7e0770757fa103d01455ce254dc5b781` ✓ (before this ledger and the Status flip).
