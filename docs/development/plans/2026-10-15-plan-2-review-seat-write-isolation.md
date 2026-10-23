@@ -1,20 +1,23 @@
 # Plan — review seats: write isolation in the seat guard (W-72dfd448)
 
-Status: CONVERGED
+Status: DRAFT
 Profile: small
 **Owner:** intel
-**Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring; Phase B re-planned at 3dd31656e, where
-`.claude/hooks/seat_guard.py` is 1479 lines and `tests/test_seat_guard.py` holds 55 tests (Evidence, Phase B re-plan
-grounding); `commands/_agents/fabrik-reviewer.md:4` (read, not edited)
+**Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring; Phase B first re-planned at 3dd31656e (the fence), and
+re-planned again at d0a3ece02 for P2 (§ Phase B), where
+`.claude/hooks/seat_guard.py` is 1479 lines and `tests/test_seat_guard.py` holds 55 tests (Evidence, "P2 re-plan
+grounding"); `commands/_agents/fabrik-reviewer.md:4` (read, not edited)
 
-Spec: `docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md` (CONVERGED 2026-10-23, D-1145: the
-D-1129 amendment, approved by the Opus + Fable panel; `Profile: delta`; refined earlier by D-914). Phase B re-planned
-2026-10-23 at bf2d5f4a6 from that amendment; Phase A stays as built. The spec was approved by `/fabrik-spec-review`'s panel, so this plan review runs alone (no
+Spec: `docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md` (CONVERGED 2026-10-23, D-1160:
+§ Amendment 2026-10-23, P2 — review seats in a dedicated reviewer session under Claude Code's own Bash sandbox, the
+parser kept as the per-seat layer; it supersedes D-1158, which had reopened D-1145's fence approval after Validation
+10 failed). Phases B-D re-planned 2026-10-23 at d0a3ece02 from that amendment; Phase A stays as built; the fence code
+stays reverted (6dc45645f). The spec was approved by `/fabrik-spec-review`'s panel, so this plan review runs alone (no
 joint loop). Source: mail 01M4PHYNXJ → work item W-72dfd448; design rulings D-913, D-914, D-1129, D-1145. Phase A as
 BUILT measured 874 hook lines added and 46 removed, and 404 test lines (`git diff --numstat 95d14ca0f HEAD`, Evidence) —
-far past its estimate and past the `Profile: small` line; the profile is kept for the work still to run (Phase B ≈150
-hook lines, `spec:4`, an estimate; Phase C none), where it holds (≤ ~400, ≤ 5 files), and Phase A's overrun is
-recorded here, measured. Phase A's original estimate, kept for the record: ≈250 code lines in ONE code file, `.claude/hooks/seat_guard.py`
+far past its estimate and past the `Profile: small` line; the profile is kept for the work still to run (Phase B no
+code; Phase C ≈210 code lines in 2 code files, an estimate, Self-audit), where it holds (≤ ~400, ≤ 5 files), and Phase
+A's overrun is recorded here, measured. Phase A's original estimate, kept for the record: ≈250 code lines in ONE code file, `.claude/hooks/seat_guard.py`
 (redirect capture with the empty-list case and the stream-offset fd test in `_simple_commands` ≈45, the destination
 rule `_write_reason` with its per-verb option tables, glob prefix and `/dev` exemption ≈130, its call before
 `if not words` and every `continue` in `_scan` ≈10, the `env -C` scoping ≈10, the `_HEREDOC` fix ≈1, the unparseable
@@ -27,13 +30,15 @@ Three inline phases the orchestrator codes itself in the `worktree-intel` worktr
 
 - **A — the guard**: the shell write rule, the unparseable fallback, the tool-list pin, the docstring and the
   hooks-index row and the two scanner fixes (spec § The delta items 1-5).
-- **B — the fence** (re-planned from the D-1129 amendment): the bubblewrap wrap through `rewrite()`, mode detection
-  with the parser as the fail-closed fallback, the docs, and the executed proofs of spec Validation 1-10.
-- **C — Finish**: the whole-plan `/fabrik-review` (the hook and `.claude/settings.json` are governance-sync paths),
-  CHANGELOG, the gate, commit, push, merge request.
+- **B — the first live proof** (P2, D-1160): a prototype launcher in the run scratch starts one reviewer session, one
+  seat inside it runs the checks of spec item 4; no repository code; a failed MUST check stops the plan.
+- **C — the launcher and the per-seat refusals**: `scripts/review_session.py`, the hook's refusal table (measured,
+  anchored, matched on the unquoted skeleton) and its seat crash-denies, the docs, and the mail to kaizen.
+- **D — Finish**: the whole-plan `/fabrik-review` (the hook is a governance-sync path), CHANGELOG, the gate, commit,
+  push, merge request, and the post-merge re-run of the proof.
 
-Phases A and B each end with `/fabrik-review-scoped` on their surface; the Finish runs the ONE heavy `/fabrik-review`
-(the `/fabrik-execute-plan` D7 floor) and writes one receipt.
+Phases A, B and C each end with `/fabrik-review-scoped` on their surface; the Finish runs the ONE heavy
+`/fabrik-review` (the `/fabrik-execute-plan` D7 floor) and writes one receipt.
 
 ## Intake Inventory
 
@@ -44,11 +49,13 @@ Phases A and B each end with `/fabrik-review-scoped` on their surface; the Finis
 | I3 | *"the matcher in .claude/settings.json:146 → Bash\|Write\|Edit\|NotebookEdit (reviewed commit only — the main checkout's settings are live)"* | OUT-OF-SCOPE — superseded by D-914: the seat holds no write tool (`commands/_agents/fabrik-reviewer.md:4`), so the matcher stays `Bash`; the destination is the tool-list pin, behaviour A1 | Phase A step 2 |
 | I4 | *"_in_scratch :283-293 gains the session's own <main>/.tmp/runs/<sid>/"* | OUT-OF-SCOPE — D-914: no seat brief writes there (census in Evidence) and the payload names no main checkout to derive it from; the destination is spec § Contract deltas, which records the census | Evidence |
 | I5 | *"graders in tests/test_seat_guard.py (33 today) per spec § Validation 1-6, each seen red first"* | IN | Phase A Behaviour Contract; Global Constraints |
-| I6 | *"Sync paths (.claude/hooks/, .claude/settings.json) → full /fabrik-review at build"* | IN (both, since the fence edits the `statusMessage`) | Phase C step 1 |
-| I7 | the coordinator, 2026-10-23: *"resume W-72dfd448 — /fabrik-spec-review on … the D-1129 amendment, then the plan-2 Phase B re-plan"* | IN | Phase B, Phase C |
-| I8 | D-1129 / D-1145: the fence replaces the parser as the boundary; the parser stays as the fail-closed fallback | IN | Phase B |
+| I6 | *"Sync paths (.claude/hooks/, .claude/settings.json) → full /fabrik-review at build"* | IN for the hook; `.claude/settings.json` is no longer touched (P2 registers the hook in the launcher's `--settings`) | Phase D step 1 |
+| I7 | the coordinator, 2026-10-23: *"resume W-72dfd448 — /fabrik-spec-review on … the D-1129 amendment, then the plan-2 Phase B re-plan"* | IN, delivered as the fence attempt, which BLOCKED at Validation 10 | § Evidence, "Phase B fence attempt (superseded by D-1160)" |
+| I8 | D-1129 / D-1145: the fence replaces the parser as the boundary; the parser stays as the fail-closed fallback | OUT-OF-SCOPE — superseded by D-1160 (the harness refuses the wrapped command); the destination is spec § Amendment 2026-10-23 | — |
+| I9 | the coordinator, 2026-10-23: *"let /fabrik-spec-review's Opus + Fable panel decide among (a) … (b) … (c)"*; the panel chose P2 (D-1160) | IN | Phases B-D |
+| I10 | spec item 4: *"The review briefs that rely on a localhost probe are listed and each is accepted as `unverified` or rerouted"* | IN | Phase B step 6, Phase C step 6 |
 
-Intake: 8 items — 6 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
+Intake: 10 items — 7 IN, 3 OUT-OF-SCOPE (each named above), 0 ASK.
 
 ## What we already agreed (citations, not restatement)
 
@@ -59,33 +66,34 @@ Intake: 8 items — 6 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 - Approach B (judge panel 3/3, D-913), the tool-list pin replacing the tool-write hook (D-914) and the `perl -i` graft:
   `spec § Decisions taken`; rejected A, C, D and a per-seat cwd: `spec § Rejected alternatives`. The approval row is
   minted by `/fabrik-plan-review` at its gate (a `Size: small` spec is approved there, not here).
+- P2 and its five binding changes: `spec § Amendment 2026-10-23`, Panel decision (`spec:380-418`), approved by D-1160 —
+  the approval row exists, so this plan mints none for the spec.
 
 ## Global Constraints (every phase inherits these)
 
 - **Seats only.** Every new rule sits behind `decide()`'s existing early return (`.claude/hooks/seat_guard.py:1394-1395`):
   no `agent_id`, or an `agent_type` outside `SEAT_TYPES`, is allowed untouched — the lead, implementers and every other
   agent type keep writing as today.
-- **Fail open on a guard bug, fail closed on an unknown destination** (Phase A). Phase B narrows it for SEAT payloads:
-  a wrapper-build error, and in fallback mode a `decide()` exception, deny (`spec:81-83`, `spec:146-148`); `main()`'s
-  `except Exception` → allow stays for the non-seat path and in fence mode (`:1452-1455`); inside the rule, a
-  `$`-bearing or substituted destination is NOT scratch (`_in_scratch`, `:581-582`), and neither is one starting with `~`.
+- **Fail open on a guard bug, fail closed on an unknown destination** (Phase A). Phase C narrows it for SEAT payloads:
+  a `decide()` exception and a write-rule exception deny (`spec:146-148`, applied always since there is no fence);
+  `main()`'s `except Exception` → allow stays for the non-seat path (`:1452-1455`); inside the rule, a `$`-bearing or
+  substituted destination is NOT scratch (`_in_scratch`, `:581-582`), and neither is one starting with `~`.
 - **Destinations only.** A read of the live tree (`cat`, `cp <live> <scratch>/`, `git -C <live> show`) stays allowed.
 - **Relative destinations join the tracked cwd** (`os.path.join(ctx["cwd"], p)`) before `_in_scratch`, whose
   `realpath` (`:583`) would otherwise resolve against the hook process's own cwd. The tracked cwd is the shell's:
   `env -C` moves it for its own command only, and a command's redirects resolve against the cwd before it.
-- **One settings change.** `.claude/settings.json` changes only the seat-guard `statusMessage` (`:152`, Phase B step 7;
-  `spec:521`); the matcher stays `Bash` (D-914).
+- **No settings change.** `.claude/settings.json` is not touched (the matcher stays `Bash`, D-914); the reviewer
+  session registers the hook through the launcher's `--settings` (`spec:398-401`); no agent edits permission settings.
 - **No new dependency**; the standard library only (`core/10-python.md:38`): `json`, `os`, `re`, `shlex` and
-  `subprocess` are already imported (`:105-111`), `hashlib` is the one new import. `/usr/bin/bwrap` is a HOST prerequisite, not a package: Phase B's preflight probes it, and a
-  host without it runs fallback mode (`spec:136`).
+  `subprocess` are already imported (`:105-111`). The `claude` CLI is a HOST prerequisite, not a package: Phase B's
+  preflight probes it and its flags, and `scripts/review_session.py` fails loudly when it is absent.
 - Tests: one per behaviour, watched-fail-first (`core/45-testing-strategy.md:22`), through the existing subprocess
   harness `_run()` (`tests/test_seat_guard.py:24-50`) and its `_denied()` (`:53`); red-on-revert runs in a throwaway
-  worktree, never the shared checkout. Phase B's proof worktree sits OUTSIDE every writable bind of the payloads it
-  serves — `/tmp/claude-<uid>/fence-probe-<sid>/` (`git worktree add --detach … HEAD`, removed after), never under
-  the scratchpad or `<main>/.tmp/runs/<sid>/` — or B2, Validation 1 and U2 would see writes succeed.
+  worktree, never the shared checkout. A reviewer session's directory is fresh under `/tmp/claude-<uid>/`, never under
+  `/opt` and never a git work tree (`spec:386-387`).
 - Seats never mutate git state; never read `~/.claude*`; seat scratch paths are absolute, and a seat `cd`s only on the same line as the command
-  that needs it (a `cd` does not carry to the next call under the fence, `spec:210-238`); a seat never executes a script it has not read.
-- **Execution discipline (native seats only, D-181):** Phases A and B each end with `/fabrik-review-scoped` (the floor of three
+  that needs it; a seat never executes a script it has not read.
+- **Execution discipline (native seats only, D-181):** Phases A, B and C each end with `/fabrik-review-scoped` (the floor of three
   native seats on different angles, stamped with `command_run.py dispatch`) and do not hand on until its closing pass
   confirms zero defects. The Finish `/fabrik-review` partitions the whole-plan diff by file into a Sonnet and a Haiku
   finder per slice (D-344), the orchestrator executing every refutation and reproduction.
@@ -100,9 +108,12 @@ Intake: 8 items — 6 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 | `docs/workstation/hooks-index.md` (the hooks authority) | the `seat_guard.py` row names what the hook refuses | `docs/workstation/hooks-index.md:104` |
 | `commands/_agents/fabrik-reviewer.md` (the seat's definition, read only) | the tool list the pin asserts | `commands/_agents/fabrik-reviewer.md:4` |
 | `fabrik-lib` | nothing parses shell destinations or keys a hook on a subagent type — BUILD in the hook | `spec § fabrik-lib verdict` |
-| the D-1129 amendment (CONVERGED, D-1145) | the fence's design, Validation 1-10 and U1-U6 — Phase B builds against it verbatim | `spec:43-303` |
-| `.windsurf/rules/core/30-ops.md` (FLOOR on the SERVICE surface) | a shelled-out binary is never assumed — `bwrap` is probed, its absence is fallback mode | `core/30-ops.md:464` |
-| `scripts/command_run.py` (read, not edited) | the run record path and the `.tmp/runs` containment the record bind reuses | `scripts/command_run.py:159-160`, `:1610` |
+| § Amendment 2026-10-23 (CONVERGED, D-1160) | P2: the reviewer session, the launcher, the per-seat layer, the first proof — Phases B and C build against it verbatim | `spec:380-418` |
+| § Amendment 2026-10-22 Design 3 (the refusal list) | the constructs the parser does not model, refused for a seat | `spec:140-148` |
+| `.windsurf/rules/core/30-ops.md` (judgment read; the surface is TOOLING) | a shelled-out binary is never assumed — `claude` is probed with its flags | `core/30-ops.md:464` |
+| `scripts/cloud_dispatch.py` (read, not edited) | the headless `claude -p` shape to reuse: the prompt on stdin, a scratch cwd, timeouts as errors | `scripts/cloud_dispatch.py:402-412` |
+| `scripts/rivals_run.py` (read, not edited) | a parsed `claude -p` run sets `FABRIK_HEADLESS=1` and `CLAUDE_MESH_HEADLESS=1` so no hook banner reaches its output | `scripts/rivals_run.py:536` |
+| Claude Code docs (fetched 2026-10-23) | `--settings` inline JSON overrides per key; hooks merge across levels; subagents share the session's sandbox and hooks; `--permission-mode auto`; `localhost` private and `docker` incompatible in the sandbox | § Evidence, "P2 re-plan grounding" |
 | `specs/services/*.yaml` `shape:` | untouched — a hub hook, no service | — |
 
 ## Constraints Digest (verbatim rows from the MUST-READ packs)
@@ -199,237 +210,186 @@ delta 2, 3 and 5, cited rather than restated):
 - **Given** the same seat, **When** `cd <existing scratch>; touch x` or `mkdir -p <scratch>/new/x; cd <scratch>/new/x; touch y`, **Then** allowed; `cd <scratch>/missing; touch x`, `cd <scratch> | cat; touch x`, an earlier `curl -o /etc/x`, `rsync` whose `-n` is an option's value or follows `--`, an untokenisable `curl -o`/`&>`, `/home/u/.tmp/x`, `kill ²; pkill -f mail`, **Then** denied; a repo inside another session's `/tmp` tree lends no `.tmp` scratch (A19, A19b — round 1)
 - **Mocked:** only A9's crash injection (`monkeypatch` on the new write path, in-process); every other grader runs the real hook as a subprocess on a synthetic payload (`_run()`); A1 reads the real agent definition.
 
-## Phase B — the fence (re-planned 2026-10-23 from the D-1129 amendment, D-1145)
+## Phase B — the first live proof (re-planned 2026-10-23 for P2, D-1160; no repository code)
 
-Appetite: 180
+Appetite: 60
 
-Implements `spec § Amendment 2026-10-22 — the fence (D-1129)` (`docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md:43-303`),
-cited, never restated. Phase A's parser stays as built and becomes the FALLBACK mode (`spec:129-148`). Every anchor
-below was re-read at worktree-intel bf2d5f4a6 (Evidence, "Phase B re-plan grounding"); the spec's own anchor
-`decide()` `:1392-1394` is `:1394-1395` for the seat test (`:1392` is the `def` line).
+Implements `spec § Amendment 2026-10-23`, Panel decision items 1, 2 and 4
+(`docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md:385-415`), cited, never restated. The fence
+attempt this phase replaces (D-1129, BLOCKED at Validation 10) is kept in § Evidence, "Phase B fence attempt
+(superseded by D-1160)"; its code stays reverted (6dc45645f). Item 4 binds the order: this proof runs before any build,
+and nothing in Phase C starts until it is green.
 
-**Preflight (step 0, first act of the phase):** `/usr/bin/bwrap --version` must print a version (bubblewrap 0.9.0 on
-this box, Evidence); absent ⇒ the phase still builds, but steps 8-9 can only prove fallback mode and that is a
-BLOCKED missing-infra stop for Validation 1-3 and 8-10, never a skipped row.
+**Interfaces — Produces** (scratch only, never a repository file):
+- `<run scratch>/proof_launch.py` — builds the reviewer session's `--settings` JSON (item 1's sandbox block plus a
+  `hooks.PreToolUse` entry, matcher `Bash`, whose command is `python3 <hook path>` with an absolute path), makes a fresh
+  session directory under `/tmp/claude-<uid>/` (never under `/opt`, never a git worktree), and runs
+  `claude -p --permission-mode auto --permission-prompts none --output-format json --max-turns 40 --settings <json>`
+  with the brief on stdin and that directory as cwd, the env adding `FABRIK_HEADLESS=1` and `CLAUDE_MESH_HEADLESS=1`
+  (`scripts/rivals_run.py:536`). The stdin-prompt, scratch-cwd shape is `scripts/cloud_dispatch.py:402-412`'s.
+  The hook path is the WORKTREE's `.claude/hooks/seat_guard.py` (absolute), because the main checkout's copy predates
+  Phase A until the merge (Evidence, "P2 re-plan grounding"). Phase C's launcher is this prototype made permanent.
+- `<run scratch>/proof-brief.md` — the reviewer session's brief: dispatch ONE `fabrik-reviewer` seat (`model: "haiku"`)
+  that runs checks P1-P7 below, one plain command per Bash call, and writes its report to `<session dir>/seat-1/`;
+  then write `<session dir>/receipt.md` with each check's command, rc and stderr.
 
-**Interfaces — Produces** (all in `.claude/hooks/seat_guard.py`; consumed inside it and by `tests/test_seat_guard.py`):
-- `_fence_mode(payload) -> dict` — computed ONCE per call in `main()`, for a SEAT payload only (the lead and non-seat
-  agents never probe or read the cache), and passed to `rewrite()` and `decide()`, so the two never disagree; a raise
-  inside it means FALLBACK mode for that call, whose parser fails closed; the mode probe and its cache, `spec:129-135`; returns `{"mode": "fence"|"fallback",
-  "interop": "open"|"masked"|"n/a", "why": str}`. The fallback triggers are `spec:136-139` (the payload's `scratchpad_dir` is one, so the
-  function takes the payload); on WSL the interop probe is `spec:103-112`. A per-call failure is never cached (`spec:133-135`).
-- `_fence_argv(payload) -> list[str]` — the flag vector in the order `spec:88-124` gives (base binds, the masks of
-  `spec:90-102` each only when its path exists, the `/mnt` skip of `spec:96-99`, the three writable binds of
-  `spec:113-121` with the record lookup mirroring `scripts/command_run.py`'s `_state_dir()` (`:88-92`), `_safe_sid()`
-  (`:138`), `_record_path()` (`:159-160`) and `_scratch_main()` (`:1472-1481`) and the `.tmp/runs` containment of
-  `:1610` — re-implemented in the hook, never imported (a 414 KB script inside a 5-second hook), with a test pinning
-  the copies equal to `command_run.py`'s on sample session ids — then `TMPDIR`, `--unshare-pid`, `--die-with-parent`, `--chdir`). It raises on a
-  per-call failure the hook can see (a `cwd` that is not a directory).
-- `rewrite()` (`:1419-1436`) — in fence mode returns `{**tool_input, "command": "/usr/bin/bwrap <argv> -- /bin/bash
-  -c " + shlex.quote(<dotenv prefix + command>)}` per `spec:77-80`; the `_ALREADY_OFF` return (`:1434-1435`) skips
-  only the added prefix, never the wrap.
-- `decide()` (`:1392-1410`) — in fence mode the write rule (`_safe_write_reason`, `:1218-1225`) and the
-  unparseable-write fallback do not run (`spec:149-152`); in fallback mode the unmodelled-construct refusals of
-  `spec:140-145` run and the reason names the mode.
-- `main()` (`:1439-1475`) — for a SEAT payload in fence mode, ANY exception in `rewrite()` (from `_fence_argv`,
-  the record read or the quoting) DENIES with the reason, never `updated = None` (today's `:1448-1451`), so a seat
-  command never runs unwrapped (`spec:81-83`); in fallback mode an exception in `decide()` DENIES naming the mode
-  (`spec:146-148`), and so does one inside the write rule, whose own `try` (`_safe_write_reason`, `:1218-1225`) returns
-  a deny reason in fallback mode instead of ""; the non-seat path and fence
-  mode keep today's `reason = ""` (`:1452-1455`).
-- Two test seams, read only from the hook process's own environment (a seat cannot set it — the hook runs in the
-  harness, not the seat's shell): `SEAT_GUARD_BWRAP` (the binary path, default `/usr/bin/bwrap`; a missing path forces
-  fallback mode) and `SEAT_GUARD_CACHE` (the cache file, default `spec:131`'s path). Minted as a build decision in
-  the phase commit's D-row (the spec names neither). COBRA: the cheapest way to make fence tests pass without a fence
-  is a seam that skips the probe — so the seams choose INPUTS (binary, cache file), never the mode itself.
-
-**Steps** (sequential; the orchestrator codes inline in `worktree-intel`, Profile: small):
-1. Preflight (above). Make the proof worktree OUTSIDE every writable bind: `git worktree add --detach
-   /tmp/claude-<uid>/fence-probe-<sid> HEAD` (Global Constraints); it serves the red-on-revert neuters and steps 8-9,
-   and is removed after.
-2. Write the Phase B graders (Behaviour Contract below) in `tests/test_seat_guard.py`; run
-   `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_seat_guard.py -q` and see each NEW
-   row red against today's hook. B4 reads green today (the lead gets no rewrite) and every row's red is also proven on revert in
-   the probe worktree, watched red and restored: B1 — let `_ALREADY_OFF` skip the wrap; B4 — drop the `agent_type`
-   test from the wrap; B6 — `_fence_mode` always answering `fence` (the mode-check neuter spec Validation 7 names);
-   B9 — add `--bind /tmp /tmp`, then the repo `.tmp`, to the argv; B10 — cache a per-call failure; B12 — record
-   `interop: open` without running the launch (on this WSL host the masks are expected to hold, so the true answer is
-   `masked` and the neutered value turns B12 red).
-3. Re-expect the existing tests that pin the old shape (each edit stated, none deleted silently):
-   - `test_a_seat_command_runs_with_dotenv_disabled` (`tests/test_seat_guard.py:299`),
-     `test_the_rewrite_keeps_the_other_inputs_and_is_not_doubled` (`:310`),
-     `test_an_existing_export_with_a_trailing_semicolon_is_not_doubled` (`:380`) and
-     `test_a_child_python_under_the_rewrite_loads_no_dotenv` (`:338`): run under `SEAT_GUARD_BWRAP=<missing>`
-     (fallback mode keeps today's prefix-only rewrite) AND gain a fence-mode twin asserting the wrapped form;
-   - `test_a_scan_that_raises_still_rewrites` (`:354`) and `test_a9_a_crash_in_the_write_rule_fails_open_and_keeps_the_git_rule`
-     (`:530`): split by mode — fence mode keeps allow + wrap; fallback mode now DENIES (`spec:146-148`): for `:354`
-     the `_scan` raise escapes `decide()`; for `:530` the write-rule raise is caught by `_safe_write_reason`, which in
-     fallback mode now returns a deny reason (Interfaces, `main()`);
-   - every test runs with `SEAT_GUARD_CACHE` under `tmp_path`, never the host cache. The ≈25 write-rule deny tests
-     run in fallback mode because their `SCRATCH` (`tests/test_seat_guard.py:21`) does not exist; they set
-     `SEAT_GUARD_BWRAP` to a missing path explicitly, so a fence-mode test that creates a scratch folder cannot flip
-     them; fence-mode tests use their own `tmp_path` scratch;
-   - `test_the_lead_other_agents_denials_and_empty_commands_are_not_rewritten` (`:330`),
-     `test_malformed_seat_payloads_produce_nothing` (`:389`) and `test_fail_open` (`:134`): untouched — non-seat or
-     no command, so no wrap and no change (re-run green proves it).
-4. `_fence_mode()` with the cache and the WSL interop probe.
-5. `_fence_argv()` and the `rewrite()` wrap.
-6. `decide()` and `main()` per the Interfaces above.
-7. Docs in the same commit: the module docstring (the fence, the fallback, the residuals of `spec:64-71`, the COBRA
-   line); `docs/workstation/hooks-index.md:104` — the one row rewritten per `spec:519-522` (fence vs fallback, binds,
-   masks, mode cache, the bwrap host prerequisite, the `interop:` residual (open, or unproven for a drvfs repo), the new
-   fail-closed cases, and the Tripwire of `spec:303` replacing the
-   row's "re-opens this design with approach D (below) or a filesystem-level fence"); `.claude/settings.json:152`'s
-   `statusMessage` names the fence (`spec:521`). Both files are governance-sync triggers (`.pre-commit-config.yaml:164`);
-   a worktree commit distributes nothing until the merge.
-8. Executed proofs, each output pasted in Evidence:
-   - Validation 1 (`spec:240-242`): the receipt's C1-C2, K1-K3, W1-W9
-     (`docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md:156-170`, placeholders written
-     out concretely) run through the rewritten command with the probe worktree as cwd (it lies outside every writable
-     bind, Global Constraints); `git status --porcelain` there is empty after each, the ESRCH and `/dev/shm` checks
-     included.
-   - Validation 2, 3, 8, 9 as tests (B2, B3, B8, B9).
-   - Validation 4 (`spec:246-252`), all of it: every allow case of `tests/test_seat_guard.py` plus a fresh 3-day
-     harvest, run in the probe worktree wrapped and unwrapped; the unwrapped leg inside an OUTER fence with the same
-     scratchpad, run-folder and `TMPDIR` binds, the probe worktree and a throwaway `$HOME`; exit code and stdout
-     compared (`$$`, `$PPID`, `ps` excepted), a command with an otherwise absolute destination on exit code only. The
-     replay driver is written in the run scratch (not a repo file). `scripts/scrape_ledger.py`'s
-     `harvest()` (`:333-378`) keeps only `fabrik-researcher` URL fetches, so the driver walks
-     `~/.claude/projects/*/*/subagents/agent-*.meta.json` with `agentType == "fabrik-reviewer"` and their `Bash`
-     `tool_use` inputs, as Phase A step 7 did (this plan's Evidence, the replay paragraph). Reported per N:
-     wrapped-vs-unwrapped mismatches and U4's `$HOME` EROFS count.
-   - U2 (`spec:282-283`): `git status` inside the fence on the probe worktree, its rc and stderr.
-9. Validation 10 (`spec:268-277`): one live `fabrik-reviewer` seat through the Agent tool, its scratch absolute, each
-   listed check run and its outcome pasted, with U1, U5 and U6 recorded (`spec:280-291`). `git status --short` after the
-   seat: nothing new. The hook is read from `${CLAUDE_PROJECT_DIR}` per call (`.claude/settings.json:150`), so the
-   edited file is live in this worktree.
-10. `ruff check` and `ruff format --check` on the two Python files; the whole `tests/test_seat_guard.py` green (55
-    tests today plus Phase B's).
-11. `/fabrik-review-scoped` on Phase B's surface (the floor of three native seats, stamped with `command_run.py
-    dispatch`); fix what it finds; commit by pathspec with trailers and push.
+**Steps** (sequential; the orchestrator runs them inline in `worktree-intel`):
+1. Preflight: `claude --version` (2.1.309 at authoring), and `claude --help` lists `--permission-mode` with `auto`,
+   `--permission-prompts`, `--settings` and `--output-format` (Evidence). Missing ⇒ BLOCKED, missing infra.
+2. Write `proof_launch.py` and `proof-brief.md` in the run scratch; start a throwaway `python3 -m http.server` on a free
+   port bound to `127.0.0.1` for P6, and stop it after.
+3. Launch from this session (the lead) through one Bash call, `run_in_background`, and record that call's outcome: it
+   is P8, the classifier's judgement on the launch (`spec:403`, "The launch is itself a lead Bash call the classifier
+   judges").
+4. The checks, run by the seat inside the reviewer session; the lead verifies each against the host afterwards:
+   - P1 `touch /opt/fabrik/.claude/worktrees/intel/zz_p2_live` fails (EROFS or a sandbox denial); the lead's
+     `git status --porcelain` shows nothing new. This also settles whether `denyWrite` overrides the added `/opt`
+     directory (`spec:391-392`).
+   - P2 `echo ok > <session dir>/seat-1/ok` succeeds.
+   - P3 `touch /opt/fabrik/.git/refs/zz_p2` fails; the lead's `ls /opt/fabrik/.git/refs/zz_p2` finds nothing.
+   - P4 the session's `receipt.md` exists and the lead copies it into the run folder (`spec:396-397`).
+   - P5 seat_guard fires inside the session: the seat runs `killall zz_p2_no_such_process`, and the reply carries the
+     hook's `seat guard` deny text (the kill rule denies `killall` anywhere, `.claude/hooks/seat_guard.py:21`; harmless
+     if it ever ran, since no process has that name).
+   - P6 `curl -s --max-time 5 http://127.0.0.1:<port>/` from the seat — expected to fail (`localhost` is private,
+     sandboxing.md:955); recorded either way.
+   - P7 `docker version` and a unix-socket connect to `/var/run/postgresql/.s.PGSQL.5432` (when that socket exists)
+     from the seat — recorded either way (sandboxing.md:842).
+5. Verdict: P1, P2, P3, P4, P5 and P8 MUST hold. One that fails is the spec's own question reopened, so the run stops
+   `BLOCKED: an unresolvable spec contradiction` and the finding goes back to the panel as a spec amendment, never a
+   build. P6 and P7 are the costs item 4 names, recorded.
+6. The briefs that need a live service, each dispositioned by P6/P7's outcome (the census is in § Evidence, "P2 re-plan
+   grounding"): `commands/_fragments/review-probe-catalogue.md:105-106` (a seat renders a compose overlay with
+   `docker compose … config`) and `:306-308` (a seat probe connects to a test database over TCP `localhost` or a unix
+   socket). Each is `unverified` inside a reviewer session, or rerouted to the lead, which the catalogue already allows
+   for the database probe (`:308-309`, "the lead runs that test or probe itself and quotes its result"). The
+   dispositions go into Phase C's mail to kaizen.
+7. Paste every check's command, rc and output into § Evidence ("P2 first proof"); remove `zz_p2_*` leftovers if any
+   check unexpectedly succeeded, and say so.
+8. Closing sequence: `python scripts/enforcement/check_doc_sync.py`; `/fabrik-review-scoped` on this phase's changed
+   surface (the plan's Evidence edit; the floor of three native seats, stamped with `command_run.py dispatch`), run until
+   its closing pass confirms zero; commit the plan by pathspec with trailers and push.
 
 **Behavior Contract (Phase B):**
 
-- **Given** a seat payload in fence mode, **When** the hook runs on any allowed command, **Then** `updatedInput.command` is `/usr/bin/bwrap … -- /bin/bash -c '<prefix + command>'` and round-trips the command's quoting, the `_ALREADY_OFF` case wrapped too (B1)
-- **Given** the wrapped command run for real in the probe worktree, **When** it writes a live path by redirect, `touch`, `python3 -c open(p,'w')`, `perl -pi` or `shutil.rmtree`, **Then** it fails with EROFS and the tree is unchanged (B2)
-- **Given** the wrapped command, **When** it writes into the scratchpad, the run folder or `$TMPDIR`, **Then** it succeeds and `pwd` prints the payload cwd (B3)
-- **Given** the lead (no `agent_id`) or a non-seat agent, **When** the hook runs, **Then** no wrap (B4)
-- **Given** fence mode, **When** a seat command holds a shape the parser's write rule refused (R1-R4 of the spec), **Then** it is allowed and wrapped; the kill and git rules still deny (B5)
-- **Given** `SEAT_GUARD_BWRAP` at a missing path, or a probe that fails, or no `scratchpad_dir`, **When** a seat command holds an unmodelled construct (`eval`, a heredoc to a shell, `$'…'`, `[[`), **Then** denied with a reason naming fallback mode (B6)
-- **Given** a seat payload, **When** `_fence_argv` raises (a `cwd` that is not a directory), **Then** denied with the reason; **and** in fallback mode an exception in `decide()` denies naming the mode, while in fence mode it stays allow + wrap (B7)
-- **Given** the wrapped command, **When** it backgrounds a child, **Then** the child is gone when the call ends (B8)
-- **Given** the argv, **When** it is parsed, **Then** its writable binds are exactly {scratchpad, the run folder when it exists, the record's scratch when it exists outside it under `.tmp/runs/`}, each service mask present only for an existing path, and adding `/tmp` or the repo `.tmp` as a bind turns this test red (B9)
-- **Given** the mode cache, **When** the AppArmor value, the binary mtime or the flag-set hash changes, **Then** it re-probes, and a per-call failure is never written to it (B10)
-- **Given** the hook copies of `_state_dir`, `_safe_sid`, `_record_path` and `_scratch_main`, **When** run on sample session ids, a uuid, one with unsafe characters and an empty one, **Then** they return what `scripts/command_run.py`'s functions return (B11)
-- **Given** a WSL host (`/proc/sys/fs/binfmt_misc/WSLInterop` present), **When** the mode probe runs, **Then** the cache's `interop` is `open` when the probe's bound Windows executable launched inside the masked fence and `masked` when it did not, and `n/a` on a host without interop (B12)
-- **Mocked:** none beyond the two seams; every grader runs the real hook as a subprocess (`_run()`, `tests/test_seat_guard.py:24-50`) or the real wrapped command. B2, B3, B8 and B12 need `/usr/bin/bwrap` and skip only with a printed reason when it is absent.
+- **Given** the reviewer session launched with item 1's settings, **When** its seat writes the live worktree, **Then** the write fails and the lead's `git status --porcelain` is unchanged (P1)
+- **Given** the same session, **When** its seat writes its own folder under the session directory, **Then** the write succeeds (P2)
+- **Given** the same session, **When** its seat writes into the main repository's `.git/refs`, **Then** the write fails and nothing appears there (P3)
+- **Given** the same session, **When** it writes its receipt into its own directory, **Then** the lead reads it back and copies it into the run folder (P4)
+- **Given** the launcher's `--settings` hook entry, **When** the seat runs `killall`, which the hook denies, **Then** the reply carries the `seat guard` deny text (P5)
+- **Given** the lead in auto mode, **When** it launches the reviewer session, **Then** the call runs, not refused by the classifier or the worktree guard (P8)
+- **Mocked:** nothing; every check is a live call, and P6 and P7 are recorded costs rather than pass/fail rows.
 
-## Phase C — Finish
+## Phase C — the launcher and the per-seat refusals (after a green Phase B)
+
+Appetite: 150
+
+Implements `spec § Amendment 2026-10-23`, Panel decision items 2 and 3 (`spec:395-409`), and the refusal list of
+§ Amendment 2026-10-22 Design 3 (`spec:140-148`), applied always, with no fence and no mode detection.
+
+**Interfaces — Produces:**
+- `.claude/hooks/seat_guard.py`:
+  - `_UNMODELLED` (the ten constructs of the hook at commit 0669c6c51, its lines 1679-1697) and
+    `_unmodelled(command) -> str` (`:1700-1704`), restored from history with two measured changes (§ Evidence, "The
+    refusal table's fire rate"): the command-word rows (`eval`/`source`, `.`, `((`/`[[`, the wrappers, `cd … $(`) are
+    anchored to a command position, `(?:^|[;&|(\n!]|\b(?:then|else|elif|do|if|while|until)\b)[ \t]*`, and every row
+    matches the command's unquoted SKELETON, `_skeleton(command) -> str`: the hook's own `_strip_comments` (`:266`) and
+    `_strip_heredocs` (`:302`), then each quoted span blanked, `$'` and a double-quoted `$(` kept. Raw, the table
+    refused 1,195 of 37,088 unique seat commands (3.2%, mostly `[[:space:]]` in grep patterns, `flock` as a search
+    word, `.` as grep's search root); anchored on the skeleton, 25 of 37,109 (0.07%), each a genuine construct. The
+    prototype is `/opt/fabrik/.tmp/runs/5ce9d888-9344-466f-b905-652ac93cdf89/fabrik-plan-after-chat-2026-10-23T18-05-44-0300/proto/fire_rate3.py`.
+    `_unmodelled` is called in `decide()` after the seat check and the `command` extraction (HEAD `:1393-1396`) and
+    before `ctx` is built (`:1397`); the deny text reads `seat guard (an unmodelled shell construct): the command holds
+    <what> …`, never "fallback mode", since there is no other mode.
+  - `_safe_write_reason` (HEAD `:1218-1224`) returns a deny reason on a crash instead of `""`; only seat payloads reach
+    it.
+  - `main()` (HEAD `:1452-1455`): an exception in `decide()` on a SEAT payload denies, naming the crash; a non-seat
+    payload keeps today's `reason = ""` (`spec:146-148`; without a fence the parser is the only per-seat layer, item 3).
+- `scripts/review_session.py` (new): `build_settings(hook_path: str) -> dict`, `session_dir() -> Path`,
+  `launch(brief: str, *, hook_path: str, model: str | None, max_turns: int, timeout_s: int) -> SessionResult`
+  (`rc`, the parsed JSON result, `session_dir`), and a CLI `python3 scripts/review_session.py --brief <file> --out
+  <dir> [--hook <path>] [--max-turns N] [--timeout S]` that launches, waits, and copies every file in the session
+  directory into `--out`. It is Phase B's `proof_launch.py`, the argv and settings unchanged. `--hook` defaults to
+  `/opt/fabrik/.claude/hooks/seat_guard.py` (`spec:399-400`); `session_dir()` refuses a path under `/opt` or inside a
+  git work tree. A timeout kills the process group and exits 124 (the convention of `scripts/ci_fix_dispatcher.py:234`).
+  The first lines carry `# AFTER-EDIT: tests/test_review_session.py, docs/reference/review-loop-workflow.md`.
+- The terminal consumer is the review commands' dispatch sentence (`commands/_fragments/subagents-core.md:3`), which
+  is kaizen's wording (`spec:403-404`). Step 6 sends kaizen the exact proposed sentence. Until kaizen lands it, the
+  launcher's own CLI, run by a lead, is its live consumer, and Phase D step 4 runs it that way.
+
+**Steps** (sequential; inline in `worktree-intel`):
+1. Write the graders below; run `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_seat_guard.py
+   tests/test_review_session.py -q` and watch each new row fail first. C1-C3 fail because the hook has no refusal table
+   and allows on a crash. C4-C7 fail because `scripts/review_session.py` does not exist. Each is also proven red on
+   revert in a throwaway worktree (`git worktree add --detach <scratch>/probe HEAD`), never in the shared checkout.
+2. Re-expect the two tests that pin the old fail-open, each edit stated:
+   - `test_a_scan_that_raises_still_rewrites` (`tests/test_seat_guard.py:354`) now expects a DENY for the seat payload,
+     and keeps its rewrite assertion for a non-seat payload;
+   - `test_a9_a_crash_in_the_write_rule_fails_open_and_keeps_the_git_rule` (`:530`) is renamed `…_denies_…` and expects
+     the deny; its git-rule half stays.
+   `test_fail_open` (`:134`) is the non-seat path and stays green untouched.
+3. Restore `_UNMODELLED` and `_unmodelled()` from `git show 0669c6c51:.claude/hooks/seat_guard.py` (lines `:1679-1704`)
+   with the anchor and `_skeleton()` of the Interfaces above, and wire them and the two crash-denies. Then the fire-rate
+   gate: run the prototype's harvest (`fire_rate.py`, the fabrik-reviewer seats' unique Bash commands of the last 3 days)
+   against the hook's REAL `_unmodelled` (import the hook, as `fire_rate2.py` does) and paste the count; at most 0.2%
+   refused, and a sample of up to 10 hits per row read and each a genuine construct. A legitimate shape refused is fixed
+   before the phase review, never waved through.
+4. Write `scripts/review_session.py` from Phase B's prototype, then `tests/test_review_session.py`.
+5. Docs in the same commit:
+   - the hook's module docstring: the refusals, the crash-deny, and the COBRA line — the cheapest way to pass the
+     fire-rate gate is a table that refuses nothing, and the cheapest way to pass C1 is a table that matches only the
+     test strings, so C1 holds a positive and an allowed near-miss per row and step 3 reads real hits;
+   - `docs/workstation/hooks-index.md:104`'s `seat_guard.py` row: the refusals, the seat crash-deny, the registration
+     by absolute path in a reviewer session, and the residuals of item 3 (cross-seat width; a direct Agent-tool seat has
+     the parser only);
+   - `docs/reference/review-loop-workflow.md`: a "Reviewer session (hub, D-1160)" section after § Fallback (`:98`),
+     stating when a lead launches one, the settings, where the receipt lands, and the P6/P7 costs; its
+     `## Related scripts` block re-rendered by `python3 scripts/render_doc_script_links.py`.
+   `.claude/settings.json` is not touched: the repository's hook entry stays as it is (`:150`).
+6. Mail kaizen (`python3 scripts/mail.py send --to fabrik --to-agent kaizen --kind finding`, the D-035 contract) with
+   the proposed dispatch sentence for `commands/_fragments/subagents-core.md:3`, which makes a hub review lead launch
+   its seats through `scripts/review_session.py`, and Phase B step 6's two brief dispositions. Record the mail id in
+   § Evidence.
+7. `ruff check` and `ruff format --check` on the three Python files; the two test files green.
+8. Closing sequence: `python scripts/enforcement/check_doc_sync.py`; `/fabrik-review-scoped` on Phase C's surface (the
+   floor of three native seats, stamped), run until its closing pass confirms zero; commit by pathspec with trailers and
+   push.
+
+**Behavior Contract (Phase C):**
+
+- **Given** a seat payload, **When** the command holds one of the ten unmodelled constructs in a command position (a heredoc or pipe into a shell, `eval`, `source` or `.`, `$'…'`, `((` or `[[`, an unknown wrapper, a conditional `cd`, `$(…)` in a cd or write position), **Then** it is denied with a reason naming the construct; **and** the same text in quotes, a heredoc body or an argument position (`grep '[[:space:]]' f`, `grep -rn x . | head`, `printf '%s' 'eval x'`, `grep flock f`) stays allowed (C1)
+- **Given** a seat payload, **When** `decide()` raises, **Then** the call is denied naming the crash; **and** for a non-seat payload it is allowed as today (C2)
+- **Given** a seat payload, **When** the write rule raises, **Then** the call is denied and the git rule still applies (C3)
+- **Given** `build_settings(<hook>)`, **When** it is read, **Then** the sandbox is enabled, unsandboxed commands are refused, `/opt` is in `denyWrite`, and the one PreToolUse entry on `Bash` runs the hook by that absolute path (C4)
+- **Given** `session_dir()`, **When** it is called, **Then** the directory is new, outside `/opt`, and not inside a git work tree; **and** a path under `/opt` or in a work tree is refused (C5)
+- **Given** `launch()` with the `claude` binary replaced by a stub on `PATH` that records its argv, cwd and stdin, **When** it runs, **Then** the argv carries `-p`, `--permission-mode auto`, `--permission-prompts none`, `--output-format json` and `--settings` with C4's JSON, the cwd is the session directory, and the brief arrives on stdin (C6)
+- **Given** the CLI with a stub that writes a file into its cwd, **When** it finishes, **Then** that file is copied into `--out`; **and** a stub that sleeps past `--timeout` exits 124 (C7)
+- **Mocked:** C6 and C7 put a stub `claude` on `PATH` (a script in `tmp_path`); every other grader runs the real hook as a subprocess (`_run()`, `tests/test_seat_guard.py:24`) or the real functions. The live path is Phase B's proof and Phase D step 4.
+
+## Phase D — Finish
 
 Appetite: 60
 
 **Steps** (sequential):
-1. The whole-plan `/fabrik-review` (the hook and `.claude/settings.json` are governance-sync paths; D7 floor: the
-   whole-plan diff by file, a Sonnet and a Haiku finder per slice as Agent-tool seats (D-961), the orchestrator
-   executing every candidate), its receipt APPENDED as a new section to
-   `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md` (its `:156-170` round-1
-   commands stay, Phase B step 8 cites them).
-2. `CHANGELOG.md` entry (`### Changed — review seats run inside a bubblewrap filesystem fence (<the commit date>)`).
+1. The whole-plan `/fabrik-review` (the hook is a governance-sync path; D7 floor: the whole-plan diff by file, a Sonnet
+   and a Haiku finder per slice as Agent-tool seats (D-961), the orchestrator executing every candidate), its receipt
+   APPENDED as a new section to `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md`.
+2. `CHANGELOG.md` entry (`### Changed — review seats run in a sandboxed reviewer session, with per-seat refusals (<the
+   commit date>)`).
 3. `python scripts/final_gate.py --check --json` green; commit by pathspec with trailers; push; `merge_request.py
    request --review <receipt> --item W-72dfd448`.
-4. After the merge, re-run Phase B step 9's live seat against the merged hook from the main checkout's session and
-   paste it in the receipt (panel condition, D-1116).
-
-**Phase B — BLOCKED 2026-10-23 at Validation 10 (unresolvable spec contradiction).** Built and committed: the fence
-code and graders B1-B12 (0669c6c51; 68 tests green; every neuter red on revert in the proof worktree, and 14 of the 15
-B and flipped-A rows red against the pre-Phase-B hook, B4 being the green-today row), the docs (4720a59fe). Then the
-executed proofs:
-
-- Validation 1, the receipt's false greens retargeted at the proof worktree, run for real through the fence:
-
-```text
-C1   ran wrapped rc=128 fatal: Unable to create '/opt/fabrik/.git/worktrees/fence-probe-5ce9d888/index.lock': Read
-C1b  ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
-C2   ran wrapped rc=1 rm: cannot remove 'src/fabrik/__pycache__/state.cpython-312.pyc': Read-only file system
-K1   ran wrapped rc=0 /bin/bash: line 2: kill: 99999999999999999999999999999999999999999999999999999999999999999
-K2   ran wrapped rc=1 /bin/bash: line 2: kill: (-1) - No such process
-K3   DENIED before running (seat guard (review seats run in the lead's shared tree): `xargs kill` …)
-W1   ran wrapped rc=1 touch: cannot touch 'zz_fence_w1': Read-only file system
-W2   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
-W3   ran wrapped rc=1 sys 0.02
-W4   ran wrapped rc=0 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/scripts/external_services_chain.s
-W5   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/tests/test_claude_rotate_capture.
-W5b  ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/commands/assemble_commands.py': R
-W5c  ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/templates/chrome-extension/defaul
-W6   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
-W7   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
-W8   ran wrapped rc=0 
-W9   ran wrapped rc=0 
-proof tree git status unchanged: True | porcelain: ''
-host /dev/shm/zz_fence_w8 exists: False
-host ~/zz_fence_w1 exists: False
-```
-
-  K1 and K2 run wrapped (fence mode lets the parser's crash through), and their kills reach only the sandbox's own pid
-  namespace.
-- Validation 4, BOUNDED (the whole harvest is too large to execute): 200 random commands of the eligible set, stated:
-
-```text
-harvest: 583326 Bash commands from fabrik-reviewer seats in the last 3 days, 40656 unique, 5675 eligible after excluding network/long/volatile shapes; sample 200 (seed 72)
-result: {"run": 200, "match": 198, "rc_only": 1, "mismatch": 1, "denied": 0, "erofs_home": 0}
-  mismatch: ('timeout 120 cat /home/ozgur/.local/share/code-server/User/settings.json', 0, 1)
-```
-
-  The one mismatch is the outer fence's throwaway `$HOME` (the unwrapped leg cannot see a home file), not a fence
-  refusal. The raw count double-counts files reachable from two harness roots; the unique count is the population.
-- U2 resolved: read-only git works under the read-only tree:
-
-```text
-$ git status --short | head -3; echo rc=${PIPESTATUS[0]}
-  rc=0 out='rc=0' err=''
-$ git log --oneline -1
-  rc=0 out="0e73a16a2 docs(review): W-72dfd448 plan-2 Phase A review receipt (from the plan's recorded rounds) +" err=''
-$ git diff --stat HEAD~1 | tail -1
-  rc=0 out='2 files changed, 31 insertions(+), 1 deletion(-)' err=''
-$ git show --stat HEAD | head -2
-  rc=0 out='commit 0e73a16a2626559ca6e6381760518a67af2cace1\nAuthor: t <t@fabrik.local>' err=''
-```
-
-- **Validation 10 FAILED — U1 and U6 resolved NEGATIVELY.** One live `fabrik-reviewer` seat (Haiku, Agent tool) in
-  this worktree, with the fenced hook live. Every command it ran was refused BEFORE it ran, because the harness
-  judges the REWRITTEN command: Claude Code's worktree isolation guard refuses the bwrap line ("runs bwrap with the
-  text /run/WSL … cannot be shown not to be git"), and the auto-mode classifier denies it (`[Auto-Mode Bypass]`,
-  `[Containment Escape]`). The seat's calls and results:
-
-```text
-CALL echo ok > /tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652
-CALL curl -s --max-time 5 --unix-socket /run/docker.sock http://x/_ping; echo rc=$?
-CALL ls /mnt/c/Windows/System32/cmd.exe; echo rc=$?
-  -> This session is isolated in the worktree /opt/fabrik/.claude/worktrees/intel, but this command runs bwrap with the text /run/WSL in a plain command, so what it runs cannot be shown not to be git. Refusing to run it — a worktree-isolated session's git operation
-  -> This session is isolated in the worktree /opt/fabrik/.claude/worktrees/intel, but this command runs bwrap with the text /run/WSL in a plain command, so what it runs cannot be shown not to be git. Refusing to run it — a worktree-isolated session's git operation
-  -> Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Auto-Mode Bypass]. If you have other tasks that don't depend on this action, continue working on those. IMPORTANT: You *may* attempt to accomplish this action using other t
-CALL echo ok > /tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652
-CALL curl -s --max-time 5 --unix-socket /run/docker.sock http://x/_ping; echo rc=$?
-CALL ls /mnt/c/Windows/System32/cmd.exe; echo rc=$?
-CALL ls /mnt/c/Windows/System32/cmd.exe; echo rc=$?
-CALL git status --short | head -3; echo done
-  -> Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Containment Escape]. If you have other tasks that don't depend on this action, continue working on those. IMPORTANT: You *may* attempt to accomplish this action using other
-  -> The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
-```
-
-  So the spec's premise that the `updatedInput` rewrite runs (`spec:74-86`, "Validation 10 re-proves it") is false
-  for a wrapped command in this harness: a fenced seat runs nothing. This is a design question (the Tripwire class
-  of the D-1129 amendment, U1/U6), not a patch: candidates are a `permissions.allow` rule for the exact wrapper prefix
-  plus a check that the worktree guard accepts it, a wrapper the guard can read (no `/run/WSL`-style path text), or a
-  sandbox the harness owns. The Phase B code stays in history (0669c6c51, 4720a59fe) and is REVERTED at the branch tip,
-  so seats dispatched from this worktree run again and nothing fenced can reach a merge.
+4. After the merge, re-run Phase B's checks through `scripts/review_session.py` with its default `--hook` (the main
+   checkout's merged hook), from the main checkout's session, and paste the result into the receipt (panel condition,
+   D-1116).
 
 ## File Scope (owned paths)
 
 - `.claude/hooks/seat_guard.py`
 - `tests/test_seat_guard.py`
-- `.claude/settings.json` (only the seat-guard `statusMessage`, `:152`)
+- `scripts/review_session.py`
+- `tests/test_review_session.py`
 - `docs/workstation/hooks-index.md` (only the `seat_guard.py` row, `:104`)
+- `docs/reference/review-loop-workflow.md` (a new "Reviewer session" section and its rendered `## Related scripts`)
 - `docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md`
 - `docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md`
 - `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md`
@@ -442,113 +402,26 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 
 | Row | Hunt | Verdict |
 |---|---|---|
-| FLOOR core/35-security-auth, core/25-data-postgres (SERVICE surface since `.claude/settings.json` joined the changed set) | auth, DB sessions, migrations | CLEAN — n/a: a hub hook, no service, no DB; hunted: § File Scope |
-| FLOOR core/30-ops | a shelled-out binary is installed and probed | CLEAN — `/usr/bin/bwrap` is a host prerequisite probed by Phase B's preflight and by `_fence_mode()`; its absence is fallback mode, never a silent pass (Digest row 5) |
-| FLOOR 12-FACTOR | config; no file sink | CLEAN — two env seams read from the hook's own environment (Phase B Interfaces) and one cache file (`spec:131`), no log file; hunted: Phase B Interfaces |
-| MATCHED core/10-python | no deps-file edit; stdlib only | CLEAN — no dependency file in § File Scope; hunted: Global Constraints |
-| MATCHED core/40-documentation | one CHANGELOG entry; the hooks-index row; the `statusMessage`; the D-row for the test seams | CLEAN — Phase C step 2, Phase B step 7, the Phase B commit |
-| MATCHED core/45-testing-strategy | one grader per behaviour, each seen red | CLEAN — A1-A19 map the parent spec § Validation 1-7, B1-B12 and Phase B steps 8-9 the amendment's Validation 1-10 (Self-audit); each green-today row has a named neuter |
-| RECURRENCE fail-open vs fail-closed | guard crash → allow; unknown destination → deny; seat wrapper-build error and fallback-mode crash → deny | FIXED r1 — A7, A9; Phase B: B7 (A9 splits by mode, step 3) |
-| RECURRENCE cost/quota/limit accounting | the hook's 5 s timeout | CLEAN — no new hook invocation; ≈14 ms per seat call (`spec:171`) and a cached probe; Phase B step 9 measures it live |
-| RECURRENCE boundary/sentinel/prefix collisions | `/tmp` and its ancestors of other sessions' scratch, globs; `/dev/*` by the lexical `normpath`; glued vs spaced fd numbers; `>&` dup vs `&>` file; option values read as operands | FIXED r1 — spec § The delta 2 names each; A3, A4, A6, A7 grade them (round 1: ancestors and globs were scratch, `2 >` was an fd) |
-| RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A row; every row green today has a named red | FIXED r1 — Self-audit mapping; Phase A step 1 names each neuter |
+| FLOOR core/10-python (TOOLING surface) | no deps-file edit; stdlib only | CLEAN — no dependency file in § File Scope; `scripts/review_session.py` uses `json`, `os`, `subprocess`, `tempfile`, `shutil`; hunted: Global Constraints, Phase C Interfaces |
+| FLOOR 12-FACTOR | config; no file sink; a shelled-out binary probed | CLEAN — the launcher's flags are arguments, no log file; the `claude` binary is probed by Phase B step 1 (judgment row `core/30-ops.md:464`); hunted: Phase B, Phase C Interfaces |
+| MATCHED core/40-documentation | one CHANGELOG entry; the hooks-index row; the review-loop doc section; the D-row for the refusal design | CLEAN — Phase D step 2, Phase C step 5, the Phase C commit |
+| MATCHED core/45-testing-strategy | one grader per behaviour, each seen red | CLEAN — B rows are live proofs, C1-C7 graders each seen red (Phase C step 1); the refusal table's fire rate is a measured gate (Phase C step 3) |
+| RECURRENCE fail-open vs fail-closed | guard crash → allow for non-seat, deny for seat; unknown destination → deny | FIXED — C2, C3; the earlier fence-mode split is gone with the fence |
+| RECURRENCE cost/quota/limit accounting | the hook's 5 s timeout; a reviewer session's turns and wall-clock | CLEAN — the table is ten regexes on a stripped string (no new hook call); the launcher takes `--max-turns` and `--timeout` (C7) |
+| RECURRENCE boundary/sentinel/prefix collisions | a construct's text inside quotes, a heredoc body or an argument; `/opt` vs an added directory | FIXED — the skeleton and the command-position anchor (Evidence, fire rate 3.2% → 0.07%; C1's near-misses); `denyWrite` vs `/opt` is Phase B's P1 |
+| RECURRENCE behaviour-without-a-test | every Panel decision item maps to a B or C row | CLEAN — Self-audit mapping |
 
 Rubric invocation (verbatim output; the changed-path set is § File Scope plus `CHANGELOG.md` and `docs/DECISIONS.md`,
 the governance files kept outside File Scope by rule):
 
 ```text
-$ python scripts/review_rubric.py --changed .claude/hooks/seat_guard.py tests/test_seat_guard.py .claude/settings.json docs/workstation/hooks-index.md docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-plan-review.md CHANGELOG.md docs/DECISIONS.md
+$ python scripts/review_rubric.py --changed .claude/hooks/seat_guard.py tests/test_seat_guard.py scripts/review_session.py tests/test_review_session.py docs/workstation/hooks-index.md docs/reference/review-loop-workflow.md docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-plan-review.md CHANGELOG.md docs/DECISIONS.md
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
 # Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
 
-## FLOOR — always injected, regardless of glob (spec L3; SERVICE surface)
+## FLOOR — always injected, regardless of glob (spec L3; TOOLING surface)
 
-### core/35-security-auth.md
-**The default for ALL new projects, including user-facing SaaS + mobile.** Vendor `fabrik-lib/fastapi-user-auth`: the app issues its own JWTs — **Argon2id** (the vendored argon2-cffi defaults meet OWASP minimums; never Argon2i) + timing-equalized login, atomic refresh-token rotation (`DELETE … RETURNING`), JWT `jti` denylist revocation, and dual-mode tenant-isolation RLS. Supabase is retired as a default (see `agents-fabrik.md § Supabase`); reach for Pattern B only for a project that *already* runs on Supabase Auth.
-- Do not use NextAuth.js, Clerk, Auth0, or Firebase Auth.
-- ADDITIONAL affordance a project justifies, never the default door.
-- project files the fabrik-lib request FIRST, never hand-rolls WebAuthn.
-| `chrome-extension` | ✅ **use this** | ⚠️ only via `chrome.identity.launchWebAuthFlow` + the `https://<ext-id>.chromiumapp.org/` redirect the pack already mandates; a bare mailed link lands in a TAB that cannot reach `chrome.storage.session` |
-| `desktop-app` | ✅ **use this** | ⚠️ needs a registered custom protocol handler; the token then goes to `safeStorage` (`desktop-app/72-desktop.md`) |
-- service MUST be able to say which:
-| **Another Fabrik service** (Docker-to-Docker on the `fabrik` network) | `X-Internal-Token` + `internal_auth.py`, `hmac.compare_digest`, 403 on reject | § Internal Service Auth (M2M) below — **never** an inline `APIKeyHeader`, never a per-service key name |
-- An approval link opened somewhere the user did not start must never mint a session silently.
-- > **Fail-closed invariant (hard, every mode).** `auth.uid()` and `current_tenant_id()` MUST return `NULL` (→ the policy denies) on unset, empty, or malformed claims — wrap the body in `EXCEPTION WHEN OTHERS THEN RETURN NULL`. **Never** raise and never default to a value: a default turns one bad/empty JWT into a cross-tenant read, and a raise turns a deny into a 500. This is the single most security-critical line in the build — verify it explicitly with a no-context probe (`SELECT auth.uid()` → `NULL`).
-- The JWT signing secret must be at least 256 bits, generated via `openssl rand -hex 32`, and injected via Pydantic Settings. Never hardcode it.
-- **Pin the algorithm in the VERIFIER** — pass an explicit allow-list (`algorithms=["HS256"]`), never let the library dispatch on the token header's `alg`. Header-driven dispatch is the classic confusion attack (an RS256 public key replayed as an HS256 HMAC secret); `alg: none` is rejected unconditionally.
-- "Sticky sessions are a violation of twelve-factor and should never be used or relied upon."
-- => Mandate: processes are stateless/share-nothing. **STICKY SESSIONS ARE BANNED** (not just file-based sessions). Session state goes to `redis-main` (Redis) with a TTL. Never in-process memory, never on local disk. Any design that assumes "the same user hits the same process" is a violation.
-- **Pattern B (legacy / migration-only):** The Supabase client SDK handles token storage. On mobile, wrap with `expo-secure-store` (never AsyncStorage or MMKV for tokens). See `80-mobile.md` § Backend Integration.
-- **Both patterns:** Never store JWTs in `localStorage` or `sessionStorage` on web. Never store JWTs in AsyncStorage or MMKV on mobile.
-- **Chrome Extension (MV3) specifics:** `chrome.storage.session` defaults to `TRUSTED_CONTEXTS`, so **content scripts cannot read the token** — keep it in the SW / extension-page context and have content scripts fetch it via SW-mediated messaging (`chrome.runtime.sendMessage`), not a direct read. For social login use `chrome.identity.launchWebAuthFlow` with **PKCE** (`code_verifier` via `crypto.subtle`, held in `storage.session`, redirect `https://<ext-id>.chromiumapp.org/`); the **backend** does the code-for-token exchange. **Never a heavy browser auth SDK** (Auth0-SPA-JS, `oidc-client-ts`) — they assume DOM/`localStorage`/iframes and break in the service worker. Pin a manifest `key` so the extension ID (and thus the `chrome-extension://<id>` CORS origin) is stable across machines. Full detail: `chrome-ext/70-chrome-ext.md`.
-- **Never rely solely on the framework's request-shaping layer for access control.** CVE-2025-29927 (the `x-middleware-subrequest` bypass) proved COMPLETE middleware bypass via one crafted header; it is long patched upstream, but the rule outlives the patch — current Next.js even RENAMED the file to say so: `middleware.ts` became **`proxy.ts`**, explicitly repositioned as request-shaping, not a security boundary. ⚠️ **On current majors a leftover `middleware.ts` is SILENTLY IGNORED at build** — nonce injection and redirects stop executing with no error; rename it when upgrading.
-- `CORSMiddleware` in FastAPI must populate `allow_origins` from environment variables (Pydantic Settings). Never hardcode origins.
-- `X-Frame-Options: DENY` — kept as the legacy fallback only; formally obsoleted by `frame-ancestors`, never ship it ALONE
-**Never** write inline `APIKeyHeader` / `require_api_key`. **Never** use per-service key names (`SERVICE_API_KEY`, `PROXY_API_KEY`). Scaffold `python-api` auto-emits `internal_auth.py`, `metrics.py` (REQUEST_COUNT / ERROR_COUNT / ACTIVE_JOBS / PROCESSING_COUNT), `/metrics` endpoint (Authelia-bypassed), and `SERVICE_INTERNAL_SECRET_KEY` in `.env.example`.
-- => Mandate: config via env vars only (`os.getenv("KEY", "default")`); **ZERO secrets/constants in code**. Apply the open-source litmus test to every change. **BANNED**: grouped/named env config sets (e.g. a `config/production.yml` or a `settings.production` group) — env vars are granular and orthogonal, set per deploy. (The pack already covers secret handling — cross-reference existing secret patterns and extend with config orthogonality.)
-- `POST /auth/passwordless/request` is ALREADY capped per email and per IP in Redis by the library (`AUTH_PASSWORDLESS_REQUEST_CAP`, `AUTH_PASSWORDLESS_IP_REQUEST_CAP`): tune those, add no second limiter, and never answer it with 429 — it returns 202 either way, so throttling never reveals an account. `POST /auth/passwordless/verify` has a per-code attempt cap (`AUTH_PASSWORDLESS_ATTEMPT_CAP`) but no per-IP bound; the project adds that bucket.
-- [ ] Mobile tokens stored in `expo-secure-store` — never AsyncStorage or MMKV.
-- A dedicated admin host on its own domain — never the customer-facing app's domain — behind 2FA: set `shape.is_admin_dashboard: true` there. The Authelia registrar adds a per-domain `two_factor` rule on `fabrik apply`, so every path on that domain sits behind 2FA except the standing `/health` and `/metrics` bypasses (D-366, `saas/60-saas-ui.md` § Admin). API services with bearer auth: set `shape.has_bearer_api: true` — the registrar inserts an Authelia **bypass** rule *before* the `two_factor` catch-all so machine/bearer callers aren't hit with interactive 2FA. Don't add Traefik `authelia-forward` middlewares manually — the scaffolder + registrars emit them.
-- > **⚠️ Bearer bypass scope — security-critical.** The bypass defaults to `^/api/`, which makes the **entire** `/api/*` surface public (un-2FA'd). If the application authenticates only a **sub-prefix** (e.g. `/api/v1` carries the bearer/internal-token check) while OTHER `/api/*` routes are unauthenticated (legacy / admin / destructive), you **MUST** narrow the bypass with `shape.bearer_bypass_prefix: "^/api/v1"` — otherwise `fabrik apply` exposes those routes to the public internet. **Bypass ONLY the path the app itself authenticates.** Value must start with `^/`; the verifier (`orchestrator/verifier.check_api_bypass`) probes the configured prefix on deploy. When unsure whether a service has un-auth'd `/api/*` routes, ask the app owner before relying on the `^/api/` default.
-
-### core/25-data-postgres.md
-| Vector search | pgvector on `postgres-main` + `fabrik-lib/rag` — ⚠️ the extension is NOT currently installed there (probed 2026-09-01: the plain upstream PostgreSQL Alpine image, `plpgsql` only — `CLAIMS.yaml` row `fleet-postgres-main-no-pgvector`); a project needing vectors REQUESTS the fleet infra change first, never assumes it | same `postgres-main` DSN |
-**"Own database" means a DATABASE on `postgres-main`, never a database SERVER.** Per-project isolation is a separate database (its own name, its own role) on the shared container — isolation, quota and backup are all satisfied at that grain. A dedicated Postgres instance is a decision, not a default: it needs its own `docs/DECISIONS.md` row naming what the shared server cannot serve (web-ecommerce-factory 01M1Q8X9, 2026-09-05: "one DB per store" read naively as one server per customer).
-- Use Pydantic `BaseSettings` (per `10-python.md` § Config Loading) — never raw `os.getenv` **for an APPLICATION's settings surface**:
-- ⚠️ **Scope, stated here because this LINE is what `review_rubric.py` injects — without its section.** The rubric FLOOR-injects this mandate *and* `35-security-auth`'s "config via env vars only (`os.getenv("KEY", "default")`)" into every finder prompt on every review, so a finder reading both literally has two rules it cannot both satisfy, and files a false positive on whichever it applies. The carve-out: `BaseSettings` governs a SERVICE's config surface (a `Settings` object, DB/Redis DSNs, secrets). A **vendored fabrik-lib module** has no settings object by design — it reads its own knobs with bare `os.getenv("KEY", "default")`, which is `35-security-auth`'s mandate being satisfied, not this … (wrapped further — read the pack)
-- Never blindly trust `--autogenerate`. Always review `upgrade()` and `downgrade()` for unintended column drops, rename misinterpretations, and ENUM alterations before committing.
-- > **Older pythons only** (services pinned below stdlib-uuid7 — which today includes SCAFFOLDED services: the scaffold still emits an older interpreter and ships `uuid-utils`; alignment tracked in the backlog): import `uuid7` from `uuid_utils.compat`, never `uuid_utils.uuid7()` directly — the latter returns `uuid_utils.UUID`, which asyncpg rejects (not a stdlib `uuid.UUID`). **DB-side:** newer PostgreSQL majors ship native `uuidv7()` (probe: `SELECT uuidv7()`); prefer `DEFAULT uuidv7()` at schema level where it exists. `postgres-main` currently runs major <!--v:postgres_major-->16<!--/v-->, which predates it — generate app-side on the fleet.
-- Foreign keys must declare `ON DELETE` behaviour explicitly — `CASCADE` if children cannot exist without the parent, `RESTRICT` to protect audit trails. Never rely on the implicit default.
-- This section owns the **canonical** engine, session, and `get_db`. `10-python.md` imports from here — never redefines its own.
-- Database `AsyncSession` must be scoped to the route handler via `Depends()`. Never open sessions or transactions in global middleware — this holds connections during serialisation and I/O, exhausting the pool.
-**BANNED as a server-side backing service** (dev, test, and prod alike):
-**⚠️ SCOPE — this ban is about BACKING SERVICES, not client-local storage.** It does **NOT** apply to:
-- **`desktop-app`** — SQLite is the **mandated** engine there (`desktop-app/72-desktop.md` § Local Persistence: `better-sqlite3` + SQLCipher; *"Production builds MUST encrypt the local SQLite file"*).
-**12-Factor IV (Backing Services) — generalised:** swapping ANY attached backing service (DB, cache, object storage) is a **config change, never a code change**. The handle lives in `DATABASE_URL` / `REDIS_URL` / storage env — the code *reads* it, the code does not *decide* it. Never `if ENV == "prod":` branching to pick a host. (See § PostgreSQL Host Selection, which already mandates this for the DB.)
-- [ ] All primary keys use UUIDv7 — stdlib `uuid.uuid7` on current Python (older pythons: `uuid_utils.compat.uuid7`, never direct `uuid_utils.uuid7()`); no `uuid4()`.
-
-### core/30-ops.md
-- the pinned release leaves full security support, never per-pack.
-- All services deploy via `fabrik apply` (SSH + Docker Compose) on the `fabrik` network. Traefik routes external traffic — services do NOT bind host ports.
-- **No `ports:` section.** All external traffic routes through Traefik. Never bind host ports. See Docker Port Security below. **12‑Factor VII (Port binding):** "the app is self‑contained and exports HTTP by binding to a port; it does not rely on runtime injection of a webserver" — which is exactly WHY no host `ports:`.
-- **`container_name: <name>` is mandatory.** Same `_validate_compose()` gate refuses any service without it. Stable names are required so Gatus endpoints, inter-service URLs, and `docker exec`/`docker inspect` keys don't drift per redeploy. Use the bare service name (`browserless`, `gotenberg`, `meilisearch`, `glitchtip-web`, `site-provisioner`, etc.) — never UUID-suffixed names.
-- gets one (ruling D-052) — see `core/60-watchdog.md`. Do not author a `watchdog: { enabled: false }` opt-out; if a project genuinely cannot host the sidecar, that is a ruling to obtain, not a default to flip.
-- path before the flag goes in the spec, and assert target health (`/api/v1/targets` → `up`), never a bare `curl` of a path you assumed.
-- remove it` on the hub) names a plan that protects nothing. Never add a service-named plan.
-- health-enabled service can NEVER pass `up -d --wait` on a fresh database, and the deploy hangs to timeout.  An init the deploy cannot perform itself is a runbook step the plan MUST own.
-- `fabrik redeploy <app>` SSHes to the VPS and runs `git pull` + `docker compose up -d --wait` against the **GitHub remote**, NOT the local `/opt/<app>` clone. Skipping `git push` redeploys the previous remote commit — the VPS never sees local changes.
-**Mandate:** build → release → run are strictly separated. Releases are IMMUTABLE; the git SHA is the release ID. NEVER hot‑patch a running container (no `docker exec` to edit code/config in place, no in‑place code mutation on the VPS). Any change = a new build + a new release via `fabrik apply` / `fabrik redeploy`.
-- Runtime database migrations that modify the app container (migrations MUST be run as separate deploy‑time steps)
-**Place a service next to its data.** A spoke-hosted service reaches `postgres-main`/`redis-main` over the WireGuard mesh, and that hop is cross-Atlantic (Coventry ↔ LA) on EVERY query — a per-request chatty service pays it hundreds of times per page. So a DB-chatty service targets vps1; a spoke earns a service whose data traffic is light, batched or cached; a service PINNED to a spoke by hardware (GPU) batches or caches its data access — the data never moves off vps1. Measure before choosing (`ping 10.99.0.1` from the spoke, and the request's query count), never assume — the correctness rule ("container DNS, never localhost") says nothing about latency.
-**Mandate:** WSL dev and the VPS run the SAME backing services (PostgreSQL + Redis), same major version. NEVER substitute a different backing service in dev (no SQLite standing in for Postgres, no in‑memory dict standing in for Redis). The same code must run unmodified in both environments.
-- WSL runs PostgreSQL + Redis at the SAME MAJOR as the VPS containers — probe the live truth, never copy a tag from a doc: `ssh vps "sudo docker inspect postgres-main redis-main --format '{{.Config.Image}}'"` (probed 2026-09-01: the plain upstream PostgreSQL Alpine image at the fleet major recorded in `CLAIMS.yaml` row `pg-fleet-major` · `redis:7-alpine` — upstream official images, outside OUR-image Alpine ban per § Banned Patterns)
-**Invariant:** Never use `ports:` in compose.yaml to expose internal services to the host. All external traffic must go through Traefik.
-**Health endpoints (`/health`, `/healthz`, `/metrics`, `/api/health`) bypass Authelia on all services** — required for Gatus and Prometheus monitoring. The bypass is **resource-based, not domain-bound** — applies on every domain routed through Authelia (hub direct + spokes via `authelia-vps1@file` middleware). Never protect these paths.
-**CRITICAL:** Use `web`/`websecure` in Traefik labels — never `http`/`https` (those entrypoints do not exist). The scaffolder emits the correct entrypoint names; if you hand-write labels, match these exactly.
-**Mandate:** migrations and admin tasks run as a ONE‑OFF process against the DEPLOYED image + env — identical environment to regular processes. NEVER run admin tasks from a laptop against prod, NEVER via `docker exec` into a live container, and **ABSOLUTELY NEVER auto-run migrations from app startup/`lifespan`** (concurrent replicas race the Alembic version table → wedged deploy).
-- `docker compose run --rm <svc> alembic upgrade head` (against deployed environment) — `<svc>` is a service that declares `.env.owner` (a `migrate` service), never the app service — the owner DSN is not in the app service's environment after the owner split (D-754), and `run` replaces the service's `command`, so a hand-off written there is bypassed
-- > **`fabrik run` and `.fabrik/hooks/post-deploy/` do NOT exist** — the real CLI answers `Error: No such command 'run'`, the hook path appears nowhere in the platform, and `_post_deploy_sync()` (`cli.py:64`) only refreshes `data/projects.yaml`; an agent following either ships a deploy where migrations never run. Do not re-add either without a `path:line` in `src/fabrik/` that executes it.
-**Processes are share-nothing:** any state shared across requests MUST go to Redis (`redis-main`) with a TTL. A project using Redis for sessions MUST declare `shape.needs_cache: true` in `specs/services/<id>.yaml`, or `fabrik apply` skips the Redis registrar and the deploy is silently broken.
-- "A twelve-factor app never relies on implicit existence of system-wide packages"
-**Mandate:** any binary the app shells out to (ffmpeg, yt-dlp, poppler, tesseract…) MUST be `apt-get install`-ed in the Dockerfile, with a `shutil.which()` startup probe that fails fast. **The pinned base image is the version boundary** — exact `=version` apt pins are banned: they break on every Debian point release as old debs leave the mirrors (the "works then mysteriously breaks" class this section exists to prevent); the codename pin + image digest give the reproducibility. Never assume `curl`/ImageMagick/ffmpeg exist in the image — they don't by default.
-
-### 12-FACTOR (all twelve axes)
-- I codebase: shared code → fabrik-lib, never two apps in one repo
-- II deps: every shelled-out binary installed + pinned in the Dockerfile
-- III config: granular env vars; no secrets in code; no grouped env sets
-- IV backing services: swappable by DSN/config change only
-- V build/release/run: releases immutable; never hot-patch a container
-- VI processes: stateless; session state → redis-main; no sticky sessions
-- VII port binding: bind in-container; Traefik routes; no host ports:
-- VIII concurrency: scale out; never daemonize or write PID files
-- IX disposability: SIGTERM returns in-flight jobs to the queue; jobs idempotent
-- X dev/prod parity: same backing services everywhere; no SQLite-for-Postgres
-- XI logs: unbuffered stdout only; the app never writes/rotates a logfile
-- XII admin: migrations/one-offs run against the deployed release, never startup
-
-## MATCHED — packs whose globs hit the changed paths
-
-### core/10-python.md  (hit: .claude/hooks/seat_guard.py, tests/test_seat_guard.py)
+### core/10-python.md
 **`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`.
 - Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
 - its own reviewed commit, never as a side effect of unrelated work.
@@ -571,10 +444,28 @@ $ python scripts/review_rubric.py --changed .claude/hooks/seat_guard.py tests/te
 **BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (`<svc>` is a service that declares `.env.owner` (a `migrate` service), never the app service — the owner DSN is not in the app service's environment after the owner split (D-754), and `run` replaces the service's `command`, so a hand-off written there is bypassed) (see `30-ops.md` § Release & Admin Processes).
 | `alembic upgrade head` in `lifespan` / startup hook | One-off admin process against the deployed release: `docker compose run --rm <svc> alembic upgrade head`, `<svc>` a service that declares `.env.owner` (a `migrate` service), never the app service (D-754) (concurrent replicas race the version table) |
 
+### 12-FACTOR (all twelve axes)
+- I codebase: shared code → fabrik-lib, never two apps in one repo
+- II deps: every shelled-out binary installed + pinned in the Dockerfile
+- III config: granular env vars; no secrets in code; no grouped env sets
+- IV backing services: swappable by DSN/config change only
+- V build/release/run: releases immutable; never hot-patch a container
+- VI processes: stateless; session state → redis-main; no sticky sessions
+- VII port binding: bind in-container; Traefik routes; no host ports:
+- VIII concurrency: scale out; never daemonize or write PID files
+- IX disposability: SIGTERM returns in-flight jobs to the queue; jobs idempotent
+- X dev/prod parity: same backing services everywhere; no SQLite-for-Postgres
+- XI logs: unbuffered stdout only; the app never writes/rotates a logfile
+- XII admin: migrations/one-offs run against the deployed release, never startup
+
+## MATCHED — packs whose globs hit the changed paths
+
 ### core/40-documentation.md  (hit: CHANGELOG.md, docs/DECISIONS.md, docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md)
 - > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
 - **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
 - The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
+| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` ONLY when one of the hub's two unattended writers made the commit — the CI-fix dispatcher's `claude -p` run in THIS repo after a GitHub Actions failure, or the hub's own rules-version cron; any other session never writes it) |
+| `Agent-Name` | the name the operator gave your window — your `CLAUDE.md` § Agent Provenance Trailers owns the rule (in a project: write it by hand; never invent one) | every AI commit |
 - Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go below a blank line, above `Co-Authored-By`. ⚠️ The trailer block must be its OWN paragraph with NO blank line inside it: git parses only the LAST paragraph, and only if it is all-trailers. A blank line before `Co-Authored-By:` demotes everything above it to prose; so does a prose line glued to the top of the block. Measured 2026-08-15: 200 of the last 200 hub commits carried `Agent-Role:` and only 10 parsed, because the old example here shipped the blank line.
 - **⚠️ Link it or it is decoration.** *Measured:* requests for files that do NOT exist came ~zero from AI bots — agents never go looking. It follows (inference, not measurement) that a file only gets read when something points at it: reference it from the docs index or README.
 - ⚠️ **In the hub (`/opt/fabrik`) `llms.txt` is GENERATED** (`scripts/generate_capability_index.py`, refreshed daily) — never hand-edit it there; change the generator. A project has no such generator; an `llms.txt` it ships, hand-written or built by its own code, is its own.
@@ -582,7 +473,7 @@ $ python scripts/review_rubric.py --changed .claude/hooks/seat_guard.py tests/te
 - **No skipped heading levels** — `##` to `###`, never `##` to `####`
 - **Fenced code blocks only** — never indented code (AI treats it inconsistently)
 
-### core/45-testing-strategy.md  (hit: tests/test_seat_guard.py)
+### core/45-testing-strategy.md  (hit: tests/test_review_session.py, tests/test_seat_guard.py)
 - **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
 - **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
 - **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED — either write it first and watch it fail, or (after the fact) neuter the fix/feature, prove the test goes red, then RESTORE and re-run to green. The neutered state is never staged, committed, or left in the tree. A green test never seen red is unverified — a suite can pass with its guard deleted.
@@ -601,27 +492,27 @@ $ python scripts/review_rubric.py --changed .claude/hooks/seat_guard.py tests/te
 | A test THIS change adds/modifies that was never seen red (no fail-first, no red-on-revert proof) | Watch it fail first, or neuter the change → prove red → restore → re-run green |
 - [ ] Destructive DB tests pass the throwaway guard before connecting — `require_throwaway(TEST_DATABASE_URL)` where the scaffold emitted `tests/conftest.py`; where it did not (an unscaffolded repo has no such helper), this anchored predicate, verbatim: `dbname = urlparse(url).path.lstrip('/'); assert dbname.lower().endswith(('_test', 'throwaway', 'scratch')), dbname` — never point them at a dev/shared DB.
 
-# promote-to-check_*: 86 injected mandate(s) look deterministically greppable — their backtick literals, one line each (the full mandates are ABOVE, not repeated: re-emitting ~20 FLOOR lines verbatim doubled the rubric and got it skimmed — web-ecommerce-factory 01M1QEY5, 2026-09-05)
-- `fabrik-lib/fastapi-user-auth` `DELETE … RETURNING` `jti` `agents-fabrik.md § Supabase`
-- `chrome-extension` `chrome.identity.launchWebAuthFlow` `https://<ext-id>.chromiumapp.org/` `chrome.storage.session`
-- `desktop-app` `safeStorage` `desktop-app/72-desktop.md`
-- `fabrik` `X-Internal-Token` `internal_auth.py` `hmac.compare_digest` `APIKeyHeader`
-- `auth.uid()` `current_tenant_id()` `NULL` `EXCEPTION WHEN OTHERS THEN RETURN NULL` `SELECT auth.uid()` `NULL`
-- `openssl rand -hex 32`
-- `algorithms=["HS256"]` `alg` `alg: none`
-- `redis-main`
-- `expo-secure-store` `80-mobile.md`
-- `localStorage` `sessionStorage`
-- `chrome.storage.session` `TRUSTED_CONTEXTS` `chrome.runtime.sendMessage` `chrome.identity.launchWebAuthFlow` `code_verifier` `crypto.subtle` `storage.session`
-- `x-middleware-subrequest` `middleware.ts` `proxy.ts` `middleware.ts`
-- `CORSMiddleware` `allow_origins`
-- `X-Frame-Options: DENY` `frame-ancestors`
-- `APIKeyHeader` `require_api_key` `SERVICE_API_KEY` `PROXY_API_KEY` `python-api` `internal_auth.py` `metrics.py` `/metrics` `SERVICE_INTERNAL_SECRET_KEY`
-- `os.getenv("KEY", "default")` `config/production.yml` `settings.production`
-- `POST /auth/passwordless/request` `AUTH_PASSWORDLESS_REQUEST_CAP` `AUTH_PASSWORDLESS_IP_REQUEST_CAP` `POST /auth/passwordless/verify`
-- `expo-secure-store`
-- `shape.is_admin_dashboard: true` `two_factor` `fabrik apply` `/health` `/metrics` `saas/60-saas-ui.md` `shape.has_bearer_api: true` `two_factor`
-- `^/api/` `/api/*` `/api/v1` `/api/*` `shape.bearer_bypass_prefix: "^/api/v1"` `fabrik apply` `^/` `orchestrator/verifier.check_api_bypass` `/api/*` `^/api/`
+# promote-to-check_*: 38 injected mandate(s) look deterministically greppable — their backtick literals, one line each (the full mandates are ABOVE, not repeated: re-emitting ~20 FLOOR lines verbatim doubled the rubric and got it skimmed — web-ecommerce-factory 01M1QEY5, 2026-09-05)
+- `uv` `pip` `pip install` `poetry` `pipenv`
+- `pyproject.toml` `uv.lock`
+- `async def` `.query().all()` `25-data-postgres.md`
+- `engine` `async_session` `get_db` `src/database.py` `25-data-postgres.md`
+- `DATABASE_URL` `postgresql+asyncpg://user:pass@host:port/db` `REDIS_URL` `DB_HOST` `DB_PORT` `DB_NAME` `DB_USER` `DB_PASSWORD` `localhost` `postgres-main`
+- `30-ops.md` `.tmp` `/tmp`
+- `except Exception` `logger.exception()` `55-observability.md`
+- `from {package}.logger import get_logger` `55-observability.md` `structlog.get_logger()` `logging.getLogger(__name__)`
+- `asyncio.create_task()` `asyncio.TaskGroup`
+- `datetime.now(UTC)` `datetime.utcnow()`
+- `.` `scripts/` `mypy --explicit-package-bases worker` `server/` `mypy src` `server/`
+- `ASYNC` `B` `S` `pyproject.toml`
+- `uvicorn` `uvicorn.run()` `-slim` `linux/amd64` `30-ops.md`
+- `uvicorn.run()`
+- `config/production.yml` `settings.production` `config/{dev,staging,prod}.yaml`
+- `logging.FileHandler` `logging.handlers.RotatingFileHandler` `TimedRotatingFileHandler` `loguru` `*.log` `55-observability.md`
+- `alembic upgrade head` `lifespan` `@app.on_event("startup")` `upgrade head` `docker compose run --rm <svc> alembic upgrade head` `<svc>` `.env.owner` `migrate`
+- `alembic upgrade head` `lifespan` `docker compose run --rm <svc> alembic upgrade head` `<svc>` `.env.owner` `migrate`
+- `docs/OPERATIONS.md` `docs/DEPLOYMENT.md`
+- `scripts/doc_reconcile.py` `docs/QUICKSTART.md` `docs/CONFIGURATION.md` `docs/data-contract.md` `docs/SERVICES.md` `docs/OPERATIONS.md`
 ```
 
 ## Evidence
@@ -850,7 +741,7 @@ $ git status --short    # only this phase's own edits; no file from the seat
 - External: https://code.claude.com/docs/en/hooks (subagent `agent_id`/`agent_type`; exact-string matchers) and
   https://code.claude.com/docs/en/tools-reference (no MultiEdit row), fetched 2026-10-15 (exa, WebFetch).
 
-### Phase B re-plan grounding (2026-10-23, worktree-intel bf2d5f4a6)
+### Phase B fence re-plan grounding (2026-10-23, worktree-intel bf2d5f4a6; superseded by D-1160, kept for the record)
 
 Three native grounders (an Opus `fabrik-researcher` on the hook's anchors and the tests that pin the old shape, a
 Sonnet `fabrik-researcher` on readers, writers and distribution, a Sonnet `fabrik-researcher` on what spec
@@ -937,22 +828,299 @@ Code — false greens (the hook allows a write, a git write or a kill outside sc
 - T1 `_links_out` re-lists the directory per glob with no cache: 50 globs over a 4,000-entry dir took 9.9 s
 ```
 
+### Phase B fence attempt (superseded by D-1160)
+
+The fence phase as written (re-planned at 3dd31656e, CONVERGED at 748fc88fb, D-1150) is in this file's history at
+5081dd043, § Phase B. Its execution record follows, kept verbatim.
+
+**BLOCKED 2026-10-23 at Validation 10 (unresolvable spec contradiction).** Built and committed: the fence
+code and graders B1-B12 (0669c6c51; 68 tests green; every neuter red on revert in the proof worktree, and 14 of the 15
+B and flipped-A rows red against the pre-Phase-B hook, B4 being the green-today row), the docs (4720a59fe). Then the
+executed proofs:
+
+- Validation 1, the receipt's false greens retargeted at the proof worktree, run for real through the fence:
+
+```text
+C1   ran wrapped rc=128 fatal: Unable to create '/opt/fabrik/.git/worktrees/fence-probe-5ce9d888/index.lock': Read
+C1b  ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
+C2   ran wrapped rc=1 rm: cannot remove 'src/fabrik/__pycache__/state.cpython-312.pyc': Read-only file system
+K1   ran wrapped rc=0 /bin/bash: line 2: kill: 99999999999999999999999999999999999999999999999999999999999999999
+K2   ran wrapped rc=1 /bin/bash: line 2: kill: (-1) - No such process
+K3   DENIED before running (seat guard (review seats run in the lead's shared tree): `xargs kill` …)
+W1   ran wrapped rc=1 touch: cannot touch 'zz_fence_w1': Read-only file system
+W2   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
+W3   ran wrapped rc=1 sys 0.02
+W4   ran wrapped rc=0 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/scripts/external_services_chain.s
+W5   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/tests/test_claude_rotate_capture.
+W5b  ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/commands/assemble_commands.py': R
+W5c  ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/templates/chrome-extension/defaul
+W6   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
+W7   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
+W8   ran wrapped rc=0 
+W9   ran wrapped rc=0 
+proof tree git status unchanged: True | porcelain: ''
+host /dev/shm/zz_fence_w8 exists: False
+host ~/zz_fence_w1 exists: False
+```
+
+  K1 and K2 run wrapped (fence mode lets the parser's crash through), and their kills reach only the sandbox's own pid
+  namespace.
+- Validation 4, BOUNDED (the whole harvest is too large to execute): 200 random commands of the eligible set, stated:
+
+```text
+harvest: 583326 Bash commands from fabrik-reviewer seats in the last 3 days, 40656 unique, 5675 eligible after excluding network/long/volatile shapes; sample 200 (seed 72)
+result: {"run": 200, "match": 198, "rc_only": 1, "mismatch": 1, "denied": 0, "erofs_home": 0}
+  mismatch: ('timeout 120 cat /home/ozgur/.local/share/code-server/User/settings.json', 0, 1)
+```
+
+  The one mismatch is the outer fence's throwaway `$HOME` (the unwrapped leg cannot see a home file), not a fence
+  refusal. The raw count double-counts files reachable from two harness roots; the unique count is the population.
+- U2 resolved: read-only git works under the read-only tree:
+
+```text
+$ git status --short | head -3; echo rc=${PIPESTATUS[0]}
+  rc=0 out='rc=0' err=''
+$ git log --oneline -1
+  rc=0 out="0e73a16a2 docs(review): W-72dfd448 plan-2 Phase A review receipt (from the plan's recorded rounds) +" err=''
+$ git diff --stat HEAD~1 | tail -1
+  rc=0 out='2 files changed, 31 insertions(+), 1 deletion(-)' err=''
+$ git show --stat HEAD | head -2
+  rc=0 out='commit 0e73a16a2626559ca6e6381760518a67af2cace1\nAuthor: t <t@fabrik.local>' err=''
+```
+
+- **Validation 10 FAILED — U1 and U6 resolved NEGATIVELY.** One live `fabrik-reviewer` seat (Haiku, Agent tool) in
+  this worktree, with the fenced hook live. Every command it ran was refused BEFORE it ran, because the harness
+  judges the REWRITTEN command: Claude Code's worktree isolation guard refuses the bwrap line ("runs bwrap with the
+  text /run/WSL … cannot be shown not to be git"), and the auto-mode classifier denies it (`[Auto-Mode Bypass]`,
+  `[Containment Escape]`). The seat's calls and results:
+
+```text
+CALL echo ok > /tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652
+CALL curl -s --max-time 5 --unix-socket /run/docker.sock http://x/_ping; echo rc=$?
+CALL ls /mnt/c/Windows/System32/cmd.exe; echo rc=$?
+  -> This session is isolated in the worktree /opt/fabrik/.claude/worktrees/intel, but this command runs bwrap with the text /run/WSL in a plain command, so what it runs cannot be shown not to be git. Refusing to run it — a worktree-isolated session's git operation
+  -> This session is isolated in the worktree /opt/fabrik/.claude/worktrees/intel, but this command runs bwrap with the text /run/WSL in a plain command, so what it runs cannot be shown not to be git. Refusing to run it — a worktree-isolated session's git operation
+  -> Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Auto-Mode Bypass]. If you have other tasks that don't depend on this action, continue working on those. IMPORTANT: You *may* attempt to accomplish this action using other t
+CALL echo ok > /tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652
+CALL curl -s --max-time 5 --unix-socket /run/docker.sock http://x/_ping; echo rc=$?
+CALL ls /mnt/c/Windows/System32/cmd.exe; echo rc=$?
+CALL ls /mnt/c/Windows/System32/cmd.exe; echo rc=$?
+CALL git status --short | head -3; echo done
+  -> Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Containment Escape]. If you have other tasks that don't depend on this action, continue working on those. IMPORTANT: You *may* attempt to accomplish this action using other
+  -> The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
+```
+
+  So the spec's premise that the `updatedInput` rewrite runs (`spec:74-86`, "Validation 10 re-proves it") is false
+  for a wrapped command in this harness: a fenced seat runs nothing. This is a design question (the Tripwire class
+  of the D-1129 amendment, U1/U6), not a patch: candidates are a `permissions.allow` rule for the exact wrapper prefix
+  plus a check that the worktree guard accepts it, a wrapper the guard can read (no `/run/WSL`-style path text), or a
+  sandbox the harness owns. The Phase B code stays in history (0669c6c51, 4720a59fe) and is REVERTED at the branch tip,
+  so seats dispatched from this worktree run again and nothing fenced can reach a merge.
+
+### P2 re-plan grounding (2026-10-23, worktree-intel d0a3ece02)
+
+Three native grounding seats (an Opus `fabrik-researcher` on the CLI docs; two Sonnet `fabrik-reviewer` seats on the
+reverted refusal code and on the existing launchers and live-service briefs), merged by the orchestrator, which
+re-ran every anchor below.
+
+- The CLI docs, fetched 2026-10-23 with WebFetch (firecrawl answered "Insufficient credits", so the long pages rest
+  on WebFetch alone): https://code.claude.com/docs/en/cli-reference — `--settings` "Path to a settings JSON file or an
+  inline JSON string. Values you set here override the same keys in your `settings.json` files for this session";
+  https://code.claude.com/docs/en/hooks — "Hook entries merge across settings levels rather than replacing each
+  other"; https://code.claude.com/docs/en/sandboxing — "subagents run in the same process as the parent session and
+  use the same sandbox configuration", "a sandboxed command's `localhost` is private to that command", "`docker` is
+  incompatible with the sandbox", "Claude's file tools, MCP servers, and hooks run outside it"; whether `denyWrite`
+  overrides an added directory is NOT documented (Phase B's P1 settles it); https://code.claude.com/docs/en/headless —
+  "Non-interactive mode reads stdin"; `--permission-mode` accepts `auto` and "Overrides `defaultMode` from settings
+  files".
+- The installed CLI, the hook copies and the anchors:
+
+```text
+$ claude --version
+2.1.309 (Claude Code)
+
+$ claude --help | grep -E '^  --(permission-mode|permission-prompts|settings|output-format|max-turns) '
+  --output-format <format>              Output format (only works with --print):
+  --permission-mode <mode>              Permission mode to use for the session
+  --permission-prompts <target>         Who answers permission prompts with
+  --settings <file-or-json>             Path to a settings JSON file or a JSON
+
+$ ls -la /opt/fabrik/.claude/hooks/seat_guard.py   # the main checkout's copy
+-rw-rw-r-- 1 ozgur ozgur 24961 Oct 13 03:35 /opt/fabrik/.claude/hooks/seat_guard.py
+
+$ wc -l .claude/hooks/seat_guard.py   # this worktree, Phase A built
+1479 .claude/hooks/seat_guard.py
+
+$ git branch -r --contains dc904d604   # the last Phase A commit
+  origin/worktree-intel
+
+$ grep -n 'def decide\|def main\|def _safe_write_reason\|reason = ""' .claude/hooks/seat_guard.py
+1218:def _safe_write_reason(
+1392:def decide(payload: dict) -> str:
+1439:def main() -> int:
+1455:        reason = ""
+
+$ grep -n 'def test_a_scan_that_raises\|def test_a9_\|def test_fail_open' tests/test_seat_guard.py
+134:def test_fail_open() -> None:
+354:def test_a_scan_that_raises_still_rewrites(monkeypatch) -> None:
+530:def test_a9_a_crash_in_the_write_rule_fails_open_and_keeps_the_git_rule(monkeypatch) -> None:
+
+$ git show 0669c6c51:.claude/hooks/seat_guard.py | sed -n '1679,1704p'
+# the constructs the parser does not model; in FALLBACK mode a seat command holding one is refused
+# (spec:140-145)
+_UNMODELLED = (
+    (re.compile(r"(?:^|[;&|(\s])(?:ba|z|da|k)?sh\b[^\n;&|]*<<(?!<)"), "a heredoc to a shell"),
+    (re.compile(r"\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b"), "a pipe into a shell"),
+    (re.compile(r"(?:^|[;&|(\s])(?:eval|source)\b"), "`eval`/`source`"),
+    (re.compile(r"(?:^|[;&|(\s])\.\s+\S"), "`.` (source)"),
+    (re.compile(r"\$'"), "`$'…'`"),
+    (re.compile(r"\(\(|\[\["), "`((`/`[[`"),
+    (
+        re.compile(
+            r"(?:^|[;&|(\s])(?:command\s+-p|time\s+-p|ionice|stdbuf|flock|busybox|exec\s+-a)\b"
+        ),
+        "an unknown wrapper",
+    ),
+    (re.compile(r"(?:&&|\|\||\bthen|\belse|\bdo)\s+cd\b"), "a conditional `cd`"),
+    (re.compile(r"(?:^|[;&|(\s])cd\s+[^\n;&|]*\$\("), "a `$(…)` in a cd position"),
+    (re.compile(r">>?\|?\s*[^\s;&|]*\$\("), "a `$(…)` in a write position"),
+)
+
+
+def _unmodelled(command: str) -> str:
+    for rx, what in _UNMODELLED:
+        if rx.search(command):
+            return what
+    return ""
+
+$ grep -nEi 'localhost|127\.0\.0\.1|docker' commands/_fragments/review-probe-catalogue.md
+83:  other than its own (TypeScript read by Python, SQL, a Dockerfile), with no real parser of that language at hand,
+105:  defects split between a hook and its generator; a changed compose overlay read through its merged render (`docker
+308:  `localhost` fails password auth), the variable and the form named in the brief, and where only a password form
+```
+
+- Before new scripts (CLAUDE.md § Pointers): no script launches a reviewer session; the headless launchers are
+  `scripts/cloud_dispatch.py:407` (stdin prompt, scratch cwd), `scripts/rivals_run.py:515-540` (argument prompt, the
+  two headless env flags), `scripts/ci_fix_dispatcher.py:234` (a tool-using worker, exit 124 on timeout) and
+  `scripts/sysadmin/claude_broker.py:229-235` (the prompt after `--`). None is a general launcher the reviewer session
+  could call, so `scripts/review_session.py` is new and borrows `cloud_dispatch.py`'s shape.
+- The briefs that need a live service, census over the four review-family sources and `review-probe-catalogue.md`
+  (16 lines name `localhost`, `127.0.0.1`, `curl`, `docker` or a port; 14 are review RULES about the reviewed code, not
+  seat probes): the two seat probes are `commands/_fragments/review-probe-catalogue.md:105-106` (`docker compose … config`)
+  and `:306-309` (a database connect over TCP `localhost` or a unix socket).
+
+### The refusal table's fire rate (2026-10-23)
+
+Run by the orchestrator over the `fabrik-reviewer` seats' Bash commands of the last 3 days (prototype in
+`/opt/fabrik/.tmp/runs/5ce9d888-9344-466f-b905-652ac93cdf89/fabrik-plan-after-chat-2026-10-23T18-05-44-0300/proto/`).
+The table as 0669c6c51 wrote it, matched on the raw command:
+
+```text
+seat transcripts (fabrik-reviewer, mtime <= 3 d): 1126; unique Bash commands: 37088; refused by the table: 1195 (3.2%)
+     752  `((`/`[[`
+          e.g. cd /opt/fabrik-lib/.claude/worktrees/fabrik-lib-dev2/.tmp/sb175/close; mkdir -p mut2; cp -r mut/i18n mut2/i18n; /opt/fabrik-lib/.venv/bin/python -I -B
+          e.g. printf '%s\n' 'import os, sys, logging' 'sys.path.insert(0, "/opt/fabrik-lib/.claude/worktrees/fabrik-lib-dev1/.tmp/dbpool/review-A-haiku/p5/tree/db-p
+          e.g. cat > /opt/fabrik-lib/.claude/worktrees/fabrik-lib-dev2/.tmp/sb185/d6-code/drv.py <<'EOF'\nimport sys, os, json, random, io, contextlib, importlib.uti
+     271  `.` (source)
+          e.g. cd /opt/fabrik/.claude/worktrees/infra-uncapped && /usr/bin/grep -rn --exclude-dir=.git --exclude-dir=__pycache__ -e 'hibernate' -e 'startswith("cap' 
+          e.g. S=/tmp/claude-1000/-opt-fabrik--claude-worktrees-infra/66b5e327-a366-4213-99e6-e362925e6142/scratchpad/run-fabrik-review-2026-10-22T07-36-11-0300-5135
+          e.g. cd /opt/youtube/.claude/worktrees/yt2; /usr/bin/grep -rnE "poll_ladder|poll_reconcile|reconcile_progress" --exclude-dir=.claude --exclude-dir=.venv --
+      57  `eval`/`source`
+          e.g. printf '%s\n' 'import importlib.util, json, sys, os' 'PINS="/opt/fabrik/.tmp/runs/5ce9d888-9344-466f-b905-652ac93cdf89/fabrik-review-scoped-2026-10-22
+          e.g. /opt/fabrik/.claude/worktrees/intel/.venv/bin/python -P -B /tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652ac93cdf89/s
+          e.g. printf '%s\n' '' '## 1. Actionable (with edits)' '' '### A. Q13 (1792488990.63266): rewrap bounded by a raw-line pin. TEXT-DEFECT + RECURRENCE' 'Row: 
+      51  `$'…'`
+          e.g. printf '%s\n' 'mkdir -p out/a && cp -r sh out/a/ && printf "x\n" > out/a/f' 'mkdir newdir; cd newdir; touch f' 'cd sh && for i in 1 2; do echo $i > ou
+          e.g. cd /opt/fabrik-lib/.claude/worktrees/fabrik-lib-dev1/.tmp/sb178/seat-B-sonnet/r3; wc -l secret_scan_proto3.py secret_scan_base.py; diff secret_scan_ba
+          e.g. timeout 120 /usr/bin/grep -c -v -E '\|$' /tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652ac93cdf89/scratchpad/run-fabr
+      29  a conditional `cd`
+          e.g. cd /opt/fabrik/.tmp/runs/a3816a70-3d3a-4f6c-b315-868c59fa3e0c/; S=fabrik-review-scoped-2026-10-22T02-10-28-0300/seat-sonnet; cp -r fix-pin2.base $S/o2
+          e.g. printf '%s\n' 'import httpx' 'from watchdog_sidecar import research' 'from test_research import _hermetic' '' 'def test_probe(monkeypatch, tmp_path):'
+          e.g. mkdir -p /tmp/claude-1000/-opt-fabrik-lib--claude-worktrees-fabrik-lib-dev1/610c3b1c-a5ef-4ba0-a662-f3f87399a58b/scratchpad/wfcderv/seat-B-haiku && pr
+      15  a pipe into a shell
+          e.g. /usr/bin/grep -n "_REPO_ROOT\|pgrep\|ps aux\|Transcriber_v4.4\|/opt/youtube/[A-Za-z_.0-9/]*\.\(py\|sh\)" /opt/youtube/.claude/worktrees/yt1/dashboard/
+          e.g. /usr/bin/grep -rnE "/opt/youtube[^'\"]*\.(py|yaml|yml|json|sh)['\"]|cwd=['\"]/opt/youtube|/opt/youtube/(ontologies|scripts|venv|\.venv)|'/opt/youtube'
+          e.g. /usr/bin/grep -rnE --include=*.py "['\"]/opt/youtube/[^'\"]*\.(py|sh)['\"]|cwd\s*=\s*['\"]/opt/youtube/?['\"]" /opt/youtube/.claude/worktrees/yt1 --ex
+      10  an unknown wrapper
+          e.g. timeout 120 /usr/bin/grep -n "def _update\|def _session_lock\|_LOCK_WAIT_S\|LOCK_S\b\|flock" /tmp/claude-1000/-opt-fabrik--claude-worktrees-infra-3/a2
+          e.g. /usr/bin/grep -n "_touch_stamp(\|_clear_stamp(\|stamp.unlink\|_stamp_is_battery(\|_stamp_raw_tier(\|def _rearm_wall_stamp\|def _fleet_active_wall_advi
+          e.g. /usr/bin/grep -n "^done\|^for \|^cleanup\|trap \|WIP_BACKUP_[A-Z_]*\b\|flock\|\$1\|\"\$@\"" /opt/fabrik/.claude/worktrees/infra/scripts/wip_backup.sh
+       9  a `$(…)` in a write position
+          e.g. printf '%s\n' 'import sys, json' 'sys.path.insert(0, "/tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652ac93cdf89/scratc
+          e.g. cd /tmp/claude-1000/-opt-youtube--claude-worktrees-yt3/7715b4e0-0fbf-44b7-9465-7ee21ceffb14/scratchpad/run-fabrik-review-scoped-2026-10-21T02-43-40-03
+          e.g. cd /tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/f57f3e25-3c69-4aee-b93b-cb9754686abf/scratchpad/run-fabrik-review-2026-10-22T14-13-05-0300-6d2
+       1  a heredoc to a shell
+          e.g. D=/tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652ac93cdf89/scratchpad/run-fabrik-review-2026-10-22T07-01-20-0300-9e31
+```
+
+Command-word rows anchored to a command position, every row matched on the unquoted skeleton (`fire_rate3.py`; the
+harvest is re-read, so its count moved by 21 between the runs):
+
+```text
+SKELETON+ANCHORED: refused 25 of 37109 (0.07%)
+      20  a conditional `cd`
+          e.g. printf '%s\n' 'NVIDIA_API_KEYS=key1,key2 # comma-separated: rotate per-call' > /tmp/claude-1000/-opt-youtube--claude-worktrees-yt1/a327712d-bb73-444f-99fa-fded3bd4abac/sc
+          e.g. mkdir -p /tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/f57f3e25-3c69-4aee-b93b-cb9754686abf/scratchpad/run-fabrik-review-2026-10-22T02-51-01-0300-594382/seat-Ahaik
+          e.g. mkdir -p /tmp/claude-1000/-opt-fabrik--claude-worktrees-infra/66b5e327-a366-4213-99e6-e362925e6142/scratchpad/run-fabrik-review-2026-10-22T07-36-11-0300-5135f2/seat-p1-A-
+          e.g. cd /tmp/claude-1000/-opt-youtube--claude-worktrees-yt2/b6d70caf-201f-4f84-82e3-d814593faf18/scratchpad/run-fabrik-execute-plan-2026-10-22T02-00-29-0300-2e92cd/w3-tree 2>/
+       2  `$'…'`
+          e.g. printf '%s\n' 'import importlib.util, json, sys, os' 'PINS="/opt/fabrik/.tmp/runs/5ce9d888-9344-466f-b905-652ac93cdf89/fabrik-review-scoped-2026-10-22T03-03-35-0300/pins-
+          e.g. /usr/bin/grep -c $'\xe2\x80\xa8' /opt/fabrik-lib/.claude/worktrees/fabrik-lib-dev1/.tmp/w75-full/pins1/watchdog/test_blast_radius.py
+       2  a `$(…)` in a write position
+          e.g. cd /opt/fabrik/.claude/worktrees/fleet; for f in docs/workstation/hooks-index.md docs/CONFIGURATION.md .env.example; do git show 4f0e039d7:$f > /tmp/claude-1000/-opt-fabr
+          e.g. cd /tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/f57f3e25-3c69-4aee-b93b-cb9754686abf/scratchpad/run-fabrik-review-2026-10-22T14-13-05-0300-6d24ef/seat-B-sonnet; R
+       1  `.` (source)
+          e.g. cd /opt/youtube/.claude/worktrees/yt1; set -a; . ./.env 2>/dev/null; set +a; PGPASSWORD="$DB_PASSWORD" timeout 60 psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -U
+```
+
+The anchored skeleton table on fourteen constructs and ten near-misses (`nearmiss.py`):
+
+```text
+POS DENY 'bash <<EOF\nls\nEOF' a heredoc to a shell
+POS DENY 'curl x | sh' a pipe into a shell
+POS DENY 'eval ls' `eval`/`source`
+POS DENY 'source x.sh' `eval`/`source`
+POS DENY '. ./x.sh' `.` (source)
+POS DENY "echo $'a'" `$'…'`
+POS DENY '[[ -f x ]] && ls' `((`/`[[`
+POS DENY 'if [[ -f x ]]; then ls; fi' `((`/`[[`
+POS DENY '(( i++ ))' `((`/`[[`
+POS DENY 'stdbuf -o0 ls' an unknown wrapper
+POS DENY 'flock /tmp/l ls' an unknown wrapper
+POS DENY 'true && cd /tmp; ls' a conditional `cd`
+POS DENY 'cd $(pwd)/x' a `$(…)` in a cd position
+POS DENY 'echo hi > $(mktemp)' a `$(…)` in a write position
+NEG ALLOW "grep '[[:space:]]' f" 
+NEG ALLOW 'grep -rn x . | head' 
+NEG ALLOW "printf '%s' 'eval x'" 
+NEG ALLOW 'grep flock f' 
+NEG ALLOW 'ls evaluate.py' 
+NEG ALLOW "python3 -c 'import os; [[1]]'" 
+NEG ALLOW "cat <<'EOF' > /tmp/a\neval x\n[[ y ]]\nEOF" 
+NEG ALLOW 'echo "source of truth"' 
+NEG ALLOW 'grep -c . f' 
+NEG ALLOW 'ls -la'
+```
+
 ## Self-audit
 
 - Every behaviour in `spec § Validation` maps to a row: spec 1 → A1, 2 → A2, 3 → A3/A4, 4 → A5/A6/A7, 5 → A8, 6 → A9,
   7 → A10/A11.
-- Every item in What we already agreed maps to Phase A (delta 1-5), Phase B (the fence) or Phase C (review,
+- Every item in What we already agreed maps to Phase A (delta 1-5), Phases B-C (P2, D-1160) or Phase D (review,
   CHANGELOG, merge request).
-- The amendment's Validation maps to Phase B: 1 → step 8 (executed), 2 → B2, 3 → B3, 4 → step 8 (replay), 5 → B4,
-  6 → B1, 7 → B6 (its neuter: Phase B step 2) / B7 / B10 / B12, 8 → B8, 9 → B9, 10 → step 9; the hook's
-  record-lookup copies → B11; U1, U5, U6 → step 9; U2 → step 8; U3 → B6 (fallback);
-  U4 → step 8's replay count.
-- Diff size, measured and estimated: Phase A as built added 874 hook lines and 404 test lines (header, Evidence) —
-  past `Profile: small`, recorded rather than re-planned since it is executed and reviewed; Phase B is ≈150 hook lines
-  plus the docstring (`spec:4`, an estimate) and a one-line `statusMessage`, inside the profile for the work still to
-  run; a Phase B that grows past ~400 code lines is an UPGRADE finding at its review.
-- Cross-phase names: `_fence_mode()` and `_fence_argv()` are produced in Phase B and consumed by `rewrite()`,
-  `decide()`, `main()` and the B tests only; Phase A's `_safe_write_reason` is consumed in fallback mode only.
+- Spec § Amendment 2026-10-23's Panel decision maps to the phases: item 1 (the reviewer session) → Phase B's
+  `proof_launch.py` and Phase C's `build_settings`/`session_dir` (C4, C5); item 2 (the launcher, the absolute hook, the
+  receipt under `/tmp`) → Phase B P4/P5 and Phase C (C6, C7); item 3 (the per-seat layer) → Phase C's refusals and
+  crash-denies (C1-C3); item 4 (the first proof) → Phase B P1-P8 and step 6; item 5 (supersessions) → the spec itself,
+  nothing to build. I9 → Phases B-D; I10 → Phase B step 6 and Phase C step 6.
+- Diff size, estimated: Phase C ≈60 hook lines (the table, `_skeleton`, the two crash-denies) and ≈150 launcher lines
+  in 2 code files, tests ≈200 lines in 2 files — inside `Profile: small`; a Phase C past ~400 code lines is an UPGRADE
+  finding at its review. Phase A's measured overrun is recorded above.
+- Cross-phase names: Phase B's `proof_launch.py` becomes Phase C's `scripts/review_session.py` with the argv and the
+  settings unchanged (C4, C6 pin them); `_unmodelled()` and `_skeleton()` are produced and consumed in Phase C only;
+  Phase A's `_safe_write_reason` gains the crash-deny in Phase C.
+- The wired consumer: the review commands' dispatch sentence is kaizen's wording (`spec:403-404`), so Phase C step 6
+  sends it; until it lands, a lead running the launcher's CLI is the consumer, and Phase D step 4 does exactly that.
 - Phase A's estimate at authoring was ≈250 code lines in 1 code file (tests excluded); the build measured 874
   (above).
 - Cross-phase names: `_Cmd`, `.redirs` and `_write_reason` are produced and consumed in Phase A only.
@@ -964,13 +1132,16 @@ Code — false greens (the hook allows a write, a git write or a kill outside sc
 - **R1 — resolved.** The live tool-write payload no longer matters: the seat has no write tool (D-914).
 - **R2 — resolved.** An adopted RUN-SCRATCH folder lies in the adopting session's pad (Evidence), so `_in_scratch`'s
   other-session test never refuses it.
-- **R3 — narrowed by Phase B.** The parser's blind spots (spec § The delta) stay in FALLBACK mode only; in fence mode
-  the OS refuses them (the resolution the tripwire named, D-1129).
-- **R4 — open, closed by Phase B's proofs.** U1-U6 (`spec:279-291`): each has its named build proof (Self-audit
-  mapping); a proof that fails is a finding at Phase B's review, never a skipped row.
-- **R5 — open, accepted residuals.** localhost TCP and other sockets, the hook entry's fail-open on a missing file,
-  crash or timeout, the per-session width, and interop on an `interop: open` host or a drvfs repo (`spec:64-71`,
-  `spec:96-112`, `spec:125-126`).
+- **R3 — narrowed by P2.** The parser's blind spots (spec § The delta) stand for a seat dispatched directly by a lead;
+  inside a reviewer session the sandbox refuses the live-tree write (Phase B P1), and the refusal table closes the
+  modelled-construct class for both.
+- **R4 — open, closed by Phase B.** Whether `denyWrite` overrides the added `/opt`, whether the classifier passes the
+  launch, and whether the hook fires from `--settings` (P1, P8, P5); a MUST check that fails stops the plan BLOCKED and
+  goes back to the panel.
+- **R5 — open, accepted residuals** (`spec:405-409`): the cross-seat width inside one session; a direct Agent-tool seat
+  has the parser only; the hook entry's fail-open on a missing file, crash or timeout; private `localhost` and no
+  `docker` inside a reviewer session (Phase B records them).
+- **R6 — open, owned by kaizen.** The review commands' dispatch sentence; Phase C step 6's mail names it.
 
 ## Pass Ledger
 
