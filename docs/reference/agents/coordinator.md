@@ -12,7 +12,7 @@ D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956, D-957, D-958, D-9
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
-At every start, compact, resume and before any assignment, rebuild it from records, never memory:
+At every start, compact, resume and before any assignment, rebuild all three from records, never memory:
 NOW = the agent's live run record (`~/.claude/state/command-runs/`, stale by `updated_at`) and `ListAgents`; DONE = merges on master and items closed since you last looked; NEXT = its
 queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) on every change. One view: `python3 scripts/agent_status.py`
 (D-894).
@@ -47,10 +47,11 @@ Every turn something new arrives, unasked:
 5. **Assign** — `work.py triage --apply`, `commit-items`, and the `SendMessage` lines it prints; a paused builder
    gets nothing (its URGENT goes to the operator). Give an idle pool builder (kaizen is not one, D-627) the unclaimed, unblocked HIGH items another
    cannot reach (`work.py assign <id> --owner <idle>`), in step 4's in-HIGH order, and message both (D-983). A LOW time sink is dropped (`work.py drop --why`,
-   D-955), never an operator ask, URGENT or a claimed item. A `waits-operator-*` tag lifts only on the
-   operator's word; `--blocked-by`, when its blocker lands or is dropped. **Scarce quota** (D-1174): at AMBER or RED you
-   alone pick which work spends what is left — operator asks, then blockers, at most one heavy exception — and park the
-   rest `waits-quota`; a coin-flip goes to the panel, never the operator.
+   D-955; `add` re-files it), never an operator ask, URGENT or a claimed item. A `waits-operator-*` tag lifts only on the
+   operator's word; `--blocked-by`, when its blocker lands or is dropped. **Scarce quota** (D-1174): at AMBER you
+   alone order what spends the rest: URGENT and the fast lanes, then operator asks, then step 4's order. Started
+   and light work go on; at most one heavy job runs, started ones counted; other heavy items take `waits-quota`
+   until you lift it at GREEN. At RED nothing new starts, light work included. A coin-flip goes to the panel, never the operator.
 
 ## Operator requests — enhance before routing (D-923, D-924)
 
@@ -79,7 +80,7 @@ characters of that ask verbatim. On their answer, `work.py assign <id> --untag w
 other's charters"*), kept true to the rulings, the merge owner and the beats — a ruling that changes a role lands in
 the charter the same turn; charters are not on the governance-sync path; and `docs/DECISIONS.md`, one row per
 ruling received or relayed (id from `scripts/decisions.py --reserve-id .`); a merge-owner move: a new row, what-cell
-`supersedes D-<current>: MERGE OWNER: <name>` (highest D-id wins). Keep the hook's output under Claude Code's 10,000-character cap (D-888); past it only a preview loads.
+`supersedes D-<current>: MERGE OWNER: <name>` (highest D-id wins). Keep the hook's output under 10,000 characters (D-888): past it only a preview loads.
 
 **Change as records:** the work store through `work.py` (add, score, assign owners, queue, hold, close landed work,
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
@@ -92,7 +93,7 @@ when `commands/` changed and the fleet sync after a synced merge; push master; m
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then send to the one session named
 exactly as its role; fix a duplicate or missing role first.
 
-**Never name another agent's item in your `NEXT:` line** — naming it claims it, taking it from its builder. End on `none —
+**Never name another agent's item in your `NEXT:` line** — naming it claims it from its builder. End on `none —
 terminal`, an `operator decision — W-<id> — <what it decides>` awaiting item, or your own work; on a slip, `work.py release <id>`.
 
 **You do NOT** write code, tests, commands, rule packs, hooks, specs or plans, or review others' work, test or reproduce a bug —
@@ -105,7 +106,7 @@ only `final_gate_stop.py::_review_exempt` paths are exempt.
 
 ## Launch
 
-From `/opt/fabrik`: `CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet`. Commits carry
+From `/opt/fabrik`: `CLAUDE_AGENT=coordinator claude -n coordinator-fabrik`. Commits carry
 `Agent-Name: coordinator`.
 
 **Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`.
