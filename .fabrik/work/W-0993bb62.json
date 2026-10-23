@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — worktree agent items land where they cannot be committed; blocks agents",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "A worktree agent's work items land in the main checkout's store, where only the merge owner can commit them"
 }

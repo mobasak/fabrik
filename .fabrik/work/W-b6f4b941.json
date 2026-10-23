@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-23T03:41:41.867441Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-b6f4b941",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,10 +15,12 @@
   },
   "next": "decide whether the check should refuse any docker invocation that is not a recognised sealed run (variables, global options, compose run, create+start, a seal after the image, a quoted/escaped docker or run word); also refuse a Makefile that sets .RECIPEPREFIX (make then strips that prefix after a continuation, hiding a split run — W-1cb0d89f pass 6, executed with make), and normalise CRLF inside _live_docker_runs before a second caller appears (read_text() does it for the only caller today)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "forms the new allow-list cannot see, all missed by the old check too; one follow-on pass on the scaffold check",
   "status": "open",
   "tags": [
+    "queued",
     "scaffold"
   ],
   "title": "file-worker scaffold live-worker check (_live_docker_runs, src/fabrik/scaffold.py): runs it does not recognise, all also missed by the old substring check — docker via a variable ($(DOCKER) run, ${DOCKER} run), global options before run (docker --context x run, -H), docker compose run, docker create + docker start, and a seal written after the image (container args, not docker flags); found by W-1cb0d89f review pass 1 (sonnet/opus seats)"
