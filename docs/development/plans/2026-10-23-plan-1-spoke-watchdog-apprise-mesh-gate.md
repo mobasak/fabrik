@@ -133,14 +133,16 @@ Appetite: 120
   (`src/fabrik/orchestrator/infrastructure.py:1591`, preflight) — both production paths of `fabrik apply`.
 
 **Behavior Contract** (spec § Testing approach `:316-337`; one test each, highest risk first):
-- (1) **Given** a spoke target, **When** the sidecar env is rendered, **Then** it carries
+- (1) **Given** a watchdog spec, **When** its apprise URL is resolved for the target (the render context, and
+  `_rewrite_mesh_gated_url` for the other-host and userinfo cases), **Then** a spoke target's sidecar env carries
   `http://10.99.0.1:8202/notify/alerts`; vps1 keeps `http://apprise:8000/notify/alerts`; a URL naming another host,
   or a userinfo URL, is untouched.
-- (2) **Given** a spoke target whose preflight passes, **When** a real apply runs, **Then** it calls the driver (no
-  refusal) and `provision()` provisions the watchdog roles and analytics for vps2
-  (`record_failure`/`provision_watchdog_roles` true).
-- (3) **Given** the preflight's ssh output, exactly the parse rule probed in § Evidence Phase A (v2, 14 cases),
-  **When** the registrar reads it, **Then**: both files present (+ `gate reachable` on a spoke) → driver runs; one
+- (2) **Given** a spoke target, **When** a real apply runs, **Then** it calls the driver (no refusal) and
+  `provision()` provisions the watchdog roles and analytics for vps2 (`record_failure`/`provision_watchdog_roles`
+  true).
+- (3) **Given** the preflight's ssh call on the resolved target (its output, or the exception it raises), exactly
+  the parse rule probed in § Evidence Phase A (v2, 14 cases), **When** the registrar runs it, **Then**: both files
+  present (+ `gate reachable` on a spoke) → driver runs; one
   missing → a red row naming that file; both missing → both named; `gate unreachable` → "gate unreachable from
   <target>"; a missing file AND `gate unreachable` → both named in one row; empty, extra, duplicated or
   contradictory lines, a gate line on vps1, or no gate line on a spoke → "could not check <target>: unexpected
@@ -148,13 +150,18 @@ Appetite: 120
   records `watchdog:` in `ctx.registrar_failures` naming the target and the ssh alias hit, and never calls the
   driver; a spec-only `target_vps` (no `ctx.target_vps`) is probed on that spoke.
 - (4) **Given** an openrouter-only provider (`llm_provider_primary` and `llm_provider_fallback` both not
-  `claude-code`), **When** the watchdog registrar runs, **Then** it makes no ssh call.
+  `claude-code`), **When** the watchdog registrar runs, **Then** the login preflight makes no ssh call and the driver
+  still runs.
 - (5) **Given** a dry run, **When** the watchdog registrar runs, **Then** it makes no ssh call and logs "would check
   the Claude login files on <target>" only when the provider pair names `claude-code`.
 - (6) **Given** a spoke target, **When** `resolve_applicability` renders the `fabrik plan` text, **Then** it no
   longer names D-1153.
-- **Mocked:** `fabrik.drivers.ssh.ssh` (the preflight probe's output and exceptions) and `WatchdogDriver.provision`; the
-  registrar, the URL rewrite and the parse rule run real.
+- **Mocked:** per test. Behaviour 1: nothing (`_build_render_context` and `_rewrite_mesh_gated_url` called
+  directly). Behaviour 2: the driver row mocks `fabrik.drivers.ssh.ssh` and `WatchdogDriver.provision`; the
+  `provision()` row mocks `_provision_shared_analytics`, `_provision_postgres`, `_provision_watchdog` and
+  `post_deployment_annotation`. Behaviours 3-5: `fabrik.drivers.ssh.ssh` (its output or exception) and
+  `WatchdogDriver.provision`, with `VPS_CLAUDE_HOME` pinned by an autouse fixture. Host routing
+  (`test_spoke_dsn_mesh.py`): `_watchdog_login_preflight` and `WatchdogDriver.provision`. Behaviour 6: nothing.
 
 **Steps.**
 1. Preflight probe of the toolchain: `.venv/bin/python -c "import fabrik, pytest; print('ok')"` → `ok`.
@@ -254,20 +261,21 @@ Appetite: 60
 - Consumes: Phase A's spoke URL `http://10.99.0.1:8202/notify/alerts` (the gate's only admitted path).
 
 **Behavior Contract.**
-- (1) **Given** the edited `infra/vps1/apprise/compose.yaml` (with the external network and volume declared),
-  **When** `docker compose -f infra/vps1/apprise/compose.yaml config` renders it, **Then** it shows the gate service
+- (1) **Given** `infra/vps1/apprise/compose.yaml`, **When** `docker compose -f infra/vps1/apprise/compose.yaml
+  config` renders it (with the external network and volume declared), **Then** it shows the gate service
   with `container_name: apprise-mesh-gate`, `ports` `10.99.0.1:8202:8202`, memory 32M, the config mounted at
   `/etc/nginx/conf.d/default.conf`, and no `depends_on`.
-- (2) **Given** the gate run locally against the mirror's own config, **When** every row of the spec's probe
+- (2) **Given** the gate policy run locally against the mirror's own config, **When** every row of the spec's probe
   (`:469-483`) is sent, **Then**: `POST /notify/alerts` → 200, upstream sees `POST /notify/alerts`;
   `POST /notify/alerts?tag=all` → 200, upstream sees no query; `GET`, `HEAD`, `PUT /notify/alerts` → 403;
   `POST /notify/alerts/`, `/notify/`, `/notify`, `/NOTIFY/alerts` → 403; `POST /notify/%61lerts`,
   `/notify//alerts`, `/notify/alerts/../alerts` → 200, upstream sees `POST /notify/alerts`; `GET /get/alerts`,
   `/json/urls/alerts`, `/details`, `/metrics`, `/` → 403; `POST /add/alerts` → 403; `GET /healthz` → 200; a 900 KB
   POST → 200, a 1.1 MB POST → 413; 24 rapid POSTs → 21 × 200 then 503.
-- (3) **Given** `specs/services/spoke-canary.yaml` after step 5, **When** it loads through `load_spec`, **Then** it
-  has no `watchdog:` override (WatchdogConfig defaults).
-- **Mocked:** nothing — the upstream is a local echo stub standing in for apprise; compose, nginx and `load_spec`
+- (3) **Given** spoke-canary, **When** it loads through `load_spec`, **Then** it has no `watchdog:` override
+  (WatchdogConfig defaults).
+- **Mocked:** apprise (a local Python echo stand-in); behaviour 2's gate runs from a scratch copy with `ports:`
+  rewritten to `127.0.0.1:18202:8202` on the probe network; the nginx config, the compose render and `load_spec`
   run real.
 
 Behaviours 1 and 2 are probes of a config file, run before the edit (no gate service in the render; nothing on
