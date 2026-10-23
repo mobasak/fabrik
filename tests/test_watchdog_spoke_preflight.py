@@ -55,3 +55,56 @@ def test_a_vps1_watchdog_is_unchanged(target):
         prov._provision_watchdog("spoke-app", real, dry_run=False)
     provision.assert_called_once()
     assert not real.registrar_failures
+
+
+def test_a_spoke_named_only_in_the_spec_is_refused_too():
+    """The driver resolves ctx.target_vps, else the spec's; the registrar resolves the same way."""
+    prov = InfrastructureProvisioner(deployer=MagicMock())
+    ctx = _ctx(None, dry_run=False)
+    ctx.spec = {**ctx.spec, "target_vps": "vps2"}
+    with patch("fabrik.drivers.watchdog.WatchdogDriver.provision") as provision:
+        prov._provision_watchdog("spoke-app", ctx, dry_run=False)
+    provision.assert_not_called()
+    assert any(f.startswith("watchdog:") and "vps2" in f for f in ctx.registrar_failures)
+
+
+def test_the_spoke_refusal_never_imports_the_driver(monkeypatch):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "fabrik.drivers.watchdog", None)
+    prov = InfrastructureProvisioner(deployer=MagicMock())
+    ctx = _ctx("vps2", dry_run=False)
+    prov._provision_watchdog("spoke-app", ctx, dry_run=False)
+    assert any(f.startswith("watchdog:") and "W-5dcafaef" in f for f in ctx.registrar_failures)
+
+
+@pytest.mark.parametrize("target, lives", [("vps2", False), ("vps1", True)])
+def test_provision_withholds_the_watchdog_roles_and_analytics_failure_on_a_spoke(target, lives):
+    prov = InfrastructureProvisioner(deployer=MagicMock())
+    ctx = _ctx(target, dry_run=False)
+    ctx.spec = {
+        **ctx.spec,
+        "name": "spoke-app",
+        "shape": {"needs_database": True},
+        "target_vps": target,
+    }
+    with (
+        patch.object(prov, "_provision_shared_analytics") as analytics,
+        patch.object(prov, "_provision_postgres") as postgres,
+        patch.object(prov, "_provision_watchdog"),
+        patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={}),
+    ):
+        prov.provision(ctx)
+    assert analytics.call_args.kwargs["record_failure"] is lives
+    assert postgres.call_args.kwargs["provision_watchdog_roles"] is lives
+
+
+def test_plan_names_the_spoke_refusal():
+    from fabrik.orchestrator.infrastructure import resolve_applicability
+
+    spoke = resolve_applicability({"id": "x", "target_vps": "vps2", "watchdog": {"enabled": True}})[
+        "watchdog"
+    ]
+    hub = resolve_applicability({"id": "x", "watchdog": {"enabled": True}})["watchdog"]
+    assert "refused on spoke vps2" in spoke[1] and "D-1153" in spoke[1]
+    assert "refused" not in hub[1]
