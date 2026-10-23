@@ -12,8 +12,9 @@ operator would — approve it, or name the changes it wants first — and opens 
    overrules the operator's stand-in. When Fable is unavailable, the second Opus seat stands in and the Panel
    line adds `fable unavailable: <reason>`.
 2. **Revise.** Apply every ACCEPTED change to the artifact — written as this command's own fix-shape rule says,
-   where it states one — and to any linked artifact it makes stale, then run
-   the ONE delta round the critique step names. spec-review and plan-review flip `Status: CONVERGED` only on its
+   where it states one — and to any linked artifact it makes stale. The revision is the loop's own fix, so
+   term-edit's round zero binds every sentence it adds or changes before the round that reviews it is pinned.
+   Then run the ONE delta round the critique step names. spec-review and plan-review flip `Status: CONVERGED` only on its
    `confirmed 0`, in the step-3 commit; flows-review and ui-design-review bump `Version:`, re-run the closing round and rewrite
    `Independently reviewed: v<N+1>`.
 3. **Record.** Mint the approval row (`python3 scripts/decisions.py --reserve-id .`), staged with the
