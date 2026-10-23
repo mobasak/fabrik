@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T14:34:55.969736Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ee19169d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task on scripts/sysadmin/rotate_session.py: the two modes with their refusals, graders on a fake pane, then run it live on the six panes (submit for infra, infra-3, kaizen; discard for fleet and infra-2 citing this item's operator words)",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "the operator asked for it by name; every rotation is blocked on stale input lines until it lands; one mode in one script, executed by the unit the classifier already permits",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Operator 2026-10-23: 'find a way to send clear command to your agents as coordinator.' The rotate-session verb + fabrik-rotate unit is the sanctioned path (the classifier refuses the coordinator's own tmux send-keys, re-confirmed 17:45), but its screen check aborts whenever the pane's input line holds text — today all six panes do (the verb's own unsent resume prompts in infra/infra-3/kaizen from before W-b92aa5cf, 'go on' in fleet, 'hibernate.py woke' in infra-2), so no rotation can run without the operator's keystrokes. Add a verb mode the unit executes: --stale-input submit|discard — 'submit' only when the line holds exactly the verb's own resume_prompt() text (recorded per request), 'discard' (C-u / Escape, verified empty) only with --operator-ok naming the operator's words; then /clear as today"
+}
