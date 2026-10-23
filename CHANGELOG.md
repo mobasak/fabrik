@@ -10,6 +10,13 @@ All notable changes to this project will be documented in this file.
 - Each table is graded with the graders' own rules: `check_review_coverage._ledger_shapes` (no refusals, every row read) and `_confirmed_quiet`, `check_convergence.QUIET_PASS` and `_closing_row_fail`.
 - Each table must also show a confirming round whose prefix the gate refuses. A floor of three tables in the three teaching files keeps the test from passing vacuously (W-cf9ec0cf).
 
+### Added — rotation offers at the lift, a nightly MB-only mail, a private request directory (2026-10-23)
+
+- `scripts/sysadmin/rotate_session.py due [--mb-only] [--mail]` lists every live agent at or past 40% of its context window or `ROTATE_ADVISE_MB` (200 MB), with its action: the exact `agents_up.sh rotate-session` command for a tmux agent, the operator's `/clear` for a window with no pane. A session it cannot read, or one past the line with no agent name, is an `unread` row. It never writes a rotation request (W-f975fee0 slice 3).
+- `hibernate.py lift` prints those rows as offers (`--trigger lift`); a fault anywhere in the offer never fails the lift. The nightly `session-archive.service` runs `due --mb-only --mail` after the pruner: one `ack: no` mail per repo mailbox, the hub's addressed to its coordinator.
+- The rotation request directory is created 0700 by `request`, `execute` and `install_rotate_unit.sh`; a symlinked one refuses in all three, and one another uid owns refuses in `request` and `execute`. `fabrik-rotate.path` drops `MakeDirectory=`, which created nothing for a glob path. `transcript_size_check._threshold_mb` now treats `ROTATE_ADVISE_MB=inf` as unset instead of raising.
+- Reinstall after the merge (main checkout): `scripts/sysadmin/install_rotate_unit.sh` and `scripts/sysadmin/install_session_archive_timer.sh`. Graded in `tests/test_rotate_session.py` and `tests/test_hibernate.py`.
+
 ### Changed — /fabrik-review-scoped queue pass: where the lead runs a command it keeps (2026-10-23)
 
 - `commands/_fragments/review-probe-catalogue.md`, the first bullet of § Before the first pin, kept any command that writes a live store, sends, commits, deploys or reaches a host with the lead, but never said where the lead runs it.
