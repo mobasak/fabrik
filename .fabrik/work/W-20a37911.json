@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "measure each of the three on master (src/fabrik/orchestrator/infrastructure.py:137-157, drivers/glitchtip create_project), size each separately",
-  "note": "",
+  "note": "split into one item each (coordinator 2026-10-23): W-0d19682e stale vps1 watchdog sidecar for pre-D-904 spoke apps; W-bb2e31e5 portless shared-host URL not rewritten on a spoke; W-d0443373 glitchtip project created then _fetch_dsn raises, never recorded",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet"
   ],

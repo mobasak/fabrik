@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:08:31.137024Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-bb2e31e5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "write the red test for a portless redis-main / postgres-main URL on vps2, then decide: rewrite the bare host too, or refuse a portless shared-host URL",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "_rewrite_shared_infra_host (src/fabrik/orchestrator/infrastructure.py:147-165) matches only host:port, so a user-supplied redis_url or pg_dsn with no port (redis://redis-main/15) stays unrewritten on a spoke and cannot resolve there"
+}

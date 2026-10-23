@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:08:30.926650Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-0d19682e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure on vps1 which spoke apps still have a <id>-watchdog container or compose.watchdog.yaml there (read-only), then size a one-time cleanup vs a driver-side removal",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "A spoke app provisioned before D-904 keeps a stale <id>-watchdog sidecar and compose.watchdog.yaml overlay on vps1: WatchdogDriver.provision (src/fabrik/drivers/watchdog.py:444) and _push_overlay (:944) act only on the app's current host, nothing removes the vps1 copy"
+}

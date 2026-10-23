@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:08:31.348870Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d0443373",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "write the red test (POST 201, _fetch_dsn raises), then record the created project before fetching the DSN so rollback finds it",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "glitchtip create_project (src/fabrik/drivers/glitchtip.py:360-372) can POST the project then raise in _fetch_dsn (:291), so the created project is never recorded or rolled back by _provision_glitchtip"
+}
