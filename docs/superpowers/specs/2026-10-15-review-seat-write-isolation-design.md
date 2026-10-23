@@ -397,7 +397,10 @@ agent; P3 leaves about 15 let-throughs and so does not meet the ask. The changes
    the review brief on stdin, and the receipt and seat reports written into the reviewer session's own scratch under
    `/tmp` (the D-836 run folder sits under `/opt`, which item 1 denies), which the lead reads back into its run folder.
    `seat_guard.py` is registered only in the repository's `.claude/settings.json`, which a scratch cwd does not load,
-   so the launcher's `--settings` carries the hook registration too (the `fabrik-reviewer` definition is user-level
+   so the launcher's `--settings` carries the hook registration too, with an absolute hook path
+   (`/opt/fabrik/.claude/hooks/seat_guard.py`), never `${CLAUDE_PROJECT_DIR}` — the repository entry
+   (`.claude/settings.json:150`) exits 0 when that path holds no hook, which from a scratch cwd it never does (the
+   `fabrik-reviewer` definition is user-level
    and loads from any cwd). The launch is itself a lead Bash call the classifier judges; the first proof runs it. Owner: intel
    builds the launcher; kaizen owns the review commands' wording that points at it.
 3. **The per-seat layer stays.** The sandbox is per SESSION, so every seat in a run can write every other seat's
