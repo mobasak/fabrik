@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "kaizen owns the loop (D-627): spec the row shape and the cursor semantics in a /fabrik-task; the reader script itself is infra code (mail infra per kaizen's charter) — hub first, then the same reader over every repo's AFCL/LESSONS via the nightly collector",
+  "next": "kaizen owns (D-627): (1) count pass first, no model — entries per file per repo (the hub's LESSONS_LEARNT is 7,661 lines; 42 repos' files via the nightly collector); (2) one-time backlog triage with CURRENT models in disjoint slices (Haiku + Sonnet finders classify each entry: already-covered by a rule/command → reject with the citation; fixed → reject with the commit/D-row; model-obsolete (an older model's failure mode, re-probed if cheap) → reject 'model-obsolete'; still-true → row; repo-local → that repo's rules), Opus/Fable adjudicates only the still-true set; (3) dedupe by subject across repos, one edit answers N lessons; only a lesson that recurred (2+ repos or 2+ times) or names a mechanism gap becomes a rule (D-331 lean, D-711 advice hold for the rest); (4) then the cursor keeps it incremental. Quota: hub first, the rest in nightly slices; heavy slices after the weekly reset (weekly at 75% on 2026-10-23). The reader script is infra code (mail infra).",
   "note": "",
   "owner": "kaizen",
   "priority": 1,
