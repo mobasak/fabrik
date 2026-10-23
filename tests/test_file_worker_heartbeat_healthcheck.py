@@ -416,6 +416,8 @@ _LIVE_RUNS = {
     "plus-prefix": "\t+docker run -d $(PROJECT_NAME)\n",
     "continued": "\t@docker run -d \\\n\t\t$(PROJECT_NAME)\n",
     "split-across-continuation": "\t@docker \\\n\t\trun -d $(PROJECT_NAME)\n",
+    # outside a recipe make joins with a space, and $(shell …) runs while make parses the file
+    "parse-time-shell": "X := $(shell docker\\\nrun -d img)\n",
 }
 
 # sealed, but not the line the scaffold writes: drift, refused like any drifted smoke line
@@ -460,9 +462,11 @@ def test_a_word_that_only_starts_with_run_is_not_a_run():
     assert scaffold._live_docker_runs("\t@echo docker run\n", sealed) == ["@echo docker run"]
 
 
-def test_continuations_join_as_make_and_the_shell_join_them():
+def test_continuations_are_read_both_ways_make_joins_them():
+    # nothing inserted (a recipe line): `docker \` + tab-tab `run` reads `docker \trun`
     assert scaffold._live_docker_runs("\t@docker \\\n\t\trun -d img\n", frozenset()) == [
-        "@docker \trun -d img"
+        "@docker \trun -d img",
+        "@docker run -d img",
     ]
     # an escaped backslash ends no line: the next line stands alone
     assert (
@@ -471,5 +475,7 @@ def test_continuations_join_as_make_and_the_shell_join_them():
         )
         == []
     )
-    # `docker\` + `run` is the one word `dockerrun` to the shell: no run
-    assert scaffold._live_docker_runs("\t@docker\\\n\trun -d img\n", frozenset()) == []
+    # `docker\` + `run`: the shell's `dockerrun`, but make's `docker run` outside a recipe — either reading refuses
+    assert scaffold._live_docker_runs("\t@docker\\\n\trun -d img\n", frozenset()) == [
+        "@docker run -d img"
+    ]
