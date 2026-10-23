@@ -34,6 +34,7 @@ Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791
 | I6 | W-9013addb, "a heredoc misread through a `"$(…)"` inside double quotes still hides later lines" | IN | § Amendment — under the fence the misread can hide no write; in the fallback the construct is unmodelled and refused |
 | I7 | The panel's cobra: "bind too much writable space (`--bind /tmp`, or the whole repo `.tmp`) so that 'writes in scratch work' passes" | IN | § Amendment — Validation 9 asserts the bind set exactly |
 | I8 | The panel's underivables: bwrap on other hosts; the harness's cwd tracking, background tasks and the worktree guard around a rewritten command | IN (U1/U6 resolved negatively, § Amendment 2026-10-23) | § Amendment — Open unknowns, each resolved by a named build proof |
+
 ## Goal
 
 (Fallback mode only since D-1129 — the fence's goal is § Amendment, The goal, restated.) A review seat cannot write outside its scratch directory by mistake — it holds no file-writing tool, and a shell command
@@ -308,9 +309,9 @@ carrying to the next call (Contract deltas).
 ## Amendment 2026-10-23 — Validation 10 failed: how a seat's isolation passes the harness (W-72dfd448)
 
 **Why this amendment exists.** Plan-2 Phase B built the fence of the D-1129 amendment (commits 0669c6c51 and
-4720a59fe; 68 tests green; every neuter red on revert) and proved it outside the harness: every live write of the
-round-1 false greens failed with EROFS, or wrote only the sandbox's private `/dev/shm` (W8), and the proof tree
-stayed unchanged (Validation 1); a bounded replay of 200 harvested seat commands matched on 198 (Validation 4); and
+4720a59fe; 68 tests green; every neuter red on revert) and proved it outside the harness: no round-1 false green
+wrote outside the sandbox — most failed with EROFS, W8 wrote only the sandbox's private `/dev/shm`, W3 and W9 ended
+with no EROFS line — and the proof tree stayed unchanged (Validation 1); a bounded replay of 200 harvested seat commands matched on 198 (Validation 4); and
 read-only git works under the read-only tree (U2). Then Validation 10 — one live `fabrik-reviewer` seat through the
 Agent tool — FAILED: the seat ran nothing. The harness judges the REWRITTEN command (U1 and U6 answered negatively),
 and it refused the bwrap line twice over:
