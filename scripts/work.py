@@ -1031,8 +1031,10 @@ def _is_paused(paused: dict[str, dict], agent: str, tree: Path, workers: dict[st
     by_tree = next((n for n, t in workers.items() if t == tree), "")
     if by_tree and by_tree in paused:
         return by_tree
-    # a worker keyed by its bound agent (W-84ad2ff1): a pause recorded under its directory name still covers it
-    return tree.name if by_tree and tree.name != by_tree and tree.name in paused else ""
+    # a worker keyed by its bound agent (W-84ad2ff1): a pause recorded under its directory name still covers it,
+    # unless another worker carries that name — then the pause is that agent's, not this tree's
+    renamed = by_tree and tree.name != by_tree and tree.name not in workers
+    return tree.name if renamed and tree.name in paused else ""
 
 
 def _caller_pause(tree: Path, session: str) -> dict | None:
@@ -5324,7 +5326,7 @@ def _claude_procs() -> list[tuple[int, Path]] | None:
             if argv and _argv_prints(argv):
                 continue  # a `claude -p` child in the tree is not a window (01M4PAJWV1)
             found.append((int(entry.name), Path(os.readlink(entry / "cwd")).resolve()))
-        except OSError:
+        except (OSError, RuntimeError):  # RuntimeError: a symlink loop under resolve() on Python 3.12
             continue
     _PROC_CACHE[root_s] = (time.monotonic(), found)
     return found
@@ -5363,18 +5365,27 @@ def _as_int(value: object) -> int | None:
     if isinstance(value, int):
         return value
     if isinstance(value, str) and value.strip().isdigit():
-        return int(value.strip())
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None  # a non-ASCII digit such as '²' passes isdigit but not int()
     return None
+
+
+_WHOAMI_MOD: list = []  # whoami_agent.py, loaded once per process (a Stop hook builds the roster several times)
 
 
 def _whoami_rows() -> list[dict]:
     """Every whoami store row, read through `WHOAMI_PY` (its own path and lock); [] when it cannot be read."""
     try:
-        spec = importlib.util.spec_from_file_location("_work_whoami_rows", WHOAMI_PY)
-        if spec is None or spec.loader is None:
-            return []
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        if not _WHOAMI_MOD:
+            spec = importlib.util.spec_from_file_location("_work_whoami_rows", WHOAMI_PY)
+            if spec is None or spec.loader is None:
+                return []
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _WHOAMI_MOD.append(mod)
+        mod = _WHOAMI_MOD[0]
         return list(mod._rows(mod.store_path()))
     except Exception:
         return []
@@ -5407,6 +5418,21 @@ def _workers(main: Path) -> dict[str, Path]:
     procs = _claude_procs() if out else None
     if not procs:
         return out
+    try:
+        return _rekey(out, procs, distributor, owner)
+    except Exception:
+        return out  # fail-open: any surprise in the binding read leaves today's directory roster
+
+
+def _rekey(
+    orig: dict[str, Path], procs: list[tuple[int, Path]], distributor: str, owner: str
+) -> dict[str, Path]:
+    """`_workers`' re-key, decided against the unchanged directory map `orig` and independent of /proc order:
+    every live tree's bound name N is read first, then each tree gets one fate — DROPPED (bound to the distributor
+    or the non-distributor feedback owner, or N's own tree holds N's window: this is a second window), KEPT under
+    its directory (unbound, ambiguous, or N is held by a tree that itself keeps its name), or RENAMED to N, which
+    replaces an idle tree of that name. Kept names are found to a fixed point, so a rename never lands on a key a
+    kept tree still holds; two trees bound to each other's names swap."""
     rows: list[dict] | None = None
 
     def _rows() -> list[dict]:
@@ -5417,8 +5443,9 @@ def _workers(main: Path) -> dict[str, Path]:
 
     names: dict[str, set[str]] = {}
     live: set[str] = set()
-    for pid, cwd in procs:
-        for key, tree in out.items():
+    for pid, cwd in procs:  # order-free: every fate below is decided on sets
+        for key in sorted(orig):
+            tree = orig[key]
             if cwd == tree or tree in cwd.parents:
                 live.add(key)
                 agent = _proc_agent(pid, _rows)
@@ -5426,19 +5453,32 @@ def _workers(main: Path) -> dict[str, Path]:
                     names.setdefault(key, set()).add(agent)
     bound = {k: next(iter(v)) for k, v in names.items() if len(v) == 1 and next(iter(v)) != k}
     claims: dict[str, list[str]] = {}
-    for key, agent in bound.items():
-        claims.setdefault(agent, []).append(key)
-    for agent, keys in claims.items():
-        if agent == distributor or (owner and agent == owner and owner != distributor):
-            for key in keys:
-                out.pop(
-                    key, None
-                )  # never a pool worker under the coordinator's or the owner's name
-        elif agent in live and agent in out:
-            for key in keys:
-                out.pop(key, None)  # the agent's second window: its own tree is the worker
-        elif len(keys) == 1:
-            out[agent] = out.pop(keys[0])  # replaces an idle tree of that name
+    for key in sorted(bound):
+        claims.setdefault(bound[key], []).append(key)
+    dropped = {
+        k
+        for k, n in bound.items()
+        if n == distributor
+        or (owner and n == owner and owner != distributor)
+        or (n in live and names.get(n, set()) <= {n})  # N's own tree holds N's (or an unnamed) window
+    }
+    kept = {k for k in live if k not in bound}  # a live tree with no single foreign name keeps its directory
+    kept |= {k for k in bound if k not in dropped and len(claims[bound[k]]) > 1}
+    while True:  # a claim on a key a kept tree holds falls back to its own directory name
+        more = {k for k in bound if k not in dropped and k not in kept and bound[k] in kept}
+        if not more:
+            break
+        kept |= more
+    renamed = {bound[k]: k for k in bound if k not in dropped and k not in kept}
+    out: dict[str, Path] = {}
+    for key in sorted(orig):
+        if key in dropped or key in renamed.values():
+            continue
+        if key in renamed:
+            continue  # an idle (or bound-away) tree yields its name to the window bound to it
+        out[key] = orig[key]
+    for agent, key in renamed.items():
+        out[agent] = orig[key]
     return out
 
 

@@ -143,3 +143,69 @@ def test_the_floor_and_triage_use_the_bound_name(tmp_path, monkeypatch):
     paused = {"infra-uncapped": {"words": "w"}}
     assert work._is_paused(paused, "infra", t["infra-uncapped"], workers) == "infra-uncapped"
     assert work._is_paused({}, "infra", t["infra-uncapped"], workers) == ""
+
+
+@pytest.mark.parametrize("order", ["forward", "reverse"])
+@pytest.mark.parametrize("case", ["swap", "chain"])
+def test_renames_are_decided_on_a_snapshot_whatever_the_proc_order(tmp_path, monkeypatch, case, order):
+    """Two trees bound to each other's names swap; a tree bound to a name whose own tree is bound away takes it —
+    and the /proc scan order never changes the answer (review C2, H1)."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("a", "b") if case == "swap" else ("dev1", "a"))
+    pids = (400, 401) if order == "forward" else (401, 400)
+    if case == "swap":
+        _claude(proc, pids[0], t["a"], agent="b")
+        _claude(proc, pids[1], t["b"], agent="a")
+        assert _roster(repo) == {"a": "b", "b": "a"}
+    else:
+        _claude(proc, pids[0], t["dev1"], agent="dev2")
+        _claude(proc, pids[1], t["a"], agent="dev1")
+        assert _roster(repo) == {"dev1": "a", "dev2": "dev1"}
+
+
+def test_a_name_a_kept_tree_holds_is_never_taken(tmp_path, monkeypatch):
+    """A tree whose windows give two names keeps its directory; a tree bound to that directory name keeps its own."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("a", "b"))
+    _claude(proc, 300, t["a"], agent="dev1")
+    _claude(proc, 301, t["a"], agent="dev2")
+    _claude(proc, 302, t["b"], agent="a")
+    assert _roster(repo) == {"a": "a", "b": "b"}
+
+
+def test_a_tree_bound_to_the_feedback_owner_leaves_the_pool(tmp_path, monkeypatch):
+    """The feedback owner (not the distributor) works its ledger, never the pool — under a borrowed tree too (H2)."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("a", "b"))
+    cfg = repo / ".fabrik" / "work" / "config.json"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    data["feedback_owner"] = "kz"
+    cfg.write_text(json.dumps(data), encoding="utf-8")
+    _claude(proc, 300, t["a"], agent="kz")
+    assert _roster(repo) == {"b": "b"}
+
+
+def test_a_bad_stored_pid_or_a_binding_error_keeps_the_directory_roster(tmp_path, monkeypatch):
+    """A whoami row whose pid is a superscript two names nothing; any error in the re-key leaves the directory map
+    (review C1: `int('²')` escaped `_workers` into the Stop hook)."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("a",))
+    _claude(proc, 500, t["a"], start=42)
+    path = Path(os.environ["AGENT_IDENTITY_FILE"])
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"session_id": "s", "name": "dev1", "pid": "²", "pid_start": 42}) + "\n")
+    assert work._as_int("²") is None
+    assert _roster(repo) == {"a": "a"}
+
+    def boom(*_a):
+        raise ValueError("unexpected")
+
+    monkeypatch.setattr(work, "_proc_agent", boom)
+    assert _roster(repo) == {"a": "a"}
+
+
+def test_a_directory_pause_never_covers_a_tree_whose_name_another_worker_carries(tmp_path, monkeypatch):
+    """Tree `fleet` holds infra's window while fleet works elsewhere: a pause of fleet is fleet's, not infra's (H3)."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("fleet", "x"))
+    _claude(proc, 600, t["fleet"], agent="infra")
+    _claude(proc, 601, t["x"], agent="fleet")
+    workers = work._workers(repo)
+    assert {k: v.name for k, v in workers.items()} == {"infra": "fleet", "fleet": "x"}
+    assert work._is_paused({"fleet": {"words": "w"}}, "infra", t["fleet"], workers) == ""
+    assert work._is_paused({"fleet": {"words": "w"}}, "fleet", t["x"], workers) == "fleet"
