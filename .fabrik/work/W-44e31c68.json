@@ -1,0 +1,26 @@
+{
+  "block_digest": "e1b5c892e5f879219c70576b19a5f056151076cc48341b0104224d29d019e3dd",
+  "blocked_by": [],
+  "created": "2026-10-23T14:20:33.702887Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-44e31c68",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "51b1cf3f614139627e1e00ebcdb282ddc75a5f9b096dc1e1ad66b09c0496c0c0"
+  ],
+  "next": "",
+  "note": "proceed (operator 2026-10-23 ~17:35, after switching this window to Opus; standing order: 'please finish all fabrik work now')",
+  "owner": "",
+  "priority": 2,
+  "question": "How far may the hub spend sarp's remaining weekly quota tonight: run all six builders to the wall, run only the two cheapest sessions and stop at 95%, or pause the hub now at 82%?",
+  "status": "done",
+  "title": "How far may the hub spend sarp's remaining weekly quota tonight: run all six builders to the wall, run only the two cheapest sessions and stop at 95%, or pause the hub now at 82%?"
+}
