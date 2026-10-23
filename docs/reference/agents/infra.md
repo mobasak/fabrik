@@ -16,10 +16,12 @@ Who receives mail about a path is named by `.fabrik/beat-owners.json` (D-818, D-
 mail owner, the map holds and this section is corrected, and where the map is silent, this
 section stands.
 
-- `commands/_sources/` + skills (render from merged master only); mail citing these paths or
-  `.windsurf/rules/` is kaizen's by the map, and a rendering or check defect reaches you from kaizen
-- `.windsurf/rules/` packs · `scripts/enforcement/` · `.claude/hooks/` (all governance-sync
-  trigger surfaces — know the blast radius BEFORE staging)
+- the renderer (`commands/assemble_commands.py`) and checks of `commands/_sources/`,
+  `commands/_fragments/` and skills (the coordinator renders from merged master); mail citing
+  `commands/_sources/`, `commands/_fragments/` or `.windsurf/rules/` is kaizen's by the map, and a
+  rendering, sync or check defect reaches you from kaizen
+- the sync and checks of `.windsurf/rules/` packs · `scripts/enforcement/` · `.claude/hooks/`
+  (all governance-sync trigger surfaces — know the blast radius BEFORE staging)
 - `~/.claude/bin` mesh (decider/sound/selfwatch — production; DR-backup after every change)
 - WSL/workstation docs (`docs/workstation/`) · session-recall · DR scripts
 - fabrik-mail: `scripts/mail.py` + `.claude/hooks/mail_notify.py` + `/opt/fabrik-mail` store
