@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - `scripts/sysadmin/rotate_session.py` sent `Enter` right behind each `send-keys -l` paste, and the paste swallowed it: every rotated builder (infra, kaizen, infra-3) sat with the resume prompt unsent in its input line, so none re-bound (W-b92aa5cf). Each text is now pasted, `C-m` goes as its own call once the INPUT LINE shows the text's start unchanged over two captures (a ticking status line or a placeholder cannot fool it), and the input line must then hold something other than that text; otherwise the row is `typed-unsent:<step>` and nothing is re-sent. The fake tmux in `tests/test_rotate_session.py` now swallows a C-m until the paste settled, as the real pane did; reviewed by `/fabrik-review-scoped`, 6 → 1 → 0.
 
+### Changed — /fabrik-review queue pass: the gate runs capped, and a brief path is checked before dispatch (2026-10-23)
+
+- `commands/_sources/fabrik-review.md` close order step 1: every `final_gate.py` run the command makes, the pre-pin runs included, goes under `/opt/fabrik/scripts/capped_run.sh --` in the background, read after it exits; an exit 137 or 124 is no gate result and is re-run with a larger `--mem` or `--timeout`; `systemctl --user show-environment` must exit 0 before the first gate run, since capped_run runs uncapped without a user manager. Two sessions were OOM-killed in the gate's semgrep leg mid-close.
+- The Leak check bullet: no seat is dispatched until `ls -d` on each brief file and pins dir the briefs name exits 0; a re-pin goes to a NEW dir, and an earlier pass's dir (or its `.base`) is never `--replace`d.
+- Answers feedback rows 1792672781.9340029, 1792734745.9997108 and 1792711351.4661329; 11 other rows rejected with reasons (W-1a8005ef).
+
 ### Added — A grader for the exit-row examples the command corpus quotes (2026-10-23)
 
 - `tests/test_exit_row_examples.py` finds every `| Pass N |` example table in `commands/_sources` and `commands/_fragments`, using `check_convergence._PASS_ROW` (numbered rows; a blank line ends a table).
