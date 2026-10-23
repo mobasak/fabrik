@@ -42,6 +42,13 @@ elif a[0] == "send-keys":
     hook = st.get("on_send")
     if hook and "-l" in a:
         exec(hook, {"text": a[-1], "os": os, "json": json})
+    st = json.load(open(os.environ["FAKE_TMUX_STATE"]))  # the hook may have rewritten the state
+    # the input line, as Claude Code shows it: a paste fills it; a separate C-m submits and empties it (W-b92aa5cf)
+    if "-l" in a and not st.get("no_echo"):
+        st["screen"] = st["screen"].replace("❯\\u00a0", "❯ " + a[-1][:60], 1)
+    elif a[-1] == "C-m" and not st.get("swallow_submit"):
+        st["screen"] = "\\n".join("❯\\u00a0" if ln.startswith("❯") else ln for ln in st["screen"].split("\\n"))
+    json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
 sys.exit(st.get("rc", 0))
 """
 
@@ -334,8 +341,10 @@ def test_execute_rotates_and_records(world, monkeypatch):
     assert (
         keys[0][:4] == ["-t", "%5", "-l", "--"]
         and keys[0][4].startswith("/clear dev1-")
-        and keys[1] == ["-t", "%5", "Enter"]
+        and keys[1]
+        == ["-t", "%5", "C-m"]  # W-b92aa5cf: its own call, after the paste settled — never "Enter"
     )
+    assert keys[3] == ["-t", "%5", "C-m"] and all(k[-1] != "Enter" for k in keys)
     assert (
         keys[2][4].startswith("You were rotated")
         and "whoami_agent.py --as dev1 --force" in keys[2][4]
@@ -857,3 +866,17 @@ def test_review_round_one_slice_a(world, monkeypatch):
     hub0, lib0 = count("fabrik"), count("fabrik-lib")
     assert rs.mail_due(rows) == 1
     assert (count("fabrik"), count("fabrik-lib")) == (hub0, lib0 + 1)
+
+
+def test_w_b92aa5cf_a_swallowed_submit_is_rowed_typed_unsent(world):
+    """W-b92aa5cf: the resume prompt sat unsent in every rotated pane. A paste that never shows, or a C-m the pane
+    swallows, is rowed `typed-unsent:<step>` and nothing is retried; a submitted one leaves the input line empty."""
+    for flag, enters in (("swallow_submit", 1), ("no_echo", 0)):
+        _set(world, **{flag: True, "screen": IDLE_SCREEN})
+        _write_request(world, trigger="ctx")
+        rs.execute()
+        row = _rows(world)[-1]
+        assert row["outcome"] == "typed-unsent:send", (flag, row)
+        assert sum(k[-1] == "C-m" for k in _keys(world)) == enters, _keys(world)
+        Path(str(world["state"]) + ".keys").unlink()
+        _set(world, **{flag: False})

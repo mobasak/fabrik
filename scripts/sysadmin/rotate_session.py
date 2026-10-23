@@ -617,10 +617,41 @@ def _focus_ok(focus: str) -> bool:
 # ── execute ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
+def _input_line(screen: str) -> str | None:
+    """The text after the last `❯` on the screen, or None when no prompt is visible."""
+    lines = [ln for ln in screen.splitlines() if ln.lstrip().startswith("❯")]
+    return lines[-1].strip().replace("❯", "", 1).strip() if lines else None  # strip() takes the U+00A0 too
+
+
+def _capture(pane: str) -> str:
+    cap = _tmux("capture-pane", "-p", "-t", pane)
+    return cap.stdout if cap.returncode == 0 else ""
+
+
 def _send(pane: str, text: str) -> None:
-    for args in (("send-keys", "-t", pane, "-l", "--", text), ("send-keys", "-t", pane, "Enter")):
-        if _tmux(*args).returncode != 0:
-            raise CheckFailedError("send", "tmux refused the keys")
+    """Type `text` and SUBMIT it (W-b92aa5cf). An Enter sent right behind a `-l` paste is swallowed by the paste, so
+    the text sat unsent in every rotated pane: paste, wait until the input line shows it and two captures agree (the
+    paste settled), send C-m as its own call, then require the input line to be empty again — the proof it submitted.
+    A text still in the input line raises `unsent`, rowed `typed-unsent`; nothing is re-sent (keys are never retried)."""
+    if _tmux("send-keys", "-t", pane, "-l", "--", text).returncode != 0:
+        raise CheckFailedError("send", "tmux refused the keys")
+    prev, deadline = None, time.time() + _wait_s(10)
+    while time.time() < deadline:
+        screen = _capture(pane)
+        if _input_line(screen) and screen == prev:
+            break
+        prev = screen
+        time.sleep(0.5)
+    else:
+        raise CheckFailedError("unsent", "the pasted text never showed in the input line")
+    if _tmux("send-keys", "-t", pane, "C-m").returncode != 0:
+        raise CheckFailedError("send", "tmux refused the Enter")
+    deadline = time.time() + _wait_s(10)
+    while time.time() < deadline:
+        if screen_ok(_capture(pane)):
+            return
+        time.sleep(0.5)
+    raise CheckFailedError("unsent", "the text is still in the input line after C-m")
 
 
 def resume_prompt(name: str) -> str:
@@ -748,7 +779,8 @@ def _one(claimed: Path) -> dict:
         row["outcome"] = "partial:rebind"
         return row
     except Exception as exc:  # noqa: BLE001 — after a key is sent the outcome is recorded, never retried
-        row["outcome"] = f"partial:{step}"
+        unsent = isinstance(exc, CheckFailedError) and exc.check == "unsent"
+        row["outcome"] = f"typed-unsent:{step}" if unsent else f"partial:{step}"
         row["reason"] = str(exc)
         return row
 
