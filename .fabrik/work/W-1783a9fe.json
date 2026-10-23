@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure: which resume steps produce persisted outputs and which read paths trigger the sensitive-file prompt (Bash vs Read tool, ~/.claude-fleet/active symlink vs real path); fix at the root (resume prompt says read persisted output with the Read tool / keep resume outputs short / a scoped allow that the harness honours), with a regression check; no blanket allow on ~/.claude",
+  "next": "measure which read path triggers the sensitive-file prompt (2 live cases 2026-10-23: intel e88bb715 and infra b72a9be9, both Bash sed/grep on their own tool-results file via the ~/.claude-fleet/active symlink; both answered once by the coordinator under D-1034). Prefer a code-side fix needing no settings change (resume steps read persisted output with the Read tool, or keep outputs short). The coordinator's attempt to add Read/Edit allow rules for ~/.claude/projects/**/tool-results/** and ~/.claude-fleet/active/projects/**/tool-results/** to the five account settings.json was refused by the auto-mode classifier [Self-Modification]; any settings rule goes to the operator as an exact proposal.",
   "note": "",
   "owner": "infra",
   "priority": 1,

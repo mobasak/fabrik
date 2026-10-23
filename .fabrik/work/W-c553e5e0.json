@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:27:31.470376Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c553e5e0",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "edit both copies byte-identically where tests/test_governance_template_split.py pins them; full /fabrik-review (governance-sync path); confirm the sync lands it in every repo",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: an operator ask, a rule update reaching every repo; effort low: one paragraph in two pinned copies, though the sync path owes the full review",
+  "status": "open",
+  "title": "Operator 2026-10-23: 'does all coordinators know how to clear now? and new ones will know in all existing and new repos?' — CLAUDE.md:504-506 and templates/governance/CLAUDE.md:517-519 (fleet-synced to every repo, emitted for new ones) still say 'agents_up.sh rotate-session <name> once infra's W-f975fee0 slice 2 lands; until then /clear via tmux send-keys'. Slice 2 landed (D-1143) and slices 3/W-ee19169d since; the text must name the live verb by absolute path (/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session <name> from the repo's main checkout), its boundary preconditions, the post-clear prompt duty (D-1034) and drop the tmux fallback"
+}
