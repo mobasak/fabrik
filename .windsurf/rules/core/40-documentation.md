@@ -240,7 +240,7 @@ Follow these when writing ANY `.md` file — they affect AI parsing quality and 
 
 - **One H1 per document** — semantic root for chunking
 - **No skipped heading levels** — `##` to `###`, never `##` to `####`
-- **Blank lines around headings, lists, code blocks** — parser boundary signals
+- **Blank lines around headings, lists, code blocks, tables** — parser boundary signals (a paragraph line flush against a table's last row renders as one more row)
 - **Fenced code blocks only** — never indented code (AI treats it inconsistently)
 - **Always specify code language** — ` ```python `, ` ```bash `, ` ```json `
 - **Lists imply constraints or steps** — don't mix narrative paragraphs inside lists

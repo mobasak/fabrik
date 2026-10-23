@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The documentation pack's blank-line rule names tables (2026-10-23)
+
+- `.windsurf/rules/core/40-documentation.md`, which is fleet-synced, asked for blank lines around headings, lists and code blocks, but not tables. Under CommonMark with tables, a paragraph line flush against a table's last row renders as one more row.
+- The pack bullet now names tables. `docs/reference/MD/markdown-cheatsheet.md` names them too, and `docs/reference/MD/ai-prompt-templates.md` § Tables gains markdownlint's MD058 (`blanks-around-tables`).
+- `tests/test_documentation_pack_blank_lines.py` runs the rendering claim with markdown-it on both sides (a paragraph line is absorbed; a heading or list item ends the table) and pins the three texts (W-696d4d7e).
+
 ### Changed — /fabrik-review-scoped queue pass: a seat's mutant run takes the mutant bullet's test set (2026-10-23)
 
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation, which every test-running seat applies whole, told seats to run tests "by exact node id". A seat that re-ran a mutant by one node id, or by a `-k` carried from an earlier brief, missed the other tests pinning the same text.
