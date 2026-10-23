@@ -689,11 +689,15 @@ def test_due_rows_and_actions(world, monkeypatch):
         _session(
             "", sid="a\ud800b", repo="/opt/\ud800"
         ),  # review B1: a lone surrogate from registry JSON
+        _session("x\ud800"),  # review C1 (r2): the agent field too, past the line and nameless
     ]
     monkeypatch.setattr(rs.hib, "live_sessions", lambda home, proc, opt="/opt": sessions)
     rows = rs.due(world["home"], world["proc"])
     by = {r["agent"]: r for r in rows}
-    assert set(by) == {"dev1", "coordinator", "", "dev2"}, rows  # the pool seat is never a row
+    assert set(by) == {"dev1", "coordinator", "", "dev2", "x\ud800"}, (
+        rows
+    )  # the pool seat is never a row
+    assert all(rs._line(r).encode("utf-8") for r in rows)  # every row prints and mails as UTF-8
     assert (by["dev1"]["state"], by["dev1"]["trigger"], by["dev1"]["ctx"]) == ("due", "ctx", 45)
     assert (
         rs.offer(by["dev1"])

@@ -879,10 +879,14 @@ def offer(row: dict) -> str:
 
 
 def _line(row: dict) -> str:
+    """One row as text — the one place the lift offer and the mail body read a row from, so it is escaped here whole
+    (any registry field may carry a lone surrogate; review C1, r2)."""
     if row["state"] == "unread":
-        return f"- {row.get('agent') or '(unnamed)'} [{row.get('sid')}] unread — {row['reason']}"
-    ctx = "—" if row.get("ctx") is None else f"{row['ctx']}%"
-    return f"- {row['agent']} ctx {ctx} · {row['mb']} MB → {offer(row)}"
+        text = f"- {row.get('agent') or '(unnamed)'} [{row.get('sid')}] unread — {row['reason']}"
+    else:
+        ctx = "—" if row.get("ctx") is None else f"{row['ctx']}%"
+        text = f"- {row['agent']} ctx {ctx} · {row['mb']} MB → {offer(row)}"
+    return _safe(text)
 
 
 def mail_due(rows: list[dict]) -> int:
