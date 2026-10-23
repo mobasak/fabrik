@@ -120,6 +120,9 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (False, "clean, pushed"))
     monkeypatch.setattr(rs.hib, "live_sessions", lambda home, proc, opt="/opt": [])
     monkeypatch.setattr(rs.time, "sleep", lambda s: None)
+    monkeypatch.setattr(
+        rs, "IDLE_S", 0
+    )  # the fixture's transcript was just written; the quiet test sets 30 itself
     return {
         "home": home,
         "proc": proc,
@@ -180,7 +183,6 @@ def test_resolve_pane_claude_and_session(world):
 @pytest.mark.parametrize(
     "spoil, check",
     [
-        ("status", "status"),
         ("fresh", "status"),
         ("midturn", "idle"),
         ("slash", "idle"),
@@ -194,10 +196,8 @@ def test_resolve_pane_claude_and_session(world):
 def test_request_aborts_on_each_check_in_order(world, monkeypatch, spoil, check):
     reg = dict(world["reg"])
     rows = world["transcript"].read_text()
-    if spoil == "status":
-        reg["status"] = "busy"
-    elif spoil == "fresh":
-        reg["statusUpdatedAt"] = time.time() * 1000
+    if spoil == "fresh":  # the transcript changed less than IDLE_S ago (it was just written)
+        monkeypatch.setattr(rs, "IDLE_S", 30)
     elif spoil == "midturn":
         world["transcript"].write_text(
             rows + json.dumps({"type": "assistant", "timestamp": "2026-10-23T00:00:02Z"}) + "\n"
@@ -552,3 +552,105 @@ def test_review_round_two_a_stale_tmp_and_a_json_directory_never_wedge(world):
         assert (
             not list(world["req"].glob("*.json")) and _rows(world)[-1]["outcome"] == "refused:claim"
         )
+
+
+def test_w477d751a_hardlinked_transcript_names_are_one(world):
+    """W-477d751a: a worktree builder's transcript has two hard-linked names (one inode), and the name count refused
+    every such rotation; a dangling name or a distinct second file still refuses."""
+    other = world["config"] / "projects" / "-opt-x--claude-worktrees-dev1"
+    other.mkdir()
+    os.link(world["transcript"], other / f"{SID}.jsonl")
+    assert rs._transcript(world["proc"], world["home"], 102, SID) == world["transcript"]
+    assert rs.request("dev1", "/opt/x", None, "manual") == 0, _rows(world)
+    (other / f"{SID}.jsonl").unlink()
+    (other / f"{SID}.jsonl").symlink_to(world["tmp"] / "nowhere")
+    with pytest.raises(rs.CheckFailedError, match="unreadable"):
+        rs._transcript(world["proc"], world["home"], 102, SID)
+    (other / f"{SID}.jsonl").unlink()
+    (other / f"{SID}.jsonl").write_text(world["transcript"].read_text())
+    with pytest.raises(rs.CheckFailedError, match="2 transcripts"):
+        rs._transcript(world["proc"], world["home"], 102, SID)
+
+
+def test_w477d751a_a_stale_busy_registry_never_blocks_a_quiet_turn_end(world, monkeypatch):
+    """W-477d751a: the registry's status did not track turns (infra-2 ended 13 turns after its record last read busy),
+    so check 0 is the transcript's quiet time: a turn end 30 s quiet passes whatever the registry says."""
+    monkeypatch.setattr(rs, "IDLE_S", 30)
+    old = time.time() - 60
+    os.utime(world["transcript"], (old, old))
+    turn_end = rs._ts(
+        "2026-10-23T00:00:01Z"
+    )  # the fixture transcript's turn end; the record is older than it
+    reg = dict(world["reg"], status="busy", statusUpdatedAt=(turn_end - 60) * 1000)
+    (world["config"] / "sessions" / "102.json").write_text(json.dumps(reg))
+    assert rs.request("dev1", "/opt/x", None, "manual") == 0, _rows(world)
+
+
+def test_w477d751a_production_quiet_time_and_executes_recheck(world, monkeypatch):
+    """The module's own IDLE_S is 30 (the fixture zeroes it); execute re-runs the quiet check; an unstat-able
+    transcript after resolution fails closed, never open."""
+    fresh = importlib.util.module_from_spec(
+        importlib.util.spec_from_file_location("rotate_session_fresh", SCRIPT)
+    )
+    fresh.__spec__.loader.exec_module(fresh)
+    assert fresh.IDLE_S == 30
+    assert rs.request("dev1", "/opt/x", None, "manual") == 0
+    monkeypatch.setattr(
+        rs, "IDLE_S", 30
+    )  # the transcript was written moments ago: execute must refuse to type
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:status" and not _keys(world), _rows(world)
+    real_stat = Path.stat
+
+    def flaky(self, *a, **k):
+        if self == world["transcript"] and flaky.calls:
+            raise PermissionError("gone")
+        flaky.calls += self == world["transcript"]
+        return real_stat(self, *a, **k)
+
+    flaky.calls = 0
+    monkeypatch.setattr(Path, "stat", flaky)
+    t = rs.resolve("dev1", "/opt/x")
+    with pytest.raises(rs.CheckFailedError, match="status"):
+        rs.run_checks(t)
+
+
+def test_w477d751a_resume_metadata_rows_and_the_registry_veto(world):
+    """A resume writes pr-link / frame-link / system informational rows after the turn end: still idle. The registry
+    vetoes only when it changed AFTER the last turn end (a turn started since); shell, idle or no time never veto."""
+    base = world["transcript"].read_text()
+    extra = [
+        {"type": "pr-link", "timestamp": "2026-10-23T00:00:05Z"},
+        {"type": "frame-link", "timestamp": "2026-10-23T00:00:06Z"},
+        {"type": "system", "subtype": "informational", "timestamp": "2026-10-23T00:00:07Z"},
+    ]
+    world["transcript"].write_text(base + "".join(json.dumps(r) + "\n" for r in extra))
+    t = rs.resolve("dev1", "/opt/x")
+    assert rs.run_checks(t) == world["transcript"]
+    turn_end = rs._ts("2026-10-23T00:00:01Z")
+    recent = time.time() - 60  # a flip one minute ago, after the turn end: a turn started since
+    for reg_over, vetoed in (
+        ({"status": "busy", "statusUpdatedAt": recent * 1000}, True),
+        (
+            {"status": "busy", "statusUpdatedAt": (turn_end + 5) * 1000},
+            False,
+        ),  # past VETO_S: expired
+        ({"status": "busy", "statusUpdatedAt": True}, False),  # a bool is no time
+        ({"status": "busy", "statusUpdatedAt": (turn_end - 5) * 1000}, False),
+        ({"status": "shell", "statusUpdatedAt": (turn_end + 5) * 1000}, False),
+        ({"status": "busy", "statusUpdatedAt": None}, False),
+    ):
+        t = dict(t, reg=dict(world["reg"], **reg_over))
+        if vetoed:
+            with pytest.raises(rs.CheckFailedError, match="after the last turn end"):
+                rs.run_checks(t)
+        else:
+            assert rs.run_checks(t) == world["transcript"], reg_over
+
+
+def test_w477d751a_an_unreadable_turn_end_time_refuses(world):
+    """A turn end whose timestamp `_ts` cannot read is refused as such, never compared as 0."""
+    for bad in ("garbage", 1792727000):
+        rows = [{"type": "system", "subtype": "turn_duration", "timestamp": bad}]
+        with pytest.raises(rs.CheckFailedError, match="no readable time"):
+            rs._idle_row_check(rows)

@@ -140,7 +140,7 @@ step, and from 40% of the context window a `ROTATE-DUE` line at 40, 50, 60, 70 a
 `rotate <agent>` (or `compact <agent> <focus>`), and the coordinator runs `agents_up.sh rotate-session <agent>
 [--compact <focus>] [--trigger ctx|mb|unrelated|compact|manual|lift]` from its repo (D-1135). That verb
 (`scripts/sysadmin/rotate_session.py request`) resolves the pane tagged `@agent <agent>`, its one `claude` process and
-that process's registry session, and aborts at the first failing check: the session idle for 30 s, the transcript
+that process's registry session, and aborts at the first failing check: the transcript unwritten for 30 s, the transcript
 ended at a turn end, no run record running, no seat in flight, the worktree clean and pushed, the pane's input line
 empty. It then writes ONE data-only request (`~/.claude/state/rotate-requests/<repo>--<agent>.json`; one at a
 time). The user unit `fabrik-rotate.path` starts `fabrik-rotate.service` (`rotate_session.py execute`), which
