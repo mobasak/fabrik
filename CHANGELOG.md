@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — a rotation's typed prompts now submit (2026-10-23)
 
-- `scripts/sysadmin/rotate_session.py` sent `Enter` right behind each `send-keys -l` paste, and the paste swallowed it: every rotated builder (infra, kaizen, infra-3) sat with the resume prompt unsent in its input line, so none re-bound (W-b92aa5cf). Each text is now pasted, `C-m` goes as its own call once the input line shows the paste and two captures agree, and the input line must read empty afterwards; a text left there is rowed `typed-unsent:<step>` and never re-sent. Graded in `tests/test_rotate_session.py`.
+- `scripts/sysadmin/rotate_session.py` sent `Enter` right behind each `send-keys -l` paste, and the paste swallowed it: every rotated builder (infra, kaizen, infra-3) sat with the resume prompt unsent in its input line, so none re-bound (W-b92aa5cf). Each text is now pasted, `C-m` goes as its own call once the INPUT LINE shows the text's start unchanged over two captures (a ticking status line or a placeholder cannot fool it), and the input line must then hold something other than that text; otherwise the row is `typed-unsent:<step>` and nothing is re-sent. The fake tmux in `tests/test_rotate_session.py` now swallows a C-m until the paste settled, as the real pane did; reviewed by `/fabrik-review-scoped`, 6 → 1 → 0.
 
 ### Added — A grader for the exit-row examples the command corpus quotes (2026-10-23)
 
