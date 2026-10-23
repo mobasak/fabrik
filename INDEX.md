@@ -1363,6 +1363,7 @@ docs/
 │       ├── 2026-10-22-w4c894cef-rotation-rule-review.md
 │       ├── 2026-10-22-wa784a444-quota-lane-sample-review.md
 │       ├── 2026-10-22-wfa004224-hub-agent-names-review.md
+│       ├── 2026-10-23-01m5jz2tg4-rotate-due-wording-review.md
 │       ├── 2026-10-23-wcce27aaf-plan-review-queue-review.md
 │       ├── 2026-10-23-wf975fee0-context-sensor-review.md
 │       ├── archived

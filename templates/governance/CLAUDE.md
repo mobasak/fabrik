@@ -502,16 +502,18 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   (`--status` and `--verify-ledger` are the morning check). Rotating the session (`/clear <agent>-<date>`, hub D-1119,
   hub D-1123) happens at an item boundary, never mid-item — the item (a work-store item, or the task you were given)
   closed, committed and pushed, no run record `running`, no seat in flight, the worktree clean — and is due there once
-  the context reaches 40% of the window (input + cache_creation + cache_read of the last usage row; a ROTATE-DUE line
-  will say so once W-f975fee0 lands) or the transcript reaches the size at which the `ROTATE:` line prints; it may
+  the context reaches 40% of the window (input + cache_creation + cache_read of the last usage row; the
+  `transcript_size_check.py` hook's `ROTATE-DUE` line says so) or the transcript reaches the size at which the
+  `ROTATE:` line prints; it may
   also happen there when the next work is unrelated to the last, and no age or item-count trigger exists. The
   `ROTATE:` line is advice the hook prints once per 100 MB step from `ROTATE_ADVISE_MB` (200 MB by default), never a
-  command typed for you, whatever its own "run … now" says: once a rotation is due, start no new item, so the item in
-  hand closing is the boundary; mid-item at 85% of the window the coordinator sends a focused `/compact` instead, once
-  W-f975fee0's sensor reports it. No agent can type a slash command into its own prompt: at the boundary a builder
+  command typed for you: once a rotation is due, start no new item, so the item in hand closing is the boundary;
+  mid-item at 85% of the window, which the hook's `COMPACT-DUE` line reports, the coordinator sends a focused
+  `/compact` instead. No agent can type a slash command into its own prompt: at the boundary a builder
   messages its coordinator `rotate <name>` and waits for the keys; the coordinator — for whom the ask is not a work
   item — rotates that pane only when it is at its prompt with an empty input line, else aborts, never queues
-  (`agents_up.sh rotate-session <name>` once infra's W-f975fee0 lands; until then `/clear <agent>-<date>` to the pane
+  (`agents_up.sh rotate-session <name>` once infra's W-f975fee0 slice 2 lands, hub D-1135; until then `/clear
+  <agent>-<date>` to the pane
   tagged `@agent <name>` with `tmux send-keys`, hub D-1034), then sends a resume prompt telling the builder to re-bind
   (below) and to read only the memory notes, `work.py next` and the run's seed, never the old transcript; a builder
   with no pane asks its coordinator the same way, and the coordinator tells the operator; a coordinator, or a
