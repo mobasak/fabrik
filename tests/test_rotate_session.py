@@ -38,6 +38,14 @@ elif a[0] == "capture-pane":
     # the input line, as Claude Code renders a paste (W-b92aa5cf): `stream` shows the head first, `pre_placeholder`
     # shows the fresh box's hint for two captures first; each capture showing the full text counts toward the settle
     st["caps"] = st.get("caps", 0) + 1
+    if st.get("drift_at") and st["caps"] >= st["drift_at"]:  # someone types in the pane meanwhile (W-ee19169d)
+        st["screen"] = st["screen"].replace("❯ go on", "❯ go on, and also", 1)
+    if st.get("empty_at") and st["caps"] >= st["empty_at"]:  # the box was cleared by hand meanwhile (r2)
+        st["screen"], st["stuck"] = st["idle"], False
+    if st.get("blank_at") and st["caps"] == st["blank_at"]:  # one redraw frame with no box drawn (W-ee19169d r1)
+        json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
+        sys.stdout.write("redrawing\\n")
+        sys.exit(0)
     full = st.get("pending")
     if full is not None:
         caps = st["caps"]
@@ -67,6 +75,15 @@ elif a[0] == "send-keys":
         st["pending"] = None
         box = "❯ Try \\"refactor this\\"" if st.get("placeholder") else "❯\\u00a0"
         st["screen"] = "\\n".join(box if ln.startswith("❯") else ln for ln in st["screen"].split("\\n"))
+    # W-ee19169d, as measured on a live Claude Code: a FAST double Escape clears a non-empty box; on an empty box it
+    # opens the Rewind menu, which one Escape closes
+    if a[-2:] == ["Escape", "Escape"]:
+        if st.get("esc_rewind") or not st.get("stuck"):
+            st["screen"], st["rewind"] = "Rewind\\nNothing to rewind to yet.\\nEsc to cancel\\n", True
+        elif not st.get("esc_noop"):
+            st["screen"], st["stuck"] = st["idle"], False
+    elif a[-1] == "Escape" and st.get("rewind"):
+        st["screen"], st["rewind"] = st["idle"], False
     if a[-1] == "C-m" and st.get("fail_cm"):
         json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
         sys.exit(1)
@@ -931,3 +948,171 @@ def test_w_b92aa5cf_review_r1_settle_on_the_input_line_and_map_only_unsent(world
         ):  # the pane actually TOOK the submit — not a later echo mistaken for one
             assert json.loads(world["state"].read_text())["pending"] is None, flags
         _set(world, **dict.fromkeys(flags, False))
+
+
+# ── W-ee19169d: --stale-input discard, and check 5 reading the whole input box ─────────────────────────────────────
+
+RULE = "────────────"
+STATUS = "  Opus · ctx 41%\n  ⏵⏵ auto mode on\n"
+
+
+def _boxed(*rows: str) -> str:
+    return f"some output\n{RULE}\n" + "\n".join(rows) + f"\n{RULE}\n{STATUS}"
+
+
+def _stuck(world, text: str = "go on", **more) -> None:
+    _set(world, screen=_boxed(f"❯ {text}"), idle=IDLE_SCREEN, stuck=True, pending=None, **more)
+
+
+def test_w_ee19169d_check_5_reads_the_whole_box(world):
+    """A second row under an empty ❯ row, or a typed row, refuses; the dim placeholder of a fresh box is empty."""
+    assert rs._box(IDLE_SCREEN) == ""
+    assert rs._box(_boxed('❯ \x1b[2mTry "how do I log an error?"\x1b[0m')) == ""
+    assert (
+        rs._box(_boxed("❯ first line of a", "  wrapped input")) == "first line of a wrapped input"
+    )
+    assert rs._box(_boxed("❯ ", "  second line here")) == "second line here"
+    assert rs._box("no prompt here\n") is None and rs._box("❯ go on\n") is None  # no framed box
+    for screen in (_boxed("❯ ", "  second line here"), _boxed("❯ go on")):
+        _set(world, screen=screen)
+        assert rs.request("dev1", "/opt/x", None, "manual") == 1
+        assert _rows(world)[-1]["outcome"] == "aborted:screen", screen
+    _set(world, screen=_boxed('❯ \x1b[2mTry "x"\x1b[0m'))
+    assert rs.request("dev1", "/opt/x", None, "manual") == 0
+
+
+def test_w_ee19169d_discard_clears_the_seen_text_then_rotates(world):
+    """The words are required both ways; the box text rides the request; the unit sends ONE fast double Escape, then
+    the normal rotation, and the row keeps the discarded text."""
+    _stuck(world)
+    for stale, words in ((True, ""), (False, "operator: drop it")):
+        assert rs.request("dev1", "/opt/x", None, "manual", stale, words) == 1
+        assert _rows(world)[-1]["outcome"] == "aborted:args"
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator 17:50: clear them") == 0
+    req = json.loads(next(world["req"].glob("*.json")).read_text())
+    assert (req["stale_text"], req["operator_ok"]) == ("go on", "operator 17:50: clear them")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "partial:queued" and row["stale_text"] == "go on", (
+        row
+    )  # no new sid here
+    keys = _keys(world)
+    esc = keys.index(["-t", "%5", "Escape", "Escape"])
+    assert esc < next(i for i, k in enumerate(keys) if "-l" in k)  # cleared BEFORE the /clear
+
+
+def test_w_ee19169d_discard_refuses_a_changed_box_or_a_rewind(world):
+    """A box that changed since the request types nothing; a Rewind menu is closed and refused; text left after the
+    double Escape is refused — and no /clear follows any of them."""
+    for case in ("changed", "typing", "rewind", "noop"):
+        Path(str(world["state"]) + ".keys").unlink(missing_ok=True)
+        _stuck(world, esc_rewind=case == "rewind", esc_noop=case == "noop", rewind=False)
+        _set(world, drift_at=0)
+        assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+        if case == "changed":
+            _set(world, screen=_boxed("❯ go on, and also"))
+        if (
+            case == "typing"
+        ):  # execute's captures: check 5, the pre-discard read, then the discard's own three
+            _set(world, caps=0, drift_at=3)
+        rs.execute()
+        row = _rows(world)[-1]
+        # a box that changed is refused at the re-check (check 5) before any key; the others at the discard itself
+        want = "refused:screen" if case == "changed" else "refused:stale-input"
+        assert row["outcome"] == want and row["stale_text"] == "go on", (case, row)
+        keys = _keys(world)
+        assert not any("-l" in k for k in keys), (case, keys)
+        if case in ("changed", "typing"):
+            assert keys == [], (case, keys)  # nothing typed into a box someone is still writing in
+        if case == "rewind":
+            assert keys[-1] == ["-t", "%5", "Escape"]
+
+
+def test_w_ee19169d_review_r1_sgr_walk_rule_above_and_the_pre_key_rechecks(world, monkeypatch):
+    """Review r1: dim ends only on 0/22/empty (a combined `0;7m` cursor ends it, `2;3m` starts it); OSC links are
+    stripped; a `❯` row needs a rule directly above; the box is read twice 2 s apart and every check re-runs right
+    before the key; a box emptied meanwhile rotates without a key; a blank frame at the decision refuses; both 1000-
+    character caps and bad operator words refuse."""
+    assert rs._box(_boxed("❯ \x1b[2mTry\x1b[0;7mT\x1b[0m typed")) == "T typed"
+    assert rs._box(_boxed('❯ \x1b[2;3mTry "x"\x1b[0m')) == ""
+    assert rs._box(_boxed("❯ \x1b[2mTry\x1b[22m real")) == "real"
+    assert rs._box(_boxed("❯ \x1b]8;;file:///x\x1b\\go on\x1b]8;;\x1b\\")) == "go on"
+    assert rs._box(_boxed("❯ a", "  ❯ quoted")) == "a ❯ quoted"
+    assert rs._box(f"❯ go on\n{RULE}\n") is None
+    sleeps: list[float] = []
+    monkeypatch.setattr(rs.time, "sleep", lambda s: sleeps.append(s))
+    # execute's captures: check 5 (1), the pre-discard read (2), the discard's two reads (3, 4), run_checks again (5)
+    for drift, want in ((4, "refused:stale-input"), (5, "refused:screen")):
+        Path(str(world["state"]) + ".keys").unlink(missing_ok=True)
+        _stuck(world, drift_at=0, rewind=False)
+        assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+        _set(world, caps=0, drift_at=drift)
+        rs.execute()
+        assert _rows(world)[-1]["outcome"] == want and _keys(world) == [], drift
+    assert 2.0 in sleeps
+    # the box was emptied before execute: an ordinary rotation, no Escape; a blank frame at the decision: refused
+    for case in ("emptied", "blank"):
+        Path(str(world["state"]) + ".keys").unlink(missing_ok=True)
+        _stuck(world, drift_at=0, blank_at=0)
+        assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+        if case == "emptied":
+            _set(world, screen=IDLE_SCREEN, stuck=False)
+        else:
+            _set(world, caps=0, blank_at=2)
+        rs.execute()
+        row, keys = _rows(world)[-1], _keys(world)
+        assert ["-t", "%5", "Escape", "Escape"] not in keys, (case, keys)
+        assert row["outcome"] == ("partial:queued" if case == "emptied" else "refused:screen"), (
+            case,
+            row,
+        )
+    _set(world, blank_at=0)
+    _stuck(world, text="x" * 1001)
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 1
+    assert _rows(world)[-1]["outcome"] == "aborted:stale-input"
+    _write_request(world)
+    base = json.loads((world["req"] / "x--dev1.json").read_text())
+    for bad in (
+        {"stale_text": "x" * 1001, "operator_ok": "op"},
+        {"stale_text": "go on", "operator_ok": "a\nb"},
+    ):
+        with pytest.raises(rs.CheckFailedError, match="stale_text"):
+            rs._validate(dict(base, **bad))
+
+
+def test_w_ee19169d_request_fields_are_optional(world):
+    """An older verb's request (no stale fields) is valid; half of the pair, or an empty text, is refused."""
+    _write_request(world)
+    base = json.loads((world["req"] / "x--dev1.json").read_text())
+    assert rs._validate(dict(base)) is not None
+    assert (
+        rs._validate(dict(base, stale_text="go on", operator_ok="op: ok"))["stale_text"] == "go on"
+    )
+    for bad in (
+        {"stale_text": "go on"},
+        {"stale_text": "", "operator_ok": "op"},
+        {"operator_ok": "op"},
+    ):
+        with pytest.raises(rs.CheckFailedError, match="malformed|stale_text"):
+            rs._validate(dict(base, **bad))
+
+
+def test_w_ee19169d_review_r2_exact_box_at_the_key_and_rewind_only_without_a_box(world):
+    """Review r2: a box emptied after the pre-key re-check (check 5 passes an empty box) is refused with NO key — the
+    pair on an empty box opens Rewind; and the word "Rewind" in transcript text above a box that kept its text is not
+    the Rewind menu: refused for the text left, with no extra Escape."""
+    # execute's captures: check 5, the decision read, the discard's two reads, run_checks (5), the exact re-read (6)
+    _stuck(world, drift_at=0, blank_at=0, empty_at=0, rewind=False)
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+    _set(world, caps=0, empty_at=5)
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:stale-input" and _keys(world) == [], _keys(world)
+    Path(str(world["state"]) + ".keys").unlink(missing_ok=True)
+    _set(world, empty_at=0)
+    _stuck(world, esc_noop=True, rewind=False)
+    _set(world, screen="see the Rewind docs\n" + json.loads(world["state"].read_text())["screen"])
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "refused:stale-input" and "did not read empty" in row["reason"], row
+    assert _keys(world) == [["-t", "%5", "Escape", "Escape"]], _keys(world)

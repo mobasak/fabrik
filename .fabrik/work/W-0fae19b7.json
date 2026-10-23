@@ -15,7 +15,7 @@
   },
   "next": "infra: when the UserPromptSubmit ROTATE-DUE line fired this session and the footer reads 'awaiting the rotation', the work-waiting cause stands down (the contract: once a rotation is due, start no new item)",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-2",
   "priority": 3,
   "score_reason": "the Stop hook blocks a builder on the footer the rotation rule prescribes; one cause check plus its test",
   "status": "open",

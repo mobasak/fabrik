@@ -503,3 +503,32 @@ def test_a_terminal_resting_on_another_partys_act_names_who_performs_it() -> Non
     ) in section
     src = re.sub(r"<!--.*?-->", "", SRC.read_text(), flags=re.S)
     assert src.index("{{include:run-record}}") < src.index("## SIZE")
+
+
+def test_measure_runs_each_probe_under_an_interpreter_shown_to_import_it() -> None:
+    """Rows 1792766698, 1792734746: an oracle probe imported the system python's markdown_it, which lacks linkify,
+    and had to be re-pointed at the venv; most project venvs lack linkify too, so the import is shown, not assumed."""
+    assert (
+        "an independent parser for a parsed format (every probe run under an interpreter shown to import its"
+        " libraries and each extra it enables: a system `python3` may lack one)"
+    ) in _section("## Phase 1", "## Phase 2")
+
+
+def test_review_amends_each_path_a_fix_touches_at_phase_4_after_the_nested_review() -> None:
+    """Row 1792765470 (a recurrence of held design-amend-needs-top-record, stated in phase 2): --design-amend was
+    refused while the nested review was the top record, and phase 4 did not say when the amend runs. `step` sets the
+    record's phase to the one it names (command_run.py), so the amend names phase 4."""
+    assert (
+        "noted; each path a review fix touches that APPROACH/MIRROR does not name has phase 2's plan-lock check run on"
+        " it before the fix edits it, and gets *(v2)* `step --phase 4 --design-amend <path>` once the nested review has"
+        " closed."
+    ) in _section("## Phase 4", "## Phase 5")
+
+
+def test_mirror_searches_other_checkouts_tests_for_a_changed_path() -> None:
+    """Row 1792731898: MIRROR read the consumer's script but not its tests, and both critiques spent their top
+    concern on a hard-failing live-hub test one directory over; a name-only `find /opt` finds copies, not citers."""
+    assert (
+        "docs), every other `/opt` main checkout's tests and CI files citing a changed path, and every vendored copy"
+        " outside"
+    ) in _section("## Phase 2", "## Phase 3")

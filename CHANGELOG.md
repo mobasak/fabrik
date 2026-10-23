@@ -4,9 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
+
+- MEASURE runs every probe under an interpreter shown to import its libraries and each extra it enables, since a system `python3` may lack one (rows 1792766698, 1792734746: the system markdown_it lacked linkify; 14 of the 15 project venvs that carry markdown_it lack linkify too).
+- MIRROR's search takes every other `/opt` main checkout's tests and CI files citing a changed path, beside the vendored copies found by name (row 1792731898).
+- Phase 4: each path a review fix touches that APPROACH/MIRROR does not name has phase 2's plan-lock check run on it before the fix edits it, and gets *(v2)* `step --phase 4 --design-amend <path>` once the nested review has closed (row 1792765470). Phase 2's remedy names the current phase, because `step` sets the record's phase to the one it names: a `--phase 2` amend at phase 4 or 5 moved the run back.
+- `tests/test_fabrik_task_source.py` SIZE_CAP 26506 -> 26951 (D-1162); three graders in `tests/test_fabrik_task_queue_pass.py`. Twelve other queued rows were rejected with reasons; two needing `command_run.py` code went to infra (mail 01M5MPTMJH), and so did `task_lane.py:741`'s refusal, which still prints the `--phase 2` remedy (mail 01M5MR4C8W).
+
+### Changed — /fabrik-spec: a design that changes what existing readers read censuses them per reader kind before Phase 3 (2026-10-23)
+
+- The 1a local-claims bullet requires an executed reader census before Phase 3: a symbol, value or build script by call sites (callers followed transitively) plus name, basename and path greps; a table by its SQL statements, views, ORM models and migrations under bare and schema-qualified names; a matcher's corpus under the old pattern and the new; and a find-then-scan across repos for any subject another repo can read. Extends `/fabrik-plan-after-chat` Phase 1's reader census; W-e5769015.
+
+### Changed — /fabrik-plan-after-chat: the ~300-line shape trigger excludes only the pasted rubric output (2026-10-23)
+
+- The monolith's ~300-line trigger counts the plan's own text, pasted code and diffs included; only the `review_rubric.py` output this command's Phase 4 pastes is not counted. Answers two feedback rows that asked it verbatim; W-0543de93.
+
+### Changed — Beat routing: a command's or rule's wording is kaizen's, its rendering and checks infra's (2026-10-23)
+
+- `CLAUDE.md` (the FEEDBACK IS RECIPROCAL beat list) and `commands/_fragments/close-feedback.md` (the Route-by-BEAT table every command renders) now match `.fabrik/beat-owners.json` (D-815, D-627): infra keeps the rendering, sync and checks of `commands/` and `.windsurf/rules/`; kaizen owns their wording.
+- `/fabrik-upstream`'s PROJECT-mode proposal mails the file's owner from that table instead of always infra; a synced file with no row, such as the project `CLAUDE.md`, goes to infra.
+- W-9be0b1c1.
+
+### Added — the coordinator can clear a builder's stuck input box before a rotation (2026-10-23)
+
+- `rotate_session.py request --stale-input discard --operator-ok "<words>"` (also via `agents_up.sh rotate-session`): text left unsent in a builder's input box blocked every rotation, and the coordinator may not type into a pane (W-ee19169d, the operator: "find a way to send clear command to your agents as coordinator"). The request records the box's text (its rows joined, whitespace collapsed). The unit clears it only while the box still reads exactly that text and the session is idle, with one fast double Escape (measured on a live Claude Code: it clears a non-empty box; C-u deletes only the current row). The Rewind menu a double Escape opens on an empty box is closed and refused. The text and the operator's words are logged on the row.
+- Check 5 now reads the whole input box, so a second line or a wrapped row is seen and a fresh box's dim placeholder counts as empty. The two new request fields are optional and written only for a discard, so an older unit still reads an ordinary request from the new verb (a discard request needs the new unit). Graded in `tests/test_rotate_session.py`.
+
 ### Fixed — a rotation's typed prompts now submit (2026-10-23)
 
 - `scripts/sysadmin/rotate_session.py` sent `Enter` right behind each `send-keys -l` paste, and the paste swallowed it: every rotated builder (infra, kaizen, infra-3) sat with the resume prompt unsent in its input line, so none re-bound (W-b92aa5cf). Each text is now pasted, `C-m` goes as its own call once the INPUT LINE shows the text's start unchanged over two captures (a ticking status line or a placeholder cannot fool it), and the input line must then hold something other than that text; otherwise the row is `typed-unsent:<step>` and nothing is re-sent. The fake tmux in `tests/test_rotate_session.py` now swallows a C-m until the paste settled, as the real pane did; reviewed by `/fabrik-review-scoped`, 6 → 1 → 0.
+
+### Changed — /fabrik-review queue pass: the gate runs capped, and a brief path is checked before dispatch (2026-10-23)
+
+- `commands/_sources/fabrik-review.md` close order step 1: every `final_gate.py` run the command makes, the pre-pin runs included, goes under `/opt/fabrik/scripts/capped_run.sh --` in the background, read after it exits; an exit 137 or 124 is no gate result and is re-run with a larger `--mem` or `--timeout`; `systemctl --user show-environment` must exit 0 before the first gate run, since capped_run runs uncapped without a user manager. Two sessions were OOM-killed in the gate's semgrep leg mid-close.
+- The Leak check bullet: no seat is dispatched until `ls -d` on each brief file and pins dir the briefs name exits 0; a re-pin goes to a NEW dir, and an earlier pass's dir (or its `.base`) is never `--replace`d.
+- Answers feedback rows 1792672781.9340029, 1792734745.9997108 and 1792711351.4661329; 11 other rows rejected with reasons (W-1a8005ef).
 
 ### Added — A grader for the exit-row examples the command corpus quotes (2026-10-23)
 
@@ -24,6 +56,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — a spoke-targeted watchdog is refused instead of shipped unable to alert (2026-10-23)
 
 A spoke (`target_vps` other than vps1) got a watchdog sidecar whose alert URL is vps1's `apprise` container, which a spoke cannot reach (no mesh port; the Traefik route is 2FA-gated), and no legal spec can point it elsewhere. `InfrastructureProvisioner._provision_watchdog` now records a non-fatal refusal for a spoke target on real and dry runs alike — the app stays up, its watchdog is withheld, `fabrik apply` exits 2 — naming the remedy (`watchdog.enabled: false`, or W-5dcafaef, which mesh-publishes apprise and adds a spoke login preflight); nothing only it needs is provisioned (no `<db>_wd_ro/_wd_rw` roles in the app's .env, no analytics failure), and `fabrik plan` names the refusal for a spec that declares a spoke `target_vps` (plan has no `--target-vps`). Supersedes D-904's spoke branch. `spoke-canary`'s apply is red until one of those. W-37dda1e1, D-1153.
+
+### Fixed — check_governance_tables reads tables with one GFM walk for both rules; the template's Stage table no longer swallows the FIRST paragraph (2026-10-23)
+`scripts/enforcement/check_governance_tables.py` (W-76c49aa8, D-1159; the follow-on D-1133 recorded): its two markdown walks kept two notions of "inside a table" and disagreed with GFM — a "``` info" line read as a fence closer, a header GFM rejects still read as a table by the span rule (three findings for one by the width rule), a `|…|` run glued under a list item or blockquote read as a table GFM renders as lazy text, a pipe-led run with no delimiter width-checked, a backtick fence with a backtick in its info string silencing the rest of the file. `_tables` is the single walk now (fences by character and run length, a closer with only whitespace after it, the lazy region after a list item or blockquote ended by a blank line, heading, thematic break or fence, a table confirmed only by an equal-width delimiter) and `_overflowing_rows`/`_piped_spans` consume it with their shapes unchanged; its docstring records, each in the sentence of its fail direction and with its live count (0 over the 2 contracts + 57 packs and 0 over 50 fleet repos' 2,900 files), the shapes it still cannot read — a blockquote table, edge-less rows and a leading-pipe-only header, a list-nested table at indent 4, the prose line glued under a table row, a table inside an HTML block, D-1133's unbalanced-backtick span. On the live 59 files the walk opens 228 tables exactly where markdown_it does and both rules still report 0. The liveness canary's bad tree gains a rule-pack row with a table-escaped pipe (its clean twin none) so the audit exercises both rules, and NEUTERS gains the entry that deletes the walk's delimiter confirmation. Seven graders, each red first, plus 28 markdown_it oracle cases; the module's 19 existing tests unchanged. `templates/governance/CLAUDE.md` (W-155cf5a5, kaizen's go under its parked lock): one blank line under § Orient step 0's Stage table — GFM read the "⚠️ FIRST, ahead of every test below" paragraph as the table's tenth row in the template and its 49 fleet copies; `tests/test_governance_template_split.py` grades both contracts' Stage tables at nine rows through the same oracle.
 
 ### Changed — /fabrik-review-scoped queue pass: where the lead runs a command it keeps (2026-10-23)
 

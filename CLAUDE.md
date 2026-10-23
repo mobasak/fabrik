@@ -184,12 +184,13 @@ In the hub, the operator's rulings D-874, D-880, D-882 and D-885 refine this par
 - **⚠️ FEEDBACK IS RECIPROCAL — you owe your PEERS what the ~46 projects owe you.** The project contract makes
   filing a hub defect a DUTY at every step; the same duty binds the four HUB agents toward each other. A finding
   outside YOUR beat that you fix silently, park in a review report, or merely mention to the operator is an
-  unfiled finding. Route it by BEAT (charters: `docs/reference/agents/`): **infra** — `commands/_sources/`,
-  `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`, the box mesh, fabrik-mail · **fleet** —
+  unfiled finding. Route it by BEAT (charters: `docs/reference/agents/`): **infra** — rendering, sync and checks of
+  `commands/` and `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`, the box mesh, fabrik-mail · **fleet** —
   `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding, `docs/PROJECT_CATALOG.md` · **intel** — models,
   benchmarks, the flywheel, author-blind review, and the subagents pool (routing, fan-out, spend — OFF by ruling
   since D-181/D-182, the beat stays intel's; D-135) · **kaizen** — FEEDBACK verdicts, a command's or rule's
-  WORDING, ways of working: the feedback loop (every command-feedback queue, owned through `.fabrik/work/config.json`'s
+  WORDING (`commands/_sources/`, `commands/_fragments/`, `.windsurf/rules/` — `.fabrik/beat-owners.json`), ways of
+  working: the feedback loop (every command-feedback queue, owned through `.fabrik/work/config.json`'s
   `feedback_owner`; operator ruling 2026-10-06, D-627), never
   the code behind it. Pool-usage mail from any repo goes to **intel**, not infra.
   ⚠️ The BEAT is not edit rights: `libs/subagents/` is fabrik-lib's vendored module and the hub must not modify it

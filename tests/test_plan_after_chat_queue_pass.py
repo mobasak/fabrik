@@ -353,3 +353,16 @@ def test_a_module_plan_reads_the_module_test_recipe_first() -> None:
         " `/opt/fabrik-lib/<module>/README.md` (never the fabrik-lib module table), before the first suite run, and"
         " says so when neither has one, so the first suite count is the module's own."
     )
+
+
+def test_the_line_trigger_does_not_count_the_pasted_rubric() -> None:
+    """Rows 1792643183, 1792630841: the ~300-line shape trigger excludes only the pasted rubric output."""
+    shape = _span("**⚠️ SHAPE DECISION FIRST", "**The spine+ticket shape**")
+    assert (
+        "of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** of its"
+        " own text, pasted code and diffs included (only the `review_rubric.py` output this command's Phase 4"
+        " pastes is not counted) · any single phase's computed READ set"
+    ) in shape
+    assert shape.count("not counted") == 1, (
+        "a second exemption in the shape decision contradicts its 'only'"
+    )

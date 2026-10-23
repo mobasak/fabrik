@@ -75,6 +75,7 @@ FIELDS = {
     "mb_pre",
     "last_compact_age_s",
 }
+OPTIONAL = {"stale_text", "operator_ok"}  # --stale-input discard (W-ee19169d): both or neither
 TRIGGERS = ("ctx", "mb", "unrelated", "compact", "manual", "lift")
 _NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
 _PANE = re.compile(r"%[0-9]{1,6}")
@@ -453,8 +454,9 @@ def screen_ok(screen: str) -> bool:
     return above.startswith("─") and any(b.startswith("─") for b in below)
 
 
-def run_checks(t: dict) -> Path:
-    """Checks 0-5 for a resolved target; returns its transcript path. Raises CheckFailedError at the first failure."""
+def run_checks(t: dict, stale_text: str = "") -> Path:
+    """Checks 0-5 for a resolved target; returns its transcript path. Raises CheckFailedError at the first failure.
+    Check 5 passes an empty input box, or under `--stale-input discard` exactly the request's `stale_text`."""
     home, proc = _home(), _proc()
     path = _transcript(proc, home, t["pid"], t["sid"])
     # Check 0 is the transcript's quiet time, never the registry's `status` (W-477d751a): measured 2026-10-23, infra-2
@@ -509,8 +511,8 @@ def run_checks(t: dict) -> Path:
     blocks, why = hib.worktree_state(t["cwd"])
     if blocks:
         raise CheckFailedError("worktree", why)
-    cap = _tmux("capture-pane", "-p", "-t", t["pane"])
-    if cap.returncode != 0 or not screen_ok(cap.stdout):
+    box, _ = _box_now(t["pane"])
+    if box is None or (box and box != stale_text):
         raise CheckFailedError("screen", "the pane is not at an empty prompt")
     return path
 
@@ -553,8 +555,16 @@ def _last_compact_age(path: Path) -> int | None:
     return None
 
 
-def request(name: str, repo: str, compact: str | None, trigger: str) -> int:
+def request(
+    name: str,
+    repo: str,
+    compact: str | None,
+    trigger: str,
+    stale: bool = False,
+    operator_ok: str = "",
+) -> int:
     mode = "compact" if compact is not None else "clear"
+    stale_text = ""
     try:
         if trigger not in TRIGGERS:
             raise CheckFailedError("args", f"trigger must be one of {', '.join(TRIGGERS)}")
@@ -562,24 +572,40 @@ def request(name: str, repo: str, compact: str | None, trigger: str) -> int:
             raise CheckFailedError(
                 "args", "the focus must be one line of 1-300 printable characters"
             )
+        if stale != bool(operator_ok) or (stale and not _focus_ok(operator_ok)):
+            raise CheckFailedError(
+                "args",
+                "--stale-input discard needs --operator-ok with the operator's words (1-300 printable characters), "
+                "and --operator-ok needs --stale-input discard",
+            )
         _ensure_req_dir()
         if _pending():
             raise CheckFailedError(
                 "pending", "one rotation at a time — wait for the pending request's row"
             )
         t = resolve(name, repo)
-        path = run_checks(t)
+        if stale:
+            box, _ = _box_now(t["pane"])
+            if box is None:
+                raise CheckFailedError("screen", "no input box is visible in the pane")
+            stale_text = box[:1000]  # the refusal row below still carries what was seen
+            if len(box) > 1000:
+                raise CheckFailedError(
+                    "stale-input", "the input box holds more than 1000 characters"
+                )
+        path = run_checks(t, stale_text)
     except CheckFailedError as exc:
-        append_row(
-            {
-                "name": name,
-                "repo": repo,
-                "mode": mode,
-                "trigger": trigger,
-                "outcome": f"aborted:{exc.check}",
-                "reason": exc.reason,
-            }
-        )
+        row = {
+            "name": name,
+            "repo": repo,
+            "mode": mode,
+            "trigger": trigger,
+            "outcome": f"aborted:{exc.check}",
+            "reason": exc.reason,
+        }
+        if stale:
+            row.update(stale_text=_safe(stale_text), operator_ok=_safe(operator_ok))
+        append_row(row)
         print(f"rotate-session: aborted — {exc.check}: {exc.reason}", file=sys.stderr)
         return 1
     tokens = tsc._context_tokens(path)
@@ -600,6 +626,8 @@ def request(name: str, repo: str, compact: str | None, trigger: str) -> int:
         "mb_pre": path.stat().st_size // (1024 * 1024),
         "last_compact_age_s": _last_compact_age(path),
     }
+    if stale_text:  # optional fields: an ordinary request stays readable by an older unit
+        data.update(stale_text=stale_text, operator_ok=operator_ok)
     dest = _req_dir() / f"{slug(repo)}--{name}.json"
     tmp = _req_dir() / f".{slug(repo)}--{name}.tmp"
     tmp.write_text(json.dumps(data), encoding="utf-8")
@@ -628,6 +656,105 @@ def _input_line(screen: str) -> str | None:
 def _capture(pane: str) -> str:
     cap = _tmux("capture-pane", "-p", "-t", pane)
     return cap.stdout if cap.returncode == 0 else ""
+
+
+# every escape sequence tmux's `capture-pane -e` can emit: CSI (SGR with `;` or `:` parameters, private `>`/`?` forms),
+# OSC (a hyperlink, closed by BEL or ST) and the two-byte charset/keypad forms
+_ESC = re.compile(
+    r"\x1b(?:\[[0-9;:?>=!]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[()][0-9A-Za-z]|[=>78])"
+)
+
+
+def _undimmed(row: str) -> str:
+    """The row's text WITHOUT its dim cells (SGR 2 — Claude Code's placeholder, measured), every escape dropped. SGR is
+    walked as a terminal does: dim turns on with a 2 in any parameter list and off only with 0, 22 or an empty list —
+    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`)."""
+    out, dim, pos = [], False, 0
+    for m in _ESC.finditer(row):
+        if not dim:
+            out.append(row[pos : m.start()])
+        pos = m.end()
+        seq = m.group(0)
+        if seq.startswith("\x1b[") and seq.endswith("m"):
+            params = [p.split(":")[0] for p in seq[2:-1].split(";")] if len(seq) > 3 else [""]
+            for p in params:
+                if p in ("", "0", "22"):
+                    dim = False
+                elif p == "2":
+                    dim = True
+    if not dim:
+        out.append(row[pos:])
+    return "".join(out)
+
+
+def _box(screen: str) -> str | None:
+    """The INPUT BOX's text from a `capture-pane -e` screen (W-ee19169d): the last `❯` row with a `─` rule directly
+    above it, and every row down to the next `─` rule — a wrapped line continues on indented rows, a Shift+Enter line
+    likewise (both measured) — joined with single spaces, whitespace collapsed; dim text (the fresh box's placeholder)
+    is no text. "" for an empty box, None when no framed box is visible. Check 5 reads this, never the `❯` row alone,
+    which missed every row below it."""
+    rows = screen.splitlines()
+    plain = [_ESC.sub("", r) for r in rows]
+    starts = [
+        i
+        for i, r in enumerate(plain)
+        if i > 0 and r.lstrip().startswith("❯") and plain[i - 1].strip().startswith("─")
+    ]
+    if not starts:
+        return None
+    i = starts[-1]
+    end = next((j for j in range(i + 1, len(rows)) if plain[j].strip().startswith("─")), None)
+    if end is None:
+        return None
+    parts = []
+    for k in range(i, end):
+        text = _undimmed(rows[k])
+        if k == i:
+            text = text.replace("❯", "", 1)
+        parts.append(text)
+    return " ".join(" ".join(parts).split())
+
+
+def _box_now(pane: str) -> tuple[str | None, str]:
+    cap = _tmux("capture-pane", "-p", "-e", "-t", pane)
+    screen = cap.stdout if cap.returncode == 0 else ""
+    return _box(screen), screen
+
+
+def _discard(t: dict, seen: str) -> None:
+    """Clear a stuck input box the coordinator's request saw (W-ee19169d), or raise `stale-input`. Before the key the
+    box must read exactly `seen` on two captures 2 s apart (someone may be typing in that pane), and then EVERY check
+    re-runs (`run_checks` with `seen` — the session idle, its box still exactly `seen`) right before it: an Escape in a
+    running turn interrupts it (review r1). Claude Code clears a NON-empty box on a fast double Escape (one send-keys
+    call; two sent 1.5 s apart do nothing); C-u deletes only the current row (both measured 2026-10-23). After the key
+    a capture still showing `seen` is a redraw not yet drawn and is waited out, never acted on. A double Escape on an
+    EMPTY box opens the Rewind menu (measured) — no framed box and the word on screen — which gets ONE Escape and a
+    refusal; that Escape is the only key besides the pair."""
+    pane = t["pane"]
+    for wait in (0.0, 2.0):
+        time.sleep(wait)
+        if _box_now(pane)[0] != seen:
+            raise CheckFailedError("stale-input", "the input box changed since the request")
+    run_checks(t, seen)
+    # check 5 also passes an EMPTY box; a box emptied in this window would turn the pair into a Rewind (review r2)
+    if _box_now(pane)[0] != seen:
+        raise CheckFailedError("stale-input", "the input box changed since the request")
+    if _tmux("send-keys", "-t", pane, "Escape", "Escape").returncode != 0:
+        raise CheckFailedError("stale-input", "tmux refused the keys")
+    deadline = time.time() + _wait_s(10)
+    while time.time() < deadline:
+        box, screen = _box_now(pane)
+        if box == "":
+            return
+        if box is None and "Rewind" in _ESC.sub("", screen):
+            _tmux("send-keys", "-t", pane, "Escape")
+            raise CheckFailedError(
+                "stale-input", "the double Escape opened the Rewind menu; closed"
+            )
+        time.sleep(0.5)
+    raise CheckFailedError(
+        "stale-input", "the input box did not read empty after the double Escape"
+    )
 
 
 def _send(pane: str, text: str) -> None:
@@ -675,8 +802,16 @@ def resume_prompt(name: str) -> str:
 
 
 def _validate(data: object) -> dict:
-    if not isinstance(data, dict) or set(data) != FIELDS:
+    if not isinstance(data, dict) or not FIELDS <= set(data) <= FIELDS | OPTIONAL:
         raise CheckFailedError("request", "malformed request file")
+    if set(data) & OPTIONAL and not (
+        set(data) >= OPTIONAL
+        and isinstance(data["stale_text"], str)
+        and 0 < len(data["stale_text"]) <= 1000
+        and isinstance(data["operator_ok"], str)
+        and _focus_ok(data["operator_ok"])
+    ):
+        raise CheckFailedError("request", "bad stale_text or operator_ok")
     if not all(
         isinstance(data[k], str)
         for k in ("name", "repo", "pane", "sid", "proc_start", "mode", "focus", "trigger")
@@ -721,6 +856,9 @@ def _one(claimed: Path) -> dict:
             )
         }
         row["old_sid"] = data["sid"]
+        stale_text = str(data.get("stale_text") or "")
+        if stale_text:  # the discarded line stays recoverable from the log
+            row.update(stale_text=_safe(stale_text), operator_ok=_safe(str(data["operator_ok"])))
         t = resolve(data["name"], data["repo"])
         if (t["pane"], t["pid"], t["proc_start"], t["sid"]) != (
             data["pane"],
@@ -731,7 +869,15 @@ def _one(claimed: Path) -> dict:
             raise CheckFailedError(
                 "resolve", "the pane, its claude or its session changed since the request"
             )
-        path = run_checks(t)
+        path = run_checks(t, stale_text)
+        if stale_text:
+            box = _box_now(t["pane"])[0]
+            # a blank or redrawing frame is no reading — never paste behind unseen text (review r1)
+            if box is None:
+                raise CheckFailedError("screen", "no input box is visible in the pane")
+            # a refusal inside sends at most the Escape pair and one closing Escape
+            if box:
+                _discard(t, stale_text)
     except Exception as exc:  # noqa: BLE001 — before the first key every fault is a refusal, rowed, never a crash
         check = (
             exc.check
@@ -997,6 +1143,17 @@ def main(argv: list[str] | None = None) -> int:
     rq.add_argument("--compact", metavar="FOCUS")
     rq.add_argument("--trigger", default="manual")
     rq.add_argument("--repo", default="")
+    rq.add_argument(
+        "--stale-input",
+        choices=("discard",),
+        help="clear the text stuck in the pane's input box first (W-ee19169d); needs --operator-ok",
+    )
+    rq.add_argument(
+        "--operator-ok",
+        default="",
+        metavar="WORDS",
+        help="the operator's words allowing the discard",
+    )
     sub.add_parser("execute")
     du = sub.add_parser("due")
     du.add_argument("--mb-only", action="store_true")
@@ -1019,7 +1176,7 @@ def main(argv: list[str] | None = None) -> int:
     if not repo:
         print("rotate-session: not inside a git repo — pass --repo", file=sys.stderr)
         return 2
-    return request(a.name, repo, a.compact, a.trigger)
+    return request(a.name, repo, a.compact, a.trigger, a.stale_input == "discard", a.operator_ok)
 
 
 if __name__ == "__main__":
