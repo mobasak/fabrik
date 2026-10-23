@@ -1,6 +1,6 @@
 # Review seats — write isolation in the seat guard (design)
 
-Status: DRAFT
+Status: CONVERGED (2026-10-23, D-1145 — the D-1129 amendment, design approved by the Opus + Fable panel)
 Size: small (amendment 2026-10-22: ≈150 hook lines and ≈180 test lines over the converged build, across `.claude/hooks/seat_guard.py`, `tests/test_seat_guard.py` and `docs/workstation/hooks-index.md`)
 Profile: delta
 Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791209046, 1791049341, 1791225410) · upgraded from `/fabrik-task` on `tradeoffs` (design seed `/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-task-2026-10-15T22-15-12-0300/design.md`)
