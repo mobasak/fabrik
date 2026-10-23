@@ -654,3 +654,132 @@ def test_w477d751a_an_unreadable_turn_end_time_refuses(world):
         rows = [{"type": "system", "subtype": "turn_duration", "timestamp": bad}]
         with pytest.raises(rs.CheckFailedError, match="no readable time"):
             rs._idle_row_check(rows)
+
+
+# ── slice 3 (W-f975fee0): `due`, the lift offer, the nightly mail, the private request dir ──────────────────────────
+
+
+def _hermetic(monkeypatch, tmp_path):
+    monkeypatch.setenv("SESSION_ARCHIVE_ENV_FILE", str(tmp_path / "no-hub.env"))
+    monkeypatch.delenv("ROTATE_ADVISE_MB", raising=False)
+    monkeypatch.delenv("ROTATE_CONTEXT_WINDOW", raising=False)
+
+
+def _session(agent, entrypoint="cli", sid=SID, repo="/opt/x", pid=102):
+    return {
+        "pid": pid,
+        "ppid": 1,
+        "sid": sid,
+        "cwd": repo,
+        "peer": agent,
+        "entrypoint": entrypoint,
+        "agent": agent,
+        "repo": repo,
+    }
+
+
+def test_due_rows_and_actions(world, monkeypatch):
+    _hermetic(monkeypatch, world["tmp"])
+    sessions = [
+        _session("dev1"),
+        _session("coordinator", "claude-vscode"),
+        _session("seat", "sdk-cli"),
+        _session(""),
+        _session("dev2", sid=NEW),
+    ]
+    monkeypatch.setattr(rs.hib, "live_sessions", lambda home, proc, opt="/opt": sessions)
+    rows = rs.due(world["home"], world["proc"])
+    by = {r["agent"]: r for r in rows}
+    assert set(by) == {"dev1", "coordinator", "", "dev2"}, rows  # the pool seat is never a row
+    assert (by["dev1"]["state"], by["dev1"]["trigger"], by["dev1"]["ctx"]) == ("due", "ctx", 45)
+    assert (
+        rs.offer(by["dev1"])
+        == "/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session dev1 --repo /opt/x --trigger ctx"
+    )
+    assert "operator types `/clear coordinator-" in rs.offer(by["coordinator"])
+    assert by[""]["state"] == "unread" and "agent" in by[""]["reason"]
+    assert by["dev2"]["state"] == "unread" and "0 transcripts" in by["dev2"]["reason"]
+    # --mb-only reads no context: a 45% session under the MB line is not due
+    monkeypatch.setattr(
+        rs.tsc, "_context_tokens", lambda p: (_ for _ in ()).throw(AssertionError("ctx read"))
+    )
+    assert {r["agent"] for r in rs.due(world["home"], world["proc"], mb_only=True)} == {"", "dev2"}
+    monkeypatch.setenv(
+        "ROTATE_ADVISE_MB", "1"
+    )  # the hook's own threshold reader decides the MB line
+    with world["transcript"].open("a") as fh:
+        fh.write(json.dumps({"type": "pad", "x": "y" * (1024 * 1024)}) + "\n")
+    mb = {r["agent"]: r for r in rs.due(world["home"], world["proc"], mb_only=True)}
+    assert (mb["dev1"]["state"], mb["dev1"]["trigger"], mb["dev1"]["ctx"]) == ("due", "mb", None)
+
+
+def test_due_mail_per_repo(world, monkeypatch):
+    root = Path(
+        os.environ["FABRIK_MAIL_ROOT"]
+    )  # conftest's tmp mail root: nothing reaches a live mailbox
+    rows = [
+        dict(_session("fleet", repo="/opt/fabrik"), state="due", trigger="mb", mb=210, ctx=None),
+        dict(
+            _session("coordinator", "claude-vscode", repo="/opt/fabrik"),
+            state="due",
+            trigger="mb",
+            mb=425,
+            ctx=None,
+        ),
+        dict(
+            _session("dev1", repo="/opt/fabrik-lib"),
+            state="unread",
+            reason="transcript: 0 transcripts",
+        ),
+        dict(_session("x", repo=""), state="due", trigger="mb", mb=300, ctx=None),
+    ]
+    assert rs.mail_due([]) == 0 and not list(root.glob("*/inbox/*.md"))
+    assert rs.mail_due(rows) == 0
+    hub = list((root / "fabrik" / "inbox").glob("*.md"))
+    lib = list((root / "fabrik-lib" / "inbox").glob("*.md"))
+    assert len(hub) == 1 and len(lib) == 1, (hub, lib)
+    text = hub[0].read_text()
+    assert "agent: coordinator" in text and "ack: no" in text and "rotate-session fleet" in text
+    assert "operator types" in text and "never typed for you" in text
+    assert "unread" in lib[0].read_text()
+    bad = [
+        dict(
+            _session("y", repo="/opt/no-such-repo-zz"), state="due", trigger="mb", mb=300, ctx=None
+        )
+    ] + rows[:1]
+    assert rs.mail_due(bad) == 1  # the refused repo fails the run, after the hub was still tried
+    assert len(list((root / "fabrik" / "inbox").glob("*.md"))) == 2
+
+
+def test_request_dir_is_private(world):
+    d = world["req"]
+    rs.request("dev1", "/opt/x", None, "manual")
+    assert d.is_dir() and (d.stat().st_mode & 0o777) == 0o700
+    d.chmod(0o755)
+    rs.execute()
+    assert (d.stat().st_mode & 0o777) == 0o700
+    for f in d.iterdir():
+        f.unlink() if f.is_file() else None
+    d.rmdir()
+    real = world["tmp"] / "elsewhere"
+    real.mkdir()
+    d.symlink_to(real)
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert _rows(world)[-1]["outcome"] == "aborted:request"
+    assert rs.execute() == 1
+
+
+def test_units_nightly_line_and_no_makedirectory():
+    svc = (REPO / "scripts" / "sysadmin" / "systemd" / "session-archive.service").read_text()
+    starts = [ln for ln in svc.splitlines() if ln.startswith("ExecStart=")]
+    assert starts[-1] == (
+        "ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/rotate_session.py "
+        "due --mb-only --mail"
+    )
+    assert "prune_transcripts.py" in starts[-2]
+    path = (REPO / "scripts" / "sysadmin" / "fabrik-rotate.path").read_text()
+    assert "MakeDirectory" not in path and "DirectoryMode" not in path
+    assert (
+        "install -d -m 0700"
+        in (REPO / "scripts" / "sysadmin" / "install_rotate_unit.sh").read_text()
+    )

@@ -12,7 +12,7 @@ local, the four named hub windows, never a session visible on screen), D-737 (Ph
 | Piece | Where | What it does |
 |---|---|---|
 | `session-archive.timer` | `~/.config/systemd/user/` (source: `scripts/sysadmin/systemd/`) | daily, `Persistent=true` — a run missed while the machine was off fires when the user manager next starts; linger keeps that manager up without a login |
-| `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver; a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
+| `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver, the pruner, and `rotate_session.py due --mb-only --mail` (W-f975fee0 slice 3: each repo's coordinator gets one `ack: no` mail listing the agents whose transcript is past `ROTATE_ADVISE_MB`, with the rotate command for each; its `-` keeps a mail failure from failing the unit); a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
 | `scripts/sysadmin/transcript_size_check.py` | user-level hook (every window) | the ROTATE advisory (D-736 C.1.3): one `ROTATE:` line when a session's transcript crosses a new 100 MB step at or past `ROTATE_ADVISE_MB` (200) — at the next item boundary `rotate <agent>` to the coordinator, who types `/clear <agent>-<date>` and the informed `--force` re-bind; and the context sensor (W-f975fee0): `ROTATE-DUE` from 40% of the window, `COMPACT-DUE` from 85%, once per step; stamped per session, fail-open |
 | `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript (`ARCHIVE_AFTER_DAYS`, default 0 — an open window ships a daily snapshot, compressed from a frozen copy) into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest |
@@ -151,6 +151,15 @@ the run's seed — and records every outcome (`ok`, `refused:<check>` — `reque
 `partial:<step>`, and the verb's `aborted:<check>`) in `~/.claude/state/rotations.jsonl`. Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
 reports). The previous session stays resumable and is archived that night.
+
+Nothing types a rotation unasked, but two listings offer them (W-f975fee0 slice 3): `rotate_session.py due
+[--mb-only] [--mail]` lists every live agent at or past 40% of its context window or `ROTATE_ADVISE_MB`, the caller
+and the coordinators included, pool seats never, with its action — the exact `agents_up.sh rotate-session <agent>
+--repo <repo> --trigger ctx|mb` for a tmux (`cli`) agent, the operator's `/clear <agent>-<date>` for a window with no
+pane — and an agent it cannot read (no name bound, no single transcript) as an `unread` row, never dropped.
+`hibernate.py lift` prints the same rows as offers with `--trigger lift`, and the nightly unit mails them MB-only.
+The request directory is created 0700 by `request`, `execute` and the installer; a symlinked one, or one another uid
+owns, refuses.
 
 ## Checking it
 

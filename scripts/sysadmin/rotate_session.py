@@ -7,6 +7,8 @@ classifier refuses a coordinator's `tmux send-keys` into an agent pane. So rotat
 
     request <name> [--compact FOCUS] [--trigger T] [--repo ROOT]   the coordinator's verb (`agents_up.sh rotate-session`)
     execute                                                        the user systemd unit's (fabrik-rotate.path/.service)
+    due [--mb-only] [--mail]                                       slice 3: the read-only list of agents past the line
+                                                                   (hibernate `lift` offers it; the nightly mails it)
 
 `request` resolves the pane, its claude process and its session, runs the checks below and writes ONE data-only request
 file; `execute` claims each file, re-runs every check itself, types FIXED templates, verifies through the session registry
@@ -41,8 +43,10 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -112,6 +116,23 @@ def _req_dir() -> Path:
     return Path(
         os.environ.get("ROTATE_REQUEST_DIR") or _home() / ".claude" / "state" / "rotate-requests"
     )
+
+
+def _ensure_req_dir() -> Path:
+    """The request directory, private (0700) and ours: a symlink or a directory another uid owns refuses (fail closed)."""
+    d = _req_dir()
+    try:
+        d.mkdir(mode=0o700, parents=True, exist_ok=True)
+        st = d.lstat()
+    except OSError as exc:
+        raise CheckFailedError("request", f"{d}: {type(exc).__name__}") from exc
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        raise CheckFailedError("request", f"{d} is not a plain directory")
+    if st.st_uid != os.getuid():
+        raise CheckFailedError("request", f"{d} is owned by uid {st.st_uid}")
+    if stat.S_IMODE(st.st_mode) != 0o700:
+        d.chmod(0o700)
+    return d
 
 
 def _log() -> Path:
@@ -534,7 +555,7 @@ def request(name: str, repo: str, compact: str | None, trigger: str) -> int:
             raise CheckFailedError(
                 "args", "the focus must be one line of 1-300 printable characters"
             )
-        _req_dir().mkdir(parents=True, exist_ok=True)
+        _ensure_req_dir()
         if _pending():
             raise CheckFailedError(
                 "pending", "one rotation at a time — wait for the pending request's row"
@@ -726,8 +747,12 @@ def _one(claimed: Path) -> dict:
 
 
 def execute() -> int:
-    d = _req_dir()
-    d.mkdir(parents=True, exist_ok=True)
+    try:
+        d = _ensure_req_dir()
+    except CheckFailedError as exc:
+        append_row({"outcome": f"refused:{exc.check}", "reason": exc.reason})
+        print(f"rotate-session: refused — {exc.check}: {exc.reason}", file=sys.stderr)
+        return 1
     with (d / ".lock").open("a") as lk:
         try:
             fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -775,6 +800,123 @@ def execute() -> int:
     return 0
 
 
+# ── due: the read-only listing behind the lift offers and the nightly mail (slice 3) ──────────────────────────────────
+
+
+def due(home: Path, proc: Path, mb_only: bool = False, opt: str = "/opt") -> list[dict]:
+    """Every live agent at/past ctx CTX_ROTATE_PCT or the hook's MB line (`state: due`), and every one that cannot be
+    read (`state: unread`, with its reason). Pool seats are never rows; the caller and the coordinators are. `mb_only`
+    reads no context: the nightly runs while agents may be mid-item, and the MB line is the disk signal it owns."""
+    threshold = tsc._threshold_mb()
+    rows = []
+    for s in hib.live_sessions(home, proc, opt):
+        if hib._is_pool(s):
+            continue
+        row = {k: s.get(k) for k in ("agent", "repo", "sid", "pid", "entrypoint")}
+        try:
+            if not _NAME.fullmatch(str(s.get("agent") or "")):
+                raise CheckFailedError("agent", "no valid agent name bound to this session")
+            path = _transcript(proc, home, int(s["pid"]), str(s["sid"]))
+            mb = path.stat().st_size // (1024 * 1024)
+            ctx = None
+            if not mb_only:
+                tokens = tsc._context_tokens(path)
+                if tokens is not None:
+                    ctx = tokens * 100 // tsc._window(str(s["sid"]), tokens)
+        except Exception as exc:  # noqa: BLE001 — an unreadable session is a visible row, never a dropped one
+            row.update(
+                state="unread",
+                reason=f"{exc.check}: {exc.reason}"
+                if isinstance(exc, CheckFailedError)
+                else f"{type(exc).__name__}: {exc}",
+            )
+            rows.append(row)
+            continue
+        trigger = (
+            "ctx"
+            if ctx is not None and ctx >= tsc.CTX_ROTATE_PCT
+            else "mb"
+            if mb >= threshold
+            else ""
+        )
+        if trigger:
+            rows.append(dict(row, state="due", trigger=trigger, ctx=ctx, mb=mb))
+    return rows
+
+
+def offer(row: dict) -> str:
+    """The action for one due row: the exact rotate command for a tmux (cli) agent, the operator's /clear otherwise."""
+    if row.get("entrypoint") == "cli":
+        return (
+            f"/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session {row['agent']} --repo {row['repo']} "
+            f"--trigger {row['trigger']}"
+        )
+    return f"no pane — the operator types `/clear {row['agent']}-{time.strftime('%Y-%m-%d')}`"
+
+
+def _line(row: dict) -> str:
+    if row["state"] == "unread":
+        return f"- {row.get('agent') or '(unnamed)'} [{row.get('sid')}] unread — {row['reason']}"
+    ctx = "—" if row.get("ctx") is None else f"{row['ctx']}%"
+    return f"- {row['agent']} ctx {ctx} · {row['mb']} MB → {offer(row)}"
+
+
+def mail_due(rows: list[dict]) -> int:
+    """One `--ack no` request per repo with due or unread rows (the hub's to its coordinator); a session outside every
+    /opt repo is printed, never mailed. A failed send is reported and exits 1, after every other repo was tried."""
+    by: dict[str, list[dict]] = {}
+    for r in rows:
+        if r.get("repo"):
+            by.setdefault(str(r["repo"]), []).append(r)
+        else:
+            print(f"rotate-session due: outside every repo, not mailed: {_line(r)}")
+    rc = 0
+    for repo, rs_ in sorted(by.items()):
+        name = Path(repo).name
+        n_due = sum(r["state"] == "due" for r in rs_)
+        body = "\n".join(
+            [
+                f"Rotation due: {n_due} agent(s) in {name} past the rotation line, {len(rs_) - n_due} unread",
+                "",
+                f"WHAT: these sessions are at/past the rotation line (ctx {tsc.CTX_ROTATE_PCT}% or "
+                f"{tsc._threshold_mb()} MB), or could not be read:",
+                *(_line(r) for r in rs_),
+                "WHY: a transcript past the line slows every load and its context costs every turn (D-1119, D-1123).",
+                "WHERE: ~/.claude/state/rotations.jsonl records each rotation's outcome.",
+                "HOW: never typed for you: run each at that agent's next item boundary.",
+                f"WHEN: listed {time.strftime('%Y-%m-%d %H:%M')} by the nightly session-archive unit.",
+                "WHO: this repo's coordinator.",
+                "SYSTEMIC: the listing repeats nightly while a size stays past the line; the rotation row is the proof.",
+            ]
+        )
+        cmd = [
+            sys.executable,
+            str(HERE.parent / "mail.py"),
+            "send",
+            "--to",
+            name,
+            "--kind",
+            "request",
+        ]
+        cmd += ["--ack", "no", "--from", "fabrik"]
+        if name == "fabrik":
+            cmd += ["--to-agent", "coordinator"]
+        with tempfile.NamedTemporaryFile("w", suffix=".md", encoding="utf-8") as fh:
+            fh.write(body + "\n")
+            fh.flush()
+            try:
+                out = subprocess.run(
+                    [*cmd, "--body-file", fh.name], capture_output=True, text=True, timeout=60
+                )
+                ok, why = out.returncode == 0, (out.stderr or out.stdout).strip()[-300:]
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                ok, why = False, str(exc)
+        if not ok:
+            print(f"rotate-session due: mail to {name} failed — {why}", file=sys.stderr)
+            rc = 1
+    return rc
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="rotate_session.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -784,9 +926,17 @@ def main(argv: list[str] | None = None) -> int:
     rq.add_argument("--trigger", default="manual")
     rq.add_argument("--repo", default="")
     sub.add_parser("execute")
+    du = sub.add_parser("due")
+    du.add_argument("--mb-only", action="store_true")
+    du.add_argument("--mail", action="store_true")
     a = ap.parse_args(argv)
     if a.cmd == "execute":
         return execute()
+    if a.cmd == "due":
+        rows = due(_home(), _proc(), mb_only=a.mb_only)
+        for r in rows:
+            print(f"{r.get('repo') or '(no repo)'} {_line(r)}")
+        return mail_due(rows) if a.mail else 0
     # the grid is named after the MAIN checkout's folder, so a coordinator in a linked worktree uses the common dir's parent
     common = subprocess.run(
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],

@@ -24,6 +24,11 @@ ExecStart=/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/archive_tran
 # ~/.claude/archive/prune-log.jsonl (`prune_transcripts.py --status`). Gate C of the retention plan
 # passed on 2026-10-12 (D-736, D-746): the leg runs --apply --nightly — the 3-day cliff is live.
 ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --apply --nightly
+# W-f975fee0 slice 3 (D-1119, D-1123): after the pruner, mail each repo's coordinator the agents whose transcript
+# is past the MB line (ROTATE_ADVISE_MB, default 200) — read-only advice, never a rotation. MB only: the nightly runs
+# while agents may be mid-item, and context is a per-boundary signal. The "-" keeps a mail failure from failing the
+# unit (Restart= would re-run the ARCHIVER); the failure lands in this unit's journal.
+ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/rotate_session.py due --mb-only --mail
 Restart=on-failure
 RestartSec=15min
 Nice=10

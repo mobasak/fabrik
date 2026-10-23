@@ -22,6 +22,7 @@ if [ "${1:-}" = "--check" ]; then
   exit "$rc"
 fi
 mkdir -p "$dst"
+install -d -m 0700 "$HOME/.claude/state/rotate-requests"
 for u in "${units[@]}"; do install -m 0644 "$src/$u" "$dst/$u"; done
 systemctl --user daemon-reload
 systemctl --user enable --now fabrik-rotate.path
