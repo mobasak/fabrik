@@ -13,19 +13,20 @@ operator would — approve it, or name the changes it wants first — and opens 
    line adds `fable unavailable: <reason>`.
 2. **Revise.** Apply every ACCEPTED change to the artifact — written as this command's own fix-shape rule says,
    where it states one — and to any linked artifact it makes stale. Before the round that reviews the revision
-   is pinned, each sentence it adds or changes is written whole from the source it cites (the code line it
-   describes, or the decision row or artifact section it builds on — never a seat's report), not spliced into
-   the old sentence; each name it introduces is traced through every reader it must reach, process boundaries
-   included (an `env -i` keep-list, a systemd unit, a hook environment); and each ACCEPTED concern's
-   counter-case, the legitimate input the change must still pass, is written beside it for step 3's row. Then
-   run the ONE delta round the critique step names. spec-review and plan-review flip `Status: CONVERGED` only on its
-   `confirmed 0`, in the step-3 commit; flows-review and ui-design-review bump `Version:`, re-run the closing round and rewrite
-   `Independently reviewed: v<N+1>`.
+   is pinned, each sentence the revision adds or changes cites its source — the code line it describes, a
+   decision row, an artifact section the revision does not itself add, or, for a requirement only the panel
+   raised, the concern as step 3's row quotes it; never a seat's report or a note quoting one — and is written
+   whole from that source, not spliced into the old sentence; each name the revision introduces is traced
+   through every reader it must reach, process boundaries included (an `env -i` keep-list, a systemd unit, a
+   hook environment); and each change's counter-case, the legitimate input the change must still pass, is
+   written down for step 3's row. Then run the ONE delta round the critique step names. spec-review and
+   plan-review flip `Status: CONVERGED` only on its `confirmed 0`, in the step-3 commit; flows-review and
+   ui-design-review bump `Version:`, re-run the closing round and rewrite `Independently reviewed: v<N+1>`.
 3. **Record.** Mint the approval row (`python3 scripts/decisions.py --reserve-id .`), staged with the revisions
-   and that flip: the artifact path and its final md5, each change the panel caused with its counter-case, and
-   the line `Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → both-approve`, each quoted whole. The
-   ask↔spec comparison table is still built — in the artifact or its review receipt, not in chat. Commit and
-   push.
+   and that flip: the artifact path and its final md5, each change the panel caused with the concern it answers
+   and its counter-case, and the line
+   `Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → both-approve`, each quoted whole. The ask↔spec
+   comparison table is still built — in the artifact or its review receipt, not in chat. Commit and push.
 4. **Brief the operator** in at most ten lines under the heading `PANEL APPROVED (<artifact path>)`: what the
    file is, what it will make happen once built, each verdict in one line, the changes it caused, the approval
    row's id, and the same `Panel:` line. In autonomy mode the Stop hook checks that line against the seats'
