@@ -48,7 +48,7 @@ sudo docker exec postgres-main sh -c 'grep -vE "^\s*(#|$)" "$PGDATA/pg_hba.conf"
 # rows 5, 6, 7, 9: every file on the box that can log in as the superuser (names only)
 sudo grep -rIlE 'postgres(ql)?://postgres:|user=postgres|-U postgres|PGPASSWORD|POSTGRES_PASSWORD' /opt 2>/dev/null
 sudo grep -rIl 'postgres-exporter' /opt --include='*compose*.y*ml' 2>/dev/null   # the live monitoring compose (row 2)
-sudo sed -E "s/((PG)?PASSWORD=|[Pp]assword=|:\/\/[^:]+:)(\"[^\"]*\"|'[^']*'|[^@ \"']*)/\1***/g" /opt/backups/pre-backup.sh | grep -niE 'psql|pg_dump|password'
+sudo sed -E "s/((PG)?PASSWORD=|[Pp]assword *= *|:\/\/[^:]+:)(\"[^\"]*\"|'[^']*'|[^@ \"']*)/\1***/g" /opt/backups/pre-backup.sh | grep -niE 'psql|pg_dump|password'
 # row 9: live TCP sessions by login. Re-run across a day; a cron consumer shows only when it runs
 sudo docker exec postgres-main psql -U postgres -tAc "select usename, application_name, client_addr, count(*) from pg_stat_activity where client_addr is not null group by 1,2,3 order by 1"
 # the exporter's reach: databases where PUBLIC lost CONNECT (each needs a GRANT in step 3)
@@ -187,7 +187,7 @@ Back up each file first. Then force every TCP `postgres` session to reconnect wi
 ### 6. Hand the operator the new admin password
 
 Give it through the coordinator, never in git, mail or a commit message. Delete the `backups/` copies once the
-operator confirms they hold it.
+operator confirms they hold it. Once no rollback is wanted, `rm ~/pg-verifier` on vps1.
 
 ## Rollback
 
