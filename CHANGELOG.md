@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Beat routing: a command's or rule's wording is kaizen's, its rendering and checks infra's (2026-10-23)
+
+- `CLAUDE.md` (the FEEDBACK IS RECIPROCAL beat list) and `commands/_fragments/close-feedback.md` (the Route-by-BEAT table every command renders) now match `.fabrik/beat-owners.json` (D-815, D-627): infra keeps the rendering, sync and checks of `commands/` and `.windsurf/rules/`; kaizen owns their wording.
+- `/fabrik-upstream`'s PROJECT-mode proposal mails the file's owner from that table instead of always infra; a synced file with no row, such as the project `CLAUDE.md`, goes to infra.
+- W-9be0b1c1.
+
 ### Fixed — a rotation's typed prompts now submit (2026-10-23)
 
 - `scripts/sysadmin/rotate_session.py` sent `Enter` right behind each `send-keys -l` paste, and the paste swallowed it: every rotated builder (infra, kaizen, infra-3) sat with the resume prompt unsent in its input line, so none re-bound (W-b92aa5cf). Each text is now pasted, `C-m` goes as its own call once the INPUT LINE shows the text's start unchanged over two captures (a ticking status line or a placeholder cannot fool it), and the input line must then hold something other than that text; otherwise the row is `typed-unsent:<step>` and nothing is re-sent. The fake tmux in `tests/test_rotate_session.py` now swallows a C-m until the paste settled, as the real pane did; reviewed by `/fabrik-review-scoped`, 6 → 1 → 0.
