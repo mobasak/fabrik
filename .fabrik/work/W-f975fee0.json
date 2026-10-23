@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "operator 2026-10-22 'who will build this now?' after the Opus+Fable panel approved the design (D-1123); a rule update + an operator ask = HIGH; one infra session (a verb in agents_up.sh, a Stop-hook stamp, a hook line, a rotation row) = LOW effort",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "Mechanism for agent rotation at an item boundary (operator 2026-10-22; pairs with kaizen's rule item): a builder in a tmux pane cannot type /clear itself — today the coordinator sends '/clear <name>-<date>' + Enter and the re-bind to the pane by hand (D-1034 pattern). Give agents_up.sh a 'rotate <name>' verb (or fold into T05) that sends the /clear, waits for the fresh prompt, runs whoami_agent.py --as <name> --force in the pane, and records the rotation (a row the token-waste series counts); a builder requests it by message to its coordinator"
 }
