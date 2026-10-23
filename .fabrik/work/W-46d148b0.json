@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — worktree uv run corrupts shared .venv twice in a day; breaks agents",
-  "status": "open",
+  "status": "done",
   "title": "a worktree's `uv run` rewrites the SHARED .venv — twice in one day, SQLAlchemy 2.1 and a mis-pointed editable install"
 }
