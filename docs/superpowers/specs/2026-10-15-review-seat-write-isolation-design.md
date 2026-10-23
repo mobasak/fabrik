@@ -26,16 +26,14 @@ Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791
 
 | I# | Item (anchored) | Disposition | Where |
 |---|---|---|---|
-| I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN, delivered as the fence since D-1129 | § Amendment 2026-10-22 — the whole filesystem mounted read-only (`--ro-bind / /`), the payload cwd unchanged; in fallback mode, § The delta — no write tool (delta 1) and a shell-write rule (delta 2), defence-in-depth against accidental writes (its blind-spot paragraph) |
-| I1-r | REOPENED 2026-10-23 — the fence is reverted at the tip (6dc45645f); I1's delivery waits on § Amendment 2026-10-23 | IN | § Amendment 2026-10-23 |
+| I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN, delivered as the fence since D-1129; REOPENED 2026-10-23 (fence reverted, 6dc45645f; waits on § Amendment 2026-10-23) | § Amendment 2026-10-22 — the whole filesystem mounted read-only (`--ro-bind / /`), the payload cwd unchanged; in fallback mode, § The delta — no write tool (delta 1) and a shell-write rule (delta 2), defence-in-depth against accidental writes (its blind-spot paragraph) |
 | I2 | "launch finder and refuter seats with cwd set to a fresh scratch directory (or isolation: worktree), never the caller's main checkout" (01M4PHYNXJ row 1791049341) | IN, delivered differently | § Rejected alternatives — A (worktree) and the cwd option, which does not exist; the guard covers both dispatch paths instead, the seats' cwd unchanged |
 | I3 | "hand seats a ready probe script" (01M4PHYNXJ row 1791225410) | OUT-OF-SCOPE | W-f7bf9a54 — a separate change with its own measure (seat turns spent building probes) |
 | I4 | D-1129, the Opus + Fable panel (unanimous): "Review-seat write isolation becomes a filesystem fence, not a growing shell grammar" | IN | § Amendment 2026-10-22 — the fence |
 | I5 | The whole-plan review round 1: 21 confirmed code defects, about 15 of them let-throughs (receipt `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md` § Round 1 findings) | IN | § Amendment — what the fence closes, and the fallback that fails closed where it cannot run |
 | I6 | W-9013addb, "a heredoc misread through a `"$(…)"` inside double quotes still hides later lines" | IN | § Amendment — under the fence the misread can hide no write; in the fallback the construct is unmodelled and refused |
 | I7 | The panel's cobra: "bind too much writable space (`--bind /tmp`, or the whole repo `.tmp`) so that 'writes in scratch work' passes" | IN | § Amendment — Validation 9 asserts the bind set exactly |
-| I8 | The panel's underivables: bwrap on other hosts; the harness's cwd tracking, background tasks and the worktree guard around a rewritten command | IN | § Amendment — Open unknowns, each resolved by a named build proof |
-
+| I8 | The panel's underivables: bwrap on other hosts; the harness's cwd tracking, background tasks and the worktree guard around a rewritten command | IN (U1/U6 resolved negatively, § Amendment 2026-10-23) | § Amendment — Open unknowns, each resolved by a named build proof |
 ## Goal
 
 (Fallback mode only since D-1129 — the fence's goal is § Amendment, The goal, restated.) A review seat cannot write outside its scratch directory by mistake — it holds no file-writing tool, and a shell command
@@ -311,7 +309,7 @@ carrying to the next call (Contract deltas).
 
 **Why this amendment exists.** Plan-2 Phase B built the fence of the D-1129 amendment (commits 0669c6c51 and
 4720a59fe; 68 tests green; every neuter red on revert) and proved it outside the harness: every live write of the
-round-1 false greens failed with EROFS or landed in the sandbox's private tmpfs (W8, W9 ran rc 0), and the proof tree
+round-1 false greens failed with EROFS, or wrote only the sandbox's private `/dev/shm` (W8), and the proof tree
 stayed unchanged (Validation 1); a bounded replay of 200 harvested seat commands matched on 198 (Validation 4); and
 read-only git works under the read-only tree (U2). Then Validation 10 — one live `fabrik-reviewer` seat through the
 Agent tool — FAILED: the seat ran nothing. The harness judges the REWRITTEN command (U1 and U6 answered negatively),
@@ -326,7 +324,7 @@ commit 6dc45645f). The fence code is reverted at the branch tip (6dc45645f) and 
 harness. Whether the classifier objects to the rewrite itself or only to an unlisted prefix is not known.
 
 **The question for the design-approval panel.** How does a review seat's write isolation pass the harness? Three
-options, labelled P1-P3 (D-1129's own (a)-(d) labels, `§ Approaches (D-1129)`, are a different list):
+options, labelled P1-P3 (D-1129's (a)/(c) labels in `§ Approaches (D-1129)` are a different list):
 
 - **P1 — the hook's fence, accepted by the harness.**
   - Needs a `permissions.allow` rule for the wrapper prefix, so the classifier does not judge the call, AND a wrapper
@@ -362,8 +360,9 @@ options, labelled P1-P3 (D-1129's own (a)-(d) labels, `§ Approaches (D-1129)`, 
   - Holder: the operator for any user-settings change (the added directory); intel and kaizen for the reviewer-session
     dispatch. First proof: one seat dispatched from a narrow-sandbox session, writing its scratch and refused on the
     live tree, through the classifier.
-  - Supersedes: D-1129's rejection of "C — built-in sandbox" (§ Rejected alternatives) and its Decisions taken row
-    "The fence over the grammar".
+  - Supersedes: D-1129's rejection (c) (`§ Approaches (D-1129)`, "Claude Code's built-in sandbox"), the parent's
+    rejection "C — the built-in Bash sandbox" (§ Rejected alternatives), and the Decisions taken row "The fence over
+    the grammar".
 - **P3 — the parser alone.** Phase A as built, the hook's write rule; of the round-1 review's 21 confirmed defects,
   about 15 let-throughs stand, some closable by § Amendment 2026-10-22 Design 3's fallback refusals ("a heredoc to a
   shell, `eval`/`source`; `$'…'`, `((`/`[[`; an unknown wrapper, a conditional `cd`; a `$(…)` in a write or cd
