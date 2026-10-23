@@ -1153,37 +1153,16 @@ def _clear_hook(world, monkeypatch, bind: bool):
         hook += (
             "if text.startswith('You were rotated'):\n"
             "    open(os.environ['AGENT_IDENTITY_FILE'], 'a').write(json.dumps({'session_id': os.environ['NEW'],"
-            " 'name': 'dev1', 'predecessor': os.environ['OLD']}) + '\\n')\n"
+            " 'name': 'dev1', 'predecessor': os.environ['OLD'], 'at': int(os.environ['BIND_AT'])}) + '\\n')\n"
         )
-    for k, v in {"REG": str(reg_path), "NEW": NEW, "OLD": SID}.items():
+    for k, v in {
+        "REG": str(reg_path),
+        "NEW": NEW,
+        "OLD": SID,
+        "BIND_AT": str(int(time.time()) + 50),
+    }.items():
         monkeypatch.setenv(k, v)
     _set(world, on_send=hook)
-
-
-def test_wb72231b8_a_late_bind_is_ok_and_marked_late(world, monkeypatch):
-    """W-b72231b8: a bind that lands after the on-time window but inside the grace is an `ok` rotation marked late,
-    never `partial:rebind` (infra-3 bound 8 s past the 90 s window on 2026-10-23)."""
-    _clear_hook(world, monkeypatch, bind=False)
-    sent: dict[str, float] = {}
-    real_send, real_bindings = rs._send, rs._bindings
-
-    def send(pane, text):
-        real_send(pane, text)
-        if text.startswith("You were rotated"):
-            sent["at"] = time.time()
-
-    def bindings():  # the bind appears only once the on-time window (ROTATE_WAIT_S=3) has passed
-        late = "at" in sent and time.time() - sent["at"] > 3.3
-        extra = [{"session_id": NEW, "name": "dev1", "predecessor": SID}] if late else []
-        return real_bindings() + extra
-
-    monkeypatch.setattr(rs, "_send", send)
-    monkeypatch.setattr(rs, "_bindings", bindings)
-    _write_request(world)
-    rs.execute()
-    row = _rows(world)[-1]
-    assert row["outcome"] == "ok" and row["rebind_late"] is True, row
-    assert row["predecessor_row"] is True and row["rebind_s"] >= 3, row
 
 
 def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path):
@@ -1199,9 +1178,45 @@ def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path):
     rs.execute()
     row = _rows(world)[-1]
     assert row["outcome"] == "ok" and row["registry"] == "repointed", row
-    assert row["rebind_late"] is False, row
+    # the bind's own `at` (50 s after the hook was armed), never the moment the loop saw it
+    assert isinstance(row["resume_sent_at"], int) and 45 <= row["rebind_s"] <= 51, row
     got = json.loads(regf.read_text())
     assert list(got.items()) == [(other, "dev2"), (NEW, "dev1"), (third, "dev3")]
+    assert regf.read_text().endswith("}\n") and not list(regf.parent.glob(".session-agents.*"))
+
+
+def test_wb72231b8_an_unsent_resume_still_repoints(world, monkeypatch, tmp_path):
+    """Critique r1: the re-point runs as soon as the new session is seen, before the resume prompt, so a resume that
+    never submits still leaves the registry naming the session the pane now runs."""
+    regf = tmp_path / "repo" / ".fabrik" / "session-agents.json"
+    regf.parent.mkdir(parents=True)
+    regf.write_text(json.dumps({SID: "dev1"}))
+    monkeypatch.setattr(rs, "_session_registry", lambda repo: regf)
+    _clear_hook(world, monkeypatch, bind=False)
+    real_send = rs._send
+
+    def send(pane, text):
+        if text.startswith("You were rotated"):
+            raise rs.CheckFailedError("unsent", "the text is still in the input line after C-m")
+        real_send(pane, text)
+
+    monkeypatch.setattr(rs, "_send", send)
+    _write_request(world)
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "typed-unsent:resume" and row["registry"] == "repointed", row
+    assert json.loads(regf.read_text()) == {NEW: "dev1"}
+
+
+def test_wb72231b8_registry_path_needs_a_real_checkout(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    assert rs._session_registry(str(repo)) == repo / ".fabrik" / "session-agents.json"
+    assert rs._session_registry("relative/repo") is None
+    assert rs._session_registry(str(tmp_path / "nogit")) is None
+    link = tmp_path / "link"
+    link.symlink_to(repo)
+    assert rs._session_registry(str(link)) is None  # not its own realpath
 
 
 @pytest.mark.parametrize(
@@ -1217,6 +1232,10 @@ def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path):
         (f'{{"{SID}": "dev1", "{SID}": "dev1"}}', "refused:a session id appears twice"),
         ({"NOT-A-UUID": "dev2", SID: "dev1"}, "refused:a key is not a session id"),
         ({SID: {"nested": 1}}, "refused:not an object of session id -> agent name"),
+        (
+            {SID: "dev1", "33333333-3333-4333-8333-333333333333": "Bad Name"},
+            "refused:a value is not an agent name",
+        ),
     ],
 )
 def test_wb72231b8_registry_states_never_write_a_bad_file(tmp_path, content, state):
@@ -1243,3 +1262,28 @@ def test_wb72231b8_registry_refuses_a_symlink_and_a_bad_new_id(tmp_path):
         rs._repoint_registry(plain, SID, "NOT-A-UUID", "dev1")
         == "refused:the new id is not a session id"
     )
+
+
+def test_wb72231b8_repoint_keeps_the_mode_drops_a_doubled_name_and_never_overwrites_a_hand_edit(
+    tmp_path, monkeypatch
+):
+    regf = tmp_path / "session-agents.json"
+    regf.write_text(json.dumps({SID: "dev1"}))
+    regf.chmod(0o644)
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "repointed"
+    assert regf.stat().st_mode & 0o777 == 0o644 and json.loads(regf.read_text()) == {NEW: "dev1"}
+    regf.write_text(
+        json.dumps({SID: "dev1", NEW: "dev1"})
+    )  # already current, the old key left behind
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "repointed"
+    assert json.loads(regf.read_text()) == {NEW: "dev1"}
+    regf.write_text(json.dumps({SID: "dev1"}))
+    real_chmod = rs.os.chmod
+
+    def chmod_then_hand_edit(p, mode):  # a hand edit lands between the read and the replace
+        real_chmod(p, mode)
+        regf.write_text(json.dumps({SID: "dev1", "33333333-3333-4333-8333-333333333333": "dev2"}))
+
+    monkeypatch.setattr(rs.os, "chmod", chmod_then_hand_edit)
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:changed on disk"
+    assert NEW not in json.loads(regf.read_text()) and not list(tmp_path.glob(".session-agents.*"))
