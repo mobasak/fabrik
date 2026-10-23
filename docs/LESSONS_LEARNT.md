@@ -5,7 +5,7 @@
 
 W-25f6b2a3 slice 2: two prompt hooks now print an unchanged block as a pointer, and the review ran 3 passes, confirming 13, then 3, then 0 defects.
 - **A test fixture must never read the constant under test** — the first bound test computed `time.time() - hook._REFRESH_S + 0.5`, so the 1799 mutant survived. Write the bound as a literal.
-- **A subprocess-driven freshness test needs seconds of margin** — two seats independently flagged a 0.5 s window around an interpreter start-up. The exact edge moved to an in-process test of `_prompt_is_fresh`.
+- **A subprocess-driven freshness test needs seconds of margin** — three pass-2 seats independently flagged a 0.5 s window around an interpreter start-up. The exact edge moved to an in-process test of `_prompt_is_fresh`.
 - **Grep the WHOLE suite for a reset that deletes one state file** — `test_work_hook_seam.py` deleted `s-c.json` to model a fresh session. The new digest file beside it made the next prompt correctly print the pointer, so the test went red. The design's MIRROR grep for "two prompts on one session" had covered only `test_thread_anchor.py`.
 - **A comment claiming parity with another tool is a claim to execute** — "every message file, as `mail.py list` sees them" was false twice: `list` skips dot-names and quarantines unparseable files.
 
