@@ -1,6 +1,6 @@
 # Plan — spoke watchdogs alert through a mesh-only Apprise gate
 
-Status: DRAFT
+Status: CONVERGED
 Profile: small
 **Owner:** fleet
 Spec: `docs/superpowers/specs/2026-10-23-spoke-watchdog-apprise-mesh-gate-design.md` (CONVERGED, D-1166)
@@ -741,7 +741,8 @@ libs/alerting/__init__.py
   → C10; docs → B6, A3, C7.
 - (b) Signatures: `_rewrite_mesh_gated_url(url, target_vps)` is produced in A3 and consumed in A4 with the same name;
   the preflight returns `str | None` and is consumed once in `_provision_watchdog`.
-- Fixed point: not claimed — `/fabrik-plan-review` converges it.
+- Fixed point: reached — `/fabrik-plan-review` pass 3 confirmed 0 with the plan md5 unchanged (§ Pass Ledger);
+  receipt `docs/development/reviews/2026-10-23-spoke-watchdog-apprise-mesh-gate-plan-review.md`.
 
 ## Pass Ledger
 
@@ -749,6 +750,7 @@ libs/alerting/__init__.py
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (header, Global Constraints, Context Ledger, Constraints Digest, File Scope, Coverage Checklist, Evidence, Self-audit, Pass Ledger, Residuals) + sonnet×1 (What we agreed, Intake, Phases A-C) · all axes · shape: agent-tool (D-961) | found: 21, new: 21, confirmed: 20, fixed: 20, unexecuted: 0, edits: 26 | method: citation — full pass; every candidate executed by the orchestrator (the parse fail-opens re-run as rules2.py, 14 cases; `check_doc_sync.py:393-405` staged mode read; `work.py:6485-6499`; `mail.py:2966-2995`; the missing test path `ls`-ed; the curl image tag probed 200); 1 RECORDED — measured (wording; changes no behaviour: the provider read is the registrar's form of `watchdog.py:521`); flip gates at pass 1 on a flipped copy in a throwaway worktree: `check_convergence` graded it (red only on UNCHECKED rows and no re-derivation row), `check_rule_grounding` 5 CONVERGED in-window plans, 0 findings, `check_plan_quality` 0 findings and red on an Appetite-less mutant | 2a7f0ac3… → 6d251bd2… |
 | Pass 2 | the round-1 slice owners (opus×1 + sonnet×1) · their own claims over the pass-1 fix diff + one hop · shape: agent-tool | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — opus slice 8/8 claims re-verified, the v2 probe re-run from the pin (23 of 23 lines identical); sonnet slice 11/12 verified, S9 residue confirmed (own-fix: round 1 — C step 7's kaizen mail cited a merge sha before the merge); RECORDED — measured: probe 3 proves little since the gate binds only 10.99.0.1 (spec `:379` wording, W-2ce2df52); the step-6 Gatus follow-up commit lands after the `--range` doc-sync (trivial); nobody named to resume at step 8 (pre-existing); the probe's vps1-gate-line case keeps the vps2 label (the Phase A test passes `target="vps1"`); the ledger row cannot hold its own file's md5 (by construction) | 95e84baf… → 434d24fe… |
+| Pass 3 | sonnet×1 (round-1 owner of the only slice holding an open claim; opus-rule stands at 8/8 from pass 2) · the two pass-2 hunks + one hop · shape: agent-tool | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — S9 re-executed against `merge_request.py:283-292` (the request records the pushed tip); the pins-2 → pins-3 diff is exactly the two hunks (7 lines); the Intake counts (23 · 14 IN · 9 OUT) and Phase C's ten steps re-derived from the pin; standing clean since pass 2: every other class | 2681694c… → 2681694c… ✓ |
 
 ## Residual unknowns
 
