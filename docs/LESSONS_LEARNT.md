@@ -1,6 +1,14 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A sentence in a synced paragraph is read by every repo that receives it, so its "you" must be true for each reader (2026-10-23)
+
+W-85e4e5e4: the shared-tree paragraph's close told its reader to run the hub's fleet-distribution script "yourself". In the hub's main checkout that is the rule; in a hub worktree it ships a mix neither tree holds; in a project it names a script the repo does not have. The paragraph is byte-shared (the template's line is a prefix of the hub's), 49 synced copies plus the hub carry it, no grader bound the two copies, and the same instruction sat in the template's HARD STOPS row and in two synced checks' messages.
+- **Address the reader by WHERE they stand, not by "you"** — a synced sentence that names an action names who performs it and what every other reader does instead; the review then found the same error one level down: a check that proves TWO inert states and prints ONE remedy tells the wrong reader the wrong route, and the first replacement remedy named an installer that cannot produce the state it promised.
+- **A shared span that no grader pins is a divergence waiting to happen** — `T6_CLAIMS` pinned fragments around the sentence and none inside it; a literal pin ships with the fix.
+- **Grep the fleet-synced surfaces for the same instruction before fixing one copy** — the critiques found the HARD STOPS row and `check_synced_unmodified.py`, the review found `check_sync_trigger_coverage.py`'s second inert state; the design's first draft had one file.
+- **Replay the item's cited lines before designing** — both `:162` and `:66` had moved; one claim (the absolute hub path) was the ruled convention and was refuted, not fixed.
+
 ## A parity grader needs ONE text: a project-facing rewrite that differs from the hub's row can never be graded byte-identical (2026-10-23)
 
 W-62e96a9f set out to give the fleet template a project-facing `Agent-Role` row and grade the hub's and the template's trailer sections identical minus the `Agent-Name` row. The first design did both at once and so could never go green — the two critique seats proved it by applying the design to a copy. The fix was to put the hub's row in scope and write one cell true in every repo that reads it (the dispatcher runs in every repo with a GitHub origin, the hub included), which also exposed a third, fleet-synced copy of the table in a rule pack.

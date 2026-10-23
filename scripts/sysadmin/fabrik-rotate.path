@@ -1,0 +1,13 @@
+# W-f975fee0 slice 2 (D-1135): run fabrik-rotate.service whenever a rotation request is waiting.
+# A request is written only by `agents_up.sh rotate-session <name>` (rotate_session.py request) after its checks; the
+# service re-runs every check itself and deletes every file it sees, so this unit never re-fires on a leftover.
+[Unit]
+Description=Fabrik session rotation — watch for rotation requests
+
+[Path]
+PathExistsGlob=%h/.claude/state/rotate-requests/*.json
+MakeDirectory=yes
+DirectoryMode=0700
+
+[Install]
+WantedBy=default.target

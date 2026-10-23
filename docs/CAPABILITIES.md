@@ -265,7 +265,7 @@
 - [scripts/sysadmin/dispatch_headroom.py](../INDEX.md) (owner: infra): dispatch_headroom — the seat budget for a native fan-out, from the BOX and the FLEET, not from prose.
 - [scripts/sysadmin/emit_mcp_project_config.py](../INDEX.md) (owner: infra): Emit each /opt repo's project-scope `.mcp.json` from the MCP split rulings.
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](../INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
-- [scripts/sysadmin/fabrik_deck.py](../INDEX.md) (owner: infra): fabrik_deck.py code-server | install [--hub DIR] [--start] — the Fabrik Deck's code-server as a systemd user service.
+- [scripts/sysadmin/fabrik_deck.py](../INDEX.md) (owner: infra): fabrik_deck.py code-server | serve | hook | install | profile | launcher | up — the Fabrik Deck on this box.
 - [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): FEEDBACK relay — closes the loop the operator asked for five times (D-055, then the 6th ask:
 - [scripts/sysadmin/hibernate.py](../INDEX.md) (owner: infra): hibernate.py — the machinery behind /hibernate (W-1e9ae1e5): find every repo's live agents, hand out the pause
 - [scripts/sysadmin/incident_context.py](../INDEX.md) (owner: infra): Incident context marshaller — the HOST side of the pool-diagnosis path.
@@ -279,6 +279,7 @@
 - [scripts/sysadmin/kaizen_events.py](../INDEX.md) (owner: infra): CONSUMERS (re-verify on any SCHEMA/envelope change; not coupled to ordinary edits):
 - [scripts/sysadmin/kaizen_outcomes.py](../INDEX.md) (owner: infra): Kaizen M1 outcome tier — rework miner, fleet-health sweep, premature-stop reader.
 - [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): M0 shrink audit — the usage-evidence census over every governance artifact.
+- [scripts/sysadmin/kaizen_waste.py](../INDEX.md) (owner: infra): Kaizen token-waste series — Lean Six Sigma MEASURE for the fleet's token burn (W-02472911, D-1118).
 - [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): LIVENESS AUDIT — we verify correctness at write-time and never verify liveness at run-time.
 - [scripts/sysadmin/mail_escalate.py](../INDEX.md) (owner: infra): fabrik-mail escalation digest — the destination-side half of the addressing plan.
 - [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): Assigned-vs-LIVE MCP diff for the current repo (D-033 forcing pair, advisory).
@@ -292,7 +293,7 @@
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): Version injection for the rules corpus (D-062 — no version literals in packs).
 - [scripts/sysadmin/selfwatch_check.py](../INDEX.md) (owner: infra): UserPromptSubmit (USER level — every window, every project) — is this session's self-watch ARMED?
 - [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): stop_mine — the promoted research miner (spec 2026-09-23-stop-and-compaction-enforcement-design
-- [scripts/sysadmin/transcript_size_check.py](../INDEX.md) (owner: infra): transcript_size_check — the ROTATE advisory (C.1.3 of the session-history retention plan, D-736).
+- [scripts/sysadmin/transcript_size_check.py](../INDEX.md) (owner: infra): transcript_size_check — the ROTATE advisories (C.1.3 of the session-history retention plan, D-736; the
 - [scripts/sysadmin/user_hook_gate.py](../INDEX.md) (owner: infra): USER-level hook gate: run a hub hook for every window UNLESS the project already wires it.
 - [scripts/sysadmin/vps_script_drift.py](../INDEX.md) (owner: infra): Read-only drift check: is every VPS still running the hub's committed scripts? (W-c792a205)
 - [scripts/sysadmin/worktree_transcript_link.py](../INDEX.md) (owner: infra): SessionStart + Stop (USER level, every window, every repo): keep a worktree session listed in its repo's window.
