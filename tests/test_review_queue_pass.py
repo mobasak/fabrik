@@ -814,8 +814,10 @@ def test_a_wording_change_seat_runs_the_command_the_sentence_names() -> None:
     assert (
         "run a README snippet, usage text or rewritten docstring instruction as a caller would, and hand each seat of"
         " the brief that same command to run under § Seat isolation — one that writes a live store, sends, commits,"
-        " deploys or reaches a host stays the lead's, who runs it on a scratch target (a throwaway database, repo or"
-        " host), every command and SQL block of a runbook included — and probe"
+        " deploys or reaches a host stays the lead's, who runs one that writes, sends, commits or deploys on a scratch"
+        " target (a throwaway database, repo, host or account), every such command and SQL block of a runbook"
+        " included, names one with no scratch target `unverified` in the brief with why, never running it live, and"
+        " runs a read-only one against its real host — and probe"
     ) in cat
     assert "every citation in a docs change, every cross-repo claim" in cat, (
         "the Execute line stays the lead's"
