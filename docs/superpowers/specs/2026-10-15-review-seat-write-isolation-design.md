@@ -94,7 +94,9 @@ carrying to the next call (Contract deltas).
      - on WSL: `--tmpfs /run/WSL` (the interop sockets), `--tmpfs /mnt` (the drvfs mounts that hold every Windows
        executable), and `--unsetenv WSL_INTEROP`.
      - `--tmpfs /mnt` is skipped when the payload cwd or the scratchpad lies under `/mnt` (a repo on drvfs), since
-       masking it would hide the seat's own cwd; that host keeps interop as its recorded residual.
+       masking it would hide the seat's own cwd. That call runs with interop unproven: the mode probe's fixed flag set
+       always masks `/mnt`, so the hook does not consult the cache's `interop:` value for it, and the hooks-index row
+       names a drvfs repo as an interop residual.
      - Every mask is added only when its path exists: bwrap cannot create a mount point under the read-only root
        (executed in pass 5: a mask on a missing `/run/…sock` exits rc 1, "Can't create file … Read-only file
        system"). `--unsetenv` is not a path and always applies.
@@ -213,7 +215,7 @@ carrying to the next call (Contract deltas).
   - a `pytest` run in the live tree without `-p no:cacheprovider` (its `.pytest_cache` write);
   - a tool writing a cache under `$HOME`;
   - git commands that need to write the live index;
-  - a call to the docker daemon, D-Bus or tmux, and on WSL any `/mnt` path and, where the masks hold, any Windows
+  - a call to the docker daemon, D-Bus or tmux, and on WSL any `/mnt` path (unless the cwd or scratchpad is on drvfs) and, where the masks hold, any Windows
     executable;
   - a `cd` that a later call relies on: the `cd` runs in the wrapped child, so it does not carry to the next call; a
     seat uses absolute paths or `cd` on the same line;
@@ -517,7 +519,7 @@ natural home.
 - `docs/workstation/hooks-index.md` — the `seat_guard.py` row (write rule, blind spot).
 - `CHANGELOG.md` — one `### Changed` entry.
 - `.claude/settings.json` — the hook's `statusMessage` names the fence (§ Amendment, Contract deltas).
-- `docs/workstation/hooks-index.md` — the row also names the fence, its masks, mode detection and the bwrap host prerequisite.
+- `docs/workstation/hooks-index.md` — the row also names the fence, its masks, mode detection, the bwrap host prerequisite and the `interop:` residual (open, or unproven for a drvfs repo).
 - The module docstring of `.claude/hooks/seat_guard.py` — the rule, its limits and the COBRA line.
 
 ## Open / blocking unknowns
