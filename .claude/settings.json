@@ -149,7 +149,7 @@
             "type": "command",
             "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/seat_guard.py\"; [ -f \"$f\" ] || exit 0; python3 \"$f\"; exit 0",
             "timeout": 5,
-            "statusMessage": "Seat guard (review seats run inside a bubblewrap fence: writes only in scratch, no pattern kills)..."
+            "statusMessage": "Seat guard (review seats: no pattern kills, git writes only in scratch)..."
           }
         ]
       }

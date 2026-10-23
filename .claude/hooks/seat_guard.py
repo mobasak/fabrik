@@ -2,15 +2,6 @@
 # AFTER-EDIT: tests/test_seat_guard.py, docs/workstation/hooks-index.md, .claude/settings.json
 """PreToolUse (Bash) seat guard — refuse a review seat's pattern kills, and its git and file writes outside scratch.
 
-FENCE MODE (W-72dfd448 Phase B, D-1129): where ``/usr/bin/bwrap`` runs, a seat's whole command is wrapped by
-``rewrite()`` in a bubblewrap filesystem fence — read-only everywhere but the scratchpad, the session's run folder
-and a seeded run's record scratch; docker, D-Bus, tmux and the WSL interop masked — so the OS, not this parser,
-is the boundary, and the write rule below does not run. Where bwrap cannot run (absent, the probe failing, no
-``scratchpad_dir``) the parser below is the FALLBACK: it refuses the constructs it does not model and fails
-closed for a seat on its own crash. Residuals either way: localhost TCP and other sockets, the per-session
-width, the settings entry's fail-open. COBRA (D-253): the test seams ``SEAT_GUARD_BWRAP`` and
-``SEAT_GUARD_CACHE`` choose inputs, never the mode, so a test cannot fake the fence by skipping the probe.
-
 Review seats (``agent_type`` in ``SEAT_TYPES``) run Bash in the LEAD's shared tree, and their
 isolation used to be brief prose only. Two incident classes hit live repos: a seat's
 ``git checkout/reset/commit`` in a main checkout destroyed the merge owner's uncommitted work
@@ -111,7 +102,6 @@ seat marker is the candidate if scripted writes recur.
 
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 import os
@@ -1228,15 +1218,11 @@ def _write_reason(
 def _safe_write_reason(
     words: list[str], redirs: list[tuple[str, str]], ctx: dict, cwd_before: str
 ) -> str:
-    """The write rule inside its own try: a bug in it never disarms the kill and git rules (D-1116).
-
-    Fence mode never calls it (the fence is the boundary); in FALLBACK mode a crash here DENIES, since
-    the parser is then the only boundary (spec:146-148).
-    """
+    """The write rule inside its own try: a bug in it never disarms the kill and git rules (D-1116)."""
     try:
         return _write_reason(words, redirs, ctx, cwd_before)
-    except Exception as exc:
-        return f"the write rule crashed in fallback mode ({type(exc).__name__}) — refused"
+    except Exception:
+        return ""
 
 
 def _child(ctx: dict, inherit: bool) -> dict:
@@ -1308,8 +1294,6 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
         # any git … <write verb> on one command line, flags in between included; any kill word
         if re.search(rf"\bgit\b[^;&|\n]*?\s({writes})\b|\b(pkill|killall|kill)\b", raw_command):
             return "the command cannot be tokenised and names a git write or a kill"
-        if ctx.get("fence"):
-            return ""
         # a write verb as a command word (not a path piece or an option: `/tmp/cp`, `--rm`), an in-place
         # sed/perl, or an output redirect to something other than /dev/… or an fd (W-72dfd448)
         if re.search(
@@ -1359,11 +1343,7 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
         # the write rule runs first, so a redirect on an empty, keyword, cd or bash -c line is judged;
         # redirects resolve against the cwd before an `env -C`, operands against the moved one; this
         # line's own assignments are recorded after it is judged (the shell expands its words first)
-        reason = (
-            ""
-            if ctx.get("fence")
-            else _safe_write_reason(words, getattr(raw, "redirs", []), ctx, cwd_before)
-        )
+        reason = _safe_write_reason(words, getattr(raw, "redirs", []), ctx, cwd_before)
         _record_assignments(raw, ctx)
         if reason:
             return reason
@@ -1409,24 +1389,11 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
     return ""
 
 
-def decide(payload: dict, mode: dict | None = None) -> str:
-    """The deny reason for this Bash call, or "" to allow. ``mode`` is ``_fence_mode``'s answer;
-    None means fallback (the parser is the boundary)."""
+def decide(payload: dict) -> str:
+    """The deny reason for this Bash call, or "" to allow."""
     if not payload.get("agent_id") or payload.get("agent_type") not in SEAT_TYPES:
         return ""
-    tool_input = payload.get("tool_input")
-    command = tool_input.get("command") if isinstance(tool_input, dict) else None
-    if not isinstance(command, str) or not command.strip():
-        return ""  # nothing will run, so nothing to judge (a malformed payload is not a crash)
-    fence = bool(mode) and mode.get("mode") == "fence"
-    if not fence:
-        what = _unmodelled(command)
-        if what:
-            why = (mode or {}).get("why") or "no fence"
-            return (
-                f"seat guard (fallback mode — {why}): the command holds {what}, which the parser does not "
-                f"model, so it is refused. {_SAFE}."
-            )
+    command = (payload.get("tool_input") or {}).get("command") or ""
     sd = payload.get("scratchpad_dir")
     ctx = {
         "cwd": str(payload.get("cwd") or os.getcwd()),
@@ -1436,280 +1403,10 @@ def decide(payload: dict, mode: dict | None = None) -> str:
         "work_tree": False,
         "sid": str(payload.get("session_id") or ""),
         "scratchpad": os.path.realpath(sd) if isinstance(sd, str) and sd else "",
-        "fence": fence,
     }
     reason = _scan(command, ctx, 0)
     if reason:
         return f"seat guard (review seats run in the lead's shared tree): {reason}. {_SAFE}."
-    return ""
-
-
-# ---- the fence (W-72dfd448 Phase B; spec § Amendment 2026-10-22, D-1129) -------------------------
-# A seat's whole command runs inside bubblewrap: the filesystem read-only, writable only the
-# session scratchpad, the session's run folder and a seeded run's record scratch. The parser above
-# stays as the FALLBACK where bwrap cannot run. COBRA (D-253): the cheapest way to make the fence
-# tests pass without a fence is a seam that skips the probe — so the two seams below choose INPUTS
-# (the binary, the cache file), never the mode itself.
-
-_BWRAP_DEFAULT = "/usr/bin/bwrap"
-_WSL_INTEROP = "/proc/sys/fs/binfmt_misc/WSLInterop"
-_APPARMOR_USERNS = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns"
-_WIN_PROBE = "/mnt/c/Windows/System32/cmd.exe"
-# the fixed flag template the probe runs; its hash is part of the cache key, so a changed flag set
-# re-probes (spec:129-135)
-_FLAG_TEMPLATE = (
-    "--ro-bind / / --dev /dev --proc /proc | masks: docker.sock /run/user/<uid> /tmp/tmux-<uid> "
-    "/run/WSL /mnt WSL_INTEROP | binds: scratchpad run-folder record-scratch | TMPDIR "
-    "--unshare-pid --die-with-parent --chdir"
-)
-
-
-def _bwrap_path() -> str:
-    return os.environ.get("SEAT_GUARD_BWRAP") or _BWRAP_DEFAULT
-
-
-def _cache_file() -> str:
-    return os.environ.get("SEAT_GUARD_CACHE") or f"/tmp/claude-{os.getuid()}/seat-guard-bwrap.json"
-
-
-def _cr_state_dir() -> str:
-    """``scripts/command_run.py::_state_dir`` (pinned equal by test B11; never imported here)."""
-    raw = os.environ.get("COMMAND_RUN_DIR")
-    if raw:
-        return raw
-    return os.path.join(os.path.expanduser("~"), ".claude", "state", "command-runs")
-
-
-def _cr_safe_sid(sid: str) -> str:
-    """``scripts/command_run.py::_safe_sid``, byte-for-byte (pinned equal by test B11)."""
-    safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in sid)
-    if not safe:
-        return "nosession"
-    if safe != sid:
-        safe += "-" + hashlib.blake2s(sid.encode("utf-8", "replace"), digest_size=4).hexdigest()
-    return safe
-
-
-def _cr_record_path(sid: str) -> str:
-    """``scripts/command_run.py::_record_path`` (pinned equal by test B11)."""
-    return os.path.join(_cr_state_dir(), f"{_cr_safe_sid(sid)}.json")
-
-
-def _cr_scratch_main(cwd: str) -> str | None:
-    """``scripts/command_run.py::_scratch_main`` for the checkout holding ``cwd``: the parent of
-    the common git dir, so every worktree of one repo shares one run root."""
-    try:
-        r = subprocess.run(
-            [
-                "git",
-                "-C",
-                cwd,
-                "rev-parse",
-                "--path-format=absolute",
-                "--git-common-dir",
-                "--show-toplevel",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=3,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    lines = r.stdout.splitlines()
-    if r.returncode != 0 or len(lines) < 2:
-        return None
-    common, top = lines[0], lines[1]
-    return os.path.dirname(common) if os.path.basename(common) == ".git" else top
-
-
-def _under(path: str, root: str) -> bool:
-    return path == root or path.startswith(root.rstrip("/") + "/")
-
-
-def _writable_binds(payload: dict) -> list[str]:
-    """The writable bind set (spec:113-121): scratchpad, run folder, a seeded run's record scratch."""
-    scratch = os.path.realpath(payload["scratchpad_dir"])
-    binds = [scratch]
-    cwd = str(payload.get("cwd") or "")
-    sid = str(payload.get("session_id") or "")
-    main = _cr_scratch_main(cwd) if cwd else None
-    if main and sid:
-        runs = os.path.realpath(os.path.join(main, ".tmp", "runs"))
-        run_folder = os.path.join(runs, _cr_safe_sid(sid))
-        if os.path.isdir(run_folder):
-            binds.append(run_folder)
-        try:
-            with open(_cr_record_path(sid), encoding="utf-8") as fh:
-                rec = json.load(fh)
-        except (OSError, ValueError):
-            rec = {}
-        prev = rec.get("scratch") if isinstance(rec, dict) else None
-        if isinstance(prev, str) and prev and os.path.isdir(prev):
-            prev = os.path.realpath(prev)
-            if _under(prev, runs) and not _under(prev, run_folder) and not _under(prev, scratch):
-                binds.append(prev)
-    return binds
-
-
-def _masks(cwd: str, scratch: str) -> list[str]:
-    """The service masks of spec:90-102, each only when its path exists."""
-    uid = os.getuid()
-    out: list[str] = []
-    if os.path.exists("/run/docker.sock"):
-        out += ["--ro-bind", "/dev/null", "/run/docker.sock"]
-    for path in (f"/run/user/{uid}", f"/tmp/tmux-{uid}", "/run/WSL"):
-        if os.path.isdir(path):
-            out += ["--tmpfs", path]
-    # the drvfs mounts hold every Windows executable; skipped when the seat's own cwd or scratch
-    # lives there (spec:96-99) — that call runs with interop unproven
-    if os.path.isdir("/mnt") and not _under(cwd, "/mnt") and not _under(scratch, "/mnt"):
-        out += ["--tmpfs", "/mnt"]
-    out += ["--unsetenv", "WSL_INTEROP"]
-    return out
-
-
-def _fence_argv(payload: dict) -> list[str]:
-    """The bwrap vector for this seat call (spec:88-124). Raises on a per-call failure the hook can
-    see (a cwd that is not a directory), which DENIES the call (spec:81-83)."""
-    cwd = str(payload.get("cwd") or "")
-    if not cwd or not os.path.isdir(cwd):
-        raise ValueError(f"the payload cwd {cwd!r} is not a directory")
-    binds = _writable_binds(payload)
-    argv = [_bwrap_path(), "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"]
-    argv += _masks(cwd, binds[0])
-    for b in binds:
-        argv += ["--bind", b, b]
-    argv += ["--setenv", "TMPDIR", binds[0], "--unshare-pid", "--die-with-parent", "--chdir", cwd]
-    return argv
-
-
-def _cache_key(binary: str) -> dict:
-    try:
-        mtime = os.stat(binary).st_mtime_ns
-    except OSError:
-        mtime = None
-    try:
-        with open(_APPARMOR_USERNS, encoding="utf-8") as fh:
-            apparmor = fh.read().strip()
-    except OSError:
-        apparmor = "absent"
-    return {
-        "binary": binary,
-        "mtime": mtime,
-        "kernel": os.uname().release,
-        "apparmor_userns": apparmor,
-        "flags": hashlib.sha256(_FLAG_TEMPLATE.encode()).hexdigest()[:16],
-    }
-
-
-def _probe(binary: str) -> dict:
-    """Run the fixed flag set over a private folder (never a per-call path), and on WSL the interop
-    launch of spec:103-112. Returns the mode record that is cached."""
-    import tempfile
-
-    tmp = tempfile.mkdtemp(prefix="seat-guard-probe-")
-    try:
-        base = [binary, "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"]
-        tail = ["--unshare-pid", "--die-with-parent", "--chdir", tmp]
-        masked = base + _masks(tmp, tmp) + ["--bind", tmp, tmp]
-        try:
-            ok = (
-                subprocess.run(
-                    masked + tail + ["--", "/bin/true"], capture_output=True, timeout=3
-                ).returncode
-                == 0
-            )
-        except (OSError, subprocess.SubprocessError):
-            ok = False
-        if not ok:
-            return {
-                "mode": "fallback",
-                "interop": "n/a",
-                "why": "the bwrap probe failed (user namespaces refused?)",
-            }
-        interop = "n/a"
-        if os.path.exists(_WSL_INTEROP):
-            interop = "unproven"
-            if os.path.isfile(_WIN_PROBE):
-                exe = os.path.join(tmp, "probe.exe")
-                launch = (
-                    masked + ["--ro-bind", _WIN_PROBE, exe] + tail + ["--", exe, "/c", "exit 0"]
-                )
-                try:
-                    rc = subprocess.run(launch, capture_output=True, timeout=3).returncode
-                except (OSError, subprocess.SubprocessError):
-                    rc = 1
-                interop = "open" if rc == 0 else "masked"
-        return {"mode": "fence", "interop": interop, "why": ""}
-    finally:
-        try:
-            os.rmdir(tmp)
-        except OSError:
-            pass
-
-
-def _fence_mode(payload: dict) -> dict:
-    """fence or fallback for this seat call (spec:129-139), the probe cached per host (spec:131)."""
-    sd = payload.get("scratchpad_dir")
-    if not isinstance(sd, str) or not sd or not os.path.isdir(sd):
-        return {"mode": "fallback", "interop": "n/a", "why": "no scratchpad_dir"}
-    binary = _bwrap_path()
-    if not (os.path.isfile(binary) and os.access(binary, os.X_OK)):
-        return {"mode": "fallback", "interop": "n/a", "why": f"{binary} is absent"}
-    key = _cache_key(binary)
-    path = _cache_file()
-    try:
-        with open(path, encoding="utf-8") as fh:
-            cached = json.load(fh)
-        if (
-            isinstance(cached, dict)
-            and cached.get("key") == key
-            and cached.get("mode") in ("fence", "fallback")
-        ):
-            return {
-                "mode": cached["mode"],
-                "interop": cached.get("interop", "n/a"),
-                "why": cached.get("why", ""),
-            }
-    except (OSError, ValueError):
-        pass
-    result = _probe(binary)
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        tmp_path = f"{path}.{os.getpid()}.tmp"
-        with open(tmp_path, "w", encoding="utf-8") as fh:
-            json.dump({"key": key, **result}, fh)
-        os.replace(tmp_path, path)
-    except OSError:
-        pass
-    return result
-
-
-# the constructs the parser does not model; in FALLBACK mode a seat command holding one is refused
-# (spec:140-145)
-_UNMODELLED = (
-    (re.compile(r"(?:^|[;&|(\s])(?:ba|z|da|k)?sh\b[^\n;&|]*<<(?!<)"), "a heredoc to a shell"),
-    (re.compile(r"\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b"), "a pipe into a shell"),
-    (re.compile(r"(?:^|[;&|(\s])(?:eval|source)\b"), "`eval`/`source`"),
-    (re.compile(r"(?:^|[;&|(\s])\.\s+\S"), "`.` (source)"),
-    (re.compile(r"\$'"), "`$'…'`"),
-    (re.compile(r"\(\(|\[\["), "`((`/`[[`"),
-    (
-        re.compile(
-            r"(?:^|[;&|(\s])(?:command\s+-p|time\s+-p|ionice|stdbuf|flock|busybox|exec\s+-a)\b"
-        ),
-        "an unknown wrapper",
-    ),
-    (re.compile(r"(?:&&|\|\||\bthen|\belse|\bdo)\s+cd\b"), "a conditional `cd`"),
-    (re.compile(r"(?:^|[;&|(\s])cd\s+[^\n;&|]*\$\("), "a `$(…)` in a cd position"),
-    (re.compile(r">>?\|?\s*[^\s;&|]*\$\("), "a `$(…)` in a write position"),
-)
-
-
-def _unmodelled(command: str) -> str:
-    for rx, what in _UNMODELLED:
-        if rx.search(command):
-            return what
     return ""
 
 
@@ -1719,7 +1416,7 @@ _DOTENV_OFF = "export PYTHON_DOTENV_DISABLED=1"
 _ALREADY_OFF = re.compile(r"\s*export\s+PYTHON_DOTENV_DISABLED=1\s*(?:;|\n|$)")
 
 
-def rewrite(payload: dict, mode: dict | None = None) -> dict | None:
+def rewrite(payload: dict) -> dict | None:
     """The seat's ``tool_input`` with ``_DOTENV_OFF`` on its own first line, or None.
 
     site-provisioner 01M4F154S2 / 01M4F1KHHW: seats that imported the live tree's app had its
@@ -1734,18 +1431,9 @@ def rewrite(payload: dict, mode: dict | None = None) -> dict | None:
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
     if not isinstance(command, str) or not command.strip():
         return None
-    fence = bool(mode) and mode.get("mode") == "fence"
     if _ALREADY_OFF.match(command):
-        if not fence:
-            return None
-        inner = command  # the prefix is already there; the wrap still applies (spec:77-80)
-    else:
-        inner = f"{_DOTENV_OFF}\n{command}"
-    if not fence:
-        return {**tool_input, "command": inner}
-    argv = _fence_argv(payload)
-    wrapped = " ".join(shlex.quote(a) for a in argv) + " -- /bin/bash -c " + shlex.quote(inner)
-    return {**tool_input, "command": wrapped}
+        return None
+    return {**tool_input, "command": f"{_DOTENV_OFF}\n{command}"}
 
 
 def main() -> int:
@@ -1755,39 +1443,16 @@ def main() -> int:
         return 0
     if not isinstance(payload, dict) or payload.get("tool_name") != "Bash":
         return 0
-    seat = bool(payload.get("agent_id")) and payload.get("agent_type") in SEAT_TYPES
-    # the mode is computed ONCE, for a seat only, so rewrite() and decide() never disagree; a raise
-    # in it is fallback mode for this call (plan-2 Phase B)
-    mode: dict | None = None
-    if seat:
-        try:
-            mode = _fence_mode(payload)
-        except Exception as exc:
-            mode = {
-                "mode": "fallback",
-                "interop": "n/a",
-                "why": f"mode check raised {type(exc).__name__}",
-            }
-    fence = bool(mode) and mode.get("mode") == "fence"
-    # the rewrite is computed apart from the scan; for a seat in fence mode a failed wrap DENIES, so
-    # a seat command never runs unwrapped (spec:81-83)
+    # the rewrite is computed apart from the scan: the deny half fails open by charter, and the
+    # credential half must not fail with it
     try:
-        updated = rewrite(payload, mode)
-        wrap_error = ""
-    except Exception as exc:
+        updated = rewrite(payload)
+    except Exception:
         updated = None
-        wrap_error = f"{type(exc).__name__}: {exc}"
     try:
-        reason = decide(payload, mode)
-    except Exception as exc:
-        # fails open for the lead and in fence mode; in fallback mode the parser is the boundary
-        reason = (
-            f"seat guard (fallback mode): the check crashed ({type(exc).__name__}), so the call is refused. {_SAFE}."
-            if seat and not fence
-            else ""
-        )
-    if seat and fence and wrap_error and not reason:
-        reason = f"seat guard (fence mode): the call could not be wrapped ({wrap_error}), so it is refused. {_SAFE}."
+        reason = decide(payload)
+    except Exception:
+        reason = ""
     if not reason and updated is not None:
         print(
             json.dumps(

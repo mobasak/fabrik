@@ -340,6 +340,90 @@ Appetite: 60
 4. After the merge, re-run Phase B step 9's live seat against the merged hook from the main checkout's session and
    paste it in the receipt (panel condition, D-1116).
 
+**Phase B — BLOCKED 2026-10-23 at Validation 10 (unresolvable spec contradiction).** Built and committed: the fence
+code and graders B1-B12 (0669c6c51; 68 tests green; every neuter red on revert in the proof worktree, and 14 of the 15
+B and flipped-A rows red against the pre-Phase-B hook, B4 being the green-today row), the docs (4720a59fe). Then the
+executed proofs:
+
+- Validation 1, the receipt's false greens retargeted at the proof worktree, run for real through the fence:
+
+```text
+C1   ran wrapped rc=128 fatal: Unable to create '/opt/fabrik/.git/worktrees/fence-probe-5ce9d888/index.lock': Read
+C1b  ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
+C2   ran wrapped rc=1 rm: cannot remove 'src/fabrik/__pycache__/state.cpython-312.pyc': Read-only file system
+K1   ran wrapped rc=0 /bin/bash: line 2: kill: 99999999999999999999999999999999999999999999999999999999999999999
+K2   ran wrapped rc=1 /bin/bash: line 2: kill: (-1) - No such process
+K3   DENIED before running (seat guard (review seats run in the lead's shared tree): `xargs kill` …)
+W1   ran wrapped rc=1 touch: cannot touch 'zz_fence_w1': Read-only file system
+W2   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
+W3   ran wrapped rc=1 sys 0.02
+W4   ran wrapped rc=0 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/scripts/external_services_chain.s
+W5   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/tests/test_claude_rotate_capture.
+W5b  ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/commands/assemble_commands.py': R
+W5c  ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/templates/chrome-extension/defaul
+W6   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
+W7   ran wrapped rc=1 rm: cannot remove '/tmp/claude-1000/fence-probe-5ce9d888/src/fabrik/__pycache__/state.cpyt
+W8   ran wrapped rc=0 
+W9   ran wrapped rc=0 
+proof tree git status unchanged: True | porcelain: ''
+host /dev/shm/zz_fence_w8 exists: False
+host ~/zz_fence_w1 exists: False
+```
+
+  K1 and K2 run wrapped (fence mode lets the parser's crash through), and their kills reach only the sandbox's own pid
+  namespace.
+- Validation 4, BOUNDED (the whole harvest is too large to execute): 200 random commands of the eligible set, stated:
+
+```text
+harvest: 583326 Bash commands from fabrik-reviewer seats in the last 3 days, 40656 unique, 5675 eligible after excluding network/long/volatile shapes; sample 200 (seed 72)
+result: {"run": 200, "match": 198, "rc_only": 1, "mismatch": 1, "denied": 0, "erofs_home": 0}
+  mismatch: ('timeout 120 cat /home/ozgur/.local/share/code-server/User/settings.json', 0, 1)
+```
+
+  The one mismatch is the outer fence's throwaway `$HOME` (the unwrapped leg cannot see a home file), not a fence
+  refusal. The raw count double-counts files reachable from two harness roots; the unique count is the population.
+- U2 resolved: read-only git works under the read-only tree:
+
+```text
+$ git status --short | head -3; echo rc=${PIPESTATUS[0]}
+  rc=0 out='rc=0' err=''
+$ git log --oneline -1
+  rc=0 out="0e73a16a2 docs(review): W-72dfd448 plan-2 Phase A review receipt (from the plan's recorded rounds) +" err=''
+$ git diff --stat HEAD~1 | tail -1
+  rc=0 out='2 files changed, 31 insertions(+), 1 deletion(-)' err=''
+$ git show --stat HEAD | head -2
+  rc=0 out='commit 0e73a16a2626559ca6e6381760518a67af2cace1\nAuthor: t <t@fabrik.local>' err=''
+```
+
+- **Validation 10 FAILED — U1 and U6 resolved NEGATIVELY.** One live `fabrik-reviewer` seat (Haiku, Agent tool) in
+  this worktree, with the fenced hook live. Every command it ran was refused BEFORE it ran, because the harness
+  judges the REWRITTEN command: Claude Code's worktree isolation guard refuses the bwrap line ("runs bwrap with the
+  text /run/WSL … cannot be shown not to be git"), and the auto-mode classifier denies it (`[Auto-Mode Bypass]`,
+  `[Containment Escape]`). The seat's calls and results:
+
+```text
+CALL echo ok > /tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652
+CALL curl -s --max-time 5 --unix-socket /run/docker.sock http://x/_ping; echo rc=$?
+CALL ls /mnt/c/Windows/System32/cmd.exe; echo rc=$?
+  -> This session is isolated in the worktree /opt/fabrik/.claude/worktrees/intel, but this command runs bwrap with the text /run/WSL in a plain command, so what it runs cannot be shown not to be git. Refusing to run it — a worktree-isolated session's git operation
+  -> This session is isolated in the worktree /opt/fabrik/.claude/worktrees/intel, but this command runs bwrap with the text /run/WSL in a plain command, so what it runs cannot be shown not to be git. Refusing to run it — a worktree-isolated session's git operation
+  -> Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Auto-Mode Bypass]. If you have other tasks that don't depend on this action, continue working on those. IMPORTANT: You *may* attempt to accomplish this action using other t
+CALL echo ok > /tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652
+CALL curl -s --max-time 5 --unix-socket /run/docker.sock http://x/_ping; echo rc=$?
+CALL ls /mnt/c/Windows/System32/cmd.exe; echo rc=$?
+CALL ls /mnt/c/Windows/System32/cmd.exe; echo rc=$?
+CALL git status --short | head -3; echo done
+  -> Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Containment Escape]. If you have other tasks that don't depend on this action, continue working on those. IMPORTANT: You *may* attempt to accomplish this action using other
+  -> The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
+```
+
+  So the spec's premise that the `updatedInput` rewrite runs (`spec:74-86`, "Validation 10 re-proves it") is false
+  for a wrapped command in this harness: a fenced seat runs nothing. This is a design question (the Tripwire class
+  of the D-1129 amendment, U1/U6), not a patch: candidates are a `permissions.allow` rule for the exact wrapper prefix
+  plus a check that the worktree guard accepts it, a wrapper the guard can read (no `/run/WSL`-style path text), or a
+  sandbox the harness owns. The Phase B code stays in history (0669c6c51, 4720a59fe) and is REVERTED at the branch tip,
+  so seats dispatched from this worktree run again and nothing fenced can reach a merge.
+
 ## File Scope (owned paths)
 
 - `.claude/hooks/seat_guard.py`

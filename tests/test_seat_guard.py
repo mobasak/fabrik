@@ -19,11 +19,6 @@ REPO = Path(__file__).resolve().parent.parent
 HOOK = REPO / ".claude" / "hooks" / "seat_guard.py"
 SID = "sid-seat"
 SCRATCH = f"/tmp/claude-1000/-opt-x/{SID}/scratchpad"
-# every test reads and writes a private mode cache, never the host's (plan-2 Phase B step 3)
-_CACHE_DIR = __import__("tempfile").mkdtemp(prefix="seat-guard-test-cache-")
-
-
-_NO_BWRAP = "/nonexistent/seat-guard-test/bwrap"
 
 
 def _run(
@@ -32,16 +27,11 @@ def _run(
     agent_type: str | None = "fabrik-reviewer",
     cwd: str = "/opt/fabrik",
     raw: str | None = None,
-    scratch: str = SCRATCH,
-    bwrap: str = _NO_BWRAP,
-    env: dict | None = None,
 ) -> str:
-    """Run the hook as a subprocess. FALLBACK mode by default (a missing bwrap, plan-2 Phase B step 3):
-    the parser's graders keep judging the parser; fence tests pass ``bwrap=_BWRAP`` and a real scratch."""
     payload: dict = {
         "session_id": SID,
         "cwd": cwd,
-        "scratchpad_dir": scratch,
+        "scratchpad_dir": SCRATCH,
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",
         "tool_input": {"command": command},
@@ -49,19 +39,12 @@ def _run(
     if agent_type is not None:
         payload["agent_id"] = "agent-1"
         payload["agent_type"] = agent_type
-    run_env = {
-        **os.environ,
-        "SEAT_GUARD_BWRAP": bwrap,
-        "SEAT_GUARD_CACHE": os.path.join(_CACHE_DIR, f"cache-{os.getpid()}.json"),
-        **(env or {}),
-    }
     r = subprocess.run(
         [sys.executable, str(HOOK)],
         input=raw if raw is not None else json.dumps(payload),
         capture_output=True,
         text=True,
         timeout=30,
-        env=run_env,
     )
     assert r.returncode == 0, r.stderr
     return r.stdout
@@ -369,9 +352,8 @@ def test_a_child_python_under_the_rewrite_loads_no_dotenv(tmp_path) -> None:
 
 
 def test_a_scan_that_raises_still_rewrites(monkeypatch) -> None:
-    """FALLBACK mode (plan-2 Phase B, spec:146-148): a scanner crash on a seat payload now DENIES,
-    since the parser is the only boundary there. The fence-mode twin is
-    ``test_b7_a_fence_mode_scan_crash_still_wraps``."""
+    """The deny half fails open by charter; the rewrite must not fail with it — a seat whose
+    command the scanner cannot handle still runs with dotenv disabled."""
     spec = importlib.util.spec_from_file_location("seat_guard_raise", HOOK)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
@@ -390,13 +372,9 @@ def test_a_scan_that_raises_still_rewrites(monkeypatch) -> None:
     monkeypatch.setattr(mod.sys, "stdin", io.StringIO(json.dumps(payload)))
     buf = io.StringIO()
     monkeypatch.setattr(mod.sys, "stdout", buf)
-    monkeypatch.setenv("SEAT_GUARD_BWRAP", _NO_BWRAP)
     assert mod.main() == 0
     out = json.loads(buf.getvalue())["hookSpecificOutput"]
-    assert (
-        out.get("permissionDecision") == "deny"
-        and "fallback mode" in out["permissionDecisionReason"]
-    )
+    assert out["updatedInput"]["command"] == _PREFIX + "\npython3 x.py"
 
 
 def test_an_existing_export_with_a_trailing_semicolon_is_not_doubled() -> None:
@@ -550,9 +528,6 @@ def test_a8_an_untokenisable_write_is_denied_and_a_bare_echo_is_not() -> None:
 
 
 def test_a9_a_crash_in_the_write_rule_fails_open_and_keeps_the_git_rule(monkeypatch) -> None:
-    """FALLBACK mode (plan-2 Phase B): a crash inside the write rule now DENIES — its own try returns a
-    deny reason there, since the parser is the only boundary; the git rule still judges. The fence-mode
-    half (the write rule never runs) is ``test_b5_fence_mode_skips_the_write_rule``."""
     spec = importlib.util.spec_from_file_location("seat_guard_write_raise", HOOK)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
@@ -579,10 +554,8 @@ def test_a9_a_crash_in_the_write_rule_fails_open_and_keeps_the_git_rule(monkeypa
         assert mod.main() == 0
         return json.loads(buf.getvalue())["hookSpecificOutput"] if buf.getvalue().strip() else None
 
-    monkeypatch.setenv("SEAT_GUARD_BWRAP", _NO_BWRAP)
     out = run("echo x > Makefile")
-    assert out is not None and out.get("permissionDecision") == "deny"
-    assert "write rule crashed in fallback mode" in out["permissionDecisionReason"]
+    assert out is not None and "permissionDecision" not in out and "updatedInput" in out
     out = run("touch x; git reset --hard")
     assert out is not None and out.get("permissionDecision") == "deny"
     assert _run("", raw="not json") == ""
@@ -822,346 +795,3 @@ def test_a19b_a_repo_inside_another_sessions_tmp_tree_lends_it_no_scratch() -> N
         assert _denied(_run(f"touch {other}/proj/.tmp/x"))
     finally:
         shutil.rmtree(os.path.dirname(other), ignore_errors=True)
-
-
-# ---- Phase B — the fence (plan-2 Phase B, B1-B12; spec § Amendment 2026-10-22, D-1129) ----------
-
-import shlex  # noqa: E402
-import time  # noqa: E402
-
-import pytest  # noqa: E402
-
-_BWRAP = "/usr/bin/bwrap"
-needs_bwrap = pytest.mark.skipif(
-    not os.access(_BWRAP, os.X_OK),
-    reason="/usr/bin/bwrap absent — the fence cannot run on this host",
-)
-
-
-def _load(name: str):
-    spec = importlib.util.spec_from_file_location(name, HOOK)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def _fence_env(tmp_path: Path) -> dict:
-    return {
-        "SEAT_GUARD_CACHE": str(tmp_path / "cache.json"),
-        "COMMAND_RUN_DIR": str(tmp_path / "runs"),
-    }
-
-
-def _setup(tmp_path: Path) -> tuple[Path, Path]:
-    """A scratch dir and a 'live' dir outside every writable bind (Global Constraints)."""
-    scratch = tmp_path / "scratch"
-    live = tmp_path / "live"
-    scratch.mkdir()
-    live.mkdir()
-    (live / "f.txt").write_text("orig\n")
-    return scratch, live
-
-
-def _wrapped(
-    tmp_path: Path, command: str, *, cwd: Path, scratch: Path, agent_type="fabrik-reviewer"
-) -> str:
-    out = _run(
-        command,
-        cwd=str(cwd),
-        scratch=str(scratch),
-        bwrap=_BWRAP,
-        env=_fence_env(tmp_path),
-        agent_type=agent_type,
-    )
-    ui = _rewritten(out)
-    assert ui is not None, out
-    return ui["command"]
-
-
-def _exec(cmd: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["/bin/bash", "-c", cmd], capture_output=True, text=True, timeout=60)
-
-
-def _binds(wrapped: str) -> list[str]:
-    argv = shlex.split(wrapped.split(" -- /bin/bash -c ", 1)[0])
-    return [argv[i + 1] for i, a in enumerate(argv) if a == "--bind"]
-
-
-@needs_bwrap
-def test_b1_fence_mode_wraps_the_whole_command_and_round_trips_quoting(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    cmd = "printf '%s|' \"a b\" 'c d' \"$((1+1))\""
-    w = _wrapped(tmp_path, cmd, cwd=live, scratch=scratch)
-    assert w.startswith("/usr/bin/bwrap ") and " -- /bin/bash -c " in w
-    r = _exec(w)
-    assert r.returncode == 0 and r.stdout == "a b|c d|2|", (r.stdout, r.stderr)
-    # the _ALREADY_OFF case is wrapped too (spec:77-80): the prefix is not doubled, the wrap still applies
-    w2 = _wrapped(tmp_path, _PREFIX + "; echo $PYTHON_DOTENV_DISABLED", cwd=live, scratch=scratch)
-    assert w2.startswith("/usr/bin/bwrap ") and w2.count("PYTHON_DOTENV_DISABLED=1") == 1
-    assert _exec(w2).stdout.strip() == "1"
-
-
-@needs_bwrap
-def test_b2_live_writes_fail_with_erofs_inside_the_fence(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    target = live / "f.txt"
-    for cmd in (
-        f"echo x > {target}",
-        f"touch {live}/new",
-        f"python3 -c \"open('{target}','w').write('x')\"",
-        f"perl -pi -e 's/orig/gone/' {target}",
-        f"python3 -c \"import shutil; shutil.rmtree('{live}')\"",
-    ):
-        r = _exec(_wrapped(tmp_path, cmd, cwd=live, scratch=scratch))
-        # `perl -pi` warns and exits 0; the unchanged tree below is the proof, the message the cause
-        assert "Read-only file system" in (r.stderr + r.stdout), (
-            cmd,
-            r.stderr,
-        )
-    assert target.read_text() == "orig\n" and sorted(p.name for p in live.iterdir()) == ["f.txt"]
-
-
-@needs_bwrap
-def test_b3_scratch_and_tmpdir_writes_succeed_and_pwd_is_the_payload_cwd(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    cmd = f'echo ok > {scratch}/a && mktemp >/dev/null && pwd && echo "$TMPDIR"'
-    r = _exec(_wrapped(tmp_path, cmd, cwd=live, scratch=scratch))
-    assert r.returncode == 0, r.stderr
-    assert r.stdout.split() == [str(live), str(scratch)]
-    assert (scratch / "a").read_text() == "ok\n"
-
-
-@needs_bwrap
-def test_b4_the_lead_and_a_non_seat_agent_are_never_wrapped(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    env = _fence_env(tmp_path)
-    for agent_type in (None, "general-purpose"):
-        out = _run(
-            "echo x > f.txt",
-            cwd=str(live),
-            scratch=str(scratch),
-            bwrap=_BWRAP,
-            env=env,
-            agent_type=agent_type,
-        )
-        assert out == "", (agent_type, out)
-
-
-@needs_bwrap
-def test_b5_fence_mode_skips_the_write_rule_but_keeps_kill_and_git(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    env = _fence_env(tmp_path)
-    # shapes the parser's write rule refuses (spec R1-R4 false refusals) run wrapped; the OS judges them
-    for cmd in ("echo x > Makefile", "touch x", "rm -rf src", "python3 -c \"open('x','w')\""):
-        out = _run(cmd, cwd=str(live), scratch=str(scratch), bwrap=_BWRAP, env=env)
-        assert not _denied(out) and _rewritten(out)["command"].startswith("/usr/bin/bwrap "), (
-            cmd,
-            out,
-        )
-    for cmd in ("git reset --hard", "pkill -f foo"):  # judged in a git checkout, as the A rows are
-        assert _denied(_run(cmd, cwd=str(REPO), scratch=str(scratch), bwrap=_BWRAP, env=env)), cmd
-
-
-def test_b6_fallback_mode_refuses_unmodelled_constructs_and_says_so(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    cases = (
-        "eval ls",
-        "bash <<EOF\nls\nEOF",
-        "bash -c $'ls\\nrm -rf x'",
-        "[[ -f x ]] && ls",
-        "true && cd /tmp; ls",
-    )
-    triggers = (
-        {"bwrap": _NO_BWRAP, "scratch": str(scratch)},  # bwrap absent
-        {"bwrap": _BWRAP, "scratch": str(tmp_path / "missing")},  # no scratchpad_dir
-    )
-    for t in triggers:
-        for cmd in cases:
-            out = _run(cmd, cwd=str(live), env=_fence_env(tmp_path), **t)
-            assert _denied(out), (t, cmd, out)
-            assert (
-                "fallback mode" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
-            )
-    # a plain command stays allowed in fallback mode
-    assert not _denied(
-        _run("ls -la", cwd=str(live), scratch=str(scratch), env=_fence_env(tmp_path))
-    )
-
-
-@needs_bwrap
-def test_b7_a_wrap_failure_denies_a_seat(tmp_path) -> None:
-    scratch, _ = _setup(tmp_path)
-    out = _run(
-        "ls",
-        cwd=str(tmp_path / "gone"),
-        scratch=str(scratch),
-        bwrap=_BWRAP,
-        env=_fence_env(tmp_path),
-    )
-    assert (
-        _denied(out)
-        and "could not be wrapped"
-        in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
-    )
-
-
-@needs_bwrap
-def test_b7_a_fence_mode_scan_crash_still_wraps(tmp_path, monkeypatch) -> None:
-    scratch, live = _setup(tmp_path)
-    mod = _load("seat_guard_b7")
-
-    def boom(*a, **k):
-        raise RuntimeError("scanner bug")
-
-    monkeypatch.setattr(mod, "_scan", boom)
-    for k, v in {**_fence_env(tmp_path), "SEAT_GUARD_BWRAP": _BWRAP}.items():
-        monkeypatch.setenv(k, v)
-    payload = {
-        "agent_id": "a",
-        "agent_type": "fabrik-reviewer",
-        "session_id": SID,
-        "cwd": str(live),
-        "scratchpad_dir": str(scratch),
-        "tool_name": "Bash",
-        "tool_input": {"command": "ls"},
-    }
-    monkeypatch.setattr(mod.sys, "stdin", io.StringIO(json.dumps(payload)))
-    buf = io.StringIO()
-    monkeypatch.setattr(mod.sys, "stdout", buf)
-    assert mod.main() == 0
-    out = json.loads(buf.getvalue())["hookSpecificOutput"]
-    assert "permissionDecision" not in out and out["updatedInput"]["command"].startswith(
-        "/usr/bin/bwrap "
-    )
-
-
-@needs_bwrap
-def test_b8_a_backgrounded_child_dies_with_the_call(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    r = _exec(
-        _wrapped(
-            tmp_path, f"(sleep 2; touch {scratch}/late) & echo started", cwd=live, scratch=scratch
-        )
-    )
-    assert r.returncode == 0 and "started" in r.stdout
-    time.sleep(3.5)
-    assert not (scratch / "late").exists()
-
-
-@needs_bwrap
-def test_b9_the_writable_bind_set_is_exact(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
-    run_folder = repo / ".tmp" / "runs" / SID
-    run_folder.mkdir(parents=True)
-    seed_scratch = repo / ".tmp" / "runs" / "seed-sid" / "fabrik-x"
-    seed_scratch.mkdir(parents=True)
-    env = _fence_env(tmp_path)
-    Path(env["COMMAND_RUN_DIR"]).mkdir()
-    (Path(env["COMMAND_RUN_DIR"]) / f"{SID}.json").write_text(
-        json.dumps({"scratch": str(seed_scratch)})
-    )
-    w = _run("ls", cwd=str(repo), scratch=str(scratch), bwrap=_BWRAP, env=env)
-    binds = _binds(_rewritten(w)["command"])
-    assert binds == [str(scratch), str(run_folder), str(seed_scratch)], binds
-    # cobra counter: /tmp and the repo .tmp are never writable binds
-    assert "/tmp" not in binds and str(repo / ".tmp") not in binds
-    # a record scratch OUTSIDE .tmp/runs is not bound
-    (Path(env["COMMAND_RUN_DIR"]) / f"{SID}.json").write_text(json.dumps({"scratch": str(live)}))
-    binds = _binds(
-        _rewritten(_run("ls", cwd=str(repo), scratch=str(scratch), bwrap=_BWRAP, env=env))[
-            "command"
-        ]
-    )
-    assert binds == [str(scratch), str(run_folder)], binds
-    # each service mask only for an existing path
-    head = _rewritten(w)["command"].split(" -- /bin/bash -c ", 1)[0]
-    assert ("--ro-bind /dev/null /run/docker.sock" in head) == os.path.exists("/run/docker.sock")
-    assert (f"--tmpfs /run/user/{os.getuid()}" in head) == os.path.isdir(f"/run/user/{os.getuid()}")
-
-
-@needs_bwrap
-def test_b10_the_mode_cache_rekeys_and_never_stores_a_per_call_failure(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    env = _fence_env(tmp_path)
-    cache = Path(env["SEAT_GUARD_CACHE"])
-    # a per-call failure (bad cwd) leaves a fence record, never a failure
-    _run("ls", cwd=str(tmp_path / "gone"), scratch=str(scratch), bwrap=_BWRAP, env=env)
-    rec = json.loads(cache.read_text())
-    assert rec["mode"] == "fence"
-    # a cached record whose key matches is used as is
-    rec["mode"], rec["why"] = "fallback", "planted"
-    cache.write_text(json.dumps(rec))
-    out = _run("eval ls", cwd=str(live), scratch=str(scratch), bwrap=_BWRAP, env=env)
-    assert _denied(out) and "planted" in out
-    # a changed key (the AppArmor value, the binary mtime or the flag hash) re-probes
-    for field, val in (("apparmor_userns", "1"), ("mtime", 1), ("flags", "0000")):
-        planted = json.loads(cache.read_text())
-        planted["key"][field] = val
-        planted["mode"] = "fallback"
-        cache.write_text(json.dumps(planted))
-        _run("ls", cwd=str(live), scratch=str(scratch), bwrap=_BWRAP, env=env)
-        assert json.loads(cache.read_text())["mode"] == "fence", field
-
-
-def test_b11_the_record_lookup_copies_match_command_run(tmp_path, monkeypatch) -> None:
-    mod = _load("seat_guard_b11")
-    spec = importlib.util.spec_from_file_location(
-        "command_run_b11", REPO / "scripts" / "command_run.py"
-    )
-    assert spec and spec.loader
-    cr = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(cr)
-    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "runs"))
-    for sid in ("5ce9d888-9344-466f-b905-652ac93cdf89", "abc.xyz", "abc xyz", ""):
-        assert mod._cr_safe_sid(sid) == cr._safe_sid(sid), sid
-        assert mod._cr_record_path(sid) == str(cr._record_path(sid)), sid
-    monkeypatch.delenv("COMMAND_RUN_DIR")
-    assert mod._cr_record_path("s") == str(cr._record_path("s"))
-    assert mod._cr_scratch_main(str(REPO)) == str(cr._scratch_main(str(REPO)))
-
-
-@needs_bwrap
-@pytest.mark.skipif(
-    not os.path.exists("/proc/sys/fs/binfmt_misc/WSLInterop"), reason="not a WSL host"
-)
-def test_b12_the_interop_record_matches_a_launch_in_the_masked_fence(tmp_path) -> None:
-    scratch, live = _setup(tmp_path)
-    env = _fence_env(tmp_path)
-    _run("ls", cwd=str(live), scratch=str(scratch), bwrap=_BWRAP, env=env)
-    recorded = json.loads(Path(env["SEAT_GUARD_CACHE"]).read_text())["interop"]
-    mod = _load("seat_guard_b12")
-    exe_src = mod._WIN_PROBE
-    if not os.path.isfile(exe_src):
-        assert recorded == "unproven"
-        return
-    box = tmp_path / "box"
-    box.mkdir()
-    exe = box / "probe.exe"
-    argv = [
-        _BWRAP,
-        "--ro-bind",
-        "/",
-        "/",
-        "--dev",
-        "/dev",
-        "--proc",
-        "/proc",
-        *mod._masks(str(box), str(box)),
-    ]
-    argv += [
-        "--bind",
-        str(box),
-        str(box),
-        "--ro-bind",
-        exe_src,
-        str(exe),
-        "--unshare-pid",
-        "--die-with-parent",
-    ]
-    argv += ["--", str(exe), "/c", "exit 0"]
-    rc = subprocess.run(argv, capture_output=True, timeout=10).returncode
-    assert recorded == ("open" if rc == 0 else "masked"), (recorded, rc)
