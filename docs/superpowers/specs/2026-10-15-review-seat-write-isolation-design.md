@@ -1,7 +1,7 @@
 # Review seats — write isolation in the seat guard (design)
 
 Status: DRAFT (2026-10-23: amendment 2 after plan-2 Phase B Validation 10 failed; the D-1145 approval of the
-D-1129 amendment is superseded until /fabrik-spec-review's panel decides § Amendment 2026-10-23)
+D-1129 amendment is superseded by D-1158 until /fabrik-spec-review's panel decides § Amendment 2026-10-23)
 Size: small (amendment 2026-10-22: ≈150 hook lines and ≈180 test lines over the converged build, across `.claude/hooks/seat_guard.py`, `tests/test_seat_guard.py` and `docs/workstation/hooks-index.md`)
 Profile: delta
 Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791209046, 1791049341, 1791225410) · upgraded from `/fabrik-task` on `tradeoffs` (design seed `/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-task-2026-10-15T22-15-12-0300/design.md`)
@@ -27,6 +27,7 @@ Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791
 | I# | Item (anchored) | Disposition | Where |
 |---|---|---|---|
 | I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN, delivered as the fence since D-1129 | § Amendment 2026-10-22 — the whole filesystem mounted read-only (`--ro-bind / /`), the payload cwd unchanged; in fallback mode, § The delta — no write tool (delta 1) and a shell-write rule (delta 2), defence-in-depth against accidental writes (its blind-spot paragraph) |
+| I1-r | REOPENED 2026-10-23 — the fence is reverted at the tip (6dc45645f); I1's delivery waits on § Amendment 2026-10-23 | IN | § Amendment 2026-10-23 |
 | I2 | "launch finder and refuter seats with cwd set to a fresh scratch directory (or isolation: worktree), never the caller's main checkout" (01M4PHYNXJ row 1791049341) | IN, delivered differently | § Rejected alternatives — A (worktree) and the cwd option, which does not exist; the guard covers both dispatch paths instead, the seats' cwd unchanged |
 | I3 | "hand seats a ready probe script" (01M4PHYNXJ row 1791225410) | OUT-OF-SCOPE | W-f7bf9a54 — a separate change with its own measure (seat turns spent building probes) |
 | I4 | D-1129, the Opus + Fable panel (unanimous): "Review-seat write isolation becomes a filesystem fence, not a growing shell grammar" | IN | § Amendment 2026-10-22 — the fence |
@@ -56,7 +57,8 @@ allowed `touch /dev/shm/x`, `true || cd /tmp; rm -rf src`, `kill 1234 -1` and an
 refused `if (( n > 3 ))`. The Opus + Fable panel ruled unanimously (D-1129): stop growing the grammar and fence the
 filesystem.
 
-**The goal, restated (it replaces § Goal while the fence runs; § Goal stays the fallback mode's goal).** A review seat's
+**The goal, restated (REOPENED 2026-10-23: the fence is reverted at the tip, so the parser is the only mode until
+§ Amendment 2026-10-23 is decided) (it replaces § Goal while the fence runs; § Goal stays the fallback mode's goal).** A review seat's
 shell command cannot write outside its session's scratch, and cannot reach the masked host services that write for it
 (the docker daemon, D-Bus and the user runtime sockets, tmux, and on WSL, where the masks hold, the Windows interop that
 launches host processes outside every Linux namespace): the operating system refuses it whatever the command's
@@ -292,7 +294,8 @@ carrying to the next call (Contract deltas).
   then needs, and whether a deny rule still bites, is proved by Validation 10's allow-listed call before the merge.
 
 **Lifecycle.**
-- **Adoption:** with the merge of `worktree-intel` after the live seat proof (Validation 10). The post-merge sync
+- **Adoption:** with the merge of `worktree-intel` after the live seat proof (Validation 10) — which FAILED on
+  2026-10-23; adoption waits on § Amendment 2026-10-23. The post-merge sync
   distributes it.
 - **Growth, with measured triggers:**
   - a host service a seat reaches through a socket or an interop path joins the masks when a probe finds it;
@@ -307,61 +310,76 @@ carrying to the next call (Contract deltas).
 ## Amendment 2026-10-23 — Validation 10 failed: how a seat's isolation passes the harness (W-72dfd448)
 
 **Why this amendment exists.** Plan-2 Phase B built the fence of the D-1129 amendment (commits 0669c6c51 and
-4720a59fe, 68 graders, every neuter red on revert) and proved it outside the harness: every live write of the round-1
-false greens failed with EROFS (Validation 1), a bounded replay of 200 harvested seat commands matched on 198
-(Validation 4), and read-only git works under the read-only tree (U2). Then Validation 10 — one live `fabrik-reviewer`
-seat through the Agent tool — FAILED: the seat ran nothing. The harness judges the REWRITTEN command (U1 and U6
-answered negatively), and both of its judges refused the bwrap line:
+4720a59fe; 68 tests green; every neuter red on revert) and proved it outside the harness: every live write of the
+round-1 false greens failed with EROFS or landed in the sandbox's private tmpfs (W8, W9 ran rc 0), and the proof tree
+stayed unchanged (Validation 1); a bounded replay of 200 harvested seat commands matched on 198 (Validation 4); and
+read-only git works under the read-only tree (U2). Then Validation 10 — one live `fabrik-reviewer` seat through the
+Agent tool — FAILED: the seat ran nothing. The harness judges the REWRITTEN command (U1 and U6 answered negatively),
+and it refused the bwrap line twice over:
 - the worktree isolation guard of a worktree-isolated session: "this command runs bwrap with the text /run/WSL in a
   plain command, so what it runs cannot be shown not to be git. Refusing to run it";
 - the auto-mode classifier: "Permission for this action was denied by the Claude Code auto mode classifier. Reason:
-  [Auto-Mode Bypass]", and on the next call "[Containment Escape]".
+  [Auto-Mode Bypass]", and on a later call "[Containment Escape]".
 The evidence is the plan's Phase B block (`docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md`,
 commit 6dc45645f). The fence code is reverted at the branch tip (6dc45645f) and kept in history. So the premise of
-§ Amendment 2026-10-22's Design 1 — that `updatedInput`'s rewritten command runs — is false for a wrapped command in
-this harness: a design the classifier denies as a bypass is fighting the harness, not using it.
+§ Amendment 2026-10-22's Design 1 — that `updatedInput`'s rewritten command runs — is false for that wrapper in this
+harness. Whether the classifier objects to the rewrite itself or only to an unlisted prefix is not known.
 
 **The question for the design-approval panel.** How does a review seat's write isolation pass the harness? Three
-options, each with the facts established for it:
+options, labelled P1-P3 (D-1129's own (a)-(d) labels, `§ Approaches (D-1129)`, are a different list):
 
-- **(a) Keep the hook's fence, and let the harness accept the wrapper.**
-  - Needs a `permissions.allow` rule for the exact wrapper prefix (for example `Bash(/usr/bin/bwrap --ro-bind / / *)`)
-    so the classifier does not judge it, AND a wrapper text the worktree guard can read (it refused on the `/run/WSL`
-    path text; whether it accepts any bwrap line is unproven).
-  - A permission rule is the operator's: no agent edits permission settings. If chosen, the exact rule boards to the
-    operator through the coordinator as a gate, with a live proof first (one seat, one wrapped `ls`, accepted).
-  - Cost: an allow rule for a wrapper prefix is itself a bypass shape — any command a session can phrase as that
-    prefix is auto-allowed; the rule must pin the full fixed flag set, and the classifier's verdict on it is unknown.
-- **(b) Use Claude Code's own Bash sandbox** (`sandbox.enabled`, the harness-owned bubblewrap on Linux and WSL2).
+- **P1 — the hook's fence, accepted by the harness.**
+  - Needs a `permissions.allow` rule for the wrapper prefix, so the classifier does not judge the call, AND a wrapper
+    text the worktree guard accepts. The guard refused the one wrapper tested, whose WSL masks carry `/run/WSL`
+    (§ Amendment 2026-10-22 Design 2); a guard-readable wrapper changes that mask set or its spelling, a design change.
+  - Unproven, both: whether an allow rule bypasses the auto-mode classifier at all, and whether the guard accepts any
+    bwrap line. A prefix rule cannot pin the full flag set — the binds carry per-call paths (Design 2) — so a trailing
+    `*` would also admit an extra `--bind / /`: the rule is itself a bypass shape, and its safety is the classifier's.
+  - Holder: the operator for the rule (no agent edits permission settings; it boards to the operator through the
+    coordinator as a gate, with the exact rule text); intel for the wrapper. First proof: one seat, one wrapped `ls`,
+    accepted by both judges, before any build. A variant: dispatch review seats from the MAIN checkout, where the
+    worktree guard does not apply and only the classifier remains.
+  - Supersedes: nothing beyond re-applying 0669c6c51/4720a59fe with the changed masks; D-1129 stands.
+- **P2 — Claude Code's own Bash sandbox** (`sandbox.enabled`, the harness-owned bubblewrap on Linux and WSL2).
   - Live facts on this box, 2026-10-23 (a headless `claude -p --model haiku --settings
     '{"sandbox":{"enabled":true,"allowUnsandboxedCommands":false}}'` in a scratch git project): a write in the working
     directory succeeded; a write in `/tmp` outside its temp dir failed with EROFS; a write to
     `/opt/fabrik/.claude/worktrees/intel/zz_sb_live` — the LIVE worktree, outside the cwd — SUCCEEDED (removed after).
+    No subagent was tested.
   - Why: the sandbox writes the working directory, a per-user temp directory and every added directory by default
     (https://code.claude.com/docs/en/sandboxing, "By default, sandboxed commands can write to the current working
     directory, the per-user temp directory, and any directories you've added", fetched 2026-10-23, WebFetch), and this
-    box adds `/opt` user-wide (`~/.claude/settings.json` `permissions.additionalDirectories: ["/opt"]`).
-  - The sandbox is per SESSION: subagents share the session's configuration (the same page). So a seat's cwd — the
-    live repo — is writable, and narrowing it (dropping `/opt`, a `denyWrite` of the repo) binds the LEAD too, which
-    must write the repo. Sandboxed commands auto-approve with no prompt, so (b) does not fight the classifier.
-  - (b) therefore protects a seat only if the session that dispatches seats runs with a narrow sandbox and does not
-    write the live tree itself — for example review seats dispatched from a dedicated reviewer session whose cwd is
-    scratch. That is a change to how the review commands dispatch, not to the hook.
-- **(c) The parser alone** — Phase A as built, the hook's write rule; the round-1 review's 21 confirmed holes stand,
-  some closable by the fallback refusals of § Amendment 2026-10-22 Design 3 (heredoc or pipe into a shell,
-  `eval`/`source`, `$'…'`, `((`/`[[`, unknown wrappers, a conditional `cd`), which Phase B's code carried and which
-  could ship without the wrap. Cost: defence-in-depth against ACCIDENTAL writes only, the parent's stated position.
+    box adds `/opt` user-wide (`~/.claude/settings.json`, `permissions.additionalDirectories: ["/opt"]`).
+  - The sandbox configuration is per SESSION; subagents share it (the same page). A seat's cwd — the live repo — is
+    writable, and narrowing it (dropping `/opt`, a per-session `--settings` with `filesystem.denyWrite`) binds the
+    lead too, which must write the repo. So P2 protects seats only when they are dispatched from a session that writes
+    nothing live — a dedicated reviewer session with a narrow sandbox: a change to how the review commands dispatch.
+  - Costs the same page names: in auto mode a sandboxed command can still meet server-side classifier review (an
+    exception to auto-allow), and this box's `defaultMode` is `auto`, so whether P2 meets the classifier is unproven;
+    on Linux and WSL2 a sandboxed command's `localhost` is private, which breaks the local probes the briefs allow;
+    `docker` is incompatible; with a linked-worktree cwd the sandbox allows writes to the main repository's shared
+    `.git` (the git-write incident class); `excludedCommands` entries run outside it.
+  - Holder: the operator for any user-settings change (the added directory); intel and kaizen for the reviewer-session
+    dispatch. First proof: one seat dispatched from a narrow-sandbox session, writing its scratch and refused on the
+    live tree, through the classifier.
+  - Supersedes: D-1129's rejection of "C — built-in sandbox" (§ Rejected alternatives) and its Decisions taken row
+    "The fence over the grammar".
+- **P3 — the parser alone.** Phase A as built, the hook's write rule; of the round-1 review's 21 confirmed defects,
+  about 15 let-throughs stand, some closable by § Amendment 2026-10-22 Design 3's fallback refusals ("a heredoc to a
+  shell, `eval`/`source`; `$'…'`, `((`/`[[`; an unknown wrapper, a conditional `cd`; a `$(…)` in a write or cd
+  position"), which Phase B's code carried and which could ship without the wrap. Cost: defence-in-depth against
+  ACCIDENTAL writes only, the parent's stated position. Holder: intel. First proof: the fallback refusals' false-refusal
+  count over the replay (Validation 4's method). Supersedes: D-1129's Decisions taken row "The fence over the grammar".
 
-**What the panel's choice changes.** (a) re-applies 0669c6c51/4720a59fe plus a guard-readable wrapper and the
-operator's rule; (b) is a new design of the dispatch (a reviewer session), with this hook unchanged; (c) ships the
-fallback refusals as the parser's tightening and closes W-72dfd448 with the holes stated. Validation for whichever is
-chosen begins with the live seat probe that failed here, run FIRST, before any build.
+**What the panel's choice changes.** P1 re-applies the fence with changed masks after the operator's rule and the live
+proof; P2 is a new design of the review dispatch, this hook unchanged; P3 ships the fallback refusals as the parser's
+tightening and closes W-72dfd448 with the let-throughs stated. Whichever is chosen, its first proof runs before any
+build.
 
-**Harness facts recorded on the way** (not decided here): a Read of a tool-results file through the
-`~/.claude-fleet/active` symlink raised a "sensitive file" permission dialog that held this pane for hours
-(coordinator, 2026-10-23); seats in a worktree session meet the worktree guard on any command naming a git-looking
-shape, whatever the wrapper.
-
+**Harness facts recorded on the way** (not decided here): the worktree guard refused the one wrapper tested (its
+`/run/WSL` text); its reach on other shapes is unproven. A Read of a tool-results file through the
+`~/.claude-fleet/active` symlink raised a "sensitive file" permission dialog that held this pane for hours (the
+coordinator's report, 2026-10-23).
 
 ## What exists today (grounded, read at 4efc5d325)
 
@@ -585,4 +603,5 @@ natural home.
 
 ## Open / blocking unknowns
 
-The fence's open unknowns are U1-U6 in § Amendment; none blocks the design, and each is closed by a build proof.
+The fence's open unknowns are U1-U6 in § Amendment 2026-10-22; U1 and U6 resolved NEGATIVELY at Validation 10 (2026-10-23),
+and the design is reopened until the panel decides § Amendment 2026-10-23.
