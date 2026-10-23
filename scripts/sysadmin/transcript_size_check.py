@@ -48,16 +48,15 @@ the LAST `type: assistant` row whose `isSidechain` is not true, whose `message` 
 and whose model is not `<synthetic>`; a missing key reads 0, a present value counts only when it is a real
 non-negative int (a bool or a string skips the row), and a zero sum skips the row. A `compact_boundary` row
 AFTER that row means no reading (the next call is the real context). The window: `ROTATE_CONTEXT_WINDOW`
-(process env, else the hub env file, a positive int), else the statusline tap's cache
-(`STATUSLINE_CACHE_FILE`) `sessions[<sid>].model.id` — `[1m]` → 1,000,000; another id → the tap's top-level
-`context.size` when its top-level `model.id` is that same id (a positive int), else 1,000,000, because a bare id
-is no evidence of 200k (W-25f6b2a3) — else 1,000,000 (a reading past 200k takes 1M whatever the cache says). Percent is floored. Steps: 40, 50, 60, 70,
+(process env, else the hub env file, a positive int), else 1,000,000 — no per-session source of it exists, and the
+statusline cache's bare model id is no evidence of 200k (W-25f6b2a3: this box runs Opus 5.5 and Fable 5.1 at 1M under
+the bare id; reading it as 200k told every hub session to rotate at birth). Percent is floored. Steps: 40, 50, 60, 70,
 80, then 85, 90, 100. The stamp `<stamp dir>/.ctx/<sid>`
 holds the step last advised: a reading below 40 writes 0 silently (a compaction re-arms the sensor), a step
 above OR below the stamp prints and stamps (a drop that lands at 40+ is told once, as a rise is), an equal
 step prints nothing. The line arrives only with a prompt: a builder that crosses 85% inside one long turn can
-reach auto-compaction (~970k) before any COMPACT-DUE line. A 200k session absent from the cache reads the 1M
-default and is under-told, and a tail whose last 2 MB holds no usage row (one huge tool result) gives no
+reach auto-compaction (~970k) before any COMPACT-DUE line. A true 200k session reads the 1M default and is
+under-told (none read past 200k on a bare id in 3 days of transcripts, W-25f6b2a3), and a tail whose last 2 MB holds no usage row (one huge tool result) gives no
 reading until the next normal row. COBRA (D-253): the cheapest pass is a line on every prompt (wallpaper) or a threshold
 no session reaches; the stamp bounds it to one line per step and per drop, from the panel's 40%.
 
@@ -65,8 +64,7 @@ FAIL-OPEN: any error ⇒ exit 0, no output. This hook can only ADD a line, never
 
 Env: `ROTATE_ADVISE_MB` (process env, else the `ROTATE_ADVISE_MB=` line of
 `SESSION_ARCHIVE_ENV_FILE`, default /opt/fabrik/.env, parsed like the archiver's `_env_value`,
-else 200), `ROTATE_CONTEXT_WINDOW` (the same two sources, else the statusline cache, else 1,000,000),
-`STATUSLINE_CACHE_FILE` (default ~/.claude/.claude-manager/statusline.json), `ROTATE_STAMP_DIR` (default
+else 200), `ROTATE_CONTEXT_WINDOW` (the same two sources, else 1,000,000), `ROTATE_STAMP_DIR` (default
 ~/.claude/state/rotate-advised), `AGENT_IDENTITY_FILE`, `CLAUDE_SESSIONS_DIR`.
 """
 
@@ -85,7 +83,6 @@ STEP_MB = 100
 DEFAULT_THRESHOLD_MB = 200
 TAIL_BYTES = 2 * MB  # the context reading looks at the transcript's last 2 MB only
 DEFAULT_WINDOW = 1_000_000
-SMALL_WINDOW = 200_000
 CTX_ROTATE_PCT = 40  # D-1123: rotate at an item boundary from here
 CTX_COMPACT_PCT = 85  # D-1123: a focused /compact mid-item from here
 _NAME_RE = re.compile(r"[a-z0-9-]{1,32}")  # whoami_agent._NAME_RE, byte-identical
@@ -348,36 +345,11 @@ def _positive_int(raw: str) -> int | None:
     return v if v > 0 else None
 
 
-def _window(sid: str, tokens: int = 0) -> int:
-    """`ROTATE_CONTEXT_WINDOW`, else the statusline tap's reported size for this session's model id, else 1,000,000.
-    A bare model id is no evidence of 200k: this box runs claude-opus-5-5 and claude-fable-5-1 at 1M under the bare
-    id, and reading them as 200k ordered rotations at birth (W-25f6b2a3)."""
-    env = _positive_int(_hub_setting("ROTATE_CONTEXT_WINDOW"))
-    if env:
-        return env
-    if tokens > SMALL_WINDOW:
-        return DEFAULT_WINDOW  # a reading past 200k proves the 1M window whatever the cache says
-    try:
-        cache = json.loads(
-            _env_path(
-                "STATUSLINE_CACHE_FILE", "~/.claude/.claude-manager/statusline.json"
-            ).read_text(encoding="utf-8")
-        )
-        model = ((cache.get("sessions") or {}).get(sid) or {}).get("model") or {}
-        mid = model.get("id") if isinstance(model, dict) else None
-        top = cache.get("model")
-        context = cache.get("context")
-        size = context.get("size") if isinstance(context, dict) else None
-        top_id = top.get("id") if isinstance(top, dict) else None
-    except (OSError, ValueError, UnicodeDecodeError, AttributeError):
-        return DEFAULT_WINDOW
-    if not isinstance(mid, str) or not mid or mid.endswith("[1m]"):
-        return DEFAULT_WINDOW
-    # the tap records the window Claude Code reported for the session it rendered last; the same model id is the
-    # same model's window. A bool is an int to isinstance, so the type is checked exactly.
-    if top_id == mid and type(size) is int and size > 0:
-        return size
-    return DEFAULT_WINDOW
+def _window() -> int:
+    """`ROTATE_CONTEXT_WINDOW`, else 1,000,000. No per-session source of the window exists: the statusline cache
+    keeps only a model id per session, and this box runs claude-opus-5-5 and claude-fable-5-1 at 1M under the bare
+    id, so reading a bare id as 200k told every hub session to rotate at birth (W-25f6b2a3)."""
+    return _positive_int(_hub_setting("ROTATE_CONTEXT_WINDOW")) or DEFAULT_WINDOW
 
 
 def _ctx_step(pct: int) -> int:
@@ -499,7 +471,7 @@ def _context_line(sid: str, transcript: Path, size_mb: int, agent: str, date: st
     tokens = _context_tokens(transcript)
     if tokens is None:
         return None
-    window = _window(sid, tokens)
+    window = _window()
     pct = tokens * 100 // window
     step = _ctx_step(pct)
     if not _claim_ctx_step(

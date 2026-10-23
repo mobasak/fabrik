@@ -609,7 +609,7 @@ def request(
         print(f"rotate-session: aborted — {exc.check}: {exc.reason}", file=sys.stderr)
         return 1
     tokens = tsc._context_tokens(path)
-    window = tsc._window(t["sid"], tokens or 0)
+    window = tsc._window()
     data = {
         "name": name,
         "repo": repo,
@@ -1024,7 +1024,7 @@ def due(home: Path, proc: Path, mb_only: bool = False, opt: str = "/opt") -> lis
             if not mb_only:
                 tokens = tsc._context_tokens(path)
                 if tokens is not None:
-                    ctx = tokens * 100 // tsc._window(str(s["sid"]), tokens)
+                    ctx = tokens * 100 // tsc._window()
         except Exception as exc:  # noqa: BLE001 — an unreadable session is a visible row, never a dropped one
             row.update(
                 state="unread",
