@@ -132,6 +132,11 @@ def _root() -> Path:
 
 # A list item's opener — the marker and the spaces after it; its length is the item's content column.
 _LIST_ITEM = re.compile(r"^ {0,3}(?:[-*+]|\d{1,9}[.)]) +")
+# An ATX heading (one to six `#` then a space or the line's end — `#tag` is text) and a thematic break
+# (three or more of one of `-*_`, spaces between, up to three of indent): each ends a list item's lazy
+# region, as a blank line does.
+_ATX = re.compile(r"^#{1,6}(?:\s|$)")
+_THEMATIC = re.compile(r"^ {0,3}([-*_])(?: *\1){2,} *$")
 
 
 def _cells(row: str) -> int:
@@ -222,8 +227,8 @@ def _tables(text: str):
                 fence = None
             idx += 1
             continue
-        if not stripped or marker or stripped.startswith("#"):
-            lazy_below = None
+        if not stripped or marker or _ATX.match(stripped) or _THEMATIC.match(expanded):
+            lazy_below = None  # a blank line, a fence, a heading or a thematic break ends the item
         is_row = (
             indent < 4 and stripped.startswith("|") and stripped.endswith("|") and len(stripped) > 1
         )
@@ -238,11 +243,11 @@ def _tables(text: str):
                 fence = marker.group(1)
             elif opens_comment:
                 commented = True
-            elif stripped.startswith(">"):
-                lazy_below = 10**6
+            elif indent < 4 and stripped.startswith(">"):
+                lazy_below = 10**6  # a blockquote line; at indent 4 a `>` line is code or lazy text
             else:
                 item = _LIST_ITEM.match(expanded)
-                if item:
+                if item and not _THEMATIC.match(expanded):  # `* * *` is a break, not an item
                     lazy_below = len(item.group(0))
             idx += 1
             continue

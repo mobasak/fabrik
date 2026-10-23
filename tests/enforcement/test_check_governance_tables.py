@@ -480,6 +480,12 @@ def test_the_tokenizer_agrees_with_markdown_it_on_table_starts():
         + "| 1 | 2 | 3 |\n",
         "heading then table": "## H\n" + _TABLE + "| 1 | 2 |\n",
         "no delimiter run": "| a | b |\n| c | d |\n| e | f | g |\n",
+        # pass-1 review seat A-sonnet: the lazy region's enders and openers at their edges
+        "indent-4 gt line is not a blockquote": "para\n    > x\n" + _TABLE + "| 1 | 2 | 3 |\n",
+        "thematic break ends the item": "- item\n---\n" + _TABLE + "| 1 | 2 | 3 |\n",
+        "starred thematic break ends the item": "- item\n* * *\n" + _TABLE + "| 1 | 2 | 3 |\n",
+        "hashtag is not a heading": "- item\n#tag\n" + _TABLE + "| 1 | 2 | 3 |\n",
+        "heading ends the item": "- item\n## H\n" + _TABLE + "| 1 | 2 | 3 |\n",
     }
     for name, text in corpus.items():
         ours = [
