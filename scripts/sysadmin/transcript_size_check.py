@@ -56,7 +56,7 @@ holds the step last advised: a reading below 40 writes 0 silently (a compaction 
 above OR below the stamp prints and stamps (a drop that lands at 40+ is told once, as a rise is), an equal
 step prints nothing. The line arrives only with a prompt: a builder that crosses 85% inside one long turn can
 reach auto-compaction (~970k) before any COMPACT-DUE line. A true 200k session reads the 1M default and is
-under-told (no main session in 3 days of transcripts ran at a true 200k window, W-25f6b2a3), and a tail whose last 2 MB holds no usage row (one huge tool result) gives no
+under-told, and a tail whose last 2 MB holds no usage row (one huge tool result) gives no
 reading until the next normal row. COBRA (D-253): the cheapest pass is a line on every prompt (wallpaper) or a threshold
 no session reaches; the stamp bounds it to one line per step and per drop, from the panel's 40%.
 
