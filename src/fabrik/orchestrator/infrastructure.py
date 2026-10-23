@@ -1628,10 +1628,6 @@ class InfrastructureProvisioner:
                 logger.info("[dry-run] watchdog: would check the Claude login files on %s", target)
             ctx.add_resource("watchdog", name, status="dry-run")
             return
-        failure = self._watchdog_login_preflight(ctx, target)
-        if failure is not None:
-            self._nonfatal(ctx, "watchdog", RuntimeError(failure))
-            return
         try:
             from fabrik.drivers.watchdog import WatchdogDriver  # T-P2 artifact 13
         except ImportError:
@@ -1642,6 +1638,12 @@ class InfrastructureProvisioner:
                 "Skipping for spec '%s'.",
                 name,
             )
+            return
+        # After the import guard: the preflight imports the driver module too, and a missing module
+        # keeps its graceful skip above instead of escaping provision().
+        failure = self._watchdog_login_preflight(ctx, target)
+        if failure is not None:
+            self._nonfatal(ctx, "watchdog", RuntimeError(failure))
             return
         try:
             from fabrik.orchestrator.deployer_ssh import _host_env

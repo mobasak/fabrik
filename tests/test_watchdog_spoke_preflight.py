@@ -158,6 +158,19 @@ def test_an_ssh_error_reads_could_not_check_never_missing(exc):
     assert "missing" not in failures[0]
 
 
+def test_a_missing_driver_module_is_skipped_before_any_preflight(monkeypatch):
+    """The driver module failing to import keeps its graceful skip; the preflight never imports it first."""
+    import sys
+
+    monkeypatch.setitem(sys.modules, "fabrik.drivers.watchdog", None)
+    prov = InfrastructureProvisioner(deployer=MagicMock())
+    ctx = _ctx("vps2", dry_run=False)
+    with patch("fabrik.drivers.ssh.ssh") as ssh:
+        prov._provision_watchdog("spoke-app", ctx, dry_run=False)
+    ssh.assert_not_called()
+    assert not ctx.get_resources_by_type("watchdog")
+
+
 def test_an_openrouter_only_watchdog_makes_no_ssh_call():
     ctx = _ctx(
         "vps2",
