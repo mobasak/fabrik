@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — every coordinator's contract names the live rotation verb, and the merge recipe no longer trips the worktree prompt (2026-10-23)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § Session history no longer tell a coordinator to `/clear` a builder by hand over `tmux send-keys` until infra's rotate-session verb lands. That verb landed under D-1143. Both copies now name `/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session <name>` (with `--compact "<focus>"`), run from the repo's main checkout, and list the six checks `rotate_session.py` runs. They also make two duties the coordinator's, never the operator's (D-1034, D-1172): fixing and re-running a refused rotation, or one whose `rotations.jsonl` outcome is anything but `ok`, and answering a builder's permission prompt. W-c553e5e0 answers the operator's "does all coordinators know how to clear now?".
+- § EXIT's ad-hoc merge recipe no longer builds `MAIN=$(git worktree list --porcelain | sed …)` for `git -C "$MAIN"`. That shape trips Claude Code's worktree-isolation prompt (D-1173). The recipe now runs `git worktree list` as its own call and uses the literal path (W-031aac71).
+- `tests/test_session_rotation_rule.py` pins the new clauses and refuses the stale ones. It was proven red on the old text.
+
 ### Fixed — the resume prompt after a /clear rotation no longer leads a builder into a permission prompt (2026-10-23)
 
 - `rotate_session.py::resume_prompt` now tells the rotated builder to read its notes, its seed and any output the

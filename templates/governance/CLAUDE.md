@@ -267,8 +267,9 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    branch/worktree work** (non-plan, in the MAIN checkout only — a worktree agent never merges, it requests): unless
    the operator named the disposition this turn, the DEFAULT is merge to base locally **then push base**; PRESENT only the
    genuine choices — keep the branch as-is · discard (only a branch/worktree THIS run created) — when merging is
-   genuinely arguable. On merge: resolve base as the MAIN checkout's branch — `MAIN=$(git worktree list
-   --porcelain | sed -n '1s/^worktree //p')` — pin every mutation (`git -C "$MAIN"`), merge → verify (tests on
+   genuinely arguable. On merge: resolve base as the MAIN checkout's branch — run `git worktree list` as its own
+   call; its first line is the main checkout's path and, in brackets, its branch — pin every mutation to that literal path (`git -C <main path>`, never a
+   `$( )` or a shell variable, which trips Claude Code's worktree-isolation prompt, hub D-1173), merge → verify (tests on
    the MERGED result) → only then clean up the worktree → delete the branch.
 
 ## External Knowledge — Search, Don't Guess
@@ -514,10 +515,17 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   `/compact` instead. No agent can type a slash command into its own prompt: at the boundary a builder
   messages its coordinator `rotate <name>` and waits for the keys; the coordinator — for whom the ask is not a work
   item — rotates that pane only when it is at its prompt with an empty input line, else aborts, never queues
-  (`agents_up.sh rotate-session <name>` once infra's W-f975fee0 slice 2 lands, hub D-1135; until then `/clear
-  <agent>-<date>` to the pane
-  tagged `@agent <name>` with `tmux send-keys`, hub D-1034), then sends a resume prompt telling the builder to re-bind
-  (below) and to read only the memory notes, `work.py next` and the run's seed, never the old transcript; a builder
+  — with `/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session <name>` (`--compact "<focus>"` for the focused
+  `/compact`) run from the repo's main checkout, never by hand over tmux (hub D-1143, hub D-1172). The verb refuses unless
+  the pane tagged `@agent <name>` passes six checks — its transcript quiet 30 s, a turn end in that transcript, no run
+  record `running`, no seat in flight, its worktree clean and pushed, an empty prompt line — then a systemd unit
+  types `/clear <name>-<date>` and a resume prompt telling the builder to re-bind (below) and to read only the
+  memory notes, `work.py next` and the run's seed, never the old transcript (`--compact` types only the `/compact`,
+  with no re-bind). A refusal, or any outcome but `ok` in `~/.claude/state/rotations.jsonl`, is the coordinator's
+  to resolve by its outcome, since nothing is retried for it — `partial:rebind` by the re-bind below,
+  `partial:queued` by waiting for the queued keys rather than asking again, any other by fixing its cause before
+  one new request — and a permission prompt the builder
+  meets is the coordinator's to answer, never the operator's (hub D-1034, hub D-1172); a builder
   with no pane asks its coordinator the same way, and the coordinator tells the operator; a coordinator, or a
   single-window repo's one agent, tells the operator once and starts no new item of its own until the operator types
   it (a coordinator keeps doing its standing jobs); a waiting turn's `STATE:` footer names the rotation and its
