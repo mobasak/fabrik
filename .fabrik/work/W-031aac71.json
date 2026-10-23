@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:50:48.419243Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-031aac71",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fold into W-c553e5e0's edit of the same two contracts, one full /fabrik-review for both",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: a rule update that strands builders on prompts in every repo; effort low: one recipe line, reviewed with W-c553e5e0",
+  "status": "open",
+  "title": "CLAUDE.md:296 § EXIT merge recipe MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p') then git -C \"$MAIN\" is the shape that trips Claude Code's worktree-isolation ask (D-1173); a worktree builder copying it waits on a prompt — reword to a form without sed on a variable (both CLAUDE.md copies)"
+}
