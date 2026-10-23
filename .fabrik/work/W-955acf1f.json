@@ -3,7 +3,7 @@
   "created": "2026-09-24T23:27:48.770517Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "65602e5a857cbcd4a898394db42f931a9f10116b",
   "id": "W-955acf1f",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — lane table wording in CLAUDE.md, fabrik-lib waiting",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
