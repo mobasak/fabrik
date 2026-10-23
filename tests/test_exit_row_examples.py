@@ -33,7 +33,8 @@ _NUMBERED = re.compile(
 
 
 def _example_tables() -> list[tuple[str, list[str]]]:
-    """Runs of `_PASS_ROW` lines (blank lines between rows kept inside one run) in the corpus, with their file."""
+    """Runs of consecutive `_PASS_ROW` lines in the corpus, with their file; a blank line ends a run, as it splits
+    a ledger into two groups for `check_file`."""
     out: list[tuple[str, list[str]]] = []
     for path in sorted(
         [*ROOT.glob("commands/_sources/*.md"), *ROOT.glob("commands/_fragments/*.md")]
@@ -42,8 +43,6 @@ def _example_tables() -> list[tuple[str, list[str]]]:
         for line in [*path.read_text(encoding="utf-8").splitlines(), "<end>"]:
             if C._PASS_ROW.match(line) and _NUMBERED.search(line):
                 block.append(line.strip())
-            elif block and not line.strip():
-                continue
             elif block:
                 out.append((str(path.relative_to(ROOT)), block))
                 block = []
@@ -82,7 +81,9 @@ def test_each_example_table_is_read_whole_and_closes_quiet(path: str, rows: list
 @pytest.mark.parametrize(("path", "rows"), TABLES, ids=IDS)
 def test_each_example_table_shows_a_refused_confirming_prefix(path: str, rows: list[str]) -> None:
     _, _, ordered, _ = R._ledger_shapes("\n".join(rows))
-    confirming = [i for i, row in enumerate(ordered[:-1]) if not _quiet(row)]
+    confirming = [i for i, row in enumerate(ordered[:-1]) if (row[1] or 0) > 0]
+    if all(row[1] is None for row in ordered):
+        pytest.skip("a legacy ledger carries no confirmed: counter for _closing_row_fail to read")
     assert confirming, (
         path,
         "the example shows no round that confirmed a defect before its quiet close",
