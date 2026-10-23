@@ -191,7 +191,12 @@ it, or name in the brief why the shape does not have it.
 - Sweep: a corrected claim or quote across every file the change touched (test docstrings included), whitespace- and
   wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix
   writes that restates a rule already stated elsewhere, found at its source by that restated rule's terms and two
-  rewordings of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; every doc line,
+  rewordings of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; a fix that
+  narrows, widens or splits a rule's subject is held to `/fabrik-review`'s "does the new form still hold EVERY shape the
+  form it replaces held", with "the shapes enumerated from the OLD form before the fix is drafted, never from the new
+  one": here each case no new clause covers, two now cover or only the new wording reaches, listed with where it now
+  lands or, with its reason, that it is dropped on purpose, where your command records the fix (`/fabrik-review`'s
+  Pass Ledger `method:` cell, `/fabrik-review-scoped`'s report); every doc line,
   docstring, comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module
   that no longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks, in
   the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix outdates), and
