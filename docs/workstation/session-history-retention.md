@@ -14,7 +14,7 @@ local, the four named hub windows, never a session visible on screen), D-737 (Ph
 | `session-archive.timer` | `~/.config/systemd/user/` (source: `scripts/sysadmin/systemd/`) | daily, `Persistent=true` — a run missed while the machine was off fires when the user manager next starts; linger keeps that manager up without a login |
 | `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver; a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
-| `scripts/sysadmin/transcript_size_check.py` | user-level hook (every window) | the ROTATE advisory (D-736 C.1.3): one `ROTATE:` line when a session's transcript crosses a new 100 MB step at or past `ROTATE_ADVISE_MB` (200) — `/clear <agent>-<date>`, then the informed `--force` re-bind; stamped per session, fail-open |
+| `scripts/sysadmin/transcript_size_check.py` | user-level hook (every window) | the ROTATE advisory (D-736 C.1.3): one `ROTATE:` line when a session's transcript crosses a new 100 MB step at or past `ROTATE_ADVISE_MB` (200) — at the next item boundary `rotate <agent>` to the coordinator, who types `/clear <agent>-<date>` and the informed `--force` re-bind; and the context sensor (W-f975fee0): `ROTATE-DUE` from 40% of the window, `COMPACT-DUE` from 85%, once per step; stamped per session, fail-open |
 | `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript (`ARCHIVE_AFTER_DAYS`, default 0 — an open window ships a daily snapshot, compressed from a frozen copy) into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest |
 | `scripts/sysadmin/prune_transcripts.py` | main checkout — the unit's second `ExecStart=-` line, after the archiver | the ONLY deleter of MAIN transcripts (D-736 C.2): on `--dry-run` (a hand run; the unit ran this mode until Gate C passed on 2026-10-12) it prints the table and writes a summary row to `~/.claude/archive/prune-log.jsonl`; on `--apply --nightly` it deletes the oldest `PRUNE_MAX_PER_RUN` (200) transcripts that pass EVERY guard — older than `PRUNE_AFTER_DAYS` (3), not an OPEN session, not a project's or an agent's newest, indexed by session-recall to the current inode and size, current sha256 = the manifest row's, the `.zst` decompressing to those bytes, the bucket listing it with the same size and SHA1, every hard-linked name passing — one fsynced `pruned.jsonl` row BEFORE each unlink; `--restore <session_id>` puts one back, `--verify-ledger` re-lists every pruned object, `--status` shows the last row and the last apply row; the subagent tier (sidechains, `~/.claude/tasks`, `~/.claude/shell-snapshots`) is a 3-day cliff, never archived |
 
@@ -135,9 +135,12 @@ which is what tags a window after `/clear`. `archive_transcripts.py --agent <nam
 rows newest first with whether the local file still exists — "infra's history" is that list plus
 session-recall. The pruner keeps each agent's NEWEST session as well as each project's. When a window's
 transcript passes `ROTATE_ADVISE_MB` (200 MB) the user-level hook prints one `ROTATE:` line per 100 MB
-step: run `/clear <agent>-<date>` now, then `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent>
---force` — the holder the line names is this window's own claude process, so the `--force` is informed;
-the previous session stays resumable and is archived that night.
+step, and from 40% of the context window a `ROTATE-DUE` line at 40, 50, 60, 70 and 80% (`COMPACT-DUE` at
+85, 90 and 100%, W-f975fee0). Rotation waits for the next item boundary (D-1119): the builder messages its coordinator
+`rotate <agent>`, and the coordinator types `/clear <agent>-<date>`, then `python3
+/opt/fabrik/scripts/whoami_agent.py --as <agent> --force` — the holder the line names is this window's own
+claude process, so the `--force` is informed (the plain re-bind also succeeds when whoami finds that pid) —
+and one resume prompt; the previous session stays resumable and is archived that night.
 
 ## Checking it
 

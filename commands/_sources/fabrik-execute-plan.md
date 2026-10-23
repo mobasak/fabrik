@@ -327,8 +327,11 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    the plan-prefix form, which `step` reads from the record's `--surface` — so that run's `--surface` names the plan
    file and every phase receipt carries the prefix (only a `<date>-plan-<n>` stem has the escape); the waiver is for a
    phase that has none, or for an unprefixed plan's earlier receipt that a resume without a seed cannot see (named in
-   the reason). ⚠️ **Under `Profile: small` this and item 3 bind at once and cannot both be satisfied**: the per-phase
-   pass is `/fabrik-review-scoped`, whose round ledger IS its artifact and which writes no file by design — so
+   the reason). A closed `/fabrik-review-scoped` run record is never the receipt `step` reads: `step` reads only a
+   file under `docs/development/reviews/`, and item 3, not `step`, makes a phase's review the full `/fabrik-review`
+   without `Profile: small`, its receipt the one this item names. ⚠️ **Under `Profile: small` this and item 3 bind at
+   once and cannot both be satisfied**: the per-phase pass is `/fabrik-review-scoped`, whose round ledger IS its
+   artifact and which writes no file by design — so
    `--review-waived "Profile: small — /fabrik-review-scoped, ledger is the artifact"` IS the sanctioned exit there, not
    an unavoidable skip. Say it in the record and move on; the Finish review writes the whole-plan receipt
    `check_review_coverage.py` grades (fabrik-lib 01M2JWEMFRFN3H, who resolved it by writing a file anyway because the
@@ -468,7 +471,7 @@ for each PHASE in dependency order:
                 execute step
                 if test fails: read error → fix → re-run (max 3 attempts)
 
-    run phase validation gate (bash checks from the plan, under the repo's own interpreter, its `.venv` python where it has one — a python without the suite's dependencies can skip its tests and read green)
+    run phase validation gate (bash checks from the plan, under the repo's own interpreter, its `.venv` python where it has one — a python without the suite's dependencies can skip its tests and read green; a check that needs a working directory other than the repo root runs as its own Bash call in a subshell, `(cd <dir> && <check>)`, since the Bash tool keeps a bare `cd` for every later call, never chained with another check, and its exit is read before the next runs)
     fix any gate failures → re-run
     run: python scripts/enforcement/check_doc_sync.py
     → any WARNING whose trigger file is in THIS phase's diff is BLOCKING: update the doc before commit
@@ -572,7 +575,8 @@ its Touches (contract violation → its diff is rejected at acceptance).
   validation trusts it.
 - **Fixup ROUTING (a rule, not an exception):** fixups go to the ticket's coder — SAME coder if its
   session is alive; a FRESH coder/unit otherwise, whose task payload = the standard cold-coder
-  briefing frame (the § Briefing template's "Before you start" reads — rules/infra/spec) + the ticket
+  briefing frame (the § Briefing template's "Before you start" reads — rules/infra/spec — and its item 5 database
+  fence) + the ticket
   file + the branch history (`git log <base_commit>..HEAD`) + the specific findings — and NO session
   history, prior-phase summaries, or other tickets (the exclusion targets context bloat, never the
   standard briefing).
@@ -901,6 +905,12 @@ Test: {list}
 2. Run `python scripts/select_rules.py` and read every ACTIVE pack.
 3. Read the design spec at {path} — sections {X, Y} for context on why.
 4. Read `AFCL.md` if it exists.
+5. A worktree whose `.env` is deleted or absent is not a database fence, since a suite can still reach a live
+   database through a default or the shell's environment: run the tests with each database variable the suite
+   reads ({the variable names}) set to {an isolated test database, or an unreachable URL such as
+   `postgresql://fence.invalid/fence_test`, whose `_test` name passes a throwaway-name guard}, and with the
+   unreachable URL report the database tests as not run, never as passing: their connection errors are the fence,
+   not a defect to fix.
 
 ## Global Constraints
 
