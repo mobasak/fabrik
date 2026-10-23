@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-after-chat: the ~300-line shape trigger excludes only the pasted rubric output (2026-10-23)
+
+- The monolith's ~300-line trigger counts the plan's own text, pasted code and diffs included; only the `review_rubric.py` output this command's Phase 4 pastes is not counted. Answers two feedback rows that asked it verbatim; W-0543de93.
+
 ### Changed — Beat routing: a command's or rule's wording is kaizen's, its rendering and checks infra's (2026-10-23)
 
 - `CLAUDE.md` (the FEEDBACK IS RECIPROCAL beat list) and `commands/_fragments/close-feedback.md` (the Route-by-BEAT table every command renders) now match `.fabrik/beat-owners.json` (D-815, D-627): infra keeps the rendering, sync and checks of `commands/` and `.windsurf/rules/`; kaizen owns their wording.
