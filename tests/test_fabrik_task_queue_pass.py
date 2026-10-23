@@ -519,8 +519,9 @@ def test_review_amends_each_path_a_fix_touches_at_phase_4_after_the_nested_revie
     refused while the nested review was the top record, and phase 4 did not say when the amend runs. `step` sets the
     record's phase to the one it names (command_run.py), so the amend names phase 4."""
     assert (
-        "noted; each path a review fix touches that APPROACH/MIRROR does not name gets *(v2)* `step --phase 4"
-        " --design-amend <path>` once the nested review has closed, after phase 3's plan-lock check on it."
+        "noted; each path a review fix touches that APPROACH/MIRROR does not name has phase 2's plan-lock check run on"
+        " it before the fix edits it, and gets *(v2)* `step --phase 4 --design-amend <path>` once the nested review has"
+        " closed."
     ) in _section("## Phase 4", "## Phase 5")
 
 
@@ -528,5 +529,6 @@ def test_mirror_searches_other_checkouts_tests_for_a_changed_path() -> None:
     """Row 1792731898: MIRROR read the consumer's script but not its tests, and both critiques spent their top
     concern on a hard-failing live-hub test one directory over; a name-only `find /opt` finds copies, not citers."""
     assert (
-        "docs), every other `/opt` checkout's tests and CI files citing a changed path, and every vendored copy outside"
+        "docs), every other `/opt` main checkout's tests and CI files citing a changed path, and every vendored copy"
+        " outside"
     ) in _section("## Phase 2", "## Phase 3")
