@@ -1,6 +1,6 @@
 # Plan — review seats: write isolation in the seat guard (W-72dfd448)
 
-Status: DRAFT
+Status: CONVERGED
 Profile: small
 **Owner:** intel
 **Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring; Phase B re-planned at 3dd31656e, where
