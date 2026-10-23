@@ -524,4 +524,4 @@ natural home.
 
 ## Open / blocking unknowns
 
-The fence's open unknowns are U1-U5 in § Amendment; none blocks the design, and each is closed by a build proof.
+The fence's open unknowns are U1-U6 in § Amendment; none blocks the design, and each is closed by a build proof.
