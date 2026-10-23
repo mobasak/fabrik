@@ -159,8 +159,9 @@ Appetite: 120
 - **Mocked:** per test. Behaviour 1: nothing (`_build_render_context` and `_rewrite_mesh_gated_url` called
   directly). Behaviour 2: the driver row mocks `fabrik.drivers.ssh.ssh` and `WatchdogDriver.provision`; the
   `provision()` row mocks `_provision_shared_analytics`, `_provision_postgres`, `_provision_watchdog` and
-  `post_deployment_annotation`. Behaviours 3-5: `fabrik.drivers.ssh.ssh` (its output or exception) and
-  `WatchdogDriver.provision`, with `VPS_CLAUDE_HOME` pinned by an autouse fixture. Host routing
+  `post_deployment_annotation`. Behaviours 3-4: `fabrik.drivers.ssh.ssh` (its output or exception) and
+  `WatchdogDriver.provision`; behaviour 5: `fabrik.drivers.ssh.ssh` only (a dry run never reaches the driver); all
+  with `VPS_CLAUDE_HOME` pinned by an autouse fixture. Host routing
   (`test_spoke_dsn_mesh.py`): `_watchdog_login_preflight` and `WatchdogDriver.provision`. Behaviour 6: nothing.
 
 **Steps.**
