@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -5787,6 +5788,52 @@ SERVICE_NAME={name}
         _emit_node_audit_log(project_dir)
 
 
+_SHELL_SEPARATORS = frozenset({";", "&&", "||", "|", "&", ";;", "|&"})
+
+
+def _live_docker_runs(makefile: str) -> list[str]:
+    """Every Makefile line holding a `docker run` / `docker container run` not sealed off from a real queue (W-1cb0d89f).
+
+    A run is sealed only when ITS OWN arguments — up to the next shell separator, comments dropped — carry
+    `--network none` (or `--network=none`) and `-e WORKER_SMOKE=1` (or `--env`, or the `=` forms), in any order or
+    spacing. Read as shell words, not substrings: `docker  run`, `docker container run` and a marker inside a `#`
+    comment or a later command are all caught. A line naming docker that the shell lexer cannot split (an unbalanced
+    quote) is refused rather than guessed.
+    """
+    live = []
+    for ln in makefile.splitlines():
+        if "docker" not in ln:
+            continue
+        lex = shlex.shlex(ln.strip().lstrip("@-+"), posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        try:
+            words = list(lex)
+        except ValueError:
+            live.append(ln.strip())
+            continue
+        for i, word in enumerate(words):
+            if word != "docker":
+                continue
+            rest = words[i + 1 :]
+            if rest[:1] == ["run"]:
+                args = rest[1:]
+            elif rest[:2] == ["container", "run"]:
+                args = rest[2:]
+            else:
+                continue
+            end = next((j for j, a in enumerate(args) if a in _SHELL_SEPARATORS), len(args))
+            args = args[:end]
+            pairs = set(zip(args, args[1:], strict=False))
+            network = ("--network", "none") in pairs or "--network=none" in args
+            smoke = bool({("-e", "WORKER_SMOKE=1"), ("--env", "WORKER_SMOKE=1")} & pairs) or bool(
+                {"-e=WORKER_SMOKE=1", "--env=WORKER_SMOKE=1"} & set(args)
+            )
+            if not (network and smoke):
+                live.append(ln.strip())
+                break
+    return live
+
+
 def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create File Worker-specific project structure."""
     # a) Create worker/ directory
@@ -5911,11 +5958,7 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
                 )
             content = content.replace(old, new)
         # the hazard itself, whatever the header or drift: no `docker run` leaves here able to reach a real queue
-        live = [
-            ln.strip()
-            for ln in content.splitlines()
-            if "docker run" in ln and "--network none -e WORKER_SMOKE=1" not in ln
-        ]
+        live = _live_docker_runs(content)
         if live:
             raise ValueError(
                 f"{makefile_src}: a docker run line would run a live worker: {live[0]!r}"

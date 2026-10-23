@@ -373,3 +373,44 @@ def test_a_template_with_no_smoke_rule_is_left_alone(makefile, tmp_path, monkeyp
     project.mkdir()
     scaffold._scaffold_file_worker(project, "fw-plain", "plain")
     assert (project / "Makefile").exists()
+
+
+# W-1cb0d89f: the live-worker check reads the shell words of each run, not substrings of the line
+_LIVE_RUNS = {
+    "double-space": "\t@docker  run -d --env-file .env $(PROJECT_NAME)\n",
+    "container-run": "\t@docker container run -d --env-file .env $(PROJECT_NAME)\n",
+    "marker-in-comment": "\t@docker run -d --env-file .env $(PROJECT_NAME) # --network none -e WORKER_SMOKE=1\n",
+    "marker-in-next-command": "\t@docker run -d $(PROJECT_NAME) && echo --network none -e WORKER_SMOKE=1\n",
+    "unparseable": '\t@docker run -d --env-file .env "$(PROJECT_NAME)\n',
+}
+
+
+def _scaffold_with_extra_target(tmp_path, monkeypatch, recipe: str) -> Path:
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    mk = tpl / "docker" / "Makefile.python"
+    mk.write_text(mk.read_text() + "\nextra-run:\n" + recipe)
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-extra"
+    project.mkdir()
+    scaffold._scaffold_file_worker(project, "fw-extra", "extra")
+    return project
+
+
+@pytest.mark.parametrize("case", sorted(_LIVE_RUNS))
+def test_a_live_run_the_substring_check_missed_fails_the_scaffold(tmp_path, monkeypatch, case):
+    with pytest.raises(ValueError, match="live worker"):
+        _scaffold_with_extra_target(tmp_path, monkeypatch, _LIVE_RUNS[case])
+
+
+@pytest.mark.parametrize(
+    "recipe",
+    [
+        "\t@docker run  --network none  -e WORKER_SMOKE=1 $(PROJECT_NAME) || true\n",
+        "\t@docker container run --network=none --env=WORKER_SMOKE=1 $(PROJECT_NAME)\n",
+    ],
+)
+def test_a_sealed_smoke_run_in_any_spelling_is_accepted(tmp_path, monkeypatch, recipe):
+    project = _scaffold_with_extra_target(tmp_path, monkeypatch, recipe)
+    assert "WORKER_SMOKE=1" in (project / "Makefile").read_text()
