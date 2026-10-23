@@ -80,7 +80,9 @@ def _reason(out: str) -> str:
     if not out.strip():
         return ""
     spec = json.loads(out)["hookSpecificOutput"]
-    return spec.get("permissionDecisionReason", "") if spec.get("permissionDecision") == "deny" else ""
+    return (
+        spec.get("permissionDecisionReason", "") if spec.get("permissionDecision") == "deny" else ""
+    )
 
 
 def _refused(command: str, cwd: Path, **kw) -> bool:
@@ -109,6 +111,10 @@ def test_a_project_sync_from_a_linked_worktree_is_refused(tree: dict[str, Path])
         "uv --some-future-option value sync",
         'flock /tmp/l -c "uv sync"',
         "flock -c 'uv sync' /tmp/l",
+        "flock -nc 'uv sync' /tmp/l",
+        "flock --command='uv sync' /tmp/l",
+        "flock /tmp/l -n -c 'uv sync'",
+        "flock -w 5 /tmp/l env A=1 uv sync",
     ):
         assert _refused(cmd, wt), cmd
     # from the main checkout, a sync that lands in the worktree's shared venv
@@ -134,6 +140,8 @@ def test_an_install_into_the_shared_venv_is_refused(tree: dict[str, Path]) -> No
         "uv pip -q install foo",
         "uv pip --cache-dir /tmp/c install foo",
         ".venv/bin/python -W ignore -m pip install foo",
+        ".venv/bin/python -Im pip install foo",
+        ".venv/bin/python -uBm pip install foo",
     ):
         assert _refused(cmd, wt), cmd
     assert _refused("pip install -e .", wt, env={"PATH": f"{wt}/.venv/bin:{BARE_PATH}"})
@@ -232,9 +240,16 @@ def test_the_deny_is_a_json_permission_decision(tree: dict[str, Path]) -> None:
         "/usr/bin/env pkill -f x",
         "kill 0 > /dev/null",  # a spaced argument is not a redirect's fd number
         "flock -c 'git reset --hard' /tmp/x.lock",
+        "flock -nc 'pkill -f x' /tmp/x.lock",
+        "flock /tmp/x.lock -n -c 'pkill -f x'",
+        "flock --command='pkill -f x' /tmp/x.lock",
+        "flock -c'pkill -f x' /tmp/x.lock",
     ):
         reason = _reason(_hook(cmd, Path("/opt/fabrik"), seat=True))
         assert reason.startswith("seat guard"), cmd
     label = _reason(_hook(".venv/bin/python -m pip install x", tree["wt"]))
     assert "`python -m pip install`" in label, label
-    assert _reason(_hook(f"cd {scratch} && kill 1234 2>/dev/null", Path("/opt/fabrik"), seat=True)) == ""
+    assert (
+        _reason(_hook(f"cd {scratch} && kill 1234 2>/dev/null", Path("/opt/fabrik"), seat=True))
+        == ""
+    )

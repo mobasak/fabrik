@@ -282,6 +282,46 @@ def _simple_commands(tokens: list[str]) -> list[list[str]]:
     return out
 
 
+_FLOCK_VALUED_SHORT = frozenset("wE")  # `flock --help`: -w <secs>, -E <number>
+_FLOCK_VALUED_LONG = frozenset({"--timeout", "--conflict-exit-code"})
+
+
+def _flock_command(args: list[str]) -> list[str]:
+    """The words `flock [opts] <file> (<cmd…> | -c <cmd>)` runs — ``sh -c <cmd>`` for the string
+    form — or [] (`flock <fd>`, nothing to run). Options may sit before or after the lock file
+    (getopt permutes them) and short ones may cluster (`-nc <cmd>`, `-w5`)."""
+    have_file, i = False, 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":  # options end; the lock file follows unless it came first
+            i += 1 if have_file else 2
+            have_file = True
+            break
+        if a.startswith("--"):
+            key, eq, val = a.partition("=")
+            if key == "--command":
+                cmd = val if eq else (args[i + 1] if i + 1 < len(args) else "")
+                return ["sh", "-c", cmd]
+            i += 2 if key in _FLOCK_VALUED_LONG and not eq else 1
+            continue
+        if a.startswith("-") and len(a) > 1:
+            for k, flag in enumerate(a[1:], start=1):
+                if flag == "c":
+                    cmd = a[k + 1 :] or (args[i + 1] if i + 1 < len(args) else "")
+                    return ["sh", "-c", cmd]
+                if flag in _FLOCK_VALUED_SHORT:
+                    i += 0 if a[k + 1 :] else 1  # the value is glued or is the next word
+                    break
+            i += 1
+            continue
+        if not have_file:
+            have_file = True  # the lock file, directory or fd number
+            i += 1
+            continue
+        break  # the command and its arguments
+    return args[i:] if have_file else []
+
+
 def _strip(words: list[str], ctx: dict) -> list[str]:
     """Drop keywords, assignments and wrappers; record env/cwd effects into ``ctx``."""
     i = 0
@@ -309,20 +349,8 @@ def _strip(words: list[str], ctx: dict) -> list[str]:
             i += 1
             while i < len(words) and words[i].startswith("-"):
                 i += 2 if words[i] in ("-i", "-o", "-e", "-c", "-n", "-p", "-P", "-u") else 1
-        elif b == "flock":  # flock [opts] <file> [-c <cmd> | <cmd…>]; -c may sit before the file
-            i += 1
-            command_string = None
-            while i < len(words) and words[i].startswith("-"):
-                if words[i] in ("-c", "--command") and i + 1 < len(words):
-                    command_string = words[i + 1]
-                    i += 2
-                    continue
-                i += 2 if words[i] in ("-w", "--timeout", "-E", "--conflict-exit-code") else 1
-            i += 1  # the lock file
-            if i + 1 < len(words) and words[i] in ("-c", "--command"):
-                command_string = words[i + 1]
-            if command_string is not None:
-                return ["sh", "-c", command_string]  # scanned as the shell it runs
+        elif b == "flock":
+            words, i = _flock_command(words[i + 1 :]), 0  # unwrap what it runs, wrappers included
         elif b == "env":
             i += 1
             while i < len(words) and (words[i].startswith("-") or "=" in words[i]):
@@ -589,8 +617,8 @@ def _git_reason(words: list[str], ctx: dict) -> str:
 # own. Writers: `uv run|sync|add|remove` (a project sync), `uv version` with a bump, `uv venv
 # --clear|--allow-existing`, `uv pip install|sync|uninstall`, `pip|python -m pip
 # install|uninstall`, and an installer `uv run --no-sync` starts in the project venv. Not writes:
-# `--no-sync`/`UV_NO_SYNC`, `add|remove|version --frozen`/`UV_FROZEN`, `uv run
-# --no-project|--isolated|--script|-s|--gui-script`, `uv sync --dry-run|--check`, help, pip
+# `--no-sync`/`UV_NO_SYNC`, `add|remove|version --frozen`/`UV_FROZEN`, `add|remove --script`, `uv
+# run --no-project|--isolated|--script|-s|--gui-script`, `uv sync --dry-run|--check`, help, pip
 # `--dry-run|--target|--prefix|--root|--system|--user`. uv's options are read up to `uv run`'s
 # command only — what follows is the command's. A pin the merge owner approved passes with the
 # inline, visible `FABRIK_SHARED_VENV_WRITE=1` (an assignment, `env` or `export` in the command),
@@ -607,23 +635,90 @@ VENV_TAG = "shared venv guard"
 VENV_OPT_IN = "FABRIK_SHARED_VENV_WRITE"
 _TRUE = frozenset({"1", "true", "t", "yes", "y", "on"})
 _UV_VERBS = frozenset(
-    {"run", "init", "add", "remove", "version", "sync", "lock", "export", "tree", "format",
-     "tool", "python", "pip", "venv", "build", "publish", "cache", "self", "help", "auth",
-     "generate-shell-completion"}
+    {
+        "run",
+        "init",
+        "add",
+        "remove",
+        "version",
+        "sync",
+        "lock",
+        "export",
+        "tree",
+        "format",
+        "tool",
+        "python",
+        "pip",
+        "venv",
+        "build",
+        "publish",
+        "cache",
+        "self",
+        "help",
+        "auth",
+        "generate-shell-completion",
+    }
 )
 _UV_WRITERS = frozenset({"run", "sync", "add", "remove", "version", "venv", "pip"})
 # options whose VALUE is the next word (uv 0.11.31 `uv help run|sync|add|venv`, globals included)
 _UV_VALUED = frozenset(
-    {"--directory", "--project", "--color", "--cache-dir", "--config-file",
-     "--allow-insecure-host", "--python-preference", "-p", "--python", "--with", "-w",
-     "--with-editable", "--with-requirements", "--extra", "--no-extra", "--group", "--no-group",
-     "--only-group", "--package", "--env-file", "--index", "--default-index", "-i",
-     "--extra-index-url", "-f", "--find-links", "--exclude-newer", "--exclude-newer-package",
-     "-P", "--upgrade-package", "-C", "--config-setting", "--index-strategy",
-     "--keyring-provider", "--link-mode", "--prerelease", "--resolution", "--fork-strategy",
-     "--refresh-package", "--reinstall-package", "--no-build-package", "--no-binary-package",
-     "--prompt", "--bump", "--optional", "--branch", "--tag", "--rev", "--marker", "-m",
-     "--script", "--dev-group", "--python-platform", "--output-format", "--bounds"}
+    {
+        "--directory",
+        "--project",
+        "--color",
+        "--cache-dir",
+        "--config-file",
+        "--allow-insecure-host",
+        "--python-preference",
+        "-p",
+        "--python",
+        "--with",
+        "-w",
+        "--with-editable",
+        "--with-requirements",
+        "--extra",
+        "--no-extra",
+        "--group",
+        "--no-group",
+        "--only-group",
+        "--package",
+        "--env-file",
+        "--index",
+        "--default-index",
+        "-i",
+        "--extra-index-url",
+        "-f",
+        "--find-links",
+        "--exclude-newer",
+        "--exclude-newer-package",
+        "-P",
+        "--upgrade-package",
+        "-C",
+        "--config-setting",
+        "--index-strategy",
+        "--keyring-provider",
+        "--link-mode",
+        "--prerelease",
+        "--resolution",
+        "--fork-strategy",
+        "--refresh-package",
+        "--reinstall-package",
+        "--no-build-package",
+        "--no-binary-package",
+        "--prompt",
+        "--bump",
+        "--optional",
+        "--branch",
+        "--tag",
+        "--rev",
+        "--marker",
+        "-m",
+        "--script",
+        "--dev-group",
+        "--python-platform",
+        "--output-format",
+        "--bounds",
+    }
 )
 _UV_HELP = frozenset({"-h", "--help", "-V", "--version"})
 _UV_RUN_ELSEWHERE = frozenset({"--no-project", "--isolated", "--script", "-s", "--gui-script"})
@@ -631,14 +726,43 @@ _UV_PIP_WRITES = frozenset({"install", "sync", "uninstall"})
 _PIP_WRITES = frozenset({"install", "uninstall"})
 _PIP_ELSEWHERE = ("--dry-run", "--target", "-t", "--prefix", "--root", "--system", "--user")
 _PIP_GLOBAL_VALUED = frozenset(
-    {"--python", "--log", "--cache-dir", "--proxy", "--retries", "--timeout", "--exists-action",
-     "--trusted-host", "--cert", "--client-cert", "--use-feature", "--use-deprecated",
-     "--keyring-provider", "--src", "--resume-retries"}
+    {
+        "--python",
+        "--log",
+        "--cache-dir",
+        "--proxy",
+        "--retries",
+        "--timeout",
+        "--exists-action",
+        "--trusted-host",
+        "--cert",
+        "--client-cert",
+        "--use-feature",
+        "--use-deprecated",
+        "--keyring-provider",
+        "--src",
+        "--resume-retries",
+    }
 )
 _PIP_NAME = re.compile(r"^pip(3(\.\d+)?)?$")
 _PY_NAME = re.compile(r"^python(3(\.\d+)?)?$")
-_XARGS_VALUED = frozenset({"-a", "-I", "-n", "-P", "-d", "-E", "-L", "-s", "--arg-file",
-                           "--delimiter", "--max-args", "--max-procs", "--max-lines"})
+_XARGS_VALUED = frozenset(
+    {
+        "-a",
+        "-I",
+        "-n",
+        "-P",
+        "-d",
+        "-E",
+        "-L",
+        "-s",
+        "--arg-file",
+        "--delimiter",
+        "--max-args",
+        "--max-procs",
+        "--max-lines",
+    }
+)
 _WT = re.compile(r"^(.*?/\.claude/worktrees/[^/]+)(/|$)")
 
 
@@ -802,8 +926,10 @@ def _uv_reason(args: list[str], ctx: dict, depth: int) -> str:
     frozen = "--frozen" in opts or _truthy(_env(ctx, "UV_FROZEN"))
     act, target, inner = f"`uv {verb}`", "", ""
     if verb == "run":
-        if _flagged(opts, _UV_RUN_ELSEWHERE) or _truthy(_env(ctx, "UV_NO_PROJECT")) or _truthy(
-            _env(ctx, "UV_ISOLATED")
+        if (
+            _flagged(opts, _UV_RUN_ELSEWHERE)
+            or _truthy(_env(ctx, "UV_NO_PROJECT"))
+            or _truthy(_env(ctx, "UV_ISOLATED"))
         ):
             return ""
         venv = _project_venv(start, d, ctx, opts)
@@ -879,6 +1005,29 @@ def _judge(
     return ""
 
 
+def _python_module_args(args: list[str], module: str) -> list[str] | None:
+    """The arguments of `python [opts] -m <module> …` when it runs ``module``, else None. Short
+    options cluster as python reads them (`-Im pip`, `-Wignore`): `m` and `c` take the rest of the
+    cluster or the next word, `W` and `X` consume their value the same way."""
+    k = 0
+    while k < len(args):
+        a = args[k]
+        if not a.startswith("-") or a == "-" or a.startswith("--"):
+            return None  # a script, stdin, or a long option python does not take before -m
+        for j, flag in enumerate(a[1:], start=1):
+            rest = a[j + 1 :]
+            if flag in "mc":
+                value = rest or (args[k + 1] if k + 1 < len(args) else "")
+                if flag == "c" or value != module:
+                    return None  # `-c` code, or another module
+                return args[k + (1 if rest else 2) :]
+            if flag in "WX":
+                k += 0 if rest else 1  # the value is glued or is the next word
+                break
+        k += 1
+    return None
+
+
 def _venv_reason(words: list[str], ctx: dict, depth: int = 0) -> str:
     name = os.path.basename(words[0])
     if name == "xargs":  # the words after its options are the program it runs
@@ -892,23 +1041,14 @@ def _venv_reason(words: list[str], ctx: dict, depth: int = 0) -> str:
     if _PIP_NAME.match(name):
         pip_args = words[1:]
     elif _PY_NAME.match(name):
-        args, k = words[1:], 0
-        while k < len(args):
-            a = args[k]
-            if a == "-m" and k + 1 < len(args):
-                pip_args = args[k + 2 :] if args[k + 1] == "pip" else None
-                break
-            if a.startswith("-m") and len(a) > 2:
-                pip_args = args[k + 1 :] if a[2:] == "pip" else None
-                break
-            if not a.startswith("-") or a == "-c":
-                break  # a script, or `-c` code: not pip
-            k += 2 if a in ("-W", "-X") else 1  # options whose value is the next word
+        pip_args = _python_module_args(words[1:], "pip")
     if pip_args is None:
         return ""
     act, target = _pip_target(words[0], pip_args, ctx)
     if not _PIP_NAME.match(name):
-        act = act.replace(f"`{name} ", f"`{name} -m pip ", 1)  # name the module, not `python install`
+        act = act.replace(
+            f"`{name} ", f"`{name} -m pip ", 1
+        )  # name the module, not `python install`
     return _judge(act, target, ctx, "", _editables(pip_args, ctx))
 
 
@@ -994,9 +1134,9 @@ def _scan(command: str, ctx: dict, depth: int, seat: bool = True) -> str:
                             return reason
                     break
             continue
-        reason = (
-            (_kill_reason(words) or _git_reason(words, ctx)) if seat else ""
-        ) or _venv_reason(words, ctx)
+        reason = ((_kill_reason(words) or _git_reason(words, ctx)) if seat else "") or _venv_reason(
+            words, ctx
+        )
         if reason:
             return reason
     return ""
