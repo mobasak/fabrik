@@ -6,7 +6,9 @@
     "docs/workstation/hooks-index.md",
     "docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md",
     "docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md",
-    "docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md"
+    "docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md",
+    ".claude/settings.json",
+    "docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-phase-A-review.md"
   ],
   "branch": "worktree-intel",
   "started_at": "2026-10-21T23:42:53+00:00",
