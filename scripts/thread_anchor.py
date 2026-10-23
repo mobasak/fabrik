@@ -430,6 +430,37 @@ def _save(session: str, state: dict) -> bool:
     return _write_atomic(_state_path(session), state)
 
 
+# ── inject only on change (W-25f6b2a3 slice 2) ──────────────────────────────────────────────────
+# Every block a UserPromptSubmit hook prints stays in the session's context for the rest of its life,
+# so an unchanged block prints as ONE pointer line until its last full print is `_PROMPT_REFRESH_S`
+# old (the bound on a rewind or a fused window that lost it). The digest is RAW: masking the lease
+# time and the ages bought 0 of 113 prompts measured and would make the pointer stand for a block whose
+# lease differs from the copy in context. Its own `<session>.prompt-digest` file, written AFTER the
+# flush through `_write_atomic` — no session lock (the prompt path already waits on two) and outside
+# the `*.json` globs. COBRA (D-253): the cheapest way to shrink the prompt further is to treat more
+# blocks as "unchanged"; the counter is the raw digest — any byte of change reprints.
+_PROMPT_REFRESH_S = 1800
+
+
+def _prompt_digest_path(session: str) -> Path:
+    return _state_path(session).with_suffix(".prompt-digest")
+
+
+def _prompt_is_fresh(session: str, digest: str) -> bool:
+    """True only when ``session``'s stored digest is ``digest`` and under the refresh bound; any
+    missing, corrupt or foreign record is False, so the full block prints."""
+    try:
+        rec = json.loads(_prompt_digest_path(session).read_text(encoding="utf-8"))
+        at = rec["at"]
+        return (
+            rec["digest"] == digest
+            and isinstance(at, (int, float))
+            and 0 <= time.time() - at < _PROMPT_REFRESH_S
+        )
+    except Exception:
+        return False
+
+
 # ── the lock-free pending file (W-e64aa44a, D7 W4-O3) ────────────────────────
 # A DECISION block the Stop harvest could not put in the session slot (the per-session flock was
 # busy) is written HERE, before the store call, so the block exists on disk before the ≤ 2 s
@@ -1303,10 +1334,25 @@ def main(argv: list[str] | None = None) -> int:
             # The work block first, never folded — above the usual block and WHERE YOU ARE.
             out = "\n".join([*head, out] if out else head)
             if out:
+                digest = hashlib.sha256(out.encode("utf-8", "replace")).hexdigest()
+                dedup = session != "nosession" and event in ("UserPromptSubmit", "SessionStart")
+                if dedup and event == "UserPromptSubmit" and _prompt_is_fresh(session, digest):
+                    real_stdout.write(
+                        "work: unchanged since the last full block above — reprint: python3 "
+                        f"scripts/thread_anchor.py line --session {session} --repo .\n"
+                    )
+                    real_stdout.flush()
+                    return 0
                 # Flushed HERE: past the budget the abandoned import thread still holds sys.stdout
                 # redirected at exit, so nothing flushes this stream for us (0 bytes, measured).
                 real_stdout.write(out + "\n")
                 real_stdout.flush()
+                if dedup:  # stored only after the full block reached stdout, never by the pointer
+                    _write_atomic(
+                        _prompt_digest_path(session),
+                        {"digest": digest, "at": time.time()},
+                        "prompt digest",
+                    )
         elif args.cmd == "done":
             if args.match:
                 cmd_done(session, args.match)
