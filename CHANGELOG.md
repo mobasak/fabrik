@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the drifted-box grader anchors on the product's own drift line, not a sibling's assertion prose (2026-10-23)
+
+- `tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` pinned the second sibling's assertion message, so 662ed84dd's rewording turned it red on clean master while the merge-check isolation it grades was sound. The inner run now prints one-line tracebacks (`--tb=line`) and the grader asserts, per sibling, an `AssertionError` line carrying the product's own `MISSING in <home>` text (`assemble_commands` drift check) — never the sibling's prose, never a bare `FAILED <id>` that an import or permission error would also satisfy (W-45433793, a0c507772; entry added by W-d3d1d924).
+
 ### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
 
 - MEASURE runs every probe under an interpreter shown to import its libraries and each extra it enables, since a system `python3` may lack one (rows 1792766698, 1792734746: the system markdown_it lacked linkify; 14 of the 15 project venvs that carry markdown_it lack linkify too).
