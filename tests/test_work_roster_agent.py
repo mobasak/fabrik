@@ -307,3 +307,7 @@ def test_a_bad_or_vanished_binding_names_nothing_for_that_window_only(tmp_path, 
     _bind("Not_A_Name", 901, 2)
     _claude(proc, 902, t["c"], agent="dev1")
     assert _roster(repo) == {"a": "a", "b": "b", "dev1": "c"}
+    # a malformed stat: field 22 (the start time) is not a number
+    (proc / "900" / "stat").write_text("900 (claude) " + " ".join(["S"] + ["0"] * 18 + ["x"]) + "\n")
+    _bind("dev9", 900, 1)
+    assert _roster(repo) == {"a": "a", "b": "b", "dev1": "c"}
