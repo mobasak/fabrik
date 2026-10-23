@@ -3,7 +3,7 @@
   "created": "2026-10-22T23:15:59.074469Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ffa8c71c010947e89ca14e81548bb11848f3574f",
   "id": "W-d3d1d924",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 3,
   "score_reason": "a missing CHANGELOG row for a merged test fix; one line, the author's (D-448)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
