@@ -2286,15 +2286,24 @@ _ROW1_RECIPIENT_ANCHORS = (
     "outcome (i)",
     "`heavy=yes`",
     "`health-probe/`",
+    # review pass 1 (B-2, A-1): the load-bearing clauses the first eleven did not pin
+    "`PORTS.md`",
+    "`CLAUDE.md`",
+    "RECEIVED copy",
+    "orphan of a retired sync path",
+    "row 1b",
 )
 
 
 def test_the_templates_row_1_binds_its_recipient_clause_to_the_gates_own_code(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Input domain: the template's lane row 1 (its Test cell), `scripts/command_run.py`'s sync
     predicates and `scripts/fabrik_synced_manifest.py`'s `VENDORED_DIRS` / `SEEDED_NOT_ENFORCED`,
-    all from this checkout; `tmp_path` must sit outside any git checkout, since `_sync_verdict` asks
+    all from this checkout — `_sync_filter_source` reads the hub's `.pre-commit-config.yaml` by
+    the absolute `/opt/fabrik` path unless `FABRIK_HUB_ROOT` names another root, so the test points
+    it at THIS checkout (review pass 1, B-1: a live-hub read would red or green independently of
+    the tree under test); `tmp_path` must sit outside any git checkout, since `_sync_verdict` asks
     git for a main checkout before it looks for the lock (pytest's default tmp root does).
 
     Two halves, both needed. The ANCHOR half is red on base (the row carried none of the eleven
@@ -2315,8 +2324,17 @@ def test_the_templates_row_1_binds_its_recipient_clause_to_the_gates_own_code(
 
     manifest = _load("fabrik_synced_manifest", "scripts/fabrik_synced_manifest.py")
     assert "libs/health_probe" in manifest.VENDORED_DIRS, manifest.VENDORED_DIRS
-    assert "docs/DECISIONS.md" in manifest.SEEDED_NOT_ENFORCED, manifest.SEEDED_NOT_ENFORCED
+    # both seeded ledgers are named by the row — DECISIONS as the project's, PORTS by its own row
+    assert {"docs/DECISIONS.md", "PORTS.md"} <= set(manifest.SEEDED_NOT_ENFORCED), (
+        manifest.SEEDED_NOT_ENFORCED
+    )
+    # the paths the row calls received are destinations the manifest distributes (B-3) — the
+    # manifest lists `.windsurf/` and `.claude/` as whole trees, so only the file-level ones are
+    # asked for by name here
+    dests = {p for paths in manifest.gitignore_dest_paths().values() for p in paths}
+    assert {"scripts/enforcement/", "CLAUDE.md", "libs/health_probe/", "PORTS.md"} <= dests, dests
     cr = _load("command_run", "scripts/command_run.py")
+    monkeypatch.setenv("FABRIK_HUB_ROOT", str(FABRIK))
     src = cr._sync_filter_source()
     assert src, "the hub's governance-sync filter could not be read — the row's test is about it"
     pat = re.compile(src)
