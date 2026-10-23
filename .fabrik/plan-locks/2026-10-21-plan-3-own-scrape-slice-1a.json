@@ -17,7 +17,6 @@
     "scripts/sysadmin/systemd/fabrik-scrape-mcp.service",
     "docs/reference/fabrik-scrape-mcp.md",
     "docs/workstation/mcp-roster.md",
-    "PORTS.md",
     "tests/test_researcher_fallback_contract.py",
     ".windsurf/rules/core/57-external-data-sourcing.md"
   ],

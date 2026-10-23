@@ -260,12 +260,23 @@ def strip_three_marker_fences(text: str) -> str:
 _BACKTICK_RUN_RE = re.compile(r"`+")
 # A link's `](dest "title")` tail is raw text: a backtick in it opens no span (it may still CLOSE
 # one opened before the link's `[`, as CommonMark reads it). Only a tail after `[text]` counts, so a
-# stray `](` cannot shield a real code span from blanking.
-_LINK_TAIL_RE = re.compile(r"\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*(\]\((?:[^()\n]|\([^()\n]*\))*\))")
+# stray `](` cannot shield a real code span from blanking. W-f365c610 (F1): the tail must parse as a
+# CommonMark destination — `<…>`, or no space and parentheses nested one level — then an optional
+# `"…"`, `'…'` or `(…)` title; `[r](u `x`)` is no link, so its backticks open a span, as markdown-it
+# renders it; a title may hold backslash escapes. STATED COST: a destination nested two levels deep, a
+# title on the next line, and a title with no destination read otherwise than markdown-it (0 of 762 real
+# `](` lines under /opt/fabrik/docs, the W-f365c610 design critique's count).
+_LINK_TAIL_RE = re.compile(
+    r"\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*(\]\([ \t]*(?:<[^<>\n]*>|(?:[^\s()\\]|\\.|\((?:[^\s()\\]|\\.)*\))*)"
+    r"(?:[ \t]+(?:\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?[ \t]*\))"
+)
 # A line a span never crosses into: blank, or one that starts another block (a setext underline
-# and a thematic break end the paragraph too).
+# and a thematic break end the paragraph too). A line-start `<!--` opens an HTML block, which interrupts
+# a paragraph (W-f365c610, D4). STATED COST: the other HTML block starts (`<div>`, `<details>`, `<pre>` …)
+# are not modelled, so a span may still wrap across one (named by the W-f365c610 design critique; its
+# live count is unmeasured).
 _BLOCK_START_RE = re.compile(
-    r"[ \t]*(?:\r?$|[-*+>|][ \t]|\d+[.)][ \t]|#{1,6}(?:[ \t]|\r?$)|```|~~~"
+    r"[ \t]*(?:\r?$|[-*+>|][ \t]|\d+[.)][ \t]|#{1,6}(?:[ \t]|\r?$)|```|~~~|<!--"
     r"|(?:=+|-+)[ \t]*\r?$|(?:[*_][ \t]*){3,}\r?$)",
     re.M,
 )
