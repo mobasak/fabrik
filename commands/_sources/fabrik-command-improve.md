@@ -93,6 +93,10 @@ python3 /opt/fabrik/scripts/command_feedback_report.py --queue <command>   # no 
 
 TAB-separated, newest first: `<ts>` · `<bucket>` · `<the verdict>`. The `ts` is the row's only
 handle — the ledger has no id and `sid` is per session — and it is what your commit will name.
+The lead copies each handle from this output, never retyping it or taking it from a seat's report (a seat's row is
+mapped back to its line here by its verdict text), re-runs `--queue` first on a resumed run, and before `--reject`, the
+trailer or `--mark-answered` names a handle, `grep -F`s it back in this output and confirms the verdict on that line is
+the row meant.
 
 Then TAKE the queue's own work item, so the depth is tracked in the store and PHASE 5's
 `--mark-answered` has an item to close:
@@ -392,9 +396,7 @@ unrelated commit, so pass the full sha of the edit and the checkout it was commi
 
 Same `ts` list as the trailer, and every handle must match a REAL row of that command's queue —
 copy them from `--queue` exactly, the whole `ts` with its fractional part (`1792030670` matches no row of
-`1792030670.5328414`), since a typo used to be accepted as answered work. Every handle this loop passes — to
-`--reject`, the trailer and this call — is copied by the lead from `--queue` output with its row text beside it,
-never retyped and never taken from a seat's report. It REFUSES a
+`1792030670.5328414`), since a typo used to be accepted as answered work. It REFUSES a
 commit that touches no corpus path (`commands/_sources/`, `commands/_fragments/`,
 `commands/_agents/`, `.windsurf/rules/`, either `CLAUDE.md`) — a verdict is answered by an EDIT,
 and marking is the one act in this loop that removes a row from view. Re-running it on
