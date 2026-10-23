@@ -17,5 +17,5 @@
   "started_at": "2026-10-23T16:50:00Z",
   "status": "active",
   "baseline_commit": "51a6caa83aaf0ee3587da34e1f9b8318188c1ba3",
-  "note": "PORTS.md overlaps intel plan-3's active lock (its WSL table vs this plan's VPS table row); the PORTS.md edit waits on intel's release, asked 2026-10-23"
+  "note": "PORTS.md was in intel plan-3's active lock; intel released it 2026-10-23 (e6f0a0e31 on worktree-intel), plan 3 writes only its WSL-table row in its own Phase B"
 }
