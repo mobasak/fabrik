@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-review queue pass: the input grid, closed-token fields, pinned-code archives, plain seat commands, all-or-nothing fix scripts (2026-10-23)
+
+- `commands/_sources/fabrik-plan-review.md`:
+  - **Input grid.** The round-1 brief gives the seats the input classes the run enumerated as their grid, each row carrying the output from before the change (`none — new` for a path the plan adds).
+  - **Closed tokens.** A field that a hook, script or grader reads is a closed token. A prose grader checks presence only.
+  - **Pinned-code archive.** A seat that imports or runs code the plan cites builds an archive of the base SHA with the pinned files laid over it, the `PIN_IMPORT` recipe.
+  - **Script mode.** A step that runs a script names its mode, grounded against the parser.
+- `commands/_fragments/design-critique.md`: a critique seat runs one plain command per Bash call. It never uses `cd`, `&&`, a pipe or a `$VAR`.
+- `commands/_fragments/term-edit.md`: a scripted fix states how many times each old string occurs, and writes nothing unless every one matches.
+- Graded in `tests/test_plan_review_queue_pass.py`. Review receipt: `docs/development/reviews/2026-10-23-wcce27aaf-plan-review-queue-review.md`. Answers 15 feedback rows (W-cce27aaf).
+
 ### Changed — /fabrik-execute-plan queue pass: the phase receipt, a coder's database fence, a cwd-dependent check (2026-10-23)
 
 - `commands/_sources/fabrik-execute-plan.md` gets three changes, all graded in `tests/test_execute_plan_queue_pass.py`:
