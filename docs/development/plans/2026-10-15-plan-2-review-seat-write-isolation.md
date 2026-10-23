@@ -3,13 +3,18 @@
 Status: DRAFT
 Profile: small
 **Owner:** intel
-**Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring, re-grounded at 21744dd43 (2026-10-22; seat_guard.py and
-its tests unchanged); `.claude/hooks/seat_guard.py` (651 lines), `tests/test_seat_guard.py` (33 tests), `commands/_agents/fabrik-reviewer.md:4` (read, not edited)
+**Surface:** `git rev-parse HEAD` = 4efc5d325 at authoring; Phase B re-planned at 3dd31656e, where
+`.claude/hooks/seat_guard.py` is 1479 lines and `tests/test_seat_guard.py` holds 55 tests (Evidence, Phase B re-plan
+grounding); `commands/_agents/fabrik-reviewer.md:4` (read, not edited)
 
 Spec: `docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md` (CONVERGED 2026-10-23, D-1145: the
 D-1129 amendment, approved by the Opus + Fable panel; `Profile: delta`; refined earlier by D-914). Phase B re-planned
-2026-10-23 at bf2d5f4a6 from that amendment; Phase A stays as built. `/fabrik-plan-review` grades its sections together with this plan and flips both. Source:
-mail 01M4PHYNXJ → work item W-72dfd448; design rulings D-913, D-914. Estimated diff (after the plan review's rounds 1-3): ≈250 code lines in ONE code file, `.claude/hooks/seat_guard.py`
+2026-10-23 at bf2d5f4a6 from that amendment; Phase A stays as built. The spec was approved by `/fabrik-spec-review`'s panel, so this plan review runs alone (no
+joint loop). Source: mail 01M4PHYNXJ → work item W-72dfd448; design rulings D-913, D-914, D-1129, D-1145. Phase A as
+BUILT measured 874 hook lines added and 46 removed, and 404 test lines (`git diff --numstat 95d14ca0f HEAD`, Evidence) —
+far past its estimate and past the `Profile: small` line; the profile is kept for the work still to run (Phase B ≈150
+hook lines, `spec:4`, an estimate; Phase C none), where it holds (≤ ~400, ≤ 5 files), and Phase A's overrun is
+recorded here, measured. Phase A's original estimate, kept for the record: ≈250 code lines in ONE code file, `.claude/hooks/seat_guard.py`
 (redirect capture with the empty-list case and the stream-offset fd test in `_simple_commands` ≈45, the destination
 rule `_write_reason` with its per-verb option tables, glob prefix and `/dev` exemption ≈130, its call before
 `if not words` and every `continue` in `_scan` ≈10, the `env -C` scoping ≈10, the `_HEREDOC` fix ≈1, the unparseable
@@ -57,28 +62,30 @@ Intake: 8 items — 6 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 
 ## Global Constraints (every phase inherits these)
 
-- **Seats only.** Every new rule sits behind `decide()`'s existing early return (`.claude/hooks/seat_guard.py:566-567`):
+- **Seats only.** Every new rule sits behind `decide()`'s existing early return (`.claude/hooks/seat_guard.py:1394-1395`):
   no `agent_id`, or an `agent_type` outside `SEAT_TYPES`, is allowed untouched — the lead, implementers and every other
   agent type keep writing as today.
 - **Fail open on a guard bug, fail closed on an unknown destination** (Phase A). Phase B narrows it for SEAT payloads:
   a wrapper-build error, and in fallback mode a `decide()` exception, deny (`spec:81-83`, `spec:146-148`); `main()`'s
-  `except Exception` → allow stays for the non-seat path and in fence mode (Phase A's anchor `:620-627`, now `:1452-1455`); inside the rule, a `$`-bearing or substituted destination is NOT scratch (`_in_scratch`,
-  `:284-285`), and neither is one starting with `~`.
+  `except Exception` → allow stays for the non-seat path and in fence mode (`:1452-1455`); inside the rule, a
+  `$`-bearing or substituted destination is NOT scratch (`_in_scratch`, `:581-582`), and neither is one starting with `~`.
 - **Destinations only.** A read of the live tree (`cat`, `cp <live> <scratch>/`, `git -C <live> show`) stays allowed.
 - **Relative destinations join the tracked cwd** (`os.path.join(ctx["cwd"], p)`) before `_in_scratch`, whose
-  `realpath` (`:286`) would otherwise resolve against the hook process's own cwd. The tracked cwd is the shell's:
+  `realpath` (`:583`) would otherwise resolve against the hook process's own cwd. The tracked cwd is the shell's:
   `env -C` moves it for its own command only, and a command's redirects resolve against the cwd before it.
 - **One settings change.** `.claude/settings.json` changes only the seat-guard `statusMessage` (`:152`, Phase B step 7;
   `spec:521`); the matcher stays `Bash` (D-914).
-- **No new dependency**; `shlex`, `os.path`, `re`, `json`, `hashlib` and `subprocess` (already imported, `:110`) only
-  (`core/10-python.md:38`). `/usr/bin/bwrap` is a HOST prerequisite, not a package: Phase B's preflight probes it, and a
+- **No new dependency**; the standard library only (`core/10-python.md:38`): `json`, `os`, `re`, `shlex` and
+  `subprocess` are already imported (`:105-111`), `hashlib` is the one new import. `/usr/bin/bwrap` is a HOST prerequisite, not a package: Phase B's preflight probes it, and a
   host without it runs fallback mode (`spec:136`).
 - Tests: one per behaviour, watched-fail-first (`core/45-testing-strategy.md:22`), through the existing subprocess
   harness `_run()` (`tests/test_seat_guard.py:24-50`) and its `_denied()` (`:53`); red-on-revert runs in a throwaway
-  worktree (`git worktree add --detach <scratch>/probe HEAD`), never the shared checkout.
-- Seats never mutate git state; never read `~/.claude*`; seat scratch paths are absolute and each seat `cd`s to its own
-  scratch first; a seat never executes a script it has not read.
-- **Execution discipline (native seats only, D-181):** Phase A ends with `/fabrik-review-scoped` (the floor of three
+  worktree, never the shared checkout. Phase B's proof worktree sits OUTSIDE every writable bind of the payloads it
+  serves — `/tmp/claude-<uid>/fence-probe-<sid>/` (`git worktree add --detach … HEAD`, removed after), never under
+  the scratchpad or `<main>/.tmp/runs/<sid>/` — or B2, Validation 1 and U2 would see writes succeed.
+- Seats never mutate git state; never read `~/.claude*`; seat scratch paths are absolute, and a seat `cd`s only on the same line as the command
+  that needs it (a `cd` does not carry to the next call under the fence, `spec:210-238`); a seat never executes a script it has not read.
+- **Execution discipline (native seats only, D-181):** Phases A and B each end with `/fabrik-review-scoped` (the floor of three
   native seats on different angles, stamped with `command_run.py dispatch`) and does not hand on until its closing pass
   confirms zero defects. The Finish `/fabrik-review` partitions the whole-plan diff by file into a Sonnet and a Haiku
   finder per slice (D-344), the orchestrator executing every refutation and reproduction.
@@ -206,13 +213,16 @@ this box, Evidence); absent ⇒ the phase still builds, but steps 8-9 can only p
 BLOCKED missing-infra stop for Validation 1-3 and 8-10, never a skipped row.
 
 **Interfaces — Produces** (all in `.claude/hooks/seat_guard.py`; consumed inside it and by `tests/test_seat_guard.py`):
-- `_fence_mode() -> dict` — the mode probe and its cache, `spec:129-135`; returns `{"mode": "fence"|"fallback",
-  "interop": "open"|"masked"|"n/a", "why": str}`. The fallback triggers are `spec:136-139`; on WSL the interop probe
-  is `spec:103-112`. A per-call failure is never cached (`spec:133-135`).
+- `_fence_mode(payload) -> dict` — computed ONCE per call in `main()` and passed to `rewrite()` and `decide()`, so the
+  two never disagree; the mode probe and its cache, `spec:129-135`; returns `{"mode": "fence"|"fallback",
+  "interop": "open"|"masked"|"n/a", "why": str}`. The fallback triggers are `spec:136-139` (the payload's `scratchpad_dir` is one, so the
+  function takes the payload); on WSL the interop probe is `spec:103-112`. A per-call failure is never cached (`spec:133-135`).
 - `_fence_argv(payload) -> list[str]` — the flag vector in the order `spec:88-124` gives (base binds, the masks of
   `spec:90-102` each only when its path exists, the `/mnt` skip of `spec:96-99`, the three writable binds of
-  `spec:113-121` with the record lookup through `scripts/command_run.py`'s `_record_path()` (`:159-160`) and the
-  `.tmp/runs` containment of `:1610`, then `TMPDIR`, `--unshare-pid`, `--die-with-parent`, `--chdir`). It raises on a
+  `spec:113-121` with the record lookup mirroring `scripts/command_run.py`'s `_state_dir()` (`:88-92`), `_safe_sid()`
+  (`:138`), `_record_path()` (`:159-160`) and `_scratch_main()` (`:1472-1481`) and the `.tmp/runs` containment of
+  `:1610` — re-implemented in the hook, never imported (a 414 KB script inside a 5-second hook), with a test pinning
+  the copies equal to `command_run.py`'s on sample session ids — then `TMPDIR`, `--unshare-pid`, `--die-with-parent`, `--chdir`). It raises on a
   per-call failure the hook can see (a `cwd` that is not a directory).
 - `rewrite()` (`:1419-1436`) — in fence mode returns `{**tool_input, "command": "/usr/bin/bwrap <argv> -- /bin/bash
   -c " + shlex.quote(<dotenv prefix + command>)}` per `spec:77-80`; the `_ALREADY_OFF` return (`:1434-1435`) skips
@@ -220,8 +230,11 @@ BLOCKED missing-infra stop for Validation 1-3 and 8-10, never a skipped row.
 - `decide()` (`:1392-1410`) — in fence mode the write rule (`_safe_write_reason`, `:1218-1225`) and the
   unparseable-write fallback do not run (`spec:149-152`); in fallback mode the unmodelled-construct refusals of
   `spec:140-145` run and the reason names the mode.
-- `main()` (`:1439-1475`) — for a SEAT payload: a raise from `_fence_argv` DENIES with the reason (`spec:81-83`), and
-  in fallback mode an exception in `decide()` DENIES naming the mode (`spec:146-148`); the non-seat path and fence
+- `main()` (`:1439-1475`) — for a SEAT payload in fence mode, ANY exception in `rewrite()` (from `_fence_argv`,
+  the record read or the quoting) DENIES with the reason, never `updated = None` (today's `:1448-1451`), so a seat
+  command never runs unwrapped (`spec:81-83`); in fallback mode an exception in `decide()` DENIES naming the mode
+  (`spec:146-148`), and so does one inside the write rule, whose own `try` (`_safe_write_reason`, `:1218-1225`) returns
+  a deny reason in fallback mode instead of ""; the non-seat path and fence
   mode keep today's `reason = ""` (`:1452-1455`).
 - Two test seams, read only from the hook process's own environment (a seat cannot set it — the hook runs in the
   harness, not the seat's shell): `SEAT_GUARD_BWRAP` (the binary path, default `/usr/bin/bwrap`; a missing path forces
@@ -233,9 +246,11 @@ BLOCKED missing-infra stop for Validation 1-3 and 8-10, never a skipped row.
 1. Preflight (above). Make the red-on-revert worktree: `git worktree add --detach <run scratch>/probe HEAD`.
 2. Write the Phase B graders (Behaviour Contract below) in `tests/test_seat_guard.py`; run
    `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_seat_guard.py -q` and see each NEW
-   row red against today's hook. Rows that read green today get a named neuter in the probe worktree, watched red and
-   restored: B5 — drop the `agent_type` test from the wrap; B6 — let `_ALREADY_OFF` skip the wrap; B9 — add
-   `--bind /tmp /tmp` to the argv; B10 — cache a per-call failure.
+   row red against today's hook. B4 reads green today (the lead gets no rewrite) and every row's red is also proven on revert in
+   the probe worktree, watched red and restored: B1 — let `_ALREADY_OFF` skip the wrap; B4 — drop the `agent_type`
+   test from the wrap; B6 — `_fence_mode` always answering `fence` (the mode-check neuter spec Validation 7 names);
+   B9 — add `--bind /tmp /tmp`, then the repo `.tmp`, to the argv; B10 — cache a per-call failure; B12 — record
+   `interop: masked` without running the launch.
 3. Re-expect the existing tests that pin the old shape (each edit stated, none deleted silently):
    - `test_a_seat_command_runs_with_dotenv_disabled` (`tests/test_seat_guard.py:299`),
      `test_the_rewrite_keeps_the_other_inputs_and_is_not_doubled` (`:310`),
@@ -243,7 +258,13 @@ BLOCKED missing-infra stop for Validation 1-3 and 8-10, never a skipped row.
      `test_a_child_python_under_the_rewrite_loads_no_dotenv` (`:338`): run under `SEAT_GUARD_BWRAP=<missing>`
      (fallback mode keeps today's prefix-only rewrite) AND gain a fence-mode twin asserting the wrapped form;
    - `test_a_scan_that_raises_still_rewrites` (`:354`) and `test_a9_a_crash_in_the_write_rule_fails_open_and_keeps_the_git_rule`
-     (`:530`): split by mode — fence mode keeps allow + wrap; fallback mode now DENIES (`spec:146-148`);
+     (`:530`): split by mode — fence mode keeps allow + wrap; fallback mode now DENIES (`spec:146-148`): for `:354`
+     the `_scan` raise escapes `decide()`; for `:530` the write-rule raise is caught by `_safe_write_reason`, which in
+     fallback mode now returns a deny reason (Interfaces, `main()`);
+   - every test runs with `SEAT_GUARD_CACHE` under `tmp_path`, never the host cache. The ≈25 write-rule deny tests
+     run in fallback mode because their `SCRATCH` (`tests/test_seat_guard.py:21`) does not exist; they set
+     `SEAT_GUARD_BWRAP` to a missing path explicitly, so a fence-mode test that creates a scratch folder cannot flip
+     them; fence-mode tests use their own `tmp_path` scratch;
    - `test_the_lead_other_agents_denials_and_empty_commands_are_not_rewritten` (`:330`),
      `test_malformed_seat_payloads_produce_nothing` (`:389`) and `test_fail_open` (`:134`): untouched — non-seat or
      no command, so no wrap and no change (re-run green proves it).
@@ -252,17 +273,23 @@ BLOCKED missing-infra stop for Validation 1-3 and 8-10, never a skipped row.
 6. `decide()` and `main()` per the Interfaces above.
 7. Docs in the same commit: the module docstring (the fence, the fallback, the residuals of `spec:64-71`, the COBRA
    line); `docs/workstation/hooks-index.md:104` — the one row rewritten per `spec:519-522` (fence vs fallback, binds,
-   masks, mode cache, the `interop:` residual, the new fail-closed cases, and the Tripwire of `spec:303` replacing the
+   masks, mode cache, the bwrap host prerequisite, the `interop:` residual (open, or unproven for a drvfs repo), the new
+   fail-closed cases, and the Tripwire of `spec:303` replacing the
    row's "re-opens this design with approach D (below) or a filesystem-level fence"); `.claude/settings.json:152`'s
    `statusMessage` names the fence (`spec:521`). Both files are governance-sync triggers (`.pre-commit-config.yaml:164`);
    a worktree commit distributes nothing until the merge.
 8. Executed proofs, each output pasted in Evidence:
    - Validation 1 (`spec:240-242`): the receipt's C1-C2, K1-K3, W1-W9
      (`docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md:156-170`, placeholders written
-     out concretely) run through the rewritten command inside the probe worktree; `git status --porcelain` there is
-     empty after each, the ESRCH and `/dev/shm` checks included.
+     out concretely) run through the rewritten command with the probe worktree as cwd (it lies outside every writable
+     bind, Global Constraints); `git status --porcelain` there is empty after each, the ESRCH and `/dev/shm` checks
+     included.
    - Validation 2, 3, 8, 9 as tests (B2, B3, B8, B9).
-   - Validation 4 (`spec:246-252`): a replay driver written in the run scratch (not a repo file). `scripts/scrape_ledger.py`'s
+   - Validation 4 (`spec:246-252`), all of it: every allow case of `tests/test_seat_guard.py` plus a fresh 3-day
+     harvest, run in the probe worktree wrapped and unwrapped; the unwrapped leg inside an OUTER fence with the same
+     scratchpad, run-folder and `TMPDIR` binds, the probe worktree and a throwaway `$HOME`; exit code and stdout
+     compared (`$$`, `$PPID`, `ps` excepted), a command with an otherwise absolute destination on exit code only. The
+     replay driver is written in the run scratch (not a repo file). `scripts/scrape_ledger.py`'s
      `harvest()` (`:333-378`) keeps only `fabrik-researcher` URL fetches, so the driver walks
      `~/.claude/projects/*/*/subagents/agent-*.meta.json` with `agentType == "fabrik-reviewer"` and their `Bash`
      `tool_use` inputs, as Phase A step 7 did (this plan's Evidence, the replay paragraph). Reported per N:
@@ -287,9 +314,11 @@ BLOCKED missing-infra stop for Validation 1-3 and 8-10, never a skipped row.
 - **Given** `SEAT_GUARD_BWRAP` at a missing path, or a probe that fails, or no `scratchpad_dir`, **When** a seat command holds an unmodelled construct (`eval`, a heredoc to a shell, `$'…'`, `[[`), **Then** denied with a reason naming fallback mode (B6)
 - **Given** a seat payload, **When** `_fence_argv` raises (a `cwd` that is not a directory), **Then** denied with the reason; **and** in fallback mode an exception in `decide()` denies naming the mode, while in fence mode it stays allow + wrap (B7)
 - **Given** the wrapped command, **When** it backgrounds a child, **Then** the child is gone when the call ends (B8)
-- **Given** the argv, **When** it is parsed, **Then** its writable binds are exactly {scratchpad, the run folder when it exists, the record's scratch when it exists outside it under `.tmp/runs/`}, each service mask present only for an existing path, and adding `--bind /tmp /tmp` turns this test red (B9)
+- **Given** the argv, **When** it is parsed, **Then** its writable binds are exactly {scratchpad, the run folder when it exists, the record's scratch when it exists outside it under `.tmp/runs/`}, each service mask present only for an existing path, and adding `/tmp` or the repo `.tmp` as a bind turns this test red (B9)
 - **Given** the mode cache, **When** the AppArmor value, the binary mtime or the flag-set hash changes, **Then** it re-probes, and a per-call failure is never written to it (B10)
-- **Mocked:** none beyond the two seams; every grader runs the real hook as a subprocess (`_run()`, `tests/test_seat_guard.py:24-50`) or the real wrapped command. B2, B3 and B8 need `/usr/bin/bwrap` and skip only with a printed reason when it is absent.
+- **Given** the hook copies of `_state_dir`, `_safe_sid`, `_record_path` and `_scratch_main`, **When** run on sample session ids, a uuid, one with unsafe characters and an empty one, **Then** they return what `scripts/command_run.py`'s functions return (B11)
+- **Given** a WSL host (`/proc/sys/fs/binfmt_misc/WSLInterop` present), **When** the mode probe runs, **Then** the cache's `interop` is `open` when the probe's bound Windows executable launched inside the masked fence and `masked` when it did not, and `n/a` on a host without interop (B12)
+- **Mocked:** none beyond the two seams; every grader runs the real hook as a subprocess (`_run()`, `tests/test_seat_guard.py:24-50`) or the real wrapped command. B2, B3, B8 and B12 need `/usr/bin/bwrap` and skip only with a printed reason when it is absent.
 
 ## Phase C — Finish
 
@@ -298,8 +327,9 @@ Appetite: 60
 **Steps** (sequential):
 1. The whole-plan `/fabrik-review` (the hook and `.claude/settings.json` are governance-sync paths; D7 floor: the
    whole-plan diff by file, a Sonnet and a Haiku finder per slice as Agent-tool seats (D-961), the orchestrator
-   executing every candidate), its receipt
-   `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md`.
+   executing every candidate), its receipt APPENDED as a new section to
+   `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md` (its `:156-170` round-1
+   commands stay, Phase B step 8 cites them).
 2. `CHANGELOG.md` entry (`### Changed — review seats run inside a bubblewrap filesystem fence (<the commit date>)`).
 3. `python scripts/final_gate.py --check --json` green; commit by pathspec with trailers; push; `merge_request.py
    request --review <receipt> --item W-72dfd448`.
@@ -329,16 +359,17 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 | FLOOR 12-FACTOR | config; no file sink | CLEAN — two env seams read from the hook's own environment (Phase B Interfaces) and one cache file (`spec:131`), no log file; hunted: Phase B Interfaces |
 | MATCHED core/10-python | no deps-file edit; stdlib only | CLEAN — no dependency file in § File Scope; hunted: Global Constraints |
 | MATCHED core/40-documentation | one CHANGELOG entry; the hooks-index row; the `statusMessage`; the D-row for the test seams | CLEAN — Phase C step 2, Phase B step 7, the Phase B commit |
-| MATCHED core/45-testing-strategy | one grader per behaviour, each seen red | CLEAN — A1-A19 map the parent spec § Validation 1-7, B1-B10 the amendment's Validation 1-9 (Self-audit); each green-today row has a named neuter |
+| MATCHED core/45-testing-strategy | one grader per behaviour, each seen red | CLEAN — A1-A19 map the parent spec § Validation 1-7, B1-B12 and Phase B steps 8-9 the amendment's Validation 1-10 (Self-audit); each green-today row has a named neuter |
 | RECURRENCE fail-open vs fail-closed | guard crash → allow; unknown destination → deny; seat wrapper-build error and fallback-mode crash → deny | FIXED r1 — A7, A9; Phase B: B7 (A9 splits by mode, step 3) |
-| RECURRENCE cost/quota/limit accounting | the hook's 5 s timeout | CLEAN — no new hook invocation; ≈14 ms per seat call (`spec:122`, `spec § Executed`) and a cached probe; Phase B step 9 measures it live |
+| RECURRENCE cost/quota/limit accounting | the hook's 5 s timeout | CLEAN — no new hook invocation; ≈14 ms per seat call (`spec:171`) and a cached probe; Phase B step 9 measures it live |
 | RECURRENCE boundary/sentinel/prefix collisions | `/tmp` and its ancestors of other sessions' scratch, globs; `/dev/*` by the lexical `normpath`; glued vs spaced fd numbers; `>&` dup vs `&>` file; option values read as operands | FIXED r1 — spec § The delta 2 names each; A3, A4, A6, A7 grade them (round 1: ancestors and globs were scratch, `2 >` was an fd) |
 | RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A row; every row green today has a named red | FIXED r1 — Self-audit mapping; Phase A step 1 names each neuter |
 
-Rubric invocation (verbatim output; the File Scope is the changed-path set):
+Rubric invocation (verbatim output; the changed-path set is § File Scope plus `CHANGELOG.md` and `docs/DECISIONS.md`,
+the governance files kept outside File Scope by rule):
 
 ```text
-$ python scripts/review_rubric.py --changed .claude/hooks/seat_guard.py tests/test_seat_guard.py .claude/settings.json docs/workstation/hooks-index.md docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md CHANGELOG.md docs/DECISIONS.md
+$ python scripts/review_rubric.py --changed .claude/hooks/seat_guard.py tests/test_seat_guard.py .claude/settings.json docs/workstation/hooks-index.md docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-plan-review.md CHANGELOG.md docs/DECISIONS.md
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
 # Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
 
@@ -752,6 +783,14 @@ Validation 1-10 needs to be runnable), merged and refuted by the lead. Findings 
   4's replay needs its own driver (Phase B step 8); Phase A's replay driver was run scratch and is gone.
 - Validation 1's commands are the receipt's `:156-170`; several are placeholders (`<5000 digits>`, `…`) the build
   writes out concretely.
+- Phase A's measured size (the header's figures):
+
+```text
+$ git diff --numstat 95d14ca0f HEAD -- .claude/hooks/seat_guard.py tests/test_seat_guard.py
+874	46	.claude/hooks/seat_guard.py
+404	0	tests/test_seat_guard.py
+```
+
 - `tests/test_command_improve_queue_pass.py:772` names `seat_guard.py` only as a file `/fabrik-command-improve`
   never edits — unaffected (read by the lead).
 
@@ -817,16 +856,19 @@ Code — false greens (the hook allows a write, a git write or a kill outside sc
 - Every item in What we already agreed maps to Phase A (delta 1-5), Phase B (the fence) or Phase C (review,
   CHANGELOG, merge request).
 - The amendment's Validation maps to Phase B: 1 → step 8 (executed), 2 → B2, 3 → B3, 4 → step 8 (replay), 5 → B4,
-  6 → B1, 7 → B6/B7/B10, 8 → B8, 9 → B9, 10 → step 9; U1, U5, U6 → step 9; U2 → step 8; U3 → B6 (fallback);
+  6 → B1, 7 → B6 (its neuter: Phase B step 2) / B7 / B10 / B12, 8 → B8, 9 → B9, 10 → step 9; the hook's
+  record-lookup copies → B11; U1, U5, U6 → step 9; U2 → step 8; U3 → B6 (fallback);
   U4 → step 8's replay count.
-- Phase B diff estimate ≈150 hook lines plus the docstring (`spec:4`, an estimate) in the same one code file, plus a
-  one-line `statusMessage`: with Phase A's ≈250, ≈400 code lines in 2 files — at the `Profile: small` line
-  (≤ ~400, ≤ 5 files); a Phase B that grows past it is an UPGRADE finding at its review.
+- Diff size, measured and estimated: Phase A as built added 874 hook lines and 404 test lines (header, Evidence) —
+  past `Profile: small`, recorded rather than re-planned since it is executed and reviewed; Phase B is ≈150 hook lines
+  plus the docstring (`spec:4`, an estimate) and a one-line `statusMessage`, inside the profile for the work still to
+  run; a Phase B that grows past ~400 code lines is an UPGRADE finding at its review.
 - Cross-phase names: `_fence_mode()` and `_fence_argv()` are produced in Phase B and consumed by `rewrite()`,
   `decide()`, `main()` and the B tests only; Phase A's `_safe_write_reason` is consumed in fallback mode only.
-- Diff estimate ≈250 code lines in 1 code file (tests excluded) after rounds 1-3: inside `Profile: small` (≤ ~400, ≤ 5).
+- Phase A's estimate at authoring was ≈250 code lines in 1 code file (tests excluded); the build measured 874
+  (above).
 - Cross-phase names: `_Cmd`, `.redirs` and `_write_reason` are produced and consumed in Phase A only.
-- Every touchpoint is a `path:line` in today's hook, re-read by the Opus grounding seat (its drift corrections are
+- (Phase A, at authoring) Every touchpoint was a `path:line` in that day's hook, re-read by the Opus grounding seat (its drift corrections were
   applied: `decide` `:564-582`, `_scan` `:504-561`, `main` `:611-647`).
 
 ## Residual unknowns
