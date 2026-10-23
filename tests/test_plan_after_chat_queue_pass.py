@@ -353,3 +353,11 @@ def test_a_module_plan_reads_the_module_test_recipe_first() -> None:
         " `/opt/fabrik-lib/<module>/README.md` (never the fabrik-lib module table), before the first suite run, and"
         " says so when neither has one, so the first suite count is the module's own."
     )
+
+
+def test_the_line_trigger_does_not_count_the_pasted_rubric() -> None:
+    """Rows 1792643183, 1792630841: whether Phase 4's pasted rubric counts toward ~300 lines was asked twice."""
+    assert (
+        "the projected monolith would exceed **~300 lines** of its own text (Phase 4's pasted"
+        " `review_rubric.py` output is not counted) · any single phase's"
+    ) in _flat()
