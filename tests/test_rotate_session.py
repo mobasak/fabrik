@@ -1338,3 +1338,50 @@ def test_wb72231b8_repoint_keeps_the_mode_drops_a_doubled_name_and_never_overwri
     monkeypatch.setattr(rs.os, "chmod", chmod_then_hand_edit)
     assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:changed on disk"
     assert NEW not in json.loads(regf.read_text()) and not list(tmp_path.glob(".session-agents.*"))
+
+
+def test_wb72231b8_a_late_bind_inside_the_grace_rows_ok(world, monkeypatch):
+    """W-b72231b8 slice 2: a re-bind landing 98 s after the resume prompt (the one late bind measured since W-b92aa5cf)
+    rows `ok` with its own `rebind_s`, not `partial:rebind`. A fake clock moves only when the script sleeps, and
+    ROTATE_WAIT_S is unset, so every wait runs at its production length."""
+    monkeypatch.delenv("ROTATE_WAIT_S")
+    clock = {"now": time.time()}
+    monkeypatch.setattr(rs.time, "time", lambda: clock["now"])
+    monkeypatch.setattr(rs.time, "sleep", lambda s: clock.__setitem__("now", clock["now"] + s))
+    _clear_hook(world, monkeypatch, bind=False)
+    sent: dict = {}
+    real_send = rs._send
+
+    def send(pane, text):
+        real_send(pane, text)
+        if text.startswith("You were rotated"):
+            sent["at"] = clock["now"]
+
+    monkeypatch.setattr(rs, "_send", send)
+    real_bindings = rs._bindings
+
+    def bindings():
+        if "at" in sent and clock["now"] >= sent["at"] + 98:
+            return [
+                {"session_id": NEW, "name": "dev1", "predecessor": SID, "at": int(sent["at"] + 98)}
+            ]
+        return real_bindings()
+
+    monkeypatch.setattr(rs, "_bindings", bindings)
+    _write_request(world)
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "ok" and row["predecessor_row"] is True, row
+    assert 97 <= row["rebind_s"] <= 99, row
+
+
+def test_wb72231b8_the_grace_fits_the_units_timeout():
+    """W-b72231b8 slice 2: the re-bind grace plus the longest wait path before it (132 s: the discard 2 + 10, the
+    /clear send 10 + 20, the clear wait 60, the resume send 10 + 20) leaves at least 60 s of the oneshot's
+    TimeoutStartSec, so the unit's timeout never fires inside one request; and the grace covers the measured 98 s."""
+    unit = (REPO / "scripts" / "sysadmin" / "fabrik-rotate.service").read_text()
+    timeout = int(
+        next(ln for ln in unit.splitlines() if ln.startswith("TimeoutStartSec=")).split("=", 1)[1]
+    )
+    assert rs.REBIND_GRACE_S >= 98
+    assert timeout >= rs.REBIND_GRACE_S + 132 + 60, (rs.REBIND_GRACE_S, timeout)

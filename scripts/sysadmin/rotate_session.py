@@ -56,6 +56,10 @@ HERE = Path(__file__).resolve().parent
 STALE_S = 60
 ORPHAN_S = 900  # past the service's TimeoutStartSec (600 s): a `.claimed` nobody can still hold
 IDLE_S = 30
+# W-b72231b8 slice 2: the re-bind wait after the resume prompt. The one late bind measured since W-b92aa5cf landed 98 s
+# after the submit; the longest wait path before this one is 132 s (the discard 2 + 10, the /clear send 10 + 20, the clear
+# wait 60, the resume send 10 + 20), so 132 + 300 leaves 168 s of the unit's TimeoutStartSec=600 for checks and tmux.
+REBIND_GRACE_S = 300
 VETO_S = 300  # a registry flip after the last turn end vetoes this long; measured flips led a turn's first write by 0.02 s
 SEAT_TAIL = 8 * 1024 * 1024
 TURN_END = ("turn_duration", "stop_hook_summary")
@@ -1035,7 +1039,7 @@ def _one(claimed: Path) -> dict:
         step = "resume"
         row["resume_sent_at"] = int(time.time())
         _send(data["pane"], resume_prompt(data["name"]))
-        step, deadline = "rebind", time.time() + _wait_s(90)
+        step, deadline = "rebind", time.time() + _wait_s(REBIND_GRACE_S)
         while time.time() < deadline:
             hit = [
                 r
