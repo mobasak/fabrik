@@ -23,6 +23,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 _CHECK = (
     Path(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_governance_tables.py"
 )
@@ -369,3 +371,209 @@ def test_prose_escape_in_a_row_is_not_a_span_finding(tmp_path, monkeypatch, caps
     )
     assert _run(mod, root, ["--strict"], monkeypatch) == 0
     assert ": code span carries a table-escaped pipe" not in capsys.readouterr().out
+
+
+# ── W-76c49aa8: one walk for both rules; the GFM shapes measured against markdown_it ─────────────────
+
+# The shapes where the walk and GFM still disagree — RECORDED in `_tables`' docstring with a live count of
+# 0 over the 2 contracts + 57 packs and 0 over 50 fleet repos (2026-10-23). Named here so the oracle test
+# below excludes them by name rather than by accident, and so a census that finds one has its probe input.
+# SILENT misses: GFM renders a table, the walk none. The HTML block is the one FALSE-POSITIVE shape.
+_RECORDED_MISSES = {
+    "blockquote table": "> | a | b |\n> |---|---|\n> | 1 | 2 | 3 |\n",
+    "edge-less rows": "a | b\n---|---\n1 | 2 | 3\n",
+    "leading-pipe-only header": "| a | b\n|---|---|\n| 1 | 2 | 3 |\n",
+    "list-nested table": "- item\n\n    | a | b |\n    |---|---|\n    | 1 | 2 | 3 |\n",
+}
+_RECORDED_FALSE_POSITIVES = {
+    "html block": "<details>\n| a | b |\n|---|---|\n| 1 | 2 | 3 |\n</details>\n",
+}
+
+
+def test_a_closing_fence_with_an_info_string_closes_nothing(tmp_path, monkeypatch, capsys):
+    """C1 — GFM closes a fence only with a bare run of the opener's character; "``` info" is content.
+    Both rules must stay silent on the rows after it (they are inside the fence to GFM), and both must
+    fire on the same rows once a bare closer precedes them."""
+    mod = _load()
+    inside = (
+        "```\n| x | y |\n``` info\n" + _TABLE + "| `s \\| t` | 2 | 3 |\n"
+    )  # the second ``` carries an info string: still inside the fence
+    outside = "```\n| x | y |\n```\n" + _TABLE + "| `s \\| t` | 2 | 3 |\n"
+    assert mod._overflowing_rows(inside) == [] and mod._piped_spans(inside) == []
+    assert [r[0] for r in mod._overflowing_rows(outside)] == [
+        6
+    ]  # the row under the table's two lines
+    assert mod._piped_spans(outside) == [(6, "`s \\| t`")]
+    _pack(_root(tmp_path, _GOOD), inside)
+    assert _run(mod, tmp_path, ["--strict"], monkeypatch) == 0
+    assert "ADVISORY" not in capsys.readouterr().out
+
+
+def test_a_header_wider_than_its_delimiter_is_no_table_for_the_span_rule(
+    tmp_path, monkeypatch, capsys
+):
+    """C2 — a header whose cell count disagrees with its delimiter renders NO table: the width rule reports
+    the header (its own finding) and the span rule never reads the rows under it, because outside a table
+    GFM leaves a code span's `\\|` literal for both readers. Narrower headers are rejected the same way."""
+    mod = _load()
+    wider = "| a | b | c |\n|---|---|\n| `s \\| t` | 2 |\n"
+    narrower = "| a |\n|---|---|\n| `s \\| t` | 2 |\n"
+    for text in (wider, narrower):
+        rows = mod._overflowing_rows(text)
+        assert [r[0] for r in rows] == [1] and "HEADER width disagrees" in rows[0][3], text
+        assert mod._piped_spans(text) == [], text
+    _pack(_root(tmp_path, _GOOD), wider)
+    assert _run(mod, tmp_path, ["--strict"], monkeypatch) == 1
+    out = capsys.readouterr().out
+    assert "HEADER width disagrees" in out
+    assert ": code span carries a table-escaped pipe" not in out
+
+
+def _oracle_table_starts(text: str) -> list[int]:
+    """Line numbers at which markdown_it (commonmark + the table rule, GFM's grammar) opens a table."""
+    markdown_it = pytest.importorskip("markdown_it")
+    md = markdown_it.MarkdownIt("commonmark").enable("table")
+    return [t.map[0] + 1 for t in md.parse(text) if t.type == "table_open" and t.map]
+
+
+def test_the_tokenizer_agrees_with_markdown_it_on_table_starts():
+    """C3 — the oracle: over every fixture this module writes (the width and span corpora, the two fixed
+    shapes, a plain run of tables), the walk opens a table at exactly the lines markdown_it does. The three
+    recorded misses are excluded by name — each is asserted to be a miss, so a census that promotes one
+    rewrites this test on purpose, never by surprise."""
+    mod = _load()
+    corpus = {
+        "good": _GOOD,
+        "bad": _BAD,
+        "indented": "text\n\n   | Stage | Covers |\n   |---|---|\n   | 3-plan | run `grep -c '^| I'` |\n",
+        "fenced": _GOOD + "\n```\n| Rule | Instead |\n|---|---|\n| x | y | z |\n```\n",
+        "fence+info": "```\n| x | y |\n``` info\n" + _TABLE + "| `s \\| t` | 2 | 3 |\n",
+        "wider header": "| a | b | c |\n|---|---|\n| `s \\| t` | 2 |\n",
+        "two tables": _TABLE + "| a | b |\n\ntext\n\n| p | q | r |\n|---|---|---|\n| 1 | 2 | 3 |\n",
+        "lone row": "\n| lone | `str \\| None` |\n\n" + _TABLE + "| d | ok |\n",
+        "tilde and nested fences": "````\n```\n"
+        + _TABLE
+        + "| x | y |\n```\n````\n~~~\n"
+        + _TABLE
+        + "~~~\n"
+        + _TABLE
+        + "| t | u |\n",
+        "comment": "<!--\n" + _TABLE + "| c | d |\n-->\n" + _TABLE + "| e | f |\n",
+        "paragraph then table": "text\n" + _TABLE + "| 1 | 2 |\n",
+        "lazy list continuation": "- item\n"
+        + _TABLE
+        + "| 1 | 2 |\n\n- item\n\n"
+        + _TABLE
+        + "| 3 | 4 |\n- item\n  "
+        + _TABLE.replace("\n|", "\n  |")
+        + "  | 5 | 6 |\n",
+        "lazy blockquote continuation": "> quote\n"
+        + _TABLE
+        + "| 1 | 2 |\n\n"
+        + _TABLE
+        + "| 3 | 4 |\n",
+        "the existing B2 fixture": "- a bullet with `a \\| b` in it\nA paragraph line ending in a pipe `x \\| y` |\n"
+        + _TABLE
+        + "| a | b |\n",
+        "backtick opener with a backtick in its info string": "```x` inline\n\n"
+        + _TABLE
+        + "| 1 | 2 | 3 |\n",
+        "heading then table": "## H\n" + _TABLE + "| 1 | 2 |\n",
+        "no delimiter run": "| a | b |\n| c | d |\n| e | f | g |\n",
+    }
+    for name, text in corpus.items():
+        ours = [
+            rows[0][0] for kind, *rest in mod._tables(text) if kind == "table" for rows in [rest[1]]
+        ]
+        assert ours == _oracle_table_starts(text), f"{name}: walk {ours} vs markdown_it"
+    for name, text in _RECORDED_MISSES.items():
+        assert _oracle_table_starts(text), (
+            f"{name}: markdown_it no longer renders the probe as a table"
+        )
+        assert list(mod._tables(text)) == [], (
+            f"{name}: the walk now reads a recorded miss — promote it"
+        )
+    for name, text in _RECORDED_FALSE_POSITIVES.items():
+        assert not _oracle_table_starts(text), (
+            f"{name}: markdown_it now renders the probe as a table"
+        )
+        assert list(mod._tables(text)), (
+            f"{name}: the walk no longer reads the recorded shape — promote it"
+        )
+
+
+def test_the_liveness_canary_exercises_both_rules():
+    """C4 — the audit's own fixture, run exactly as `run_canary` runs it: the bad tree makes BOTH remedies
+    speak and the clean tree neither, so the span rule's liveness is exercised by the audit, not only by
+    this module."""
+    import subprocess
+    import sys
+    import tempfile
+
+    la = sys.modules.get("liveness_audit")  # the canary tests import it by name; reuse their module
+    if la is None:
+        la_path = Path(__file__).resolve().parents[2] / "scripts" / "sysadmin" / "liveness_audit.py"
+        spec = importlib.util.spec_from_file_location("liveness_audit", la_path)
+        la = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        sys.modules["liveness_audit"] = (
+            la  # its dataclasses resolve their module through sys.modules
+        )
+        spec.loader.exec_module(la)
+    canary = la.CANARIES["check_governance_tables"]
+    repo_root = Path(__file__).resolve().parents[2]
+    outputs = {}
+    for bad in (False, True):
+        with tempfile.TemporaryDirectory() as td:
+            fixture = Path(td) / "fx"
+            fixture.mkdir()
+            assert not la._prepare(fixture, canary, repo_root, bad=bad)
+            argv, cwd, env = la._argv("check_governance_tables", canary, _CHECK, fixture, repo_root)
+            proc = subprocess.run(
+                argv, cwd=cwd, env=env, capture_output=True, text=True, timeout=60
+            )
+            outputs[bad] = (proc.returncode, proc.stdout + proc.stderr)
+    assert outputs[False][0] == 0 and "ADVISORY" not in outputs[False][1], outputs[False]
+    assert outputs[True][0] == 1, outputs[True]
+    assert "table row renders" in outputs[True][1], "the width rule did not speak on the canary"
+    assert ": code span carries a table-escaped pipe" in outputs[True][1], (
+        "the span rule did not speak on the canary — its fixture half is missing"
+    )
+
+
+def test_the_docstring_records_the_three_miss_shapes():
+    """C5 — the known-gaps list moved from work item W-76c49aa8 into `_tables`' docstring, each shape in the
+    sentence of its FAIL DIRECTION (W-80ffca68's receipt recorded a mis-attributed list being deleted from
+    this docstring twice — placement is the guard): the silent misses in the SILENT sentence, the HTML block
+    in the FALSE-POSITIVE sentence, D-1133's span gap named, and the item no longer the list's owner."""
+    mod = _load()
+    doc = " ".join((mod._tables.__doc__ or "").split())
+    assert "RECORDED, not read" in doc
+    silent, fp = doc.split("SILENT misses", 1)[1].split("One FALSE-POSITIVE shape", 1)
+    for phrase in (
+        "BLOCKQUOTE",
+        "NO leading or trailing pipe",
+        "LIST ITEM",
+        "GLUED under a table row",
+        "live once",
+    ):
+        assert phrase in silent, f"{phrase} is not in the silent-miss sentence"
+    assert "HTML BLOCK" in fp and "HTML BLOCK" not in silent, (
+        "the HTML block is the false-positive shape"
+    )
+    assert "D-1133" in fp, "D-1133's unbalanced-backtick span gap is not recorded"
+    assert "live 0" in doc
+    assert "the one owner of that list" not in (mod.__doc__ or "")
+
+
+def test_a_pipe_run_without_a_delimiter_is_not_a_table(tmp_path, monkeypatch, capsys):
+    """C6 — a declared narrowing of the width rule: a run of `|…|` lines with no delimiter row is a paragraph
+    to GFM, so an "overflowing" line in it loses nothing and is NOT reported (it was, before the shared walk);
+    the same rows under a delimiter are reported."""
+    mod = _load()
+    run = "| a | b |\n| c | d |\n| e | f | g |\n"
+    assert mod._overflowing_rows(run) == []
+    assert [r[0] for r in mod._overflowing_rows(_TABLE + run)] == [5]
+    _pack(_root(tmp_path, _GOOD), run)
+    assert _run(mod, tmp_path, ["--strict"], monkeypatch) == 0
+    assert "ADVISORY" not in capsys.readouterr().out

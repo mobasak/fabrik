@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T05:39:02.753865Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-155cf5a5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Insert one blank line between the Stage table's `utility` row and the ⚠️ FIRST paragraph in templates/governance/CLAUDE.md (under kaizen's parked plan-1 lock on the template — ask kaizen first); verify with markdown_it (MarkdownIt('commonmark').enable('table')): the table at :56 must have 9 rows, as the hub's does. Found by W-76c49aa8's Fable critique seat; check_governance_tables.py records the lazy-row shape, it does not read it.",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "governance",
+    "template"
+  ],
+  "title": "templates/governance/CLAUDE.md: the FIRST paragraph under § Orient step 0's Stage table has no blank line before it, so GFM renders it as the table's 10th row in the template and its 49 fleet copies (the hub CLAUDE.md has the blank line)"
+}
