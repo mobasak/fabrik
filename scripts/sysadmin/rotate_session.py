@@ -736,6 +736,9 @@ def _discard(t: dict, seen: str) -> None:
         if _box_now(pane)[0] != seen:
             raise CheckFailedError("stale-input", "the input box changed since the request")
     run_checks(t, seen)
+    # check 5 also passes an EMPTY box; a box emptied in this window would turn the pair into a Rewind (review r2)
+    if _box_now(pane)[0] != seen:
+        raise CheckFailedError("stale-input", "the input box changed since the request")
     if _tmux("send-keys", "-t", pane, "Escape", "Escape").returncode != 0:
         raise CheckFailedError("stale-input", "tmux refused the keys")
     deadline = time.time() + _wait_s(10)

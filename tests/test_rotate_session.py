@@ -40,6 +40,8 @@ elif a[0] == "capture-pane":
     st["caps"] = st.get("caps", 0) + 1
     if st.get("drift_at") and st["caps"] >= st["drift_at"]:  # someone types in the pane meanwhile (W-ee19169d)
         st["screen"] = st["screen"].replace("❯ go on", "❯ go on, and also", 1)
+    if st.get("empty_at") and st["caps"] >= st["empty_at"]:  # the box was cleared by hand meanwhile (r2)
+        st["screen"], st["stuck"] = st["idle"], False
     if st.get("blank_at") and st["caps"] == st["blank_at"]:  # one redraw frame with no box drawn (W-ee19169d r1)
         json.dump(st, open(os.environ["FAKE_TMUX_STATE"], "w"))
         sys.stdout.write("redrawing\\n")
@@ -1093,3 +1095,24 @@ def test_w_ee19169d_request_fields_are_optional(world):
     ):
         with pytest.raises(rs.CheckFailedError, match="malformed|stale_text"):
             rs._validate(dict(base, **bad))
+
+
+def test_w_ee19169d_review_r2_exact_box_at_the_key_and_rewind_only_without_a_box(world):
+    """Review r2: a box emptied after the pre-key re-check (check 5 passes an empty box) is refused with NO key — the
+    pair on an empty box opens Rewind; and the word "Rewind" in transcript text above a box that kept its text is not
+    the Rewind menu: refused for the text left, with no extra Escape."""
+    # execute's captures: check 5, the decision read, the discard's two reads, run_checks (5), the exact re-read (6)
+    _stuck(world, drift_at=0, blank_at=0, empty_at=0, rewind=False)
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+    _set(world, caps=0, empty_at=5)
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:stale-input" and _keys(world) == [], _keys(world)
+    Path(str(world["state"]) + ".keys").unlink(missing_ok=True)
+    _set(world, empty_at=0)
+    _stuck(world, esc_noop=True, rewind=False)
+    _set(world, screen="see the Rewind docs\n" + json.loads(world["state"].read_text())["screen"])
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "refused:stale-input" and "did not read empty" in row["reason"], row
+    assert _keys(world) == [["-t", "%5", "Escape", "Escape"]], _keys(world)
