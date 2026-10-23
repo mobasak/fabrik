@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — A grader for the exit-row examples the command corpus quotes (2026-10-23)
+
+- `tests/test_exit_row_examples.py` finds every `| Pass N |` example table in `commands/_sources` and `commands/_fragments`, using `check_convergence._PASS_ROW` (numbered rows; a blank line ends a table).
+- Each table is graded with the graders' own rules: `check_review_coverage._ledger_shapes` (no refusals, every row read) and `_confirmed_quiet`, `check_convergence.QUIET_PASS` and `_closing_row_fail`.
+- Each table must also show a confirming round whose prefix the gate refuses. A floor of three tables in the three teaching files keeps the test from passing vacuously (W-cf9ec0cf).
+
 ### Changed — /fabrik-review-scoped queue pass: where the lead runs a command it keeps (2026-10-23)
 
 - `commands/_fragments/review-probe-catalogue.md`, the first bullet of § Before the first pin, kept any command that writes a live store, sends, commits, deploys or reaches a host with the lead, but never said where the lead runs it.
