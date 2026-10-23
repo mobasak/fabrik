@@ -354,7 +354,7 @@ Keep prompt/reference docs machine-parseable — these prevent both human error 
 |---|---|---|
 | Consistent pipe style | MD055 / MD060 | leading/trailing pipes + spacing consistent |
 | Consistent column count | MD056 | every row matches the header's column count |
-| Blank lines around tables | MD058 | a blank line before and after every table — a line flush against the last row renders as one more row |
+| Blank lines around tables | MD058 | a blank line before and after every table — a paragraph line flush against the last row renders as one more row |
 | Atomic cells | (convention) | keep cells single-line — no paragraphs/lists inside a cell |
 
 ### AI-specific (conventions, not markdownlint)
