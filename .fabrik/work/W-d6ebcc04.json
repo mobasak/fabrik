@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T14:33:14.397489Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d6ebcc04",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the mail, build the reader with its cursor state under ~/.claude/state, wire it into the nightly collector, graders on a fixture repo; kaizen owns the row shape",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "the operator's ask: lessons in every repo must change commands and rules; this is the reader that feeds kaizen, one script plus the collector hook",
+  "status": "open",
+  "tags": [
+    "mail-01m5mjvk8h",
+    "queued"
+  ],
+  "title": "mail 01M5MJVK8H (kaizen → infra): the lessons/AFCL reader script for W-682f1189 — a per-file cursor over every repo's docs/LESSONS_LEARNT.md (29 files, ~2,000 ## entries: hub 413, web-ecommerce-factory 254, transdoc 230) and AFCL.md (40 files), emitting only entries after the cursor as verdict-shaped rows into kaizen's queue; dedupe by heading (13 files share a scaffold shape, only 4 byte-identical)"
+}
