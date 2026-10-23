@@ -252,8 +252,8 @@ it, or name in the brief why the shape does not have it.
   runs in the lead's throwaway worktree. Ruff and mypy run from the repo root with the repo's own config (on a copy:
   ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff writes `.ruff_cache`
   in its working directory and fails inside a read-only pin without `--no-cache`); tests run by exact node id, except
-  a mutant or a re-run of one, which runs every test file the change touched or added whole (the `One mutant per
-  clause` bullet above), never a node id or `-k` carried from an earlier brief, and a
+  a mutant run or a re-run of one, which takes the test set and the selection rule of the `One mutant per clause`
+  bullet above; and a
   brief over changed code names the tests that load each changed module (by import, or by path through a loader or a
   stub — found by grepping `tests/` for each changed file's stem, its name without `.py`, or an `__init__.py`'s package
   dotted name, and keeping the hits that import or load it) for every seat to run by the `PIN_IMPORT`/`PYTEST_PINS`

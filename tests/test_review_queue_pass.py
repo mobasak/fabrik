@@ -948,9 +948,9 @@ def test_a_seat_brief_runs_the_tests_that_load_each_changed_module() -> None:
         r"\s+", " ", (ROOT / "commands" / "_fragments" / "review-probe-catalogue.md").read_text()
     )
     assert (
-        "tests run by exact node id, except a mutant or a re-run of one, which runs every test file the change "
-        "touched or added whole (the `One mutant per clause` bullet above), never a node id or `-k` carried from an "
-        "earlier brief, and a brief over changed code names the tests that load each changed "
+        "tests run by exact node id, except a mutant run or a re-run of one, which takes the test set and the "
+        "selection rule of the `One mutant per clause` bullet above; and a brief over changed code names the tests "
+        "that load each changed "
         "module (by import, or by path through a loader or a stub — found by grepping `tests/` for each "
         "changed file's stem, its name without `.py`, or an `__init__.py`'s package dotted name, and keeping "
         "the hits that import or load it) for every seat to run by the `PIN_IMPORT`/`PYTEST_PINS` recipe (a "
