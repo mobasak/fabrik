@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "/fabrik-task on scripts/command_run.py: one seed format both verbs share, red-proved by a handoff → start --resume-from round trip",
+  "next": "/fabrik-task on scripts/command_run.py: one seed format both verbs share, red-proved by a handoff -> start --resume-from round trip; AND the resumed record carries the seed's rounds, so a closing pass lands as the last round, not round 1 (fleet, W-d87073c2 2026-10-23: pass 5 CONFIRMED 0 could not close the fresh record and was parked blocked --wall)",
   "note": "",
   "owner": "infra",
   "priority": 1,
