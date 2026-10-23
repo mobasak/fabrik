@@ -195,7 +195,7 @@ def _tables(text: str):
     match (D-1133's recorded gap). Each needs its own grammar for shapes no governance contract or
     pack has carried a pipe in; a census that finds one promotes it.
     """
-    lines = text.lstrip("﻿").split("\n")
+    lines = text.lstrip("\ufeff").split("\n")
     fence: str | None = None  # the opening run (``` or ~~~~), None outside a fence
     commented = False
     # A list item or blockquote line opens a LAZY region: until a blank line (or a heading or fence),

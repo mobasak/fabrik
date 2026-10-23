@@ -437,10 +437,13 @@ def _oracle_table_starts(text: str) -> list[int]:
 
 
 def test_the_tokenizer_agrees_with_markdown_it_on_table_starts():
-    """C3 — the oracle: over every fixture this module writes (the width and span corpora, the two fixed
-    shapes, a plain run of tables), the walk opens a table at exactly the lines markdown_it does. The three
-    recorded misses are excluded by name — each is asserted to be a miss, so a census that promotes one
-    rewrites this test on purpose, never by surprise."""
+    """C3 — the oracle: over the corpus below (the module's own fixtures and the shapes the review found),
+    the walk opens a table at exactly the lines markdown_it does — START lines only: the lazy prose row
+    glued under a table (GFM spec example 201) differs in row COUNT, not start, so it is recorded in
+    `_tables`' docstring and asserted nowhere here by design. The recorded shapes are asserted BY NAME as
+    still disagreeing, so a census that promotes one rewrites this test on purpose, never by surprise.
+    `importorskip` makes this grader fail-open where markdown_it is absent (CI): accepted and stated — the
+    other graders carry no oracle and run everywhere."""
     mod = _load()
     corpus = {
         "good": _GOOD,
@@ -486,6 +489,23 @@ def test_the_tokenizer_agrees_with_markdown_it_on_table_starts():
         "starred thematic break ends the item": "- item\n* * *\n" + _TABLE + "| 1 | 2 | 3 |\n",
         "hashtag is not a heading": "- item\n#tag\n" + _TABLE + "| 1 | 2 | 3 |\n",
         "heading ends the item": "- item\n## H\n" + _TABLE + "| 1 | 2 | 3 |\n",
+        # pass-1 review seats A-haiku and B-sonnet: the docstring's boundaries, each with a witness here
+        "fence ends the item": "- item\n```\n```\n" + _TABLE + "| 1 | 2 | 3 |\n",
+        "four-backtick fence closed only by four": "````\n```\n"
+        + _TABLE
+        + "```\n````\n"
+        + _TABLE
+        + "| 1 | 2 |\n",
+        "tilde line inside a backtick fence closes nothing": "```\n~~~\n"
+        + _TABLE
+        + "```\n"
+        + _TABLE
+        + "| 1 | 2 |\n",
+        "indent-4 fence marker is code": "para\n\n    ```\n" + _TABLE + "| 1 | 2 | 3 |\n",
+        "multi-line comment then table": "<!-- a\nb\n-->\n" + _TABLE + "| 1 | 2 |\n",
+        "three-space indented table": "text\n\n   "
+        + _TABLE.replace("\n|", "\n   |")
+        + "   | 1 | 2 | 3 |\n",
     }
     for name, text in corpus.items():
         ours = [

@@ -2504,3 +2504,44 @@ def test_fabrik_libs_drift_parser_declares_the_heavy_surface_anchor() -> None:
         "the hub's rules outside the index no longer state the anchor — fabrik-lib would report "
         "`declared but not stated`"
     )
+
+
+def _stage_table_rows(text: str) -> tuple[int, str]:
+    """(row count, the last row's first cell) of the § Orient step-0 Stage table as markdown_it renders it."""
+    markdown_it = pytest.importorskip("markdown_it")
+    md = markdown_it.MarkdownIt("commonmark").enable("table")
+    toks = md.parse(text)
+    i = 0
+    while i < len(toks):
+        if toks[i].type == "table_open":
+            rows: list[list[str]] = []
+            j = i
+            while toks[j].type != "table_close":
+                if toks[j].type == "tr_open":
+                    rows.append([])
+                if toks[j].type == "inline" and toks[j - 1].type in ("td_open", "th_open"):
+                    rows[-1].append(toks[j].content)
+                j += 1
+            if rows and rows[0] and rows[0][0] == "Stage":
+                return len(rows), rows[-1][0]
+            i = j
+        i += 1
+    raise AssertionError("no Stage table rendered")
+
+
+def test_the_stage_table_is_not_glued_to_the_first_paragraph_in_either_contract() -> None:
+    """W-155cf5a5: a prose line directly under a table row is a lazy ROW to GFM (spec example 201). The
+    template's "⚠️ FIRST, ahead of every test below" paragraph had no blank line above it, so it rendered as
+    the Stage table's tenth row in the template and its 49 fleet copies while the hub's blank line kept its
+    table at nine rows. Oracle: markdown_it (commonmark + the table rule); skipped where it is absent (CI),
+    by design — the shape is also recorded, not read, by check_governance_tables.py's `_tables`.
+
+    Mutant: delete the blank line under the template's `utility` row — RED (ten rows, first cell the
+    paragraph)."""
+    hub_rows, hub_last = _stage_table_rows((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
+    tpl_rows, tpl_last = _stage_table_rows((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
+    assert (hub_rows, hub_last) == (9, "`utility`"), (hub_rows, hub_last[:60])
+    assert (tpl_rows, tpl_last) == (9, "`utility`"), (
+        f"the template's Stage table renders {tpl_rows} rows; its last row begins {tpl_last[:60]!r} — "
+        "a paragraph glued under the table is a row to GFM"
+    )
