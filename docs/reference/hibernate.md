@@ -40,7 +40,7 @@ them, is exit 2 — never safe: an empty table is not a safe one.
 `hibernate.py mark` (the hub, at the start) writes `~/.claude/state/hibernate.json` and so starts a pause; `lift` (the
 hub, once awake — always, since a sleep during a fleet-quota hold writes no `resume-wake` row) adds `lifted_at` to it,
 then prints rotation offers: every live agent past the rotation line, with the `rotate-session … --trigger lift`
-command to run at its next boundary (`rotate_session.py due`, W-f975fee0 slice 3). The offer is advice — a fault in it
+command to run at its next boundary, and every agent it could not read as an `unread` row (`rotate_session.py due`, W-f975fee0 slice 3). The offer is advice — a fault in it
 prints one stderr line and `lift` still exits 0.
 `hibernate.py woke` never writes: it answers 0 when, after the current mark, the rotation tick wrote a `resume-wake`
 row to `~/.claude/state/rotate-ledger.jsonl` (the tick writes one only for a gap past its own `CLAUDE_RESUME_GAP_MIN`

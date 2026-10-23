@@ -803,6 +803,12 @@ def execute() -> int:
 # ── due: the read-only listing behind the lift offers and the nightly mail (slice 3) ──────────────────────────────────
 
 
+def _safe(text: str) -> str:
+    """Registry text (a session id, a cwd) can carry a lone surrogate from JSON: escape it, so printing a row or writing
+    the mail body never raises UnicodeEncodeError (review B1)."""
+    return text.encode("utf-8", "backslashreplace").decode("utf-8")
+
+
 def due(home: Path, proc: Path, mb_only: bool = False, opt: str = "/opt") -> list[dict]:
     """Every live agent at/past ctx CTX_ROTATE_PCT or the hook's MB line (`state: due`), and every one that cannot be
     read (`state: unread`, with its reason). Pool seats are never rows; the caller and the coordinators are. `mb_only`
@@ -813,6 +819,7 @@ def due(home: Path, proc: Path, mb_only: bool = False, opt: str = "/opt") -> lis
         if hib._is_pool(s):
             continue
         row = {k: s.get(k) for k in ("agent", "repo", "sid", "pid", "entrypoint")}
+        row.update({k: _safe(row[k]) for k in ("repo", "sid") if isinstance(row[k], str)})
         try:
             if not _NAME.fullmatch(str(s.get("agent") or "")):
                 raise CheckFailedError("agent", "no valid agent name bound to this session")
@@ -826,9 +833,11 @@ def due(home: Path, proc: Path, mb_only: bool = False, opt: str = "/opt") -> lis
         except Exception as exc:  # noqa: BLE001 — an unreadable session is a visible row, never a dropped one
             row.update(
                 state="unread",
-                reason=f"{exc.check}: {exc.reason}"
-                if isinstance(exc, CheckFailedError)
-                else f"{type(exc).__name__}: {exc}",
+                reason=_safe(
+                    f"{exc.check}: {exc.reason}"
+                    if isinstance(exc, CheckFailedError)
+                    else f"{type(exc).__name__}: {exc}"
+                ),
             )
             rows.append(row)
             continue
@@ -879,7 +888,7 @@ def mail_due(rows: list[dict]) -> int:
                 f"Rotation due: {n_due} agent(s) in {name} past the rotation line, {len(rs_) - n_due} unread",
                 "",
                 f"WHAT: these sessions are at/past the rotation line (ctx {tsc.CTX_ROTATE_PCT}% or "
-                f"{tsc._threshold_mb()} MB), or could not be read:",
+                f"{tsc._threshold_mb()} MB; a ctx of — was not read), or could not be read:",
                 *(_line(r) for r in rs_),
                 "WHY: a transcript past the line slows every load and its context costs every turn (D-1119, D-1123).",
                 "WHERE: ~/.claude/state/rotations.jsonl records each rotation's outcome.",

@@ -686,6 +686,9 @@ def test_due_rows_and_actions(world, monkeypatch):
         _session("seat", "sdk-cli"),
         _session(""),
         _session("dev2", sid=NEW),
+        _session(
+            "", sid="a\ud800b", repo="/opt/\ud800"
+        ),  # review B1: a lone surrogate from registry JSON
     ]
     monkeypatch.setattr(rs.hib, "live_sessions", lambda home, proc, opt="/opt": sessions)
     rows = rs.due(world["home"], world["proc"])
@@ -699,6 +702,8 @@ def test_due_rows_and_actions(world, monkeypatch):
     assert "operator types `/clear coordinator-" in rs.offer(by["coordinator"])
     assert by[""]["state"] == "unread" and "agent" in by[""]["reason"]
     assert by["dev2"]["state"] == "unread" and "0 transcripts" in by["dev2"]["reason"]
+    odd = [r for r in rows if "ud800" in str(r["sid"])]
+    assert len(odd) == 1 and rs._line(odd[0]).encode("utf-8") and odd[0]["repo"].encode("utf-8")
     # --mb-only reads no context: a 45% session under the MB line is not due
     monkeypatch.setattr(
         rs.tsc, "_context_tokens", lambda p: (_ for _ in ()).throw(AssertionError("ctx read"))
@@ -783,3 +788,23 @@ def test_units_nightly_line_and_no_makedirectory():
         "install -d -m 0700"
         in (REPO / "scripts" / "sysadmin" / "install_rotate_unit.sh").read_text()
     )
+
+
+def test_installer_refuses_a_symlinked_request_dir(tmp_path):
+    """Review B2: `install -d` follows a symlink and chmods its target; the installer refuses one before installing."""
+    home = tmp_path / "home"
+    (home / ".claude" / "state").mkdir(parents=True)
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    target.chmod(0o755)
+    (home / ".claude" / "state" / "rotate-requests").symlink_to(target)
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(home), "XDG_CONFIG_HOME": str(tmp_path / "cfg")}
+    out = subprocess.run(
+        ["bash", str(REPO / "scripts" / "sysadmin" / "install_rotate_unit.sh")],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+    assert out.returncode == 1 and "not a plain directory" in out.stderr, (out.stdout, out.stderr)
+    assert (target.stat().st_mode & 0o777) == 0o755 and not (tmp_path / "cfg").exists()

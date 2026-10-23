@@ -21,8 +21,14 @@ if [ "${1:-}" = "--check" ]; then
   [ "$rc" = 0 ] && echo "install_rotate_unit: installed and active"
   exit "$rc"
 fi
+req="$HOME/.claude/state/rotate-requests"
+# install -d follows a symlink and chmods its target; refuse one, as rotate_session.py's _ensure_req_dir does
+if [ -L "$req" ] || { [ -e "$req" ] && [ ! -d "$req" ]; }; then
+  echo "install_rotate_unit: $req is not a plain directory — refusing" >&2
+  exit 1
+fi
 mkdir -p "$dst"
-install -d -m 0700 "$HOME/.claude/state/rotate-requests"
+install -d -m 0700 "$req"
 for u in "${units[@]}"; do install -m 0644 "$src/$u" "$dst/$u"; done
 systemctl --user daemon-reload
 systemctl --user enable --now fabrik-rotate.path

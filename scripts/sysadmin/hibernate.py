@@ -31,6 +31,7 @@ only after the CURRENT mark, and a session already running its work again reads 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import glob
 import hashlib
 import importlib.util
@@ -499,19 +500,22 @@ def _offer_rotations(home: Path, proc: Path, opt: str) -> None:
     stderr line and never fails the lift, which is the act."""
     try:
         rs = _load_rotate()
-        rows = [
-            dict(r, trigger="lift") if r["state"] == "due" else r
+        lines = [
+            f"  {r.get('repo') or '(no repo)'} {rs._line(dict(r, trigger='lift') if r['state'] == 'due' else r)}"
             for r in rs.due(home, proc, opt=opt)
         ]
-    except Exception as exc:  # noqa: BLE001 — the lift is stamped already; a missing offer is the safe failure
-        print(
-            f"hibernate: rotation offers unavailable — {type(exc).__name__}: {exc}", file=sys.stderr
-        )
-        return
-    if rows:
-        print("hibernate: rotation offers — run each at that agent's next boundary (D-1123):")
-        for r in rows:
-            print(f"  {r.get('repo') or '(no repo)'} {rs._line(r)}")
+        if lines:
+            print(
+                "hibernate: rotation offers — run each command at that agent's next boundary (D-1123); "
+                "an unread row needs a look:\n" + "\n".join(lines)
+            )
+    # SystemExit too: rotate_session's import-time loads must not end the lift; a KeyboardInterrupt still does
+    except (Exception, SystemExit) as exc:  # noqa: BLE001 — the lift is stamped already; a missing offer is safe
+        with contextlib.suppress(Exception):
+            print(
+                f"hibernate: rotation offers unavailable — {type(exc).__name__}: {exc!r}",
+                file=sys.stderr,
+            )
 
 
 def main(argv: list[str] | None = None) -> int:

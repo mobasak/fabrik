@@ -643,3 +643,20 @@ def test_lift_prints_rotation_offers_and_survives_their_fault(
     marker = json.loads((box.home / ".claude" / "state" / "hibernate.json").read_text())
     assert rc == 0 and "lifted_at" in marker
     assert "rotation offers unavailable" in capsys.readouterr().err
+    # review B1/B2: a fault past the loader — SystemExit inside due(), or one raised while printing — never fails it
+    for fault in (SystemExit(3), UnicodeEncodeError("utf-8", "x", 0, 1, "surrogate")):
+
+        class Rs:
+            @staticmethod
+            def due(*a, _f=fault, **k):
+                raise _f
+
+        box.run("mark", "--words", "w3")
+        monkeypatch.setattr(hib, "_load_rotate", lambda: Rs)
+        assert (
+            hib.main(
+                ["--home", str(box.home), "--proc", str(box.proc), "--opt", str(box.opt), "lift"]
+            )
+            == 0
+        )
+        assert "rotation offers unavailable" in capsys.readouterr().err
