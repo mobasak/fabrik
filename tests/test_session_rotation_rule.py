@@ -4,7 +4,7 @@ WHY. The bullet told an agent to "run `/clear <agent>-<date>` now" when the tran
 D-1119 (operator, 2026-10-22) widens and corrects it: an agent may rotate at an item boundary, when the next work is
 unrelated to the last, and D-1123 makes it due at 40% of the context window or the 200 MB ROTATE line, never
 mid-item (a focused /compact at 85% mid-item instead); no agent can type a slash command into its own prompt, so a
-builder asks its coordinator, who sends the keys over tmux.
+builder asks its coordinator, who rotates it with the D-1143 verb (D-1172: never by hand over tmux).
 The hub copy and the ~46-repo template copy must say the same thing. Each phrase below is one clause a reader acts on;
 dropping any of them from either contract turns its test red.
 """
@@ -61,13 +61,16 @@ def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> 
         (
             "once a rotation is due, start no new item, so the item in hand closing is the boundary",
             "mid-item at 85% of the window, which the hook's `COMPACT-DUE` line reports, the coordinator sends a focused `/compact` instead",
-            "`agents_up.sh rotate-session <name>` once infra's W-f975fee0 slice 2 lands",
+            "`/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session <name>`",
+            "run from the repo's main checkout, never by hand over tmux",
+            "passes six checks — its transcript quiet 30 s, a turn end in that transcript, no run record `running`, no seat in flight, its worktree clean and pushed, an empty prompt line",
+            "any outcome but `ok` in `~/.claude/state/rotations.jsonl`",
+            "a permission prompt the builder meets is the coordinator's to answer, never the operator's",
             "messages its coordinator `rotate <name>` and waits for the keys",
             "a builder with no pane asks its coordinator the same way",
             "`STATE:` footer names the rotation and its `NEXT:` reads `none — terminal; awaiting the rotation`",
             "only when it is at its prompt with an empty input line, else aborts, never queues",
             "the `transcript_size_check.py` hook's `ROTATE-DUE` line says so",
-            "`tmux send-keys`",
             "`@agent <name>`",
             "telling the builder to re-bind",
             "`work.py next`",
@@ -79,7 +82,13 @@ def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> 
     assert "run `/clear <agent>-<date>` now" not in _bullet(rel), (
         "the old 'run it now' instruction survives"
     )
-    for stale in ("once W-f975fee0 lands)", "W-f975fee0's sensor", "whatever its own"):
+    for stale in (
+        "once W-f975fee0 lands)",
+        "W-f975fee0's sensor",
+        "whatever its own",
+        "once infra's W-f975fee0 slice 2 lands",
+        "with `tmux send-keys`",
+    ):
         assert stale not in _bullet(rel), f"{rel}: the shipped sensor is still described as future: {stale!r}"
 
 
