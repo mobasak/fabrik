@@ -3,7 +3,7 @@
   "created": "2026-09-24T23:27:48.760426Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "483f65f79792ca7303edd351016284c54c2166e4",
   "id": "W-85e4e5e4",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — synced template lane-table wording",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
