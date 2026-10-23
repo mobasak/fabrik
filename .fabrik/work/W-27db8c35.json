@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:52:21.913355Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-27db8c35",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make _cells reuse CommonMark span pairing (decisions._code_span_ranges or the same run-length rule) with a regression test on a triple-backtick row; enforcement surface, full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "check_decisions_unique._cells pairs backticks without run length (regex `[^`]*` at scripts/enforcement/check_decisions_unique.py:120), while scripts/decisions.py::_code_span_ranges follows CommonMark — a row holding a 2+ backtick run (the D-1159 case, W-9b3ee1bf) is split wrongly by the checker and read as malformed"
+}
