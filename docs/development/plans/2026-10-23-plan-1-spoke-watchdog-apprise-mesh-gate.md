@@ -233,6 +233,12 @@ Appetite: 120
 
 ## Phase B — vps1 gate mirror, Gatus endpoint, canary opt-out, docs
 
+✅ EXECUTED 2026-10-23 (63e5cf810, c413fea08; /fabrik-review-scoped 3 rounds, confirmed 1 → 2 → 0, shape:
+agent-tool — CHANGELOG entry no longer reads as live before the deploy). Local gate probe: 21 policy rows as
+specified, 24 rapid POSTs → 21 × 200 then 503, healthcheck healthy. `docs/SERVICES.md` edited beyond the File
+Scope because `check_doc_sync.py` requires it for a compose service change. Phase C is parked at the AMBER quota
+band: `.fabrik/plan-locks/RESUME-2026-10-23-plan-1-phase-c.md` (two deploy-probe additions from this review).
+
 Appetite: 60
 
 **Interfaces.**
