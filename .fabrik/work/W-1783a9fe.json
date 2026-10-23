@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:20:16.998487Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1783a9fe",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: which resume steps produce persisted outputs and which read paths trigger the sensitive-file prompt (Bash vs Read tool, ~/.claude-fleet/active symlink vs real path); fix at the root (resume prompt says read persisted output with the Read tool / keep resume outputs short / a scoped allow that the harness honours), with a regression check; no blanket allow on ~/.claude",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: an operator ask, and it blocks every rotated builder on a permission prompt until a human presses a key (breaks D-1034 hands-free rotation); effort low: resume-prompt wording or output size, one script",
+  "status": "open",
+  "title": "Operator 2026-10-23: 'after each clear will it ask for permission? this should not happen. fix it.' — intel's first turn after the rotation (session e88bb715) stopped on a sensitive-file prompt: it read its own persisted tool output with Bash sed via ~/.claude-fleet/active/projects/…/tool-results/b4r1225z4.txt, which resolves through a symlink into ~/.claude/projects/ (a protected path). The resume prompt that rotate_session.py types makes every rotated builder read work.py next + its seed, whose large output is persisted to tool-results, so this recurs on any rotation with a long output."
+}
