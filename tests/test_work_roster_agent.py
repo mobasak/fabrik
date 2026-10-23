@@ -147,7 +147,9 @@ def test_the_floor_and_triage_use_the_bound_name(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("order", ["forward", "reverse"])
 @pytest.mark.parametrize("case", ["swap", "chain"])
-def test_renames_are_decided_on_a_snapshot_whatever_the_proc_order(tmp_path, monkeypatch, case, order):
+def test_renames_are_decided_on_a_snapshot_whatever_the_proc_order(
+    tmp_path, monkeypatch, case, order
+):
     """Two trees bound to each other's names swap; a tree bound to a name whose own tree is bound away takes it —
     and the /proc scan order never changes the answer (review C2, H1)."""
     repo, t, proc = _world(tmp_path, monkeypatch, ("a", "b") if case == "swap" else ("dev1", "a"))
@@ -189,9 +191,15 @@ def test_a_bad_stored_pid_or_a_binding_error_keeps_the_directory_roster(tmp_path
     _claude(proc, 500, t["a"], start=42)
     path = Path(os.environ["AGENT_IDENTITY_FILE"])
     with path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps({"session_id": "s", "name": "dev1", "pid": "²", "pid_start": 42}) + "\n")
+        fh.write(
+            json.dumps({"session_id": "s", "name": "dev1", "pid": "²", "pid_start": 42}) + "\n"
+        )
     assert work._as_int("²") is None
     assert _roster(repo) == {"a": "a"}
+    _bind(
+        "dev1", 500, 42
+    )  # the bad row is skipped on its own: a good row beside it still names the window
+    assert _roster(repo) == {"dev1": "a"}
 
     def boom(*_a):
         raise ValueError("unexpected")
@@ -200,7 +208,9 @@ def test_a_bad_stored_pid_or_a_binding_error_keeps_the_directory_roster(tmp_path
     assert _roster(repo) == {"a": "a"}
 
 
-def test_a_directory_pause_never_covers_a_tree_whose_name_another_worker_carries(tmp_path, monkeypatch):
+def test_a_directory_pause_never_covers_a_tree_whose_name_another_worker_carries(
+    tmp_path, monkeypatch
+):
     """Tree `fleet` holds infra's window while fleet works elsewhere: a pause of fleet is fleet's, not infra's (H3)."""
     repo, t, proc = _world(tmp_path, monkeypatch, ("fleet", "x"))
     _claude(proc, 600, t["fleet"], agent="infra")
@@ -209,3 +219,89 @@ def test_a_directory_pause_never_covers_a_tree_whose_name_another_worker_carries
     assert {k: v.name for k, v in workers.items()} == {"infra": "fleet", "fleet": "x"}
     assert work._is_paused({"fleet": {"words": "w"}}, "infra", t["fleet"], workers) == ""
     assert work._is_paused({"fleet": {"words": "w"}}, "fleet", t["x"], workers) == "fleet"
+
+
+def test_a_directory_pause_stops_the_floor_triage_and_status_too(tmp_path, monkeypatch):
+    """`pause infra-uncapped` parks the window re-keyed to infra in the coordinator's floor, triage and status, as
+    the Stop hook already did (review r1: the floor and triage subtracted pause NAMES, so infra stayed present)."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("infra", "infra-uncapped"))
+    _claude(proc, 100, t["infra-uncapped"], agent="infra")
+    env = {**wc._env(tmp_path, agent="coord"), "FABRIK_WORK_PROC": str(proc)}
+    wc._add(repo, env, "task", "free")
+    assert wc._stop(repo, env, session="sid-coord")["action"] == "triage"
+    paused = wc.run(["pause", "infra-uncapped"], env, repo)
+    assert paused.returncode == 0 and "no worker tree" not in paused.stderr, paused.stderr
+    assert wc._stop(repo, env, session="sid-coord")["action"] in (None, "commit-items")
+    plan = wc.run(["triage"], env, repo)
+    assert plan.returncode == 0 and "plan: infra" not in plan.stdout, plan.stdout
+    row = next(a for a in wc._queue(repo, env)["agents"] if a["agent"] == "infra")
+    assert row.get("paused_by"), row
+
+
+def test_a_directory_pause_covers_a_dropped_second_window(tmp_path, monkeypatch):
+    """A tree dropped as an agent's second window is still covered by a pause under its directory name."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("infra", "a"))
+    _claude(proc, 100, t["infra"], agent="infra")
+    _claude(proc, 101, t["a"], agent="infra")
+    workers = work._workers(repo)
+    assert "a" not in workers
+    assert work._is_paused({"a": {"words": "w"}}, "infra", t["a"], workers) == "a"
+
+
+def test_an_unnamed_window_beside_a_named_one_keeps_the_directory_name(tmp_path, monkeypatch):
+    """An unnamed window reads as its directory's agent, so a tree holding it and a window bound elsewhere is
+    ambiguous and keeps its name (review r1 C-A4)."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("a",))
+    _claude(proc, 100, t["a"])
+    _claude(proc, 101, t["a"], agent="dev1")
+    assert _roster(repo) == {"a": "a"}
+
+
+def test_the_binding_read_edges(tmp_path, monkeypatch):
+    """The last whoami row wins; a digit-string pid counts and a boolean never does; a window in a subdirectory
+    of its tree is live; a comm holding ')' does not shift the stat fields (review r1 T1, T3, T4, T5, A2)."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("a",))
+    sub = t["a"] / "scripts"
+    sub.mkdir(exist_ok=True)
+    _claude(proc, 700, sub, start=9)
+    _bind("dev1", 700, 9)
+    _bind("dev2", 700, 9)
+    assert _roster(repo) == {"dev2": "a"}
+    (proc / "700" / "stat").write_text(
+        "700 (cl) aude) " + " ".join(["S"] + ["0"] * 18 + ["9"]) + "\n"
+    )
+    assert _roster(repo) == {"dev2": "a"}
+    assert work._as_int(True) is None and work._as_int(" 42 ") == 42
+    path = Path(os.environ["AGENT_IDENTITY_FILE"])
+    path.write_text(
+        json.dumps({"session_id": "s", "name": "dev3", "pid": "700", "pid_start": "9"}) + "\n"
+    )
+    assert _roster(repo) == {"dev3": "a"}
+    # a process may set any bytes as its comm, and a proc root entry may be a non-ASCII numeral: both are skipped
+    (proc / "²").mkdir()
+    (proc / "²" / "comm").write_text("claude\n", encoding="utf-8")
+    os.symlink(t["a"], proc / "²" / "cwd")
+    (proc / "801").mkdir()
+    (proc / "801" / "comm").write_bytes(b"\xffclaude\n")
+    work._PROC_CACHE.clear()
+    assert [p for p, _ in work._claude_procs() or []] == [700]
+    # a cwd that is a symlink loop (RuntimeError under resolve()) is skipped too
+    (proc / "802").mkdir()
+    (proc / "802" / "comm").write_text("claude\n", encoding="utf-8")
+    loop = tmp_path / "loop"
+    os.symlink(loop, loop)
+    os.symlink(loop, proc / "802" / "cwd")
+    work._PROC_CACHE.clear()
+    assert [p for p, _ in work._claude_procs() or []] == [700]
+
+
+def test_a_bad_or_vanished_binding_names_nothing_for_that_window_only(tmp_path, monkeypatch):
+    """A window whose stat vanished, or whose whoami row holds an invalid name, keeps its directory name while
+    another tree's binding still applies (review r1 C7, C8: a stat error escaping would drop every binding)."""
+    repo, t, proc = _world(tmp_path, monkeypatch, ("a", "b", "c"))
+    _claude(proc, 900, t["a"], start=1)
+    (proc / "900" / "stat").unlink()
+    _claude(proc, 901, t["b"], start=2)
+    _bind("Not_A_Name", 901, 2)
+    _claude(proc, 902, t["c"], agent="dev1")
+    assert _roster(repo) == {"a": "a", "b": "b", "dev1": "c"}

@@ -1031,10 +1031,23 @@ def _is_paused(paused: dict[str, dict], agent: str, tree: Path, workers: dict[st
     by_tree = next((n for n, t in workers.items() if t == tree), "")
     if by_tree and by_tree in paused:
         return by_tree
-    # a worker keyed by its bound agent (W-84ad2ff1): a pause recorded under its directory name still covers it,
-    # unless another worker carries that name — then the pause is that agent's, not this tree's
-    renamed = by_tree and tree.name != by_tree and tree.name not in workers
-    return tree.name if renamed and tree.name in paused else ""
+    # a linked tree re-keyed to its bound agent, or dropped as an agent's second window (W-84ad2ff1): a pause
+    # recorded under its directory name still covers it, unless a worker carries that name — then it is that
+    # agent's pause, not this tree's
+    linked = tree.parent.parts[-2:] == (".claude", "worktrees")
+    by_dir = linked and tree.name != by_tree and tree.name not in workers
+    return tree.name if by_dir and tree.name in paused else ""
+
+
+def _paused_workers(paused: dict[str, dict], workers: dict[str, Path]) -> dict[str, str]:
+    """{worker: the pause name covering it} — `_is_paused` per worker, so the floor, triage and status honour a
+    pause under a re-keyed tree's directory name exactly as the Stop hook does."""
+    out = {}
+    for name, tree in workers.items():
+        hit = _is_paused(paused, name, tree, workers)
+        if hit:
+            out[name] = hit
+    return out
 
 
 def _caller_pause(tree: Path, session: str) -> dict | None:
@@ -4361,7 +4374,10 @@ def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
             f"pausing {name} is {name}'s own, the distributor's ({distributor or 'none'}) "
             f"or the operator's; this caller is {actor}"
         )
-    known = set(_workers(main)) | {distributor, _feedback_owner(main)}
+    # a linked tree's directory name stays a known pause target when the tree is re-keyed to its bound agent or
+    # dropped as a second window (W-84ad2ff1): `_is_paused` honours a pause under it
+    trees = {t.name for t in _worktrees(main)[1:]}
+    known = set(_workers(main)) | trees | {distributor, _feedback_owner(main)}
     if name not in known:
         _warn(
             f"{name} is no worker tree, distributor or feedback owner here — the pause reaches only "
@@ -5326,7 +5342,9 @@ def _claude_procs() -> list[tuple[int, Path]] | None:
             if argv and _argv_prints(argv):
                 continue  # a `claude -p` child in the tree is not a window (01M4PAJWV1)
             found.append((int(entry.name), Path(os.readlink(entry / "cwd")).resolve()))
-        except (OSError, RuntimeError):  # RuntimeError: a symlink loop under resolve() on Python 3.12
+        except (OSError, RuntimeError, ValueError):
+            # RuntimeError: a symlink loop under resolve() on Python 3.12; ValueError: a comm that is not UTF-8
+            # (any bytes may be set by prctl PR_SET_NAME), or an entry name that is a non-ASCII numeral
             continue
     _PROC_CACHE[root_s] = (time.monotonic(), found)
     return found
@@ -5448,9 +5466,8 @@ def _rekey(
             tree = orig[key]
             if cwd == tree or tree in cwd.parents:
                 live.add(key)
-                agent = _proc_agent(pid, _rows)
-                if agent:
-                    names.setdefault(key, set()).add(agent)
+                # an unnamed window reads as its directory's agent (fail-open), so it counts as that name
+                names.setdefault(key, set()).add(_proc_agent(pid, _rows) or key)
     bound = {k: next(iter(v)) for k, v in names.items() if len(v) == 1 and next(iter(v)) != k}
     claims: dict[str, list[str]] = {}
     for key in sorted(bound):
@@ -5460,9 +5477,11 @@ def _rekey(
         for k, n in bound.items()
         if n == distributor
         or (owner and n == owner and owner != distributor)
-        or (n in live and names.get(n, set()) <= {n})  # N's own tree holds N's (or an unnamed) window
+        # N's own tree is live and holds only N's windows: this is N's second window
+        or names.get(n) == {n}
     }
-    kept = {k for k in live if k not in bound}  # a live tree with no single foreign name keeps its directory
+    # a live tree with no single foreign name keeps its directory
+    kept = {k for k in live if k not in bound}
     kept |= {k for k in bound if k not in dropped and len(claims[bound[k]]) > 1}
     while True:  # a claim on a key a kept tree holds falls back to its own directory name
         more = {k for k in bound if k not in dropped and k not in kept and bound[k] in kept}
@@ -5919,7 +5938,7 @@ def _classic_rungs(
         }
     if workers and coordinator and agent == coordinator:
         # a paused worker is never "below the floor" (W-da4bc702)
-        present = (_present(workers) or set()) - set(_paused(main))
+        present = (_present(workers) or set()) - set(_paused_workers(_paused(main), workers))
         floor = _floor(main)
         counts = _worker_queues(main, {w: workers[w] for w in present})
         below = sorted(w for w in present if len(counts[w]) < floor)
@@ -6285,8 +6304,9 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
     pdir = _paused_dir(main)
     if pdir.exists() and not pdir.is_dir():
         _warn(f"{pdir} is not a directory — no pause can be read, every agent reads as unpaused")
+    covered = _paused_workers(paused, workers)
     for a in agents:
-        rec = paused.get(str(a["agent"]))
+        rec = paused.get(covered.get(str(a["agent"]), str(a["agent"])))
         if rec is not None:
             a["paused_by"] = str(rec.get("by") or "?")
             a["paused_at"] = rec.get("at")
@@ -6333,7 +6353,8 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
         )
     workers = _workers(main)
     paused = _paused(main)
-    present = (_present(workers) or set()) - set(paused)  # triage plans nothing for a paused worker
+    # triage plans nothing for a paused worker
+    present = (_present(workers) or set()) - set(_paused_workers(paused, workers))
     floor = _floor(main)
     pool = _pool(main)
     free = list(pool["routable"])
