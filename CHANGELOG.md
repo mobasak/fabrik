@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a pool worker is named by the agent its live window is bound to, not its worktree directory (2026-10-23)
+
+- `scripts/work.py::_workers` named every `.claude/worktrees/<dir>` tree after its directory, so infra's live window in `infra-uncapped` read as an empty worker `infra-uncapped` below the floor and the coordinator's Stop hook demanded triage every turn (W-84ad2ff1). A tree holding a live windowed `claude` is now keyed by that window's bound agent: `CLAUDE_AGENT` in its environ, else the whoami row with its pid AND pid_start. `_rekey` decides every tree's fate against the unchanged directory map, independent of /proc order: dropped (bound to the coordinator or the feedback owner, or a second window of an agent whose own tree is live), kept (unbound, ambiguous, or an unnamed window beside a named one), or renamed. Any error falls back to the directory roster. A pause under a tree's directory name still covers it in the Stop hook, the floor, triage and `queue` (`_paused_workers`). Tests: `tests/test_work_roster_agent.py`, 22 cases, every clause's mutant killed by name. Reviewed by the full `/fabrik-review`.
+
 ### Fixed — a rotation's typed prompts now submit (2026-10-23)
 
 - `scripts/sysadmin/rotate_session.py` sent `Enter` right behind each `send-keys -l` paste, and the paste swallowed it: every rotated builder (infra, kaizen, infra-3) sat with the resume prompt unsent in its input line, so none re-bound (W-b92aa5cf). Each text is now pasted, `C-m` goes as its own call once the INPUT LINE shows the text's start unchanged over two captures (a ticking status line or a placeholder cannot fool it), and the input line must then hold something other than that text; otherwise the row is `typed-unsent:<step>` and nothing is re-sent. The fake tmux in `tests/test_rotate_session.py` now swallows a C-m until the paste settled, as the real pane did; reviewed by `/fabrik-review-scoped`, 6 → 1 → 0.
