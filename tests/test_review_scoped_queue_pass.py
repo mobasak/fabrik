@@ -1158,8 +1158,8 @@ def test_a_fix_reshaping_a_rule_subject_lists_the_old_cases_before_drafting() ->
         + '", with "'
         + quote
         + '": here each case'
-        " no new clause covers, two now cover or only the new wording reaches, listed with where it now lands or that it"
-        " is dropped on purpose, where your command records the fix (`/fabrik-review`'s Pass Ledger `method:` cell,"
+        " no new clause covers, two now cover or only the new wording reaches, listed with where it now lands or, with"
+        " its reason, that it is dropped on purpose, where your command records the fix (`/fabrik-review`'s Pass Ledger `method:` cell,"
         " `/fabrik-review-scoped`'s report);"
     ) in cat
     review = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text())

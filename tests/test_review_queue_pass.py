@@ -721,7 +721,8 @@ def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None
         " widens or splits a rule's subject is held to `/fabrik-review`'s \"does the new form still hold EVERY shape the"
         ' form it replaces held", with "the shapes enumerated from the OLD form before the fix is drafted, never from'
         ' the new one": here each case no new clause covers, two now cover or only the new wording reaches, listed with'
-        " where it now lands or that it is dropped on purpose, where your command records the fix (`/fabrik-review`'s"
+        " where it now lands or, with its reason, that it is dropped on purpose, where your command records the fix"
+        " (`/fabrik-review`'s"
         " Pass Ledger `method:` cell, `/fabrik-review-scoped`'s report); every doc"
         " line, docstring,"
         " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
