@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure the prefix per injection source (CLAUDE.md, @imports, each hook's additionalContext, the mail digest, memory), then cut the biggest with a grader: hooks inject pointers not bodies; the mail digest 10 → 3 rows; and make transcript_size_check measure growth ABOVE the first turn's prefix (its target 40% is unreachable otherwise). Token-waste series D-1118.",
+  "next": "slice 2 (coordinator 2026-10-23: take it before W-a5b90257/W-0fae19b7 — P0 remainder outranks P3s): stop re-injecting an unchanged mail digest and unchanged work lines on every prompt (inject only on change, digest 10→3 rows) in mail_notify.py — fleet-synced hook, full /fabrik-review; CLAUDE.md size stays with D-1118/kaizen. Slice 1 merged 32b97f95c (D-1165).",
   "note": "",
   "owner": "infra-2",
   "priority": 0,
