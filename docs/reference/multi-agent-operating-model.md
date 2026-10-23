@@ -118,7 +118,9 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   deps-changing ticket's `uv sync` or install lands in the repo's venv, so it is a serialising act
   (§ The shared runtime is NOT isolated). `.claude/hooks/seat_guard.py` refuses it from any session
   whose write would land in a worktree's shared venv (W-46d148b0); run on it as it is with `uv run
-  --no-sync <cmd>`.
+  --no-sync <cmd>`. The merge owner takes the act: an exact pin it approved runs as
+  `FABRIK_SHARED_VENV_WRITE=1 uv pip install --python <main>/.venv/bin/python <pkg>==<version>`
+  (the opt-in counts only when typed in the command, never inherited).
 
 ## Ownership surfaces (§ Ownership surfaces)
 

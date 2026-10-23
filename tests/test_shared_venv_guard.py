@@ -186,6 +186,9 @@ def test_the_opt_in_is_inline_only(tree: dict[str, Path]) -> None:
     assert _refused(f"FABRIK_SHARED_VENV_WRITE=0 {pin}", wt)
     assert _refused(pin, wt, env={"FABRIK_SHARED_VENV_WRITE": "1"})
     assert _refused(f"bash -c 'export FABRIK_SHARED_VENV_WRITE=1' ; {pin}", wt)
+    assert not _refused(f"FABRIK_SHARED_VENV_WRITE=TRUE {pin}", wt)
+    assert _refused(f"FABRIK_SHARED_VENV_WRITE= {pin}", wt)
+    assert _refused(f"export FABRIK_SHARED_VENV_WRITE=1; unset FABRIK_SHARED_VENV_WRITE; {pin}", wt)
 
 
 def test_text_naming_the_verbs_is_not_a_call(tree: dict[str, Path]) -> None:
@@ -211,6 +214,9 @@ def test_the_deny_is_a_json_permission_decision(tree: dict[str, Path]) -> None:
         assert reason.startswith(TAG)
         assert "--no-sync" in reason and "FABRIK_SHARED_VENV_WRITE=1" in reason
         assert os.path.realpath(tree["main"] / ".venv") in reason
+    # the kill and git checks stay seat-only: a lead in the same tree is not refused them
+    for cmd in ("pkill -f x", "git reset --hard"):
+        assert _reason(_hook(cmd, tree["wt"])) == "", cmd
     # the tokeniser fixes reach the seat checks too
     scratch = "/tmp/claude-1000/-opt-x/sid-venv/scratchpad"
     for cmd in ("echo a#b ; git reset --hard", "/usr/bin/env pkill -f x"):
