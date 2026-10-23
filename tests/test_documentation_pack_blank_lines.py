@@ -1,8 +1,8 @@
 """W-696d4d7e — the documentation pack's blank-line rule names TABLES.
 
 WHY. `.windsurf/rules/core/40-documentation.md` asked for blank lines around headings, lists and code blocks, but not
-tables. Under CommonMark with the table extension, a line flush against a table's last row is parsed as one more row,
-so a paragraph written straight after a table vanishes into it. markdownlint's MD058 (`blanks-around-tables`) is the
+tables. Under CommonMark with the table extension, a paragraph line flush against a table's last row is parsed as one
+more row, so a paragraph written straight after a table vanishes into it. markdownlint's MD058 (`blanks-around-tables`) is the
 lint for it. The pack is fleet-synced, and the cheatsheet and the prompt-templates doc state the same list, so all
 three name tables.
 """
