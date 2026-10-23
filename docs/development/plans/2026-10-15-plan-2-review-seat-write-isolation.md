@@ -270,7 +270,7 @@ and nothing in Phase C starts until it is green.
 5. Verdict: P1, P2, P3, P4, P5 and P8 MUST hold. A P2 refused by the hook's scratch rule (its reason names the path)
    means the seats' payload did not carry the minted session id: that is a launcher fix (the directory shape), re-run
    once; a second refusal is `BLOCKED: missing infra` (the harness does not hand seats the session id), reported with
-   both payloads' `session_id`. One that fails is the spec's own question reopened, so the run stops
+   the minted id and the deny reason's path. One that fails is the spec's own question reopened, so the run stops
    `BLOCKED: an unresolvable spec contradiction` and the finding goes back to the panel as a spec amendment, never a
    build. P6 and P7 are the costs item 4 names, recorded.
 6. The briefs that need a live service, each dispositioned by P6/P7's outcome (the census is in § Evidence, "P2 re-plan
