@@ -159,7 +159,9 @@ def _strip_heredocs(command: str) -> str:
 
 
 def _strip_comments(command: str) -> str:
-    """Drop shell comments: an unquoted `#` at a word start, to the end of its line."""
+    """Drop shell comments — an unquoted `#` at a word start, to the end of its line — and the fd
+    number glued to a redirect (`2>&1`, `1>f`): shlex would split it off as a word, and only the
+    text knows it was glued (`kill 0 > f` keeps its pid 0)."""
     out: list[str] = []
     i, n, quote = 0, len(command), ""
     while i < n:
@@ -182,6 +184,16 @@ def _strip_comments(command: str) -> str:
         elif c == "#" and (i == 0 or command[i - 1] in " \t\n;&|()<>"):
             j = command.find("\n", i)
             i = n if j == -1 else j
+            continue
+        elif c.isdigit() and (i == 0 or command[i - 1] in " \t\n;&|()"):
+            j = i
+            while j < n and command[j].isdigit():
+                j += 1
+            if j < n and command[j] in "<>":
+                i = j  # an fd number glued to its redirect is not an argument
+                continue
+            out.append(command[i:j])
+            i = j
             continue
         else:
             out.append(c)
@@ -263,8 +275,6 @@ def _simple_commands(tokens: list[str]) -> list[list[str]]:
                 out.append([tok])  # subshell scope marker
         elif tok in _REDIR:
             skip_next = True  # the redirect's target file is not an argument
-            if cur and cur[-1].isdigit():
-                cur.pop()  # `2>&1`: shlex splits the fd number off as a word
         else:
             cur.append(tok)
     if cur:
@@ -299,11 +309,20 @@ def _strip(words: list[str], ctx: dict) -> list[str]:
             i += 1
             while i < len(words) and words[i].startswith("-"):
                 i += 2 if words[i] in ("-i", "-o", "-e", "-c", "-n", "-p", "-P", "-u") else 1
-        elif b == "flock":
+        elif b == "flock":  # flock [opts] <file> [-c <cmd> | <cmd…>]; -c may sit before the file
             i += 1
+            command_string = None
             while i < len(words) and words[i].startswith("-"):
+                if words[i] in ("-c", "--command") and i + 1 < len(words):
+                    command_string = words[i + 1]
+                    i += 2
+                    continue
                 i += 2 if words[i] in ("-w", "--timeout", "-E", "--conflict-exit-code") else 1
             i += 1  # the lock file
+            if i + 1 < len(words) and words[i] in ("-c", "--command"):
+                command_string = words[i + 1]
+            if command_string is not None:
+                return ["sh", "-c", command_string]  # scanned as the shell it runs
         elif b == "env":
             i += 1
             while i < len(words) and (words[i].startswith("-") or "=" in words[i]):
@@ -737,8 +756,11 @@ def _uv_reason(args: list[str], ctx: dict, depth: int) -> str:
     verb, opts, pos, cmd, i = "", [], [], [], 0
     while i < len(args):
         a = args[i]
-        if verb == "pip":
-            pos = args[i:]
+        if verb == "pip":  # `uv pip [-q|--cache-dir X …] install …`: the sub-verb is the first word
+            j = i
+            while j < len(args) and args[j].startswith("-"):
+                j += 2 if args[j] in _UV_VALUED else 1
+            pos = ([args[j]] + args[i:j] + args[j + 1 :]) if j < len(args) else []
             break
         if a == "--":
             cmd = args[i + 1 :] if verb == "run" else []
@@ -791,8 +813,8 @@ def _uv_reason(args: list[str], ctx: dict, depth: int) -> str:
     elif verb == "sync":
         if not (no_sync or _flagged(opts, ("--dry-run", "--check"))):
             target = _project_venv(start, d, ctx, opts)
-    elif verb in ("add", "remove"):
-        if not (no_sync or frozen or "--dry-run" in opts):
+    elif verb in ("add", "remove"):  # `--script x.py` edits that script's inline metadata only
+        if not (no_sync or frozen or _flagged(opts, ("--dry-run", "--script"))):
             target = _project_venv(start, d, ctx, opts)
     elif verb == "version":
         if ("--bump" in opts or pos) and not (no_sync or frozen or "--dry-run" in opts):
@@ -870,19 +892,23 @@ def _venv_reason(words: list[str], ctx: dict, depth: int = 0) -> str:
     if _PIP_NAME.match(name):
         pip_args = words[1:]
     elif _PY_NAME.match(name):
-        args = words[1:]
-        for k, a in enumerate(args):
+        args, k = words[1:], 0
+        while k < len(args):
+            a = args[k]
             if a == "-m" and k + 1 < len(args):
                 pip_args = args[k + 2 :] if args[k + 1] == "pip" else None
                 break
             if a.startswith("-m") and len(a) > 2:
                 pip_args = args[k + 1 :] if a[2:] == "pip" else None
                 break
-            if not a.startswith("-"):
-                break
+            if not a.startswith("-") or a == "-c":
+                break  # a script, or `-c` code: not pip
+            k += 2 if a in ("-W", "-X") else 1  # options whose value is the next word
     if pip_args is None:
         return ""
     act, target = _pip_target(words[0], pip_args, ctx)
+    if not _PIP_NAME.match(name):
+        act = act.replace(f"`{name} ", f"`{name} -m pip ", 1)  # name the module, not `python install`
     return _judge(act, target, ctx, "", _editables(pip_args, ctx))
 
 
@@ -914,14 +940,15 @@ def _scan(command: str, ctx: dict, depth: int, seat: bool = True) -> str:
             reason = _scan(sub, _child(ctx), depth + 1, seat)
             if reason:
                 return reason
-    scopes: list[tuple[str, list[str]]] = []
+    scopes: list[tuple[str, list[str], dict]] = []
     for raw in cmds:
         if raw == ["("]:
-            scopes.append((ctx["cwd"], list(ctx.get("dirs", []))))
+            scopes.append((ctx["cwd"], list(ctx.get("dirs", [])), dict(ctx.get("exported") or {})))
             continue
         if raw == [")"]:
             if scopes:
-                ctx["cwd"], ctx["dirs"] = scopes.pop()  # a subshell's cd and pushd die with it
+                # a subshell's cd, pushd, export and unset die with it
+                ctx["cwd"], ctx["dirs"], ctx["exported"] = scopes.pop()
             continue
         ctx["targets"], ctx["git_dir"], ctx["work_tree"], ctx["assign"] = [], False, False, {}
         words = _strip(raw, ctx)

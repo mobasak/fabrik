@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T15:53:33.783524Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-5a828a2f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce each with the seat payloads in /tmp/claude-1000/-opt-fabrik--claude-worktrees-infra-3/58315fc8-c0bd-4183-9f16-f11e99ef7ac1/scratchpad/run-fabrik-review-2026-10-23T18-38-46-0300-630c06 (review receipt of W-46d148b0 names them), then size: likely /fabrik-task with the full /fabrik-review (synced hook)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "seat-isolation"
+  ],
+  "title": "seat_guard.py: review seats can still kill or write git through shapes the tokeniser misses (found reviewing W-46d148b0, pre-existing): a heredoc opener inside quotes, a comment or a here-string (<<<) drops the rest of the command; an apostrophe inside double quotes hides a later $( ); $( ) is scanned with the command's starting cwd, before its cd; eval, function bodies, setsid/doas are not unwrapped; xargs -n 1 kill and xargs git are not seen; git worktree move checks only its source; submodule update, sparse-checkout, read-tree, update-index, filter-branch read as read-only; several store-verb segments can exceed the 5 s hook budget (3 s git per segment)"
+}
