@@ -49,8 +49,9 @@ and whose model is not `<synthetic>`; a missing key reads 0, a present value cou
 non-negative int (a bool or a string skips the row), and a zero sum skips the row. A `compact_boundary` row
 AFTER that row means no reading (the next call is the real context). The window: `ROTATE_CONTEXT_WINDOW`
 (process env, else the hub env file, a positive int), else the statusline tap's cache
-(`STATUSLINE_CACHE_FILE`) `sessions[<sid>].model.id` — `[1m]` → 1,000,000, another id → 200,000 — else
-1,000,000 (a reading past 200k takes 1M whatever the cache says). Percent is floored. Steps: 40, 50, 60, 70,
+(`STATUSLINE_CACHE_FILE`) `sessions[<sid>].model.id` — `[1m]` → 1,000,000; another id → the tap's top-level
+`context.size` when its top-level `model.id` is that same id (a positive int), else 1,000,000, because a bare id
+is no evidence of 200k (W-25f6b2a3) — else 1,000,000 (a reading past 200k takes 1M whatever the cache says). Percent is floored. Steps: 40, 50, 60, 70,
 80, then 85, 90, 100. The stamp `<stamp dir>/.ctx/<sid>`
 holds the step last advised: a reading below 40 writes 0 silently (a compaction re-arms the sensor), a step
 above OR below the stamp prints and stamps (a drop that lands at 40+ is told once, as a rise is), an equal
@@ -348,10 +349,14 @@ def _positive_int(raw: str) -> int | None:
 
 
 def _window(sid: str, tokens: int = 0) -> int:
-    """`ROTATE_CONTEXT_WINDOW`, else the statusline cache's model id for this session, else 1,000,000."""
+    """`ROTATE_CONTEXT_WINDOW`, else the statusline tap's reported size for this session's model id, else 1,000,000.
+    A bare model id is no evidence of 200k: this box runs claude-opus-5-5 and claude-fable-5-1 at 1M under the bare
+    id, and reading them as 200k ordered rotations at birth (W-25f6b2a3)."""
     env = _positive_int(_hub_setting("ROTATE_CONTEXT_WINDOW"))
     if env:
         return env
+    if tokens > SMALL_WINDOW:
+        return DEFAULT_WINDOW  # a reading past 200k proves the 1M window whatever the cache says
     try:
         cache = json.loads(
             _env_path(
@@ -360,11 +365,18 @@ def _window(sid: str, tokens: int = 0) -> int:
         )
         model = ((cache.get("sessions") or {}).get(sid) or {}).get("model") or {}
         mid = model.get("id") if isinstance(model, dict) else None
+        top = cache.get("model")
+        context = cache.get("context")
+        size = context.get("size") if isinstance(context, dict) else None
+        top_id = top.get("id") if isinstance(top, dict) else None
     except (OSError, ValueError, UnicodeDecodeError, AttributeError):
-        mid = None
-    if isinstance(mid, str) and mid:
-        # a reading past 200k proves the 1M window whatever a stale cache row says
-        return DEFAULT_WINDOW if mid.endswith("[1m]") or tokens > SMALL_WINDOW else SMALL_WINDOW
+        return DEFAULT_WINDOW
+    if not isinstance(mid, str) or not mid or mid.endswith("[1m]"):
+        return DEFAULT_WINDOW
+    # the tap records the window Claude Code reported for the session it rendered last; the same model id is the
+    # same model's window. A bool is an int to isinstance, so the type is checked exactly.
+    if top_id == mid and type(size) is int and size > 0:
+        return size
     return DEFAULT_WINDOW
 
 

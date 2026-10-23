@@ -436,9 +436,28 @@ def test_ctx_window_env_cache_and_fallback(ctxbox, tmp_path, monkeypatch, capsys
     def fresh(name):
         monkeypatch.setenv("ROTATE_STAMP_DIR", str(tmp_path / name))
 
-    fresh("a")
-    cache.write_text(json.dumps({"sessions": {"sid-1": {"model": {"id": "claude-opus-5-5"}}}}))
+    fresh("a")  # the tap's top-level size, for the same model id, is the window (W-25f6b2a3)
+    cache.write_text(
+        json.dumps(
+            {
+                "model": {"id": "claude-haiku-5-5"},
+                "context": {"usedPercent": 3, "size": 200_000},
+                "sessions": {"sid-1": {"model": {"id": "claude-haiku-5-5"}}},
+            }
+        )
+    )
     assert "ctx 45% (90k of 200k tokens)" in _ctx(transcript, rows, monkeypatch, capsys)[1]
+    for top in (
+        {"model": {"id": "claude-opus-5-5"}, "context": {"size": 200_000}},  # another model's size
+        {"model": {"id": "claude-haiku-5-5"}, "context": {"size": "200000"}},  # not an int
+        {"model": {"id": "claude-haiku-5-5"}, "context": {"size": True}},  # a bool is not a size
+        {"model": {"id": "claude-haiku-5-5"}, "context": {"size": 0}},
+        {"model": {"id": "claude-haiku-5-5"}, "context": None},
+        {"model": "claude-haiku-5-5", "context": {"size": 200_000}},
+    ):
+        fresh(f"a{len(json.dumps(top))}")
+        cache.write_text(json.dumps(dict(top, sessions={"sid-1": {"model": {"id": "claude-haiku-5-5"}}})))
+        assert _ctx(transcript, rows, monkeypatch, capsys)[1] == "", top  # no usable size: 1M
     fresh("b")
     cache.write_text(json.dumps({"sessions": {"sid-1": {"model": {"id": "claude-opus-5-5[1m]"}}}}))
     assert _ctx(transcript, rows, monkeypatch, capsys)[1] == ""
@@ -552,3 +571,25 @@ def test_ctx_tail_cut_on_a_line_start_and_a_failing_lock(ctxbox, tmp_path, monke
     (locked / ".lock").mkdir(parents=True)  # opening a directory for append raises
     assert tsc._claim_ctx_step(locked, "sid-1", 50) is True
     assert tsc._claim_ctx_step(locked, "sid-1", 0) is False
+
+
+def test_ctx_a_bare_model_id_is_not_a_200k_window(ctxbox, monkeypatch, capsys):
+    """W-25f6b2a3: this box runs claude-opus-5-5 and claude-fable-5-1 at 1M under the bare id (32 of 153 and 8 of 8
+    transcripts read past 200k with no compaction), so a bare id in the statusline cache is no evidence of 200k: this
+    session's own second reading, 126k, read `ctx 63% (126k of 200k tokens)` and ordered a rotation at birth."""
+    transcript, _, cache = ctxbox
+    cache.write_text(json.dumps({"sessions": {"sid-1": {"model": {"id": "claude-opus-5-5"}}}}))
+    born = [_usage(2, 90_726, 29_885), _usage(0, 0, 126_000)]
+    assert _ctx(transcript, born, monkeypatch, capsys)[1] == ""
+    # the tap's live record for the same id names the real window, and the 40% line is where D-1123 put it
+    cache.write_text(
+        json.dumps(
+            {
+                "model": {"id": "claude-opus-5-5"},
+                "context": {"usedPercent": 27, "size": 1_000_000},
+                "sessions": {"sid-1": {"model": {"id": "claude-opus-5-5"}}},
+            }
+        )
+    )
+    assert _ctx(transcript, [_usage(0, 0, 399_999)], monkeypatch, capsys)[1] == ""
+    assert "ctx 40% (400k of 1000k tokens)" in _ctx(transcript, [_usage(0, 0, 400_000)], monkeypatch, capsys)[1]
