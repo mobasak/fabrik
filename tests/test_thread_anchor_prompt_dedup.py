@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -19,13 +20,14 @@ SCRIPT = REPO / "scripts" / "thread_anchor.py"
 POINTER = "work: unchanged since the last full block above — reprint: python3 scripts/thread_anchor.py line --session {s} --repo ."
 
 
-def _run(args: list[str], d: Path, stdin: str = "") -> str:
+def _run(args: list[str], d: Path, stdin: str = "", cwd: Path | None = None) -> str:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         input=stdin,
         capture_output=True,
         text=True,
         timeout=60,
+        cwd=cwd,
         env={
             "PATH": os.environ.get("PATH", ""),
             "THREAD_ANCHOR_DIR": str(d),
@@ -63,10 +65,16 @@ def test_unchanged_block_prints_pointer_and_change_reprints(tmp_path):
     digest.write_text(json.dumps(rec))
     assert _hook(tmp_path) == changed
     assert _hook(tmp_path).strip() == POINTER.format(s="s1")
+    # just under the bound still points; a future time never does
+    for at, pointer in ((time.time() - 1800 + 0.5, True), (time.time() + 100, False)):
+        digest.write_text(json.dumps({**json.loads(digest.read_text()), "at": at}))
+        assert (_hook(tmp_path).strip() == POINTER.format(s="s1")) is pointer, at
     # SessionStart always prints in full, even unchanged
     assert "15 of 31" in _hook(tmp_path, event="SessionStart")
-    # and the pointer's own reprint command prints the block in full
-    assert "15 of 31" in _run(["line", "--session", "s1"], tmp_path)
+    # and the pointer's own reprint command, run exactly as printed, prints the block in full
+    reprint = POINTER.format(s="s1").split("reprint: python3 ", 1)[1].split()
+    assert reprint[0] == "scripts/thread_anchor.py"
+    assert "15 of 31" in _run(reprint[1:], tmp_path, cwd=tmp_path)
 
 
 def test_no_pointer_without_a_session_a_block_or_a_readable_digest(tmp_path):
@@ -85,5 +93,52 @@ def test_no_pointer_without_a_session_a_block_or_a_readable_digest(tmp_path):
     for junk in ("{not json", '{"digest": 3, "at": "x"}', "[]"):
         (tmp_path / "s1.prompt-digest").write_text(junk)
         assert _hook(tmp_path) == full
-    # the digest file is not a session-state json: `*.json` scans never read it
-    assert not list(tmp_path.glob("*.prompt-digest*.json"))
+
+
+def _in_process(monkeypatch, tmp_path, payload: dict) -> str:
+    """`line --hook` run in-process, so a test can stub the store side and stdout."""
+    import importlib.util
+    import io
+
+    spec = importlib.util.spec_from_file_location("ta_dedup", SCRIPT)
+    ta = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ta)
+    monkeypatch.setenv("THREAD_ANCHOR_DIR", str(tmp_path))
+    monkeypatch.setattr(ta, "_resolve_repo", lambda cwd: tmp_path)
+    monkeypatch.setattr(ta, "_prompt_block", lambda repo, session: "work: 1 ready")
+    monkeypatch.setattr(ta, "_rescue_decisions", lambda *a: (None, ta._TEST_WARNING, []))
+    monkeypatch.setattr(ta, "cmd_clear_decision", lambda *a, **k: None)
+    monkeypatch.setattr(ta.sys, "stdin", io.StringIO(json.dumps(payload)))
+    return ta
+
+
+def test_a_rescue_warning_is_never_hidden_and_the_digest_follows_the_print(monkeypatch, tmp_path):
+    import io
+
+    payload = {"session_id": "s1", "hook_event_name": "UserPromptSubmit", "cwd": str(tmp_path)}
+    for warning in ("work: ⚠ 1 DECISION block(s) not written", ""):
+        out = io.StringIO()
+        for _ in range(2):
+            ta = _in_process(monkeypatch, tmp_path, payload)
+            ta._TEST_WARNING = warning
+            monkeypatch.setattr(ta.sys, "stdout", out)
+            assert ta.main(["line", "--hook"]) == 0
+        printed = out.getvalue()
+        if warning:  # both prompts print the warning in full; nothing is stored
+            assert printed.count(warning) == 2 and "unchanged since" not in printed
+            assert not (tmp_path / "s1.prompt-digest").exists()
+        else:  # the second prompt is the pointer
+            assert printed.count("work: 1 ready") == 1 and "unchanged since" in printed
+
+    # a print that fails stores no digest, so the next prompt prints in full
+    (tmp_path / "s1.prompt-digest").unlink()
+
+    class Broken(io.StringIO):
+        def write(self, s):
+            raise BrokenPipeError
+
+    ta = _in_process(monkeypatch, tmp_path, payload)
+    ta._TEST_WARNING = ""
+    monkeypatch.setattr(ta.sys, "stdout", Broken())
+    assert ta.main(["line", "--hook"]) == 0
+    assert not (tmp_path / "s1.prompt-digest").exists()

@@ -17,7 +17,8 @@ THE FIX is mechanism, not discipline — discipline is what failed 85-lines-deep
   line      SessionStart + UserPromptSubmit inject the open anchors into every prompt — the
             exact mail_notify.py pattern that makes mail structurally unmissable. Capped at 4
             anchors, silent when empty: an always-on block is wallpaper, and wallpaper is how
-            CI died.
+            CI died. A UserPromptSubmit block identical to the last full one this session was
+            shown, under 30 minutes old, prints as one pointer line (W-25f6b2a3).
   done      Closes an anchor by substring. Staleness is visible in the output, so a dead anchor
             gets closed instead of scrolling forever.
 
@@ -451,12 +452,8 @@ def _prompt_is_fresh(session: str, digest: str) -> bool:
     missing, corrupt or foreign record is False, so the full block prints."""
     try:
         rec = json.loads(_prompt_digest_path(session).read_text(encoding="utf-8"))
-        at = rec["at"]
-        return (
-            rec["digest"] == digest
-            and isinstance(at, (int, float))
-            and 0 <= time.time() - at < _PROMPT_REFRESH_S
-        )
+        # a non-number `at` raises in the subtraction; NaN and a future time fail the range
+        return rec["digest"] == digest and 0 <= time.time() - rec["at"] < _PROMPT_REFRESH_S
     except Exception:
         return False
 
@@ -1335,7 +1332,12 @@ def main(argv: list[str] | None = None) -> int:
             out = "\n".join([*head, out] if out else head)
             if out:
                 digest = hashlib.sha256(out.encode("utf-8", "replace")).hexdigest()
-                dedup = session != "nosession" and event in ("UserPromptSubmit", "SessionStart")
+                # a rescue warning is a one-off: the pointer's reprint command cannot rebuild it
+                dedup = (
+                    session != "nosession"
+                    and event in ("UserPromptSubmit", "SessionStart")
+                    and not (repo is not None and warning)
+                )
                 if dedup and event == "UserPromptSubmit" and _prompt_is_fresh(session, digest):
                     real_stdout.write(
                         "work: unchanged since the last full block above — reprint: python3 "
