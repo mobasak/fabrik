@@ -714,7 +714,7 @@ def execute() -> int:
                     f.unlink()
                 if f.exists() or f.is_symlink():  # a directory: unlink cannot remove it, so move it out of the glob
                     with contextlib.suppress(OSError):
-                        os.replace(f, f.with_name(f.name + ".rejected"))
+                        os.replace(f, f.with_name(f"{f.name}.rejected-{time.time_ns()}"))  # unique: never onto an earlier one
                 append_row({"outcome": "refused:claim", "reason": f"{f.name}: {exc}"})
                 continue
             try:

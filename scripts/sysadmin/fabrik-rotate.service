@@ -1,7 +1,8 @@
 # W-f975fee0 slice 2 (D-1135): execute the waiting rotation requests — one at a time, each re-checked, never retried.
 # StartLimitIntervalSec=0: PathExistsGlob restarts the service while a matching file exists, and the default start limit
 # (5 in 10 s) would otherwise fail the path unit for good; execute deletes every matching file on every exit path —
-# one it cannot claim too — so the path unit's own TriggerLimit (200 per 2 s) is never approached.
+# one it cannot claim too, and a directory it moves aside — so the path unit's own TriggerLimit (200 per 2 s) is never
+# approached.
 [Unit]
 Description=Fabrik session rotation — execute waiting requests
 StartLimitIntervalSec=0

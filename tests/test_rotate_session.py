@@ -541,7 +541,8 @@ def test_review_round_two_a_stale_tmp_and_a_json_directory_never_wedge(world):
     assert rs.request("dev1", "/opt/x", None, "manual") == 0
     assert not tmp.exists() and any(r["outcome"] == "refused:orphan" for r in _rows(world))
     next(world["req"].glob("*.json")).unlink()
-    (world["req"] / "evil.json").mkdir()
-    (world["req"] / "evil.json" / "inner").write_text("x")
-    assert rs.execute() == 0
-    assert not list(world["req"].glob("*.json")) and _rows(world)[-1]["outcome"] == "refused:claim"
+    for _ in range(2):  # round 3: a second directory of the same name, an earlier one already moved aside
+        (world["req"] / "evil.json").mkdir()
+        (world["req"] / "evil.json" / "inner").write_text("x")
+        assert rs.execute() == 0
+        assert not list(world["req"].glob("*.json")) and _rows(world)[-1]["outcome"] == "refused:claim"
