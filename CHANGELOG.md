@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec: a design that changes what existing readers read censuses them per reader kind before Phase 3 (2026-10-23)
+
+- The 1a local-claims bullet requires an executed reader census before Phase 3: a symbol, value or build script by call sites (callers followed transitively) plus name, basename and path greps; a table by its SQL statements, views, ORM models and migrations under bare and schema-qualified names; a matcher's corpus under the old pattern and the new; and a find-then-scan across repos for any subject another repo can read. Extends `/fabrik-plan-after-chat` Phase 1's reader census; W-e5769015.
+
 ### Changed — /fabrik-plan-after-chat: the ~300-line shape trigger excludes only the pasted rubric output (2026-10-23)
 
 - The monolith's ~300-line trigger counts the plan's own text, pasted code and diffs included; only the `review_rubric.py` output this command's Phase 4 pastes is not counted. Answers two feedback rows that asked it verbatim; W-0543de93.
