@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "reproduce each with the seat payloads in /tmp/claude-1000/-opt-fabrik--claude-worktrees-infra-3/58315fc8-c0bd-4183-9f16-f11e99ef7ac1/scratchpad/run-fabrik-review-2026-10-23T18-38-46-0300-630c06 (review receipt of W-46d148b0 names them), then size: likely /fabrik-task with the full /fabrik-review (synced hook)",
+  "next": "reproduce each listed shape against the seat guard's decide() (seat payload, cwd /opt/fabrik) — plus, found in W-46d148b0's closing pass and recorded here under its scope-growth stop: flock's ABBREVIATED long options (`flock --time 5 f -c 'pkill -f x'`, `flock --conf 3 f uv sync`) read the value as the lock file, so the command is never scanned (resolve a unique prefix among flock's long names in _flock_command); then size it: likely /fabrik-task with the full /fabrik-review (synced hook)",
   "note": "",
   "owner": "",
   "priority": 2,
