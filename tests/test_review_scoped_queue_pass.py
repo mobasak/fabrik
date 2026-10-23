@@ -1067,12 +1067,13 @@ def test_a_seat_runs_a_mutant_against_whole_test_files() -> None:
     an added contradicting clause reds it."""
     raw = CAT.read_text(encoding="utf-8").split("\n")
     top = raw.index("## Seat isolation")
+    stop = next(k for k in range(top + 1, len(raw)) if raw[k].startswith("#"))
     start = next(
         k
-        for k in range(top, len(raw))
+        for k in range(top + 1, stop)
         if raw[k].startswith("- The brief names the fix as `git show <sha>`")
     )
-    end = next(k for k in range(start + 1, len(raw)) if raw[k].startswith(("- ", "#")))
+    end = next(k for k in range(start + 1, stop + 1) if raw[k].startswith(("- ", "#")))
     bullet = " ".join(" ".join(raw[start:end]).split())
     assert bullet == (
         "- The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a "
