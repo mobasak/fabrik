@@ -99,8 +99,8 @@ feeding it prescribe, a mechanism copied from another script run read-only again
 will run on (a side-effecting step on a copy), each callee a fail-open branch wraps and how it fails, whether a
 production path reaches the text, what a concurrent reader sees mid-write, a before/after hash of every file it
 writes, the codec a change touches run on non-UTF-8 bytes, NUL and that codec's own escape, an independent parser for
-a parsed format (each library a probe imports run under the repo's `.venv/bin/python`: a system `python3` may lack it
-or an extra), its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded)
+a parsed format (every probe run under an interpreter shown to import its libraries and each extra it enables: a system
+`python3` may lack one), its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded)
 and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field, with each hook
 output it grows sized against Claude Code's 10,000-character cap (https://code.claude.com/docs/en/hooks); a grader
 the design relies on is shown red on a deliberately broken input, since a pass proves nothing until it can fail. Then
@@ -172,7 +172,7 @@ MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what cha
 each branch of a changed function, every resolver of the same identity, consumers of a moved or
 deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an
 executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
-whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs), every other `/opt` repo's tests and merge gates citing a changed path,
+whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs), every other `/opt` checkout's tests and CI files citing a changed path,
 and every vendored copy outside it (`find /opt` by the file's name, `.claude/worktrees/` counted apart) under every spelling of the identifier and its rule's key
 verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape
 or stdout (grep its tests for `== {` and `len(`), every Python reader of a name by an `ast.walk` census beside the
@@ -214,7 +214,8 @@ the phase-2 `design.md` path and the phase-0 declaration, plus three questions: 
 can you name a second approach whose merits the build cannot settle (an equivalent implementation is not one)?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
 an UPGRADE, which would strand the run. A decision the review changes is re-drafted into the D-row with the drift
-noted, and a path it adds is `--design-amend`ed once the nested review has closed (phase 2).
+noted; each path a review fix touches that APPROACH/MIRROR does not name gets *(v2)*
+`step --phase 4 --design-amend <path>` once the nested review has closed, after phase 3's plan-lock check on it.
 The review is sized before dispatch — the callers a fix may touch counted, the quota runway read; seats
 create nothing outside scratch (an installed corpus included), where the nested review keeps its resume artifacts (the workflow `args` — pass, ledger — and the pin dir). Under
 the urgent-90 CHECKPOINT the record stays open, *(v2)* the build is committed through phase 5 step 5's
