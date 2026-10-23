@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped queue pass: where the lead runs a command it keeps (2026-10-23)
+
+- `commands/_fragments/review-probe-catalogue.md`, the first bullet of § Before the first pin, kept any command that writes a live store, sends, commits, deploys or reaches a host with the lead, but never said where the lead runs it.
+- The lead now runs such a command on a scratch target (a throwaway database, repo, host or account), every such command and SQL block of a runbook included. When no scratch target exists, the brief names it as not run, with why and the owner who can run it. Only a read that changes nothing (no write, lock, quota spend or triggered job) runs against its real host.
+- Graded in `tests/test_review_scoped_queue_pass.py` and `tests/test_review_queue_pass.py`. Answers 1 row; 1 was rejected as already stated, 1 stays open for the Opus + Fable panel (W-e13dee33).
+
 ### Fixed — The documentation pack's blank-line rule names tables (2026-10-23)
 
 - `.windsurf/rules/core/40-documentation.md`, which is fleet-synced, asked for blank lines around headings, lists and code blocks, but not tables. Under CommonMark with tables, a paragraph line flush against a table's last row renders as one more row.
