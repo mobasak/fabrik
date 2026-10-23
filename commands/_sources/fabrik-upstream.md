@@ -161,7 +161,9 @@ Never touch the synced file itself, in any phase, for any reason — that bounda
 command exists. End the run by **sending the proposal to the hub via fabrik-mail** (`docs/reference/fabrik-mail.md`):
 name the committed proposal path(s) in the body — a body with the message contract's WHAT, WHERE, WHEN, WHO,
 WHY, HOW and SYSTEMIC headers (`docs/reference/fabrik-mail.md` § The message contract) — and `python scripts/mail.py send --to fabrik --to-agent
-infra --kind request --ack required` (synced-file defects are the infra beat) — or `--to fabrik-lib --kind
+<beat> --kind request --ack required`, `<beat>` the file's owner in the close-out's Route-by-BEAT table (`kaizen` for a
+command's or rule's wording, `infra` for scripts, hooks, sync and checks, and for any other synced file such as the project `CLAUDE.md`, which the
+map gives infra as `templates/governance/**`) — or `--to fabrik-lib --kind
 upstream-feedback --ack required` when the proposal is a vendored
 fabrik-lib module fix. The explicit `--kind`/`--ack` preserve the proposal's durable, **acked** audit trail (a
 default `finding`/`ack:no` send would strip it). This replaces the old operator-relay hand-off — the hub's
@@ -270,7 +272,7 @@ GATE: PROJECT mode → python scripts/final_gate.py --check --json, run AFTER st
 ```
 
 Next command: PROJECT mode (including its Phase 3 round-trip) ends by **`python scripts/mail.py send --to
-fabrik --to-agent infra --kind request --ack required`** (proposal path(s) in the body, under the message contract's seven headers as
+fabrik --to-agent <beat> --kind request --ack required`** (`<beat>` as PROJECT mode's send names it) (proposal path(s) in the body, under the message contract's seven headers as
 Phase 2 says) — the hub's next session surfaces the
 mail and runs HUB mode; no operator relay, no hub shell-out. HUB mode ends at the reply-block: send a
 `kind: reply` (`--re <id>`) back to the requester with the disposition — a landed fix distributes fleet-wide
