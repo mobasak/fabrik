@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_seat_guard.py, docs/workstation/hooks-index.md, .claude/settings.json
-"""PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside scratch.
+# AFTER-EDIT: tests/test_seat_guard.py, tests/test_shared_venv_guard.py, docs/workstation/hooks-index.md, .claude/settings.json
+"""PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside
+scratch, and ANY session's sync or install into the venv a linked worktree shares (W-46d148b0).
 
 Review seats (``agent_type`` in ``SEAT_TYPES``) run Bash in the LEAD's shared tree, and their
 isolation used to be brief prose only. Two incident classes hit live repos: a seat's
@@ -16,8 +17,9 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
     simple commands at ``;`` ``&&`` ``||`` ``|`` ``&`` ``(`` ``)`` and newlines, so quoted data — a
     commit message, a printf payload — is never read as a command. Shell keywords and brace
     groups are skipped; ``bash|sh|zsh|dash`` with any flag cluster containing ``c`` is followed
-    into its script (depth 3); wrappers are unwrapped: env (``-C dir``, ``-u``, ``-i``), sudo,
-    nice, timeout, nohup, exec, command, xargs.
+    into its script (depth 3); wrappers are unwrapped, matched by basename: env (``-C dir``,
+    ``-u``, ``-i``), sudo, nice, timeout, nohup, exec, command (``-v`` runs nothing), stdbuf,
+    ionice, flock. ``#`` starts a comment only at an unquoted word start, as in the shell.
   * Kills: ``pkill`` and ``killall`` are denied anywhere, ``xargs kill`` too (its pids come from a
     pattern); ``kill`` may name only positive pids > 1 or ``%jobs`` after at most one signal
     (``-9``, ``-TERM``, ``-term``, ``-s SIG``, ``-0``); ``-l``/``-L`` lists signals and passes.
@@ -42,7 +44,8 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
     run``, pydantic-settings ``env_file``, a hand-rolled ``.env`` parser, credentials already in the
     session's environment, and ``env -i``/``sudo`` or a typed ``unset`` are not covered; a seat
     that needs ``.env`` loaded sets ``PYTHON_DOTENV_DISABLED=0`` inline, visibly.
-The lead (no ``agent_id``) and every other agent type are never touched.
+The lead (no ``agent_id``) and every other agent type pass the kill and git checks; EVERY session,
+seats included, gets the shared-venv check (its own comment block, above ``_child``).
 
 ⚠️ COBRA (D-253): the cheapest bypass is indirection the Bash string does not show — a variable
 holding the verb (``$G commit``), a script file, a subprocess. Stated, not hidden: the counter is
@@ -56,6 +59,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -107,6 +111,7 @@ def _tokens(command: str) -> list[str]:
     lex = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>\n")
     lex.whitespace = " \t\r"
     lex.whitespace_split = True
+    lex.commenters = ""  # shlex ends a word at `#`; the shell does not (`a#b`): _strip_comments
     try:
         return list(lex)
     except ValueError as exc:
@@ -151,6 +156,49 @@ def _strip_heredocs(command: str) -> str:
         out.append(line)
         pending.extend(m.group(2) for m in _HEREDOC.finditer(line))
     return "\n".join(out)
+
+
+def _strip_comments(command: str) -> str:
+    """Drop shell comments — an unquoted `#` at a word start, to the end of its line — and the fd
+    number glued to a redirect (`2>&1`, `1>f`): shlex would split it off as a word, and only the
+    text knows it was glued (`kill 0 > f` keeps its pid 0)."""
+    out: list[str] = []
+    i, n, quote = 0, len(command), ""
+    while i < n:
+        c = command[i]
+        if quote:
+            out.append(c)
+            if c == "\\" and quote == '"' and i + 1 < n:
+                out.append(command[i + 1])
+                i += 2
+                continue
+            if c == quote:
+                quote = ""
+        elif c == "\\" and i + 1 < n:
+            out.append(command[i : i + 2])
+            i += 2
+            continue
+        elif c in ("'", '"'):
+            quote = c
+            out.append(c)
+        elif c == "#" and (i == 0 or command[i - 1] in " \t\n;&|()<>"):
+            j = command.find("\n", i)
+            i = n if j == -1 else j
+            continue
+        elif c.isdigit() and (i == 0 or command[i - 1] in " \t\n;&|()"):
+            j = i
+            while j < n and command[j].isdigit():
+                j += 1
+            if j < n and command[j] in "<>":
+                i = j  # an fd number glued to its redirect is not an argument
+                continue
+            out.append(command[i:j])
+            i = j
+            continue
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def _extract_substitutions(command: str) -> tuple[list[str], str]:
@@ -234,22 +282,76 @@ def _simple_commands(tokens: list[str]) -> list[list[str]]:
     return out
 
 
+_FLOCK_VALUED_SHORT = frozenset("wE")  # `flock --help`: -w <secs>, -E <number>
+_FLOCK_VALUED_LONG = frozenset({"--timeout", "--conflict-exit-code"})
+
+
+def _flock_command(args: list[str]) -> list[str]:
+    """The words `flock [opts] <file> (<cmd…> | -c <cmd>)` runs — ``sh -c <cmd>`` for the string
+    form — or [] (`flock <fd>`, nothing to run). Options may sit before or after the lock file
+    (getopt permutes them) and short ones may cluster (`-nc <cmd>`, `-w5`)."""
+    have_file, i = False, 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":  # options end; the lock file follows unless it came first
+            i += 1 if have_file else 2
+            have_file = True
+            break
+        if a.startswith("--"):
+            key, eq, val = a.partition("=")
+            if key == "--command":
+                cmd = val if eq else (args[i + 1] if i + 1 < len(args) else "")
+                return ["sh", "-c", cmd]
+            i += 2 if key in _FLOCK_VALUED_LONG and not eq else 1
+            continue
+        if a.startswith("-") and len(a) > 1:
+            for k, flag in enumerate(a[1:], start=1):
+                if flag == "c":
+                    cmd = a[k + 1 :] or (args[i + 1] if i + 1 < len(args) else "")
+                    return ["sh", "-c", cmd]
+                if flag in _FLOCK_VALUED_SHORT:
+                    i += 0 if a[k + 1 :] else 1  # the value is glued or is the next word
+                    break
+            i += 1
+            continue
+        if not have_file:
+            have_file = True  # the lock file, directory or fd number
+            i += 1
+            continue
+        break  # the command and its arguments
+    return args[i:] if have_file else []
+
+
 def _strip(words: list[str], ctx: dict) -> list[str]:
     """Drop keywords, assignments and wrappers; record env/cwd effects into ``ctx``."""
     i = 0
     while i < len(words):
         w = words[i]
+        b = os.path.basename(w)
         m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", w)
         if w in _KEYWORDS:
             i += 1
         elif m:
+            ctx.setdefault("assign", {})[m.group(1)] = m.group(2)
             if m.group(1) in ("GIT_DIR", "GIT_WORK_TREE"):
                 ctx["targets"].append(m.group(2))
                 ctx["git_dir" if m.group(1) == "GIT_DIR" else "work_tree"] = True
             i += 1
-        elif w in ("nohup", "exec", "command", "builtin"):
+        elif b in ("nohup", "exec", "builtin"):
             i += 1
-        elif w == "env":
+        elif b == "command":
+            i += 1
+            while i < len(words) and words[i].startswith("-"):
+                if words[i] in ("-v", "-V"):
+                    return []  # `command -v x` names x, it does not run it
+                i += 1
+        elif b in ("stdbuf", "ionice"):
+            i += 1
+            while i < len(words) and words[i].startswith("-"):
+                i += 2 if words[i] in ("-i", "-o", "-e", "-c", "-n", "-p", "-P", "-u") else 1
+        elif b == "flock":
+            words, i = _flock_command(words[i + 1 :]), 0  # unwrap what it runs, wrappers included
+        elif b == "env":
             i += 1
             while i < len(words) and (words[i].startswith("-") or "=" in words[i]):
                 if words[i] in ("-C", "--chdir") and i + 1 < len(words):
@@ -258,18 +360,22 @@ def _strip(words: list[str], ctx: dict) -> list[str]:
                     continue
                 if words[i].startswith("--chdir="):
                     ctx["cwd"] = os.path.join(ctx["cwd"], words[i].split("=", 1)[1])
-                elif words[i] in ("-u", "--unset", "-S") and i + 1 < len(words):
+                elif words[i] in ("-u", "--unset") and i + 1 < len(words):
+                    ctx.setdefault("assign", {})[words[i + 1]] = None
+                    i += 1
+                elif words[i] == "-S" and i + 1 < len(words):
                     i += 1
                 elif "=" in words[i] and not words[i].startswith("-"):
                     k = words[i].split("=", 1)
+                    ctx.setdefault("assign", {})[k[0]] = k[1]
                     if k[0] in ("GIT_DIR", "GIT_WORK_TREE"):
                         ctx["targets"].append(k[1])
                 i += 1
-        elif w in ("sudo", "nice"):
+        elif b in ("sudo", "nice"):
             i += 1
             while i < len(words) and words[i].startswith("-"):
                 i += 2 if words[i] in ("-u", "-g", "-n", "-C") and i + 1 < len(words) else 1
-        elif w == "timeout":
+        elif b == "timeout":
             i += 1
             while i < len(words) and words[i].startswith("-"):
                 i += 2 if words[i] in ("-s", "-k", "--signal", "--kill-after") else 1
@@ -501,13 +607,467 @@ def _git_reason(words: list[str], ctx: dict) -> str:
     return ""
 
 
-def _scan(command: str, ctx: dict, depth: int) -> str:
+# ── shared venv: EVERY session, not only seats (W-46d148b0) ────────────────────────────────────
+# A linked worktree's `.venv` is a SYMLINK to the main checkout's venv (the synced settings'
+# `worktree.symlinkDirectories`), so a sync or install into it rewrites the one runtime every agent
+# of the repo shares — trade-intelligence 01M3RYGETKD5HQZRBTDF3EK3EK: twice in one day a worktree's
+# `uv run` resolved SQLAlchemy 2.1 for everyone and re-pointed the editable install at a worktree.
+# Refused when the write's target venv resolves to the venv a linked worktree shares through its
+# `.venv` symlink — that worktree being the call's directory, the session's cwd, or the target's
+# own. Writers: `uv run|sync|add|remove` (a project sync), `uv version` with a bump, `uv venv
+# --clear|--allow-existing`, `uv pip install|sync|uninstall`, `pip|python -m pip
+# install|uninstall`, and an installer `uv run --no-sync` starts in the project venv. Not writes:
+# `--no-sync`/`UV_NO_SYNC`, `add|remove|version --frozen`/`UV_FROZEN`, `add|remove --script`, `uv
+# run --no-project|--isolated|--script|-s|--gui-script`, `uv sync --dry-run|--check`, help, pip
+# `--dry-run|--target|--prefix|--root|--system|--user`. uv's options are read up to `uv run`'s
+# command only — what follows is the command's. A pin the merge owner approved passes with the
+# inline, visible `FABRIK_SHARED_VENV_WRITE=1` (an assignment, `env` or `export` in the command),
+# never read from the inherited environment, so no settings file can switch the guard off.
+# Fails OPEN on what it cannot resolve (a parse error, a `$VAR` or `$( )` path, `cd` with no
+# argument or `~`, an unknown program): a missed write corrupts the shared runtime until the merge
+# owner notices and re-syncs it, a wrongly refused one stops an agent's work, and a write the
+# guard cannot see would pass a deny-by-default rule too. Not seen, stated: `make`, scripts,
+# `find -exec`, pip-sync, poetry, pdm, hatch, a uv-workspace member resolving to the root's venv
+# (0 of 44 fleet pyproject.toml files declare `tool.uv.workspace`, 2026-10-23).
+# ⚠️ COBRA (D-253): the cheapest pass is a habitual `FABRIK_SHARED_VENV_WRITE=1` prefix — visible
+# in every transcript, and the refusal offers it only for a pin the coordinator approved.
+VENV_TAG = "shared venv guard"
+VENV_OPT_IN = "FABRIK_SHARED_VENV_WRITE"
+_TRUE = frozenset({"1", "true", "t", "yes", "y", "on"})
+_UV_VERBS = frozenset(
+    {
+        "run",
+        "init",
+        "add",
+        "remove",
+        "version",
+        "sync",
+        "lock",
+        "export",
+        "tree",
+        "format",
+        "tool",
+        "python",
+        "pip",
+        "venv",
+        "build",
+        "publish",
+        "cache",
+        "self",
+        "help",
+        "auth",
+        "generate-shell-completion",
+    }
+)
+_UV_WRITERS = frozenset({"run", "sync", "add", "remove", "version", "venv", "pip"})
+# options whose VALUE is the next word (uv 0.11.31 `uv help run|sync|add|venv`, globals included)
+_UV_VALUED = frozenset(
+    {
+        "--directory",
+        "--project",
+        "--color",
+        "--cache-dir",
+        "--config-file",
+        "--allow-insecure-host",
+        "--python-preference",
+        "-p",
+        "--python",
+        "--with",
+        "-w",
+        "--with-editable",
+        "--with-requirements",
+        "--extra",
+        "--no-extra",
+        "--group",
+        "--no-group",
+        "--only-group",
+        "--package",
+        "--env-file",
+        "--index",
+        "--default-index",
+        "-i",
+        "--extra-index-url",
+        "-f",
+        "--find-links",
+        "--exclude-newer",
+        "--exclude-newer-package",
+        "-P",
+        "--upgrade-package",
+        "-C",
+        "--config-setting",
+        "--index-strategy",
+        "--keyring-provider",
+        "--link-mode",
+        "--prerelease",
+        "--resolution",
+        "--fork-strategy",
+        "--refresh-package",
+        "--reinstall-package",
+        "--no-build-package",
+        "--no-binary-package",
+        "--prompt",
+        "--bump",
+        "--optional",
+        "--branch",
+        "--tag",
+        "--rev",
+        "--marker",
+        "-m",
+        "--script",
+        "--dev-group",
+        "--python-platform",
+        "--output-format",
+        "--bounds",
+    }
+)
+_UV_HELP = frozenset({"-h", "--help", "-V", "--version"})
+_UV_RUN_ELSEWHERE = frozenset({"--no-project", "--isolated", "--script", "-s", "--gui-script"})
+_UV_PIP_WRITES = frozenset({"install", "sync", "uninstall"})
+_PIP_WRITES = frozenset({"install", "uninstall"})
+_PIP_ELSEWHERE = ("--dry-run", "--target", "-t", "--prefix", "--root", "--system", "--user")
+_PIP_GLOBAL_VALUED = frozenset(
+    {
+        "--python",
+        "--log",
+        "--cache-dir",
+        "--proxy",
+        "--retries",
+        "--timeout",
+        "--exists-action",
+        "--trusted-host",
+        "--cert",
+        "--client-cert",
+        "--use-feature",
+        "--use-deprecated",
+        "--keyring-provider",
+        "--src",
+        "--resume-retries",
+    }
+)
+_PIP_NAME = re.compile(r"^pip(3(\.\d+)?)?$")
+_PY_NAME = re.compile(r"^python(3(\.\d+)?)?$")
+_XARGS_VALUED = frozenset(
+    {
+        "-a",
+        "-I",
+        "-n",
+        "-P",
+        "-d",
+        "-E",
+        "-L",
+        "-s",
+        "--arg-file",
+        "--delimiter",
+        "--max-args",
+        "--max-procs",
+        "--max-lines",
+    }
+)
+_WT = re.compile(r"^(.*?/\.claude/worktrees/[^/]+)(/|$)")
+
+
+def _env(ctx: dict, name: str, inherited: bool = True) -> str | None:
+    for layer in (ctx.get("assign") or {}, ctx.get("exported") or {}):
+        if name in layer:
+            return layer[name]
+    return os.environ.get(name) if inherited else None
+
+
+def _truthy(value: str | None) -> bool:
+    return value is not None and value.strip().lower() in _TRUE
+
+
+def _unknown(path: str | None) -> bool:
+    return path is None or "$" in path or SUBST in path
+
+
+def _shared_venv(path: str) -> tuple[str, str]:
+    """(worktree, real path of its symlinked `.venv`) for the linked worktree holding ``path``."""
+    if not path or _unknown(path):
+        return "", ""
+    m = _WT.match(os.path.abspath(path))
+    if not m:
+        return "", ""
+    link = os.path.join(m.group(1), ".venv")
+    return (m.group(1), os.path.realpath(link)) if os.path.islink(link) else ("", "")
+
+
+def _nearest(start: str, name: str) -> str:
+    cur = os.path.abspath(start)
+    while True:
+        if os.path.lexists(os.path.join(cur, name)):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            return ""
+        cur = parent
+
+
+def _venv_of(executable: str) -> str:
+    """The venv directory an interpreter or pip path belongs to — never through the binary's own
+    symlink (a venv's bin/python resolves to the base interpreter)."""
+    path = os.path.abspath(executable)
+    parent = os.path.dirname(path)
+    return os.path.dirname(parent) if os.path.basename(parent) in ("bin", "Scripts") else path
+
+
+def _which(program: str, ctx: dict) -> str:
+    """``program`` resolved the way the call's shell would: a path against its cwd, a bare name
+    against its PATH (relative entries made absolute against that cwd)."""
+    if "/" in program:
+        return "" if _unknown(program) else os.path.join(ctx["cwd"], program)
+    entries = (_env(ctx, "PATH") or "").split(":")
+    path = ":".join(e if os.path.isabs(e) else os.path.join(ctx["cwd"], e) for e in entries if e)
+    return shutil.which(program, path=path) or ""
+
+
+def _venv_msg(act: str, target: str, worktree: str) -> str:
+    real = os.path.realpath(target)
+    return (
+        f"{VENV_TAG}: {act} writes {real}, the venv the worktree {worktree} shares with every "
+        "agent of this repo through its `.venv` symlink — a worktree's lock or src would replace "
+        "their runtime. To run on it as it is, use `uv run --no-sync <cmd>` or `.venv/bin/python` "
+        "directly. A package or a sync is the merge owner's act: ask the coordinator; a pin it "
+        f"approved runs as `{VENV_OPT_IN}=1 uv pip install --python {real}/bin/python "
+        "<pkg>==<version>`"
+    )
+
+
+def _flagged(args: list[str], names: tuple[str, ...] | frozenset[str]) -> bool:
+    return any(a in names or a.split("=", 1)[0] in names for a in args)
+
+
+def _with_venv(ctx: dict, venv: str) -> dict:
+    """``ctx`` for a command running inside ``venv`` (`uv run` puts it first on PATH)."""
+    exported = {**(ctx.get("exported") or {}), **(ctx.get("assign") or {})}
+    exported["VIRTUAL_ENV"] = venv
+    exported["PATH"] = os.path.join(venv, "bin") + ":" + (_env(ctx, "PATH") or "")
+    return {**ctx, "assign": {}, "exported": exported}
+
+
+def _pip_target(program: str, args: list[str], ctx: dict) -> tuple[str, str]:
+    verb, k = "", 0
+    while k < len(args):  # pip's global options before the verb; a valued one hides its value
+        if not args[k].startswith("-"):
+            verb = args[k]
+            break
+        k += 2 if args[k] in _PIP_GLOBAL_VALUED else 1
+    if verb not in _PIP_WRITES or _flagged(args, _PIP_ELSEWHERE + ("-h", "--help")):
+        return "", ""
+    for k, a in enumerate(args):  # pip's own global `--python` names the target environment
+        if a == "--python" and k + 1 < len(args) and not _unknown(args[k + 1]):
+            return f"`pip {verb}`", _venv_of(os.path.join(ctx["cwd"], args[k + 1]))
+        if a.startswith("--python=") and not _unknown(a.split("=", 1)[1]):
+            return f"`pip {verb}`", _venv_of(os.path.join(ctx["cwd"], a.split("=", 1)[1]))
+    path = _which(program, ctx)
+    return (f"`{os.path.basename(program)} {verb}`", _venv_of(path)) if path else ("", "")
+
+
+def _project_venv(start: str, d: str, ctx: dict, opts: list[str]) -> str:
+    if "--active" in opts and _env(ctx, "VIRTUAL_ENV"):
+        return os.path.join(d, _env(ctx, "VIRTUAL_ENV") or "")
+    proj = _nearest(start, "pyproject.toml")
+    if not proj:
+        return ""
+    env_dir = _env(ctx, "UV_PROJECT_ENVIRONMENT")
+    return os.path.join(proj, env_dir) if env_dir else os.path.join(proj, ".venv")
+
+
+def _uv_reason(args: list[str], ctx: dict, depth: int) -> str:
+    d, project = ctx["cwd"], _env(ctx, "UV_PROJECT")
+    if _env(ctx, "UV_WORKING_DIR"):
+        d = os.path.join(d, _env(ctx, "UV_WORKING_DIR") or "")
+    verb, opts, pos, cmd, i = "", [], [], [], 0
+    while i < len(args):
+        a = args[i]
+        if verb == "pip":  # `uv pip [-q|--cache-dir X …] install …`: the sub-verb is the first word
+            j = i
+            while j < len(args) and args[j].startswith("-"):
+                j += 2 if args[j] in _UV_VALUED else 1
+            pos = ([args[j]] + args[i:j] + args[j + 1 :]) if j < len(args) else []
+            break
+        if a == "--":
+            cmd = args[i + 1 :] if verb == "run" else []
+            break
+        if a.startswith("-") and a != "-":
+            key = a.split("=", 1)[0]
+            val = a.split("=", 1)[1] if "=" in a else None
+            step = 1
+            if key in _UV_VALUED and val is None:
+                val, step = (args[i + 1] if i + 1 < len(args) else ""), 2
+            if key == "--directory" and val is not None:
+                d = os.path.join(d, val) if not _unknown(val) else SUBST
+            elif key == "--project" and val is not None:
+                project = val
+            opts.append(key)
+            i += step
+            continue
+        if not verb:
+            if a not in _UV_VERBS:  # a value we did not know took one: find the verb itself
+                j = next((k for k in range(i + 1, len(args)) if args[k] in _UV_WRITERS), None)
+                if j is None:
+                    return ""
+                i = j
+                a = args[i]
+            verb = a
+            i += 1
+            continue
+        if verb == "run":
+            cmd = args[i:]
+            break
+        pos.append(a)
+        i += 1
+    if not verb or _unknown(d) or (project is not None and _unknown(project)):
+        return ""
+    if _flagged(opts, _UV_HELP):
+        return ""
+    start = os.path.join(d, project) if project else d
+    no_sync = "--no-sync" in opts or _truthy(_env(ctx, "UV_NO_SYNC"))
+    frozen = "--frozen" in opts or _truthy(_env(ctx, "UV_FROZEN"))
+    act, target, inner = f"`uv {verb}`", "", ""
+    if verb == "run":
+        if (
+            _flagged(opts, _UV_RUN_ELSEWHERE)
+            or _truthy(_env(ctx, "UV_NO_PROJECT"))
+            or _truthy(_env(ctx, "UV_ISOLATED"))
+        ):
+            return ""
+        venv = _project_venv(start, d, ctx, opts)
+        if venv and cmd and depth < 3:
+            inner = _venv_reason(cmd, _with_venv(ctx, venv), depth + 1)
+        target = "" if no_sync else venv
+    elif verb == "sync":
+        if not (no_sync or _flagged(opts, ("--dry-run", "--check"))):
+            target = _project_venv(start, d, ctx, opts)
+    elif verb in ("add", "remove"):  # `--script x.py` edits that script's inline metadata only
+        if not (no_sync or frozen or _flagged(opts, ("--dry-run", "--script"))):
+            target = _project_venv(start, d, ctx, opts)
+    elif verb == "version":
+        if ("--bump" in opts or pos) and not (no_sync or frozen or "--dry-run" in opts):
+            target = _project_venv(start, d, ctx, opts)
+    elif verb == "venv":
+        if _flagged(opts, ("-c", "--clear", "--allow-existing")) or _truthy(
+            _env(ctx, "UV_VENV_CLEAR")
+        ):
+            target = os.path.join(d, pos[0] if pos else ".venv")
+    elif verb == "pip" and pos and pos[0] in _UV_PIP_WRITES:
+        act, pargs = f"`uv pip {pos[0]}`", pos[1:]
+        if _flagged(pargs, _PIP_ELSEWHERE + ("-h", "--help")):
+            return ""
+        py = None
+        for k, a in enumerate(pargs):
+            if a in ("--python", "-p") and k + 1 < len(pargs):
+                py = pargs[k + 1]
+            elif a.startswith("--python="):
+                py = a.split("=", 1)[1]
+        if py and _unknown(py):
+            return ""
+        if py and "/" in py:
+            target = _venv_of(os.path.join(d, py))
+        elif _env(ctx, "VIRTUAL_ENV"):
+            target = os.path.join(d, _env(ctx, "VIRTUAL_ENV") or "")
+        else:
+            near = _nearest(d, ".venv")
+            target = os.path.join(near, ".venv") if near else ""
+    eds = _editables(pos[1:], ctx) if verb == "pip" else []
+    return _judge(act, target, ctx, start, eds) or inner
+
+
+def _editables(args: list[str], ctx: dict) -> list[str]:
+    """The local paths an install names as editable (`-e <path>`): a worktree's src installed
+    editable into the venv that worktree shares re-points it for every agent (01M3RYGETK)."""
+    out = []
+    for k, a in enumerate(args):
+        val = None
+        if a in ("-e", "--editable") and k + 1 < len(args):
+            val = args[k + 1]
+        elif a.startswith("--editable="):
+            val = a.split("=", 1)[1]
+        elif a.startswith("-e") and len(a) > 2 and not a.startswith("--"):
+            val = a[2:]
+        if val and not _unknown(val) and "://" not in val and SUBST not in ctx["cwd"]:
+            out.append(os.path.join(ctx["cwd"], val))
+    return out
+
+
+def _judge(
+    act: str, target: str, ctx: dict, start: str = "", editables: list[str] | None = None
+) -> str:
+    if not target or _unknown(target):
+        return ""
+    real = os.path.realpath(target)
+    for where in (target, start, ctx["cwd"], ctx.get("home_cwd") or "", *(editables or [])):
+        worktree, shared = _shared_venv(where)
+        if shared and (real == shared or real.startswith(shared + "/")):
+            if _truthy(_env(ctx, VENV_OPT_IN, inherited=False)):
+                return ""
+            return _venv_msg(act, target, worktree)
+    return ""
+
+
+def _python_module_args(args: list[str], module: str) -> list[str] | None:
+    """The arguments of `python [opts] -m <module> …` when it runs ``module``, else None. Short
+    options cluster as python reads them (`-Im pip`, `-Wignore`): `m` and `c` take the rest of the
+    cluster or the next word, `W` and `X` consume their value the same way."""
+    k = 0
+    while k < len(args):
+        a = args[k]
+        if not a.startswith("-") or a == "-" or a.startswith("--"):
+            return None  # a script, stdin, or a long option python does not take before -m
+        for j, flag in enumerate(a[1:], start=1):
+            rest = a[j + 1 :]
+            if flag in "mc":
+                value = rest or (args[k + 1] if k + 1 < len(args) else "")
+                if flag == "c" or value != module:
+                    return None  # `-c` code, or another module
+                return args[k + (1 if rest else 2) :]
+            if flag in "WX":
+                k += 0 if rest else 1  # the value is glued or is the next word
+                break
+        k += 1
+    return None
+
+
+def _venv_reason(words: list[str], ctx: dict, depth: int = 0) -> str:
+    name = os.path.basename(words[0])
+    if name == "xargs":  # the words after its options are the program it runs
+        i = 1
+        while i < len(words) and words[i].startswith("-"):
+            i += 2 if words[i] in _XARGS_VALUED else 1
+        return _venv_reason(words[i:], ctx, depth) if i < len(words) else ""
+    if name == "uv":
+        return _uv_reason(words[1:], ctx, depth)
+    pip_args: list[str] | None = None
+    if _PIP_NAME.match(name):
+        pip_args = words[1:]
+    elif _PY_NAME.match(name):
+        pip_args = _python_module_args(words[1:], "pip")
+    if pip_args is None:
+        return ""
+    act, target = _pip_target(words[0], pip_args, ctx)
+    if not _PIP_NAME.match(name):
+        act = act.replace(
+            f"`{name} ", f"`{name} -m pip ", 1
+        )  # name the module, not `python install`
+    return _judge(act, target, ctx, "", _editables(pip_args, ctx))
+
+
+def _child(ctx: dict) -> dict:
+    """``ctx`` for a child shell: it inherits this command's assignments and exports; its own
+    `export` never leaks back (a fresh dict)."""
+    exported = {**(ctx.get("exported") or {}), **(ctx.get("assign") or {})}
+    return {**ctx, "targets": [], "dirs": [], "assign": {}, "exported": exported}
+
+
+def _scan(command: str, ctx: dict, depth: int, seat: bool = True) -> str:
     raw_command = command
     try:
-        command = _strip_heredocs(command)
+        command = _strip_comments(_strip_heredocs(command))
         inner, command = _extract_substitutions(command)
         cmds = _simple_commands(_split_punct(_tokens(command)))
     except _UnparseableError:
+        if not seat:
+            return ""  # the venv check fails open
         writes = "|".join(
             sorted(WORKTREE_VERBS | STORE_VERBS | {"stash", "branch", "tag", "config", "worktree"})
         )
@@ -517,19 +1077,20 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
         return ""
     if depth < 3:
         for sub in inner:
-            reason = _scan(sub, {**ctx, "targets": [], "dirs": []}, depth + 1)
+            reason = _scan(sub, _child(ctx), depth + 1, seat)
             if reason:
                 return reason
-    scopes: list[tuple[str, list[str]]] = []
+    scopes: list[tuple[str, list[str], dict]] = []
     for raw in cmds:
         if raw == ["("]:
-            scopes.append((ctx["cwd"], list(ctx.get("dirs", []))))
+            scopes.append((ctx["cwd"], list(ctx.get("dirs", [])), dict(ctx.get("exported") or {})))
             continue
         if raw == [")"]:
             if scopes:
-                ctx["cwd"], ctx["dirs"] = scopes.pop()  # a subshell's cd and pushd die with it
+                # a subshell's cd, pushd, export and unset die with it
+                ctx["cwd"], ctx["dirs"], ctx["exported"] = scopes.pop()
             continue
-        ctx["targets"], ctx["git_dir"], ctx["work_tree"] = [], False, False
+        ctx["targets"], ctx["git_dir"], ctx["work_tree"], ctx["assign"] = [], False, False, {}
         words = _strip(raw, ctx)
         if not words:
             continue
@@ -538,8 +1099,26 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
             if head == "pushd":
                 ctx.setdefault("dirs", []).append(ctx["cwd"])
             args = [w for w in words[1:] if not w.startswith("-") or w == "-"]
-            if args:
-                ctx["cwd"] = os.path.join(ctx["cwd"], args[0]) if args[0] != "-" else SUBST
+            if not args or args[0] == "-" or args[0].startswith("~"):
+                ctx["cwd"] = SUBST  # HOME, OLDPWD or a tilde path: not resolved here
+            else:
+                ctx["cwd"] = os.path.join(ctx["cwd"], args[0])
+            continue
+        if head in ("export", "unset"):
+            for w in words[1:]:
+                k, eq, v = w.partition("=")
+                if head == "unset":
+                    ctx.setdefault("exported", {})[w] = None
+                elif eq:
+                    ctx.setdefault("exported", {})[k] = v
+            continue
+        if head in ("source", ".") and len(words) > 1:
+            act = re.match(r"^(.*)/bin/activate$", words[1])
+            if act and SUBST not in ctx["cwd"]:
+                venv = os.path.join(ctx["cwd"], act.group(1))
+                exp = ctx.setdefault("exported", {})
+                exp["PATH"] = os.path.join(venv, "bin") + ":" + (_env(ctx, "PATH") or "")
+                exp["VIRTUAL_ENV"] = venv
             continue
         if head == "popd":
             if ctx.get("dirs"):
@@ -550,12 +1129,14 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
                 if w.startswith("-") and not w.startswith("--") and "c" in w[1:]:
                     rest = [x for x in words[k + 1 :] if not x.startswith("-")]
                     if rest:
-                        reason = _scan(rest[0], {**ctx, "targets": [], "dirs": []}, depth + 1)
+                        reason = _scan(rest[0], _child(ctx), depth + 1, seat)
                         if reason:
                             return reason
                     break
             continue
-        reason = _kill_reason(words) or _git_reason(words, ctx)
+        reason = ((_kill_reason(words) or _git_reason(words, ctx)) if seat else "") or _venv_reason(
+            words, ctx
+        )
         if reason:
             return reason
     return ""
@@ -563,8 +1144,7 @@ def _scan(command: str, ctx: dict, depth: int) -> str:
 
 def decide(payload: dict) -> str:
     """The deny reason for this Bash call, or "" to allow."""
-    if not payload.get("agent_id") or payload.get("agent_type") not in SEAT_TYPES:
-        return ""
+    seat = bool(payload.get("agent_id")) and payload.get("agent_type") in SEAT_TYPES
     command = (payload.get("tool_input") or {}).get("command") or ""
     sd = payload.get("scratchpad_dir")
     ctx = {
@@ -573,10 +1153,15 @@ def decide(payload: dict) -> str:
         "dirs": [],
         "git_dir": False,
         "work_tree": False,
+        "assign": {},
+        "exported": {},
+        "home_cwd": str(payload.get("cwd") or os.getcwd()),
         "sid": str(payload.get("session_id") or ""),
         "scratchpad": os.path.realpath(sd) if isinstance(sd, str) and sd else "",
     }
-    reason = _scan(command, ctx, 0)
+    reason = _scan(command, ctx, 0, seat)
+    if reason.startswith(VENV_TAG):
+        return reason
     if reason:
         return f"seat guard (review seats run in the lead's shared tree): {reason}. {_SAFE}."
     return ""
