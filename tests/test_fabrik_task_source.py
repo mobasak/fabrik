@@ -140,7 +140,13 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-1103 (kaizen, 2026-10-21): 26238 -> 26506 — an executed read of each input's live rows fills the inputs
 # table's counts and values; phase 2 tables each tag a parser it adds or extends reads, quoted inside its own
 # content; the census counts `.claude/worktrees/` apart (rows 1792587704, 1792574009, 1792544635, 1792573888, 1792585649); 53 bytes cut.
-SIZE_CAP = 26506
+# D-1162 (kaizen, 2026-10-23): 26506 -> 26951 — MEASURE runs every probe under an interpreter shown to import its
+# libraries and each extra it enables; MIRROR's search takes every other /opt main checkout's tests and CI files
+# citing a changed path; phase 4 runs phase 2's plan-lock check on each path a review fix touches, unnamed in
+# APPROACH/MIRROR, before the fix edits it, and amends it with `step --phase 4 --design-amend` once the nested review
+# has closed; phase 2's remedy names the current phase, since `step` sets the record's phase (rows 1792766698,
+# 1792734746, 1792731898, 1792765470; review rounds 1-2 folded).
+SIZE_CAP = 26951
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -553,7 +559,7 @@ def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
         "REFUSES `done` at close (v1 measures `--file` instead and only RECORDS);"
     )
     amend = (
-        "the remedy is `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never "
+        "the remedy is `step --phase <the current phase> --design-amend <path>` *(v2)*, append-only — it never "
         "overwrites a recorded field — and counted on the close as `design_amends`."
     )
     mirror = (
