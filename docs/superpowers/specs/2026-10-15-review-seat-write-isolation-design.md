@@ -25,7 +25,7 @@ Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791
 
 | I# | Item (anchored) | Disposition | Where |
 |---|---|---|---|
-| I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN, delivered differently | § The delta — no write tool (pinned, delta 1) and a shell-write rule (delta 2); defence-in-depth against accidental writes, not a mounted read-only tree (§ The delta, its blind-spot paragraph) |
+| I1 | "forbid writes under the repo root by construction (cwd = scratch, repo mounted read-only) instead of by prose" (01M4PHYNXJ row 1791209046) | IN, delivered as the fence since D-1129 | § Amendment 2026-10-22 — the whole filesystem mounted read-only (`--ro-bind / /`), the payload cwd unchanged; in fallback mode, § The delta — no write tool (delta 1) and a shell-write rule (delta 2), defence-in-depth against accidental writes (its blind-spot paragraph) |
 | I2 | "launch finder and refuter seats with cwd set to a fresh scratch directory (or isolation: worktree), never the caller's main checkout" (01M4PHYNXJ row 1791049341) | IN, delivered differently | § Rejected alternatives — A (worktree) and the cwd option, which does not exist; the guard covers both dispatch paths instead, the seats' cwd unchanged |
 | I3 | "hand seats a ready probe script" (01M4PHYNXJ row 1791225410) | OUT-OF-SCOPE | W-f7bf9a54 — a separate change with its own measure (seat turns spent building probes) |
 | I4 | D-1129, the Opus + Fable panel (unanimous): "Review-seat write isolation becomes a filesystem fence, not a growing shell grammar" | IN | § Amendment 2026-10-22 — the fence |
@@ -217,6 +217,9 @@ session unchanged.
   a seat command relying on one behaves as in a plain bash.
 - `.claude/settings.json`'s `statusMessage` for the hook ("no pattern kills, git writes only in scratch") is updated to
   name the fence.
+- Permission rules see the wrapped command (U6): a `Bash(<verb>:*)` allow or deny rule is not expected to match a seat
+  call, so a deny a repo relies on for seats must live in the hook's kill or git rules. Validation 10 records what
+  actually matches.
 - The lead and non-seat agents: no change.
 - A host without usable bwrap gets the parser in its stricter fail-closed form.
 
@@ -228,7 +231,9 @@ session unchanged.
    fence. The run uses the wrapper only, with the parser's write rule out of the path.
 3. Writes into the scratchpad, the run folder and `TMPDIR` succeed; `pwd` inside is the payload cwd.
 4. Equivalence: every allow case of `tests/test_seat_guard.py`, plus a fresh 3-day harvest of real seat commands, runs
-   inside a throwaway worktree, never the live tree, wrapped and unwrapped. Exit code and stdout match, `$$`, `$PPID`
+   inside a throwaway worktree, never the live tree, wrapped and unwrapped. The unwrapped leg itself runs inside an
+   outer fence whose only writable bind is the throwaway worktree, because harvested commands carry absolute paths;
+   a command whose destination is absolute compares on exit code only. Exit code and stdout match, `$$`, `$PPID`
    and `ps` output excepted. False refusals are reported per N.
 5. The lead (no `agent_id`) and a non-seat agent get no wrapper.
 6. The rewrite round-trips quoting, including a command already starting with the dotenv export. It is wrapped too
@@ -392,7 +397,7 @@ by another round of prose here (the plan review's scope-growth stop, 2026-10-22)
 interpreter (`python -c "open(p,'w')"`, `shutil.rmtree`), a script file, a write whose destinations come from stdin or a
 search (`xargs rm`, `find -delete`, `find -exec`), a write nested deeper than the scanner's three levels of `bash -c`/`$(…)`,
 a side-effect write by a tool run in the live tree (`pytest`'s `.pytest_cache`), and a variable holding the path
-(fail-closed only when the variable is the destination itself). The guard is defence-in-depth against ACCIDENTAL writes, not a boundary against an
+(fail-closed only when the variable is the destination itself). The guard (fallback mode since D-1129) is defence-in-depth against ACCIDENTAL writes, not a boundary against an
 adversarial seat; the brief's prose stays as the second layer. Write verbs and forms outside the list are blind spots too: `chmod`/`chown`,
 `patch`, `split`, `tar -x`/`-C`, `unzip -d`, `bzip2`/`xz`, `curl -O` and a bare `wget URL` (both write into the cwd),
 `sed`'s `w file` and `s///w file`, and any other verb or form until a refused-or-missed seat write names it
