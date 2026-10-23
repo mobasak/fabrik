@@ -123,15 +123,22 @@ def _ensure_req_dir() -> Path:
     d = _req_dir()
     try:
         d.mkdir(mode=0o700, parents=True, exist_ok=True)
-        st = d.lstat()
+        # one fd for the check and the chmod: O_NOFOLLOW refuses a symlink (ELOOP), so nothing can swap the path between
+        fd = os.open(d, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise CheckFailedError(
+            "request", f"{d} is not a plain directory ({type(exc).__name__})"
+        ) from exc
+    try:
+        st = os.fstat(fd)
+        if st.st_uid != os.getuid():
+            raise CheckFailedError("request", f"{d} is owned by uid {st.st_uid}")
+        if stat.S_IMODE(st.st_mode) != 0o700:
+            os.fchmod(fd, 0o700)
     except OSError as exc:
         raise CheckFailedError("request", f"{d}: {type(exc).__name__}") from exc
-    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
-        raise CheckFailedError("request", f"{d} is not a plain directory")
-    if st.st_uid != os.getuid():
-        raise CheckFailedError("request", f"{d} is owned by uid {st.st_uid}")
-    if stat.S_IMODE(st.st_mode) != 0o700:
-        d.chmod(0o700)
+    finally:
+        os.close(fd)
     return d
 
 
@@ -810,8 +817,8 @@ def _safe(text: str) -> str:
 
 
 def due(home: Path, proc: Path, mb_only: bool = False, opt: str = "/opt") -> list[dict]:
-    """Every live agent at/past ctx CTX_ROTATE_PCT or the hook's MB line (`state: due`), and every one that cannot be
-    read (`state: unread`, with its reason). Pool seats are never rows; the caller and the coordinators are. `mb_only`
+    """Every live agent at/past ctx CTX_ROTATE_PCT or the hook's MB line (`state: due`), and every session that cannot
+    be read, or is past the line with no agent name (`state: unread`, with its reason). Pool seats are never rows; the caller and the coordinators are. `mb_only`
     reads no context: the nightly runs while agents may be mid-item, and the MB line is the disk signal it owns."""
     threshold = tsc._threshold_mb()
     rows = []
@@ -821,8 +828,6 @@ def due(home: Path, proc: Path, mb_only: bool = False, opt: str = "/opt") -> lis
         row = {k: s.get(k) for k in ("agent", "repo", "sid", "pid", "entrypoint")}
         row.update({k: _safe(row[k]) for k in ("repo", "sid") if isinstance(row[k], str)})
         try:
-            if not _NAME.fullmatch(str(s.get("agent") or "")):
-                raise CheckFailedError("agent", "no valid agent name bound to this session")
             path = _transcript(proc, home, int(s["pid"]), str(s["sid"]))
             mb = path.stat().st_size // (1024 * 1024)
             ctx = None
@@ -848,13 +853,23 @@ def due(home: Path, proc: Path, mb_only: bool = False, opt: str = "/opt") -> lis
             if mb >= threshold
             else ""
         )
-        if trigger:
-            rows.append(dict(row, state="due", trigger=trigger, ctx=ctx, mb=mb))
+        if not trigger:
+            continue
+        if not _NAME.fullmatch(str(s.get("agent") or "")):
+            # past the line but nameless: no command can name it — visible, never dropped; under the line it is no row,
+            # so an unnamed small session never mails a repo nightly (review A6)
+            rows.append(
+                dict(row, state="unread", reason="agent: no valid agent name bound to this session")
+            )
+            continue
+        rows.append(dict(row, state="due", trigger=trigger, ctx=ctx, mb=mb))
     return rows
 
 
 def offer(row: dict) -> str:
     """The action for one due row: the exact rotate command for a tmux (cli) agent, the operator's /clear otherwise."""
+    if not row.get("repo"):
+        return "outside every /opt repo — no grid to rotate in; rotate it by hand"
     if row.get("entrypoint") == "cli":
         return (
             f"/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session {row['agent']} --repo {row['repo']} "
@@ -910,16 +925,16 @@ def mail_due(rows: list[dict]) -> int:
         cmd += ["--ack", "no", "--from", "fabrik"]
         if name == "fabrik":
             cmd += ["--to-agent", "coordinator"]
-        with tempfile.NamedTemporaryFile("w", suffix=".md", encoding="utf-8") as fh:
-            fh.write(body + "\n")
-            fh.flush()
-            try:
+        try:  # the body file too: a full /tmp fails THIS repo's send, never the repos after it (review A7)
+            with tempfile.NamedTemporaryFile("w", suffix=".md", encoding="utf-8") as fh:
+                fh.write(body + "\n")
+                fh.flush()
                 out = subprocess.run(
                     [*cmd, "--body-file", fh.name], capture_output=True, text=True, timeout=60
                 )
-                ok, why = out.returncode == 0, (out.stderr or out.stdout).strip()[-300:]
-            except (OSError, subprocess.TimeoutExpired) as exc:
-                ok, why = False, str(exc)
+            ok, why = out.returncode == 0, (out.stderr or out.stdout).strip()[-300:]
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            ok, why = False, str(exc)
         if not ok:
             print(f"rotate-session due: mail to {name} failed — {why}", file=sys.stderr)
             rc = 1

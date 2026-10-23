@@ -700,7 +700,8 @@ def test_due_rows_and_actions(world, monkeypatch):
         == "/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session dev1 --repo /opt/x --trigger ctx"
     )
     assert "operator types `/clear coordinator-" in rs.offer(by["coordinator"])
-    assert by[""]["state"] == "unread" and "agent" in by[""]["reason"]
+    nameless = next(r for r in rows if r["agent"] == "" and r["sid"] == SID)
+    assert nameless["state"] == "unread" and "agent" in nameless["reason"]
     assert by["dev2"]["state"] == "unread" and "0 transcripts" in by["dev2"]["reason"]
     odd = [r for r in rows if "ud800" in str(r["sid"])]
     assert len(odd) == 1 and rs._line(odd[0]).encode("utf-8") and odd[0]["repo"].encode("utf-8")
@@ -808,3 +809,47 @@ def test_installer_refuses_a_symlinked_request_dir(tmp_path):
     )
     assert out.returncode == 1 and "not a plain directory" in out.stderr, (out.stdout, out.stderr)
     assert (target.stat().st_mode & 0o777) == 0o755 and not (tmp_path / "cfg").exists()
+
+
+def test_review_round_one_slice_a(world, monkeypatch):
+    """Review A1-A7: the ctx line is inclusive at 40 and exclusive at 39; an infinite MB setting falls back to the
+    default; a nameless session under the line is no row; a repo-less row offers no broken command; a foreign-uid
+    request dir refuses in request AND execute (rowed); a failed body file fails that repo only."""
+    _hermetic(monkeypatch, world["tmp"])
+    sessions = [_session("dev1"), _session("")]
+    monkeypatch.setattr(rs.hib, "live_sessions", lambda home, proc, opt="/opt": sessions)
+    for tokens, want in ((400_000, {"dev1", ""}), (399_999, set())):
+        monkeypatch.setattr(rs.tsc, "_context_tokens", lambda p, t=tokens: t)
+        rows = rs.due(world["home"], world["proc"])
+        assert {r["agent"] for r in rows} == want, (tokens, rows)
+    monkeypatch.setenv("ROTATE_ADVISE_MB", "inf")
+    assert rs.tsc._threshold_mb() == rs.tsc.DEFAULT_THRESHOLD_MB
+    assert rs.due(world["home"], world["proc"]) == []
+    assert "--repo" not in rs.offer(dict(_session("dev1", repo=""), state="due", trigger="mb"))
+    with monkeypatch.context() as m:
+        m.setattr(rs.os, "getuid", lambda: 4_000_000)
+        assert rs.request("dev1", "/opt/x", None, "manual") == 1
+        last = _rows(world)[-1]
+        assert last["outcome"] == "aborted:request" and "owned by uid" in last["reason"], last
+        assert rs.execute() == 1 and _rows(world)[-1]["outcome"] == "refused:request"
+    root = Path(os.environ["FABRIK_MAIL_ROOT"])
+    real, calls = rs.tempfile.NamedTemporaryFile, []
+
+    def flaky(*a, **k):
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("no space left")
+        return real(*a, **k)
+
+    monkeypatch.setattr(rs.tempfile, "NamedTemporaryFile", flaky)
+    rows = [  # repos are sent sorted: /opt/fabrik first (its body file fails), then /opt/fabrik-lib
+        dict(_session("a", repo="/opt/fabrik-lib"), state="due", trigger="mb", mb=300, ctx=None),
+        dict(_session("b", repo="/opt/fabrik"), state="due", trigger="mb", mb=300, ctx=None),
+    ]
+
+    def count(box):
+        return len(list((root / box / "inbox").glob("*.md")))
+
+    hub0, lib0 = count("fabrik"), count("fabrik-lib")
+    assert rs.mail_due(rows) == 1
+    assert (count("fabrik"), count("fabrik-lib")) == (hub0, lib0 + 1)
