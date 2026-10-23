@@ -274,9 +274,11 @@ class TestGlitchtipSpokeWiring:
 
 
 class TestWatchdogSpokeRouting:
-    def test_the_watchdog_provisions_on_the_spoke_that_holds_the_app(self, monkeypatch):
-        """Every watchdog step (build, overlay push, compose up, container inspect) acts on the
-        app's host, and the image is a local tag, so the whole provision call runs swapped."""
+    def test_a_spoke_watchdog_is_refused_before_the_driver_and_vps1_runs_unswapped(
+        self, monkeypatch
+    ):
+        """W-37dda1e1: a spoke watchdog could not alert (apprise is vps1-only), so the registrar refuses it
+        before the driver; vps1 still provisions, with no host swap."""
         monkeypatch.delenv("FABRIK_VPS_SSH_HOST", raising=False)
         seen: list[str | None] = []
 
@@ -289,5 +291,5 @@ class TestWatchdogSpokeRouting:
             prov._provision_watchdog("spoke-app", _ctx("vps2"), dry_run=False)
             prov._provision_watchdog("spoke-app", _ctx("vps1"), dry_run=False)
 
-        assert seen == ["vps2", None]
+        assert seen == [None]
         assert os.environ.get("FABRIK_VPS_SSH_HOST") is None

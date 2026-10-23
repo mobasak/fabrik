@@ -1,0 +1,26 @@
+{
+  "block_digest": "e0441bfc5ad6262636ad62b00cddbebf10a197e2546e3a1c637588ed842e5412",
+  "blocked_by": [],
+  "created": "2026-10-23T15:29:53.726128Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-b989d3b6",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "f2c3d81f35a08bb48fe9f61b4edc3472774f6e03696466e6bbebd3085cf1017f"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May fleet run one read-only status check on vps1's alert service, or will you run it yourself: `ssh -o ProxyJump=vps2 vps \"sudo docker exec apprise curl -s -o /dev/null -w '%{http_code}\\n' http://localhost:8000/status/alerts\"`?",
+  "status": "awaiting-operator",
+  "title": "May fleet run one read-only status check on vps1's alert service, or will you run it yourself: `ssh -o ProxyJump=vps2 vps \"sudo docker exec apprise curl -s -o /dev/null -w '%{http_code}\\n' http://localhost:8000/status/alerts\"`?"
+}

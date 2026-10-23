@@ -1843,3 +1843,342 @@ def test_the_register_writes_the_same_anchor_state_as_before_the_ticket(tmp_path
     assert final.get("cleared_msg"), final
     for i, (a, b) in enumerate(zip(states["old"], states["new"], strict=True)):
         assert b == a, (i, _REGISTER_STEPS[i])
+
+
+# ── W-e64aa44a: the lock-free pending file (D7 W4-O3) ──────────────────────────
+
+
+def _hold(path: Path) -> int:
+    """An exclusive flock on ``path`` held by THIS process until ``os.close``."""
+    import fcntl
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    return fd
+
+
+def _session_lock(env: dict[str, str], sid: str) -> Path:
+    return Path(env["THREAD_ANCHOR_DIR"]) / f"{sid}.lock"
+
+
+def _store_lock(repo: Path) -> Path:
+    return repo / ".git" / "fabrik-work" / ".lock"
+
+
+def _pending_files(env: dict[str, str]) -> list[Path]:
+    return sorted(Path(env["THREAD_ANCHOR_DIR"]).glob("*.pending-*.json"))
+
+
+def _stop_harvest(env: dict[str, str], sid: str, repo: Path) -> tuple[int, str, str]:
+    return run3(
+        ["harvest", "--session", sid, "--decision-ok", "--repo", str(repo)],
+        env,
+        stdin=_DECISION_TEXT,
+    )
+
+
+@pytest.mark.parametrize("who", ["same-session", "other-session"])
+def test_a_block_missing_both_locks_is_rescued_by_the_next_prompt(tmp_path, who):
+    """B1 — the session lock AND the store lock are both busy at the Stop harvest: the block was in
+    neither place and the next prompt had nothing to rescue (D7 W4-O3). Now the Stop side spools
+    it to a lock-free pending file and the next prompt — in that session or another — creates
+    the awaiting item from it, with the harvesting session as creator, and removes the file."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    sfd, wfd = _hold(_session_lock(env, "s-both")), _hold(_store_lock(repo))
+    try:
+        rc, _out, err = _stop_harvest(env, "s-both", repo)
+    finally:
+        os.close(sfd)
+        os.close(wfd)
+    assert rc == 0, err
+    slot = Path(env["THREAD_ANCHOR_DIR"]) / "s-both.json"
+    assert not slot.exists() or not _state(env, "s-both").get("decision"), "the slot was busy"
+    assert _items(repo) == [], "the store was busy, nothing may be there yet"
+    pend = _pending_files(env)
+    assert len(pend) == 1 and pend[0].name.startswith("s-both.pending-"), pend
+    assert "kept in a pending file" in err, err
+    # the file is byte-for-byte the shape the helper below builds (B4-B6 test a real file)
+    dec = json.loads(pend[0].read_text(encoding="utf-8"))["decision"]
+    assert set(dec) == {"ts", "text", "msg", "repo", "session"} and dec["session"] == "s-both", dec
+    assert dec["msg"] == _msg_digest(_DECISION_TEXT) and dec["repo"] == str(repo), dec
+    sid = "s-both" if who == "same-session" else "s-live"
+    rc, out, err = _hook_line(env, _prompt(sid, repo))
+    assert rc == 0, err
+    items = _items(repo)
+    assert len(items) == 1 and items[0]["status"] == "awaiting-operator", (items, err)
+    assert _msg_digest(_DECISION_TEXT) in items[0]["msg_digests"]
+    assert items[0]["creator"] == "s-both", items[0]
+    assert "Deploy the certified build to production now?" in out, out
+    assert _pending_files(env) == [], "a rescued pending file must not linger"
+    _hook_line(env, _prompt("s-other", repo))
+    assert len(_items(repo)) == 1
+
+
+def test_a_block_the_store_took_writes_no_pending_file(tmp_path):
+    """B2 — only the session lock busy: the store takes the block directly, so no pending file."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    sfd = _hold(_session_lock(env, "s-sess"))
+    try:
+        rc, _out, err = _stop_harvest(env, "s-sess", repo)
+    finally:
+        os.close(sfd)
+    assert rc == 0, err
+    assert len(_items(repo)) == 1 and _pending_files(env) == [], (err, _pending_files(env))
+
+
+def test_a_block_the_slot_took_writes_no_pending_file(tmp_path):
+    """B3 — only the store lock busy: the slot holds the block (the existing rescue's path), so
+    no pending file."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    wfd = _hold(_store_lock(repo))
+    try:
+        rc, _out, err = _stop_harvest(env, "s-slot", repo)
+    finally:
+        os.close(wfd)
+    assert rc == 0, err
+    assert _state(env, "s-slot")["decision"]["msg"] == _msg_digest(_DECISION_TEXT)
+    assert _items(repo) == [] and _pending_files(env) == [], (err, _pending_files(env))
+
+
+def _write_pending(
+    env: dict[str, str], sid: str, repo: Path, text: str, ts: float | None = None
+) -> Path:
+    """A pending file as the Stop harvest writes it; ``ts`` also sets the mtime (the production shape:
+    a file's mtime is its write time, and the rescue's age rule reads BOTH)."""
+    dec = dict(_slot(repo, text, ts), session=sid)
+    path = Path(env["THREAD_ANCHOR_DIR"]) / f"{sid}.pending-{dec['msg'][:16]}.json"
+    path.write_text(json.dumps({"decision": dec}), encoding="utf-8")
+    if ts is not None:
+        os.utime(path, (ts, ts))
+    return path
+
+
+def test_a_pending_file_survives_a_busy_store_at_the_rescue_and_mints_one_item(tmp_path):
+    """B4 — the store is busy again at the first prompt: the busy line, no item, the file KEPT;
+    the next prompt writes the item and removes the file; a third prompt creates nothing more."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    path = _write_pending(env, "s-p", repo, _DECISION_TEXT)
+    wfd = _hold(_store_lock(repo))
+    try:  # ANOTHER session's prompt: the file's own session's prompt would be its answer (B8)
+        rc, out, err = _hook_line(env, _prompt("s-x", repo))
+    finally:
+        os.close(wfd)
+    assert rc == 0 and "store busy" in out, (out, err)
+    assert _items(repo) == [] and path.exists()
+    rc, _out, err = _hook_line(env, _prompt("s-q", repo))
+    assert rc == 0, err
+    assert len(_items(repo)) == 1 and not path.exists(), (err, path.exists())
+    _hook_line(env, _prompt("s-r", repo))
+    assert len(_items(repo)) == 1
+
+
+@pytest.mark.parametrize("shape", ["mtime-and-ts-old", "ts-old-mtime-fresh", "mtime-old-ts-fresh"])
+def test_a_pending_file_older_than_seven_days_is_dropped_not_rescued(tmp_path, shape):
+    """B5 — the slot's 7-day rule applies to BOTH halves, either alone: a file whose mtime is stale
+    (the production shape, which `_state_files`'s mtime filter would never have read) is unlinked
+    unread; one restored with a fresh mtime but a stale `ts` is unlinked after the read."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    old, now = time.time() - 8 * 86400, time.time()
+    path = _write_pending(
+        env, "s-old", repo, _DECISION_TEXT, ts=now if shape == "mtime-old-ts-fresh" else old
+    )
+    if shape == "ts-old-mtime-fresh":
+        os.utime(path, (now, now))
+    elif shape == "mtime-old-ts-fresh":
+        os.utime(path, (old, old))
+    assert _hook_line(env, _prompt("s-live", repo))[0] == 0
+    assert _items(repo) == [] and not path.exists()
+
+
+def test_a_pending_file_never_changes_which_slot_block_an_answer_clears(tmp_path):
+    """B6 — session S has a pending file for message M1 and an OPEN slot block M2: the operator's
+    prompt clears M2 (the slot's own block) and M1 still gets its item."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    m1 = _DECISION_TEXT
+    m2 = _DECISION_TEXT.replace("Deploy the certified build", "Rotate the signing key")
+    _write_pending(env, "s-two", repo, m1, ts=time.time() - 60)  # OLDER than the slot (mtime too)
+    _write_state(env, "s-two", _slot_state(repo, m2))
+    rc, _out, err = _hook_line(env, _prompt("s-two", repo, prompt="yes, A"))
+    assert rc == 0, err
+    st = _state(env, "s-two")
+    assert not st.get("decision") and st.get("cleared_msg") == _msg_digest(m2), st
+    minted = [it for it in _items(repo) if _msg_digest(m1) in it["msg_digests"]]
+    assert len(minted) == 1 and minted[0]["creator"] == "s-two", minted
+    assert _pending_files(env) == []
+
+
+_GARBAGE = {
+    "no-session": lambda dec: json.dumps({"decision": dec}),
+    "decision-is-a-list": lambda dec: json.dumps({"decision": [dec]}),
+    "empty-text": lambda dec: json.dumps({"decision": dict(dec, session="s-bad", text="  ")}),
+    "not-json": lambda dec: "{not json",
+    "wrong-name-digest": lambda dec: json.dumps(
+        {"decision": dict(dec, session="s-bad", msg="0" * 64)}
+    ),
+}
+
+
+@pytest.mark.parametrize("shape", sorted(_GARBAGE))
+def test_a_garbage_pending_file_is_swept_not_rescued(tmp_path, shape):
+    """B7a — a pending file no reader can use (no session string, a decision that is not a dict,
+    blank text, not JSON, a name whose digest is not its message) is unlinked and
+    mints nothing — one bad file never keeps the healthy ones waiting or prints the loss line."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    bad = Path(env["THREAD_ANCHOR_DIR"]) / f"s-bad.pending-{_msg_digest(_DECISION_TEXT)[:16]}.json"
+    bad.write_text(_GARBAGE[shape](_slot(repo, _DECISION_TEXT)), encoding="utf-8")
+    rc, out, err = _hook_line(env, _prompt("s-live", repo))
+    assert rc == 0 and _items(repo) == [] and not bad.exists(), (shape, out, err)
+    assert "NOT tracked" not in out and "store busy" not in out, out
+
+
+def test_a_store_less_pending_file_is_kept_then_swept(tmp_path):
+    """B7b — in a repo WITHOUT a store the busy-slot harvest still writes the file, the next prompt
+    neither crashes nor creates, and the file aged 8 days is swept on the following prompt (the
+    sweep runs before the store check)."""
+    env = _env(tmp_path)
+    # a store-less repo
+    (tmp_path / "bare").mkdir()
+    bare = _store_repo(tmp_path / "bare", env, init=False)
+    sfd = _hold(_session_lock(env, "s-nostore"))
+    try:
+        rc, _out, err = _stop_harvest(env, "s-nostore", bare)
+    finally:
+        os.close(sfd)
+    assert rc == 0, err
+    pend = _pending_files(env)
+    assert len(pend) == 1 and pend[0].name.startswith("s-nostore.pending-"), pend
+    # another session's prompts: the file's own session's prompt would be its answer (B8)
+    rc, out, err = _hook_line(env, _prompt("s-other", bare))
+    assert rc == 0 and out == "" and pend[0].exists(), (out, err)
+    old = time.time() - 8 * 86400
+    os.utime(pend[0], (old, old))
+    rc, out, err = _hook_line(env, _prompt("s-other", bare))
+    assert rc == 0 and not pend[0].exists(), (out, err)
+
+
+def test_an_answered_question_whose_pending_file_the_store_could_not_take_is_dropped(tmp_path):
+    """B8 — the slot path's clear semantics hold for a pending file: both locks busy at the Stop,
+    then the operator ANSWERS at the next prompt while the store is still busy — the file is
+    dropped unminted (a slot block cleared here is never rescued later either), and no later
+    prompt mints an item for the answered question (review seats A-sonnet 1 / B-haiku 2)."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    sfd, wfd = _hold(_session_lock(env, "s-ans")), _hold(_store_lock(repo))
+    try:
+        assert _stop_harvest(env, "s-ans", repo)[0] == 0
+    finally:
+        os.close(sfd)
+    assert len(_pending_files(env)) == 1
+    try:  # the store stays busy through the answering prompt
+        rc, out, err = _hook_line(env, _prompt("s-ans", repo, prompt="A — deploy now"))
+    finally:
+        os.close(wfd)
+    assert rc == 0 and "store busy" in out, (out, err)
+    assert _pending_files(env) == [] and _items(repo) == []
+    _hook_line(env, _prompt("s-later", repo))
+    assert _items(repo) == [], "an answered question was minted from a stale pending file"
+
+
+def test_a_slot_write_that_did_not_land_spools_the_block(tmp_path):
+    """B9 — `_update` took the session lock but `_save` could not write the slot (here the slot
+    path is a directory); with the store busy too the block used to be in neither place. The
+    failed save counts as not applied, so the block is spooled (review seat A-haiku 2)."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    (Path(env["THREAD_ANCHOR_DIR"]) / "s-dir.json").mkdir(parents=True)
+    wfd = _hold(_store_lock(repo))
+    try:
+        rc, _out, err = _stop_harvest(env, "s-dir", repo)
+    finally:
+        os.close(wfd)
+    assert rc == 0 and "not saved" in err, err
+    pend = _pending_files(env)
+    assert len(pend) == 1 and pend[0].name.startswith("s-dir.pending-"), (pend, err)
+    rc, _out, err = _hook_line(env, _prompt("s-live", repo))
+    assert rc == 0 and len(_items(repo)) == 1 and _pending_files(env) == [], err
+
+
+def test_another_repos_pending_file_is_left_for_its_own_repo(tmp_path):
+    """B10 — a live pending file for repo A is neither minted into repo B's store nor removed by
+    repo B's prompt; repo A's own prompt mints it (review seat B-sonnet 1: the branch had no
+    grader and its mutant survived)."""
+    env = _env(tmp_path)
+    repo_a = _store_repo(tmp_path, env)
+    (tmp_path / "b").mkdir()
+    repo_b = _store_repo(tmp_path / "b", env)
+    path = _write_pending(env, "s-a", repo_a, _DECISION_TEXT)
+    rc, _out, err = _hook_line(env, _prompt("s-b", repo_b))
+    assert rc == 0 and _items(repo_b) == [] and path.exists(), err
+    rc, _out, err = _hook_line(env, _prompt("s-b", repo_a))
+    assert rc == 0 and len(_items(repo_a)) == 1 and not path.exists(), err
+    assert _items(repo_a)[0]["creator"] == "s-a"
+
+
+def test_pending_files_never_evict_a_slot_from_the_rescue_window(tmp_path):
+    """B11 — the slot scan keeps the 50 newest state files; pending files have their own scan and
+    must not take a slot's place in that window (review seats A-sonnet 4 / A-haiku 4): with 60
+    newer pending files for another repo beside one older slot for this repo, the slot is still
+    rescued."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    (tmp_path / "b").mkdir()
+    other = _store_repo(tmp_path / "b", env)
+    old = time.time() - 3600
+    _write_state(env, "s-slot", _slot_state(repo, _DECISION_TEXT, ts=old))
+    os.utime(Path(env["THREAD_ANCHOR_DIR"]) / "s-slot.json", (old, old))
+    for i in range(60):
+        _write_pending(env, f"s-p{i}", other, _DECISION_TEXT.replace("production", f"stage {i}"))
+    rc, _out, err = _hook_line(env, _prompt("s-live", repo))
+    assert rc == 0, err
+    assert len(_items(repo)) == 1 and _items(other) == [], (err, _items(other))
+    assert len(_pending_files(env)) == 60, "another repo's live files are left for its own prompt"
+
+
+def test_an_oversize_pending_file_is_skipped_unread_and_kept(tmp_path):
+    """B7c — a live, well-formed pending file over the rescue's size cap is neither read nor
+    destroyed (review seat A-haiku pass 2): the slot path skips such files the same way."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    big = _DECISION_TEXT.replace("Deploy the certified build", "x" * (300 * 1024))
+    path = _write_pending(env, "s-big", repo, big)
+    rc, out, err = _hook_line(env, _prompt("s-live", repo))
+    assert rc == 0 and _items(repo) == [] and path.exists(), (out, err)
+
+
+def test_the_answer_drops_only_the_pending_files_the_rescue_collected(tmp_path, monkeypatch):
+    """B12 — the pending twin of the `expect_msg` guard (review seats A-sonnet / A-haiku, pass 2):
+    `cmd_clear_decision` unlinks exactly the files the rescue handed it; with none (a rescue that
+    never ran, a deadline hit) nothing is dropped, and a file written by a concurrent Stop after
+    the collect survives the answer."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    for k in ("THREAD_ANCHOR_DIR", "COMMAND_RUN_DIR", "FABRIK_MAIL_ROOT", "HOME", "TMPDIR"):
+        monkeypatch.setenv(k, env[k])
+    ta = _ta_module()
+    collected = _write_pending(env, "s-c", repo, _DECISION_TEXT)
+    later = _write_pending(env, "s-c", repo, _DECISION_TEXT.replace("production", "staging"))
+    ta.cmd_clear_decision("s-c", "yes, A", expect_msg=None, pending=None)
+    assert collected.exists() and later.exists(), "no rescue ran: nothing may be dropped"
+    ta.cmd_clear_decision("s-c", "yes, A", expect_msg=None, pending=[collected])
+    assert not collected.exists() and later.exists(), "only the collected file is answered"
+    ta.cmd_clear_decision("s-c", "/compact", expect_msg=None, pending=[later])
+    assert later.exists(), "a builtin slash command is not an answer"
+
+
+def test_a_stale_oversize_pending_file_is_swept_not_kept_forever(tmp_path):
+    """B7d — the age sweep runs before the size skip, so an oversize file older than 7 days ages
+    out like any other (review seat A-haiku pass 3): otherwise it would leak forever."""
+    env = _env(tmp_path)
+    repo = _store_repo(tmp_path, env)
+    big = _DECISION_TEXT.replace("Deploy the certified build", "x" * (300 * 1024))
+    path = _write_pending(env, "s-big-old", repo, big, ts=time.time() - 9 * 86400)
+    rc, out, err = _hook_line(env, _prompt("s-live", repo))
+    assert rc == 0 and _items(repo) == [] and not path.exists(), (out, err)

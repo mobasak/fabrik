@@ -63,6 +63,7 @@ window — say so.
    | `6-release` | after certification, `/fabrik-deploy-checklist` freezes the project's parity contract on the certified build (what prod must CONTAIN — every scaffold type; store types provenance-only), then release-readiness verification, hands to the human gate; VPS then runs the deploy triad — `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → (Gate 2) `/fabrik-deploy` — and `/fabrik-deploy-verify` proves it; store surfaces: operator submits, then `/fabrik-deploy-verify` |
    | `gate` | adversarial audit of a produced surface (code, repo, rules packs, workflow artifacts, rendered UI); loops to a no-op. Also **spec↔implementation conformance** (`/fabrik-conformance-review`) — did we actually BUILD what we specced, across every spec + plan |
    | `utility` | support work invocable at any point, not a fixed position in the chain |
+
    ⚠️ **FIRST, ahead of every test below: is the defect in a Fabrik-owned/SYNCED surface?** Then it is outcome (i) — NOT yours to plan or patch: file it upstream (§ Upstream feedback). Editing the synced copy is a HARD STOP, gate-enforced by `check_synced_unmodified.py`, and no row of this table overrides it. The table decides the lane for work that is YOURS.
 
    **The LANE table — apply it to the SMALLEST change that discharges the ask, BEFORE drafting** (grounding: `/opt/fabrik/docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md` § The delta, in the HUB, superseding in part the 2026-09-17 lane spec). Every repo runs lane v2 unless it pins `{"version": 1}` in its own `.fabrik/lane.json`; `start` prints which lane admitted the run. A pinned repo runs the v1 gate instead (more than 3 declared files, a one-way decision or a trade-off → the spec chain; a sync or heavy surface → right-now + the full `/fabrik-review`), which the table below does not describe. The blast-radius tests are PUBLISHED first; the module tests come last. ⚠️ **Rows 3, 4 and 5 take PRECEDENCE over rows 1 and 1b, which in turn take precedence over row 4b** — a change that trips 1 or 1b AND any of 3, 4 or 5 is spec-chain work; a change that trips 4b AND row 1 or 1b is right-now + the full `/fabrik-review` (with no decision there is no lane to take), and 4b with any of 3, 4 or 5 is spec-chain work; otherwise the first row that fires wins — except INSIDE the spec-chain tier, where the gate reports the contract test first, then the appetite, then oneway and tradeoffs, so a refusal naming one may still be hiding another. That is the order the SIZE gate itself evaluates (`scripts/task_lane.py::admit`, called by `scripts/command_run.py::_task_size_gate`), and each `*(declared …)*` label names a `--declare` KEY `start` requires — all six, every run — showing the answer that TRIPS that row, never the answer to pass.
@@ -377,13 +378,14 @@ These rules are **universal** — every repo carries them, hub and project alike
 enforced automatically: your `CLAUDE.md` is byte-synced from the hub template and `check_synced_unmodified.py`
 blocks any local drift, so you cannot fall behind. (A *sync-excluded* repo like `fabrik-lib`, which
 hand-maintains its governance, instead runs `check_governance_drift.py` against the hub's
-`/opt/fabrik/CLAUDE.md`.) The fourteen, by anchor phrase: **COMMIT your own work NOW** · **PUSH it** · **explicit pathspecs only** ·
+`/opt/fabrik/CLAUDE.md`.) The fifteen, by anchor phrase: **COMMIT your own work NOW** · **PUSH it** · **explicit pathspecs only** ·
 **Agent Provenance Trailers** · **NEVER `--force`** · **EXECUTE the real check** ·
 **A bounded search returns "not found in N"** · **its row in `docs/DECISIONS.md` in the SAME change** ·
 **`NEXT: operator decision` HAS A BAR (the `DECISION NEEDED` block)** · **The header is the only hand-written half** ·
 **EVERY code-changing chunk of work gets a review-family pass** ·
 **last 7 lines of every task-completing response** · **CLEAN your own scratch** ·
-**you get the behavior you measure**.
+**you get the behavior you measure** ·
+**gate/hook/enforcement, a governance-sync path, auth/schema/migrations/concurrency, >5 files, or operator-named work**.
 Never reword an anchor in place — drift detectors key on the exact substring, and exact means
 CASE-exact: write an anchor lowercase and MID-sentence in the rule that carries it, because opening a
 sentence with it capitalises the first letter and the check then reports the rule MISSING while it is

@@ -3,7 +3,7 @@
   "created": "2026-09-25T01:22:16.061437Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "281ab09d694d4cbfb3bf97bafb9f7dd8a899f90c",
   "id": "W-e64aa44a",
   "impact": "high",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — accepted DECISION lost silently: data loss in hook",
-  "status": "open",
+  "status": "done",
   "title": "An accepted DECISION is lost when the session lock and the store lock are both busy at the Stop harvest (D7 W4-O3)"
 }

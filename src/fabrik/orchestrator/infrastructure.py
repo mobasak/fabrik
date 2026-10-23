@@ -127,6 +127,12 @@ _HUB_MESH_IP = "10.99.0.1"
 _SHARED_INFRA_HOSTS = ("postgres-main", "redis-main", "glitchtip-web")
 
 
+def _watchdog_target(ctx: Any, spec: dict[str, Any] | None) -> str:
+    """The host a watchdog sidecar would run on — ``ctx.target_vps``, else the spec's, else vps1 — resolved the
+    way ``drivers/watchdog.py`` does, so the registrar's spoke refusal (D-1153) and the driver never disagree."""
+    return getattr(ctx, "target_vps", None) or (spec or {}).get("target_vps") or "vps1"
+
+
 @overload
 def _rewrite_shared_infra_host(url: str, target_vps: str | None) -> str: ...
 @overload
@@ -449,7 +455,12 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
         out["watchdog"] = (
             _enabled(infra, "watchdog"),
             "spec.watchdog.enabled=true"
-            + ("" if _enabled(infra, "watchdog") else " (infra.watchdog=false override)"),
+            + ("" if _enabled(infra, "watchdog") else " (infra.watchdog=false override)")
+            + (
+                f" — refused on spoke {spec['target_vps']} until apprise is mesh-published (D-1153)"
+                if _enabled(infra, "watchdog") and (spec.get("target_vps") or "vps1") != "vps1"
+                else ""
+            ),
         )
     else:
         out["watchdog"] = (False, "not applicable: spec.watchdog.enabled=false")
@@ -750,6 +761,9 @@ class InfrastructureProvisioner:
                 logger.warning("%s registrar skipped for %s: %s", registrar, name, clause)
 
         should_run = {k: v[0] for k, v in resolved.items()}
+        # D-1153: a spoke watchdog is refused in _provision_watchdog; nothing it alone needs is provisioned
+        # for it either — no `<db>_wd_ro/_wd_rw` roles and DSNs in the app's .env, no analytics failure.
+        watchdog_lives = should_run["watchdog"] and _watchdog_target(ctx, spec) == "vps1"
 
         # P1 (watchdog platform): ensure the shared fabrik_analytics DB +
         # cost_ledger table exist BEFORE any per-spec registrar runs.
@@ -759,7 +773,7 @@ class InfrastructureProvisioner:
         # records only when the watchdog is applicable — that dependency is
         # what makes it required; a watchdog-disabled static site must not
         # exit 2 over a shared-analytics blip (review finding, pass 2).
-        self._provision_shared_analytics(ctx, dry_run, record_failure=should_run["watchdog"])
+        self._provision_shared_analytics(ctx, dry_run, record_failure=watchdog_lives)
 
         if should_run["postgres"]:
             self._provision_postgres(
@@ -767,7 +781,7 @@ class InfrastructureProvisioner:
                 spec,
                 ctx,
                 dry_run,
-                provision_watchdog_roles=should_run["watchdog"],
+                provision_watchdog_roles=watchdog_lives,
                 provision_payments_ingest=should_run["payments_ingest"],
                 provision_payments_fulfilment=should_run["payments_fulfilment"],
             )
@@ -1583,7 +1597,26 @@ class InfrastructureProvisioner:
         to a WARNING (non-fatal — every registrar's failure is bounded) if the
         driver module isn't present yet. That keeps `fabrik apply` working on
         existing specs that don't depend on the watchdog while T-P2 finishes.
+
+        A spoke-targeted watchdog is refused, real and dry run alike (W-37dda1e1): its sidecar could not
+        alert — vps1's apprise has no mesh port and its Traefik route is 2FA-gated, and no legal spec can point
+        the sidecar elsewhere (WatchdogConfig has no apprise_url). Non-fatal, unlike the deploy-aborting
+        `_assert_error_webhook_colocated` (orchestrator/__init__.py): the app is healthy and stays up; only its
+        watchdog is withheld, and the apply ends red.
         """
+        target = _watchdog_target(ctx, getattr(ctx, "spec", None))
+        if target != "vps1":
+            self._nonfatal(
+                ctx,
+                "watchdog",
+                RuntimeError(
+                    f"a watchdog on {target} could not alert: vps1's apprise is not reachable from a spoke "
+                    "(no mesh port; its Traefik route is 2FA-gated), so the sidecar is not provisioned or "
+                    "refreshed (one already running there is left as it is). Set `watchdog.enabled: false` in "
+                    "this spec, or wait for W-5dcafaef (apprise mesh-published, a spoke login preflight)"
+                ),
+            )
+            return
         if dry_run:
             logger.info(
                 "[dry-run] watchdog: would build fabrik/watchdog:%s + inject sidecar service "

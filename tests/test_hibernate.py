@@ -584,3 +584,79 @@ def test_the_run_record_filename_is_command_runs_own() -> None:
     hib, cr = _load("hib_probe", HIB), _load("cr_probe", COMMAND_RUN)
     for sid in ("66b5e327-a366-4213-99e6-e362925e6142", "abc.xyz", "abc xyz", "", "a/b", "ü"):
         assert hib._safe_sid(sid) == cr._safe_sid(sid), sid
+
+
+def test_lift_prints_rotation_offers_and_survives_their_fault(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """W-f975fee0 slice 3: once the pause is lifted, `lift` offers `rotate-session` for every live agent at/past the
+    threshold; a fault in the offer never fails the lift."""
+    box = Box(tmp_path)
+    repo = box.repo("r1", "coordinator")
+    sid = "33333333-3333-4333-8333-333333333333"
+    box.session(4242, sid, repo, "dev1-peer", env_agent="dev1")
+    tr = box.home / ".claude" / "projects" / "-r1" / f"{sid}.jsonl"
+    tr.parent.mkdir(parents=True)
+    tr.write_text(
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {"model": "m", "usage": {"cache_read_input_tokens": 450000}},
+            }
+        )
+        + "\n"
+    )
+    box.run("mark", "--words", "w")
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(box.home),
+        "SESSION_ARCHIVE_ENV_FILE": str(tmp_path / "none.env"),
+    }
+    out = subprocess.run(
+        [
+            sys.executable,
+            str(HIB),
+            "--home",
+            str(box.home),
+            "--proc",
+            str(box.proc),
+            "--opt",
+            str(box.opt),
+            "lift",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+    )
+    assert out.returncode == 0, out.stderr
+    assert "rotation offers" in out.stdout, out.stdout
+    assert f"rotate-session dev1 --repo {repo} --trigger lift" in out.stdout, out.stdout
+    hib = _load("hibernate_lift_fault", HIB)
+    box.run("mark", "--words", "w2")
+
+    def boom():
+        raise RuntimeError("offer loader broke")
+
+    monkeypatch.setattr(hib, "_load_rotate", boom)
+    rc = hib.main(["--home", str(box.home), "--proc", str(box.proc), "--opt", str(box.opt), "lift"])
+    marker = json.loads((box.home / ".claude" / "state" / "hibernate.json").read_text())
+    assert rc == 0 and "lifted_at" in marker
+    assert "rotation offers unavailable" in capsys.readouterr().err
+    # review B1/B2: a fault past the loader — SystemExit inside due(), or one raised while printing — never fails it
+    for fault in (SystemExit(3), UnicodeEncodeError("utf-8", "x", 0, 1, "surrogate")):
+
+        class Rs:
+            @staticmethod
+            def due(*a, _f=fault, **k):
+                raise _f
+
+        box.run("mark", "--words", "w3")
+        monkeypatch.setattr(hib, "_load_rotate", lambda: Rs)
+        assert (
+            hib.main(
+                ["--home", str(box.home), "--proc", str(box.proc), "--opt", str(box.opt), "lift"]
+            )
+            == 0
+        )
+        assert "rotation offers unavailable" in capsys.readouterr().err

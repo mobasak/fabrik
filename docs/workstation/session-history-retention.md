@@ -12,7 +12,7 @@ local, the four named hub windows, never a session visible on screen), D-737 (Ph
 | Piece | Where | What it does |
 |---|---|---|
 | `session-archive.timer` | `~/.config/systemd/user/` (source: `scripts/sysadmin/systemd/`) | daily, `Persistent=true` — a run missed while the machine was off fires when the user manager next starts; linger keeps that manager up without a login |
-| `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver; a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
+| `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver, the pruner, and `rotate_session.py due --mb-only --mail` (W-f975fee0 slice 3: each repo's mailbox gets one `ack: no` mail — the hub's addressed to its coordinator — listing the agents whose transcript is past `ROTATE_ADVISE_MB`, with the rotate command for each; its `-` keeps a mail failure from failing the unit); a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
 | `scripts/sysadmin/transcript_size_check.py` | user-level hook (every window) | the ROTATE advisory (D-736 C.1.3): one `ROTATE:` line when a session's transcript crosses a new 100 MB step at or past `ROTATE_ADVISE_MB` (200) — at the next item boundary `rotate <agent>` to the coordinator, who types `/clear <agent>-<date>` and the informed `--force` re-bind; and the context sensor (W-f975fee0): `ROTATE-DUE` from 40% of the window, `COMPACT-DUE` from 85%, once per step; stamped per session, fail-open |
 | `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript (`ARCHIVE_AFTER_DAYS`, default 0 — an open window ships a daily snapshot, compressed from a frozen copy) into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest |
@@ -140,17 +140,40 @@ step, and from 40% of the context window a `ROTATE-DUE` line at 40, 50, 60, 70 a
 `rotate <agent>` (or `compact <agent> <focus>`), and the coordinator runs `agents_up.sh rotate-session <agent>
 [--compact <focus>] [--trigger ctx|mb|unrelated|compact|manual|lift]` from its repo (D-1135). That verb
 (`scripts/sysadmin/rotate_session.py request`) resolves the pane tagged `@agent <agent>`, its one `claude` process and
-that process's registry session, and aborts at the first failing check: the session idle for 30 s, the transcript
+that process's registry session, and aborts at the first failing check: the transcript unwritten for 30 s, the transcript
 ended at a turn end, no run record running, no seat in flight, the worktree clean and pushed, the pane's input line
 empty. It then writes ONE data-only request (`~/.claude/state/rotate-requests/<repo>--<agent>.json`; one at a
 time). The user unit `fabrik-rotate.path` starts `fabrik-rotate.service` (`rotate_session.py execute`), which
-re-runs every check, types `/clear <agent>-<date>` (or `/compact <focus>`), waits for the registry's new session id,
+re-runs every check, types `/clear <agent>-<date>` (or `/compact <focus>`) — each text pasted, then `C-m` as its own
+call once the input line shows that text unchanged over two captures, then the input line must hold something other
+than that text (empty, a placeholder, a dialog) (an Enter sent right behind the paste was swallowed, W-b92aa5cf) —
+waits for the registry's new session id,
 then types one resume prompt — re-arm the self-watch (a /clear may kill or orphan background shells), re-bind with
 `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force`, read only the memory notes, `work.py next` and
 the run's seed — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
-`partial:<step>`, and the verb's `aborted:<check>`) in `~/.claude/state/rotations.jsonl`. Nothing is queued or retried: keys typed mid-turn would
+`partial:<step>`, `typed-unsent:<step>` — a text that never showed, never settled, or stayed in the input line after `C-m` —, and the verb's `aborted:<check>`) in
+`~/.claude/state/rotations.jsonl`. Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
 reports). The previous session stays resumable and is archived that night.
+
+The pane's input box must be empty for a rotation: check 5 reads every row of the box down to its closing rule, and the
+dim placeholder of a fresh box counts as empty. Text someone left unsent in the box blocks it; the coordinator clears it
+with `agents_up.sh rotate-session <agent> --stale-input discard --operator-ok "<the operator's words>"` (W-ee19169d):
+the request records the box's text (its rows joined, whitespace collapsed), and the unit acts only when the box still
+reads exactly that text on two captures 2 s apart and every check passes again right before the key (the session idle
+— an Escape in a running turn would interrupt it). It then sends one fast double Escape, which Claude Code uses to
+clear a non-empty box (C-u deletes only the current row). On an empty box a double Escape opens the Rewind menu, which
+the unit closes and refuses. The box must read empty before the normal rotation runs, and the discarded text and the
+operator's words are written to the row.
+
+Nothing types a rotation unasked, but two listings offer them (W-f975fee0 slice 3): `rotate_session.py due
+[--mb-only] [--mail]` lists every live agent at or past 40% of its context window or `ROTATE_ADVISE_MB`, the caller
+and the coordinators included, pool seats never, with its action — the exact `agents_up.sh rotate-session <agent>
+--repo <repo> --trigger ctx|mb` for a tmux (`cli`) agent, the operator's `/clear <agent>-<date>` for a window with no
+pane — and an agent it cannot read (no name bound, no single transcript) as an `unread` row, never dropped.
+`hibernate.py lift` prints the same rows as offers with `--trigger lift`, and the nightly unit mails them MB-only.
+The request directory is created 0700 by `request`, `execute` and the installer; a symlinked one refuses in all three,
+and one another uid owns refuses in `request` and `execute`.
 
 ## Checking it
 

@@ -3,7 +3,7 @@
   "created": "2026-10-22T12:19:43.578813Z",
   "creator": "infra-2",
   "effort": "low",
-  "evidence": "",
+  "evidence": "30194fc39ba3994e578d5ecde1e1069480731b7e",
   "id": "W-76c49aa8",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 3,
   "score_reason": "infra-2's own follow-on from W-80ffca68 (the two markdown walks' shared GFM gaps + a liveness_audit fixture); a fill-in, batched behind its P1 rule-text items",
-  "status": "open",
+  "status": "done",
   "tags": [
     "enforcement",
     "infra",

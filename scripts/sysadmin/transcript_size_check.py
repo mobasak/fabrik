@@ -133,7 +133,7 @@ def _threshold_mb() -> int:
     raw = _hub_setting("ROTATE_ADVISE_MB")
     try:
         return max(1, int(float(raw))) if raw else DEFAULT_THRESHOLD_MB
-    except ValueError:
+    except (ValueError, OverflowError):  # "nan" is a ValueError, "inf" an OverflowError at int()
         return DEFAULT_THRESHOLD_MB
 
 

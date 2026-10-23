@@ -1657,7 +1657,7 @@ def _check_universal_anchors(text: str) -> None:
     assert text.count(start) == 1, "§ UNIVERSAL heading drifted"
     before, rest = text.split(start, 1)
     section, after = rest.split("\n## ", 1)
-    anchors = re.findall(r"^- `[a-z-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
+    anchors = re.findall(r"^- `[a-z0-9-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
     assert len(anchors) >= 14, f"the anchor list parsed short: {anchors}"
     body = before + "\n## " + after
     missing = [a for a in anchors if a not in body]
@@ -1797,7 +1797,7 @@ def test_every_universal_anchor_survives_in_the_templates_rules_outside_its_inde
     condensed index line, which always carries every anchor and so would prove nothing."""
     hub = _hub_text()
     section = hub.split("## UNIVERSAL governance markers", 1)[1].split("\n## ", 1)[0]
-    anchors = re.findall(r"^- `[a-z-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
+    anchors = re.findall(r"^- `[a-z0-9-]+` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
     assert len(anchors) >= 14, f"the anchor list parsed short: {anchors}"
     tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
     start = "## UNIVERSAL governance markers"
@@ -2353,3 +2353,195 @@ def test_the_templates_row_1_binds_its_recipient_clause_to_the_gates_own_code(
     assert cr._sync_applies(recipient) is False, "a plain directory with no lock reads synced"
     (recipient / ".fabrik" / "synced.lock").write_text("{}", encoding="utf-8")
     assert cr._sync_applies(recipient) is True, "the synced lock is what makes a repo a recipient"
+
+
+# ---------------------------------------------------------------------------------------------
+# W-4bb2166c — § 1a's heavy-surface list is a UNIVERSAL anchor (`heavy-surface-list`), so a
+# sync-excluded copy that drops a class is a gate warning at its own gate, not a mail. The span
+# starts AFTER class 1's `(D-315)` parenthetical — the one place fabrik-lib legitimately expands
+# the list — and ends before the `lane row 1b` pointer, which is a cross-reference, not a class.
+# ---------------------------------------------------------------------------------------------
+
+_HEAVY_SURFACE_LABEL = "heavy-surface-list"
+_HEAVY_SURFACE_ANCHOR = (
+    "gate/hook/enforcement, a governance-sync path, auth/schema/migrations/concurrency, "
+    ">5 files, or operator-named work"
+)
+_UNIVERSAL_HEADING = "## UNIVERSAL governance markers"
+_NUMBER_WORDS = dict(
+    enumerate(
+        [
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+            "thirteen",
+            "fourteen",
+            "fifteen",
+            "sixteen",
+            "seventeen",
+            "eighteen",
+            "nineteen",
+            "twenty",
+        ]
+    )
+)
+
+
+def _hub_universal_bullets(hub: str) -> list[tuple[str, str]]:
+    """(label, anchor) per bullet of the hub's index, under the regex fabrik-lib's checker and this
+    module's `_check_universal_anchors` both apply."""
+    section = hub.split(_UNIVERSAL_HEADING, 1)[1].split("\n## ", 1)[0]
+    return re.findall(r"^- `([a-z0-9-]+)` — anchor \*\*(.+?)\*\* — ", section, re.MULTILINE)
+
+
+def _body_outside_universal_index(text: str) -> str:
+    before, rest = text.split(_UNIVERSAL_HEADING, 1)
+    return before + "\n## " + rest.split("\n## ", 1)[1]
+
+
+def _section_1a(text: str) -> str:
+    para = [ln for ln in text.split("\n") if ln.lstrip().startswith("1a. **SELF-REVIEW")]
+    assert len(para) == 1, f"§ 1a's opening line moved or split ({len(para)} matches)"
+    return para[0]
+
+
+def test_the_heavy_surface_list_is_a_universal_anchor_carried_by_1a() -> None:
+    """Behaviour 1: the hub index declares `heavy-surface-list` with the exact span, and that span
+    sits inside § Completion Contract 1a — in the hub and in the template — exactly once in each
+    body outside the index. Mutants: delete the bullet → RED; reword one class in § 1a → RED;
+    bold `**a governance-sync path**` inside the list (what fabrik-lib did) → RED."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    declared = dict(_hub_universal_bullets(hub))
+    assert declared.get(_HEAVY_SURFACE_LABEL) == _HEAVY_SURFACE_ANCHOR, (
+        f"the hub index does not declare `{_HEAVY_SURFACE_LABEL}` with the § 1a span: "
+        f"{declared.get(_HEAVY_SURFACE_LABEL)!r}"
+    )
+    for name, text in (("hub", hub), ("template", tpl)):
+        assert _HEAVY_SURFACE_ANCHOR in _section_1a(text), (
+            f"the {name}'s § 1a no longer carries the heavy-surface span verbatim"
+        )
+        assert _body_outside_universal_index(text).count(_HEAVY_SURFACE_ANCHOR) == 1, (
+            f"the {name} carries the span other than once outside the index — a repeat needs a "
+            "pinned carrier, a zero is drift"
+        )
+
+
+def test_the_templates_condensed_anchor_line_counts_the_hub_bullets() -> None:
+    """Behaviour 2: the template's condensed index (one line, a sanctioned format divergence from
+    the hub's per-bullet table) carries the heavy-surface anchor, and its lead-in count word is the
+    number of bullets the hub index declares — a count lives at its list. Mutants: leave `The
+    fourteen` beside 15 hub bullets → RED; drop the anchor from the line → RED."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    n = len(_hub_universal_bullets(hub))
+    assert n in _NUMBER_WORDS, (
+        f"the hub index declares {n} anchors; extend _NUMBER_WORDS past twenty"
+    )
+    section = tpl.split(_UNIVERSAL_HEADING, 1)[1].split("\n## ", 1)[0]
+    # The list runs from its lead-in to the paragraph that follows it; its shape is graded explicitly
+    # (every line but the last ends ` ·`, the last ends `**.`), so a stray `.` inside the list is
+    # reported as a shape defect, never as a missing anchor.
+    m = re.search(
+        r"The (\w+), by anchor phrase:(.*?)\nNever reword an anchor in place", section, re.DOTALL
+    )
+    assert m, (
+        "the template's condensed anchor list (`The <count>, by anchor phrase:` … up to `Never reword "
+        "an anchor in place`) is gone"
+    )
+    # The anchor's presence is asserted FIRST, so a deleted entry is reported as the missing anchor it
+    # is, never as the shape defect its deletion leaves behind (the span is the list's last entry).
+    anchors_on_line = re.findall(r"\*\*(.+?)\*\*", m.group(2))
+    assert _HEAVY_SURFACE_ANCHOR in anchors_on_line, (
+        "the template's condensed line does not carry the heavy-surface anchor"
+    )
+    listing = m.group(2).strip().split("\n")
+    malformed = [ln for ln in listing[:-1] if not ln.rstrip().endswith(" ·")]
+    assert not malformed, f"condensed-list lines that do not end ` ·`: {malformed}"
+    assert listing[-1].rstrip().endswith("**."), (
+        f"the condensed list must end with its last anchor and a period: {listing[-1]!r}"
+    )
+    assert m.group(1) == _NUMBER_WORDS[n], (
+        f"the template counts `{m.group(1)}` anchors; the hub index declares {n}"
+    )
+    assert len(anchors_on_line) == n, (
+        f"the condensed line carries {len(anchors_on_line)} anchors; the hub index declares {n}"
+    )
+
+
+_FABRIK_LIB_DRIFT_CHECK = Path("/opt/fabrik-lib/scripts/enforcement/check_governance_drift.py")
+
+
+def test_fabrik_libs_drift_parser_declares_the_heavy_surface_anchor() -> None:
+    """Behaviour 3: the REAL consumer — fabrik-lib's `check_governance_drift.py::declared_markers`
+    — parses the hub index and returns the new marker, so the warning the item asks for fires
+    without anyone editing fabrik-lib. Executed, not re-implemented: the hub regex in this module is
+    a copy and a copy can agree with itself. Skips, naming the path, where fabrik-lib is not
+    checked out (CI); on the box it runs."""
+    if not _FABRIK_LIB_DRIFT_CHECK.is_file():
+        pytest.skip(f"{_FABRIK_LIB_DRIFT_CHECK} is not on this box — the real parser cannot run")
+    spec = importlib.util.spec_from_file_location("check_governance_drift", _FABRIK_LIB_DRIFT_CHECK)
+    assert spec and spec.loader
+    cgd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cgd)
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    declared = {label: anchor for label, anchor, _why in cgd.declared_markers(hub)}
+    assert declared.get(_HEAVY_SURFACE_LABEL) == _HEAVY_SURFACE_ANCHOR, (
+        f"fabrik-lib's parser does not see `{_HEAVY_SURFACE_LABEL}`: {declared.get(_HEAVY_SURFACE_LABEL)!r}"
+    )
+    # and the anchor is one its check would look for in the hub's own rules (not only the index)
+    assert _HEAVY_SURFACE_ANCHOR in cgd._strip_anchor_index(hub), (
+        "the hub's rules outside the index no longer state the anchor — fabrik-lib would report "
+        "`declared but not stated`"
+    )
+
+
+def _stage_table_rows(text: str) -> tuple[int, str]:
+    """(row count, the last row's first cell) of the § Orient step-0 Stage table as markdown_it renders it."""
+    markdown_it = pytest.importorskip("markdown_it")
+    md = markdown_it.MarkdownIt("commonmark").enable("table")
+    toks = md.parse(text)
+    i = 0
+    while i < len(toks):
+        if toks[i].type == "table_open":
+            rows: list[list[str]] = []
+            j = i
+            while toks[j].type != "table_close":
+                if toks[j].type == "tr_open":
+                    rows.append([])
+                if toks[j].type == "inline" and toks[j - 1].type in ("td_open", "th_open"):
+                    rows[-1].append(toks[j].content)
+                j += 1
+            if rows and rows[0] and rows[0][0] == "Stage":
+                return len(rows), rows[-1][0]
+            i = j
+        i += 1
+    raise AssertionError("no Stage table rendered")
+
+
+def test_the_stage_table_is_not_glued_to_the_first_paragraph_in_either_contract() -> None:
+    """W-155cf5a5: a prose line directly under a table row is a lazy ROW to GFM (spec example 201). The
+    template's "⚠️ FIRST, ahead of every test below" paragraph had no blank line above it, so it rendered as
+    the Stage table's tenth row in the template and its 49 fleet copies while the hub's blank line kept its
+    table at nine rows. Oracle: markdown_it (commonmark + the table rule); skipped where it is absent (CI),
+    by design — the shape is also recorded, not read, by check_governance_tables.py's `_tables`.
+
+    Mutant: delete the blank line under the template's `utility` row — RED (ten rows, first cell the
+    paragraph)."""
+    hub_rows, hub_last = _stage_table_rows((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
+    tpl_rows, tpl_last = _stage_table_rows((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
+    assert (hub_rows, hub_last) == (9, "`utility`"), (hub_rows, hub_last[:60])
+    assert (tpl_rows, tpl_last) == (9, "`utility`"), (
+        f"the template's Stage table renders {tpl_rows} rows; its last row begins {tpl_last[:60]!r} — "
+        "a paragraph glued under the table is a row to GFM"
+    )

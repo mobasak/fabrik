@@ -7,7 +7,8 @@ text, prove the box is safe to sleep, and tell a woken agent that the box slept.
                                   owner) and the pool sessions that are never messaged
   brief --role coordinator|agent --words "<the operator's words>"   the pause text to send
   mark --words "…"                start a pause (the only writer of ~/.claude/state/hibernate.json)
-  lift                            the hub, once awake: every paused agent's `woke` answers RESUME (adds lifted_at)
+  lift                            the hub, once awake: every paused agent's `woke` answers RESUME (adds lifted_at),
+                                  then prints rotation offers for the agents past the line (rotate_session `due`)
   status [--json] [--self SID]    one table: every live agent's worktree clean and pushed, no run `running` (the
                                   caller's own run excepted); SAFE TO HIBERNATE only when no row blocks
   woke [--self SID]               exit 0 when the box slept (or the hub lifted) after the current pause and this
@@ -30,8 +31,10 @@ only after the CURRENT mark, and a session already running its work again reads 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import glob
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -480,6 +483,41 @@ def status(home: Path, proc: Path, self_sid: str, opt: str = "/opt") -> tuple[in
 # ── CLI ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
+def _load_rotate():
+    """rotate_session, loaded at the call: it loads this module at import, so a top-level import would be circular."""
+    spec = importlib.util.spec_from_file_location(
+        "_hib_rotate_session", Path(__file__).resolve().parent / "rotate_session.py"
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("cannot load rotate_session.py beside hibernate.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _offer_rotations(home: Path, proc: Path, opt: str) -> None:
+    """After a lift: the agents past the rotation line, as offers (W-f975fee0 slice 3). Advice only — any fault is one
+    stderr line and never fails the lift, which is the act."""
+    try:
+        rs = _load_rotate()
+        lines = [
+            f"  {r.get('repo') or '(no repo)'} {rs._line(dict(r, trigger='lift') if r['state'] == 'due' else r)}"
+            for r in rs.due(home, proc, opt=opt)
+        ]
+        if lines:
+            print(
+                "hibernate: rotation offers — run each command at that agent's next boundary (D-1123); "
+                "an unread row needs a look:\n" + "\n".join(lines)
+            )
+    # SystemExit too: rotate_session's import-time loads must not end the lift; a KeyboardInterrupt still does
+    except (Exception, SystemExit) as exc:  # noqa: BLE001 — the lift is stamped already; a missing offer is safe
+        with contextlib.suppress(Exception):
+            print(
+                f"hibernate: rotation offers unavailable — {type(exc).__name__}: {exc!r}",
+                file=sys.stderr,
+            )
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     ap.add_argument("--home", default=os.path.expanduser("~"), help=argparse.SUPPRESS)
@@ -516,6 +554,7 @@ def main(argv: list[str] | None = None) -> int:
         m["lifted_at"] = time.time()
         _write_marker(home, m)
         print("hibernate: pause lifted — every paused agent's `woke` now answers RESUME")
+        _offer_rotations(home, proc, a.opt)
         return 0
     if a.verb == "woke":
         rc, msg = woke(home, a.self)

@@ -146,7 +146,7 @@ These resolve only *inside* a container on the same `fabrik` network on the same
 | Loki push API | `http://loki:3100/loki/api/v1/push` |
 | Prometheus query | `http://prometheus:9090` |
 | Authelia forward-auth target | `http://authelia:9091/api/verify` |
-| Apprise notify (stateful — the fleet convention) | `http://apprise:8000/notify/alerts` |
+| Apprise notify (stateful — the fleet convention; vps1 containers only: no mesh port, so a spoke watchdog is refused until it is mesh-published, W-37dda1e1) | `http://apprise:8000/notify/alerts` |
 | Apprise notify (stateless — n8n only) | `http://apprise:8000/notify` |
 | Gotenberg | `http://gotenberg:3000` |
 | Browserless | `http://browserless:3000` |

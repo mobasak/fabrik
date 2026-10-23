@@ -158,7 +158,16 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
   as on the BLOCKING bullet below. A design rule that names stores (a matrix, an allowlist, an entity schema's
   fields) is preceded by an executed census of each store's current members, and its invariants are written against
   that census, never against one member. An executed in-repo measurement outranks a web answer about the repo's own
-  code; a vendored or installed third-party package's behaviour stays an external claim under this gate.
+  code; a vendored or installed third-party package's behaviour stays an external claim under this gate. A design
+  that changes what an existing function, value, build script, table or pattern does, holds, matches or grants is
+  preceded, before Phase 3, by an executed census of its readers, its command and output cited in the spec and each
+  reader named there for the plan's File Scope (`/fabrik-plan-after-chat` Phase 1's reader census, extended here to
+  tables and patterns): a symbol's, value's or script's readers by its call sites (`find_referencing_symbols`, a
+  build script's callers followed transitively) plus a grep of its name, its file's basename and its path; a table's
+  SQL statements, views, ORM models and migrations, found by its bare and schema-qualified names; a matcher's (a gate
+  pattern's) corpus, searched with the flags read from its call under the old pattern and the new. A subject another
+  repo can read (a fleet-synced file, a hub script, API, path or value) is censused across repos: `find` lists the
+  repos, installed dependency directories (`node_modules`, `.venv`) pruned, then each repo found is scanned.
 - **Freshness (CLAUDE.md):** the research must be run in THIS session. An external claim with no fresh cited
   source is a defect.
 - **BLOCKING:** you may NOT present approaches (Phase 3) until every external dependency is either

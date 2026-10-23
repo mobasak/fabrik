@@ -812,9 +812,13 @@ def test_a_wording_change_seat_runs_the_command_the_sentence_names() -> None:
     review ran the command the changed text described, unprompted; the brief now asks for it."""
     cat = _norm(ROOT / "commands" / "_fragments" / "review-probe-catalogue.md")
     assert (
-        "run a README snippet, usage text or rewritten docstring instruction as a caller would, and hand each seat of"
-        " the brief that same command to run under § Seat isolation — one that writes a live store, sends, commits,"
-        " deploys or reaches a host stays the lead's — and probe"
+        "run a README snippet, usage text or rewritten docstring instruction as a caller would, and hand each "
+        "seat of the brief that same command to run under § Seat isolation — one that writes a live store, "
+        "sends, commits, deploys or reaches a host stays the lead's, who runs it on a scratch target (a "
+        "throwaway database, repo, host or account), every such command and SQL block of a runbook included, "
+        "or, when no scratch target exists, names it in the brief as not run, with why and the owner who can "
+        "run it; only a read that changes nothing (no write, lock, quota spend or triggered job) runs against "
+        "its real host — and probe"
     ) in cat
     assert "every citation in a docs change, every cross-repo claim" in cat, (
         "the Execute line stays the lead's"

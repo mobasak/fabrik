@@ -234,3 +234,38 @@ def test_the_downgrade_check_names_the_lane_ledger_path(monkeypatch, tmp_path: P
     assert cr._lane_ledger() == tmp_path / ".claude" / "state" / "lane-refusals.jsonl"
     monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "x" / "runs"))
     assert cr._lane_ledger() == tmp_path / "x" / "lane-refusals.jsonl"
+
+
+def _live(path: Path, start: str, end: str) -> str:
+    """The comment-free text from `start` to the next `end` — a commented-out rule is not a live one."""
+    text = re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", " ", path.read_text(), flags=re.S))
+    assert text.count(start) == 1, f"anchor not unique or moved: {start!r}"
+    i = text.index(start)
+    return text[i : text.index(end, i + len(start))]
+
+
+def test_a_design_that_changes_what_readers_read_censuses_them_per_reader_kind() -> None:
+    """Rows 1792540718, 1792539852, 1792561636: the 1a local-claims bullet requires, before Phase 3, a reader census per
+    reader kind (symbol, value or script, table incl. grants, matcher under the old and new pattern) and a
+    find-then-scan across repos for a subject another repo can read."""
+    local = _live(SRC, "**Local claims are executed, not cited:**", "- **Freshness (CLAUDE.md):**")
+    assert (
+        "A design that changes what an existing function, value, build script, table or pattern does, holds,"
+        " matches or grants is preceded, before Phase 3, by an executed census of its readers, its command and output"
+        " cited in the spec and each reader named there for the plan's File Scope (`/fabrik-plan-after-chat` Phase 1's"
+        " reader census, extended here to tables and patterns): a symbol's, value's or script's readers by its call"
+        " sites (`find_referencing_symbols`, a build script's callers followed transitively) plus a grep of its name,"
+        " its file's basename and its path; a table's SQL statements, views, ORM models and migrations, found by its"
+        " bare and schema-qualified names; a matcher's (a gate pattern's) corpus, searched with the flags read from"
+        " its call under the old pattern and the new. A subject another repo can read (a fleet-synced file, a hub"
+        " script, API, path or value) is censused across repos: `find` lists the repos, installed dependency"
+        " directories (`node_modules`, `.venv`) pruned, then each repo found is scanned."
+    ) in local
+    plan = _live(
+        ROOT / "commands" / "_sources" / "fabrik-plan-after-chat.md", "## Phase 1 —", "## Phase 2 —"
+    )
+    assert (
+        "census its production readers before any step that changes it: the call sites"
+        " (`find_referencing_symbols`) plus a grep of its name, its file's basename and its path"
+        in plan
+    ), "the census this sentence extends left /fabrik-plan-after-chat Phase 1"

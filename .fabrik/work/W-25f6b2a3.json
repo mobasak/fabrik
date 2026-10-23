@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T14:18:54.979290Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-25f6b2a3",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the prefix per injection source (CLAUDE.md, @imports, each hook's additionalContext, the mail digest, memory), then cut the biggest with a grader: hooks inject pointers not bodies; the mail digest 10 → 3 rows; and make transcript_size_check measure growth ABOVE the first turn's prefix (its target 40% is unreachable otherwise). Token-waste series D-1118.",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 0,
+  "score_reason": "the single largest token-waste cause on the box: a ~640k prefix on every turn of every session; the first cut is measurement plus one or two injections turned into pointers",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Every hub session is born at ~64% context: transcript_size_check.py's ctx measure counts the cached PREFIX (the 134 KB hub CLAUDE.md + agents-fabrik-core + every hook's injected context + the 10-row mail digest + the recalled memory index), so a freshly rotated builder (infra-3 85584cc3, first prompt) already reads ROTATE-DUE and every turn of every builder re-sends ~640k tokens — six builders burned the weekly window at 0.8%/m on 2026-10-23 17:25 (81% → wall projected in 23 min). Rotation cannot fix this; the prefix can. (infra-3's finding + the coordinator's quota reading)"
+}
