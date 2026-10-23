@@ -162,7 +162,8 @@ command exists. End the run by **sending the proposal to the hub via fabrik-mail
 name the committed proposal path(s) in the body — a body with the message contract's WHAT, WHERE, WHEN, WHO,
 WHY, HOW and SYSTEMIC headers (`docs/reference/fabrik-mail.md` § The message contract) — and `python scripts/mail.py send --to fabrik --to-agent
 <beat> --kind request --ack required`, `<beat>` the file's owner in the close-out's Route-by-BEAT table (`kaizen` for a
-command's or rule's wording, `infra` for scripts, hooks, sync and checks) — or `--to fabrik-lib --kind
+command's or rule's wording, `infra` for scripts, hooks, sync and checks, and for any other synced file such as the project `CLAUDE.md`, which the
+map gives infra as `templates/governance/**`) — or `--to fabrik-lib --kind
 upstream-feedback --ack required` when the proposal is a vendored
 fabrik-lib module fix. The explicit `--kind`/`--ack` preserve the proposal's durable, **acked** audit trail (a
 default `finding`/`ack:no` send would strip it). This replaces the old operator-relay hand-off — the hub's
