@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
+
+- MEASURE runs every probe under an interpreter shown to import its libraries and each extra it enables, since a system `python3` may lack one (rows 1792766698, 1792734746: the system markdown_it lacked linkify; 14 of the 15 project venvs that carry markdown_it lack linkify too).
+- MIRROR's search takes every other `/opt` main checkout's tests and CI files citing a changed path, beside the vendored copies found by name (row 1792731898).
+- Phase 4: each path a review fix touches that APPROACH/MIRROR does not name has phase 2's plan-lock check run on it before the fix edits it, and gets *(v2)* `step --phase 4 --design-amend <path>` once the nested review has closed (row 1792765470). Phase 2's remedy names the current phase, because `step` sets the record's phase to the one it names: a `--phase 2` amend at phase 4 or 5 moved the run back.
+- `tests/test_fabrik_task_source.py` SIZE_CAP 26506 -> 26951 (D-1162); three graders in `tests/test_fabrik_task_queue_pass.py`. Twelve other queued rows were rejected with reasons; two needing `command_run.py` code went to infra (mail 01M5MPTMJH), and so did `task_lane.py:741`'s refusal, which still prints the `--phase 2` remedy (mail 01M5MR4C8W).
+
 ### Changed — /fabrik-spec: a design that changes what existing readers read censuses them per reader kind before Phase 3 (2026-10-23)
 
 - The 1a local-claims bullet requires an executed reader census before Phase 3: a symbol, value or build script by call sites (callers followed transitively) plus name, basename and path greps; a table by its SQL statements, views, ORM models and migrations under bare and schema-qualified names; a matcher's corpus under the old pattern and the new; and a find-then-scan across repos for any subject another repo can read. Extends `/fabrik-plan-after-chat` Phase 1's reader census; W-e5769015.
