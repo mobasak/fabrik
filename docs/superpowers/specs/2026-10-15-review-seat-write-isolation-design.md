@@ -302,7 +302,8 @@ carrying to the next call (Contract deltas).
 - **The parser:** it stays the fallback while any host may lack bwrap or allow it no user namespace. No retirement
   trigger is set: the mode cache is a local file and nothing collects it across hosts.
 - **Retirement:** the fence moves to Claude Code's sandbox if that gains a per-subagent configuration (the parent's
-  retirement clause).
+  retirement clause). (Met in a different shape on 2026-10-23: the sandbox fences a dedicated reviewer SESSION —
+  § Amendment 2026-10-23, Panel decision item 5.)
 - **Tripwire:** a confirmed seat write outside scratch through the fence re-opens this design. (It did not fire;
   Validation 10 failed earlier, on the harness refusing the wrapper — § Amendment 2026-10-23.)
 
@@ -333,7 +334,7 @@ options, labelled P1-P3 (D-1129's (a)/(c) labels in `§ Approaches (D-1129)` are
     (§ Amendment 2026-10-22 Design 2); a guard-readable wrapper changes that mask set or its spelling, a design change.
   - Unproven, both: whether an allow rule bypasses the auto-mode classifier at all, and whether the guard accepts any
     bwrap line. A prefix rule cannot pin the full flag set — the binds carry per-call paths (Design 2) — so a trailing
-    `*` would also admit an extra `--bind / /`: the rule is itself a bypass shape, and its safety is the classifier's.
+    `*` would also admit an extra `--bind / /`: the rule is itself a bypass shape: it removes the classifier's review for every agent's bwrap call, the lead's included.
   - Holder: the operator for the rule (no agent edits permission settings; it boards to the operator through the
     coordinator as a gate, with the exact rule text); intel for the wrapper. First proof: one seat, one wrapped `ls`,
     accepted by both judges, before any build. A variant: dispatch review seats from the MAIN checkout, where the
@@ -351,7 +352,7 @@ options, labelled P1-P3 (D-1129's (a)/(c) labels in `§ Approaches (D-1129)` are
     box adds `/opt` user-wide (`~/.claude/settings.json`, `permissions.additionalDirectories: ["/opt"]`).
   - The sandbox configuration is per SESSION; subagents share it (the same page). A seat's cwd — the live repo — is
     writable, and narrowing it (dropping `/opt`, a per-session `--settings` with `filesystem.denyWrite`) binds the
-    lead too, which must write the repo. So P2 protects seats only when they are dispatched from a session that writes
+    lead's Bash writes too (its git commits and test runs; its Edit and Write tools run outside the sandbox), which must reach the repo. So P2 protects seats only when they are dispatched from a session that writes
     nothing live — a dedicated reviewer session with a narrow sandbox: a change to how the review commands dispatch.
   - Costs the same page names: in auto mode a sandboxed command can still meet server-side classifier review (an
     exception to auto-allow), and this box's `defaultMode` is `auto`, so whether P2 meets the classifier is unproven;
@@ -373,8 +374,40 @@ options, labelled P1-P3 (D-1129's (a)/(c) labels in `§ Approaches (D-1129)` are
 
 **What the panel's choice changes.** P1 re-applies the fence with changed masks after the operator's rule and the live
 proof; P2 is a new design of the review dispatch, this hook unchanged; P3 ships the fallback refusals as the parser's
-tightening and closes W-72dfd448 with the let-throughs stated. Whichever is chosen, its first proof runs before any
+tightening; W-72dfd448 then closes as re-scoped only with the operator's assent, its unmet ask (isolation by
+construction) stated. Whichever is chosen, its first proof runs before any
 build.
+
+**Panel decision (2026-10-23, D-1160): P2, with changes.** Both design-approval seats chose P2 (Opus, and a second Opus
+standing in for Fable, which was at its usage limit): the only option where the operating system enforces the boundary
+and the harness owns the wrapper, so no call has to get past the classifier; P1's allow rule is itself a hole for every
+agent; P3 leaves about 15 let-throughs and so does not meet the ask. The changes both seats required, now binding:
+1. **The reviewer session, specified.** Review seats are dispatched from a dedicated reviewer session, never from a
+   lead that writes the live tree. Its cwd is a fresh scratch directory that is NOT a linked worktree (a worktree cwd
+   opens the main repository's shared `.git` to writes, sandboxing.md:530). It runs with
+   `--settings '{"sandbox":{"enabled":true,"allowUnsandboxedCommands":false,"filesystem":{"denyWrite":["/opt"]}}}'`:
+   array settings merge across scopes, so the user-wide `additionalDirectories: ["/opt"]` cannot be dropped per
+   session, only denied; `~/.claude/settings.json` is untouched and no permission gate is needed. Whether `denyWrite`
+   overrides an added directory is not documented — the first proof establishes it. `allowUnsandboxedCommands: false`
+   given by `--settings` makes the sandbox admin-required, so repository settings cannot loosen it. Seats read the
+   tree by absolute path and `git -C`.
+2. **The launcher, named.** The lead starts the reviewer session as a headless `claude -p` with that `--settings`,
+   the review brief on stdin, and the run's receipt and seat reports written into the run's scratch, which the lead
+   reads back. The launch is itself a lead Bash call the classifier judges; the first proof runs it. Owner: intel
+   builds the launcher; kaizen owns the review commands' wording that points at it.
+3. **The per-seat layer stays.** The sandbox is per SESSION, so every seat in a run can write every other seat's
+   folder; and a seat dispatched directly through the Agent tool from a lead gets no sandbox at all. `seat_guard.py`'s
+   parser (Phase A, plus the fallback refusals of § Amendment 2026-10-22 Design 3) stays registered as the per-seat
+   layer on both paths — hooks run outside the sandbox (sandboxing.md:11). P2 is therefore P2 plus P3's refusals,
+   and the cross-seat width is an accepted residual.
+4. **The first proof, before any build, in `defaultMode: auto`.** From the reviewer session: a seat subagent's `touch`
+   on the live tree fails with EROFS; a scratch write succeeds; a write into the main repo's `.git/refs` is refused;
+   a `localhost` probe and a `docker` call are recorded (private localhost and docker's incompatibility are costs);
+   the launch from the lead passes the classifier. The review briefs that rely on a localhost probe are listed and each
+   is accepted as `unverified` or rerouted.
+5. **Supersessions.** The parent's Retirement line ("the fence moves to Claude Code's sandbox if that gains a
+   per-subagent configuration") is met in a different shape: the sandbox is the fence through a dedicated SESSION, not
+   a per-subagent configuration.
 
 **Harness facts recorded on the way** (not decided here): the worktree guard refused the one wrapper tested (its
 `/run/WSL` text); its reach on other shapes is unproven. A Read of a tool-results file through the
