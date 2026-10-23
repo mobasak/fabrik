@@ -1,6 +1,14 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## The first thing a new substring anchor catches is formatting, and the reader with a HARD test is the one to mail before the merge (2026-10-23)
+
+W-4bb2166c anchored § 1a's heavy-surface list for fabrik-lib's drift check. The design read the consumer's script (advisory, rc 0) and wrote "their gate prints a warning"; both critique seats executed one hop further and found `scripts/tests/test_check_governance_drift.py:103`, which reads the LIVE hub and asserts hard, run by fabrik-lib's merge gate on every `scripts/` merge — and fabrik-lib's copy carried the span only in bold, so the hub merge would have refused their next merge rather than printed a line.
+- **A reader's SCRIPT is not its only reader** — grep the consumer repo for the hub path (`/opt/fabrik/CLAUDE.md`) in its TESTS and merge gates, not only its enforcement script; the test was one directory over.
+- **A substring anchor is emphasis-exact** — the first divergence it reports is `**`, a backtick or a wrap inside the span, never a dropped class; choose the span's ends on a character diff of every copy (the `(D-315)` gloss and the two `**` were the only differences), and say in the mail which edit closes it.
+- **Mail the hard-failing reader BEFORE the merge request, in the same change** — a D-441 request naming the test and the two-character fix cost one message; fabrik-lib's working copy carried the span unbolded 15 minutes later, before the hub merge could red anything.
+- **A "superseding bullet" on an index whose checker is add-only is a false alarm fleet-wide** — a declared anchor the rules no longer carry prints `declared but not stated` in every sync-excluded repo; a class change REPLACES the bullet in one change.
+
 ## A lane test a project cannot see is described by what it DOES there, keyed on the artifact the code keys on (2026-10-23)
 
 W-955acf1f: lane row 1 named the hub's regex to a reader whose repo the regex never mentions. The first design keyed "received copy" on the regex; both critiques broke it by execution — a project's `docs/DECISIONS.md` is lock-listed yet project-owned (`SEEDED_NOT_ENFORCED`), and a regex-matched path the manifest retired sits outside 38 of 49 locks. The review then caught two more pointers the fixes wrote without opening: a `PORTS.md` "row below" the lane table does not have, and a docstring count the anchors had outgrown.
