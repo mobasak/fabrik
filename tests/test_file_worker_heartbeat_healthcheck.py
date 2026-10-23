@@ -420,6 +420,8 @@ _SEALED_RUNS = [
     "\t@docker run --network none --env WORKER_SMOKE=1 $(PROJECT_NAME)\n",
     "\t@/usr/bin/docker run -e=WORKER_SMOKE=1 --network none $(PROJECT_NAME)\n",
     "\t@docker run --network none -e WORKER_SMOKE=1 \\\n\t\t$(PROJECT_NAME)\n",
+    # a mid-word `#` is no shell comment: the sealed run after it is read, not dropped
+    "\t@echo a#b; docker run --network none -e WORKER_SMOKE=1 $(PROJECT_NAME)\n",
 ]
 
 
