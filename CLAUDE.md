@@ -293,7 +293,7 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    MAIN checkout only — a worktree agent never merges, it requests): unless the operator named the disposition this turn, the DEFAULT
    is merge to base locally **then push base**; PRESENT only the genuine choices — keep the branch as-is ·
    discard (only a branch/worktree THIS run created) — when merging is genuinely arguable. On merge: resolve
-   base as the MAIN checkout's branch — run `git worktree list` as its own call and take the first line's path —
+   base as the MAIN checkout's branch — run `git worktree list` as its own call; its first line is the main checkout's path and, in brackets, its branch —
    pin every mutation to that literal path (`git -C <main path>`, never a `$( )` or a shell variable, which trips
    Claude Code's worktree-isolation prompt, D-1173), merge → verify (tests on the MERGED result) → only then clean up the
    worktree → delete the branch.
@@ -507,8 +507,11 @@ session-recall — structured rows beat lexical transcripts.
   the pane tagged `@agent <name>` passes six checks — its transcript quiet 30 s, a turn end in that transcript, no run
   record `running`, no seat in flight, its worktree clean and pushed, an empty prompt line — then a systemd unit
   types `/clear <name>-<date>` and a resume prompt telling the builder to re-bind (below) and to read only the
-  memory notes, `work.py next` and the run's seed, never the old transcript. A refusal, or any outcome but `ok` in
-  `~/.claude/state/rotations.jsonl`, is the coordinator's to fix and re-run, and a permission prompt the builder
+  memory notes, `work.py next` and the run's seed, never the old transcript (`--compact` types only the `/compact`,
+  with no re-bind). A refusal, or any outcome but `ok` in `~/.claude/state/rotations.jsonl`, is the coordinator's
+  to resolve by its outcome, since nothing is retried for it — `partial:rebind` by the re-bind below,
+  `partial:queued` by waiting for the queued keys rather than asking again, any other by fixing its cause before
+  one new request — and a permission prompt the builder
   meets is the coordinator's to answer, never the operator's (D-1034, D-1172); a builder
   with no pane asks its coordinator the same way, and the coordinator tells the operator; a coordinator, or a
   single-window repo's one agent, tells the operator once and starts no new item of its own until the operator types

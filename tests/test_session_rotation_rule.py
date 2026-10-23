@@ -65,6 +65,8 @@ def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> 
             "run from the repo's main checkout, never by hand over tmux",
             "passes six checks — its transcript quiet 30 s, a turn end in that transcript, no run record `running`, no seat in flight, its worktree clean and pushed, an empty prompt line",
             "any outcome but `ok` in `~/.claude/state/rotations.jsonl`",
+            "`partial:rebind` by the re-bind below, `partial:queued` by waiting for the queued keys rather than asking again",
+            "(`--compact` types only the `/compact`, with no re-bind)",
             "a permission prompt the builder meets is the coordinator's to answer, never the operator's",
             "messages its coordinator `rotate <name>` and waits for the keys",
             "a builder with no pane asks its coordinator the same way",
