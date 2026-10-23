@@ -3,7 +3,7 @@
   "created": "2026-10-18T14:08:44.745470Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d0ba9e25b858c683912256ba148cf345392232cb",
   "id": "W-1cb0d89f",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "LOW: a rare edge (oddly spaced 'docker run' passes the post-patch check); D-994 residue",
-  "status": "open",
+  "status": "done",
   "title": "file-worker scaffold: the post-patch live-worker check matches the literal 'docker run' and the marker as substrings, so 'docker run', 'docker container run' or the marker inside a trailing comment would pass (src/fabrik/scaffold.py _scaffold_file_worker, W-807b73fd review round 3 C2)"
 }

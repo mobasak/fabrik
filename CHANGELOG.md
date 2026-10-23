@@ -37,6 +37,10 @@ All notable changes to this project will be documented in this file.
 
 - The coordinator's verb (`scripts/sysadmin/rotate_session.py request`) checks that the agent's pane is idle at an item boundary (registry status, transcript turn end, no run record, no seat in flight, worktree clean and pushed, empty input) and writes one data-only request; the new user units `fabrik-rotate.path`/`.service` (`install_rotate_unit.sh`) re-run every check, type `/clear` (or `/compact <focus>`) and one resume prompt, verify the new session and record every outcome in `~/.claude/state/rotations.jsonl`. The auto-mode classifier refuses an agent's own `tmux send-keys` into a pane, which is why a unit types (W-f975fee0 slice 2, D-1135).
 
+### Fixed — file-worker scaffold: the live-worker check allows only the sealed smoke line it wrote (2026-10-23)
+
+`_scaffold_file_worker`'s refusal of a Makefile `docker run` that could reach a real queue matched `"docker run"` and the seal as substrings, so `docker  run`, `docker container run`, or a seal in a `#` comment or a later command all passed. `_live_docker_runs` is now an allow-list: any line whose raw text holds `docker [container] run` — however spaced, quoted, backticked, behind `sh -c`, a comment or a separator — must be exactly the sealed smoke line the scaffold wrote, or the scaffold fails; a sealed run spelled any other way is template drift and is refused too. Backslash continuations are joined both ways make can join them (nothing inserted, as a recipe line reaches the shell; one space, as make joins other lines) and either reading refuses. Not covered, as before: docker reached without that text (`$(DOCKER) run`, options before `run`, `docker compose run`, `create`+`start`, a `docker` or `run` word quoted whole or in part or escaped, such as `"docker"` or `d''ocker`) — W-b6f4b941. W-1cb0d89f.
+
 ### Fixed — Session-history bullet: the ROTATE-DUE and COMPACT-DUE lines are described as shipped (2026-10-23)
 
 - `CLAUDE.md` and `templates/governance/CLAUDE.md`, the Session history (D-736) bullet, after W-f975fee0 slice 1 (D-1139) shipped the context sensor:

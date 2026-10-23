@@ -5787,6 +5787,34 @@ SERVICE_NAME={name}
         _emit_node_audit_log(project_dir)
 
 
+_DOCKER_RUN_TEXT = re.compile(r"docker\s+(?:container\s+)?run\b")
+
+
+def _live_docker_runs(makefile: str, sealed: frozenset[str]) -> list[str]:
+    """Every Makefile line holding `docker [container] run` text that is not one of the `sealed` smoke lines (W-1cb0d89f).
+
+    An allow-list, not a parser: the Makefile comes from our own template, so a line whose raw text holds
+    `docker [container] run` — however spaced, in quotes, backticks, `sh -c`, a comment or a later command — passes
+    only when, stripped, it IS a sealed line the scaffold produced. Any other spelling, a sealed run included, is
+    template drift and is refused, as a drifted smoke line already is. Backslash continuations (an odd run of
+    backslashes before the newline) are joined both ways make can join them — with nothing inserted and one tab after
+    the newline dropped, as a recipe line reaches the shell, and with one space, as make joins every other line — and
+    either reading refuses. Not covered: docker reached without that text (`$(DOCKER) run`, options before `run`,
+    `docker compose run`, `create`+`start`, a `docker` or `run` word quoted whole or in part or escaped, such as
+    `"docker"`, `d''ocker` or `doc\\ker`) — W-b6f4b941.
+    """
+    readings = (
+        re.sub(r"(?<!\\)((?:\\\\)*)\\\n\t?", r"\1", makefile),
+        re.sub(r"(?<!\\)((?:\\\\)*)[ \t]*\\\n\s*", r"\1 ", makefile),
+    )
+    live: list[str] = []
+    for text in readings:
+        for ln in text.splitlines():
+            if _DOCKER_RUN_TEXT.search(ln) and ln.strip() not in sealed and ln.strip() not in live:
+                live.append(ln.strip())
+    return live
+
+
 def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create File Worker-specific project structure."""
     # a) Create worker/ directory
@@ -5911,11 +5939,14 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
                 )
             content = content.replace(old, new)
         # the hazard itself, whatever the header or drift: no `docker run` leaves here able to reach a real queue
-        live = [
+        # the sealed run line this scaffold writes; the check runs before the `smoke-test` rename below
+        sealed = frozenset(
             ln.strip()
-            for ln in content.splitlines()
-            if "docker run" in ln and "--network none -e WORKER_SMOKE=1" not in ln
-        ]
+            for new in smoke.values()
+            for ln in new.splitlines()
+            if _DOCKER_RUN_TEXT.search(ln)
+        )
+        live = _live_docker_runs(content, sealed)
         if live:
             raise ValueError(
                 f"{makefile_src}: a docker run line would run a live worker: {live[0]!r}"
