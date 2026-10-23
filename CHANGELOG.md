@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probe catalogue: a fix that narrows, widens or splits a rule's subject lists the old subject's cases before drafting (2026-10-23)
+
+- The catalogue's Sweep bullet (§ Prose and docs fixes, which `/fabrik-review-scoped` step 3 sends the lead to before a rule sentence is drafted) holds such a fix to `/fabrik-review`'s "does the new form still hold EVERY shape the form it replaces held", quoted with its "the shapes enumerated from the OLD form before the fix is drafted, never from the new one": each case no new clause covers, two now cover or only the new wording reaches is listed with where it lands or, with its reason, that it is dropped on purpose, in the fix's Pass Ledger `method:` cell (`/fabrik-review`) or the report (`/fabrik-review-scoped`) (row 1792730405, the second sighting of held fix-narrowed-input-strands-defensive-guards).
+- Twelve other queued `/fabrik-review-scoped` rows were rejected with reasons after an Opus audit. Row 1792630929 (whether a remainder round fixes or records an own-fix defect that loosens a guard) stays open: the catalogue and term-coverage.md disagree, and its Opus + Fable panel is half done (the Fable seat hit its quota limit).
+
 ### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
 
 - MEASURE runs every probe under an interpreter shown to import its libraries and each extra it enables, since a system `python3` may lack one (rows 1792766698, 1792734746: the system markdown_it lacked linkify; 14 of the 15 project venvs that carry markdown_it lack linkify too).
