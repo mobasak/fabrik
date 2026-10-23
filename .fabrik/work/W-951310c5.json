@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:19:29.113775Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-951310c5",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Give the recipe a pageable home in the probe catalogue § Seat isolation + state a pins-only copy is not a test tree (scoped review); mail a stage-script ask to its code beat; reply to infra-2 and ack",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Mail 01M5MVZ2NF (infra-2): /fabrik-review seat isolation — PIN_IMPORT/PYTEST_PINS recipe is a ~15 KB JS line seats skip; a pins-only copy cannot run tests (conftest needs tests/memguard.py)"
+}
