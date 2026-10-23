@@ -15,7 +15,7 @@
   },
   "next": "measure the prefix per injection source (CLAUDE.md, @imports, each hook's additionalContext, the mail digest, memory), then cut the biggest with a grader: hooks inject pointers not bodies; the mail digest 10 → 3 rows; and make transcript_size_check measure growth ABOVE the first turn's prefix (its target 40% is unreachable otherwise). Token-waste series D-1118.",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-2",
   "priority": 0,
   "score_reason": "the single largest token-waste cause on the box: a ~640k prefix on every turn of every session; the first cut is measurement plus one or two injections turned into pointers",
   "status": "open",
