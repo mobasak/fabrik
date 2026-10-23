@@ -1125,9 +1125,16 @@ def test_w1783a9fe_resume_prompt_steers_off_the_isolation_prompt():
     text = rs.resume_prompt("dev1")
     assert text.startswith("You were rotated"), text
     assert "/opt/fabrik/scripts/whoami_agent.py --as dev1 --force" in text, text
-    assert "Read your memory notes and seed with the Read tool, not cat" in text, text
-    assert "run each command, git included, as a plain Bash call of its own" in text, text
+    assert "and carry on. Read your memory notes and seed with the Read tool, not cat" in text, text
+    assert (
+        "run each command, git included, as a separate Bash call (the self-watch arm stays in the background)"
+        in text
+    )
     assert "saved to a file with the Read tool" in text, text
-    assert "never page it with sed, awk or head on a shell variable or $( )" in text, text
+    # review r1: the measured case put the variable in sed's EXPRESSION (`sed -n "${n}p"`), not the file name
+    assert (
+        "never give sed, awk or head a shell variable or $( ), in the file name or the expression"
+        in text
+    ), text
     for kept in ("selfwatch_arm.sh", "never the previous transcript"):
         assert kept in text, kept
