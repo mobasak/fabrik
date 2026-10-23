@@ -1,15 +1,16 @@
 """W-cf9ec0cf — the exit-row examples the command corpus quotes are graded by the graders they teach.
 
 WHY. `commands/_sources/fabrik-review.md`, `commands/_sources/fabrik-epics-review.md` and
-`commands/_fragments/term-edit.md` each show a worked Pass Ledger: `| Pass N | … found: F, new: N, confirmed: C,
-fixed: X, unexecuted: U | … |`. An agent copies those rows into a receipt, and two graders read the copy:
-`check_review_coverage.py` parses the counters and `check_convergence.py` refuses a flip whose last Pass row does
-not read `confirmed: 0`. Nothing checked the examples themselves, so a grader change, or an edit to an example,
-could leave the corpus teaching a row shape the gate refuses, and nothing would go red until an agent's receipt
-did. This test extracts every example table from the corpus and runs it through both graders.
+`commands/_fragments/term-edit.md` each show a worked Pass Ledger that an agent copies into a receipt. Two graders
+read the copy: `check_review_coverage.py` (its `_ledger_shapes` extraction, refusals and the D-206 `_confirmed_quiet`
+exit rule) and `check_convergence.py` (`_PASS_ROW`, `QUIET_PASS` and `_closing_row_fail`). Nothing checked the examples
+themselves, so a grader change, or an edit to an example, could leave the corpus teaching a row shape the gate
+refuses. This test finds every example table with the graders' own row pattern and grades it with their own rules.
 
-Cheapest way to satisfy it without the outcome (D-253): delete the example tables. The floor below counts them, so
-an emptied corpus reds the test instead of passing it vacuously.
+Cheapest ways to satisfy it without the outcome (D-253), and their counters: delete the examples (the floor counts
+tables and names the three files), or zero an example's history so no prefix is ever refused (every table must hold
+a confirming row before its quiet close). Out of scope by design: a pipe-less prose ledger
+(`fabrik-docs-review.md`'s `Pass 1 — …` rows), which `_PASS_ROW` cannot see; it belongs to that grader's owner.
 """
 
 from __future__ import annotations
@@ -23,22 +24,26 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
 
-import check_convergence  # noqa: E402
-import check_review_coverage  # noqa: E402
+import check_convergence as C  # noqa: E402, N812
+import check_review_coverage as R  # noqa: E402, N812
 
-_ROW = re.compile(r"^\| Pass \d+ \|")
+_NUMBERED = re.compile(
+    r"(?:Pass|Round)\s*\d", re.I
+)  # a header row (`| Pass | seats |`) carries no number
 
 
 def _example_tables() -> list[tuple[str, list[str]]]:
-    """Every run of consecutive `| Pass N |` lines in the corpus sources and fragments, with its file."""
+    """Runs of `_PASS_ROW` lines (blank lines between rows kept inside one run) in the corpus, with their file."""
     out: list[tuple[str, list[str]]] = []
     for path in sorted(
         [*ROOT.glob("commands/_sources/*.md"), *ROOT.glob("commands/_fragments/*.md")]
     ):
         block: list[str] = []
-        for line in [*path.read_text(encoding="utf-8").splitlines(), ""]:
-            if _ROW.match(line):
-                block.append(line)
+        for line in [*path.read_text(encoding="utf-8").splitlines(), "<end>"]:
+            if C._PASS_ROW.match(line) and _NUMBERED.search(line):
+                block.append(line.strip())
+            elif block and not line.strip():
+                continue
             elif block:
                 out.append((str(path.relative_to(ROOT)), block))
                 block = []
@@ -46,6 +51,12 @@ def _example_tables() -> list[tuple[str, list[str]]]:
 
 
 TABLES = _example_tables()
+IDS = [f"{p}:{i}" for i, (p, _) in enumerate(TABLES)]
+
+
+def _quiet(row: tuple) -> bool:
+    q = R._confirmed_quiet(row)
+    return q if q is not None else row[0] == 0  # legacy pair: the closing row's found: is 0
 
 
 def test_the_corpus_still_carries_its_exit_row_examples() -> None:
@@ -58,26 +69,23 @@ def test_the_corpus_still_carries_its_exit_row_examples() -> None:
     } <= files, files
 
 
-@pytest.mark.parametrize(("path", "rows"), TABLES, ids=[f"{p}:{r[0][:12]}" for p, r in TABLES])
-def test_every_example_row_parses_under_the_coverage_grader(path: str, rows: list[str]) -> None:
-    block = "\n".join(rows)
-    assert check_review_coverage._unparsed_pass_lines(block) == [], path
-    for row in rows:
-        parsed = check_review_coverage._pass_counters_ext(row)
-        assert isinstance(parsed, tuple), (path, row, parsed)
+@pytest.mark.parametrize(("path", "rows"), TABLES, ids=IDS)
+def test_each_example_table_is_read_whole_and_closes_quiet(path: str, rows: list[str]) -> None:
+    _, _, ordered, refusals = R._ledger_shapes("\n".join(rows))
+    assert refusals == [], (path, refusals)
+    assert len(ordered) == len(rows), (path, rows, ordered)
+    assert _quiet(ordered[-1]), (path, rows[-1])
+    assert C.QUIET_PASS.search(rows[-1]), (path, rows[-1])
+    assert C._closing_row_fail("\n".join(rows)) is None, path
 
 
-@pytest.mark.parametrize(("path", "rows"), TABLES, ids=[f"{p}:{r[0][:12]}" for p, r in TABLES])
-def test_each_example_table_closes_quiet_and_its_confirming_prefix_does_not(
-    path: str, rows: list[str]
-) -> None:
-    assert check_convergence._closing_row_fail("\n".join(rows)) is None, path
-    found, confirmed, fixed, unexecuted = check_review_coverage._pass_counters_ext(rows[-1])
-    assert (confirmed, fixed, unexecuted or 0) == (0, 0, 0), (path, rows[-1])
-    confirming = [r for r in rows[:-1] if (check_review_coverage._pass_counters_ext(r)[1] or 0) > 0]
-    if confirming:
-        prefix = rows[: rows.index(confirming[-1]) + 1]
-        assert check_convergence._closing_row_fail("\n".join(prefix)) is not None, (
-            path,
-            prefix[-1],
-        )
+@pytest.mark.parametrize(("path", "rows"), TABLES, ids=IDS)
+def test_each_example_table_shows_a_refused_confirming_prefix(path: str, rows: list[str]) -> None:
+    _, _, ordered, _ = R._ledger_shapes("\n".join(rows))
+    confirming = [i for i, row in enumerate(ordered[:-1]) if not _quiet(row)]
+    assert confirming, (
+        path,
+        "the example shows no round that confirmed a defect before its quiet close",
+    )
+    prefix = rows[: confirming[-1] + 1]
+    assert C._closing_row_fail("\n".join(prefix)) is not None, (path, prefix[-1])
