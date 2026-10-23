@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T18:21:42.609136Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7aee6a4b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "design the field from mail 01M5AKSQQ3 requests 2 and 4 (schema surface, full review, at GREEN); when it lands, relay that mail's CONSUMER NOTE fleet-wide (re-vendor whole, new env, refused direct calls)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-quota"
+  ],
+  "title": "fabrik-lib SB-103 follow-on 2+4: a watchdog.db_write_allowlist spec field rendered to WATCHDOG_DB_WRITE_ALLOWLIST like llm_actions, plus its capability check beside drivers/watchdog.py:1050-1063 (today a spec setting any llm_actions cannot add the two DB-write actions through .env)"
+}
