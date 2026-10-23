@@ -563,12 +563,18 @@ class WatchdogDriver:
         # again where the value becomes the sidecar's env: provision() is public, and an inf/nan
         # rendered into WATCHDOG_*_BUDGET_USD is no ceiling at all. Local import — infrastructure
         # imports this module lazily, so module scope would invite a cycle.
-        from fabrik.orchestrator.infrastructure import _finite_budget, _rewrite_shared_infra_host
+        from fabrik.orchestrator.infrastructure import (
+            _finite_budget,
+            _rewrite_mesh_gated_url,
+            _rewrite_shared_infra_host,
+        )
 
         # A spoke container cannot resolve postgres-main/redis-main (WireGuard carries no DNS):
         # swap them to the hub mesh IP, as every other registrar's injected URL is.
         redis_url = _rewrite_shared_infra_host(redis_url, target_vps)
         pg_dsn = _rewrite_shared_infra_host(pg_dsn, target_vps)
+        # Apprise has no mesh port; a spoke posts through its mesh-only gate (D-1166).
+        apprise_url = _rewrite_mesh_gated_url(apprise_url, target_vps)
 
         daily_budget = _finite_budget(wcfg, "daily_budget_usd", 1.0)  # D2: WatchdogConfig default
         per_incident_budget = _finite_budget(wcfg, "per_incident_budget_usd", 0.25)

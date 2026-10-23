@@ -87,6 +87,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import shlex
 from pathlib import Path
 from typing import Any, overload
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
@@ -126,10 +127,16 @@ _HUB_MESH_IP = "10.99.0.1"
 # it is not published on the mesh, so the registrar injects no meili host.)
 _SHARED_INFRA_HOSTS = ("postgres-main", "redis-main", "glitchtip-web")
 
+# vps1's Apprise is not published on the mesh; a spoke reaches it only through the
+# mesh-only allow-list gate ``apprise-mesh-gate`` on ``_HUB_MESH_IP:8202`` (D-1166),
+# which admits ``POST /notify/alerts`` alone.
+_APPRISE_HOST_AUTHORITY = "//apprise:8000/"
+_APPRISE_MESH_GATE_AUTHORITY = f"//{_HUB_MESH_IP}:8202/"
+
 
 def _watchdog_target(ctx: Any, spec: dict[str, Any] | None) -> str:
     """The host a watchdog sidecar would run on — ``ctx.target_vps``, else the spec's, else vps1 — resolved the
-    way ``drivers/watchdog.py`` does, so the registrar's spoke refusal (D-1153) and the driver never disagree."""
+    way ``drivers/watchdog.py`` does, so the registrar's login preflight and the driver never disagree."""
     return getattr(ctx, "target_vps", None) or (spec or {}).get("target_vps") or "vps1"
 
 
@@ -155,6 +162,18 @@ def _rewrite_shared_infra_host(url: str | None, target_vps: str | None) -> str |
         url = url.replace(f"@{host}:", f"@{_HUB_MESH_IP}:")
         url = url.replace(f"//{host}:", f"//{_HUB_MESH_IP}:")
     return url
+
+
+def _rewrite_mesh_gated_url(url: str, target_vps: str | None) -> str:
+    """Point a spoke's Apprise URL at vps1's mesh-only gate (D-1166).
+
+    No-op for a falsy ``url`` or a vps1 target. Otherwise the authority ``//apprise:8000/`` becomes
+    ``//10.99.0.1:8202/``; port and trailing slash are part of the match, and there is no ``@`` arm
+    (an Apprise URL carries no userinfo), so any other host, port or a userinfo URL is untouched.
+    """
+    if not url or (target_vps or "vps1") == "vps1":
+        return url
+    return url.replace(_APPRISE_HOST_AUTHORITY, _APPRISE_MESH_GATE_AUTHORITY)
 
 
 # Registrars whose applicability should print in the resolved-infra summary.
@@ -455,12 +474,7 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
         out["watchdog"] = (
             _enabled(infra, "watchdog"),
             "spec.watchdog.enabled=true"
-            + ("" if _enabled(infra, "watchdog") else " (infra.watchdog=false override)")
-            + (
-                f" — refused on spoke {spec['target_vps']} until apprise is mesh-published (D-1153)"
-                if _enabled(infra, "watchdog") and (spec.get("target_vps") or "vps1") != "vps1"
-                else ""
-            ),
+            + ("" if _enabled(infra, "watchdog") else " (infra.watchdog=false override)"),
         )
     else:
         out["watchdog"] = (False, "not applicable: spec.watchdog.enabled=false")
@@ -761,9 +775,10 @@ class InfrastructureProvisioner:
                 logger.warning("%s registrar skipped for %s: %s", registrar, name, clause)
 
         should_run = {k: v[0] for k, v in resolved.items()}
-        # D-1153: a spoke watchdog is refused in _provision_watchdog; nothing it alone needs is provisioned
-        # for it either — no `<db>_wd_ro/_wd_rw` roles and DSNs in the app's .env, no analytics failure.
-        watchdog_lives = should_run["watchdog"] and _watchdog_target(ctx, spec) == "vps1"
+        # The watchdog's roles and analytics are provisioned on every target. Accepted residue: a failed
+        # login preflight in _provision_watchdog leaves the `<db>_wd_ro/_wd_rw` roles and their DSNs in
+        # place, and the next apply re-uses them.
+        watchdog_lives = should_run["watchdog"]
 
         # P1 (watchdog platform): ensure the shared fabrik_analytics DB +
         # cost_ledger table exist BEFORE any per-spec registrar runs.
@@ -1598,32 +1613,24 @@ class InfrastructureProvisioner:
         driver module isn't present yet. That keeps `fabrik apply` working on
         existing specs that don't depend on the watchdog while T-P2 finishes.
 
-        A spoke-targeted watchdog is refused, real and dry run alike (W-37dda1e1): its sidecar could not
-        alert — vps1's apprise has no mesh port and its Traefik route is 2FA-gated, and no legal spec can point
-        the sidecar elsewhere (WatchdogConfig has no apprise_url). Non-fatal, unlike the deploy-aborting
-        `_assert_error_webhook_colocated` (orchestrator/__init__.py): the app is healthy and stays up; only its
-        watchdog is withheld, and the apply ends red.
+        A real run first passes :meth:`_watchdog_login_preflight` on the target (W-5dcafaef); a failure is
+        non-fatal, unlike the deploy-aborting `_assert_error_webhook_colocated` (orchestrator/__init__.py):
+        the app is healthy and stays up, only its watchdog is withheld, and the apply ends red.
         """
         target = _watchdog_target(ctx, getattr(ctx, "spec", None))
-        if target != "vps1":
-            self._nonfatal(
-                ctx,
-                "watchdog",
-                RuntimeError(
-                    f"a watchdog on {target} could not alert: vps1's apprise is not reachable from a spoke "
-                    "(no mesh port; its Traefik route is 2FA-gated), so the sidecar is not provisioned or "
-                    "refreshed (one already running there is left as it is). Set `watchdog.enabled: false` in "
-                    "this spec, or wait for W-5dcafaef (apprise mesh-published, a spoke login preflight)"
-                ),
-            )
-            return
         if dry_run:
             logger.info(
                 "[dry-run] watchdog: would build fabrik/watchdog:%s + inject sidecar service "
                 "alongside main container",
                 name,
             )
+            if _watchdog_uses_claude(ctx):
+                logger.info("[dry-run] watchdog: would check the Claude login files on %s", target)
             ctx.add_resource("watchdog", name, status="dry-run")
+            return
+        failure = self._watchdog_login_preflight(ctx, target)
+        if failure is not None:
+            self._nonfatal(ctx, "watchdog", RuntimeError(failure))
             return
         try:
             from fabrik.drivers.watchdog import WatchdogDriver  # T-P2 artifact 13
@@ -1637,18 +1644,77 @@ class InfrastructureProvisioner:
             )
             return
         try:
-            from fabrik.orchestrator.deployer_ssh import _target_vps_env
+            from fabrik.orchestrator.deployer_ssh import _host_env
 
             driver = WatchdogDriver()
             # Every watchdog ssh step (build, overlay push, compose up, container inspect,
             # cleanup) acts on the app's host and the image is a local tag, so the whole call
-            # runs on ctx.target_vps (decision panel, W-fc3eddd8); vps1 is a no-op.
-            with _target_vps_env(ctx):
+            # runs on the target the preflight checked (decision panel, W-fc3eddd8); vps1 is a no-op.
+            with _host_env(target):
                 result = driver.provision(ctx, dry_run=dry_run)
             ctx.add_resource("watchdog", name, status=result.get("status") if result else "ok")
             logger.info("watchdog: %s → %s", name, result.get("status") if result else "ok")
         except Exception as e:  # noqa: BLE001
             self._nonfatal(ctx, "watchdog", e)
+
+    def _watchdog_login_preflight(self, ctx: DeploymentContext, target: str) -> str | None:
+        """Check, on ``target``, the Claude login files the sidecar mounts (and, on a spoke, the Apprise gate).
+
+        ``None`` when the check passes or is skipped (neither LLM provider is ``claude-code``); else the
+        one-line failure text, naming ``target`` and the ssh alias the call actually hit. One ssh call, as
+        root (``sudo -n``), proving existence only; a spoke appends a TCP probe of the gate on
+        ``_HUB_MESH_IP:8202``. Any output other than exactly one line per file (plus one gate line on a
+        spoke) reads "unexpected output", and any exception reads "could not check", never "missing".
+        """
+        if not _watchdog_uses_claude(ctx):
+            return None
+        from fabrik.drivers import ssh as ssh_driver
+        from fabrik.drivers.watchdog import VPS_CLAUDE_HOME
+        from fabrik.orchestrator.deployer_ssh import _host_env
+
+        paths = [f"{VPS_CLAUDE_HOME}.json", f"{VPS_CLAUDE_HOME}/.credentials.json"]
+        spoke = target != "vps1"
+        cmd = (
+            """sudo -n sh -c 'for f in "$@"; do if test -f "$f"; then echo "present $f"; """
+            """else echo "missing $f"; fi; done' _ """ + " ".join(shlex.quote(p) for p in paths)
+        )
+        if spoke:
+            cmd += (
+                f" && {{ timeout 5 bash -c '</dev/tcp/{_HUB_MESH_IP}/8202' && echo 'gate reachable' "
+                "|| echo 'gate unreachable'; }"
+            )
+        with _host_env(target):
+            alias = ssh_driver._ssh_host()
+            try:
+                out = ssh_driver.ssh(cmd, timeout=30) or ""
+            except Exception as e:  # noqa: BLE001 — every error reads "could not check", never "missing"
+                text = " ".join(str(e).split()) or type(e).__name__
+                return f"could not check {target} ({alias}): {text}"
+        lines = out.splitlines()
+        files = [ln for ln in lines if ln.startswith(("present ", "missing "))]
+        gate = [ln for ln in lines if ln in ("gate reachable", "gate unreachable")]
+        if (
+            len(lines) != len(files) + len(gate)
+            or sorted(ln[8:] for ln in files) != sorted(paths)
+            or len(gate) != (1 if spoke else 0)
+        ):
+            return f"could not check {target} ({alias}): unexpected output"
+        parts = [f"missing {ln[8:]}" for ln in files if ln.startswith("missing ")]
+        if gate and gate[0] == "gate unreachable":
+            parts.append(f"gate unreachable from {target}")
+        if not parts:
+            return None
+        return f"watchdog on {target} ({alias}) not provisioned: " + "; ".join(parts)
+
+
+def _watchdog_uses_claude(ctx: Any) -> bool:
+    """Whether the sidecar's LLM lane needs the Claude login files — read with the driver's provider defaults."""
+    wcfg = (getattr(ctx, "spec", None) or {}).get("watchdog", {}) or {}
+    pair = (
+        wcfg.get("llm_provider_primary", "claude-code"),
+        wcfg.get("llm_provider_fallback", "openrouter"),
+    )
+    return "claude-code" in pair
 
 
 __all__ = (

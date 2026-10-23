@@ -151,11 +151,14 @@ class TestRenderContext:
         )
         assert spoke.redis_url == "redis://10.99.0.1:6379/15"
         assert "@10.99.0.1:5432/" in spoke.pg_dsn and "postgres-main" not in spoke.pg_dsn
+        # Apprise is reached through its mesh-only gate (D-1166), never its Docker-DNS name.
+        assert spoke.apprise_url == "http://10.99.0.1:8202/notify/alerts"
         hub = WatchdogDriver()._build_render_context(
             {"id": "demo", "watchdog": {"enabled": True}}, _ctx({"id": "demo"}, target_vps="vps1")
         )
         assert hub.redis_url == "redis://redis-main:6379/15"
         assert "@postgres-main:5432/" in hub.pg_dsn
+        assert hub.apprise_url == "http://apprise:8000/notify/alerts"
 
     @pytest.mark.parametrize("key", ["daily_budget_usd", "per_incident_budget_usd"])
     @pytest.mark.parametrize("raw", [float("inf"), float("nan"), "inf", "x"])

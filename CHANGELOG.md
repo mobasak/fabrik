@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — spoke watchdogs alert through a mesh-only Apprise gate; the spoke refusal is lifted (2026-10-23)
+
+- W-5dcafaef, D-1166. A spoke-targeted watchdog sidecar now posts to `http://10.99.0.1:8202/notify/alerts`
+  (`_rewrite_mesh_gated_url` in `src/fabrik/orchestrator/infrastructure.py`, called by
+  `WatchdogDriver._build_render_context`); vps1 keeps `http://apprise:8000/notify/alerts`.
+- The D-1153 spoke refusal is gone from `_provision_watchdog`, `provision()` and `fabrik plan`. In its place, a
+  real apply runs `_watchdog_login_preflight` on every target whose LLM lane uses `claude-code`: one `sudo -n` ssh
+  call checks `<FABRIK_VPS_CLAUDE_HOME>.json` and `.credentials.json` and, on a spoke, that the gate answers. A
+  missing file, an unreachable gate, unexpected output or an ssh error is a non-fatal `watchdog:` registrar
+  failure naming the target and the ssh alias hit; the driver does not run.
+
 ### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
 
 - MEASURE runs every probe under an interpreter shown to import its libraries and each extra it enables, since a system `python3` may lack one (rows 1792766698, 1792734746: the system markdown_it lacked linkify; 14 of the 15 project venvs that carry markdown_it lack linkify too).

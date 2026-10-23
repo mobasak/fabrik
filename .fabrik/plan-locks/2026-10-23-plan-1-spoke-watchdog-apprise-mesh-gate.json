@@ -1,0 +1,21 @@
+{
+  "plan": "docs/development/plans/2026-10-23-plan-1-spoke-watchdog-apprise-mesh-gate.md",
+  "owned_paths": [
+    "src/fabrik/orchestrator/infrastructure.py",
+    "src/fabrik/drivers/watchdog.py",
+    "tests/test_watchdog_spoke_preflight.py",
+    "tests/orchestrator/test_spoke_dsn_mesh.py",
+    "tests/test_watchdog_driver.py",
+    "infra/vps1/apprise/compose.yaml",
+    "configs/gatus/apps/apprise.yaml",
+    "specs/services/spoke-canary.yaml",
+    "PORTS.md",
+    "docs/infrastructure/vps-urls.md",
+    "docs/development/reviews/2026-10-23-plan-1-spoke-watchdog-apprise-mesh-gate-review.md"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-23T16:50:00Z",
+  "status": "active",
+  "baseline_commit": "51a6caa83aaf0ee3587da34e1f9b8318188c1ba3",
+  "note": "PORTS.md overlaps intel plan-3's active lock (its WSL table vs this plan's VPS table row); the PORTS.md edit waits on intel's release, asked 2026-10-23"
+}

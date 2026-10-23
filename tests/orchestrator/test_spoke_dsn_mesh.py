@@ -274,11 +274,9 @@ class TestGlitchtipSpokeWiring:
 
 
 class TestWatchdogSpokeRouting:
-    def test_a_spoke_watchdog_is_refused_before_the_driver_and_vps1_runs_unswapped(
-        self, monkeypatch
-    ):
-        """W-37dda1e1: a spoke watchdog could not alert (apprise is vps1-only), so the registrar refuses it
-        before the driver; vps1 still provisions, with no host swap."""
+    def test_a_spoke_watchdog_runs_on_its_host_and_vps1_runs_unswapped(self, monkeypatch):
+        """W-5dcafaef: past its login preflight, a spoke watchdog's driver call runs with the ssh host
+        swapped to the spoke; vps1 runs with no swap."""
         monkeypatch.delenv("FABRIK_VPS_SSH_HOST", raising=False)
         seen: list[str | None] = []
 
@@ -287,9 +285,12 @@ class TestWatchdogSpokeRouting:
             return {"status": "provisioned"}
 
         prov = InfrastructureProvisioner(deployer=MagicMock())
-        with patch("fabrik.drivers.watchdog.WatchdogDriver.provision", record):
+        with (
+            patch.object(prov, "_watchdog_login_preflight", return_value=None),
+            patch("fabrik.drivers.watchdog.WatchdogDriver.provision", record),
+        ):
             prov._provision_watchdog("spoke-app", _ctx("vps2"), dry_run=False)
             prov._provision_watchdog("spoke-app", _ctx("vps1"), dry_run=False)
 
-        assert seen == [None]
+        assert seen == ["vps2", None]
         assert os.environ.get("FABRIK_VPS_SSH_HOST") is None
