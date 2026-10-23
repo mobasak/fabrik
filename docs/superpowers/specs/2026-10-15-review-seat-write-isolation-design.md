@@ -57,7 +57,8 @@ filesystem.
 
 **The goal, restated (it replaces § Goal while the fence runs; § Goal stays the fallback mode's goal).** A review seat's
 shell command cannot write outside its session's scratch, and cannot reach the masked host services that write for it
-(the docker daemon, D-Bus and the user runtime sockets, tmux): the operating system refuses it whatever the command's
+(the docker daemon, D-Bus and the user runtime sockets, tmux, and on WSL the Windows interop that launches host
+processes outside every Linux namespace): the operating system refuses it whatever the command's
 syntax, interpreter or nesting. The fence applies on both dispatch paths, and leaves the seats' briefs and the lead
 session unchanged.
 - **Residuals, accepted.** Other sockets and every localhost TCP service stay reachable, because the network is not
@@ -86,7 +87,17 @@ session unchanged.
    - Then the service masks:
      - `--ro-bind /dev/null /run/docker.sock` (`/var/run` is a symlink to `/run`);
      - `--tmpfs /run/user/<uid>` (D-Bus and the user's runtime sockets);
-     - `--tmpfs /tmp/tmux-<uid>`, each mask only when the path exists.
+     - `--tmpfs /tmp/tmux-<uid>`;
+     - on WSL: `--tmpfs /run/WSL` (the interop sockets), `--unsetenv WSL_INTEROP`, and `--tmpfs /mnt` (the drvfs
+       mounts that hold every Windows executable), each mask only when the path exists.
+   - **WSL interop is a host service.** Executed at panel time: inside a fence with only `--ro-bind / /`, `--dev`,
+     `--proc`, `--unshare-pid` and `--die-with-parent`, `/mnt/c/Windows/System32/cmd.exe /c ver` returned rc 0
+     (`Microsoft Windows [Version 10.0.26200.9457]`), and a Windows process can write the live tree through
+     `\\wsl.localhost\…`. The interop launcher is a kernel-wide binfmt registration, so a namespace cannot remove it;
+     the masks above remove what it needs. On a WSL host the mode probe (Design 3) also binds a Windows executable
+     read-only into its private folder (the shape of a seat that copies one into its scratch) and runs it inside the
+     masked fence; if it launches, the host is in FALLBACK mode. The fence never runs where interop gets through.
+     Fallback mode does not stop interop either: there the parent's parser goal (§ Goal) is the whole claim.
    - Then the writable binds:
      - `--bind <scratchpad_dir>` (the payload's session scratchpad);
      - `--bind <run folder>` when it exists. The run folder is `<toplevel of the payload cwd's main checkout>/.tmp/runs/<sid>/`
@@ -120,6 +131,9 @@ session unchanged.
      - an unknown wrapper, a conditional `cd`;
      - a `$(…)` in a write or cd position.
    - The refusal says it is fallback mode.
+   - In fallback mode an exception inside `decide()` on a seat payload DENIES the call and names fallback mode. Today
+     `main()` turns it into an allow (`reason = ""`, seat_guard.py `:1452-1455`); that stays for non-seat payloads and
+     in fence mode, where the fence is the boundary.
 4. **Which rules run in fence mode.** The kill and git rules still run first, as cheap refusals with good messages. The
    parser's WRITE rule (parent delta 2) and its unparseable-write fallback (delta 3) do NOT run, because the fence is
    the boundary; their false refusals (R1-R4) end with them. Under the fence, `--unshare-pid` makes a `kill` of an
@@ -189,7 +203,9 @@ session unchanged.
   - a `pytest` run in the live tree without `-p no:cacheprovider` (its `.pytest_cache` write);
   - a tool writing a cache under `$HOME`;
   - git commands that need to write the live index;
-  - a call to the docker daemon, D-Bus or tmux;
+  - a call to the docker daemon, D-Bus or tmux, and on WSL any Windows executable or `/mnt` path;
+  - a `cd` that a later call relies on: the `cd` runs in the wrapped child, so it does not carry to the next call; a
+    seat uses absolute paths or `cd` on the same line;
   - a backgrounded process outliving its Bash call (`--die-with-parent`; a seat that needs a long probe runs it in the
     foreground);
   - a seat that writes a `<worktree>/.tmp/<run>/seat-…` folder its brief names. That is the fabrik-lib brief shape the
@@ -221,16 +237,19 @@ session unchanged.
    - with bwrap absent, the mode probe failing, or `scratchpad_dir` missing, the hook is in fallback mode, refuses an
      unmodelled construct, and says so;
    - a grader that neuters the mode check, so fallback reads as fence, goes red;
-   - a wrapper-build error on a seat payload denies the call.
+   - a wrapper-build error on a seat payload denies the call, and so does an exception in `decide()` on a seat payload
+     in fallback mode;
+   - on WSL, a probe whose Windows executable launches inside the masked fence puts the host in fallback mode.
 8. `--die-with-parent`: a backgrounded child is gone when the call ends.
 9. The bind set is asserted exactly: {scratchpad_dir, the run folder when it exists, the run record's scratch when it
-   exists outside the run folder and under `.tmp/runs/`}, writable; the three service masks
-   present; nothing else writable. The cobra counter is that adding `/tmp` or the repo `.tmp` turns a test red.
+   exists outside the run folder and under `.tmp/runs/`}, writable; every service mask present for each path that
+   exists; nothing else writable that persists outside the sandbox (the private `/dev` and the tmpfs masks excepted). The cobra counter is that adding `/tmp` or the repo `.tmp` turns a test red.
 10. One live `fabrik-reviewer` seat through the Agent tool, before the merge:
     - it writes its seat folder;
     - it gets EROFS on a live path;
-    - the docker curl fails;
-    - a later call in the same seat sees the cwd the harness tracked;
+    - the docker curl fails, and on WSL `/mnt/c/Windows/System32/cmd.exe /c ver` fails;
+    - an allow-listed command (`git status`) runs with no prompt and no refusal (U6);
+    - a later call in the same seat starts in the cwd the harness tracked, not the previous call's `cd` (U5);
     - a `run_in_background` call still delivers its output;
     - the `updatedInput` rewrite still applies on the build's Claude Code version.
 
@@ -241,14 +260,18 @@ session unchanged.
   The build probes it in a throwaway worktree.
 - (U3) bwrap on other synced hosts. Mode detection falls back, and the refusal names the mode.
 - (U4) Whether `$HOME` caches written by seat tools need a writable bind. The harvest replay (Validation 4) counts them.
-- (U5) The cwd across calls. The `cd` runs in the wrapped child, so the harness's cwd tracking decides what the next
-  call starts in. The intended behaviour is that the next call starts in the harness's tracked cwd (Validation 10).
+- (U5) The cwd across calls. The `cd` runs in the wrapped child, so it cannot move the harness's shell: the expected
+  behaviour is that the next call starts in the harness's tracked cwd, never the `cd` target (Contract deltas;
+  Validation 10).
+- (U6) Permission rules and the auto-mode classifier judge the input the hook returns (External facts, the hooks
+  page), so they see `/usr/bin/bwrap … -- /bin/bash -c '<quoted>'`, not the seat's command. Which allow rule a seat
+  then needs, and whether a deny rule still bites, is proved by Validation 10's allow-listed call before the merge.
 
 **Lifecycle.**
 - **Adoption:** with the merge of `worktree-intel` after the live seat proof (Validation 10). The post-merge sync
   distributes it.
 - **Growth, with measured triggers:**
-  - a host service a seat reaches through a socket joins the masks when a probe finds it;
+  - a host service a seat reaches through a socket or an interop path joins the masks when a probe finds it;
   - a new writable bind joins only with a named brief that needs it and a test.
 - **The parser:** it stays the fallback while any host may lack bwrap or allow it no user namespace. No retirement
   trigger is set: the mode cache is a local file and nothing collects it across hosts.
@@ -435,8 +458,9 @@ No new hook invocation: the Bash hook already runs on every seat command.
    `perl -pi … <live file>`, `tee <live file>`, `dd of=<live file>`, `touch ~/x` and a write on a `cd`/`bash -c` line are
    denied; `cd <scratch> && touch x`, `mkdir -p <scratch>/d 2>/dev/null` and `truncate -s 0 <scratch>/f` are allowed.
 5. An untokenisable command naming a write verb is denied.
-6. A crash inside the new path still fails open: no deny, only the existing `updatedInput` envelope for a seat
-   (the crash is injected in-process, the one grader that cannot run through the subprocess harness).
+6. A crash inside the new path on a seat payload DENIES the call, naming fallback mode (D-1129 amendment, Design 3);
+   on a non-seat payload it still fails open, with only the existing `updatedInput` envelope (the crash is injected
+   in-process, the one grader that cannot run through the subprocess harness).
 7. The scanner fixes of delta 5: `env -C` scoped to its command; a here-string hides nothing.
 
 ## Decisions taken
