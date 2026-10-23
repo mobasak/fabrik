@@ -1,6 +1,6 @@
 # Plan — spoke watchdogs alert through a mesh-only Apprise gate
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** fleet
 Spec: `docs/superpowers/specs/2026-10-23-spoke-watchdog-apprise-mesh-gate-design.md` (CONVERGED, D-1166)
@@ -112,6 +112,10 @@ the files that lane needs; row 8 — `unconstrained`: no self-healing step is ad
 - docs/development/reviews/2026-10-23-plan-1-spoke-watchdog-apprise-mesh-gate-review.md
 
 ## Phase A — Registrar: mesh URL, refusal lifted, login preflight
+
+✅ EXECUTED 2026-10-23 (d25b23f8d, 3b833320d; /fabrik-review-scoped 2 rounds, confirmed 1 → 0, shape: agent-tool —
+the preflight now runs after the driver import guard; CHANGELOG entry landed here, not in Phase C step 3, because
+`check_doc_sync.py` blocks the phase commit without it)
 
 Appetite: 120
 
