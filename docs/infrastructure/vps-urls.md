@@ -146,7 +146,7 @@ These resolve only *inside* a container on the same `fabrik` network on the same
 | Loki push API | `http://loki:3100/loki/api/v1/push` |
 | Prometheus query | `http://prometheus:9090` |
 | Authelia forward-auth target | `http://authelia:9091/api/verify` |
-| Apprise notify (stateful — the fleet convention; vps1 containers only: no mesh port, so a spoke watchdog is refused until it is mesh-published, W-37dda1e1) | `http://apprise:8000/notify/alerts` |
+| Apprise notify (stateful — the fleet convention; vps1 containers. A spoke posts to `http://10.99.0.1:8202/notify/alerts` instead, the mesh-only gate — § Mesh URLs) | `http://apprise:8000/notify/alerts` |
 | Apprise notify (stateless — n8n only) | `http://apprise:8000/notify` |
 | Gotenberg | `http://gotenberg:3000` |
 | Browserless | `http://browserless:3000` |
@@ -168,6 +168,7 @@ A spoke container reaches vps1's shared infra over the Wireguard mesh — bind a
 | `http://10.99.0.1:9091/api/verify` | Authelia forward-auth (spoke Traefik uses this) | ✓ |
 | `http://10.99.0.1:3100/loki/api/v1/push` | Loki ingest (spoke promtail uses this) | ✓ |
 | `http://10.99.0.1:8201/wake` | aro-wake peer-protocol consult / Alertmanager webhook on vps1 (trio Phase 3+4 LIVE 2026-06-05) | ✓ |
+| `http://10.99.0.1:8202/notify/alerts` | Apprise, through `apprise-mesh-gate` (`POST` to this one path only; spoke watchdog sidecars, D-1166) | pending the W-5dcafaef deploy |
 | `http://10.99.0.1:8201/metrics` | aro-wake Prometheus exposition on vps1 (8 SLI metrics, scraped 15s) — LIVE 2026-06-06 | ✓ |
 | `http://10.99.0.2:8201/wake` | aro-wake peer-protocol consult on vps2 — LIVE 2026-06-06 (real cross-host vps2→vps1 verified) | ✓ |
 | `http://10.99.0.2:8201/metrics` | aro-wake Prometheus exposition on vps2 — scraped by hub Prometheus over wg0 (~270ms) | ✓ |
@@ -293,6 +294,7 @@ const resp = await fetch('https://translator.vps1.ocoron.com/api/translate', { h
 | 8000/tcp | `10.99.0.1:8000` | (mesh-only) | glitchtip-web ingest |
 | 9091/tcp | `10.99.0.1:9091` | (mesh-only) | authelia (cross-host forward-auth) |
 | 3100/tcp | `10.99.0.1:3100` | (mesh-only) | loki push API |
+| 8202/tcp | `10.99.0.1:8202` | (mesh-only) | apprise-mesh-gate — `POST /notify/alerts` only (D-1166) |
 | 8080/tcp | `127.0.0.1:8080` | localhost | Traefik API dashboard |
 
 ### vps2 / vps3 UFW (identical) — active + enforcing as of 2026-05-31 evening (W1 shipped)

@@ -1,7 +1,9 @@
 # Apprise notifications gateway — the live stack is /opt/apprise/compose.yaml on vps1; this is its mirror.
 # ARM64: supported (linux/amd64, linux/arm64).
-# No host port: Traefik routes notify.vps1.ocoron.com to the container's internal 8000 over the fabrik
-# network, and alerting exec's curl inside the container (libs/alerting/apprise.py). Nothing needs one.
+# Apprise itself has no host port: Traefik routes notify.vps1.ocoron.com to its internal 8000 over the fabrik
+# network, and alerting exec's curl inside the container (libs/alerting/apprise.py). Spokes reach it only through
+# apprise-mesh-gate, an nginx allow-list bound to the mesh IP 10.99.0.1:8202 that admits POST /notify/alerts
+# alone (D-1166, the recorded exception to the no-host-ports rule).
 services:
   apprise:
     image: caronc/apprise:latest
@@ -10,6 +12,7 @@ services:
     environment:
       APPRISE_STATELESS_URLS: "${APPRISE_STATELESS_URLS}"
       APPRISE_WORKER_COUNT: "${APPRISE_WORKER_COUNT}"
+      APPRISE_ATTACH_SIZE: "0"
     volumes:
       - apprise-config:/config
     networks:
@@ -31,6 +34,45 @@ services:
       resources:
         limits:
           memory: 768M
+
+  apprise-mesh-gate:
+    image: nginx:1.30-trixie
+    container_name: apprise-mesh-gate
+    restart: unless-stopped
+    networks:
+      - fabrik
+    ports:
+      - "10.99.0.1:8202:8202"
+    configs:
+      - source: apprise-mesh-gate-conf
+        target: /etc/nginx/conf.d/default.conf
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8202/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+
+configs:
+  apprise-mesh-gate-conf:
+    content: |
+      limit_req_zone $$binary_remote_addr zone=notify:1m rate=30r/m;
+      server {
+          listen 8202;
+          client_max_body_size 1m;
+          resolver 127.0.0.11 valid=10s;
+          set $$apprise http://apprise:8000;
+          location = /notify/alerts {
+              limit_except POST { deny all; }
+              limit_req zone=notify burst=20 nodelay;
+              proxy_pass $$apprise/notify/alerts;
+          }
+          location = /healthz { return 200; }
+          location / { return 403; }
+      }
 
 volumes:
   apprise-config:

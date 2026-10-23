@@ -7,3 +7,12 @@ endpoints:
       - "[STATUS] == 200"
     alerts:
       - type: custom
+  # The mesh-only gate spokes alert through (D-1166); probed on its mesh bind, as a spoke reaches it.
+  - name: apprise-mesh-gate
+    group: apps
+    url: "http://10.99.0.1:8202/healthz"
+    interval: 120s
+    conditions:
+      - "[STATUS] == 200"
+    alerts:
+      - type: custom

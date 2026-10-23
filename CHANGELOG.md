@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
   call checks `<FABRIK_VPS_CLAUDE_HOME>.json` and `.credentials.json` and, on a spoke, that the gate answers. A
   missing file, an unreachable gate, unexpected output or an ssh error is a non-fatal `watchdog:` registrar
   failure naming the target and the ssh alias hit; the driver does not run.
+- `infra/vps1/apprise/compose.yaml` (the live stack's mirror) gains `apprise-mesh-gate`: `nginx:1.30-trixie`
+  bound to `10.99.0.1:8202` only, admitting `POST /notify/alerts` alone (1 MB cap, 30/min per mesh source,
+  burst 20; `/healthz` 200; all else 403), its policy inline as a compose `configs:` entry. Apprise gains
+  `APPRISE_ATTACH_SIZE: "0"`. Gatus probes the gate (`configs/gatus/apps/apprise.yaml`); `spoke-canary` drops its
+  `watchdog: enabled: false` opt-out; `PORTS.md`, `docs/infrastructure/vps-urls.md` and `docs/SERVICES.md` name
+  the port. Not yet deployed — the live stack changes at the plan's deploy gate.
 
 ### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
 
