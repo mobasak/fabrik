@@ -913,7 +913,9 @@ def test_two_held_catalogue_subjects_recurred_and_are_edited() -> None:
         "artifact the next step compares it with (a lock file, a manifest), not only the source it reads; run a "
         "README snippet, usage text or rewritten docstring instruction as a caller would, and hand each seat of "
         "the brief that same command to run under § Seat isolation — one that writes a live store, sends, "
-        "commits, deploys or reaches a host stays the lead's — and probe each exception a rewritten docstring "
+        "commits, deploys or reaches a host stays the lead's, who runs it on a scratch target (a throwaway "
+        "database, repo or host), every command and SQL block of a runbook included — and probe each exception a "
+        "rewritten docstring "
         "says the function still raises."
     )
     assert bullet("- Test hygiene: a test stub records what it RECEIVED") == (

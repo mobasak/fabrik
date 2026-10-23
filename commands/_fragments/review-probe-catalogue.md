@@ -10,7 +10,9 @@ it, or name in the brief why the shape does not have it.
   check the END STATE a recipe exists to produce, not only each step, against the artifact the next step compares it
   with (a lock file, a manifest), not only the source it reads; run a README snippet, usage text or rewritten docstring
   instruction as a caller would, and hand each seat of the brief that same command to run under § Seat isolation — one
-  that writes a live store, sends, commits, deploys or reaches a host stays the lead's — and probe each exception a
+  that writes a live store, sends, commits, deploys or reaches a host stays the lead's, who runs it on a scratch
+  target (a throwaway database, repo or host), every command and SQL block of a runbook included — and probe each
+  exception a
   rewritten docstring says the function still raises.
 - A line another tool injects or renders, changed or with a rendering the change alters, is read back whole through
   that tool's output after the edit and before each delta pin, under an invocation that emits it — a pack line in
