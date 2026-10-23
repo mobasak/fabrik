@@ -36,10 +36,10 @@ already started was kept, since it is a superset of the `Size: small` path.
   spoke URL, runs the login preflight, and refuses a sidecar only for a cause it can name.
 - **The coordinator** — boards the deploy gate and relays the operator's answer.
 - **fleet** (builder) — builds and tests the code and runs every deploy step only after the operator's go:
-  - bringing up the gate;
-  - the three probes;
   - the attachment lock and its probe;
   - `ensure-apprise-alerts-config.sh --check`;
+  - bringing up the gate;
+  - the gate probes;
   - the spoke-canary apply.
 - **The existing vps1 Apprise callers** (automated) — 18 files that keep `http://apprise:8000/...` over the local
   bridge and are untouched. They are:
@@ -154,19 +154,22 @@ mirror `infra/vps1/apprise/compose.yaml`:
 - `deploy.resources.limits.memory: 32M`
 - a healthcheck `curl -fsS http://127.0.0.1:8202/healthz`
 - no Traefik labels
+- no `depends_on`, so bringing the gate up can never recreate Apprise
 
 Its whole policy is a top-level compose `configs:` entry with inline `content:`, mounted at
 `/etc/nginx/conf.d/default.conf`. The compose file therefore stays the single artifact, with no separate conf to
 copy to the box:
 
 ```
+limit_req_zone $binary_remote_addr zone=notify:1m rate=30r/m;
 server {
     listen 8202;
-    client_max_body_size 64k;
+    client_max_body_size 1m;
     resolver 127.0.0.11 valid=10s;
     set $apprise http://apprise:8000;
     location = /notify/alerts {
         limit_except POST { deny all; }
+        limit_req zone=notify burst=20 nodelay;
         proxy_pass $apprise/notify/alerts;
     }
     location = /healthz { return 200; }
@@ -180,8 +183,17 @@ server {
 - Because `proxy_pass` names the URI, Apprise always receives exactly `POST /notify/alerts`, with no query string
   and no raw-path variant.
 - The resolver re-resolves `apprise` after any Apprise recreate.
+- The rate limit stops a compromised spoke from flooding the one Telegram bot token that every vps1 caller
+  shares. Each mesh source gets a burst of 20, then 30 per minute; past that it gets 503.
+  - A spoke's containers all leave through its one mesh IP, so the budget is per spoke, not per sidecar.
+  - `escalate_apprise` does not retry a 503 (`/opt/fabrik-lib/watchdog/watchdog_sidecar/agent.py:568-576`), so
+    alerts beyond the budget from one spoke are lost, with a sidecar log line.
+  - Accepted: today 1 spoke spec exists (§ Derivations). Revisit the rate when a spoke carries several watchdogs
+    (Lifecycle, Growth).
+- The 1m body cap leaves room for a long LLM reasoning in a sidecar alert. Bodies such as `diag.reasoning`
+  (`/opt/fabrik-lib/watchdog/watchdog_sidecar/agent.py:1147`) are not truncated before the POST.
 
-All three were executed (§ Derivations).
+All five were executed (§ Derivations).
 
 **The attachment lock.** Apprise gains `APPRISE_ATTACH_SIZE: "0"`, so the one admitted route cannot be made to
 fetch a URL. None of the 18 caller files uses attachments (§ Derivations). It is applied as its own deploy step,
@@ -220,20 +232,51 @@ refused, and by `ensure-apprise-alerts-config.sh --check` returning 200.
 
   `<home>` is `VPS_CLAUDE_HOME`. Both paths are passed through `shlex.quote`, because the value comes from the
   operator's `FABRIK_VPS_CLAUDE_HOME`.
+- **For a non-vps1 target**, the same ssh call appends a gate probe after an `&&`, so it runs only when the sudo
+  part succeeded:
+
+  ```
+  <the sudo command above> && { timeout 5 bash -c '</dev/tcp/10.99.0.1/8202' && echo 'gate reachable' || echo 'gate unreachable'; }
+  ```
+
+  That proves the spoke reaches the gate before a sidecar depends on it, and vps3 and any future spoke are checked
+  at their own apply. A refused `sudo -n` still exits 1 with empty stdout, which is a `RuntimeError` (executed, §
+  Derivations).
 - **How the result is read:**
-  - When sudo works, the script exits 0 whatever it finds, so every `missing <f>` line names the absent file.
+  - The check passes only when stdout holds `present <p>` for BOTH raw paths and, on a spoke, `gate reachable`.
+    The script echoes the unquoted path, so the comparison is against `<home>.json` and
+    `<home>/.credentials.json` as-is. The script exits 0 whatever it finds when sudo works.
+  - Each `missing <p>` line names that file, and `gate unreachable` reads "gate unreachable from <target>".
+  - Any other or empty output is "could not check <target>: unexpected output". That covers a banner, a
+    truncation, or a wrapper that printed something else.
+  - The check proves existence, not readability by the sidecar's UID 1000. A readability failure surfaces as the
+    sidecar's own LLM error.
   - Any exception from the call is "could not check <target>: <the error's one-line text>" and never reads as
     missing. That covers a `RuntimeError` (sudo refused, an ssh transport failure, rc 255), a `TimeoutExpired`,
     and the `ValueError` subclasses `SshHostError` and `JumpConfigError` (`src/fabrik/drivers/ssh.py:104`,
     `:121`). It is caught as `Exception`, like the driver call below it (`infrastructure.py:1628-1650`).
-- **Either failure** records `_nonfatal(ctx, "watchdog", …)` naming the target, which `FABRIK_VPS_SSH_HOST` was
+- **Every failure** records `_nonfatal(ctx, "watchdog", …)` naming the target, which `FABRIK_VPS_SSH_HOST` was
   swapped to, and skips the sidecar. The app stays deployed and the apply ends red, as D-1153's refusal did.
+- **Accepted residue:** a failed preflight leaves the watchdog DB roles and their DSNs, which `provision()`
+  created earlier in the apply, and the next apply re-uses them. The comment at `:764` is rewritten to say so.
 - **Why every target and not only spokes:** the mount requirement is identical on vps1, so one rule with no branch
   closes the class. The cost is one ssh call per real watchdog apply.
 
-**Firewall.** No change. vps1's live `DOCKER-USER` chain already drops 8202 from any public source, and allows it
-from 10/8, which covers the mesh. The spokes' drop list guards spoke-published ports only, and no spoke publishes
-8202.
+**Firewall.** No change. vps1's live `DOCKER-USER` chain already drops 8202 from any public source. It RETURNs
+10/8 on any interface, not only wg0, which is the existing scope for 5432, 6379 and 8000; W-2ce2df52 owns the
+`-i wg0` tightening. The spokes' drop list guards spoke-published ports only, and no spoke publishes 8202.
+
+**Spoke runtime gaps, each with its owner.**
+
+| Gap | Owner |
+|---|---|
+| Apprise not reachable | closed here (the gate) |
+| The Claude login files | closed here (the preflight) |
+| The gate not reachable from a given spoke | closed here (the preflight) |
+| Postgres and redis URLs | already rewritten (`src/fabrik/drivers/watchdog.py:570-571`, D-904) |
+| The image build and the docker.sock GID | run on the app's host (D-904) |
+| The `error_webhook` trigger cannot reach a spoke's `:8889` | fail-closed by `_assert_error_webhook_colocated` (`src/fabrik/orchestrator/__init__.py:60-76`) |
+| A stale vps1 sidecar for a moved app; a port-less user URL | W-20a37911 |
 
 **The acceptance.** Remove `watchdog: {enabled: false}` and its D-1156 comment from
 `specs/services/spoke-canary.yaml`, then `fabrik apply` it on vps2.
@@ -260,7 +303,9 @@ from 10/8, which covers the mesh. The spokes' drop list guards spoke-published p
 **Error and failure handling.**
 
 - **The gate is down:** the sidecar's POST fails and `escalate_apprise` returns False and logs. Gatus's gate
-  endpoint pages the operator, because Gatus reaches Apprise directly.
+  endpoint, `http://10.99.0.1:8202/healthz` on the mesh IP so it watches the published path, pages the operator,
+  because Gatus reaches Apprise directly. Deploy step 3 verifies that a vps1 container reaches the mesh IP. If it
+  cannot, the endpoint falls back to `http://apprise-mesh-gate:8202/healthz` and the bind is left to W-cb08c877.
 - **Apprise is down:** the gate answers 502. Gatus cannot page either, since it delivers through Apprise. That is
   the existing single point of failure, not widened here, and the alertmanager path is unchanged.
 - **A 204 from Apprise** (a lost `alerts` key) counts as delivered in the sidecar. That class is owned by
@@ -273,8 +318,15 @@ from 10/8, which covers the mesh. The spokes' drop list guards spoke-published p
 - **New tests:**
   - the URL rewrite: vps2 → `10.99.0.1:8202`; vps1 unchanged; another host untouched; a userinfo URL untouched;
   - the refusal is gone: the driver is called for vps2, and the roles and analytics are provisioned;
-  - the preflight: present; one file missing (named); both missing; `RuntimeError` → "could not check"; a timeout
-    → "could not check"; a `JumpConfigError` → "could not check"; an openrouter-only provider skips the check; a dry run makes no ssh;
+  - the preflight:
+    - present;
+    - one file missing (named);
+    - both missing;
+    - empty or unexpected stdout → "could not check";
+    - a spoke whose gate probe prints `gate unreachable`;
+    - `RuntimeError`, a timeout and a `JumpConfigError` → "could not check";
+    - an openrouter-only provider skips the check;
+    - a dry run makes no ssh;
   - `fabrik plan` text no longer names D-1153.
 - **Existing tests, rewritten:**
   - `tests/test_watchdog_spoke_preflight.py`: the refusal tests are inverted into the above, the plan test is
@@ -312,25 +364,31 @@ from 10/8, which covers the mesh. The spokes' drop list guards spoke-published p
 ## Lifecycle
 
 - **Adoption / first run.** One deploy gate, run by fleet after the operator's go, in this order:
-  1. In `/opt/apprise`, copy the mirror's compose (backup first), then `docker compose up -d apprise-mesh-gate`.
-     This touches only the new service.
-  2. Run three probes:
+  1. **The attachment lock first.** In `/opt/apprise`, back up the live compose. Copy in the mirror's compose from
+     the approved commit, which carries both the gate service and `APPRISE_ATTACH_SIZE`. Then run
+     `docker compose up -d --no-deps apprise`.
+     - This recreates the one Apprise container, so every vps1 caller, Gatus included, loses its alert path for the
+       seconds of the restart; run it at a quiet moment.
+     - Verify from a vps1 container: a POST to `http://apprise:8000/notify/alerts` carrying `attach` is refused,
+       and `ensure-apprise-alerts-config.sh --check` answers 200.
+     - If the `attach` POST is not refused, stop: the gate is never brought up (U4).
+  2. `docker compose up -d --no-deps apprise-mesh-gate`.
+  3. Run the probes:
      - from a vps2 container, `POST /notify/alerts` answers 2xx;
      - `GET /get/alerts` answers 403;
-     - a public-source connect to 8202 is dropped.
-  3. `docker compose up -d apprise` for the attachment lock. This recreates the one Apprise container, so every
-     vps1 caller, Gatus included, loses its alert path for the seconds of the restart; run it at a quiet moment.
-     Then a POST with `attach` is refused, and `ensure-apprise-alerts-config.sh --check` answers 200.
+     - a public-source connect to 8202 is dropped;
+     - a vps1 container reaches `http://10.99.0.1:8202/healthz`, which decides the Gatus endpoint.
   4. Merge the code, then apply spoke-canary with its watchdog on vps2.
 - **Rollback**, in reverse order:
   1. Re-add the canary opt-out, revert the code merge so no new spoke sidecar points at the gate, and remove
      spoke-canary's running `<id>-watchdog` sidecar on vps2 by hand. An `enabled: false` re-apply leaves a running
      sidecar in place, and it would keep posting to a dead port.
   2. `docker compose rm -sf apprise-mesh-gate`.
-  3. Drop the attachment env and `up -d apprise`.
+  3. Drop the attachment env and run `up -d --no-deps apprise` (the same restart gap as adoption step 1).
 - **Growth.**
   - Each new spoke-targeted watchdog adds no configuration, and a new spoke needs nothing on the gate.
   - A second notify key adds one `location`.
+  - Revisit the per-spoke rate (30 per minute, burst 20) when one spoke carries several watchdogs.
   - Revisit at more than one key, or at alert volume beyond what one nginx worker serves — not plausible at 1 of 69
     spoke specs.
 - **Degradation.** As in Error and failure handling.
@@ -342,7 +400,8 @@ from 10/8, which covers the mesh. The spokes' drop list guards spoke-published p
 - No scaffold type and no `shape:` flag change.
 - spoke-canary's `watchdog` block returns to the `WatchdogConfig` defaults.
 - New infra: one compose service on vps1 (32M), port 8202 (`PORTS.md`), one Apprise env var and one Gatus endpoint
-  (`http://apprise-mesh-gate:8202/healthz`, by service name).
+  (`http://10.99.0.1:8202/healthz` on the mesh IP; `http://apprise-mesh-gate:8202/healthz` by service name if
+  deploy step 3 shows a vps1 container cannot reach the mesh IP).
 - The gate's `ports:` is an exception to the `.windsurf/rules/core/30-ops.md:357` invariant. It is recorded by the
   approval D-row, beside the postgres, redis and glitchtip precedent (`.windsurf/rules/core/30-ops.md:290`).
 
@@ -356,8 +415,12 @@ from 10/8, which covers the mesh. The spokes' drop list guards spoke-published p
   - § Mesh URLs (`:159-171`) gains `http://10.99.0.1:8202/notify/alerts`;
   - the mesh-only port table (`:291-295`) gains 8202.
 - **`infra/vps1/apprise/compose.yaml`:** its header comment (`:3-4`, "Nothing needs one") is rewritten.
-- **`src/fabrik/orchestrator/infrastructure.py`:** the D-1153 docstring and comments (`:132`, `:764`, `:1601`) are
-  rewritten.
+- **`src/fabrik/orchestrator/infrastructure.py`:** the D-1153 docstring and comments (`:132`, `:764`, `:1601`) and
+  the plan text (`:460`) are rewritten.
+- **`specs/services/spoke-canary.yaml`:** the D-1153 comment line is removed together with the opt-out.
+- **`.windsurf/rules/core/30-ops.md:290`:** it lists the mesh-published ports, so it gains `:8202` (the Apprise
+  gate, `POST /notify/alerts` only). That is a fleet-synced rules pack whose wording is kaizen's beat, so the
+  change goes to kaizen as a mail at merge rather than as an edit here.
 - **`configs/gatus/apps/apprise.yaml`:** the gate endpoint.
 - **`docs/DECISIONS.md`:** the approval row (it supersedes D-1153's spoke branch and records the 30-ops port
   exception).
@@ -386,13 +449,13 @@ How the design meets each row:
 - **U1 — resolved.** Does `/notify/alerts` deliver on vps1 today? The repo's own measurement says yes, since
   2026-07-12 (`scripts/sysadmin/ensure-apprise-alerts-config.sh:6-16`). The deeper store probe was refused by the
   permission classifier, as a production read and as credential exploration, and both refusals were reported to the
-  coordinator. The design does not depend on it, and the deploy gate runs the script's `--check` (step 3).
+  coordinator. The design does not depend on it, and the deploy gate runs the script's `--check` (step 1).
 - **U2 — resolved.** nginx keeps a stale upstream IP with a literal `proxy_pass`; the resolver form does not. Both
   were executed (§ Derivations).
 - **U3 — open, pre-existing (W-cb08c877).** Docker is not ordered after wg0 on vps1.
 - **U4 — open, measured at deploy.** The attachment lock is proven on master's source. The deployed `latest` image
-  is older (it answered 204 where master answers 404), so step 3's refused-`attach` probe is its proof. If the
-  probe is not refused, the deploy stops and the finding goes to a new item before the canary apply.
+  is older (it answered 204 where master answers 404), so deploy step 1's refused-`attach` probe is its proof. If
+  the probe is not refused, the gate is never brought up, and the finding goes to a new item.
 
 ## Derivations
 
@@ -412,7 +475,10 @@ POST /notify/alerts/  /notify/  /notify  /NOTIFY/alerts   403
 POST /notify/%61lerts  /notify//alerts  /notify/alerts/../alerts   200 POST /notify/alerts
 GET /get/alerts  /json/urls/alerts  /details  /metrics  /   403 ; POST /add/alerts 403
 GET /healthz                          200
-POST 70000-byte body                  413
+POST 70000-byte body (64k cap, superseded)   413
+1m cap (panel fold): POST 900 KB      200 ; POST 1.1 MB 413
+limit_req 30r/m burst=20 nodelay: 24 rapid POSTs → 21 × 200, then 503 503 503
+preflight shape (bash, sudo stood in by true / sh -c 'exit 1'): ok → rc 0 'missing /etc/host name dir.json\npresent /etc/hostname\ngate unreachable\n' ; refused → rc 1 ''
 upstream recreated (10.212.16.2 → .4): resolver form 200 · literal proxy_pass 502
 docker compose up with configs.content on Compose 2.40.3: gate healthy, POST 200, /get 403
 ```
@@ -452,12 +518,12 @@ compose (service plus inline config), one env var, the test rewrites, and the do
 
 The design is accepted when all of the following hold:
 
-- Deploy steps 2-3 pass:
+- Deploy steps 1 and 3 pass:
+  - an `attach` POST is refused;
+  - `--check` answers 200;
   - a spoke POST to `/notify/alerts` answers 2xx;
   - `/get/alerts` answers 403;
-  - a public connect to 8202 is dropped;
-  - an `attach` POST is refused;
-  - `--check` answers 200.
-- spoke-canary applies green on vps2 with its watchdog sidecar running.
+  - a public connect to 8202 is dropped.
+- spoke-canary applies green on vps2 with its watchdog sidecar running, its preflight printing `gate reachable`.
 - A test alert posted from the vps2 sidecar container lands in Telegram.
 - Every test listed under Testing approach was seen red first.
