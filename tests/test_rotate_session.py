@@ -463,7 +463,9 @@ def test_review_round_one_failures_are_rowed_never_crash(world, monkeypatch):
     monkeypatch.setattr(rs, "_tmux", boom)
     rs.execute()
     assert _rows(world)[-1]["outcome"] == "refused:error"
-    monkeypatch.setattr(rs, "_tmux", real_tmux)  # never monkeypatch.undo(): it would drop the fixture's sandbox env
+    monkeypatch.setattr(
+        rs, "_tmux", real_tmux
+    )  # never monkeypatch.undo(): it would drop the fixture's sandbox env
     # a dangling symlink and an unclaimable file are removed and rowed, and the valid request beside them still runs
     world["req"].mkdir(exist_ok=True)
     (world["req"] / "a--dead.json").symlink_to(world["tmp"] / "nowhere")
@@ -541,8 +543,12 @@ def test_review_round_two_a_stale_tmp_and_a_json_directory_never_wedge(world):
     assert rs.request("dev1", "/opt/x", None, "manual") == 0
     assert not tmp.exists() and any(r["outcome"] == "refused:orphan" for r in _rows(world))
     next(world["req"].glob("*.json")).unlink()
-    for _ in range(2):  # round 3: a second directory of the same name, an earlier one already moved aside
+    for _ in range(
+        2
+    ):  # round 3: a second directory of the same name, an earlier one already moved aside
         (world["req"] / "evil.json").mkdir()
         (world["req"] / "evil.json" / "inner").write_text("x")
         assert rs.execute() == 0
-        assert not list(world["req"].glob("*.json")) and _rows(world)[-1]["outcome"] == "refused:claim"
+        assert (
+            not list(world["req"].glob("*.json")) and _rows(world)[-1]["outcome"] == "refused:claim"
+        )

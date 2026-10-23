@@ -462,7 +462,9 @@ def _pending() -> bool:
             if time.time() - stray.stat().st_mtime > ORPHAN_S:
                 stray.unlink()
                 append_row({"outcome": "refused:orphan", "reason": stray.name})
-    for tmp in d.glob(".*.tmp"):  # a request killed between write and rename; the rename takes milliseconds
+    for tmp in d.glob(
+        ".*.tmp"
+    ):  # a request killed between write and rename; the rename takes milliseconds
         with contextlib.suppress(OSError):
             if time.time() - tmp.stat().st_mtime > STALE_S:
                 tmp.unlink()
@@ -712,9 +714,13 @@ def execute() -> int:
             ) as exc:  # never leave a matching file behind: the path unit would re-fire forever
                 with contextlib.suppress(OSError):
                     f.unlink()
-                if f.exists() or f.is_symlink():  # a directory: unlink cannot remove it, so move it out of the glob
+                if (
+                    f.exists() or f.is_symlink()
+                ):  # a directory: unlink cannot remove it, so move it out of the glob
                     with contextlib.suppress(OSError):
-                        os.replace(f, f.with_name(f"{f.name}.rejected-{time.time_ns()}"))  # unique: never onto an earlier one
+                        os.replace(
+                            f, f.with_name(f"{f.name}.rejected-{time.time_ns()}")
+                        )  # unique: never onto an earlier one
                 append_row({"outcome": "refused:claim", "reason": f"{f.name}: {exc}"})
                 continue
             try:
