@@ -375,7 +375,7 @@ def test_a_template_with_no_smoke_rule_is_left_alone(makefile, tmp_path, monkeyp
     assert (project / "Makefile").exists()
 
 
-# W-1cb0d89f: the live-worker check reads each run as shell words AND as raw text; either reading refuses
+# W-1cb0d89f: any line that runs docker must BE a sealed smoke line the scaffold wrote; everything else is refused
 _LIVE_RUNS = {
     # the substring check let these through
     "double-space": "\t@docker  run -d --env-file .env $(PROJECT_NAME)\n",
@@ -402,26 +402,25 @@ _LIVE_RUNS = {
     "smoke-overridden": "\t@docker run -d --network none -e WORKER_SMOKE=1 -e WORKER_SMOKE=0 $(PROJECT_NAME)\n",
     "network-overridden": "\t@docker run -d --network none -e WORKER_SMOKE=1 --network host $(PROJECT_NAME)\n",
     "near-miss": "\t@docker run -d --network=nonexistent -e WORKER_SMOKE=10 $(PROJECT_NAME)\n",
-    # forms the shell-word reading alone would miss: the raw-text reading catches them
+    # quoted, backticked, by path, behind a mid-word or quoted `#`, a seal in a plain-image comment or after `;`
     "sh-c": '\t@sh -c "docker run -d $(PROJECT_NAME)"\n',
+    "sh-c-container": '\t@sh -c "docker container run -d $(PROJECT_NAME)"\n',
     "backticks": "\t@echo `docker run -d $(PROJECT_NAME)`\n",
     "by-path": "\t@/usr/bin/docker run -d $(PROJECT_NAME)\n",
     "mid-word-hash": "\t@[ $$# -gt 0 ] && docker run -d $(PROJECT_NAME)\n",
-    # make's recipe prefixes, a continuation, and an unlexable line
+    "quoted-hash": "\t@echo '#'; docker run -d img\n",
+    "plain-image-comment": "\t@docker run -d img # --network none -e WORKER_SMOKE=1\n",
+    "plain-image-semicolon": "\t@docker run -d img;echo --network none -e WORKER_SMOKE=1\n",
+    # make's recipe prefixes and a continuation
     "dash-prefix": "\t-docker run -d $(PROJECT_NAME)\n",
     "plus-prefix": "\t+docker run -d $(PROJECT_NAME)\n",
     "continued": "\t@docker run -d \\\n\t\t$(PROJECT_NAME)\n",
-    "unparseable": '\t@docker run -d --env-file .env "$(PROJECT_NAME)\n',
 }
 
-_SEALED_RUNS = [
+# sealed, but not the line the scaffold writes: drift, refused like any drifted smoke line
+_DRIFTED_SEALED_RUNS = [
     "\t@docker run  --network none  -e WORKER_SMOKE=1 $(PROJECT_NAME) || true\n",
     "\t@docker container run --network=none --env=WORKER_SMOKE=1 $(PROJECT_NAME)\n",
-    "\t@docker run --network none --env WORKER_SMOKE=1 $(PROJECT_NAME)\n",
-    "\t@/usr/bin/docker run -e=WORKER_SMOKE=1 --network none $(PROJECT_NAME)\n",
-    "\t@docker run --network none -e WORKER_SMOKE=1 \\\n\t\t$(PROJECT_NAME)\n",
-    # a mid-word `#` is no shell comment: the sealed run after it is read, not dropped
-    "\t@echo a#b; docker run --network none -e WORKER_SMOKE=1 $(PROJECT_NAME)\n",
 ]
 
 
@@ -444,7 +443,7 @@ def test_a_live_run_fails_the_scaffold(tmp_path, monkeypatch, case):
         _scaffold_with_extra_target(tmp_path, monkeypatch, _LIVE_RUNS[case])
 
 
-@pytest.mark.parametrize("recipe", _SEALED_RUNS)
-def test_a_sealed_smoke_run_in_any_spelling_is_accepted(tmp_path, monkeypatch, recipe):
-    project = _scaffold_with_extra_target(tmp_path, monkeypatch, recipe)
-    assert recipe in (project / "Makefile").read_text()
+@pytest.mark.parametrize("recipe", _DRIFTED_SEALED_RUNS)
+def test_a_sealed_run_the_scaffold_did_not_write_is_refused_as_drift(tmp_path, monkeypatch, recipe):
+    with pytest.raises(ValueError, match="live worker"):
+        _scaffold_with_extra_target(tmp_path, monkeypatch, recipe)

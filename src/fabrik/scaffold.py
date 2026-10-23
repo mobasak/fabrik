@@ -21,7 +21,6 @@ import json
 import logging
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -5789,74 +5788,23 @@ SERVICE_NAME={name}
 
 
 _DOCKER_RUN_TEXT = re.compile(r"docker\s+(?:container\s+)?run\b")
-_SEPARATOR_CHARS = frozenset(";|&()")
 
 
-def _sealed_docker_runs(words: list[str]) -> int | None:
-    """How many `docker run` / `docker container run` in one lexed line are sealed; None when one is not."""
-    sealed = 0
-    for i, word in enumerate(words):
-        if os.path.basename(word.strip("`")) != "docker":
-            continue
-        rest = words[i + 1 :]
-        if rest[:1] == ["run"]:
-            args = rest[1:]
-        elif rest[:2] == ["container", "run"]:
-            args = rest[2:]
-        else:
-            continue
-        # the run's own words end at the next separator token — punctuation_chars glues `;(`, `);` and `|(` into one
-        # token, so any all-punctuation token holding a separator character counts
-        end = next(
-            (
-                j
-                for j, a in enumerate(args)
-                if set(a) <= set(";|&()<>") and set(a) & _SEPARATOR_CHARS
-            ),
-            len(args),
-        )
-        args = args[:end]
-        networks = [v for k, v in zip(args, args[1:], strict=False) if k == "--network"]
-        networks += [a.split("=", 1)[1] for a in args if a.startswith("--network=")]
-        envs = [v for k, v in zip(args, args[1:], strict=False) if k in ("-e", "--env")]
-        envs += [a.split("=", 1)[1] for a in args if a.startswith(("-e=", "--env="))]
-        smokes = [e.split("=", 1)[1] for e in envs if e.startswith("WORKER_SMOKE=")]
-        if networks and set(networks) == {"none"} and smokes and set(smokes) == {"1"}:
-            sealed += 1
-        else:
-            return None
-    return sealed
+def _live_docker_runs(makefile: str, sealed: frozenset[str]) -> list[str]:
+    """Every Makefile line that runs docker and is not one of the `sealed` smoke lines this scaffold wrote (W-1cb0d89f).
 
-
-def _live_docker_runs(makefile: str) -> list[str]:
-    """Every Makefile line holding a `docker run` / `docker container run` not sealed off from a real queue (W-1cb0d89f).
-
-    A run is sealed when its words — up to the next shell separator — carry `--network none` (or `--network=none`) and
-    `-e WORKER_SMOKE=1` (`--env`, or the `=` forms), in any order or spacing, and no other `--network` or
-    `WORKER_SMOKE` value; a word opening with `#` ends the line, as in the shell. Two readings must agree, and either
-    one refuses: the shell words (`docker  run`, `/usr/bin/docker run`, a seal in a comment or a later command) and
-    the raw text, where every `docker [container] run` — inside quotes, backticks or `sh -c` too — needs a sealed run
-    the lexer verified. A line the lexer cannot split is refused. Backslash continuations are joined first. Not covered:
-    docker reached through a variable (`$(DOCKER) run`), options before `run`, `docker compose run`, `create`+`start`,
-    and a seal written after the image (W-1cb0d89f's follow-up item).
+    An allow-list, not a parser: the Makefile comes from our own template, so a line whose raw text holds
+    `docker [container] run` — however spaced, in quotes, backticks, `sh -c`, a comment or a later command — passes
+    only when, stripped, it IS a sealed line the scaffold produced. Any other spelling, a sealed run included, is
+    template drift and is refused, as a drifted smoke line already is. Not covered: docker reached without that text
+    (`$(DOCKER) run`, options before `run`, `docker compose run`, `create`+`start`, a split or quoted `docker` word) —
+    W-b6f4b941.
     """
-    live = []
-    for ln in re.sub(r"\\\n[ \t]*", " ", makefile).splitlines():
-        if "docker" not in ln:
-            continue
-        lex = shlex.shlex(ln.strip().lstrip("@-+"), posix=True, punctuation_chars=True)
-        lex.whitespace_split = True
-        lex.commenters = ""
-        try:
-            words = list(lex)
-        except ValueError:
-            live.append(ln.strip())
-            continue
-        words = words[: next((j for j, w in enumerate(words) if w.startswith("#")), len(words))]
-        sealed = _sealed_docker_runs(words)
-        if sealed is None or len(_DOCKER_RUN_TEXT.findall(ln)) > sealed:
-            live.append(ln.strip())
-    return live
+    return [
+        ln.strip()
+        for ln in makefile.splitlines()
+        if _DOCKER_RUN_TEXT.search(ln) and ln.strip() not in sealed
+    ]
 
 
 def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
@@ -5983,7 +5931,14 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
                 )
             content = content.replace(old, new)
         # the hazard itself, whatever the header or drift: no `docker run` leaves here able to reach a real queue
-        live = _live_docker_runs(content)
+        # the sealed run line this scaffold writes; the check runs before the `smoke-test` rename below
+        sealed = frozenset(
+            ln.strip()
+            for new in smoke.values()
+            for ln in new.splitlines()
+            if _DOCKER_RUN_TEXT.search(ln)
+        )
+        live = _live_docker_runs(content, sealed)
         if live:
             raise ValueError(
                 f"{makefile_src}: a docker run line would run a live worker: {live[0]!r}"

@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — file-worker scaffold: the live-worker check reads each docker run as shell words and as raw text (2026-10-23)
+### Fixed — file-worker scaffold: the live-worker check allows only the sealed smoke line it wrote (2026-10-23)
 
-`_scaffold_file_worker`'s refusal of a Makefile `docker run` that could reach a real queue matched `"docker run"` and the seal as substrings, so `docker  run`, `docker container run`, a seal in a `#` comment or a later command all passed, and a sealed run spaced differently was refused. `_live_docker_runs` now refuses a line unless BOTH readings agree: its shell words (lexed with `shlex`, a `#`-opening word ends the line, any separator token cuts the run, and every `--network`/`WORKER_SMOKE` value must be the sealed one) and its raw text, where each `docker [container] run` — in quotes, backticks or `sh -c` too — needs a verified sealed run. Backslash continuations are joined; an unlexable line naming docker is refused. Not covered, as before: `$(DOCKER) run`, options before `run`, `docker compose run`, `create`+`start`, a seal after the image. W-1cb0d89f.
+`_scaffold_file_worker`'s refusal of a Makefile `docker run` that could reach a real queue matched `"docker run"` and the seal as substrings, so `docker  run`, `docker container run`, or a seal in a `#` comment or a later command all passed. `_live_docker_runs` is now an allow-list: any line whose raw text holds `docker [container] run` — however spaced, quoted, backticked, behind `sh -c`, a comment or a separator — must be exactly the sealed smoke line the scaffold wrote, or the scaffold fails; a sealed run spelled any other way is template drift and is refused too. Docker reached without that text (`$(DOCKER) run`, options before `run`, `docker compose run`) is W-b6f4b941. W-1cb0d89f.
 
 ### Fixed — Session-history bullet: the ROTATE-DUE and COMPACT-DUE lines are described as shipped (2026-10-23)
 
