@@ -26,7 +26,7 @@ fallback ≈10, docstring ≈45); tests ≈220 lines in `tests/test_seat_guard.p
 
 ## What this plan is
 
-Three inline phases the orchestrator codes itself in the `worktree-intel` worktree; no coder is dispatched:
+Four inline phases (A executed; B, C and D re-planned) the orchestrator codes itself in the `worktree-intel` worktree; no coder is dispatched:
 
 - **A — the guard**: the shell write rule, the unparseable fallback, the tool-list pin, the docstring and the
   hooks-index row and the two scanner fixes (spec § The delta items 1-5).
@@ -75,7 +75,9 @@ Intake: 10 items — 7 IN, 3 OUT-OF-SCOPE (each named above), 0 ASK.
   no `agent_id`, or an `agent_type` outside `SEAT_TYPES`, is allowed untouched — the lead, implementers and every other
   agent type keep writing as today.
 - **Fail open on a guard bug, fail closed on an unknown destination** (Phase A). Phase C narrows it for SEAT payloads:
-  a `decide()` exception and a write-rule exception deny (`spec:146-148`, applied always since there is no fence);
+  a `decide()` exception denies (`spec:147-149`, applied always since there is no fence), and so does a write-rule
+  exception, a new Phase C decision recorded in its commit's D-row (it supersedes, for seat payloads, D-1116's
+  per-command catch that reads a crash as "no reason");
   `main()`'s `except Exception` → allow stays for the non-seat path (`:1452-1455`); inside the rule, a `$`-bearing or
   substituted destination is NOT scratch (`_in_scratch`, `:581-582`), and neither is one starting with `~`.
 - **Destinations only.** A read of the live tree (`cat`, `cp <live> <scratch>/`, `git -C <live> show`) stays allowed.
@@ -105,13 +107,13 @@ Intake: 10 items — 7 IN, 3 OUT-OF-SCOPE (each named above), 0 ASK.
 | `.windsurf/rules/core/10-python.md` (FLOOR — TOOLING surface; MATCHED — seat_guard.py, test_seat_guard.py) | no deps-file edit | `core/10-python.md:38` |
 | `.windsurf/rules/core/45-testing-strategy.md` (MATCHED — test_seat_guard.py) | one test per behaviour; watched-fail-first; no cosmetic assertions | `core/45-testing-strategy.md:20`, `:21`, `:22` |
 | `.windsurf/rules/core/40-documentation.md` (MATCHED — CHANGELOG.md, DECISIONS.md, this plan) | one CHANGELOG entry | `core/40-documentation.md:134` |
-| `docs/workstation/hooks-index.md` (the hooks authority) | the `seat_guard.py` row names what the hook refuses | `docs/workstation/hooks-index.md:104` |
+| `docs/workstation/hooks-index.md` (the hooks authority) | the `seat_guard.py` row names what the hook refuses | `docs/workstation/hooks-index.md:107` |
 | `commands/_agents/fabrik-reviewer.md` (the seat's definition, read only) | the tool list the pin asserts | `commands/_agents/fabrik-reviewer.md:4` |
 | `fabrik-lib` | nothing parses shell destinations or keys a hook on a subagent type — BUILD in the hook | `spec § fabrik-lib verdict` |
 | § Amendment 2026-10-23 (CONVERGED, D-1160) | P2: the reviewer session, the launcher, the per-seat layer, the first proof — Phases B and C build against it verbatim | `spec:380-418` |
-| § Amendment 2026-10-22 Design 3 (the refusal list) | the constructs the parser does not model, refused for a seat | `spec:140-148` |
+| § Amendment 2026-10-22 Design 3 (the refusal list) | the constructs the parser does not model, refused for a seat | `spec:141-149` |
 | `.windsurf/rules/core/30-ops.md` (judgment read; the surface is TOOLING) | a shelled-out binary is never assumed — `claude` is probed with its flags | `core/30-ops.md:464` |
-| `scripts/cloud_dispatch.py` (read, not edited) | the headless `claude -p` shape to reuse: the prompt on stdin, a scratch cwd, timeouts as errors | `scripts/cloud_dispatch.py:402-412` |
+| `scripts/cloud_dispatch.py` (read, not edited) | the headless `claude -p` shape to reuse: the prompt on stdin, a scratch cwd, timeouts as errors | `scripts/cloud_dispatch.py:402-418` |
 | `scripts/rivals_run.py` (read, not edited) | a parsed `claude -p` run sets `FABRIK_HEADLESS=1` and `CLAUDE_MESH_HEADLESS=1` so no hook banner reaches its output | `scripts/rivals_run.py:536` |
 | Claude Code docs (fetched 2026-10-23) | `--settings` inline JSON overrides per key; hooks merge across levels; subagents share the session's sandbox and hooks; `--permission-mode auto`; `localhost` private and `docker` incompatible in the sandbox | § Evidence, "P2 re-plan grounding" |
 | `specs/services/*.yaml` `shape:` | untouched — a hub hook, no service | — |
@@ -222,9 +224,12 @@ and nothing in Phase C starts until it is green.
 
 **Interfaces — Produces** (scratch only, never a repository file):
 - `<run scratch>/proof_launch.py` — builds the reviewer session's `--settings` JSON (item 1's sandbox block plus a
-  `hooks.PreToolUse` entry, matcher `Bash`, whose command is `python3 <hook path>` with an absolute path), makes a fresh
-  session directory under `/tmp/claude-<uid>/` (never under `/opt`, never a git worktree), and runs
-  `claude -p --permission-mode auto --permission-prompts none --output-format json --max-turns 40 --settings <json>`
+  `hooks.PreToolUse` entry, matcher `Bash`, whose command is `python3 <hook path>` with an absolute path), mints a
+  session id (`uuid4`) and makes the session directory `/tmp/claude-<uid>/review-session/<that id>/` (never under `/opt`,
+  never a git worktree; the `<slug>/<sid>` shape is the one the hook's `_TMP_SESSION` (`.claude/hooks/seat_guard.py:147`)
+  reads as THIS session's scratch, since the seats' payload carries the session's id — a bare `/tmp/claude-<uid>/<dir>/`
+  reads its second segment as another session's id and is refused), and runs
+  `claude -p --session-id <that id> --permission-mode auto --permission-prompts none --output-format json --max-turns 40 --settings <json>`
   with the brief on stdin and that directory as cwd, the env adding `FABRIK_HEADLESS=1` and `CLAUDE_MESH_HEADLESS=1`
   (`scripts/rivals_run.py:536`). The stdin-prompt, scratch-cwd shape is `scripts/cloud_dispatch.py:402-412`'s.
   The hook path is the WORKTREE's `.claude/hooks/seat_guard.py` (absolute), because the main checkout's copy predates
@@ -234,19 +239,26 @@ and nothing in Phase C starts until it is green.
   then write `<session dir>/receipt.md` with each check's command, rc and stderr.
 
 **Steps** (sequential; the orchestrator runs them inline in `worktree-intel`):
-1. Preflight: `claude --version` (2.1.309 at authoring), and `claude --help` lists `--permission-mode` with `auto`,
-   `--permission-prompts`, `--settings` and `--output-format` (Evidence). Missing ⇒ BLOCKED, missing infra.
+1. Preflight: `claude --version` (2.1.309 at authoring), and `claude --help` lists `--permission-mode` with `auto`
+   among its choices, `--permission-prompts`, `--settings`, `--session-id` and `--output-format` (Evidence). Missing ⇒
+   BLOCKED, missing infra. `--max-turns` is absent from `--help` on 2.1.309 but documented
+   (https://code.claude.com/docs/en/cli-reference, "Limit the number of agentic turns (print mode only)") and used live
+   at `scripts/cloud_dispatch.py:786`; the launch's own rc and stderr settle it, and a refusal of the flag is a
+   launcher fix (drop the flag), never a BLOCKED stop.
 2. Write `proof_launch.py` and `proof-brief.md` in the run scratch; start a throwaway `python3 -m http.server` on a free
    port bound to `127.0.0.1` for P6, and stop it after.
 3. Launch from this session (the lead) through one Bash call, `run_in_background`, and record that call's outcome: it
    is P8, the classifier's judgement on the launch (`spec:403`, "The launch is itself a lead Bash call the classifier
    judges").
 4. The checks, run by the seat inside the reviewer session; the lead verifies each against the host afterwards:
-   - P1 `touch /opt/fabrik/.claude/worktrees/intel/zz_p2_live` fails (EROFS or a sandbox denial); the lead's
-     `git status --porcelain` shows nothing new. This also settles whether `denyWrite` overrides the added `/opt`
-     directory (`spec:391-392`).
+   - P1 `python3 -c "open('/opt/fabrik/.claude/worktrees/intel/zz_p2_live','w')"` fails with `Read-only file system`
+     (EROFS) in its stderr; the lead's `git status --porcelain` shows nothing new. A `python3 -c` write is a stated
+     blind spot of the hook's parser (it allows it — § Evidence, "Plan-review probes"), so only the sandbox can refuse
+     it, and that settles whether `denyWrite` overrides the added `/opt` directory (`spec:391-392`). A `touch` would be
+     refused by the hook first and prove the parser, not the sandbox.
    - P2 `echo ok > <session dir>/seat-1/ok` succeeds.
-   - P3 `touch /opt/fabrik/.git/refs/zz_p2` fails; the lead's `ls /opt/fabrik/.git/refs/zz_p2` finds nothing.
+   - P3 `python3 -c "open('/opt/fabrik/.git/refs/zz_p2','w')"` fails with `Read-only file system`; the lead's
+     `ls /opt/fabrik/.git/refs/zz_p2` finds nothing.
    - P4 the session's `receipt.md` exists and the lead copies it into the run folder (`spec:396-397`).
    - P5 seat_guard fires inside the session: the seat runs `killall zz_p2_no_such_process`, and the reply carries the
      hook's `seat guard` deny text (the kill rule denies `killall` anywhere, `.claude/hooks/seat_guard.py:21`; harmless
@@ -272,9 +284,9 @@ and nothing in Phase C starts until it is green.
 
 **Behavior Contract (Phase B):**
 
-- **Given** the reviewer session launched with item 1's settings, **When** its seat writes the live worktree, **Then** the write fails and the lead's `git status --porcelain` is unchanged (P1)
+- **Given** the reviewer session launched with item 1's settings, **When** its seat writes the live worktree by a `python3 -c` open the hook does not parse, **Then** the write fails with EROFS and the lead's `git status --porcelain` is unchanged (P1)
 - **Given** the same session, **When** its seat writes its own folder under the session directory, **Then** the write succeeds (P2)
-- **Given** the same session, **When** its seat writes into the main repository's `.git/refs`, **Then** the write fails and nothing appears there (P3)
+- **Given** the same session, **When** its seat writes into the main repository's `.git/refs` by a `python3 -c` open, **Then** the write fails with EROFS and nothing appears there (P3)
 - **Given** the same session, **When** it writes its receipt into its own directory, **Then** the lead reads it back and copies it into the run folder (P4)
 - **Given** the launcher's `--settings` hook entry, **When** the seat runs `killall`, which the hook denies, **Then** the reply carries the `seat guard` deny text (P5)
 - **Given** the lead in auto mode, **When** it launches the reviewer session, **Then** the call runs, not refused by the classifier or the worktree guard (P8)
@@ -293,25 +305,28 @@ Implements `spec § Amendment 2026-10-23`, Panel decision items 2 and 3 (`spec:3
     `_unmodelled(command) -> str` (`:1700-1704`), restored from history with two measured changes (§ Evidence, "The
     refusal table's fire rate"): the command-word rows (`eval`/`source`, `.`, `((`/`[[`, the wrappers, `cd … $(`) are
     anchored to a command position, `(?:^|[;&|(\n!]|\b(?:then|else|elif|do|if|while|until)\b)[ \t]*`, and every row
-    matches the command's unquoted SKELETON, `_skeleton(command) -> str`: the hook's own `_strip_comments` (`:266`) and
-    `_strip_heredocs` (`:302`), then each quoted span blanked, `$'` and a double-quoted `$(` kept. Raw, the table
-    refused 1,195 of 37,088 unique seat commands (3.2%, mostly `[[:space:]]` in grep patterns, `flock` as a search
-    word, `.` as grep's search root); anchored on the skeleton, 25 of 37,109 (0.07%), each a genuine construct. The
+    matches the command's unquoted SKELETON, `_skeleton(command) -> str`: the hook's own `_strip_heredocs` (`:302`) then
+    `_strip_comments` (`:266`), in `_scan`'s order (`:1286`), then each quoted span blanked, `$'` and a double-quoted `$(` kept. On one harvest of
+    37,109 unique seat commands the raw table refused 1,196 (3.2%, mostly `[[:space:]]` in grep patterns, `flock` as a
+    search word, `.` as grep's search root) and the anchored skeleton table 25 (0.07%), each a genuine construct. The
     prototype is `/opt/fabrik/.tmp/runs/5ce9d888-9344-466f-b905-652ac93cdf89/fabrik-plan-after-chat-2026-10-23T18-05-44-0300/proto/fire_rate3.py`.
-    `_unmodelled` is called in `decide()` after the seat check and the `command` extraction (HEAD `:1393-1396`) and
-    before `ctx` is built (`:1397`); the deny text reads `seat guard (an unmodelled shell construct): the command holds
+    `_unmodelled` is called in `decide()` after the seat check (HEAD `:1394-1395`) and the `command` extraction
+    (`:1396`) and before `ctx` is built (`:1398`); the deny text reads `seat guard (an unmodelled shell construct): the command holds
     <what> …`, never "fallback mode", since there is no other mode.
   - `_safe_write_reason` (HEAD `:1218-1224`) returns a deny reason on a crash instead of `""`; only seat payloads reach
     it.
   - `main()` (HEAD `:1452-1455`): an exception in `decide()` on a SEAT payload denies, naming the crash; a non-seat
-    payload keeps today's `reason = ""` (`spec:146-148`; without a fence the parser is the only per-seat layer, item 3).
-- `scripts/review_session.py` (new): `build_settings(hook_path: str) -> dict`, `session_dir() -> Path`,
+    payload keeps today's `reason = ""` (`spec:147-149`; without a fence the parser is the only per-seat layer, item 3).
+    Before it, `decide()` returns "" when `tool_input` is not a dict or `command` is not a string.
+- `scripts/review_session.py` (new): `build_settings(hook_path: str) -> dict`, `session_dir(session_id: str) -> Path`,
   `launch(brief: str, *, hook_path: str, model: str | None, max_turns: int, timeout_s: int) -> SessionResult`
-  (`rc`, the parsed JSON result, `session_dir`), and a CLI `python3 scripts/review_session.py --brief <file> --out
+  (`rc`, the parsed JSON result, `session_dir`, `session_id`), and a CLI `python3 scripts/review_session.py --brief <file> --out
   <dir> [--hook <path>] [--max-turns N] [--timeout S]` that launches, waits, and copies every file in the session
   directory into `--out`. It is Phase B's `proof_launch.py`, the argv and settings unchanged. `--hook` defaults to
   `/opt/fabrik/.claude/hooks/seat_guard.py` (`spec:399-400`); `session_dir()` refuses a path under `/opt` or inside a
-  git work tree. A timeout kills the process group and exits 124 (the convention of `scripts/ci_fix_dispatcher.py:234`).
+  git work tree, and C5 asserts a seat write into the directory it returns passes `decide()`. A timeout kills the
+  process group and exits 124 — the exit code is the convention of `scripts/ci_fix_dispatcher.py:65` and `:256`; the
+  group kill is new code (`start_new_session=True` and `os.killpg`), which no existing launcher has.
   The first lines carry `# AFTER-EDIT: tests/test_review_session.py, docs/reference/review-loop-workflow.md`.
 - The terminal consumer is the review commands' dispatch sentence (`commands/_fragments/subagents-core.md:3`), which
   is kaizen's wording (`spec:403-404`). Step 6 sends kaizen the exact proposed sentence. Until kaizen lands it, the
@@ -323,10 +338,17 @@ Implements `spec § Amendment 2026-10-23`, Panel decision items 2 and 3 (`spec:3
    and allows on a crash. C4-C7 fail because `scripts/review_session.py` does not exist. Each is also proven red on
    revert in a throwaway worktree (`git worktree add --detach <scratch>/probe HEAD`), never in the shared checkout.
 2. Re-expect the two tests that pin the old fail-open, each edit stated:
-   - `test_a_scan_that_raises_still_rewrites` (`tests/test_seat_guard.py:354`) now expects a DENY for the seat payload,
-     and keeps its rewrite assertion for a non-seat payload;
-   - `test_a9_a_crash_in_the_write_rule_fails_open_and_keeps_the_git_rule` (`:530`) is renamed `…_denies_…` and expects
-     the deny; its git-rule half stays.
+   - `test_a_scan_that_raises_still_rewrites` (`tests/test_seat_guard.py:354`) is renamed
+     `test_a_scan_that_raises_denies_a_seat` and expects a deny naming the crash with no `updatedInput`; a non-seat
+     payload gets no rewrite at all (`rewrite()` returns None for it, `.claude/hooks/seat_guard.py:1428-1429`), so the
+     non-seat side is `test_fail_open`'s;
+   - `test_a9_a_crash_in_the_write_rule_fails_open_and_keeps_the_git_rule` (`:530`) is renamed
+     `test_a9_a_crash_in_the_write_rule_denies_a_seat` and expects the deny naming the crash for `echo x > Makefile`;
+     its git half is dropped, since a crash-deny on the first simple command returns before `_scan` reaches the git
+     rule (`:1348-1349`), so it would pass vacuously;
+   - `test_malformed_seat_payloads_produce_nothing` (`:389`) stays green because `decide()` first returns "" when
+     `tool_input` is not a dict or its `command` is not a string — the two shapes that raise `AttributeError` today
+     (§ Evidence, "Plan-review probes") — so a malformed payload never reaches the crash-deny.
    `test_fail_open` (`:134`) is the non-seat path and stays green untouched.
 3. Restore `_UNMODELLED` and `_unmodelled()` from `git show 0669c6c51:.claude/hooks/seat_guard.py` (lines `:1679-1704`)
    with the anchor and `_skeleton()` of the Interfaces above, and wire them and the two crash-denies. Then the fire-rate
@@ -339,7 +361,7 @@ Implements `spec § Amendment 2026-10-23`, Panel decision items 2 and 3 (`spec:3
    - the hook's module docstring: the refusals, the crash-deny, and the COBRA line — the cheapest way to pass the
      fire-rate gate is a table that refuses nothing, and the cheapest way to pass C1 is a table that matches only the
      test strings, so C1 holds a positive and an allowed near-miss per row and step 3 reads real hits;
-   - `docs/workstation/hooks-index.md:104`'s `seat_guard.py` row: the refusals, the seat crash-deny, the registration
+   - `docs/workstation/hooks-index.md:107`'s `seat_guard.py` row: the refusals, the seat crash-deny, the registration
      by absolute path in a reviewer session, and the residuals of item 3 (cross-seat width; a direct Agent-tool seat has
      the parser only);
    - `docs/reference/review-loop-workflow.md`: a "Reviewer session (hub, D-1160)" section after § Fallback (`:98`),
@@ -359,12 +381,12 @@ Implements `spec § Amendment 2026-10-23`, Panel decision items 2 and 3 (`spec:3
 
 - **Given** a seat payload, **When** the command holds one of the ten unmodelled constructs in a command position (a heredoc or pipe into a shell, `eval`, `source` or `.`, `$'…'`, `((` or `[[`, an unknown wrapper, a conditional `cd`, `$(…)` in a cd or write position), **Then** it is denied with a reason naming the construct; **and** the same text in quotes, a heredoc body or an argument position (`grep '[[:space:]]' f`, `grep -rn x . | head`, `printf '%s' 'eval x'`, `grep flock f`) stays allowed (C1)
 - **Given** a seat payload, **When** `decide()` raises, **Then** the call is denied naming the crash; **and** for a non-seat payload it is allowed as today (C2)
-- **Given** a seat payload, **When** the write rule raises, **Then** the call is denied and the git rule still applies (C3)
+- **Given** a seat payload, **When** the write rule raises, **Then** the call is denied with a reason naming the crash; **and** a seat payload whose `tool_input` is not a dict, or whose `command` is not a string, produces no output (C3)
 - **Given** `build_settings(<hook>)`, **When** it is read, **Then** the sandbox is enabled, unsandboxed commands are refused, `/opt` is in `denyWrite`, and the one PreToolUse entry on `Bash` runs the hook by that absolute path (C4)
-- **Given** `session_dir()`, **When** it is called, **Then** the directory is new, outside `/opt`, and not inside a git work tree; **and** a path under `/opt` or in a work tree is refused (C5)
+- **Given** `session_dir(<id>)`, **When** it is called, **Then** the directory is new, outside `/opt`, not inside a git work tree, and a seat write into it passes `decide()` for a payload carrying that session id; **and** a path under `/opt` or in a work tree is refused (C5)
 - **Given** `launch()` with the `claude` binary replaced by a stub on `PATH` that records its argv, cwd and stdin, **When** it runs, **Then** the argv carries `-p`, `--permission-mode auto`, `--permission-prompts none`, `--output-format json` and `--settings` with C4's JSON, the cwd is the session directory, and the brief arrives on stdin (C6)
 - **Given** the CLI with a stub that writes a file into its cwd, **When** it finishes, **Then** that file is copied into `--out`; **and** a stub that sleeps past `--timeout` exits 124 (C7)
-- **Mocked:** C6 and C7 put a stub `claude` on `PATH` (a script in `tmp_path`); every other grader runs the real hook as a subprocess (`_run()`, `tests/test_seat_guard.py:24`) or the real functions. The live path is Phase B's proof and Phase D step 4.
+- **Mocked:** C6 and C7 put a stub `claude` on `PATH` (a script in `tmp_path`); C2 and C3 inject the crash in-process with `monkeypatch`, as `tests/test_seat_guard.py:354` and `:530` do; every other grader runs the real hook as a subprocess (`_run()`, `tests/test_seat_guard.py:24`) or the real functions. The live path is Phase B's proof and Phase D step 4.
 
 ## Phase D — Finish
 
@@ -372,7 +394,9 @@ Appetite: 60
 
 **Steps** (sequential):
 1. The whole-plan `/fabrik-review` (the hook is a governance-sync path; D7 floor: the whole-plan diff by file, a Sonnet
-   and a Haiku finder per slice as Agent-tool seats (D-961), the orchestrator executing every candidate), its receipt
+   and a Haiku finder per slice as Agent-tool seats (D-961), the orchestrator executing every candidate) — dispatched by
+   the lead directly, the stated exception to spec item 1 (`spec:385-386`) until kaizen lands the dispatch sentence
+   (R6, `spec:403-404`); the seats keep the hook's parser and the refusals Phase C adds — its receipt
    APPENDED as a new section to `docs/development/reviews/2026-10-15-plan-2-review-seat-write-isolation-review.md`.
 2. `CHANGELOG.md` entry (`### Changed — review seats run in a sandboxed reviewer session, with per-seat refusals (<the
    commit date>)`).
@@ -388,7 +412,7 @@ Appetite: 60
 - `tests/test_seat_guard.py`
 - `scripts/review_session.py`
 - `tests/test_review_session.py`
-- `docs/workstation/hooks-index.md` (only the `seat_guard.py` row, `:104`)
+- `docs/workstation/hooks-index.md` (only the `seat_guard.py` row, `:107`)
 - `docs/reference/review-loop-workflow.md` (a new "Reviewer session" section and its rendered `## Related scripts`)
 - `docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md`
 - `docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md`
@@ -402,7 +426,7 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 
 | Row | Hunt | Verdict |
 |---|---|---|
-| FLOOR core/10-python (TOOLING surface) | no deps-file edit; stdlib only | CLEAN — no dependency file in § File Scope; `scripts/review_session.py` uses `json`, `os`, `subprocess`, `tempfile`, `shutil`; hunted: Global Constraints, Phase C Interfaces |
+| FLOOR core/10-python (TOOLING surface) | no deps-file edit; stdlib only | CLEAN — no dependency file in § File Scope; `scripts/review_session.py` uses `argparse`, `json`, `os`, `pathlib`, `shutil`, `signal`, `subprocess` and `uuid`; hunted: Global Constraints, Phase C Interfaces |
 | FLOOR 12-FACTOR | config; no file sink; a shelled-out binary probed | CLEAN — the launcher's flags are arguments, no log file; the `claude` binary is probed by Phase B step 1 (judgment row `core/30-ops.md:464`); hunted: Phase B, Phase C Interfaces |
 | MATCHED core/40-documentation | one CHANGELOG entry; the hooks-index row; the review-loop doc section; the D-row for the refusal design | CLEAN — Phase D step 2, Phase C step 5, the Phase C commit |
 | MATCHED core/45-testing-strategy | one grader per behaviour, each seen red | CLEAN — B rows are live proofs, C1-C7 graders each seen red (Phase C step 1); the refusal table's fire rate is a measured gate (Phase C step 3) |
@@ -1004,10 +1028,10 @@ $ grep -nEi 'localhost|127\.0\.0\.1|docker' commands/_fragments/review-probe-cat
   two headless env flags), `scripts/ci_fix_dispatcher.py:234` (a tool-using worker, exit 124 on timeout) and
   `scripts/sysadmin/claude_broker.py:229-235` (the prompt after `--`). None is a general launcher the reviewer session
   could call, so `scripts/review_session.py` is new and borrows `cloud_dispatch.py`'s shape.
-- The briefs that need a live service, census over the four review-family sources and `review-probe-catalogue.md`
-  (16 lines name `localhost`, `127.0.0.1`, `curl`, `docker` or a port; 14 are review RULES about the reviewed code, not
-  seat probes): the two seat probes are `commands/_fragments/review-probe-catalogue.md:105-106` (`docker compose … config`)
-  and `:306-309` (a database connect over TCP `localhost` or a unix socket).
+- The briefs that need a live service: the catalogue's own grep (the last block above) finds the two seat probes,
+  `commands/_fragments/review-probe-catalogue.md:105-106` (`docker compose … config`) and `:306-309` (a database
+  connect over TCP `localhost` or a unix socket); the other hits in the four review-family sources are review RULES
+  about the reviewed code (a `localhost` DB host, host `ports:`, a Dockerfile-pinned binary), not seat probes.
 
 ### The refusal table's fire rate (2026-10-23)
 
@@ -1053,8 +1077,14 @@ seat transcripts (fabrik-reviewer, mtime <= 3 d): 1126; unique Bash commands: 37
           e.g. D=/tmp/claude-1000/-opt-fabrik--claude-worktrees-intel/5ce9d888-9344-466f-b905-652ac93cdf89/scratchpad/run-fabrik-review-2026-10-22T07-01-20-0300-9e31
 ```
 
-Command-word rows anchored to a command position, every row matched on the unquoted skeleton (`fire_rate3.py`; the
-harvest is re-read, so its count moved by 21 between the runs):
+`fire_rate3.py` re-reads the harvest (its count moved by 21 between the runs) and first re-prints the raw table's
+line over that same harvest, which is the denominator Phase C cites:
+
+```text
+seat transcripts (fabrik-reviewer, mtime <= 3 d): 1126; unique Bash commands: 37109; refused by the table: 1196 (3.2%)
+```
+
+Command-word rows anchored to a command position, every row matched on the unquoted skeleton (`fire_rate3.py`):
 
 ```text
 SKELETON+ANCHORED: refused 25 of 37109 (0.07%)
@@ -1073,7 +1103,7 @@ SKELETON+ANCHORED: refused 25 of 37109 (0.07%)
           e.g. cd /opt/youtube/.claude/worktrees/yt1; set -a; . ./.env 2>/dev/null; set +a; PGPASSWORD="$DB_PASSWORD" timeout 60 psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" -U
 ```
 
-The anchored skeleton table on fourteen constructs and ten near-misses (`nearmiss.py`):
+The anchored skeleton table on fourteen constructs and ten near-misses (`proto/nearmiss.py`):
 
 ```text
 POS DENY 'bash <<EOF\nls\nEOF' a heredoc to a shell
@@ -1100,6 +1130,34 @@ NEG ALLOW "cat <<'EOF' > /tmp/a\neval x\n[[ y ]]\nEOF"
 NEG ALLOW 'echo "source of truth"' 
 NEG ALLOW 'grep -c . f' 
 NEG ALLOW 'ls -la'
+```
+
+### Plan-review probes (2026-10-23, round 1)
+
+The hook at 3a106fe96, imported and called as `decide()` on seat payloads (`proto/probe1.py` in the folder above): the
+hook refuses a `touch` of the live tree before any sandbox sees it, allows a `python3 -c` open (a parser blind spot,
+so P1 and P3 use it); a bare `/tmp/claude-<uid>/<dir>/seat-1` path is refused while `<slug>/<session id>/` passes;
+two malformed payloads raise:
+
+```text
+A1 touch live : "seat guard (review seats run in the lead's shared tree): a review seat writes only under its scratch dir — /o
+A1 touch refs : "seat guard (review seats run in the lead's shared tree): a review seat writes only under its scratch dir — /o
+A1 python open: ''
+A2 bare dir   : "seat guard (review seats run in the lead's shared tree): a review seat writes only under its scratch dir — /t
+A2 slug/sid   : ''
+A2 pad        : ''
+A4 notadict   : RAISES AttributeError
+A4 list cmd   : RAISES AttributeError
+TMP_SESSION   : ^/tmp/claude-\d+/[^/]+/([^/]+)(/|$)
+```
+
+`claude --help` on 2.1.309, the `--permission-mode` lines (its choices include `auto`; `--max-turns` is not listed):
+
+```text
+  --permission-mode <mode>              Permission mode to use for the session
+                                        (choices: "acceptEdits", "auto",
+                                        "bypassPermissions", "manual",
+                                        "dontAsk", "plan")
 ```
 
 ## Self-audit
