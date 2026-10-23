@@ -159,10 +159,14 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
   fields) is preceded by an executed census of each store's current members, and its invariants are written against
   that census, never against one member. An executed in-repo measurement outranks a web answer about the repo's own
   code; a vendored or installed third-party package's behaviour stays an external claim under this gate. A design
-  that changes what a function, value, table or pattern does, holds or matches carries `/fabrik-plan-after-chat`
-  Phase 1's reader census of it, executed before Phase 3 and cited in the spec; a reader that is itself a matcher (a
-  gate's pattern, a query on the table) is searched with that matcher's own pattern and flags, read from its call,
-  and a census across repos first lists them with `find`, dependency directories pruned.
+  that changes what an existing function, value, build script, table or pattern does, holds, matches or grants is
+  preceded by an executed census of its readers, its command and output cited in the spec and each reader named
+  there for the plan's File Scope (`/fabrik-plan-after-chat` Phase 1's reader census, extended here to tables and
+  patterns): a symbol's call sites (`find_referencing_symbols`) plus a grep of its name, its file's basename and its
+  path; a table's SQL statements, views, ORM models and migrations, found by its bare and schema-qualified names; a
+  matcher's corpus (a gate's pattern), searched with the flags read from its call under the old pattern and the new.
+  A reader in other repos (a fleet-synced file among them) is censused there: `find` lists the repos, dependency
+  directories (`node_modules`, `.venv`, `vendor`) pruned, then each repo found is scanned.
 - **Freshness (CLAUDE.md):** the research must be run in THIS session. An external claim with no fresh cited
   source is a defect.
 - **BLOCKING:** you may NOT present approaches (Phase 3) until every external dependency is either

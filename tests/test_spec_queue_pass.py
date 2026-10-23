@@ -236,18 +236,32 @@ def test_the_downgrade_check_names_the_lane_ledger_path(monkeypatch, tmp_path: P
     assert cr._lane_ledger() == tmp_path / "x" / "lane-refusals.jsonl"
 
 
-def test_a_design_that_changes_what_readers_read_runs_the_plan_reader_census() -> None:
-    """Rows 1792540718, 1792539852, 1792561636: a spec censuses the readers of what it changes, matchers with their
-    own flags, other repos found by a pruned find — inside the 1a local-claims bullet, before Phase 3."""
-    local = _section("**Local claims are executed, not cited:**", "- **Freshness (CLAUDE.md):**")
+def _live(path: Path, start: str, end: str) -> str:
+    """The comment-free text from `start` to the next `end` — a commented-out rule is not a live one."""
+    text = re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", " ", path.read_text(), flags=re.S))
+    assert text.count(start) == 1, f"anchor not unique or moved: {start!r}"
+    i = text.index(start)
+    return text[i : text.index(end, i + len(start))]
+
+
+def test_a_design_that_changes_what_readers_read_censuses_them_per_reader_kind() -> None:
+    """Rows 1792540718, 1792539852, 1792561636: the 1a local-claims bullet requires a reader census per reader kind
+    (symbol, table incl. grants, matcher under the old and new pattern) and a find-then-scan across repos."""
+    local = _live(SRC, "**Local claims are executed, not cited:**", "- **Freshness (CLAUDE.md):**")
     assert (
-        "A design that changes what a function, value, table or pattern does, holds or matches carries"
-        " `/fabrik-plan-after-chat` Phase 1's reader census of it, executed before Phase 3 and cited in the spec;"
-        " a reader that is itself a matcher (a gate's pattern, a query on the table) is searched with that"
-        " matcher's own pattern and flags, read from its call, and a census across repos first lists them with"
-        " `find`, dependency directories pruned."
+        "A design that changes what an existing function, value, build script, table or pattern does, holds,"
+        " matches or grants is preceded by an executed census of its readers, its command and output cited in the"
+        " spec and each reader named there for the plan's File Scope (`/fabrik-plan-after-chat` Phase 1's reader"
+        " census, extended here to tables and patterns): a symbol's call sites (`find_referencing_symbols`) plus a"
+        " grep of its name, its file's basename and its path; a table's SQL statements, views, ORM models and"
+        " migrations, found by its bare and schema-qualified names; a matcher's corpus (a gate's pattern), searched"
+        " with the flags read from its call under the old pattern and the new. A reader in other repos (a"
+        " fleet-synced file among them) is censused there: `find` lists the repos, dependency directories"
+        " (`node_modules`, `.venv`, `vendor`) pruned, then each repo found is scanned."
     ) in local
-    plan = _flat(ROOT / "commands" / "_sources" / "fabrik-plan-after-chat.md")
-    assert "census its production readers before any step that changes it" in plan, (
-        "the pointer's target moved"
+    plan = _live(
+        ROOT / "commands" / "_sources" / "fabrik-plan-after-chat.md", "## Phase 1 —", "## Phase 2 —"
     )
+    assert (
+        "census its production readers before any step that changes it: the call sites" in plan
+    ), "the census this sentence extends left /fabrik-plan-after-chat Phase 1"
