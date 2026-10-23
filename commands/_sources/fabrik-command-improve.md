@@ -94,9 +94,9 @@ python3 /opt/fabrik/scripts/command_feedback_report.py --queue <command>   # no 
 TAB-separated, newest first: `<ts>` · `<bucket>` · `<the verdict>`. The `ts` is the row's only
 handle — the ledger has no id and `sid` is per session — and it is what your commit will name.
 The lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyping it or
-taking it from a seat's report; a row a seat reports is mapped back to its line there by its verdict text. Before
-`--reject`, the trailer or `--mark-answered` takes a handle, the lead greps it back as the line's whole first field
-(`grep -P '^\Q<ts>\E\t'`) and confirms that line's verdict is the row meant.
+taking it from a seat's report; a row a seat reports is mapped back to its line in that output by its verdict text.
+Before `--reject`, the trailer or `--mark-answered` takes a handle, the lead greps that output for it as a line's whole
+first field (`command grep -P '^\Q<ts>\E\t'`) and confirms that line's verdict is the row meant.
 
 Then TAKE the queue's own work item, so the depth is tracked in the store and PHASE 5's
 `--mark-answered` has an item to close:
