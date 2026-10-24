@@ -324,6 +324,14 @@ def _vet_add_dir(value: str) -> str:
     home = Path.home().resolve()
     if real == Path("/") or real == home or real in home.parents:
         raise RefusalError(2, f"--add-dir {value} is the root, the home directory or above it")
+    # The directory's own path counts, not only what sits under it: `--add-dir ~/.aws` or `<repo>/.git/objects` is
+    # inside a credential directory or a checkout's history, whatever its files are named.
+    inside = next((part for part in real.parts if part in SECRET_DIR_NAMES), None)
+    if inside is not None:
+        raise RefusalError(
+            2,
+            f"--add-dir {value} is inside {inside} (a checkout or a credential directory) — refusing",
+        )
     seen = 0
     for top, dirs, files in os.walk(real, followlinks=False):
         for name in dirs + files:
@@ -507,11 +515,20 @@ def cmd_run(a: argparse.Namespace) -> int:
     except OSError as e:
         # `claude` was on PATH and the state dirs existed before the start row (checked above), so an OSError here
         # cannot prove the child never spent: the run stays provisioned until `settle`, and the message says so.
-        settle.update(rc=None, is_error=True, subtype="spawn_error", turns=None, **_now())
+        # Its own source, never "run": `settle` reads a "run" row as proof the child EXITED, which this is not.
+        settle.update(
+            rc=None,
+            is_error=True,
+            subtype="spawn_error",
+            turns=None,
+            source="spawn_error",
+            **_now(),
+        )
         _append(settle)
         raise RefusalError(
             1,
-            f"run {run} failed around the claude process ({type(e).__name__}: {e}); it stays provisioned until settled",
+            f"run {run} failed before or around the claude process ({type(e).__name__}: {e}); "
+            "it stays provisioned until its timeout passes and it is settled",
         ) from None
     finally:
         if config_dir is not None:

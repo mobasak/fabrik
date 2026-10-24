@@ -40,8 +40,8 @@ automatically.
   Every `--add-dir` is vetted, and the run is refused (exit 2) when the directory is not an absolute, non-symlink
   directory, or:
   - is `/`, the home directory or above it;
-  - holds, anywhere in its tree, a checkout or credential directory (the names in the script's `SECRET_DIR_NAMES`,
-    `.git` among them) or a credential file (`SECRET_FILE_NAMES`, `SECRET_SUFFIXES`, `SECRET_PREFIXES`, and `.env` /
+  - lies inside, or holds anywhere in its tree, a checkout or credential directory (the names in the script's
+    `SECRET_DIR_NAMES`, `.git` and `.aws` among them), or holds a credential file (`SECRET_FILE_NAMES`, `SECRET_SUFFIXES`, `SECRET_PREFIXES`, and `.env` /
     `.env.*` other than `.example`, `.sample` or `.template`);
   - holds a symlink that leaves it;
   - holds more than 50,000 entries.

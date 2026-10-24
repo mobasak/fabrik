@@ -567,3 +567,40 @@ def test_ambient_git_dir_does_not_move_the_key_file(box: dict, tmp_path: Path) -
     )
     assert p.returncode == 0, p.stderr
     assert not p.stdout.strip().startswith(str(other)), p.stdout
+
+
+def test_add_dir_inside_a_credential_directory_is_refused(box: dict) -> None:
+    # the directory's own path counts: its files may carry ordinary names (`credentials`, `config`)
+    _reply(box, _ok(0.01))
+    for parts in ((".aws",), (".ssh",), ("repo", ".git", "objects"), (".kube", "sub")):
+        d = box["tmp"].joinpath("roots", *parts)
+        d.mkdir(parents=True)
+        (d / "credentials").write_text("token=abc\n", encoding="utf-8")
+        p = _launch(box, "--add-dir", str(d))
+        assert p.returncode == 2 and "inside" in p.stderr, (parts, p.returncode, p.stderr)
+    assert _calls(box) == [], "claude ran with an --add-dir inside a credential directory"
+
+
+def test_a_failure_around_the_process_stays_provisioned_and_unsettleable(box: dict) -> None:
+    # an unwritable config dir makes the per-run mkdtemp fail AFTER the start row: the run is not known to have
+    # exited, so it stays provisioned and settle refuses it until its timeout has passed
+    _reply(box, _ok(0.01))
+    config = box["state"] / "api-credit" / "config"
+    config.mkdir(parents=True)
+    config.chmod(0o500)
+    try:
+        p = _launch(box)
+    finally:
+        config.chmod(0o700)
+    assert p.returncode == 1 and "before or around the claude process" in p.stderr, (
+        p.returncode,
+        p.stderr,
+    )
+    rows = [json.loads(x) for x in box["ledger"].read_text(encoding="utf-8").splitlines()]
+    assert [r["kind"] for r in rows] == ["start", "settle"]
+    assert rows[1]["subtype"] == "spawn_error" and rows[1]["source"] != "run"
+    assert _status(box)["keys"]["can"]["provisioned_usd"] == pytest.approx(5.95)
+    early = _run(box, "settle", "--run", rows[0]["run"], "--cost", "0.1")
+    assert early.returncode == 2 and "may still be running" in early.stderr, (
+        "a run not known to have exited was settled"
+    )
