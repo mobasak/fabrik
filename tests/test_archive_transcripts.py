@@ -1144,9 +1144,44 @@ def test_a_name_outside_the_set_aside_grammar_is_not_selected(tree, rec):
         (alpha / name).write_bytes(b"x\n")
     good = alpha / "sid-4.jsonl.superseded-17"
     good.write_bytes(b"y\n")
-    picked = {p.name for p in at.main_transcripts(projects, 0)}
-    assert picked == {"shared-id.jsonl", good.name}, picked
+    both = alpha / "odd.jsonl.superseded-9.jsonl"  # matches BOTH globs: selected once, as a live name
+    both.write_bytes(b"z\n")
+    picked = sorted(p.name for p in at.main_transcripts(projects, 0))
+    assert picked == sorted(["shared-id.jsonl", "shared-id.jsonl", good.name, both.name]), picked
     assert at.main_key(good) == ("sid-4.superseded-17", "sid-4", True)
     assert at.main_key(alpha / "shared-id.jsonl") == ("shared-id", "shared-id", False)
-    assert at.local_name("sid-4.superseded-17") == good.name
-    assert at.local_name("shared-id") == "shared-id.jsonl"
+    # every selected name round-trips through its key, whatever its stem (review r1, H-C2/O9)
+    for name in (good.name, "shared-id.jsonl", both.name, "-x.superseded-5.jsonl", "a.b.superseded-5.jsonl"):
+        key = at.main_key(alpha / name)
+        if key is not None:
+            assert at.local_name(key[0]) == name, (name, key)
+
+
+def test_a_relocation_onto_a_twins_name_gives_each_inode_its_own_object(tree, rec):
+    """Twin live names A (`-opt-zeta`, `-opt-zeta--wt`); Claude Code sets `-opt-zeta`'s aside and moves a
+    new inode B in there. The alias row (`-opt-zeta--wt` → A's old row) must not keep vouching for A
+    once B's row owns `-opt-zeta/<sid>`: A is archived under its own surviving live slug, so neither
+    object is the other's bytes and A can be pruned (review r1, O1)."""
+    projects, archive = tree
+    zeta, wt = projects / "-opt-zeta", projects / "-opt-zeta--wt"
+    zeta.mkdir()
+    wt.mkdir()
+    (zeta / "z-1.jsonl").write_bytes(b'{"A":1}\n' * 50)
+    os.link(zeta / "z-1.jsonl", wt / "z-1.jsonl")
+    assert at.run(["--no-ship"]) == 0
+    (zeta / "z-1.jsonl").rename(zeta / "z-1.jsonl.superseded-1792029283292")
+    (zeta / "z-1.jsonl").write_bytes(b'{"B":2}\n' * 70)
+    for _night in (1, 2):
+        assert at.run(["--no-ship"]) == 0
+    latest = at._latest_rows(archive / at.MANIFEST_NAME)
+
+    def plain(p: Path) -> bytes:
+        return subprocess.run(["zstd", "-dc", str(p)], capture_output=True, check=True).stdout
+
+    assert plain(archive / "-opt-zeta" / "z-1.jsonl.zst") == (zeta / "z-1.jsonl").read_bytes()
+    assert plain(archive / "-opt-zeta--wt" / "z-1.jsonl.zst") == (wt / "z-1.jsonl").read_bytes()
+    assert latest[("-opt-zeta--wt", "z-1")]["project_slug"] == "-opt-zeta--wt"
+    assert latest[("-opt-zeta--wt", "z-1")]["sha256"] == at._sha256(wt / "z-1.jsonl")
+    n = len(_rows(archive))
+    assert at.run(["--no-ship"]) == 0
+    assert len(_rows(archive)) == n, "settled: a third night writes no row"

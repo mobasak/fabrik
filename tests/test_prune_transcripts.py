@@ -1131,3 +1131,42 @@ def test_a_fresh_set_aside_never_displaces_the_newest_live_session(world):
     v = world.evaluate()
     assert v["b-older.superseded-1792255742699"] == "set-aside-only"
     assert v["b-old-05"] == "newest-of-slug", v
+
+
+def test_a_set_aside_in_a_slug_that_sorts_first_never_keys_its_live_inode(world, capsys):
+    """Path order puts `-opt-alpha/<sid>.jsonl.superseded-*` before `-opt-alpha--wt/<sid>.jsonl`; the
+    candidate must still key by the live name, or the inode is refused and pinned (review r1, O3).
+    An off-grammar name the set-aside glob matches is skipped, never a crash (review r1, O4), and the
+    over-threshold report counts the inode's live names, never its set-asides (review r1, O8)."""
+    live = world.transcript("-opt-alpha--wt", "w-1", days=10)
+    world.transcript("-opt-alpha--wt", "w-new", days=1)  # the slug's newest, so w-1 is not
+    _set_aside(world, live, "-opt-alpha", "w-1", 1792029283292)
+    (world.projects / "-opt-alpha" / "x-1.jsonl.superseded-abc").write_bytes(b"{}\n")
+    world.ready()
+    verdict = world.evaluate()
+    assert verdict["w-1"] is None, verdict
+    assert not any(k.startswith("w-1.superseded") for k in verdict)
+    w = pt._world(None)
+    w.advise_mb = 0  # every file is over the threshold
+    _cands, _refusals, over = pt.evaluate_main(w)
+    assert not any(".superseded-" in p for p in over), over
+    assert str(live) in over
+
+
+def test_restore_refuses_a_session_id_pruned_as_two_inodes_under_two_slugs(world, capsys):
+    """A set-aside makes "two inodes, one session id" ordinary: restoring only the latest row would
+    leave the other silently missing (review r1, O2) — refuse and list both, as `agent-` does."""
+    for slug, body in (("-opt-eta", b'{"b":1}\n' * 30), ("-opt-eta--wt", b'{"a":1}\n' * 40)):
+        world.transcript(slug, "e-1", days=10, body=body)
+        world.transcript(slug, "e-newest", days=1)
+    world.ready()
+    cands, _refusals, _over = pt.evaluate_main(pt._world(None))  # two inodes share one id: count both
+    assert _apply(sum(1 for c in cands if c.reason is None)) == 0
+    gone = [world.projects / s / "e-1.jsonl" for s in ("-opt-eta", "-opt-eta--wt")]
+    assert not any(p.exists() for p in gone)
+    assert pt.run(["--restore", "e-1"]) == pt.EXIT_REFUSED
+    err = capsys.readouterr().err
+    assert "-opt-eta--wt" in err and "--slug=" in err, err
+    assert not any(p.exists() for p in gone), "a refusal writes nothing"
+    assert pt.run(["--restore", "e-1", "--slug=-opt-eta--wt"]) == 0  # the spelling the refusal names
+    assert gone[1].exists() and not gone[0].exists()

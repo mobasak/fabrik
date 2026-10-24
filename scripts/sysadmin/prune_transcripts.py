@@ -490,7 +490,11 @@ def evaluate_main(
     → r4 (the hash) → r5–r6. `listing` is created lazily so a tree the cheap rules refuse whole
     never needs credentials."""
     files = _main_files(w.projects)
-    over = [str(p) for p, st in files if st.st_size > w.advise_mb * 1024 * 1024]
+    over = [  # live names only: a set-aside link would list its inode twice
+        str(p)
+        for p, st in files
+        if st.st_size > w.advise_mb * 1024 * 1024 and not at.SET_ASIDE_RE.fullmatch(p.name)
+    ]
     manifest = w.archive_root / at.MANIFEST_NAME
     latest = at._latest_rows(manifest)
     agents = at.agent_map(w.identity, w.sessions_dir)
@@ -930,6 +934,17 @@ def restore(w: World, session_id: str, slug: str | None) -> int:
             raise RefusalError(
                 f"--restore: {session_id} was pruned under {len(pruned_at)} paths — {listed}; "
                 "nothing written"
+            )
+    else:
+        # one session id pruned as two inodes under two slugs (a set-aside makes it ordinary: the
+        # old inode and the transcript moved in over it) — restoring only the latest row would leave
+        # the other silently missing (review W-a2cae11b r1, O2)
+        by_slug = {str(r.get("project_slug")): r.get("pruned_at") for r in rows}
+        if len(by_slug) > 1:
+            listed = "; ".join(f"{s} (pruned_at {t})" for s, t in sorted(by_slug.items()))
+            raise RefusalError(
+                f"--restore: {session_id} was pruned under {len(by_slug)} slugs — {listed}; "
+                "pass --slug=<one of them> (with `=`: every slug starts with `-`); nothing written"
             )
     row = rows[-1]
     paths = [Path(p) for p in row.get("paths") or []]

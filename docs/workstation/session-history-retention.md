@@ -71,9 +71,12 @@ copies them and enables the timer.
   session-recall indexes `*/*.jsonl` only, so it cannot vouch for one.
   - Claude Code's own cleanup deletes set-asides. One that it creates and deletes between two
     nightly runs is never archived.
-  - One that it deletes after an archive has no `pruned.jsonl` row. Fetch it with
-    `--fetch '/<slug>/<session>.superseded-<ms>.jsonl.zst'` and put it back as
-    `<session>.jsonl.superseded-<ms>`.
+  - One that it deletes after an archive has no `pruned.jsonl` row. Fetch it as in § Restore below —
+    `--fetch '/<slug>/<session>.superseded-<ms>.jsonl.zst' /tmp/r.zst`, then
+    `zstd -d /tmp/r.zst -o ~/.claude/projects/<slug>/<session>.jsonl.superseded-<ms>`.
+  - Two pruned inodes can share one session id: the set-aside one and the transcript moved in over
+    it. `prune_transcripts.py --restore <session>` then refuses, listing each slug. Pick one with
+    `--slug=<slug>`, written with `=` because every slug starts with `-`.
 
 ## Restore
 
@@ -121,8 +124,8 @@ with the archive, so the list is off-box too.
 
 ```bash
 cd /opt/fabrik
-.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug <slug>]
-.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore agent-<id> [--slug <slug>]   # a sidechain
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug=<slug>]
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore agent-<id> [--slug=<slug>]   # a sidechain
 ```
 
 - A session id selects MAIN rows only; `agent-<id>` selects only sidechain rows whose path ends in

@@ -97,7 +97,7 @@ SUBAGENT_GLOB = "*/*/subagents/**/*.jsonl"
 # destination to `<sid>.jsonl.superseded-<ms>`. ASCII classes on purpose: `\d` takes non-ASCII digits,
 # which `prune_transcripts._SID_RE` could not restore.
 SET_ASIDE_RE = re.compile(r"([A-Za-z0-9][A-Za-z0-9_-]*)\.jsonl\.superseded-([0-9]+)")
-_SET_ASIDE_KEY_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\.superseded-[0-9]+")
+_SET_ASIDE_KEY_RE = re.compile(r"([A-Za-z0-9][A-Za-z0-9_-]*)\.superseded-([0-9]+)")  # its key
 MAIN_GLOBS = ("*/*.jsonl", "*/*.jsonl.superseded-*")
 LOCK_NAME = ".archive.lock"
 SNAPSHOT_PREFIX = ".snapshot-"  # the frozen copy of a transcript being archived; never shipped
@@ -242,8 +242,8 @@ def main_sort_key(p: Path) -> tuple[bool, Path]:
 
 
 def local_name(key: str) -> str:
-    """The on-disk name a manifest key describes."""
-    m = re.fullmatch(r"(.+)\.superseded-([0-9]+)", key)
+    """The on-disk name a manifest key describes — the inverse of `main_key`, by the same grammar."""
+    m = _SET_ASIDE_KEY_RE.fullmatch(key)
     return f"{m.group(1)}.jsonl.superseded-{m.group(2)}" if m else f"{key}.jsonl"
 
 
@@ -251,14 +251,11 @@ def main_transcripts(projects: Path, after_days: float) -> list[Path]:
     """MAIN transcripts only — live names and set-asides; `*/subagents/*` is a separate tier."""
     cutoff = time.time() - after_days * 86400
     out = []
-    for p in {q for g in MAIN_GLOBS for q in projects.glob(g)}:
+    for p in {q for g in MAIN_GLOBS for q in projects.glob(g)}:  # a set: a name may match both
         if "/subagents/" in str(p) or main_key(p) is None:  # the tier reaches subagents/, not this
             continue
-        try:
-            if p.is_file() and p.stat().st_mtime <= cutoff:
-                out.append(p)
-        except FileNotFoundError:  # vanished between the glob and the stat
-            continue
+        if p.is_file() and p.stat().st_mtime <= cutoff:
+            out.append(p)
     return sorted(out)
 
 
@@ -278,8 +275,9 @@ def subagent_transcripts(projects: Path, after_days: float) -> list[Path]:
 def _group_by_inode(paths: list[Path]) -> list[tuple[Path, list[str]]]:
     """One (primary path, other slugs) per file; the primary is the first path in `main_sort_key`
     order (a live name when the inode has one). The other slugs are those of its other LIVE names: a
-    set-aside is never written into a row, since `also_slugs` reads as "`<slug>/<sid>.jsonl` is a name
-    of this inode" — the pruner vouches a set-aside link through its inode's live rows."""
+    set-aside LINK never enters `also_slugs`, which reads as "`<slug>/<sid>.jsonl` is a name of this
+    inode" — the pruner vouches a set-aside link through its inode's live rows (a set-aside-ONLY
+    inode is its own primary, with a row of its own)."""
     groups: dict[tuple[int, int], list[Path]] = {}
     for p in sorted(paths, key=main_sort_key):
         try:
@@ -477,7 +475,12 @@ def archive_one(
         dest = archive_root / slug / f"{rel}.zst"
     prev = latest.get(key)
     if tier_key is None:
-        # a hard-linked twin's row lives under its primary slug (`also_slugs`)
+        # a hard-linked twin's row lives under its primary slug (`also_slugs`) — but only while that
+        # primary key still names the row: once another inode's row owns it (Claude Code moved a new
+        # transcript in, setting this one aside), the object there is the other inode's bytes, so this
+        # inode is archived again under its own slug (review W-a2cae11b r1, O1)
+        if prev and latest.get((prev["project_slug"], session_id)) is not prev:
+            prev = None
         archived = bool(prev) and (archive_root / prev["project_slug"] / dest.name).exists()
     else:
         archived = bool(prev) and dest.exists()
