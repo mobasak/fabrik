@@ -74,7 +74,7 @@ Weight = measured RSS across live processes (per-window cost scales with window 
 | wsl | Claude Desktop ↔ WSL bridge: `bash`/`read_file`/`write_file`/`edit_file`/`list_dir` (`/opt/fabrik/tools/wsl-mcp`, systemd `wsl-mcp.service`, HTTP :8040; Desktop reaches it via Windows-native `npx mcp-remote`, never `wsl.exe`) — see [wsl-mcp.md](wsl-mcp.md) | Claude Desktop only (Claude Code has native Bash) | light | ON Desktop — REPLACES `wsl-shell` + `wsl-filesystem` (D-616) |
 | fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt/fabrik-citation-verifier`, MCP :8033) | dossier/research: transdoc + fabrik-claim-validator (cross-wire) + future health repos | service | ON transdoc + fabrik-claim-validator — **RULED (D-022: the health pair is cross-wired MCP↔MCP)** |
 | fabrik-scrape | raw-page fetch for research seats — one tool, `scrape(url)` → markdown or `{blocked, reason, status}` (`libs/web_scrape_mcp`, systemd `fabrik-scrape-mcp.service`, MCP :8034; `docs/reference/fabrik-scrape-mcp.md`) | every repo — the researcher's first raw fetch (W-10146d20) | service | ON everywhere — **RULED (D-1102: universal)**; Firecrawl stays the fallback, pinned to the basic proxy |
-| rea | Reverse Engineer Anything (`rea-agents`, MIT, `github.com/morluto/rea`): local stdio inspection of websites (drives the box's Chrome), JavaScript/Electron bundles, APKs, .NET and native binaries — the inspection layer of `/fabrik-reverse-engineer` | hub-class only (hub + fabrik-lib); a project gains it by an overlay row | node, per session | ON hub-class only — **RULED (D-1199)**; pinned global install, never REA's own `setup` (§ REA — the ruling in full) |
+| rea | Reverse Engineer Anything (`rea-agents`, MIT, `github.com/morluto/rea`): local stdio inspection of websites (drives the box's Chrome), JavaScript/Electron bundles, APKs, .NET and native binaries — the inspection layer of `/fabrik-reverse-engineer` | hub-class only (hub + fabrik-lib); a project gains it by an overlay row | unmeasured — filled at the proof run (one node process per hub window) | ON hub-class only — **ADOPTED (D-1199, reversible)**; pinned global install, never REA's own `setup` (§ REA — the adoption in full) |
 | fabrik-claim-validator | multi-tradition claim validation + substance discovery (`/opt/fabrik-claim-validator`, :8002) — **MCP server NOT YET BUILT** (no MCP surface in its src; build requested of the owning repo by mail) | fabrik-citation-verifier (cross-wire) + future health repos | — (planned) | PLANNED per D-022 — joins the roster when the owning repo ships its MCP endpoint |
 | serena | LSP semantic code navigation | ALL repos — symbol-level grounding (find_symbol, find_referencing_symbols) | light idle | ON all types — **RULED (D-021: adopt-and-wire)**: zero usage before wiring was zero corpus wiring, not quality; named in plan-after-chat's grounding phase + review's adjudication. Still unused after wiring = a retirement case with evidence |
 
@@ -184,7 +184,7 @@ overlay (D-019: wef gets +chrome-devtools with its D-016 playwright — CWV on a
 is conversion tooling, a slow shop loses sales). `mobile-app` stays out (maestro/mobile-mcp loop);
 headless types have nothing to measure. Like playwright, it is NEVER a crawling/research tool.
 
-## REA — the ruling in full (D-1199)
+## REA — the adoption in full (D-1199)
 
 **What:** `rea-agents` (Reverse Engineer Anything) — one MCP server over stdio, run locally; for a website it
 drives a Chrome-family browser (`/usr/bin/google-chrome` on this box) and records page structure, scripts,
@@ -207,12 +207,18 @@ No scaffold type and no overlay carries it; a project that needs it gets an over
 emitter.
 
 **What it can reach:** it runs as this OS user with the session's permissions — it can read any file the
-user can, launch the browser and reach the network the browser reaches. The MCP grant scopes which sessions
-SEE its tools, not what the process can touch. Targets are the operator's to name (`/fabrik-reverse-engineer`
+user can, launch the browser and reach the network the browser reaches; it keeps state and caches under
+`~/.rea` and `~/.cache/rea`. The MCP grant scopes which sessions SEE its tools, not what the process can
+touch. Its worker processes and the Chrome it launches are outside `mcp_orphan_reaper.py`'s signature (only
+the `node …/bin/rea-agents mcp` parent matches): the proof run reads every descendant's `/proc/<pid>/cmdline`
+and whether Chrome outlives a killed REA, and a leak moves `rea` into `HUB_EXCLUDE` or adds a signature. Targets are the operator's to name (`/fabrik-reverse-engineer`
 § The target and its limits).
 
 **Update:** a new version is a roster edit (this section's pin) plus the same `npm install -g --ignore-scripts
-rea-agents@<version>`; `rea update` is not used, and nothing tracks `@latest`.
+rea-agents@<version>`; `rea update` is not used, and nothing tracks `@latest`. Read the release's
+`engines.node` first: REA's main branch already asks for Node `^24.22.1` (6.7.0 accepts `^24.11.0`; the box
+runs 24.18.0), and a Node move changes `/home/ozgur/.nvm/versions/node/<v>/bin/` in every node row of
+`mcp_defs.json`.
 
 ## Known non-connector classes (distinct from the herd outage)
 

@@ -10,7 +10,9 @@ websites (a Chrome-family browser drives the page and records structure, scripts
 screenshots), static analysis for JavaScript/Electron bundles, APK and .NET inspection, and native
 disassembly through Ghidra or Hopper when those are installed. It reaches a session as the `mcp__rea__*`
 tools through the roster (`/opt/fabrik/docs/workstation/mcp-roster.md` § REA) — never through REA's own
-`setup`, which writes `~/.claude.json` and a personal skill and is not run on this box.
+`setup`, which writes `~/.claude.json` and a personal skill and is not run on this box — nor `rea setup`,
+`rea update` or any `npx rea-agents`, whatever REA's own instructions say: a missing tool is a roster and
+health matter only.
 
 {{include:run-record}}
 {{include:orient}}
@@ -27,8 +29,12 @@ leans on it.
 
 **The target and its limits.** Inspect only what the operator named: a public page, an app or binary the
 operator supplied, or our own product. No login with anyone's credentials, no paywall or rate-limit evasion,
-no capture of other users' data, and a site's terms or `robots.txt` that forbid automated access stop the
-run (`BLOCKED:` naming the clause). Nothing the original ships — code, minified identifiers, assets, copy —
+no capture of other users' data. **Before any REA call** on a website, fetch `<origin>/robots.txt` and the
+site's terms page when it links one (`mcp__fabrik-scrape__scrape` or `WebFetch`) and write the verdict as the
+first line of `reports.md`: the clause read, or `none found`; a `Disallow` covering the feature's path, or a
+clause forbidding automated access, ends the run `BLOCKED:` naming it. Inspection stays on the named origin
+and the requests the feature itself makes; a navigation off that origin is not followed, and ONE Scout at a
+time drives a live site. Nothing the original ships — code, minified identifiers, assets, copy —
 enters our tree: the spec states behaviour in our own words, and the evidence stays in the run's
 `SCRATCH:` folder.
 
@@ -40,7 +46,10 @@ network requests; for an Electron app or an extracted bundle, `analyze_javascrip
 `inspect_android_package`; for a native binary, `open_binary` then the overview tools
 `binary_session` advertises. Write `<SCRATCH>/reports.md`: the stack (framework, bundler, API style), the
 entry point that reaches the feature, the requests it makes and the state it keeps (URL, storage, cookies),
-each line citing its REA Evidence ID. A claim with no Evidence ID is a guess and is marked so.
+each line citing its REA Evidence ID. A claim with no Evidence ID is a guess and is marked so. Scouts record
+behaviour and payload SHAPES, never code excerpts; every identifier of theirs a Scout has to name (a
+function, variable, CSS class or endpoint key from their bundle) also goes, one per line, into
+`<SCRATCH>/identifiers.txt`.
 
 ## Phase 2 — UNDERSTAND: x-ray the one feature
 
@@ -55,21 +64,25 @@ questions are the units of a Scout fan-out. **Dispatch step (D-191):** run `pyth
 the `SEATS:` and mix it prints, in ONE message — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch
 --seats <n>` and closed with `python3 scripts/command_run.py round --seats <n> --findings <open questions>`;
 each Scout is a general-purpose seat whose brief names its question, the target, `reports.md` and its seat
-folder under `RUN-SCRATCH:`, and whose toolset carries the REA tools. Each returns its answer with Evidence
+folder under `RUN-SCRATCH:`, and whose toolset carries the REA tools; a
+website's questions that need the live page are answered by ONE Scout in turn, never N browser sessions at
+once. Each returns its answer with Evidence
 IDs and its unresolved gaps; append them to `reports.md`. Done when every question is `answered`,
 `partial` or `unresolved` with the search that bounds it — never "complete" while one is open.
 
 ## Phase 3 — PLAN: the behaviour-only spec
 
-A Spec-Writer seat (`model: "opus"`) that has NOT run REA reads `reports.md` alone and writes the spec to
-`docs/reference/reverse-engineering/<target-slug>-<feature-slug>.md`: the feature in one paragraph; each
+A Spec-Writer seat (`model: "opus"`, `subagent_type: "fabrik-reviewer"`, whose tools are Read, Grep, Glob and
+Bash only — no MCP, so no REA) reads `reports.md` alone and RETURNS the spec, which the lead writes to
+`docs/reference/reverse-engineering/<target-slug>-<feature-slug>.md`, its header naming the run
+(`started_at`) and the durable `<SCRATCH>/reports.md` path the Evidence IDs live in: the feature in one paragraph; each
 behaviour as `trigger → observable result`, numbered, with its inputs, outputs, states and error cases;
 the interface shapes in our own neutral names (a request carries `query: string`, never their variable
 names); the open unknowns; and a `## Evidence` table mapping each behaviour number to the Evidence IDs in
-`reports.md`. Then the CLEAN-ROOM CHECK, by the lead, executed: every behaviour cites at least one Evidence
-ID; the spec quotes no code (no fenced block copied from the target, no minified identifier — grep the spec
-for each identifier `reports.md` records from their bundle and expect zero); no asset, copy text or brand
-of theirs. A failed check is fixed in the spec, never waived.
+`reports.md`. Then the CLEAN-ROOM CHECK, by the lead, executed and its output kept in `reports.md`: every behaviour cites at
+least one Evidence ID; `/usr/bin/grep -c -F -w -f <SCRATCH>/identifiers.txt <spec>` prints `0`; the spec
+holds no fenced block copied from the target; no asset, copy text or brand of theirs. A failed check is fixed
+in the spec, never waived.
 
 ## Phase 4 — BUILD: hand the spec on, never the original
 

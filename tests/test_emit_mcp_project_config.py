@@ -435,11 +435,12 @@ def test_a_placeholder_left_in_the_hub_env_or_a_partial_placeholder_is_unresolve
 CATALOG = Path(__file__).resolve().parent.parent / "scripts/sysadmin/mcp_defs.json"
 
 
-def test_rea_is_a_pinned_local_stdio_server_never_a_package_runner():
+def test_rea_is_an_absolute_local_stdio_launch_never_a_package_runner():
     """W-eff97ae7: REA reaches a session through this catalog, never through its own `setup`
-    (which writes ~/.claude.json and a personal skill). The entry launches the globally installed,
-    version-pinned binary — an `npx -y rea-agents@latest` entry would fetch and run whatever the
-    registry serves at each session start, and run its dependencies' install scripts."""
+    (which writes ~/.claude.json and a personal skill). The entry launches the global install the
+    roster pins (docs/workstation/mcp-roster.md § REA — the version lives there, not in the path) —
+    an `npx -y rea-agents@latest` entry would fetch and run whatever the registry serves at each
+    session start, and run its dependencies' install scripts."""
     entry = json.loads(CATALOG.read_text())["mcpServers"]["rea"]
     assert entry["type"] == "stdio" and entry["args"] == ["mcp"], entry
     assert entry["command"].startswith("/") and entry["command"].endswith("/bin/rea-agents"), entry
@@ -448,8 +449,8 @@ def test_rea_is_a_pinned_local_stdio_server_never_a_package_runner():
 
 
 def test_rea_reaches_the_hub_class_and_no_project_type(tmp_path):
-    """The roster row (D-ruling, W-eff97ae7): REA is a hub-class server — the hub and fabrik-lib —
-    and no scaffold type or overlay carries it; a project gains it by an overlay row, never by
+    """The roster row (D-1199, W-eff97ae7): REA is a hub-class server — the hub and fabrik-lib —
+    and no scaffold type carries it; a project gains it by an overlay row (roster first), never by
     hand."""
     defs = json.loads(CATALOG.read_text())["mcpServers"]
     assert "rea" in emitter.ruled_server_names(make_repo(tmp_path, "fabrik", None), defs)
@@ -457,4 +458,3 @@ def test_rea_reaches_the_hub_class_and_no_project_type(tmp_path):
     for rtype in emitter.TYPE_SETS:
         repo = make_repo(tmp_path, f"p-{rtype}", rtype)
         assert "rea" not in emitter.ruled_server_names(repo, defs), rtype
-    assert not any("rea" in names for names in emitter.OVERLAYS.values())
