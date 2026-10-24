@@ -1597,20 +1597,23 @@ def _fake_proc(
     live: dict[int, int] | None = None,
     start: int = _CLAUDE_START,
 ) -> Path:
-    """A /proc tree whose ancestry from THIS process ends at a `claude` (pid 4242, start 777):
-    `chain=False` ends it at pid 1 instead; `live` adds other running processes {pid: start}."""
+    """A /proc tree whose ancestry from THIS process climbs a shell (pid 4100, its own start
+    tick) to a `claude` (pid 4242, start 777) — the python3 -> sh -> claude shape a hook runs
+    under: `chain=False` ends the shell at pid 1 instead; `live` adds other running processes
+    {pid: start}."""
     me = os.getpid()
     (root / str(me)).mkdir(parents=True)
-    (root / str(me) / "status").write_text(
-        f"Name:\tpython3\nPPid:\t{_CLAUDE_PID if chain else 1}\n"
-    )
+    (root / str(me) / "status").write_text("Name:\tpython3\nPPid:\t4100\n")
+    (root / "4100").mkdir()
+    (root / "4100" / "status").write_text(f"Name:\tbash\nPPid:\t{_CLAUDE_PID if chain else 1}\n")
+    (root / "4100" / "stat").write_text(_proc_stat(4100, 555, name="bash"))
     (root / str(_CLAUDE_PID)).mkdir()
     (root / str(_CLAUDE_PID) / "status").write_text("Name:\tclaude\nPPid:\t1\n")
     (root / str(_CLAUDE_PID) / "stat").write_text(_proc_stat(_CLAUDE_PID, start))
-    for pid, start in (live or {}).items():
+    for pid, pstart in (live or {}).items():
         (root / str(pid)).mkdir()
         (root / str(pid) / "status").write_text("Name:\tclaude\nPPid:\t1\n")
-        (root / str(pid) / "stat").write_text(_proc_stat(pid, start))
+        (root / str(pid) / "stat").write_text(_proc_stat(pid, pstart))
     if btime is not None:
         (root / "stat").write_text(f"cpu  1 2 3\nbtime {btime}\n")
     return root
@@ -1640,8 +1643,9 @@ def _mine(lane, sid: str, name: str, **extra: object) -> None:
 def test_a_rotated_window_can_rebind_its_own_name_at_the_lane(lane, tmp_path, monkeypatch, capsys):
     """Behaviour 1 (W-cff56c52): a `/clear` keeps the claude process and mints a new sid; the
     re-bind of the name this process held last passes the lane through the real `main()`, in
-    every spelling the rotation prints — and the same call with no claude ancestor is held, so
-    the grader reaches the seam rather than an allow-everything path."""
+    the spelling the rotation prints and the two other shapes the lane admits — and the same
+    call with no claude ancestor is held, so the grader reaches the seam rather than an
+    allow-everything path."""
     monkeypatch.delenv("CLAUDE_PID", raising=False)
     monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
     _mine(lane, "old-sid", "infra-3")
@@ -1742,6 +1746,12 @@ def test_same_window_name_fails_closed(lane, tmp_path, monkeypatch):
     assert name(_fake_proc(tmp_path / "p6", start=1)) == "infra-12"
     assert name(_fake_proc(tmp_path / "p3", btime=None)) == ""
     assert name(tmp_path / "missing") == ""
+
+    # a hand-edited int name is read as its string, and the walk stops at `claude`, not the shell
+    lane.bind("i", 5, pid=_CLAUDE_PID, pid_start=_CLAUDE_START)
+    assert name(_fake_proc(tmp_path / "p7")) == "5"
+    lane.bind("j", "infra-13", pid=4100, pid_start=555)  # the shell's own key is not this window
+    assert name(_fake_proc(tmp_path / "p8")) == "5"
 
     spec = importlib.util.spec_from_file_location("whoami_parity_rebind", _WHOAMI_PY)
     who = importlib.util.module_from_spec(spec)
@@ -1846,3 +1856,23 @@ def test_proc_start_reads_past_a_paren_in_the_process_name(tmp_path):
     (tmp_path / "77" / "stat").write_text(_proc_stat(77, 4321, name="a) S 9 9"))
     assert hook._proc_start(tmp_path, 77) == 4321
     assert hook._proc_start(tmp_path, 78) is None
+
+
+def test_the_scope_realpath_runs_once_per_distinct_scope(lane, monkeypatch):
+    """`_scoped_rows` runs on every parked call (through `_bound_name`), so a store of many rows
+    sharing one scope costs one realpath for it, never one per row (review pass 1: 0.60 -> 2.97
+    ms per call on the live 140-row store)."""
+    for i in range(30):
+        lane.bind(f"s{i}", "infra")
+    lane.bind("other", "infra", toplevel="/elsewhere/.git")
+    real = os.path.realpath
+    seen: list[str] = []
+
+    def counting(p: object, *a: object, **k: object) -> str:
+        seen.append(str(p))
+        return real(p, *a, **k)
+
+    monkeypatch.setattr(hook.os.path, "realpath", counting)
+    assert len(hook._scoped_rows(lane.common)) == 30
+    # the judged scope itself, then one per distinct row scope (2): 3, where per-row was 32
+    assert len(seen) == 3 and seen.count("/elsewhere/.git") == 1, seen

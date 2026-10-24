@@ -147,7 +147,8 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   finishing verbs (`merge_request.py request`, `work.py claim|release <W-id>`, a bare
   `work.py next`, `SubagentHandback`, `SendMessage`, and — so a `/clear`-rotated window can
   become exempt again (W-cff56c52) — the rotation's re-bind `python3
-  /opt/fabrik/scripts/whoami_agent.py --as <name> [--force]` for ONE name only: the one this
+  /opt/fabrik/scripts/whoami_agent.py --as <name> --force` (`--force` optional, before or
+  after `--as <name>`; that absolute path only) for ONE name only: the one this
   window's claude process (pid + start tick, D-748) held LAST in this repo, written this boot,
   not re-taken by another window since, with no live foreign holder, from a cwd in this repo.
   Any other name stays held until the lift — an earlier name of this window, and a name whose
