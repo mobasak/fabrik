@@ -18,6 +18,10 @@ All notable changes to this project will be documented in this file.
 - `scripts/merge_test_select.py` writes its records under `FABRIK_MERGE_TESTS_RECORDS` when set, which a pretest
   points at a private directory. W-1fb11ec8.
 
+### Added — `cloud_dispatch.py drain`: fire a pre-flighted batch of cloud tasks to spend the credits (2026-10-24)
+
+`scripts/cloud_dispatch.py drain --batch <file.json>` checks a whole lead-written batch before anything fires: master parity, cloud-safe paths, file sets disjoint from each other and from open cloud work, and a cap on open work. A pre-flight failure exits 8 with nothing fired. It then fires each entry through `dispatch`, stopping at the first failure, and never fires a slug twice (D-1213, W-b00d9d72; `docs/workstation/cloud-dispatch.md` § Draining a batch).
+
 ### Added — The operator's four Ocoron brand fills, with white text recorded as their override (2026-10-24)
 
 `.windsurf/rules/core/ocoron-design-system.md` (v3.2) adds `--color-brand-blue|magenta|green|orange` (#120AF1, #A50FEA, #08941F, #EA880F) and `--color-brand-fg` #FFFFFF, marketing fills that are never text, indicators or states; the white text is the operator's override (green 3.99:1, orange 2.62:1), recorded with its ratios in § Contrast table. `tests/test_ocoron_contrast_table.py` pins the ruled values and recomputes the override rows, the quoted ratios and the lowest on-surface ratio. W-79008127, D-1206.
