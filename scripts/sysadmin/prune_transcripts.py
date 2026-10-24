@@ -37,8 +37,9 @@ THE LEDGER BEFORE THE UNLINK: a deletion appends its row to `~/.claude/archive/p
 (project_slug, session_id, sha256, bytes, paths, agent, object, object_bytes, object_sha1,
 pruned_at) and fsyncs it BEFORE any unlink — a crash between them leaves a row with the file still
 present, never a vanished file without a row. The file sits in ARCHIVE_ROOT, so the archiver's
-`ship()` uploads it nightly: the restore list is off-box too. `--restore <session_id>` is its one
-consumer; `--verify-ledger` its integrity check.
+`ship()` uploads it nightly: the restore list is off-box too. `--restore <session_id>` (MAIN rows
+only) and `--restore agent-<id>` (subagent-tier sidechain rows only; two distinct paths for one id
+refuse, listing both) are its consumers; `--verify-ledger` its integrity check.
 
 THE CAP (C.2.2): every run orders the deletable inodes OLDEST first and takes at most
 PRUNE_MAX_PER_RUN (default 200; `--max M` on a hand run) as THIS RUN's set; the rest are `deferred`.
@@ -54,7 +55,12 @@ THE SUBAGENT TIER (C.3, `--tier subagents`, included by `--nightly`): `<slug>/<s
 agent-*.jsonl` older than the window whose parent session is not OPEN and which is not in flight
 (the stop-decider's rule: a sidechain older than SUBAGENT_STALE_S is never in flight; a younger one
 is in flight while its tail ends mid-exchange), plus `~/.claude/tasks/` and `~/.claude/shell-snapshots/`
-entries older than the window. Never archived — a cliff, one ledger row each, no cap.
+entries older than the window; one ledger row each, no cap. Since D-1182 the archiver ships the
+sidechains too, so a sidechain is deleted only when the archive VOUCHES for it — a row for (slug, rel)
+in `manifest-subagents.jsonl` (`not-archived`), then the same r4–r6 as MAIN (`_vouch`: current sha256,
+the `.zst`'s decompressed bytes, the bucket's size and SHA1 for `<slug>/<rel>.zst`), then the last look
+(OPEN re-read, re-stat) before its fsynced row and unlink; its row carries sha256 + object so
+`--restore agent-<id>` can put it back. Tasks and shell snapshots are never archived — a cliff.
 
 THE SUMMARY ROW: a dry-run or apply run appends one row to `~/.claude/archive/prune-log.jsonl`
 (run_at, mode, tiers, scanned, deletable, this_run, deleted, deferred, refusals by reason,
@@ -288,8 +294,13 @@ class RemoteListing:
     def objects(self, slug: str) -> dict[str, tuple[int, str]] | None:
         if slug not in self._by_slug:
             try:
+                # -R: a subagent object sits below the slug (`<sid>/subagents/…`, D-1182) and a MAIN
+                # object stays a bare top-level name; --fast-list: one recursive B2 list per slug,
+                # not one per directory
                 done = at._rclone(
                     "lsf",
+                    "-R",
+                    "--fast-list",
                     "--files-only",
                     "--format",
                     "psh",
@@ -313,6 +324,50 @@ class RemoteListing:
                 )
                 self._by_slug[slug] = None
         return self._by_slug[slug]
+
+
+@dataclass
+class Proof:
+    """r4–r6's verdict on one file: `reason` None means the archive vouches for its current bytes."""
+
+    reason: str | None
+    sha256: str = ""
+    object_bytes: int = 0
+    object_sha1: str = ""
+
+
+def _vouch(
+    path: Path, row: dict, zst: Path, slug: str, key: str, listing: RemoteListing
+) -> Proof:
+    """r4–r6 for one file of EITHER tier against its manifest row, every doubt a refusal: r4 the file's
+    CURRENT sha256 equals the row's; r5 the `.zst` exists and its decompressed bytes hash to it; r6 the
+    bucket lists `key` under `slug` with the local `.zst`'s size and SHA1."""
+    try:
+        sha = at._sha256(path)
+    except OSError:
+        return Proof("changed-under-hash")
+    if sha != row.get("sha256"):
+        return Proof("sha-mismatch", sha)
+    if not zst.is_file():
+        return Proof("zst-missing", sha)
+    content = _zst_content_sha256(zst)
+    if content is None:
+        return Proof("zst-corrupt", sha)
+    if content != sha:
+        return Proof("zst-bytes-differ", sha)
+    try:
+        size, sha1 = zst.stat().st_size, _sha1(zst)
+    except OSError:  # the object went between the decompress and here: refuse this file, not the night
+        return Proof("zst-missing", sha)
+    objects = listing.objects(slug)
+    if objects is None:
+        return Proof("listing-failed", sha, size, sha1)
+    remote = objects.get(key)
+    if remote is None:
+        return Proof("remote-missing", sha, size, sha1)
+    if remote != (size, sha1):
+        return Proof("remote-differs", sha, size, sha1)
+    return Proof(None, sha, size, sha1)
 
 
 # ── the MAIN tier ───────────────────────────────────────────────────────────────────────────
@@ -471,38 +526,17 @@ def evaluate_main(
         if any(r.get("sha256") != c.row.get("sha256") for r in rows):
             c.reason = "sha-mismatch"
             continue
-        try:
-            c.sha256 = at._sha256(c.names[0])
-        except OSError:
-            c.reason = "changed-under-hash"
-            continue
-        if c.sha256 != c.row.get("sha256"):
-            c.reason = "sha-mismatch"
-            continue
         slug = str(c.row.get("project_slug") or "")
         c.zst = w.archive_root / slug / f"{c.session_id}.jsonl.zst"
         c.object_key = f"{slug}/{c.session_id}.jsonl.zst"
-        if not c.zst.is_file():
-            c.reason = "zst-missing"
-            continue
-        content = _zst_content_sha256(c.zst)
-        if content is None:
-            c.reason = "zst-corrupt"
-            continue
-        if content != c.sha256:
-            c.reason = "zst-bytes-differ"
-            continue
-        c.object_bytes, c.object_sha1 = c.zst.stat().st_size, _sha1(c.zst)
-        listing = listing or RemoteListing()
-        objects = listing.objects(slug)
-        if objects is None:
-            c.reason = "listing-failed"
-            continue
-        remote = objects.get(f"{c.session_id}.jsonl.zst")
-        if remote is None:
-            c.reason = "remote-missing"
-        elif remote != (c.object_bytes, c.object_sha1):
-            c.reason = "remote-differs"
+        listing = listing or RemoteListing()  # its credentials are read on the first listing only
+        p = _vouch(c.names[0], c.row, c.zst, slug, f"{c.session_id}.jsonl.zst", listing)
+        c.reason, c.sha256, c.object_bytes, c.object_sha1 = (
+            p.reason,
+            p.sha256,
+            p.object_bytes,
+            p.object_sha1,
+        )
     refusals: dict[str, int] = {}
     for c in cands:
         if c.reason:
@@ -555,6 +589,9 @@ class Scrap:
     session_id: str = ""
     project_slug: str = ""
     reason: str | None = None
+    mtime_ns: int = 0  # a sidechain's: the last look compares it, with the size, before the unlink
+    proof: Proof | None = None  # a sidechain's vouch (D-1182); None for a task or a shell snapshot
+    object_key: str = ""
 
 
 def _newest_mtime(path: Path) -> float:
@@ -572,9 +609,15 @@ def _tree_size(path: Path) -> int:
     return path.lstat().st_size
 
 
-def evaluate_subagents(w: World) -> tuple[list[Scrap], dict[str, int]]:
+def evaluate_subagents(
+    w: World, listing: RemoteListing | None = None
+) -> tuple[list[Scrap], dict[str, int]]:
+    """Sidechains past the cheap rules are deleted only when the archive vouches for them (D-1182):
+    a row in `manifest-subagents.jsonl` for (slug, rel) — else `not-archived` — then `_vouch`'s r4–r6
+    against the object `<slug>/<rel>.zst`. Tasks and shell snapshots stay a cliff (never archived)."""
     opened = open_sessions(w.sessions_dir, w.identity)
     cutoff = w.now - w.after_days * 86400
+    latest = at._latest_subagent_rows(w.archive_root / at.SUBAGENT_MANIFEST_NAME)
     out: list[Scrap] = []
     for f in sorted(w.projects.glob("*/*/subagents/agent-*.jsonl")):
         try:
@@ -588,6 +631,7 @@ def evaluate_subagents(w: World) -> tuple[list[Scrap], dict[str, int]]:
             st.st_size,
             f.parent.parent.name,
             f.parent.parent.parent.name,
+            mtime_ns=st.st_mtime_ns,
         )
         if st.st_mtime > cutoff:
             s.reason = "in-window"
@@ -595,6 +639,17 @@ def evaluate_subagents(w: World) -> tuple[list[Scrap], dict[str, int]]:
             s.reason = "parent-open"
         elif (w.now - st.st_mtime) <= SUBAGENT_STALE_S and subagent_running(f):
             s.reason = "in-flight"
+        else:
+            rel = f.relative_to(w.projects / s.project_slug).as_posix()
+            row = latest.get((s.project_slug, rel))
+            if row is None:
+                s.reason = "not-archived"
+            else:
+                listing = listing or RemoteListing()
+                s.object_key = f"{s.project_slug}/{rel}.zst"
+                zst = w.archive_root / s.object_key
+                s.proof = _vouch(f, row, zst, s.project_slug, f"{rel}.zst", listing)
+                s.reason = s.proof.reason
         out.append(s)
     for kind, root in (("task", w.tasks_dir), ("shell-snapshot", w.snapshots_dir)):
         if not root.is_dir():
@@ -655,8 +710,9 @@ def prune(
     run_main: list[Candidate] = []
     run_scraps: list[Scrap] = []
     deferred = 0
+    listing = RemoteListing()  # one listing per slug for both tiers; credentials on first use only
     if "main" in tiers:
-        cands, refusals, over = evaluate_main(w)
+        cands, refusals, over = evaluate_main(w, listing)
         deletable = sorted((c for c in cands if c.reason is None), key=lambda c: c.mtime_ns)
         run_main, deferred = deletable[: w.cap], max(0, len(deletable) - w.cap)
         summary.update(
@@ -679,7 +735,7 @@ def prune(
                 f"  {'delete' if apply else 'would delete'} {c.names[0]}{twins} agent={c.agent or '-'}"
             )
     if "subagents" in tiers:
-        scraps, s_ref = evaluate_subagents(w)
+        scraps, s_ref = evaluate_subagents(w, listing)
         run_scraps = [s for s in scraps if s.reason is None]
         summary.update(
             subagents_scanned=len(scraps),
@@ -744,19 +800,42 @@ def prune(
             with contextlib.suppress(FileNotFoundError):
                 n.unlink()
         deleted += 1
+    deleted_main = deleted  # a MAIN inode skipped by its last look is in neither count
     for s in run_scraps:
-        _append_fsync(
-            ledger,
-            {
-                "tier": "subagents",
-                "kind": s.kind,
-                "project_slug": s.project_slug,
-                "session_id": s.session_id,
-                "bytes": s.size,
-                "paths": [str(s.path)],
-                "pruned_at": _now_iso(),
-            },
-        )
+        row = {
+            "tier": "subagents",
+            "kind": s.kind,
+            "project_slug": s.project_slug,
+            "session_id": s.session_id,
+            "bytes": s.size,
+            "paths": [str(s.path)],
+            "pruned_at": _now_iso(),
+        }
+        if s.kind == "subagent":
+            # the last look, in MAIN's order: OPEN re-read, then the re-stat, right before this unlink
+            opened = open_sessions(w.sessions_dir, w.identity)
+            try:
+                st = s.path.stat()
+            except FileNotFoundError:
+                st = None
+            if (
+                s.proof is None  # never vouched: not deletable (fail-closed)
+                or st is None
+                or st.st_size != s.size
+                or st.st_mtime_ns != s.mtime_ns
+                or s.session_id in opened
+            ):
+                refs = summary.setdefault("subagents_refusals", {})
+                refs["changed-under-hash"] = refs.get("changed-under-hash", 0) + 1
+                print(f"  skipped {s.path}: changed-under-hash")
+                continue
+            row.update(
+                sha256=s.proof.sha256,
+                object=s.object_key,
+                object_bytes=s.proof.object_bytes,
+                object_sha1=s.proof.object_sha1,
+            )
+        _append_fsync(ledger, row)
         if s.path.is_dir() and not s.path.is_symlink():
             shutil.rmtree(s.path, ignore_errors=True)
         else:
@@ -765,8 +844,8 @@ def prune(
         deleted += 1
     summary["deleted"] = deleted
     print(
-        f"prune_transcripts: deleted {deleted} (MAIN {min(deleted, len(run_main))} inode(s), "
-        f"subagent-tier {max(0, deleted - len(run_main))}); deferred {deferred}; ledger {ledger}"
+        f"prune_transcripts: deleted {deleted} (MAIN {deleted_main} inode(s), "
+        f"subagent-tier {deleted - deleted_main}); deferred {deferred}; ledger {ledger}"
     )
     return EXIT_OK
 
@@ -774,12 +853,23 @@ def prune(
 # ── --restore ───────────────────────────────────────────────────────────────────────────────
 
 
+def _restore_match(r: dict, ident: str) -> bool:
+    """A session id selects MAIN rows only; an `agent-<id>` selects subagent-tier sidechain rows whose
+    path's stem is that id (D-1182). The two never mix: a sidechain row carries its PARENT's session id,
+    so a MAIN restore must not read it."""
+    if ident.startswith("agent-"):
+        paths = r.get("paths") or []
+        return (
+            r.get("tier") == "subagents"
+            and r.get("kind") == "subagent"
+            and bool(paths)
+            and Path(str(paths[0])).stem == ident
+        )
+    return r.get("session_id") == ident and r.get("tier", "main") == "main"
+
+
 def _restore_rows(w: World, session_id: str, slug: str | None) -> list[dict]:
-    rows = [
-        r
-        for r in _ledger_rows(w.archive_root)
-        if r.get("session_id") == session_id and r.get("tier", "main") == "main"
-    ]
+    rows = [r for r in _ledger_rows(w.archive_root) if _restore_match(r, session_id)]
     if not rows:  # the bucket's copy of the restore list; unreachable ⇒ no rows, a refusal below
         with tempfile.TemporaryDirectory() as tmp:
             local = Path(tmp) / LEDGER_NAME
@@ -791,11 +881,7 @@ def _restore_rows(w: World, session_id: str, slug: str | None) -> list[dict]:
                     file=sys.stderr,
                 )
                 return []
-            rows = [
-                r
-                for r in at._json_rows(local)
-                if r.get("session_id") == session_id and r.get("tier", "main") == "main"
-            ]
+            rows = [r for r in at._json_rows(local) if _restore_match(r, session_id)]
     if slug:
         rows = [r for r in rows if r.get("project_slug") == slug]
     return rows
@@ -814,6 +900,14 @@ def restore(w: World, session_id: str, slug: str | None) -> int:
             f"--restore: no pruned.jsonl row for session {session_id}"
             + (f" under {slug}" if slug else "")
         )
+    if session_id.startswith("agent-"):
+        pruned_at = {str(r["paths"][0]): r.get("pruned_at") for r in rows}  # the newest per path
+        if len(pruned_at) > 1:  # the same agent id pruned under two session dirs: never guess which
+            listed = "; ".join(f"{p} (pruned_at {t})" for p, t in sorted(pruned_at.items()))
+            raise RefusalError(
+                f"--restore: {session_id} was pruned under {len(pruned_at)} paths — {listed}; "
+                "nothing written"
+            )
     row = rows[-1]
     paths = [Path(p) for p in row.get("paths") or []]
     want = str(row.get("sha256") or "")
@@ -887,9 +981,15 @@ def restore(w: World, session_id: str, slug: str | None) -> int:
 
 
 def verify_ledger(w: World) -> int:
-    rows = [r for r in _ledger_rows(w.archive_root) if r.get("tier", "main") == "main"]
+    """Every MAIN row, and every subagent-tier row that names an archived object (D-1182; a task, a
+    shell snapshot and a pre-D-1182 sidechain row name none), listed in the bucket as recorded."""
+    rows = [
+        r
+        for r in _ledger_rows(w.archive_root)
+        if r.get("tier", "main") == "main" or (r.get("tier") == "subagents" and r.get("object"))
+    ]
     if not rows:
-        print("verify-ledger: no MAIN rows in pruned.jsonl")
+        print("verify-ledger: no archived rows in pruned.jsonl")
         return EXIT_OK
     listing = RemoteListing()
     missing = 0
@@ -951,7 +1051,11 @@ def _parser() -> argparse.ArgumentParser:
         choices=[*TIERS, "all"],
         help="main (default), subagents, or all (--nightly's default)",
     )
-    ap.add_argument("--restore", metavar="SESSION_ID", help="put a pruned session back (C.2.5)")
+    ap.add_argument(
+        "--restore",
+        metavar="SESSION_ID|agent-ID",
+        help="put a pruned session back (C.2.5), or a pruned subagent transcript (agent-<id>, D-1182)",
+    )
     ap.add_argument(
         "--slug", help="with --restore: the project slug when the id was pruned under several"
     )
