@@ -382,7 +382,8 @@ but ≤ 0.18333 on white — a disjoint range no single hex satisfies (`#5B5BF7`
 - Line-height: 1.5 for body, 1.2 for headings, 1.4 for code.
 - Script coverage: Arya covers Latin, Latin Extended (Turkish included) and Devanagari; IBM Plex Sans covers
   Latin, Latin Extended, Cyrillic, Greek and Vietnamese, and is the heading fallback for those last three.
-  Add IBM Plex Sans Arabic for `ar` and `fa` and IBM Plex Sans Devanagari for body text in `hi`.
+  For `ar` and `fa`, put IBM Plex Sans Arabic second in both stacks; for `hi`, put IBM Plex Sans Devanagari
+  second in the body stack (Arya covers Devanagari headings).
 
 ---
 

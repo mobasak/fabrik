@@ -72,7 +72,7 @@ currency_pass: 2026-10-01
 
 Tojlo's structure is `core/design-system-template.md`'s and its values are `core/ocoron-design-system.md`'s (D-406 split the old Ocoron pack in two). Colours, contrast, motion and tokens are pointers in this file and come from those two packs. The sections from Density Modes through Accessibility are different: they are Tojlo's own rule sets, kept from before the split — their rule IDs (D, TBL, F, C, N, A, PR, O, ML, FMT, EX, ACC) collide with the template's and their content differs (Tojlo forbids table striping, for one). On a Tojlo project those sections apply where they state a rule, and the template supplies anything they do not address; a rule marked **Tojlo override** flags a known conflict with the template. The line-by-line dedup is W-68b6a454. Inherited unchanged, and not to be re-specified:
 
-- **Typography stack — Tojlo override, pending its own ruling (§ Inheritance from Ocoron, a breaking Ocoron update of 2026-10-24):** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data), with the weights, scale, line-heights and letter-spacing Ocoron used before it moved to Arya and IBM Plex Sans. That ruling named Ocoron only; Tojlo re-specifies nothing else.
+- **Typography stack — Tojlo override, the one exception to this list (§ Inheritance from Ocoron: a breaking Ocoron update may delay adoption; Ocoron v3.1 of 2026-10-24 moved to Arya and IBM Plex Sans, and Tojlo stays until a Tojlo ruling):** Space Grotesk 600 and 700 (headings: H1 700, H2 and H3 600), Inter 400 and 500 (body/UI; micro-label 500), JetBrains Mono 300 and 400 (code/data); Ocoron's scale, line-heights and letter-spacing otherwise. That ruling named Ocoron only; Tojlo re-specifies nothing else.
 - **Spacing tokens:** `--space-xs` through `--space-2xl` — identical.
 - **Interaction tokens:** transition durations, easings, hover/press/focus — identical.
 - **Motion language:** duration scale, easing curves, canonical patterns, M1-M8 forbidden rules, reduced motion — the template's, identical (§ Motion Language below adds two Tojlo items).
@@ -520,7 +520,7 @@ Use these as 3px left-rail indicators on sidebar items or as 9px micro-label dot
 
 ## Typography
 
-**Tojlo's own stack** (§ Inheritance Contract, the Typography stack override); the scale and rules are otherwise Ocoron's.
+**Tojlo's own stack** (§ Inheritance Contract, the Typography stack override): its font names and weights are the override's; Ocoron's scale, line-heights and letter-spacing apply, and Ocoron's font-naming rules do not.
 
 Two Tojlo-specific patterns:
 

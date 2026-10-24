@@ -79,7 +79,9 @@ import { Arya, IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google';
 import { detectLanguage, loadTranslations, SUPPORTED } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/I18nProvider';
 
-const arya = Arya({ weight: ['700'], subsets: ['latin', 'latin-ext'], variable: '--font-heading', display: 'swap', fallback: ['IBM Plex Sans', 'sans-serif'] });
+// Arya's variable holds the Arya face alone, so the heading family can chain the body font after it
+// (tailwind below); add 'cyrillic', 'greek' or 'vietnamese' to plexSans's subsets for those locales.
+const arya = Arya({ weight: ['700'], subsets: ['latin', 'latin-ext'], variable: '--font-heading', display: 'swap', fallback: [], adjustFontFallback: false });
 const plexSans = IBM_Plex_Sans({ weight: ['400', '500'], subsets: ['latin', 'latin-ext'], variable: '--font-body', display: 'swap' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
@@ -96,7 +98,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 ```
 
-The scaffold's own `app/layout.tsx` mounts no `I18nProvider`, and `useI18n()` throws outside one — wiring it is part of the first UI ticket. MERGE the example into that layout rather than replacing it: keep its `./globals.css` import, `metadata` and `<Toaster />`, and map the font variables in `tailwind.config.*` (`fontFamily: { heading: ['var(--font-heading)'], body: ['var(--font-body)'], mono: ['var(--font-mono)'] }`) with `font-body` on `<body>`, or the fonts load and nothing uses them.
+The scaffold's own `app/layout.tsx` mounts no `I18nProvider`, and `useI18n()` throws outside one — wiring it is part of the first UI ticket. MERGE the example into that layout rather than replacing it: keep its `./globals.css` import, `metadata` and `<Toaster />`, and map the font variables in `tailwind.config.*` (`fontFamily: { heading: ['var(--font-heading)', 'var(--font-body)'], body: ['var(--font-body)'], mono: ['var(--font-mono)'] }` — the heading entry chains the body font, which is the per-glyph fallback for scripts the heading font lacks) with `font-body` on `<body>`, or the fonts load and nothing uses them.
 
 `next/font` self-hosts the fonts at build time — no external CDN requests, no GDPR concern, optimal loading. Never use `<link>` to Google Fonts CDN.
 
