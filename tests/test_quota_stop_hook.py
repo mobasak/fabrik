@@ -1117,12 +1117,19 @@ class _Lane:
             f"| D-001 | 2026-10-22 | operator | MERGE OWNER: {name} — merges | test | here |\n"
         )
 
-    def bind(self, sid: str, name: str, toplevel: Path | str | None = None) -> None:
+    def bind(
+        self,
+        sid: str,
+        name: str,
+        toplevel: Path | str | None = None,
+        **extra: object,
+    ) -> None:
         row = {
             "session_id": sid,
             "name": name,
             "toplevel": str(self.common if toplevel is None else toplevel),
             "at": int(time.time()),
+            **extra,
         }
         with self.store.open("a") as fh:
             fh.write(json.dumps(row) + "\n")
