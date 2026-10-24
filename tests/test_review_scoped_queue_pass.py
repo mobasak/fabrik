@@ -1166,22 +1166,30 @@ def test_a_fix_reshaping_a_rule_subject_lists_the_old_cases_before_drafting() ->
     assert question in review and quote in review
 
 
-def test_a_committed_surface_is_pinned_from_its_commit_whatever_its_shape() -> None:
+def test_a_committed_surface_is_pinned_from_its_commit_by_its_shape() -> None:
     """Rows 1792829562, 1792779119, 1792774372: three leads pinned a surface they had already committed with step 5's
     working-tree recipe and got an empty change.diff, because the --from/--base rule lives only in the catalogue's
-    § Seat isolation, which a docs-only brief need not load. Step 5 now quotes that rule whole, for every shape, and
+    § Seat isolation, which a docs-only brief need not load. Step 5 now quotes that sentence whole, adds the two shapes
+    it leaves out (a merge as the last commit; a surface partly committed, which `pin --from` refuses or misreads) and
     names the base_sha such a pin records; the quote must stay word-for-word the catalogue's."""
     rule = (
         "a fix already committed is pinned with `--from <its last commit>`, plus `--base <the commit before the fix>`"
         " when it spans several, since a working-tree pin of a committed surface prints each file `UNCHANGED` with"
-        " only a header line in its `change.diff`"
+        " only a header line in its `change.diff`, and `--base` without `--from` pins the working tree, a sibling's"
+        " later commit or uncommitted edit included."
     )
     assert (
-        "a commit of the surface leaves it valid and an untracked file counts like a tracked one, but the pin's"
-        " `change.diff` does not survive that commit: whatever the change's shape, a surface committed before its pin"
-        " is pinned as the probe catalogue's § Seat isolation says — \""
+        "so committing the surface leaves a pin taken before the commit valid, and an untracked file counts like a"
+        " tracked one; a working-tree pin taken after the commit is the one that goes wrong. A surface already"
+        " committed when you pin it — a docs-only change included — is pinned as the probe catalogue's § Seat"
+        ' isolation says: "'
         + rule
-        + "\" — and the brief's `base_sha` is then the commit that pin records (its `--base`, else its `--from` ref),"
-        " never the `git rev-parse HEAD` above. Seats read the copies"
+        + '" A last commit that is a merge counts as several (`--from` alone diffs against its first parent). A'
+        " surface partly committed and partly not (an untracked file included) is the one shape `--from` cannot pin"
+        " — it refuses a path absent at that commit and takes a file's committed bytes, not its uncommitted edit —"
+        " so it is pinned from the working tree with `--base <the commit before the fix>`, its `change.diff` then"
+        " carrying any sibling commit to those files too. Either way the brief's `base_sha` is the one that pin"
+        " records (its `--base`, else its `--from` ref), read back from it, not a fresh `git rev-parse HEAD`. Seats"
+        " read the copies"
     ) in _norm(SRC)
     assert rule in _norm(CAT)
