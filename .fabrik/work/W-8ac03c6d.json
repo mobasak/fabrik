@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T15:51:31.602332Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-8ac03c6d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q9QSEKW2XTTN6VWZCJF5YR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-eaa745f3-ocoron-fonts"
+}
