@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T08:03:55.903454Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-7c3abd32",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "escape each pipe inside those cells as \\| (GFM splits on a pipe even inside a code span); run tests/enforcement/test_check_hooks_index.py",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 3,
+  "score_reason": "LOW: a rendering defect in a docs table; effort low: two cells",
+  "status": "open",
+  "title": "Re-filed W-65f4067f (closed in error by the coordinator 2026-10-24 on 9e83d5c37, which only FILED it): docs/workstation/hooks-index.md rows 21 (agent_status.py, '|| true' inside a code span) and 24 (final_gate_stop.py, 'gate|underivable|owned') carry unescaped pipes that split the GFM table cells"
+}
