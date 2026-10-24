@@ -169,3 +169,69 @@ def test_a_tracked_hook_stays_required_when_its_registration_is_deleted(tmp_path
         finally:
             sub.chmod(0o755)
         assert rc == 1 and "inner.py" in out and "Traceback" not in out, out
+
+
+def _table_pipe_defects(text: str) -> list[str]:
+    """GFM splits a table cell on an unescaped pipe even inside a code span, so a
+    `a|b` in a hooks-index row shifts every later cell (W-7c3abd32). Flags a row
+    whose unescaped-pipe count differs from its header's, and any unescaped pipe
+    inside a code span (which a lost separator elsewhere in the row would hide from
+    the count). Lines inside a fence are not table rows; a fence closes on its own
+    character with a run at least as long, as CommonMark closes it. Boundary: rows
+    that start with `|`, end with one and hold balanced backticks — an indented row
+    is skipped unchecked, a row without a trailing pipe is reported as a count
+    mismatch, and an odd backtick can pair across a separator."""
+    import re
+
+    pipe = re.compile(r"(?<!\\)\|")
+    span = re.compile(r"`[^`]*`")
+    fence = re.compile(r" {0,3}(`{3,}|~{3,})(.*)$")
+    width = None
+    opener = ""
+    bad = []
+    for n, line in enumerate(text.splitlines(), 1):
+        m = fence.match(line)
+        if m and not opener:
+            opener = m.group(1)
+        elif (
+            m
+            and m.group(1)[0] == opener[0]
+            and len(m.group(1)) >= len(opener)
+            and not m.group(2).strip()
+        ):
+            opener = ""
+            width = None
+            continue
+        if opener or not line.startswith("|"):
+            width = None
+            continue
+        if any(pipe.search(m.group(0)) for m in span.finditer(line)):
+            bad.append(f"line {n}: unescaped pipe inside a code span — write \\|")
+        count = len(pipe.findall(line))
+        if width is None:
+            width = count
+        elif count != width:
+            bad.append(f"line {n}: {count} pipes, header has {width}")
+    return bad
+
+
+def test_table_pipe_defects_probe_list() -> None:
+    head = "| a | b | c |\n|---|---|---|\n"
+    assert _table_pipe_defects(head + "| x | `p\\|q` | z |\n") == []
+    assert _table_pipe_defects(head + "| x | `p|q` | z |\n") != []  # stray pipe in a span
+    assert _table_pipe_defects(head + "| x | y |\n") != []  # a lost cell
+    # a lost separator hidden by a stray span pipe keeps the count right
+    assert _table_pipe_defects(head + "| x  y | `p|q` |\n") != []
+    inside = "| one |\n| one | two | three |\n"
+    assert _table_pipe_defects("```\n" + inside + "```\n") == []
+    assert _table_pipe_defects("~~~\n" + inside + "~~~\n") == []
+    # an inner ``` neither closes a ```` fence nor a ~~~ one, so the bad table after is seen
+    for outer in ("````", "~~~"):
+        text = outer + "\n```\n" + outer + "\n\n" + head + "| x | y |\n"
+        assert _table_pipe_defects(text) != [], outer
+
+
+def test_real_hub_index_table_rows_keep_their_header_column_count() -> None:
+    text = (FABRIK / "docs/workstation/hooks-index.md").read_text(encoding="utf-8")
+    bad = _table_pipe_defects(text)
+    assert bad == [], "\n".join(bad)
