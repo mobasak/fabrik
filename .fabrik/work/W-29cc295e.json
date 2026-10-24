@@ -17,10 +17,10 @@
     "047c61840ffd3d38ea82dc6fe26e2e14f4cf31edf093ee02e47d1a24a3bedd70"
   ],
   "next": "",
-  "note": "",
+  "note": "yes it is urgent dispatch a new agent i need it asap.",
   "owner": "",
   "priority": 2,
   "question": "May I resume one more builder, infra-3, just for REA, so it starts now instead of after infra-2's two urgent items?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May I resume one more builder, infra-3, just for REA, so it starts now instead of after infra-2's two urgent items?"
 }
