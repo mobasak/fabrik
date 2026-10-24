@@ -617,3 +617,71 @@ def test_an_error_body_cut_short_is_read_as_empty(monkeypatch):
     monkeypatch.setattr(health.urllib.request, "build_opener", lambda *_a: _Opener())
     entry = {"env": {"EXA_API_KEY": "k-test-0123456789"}}
     assert health._probe_auth("exa", entry, 5) == ("unverified", "HTTP 401")
+
+
+def _hub(tmp_path: Path, servers: dict | None) -> Path:
+    """A hub-class repo (named `fabrik`, so the emitter rules it the full catalog)."""
+    repo = tmp_path / "fabrik"
+    repo.mkdir()
+    if servers is not None:
+        (repo / ".mcp.json").write_text(json.dumps({"mcpServers": servers}))
+    return repo
+
+
+def test_health_names_withheld_and_stale_services(tmp_path, monkeypatch, capsys):
+    """W-07298e38: the emitter withholds a service MCP whose unit is not installed and enabled, which
+    would hide a forgotten install from the fix-first signal. Health names it — `withheld` when the file
+    lacks it, `stale entry` when the file still carries it (the hub on 2026-10-24) — outside the report,
+    so the mcp_watch cache never counts it as a death."""
+    monkeypatch.setenv("FABRIK_SYSTEMD_UNIT_DIR", str(tmp_path / "no-units"))
+    monkeypatch.setattr(health, "check", lambda *a, **k: {"fabrik-scrape": "DEAD"})
+    cache = tmp_path / "cache.json"
+    health.main(["--repo", str(_hub(tmp_path, {"fabrik-scrape": {}})), "--cache-out", str(cache)])
+    out = capsys.readouterr().out
+    assert (
+        "MCP-HEALTH: fabrik-scrape is emitted but its unit fabrik-scrape-mcp.service is not installed"
+        " and enabled — a stale entry; re-run python3 /opt/fabrik/scripts/sysadmin/"
+        "emit_mcp_project_config.py --repo " in out
+    ), out
+    assert json.loads(cache.read_text())["report"] == {"fabrik-scrape": "DEAD"}
+
+    (tmp_path / "fabrik" / ".mcp.json").write_text(json.dumps({"mcpServers": {}}))
+    monkeypatch.setattr(health, "check", lambda *a, **k: {})
+    health.main(["--repo", str(tmp_path / "fabrik")])
+    out = capsys.readouterr().out
+    assert (
+        "MCP-HEALTH: fabrik-scrape withheld — unit fabrik-scrape-mcp.service not installed and"
+        " enabled; install it" in out
+    ), out
+    assert "fabrik-citation-verifier withheld" in out  # its unit is absent from the tmp dir too
+
+
+def test_health_names_a_withheld_service_with_no_mcp_json(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FABRIK_SYSTEMD_UNIT_DIR", str(tmp_path / "no-units"))
+    assert health.main(["--repo", str(_hub(tmp_path, None))]) == 0
+    out = capsys.readouterr().out
+    assert "fabrik-scrape withheld" in out and "no .mcp.json" in out, out
+
+
+def test_health_is_silent_when_every_unit_is_enabled(tmp_path, monkeypatch, capsys):
+    units = tmp_path / "units"
+    (units / "multi-user.target.wants").mkdir(parents=True)
+    for unit in ("fabrik-scrape-mcp.service", "fabrik-citation-verifier-mcp.service"):
+        (units / unit).write_text("[Unit]\n")
+        (units / "multi-user.target.wants" / unit).symlink_to(units / unit)
+    monkeypatch.setenv("FABRIK_SYSTEMD_UNIT_DIR", str(units))
+    assert health.main(["--repo", str(_hub(tmp_path, None))]) == 0
+    assert "withheld" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("broken", ["missing", "exits"])
+def test_health_withheld_read_fails_open(tmp_path, monkeypatch, capsys, broken):
+    """A broken sibling emitter — gone, or one that raises SystemExit at import as `_load_defs` would —
+    prints its reason and never breaks the probe or its exit code."""
+    emitter = tmp_path / "emit.py"
+    if broken == "exits":
+        emitter.write_text("raise SystemExit('boom')\n")
+    monkeypatch.setattr(health, "EMITTER_PATH", emitter)
+    assert health.main(["--repo", str(_hub(tmp_path, None))]) == 0
+    out = capsys.readouterr().out
+    assert "mcp-health: withheld check failed open (" in out, out

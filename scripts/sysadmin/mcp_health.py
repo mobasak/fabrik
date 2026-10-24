@@ -310,6 +310,54 @@ def check(
     return report
 
 
+EMITTER_PATH = Path(__file__).with_name("emit_mcp_project_config.py")
+HUB_EMITTER = (
+    "/opt/fabrik/scripts/sysadmin/emit_mcp_project_config.py"  # the re-emit runs from the hub
+)
+
+
+def _withheld(repo: Path) -> dict[str, str]:
+    """{server: unit} for each server the emitter's ruling gives ``repo`` but withholds because its systemd
+    unit is not installed and enabled (W-07298e38). Without this line a forgotten install is invisible:
+    the withheld server is in no ``.mcp.json``, so nothing above probes it. Reads the catalog's NAMES
+    only — never the emitter's ``_load_defs``, which reads the fleet roster and raises SystemExit."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_mcp_health_emitter", EMITTER_PATH)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(EMITTER_PATH)
+    em = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(em)
+    defs_file = EMITTER_PATH.with_name("mcp_defs.json")
+    names = {n: {} for n in json.loads(defs_file.read_text()).get("mcpServers", {})}
+    ruled = em.ruled_server_names(repo.resolve(), names) or []
+    return {s: u for s in ruled if (u := em._service_missing(s))}
+
+
+def _print_withheld(repo: Path) -> None:
+    """The withheld lines, printed and never put in the report (the mcp_watch cache counts every
+    non-CONNECTED verdict there as a death). Advisory like the rest: any failure prints its reason."""
+    try:
+        withheld = _withheld(repo)
+        present: set[str] = set()
+        if (repo / ".mcp.json").is_file():
+            present = set(json.loads((repo / ".mcp.json").read_text()).get("mcpServers", {}))
+    except (Exception, SystemExit) as exc:  # a broken sibling never breaks the probe
+        print(f"mcp-health: withheld check failed open ({type(exc).__name__})")
+        return
+    for server, unit in sorted(withheld.items()):
+        if server in present:
+            print(
+                f"MCP-HEALTH: {server} is emitted but its unit {unit} is not installed and enabled — a"
+                f" stale entry; re-run python3 {HUB_EMITTER} --repo {repo.resolve()}, or install the unit"
+            )
+        else:
+            print(
+                f"MCP-HEALTH: {server} withheld — unit {unit} not installed and enabled; install it"
+                " (docs/workstation/mcp-roster.md), then re-run the emitter"
+            )
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--repo", default=".", help="repo root (default: cwd)")
@@ -323,6 +371,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"mcp-health: no .mcp.json in {repo} — universal user-level set only, nothing to diff"
         )
+        _print_withheld(repo)
         return 0
     notes: dict[str, str] = {}
     try:
@@ -364,6 +413,7 @@ def main(argv: list[str] | None = None) -> int:
             f"MCP-HEALTH: {len(unprobed)} server(s) UNPROBED, liveness unknown "
             f"({', '.join(sorted(unprobed))}) — verify with `claude mcp list`"
         )
+    _print_withheld(repo)
     return 0
 
 

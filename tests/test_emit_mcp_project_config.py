@@ -40,7 +40,15 @@ ALL_SERVERS = [
     "grafana",
     "fabrik-scrape",
 ]
-UNIVERSAL = {"session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena", "fabrik-scrape"}
+UNIVERSAL = {
+    "session-recall",
+    "exa",
+    "brave-search",
+    "firecrawl",
+    "postgres-pro",
+    "serena",
+    "fabrik-scrape",
+}
 U5_NO_DB = UNIVERSAL - {"postgres-pro"}  # absent-until-configured (no connecting DATABASE_URL)
 
 
@@ -55,6 +63,33 @@ def defs_file(tmp_path: Path) -> Path:
     p = tmp_path / "defs.json"
     p.write_text(json.dumps({"mcpServers": defs}))
     return p
+
+
+SERVICE_UNITS = {
+    "fabrik-scrape": "fabrik-scrape-mcp.service",
+    "fabrik-citation-verifier": "fabrik-citation-verifier-mcp.service",
+}
+
+
+def _install_units(unit_dir: Path, units, enabled: bool = True) -> None:
+    """Lay out `units` the way `systemctl enable` leaves them: the file, plus its `*.wants/` link."""
+    wants = unit_dir / "multi-user.target.wants"
+    wants.mkdir(parents=True, exist_ok=True)
+    for unit in units:
+        (unit_dir / unit).write_text("[Unit]\n")
+        if enabled:
+            (wants / unit).symlink_to(unit_dir / unit)
+
+
+@pytest.fixture(autouse=True)
+def unit_dir(tmp_path: Path, monkeypatch) -> Path:
+    """Every service unit installed and enabled by default (W-07298e38), so no test reads the box's
+    /etc/systemd/system — the env var reaches the real-subprocess scaffold test too."""
+    d = tmp_path / "systemd"
+    _install_units(d, SERVICE_UNITS.values())
+    monkeypatch.setenv("FABRIK_SYSTEMD_UNIT_DIR", str(d))
+    monkeypatch.setattr(emitter, "UNIT_DIR", d, raising=False)
+    return d
 
 
 def make_repo(root: Path, name: str, rtype: str | None, env: str | None = None) -> Path:
@@ -458,3 +493,84 @@ def test_rea_reaches_the_hub_class_and_no_project_type(tmp_path):
     for rtype in emitter.TYPE_SETS:
         repo = make_repo(tmp_path, f"p-{rtype}", rtype)
         assert "rea" not in emitter.ruled_server_names(repo, defs), rtype
+
+
+def _fresh_unit_dir(tmp_path: Path, monkeypatch, **state: str) -> Path:
+    """A unit dir where each SERVICE_UNITS server is `enabled`, `installed` (file only) or `absent`."""
+    d = tmp_path / "systemd-fresh"
+    d.mkdir()
+    for server, unit in SERVICE_UNITS.items():
+        how = state.get(server.replace("-", "_"), "enabled")
+        if how != "absent":
+            _install_units(d, [unit], enabled=how == "enabled")
+    monkeypatch.setattr(emitter, "UNIT_DIR", d)
+    return d
+
+
+_WITHHELD = "withheld: fabrik-scrape (unit fabrik-scrape-mcp.service not installed and enabled)"
+
+
+@pytest.mark.parametrize("how", ["absent", "installed"])
+def test_a_service_without_its_enabled_unit_is_withheld_and_named(
+    tmp_path, defs_file, monkeypatch, how
+):
+    """W-07298e38: fabrik-scrape shipped to the hub .mcp.json with no unit behind it — a dead entry in
+    every session. A unit that is absent, or copied in but never enabled, withholds the server and the
+    verdict says so."""
+    _fresh_unit_dir(tmp_path, monkeypatch, fabrik_scrape=how)
+    r = make_repo(tmp_path, "some-api", "python-api")
+    defs = emitter._load_defs(str(defs_file))
+    assert emitter.emit_repo(r, defs, check=False) == f"CREATE — {_WITHHELD}"
+    assert servers_of(r) == U5_NO_DB - {"fabrik-scrape"}
+    assert emitter.emit_repo(r, defs, check=False) == f"OK — {_WITHHELD}"
+
+
+def test_the_hub_withholds_an_uninstalled_service_too(tmp_path, defs_file, monkeypatch):
+    _fresh_unit_dir(
+        tmp_path, monkeypatch, fabrik_scrape="absent", fabrik_citation_verifier="installed"
+    )
+    r = make_repo(tmp_path, "fabrik", None)
+    run(tmp_path, defs_file)
+    got = servers_of(r)
+    assert "fabrik-scrape" not in got and "fabrik-citation-verifier" not in got
+    assert "grafana" in got and "session-recall" in got
+
+
+def test_an_unreadable_unit_dir_withholds_not_skips(tmp_path, defs_file, monkeypatch):
+    """`Path.is_file()` raises PermissionError under an unreadable directory; unwrapped it would escape to
+    main's `SKIP (unreadable …)` and leave a stale file carrying the dead entry in place."""
+    d = _fresh_unit_dir(tmp_path, monkeypatch)
+    root = tmp_path / "opt"  # the sweep root, apart from the unreadable unit dir
+    r = make_repo(root, "some-api", "python-api")
+    (r / ".mcp.json").write_text(json.dumps({"mcpServers": {"fabrik-scrape": {}}}))
+    d.chmod(0)
+    try:
+        lines = run(root, defs_file)
+    finally:
+        d.chmod(0o755)
+    assert not any("SKIP" in line for line in lines), lines
+    assert "fabrik-scrape" not in servers_of(r)
+
+
+def test_a_withheld_service_stays_ruled(tmp_path, defs_file, monkeypatch):
+    """check_mcp_scope grades present ⊆ ruled: the ruling must still name a withheld server, so the
+    omission reads as legal (absent-until-configured, like postgres-pro)."""
+    _fresh_unit_dir(tmp_path, monkeypatch, fabrik_scrape="absent")
+    r = make_repo(tmp_path, "some-api", "python-api")
+    defs = emitter._load_defs(str(defs_file))
+    assert "fabrik-scrape" in emitter.ruled_server_names(r, defs)
+    assert "fabrik-scrape" not in emitter.derive_servers(r, defs)
+
+
+def test_every_loopback_http_def_names_its_unit():
+    """The next loopback service MCP must not skip the guard: every catalog entry served on this box's
+    loopback names the systemd unit that serves it."""
+    from urllib.parse import urlparse
+
+    for name, entry in json.loads(CATALOG.read_text())["mcpServers"].items():
+        host = urlparse(entry.get("url") or "").hostname
+        if host in ("127.0.0.1", "localhost", "::1"):
+            assert name in emitter.SERVICE_UNITS, (
+                f"{name} serves {entry['url']} with no SERVICE_UNITS row"
+            )
+    assert emitter.SERVICE_UNITS == SERVICE_UNITS

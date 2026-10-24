@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -99,6 +100,17 @@ HUB_CLASS = HUB_REPOS | {"fabrik-lib"}  # derivation; only HUB_REPOS is in the d
 HUB_FULL_ROSTER = HUB_CLASS - HUB_REPOS
 CONDEMNED = {"image-generation"}  # D-023 ARCHIVE pending with fleet — excluded BY NAME
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
+
+# A loopback service MCP is emitted only once the systemd unit serving it is installed AND enabled
+# (W-07298e38): fabrik-scrape reached the hub .mcp.json with no unit behind it, a dead entry in every
+# session. Unit state, never a port probe — a probe would strip a merely restarting server from every
+# repo until the next emit. Every loopback url in mcp_defs.json needs a row here (a test enforces it).
+# Cobra: an enabled unit that fails to start still ships a dead entry; mcp_health.py reports it DEAD.
+SERVICE_UNITS = {
+    "fabrik-scrape": "fabrik-scrape-mcp.service",
+    "fabrik-citation-verifier": "fabrik-citation-verifier-mcp.service",  # :8033, not the :8032 API
+}
+UNIT_DIR = Path(os.environ.get("FABRIK_SYSTEMD_UNIT_DIR", "/etc/systemd/system"))
 
 _TYPE_RE = re.compile(r"^type:\s*(\S+)\s*$", re.M)
 _DBURL_RE = re.compile(r"^DATABASE_URL=(.+)$", re.M)
@@ -259,6 +271,21 @@ def _uri_connects(uri: str) -> bool | None:
     return None
 
 
+def _service_missing(server: str) -> str | None:
+    """The unit `server` needs when it is not installed and enabled under `UNIT_DIR`, else None.
+    Enabled = a `*.wants/<unit>` entry, which `systemctl enable` writes for any `WantedBy=` target.
+    Any OSError reads as missing: `is_file()` raises under an unreadable directory, and that must
+    withhold the server, never skip the repo and leave a stale entry in place."""
+    unit = SERVICE_UNITS.get(server)
+    if unit is None:
+        return None
+    try:
+        ok = (UNIT_DIR / unit).is_file() and any(UNIT_DIR.glob(f"*.wants/{unit}"))
+    except OSError:
+        ok = False
+    return None if ok else unit
+
+
 def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
     """The NAMES a repo's ruling allows, in emission order, or None for a repo the ruling does
     not know (no `project.yaml::type`, or a type outside TYPE_SETS). No probe runs here — this is
@@ -284,8 +311,8 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
         return None
     out: dict[str, dict] = {}
     for s in dict.fromkeys(wanted):  # ordered de-dup
-        if s in NEVER_EMIT or s not in defs:
-            continue
+        if s in NEVER_EMIT or s not in defs or _service_missing(s):
+            continue  # a service whose unit is not installed and enabled is withheld (W-07298e38)
         entry = json.loads(json.dumps(defs[s]))  # deep copy
         if s == "postgres-pro":
             # postgres-mcp v1.29 blocks its handshake ~30s on ANY non-connecting URI
@@ -305,14 +332,20 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
     servers = derive_servers(repo, defs)
     if servers is None:
         return "SKIP"
+    withheld = [
+        f"{s} (unit {u} not installed and enabled)"
+        for s in ruled_server_names(repo, defs) or []
+        if s in defs and (u := _service_missing(s))
+    ]
+    note = f" — withheld: {', '.join(withheld)}" if withheld else ""
     target = repo / ".mcp.json"
     payload = json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n"
     if target.is_file() and target.read_text() == payload:
-        return "OK"
+        return "OK" + note
     verdict = "UPDATE" if target.exists() else "CREATE"
     if not check:
         target.write_text(payload)
-    return verdict
+    return verdict + note
 
 
 def _candidate_repos(root: Path) -> list[Path]:
