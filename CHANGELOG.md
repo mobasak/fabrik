@@ -52,6 +52,15 @@ The command showed its six commit recipes as `git commit -m "$(cat <<'EOF' … E
 
 `scripts/sysadmin/kaizen_waste.py`'s `waste_red_master_rework` counted a hypothetical mention as a red master. A phrase whose verb is governed by a modal ("would turn", "won't go", "could've turned", "would also turn", "is going to turn") no longer counts; a modal elsewhere in the sentence, a conjunction between ("will be fine now since master is red"), and any other phrase in the same message, still do. Over origin/master's 10,887 non-merge commits (2026-10-24) the count moves 32 → 30, exactly the two hypotheticals. The metric moves to v2, a new series; breakdown rows now carry their definition version (`def`) and `kaizen_digest.py` reads only the rows matching the series it judges. Run `kaizen_waste.py --backfill` once after the merge, or the red-master chart has no limits for 14 days (W-d633d5f5).
 
+### Fixed — the Stop hook no longer orders a builder to start new work at a rotation boundary (2026-10-24)
+
+- W-0fae19b7, D-1197. When a session's rotate stamp is due and its own last `NEXT:` reads `none — terminal; awaiting
+  the rotation`, `.claude/hooks/final_gate_stop.py`'s coordinator cause stands down claim, owned, feedback, self,
+  doorbell and merge (and mail for a builder) instead of blocking; continue, release, commit-items and triage still
+  block. The `stood_down` kaizen event names its `reason` (`amber`, `rotation` or both). A negated, quoted, indented
+  or blockquoted footer, or an odd stamp, reads as not at the boundary. Graders: `tests/test_stop_hook_coordinator.py`;
+  review receipt `docs/development/reviews/2026-10-24-w0fae19b7-stop-hook-rotation-boundary-review.md`.
+
 ### Fixed — code-span readers follow CommonMark's backslash parity, and the CHANGELOG strip pairs whole backtick runs (2026-10-24)
 
 `scripts/enforcement/_fences.py::blank_code_spans` skipped any backtick run after one backslash, so a span opened after escaped backslashes (`\\`a`) or after an escaped run longer than one (`\``a`) went unblanked for every reader of the shared span model (check_doc_links, check_doc_index, check_decisions_unique, check_convergence, docs_updater). An odd backslash run now escapes only the run's first backtick. `scripts/enforcement/check_doc_sync.py`'s CHANGELOG placeholder strip pairs whole equal backtick runs in a linear scan, so ``` ``TODO`` ``` is one quotation and a lone ``` `` ``` glues nothing. Graders in `tests/enforcement/test_fences.py` (parity, escaped runs, a markdown-it agreement fuzz over multi-line paragraphs) and `tests/test_enforcement_gate_fixes.py` (the strip's cases, a regex-oracle fuzz, a linearity ratio). (W-753040b8, D-1191)

@@ -3,7 +3,7 @@
   "created": "2026-10-23T00:23:02.329395Z",
   "creator": "infra-2",
   "effort": "low",
-  "evidence": "",
+  "evidence": "52ca1e9aa37b598460d0763b9b14e08fee156596",
   "id": "W-0fae19b7",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "HIGH (re-scored on new evidence): a block on agents — the Stop hook's work-waiting and feedback causes block builders at every rotation boundary (kaizen and infra-3 both hit it 2026-10-24, three blocked attempts each); effort low: about 40 lines, designed, lock owner consented",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
