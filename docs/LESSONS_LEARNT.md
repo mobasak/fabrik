@@ -3,7 +3,7 @@
 
 ## Before porting a reader, search the synced siblings for one that already applies the rule (2026-10-24)
 
-W-27db8c35's design ported decisions.py's code-span reader into a fleet-synced checker as a fourth copy; the Fable design critique found `scripts/enforcement/_fences.py::blank_code_spans`, already imported by eight checkers in the same directory, which applied the same run-length rule and also honoured an escaped backtick that the copy would have got wrong. Executed on 2896 live rows the two agreed everywhere else. **How to apply:** before a design copies a mechanism, grep the synced directory the file lives in for the rule's own vocabulary (here `backtick`, `code span`) and read what imports it — a shared reader turns a fourth copy into one import.
+W-27db8c35's design ported decisions.py's code-span reader into a fleet-synced checker as a fourth copy; the Fable design critique found `scripts/enforcement/_fences.py::blank_code_spans` in the same directory — a module eight other scripts there already imported, its span reader already used by check_doc_links and check_convergence — which applied the same run-length rule and also honoured an escaped backtick that the copy would have got wrong. Executed on 2896 live rows the two agreed everywhere else. **How to apply:** before a design copies a mechanism, grep the synced directory the file lives in for the rule's own vocabulary (here `backtick`, `code span`) and read what imports it — a shared reader turns a fourth copy into one import.
 
 ## A dedup test that seeds a time and then starts an interpreter needs a margin; grade the exact edge in-process (2026-10-23)
 

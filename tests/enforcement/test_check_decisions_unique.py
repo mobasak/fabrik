@@ -293,19 +293,21 @@ def test_a_short_row_with_a_long_backtick_run_is_still_malformed():
 def test_a_long_run_pairs_across_cells_by_design():
     """The STATED COST of pairing over the whole row (intel 01M4405E keeps a pipe inside a span as
     text, so spans are found before the split): a lone double run in one cell pairs with a double
-    span two cells later and hides both separators between them. 0 live rows in 2896 (2026-10-24);
-    pinned so a change to it is a decision, not an accident."""
+    span two cells later and hides both separators between them. 0 of 2896 D-rows across the 51
+    /opt/*/docs/DECISIONS.md ledgers changed cell count on 2026-10-24; pinned so a change to it is
+    a decision, not an accident."""
     from scripts.enforcement.check_decisions_unique import _cells
 
     assert len(_cells("| D-908 | 2026-10-24 | infra | use `` here | why | ``x`` where |")) == 4
 
 
 def test_the_shape_test_counts_through_the_checkers_mask():
-    """tests/test_decisions_table_shape.py counts bare pipes with the checker's own mask, so the two
-    counters cannot drift; a row missing its trailing pipe, or carrying a doubled one, still counts
-    every bare pipe it has."""
+    """tests/test_decisions_table_shape.py counts bare pipes with the checker's own mask, so a pipe
+    inside a code span and an escaped pipe are text to both; a row missing its trailing pipe, or
+    carrying a doubled one, still counts every bare pipe it has."""
     import tests.test_decisions_table_shape as shape
 
+    assert shape._bare_pipes("| D-1 | d | w | ran `a|b` and a\\|b | why | where |") == 7
     assert shape._bare_pipes("| D-1 | d | w | what | why | where") == 6
     assert shape._bare_pipes("| D-1 | d | w | what | why | where ||") == 8
     assert shape._bare_pipes(_LONG_RUN_ROWS["triple run (D-1159)"]) == 7

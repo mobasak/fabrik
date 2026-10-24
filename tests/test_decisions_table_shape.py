@@ -18,7 +18,7 @@ LEDGER = Path(__file__).resolve().parents[1] / "docs" / "DECISIONS.md"
 
 def _bare_pipes(line: str) -> int:
     """The pipes that separate cells: the checker's own mask hides an escaped pipe and one inside a
-    code span, so this count and its `malformed_ids` cannot drift apart (W-27db8c35)."""
+    code span, so this count and its `malformed_ids` share one masking rule (W-27db8c35)."""
     return _masked(line).count("|")
 
 

@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the decision-ledger checker pairs backtick runs by length, as markdown does (2026-10-24)
 
-`scripts/enforcement/check_decisions_unique.py` read a decision row's code spans with a one-backtick pattern, so a row quoting a triple-backtick fence (D-1159) or a double-backtick span read as the wrong number of cells and was reported malformed. It now takes its spans from `scripts/enforcement/_fences.py`, the reader eight other checkers share, and the ledger shape test counts pipes from the same mask (W-27db8c35, D-1180). No live row changes: 0 of 2896 rows across 51 ledgers.
+`scripts/enforcement/check_decisions_unique.py` read a decision row's code spans with a one-backtick pattern, so a row quoting a triple-backtick fence (D-1159) or a double-backtick span read as the wrong number of cells and was reported malformed. It now takes its spans from `blank_code_spans` in `scripts/enforcement/_fences.py`, the span reader check_doc_links and check_convergence already use, and the ledger shape test counts pipes from the same mask (W-27db8c35, D-1180). No live row changes: 0 of 2896 rows across 51 ledgers.
 
 ### Fixed — every coordinator's contract names the live rotation verb, and the merge recipe no longer trips the worktree prompt (2026-10-23)
 

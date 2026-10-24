@@ -135,7 +135,8 @@ def _masked(line: str) -> str:
 
     STATED COST: spans are found over the WHOLE row, before the split, so a backtick run left
     open in one cell pairs with an equal run in a later cell and hides the pipes between them
-    (0 live rows in 2896 on 2026-10-24; pinned by test_a_long_run_pairs_across_cells_by_design).
+    (0 of 2896 D-rows across the 51 /opt/*/docs/DECISIONS.md ledgers changed cell count on
+    2026-10-24; pinned by test_a_long_run_pairs_across_cells_by_design).
     """
     blank = _fences.blank_code_spans(line)
     out: list[str] = []
