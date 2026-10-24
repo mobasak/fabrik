@@ -42,8 +42,10 @@ THE LEDGER BEFORE THE UNLINK: a deletion appends its row to `~/.claude/archive/p
 pruned_at) and fsyncs it BEFORE any unlink — a crash between them leaves a row with the file still
 present, never a vanished file without a row. The file sits in ARCHIVE_ROOT, so the archiver's
 `ship()` uploads it nightly: the restore list is off-box too. `--restore <session_id>` (MAIN rows
-only) and `--restore agent-<id>` (subagent-tier sidechain rows only; two distinct paths for one id
-refuse, listing both) are its consumers; `--verify-ledger` its integrity check.
+only; one id pruned under two slugs — a set-aside inode and the one moved in over it, D-1188 —
+refuses, listing both: pass `--slug=<slug>`) and `--restore agent-<id>` (subagent-tier sidechain rows
+only; two distinct paths for one id refuse, listing both) are its consumers; `--verify-ledger` its
+integrity check.
 
 THE CAP (C.2.2): every run orders the deletable inodes OLDEST first and takes at most
 PRUNE_MAX_PER_RUN (default 200; `--max M` on a hand run) as THIS RUN's set; the rest are `deferred`.
@@ -73,7 +75,8 @@ when there was one) BEFORE exiting, whatever happened; `--status` prints the las
 APPLY row. `--restore`, `--verify-ledger` and `--status` write no row.
 
 EXIT CODES: 0 ran (0 or more deletions) · 3 refused (`--expect` mismatch, lock held, no manifest,
-`--verify-ledger` MISSING, `--restore` with a survivor of another sha256 or a failed fetch) ·
+`--verify-ledger` MISSING, `--restore` with a survivor of another sha256, a failed fetch, or an id
+pruned under two slugs or two paths) ·
 1 error (a dry-run/apply run writes its summary row first) · 2 usage.
 
 Env (12-Factor III) — read from the process environment, else the `SESSION_RECALL_RO_DSN`,
