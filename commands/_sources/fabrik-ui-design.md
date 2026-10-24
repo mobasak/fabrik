@@ -68,7 +68,9 @@ one of two ways and **state which**:
   logos, typography, voice). **When the kit carries `For-Your-Developer/design-system.md`, copy it and CHECK it
   against `design-system-template.md` § The design-system.md contract** — every section present, every colour
   slot valued in both modes, the § Contrast table recomputed with the WCAG formula (never trusted as stated);
-  author only what it lacks, on top of those brand tokens. Author it **lean** — enough to design and
+  author only what it lacks, on top of those brand tokens. On a web surface, design what the kit leaves free (the
+  one memorable element, the copy's voice) through `frontend-design:frontend-design`, the kit's tokens as its
+  brief (`core/63-frontend-design.md`). Author it **lean** — enough to design and
   build against, NOT a 1,850-line clone. **Size ceiling: 25,000 tokens (about 1,100 lines) per contract file — the Read tool's page cap; above it every reader sees a PARTIAL view. Split history (retired screens, superseded versions) into `docs/archive/ui-design-history.md` and keep the live contract under the ceiling (01M25G1BN, 01M2803TM). Measure it with one whole-file Read: over the
   ceiling the Read either fails (`File content (<N> tokens) exceeds maximum allowed tokens (25000)`) or returns a PARTIAL
   view naming the cap (`… (<N> tokens, cap 25000)`) — either one is over.** Its shape is `design-system-template.md` § The design-system.md contract, and the structure is inherited from that template by reference, never copied (the brand tokens come from BIC),
@@ -120,7 +122,9 @@ screens. Every Phase-2 screen must be reachable; flag any orphan.
 
 For each screen, one block that lets an agent build it without inventing anything:
 
-- **Layout skeleton** — the regions (header / nav / primary content / aside / actions), no pixels.
+- **Layout skeleton** — the regions (header / nav / primary content / aside / actions), no pixels. On a web
+  surface, lay out each screen and its hero through `frontend-design:frontend-design`, the frozen design system
+  as its brief (`core/63-frontend-design.md`).
 - **Design-system components/patterns** — which established components (Phase 1) each region uses. Never a
   bespoke component where a system one exists. When the system is shadcn-based, confirm the exact component +
   variant via the **shadcn MCP** (`mcp__shadcn__search_items_in_registries` / `view_items_in_registries`) so
@@ -154,8 +158,8 @@ Repeat until the Termination contract's closing round — `confirmed: 0` with th
   at mint (normally reversible-by-re-freeze, plain row), STAGED with the artifact in the same commit**
   (CLAUDE.md § the decision ledger — the /fabrik-flows and /fabrik-data-contract law, mirrored).
 - **Seed the build-verification gate into the project (this is where the per-project CODE deps wire — so non-GUI
-  projects never carry them).** The global *agent* tooling (Playwright + shadcn MCP, the `frontend-design`
-  skill, the `/design-review` command) is already fleet-wide, user-level, and needs nothing here. Seed
+  projects never carry them).** The global *agent* tooling (Playwright + shadcn MCP, the
+  `frontend-design:frontend-design` skill, the `/design-review` command) is already fleet-wide, user-level, and needs nothing here. Seed
   only the per-project deps + config: `npm i -D @axe-core/playwright eslint-plugin-jsx-a11y
   eslint-plugin-better-tailwindcss` (RN: the NativeWind/Tamagui lint equivalent), the ESLint flat-config entries
   (a11y + no-off-token/design-token enforcement), and a starter Playwright test under `tests/ui/` that renders

@@ -61,7 +61,10 @@ the design system never defined is a defect on one side or the other; reconcile 
 verify each referenced component actually exists** via the connected **shadcn MCP**
 (`mcp__shadcn__search_items_in_registries` / `view_items_in_registries`), and re-check any component-library API
 the contract leans on (Radix/NativeWind/Tamagui) via `WebFetch` of their official docs; a contract naming a component that isn't
-real is a defect.
+real is a defect. On a web surface, check the contract's microcopy and any token the project authored beyond its
+kit against `frontend-design:frontend-design`'s AI-generated clusters, listed in `core/63-frontend-design.md`; a
+kit or house token, a pattern the template prescribes or an operator ruling is never a finding, and a finding
+closes when the contract records why the choice was made or changes it.
 
 **B) Data-wiring vs the FROZEN data contract.** For **every** field any screen reads or writes, OPEN
 `docs/data-contract.md` and confirm the entity/field exists with a compatible type. Flag: an **invented field**
