@@ -5,7 +5,8 @@ Box-local subsystem (`scripts/cloud_dispatch.py`, registry `.fabrik/cloud-routin
 subagent — the Agent tool, even with `isolation: "remote"` — runs on this box on the dispatching
 account's subscription; the credit pays only for sessions on Anthropic's cloud. The only scriptable
 way to start one is to fire a claude.ai **routine**, so every fleet account carries one,
-`fabrik-cloud-worker`, and this script fires it.
+`fabrik-cloud-worker`, and this script fires it. The three prepaid API credits are spent by a separate script,
+[api-credit.md](api-credit.md) (D-1196).
 
 ## What a dispatch is
 

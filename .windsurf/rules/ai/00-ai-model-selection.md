@@ -172,7 +172,7 @@ For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / 
 
 ## Operational AI paths — auth boundary
 
-Operational stack (sysadmin, watchdog, bootstrap) uses **Claude Code CLI w/ subscription OAuth** — never `ANTHROPIC_API_KEY`. No fabrik code path reads that key (the `fabrik ai generate` utilities were removed 2026-06-16); a project that needs a metered LLM goes through OpenRouter. Per-LLM-call cost caps apply to paid APIs via `core/cost-budget.md`; they must not be placed on the operational diagnose loop.
+Operational stack (sysadmin, watchdog, bootstrap) uses **Claude Code CLI w/ subscription OAuth** — never `ANTHROPIC_API_KEY`. No fabrik code path reads that key (the `fabrik ai generate` utilities were removed 2026-06-16) except the hub's `scripts/api_credit.py`, D-1196's dollar-capped `--bare` spend of three prepaid API credits; a project that needs a metered LLM goes through OpenRouter. Per-LLM-call cost caps apply to paid APIs via `core/cost-budget.md`; they must not be placed on the operational diagnose loop.
 
 ## In-code AI agent calls — the dispatch ladder (BINDING)
 
@@ -235,8 +235,9 @@ Decisions API) only when all six hold:
    fallback.
 5. **No rationale needed:** the model returns probabilities, never a reason.
 6. **Cleared to leave the box:** the text is of a data class the project's owner has ruled may go to TypeSafe; until
-   that ruling exists the lane is not wired for that class, and customer text needs that ruling first. In the hub the
-   question is still open (hub work item W-5e7743d9).
+   that ruling exists the lane is not wired for that class, and customer text needs that ruling first. The hub's
+   ruling (D-555): no hub or fleet text goes to TypeSafe yet; each repo rules when its consumer is built, in shadow
+   mode and for the `public` class only.
 
 Wire the lane only through fabrik-lib's `decision-gate` module, never a hand-rolled client. The module is
 vendorable (`/opt/fabrik-lib/decision-gate/`, its README is the contract); a project copies it in with the change
