@@ -10,9 +10,21 @@
 Description=Archive Claude session transcripts to Backblaze B2
 StartLimitIntervalSec=2h
 StartLimitBurst=4
+# W-36687f76: a failed night mails infra and the coordinator. With RestartMode=direct below this fires ONCE, after
+# Restart= has spent its retries — without it, it fired on every retried attempt too (measured on systemd 255).
+# A [Unit] key: under [Service] systemd ignores it with only a warning, and verify still exits 0.
+OnFailure=session-archive-alert.service
 
 [Service]
 Type=oneshot
+RestartMode=direct
+# A hung archiver (a stuck rclone or zstd) would hold the unit `activating` forever, so nothing alerts and later
+# timer firings do nothing; 3 h ends it as `timeout` -> Restart= -> OnFailure=. The slowest measured attempt took
+# 11 min (2026-10-21 02:28-02:39).
+TimeoutStartSec=3h
+# Bounds ExecStopPost= below. A check that outran it would turn a good night into `timeout` and make Restart=
+# re-run the archiver; the check's own worst case (session_archive_alert.CHECK_BUDGET_S) is graded below this.
+TimeoutStopSec=5min
 # The leading "-" ignores the sampler's exit status: it runs under set -euo pipefail, and a
 # sampler error must never skip the backup.
 ExecStartPre=-/opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh
@@ -29,6 +41,11 @@ ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_trans
 # while agents may be mid-item, and context is a per-boundary signal. The "-" keeps a mail failure from failing the
 # unit (Restart= would re-run the ARCHIVER); the failure lands in this unit's journal.
 ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/rotate_session.py due --mb-only --mail
+# W-36687f76: the "-" steps above fail silently (systemd logs nothing for an ignored failure), and the archiver exits
+# 0 on a partial night. On a SUCCESSFUL run this reads each step's status and the archiver's summary and mails what
+# went wrong; on any other result it stays silent (a retry follows, or OnFailure= owns it). Its "-" keeps a failed
+# send from failing the unit, which would re-run the archiver.
+ExecStopPost=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/session_archive_alert.py check
 Restart=on-failure
 RestartSec=15min
 Nice=10
