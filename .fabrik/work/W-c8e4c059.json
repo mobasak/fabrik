@@ -1,0 +1,26 @@
+{
+  "block_digest": "3dcd9182d2b9a303cb15f6bb0292e9e78cd5b5a1506421044b0a6364f1c8aa85",
+  "blocked_by": [],
+  "created": "2026-10-24T21:43:48.037918Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-c8e4c059",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b7c2aa142933e23e80103129561f8c4698f5505c2a6543f2de5039fb8cee3faa"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Does Ocoron hold, or want to buy, a Flaticon Premium subscription, so sites can show the \"rectangular\" flag icons without a visible \"Flag icons by Freepik from Flaticon\" credit?",
+  "status": "awaiting-operator",
+  "title": "Does Ocoron hold, or want to buy, a Flaticon Premium subscription, so sites can show the \"rectangular\" flag icons without a visible \"Flag icons by Freepik from Flaticon\" credit?"
+}

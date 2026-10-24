@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T22:14:58.650504Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5a4fae7d",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: journal noise, no data loss (the step is '-' and the sample line still prints); LOW effort: one line; batched as a fill-in",
+  "status": "open",
+  "title": "session-archive nightly: sample_transcript_growth.sh:62 prints 'sort: write failed: standard output: Broken pipe' / 'sort: write error' (2 of 3 watched nights: 2026-10-23, 2026-10-25). sort -rn | head -1 under set -o pipefail: head exits after one line and sort gets SIGPIPE on a long list. Harmless today (the step runs with '-' and the sample still prints), but it is noise in the journal the failure alert (W-36687f76) will read. Take the max without a pipe that can close early (e.g. awk max, or sort -rn ... | head -1 with sort's output to a file)"
+}
