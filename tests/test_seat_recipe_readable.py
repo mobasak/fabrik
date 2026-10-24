@@ -21,26 +21,28 @@ HEAD = "- A pins-only copy is not a test tree:"
 BULLET = (
     "- A pins-only copy is not a test tree: it holds the pins and nothing else — no package, no pytest config, no "
     "conftest, none of the files a conftest loads by path (the hub's `tests/conftest.py` loads `tests/memguard.py`;"
-    " its root `conftest.py` mutes live alerting and imports this tree's `src`). A seat runs a test only through "
-    "pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe builds "
-    "(the whole test tree, the root conftest and the pytest config included, never a seat-picked subset of roots), "
-    "the lead's base copy, or, for a test that reads git history or the tracked set, the clone below — never on the"
-    " pins dir, a copy of it or any hand-assembled tree, and never with a conftest or the pytest config dropped, "
-    "skipped or pointed elsewhere by any flag, option or environment variable (`--noconftest`, `--confcutdir`, "
-    "`--ignore` of a conftest, `-p no:` on a conftest's plugin, `PYTEST_ADDOPTS`, or `-c`, `-o` or `--rootdir` "
-    "naming another tree's config; `-o timeout=…` and the like stay legal); a test it cannot run that way is "
-    "unverified, never run another way. A seat that runs pytest or imports pinned code needs the unmodified tree, "
-    "so its brief's pin takes `--base` (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`'s "
-    "PIN paragraph), on each pass by the shape that pass's surface has then (a surface committed since the previous"
-    " pass is pinned `--from`, as the bullet above says): `HEAD` for a working-tree pin (its basis is `HEAD` and "
-    "its `base_sha` HEAD's commit either way; a repo with no commit has no base copy, and `--base` is refused "
-    "there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the commit"
-    " before the fix when it spans several. The brief's `base_sha` is then the one the pin records, and it gives "
-    "`<pins_dir>.base` as the recipe's `${args.base_pin_dir}`, so each seat copies that tree in place of the "
-    "archive steps of both `PIN_IMPORT` and `PYTEST_PINS`. A base copy is a whole commit (some 120 MB in the hub) "
-    "in the run's `SCRATCH:` folder, which `start` keeps 14 days: once the pass is adjudicated, the lead removes it"
-    " (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins "
-    "afresh and a delta brief reads the previous `pins_dir`, never its base copy."
+    " its root `conftest.py` mutes live alerting and imports this tree's `src`). A seat runs a Python test only "
+    "through pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe "
+    "builds (the whole test tree, the root conftest, the pytest config and every root the tests import, read or "
+    "run, never a subset that leaves one out), the lead's base copy, or, for a test that reads git history or the "
+    "tracked set, the clone above — never on the pins dir, a copy of it or any hand-assembled tree, and never with "
+    "a conftest or the pytest config dropped, skipped or pointed elsewhere by any flag, option or environment "
+    "variable (`--noconftest`, `--confcutdir`, `--ignore` of a conftest, `-p no:` on a conftest's plugin, "
+    "`PYTEST_ADDOPTS`, `-c` or `--rootdir` naming any other file or tree, or `-o` on `addopts`, `testpaths`, "
+    "`python_files` or another key that changes what is collected; `-o timeout=…` and the like stay legal); a test "
+    "it cannot run that way is unverified, never run another way. A seat that runs pytest or imports pinned code "
+    "needs the unmodified tree, so its brief's pin takes `--base` (the pin command of "
+    "`/opt/fabrik/commands/_fragments/subagents-core.md`'s PIN paragraph), on each pass by the shape that pass's "
+    "surface has then (a surface committed since the previous pass is pinned `--from`, as the bullet above says): "
+    "`HEAD` for a working-tree pin (its basis is `HEAD` and its `base_sha` HEAD's commit either way; a repo with no"
+    " commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, "
+    "which calls every file `UNCHANGED`), and the commit before the fix when it spans several. The brief's "
+    "`base_sha` is then the one the pin records, and it gives `<pins_dir>.base` as the recipe's "
+    "`${args.base_pin_dir}`, so each seat copies that tree in place of the archive steps of both `PIN_IMPORT` and "
+    "`PYTEST_PINS`. A base copy is a whole commit (some 120 MB in the hub) beside the pins dir — in the durable "
+    "`SCRATCH:` folder, which `start` keeps 14 days, where the including command puts pins there: once the pass is "
+    "adjudicated, the lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own "
+    "command), since every pass pins afresh and a delta brief reads the previous `pins_dir`, never its base copy."
 )
 
 
@@ -87,4 +89,6 @@ def test_named_base_copy_mechanism_exists() -> None:
     assert '"--base", help=' in ledger
     assert 'frag["base_pin_dir"]' in ledger
     assert 'Path(f"{pins_dir}.base")' in ledger
-    assert "'base_pin_dir'" in LOOP.read_text(encoding="utf-8")
+    assert "for (const key of ['pins_dir', 'scratch_dir', 'base_pin_dir'])" in LOOP.read_text(
+        encoding="utf-8"
+    )
