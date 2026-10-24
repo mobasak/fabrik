@@ -21,6 +21,16 @@
 
 | Pass 2 | opus×1 + sonnet×1 (round-1 owners of A-rules, B-rest; C-facts closed, no open claim) · delta over round-1 hunks + one hop | found: 9, new: 9, confirmed: 8, fixed: 8, unexecuted: 0, edits: 8 | method: re-derivation — every round-1 fix's code claim re-read at its line (render :1163, exits :1265/:1382/:1438, 24 shared includes, `_CLOSE_FEEDBACK` :31, pilot includes), every count re-derived by script (3,072 h, 741, 2,449/220, 42/12, 16 intake rows); orchestrator re-ran `ls commands/_sources \| wc -l` (39 branch) vs `/opt/fabrik/commands/_sources` (40 master) and the charter `grep -n` (§ Beat :28-29); own-fix: round 1 for all 8; 1 out-of-hop (shared `_agents` definitions without ledger-first) folded into the N3 fix | 7f9b1e312c3444950fdb075a5df8ad0b → 846bc4de7af2baf6cff26f03f7f83fb1 |
 
+| Pass 3 | opus×1 + sonnet×1 (round-1 owners) · delta over round-2 hunks + one hop | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 3 | method: re-derivation — B-rest re-derived 40/39/38 populations and the charter cite (confirmed 0); A-rules re-read `check()` (orchestrator re-ran `sed -n -e 1322,1328p`: `render()` runs before any gate) and the pilot's dispatched seats (`fabrik-review-scoped.md:8`); own-fix: round 2 for all 3. Not a review fix, also landed after this pass: U4 resolved from intel's W-0a91bf86 table and a new § Time budget section, put to a second panel | 846bc4de7af2baf6cff26f03f7f83fb1 → (with the U4 and § Time budget additions) see Pass 4 |
+
+## Round 3 dispositions
+
+| id | finding | disposition |
+|---|---|---|
+| A3-C1 | the pilot's own text dispatches shared `_agents` definitions but phase 3 ledgers them after the pilot cuts | CONFIRMED (`fabrik-review-scoped.md:8`) — fixed: the pilot ledgers them |
+| A3-C2 | exit precedence claims 4 wins over a render failure, but `check()` renders first | CONFIRMED (`assemble_commands.py:1327`) — fixed: render failure stops before the gate |
+| A3-C3 | step 3's `file` values omit `_fragments/` | CONFIRMED (pin text) — fixed |
+
 ## Round 2 dispositions
 
 | id | finding | disposition |
