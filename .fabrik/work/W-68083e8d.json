@@ -17,10 +17,10 @@
     "8a11bd45a4801229cd6965be1e97148e96add6150a5a1f561b4d747282d17f42"
   ],
   "next": "",
-  "note": "",
+  "note": "yes please stop all other work before finishing this, this is our most urgent task.",
   "owner": "",
   "priority": 2,
   "question": "Shall I open the lean program as above: pause `/fabrik-command-improve`, and give kaizen (on resume) the per-command rewrite spec, with the panel ruling on the design?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Shall I open the lean program as above: pause `/fabrik-command-improve`, and give kaizen (on resume) the per-command rewrite spec, with the panel ruling on the design?"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T22:25:28.203696Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-2acf9728",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QNEXWNK2DE5Z3Y405HYBDZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "URGENT — operator: \"implementing, testing, reviewing, merging can not take 2.5 hours … this is unacceptable\""
+}

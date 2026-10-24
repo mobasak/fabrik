@@ -20,6 +20,7 @@
   "score_reason": "HIGH: a broken tool in every session's MCP set (fix-first duty, D-033); intel's plan 3 / D-1102 shipped it; LOW: install one unit or pull one entry",
   "status": "open",
   "tags": [
+    "waits-lean-program",
     "waits-quota"
   ],
   "title": "fabrik-scrape MCP is DEAD box-wide: D-1102 put it in the UNIVERSAL MCP set (every project's .mcp.json carries http://127.0.0.1:8034/mcp since 2026-10-21), but nothing listens on :8034 and no fabrik-scrape systemd --user unit is installed (mcp_health.py 2026-10-24: 'fabrik-scrape: DEAD', 1/12 not live). Install/enable the unit from plan 3 Phase B or pull the entry until it runs; add a health guard so a universal entry can't ship without a live server"
