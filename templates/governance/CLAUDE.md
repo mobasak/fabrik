@@ -196,9 +196,10 @@ never silently complied with and never silently ignored.
    The same shape applies when the gap is not a file defect (a missing pipeline stage, a command-contract
    flaw) — the target is the hub file that would change.
 3. **Send it**: `python scripts/mail.py send --to fabrik --to-agent infra --kind request --ack required`
-   with the proposal path in the body (synced-file/enforcement/command defects are the infra beat;
-   deploy/VPS/spec-yaml → `fleet`; models/benchmarks → `intel`; genuinely unsure → `--broadcast`
-   with `--ack no`). The hub's next session runs HUB mode and replies landed / deferred / refuted.
+   with the proposal path in the body (synced-file and enforcement defects and the rendering of
+   commands are the infra beat; a command's or rule's wording → `kaizen`; deploy/VPS/spec-yaml →
+   `fleet`; models/benchmarks → `intel`; genuinely unsure → `--broadcast` with `--ack no`). The
+   hub's next session runs HUB mode and replies landed / deferred / refuted.
 
 Friction too small for a proposal (a confusing prompt line, a noisy warn) still goes to the hub — one
 `--kind finding` mail beats a silent shrug; the kaizen metrics can only fix what gets reported.
@@ -456,7 +457,7 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   handled or not; under handle-now it should find almost nothing, and a large sweep count is an alarm.
 - **Send / reach others:** `python scripts/mail.py send --to <recipient> --kind <k> [--ack required] < body`.
   Reach **the hub** (`--to fabrik` — REQUIRES an addressee: `--to-agent infra` for
-  the rendering, sync and checks of commands/rules, enforcement, hooks and mail defects ·
+  the rendering, sync and checks of commands/rules, and enforcement, hook, mail and workstation defects ·
   `fleet` for VPS/deploy/spec-yaml/monitoring · `intel` for models/benchmarks · `kaizen` for
   a command's or rule's WORDING, a workflow step or a way of working (the feedback loop) — or
   `--broadcast --ack no` when genuinely all-agents; an unaddressed hub send is REFUSED with this
