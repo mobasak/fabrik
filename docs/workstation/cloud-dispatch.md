@@ -17,7 +17,7 @@ python3 scripts/cloud_dispatch.py wait --slug fix-mail-tests --timeout 1800   # 
 python3 scripts/cloud_dispatch.py log --account mob --session cse_01…
 python3 scripts/cloud_dispatch.py settle --slug fix-mail-tests   # or --all: ledger the run's cost; pause on exhaustion
 python3 scripts/cloud_dispatch.py pause can --reason "…" · unpause can · calibrate can --balance 212.40
-python3 scripts/cloud_dispatch.py drain --batch batch.json [--max-open 10] [--dry-run]   # § Draining a batch
+python3 scripts/cloud_dispatch.py drain --batch batch.json [--max-open 10] [--dry-run] [--allow-plan-usage]   # § Draining a batch
 ```
 
 1. `dispatch` renders the payload — `TASK slug <s>.`, the task, then the fixed rules (not a hub
@@ -52,36 +52,50 @@ refresh chain, 7 a paused or expired account (§ The credit guard). Shared flags
 
 `drain` (W-b00d9d72, D-row in `docs/DECISIONS.md`) spends the credits through many runs. Each run's
 lead writes a batch file, `[{"slug", "task" | "task_file", "files": [repo paths]}, …]`, choosing
-items that are independent and cloud-sized. The script checks the whole batch before anything
-fires. Any failure exits 8 (`drain_refused`) with nothing fired and nothing ledgered:
+items that are independent and cloud-sized; a `task_file` is read relative to the current
+directory, not the batch file's. The script checks the whole batch before anything fires: every
+task file is read and every payload rendered, and a pre-flight failure exits 8 (`drain_refused`)
+with nothing fired and nothing ledgered:
 
-- **one drain at a time** — `flock` on `<ledger dir>/cloud-drain.lock`;
+- **one drain at a time** — `flock` on `<ledger dir>/cloud-drain.lock`, so two drains given
+  ledgers in different directories do not exclude each other;
 - **origin readable** — every git read checks its exit code, so a network failure refuses and is
   never read as "no open branches";
-- **parity** — local `master` equals origin's (the cloud clones origin). If it does not, the main
-  checkout fast-forwards first;
-- **cloud-safe paths** — relative and in normal form; not on the governance-sync filter (read from
+- **parity** — local `master` equals origin's (the cloud clones origin). The drain does not
+  fast-forward anything: it refuses, and the main checkout's session fast-forwards master;
+- **cloud-safe paths** — each a file at master or a new one, relative and in normal form (`.`,
+  `..` and a directory refuse); not on the governance-sync filter (read from
   `command_run._sync_filter_source`, and an unreadable or uncompilable filter refuses); not in
   the deny set (`scripts/cloud_dispatch.py`, `.fabrik/cloud-routines.json`,
-  `.pre-commit-config.yaml`, `commands/`, any `conftest.py`); and no `tests/` file whose text at
-  master reads the home dir;
-- **disjoint** — no path is in two entries, in an unmerged `claude/*` branch's three-dot diff, or
-  in a run fired within the last day whose branch has not landed (that run's `kind: drain` row).
-  A plain `dispatch` run declares no files, so it holds a cap slot only;
-- **cap** — open branches + in-flight runs + this batch ≤ `--max-open` (default 10).
+  `.pre-commit-config.yaml`, `commands/`, `scripts/sysadmin/`, any `conftest.py`); and no
+  `tests/` file whose text at master names the home dir (`Path.home`, `expanduser`, `~/.claude`,
+  `HOME`, `getpwuid`) — a substring screen, never a proof, which the merge rule below backs;
+- **disjoint** — no path is listed twice, is in two entries, is in an unmerged `claude/*`
+  branch's three-dot diff (renames split into both paths), or is held by a run in flight. A run
+  is in flight when it fired within the last day and master does not yet carry its
+  `Cloud-Dispatch: done <session>` trailer; it holds its `kind: drain` row's files, whether or
+  not its branch is pushed yet. A plain `dispatch` run declares no files, so it holds a cap slot
+  only;
+- **cap** — open branches + in-flight runs + this batch ≤ `--max-open` (default 10, at least 1).
 
-A slug that already has a fired row is skipped as `already fired`, so re-running a stopped batch
-never fires anything twice. Each remaining entry gets a `kind: drain` ledger row and then fires
-through `dispatch` by `--pick`, with `Files you may change: …` appended to its task. The first
-failure stops the batch. stderr gets one line per entry: `fired`, `fired? (unparsed …)`,
-`refused rcN`, `already fired`, `not reached` or (on `--dry-run`) `would fire`.
+A slug with any ledger row that may have fired — `ok`, `unparsed`, `error` and every `http_<n>`
+but 401 and 429 — is skipped as `already fired`, forever: re-running a stopped batch never fires
+an entry twice, and a task whose run failed is re-run under a new slug. Each remaining entry is
+re-checked against the ledger just before it fires (a sibling may have fired it since the
+pre-flight), gets a `kind: drain` ledger row, and fires through `dispatch` by `--pick`, with
+`Files you may change: …` appended to its task; `--allow-plan-usage` is passed to every fire. The
+first failure stops the batch and exits with that fire's code, after the earlier entries have
+fired and been ledgered. stderr gets one line per entry, printed even when the batch stops:
+`fired`, `fired? (<status> — read the ledger before retrying)`, `refused rcN`, `already fired`,
+`already fired (by another session, after the pre-flight)`, `not reached` or (on `--dry-run`)
+`would fire`.
 
 **Merging a drained branch** (the lead's rule, from the panel's verdict): the branch's three-dot
 diff must stay inside its declared files. A local spot-check is mandatory for more than 5 files,
 any conftest or test-infrastructure change, or a receipt whose SHA is not the tip; other branches
 are sampled, and every branch is checked for each account's first two runs. The merge deletes the
-remote branch. Only an unmerged branch holds a cap slot, but every listed one costs a fetch and
-a merge-base check per drain.
+remote branch, because each drain fetches every listed `claude/*` branch and runs a merge-base
+check on each.
 
 ## Two fire paths
 

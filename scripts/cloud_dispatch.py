@@ -88,16 +88,18 @@ unsettled run is charged at the margin, not at zero.
 
 ``drain`` (W-b00d9d72) fires a lead-written batch — a JSON list of ``{"slug", "task" |
 "task_file", "files"}`` — after a whole-batch pre-flight that fails CLOSED (exit 8, nothing fired,
-nothing ledgered): one drain at a time (``flock`` on ``<ledger dir>/cloud-drain.lock``); every git
-read checked, so a dead network is a refusal and never "no branches"; local master equal to
-origin's; every path relative, in normal form, off the governance-sync filter (READ from
-``command_run``) and off the deny set (this script, the registry, ``.pre-commit-config.yaml``,
-``commands/``, any ``conftest.py``), and no ``tests/`` file whose text at master reads the home
-dir; file sets disjoint within the batch, from every unmerged ``claude/*`` branch's three-dot diff
-and from every run fired within a day whose branch has not landed (its ``kind: drain`` row); open
-work plus the batch within ``--max-open``. A slug with any fired row is skipped as ``already
-fired``, so a stopped batch re-runs safely. Each entry then gets its ``kind: drain`` row and fires
-through ``dispatch`` with ``--pick`` semantics, its files appended to the task; the first failure
+nothing ledgered): every task file read and payload rendered; one drain at a time (``flock`` on
+``<ledger dir>/cloud-drain.lock``); every git read checked, so a dead network is a refusal and
+never "no branches"; local master equal to origin's; every path a file (never ``.``, ``..`` or a
+directory), relative, in normal form, off the governance-sync filter (READ from ``command_run``)
+and off the deny set (this script, the registry, ``.pre-commit-config.yaml``, ``commands/``,
+``scripts/sysadmin/``, any ``conftest.py``), and no ``tests/`` file whose text at master names the
+home dir; file sets disjoint within the batch, from every unmerged ``claude/*`` branch's three-dot
+diff and from every run fired within a day whose done trailer master does not carry (its ``kind:
+drain`` row); open work plus the batch within ``--max-open``. A slug with any row that may have
+fired is skipped as ``already fired``, so a stopped batch re-runs safely. Each entry is re-checked
+against the ledger, then gets its ``kind: drain`` row and fires through ``dispatch`` with
+``--pick`` semantics, its files appended to the task; the first failure
 stops the batch. Cobra line (D-253): the cheapest way through the pre-flight is to under-declare
 ``files``; the counter is the merge rule — a branch whose three-dot diff leaves its declared files
 is not merged — and the declared list rides in the worker's own task.
