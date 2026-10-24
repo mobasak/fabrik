@@ -19,6 +19,21 @@
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 + sonnet×1 + sonnet×1 researcher · all axes | found: 30, new: 30, confirmed: 25, fixed: 25, unexecuted: 0, edits: 25 | method: citation — full pass; orchestrator executed: `check_spec_convergence.py` on a flipped scratch copy (1 examined, 0 findings after the residual section), `curl` status 200 on both docs pages, a raw-page search of the prompting page (history: 5 hits, none advising a rule's history), `grep -nE "TemporaryDirectory\|sys.exit\("` on `commands/assemble_commands.py` (:1323, :1382, :1265, :1438), the `{{include:` count over 39 sources (24 fragments shared), the change-axis and distinct-id re-counts (2,449/220; 42 ids, 12 dates); 1 REFUTED (B-C11, "~46 repos" is `CLAUDE.md`'s own figure), 1 RECORDED — measured (B-C6, `llm-dispatch` sizes a call's input, not a rendered file), 3 minor A-findings fixed with the 12 | dd172afbe67c63fb8c244403bf06f38a → 7f9b1e312c3444950fdb075a5df8ad0b |
 
+| Pass 2 | opus×1 + sonnet×1 (round-1 owners of A-rules, B-rest; C-facts closed, no open claim) · delta over round-1 hunks + one hop | found: 9, new: 9, confirmed: 8, fixed: 8, unexecuted: 0, edits: 8 | method: re-derivation — every round-1 fix's code claim re-read at its line (render :1163, exits :1265/:1382/:1438, 24 shared includes, `_CLOSE_FEEDBACK` :31, pilot includes), every count re-derived by script (3,072 h, 741, 2,449/220, 42/12, 16 intake rows); orchestrator re-ran `ls commands/_sources \| wc -l` (39 branch) vs `/opt/fabrik/commands/_sources` (40 master) and the charter `grep -n` (§ Beat :28-29); own-fix: round 1 for all 8; 1 out-of-hop (shared `_agents` definitions without ledger-first) folded into the N3 fix | 7f9b1e312c3444950fdb075a5df8ad0b → 846bc4de7af2baf6cff26f03f7f83fb1 |
+
+## Round 2 dispositions
+
+| id | finding | disposition |
+|---|---|---|
+| B2-C1 | "39 commands" — master renders 40 | CONFIRMED (40 master, 39 branch) — fixed with both populations named; BUDGET follows |
+| B2-C2 | Lifecycle cites the charter's "Real time" for the daily read | CONFIRMED (§ Beat :28-29) — fixed |
+| B2-C3 | the ledger-size trigger's source is printed by nothing | CONFIRMED — fixed: the test prints each ledger's entry count |
+| A2-N1 | exit 1 is not only drift; one process returns one code | CONFIRMED (`raise SystemExit("…")` exits 1) — fixed: gate before drift, precedence 4, 5, 1 |
+| A2-N2 | "four" shared pilot fragments omits `close-feedback` | CONFIRMED — fixed |
+| A2-N3 | `review-probe-catalogue` and shared `_agents` escape ledger-first | CONFIRMED (0 includers, 6 namers) — fixed: step 1 covers every shared `commands/` file by four routes |
+| A2-N4 | the tail's unchanged sentences had no standing carrier | CONFIRMED — fixed: every rule gets an entry, generated for unchanged sentences |
+| A2-N5 | the builder hold had no lift on KILL and was ambiguous between phases | CONFIRMED — fixed |
+
 ## Round 1 dispositions
 
 | id | finding | disposition |

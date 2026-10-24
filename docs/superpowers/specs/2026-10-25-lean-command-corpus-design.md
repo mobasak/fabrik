@@ -42,8 +42,9 @@ below were taken on 2026-10-25 from `~/.claude/commands/*.md` (rendered) and
 | `/fabrik-plan-after-chat` | 21,575 | — | 131 | 49 | 117 | 67.2 |
 | `/fabrik-spec-review` | 20,672 | — | 77 | 46 | 86 | 53.8 |
 
-The four top rows account for 2,331 of the 3,072 hours. The `/fabrik-*` render totals 577,205 words over 38 command
-files; the render produces 39 commands in all. Of the 35,892 fragment words, three fragments hold 18,371:
+The four top rows account for 2,331 of the 3,072 hours. The installed `/fabrik-*` render (from master) totals 577,205
+words over 38 files. Master's 40 sources render 40 commands in all, `design-review` and `hibernate` included;
+this branch, cut before `/fabrik-reverse-engineer` landed, holds 39. Of the 35,892 fragment words, three fragments hold 18,371:
 `review-probe-catalogue`, `term-coverage` and `term-edit`. Rendered `/fabrik-review` carries 129 citations of 42
 distinct decision ids and 23 mentions of 12 distinct dates. Among the 3,682 `done` closes since 09-21, the
 `change:` axis reads 2,449 `accurate` against 220 `lean`.
@@ -107,8 +108,8 @@ is folded into the sections below. Where the two differed in degree, both are ke
 
 D-1216 sets two holds, and this spec names who holds each and what lifts it:
 - **All other builder work pauses until the program finishes.** The coordinator holds it: it assigns no other
-  builder work while this program has an open phase (D-874's assign job). It is lifted when § Binding's
-  CLOSE-OUT is met. A gate or a P0 incident still goes to the coordinator, which may rule an exception and
+  builder work from the moment this program starts, including between its phases (D-874's assign job). It is
+  lifted when § Binding's CLOSE-OUT is met, or when the program is killed (§ Binding, KILL). A gate or a P0 incident still goes to the coordinator, which may rule an exception and
   record it.
 - **`/fabrik-command-improve` runs are paused until the loop is changed.** kaizen holds it, because it owns the
   queues (D-627): it runs no `/fabrik-command-improve`, and rows keep accumulating, so none is lost. It is lifted
@@ -161,12 +162,17 @@ the words of everything else the run's agent or its seats take in because the co
 
 ## The rule test
 
-1. **Fragment ledgers first.** Before any fragment is cut, it gets its own ledger,
-   `commands/_rules/_fragments/<frag>.yaml`. This applies to every fragment that more than one source includes
-   through `{{include:` (24 today, counted over `commands/_sources/*.md`). It also applies to `close-feedback`,
-   which `assemble_commands.py` appends to every render without a directive (`_CLOSE_FEEDBACK`, line 31). That
-   ledger is asserted against every render that carries the fragment, so a cut made in one command's phase
-   cannot lose a rule in a command that has no ledger yet.
+1. **Shared-file ledgers first.** Every file under `commands/` that more than one command's own text contains
+   gets its own ledger, `commands/_rules/_shared/<file>.yaml`, before it is cut. That covers four routes:
+   - a fragment pulled in by `{{include:`: 24 fragments today, counted over `commands/_sources/*.md`;
+   - `close-feedback`, which `assemble_commands.py` appends to every render without a directive
+     (`_CLOSE_FEEDBACK`, line 31);
+   - a file named as a read path, such as `review-probe-catalogue`, which no render includes and six sources
+     name;
+   - a `commands/_agents/*.md` definition that more than one command dispatches.
+
+   That ledger is asserted against the shared file itself, so a cut made in one command's phase cannot lose a
+   rule in a command that has no ledger yet.
 2. **Completeness by construction.** At the phase start a script splits the baseline own text into sentences and
    diffs them against the rewrite. **Every baseline sentence with no surviving match must be classified** as one
    of:
@@ -205,7 +211,8 @@ the words of everything else the run's agent or its seats take in because the co
      A test that asserts a printed string is a text pin, and the ledger loader refuses it.
 5. **The test.** `tests/test_command_rules.py` renders the corpus itself, with
    `render(tmp_path, None, agents_dest=tmp_path / "_agents")`, the pattern `tests/test_assemble_agents_dest.py`
-   uses. It then asserts every ledger against that render and the files the ledgers name. It never reads
+   uses. It then asserts every ledger against that render and the files the ledgers name, and prints each
+   ledger's entry count. It never reads
    `--check`'s directory, which `check()` deletes on exit (`assemble_commands.py:1323`, `:1382`). A failed carrier
    is a LOSS, and the test is red. Because `current` is stored, any later reword shows up as a ledger diff the
    reviewer must read. The audit pair inside the command's full `/fabrik-review` also reports any `current` that
@@ -213,16 +220,23 @@ the words of everything else the run's agent or its seats take in because the co
    NEVER as a `text` phrase.
 6. **Standing gate.** `assemble_commands.py --check` calls the same ledger function on its own temp render before
    that directory is deleted. It runs for every edit to a ledgered command, `/fabrik-command-improve`'s included.
-   It is the edit contract, not a one-off. A LOSS exits 4, which is distinct from drift (1), a render error (2)
-   and the main-checkout refusal (3). That way a mid-rewrite drift exit never masks it.
+   It is the edit contract, not a one-off. The gate runs BEFORE the drift comparison. When several fire, the
+   exit is the first that applies in this order:
+   - 4: a LOSS;
+   - 5: a `render` ceiling breach (L1);
+   - 1: drift, or a render defect raised as `SystemExit("<msg>")`;
+   - 2 and 3: unchanged in meaning.
+
+   So a mid-rewrite drift never masks a LOSS.
 7. **Retiring pins.** A presence pin whose rule is now a ledger entry is deleted in the same commit. Absence pins
    become `forbidden:` carriers or stay.
 8. **A rule removed on purpose** needs a D-row that names its ledger id, and the entry moves to a `retired:`
    list. It is never deleted silently.
-9. **The tail.** A command outside the top four (741 of the 3,072 hours since 09-21, combined) may use the light form. Steps 2 to 8
-   all apply, but its ledger holds entries only for the rules whose baseline sentence did not survive unchanged.
-   A sentence that survives unchanged is carried by the sentence diff itself, as the class `unchanged`. The
-   standing gate applies to the tail as to every command.
+9. **The tail.** A command outside the top four (741 of the 3,072 hours since 09-21, combined) may use the light
+   form. Every rule still gets a ledger entry and the standing gate. In the light form:
+   - a rule whose baseline sentence survives unchanged gets its entry generated by script, as a `text` carrier
+     copied from that sentence;
+   - the seats classify only the vanished sentences and write carriers only for reworded rules.
 
 ## How a command is cut (the rewrite rules)
 
@@ -286,12 +300,12 @@ Each item is one plan phase, one full `/fabrik-review` and one merge by the coor
    - every command's full-measure baseline, published.
 2. **Pilot: `/fabrik-review-scoped`** (1,120 runs, 9,551 words, about a third of `/fabrik-review`'s size). The
    fragments it includes are `no-workflow-hub`, `run-record`, `orient`, `scope-growth-exit` and `close-chain`,
-   plus the auto-appended `close-feedback`. The four of those that other commands share get their fragment
-   ledgers in this phase, before the pilot cuts them. The pilot shakes out the YAML grammar, the audit pair and
+   plus the auto-appended `close-feedback`, and it reads `review-probe-catalogue`. Every one of those that
+   another command's own text also contains gets its ledger in this phase, before the pilot cuts it: all but
+   `scope-growth-exit`. The pilot shakes out the YAML grammar, the audit pair and
    the ceilings.
-3. **The remaining shared fragments**, every one § The rule test step 1 names and the pilot did not cover,
-   `term-coverage`, `term-edit` and `subagents-core` among them. `review-probe-catalogue` is not rendered into any
-   command; six sources name it as a read path, so its ledger's `file` is the fragment itself.
+3. **The remaining shared files**: every one § The rule test step 1 names that the pilot did not cover, the
+   fragments `term-coverage`, `term-edit` and `subagents-core` and the shared `_agents` definitions among them.
 4. **`/fabrik-review`.** The review that reviews every later phase lands only after the pilot has proven the
    tooling.
 5. `/fabrik-task`, `/fabrik-execute-plan`, `/fabrik-command-improve`.
@@ -312,7 +326,7 @@ intel's per-phase time table (W-0a91bf86) picks the sections each command cuts h
 ## Lifecycle
 
 kaizen holds every duty in this section. It reads each trigger at its daily read of the kaizen instrument's
-digest (the charter's "Real time" beat), and each trigger that fires opens a kaizen work item (`work.py add`)
+digest (the charter's § Beat: "you read the same numbers daily"), and each trigger that fires opens a kaizen work item (`work.py add`)
 naming the command and carrying the value as evidence. The triggers, each with its source:
 - **Ledger size.** A command whose ledger passes 300 entries does too much: it is split, not trimmed. The source
   is the entry count `test_command_rules.py` prints per ledger.
@@ -373,7 +387,7 @@ Still open, each with its resolution step:
 ## § Binding (ONE-WAY: every command, fleet-wide)
 
 CLASS: one-way. Every project's rendered commands change, and the ledger becomes the standing edit contract.
-BUDGET: the 39 rendered commands. The pilot and the top four take one session each; the tail uses the light
+BUDGET: the 40 commands master renders today, and any added before the program closes. The pilot and the top four take one session each; the tail uses the light
 form.
 KILL: there is no per-command KILL. A command that cannot reach 50% without a LOSS stops at a **recorded floor**,
 written as a D-row: its live rule count × the words-per-rule figure U1 defines.
