@@ -853,6 +853,7 @@ def _scoped_rows(common: Path) -> list[dict]:
     if not text:
         return []
     want = os.path.realpath(common)
+    real: dict[str, str] = {}  # one realpath per distinct scope: this runs on every parked call
     out: list[dict] = []
     for line in text.splitlines():
         line = line.strip()
@@ -865,9 +866,11 @@ def _scoped_rows(common: Path) -> list[dict]:
         if not isinstance(row, dict):
             continue
         top = row.get("toplevel")
-        if not (isinstance(top, str) and os.path.isabs(top) and os.path.realpath(top) == want):
+        if not (isinstance(top, str) and os.path.isabs(top)):
             continue
-        if _AGENT_NAME_RE.fullmatch(str(row.get("name") or "")):
+        if top not in real:
+            real[top] = os.path.realpath(top)
+        if real[top] == want and _AGENT_NAME_RE.fullmatch(str(row.get("name") or "")):
             out.append(row)
     return out
 
@@ -975,7 +978,7 @@ def _same_window_name(common: Path, cwd: str | None, proc_root: str | Path | Non
     if last is None:
         return ""
     name = str(last["name"])
-    of_name = [r for r in rows if r["name"] == name]
+    of_name = [r for r in rows if str(r["name"]) == name]
     if of_name[-1] is not last:
         return ""
     for row in of_name:
@@ -1344,7 +1347,8 @@ def _park_reason(
         "(`python3 scripts/merge_request.py request --review <receipt> --item <W-id>`), then end "
         "the turn. Reads, git, command_run.py, mail.py, thread_anchor.py, the claim verbs "
         "(`python3 scripts/work.py claim <W-id>`), `python3 scripts/work.py next`, the rotation's "
-        "re-bind of the name this window held last (whoami_agent.py --as <that name>), "
+        "re-bind of the one name this window held last (python3 "
+        "/opt/fabrik/scripts/whoami_agent.py --as <that name> --force, that absolute path only), "
         "SubagentHandback, SendMessage, the self-watch "
         f"arm and TaskStop stay allowed. {lift or _lane_lift(_stamp())}; ARM the self-watch NOW "
         'if it is not: Bash(run_in_background: true, command: "bash '

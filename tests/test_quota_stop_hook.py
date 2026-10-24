@@ -1595,6 +1595,7 @@ def _fake_proc(
     chain: bool = True,
     btime: int | None = 1,
     live: dict[int, int] | None = None,
+    start: int = _CLAUDE_START,
 ) -> Path:
     """A /proc tree whose ancestry from THIS process ends at a `claude` (pid 4242, start 777):
     `chain=False` ends it at pid 1 instead; `live` adds other running processes {pid: start}."""
@@ -1605,7 +1606,7 @@ def _fake_proc(
     )
     (root / str(_CLAUDE_PID)).mkdir()
     (root / str(_CLAUDE_PID) / "status").write_text("Name:\tclaude\nPPid:\t1\n")
-    (root / str(_CLAUDE_PID) / "stat").write_text(_proc_stat(_CLAUDE_PID, _CLAUDE_START))
+    (root / str(_CLAUDE_PID) / "stat").write_text(_proc_stat(_CLAUDE_PID, start))
     for pid, start in (live or {}).items():
         (root / str(pid)).mkdir()
         (root / str(pid) / "status").write_text("Name:\tclaude\nPPid:\t1\n")
@@ -1692,6 +1693,23 @@ def test_a_rebind_to_a_name_this_window_did_not_hold_last_is_held(
     assert held("infra-8")
     (live / "6666" / "stat").write_text(_proc_stat(6666, 3))  # pid reused by another process
     assert not held("infra-8")
+    # a live holder row written before start ticks existed is pid-only, as whoami reads it
+    lane.bind("old", "infra-9", pid=6666)
+    _mine(lane, "s5", "infra-9")
+    assert held("infra-9")
+    # an unreadable /proc/<pid> is a live holder (fail closed)
+    real_is_dir = Path.is_dir
+
+    def is_dir(self: Path) -> bool:
+        if self.name == "6666":
+            raise PermissionError(13, "denied")
+        return real_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_dir", is_dir)
+    (live / "6666" / "stat").write_text(_proc_stat(6666, 2))
+    lane.bind("old2", "infra-10", pid=6666, pid_start=2)
+    _mine(lane, "s6", "infra-10")
+    assert held("infra-10")
 
 
 def test_same_window_name_fails_closed(lane, tmp_path, monkeypatch):
@@ -1717,6 +1735,11 @@ def test_same_window_name_fails_closed(lane, tmp_path, monkeypatch):
     lane.bind("f", "infra-9", pid=str(_CLAUDE_PID), pid_start=str(_CLAUDE_START))
     assert name() == "infra-9"
     assert name(_fake_proc(tmp_path / "p2", chain=False)) == ""
+    # a bool start tick never equals a real one, even the tick 1 (`True == 1`)
+    lane.bind("g", "infra-12", pid=_CLAUDE_PID, pid_start=True)
+    assert name(_fake_proc(tmp_path / "p5", start=1)) == ""
+    lane.bind("h", "infra-12", pid=_CLAUDE_PID, pid_start=1)
+    assert name(_fake_proc(tmp_path / "p6", start=1)) == "infra-12"
     assert name(_fake_proc(tmp_path / "p3", btime=None)) == ""
     assert name(tmp_path / "missing") == ""
 
@@ -1752,6 +1775,7 @@ def test_the_rebind_shape_is_exact():
         "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --as coordinator",
         "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --force --as coordinator",
         "python3 /opt/fabrik/scripts/whoami_agent.py --force --as infra-3 --force",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --force --as --force infra-3",
         "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --f",
         "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --force extra",
         "python3 /opt/fabrik/scripts/whoami_agent.py --as INFRA-3",
@@ -1791,3 +1815,34 @@ def test_the_lane_admits_work_next_only_bare_and_only_at_urgent():
             )[0]
             == "deny"
         ), cmd
+
+
+def test_the_rebind_check_runs_only_on_the_rebind_call_and_fails_closed(
+    lane, tmp_path, monkeypatch, capsys
+):
+    """The /proc walk is lazy (only a Bash call naming whoami_agent.py, so every other parked call
+    keeps the hook's 5 s budget) and sits inside main()'s try: a raise there holds the re-bind,
+    where an escaped raise would exit 1 and let Claude Code run the tool (fail OPEN)."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
+    _mine(lane, "old-sid", "infra-3")
+    calls: list[str] = []
+
+    def boom(*a: object, **k: object) -> str:
+        calls.append("called")
+        raise RuntimeError("proc walk failed")
+
+    monkeypatch.setattr(hook, "_same_window_name", boom)
+    assert _main_out(lane, monkeypatch, capsys, "python3 scripts/work.py next") == ""
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, "python3 scripts/foo.py")
+    assert calls == []
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, _REBIND.format("infra-3"))
+    assert calls == ["called"]
+
+
+def test_proc_start_reads_past_a_paren_in_the_process_name(tmp_path):
+    """Field 22 is counted after the LAST `)`: a process named `a) b` must not shift it."""
+    (tmp_path / "77").mkdir()
+    (tmp_path / "77" / "stat").write_text(_proc_stat(77, 4321, name="a) S 9 9"))
+    assert hook._proc_start(tmp_path, 77) == 4321
+    assert hook._proc_start(tmp_path, 78) is None

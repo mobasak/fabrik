@@ -150,8 +150,8 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   /opt/fabrik/scripts/whoami_agent.py --as <name> [--force]` for ONE name only: the one this
   window's claude process (pid + start tick, D-748) held LAST in this repo, written this boot,
   not re-taken by another window since, with no live foreign holder, from a cwd in this repo.
-  A name this window held last but was moved off by hand stays re-claimable here until another
-  window takes it; a name whose last row is a foreign DEAD holder stays held until the lift),
+  Any other name stays held until the lift — an earlier name of this window, and a name whose
+  last row is another window's, even a dead one),
   so the last
   points go to merging and keeping the records rather than to whoever asks first. The weekly
   window never arms the lane (`urgent` tests `five_hour` alone). `quota_posture_hook.py` puts
