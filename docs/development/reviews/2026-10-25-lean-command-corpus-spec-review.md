@@ -23,6 +23,20 @@
 
 | Pass 3 | opus×1 + sonnet×1 (round-1 owners) · delta over round-2 hunks + one hop | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 3 | method: re-derivation — B-rest re-derived 40/39/38 populations and the charter cite (confirmed 0); A-rules re-read `check()` (orchestrator re-ran `sed -n -e 1322,1328p`: `render()` runs before any gate) and the pilot's dispatched seats (`fabrik-review-scoped.md:8`); own-fix: round 2 for all 3. Not a review fix, also landed after this pass: U4 resolved from intel's W-0a91bf86 table and a new § Time budget section, put to a second panel | 846bc4de7af2baf6cff26f03f7f83fb1 → (with the U4 and § Time budget additions) see Pass 4 |
 
+| Pass 4 | opus×1 + sonnet×1 (round-1 owners) · the scope-growth stop's fixed set (round 3) + the § Time budget section (second panel, D-1219) | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0, edits: 7 | method: re-derivation — B-rest re-counted 17/16/1 intake rows and matched U4's eight figures to intel's receipt (confirmed 0); A-rules re-read `assemble_commands.py:1261-1270`, `:1322`, `:1382`, `:1430-1438` and `fabrik-review-scoped.md:8`; orchestrator re-ran `sed -n -e 164,168p commands/_sources/fabrik-review-scoped.md` (no D-344 pair on the pilot: "never applies here"); own-fix: the § Time budget text added in this review, all 7 | aafb2b9eee3869bd84592c54feb4e812 → 740d7d7bf7dd1c17e3d48c3928af31aa |
+
+## Round 4 dispositions
+
+| id | finding | disposition |
+|---|---|---|
+| A4-C1 | T1 trialled on a pilot that has no D-344 pair | CONFIRMED (`fabrik-review-scoped.md:164-165`) — fixed: T1 only on the partitioned loops, trialled in `/fabrik-review`'s phase; the scoped three-seat floor stays |
+| A4-C2 | T2's added fix-hunk condition changes D-335 without a D-row | CONFIRMED — fixed: T2 is D-335 as written; any added condition is a rule change |
+| A4-C3 | T1/T4 decided in phase 3 while the pilot owns the `_agents` ledgers | CONFIRMED (pin text) — fixed: T4 decided in the pilot phase, T1 in `/fabrik-review`'s |
+| A4-C4 | "fast-closed", "a rise" and the frozen sample's owner undefined | CONFIRMED — fixed |
+| A4-C5 | which baseline the 50% target compares against | CONFIRMED — fixed: the command's own before window; the tooling baseline is the text one |
+| A4-C6 | the T3 paraphrase dropped migration and >5-file routes | CONFIRMED (`fabrik-task.md:216-217`) — fixed |
+| A4-C7 | one `changed-by` marker; step 5's audit not told | CONFIRMED — fixed: a list, the audit reads its last D-row |
+
 ## Round 3 dispositions
 
 | id | finding | disposition |
