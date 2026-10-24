@@ -134,7 +134,9 @@ def test_a_code_base_move_runs_the_leg(world, monkeypatch):
     assert "requester's pretest" not in world.replies(msg_id)["fleet"]
 
 
-@pytest.mark.parametrize("tamper", ["script", "tree", "green", "head", "garbage"])
+@pytest.mark.parametrize(
+    "tamper", ["script", "tree", "green", "head", "runner_sha256", "garbage"]
+)
 def test_a_record_failing_a_check_runs_the_leg_and_says_why(world, monkeypatch, tamper):
     counter = _counting_tests(world)
     head = _branch(world)
@@ -149,7 +151,9 @@ def test_a_record_failing_a_check_runs_the_leg_and_says_why(world, monkeypatch, 
     elif tamper == "garbage":
         path.write_text("{not json", encoding="utf-8")
     else:
-        rec[tamper] = {"tree": "0" * 40, "green": "yes", "head": "f" * 40}[tamper]
+        rec[tamper] = {
+            "tree": "0" * 40, "green": "yes", "head": "f" * 40, "runner_sha256": "0" * 64
+        }[tamper]
         path.write_text(json.dumps(rec), encoding="utf-8")
 
     assert world.run("merge") == 0
@@ -166,3 +170,33 @@ def test_no_base_merge_tests_sends_with_a_note_and_runs_nothing(world, monkeypat
     assert not _record(world, head).exists()
     assert _owner_request(world)
     assert "nothing to pretest" in capsys.readouterr().err
+
+
+def test_a_base_move_on_index_md_runs_the_leg(world, monkeypatch):
+    """INDEX.md is a test input in web-ecommerce-factory (test_cross_repo_cites), so it re-tests."""
+    counter = _counting_tests(world)
+    _branch(world)
+    assert _pretest(world, monkeypatch) == 0
+    world.write("INDEX.md", "# Index\n")
+    world.commit_main("index", "INDEX.md")
+    _git(world.main, "push", "-q", "origin", "master")
+
+    assert world.run("merge") == 0
+
+    assert counter.read_text() == "xx"
+
+
+def test_the_owners_sweep_leaves_a_live_pretest_throwaway_alone(world):
+    """A pretest runs outside the merge lock, so a merge's start-of-run sweep must not remove it."""
+    import tempfile
+
+    parent = Path(tempfile.mkdtemp(prefix=world.mod._PRETEST_PREFIX))
+    live = parent / world.main.name
+    _git(world.main, "worktree", "add", "--detach", "-q", str(live), "master")
+    head = world.branch({"x.txt": "x\n"})
+    world.send(head)
+
+    assert world.run("merge") == 0
+
+    assert live.is_dir()
+    assert str(live) in _git(world.main, "worktree", "list", "--porcelain")

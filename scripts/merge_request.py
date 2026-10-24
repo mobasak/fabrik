@@ -66,6 +66,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import importlib.util
 import json
 import os
@@ -449,6 +450,8 @@ def request(args: argparse.Namespace) -> int:
     distributor = raw_dist.strip() if isinstance(raw_dist, str) else ""
     copy = bool(distributor) and _norm(distributor) not in (_norm(owner), _norm(caller))
 
+    if getattr(args, "pretest", False):  # after every check, strictly before any send
+        print(_pretest(main, Path(common), owner, base, branch, head), file=sys.stderr)
     mailbox = main.name
     sent = _now()
 
@@ -935,12 +938,15 @@ def _merge3(path: str, ours: str, orig: str, theirs: str) -> str:
 
 # --- (a)-(d): build, preflight, tests, CAS --------------------------------------------------
 @contextlib.contextmanager
-def _throwaway(ctx: _Ctx, rec: dict, commit: str) -> Iterator[Path]:
+def _throwaway(
+    ctx: _Ctx, rec: dict, commit: str, prefix: str | None = None
+) -> Iterator[Path]:
     """A detached worktree at ``commit`` under a scratch parent, named after the main checkout
     (``<tmp>/<repo basename>``) with a ``fabrik-lib`` link beside it when the main checkout's
     parent holds one (what the repo's tests reach as ``../fabrik-lib``). Removed and pruned on
-    EVERY exit, success or refusal."""
-    parent = Path(tempfile.mkdtemp(prefix=_THROWAWAY_PREFIX))
+    EVERY exit, success or refusal. ``prefix`` is ``_PRETEST_PREFIX`` for a pretest, which the
+    owner's sweep (``_THROWAWAY_DIR_RE``) never matches: a pretest runs outside the merge lock."""
+    parent = Path(tempfile.mkdtemp(prefix=prefix or _THROWAWAY_PREFIX))
     wt = parent / ctx.main.name
     rec["worktree"] = str(wt)
     _save(ctx, rec)
@@ -958,7 +964,7 @@ def _throwaway(ctx: _Ctx, rec: dict, commit: str) -> Iterator[Path]:
             link.symlink_to(wt if lib.resolve() == ctx.main.resolve() else lib)
         yield wt
     finally:
-        _remove_throwaway(ctx, wt)
+        _remove_throwaway(ctx, wt, _PRETEST_DIR_RE if prefix == _PRETEST_PREFIX else None)
         rec.pop("worktree", None)
         _save(ctx, rec)
 
@@ -966,23 +972,25 @@ def _throwaway(ctx: _Ctx, rec: dict, commit: str) -> Iterator[Path]:
 _THROWAWAY_PREFIX = "fabrik-merge-"
 # ``tempfile.mkdtemp`` appends 8 characters from this alphabet (CPython's _RandomNameSequence).
 _THROWAWAY_DIR_RE = re.compile(r"^fabrik-merge-[a-z0-9_]{8}$")
+_PRETEST_PREFIX = "fabrik-pretest-"
+_PRETEST_DIR_RE = re.compile(r"^fabrik-pretest-[a-z0-9_]{8}$")
 
 
-def _owned_throwaway(ctx: _Ctx, wt: Path) -> bool:
+def _owned_throwaway(ctx: _Ctx, wt: Path, dir_re: re.Pattern | None = None) -> bool:
     """O12: a worktree THIS tool created, and nothing wider — ``<temp root>/<mkdtemp dir>/<repo
     basename>``, the mkdtemp dir sitting DIRECTLY under the temp root ``_throwaway`` uses."""
     parent = wt.parent
     return (
         wt.name == ctx.main.name
-        and bool(_THROWAWAY_DIR_RE.fullmatch(parent.name))
+        and bool((dir_re or _THROWAWAY_DIR_RE).fullmatch(parent.name))
         and parent.parent.resolve() == Path(tempfile.gettempdir()).resolve()
     )
 
 
-def _remove_throwaway(ctx: _Ctx, wt: Path) -> None:
+def _remove_throwaway(ctx: _Ctx, wt: Path, dir_re: re.Pattern | None = None) -> None:
     """Remove and prune one throwaway; the rmtree is ONLY the mkdtemp dir, and only when the
     path is one this tool created (``_owned_throwaway``) — never anything wider."""
-    if not _owned_throwaway(ctx, wt):
+    if not _owned_throwaway(ctx, wt, dir_re):
         return
     _run(["git", *NO_HOOKS, "worktree", "remove", "--force", str(wt)], TOOL_TIMEOUT_S, cwd=ctx.main)
     shutil.rmtree(wt.parent, ignore_errors=True)
@@ -1310,6 +1318,11 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         ]
         if not touched:
             return "no owner tests ran (no .fabrik/merge-tests, no touched tests/)"
+    ignored = ""
+    if script:
+        pretested, ignored = _pretested(ctx, wt, script)
+        if pretested:
+            return pretested
     spent = (
         f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) ran out during the leg "
         f"(stopped at {{}}s) — not a test verdict"
@@ -1339,7 +1352,121 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
                 f"the merged run timed out or was killed (exit {run.returncode})"
             )
         raise red
-    return f"{label}: green"
+    return f"{label}: green{ignored}"
+
+
+# --- request --pretest: the owner tests run ONCE per change (W-1fb11ec8) ----------------------
+# A builder ran the suite before requesting and the merge ran it again under the serial lock
+# (web-ecommerce-factory 2026-10-24: 18-28 min each). The requester's run of the merge the owner
+# would build is recorded by its merged TREE, so a moved base cannot match a stale record.
+PRETEST_DIR = "pretest"  # a subdirectory: `_resume_stranded`/`_parked` glob only `fabrik-merge/*.json`
+_TREE_RE = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
+# The paths a base move may change without a re-test: the three ledgers no repo's tests read as input
+# (wef's tests/scripts/test_cross_repo_cites.py globs docs/*.md and INDEX.md but excludes exactly
+# these) and work-item files. Narrower than LEDGERS on purpose: INDEX.md and STRATEGIC_BACKLOG are
+# test inputs there. Measured on wef's last 21 merges: 15 match with this set, 16 with LEDGERS.
+PRETEST_SKIP = frozenset({"CHANGELOG.md", DECISIONS, "docs/LESSONS_LEARNT.md"})
+
+
+def _pretest_path(records: Path, head: str) -> Path:
+    return records / PRETEST_DIR / f"{head}.json"
+
+
+def _script_sha(script: str) -> str:
+    return hashlib.sha256(script.encode("utf-8")).hexdigest()
+
+
+def _runner_sha() -> str:
+    """This running script's own bytes: a record written by a ``merge_request.py`` other than the
+    one the owner runs (a branch that edits it runs its own copy) is never trusted."""
+    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
+
+def _pretested(ctx: _Ctx, wt: Path, script: str) -> tuple[str, str]:
+    """``(summary, "")`` when the requester's pretest ran this base's ``script`` green on a tree that
+    differs from the merged one only in PRETEST_SKIP paths and work items, else ``("", why)`` — ``why`` empty
+    when there is no record, else ``"; pretest record ignored (<why>)"`` for the reply. COBRA: the
+    cheapest pass is a record written by hand; it must still name this exact tree, and the reply
+    names the trusted run, so the owner sees the skip."""
+    second = _run(["git", "rev-parse", "-q", "--verify", "HEAD^2"], GIT_TIMEOUT_S, cwd=wt)
+    head = second.stdout.strip()
+    if second.returncode or not head:
+        return "", ""  # not a two-parent merge (or no request head): nothing to look up
+    path = _pretest_path(ctx.records, head)
+    if not path.is_file():
+        return "", ""
+
+    def ignored(why: str) -> tuple[str, str]:
+        return "", f"; pretest record ignored ({why})"
+
+    try:
+        rec = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        return ignored(f"unreadable: {' '.join(str(exc).split())}")
+    if not isinstance(rec, dict) or rec.get("green") is not True:
+        return ignored("not a green record")
+    if rec.get("head") != head:
+        return ignored("it names another head")
+    tree = rec.get("tree")
+    if not isinstance(tree, str) or not _TREE_RE.fullmatch(tree):
+        return ignored("no tree id")
+    if rec.get("script_sha256") != _script_sha(script):
+        return ignored("the base's .fabrik/merge-tests changed since")
+    if rec.get("runner_sha256") != _runner_sha():
+        return ignored("written by a merge_request.py other than this one")
+    diff = _run(
+        ["git", "diff", "--name-only", "-z", "--no-renames", tree, "HEAD^{tree}"],
+        GIT_TIMEOUT_S,
+        cwd=wt,
+    )
+    if diff.returncode:
+        return ignored("its tree is not in this repo")
+    paths = [p for p in diff.stdout.split("\0") if p]
+    code = [p for p in paths if p not in PRETEST_SKIP and not _WORK_ITEM_RE.fullmatch(p)]
+    if code:
+        return ignored(f"{len(code)} non-ledger path(s) differ, e.g. {code[0]}")
+    return (
+        f".fabrik/merge-tests (base copy): green on the requester's pretest "
+        f"(tree {tree[:12]}, {len(paths)} ledger path(s) differ)",
+        "",
+    )
+
+
+def _pretest(main: Path, common: Path, owner: str, base: str, branch: str, head: str) -> str:
+    """``request --pretest``: step (c)'s owner tests on the merge the owner would build, in a
+    throwaway at the LOCAL base (the ref ``merge`` reads, shared through the common dir). Green
+    writes ``fabrik-merge/pretest/<head>.json``; any other end removes it and raises, so nothing is
+    sent. Returns the line to print."""
+    ctx = _Ctx(main, common, owner)
+    ctx.records = ctx.records / PRETEST_DIR  # the throwaway's bookkeeping lands beside the record
+    old = _rev(main, HEADS + base)
+    if not old:
+        raise RefusedError(f"--pretest: the local base {base} does not exist")
+    script = _base_merge_tests(ctx, old)
+    if not script:
+        return f"--pretest: nothing to pretest (the base {base} has no .fabrik/merge-tests)"
+    path = ctx.records / f"{head}.json"
+    path.unlink(missing_ok=True)
+    rec: dict = {"id": head}
+    try:
+        with _throwaway(ctx, rec, old, _PRETEST_PREFIX) as wt:
+            new = _build(ctx, wt, head, f"pretest {branch}", base)
+            summary = _owner_tests(ctx, wt, old, _merged_paths(main, old, new))
+            tree = _gitc(wt, "rev-parse", f"{new}^{{tree}}").strip()
+        rec.update(
+            head=head,
+            base_old=old,
+            tree=tree,
+            script_sha256=_script_sha(script),
+            runner_sha256=_runner_sha(),
+            green=True,
+            at=_now(),
+        )
+        _save(ctx, rec)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    return f"--pretest: {summary} on {base} at {old[:12]} (tree {tree[:12]})"
 
 
 # capped_run.sh's own verdicts: 124 its time limit, 137 its memory ceiling (scripts/capped_run.sh)
@@ -2520,6 +2647,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--review", required=True, help="the closing run record or review receipt")
     p.add_argument("--item", help="the work item (W-xxxxxxxx) this branch finishes")
     p.add_argument("--base", help="the branch to merge into (default: config, else remote HEAD)")
+    p.add_argument(
+        "--pretest",
+        action="store_true",
+        help="run the owner tests on the merge first and send only on green (W-1fb11ec8)",
+    )
     pm = sub.add_parser("merge", help="the merge owner: merge the oldest request addressed to it")
     pm.add_argument("id", nargs="?", help="a specific request id (keeps a plan's epic order)")
     pr = sub.add_parser("resume", help="continue a request from its recorded phase")
