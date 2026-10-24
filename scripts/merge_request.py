@@ -69,6 +69,7 @@ import fcntl
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import re
 import shutil
@@ -549,7 +550,7 @@ LEG_FLOOR_S = 60  # under a minute left, no leg starts: a stub run tells nothing
 # read, clamped to [LEG_FLOOR_S, MERGE_TEST_BUDGET_S] — so the budget, and the documented wrapper,
 # still bound the run; a longer leg leaves less of the budget for a rebuild (W-1fb11ec8, wef's ~5240-test
 # leg past 1800 s on 2026-10-24).
-_LEG_DECL_RE = re.compile(r"(?m)^#[ \t]*merge-test-timeout:[ \t]*([0-9]{1,6})[ \t]*$")
+_LEG_DECL_RE = re.compile(r"(?m)^#[ \t]*merge-test-timeout:[ \t]*([0-9]{1,12})[ \t\r]*$")
 PUSH_TIMEOUT_S = 600
 SYNC_TIMEOUT_S = 900
 EXIT_OK = 0
@@ -610,6 +611,7 @@ class _Ctx:
         self.test_deadline = time.monotonic() + MERGE_TEST_BUDGET_S
         self.leg_limit = TEST_TIMEOUT_S
         self.full_leg = TEST_TIMEOUT_S  # a full leg: TEST_TIMEOUT_S, or the base's declared one
+        self.pretesting = False  # `request --pretest`: never skip on a pretest record
 
 
 def _declared_leg(script: str) -> int:
@@ -1407,6 +1409,8 @@ def _pretested(ctx: _Ctx, wt: Path, script: str) -> tuple[str, str]:
     when there is no record, else ``"; pretest record ignored (<why>)"`` for the reply. COBRA: the
     cheapest pass is a record written by hand; it must still name this exact tree, and the reply
     names the trusted run, so the owner sees the skip."""
+    if ctx.pretesting:
+        return "", ""  # a pretest runs the leg it records; it never skips it
     second = _run(["git", "rev-parse", "-q", "--verify", "HEAD^2"], GIT_TIMEOUT_S, cwd=wt)
     head = second.stdout.strip()
     if second.returncode or not head:
@@ -1434,7 +1438,12 @@ def _pretested(ctx: _Ctx, wt: Path, script: str) -> tuple[str, str]:
     if rec.get("runner_sha256") != _runner_sha():
         return ignored("written by a merge_request.py other than this one")
     seconds = rec.get("seconds")
-    if not isinstance(seconds, (int, float)) or seconds < PRETEST_FLOOR_S:
+    if (
+        isinstance(seconds, bool)
+        or not isinstance(seconds, (int, float))
+        or not math.isfinite(seconds)
+        or seconds < PRETEST_FLOOR_S
+    ):
         # a suite that finished in under a minute (a stub runner, FABRIK_CAPPED_RUN=/bin/true) is
         # cheap to re-run and is not trusted as the change's one run
         return ignored(f"its leg ran {seconds!r}s, under {PRETEST_FLOOR_S}s")
@@ -1463,6 +1472,7 @@ def _pretest(main: Path, common: Path, owner: str, base: str, branch: str, head:
     sent. Returns the line to print."""
     ctx = _Ctx(main, common, owner)
     ctx.records = ctx.records / PRETEST_DIR  # the throwaway's bookkeeping lands beside the record
+    ctx.pretesting = True
     old = _rev(main, HEADS + base)
     if not old:
         raise RefusedError(f"--pretest: the local base {base} does not exist")
@@ -1472,7 +1482,9 @@ def _pretest(main: Path, common: Path, owner: str, base: str, branch: str, head:
     _sweep_pretests(ctx)
     path = ctx.records / f"{head}.json"
     path.unlink(missing_ok=True)
-    rec: dict = {"id": head, **_claimer()}  # pid + start: a killed pretest's leftovers are swept
+    # the throwaway's bookkeeping is this RUN's file (pid + start, so a killed run's leftovers are
+    # swept); a concurrent pretest of the same head has its own and never deletes this one
+    rec: dict = {"id": f"{head}.run-{os.getpid()}", **_claimer()}
     killed = (
         "the pretest timed out or was killed ({}) — not a test verdict; run it again, "
         "or request without --pretest"
@@ -1495,21 +1507,22 @@ def _pretest(main: Path, common: Path, owner: str, base: str, branch: str, head:
                     raise
                 seconds = round(time.monotonic() - t0)
                 tree = _gitc(wt, "rev-parse", f"{new}^{{tree}}").strip()
-        for key in ("pid", "start", "session"):
-            rec.pop(key, None)
-        rec.update(
-            head=head,
-            base_old=old,
-            tree=tree,
-            script_sha256=_script_sha(script),
-            runner_sha256=_runner_sha(),
-            seconds=seconds,
-            green=True,
-            at=_now(),
-        )
+        (ctx.records / f"{rec['id']}.json").unlink(missing_ok=True)
+        rec = {
+            "id": head,
+            "head": head,
+            "base_old": old,
+            "tree": tree,
+            "script_sha256": _script_sha(script),
+            "runner_sha256": _runner_sha(),
+            "seconds": seconds,
+            "green": True,
+            "at": _now(),
+        }
         _save(ctx, rec)
     except BaseException:
         path.unlink(missing_ok=True)
+        (ctx.records / f"{head}.run-{os.getpid()}.json").unlink(missing_ok=True)
         raise
     finally:
         if saved is None:
@@ -1530,8 +1543,8 @@ def _sweep_pretests(ctx: _Ctx) -> None:
             continue
         if not isinstance(rec, dict) or not isinstance(rec.get("worktree"), str):
             continue
-        if not _stranded(rec):
-            continue  # a live pretest of this head by another session
+        if rec.get("start") is None or not _stranded(rec):
+            continue  # a live pretest by another session, or one whose liveness cannot be read
         _remove_throwaway(ctx, Path(rec["worktree"]), _PRETEST_DIR_RE)
         path.unlink(missing_ok=True)
 
@@ -2717,7 +2730,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--pretest",
         action="store_true",
-        help="run the owner tests on the merge first and send only on green (W-1fb11ec8)",
+        help="run the base's .fabrik/merge-tests on the merge first and send only on green "
+        "(a base without one is sent untested, with a note) (W-1fb11ec8)",
     )
     pm = sub.add_parser("merge", help="the merge owner: merge the oldest request addressed to it")
     pm.add_argument("id", nargs="?", help="a specific request id (keeps a plan's epic order)")

@@ -190,11 +190,13 @@ python3 scripts/merge_request.py request --review <closing run record or review 
 #    A branch cut before the script existed runs the main checkout's copy by absolute path
 #    (`python3 <main checkout>/scripts/merge_request.py request …`): it finds mail.py, work.py and
 #    whoami_agent.py beside itself, never in the branch. `--item` releases your claim on that item.
-#    `--pretest` first runs step (c)'s owner tests on the merge the owner would build (a throwaway at
-#    the local base) and sends only on green, recording the merged tree in
-#    `<git common dir>/fabrik-merge/pretest/<head>.json`; the merge then skips its own leg when its
-#    merged tree differs from that one only in ledgers and work items (W-1fb11ec8) — run it in place
-#    of a hand run of the suite, never beside one.
+#    `--pretest` first runs the base's `.fabrik/merge-tests` on the merge the owner would build (a
+#    throwaway at the local base) and sends only on green (a base with none is sent untested, with a
+#    note), recording the merged tree in `<git common dir>/fabrik-merge/pretest/<head>.json`; the
+#    merge then skips its own leg when its merged tree differs from that one only in CHANGELOG.md,
+#    docs/DECISIONS.md, docs/LESSONS_LEARNT.md and work items, the same merge_request.py wrote the
+#    record, and its leg ran at least a minute (W-1fb11ec8) — run it in place of a hand run of the
+#    suite, never beside one.
 # 2. the merge owner, in the main checkout:
 python3 scripts/merge_request.py merge [<id>]   # the oldest request addressed to it, or <id>
 python3 scripts/merge_request.py resume <id>    # a request left short of `replied` (exit 4)
@@ -220,7 +222,9 @@ from it only in the selector's SKIP set — ledgers and work items — re-tests 
 of the local base (up to three rebuilds; every owner-test leg of one invocation, rebuilds and the
 catch-up included, draws on one budget of `MERGE_TEST_BUDGET_S` — a leg runs at most what is left,
 none starts under `LEG_FLOOR_S` left, and a spent budget refuses as not a test verdict, naming
-`retry <id>`, or `resume <id>` for a catch-up), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
+`retry <id>`, or `resume <id>` for a catch-up; a full leg is `TEST_TIMEOUT_S`, or the
+`# merge-test-timeout: <seconds>` line the BASE's `.fabrik/merge-tests` declares, clamped to
+`LEG_FLOOR_S`..`MERGE_TEST_BUDGET_S`, W-1fb11ec8), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
 hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. A refusal acks `blocked` with the refused step; the requester fixes and sends a new

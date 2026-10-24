@@ -86,6 +86,22 @@ def test_a_green_pretest_records_the_merged_tree(world, monkeypatch):
     assert _owner_request(world)  # the request went out after the green run
 
 
+def test_the_pretest_throwaway_is_never_the_owners_and_is_removed(world, monkeypatch):
+    """The owner's sweep removes every `fabrik-merge-*` throwaway at the start of a merge, so a
+    pretest that ran in one would be killed by any merge starting beside it."""
+    where = world.tmp / "pretest-cwd"
+    _counting_tests(world, f"pwd > {where}\n")
+    _branch(world)
+    before = _git(world.main, "worktree", "list", "--porcelain")
+
+    assert _pretest(world, monkeypatch) == 0
+
+    parent = Path(where.read_text().strip()).parent.name
+    assert world.mod._PRETEST_DIR_RE.fullmatch(parent), parent
+    assert not world.mod._THROWAWAY_DIR_RE.fullmatch(parent)
+    assert _git(world.main, "worktree", "list", "--porcelain") == before  # removed after the leg
+
+
 def test_a_red_pretest_sends_nothing_and_records_nothing(world, monkeypatch, capsys):
     _counting_tests(world, "exit 1\n")
     head = _branch(world)
@@ -158,7 +174,7 @@ def test_a_record_failing_a_check_runs_the_leg_and_says_why(world, monkeypatch, 
         path.write_text("{not json", encoding="utf-8")
     else:
         rec[tamper] = {
-            "tree": "0" * 40,
+            "tree": "-R",  # an option, not a tree id: `git diff -R HEAD^{tree}` would succeed
             "green": "yes",
             "head": "f" * 40,
             "runner_sha256": "0" * 64,
@@ -285,6 +301,8 @@ def test_a_killed_pretests_leftovers_are_swept_by_the_next(world, monkeypatch):
         ("  # merge-test-timeout: 2700\n", 1800),  # not at line start: not a declaration
         ("# merge-test-timeout: 2700s\n", 1800),  # not the grammar
         ("# merge-test-timeout: 2400\n# merge-test-timeout: 3000\n", 2400),  # the first one
+        ("# merge-test-timeout: 2700\r\nexit 0\r\n", 2700),  # a CRLF file
+        ("# merge-test-timeout: 1234567\n", 3600),  # a long value is clamped, never ignored
     ],
 )
 def test_the_declared_leg_grammar(world, script, expected):
@@ -324,3 +342,117 @@ def test_a_branch_cannot_raise_its_own_leg_limit(world, monkeypatch):
     assert world.run("merge") == 0
 
     assert seen == [1800]
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), True])
+def test_a_non_finite_or_bool_leg_time_is_ignored_never_a_crash(world, monkeypatch, value):
+    counter = _counting_tests(world)
+    head = _branch(world)
+    assert _pretest(world, monkeypatch) == 0
+    msg_id = _owner_request(world)
+    path = _record(world, head)
+    rec = json.loads(path.read_text())
+    rec["seconds"] = value
+    path.write_text(json.dumps(rec), encoding="utf-8")  # json writes NaN/Infinity, and reads them
+
+    assert world.run("merge") == 0
+
+    assert counter.read_text() == "xx"
+    assert "pretest record ignored" in world.replies(msg_id)["fleet"]
+
+
+def test_a_concurrent_pretest_of_the_same_head_keeps_the_others_bookkeeping(world, monkeypatch):
+    """Each run's in-flight bookkeeping is its own file: a second pretest of one head unlinks the
+    head's GREEN record path at its start, which must never be where the first run's sweep entry is."""
+    seen = world.tmp / "during-leg"
+    pretest_dir = world.main / ".git" / "fabrik-merge" / "pretest"
+    _counting_tests(world, f"ls {pretest_dir} > {seen}\n")
+    head = _branch(world)
+    pid = os.getppid()  # a live process that is not this one
+    other = pretest_dir / f"{head}.run-{pid}.json"
+    other.parent.mkdir(parents=True)
+    live = {
+        "id": other.stem,
+        "worktree": "/nowhere",
+        "pid": pid,
+        "start": world.mod._proc_start(pid),
+    }
+    other.write_text(json.dumps(live), encoding="utf-8")
+
+    assert _pretest(world, monkeypatch) == 0
+
+    assert json.loads(other.read_text()) == live
+    assert json.loads(_record(world, head).read_text())["green"] is True
+    left = sorted(p.name for p in other.parent.glob("*.json"))
+    assert left == sorted([other.name, f"{head}.json"])  # this run's bookkeeping is gone
+    during = seen.read_text().split()
+    assert f"{head}.run-{os.getpid()}.json" in during and f"{head}.json" not in during
+
+
+def test_an_unreadable_start_time_never_sweeps_a_pretest(world, monkeypatch):
+    _counting_tests(world)
+    parent = Path(tempfile.mkdtemp(prefix=world.mod._PRETEST_PREFIX))
+    kept = parent / world.main.name
+    _git(world.main, "worktree", "add", "--detach", "-q", str(kept), "master")
+    left = world.main / ".git" / "fabrik-merge" / "pretest" / ("d" * 40 + ".json")
+    left.parent.mkdir(parents=True)
+    rec = {"id": "d" * 40, "worktree": str(kept), "pid": _dead_pid(), "start": None}
+    left.write_text(json.dumps(rec), encoding="utf-8")
+    _branch(world)
+
+    assert _pretest(world, monkeypatch) == 0
+
+    assert left.exists() and kept.is_dir()
+
+
+def test_the_selector_writes_its_records_under_the_override(monkeypatch, tmp_path):
+    """merge_test_select._record_path honours FABRIK_MERGE_TESTS_RECORDS and asks git nothing."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "merge_test_select_pretest",
+        Path(__file__).resolve().parent.parent / "scripts" / "merge_test_select.py",
+    )
+    sel = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sel)
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_RECORDS", str(tmp_path))
+    monkeypatch.setattr(sel, "_git", lambda *a: (_ for _ in ()).throw(AssertionError("git asked")))
+
+    assert sel._record_path("b" * 40) == tmp_path / f"merge-tests-{'b' * 40}.txt"
+    assert sel._green_path("c" * 40) == tmp_path / f"merge-tests-green-{'c' * 40}.txt"
+
+
+def test_a_work_item_only_base_move_still_skips(world, monkeypatch):
+    counter = _counting_tests(world)
+    _branch(world)
+    assert _pretest(world, monkeypatch) == 0
+    msg_id = _owner_request(world)
+    world.write(".fabrik/work/W-0123abcd.json", "{}\n")
+    world.commit_main("item", ".fabrik/work/W-0123abcd.json")
+    _git(world.main, "push", "-q", "origin", "master")
+
+    assert world.run("merge") == 0
+
+    assert counter.read_text() == "x"
+    assert "green on the requester's pretest" in world.replies(msg_id)["fleet"]
+
+
+def test_a_timeout_at_the_declared_full_leg_is_a_timeout_not_a_spent_budget(world, monkeypatch):
+    """A leg that times out at its whole declared limit is the leg's verdict; only a leg cut short by
+    the budget is "budget spent" (W-347cd0c3's split, now keyed on the declared leg)."""
+    _counting_tests(world, "# merge-test-timeout: 600\nexit 0\n")
+    head = _branch(world)
+    msg_id = world.send(head)
+    mod = world.mod
+
+    def leg(ctx, wt, script, touched):
+        ctx.leg_limit = mod._leg_timeout(ctx)
+        assert ctx.leg_limit == 600
+        raise mod.TimedOutError("the leg ran its whole limit")
+
+    monkeypatch.setattr(mod, "_run_owner_leg", leg)
+
+    assert world.run("merge") != 0
+
+    reply = world.replies(msg_id)["fleet"]
+    assert "ran out during the leg" not in reply and "the leg ran its whole limit" in reply
