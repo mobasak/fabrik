@@ -62,23 +62,37 @@ _RED = re.compile(
 )
 # A phrase is a hypothetical, not a red master, when the text right before it ends in a modal
 # governing the verb that forms the phrase: "it would turn master red", "would read red on master
-# without this", "won't go", "could've turned", "it'd turn", "would also turn" — up to five
-# words between the verb and the phrase, none ending a sentence or clause and none a conjunction
-# ("will be fine now since master is red" counts). A modal elsewhere in the
-# sentence ("we can see master went red", "should have caught this but master went red", "3 May")
-# is not one. Model boundary: a modal split from its verb by a clause ("would, if merged, turn")
-# and a negation ("never red on master") still count.
+# without this", "won't go", "could've turned", "we'd turn", "would not necessarily turn" — up to
+# five words between the verb and the phrase, none ending a sentence or clause and none a
+# conjunction or relative word ("will be fine now since master is red", "should make the check
+# that turned master red pass" count). X'd is "would" only before a base verb ("we'd left master
+# red" is "had", a real red). A modal elsewhere in the sentence ("we can see master went red",
+# "should have caught this but master went red", "3 May") is not one. Model boundary: a modal
+# split from its verb by a clause ("would, if merged, turn") and a negation ("never red on
+# master") still count; further shapes are backlog item W-1d1225be.
 # Cobra (D-253): the cheap way to lower the count is to phrase a real red master as a hypothetical
 # ("it would turn master red, and did") — the same move as not writing the phrase at all, which
 # the define doc already names. Old rule vs this one over origin/master 2026-10-24: 32 -> 30
 # hits, exactly 2edc9545f and 0e8aacd73; by construction the rule only removes hits.
+_ADVERBS = r"(?:\s+(?:\w+ly|also|never|not|still|soon|then|just|already|even|probably)){0,2}"
+_BASE_VERB = r"(?:turn|go|leave|make|read|be|stay|keep|end\s+up|mean|cause|show|put)"
+_ANY_VERB = r"(?:turn(?:ed)?|go|gone|leave|left|make|made|read|be|stay(?:ed)?|keep|kept|end\s+up|mean|cause|show|put)"
+_GAP = (
+    r"(?:\s+(?!(?:since|because|and|so|but|or|when|while|after|as|until|though|that|which|where"
+    r"|who|whom|whose|now|once|if|then|yet)\b)[^\s.,;:!?()]+){0,5}\s+$"
+)
 _HYPOTHETICAL = re.compile(
-    r"(?:\b(?:would|could|should|might|may|will|can|must|shall)(?:n['’]?t)?(?:['’]ve)?"
-    r"|\b(?:wo|ca|sha)n['’]?t|\bcannot|\b(?:it|that|this)['’]d|\bgoing\s+to)[`\"'“”‘’*_]*"
-    r"(?:\s+(?:\w+ly|also|never|not|still|soon|then|just|already|even|probably))?"
-    r"(?:\s+not)?(?:\s+have)?(?:\s+been)?"
-    r"\s+(?:turn(?:ed)?|go|gone|leave|left|make|made|read|be|stay(?:ed)?|keep|kept|end\s+up|mean|cause|show|put)"
-    r"(?:\s+(?!(?:since|because|and|so|but|or|when|while|after|as|until|though)\b)[^\s.,;:!?()]+){0,5}\s+$",
+    r"(?:(?:\b(?:would|could|should|might|may|will|can|must|shall)(?:n['’]?t)?(?:['’]ve)?"
+    r"|\b(?:wo|ca|sha)n['’]?t|\bcannot|\bgoing\s+to)[`\"'“”‘’*_]*"
+    + _ADVERBS
+    + r"(?:\s+not)?(?:\s+have)?(?:\s+been)?\s+"
+    + _ANY_VERB
+    + r"|\b\w+['’]d"
+    + _ADVERBS
+    + r"\s+"
+    + _BASE_VERB
+    + r")"
+    + _GAP,
     re.I,
 )
 _FIX_SUBJECT = re.compile(r"^(?:fix|test|revert)\b", re.I)
