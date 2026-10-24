@@ -26,7 +26,9 @@ D-1177 conditions, all enforced below:
 
 Re-runnable: each run makes new passwords and re-applies them everywhere (both roles, the hub .env, each moved
 service's .env), so a run stopped half-way is finished by running it again. A failure inside a service move
-restores that service's compose.yaml and .env from this run's backups and brings it back up on them.
+restores that service's compose.yaml from this run's backup and brings it back up. For a service still on the old
+DSN it restores the .env too; for one an earlier run moved it keeps the new .env, because step 3b already gave the
+role this run's password.
 """
 
 from __future__ import annotations
@@ -189,6 +191,28 @@ def sweep_hits(listing: str) -> list[str]:
     return [p for p in listing.splitlines() if p.strip() and not _SWEEP_NOISE.search(p)]
 
 
+def scoped_count(rendered: str, role: str, db: str) -> int:
+    """How many DSNs in a rendered compose log in as role to database db on postgres-main."""
+    return len(
+        re.findall(
+            rf"://{re.escape(role)}:[^@\s]+@postgres-main:5432/{re.escape(db)}(?![\w-])", rendered
+        )
+    )
+
+
+def sweep_sh() -> str:
+    """The sweep under sudo; its last line is `__grep_rc=<n>`, so a sudo that never ran grep prints no such line."""
+    return f"grep -rIlE {shlex.quote(SWEEP_PATTERN)} /opt; echo __grep_rc=$?"
+
+
+def sweep_result(out: str) -> list[str] | None:
+    """The hits of a completed sweep (grep rc 0 or 1), or None when grep did not run or failed."""
+    lines = out.splitlines()
+    if not lines or lines[-1] not in ("__grep_rc=0", "__grep_rc=1"):
+        return None
+    return sweep_hits("\n".join(lines[:-1]))
+
+
 def scoped_dsn(old: str, role: str, password: str) -> str:
     return old.replace("postgres:postgres@", f"{role}:{password}@", 1)
 
@@ -204,7 +228,7 @@ def env_upsert_sh(key: str) -> str:
     `grep -v` ends every line it prints with a newline, so a .env whose last line has none is mended by the copy.
     """
     return (
-        "set -e; umask 077; touch .env; chmod 600 .env; t=$(mktemp ./.env.XXXXXX); "
+        "set -e; umask 077; touch .env; chmod 600 .env; t=$(mktemp ./.env.XXXXXX); trap 'rm -f \"$t\"' EXIT; "
         f"grep -v '^{key}=' .env > \"$t\" || true; "
         'cat >> "$t"; cat "$t" > .env; rm -f "$t"'
     )
@@ -215,6 +239,20 @@ def pg_up_values(body: str) -> list[str]:
         return [r["value"][1] for r in json.loads(body)["data"]["result"]]
     except (ValueError, KeyError, TypeError, IndexError):
         return []
+
+
+def verify_problems(logins: str, left: str, code: str, up: list[str]) -> list[str]:
+    """Each verify-before-step-4 check the readings fail (runbook § 3, the bullets before step 4)."""
+    problems = []
+    if logins != "glitchtip,postgres_exporter":
+        problems.append(f"scoped logins connected: {logins or 'none'}")
+    if left != "0":
+        problems.append(f"superuser sessions from the three containers: {left}")
+    if not code.isdigit() or int(code) >= 500:
+        problems.append(f"GlitchTip /api/0/ answered {code or 'nothing'}")
+    if not up or any(v != "1" for v in up):
+        problems.append(f"pg_up: {up or 'no series'}")
+    return problems
 
 
 def service_state(old_count: int, ref_count: int, expected: int) -> str | None:
@@ -233,12 +271,12 @@ def block0_spoke_sweep() -> None:
     )
     for name in ("vps2", "vps3"):
         r = run(
-            f"sudo -n grep -rIlE {shlex.quote(SWEEP_PATTERN)} /opt",
+            f"sudo -n sh -c {shlex.quote(sweep_sh())}",
             host=["ssh", "-o", "ConnectTimeout=20", name],
         )
-        if r.returncode not in (0, 1):
+        hits = sweep_result(r.stdout)
+        if hits is None:
             die(f"{name}: the sweep did not complete (rc {r.returncode}): {r.stderr.strip()[:300]}")
-        hits = sweep_hits(r.stdout)
         print(f"  {name}: {len(hits)} hit(s)" + "".join(f"\n    {h}" for h in hits))
         if hits:
             die(
@@ -425,20 +463,28 @@ def step3c_record_hub(pws: dict[str, str]) -> None:
         if not any(ln.startswith(f"{k}=") for k in HUB_ENV_KEYS.values())
     ]
     kept += [f"{k}={pws[role]}" for role, k in HUB_ENV_KEYS.items()]
-    env.write_text("\n".join(kept) + "\n")
-    env.chmod(0o600)
+    tmp = env.with_name(f".env.tmp.{STAMP}")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write("\n".join(kept) + "\n")
+    os.replace(tmp, env)  # atomic: a crash leaves the old .env or the new one, never half of it
     print(f"  {env}: set {', '.join(HUB_ENV_KEYS.values())} (values not shown); backup {backup}")
 
 
 def step3d_move(pws: dict[str, str], states: dict[str, str]) -> None:
-    for role, _db, cdir, key, old, count, svcs in SERVICES:
+    for role, db, cdir, key, old, count, svcs in SERVICES:
         fresh = states[role] == "fresh"
         gate(
             f"Step 3d — move {', '.join(svcs)} onto `{role}` ({states[role]})",
             f"Back up {cdir}/compose.yaml and {cdir}/.env; set {key} in {cdir}/.env (0600)"
             + (f"; replace the {count} old superuser DSN(s) with ${{{key}}}" if fresh else "")
-            + f"; assert `docker compose config` resolves to {role}@…; `docker compose up -d {' '.join(svcs)}`. "
-            "On any failure both files are restored and the services brought back up on them.",
+            + f"; assert `docker compose config` resolves to {role}@…/{db}; `docker compose up -d {' '.join(svcs)}`. "
+            + (
+                "On any failure both files are restored and the services brought back up on them."
+                if fresh
+                else "On any failure compose.yaml is restored and the services brought back up on the NEW .env: "
+                "step 3b already gave the role this run's password, so the old .env would be refused."
+            ),
         )
         bak = f".backup.{STAMP}"
         remote(
@@ -455,22 +501,31 @@ def step3d_move(pws: dict[str, str], states: dict[str, str]) -> None:
             if fresh:
                 remote(f"cd {cdir} && sudo sed -i {shlex.quote(sed_expr(old, key))} compose.yaml")
             rendered = remote(f"cd {cdir} && sudo docker compose config")
-            scoped = len(re.findall(rf"://{role}:[^@\s]+@postgres-main:5432/", rendered))
+            scoped = scoped_count(rendered, role, db)
             if scoped != count or old in rendered:
-                die(f"{cdir}: compose config resolves {scoped} scoped DSN(s), expected {count}")
-            print(f"  {cdir}: compose config resolves {scoped}x {role}@postgres-main — OK")
+                die(
+                    f"{cdir}: compose config resolves {scoped} scoped DSN(s) to {role}@…/{db}, expected {count}"
+                )
+            print(
+                f"  {cdir}: compose config resolves {scoped}x {role}@postgres-main:5432/{db} — OK"
+            )
             remote(up, timeout=900)
             done = True
         finally:
             if not done:
-                r = run(
-                    f"cd {cdir} && sudo cp -p compose.yaml{bak} compose.yaml && "
+                restore_env = (
                     f"if sudo test -e .env{bak}; then sudo cp -p .env{bak} .env; else sudo rm -f .env; fi && "
+                    if fresh
+                    else ""
+                )
+                r = run(
+                    f"cd {cdir} && sudo cp -p compose.yaml{bak} compose.yaml && {restore_env}"
                     f"sudo docker compose up -d {' '.join(svcs)}",
                     timeout=900,
                 )
                 print(
-                    f"  RESTORED {cdir} from *{bak} and brought {', '.join(svcs)} back up: "
+                    f"  RESTORED {cdir} ({'compose.yaml and .env' if fresh else 'compose.yaml; .env kept'}) from "
+                    f"*{bak} and brought {', '.join(svcs)} back up: "
                     f"{'OK' if r.returncode == 0 else 'FAILED rc ' + str(r.returncode) + ' — restore by hand'}",
                     file=sys.stderr,
                 )
@@ -487,41 +542,37 @@ def step3e_verify() -> None:
         "sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "
         "glitchtip-web glitchtip-worker postgres-exporter"
     ).split()
-    ip_list = ",".join(f"'{ip}'" for ip in ips if re.fullmatch(r"[0-9a-f.:]+", ip))
-    logins, left = "", "?"
+    ips = [ip for ip in ips if re.fullmatch(r"[0-9a-f.:]+", ip)]
+    if len(ips) != 3:
+        die(f"expected one address for each of the three containers, got {len(ips)}")
+    ip_list = ",".join(f"'{ip}'" for ip in ips)
     for _ in range(18):
         logins = sql(
             "select string_agg(distinct usename, ',' order by usename) from pg_stat_activity "
             "where client_addr is not null and usename in ('glitchtip','postgres_exporter');"
         )
         left = sql(
-            "select count(*) from pg_stat_activity where usename = 'postgres' "
-            f"and host(client_addr) in ({ip_list or 'NULL'});"
+            f"select count(*) from pg_stat_activity where usename = 'postgres' and host(client_addr) in ({ip_list});"
         )
-        if logins == "glitchtip,postgres_exporter" and left == "0":
+        code = run(
+            "sudo docker exec -i glitchtip-web sh -c 'python3 - 2>/dev/null || python -'",
+            stdin=_STATUS_PROBE,
+        ).stdout.strip()
+        up = pg_up_values(
+            run(
+                "sudo docker exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=pg_up'"
+            ).stdout
+        )
+        problems = verify_problems(logins, left, code, up)
+        if not problems:
             break
         time.sleep(10)
     print(
-        f"  scoped TCP logins seen: {logins or 'none'}; superuser sessions from the three containers: {left}"
+        f"  scoped TCP logins: {logins or 'none'}; superuser sessions from the three containers: {left}; "
+        f"GlitchTip /api/0/: HTTP {code or 'no answer'}; pg_up: {up or 'no series'}"
     )
-    code = run(
-        "sudo docker exec -i glitchtip-web sh -c 'python3 - 2>/dev/null || python -'",
-        stdin=_STATUS_PROBE,
-    ).stdout.strip()
-    up = pg_up_values(
-        run(
-            "sudo docker exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=pg_up'"
-        ).stdout
-    )
-    print(f"  GlitchTip /api/0/: HTTP {code or 'no answer'}   pg_up: {up or 'no series'}")
-    if logins != "glitchtip,postgres_exporter" or left != "0":
-        die(
-            "the scoped logins are not both connected, or a superuser session from these containers remains"
-        )
-    if not code.isdigit() or int(code) >= 500:
-        die("GlitchTip /api/0/ did not answer")
-    if not up or any(v != "1" for v in up):
-        die("Prometheus pg_up is not 1")
+    if problems:
+        die("verify failed after 3 minutes: " + "; ".join(problems))
     print(
         "  Manual before step 4: send one test event to GlitchTip and confirm it lands; check per-database pg_* "
         "metrics in Prometheus for every database."
