@@ -8,8 +8,8 @@ All notable changes to this project will be documented in this file.
 
 - `tests/test_hub_write_root.py` failed on master after `scripts/sysadmin/vps1_pg_scoped_logins.py` merged, because
   that script hard-codes `/opt/fabrik` and had no `ALLOWLIST` reason (W-b4ebe9f7). It is now listed as `untracked`:
-  `main()` refuses any working directory but `/opt/fabrik`, and every write lands in the gitignored `.env` or under
-  `backups/`, so pointing it at a worktree would be wrong.
+  `main()` refuses any working directory but `/opt/fabrik`, and every local write lands in the gitignored `.env` or
+  under `backups/` (its other writes are vps1 files over ssh), so pointing it at a worktree would be wrong.
 - The script's step 3c staged the new `.env` as `/opt/fabrik/.env.tmp.<stamp>`, a name no `.gitignore` rule covers, so
   a crash before the rename left a copy of the passwords loose in the hub checkout. It now stages under the gitignored
   `backups/` (same filesystem, so the rename stays atomic), and a test proves a failed rename leaves nothing new in the
