@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A loopback service MCP is emitted only once its systemd unit is installed and enabled (2026-10-24)
+
+- `fabrik-scrape` reached the hub `.mcp.json` with no server behind it, so every hub session started with a dead :8034. `scripts/sysadmin/emit_mcp_project_config.py` now withholds a `SERVICE_UNITS` server whose unit is not installed and enabled under `FABRIK_SYSTEMD_UNIT_DIR` (default `/etc/systemd/system`) and names it in its verdict line; `scripts/sysadmin/mcp_health.py` names a withheld server and a stale entry, so a forgotten install stays visible (W-07298e38, D-1214).
+
 ### Added — The operator's four Ocoron brand fills, with white text recorded as their override (2026-10-24)
 
 `.windsurf/rules/core/ocoron-design-system.md` (v3.2) adds `--color-brand-blue|magenta|green|orange` (#120AF1, #A50FEA, #08941F, #EA880F) and `--color-brand-fg` #FFFFFF, marketing fills that are never text, indicators or states; the white text is the operator's override (green 3.99:1, orange 2.62:1), recorded with its ratios in § Contrast table. `tests/test_ocoron_contrast_table.py` pins the ruled values and recomputes the override rows, the quoted ratios and the lowest on-surface ratio. W-79008127, D-1206.
