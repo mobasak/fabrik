@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Lean command corpus design: half the text and seat time, no rule lost (2026-10-25)
+
+`docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` is CONVERGED. It went through 7 review rounds,
+with confirmed findings of 25 → 8 → 3 → 7 → 1 → 1 → 0. The Opus + Fable panel approved it as D-1217 (the
+design) and D-1219 (the time budget). It is the P0 lean program, W-96f36043, ruled by the operator as D-1216.
+
+The spec sets four things:
+- Every `/fabrik-*` command is cut to half its own text. No rule may be lost, and a sentence-diff plus a YAML
+  rule ledger prove it.
+- A full measure that counts everything a command orders read, so moving text out of the command does not count
+  as a cut.
+- Two ceilings, render and reads, that only ratchet down. The FEEDBACK form gains a required, quoted `remove:`
+  field.
+- A wall-clock and seat-minutes budget for the review-family commands, with no round cap (D-355).
+
+The order is: tooling (W-a9b5e763), a `/fabrik-review-scoped` pilot, the shared files, `/fabrik-review`, then
+the rest. The review receipt is `docs/development/reviews/2026-10-25-lean-command-corpus-spec-review.md`.
+
 ### Changed — /fabrik-task reads the plan locks before the critique seats and re-reads its terminal before `--design` (2026-10-24)
 
 Phase 2 read the plan locks only after both critique seats had returned, so a locked path stopped the run after two seats were spent; the read now comes before the critique fragment that stamps the seats, and the pre-`--design` checklist re-runs it on every path, since a lock may be taken while the seats run. That checklist now opens by re-reading `--terminal` against design.md's TERMINAL as MEASURE and the critiques left it: ten earlier rejects had cited the `--terminal-amend` sentence and two more rows asked again. MEASURE replays a prior slice's stated reason when the design builds on it, and treats a count as no fail direction: before a no-change verdict rests on one, the inputs the grammar admits and the corpus lacks are constructed and run. D-1192 raises `SIZE_CAP` 26951 → 27508; `tests/test_fabrik_task_queue_pass.py` grades the new order and wording (W-0afeb296).

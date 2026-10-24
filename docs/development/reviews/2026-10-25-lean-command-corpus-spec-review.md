@@ -29,6 +29,10 @@
 
 | Pass 6 | opus×1 (A-rules owner) · the round-5 fix (2 hunks) | found: 4, new: 4, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — C4 CLOSED (pin-6:328-330, :275, :300); one in-hunk defect at the T1 site; class rewrite — T1 bullet (rounds 4, 5, 6), rewritten to one sentence; own-fix: round 5. Oscillation note: the 3 → 7 step was the § Time budget section added mid-review on the coordinator's request, not a re-scoped brief | 3ca433c034eb738c30da61fb650a5996 → bf6479292c4ec36c276350c8ab79c81e |
 
+| Pass 7 | opus×1 (round-1 owner of A-rules; B-rest and C-facts restated at their last verified counts, no open claim, no fix hunk) · the round-6 class rewrite | found: 3, new: 3, **confirmed: 0**, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the T1 sentence (pin-7:298-300) re-derived against the windows, frozen-sample, panel and before-window definitions; standing clean since their last full pass: intake, personas, facts, vendor, counts, lifecycle; 3 RECORDED — measured (the "confirmed defects per run" figure added to the measure list, the case of fewer than 5 sample surfaces, and T1 not isolated from the phase's other levers — destination: the plan set's tooling ticket and the `/fabrik-review` phase ticket) | bf6479292c4ec36c276350c8ab79c81e → bf6479292c4ec36c276350c8ab79c81e ✓ → **CONVERGED** |
+
+Design approval: answered by the Opus + Fable panel twice — D-1217 (the design) and D-1219 (§ Time budget), both APPROVE-WITH-AMENDMENTS, the amendments agreeing and folded; no split reached the operator.
+
 ## Round 6 dispositions
 
 | id | finding | disposition |

@@ -1,6 +1,6 @@
 # Lean command corpus — half the size, no rule lost
 
-Status: DRAFT
+Status: CONVERGED
 Profile: full
 Size: large
 Work item: W-96f36043 (P0) · Decisions: D-1216 (the program), D-1217 (this design, panel-approved) · Author: kaizen · 2026-10-25
