@@ -39,10 +39,6 @@ PROJECT_ROOT = Path.cwd()
 LOCK_DIR = PROJECT_ROOT / ".fabrik" / "plan-locks"
 
 _DOC_SUFFIXES = (".md", ".rst", ".txt")
-# An `owned_paths` entry made only of `*` and `/`, at least one `*`. When `_norm_path`'s emphasis
-# strip leaves no glob of it (`**` → empty, `**/**` → `/`), it is read as owning every path; the
-# shapes it keeps (`*`, `**/`) stay globs (W-9fcb6ce4).
-_ALL_STARS = re.compile(r"[*/]*\*[*/]*")
 
 
 def _active_locks() -> list[dict]:
@@ -268,20 +264,22 @@ def _check_lock(lock: dict) -> bool:
     # silenced the whole window (review findings: `[""]`, `" src/ "`, `"./src"`, `"."` all
     # live-reproduced false silences; `.` = repo root = the whole-window fallback anyway).
     # An all-dropped list degrades to the whole-window fallback, toward warning.
-    # A normalised entry that still holds `*` or `?` is a GLOB, kept as that same form (so
-    # `src//**` and `src/**:12` are cleaned to `src/**`) and matched by `_owned`'s glob reader.
-    # The one glob `_norm_path` does not keep is an all-star entry its emphasis strip eats (`**` →
-    # empty, `**/**` and `*/*` → `/`): it owns every path, so it is kept as `**` — dropped, it
-    # narrowed a mixed lock to its other entries. Every entry `_norm_path` reads as a literal or drops keeps that reading
-    # (`*src*` → `src`, `*.*` → `.` → dropped), so no shape moves toward silence (W-9fcb6ce4).
-    from check_plan_tickets import _norm_path
+    # A GLOB entry — one whose `_norm_glob` form holds `*` or `?` — is read exactly as the same
+    # lock files' discovery reader reads it (W-b2bbc1f1, D-1094): `_norm_glob` (edge backticks and
+    # quotes, `./`, `/./`) and then `_owned`'s `_glob_covers`. `_norm_path` cannot serve: its
+    # emphasis strip eats stars (`**` → empty, `**/x/**` → `/x/`, `**/*` → `*/`), so a glob it
+    # touched owned nothing or less than it spells (W-9fcb6ce4). Accepted cost, 0 of 5 720 live
+    # entries: a star-WRAPPED literal (`*src*`, `*.*`) now reads as the glob it spells.
+    from check_plan_tickets import _norm_glob, _norm_path
 
     owned = []
     for o in raw_owned:
+        g = _norm_glob(str(o))
+        if any(c in g for c in "*?"):
+            owned.append(g)
+            continue
         n = _norm_path(str(o))
-        if not any(c in n for c in "*?") and _ALL_STARS.fullmatch(str(o).strip()):
-            owned.append("**")
-        elif n and n != "." and n.strip("/"):
+        if n and n != "." and n.strip("/"):
             owned.append(n)
     baseline = str(lock["baseline_commit"])
     files = _window_files(baseline)

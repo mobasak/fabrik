@@ -813,16 +813,28 @@ def test_leading_double_star_entry_owns_any_depth(tmp_path: Path) -> None:
     assert rc == 0 and _warns(out), out
 
 
-def test_norm_path_readings_survive_the_glob_reader(tmp_path: Path) -> None:
-    # `*src*` is a star-wrapped literal `_norm_path` reads as `src` and `*.*` drops to `.` (the
-    # whole-window fallback): both WARN before and after, guarding against a move toward silence.
-    # `src//**` is cleaned by `_norm_path` to the glob `src/**`, which the literal reader owned
-    # nothing with (red on it).
-    for idx, entry in enumerate(("*src*", "*.*", "src//**")):
+def test_glob_entries_are_read_as_discovery_reads_them(tmp_path: Path) -> None:
+    # Each glob is normalised by `_norm_glob`, never `_norm_path`, whose emphasis strip ate stars:
+    # `**/deep/**` → `/deep/`, `**/*` → `*/`, `*/**` → `/*`, `*/*` → `/`, a backticked or `./`
+    # `**` → empty (dropped), so each beside `lib/` narrowed the lock and the untested `src/` change
+    # was silent. `src/?pp.py` is a `?` glob the literal reader owned nothing with. All red on it.
+    # `*/*` spells exactly two segments, so its arm ships a two-segment file.
+    deep = "src/deep/app.py"
+    shapes = (
+        ("**/deep/**", deep),
+        ("**/*", deep),
+        ("*/**", deep),
+        ("*/*", "src/app.py"),
+        ("`**`", deep),
+        ("./**", deep),
+        ('"**"', deep),
+        ("src/deep/?pp.py", deep),
+    )
+    for idx, (entry, changed) in enumerate(shapes):
         parent = tmp_path / f"case{idx}"
         parent.mkdir()
         repo, _ = _repo(parent)
-        _set_owned(repo, [entry])
-        _commit(repo, {"src/app.py": "A = 2\n"}, f"behavior, no tests, owned={entry}")
+        _set_owned(repo, [entry, "lib/"])
+        _commit(repo, {changed: "A = 2\n"}, f"behavior, no tests, owned={entry}")
         rc, out = _run(repo)
         assert rc == 0 and _warns(out), (entry, out)
