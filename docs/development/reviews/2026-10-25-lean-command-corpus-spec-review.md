@@ -27,6 +27,17 @@
 
 | Pass 5 | opus×1 (A-rules round-1 owner; B-rest had no open claim and no fix hunk) · the round-4 fixed set (scope-growth exit) | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 2 | method: re-derivation — C1-C3, C5-C7 CLOSED with their pin-5 lines quoted; `fabrik-repo-review.md:47` and `fabrik-review.md:179,502,512` re-read for the D-344 pair; orchestrator ran `check_review_hygiene.py` (1 split-table hit at the round-3 I17 row, fixed, 0 after) and `check_spec_convergence.py` on a flipped copy (1 examined, 0 findings); own-fix: round 4; 2 RECORDED — measured (folded into the C4 fix; `/fabrik-execute-plan`'s Opus floor is not a pair, one hop out) | 740d7d7bf7dd1c17e3d48c3928af31aa → 3ca433c034eb738c30da61fb650a5996 |
 
+| Pass 6 | opus×1 (A-rules owner) · the round-5 fix (2 hunks) | found: 4, new: 4, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — C4 CLOSED (pin-6:328-330, :275, :300); one in-hunk defect at the T1 site; class rewrite — T1 bullet (rounds 4, 5, 6), rewritten to one sentence; own-fix: round 5. Oscillation note: the 3 → 7 step was the § Time budget section added mid-review on the coordinator's request, not a re-scoped brief | 3ca433c034eb738c30da61fb650a5996 → bf6479292c4ec36c276350c8ab79c81e |
+
+## Round 6 dispositions
+
+| id | finding | disposition |
+|---|---|---|
+| A6-C1 | T1's spread condition never compares before and after recall | CONFIRMED (pin-6:299-302) — fixed by a class rewrite of the T1 bullet: spreads only when confirmed defects per run hold at or above the before window and the frozen sample shows no rise; else the panel reverts |
+| A6-R1 | § Lifecycle names the pinned script as the source of both cobra counters; the frozen sample is a report | RECORDED — measured (one hop, pre-existing; destination: the plan set's tooling ticket, which writes the after-window report) |
+| A6-R2 | revert by D-row vs the panel revisiting | RECORDED — measured (closed by the A6-C1 rewrite: the panel reverts) |
+| A6-R3 | fewer than 5 fast-closed surfaces in a window | RECORDED — measured (destination: the plan set's tooling ticket — sample all of them when fewer than 5) |
+
 ## Round 5 dispositions
 
 | id | finding | disposition |

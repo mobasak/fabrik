@@ -294,12 +294,10 @@ Each rule change is decided by the Opus + Fable panel. Every entry it rewrites g
   - It cuts seat-minutes and tokens, not wall-clock, because paired seats run in parallel.
   - It is proposed only on D-344's own measure, confirmed candidates per seat, which intel produces before any T1
     decision.
-  - It is the one lever that can lose recall, so it is trialled in `/fabrik-review`'s phase (§ Order step 4),
-    and its superseding D-row is provisional:
-    - The row names the before recall: confirmed defects per run, and per seat, from the before window.
-    - `/fabrik-review`'s after-window report adds the after recall and the frozen sample below.
-    - T1 spreads to the other partitioned loop only when that report shows no rise. A rise reverts it by a new
-      D-row.
+  - It is the one lever that can lose recall, so it is trialled in `/fabrik-review`'s phase (§ Order step 4), and
+    its D-row is provisional. T1 spreads to the other partitioned loop only when `/fabrik-review`'s after-window
+    report shows two things: confirmed defects per run at or above the before window's, and no rise on the frozen
+    sample below. Otherwise the panel reverts T1 by a new D-row.
 - **T3, a pass a command repeats.** The rewrite ticket names the exact pass, with its evidence, and the ruling or
   line it supersedes. Two things are not T3:
   - The full `/fabrik-review` over committed work that `/fabrik-task` runs after phase 5
