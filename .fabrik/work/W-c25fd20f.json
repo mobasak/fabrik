@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T08:35:47.489585Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-c25fd20f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each shape on the 51 /opt ledgers first, then fix the ones that fire or that fail open on a blocking leg; enforcement surface, full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "check_decisions_unique's other legs carry pre-existing gaps (found by the W-27db8c35 review, executed by its slice-A Haiku seat): check_row_shape's ratchet has no test (mutants 'gone=[]' and an early return both 26 passed); a fake header+delimiter above a stray row hides it from the stray leg; an indented row (1-3 spaces) escapes find_duplicates; a row inside a fenced block counts as a duplicate; main() reads a cwd-relative ledger and passes when run from docs/; a header under 6 cells raises IndexError in the advisory leg before the blocking legs print; an annotated or zero-padded id cell escapes the duplicate key"
+}
