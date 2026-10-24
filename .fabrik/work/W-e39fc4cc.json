@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T09:54:02.370859Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-e39fc4cc",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "skip comments in the parenthesised branch (`\\((?:[^)#]|#[^\\n]*)*?`), accept \\\\\\r?\\n continuations, and normalise a RELATIVE default tempfile dir too (`tmpk3j9_2xq/out.txt` no longer matches the round-3 (?<=/) rule: a spurious NEW red, fail-closed); add all three to the tests",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "scripts/merge_test_select.py::import_patterns under-selects two from-import spellings: a ')' inside a comment within a parenthesised import ends the scan early (`from fabrik import (\\n cli, # see (why)\\n state,\\n)` selects nothing for src/fabrik/state.py), and a CRLF backslash continuation (`cli, \\\\\\r\\n state`) is outside the one-logical-line branch — own-fix residue recorded at W-4e756979's review scope-growth stop (pass 4, 3 of 4 seats)"
+}
