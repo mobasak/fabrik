@@ -419,7 +419,7 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   parent's per-message shape — the close sums those (in-window assistant lines, per-message maximum)
   into `tok_seat_in/out/cache_read/cache_create` (each null when no seat file holds an in-window message)
   and counts them as `seats_seen`. `seats_seen` itself is null — never 0 — when the transcript was not read
-  (no path, not a file, a read that raised), and a measured 0 when it was read and no seat file sat in the window. Measured 2026-09-08: one review's 21 seats billed 69.5M input
+  (no path, not a file, no start time, a read that raised), and a measured 0 when it was read and no seat file sat in the window. Measured 2026-09-08: one review's 21 seats billed 69.5M input
   against the orchestrator's 35.7M. The FEEDBACK line prints them as `· seats N: X input / Y output`;
   a window with seats but no orchestrator message prints `tokens — · seats …`, never nothing; a seat still
   writing within 30 s of the close is summed mid-flight and the row says `seats_partial: true`; an unreadable or oversize (256 MiB) seat file is
