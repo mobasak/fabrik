@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `merge_request.py request --pretest`: the owner merge tests run once per change, and a base may declare its leg limit (2026-10-24)
+
+- `scripts/merge_request.py request --pretest` runs the base's `.fabrik/merge-tests` on the merge the owner
+  would build (a `fabrik-pretest-` throwaway at the local base) and sends only on green, recording the merged
+  tree, the script and runner hashes and the leg's seconds in `<git common dir>/fabrik-merge/pretest/<head>.json`.
+  The merge skips its own leg when its merged tree differs from that one only in CHANGELOG.md,
+  docs/DECISIONS.md, docs/LESSONS_LEARNT.md and work items, the same `merge_request.py` wrote the record and its
+  leg ran at least a minute; anything else re-runs the leg and the reply says why. On web-ecommerce-factory's
+  last 21 merges 15 would have skipped an 18-28 min run under the serial merge lock.
+- A base's `.fabrik/merge-tests` may declare `# merge-test-timeout: <seconds>`, clamped to
+  `LEG_FLOOR_S`..`MERGE_TEST_BUDGET_S`: web-ecommerce-factory's one leg now runs past 1800 s.
+- `scripts/merge_test_select.py` writes its records under `FABRIK_MERGE_TESTS_RECORDS` when set, which a pretest
+  points at a private directory. W-1fb11ec8.
+
 ### Added — The operator's four Ocoron brand fills, with white text recorded as their override (2026-10-24)
 
 `.windsurf/rules/core/ocoron-design-system.md` (v3.2) adds `--color-brand-blue|magenta|green|orange` (#120AF1, #A50FEA, #08941F, #EA880F) and `--color-brand-fg` #FFFFFF, marketing fills that are never text, indicators or states; the white text is the operator's override (green 3.99:1, orange 2.62:1), recorded with its ratios in § Contrast table. `tests/test_ocoron_contrast_table.py` pins the ruled values and recomputes the override rows, the quoted ratios and the lowest on-surface ratio. W-79008127, D-1206.

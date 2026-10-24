@@ -190,6 +190,12 @@ def _ignored() -> set[str]:
 
 
 def _record_path(base: str) -> Path:
+    # `merge_request.py request --pretest` runs this leg outside the merge lock and points the records
+    # at a private directory, so a pretest never rewrites the record a concurrent merge's base-alone
+    # re-run reads (W-1fb11ec8)
+    override = os.environ.get("FABRIK_MERGE_TESTS_RECORDS")
+    if override:
+        return Path(override) / f"merge-tests-{base}.txt"
     common = Path(_git("rev-parse", "--path-format=absolute", "--git-common-dir").strip())
     return common / "fabrik-merge" / f"merge-tests-{base}.txt"
 
