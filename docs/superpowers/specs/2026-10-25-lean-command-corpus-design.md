@@ -56,7 +56,7 @@ pages were read with `exa web_fetch`; IFScale was first located by `WebSearch`.
   (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices).
 - IFScale: "even the best frontier models only achieve 68% accuracy at the max density of 500 instructions"
   (https://arxiv.org/abs/2507.11538).
-- Anthropic's Claude 4 prompting guidance recommends giving a one-clause reason ("…so never use ellipses since
+- Anthropic's "Prompting best practices" page (formerly the Claude 4 page; its URL is unchanged) recommends giving a one-clause reason ("…so never use ellipses since
   the text-to-speech engine will not know how to pronounce them") and "Tell Claude what to do instead of what not
   to do". It never recommends narrating a rule's history
   (https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-4-best-practices).
