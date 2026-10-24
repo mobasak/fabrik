@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-0fae19b7",
-  "impact": "low",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,11 +13,11 @@
     "plan": "",
     "spec": ""
   },
-  "next": "infra: when the UserPromptSubmit ROTATE-DUE line fired this session and the footer reads 'awaiting the rotation', the work-waiting cause stands down (the contract: once a rotation is due, start no new item)",
+  "next": "resume from seed ~/.claude/state/command-runs/seeds/89110d4e-3d45-46ff-a631-8d9419bb12e6-88f4572d49c04f59.md (command_run.py start --resume-from <seed>); design + Opus/Fable critiques folded, kaizen consented to the final_gate_stop.py edit inside its plan lock; ADD the feedback-queue cause to the design (kaizen's case, infra mail 01M5MST4C9): both the work-waiting and the feedback causes stand down when ROTATE-DUE fired and the turn ends on 'NEXT: none — terminal; awaiting the rotation'; leave the one hooks-index clause to fleet (Deck lock, no answer yet)",
   "note": "",
   "owner": "infra-2",
-  "priority": 3,
-  "score_reason": "the Stop hook blocks a builder on the footer the rotation rule prescribes; one cause check plus its test",
+  "priority": 1,
+  "score_reason": "HIGH (re-scored on new evidence): a block on agents — the Stop hook's work-waiting and feedback causes block builders at every rotation boundary (kaizen and infra-3 both hit it 2026-10-24, three blocked attempts each); effort low: about 40 lines, designed, lock owner consented",
   "status": "open",
   "tags": [
     "queued"

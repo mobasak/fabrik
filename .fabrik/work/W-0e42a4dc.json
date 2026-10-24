@@ -3,7 +3,7 @@
   "created": "2026-10-07T01:12:04.417474Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "1d420c73c937598378a84a5e7ad67cbade8c39ec",
   "id": "W-0e42a4dc",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — command wording prescribes a shape the isolation check refuses (6 hits, one file)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "corpus"
   ],

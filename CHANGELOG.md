@@ -17,6 +17,17 @@ Claude Code renames a transcript it relocates over to `<session>.jsonl.supersede
 - `--restore` refuses a session id that was pruned under two slugs, and asks for `--slug=<slug>`.
 
 D-1188, W-a2cae11b; `docs/workstation/session-history-retention.md` § Set-asides.
+### Added — the hub's own merge-time test leg: differential, name-reference selection (2026-10-24)
+
+- `.fabrik/merge-tests` runs `scripts/merge_test_select.py` in each merge's build tree (W-4e756979, D-1189). The tests it selects are those naming a changed path (file, module stem, import, specific directory) plus every `ls-files` tree grader. They run in 8 shards, each red is confirmed alone and then in its shard's order, and the leg refuses only a red that is new against the base. Master's own reds pass. Without it, `merge_request.py` ran only the tests a branch touched, and the measured red-master merges were each red by themselves. All 17 measured cause merges select their red grader. Three real merges took 487 / 1189 / 1172 s, so the coordinator runs merges in the background (`scripts/rund --timeout 2100 -- capped_run.sh --timeout 2000 -- merge_request.py merge <id>`). The leg is on for every merge by D-1186, from the merge after the one that lands it.
+
+### Fixed — /fabrik-execute-plan's commit recipes write the message to a file, never a heredoc (2026-10-24)
+
+The command showed its six commit recipes as `git commit -m "$(cat <<'EOF' … EOF)"`, the compound shape the worktree isolation check may refuse. Each now writes the message with the Write tool to a per-commit file in the session scratchpad (`<scratch>/msg-<name>`; a subagent's is `msg-phase-{X}-task-{N}`, since parallel subagents may share the scratchpad) and commits with `git commit -F`, as `docs/reference/multi-agent-operating-model.md` already ruled; the archive step's `-m` and the merge-conflict comment's `&&` follow, and step 5 says one command per call. Scoped review CONVERGED 8 → 0 over three readers (W-0e42a4dc).
+
+### Fixed — the red-master rework count no longer counts a hypothetical (2026-10-24)
+
+`scripts/sysadmin/kaizen_waste.py`'s `waste_red_master_rework` counted a hypothetical mention as a red master. A phrase whose verb is governed by a modal ("would turn", "won't go", "could've turned", "would also turn", "is going to turn") no longer counts; a modal elsewhere in the sentence, a conjunction between ("will be fine now since master is red"), and any other phrase in the same message, still do. Over origin/master's 10,887 non-merge commits (2026-10-24) the count moves 32 → 30, exactly the two hypotheticals. The metric moves to v2, a new series; breakdown rows now carry their definition version (`def`) and `kaizen_digest.py` reads only the rows matching the series it judges. Run `kaizen_waste.py --backfill` once after the merge, or the red-master chart has no limits for 14 days (W-d633d5f5).
 
 ### Fixed — five hooks-index table rows no longer split their cells on a pipe inside a code span (2026-10-24)
 
@@ -29,6 +40,10 @@ GFM splits a table cell on an unescaped `|` even inside a code span, so rows 21,
   classifier refuses the fleet agent's commands on vps1, so the operator runs it. Passwords and verifiers travel only
   on ssh stdin. A failed service move restores its files and restarts the service, and a re-run finishes a run that
   stopped half-way. Step 4 is not in it. Graders: `tests/test_vps1_pg_scoped_logins.py`.
+
+### Fixed — review seats run pytest only on a staged tree, from a base copy (2026-10-24)
+
+- In a review of W-25f6b2a3, 3 of 4 finder seats skipped the `PIN_IMPORT`/`PYTEST_PINS` recipe and ran pytest on a copy of the pinned files with `--noconftest`. That copy holds no conftest, and the flag drops the hub's memory watchdog and alert mute. The probe catalogue's § Seat isolation now has a bullet saying a copy of the pins alone is not a test tree. A Python test runs only through pytest, on the recipe's whole archive, the lead's base copy or the clone, with no conftest or pytest config dropped or redirected; a test that cannot run that way is unverified. A brief whose seats run pytest or import pinned code takes its pin with `--base`, so each seat copies that whole commit in place of the archive steps, and the lead removes the copy once the pass is adjudicated. The rule is graded by `tests/test_seat_recipe_readable.py`. D-1187, mail 01M5MVZ2NF (W-f1191ec5).
 
 ### Fixed — /fabrik-review-scoped says how to pin a surface that is already committed (2026-10-24)
 
