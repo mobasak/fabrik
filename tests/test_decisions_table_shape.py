@@ -9,14 +9,17 @@ or bare "—" cell (D-561, W-61380819)."""
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
+
+from scripts.enforcement.check_decisions_unique import _masked
 
 LEDGER = Path(__file__).resolve().parents[1] / "docs" / "DECISIONS.md"
 
 
 def _bare_pipes(line: str) -> int:
-    return re.sub(r"`[^`]*`", "", line.replace("\\|", "")).count("|")
+    """The pipes that separate cells: the checker's own mask hides an escaped pipe and one inside a
+    code span, so this count and its `malformed_ids` cannot drift apart (W-27db8c35)."""
+    return _masked(line).count("|")
 
 
 def test_every_decision_row_has_the_separator_column_count():

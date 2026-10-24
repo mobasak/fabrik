@@ -250,3 +250,87 @@ def test_a_cell_of_only_punctuation_reads_as_empty():
             )
         else:
             assert "D-902" in got, filler
+
+
+# W-27db8c35: the mask read code spans with a one-backtick regex, so a run of two or more backticks
+# paired with the wrong partner. D-1159 (a quoted triple-backtick closer) read 4 cells against 6.
+_LONG_RUN_ROWS = {
+    "triple run (D-1159)": (
+        '| D-903 | 2026-10-24 | infra | the "``` info" closer and `x` | a reason | `y.py` |'
+    ),
+    "double span holding a pipe": (
+        "| D-904 | 2026-10-24 | infra | ran ``a|b`` here | a reason | `y.py` |"
+    ),
+    "double span holding a backtick": (
+        "| D-905 | 2026-10-24 | infra | the ``a`b`` span | a reason | `y.py` |"
+    ),
+}
+
+
+@pytest.mark.parametrize("row", _LONG_RUN_ROWS.values(), ids=_LONG_RUN_ROWS.keys())
+def test_a_backtick_run_pairs_only_with_a_run_of_its_own_length(row):
+    from scripts.enforcement.check_decisions_unique import malformed_ids
+
+    assert malformed_ids(_SHAPE_HEAD + row + "\n") == {}
+
+
+def test_an_escaped_backtick_opens_no_span():
+    """A backslash before a backtick makes it literal (GFM, and decisions.py's _rows split), so the
+    pipe after it is a real separator: this row has SEVEN cells and must not read as six."""
+    from scripts.enforcement.check_decisions_unique import _cells
+
+    row = "| D-906 | 2026-10-24 | infra | \\`a | b\\` | a reason | `y.py` |"
+    assert len(_cells(row)) == 7
+
+
+def test_a_short_row_with_a_long_backtick_run_is_still_malformed():
+    from scripts.enforcement.check_decisions_unique import malformed_ids
+
+    short = _SHAPE_HEAD + "| D-907 | 2026-10-24 | infra | the ``` x and `y` | a reason |\n"
+    assert malformed_ids(short) == {"D-907": "5 cells, header has 6"}
+
+
+def test_a_long_run_pairs_across_cells_by_design():
+    """The STATED COST of pairing over the whole row (intel 01M4405E keeps a pipe inside a span as
+    text, so spans are found before the split): a lone double run in one cell pairs with a double
+    span two cells later and hides both separators between them. 0 live rows in 2896 (2026-10-24);
+    pinned so a change to it is a decision, not an accident."""
+    from scripts.enforcement.check_decisions_unique import _cells
+
+    assert len(_cells("| D-908 | 2026-10-24 | infra | use `` here | why | ``x`` where |")) == 4
+
+
+def test_the_shape_test_counts_through_the_checkers_mask():
+    """tests/test_decisions_table_shape.py counts bare pipes with the checker's own mask, so the two
+    counters cannot drift; a row missing its trailing pipe, or carrying a doubled one, still counts
+    every bare pipe it has."""
+    import tests.test_decisions_table_shape as shape
+
+    assert shape._bare_pipes("| D-1 | d | w | what | why | where") == 6
+    assert shape._bare_pipes("| D-1 | d | w | what | why | where ||") == 8
+    assert shape._bare_pipes(_LONG_RUN_ROWS["triple run (D-1159)"]) == 7
+
+
+def test_the_live_hub_ledger_masks_what_decisions_py_masks():
+    """On every row of the hub ledger the checker hides exactly the pipes that decisions.py's own
+    code-span reader (the ledger writer's) puts inside a span, plus every escaped pipe."""
+    import scripts.decisions as dec
+    from scripts.enforcement.check_decisions_unique import _masked
+
+    text = (Path(__file__).resolve().parents[2] / "docs" / "DECISIONS.md").read_text(
+        encoding="utf-8"
+    )
+    rows = [ln for ln in text.splitlines() if ln.startswith("| D-")]
+    assert len(rows) > 1000
+    for ln in rows:
+        spans = dec._code_span_ranges(ln)
+        out, i = [], 0
+        while i < len(ln):
+            if ln[i] == "\\" and ln[i + 1 : i + 2] == "|":
+                out.append("\0")
+                i += 2
+                continue
+            inside = any(a <= i < b for a, b in spans)
+            out.append("\0" if ln[i] == "|" and inside else ln[i])
+            i += 1
+        assert _masked(ln) == "".join(out), ln[:40]
