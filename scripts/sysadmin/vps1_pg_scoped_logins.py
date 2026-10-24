@@ -463,7 +463,8 @@ def step3c_record_hub(pws: dict[str, str]) -> None:
         if not any(ln.startswith(f"{k}=") for k in HUB_ENV_KEYS.values())
     ]
     kept += [f"{k}={pws[role]}" for role, k in HUB_ENV_KEYS.items()]
-    tmp = env.with_name(f".env.tmp.{STAMP}")
+    # staged under the gitignored backups/ (same filesystem): a crash strands no secret in the hub root
+    tmp = HUB / "backups" / f".env.tmp.{STAMP}"
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as fh:
         fh.write("\n".join(kept) + "\n")
