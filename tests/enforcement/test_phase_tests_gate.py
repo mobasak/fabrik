@@ -814,11 +814,12 @@ def test_leading_double_star_entry_owns_any_depth(tmp_path: Path) -> None:
 
 
 def test_glob_entries_are_read_as_discovery_reads_them(tmp_path: Path) -> None:
-    # Each glob is normalised by `_norm_glob`, never `_norm_path`, whose emphasis strip ate stars:
-    # `**/deep/**` → `/deep/`, `**/*` → `*/`, `*/**` → `/*`, `*/*` → `/`, a backticked or `./`
-    # `**` → empty (dropped), so each beside `lib/` narrowed the lock and the untested `src/` change
-    # was silent. `src/?pp.py` is a `?` glob the literal reader owned nothing with. All red on it.
-    # `*/*` spells exactly two segments, so its arm ships a two-segment file.
+    # Each glob keeps every wildcard it spells: `_norm_path`'s emphasis strip ate stars (`**/deep/**`
+    # → `/deep/`, `**/*` → `*/`, `*/**` → `/*`, `*/*` → `/`, a backticked or `./` `**` → empty), so
+    # each beside `lib/` narrowed the lock and the untested `src/` change was silent; `?` owned
+    # nothing on the literal prefix compare. Every arm is red on that literal reader (f6969d61e).
+    # The debris arms (`src//**`, `src/**:12`) are red on a bare `_norm_glob` read, which keeps them
+    # verbatim. `*/*` spells exactly two segments, so its arm ships a two-segment file.
     deep = "src/deep/app.py"
     shapes = (
         ("**/deep/**", deep),
@@ -829,6 +830,8 @@ def test_glob_entries_are_read_as_discovery_reads_them(tmp_path: Path) -> None:
         ("./**", deep),
         ('"**"', deep),
         ("src/deep/?pp.py", deep),
+        ("src//**", deep),
+        ("src/**:12", deep),
     )
     for idx, (entry, changed) in enumerate(shapes):
         parent = tmp_path / f"case{idx}"
@@ -838,3 +841,13 @@ def test_glob_entries_are_read_as_discovery_reads_them(tmp_path: Path) -> None:
         _commit(repo, {changed: "A = 2\n"}, f"behavior, no tests, owned={entry}")
         rc, out = _run(repo)
         assert rc == 0 and _warns(out), (entry, out)
+
+
+def test_two_segment_glob_does_not_own_a_deeper_path(tmp_path: Path) -> None:
+    # `*/*` is exactly two segments: an untested three-segment change is outside the lock, so the
+    # window is silent. Red if `*/*` ever over-owns again (the deleted all-star rule read it as `**`).
+    repo, _ = _repo(tmp_path)
+    _set_owned(repo, ["*/*"])
+    _commit(repo, {"src/deep/app.py": "A = 2\n"}, "behavior three segments deep, no tests")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out

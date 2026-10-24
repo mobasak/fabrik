@@ -257,29 +257,31 @@ def _check_lock(lock: dict) -> bool:
         # Any other type (int, dict, …) falls back to the whole window — toward warning,
         # never toward silence (review finding: an int aborted the WHOLE run pre-isolation).
         raw_owned = []
-    # Entries are normalized through the SSOT `_norm_path` (check_plan_tickets — the very
+    # A LITERAL entry is normalized through the SSOT `_norm_path` (check_plan_tickets — the very
     # function that builds File-Scope tokens, so every form IT accepts is a real input
     # shape here): strips padding, `./` prefixes, emphasis/backtick wraps, `/./`
     # self-references. Empty, `.`, and slash-only entries drop — each matched NOTHING and
     # silenced the whole window (review findings: `[""]`, `" src/ "`, `"./src"`, `"."` all
     # live-reproduced false silences; `.` = repo root = the whole-window fallback anyway).
     # An all-dropped list degrades to the whole-window fallback, toward warning.
-    # A GLOB entry — one whose `_norm_glob` form holds `*` or `?` — is read exactly as the same
-    # lock files' discovery reader reads it (W-b2bbc1f1, D-1094): `_norm_glob` (edge backticks and
-    # quotes, `./`, `/./`) and then `_owned`'s `_glob_covers`. `_norm_path` cannot serve: its
-    # emphasis strip eats stars (`**` → empty, `**/x/**` → `/x/`, `**/*` → `*/`), so a glob it
-    # touched owned nothing or less than it spells (W-9fcb6ce4). Accepted cost, 0 of 5 720 live
-    # entries: a star-WRAPPED literal (`*src*`, `*.*`) now reads as the glob it spells.
+    # A GLOB entry — one whose `_norm_glob` form holds `*` or `?` — is read as the same lock
+    # files' discovery reader reads it (W-b2bbc1f1, D-1094): `_norm_glob` (edge backticks and
+    # quotes, `./`, `/./`), then `_owned`'s `_glob_covers`. `_norm_path`'s emphasis strip eats
+    # stars (`**` → empty, `**/x/**` → `/x/`, `**/*` → `*/`), so its form is taken only when it
+    # keeps every `*` and `?` of the `_norm_glob` form — then it removed debris alone (`src//**`,
+    # `src/**:12`, `src/**.` → `src/**`), which discovery leaves unmatched (W-9fcb6ce4). Accepted
+    # cost, 0 of 5 720 live entries: an entry reads as the glob it spells — a star-WRAPPED literal
+    # (`*src*`, `*.*`) included, and `*/*` owns exactly two segments and `***` one.
     from check_plan_tickets import _norm_glob, _norm_path
 
     owned = []
     for o in raw_owned:
         g = _norm_glob(str(o))
-        if any(c in g for c in "*?"):
-            owned.append(g)
-            continue
         n = _norm_path(str(o))
-        if n and n != "." and n.strip("/"):
+        if any(c in g for c in "*?"):
+            keeps_wildcards = sum(n.count(c) for c in "*?") == sum(g.count(c) for c in "*?")
+            owned.append(n if keeps_wildcards else g)
+        elif n and n != "." and n.strip("/"):
             owned.append(n)
     baseline = str(lock["baseline_commit"])
     files = _window_files(baseline)
