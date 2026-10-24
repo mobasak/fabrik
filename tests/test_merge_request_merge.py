@@ -1926,3 +1926,88 @@ def test_base_alone_names_an_outer_timeout_and_a_check_that_could_not_run(world,
     reason = world.record(second)["reason"]
     assert reason.startswith("(a)-(d) build, preflight, tests, CAS: owner tests red"), reason
     assert "not checked (the check could not run: the base tree is unusable)" in reason, reason
+
+
+# --- W-347cd0c3: one owner-test budget per invocation, inside the documented wrapper -------------
+def _logging_runner(world) -> Path:
+    """A stand-in for capped_run.sh that logs its argv and honours ``--timeout`` with coreutils
+    ``timeout`` (exit 124 on the limit, as capped_run's own time limit exits)."""
+    log = world.tmp / "runner.log"
+    runner = world.tmp / "runner.sh"
+    runner.write_text(
+        f'#!/bin/sh\necho "$*" >> {log}\nshift\nt="$1"\nshift 2\nexec timeout "$t" "$@"\n',
+        encoding="utf-8",
+    )
+    runner.chmod(0o755)
+    world.mp.setenv("FABRIK_CAPPED_RUN", str(runner))
+    return log
+
+
+def test_the_owner_test_budget_refuses_before_any_outer_wrapper(world):
+    import time
+
+    log = _logging_runner(world)
+    # the budget (3 s) is shorter than one leg's limit (60 s): the leg is stopped at what is left
+    world.mp.setattr(world.mod, "TEST_TIMEOUT_S", 60)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 3, raising=False)
+    world.mp.setattr(world.mod, "LEG_FLOOR_S", 1, raising=False)
+    world.write(".fabrik/merge-tests", "sleep 30\n")
+    world.commit_main("slow owner tests", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"s.txt": "s\n"}, msg="s"))
+    t0 = time.monotonic()
+    assert world.run("merge") == 1
+    took = time.monotonic() - t0
+    reason = world.record(msg_id)["reason"]
+    assert "budget" in reason and "not a test verdict" in reason, reason
+    assert f"`merge_request.py retry {msg_id}`" in reason, reason
+    assert "on base alone" not in reason and "owner tests red" not in reason, reason
+    limits = [int(ln.split()[1]) for ln in log.read_text().splitlines()]
+    assert len(limits) == 1 and 1 <= limits[0] <= 3, limits  # one leg, at what the budget left
+    assert took < 25, took  # the leg was stopped at the budget, not run for its 30 s
+
+
+def test_a_spent_budget_starts_no_leg_and_a_catch_up_names_resume(world):
+    log = _logging_runner(world)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 0, raising=False)
+    world.write(".fabrik/merge-tests", "true\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"n.txt": "n\n"}, msg="n"))
+    before = world.state()
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "budget" in reason and f"`merge_request.py retry {msg_id}`" in reason, reason
+    assert not log.exists(), log.read_text()  # no leg started, so the runner never ran
+    after = world.state()
+    assert (after["refs"], after["origin"]) == (before["refs"], before["origin"])
+    # a catch-up refused by the budget is a new run's job, never a hand merge
+    spent = getattr(world.mod, "BudgetSpentError", world.mod.RefusedError)
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    text = world.mod._catch_up_refused(ctx, {"id": msg_id, "base": "master"}, "origin", spent("x"))
+    assert f"`merge_request.py resume {msg_id}` again" in text and "by hand" not in text, text
+
+
+def test_the_documented_merge_wrapper_covers_the_budget():
+    """The newest decision row naming the merge command must give capped_run room for the whole
+    budget plus the push, the sync and 300 s for builds, preflights, the carry and the reply, and
+    rund a longer bound than capped_run (a shorter outer bound kills the merge mid-push)."""
+    import re
+
+    mod = _load_module()
+    rows = (Path(__file__).resolve().parents[1] / "docs" / "DECISIONS.md").read_text(
+        encoding="utf-8"
+    )
+    shape = re.compile(
+        r"rund --timeout (\d+) -- \S*capped_run\.sh --timeout (\d+) -- python3 "
+        r"scripts/merge_request\.py merge"
+    )
+    found = [
+        (int(m.group(1)), int(m.group(2)), int(d))
+        for d, line in re.findall(r"(?m)^\| D-(\d+) (.*)$", rows)
+        for m in shape.finditer(line)
+    ]
+    assert found, "no decision row documents the merge command"
+    outer, capped, _row = max(found, key=lambda f: f[2])
+    need = (
+        getattr(mod, "MERGE_TEST_BUDGET_S", 10**9) + mod.PUSH_TIMEOUT_S + mod.SYNC_TIMEOUT_S + 300
+    )
+    assert capped >= need and outer > capped, (outer, capped, need)

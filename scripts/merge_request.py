@@ -74,6 +74,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -534,6 +535,12 @@ LEDGERS = frozenset(
 DECISIONS = "docs/DECISIONS.md"
 MAX_REBUILDS = 3  # (d): the build is redone in full at most this many times, then it refuses
 TEST_TIMEOUT_S = 1800
+# One owner-test budget per INVOCATION (W-347cd0c3): every rebuild after a failed CAS (up to
+# MAX_REBUILDS + 1 builds) and the catch-up re-run the whole leg, so a per-leg limit alone bounds no
+# merge. Two full legs: a build and one rebuild. The documented wrapper (capped_run --timeout 5400)
+# covers it plus PUSH_TIMEOUT_S, SYNC_TIMEOUT_S and 300 s for the builds, preflights, carry and reply.
+MERGE_TEST_BUDGET_S = 2 * TEST_TIMEOUT_S
+LEG_FLOOR_S = 60  # under a minute left, no leg starts: a stub run tells nothing and holds the lock
 PUSH_TIMEOUT_S = 600
 SYNC_TIMEOUT_S = 900
 EXIT_OK = 0
@@ -557,6 +564,11 @@ def on_phase(name: str) -> None:
     edit a path at that exact point; there is deliberately no environment variable or flag that
     reaches it, so a production run has no injection path."""
     del name
+
+
+class BudgetSpentError(RefusedError):
+    """This invocation's owner-test budget ran out — not a test verdict; a new run (``retry`` or
+    ``resume``) has a new budget."""
 
 
 class ConflictError(RefusedError):
@@ -585,6 +597,21 @@ class _Ctx:
         # remotes a fetch could not reach THIS run: a request on one defers without another fetch,
         # and the inbox is served only for requests on other remotes (one timeout per remote)
         self.unreachable: set[str] = set()
+        # every owner-test leg of this invocation draws on one budget (_leg_timeout)
+        self.test_deadline = time.monotonic() + MERGE_TEST_BUDGET_S
+        self.leg_limit = TEST_TIMEOUT_S
+
+
+def _leg_timeout(ctx: _Ctx) -> int:
+    """The next leg's limit: a full leg, or what is left of the budget; under LEG_FLOOR_S left no
+    leg starts (BudgetSpentError)."""
+    left = int(ctx.test_deadline - time.monotonic())
+    if left < LEG_FLOOR_S:
+        raise BudgetSpentError(
+            f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) is spent — no leg started, "
+            "not a test verdict"
+        )
+    return min(TEST_TIMEOUT_S, left)
 
 
 def _lit_env() -> dict:
@@ -1283,12 +1310,20 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         ]
         if not touched:
             return "no owner tests ran (no .fabrik/merge-tests, no touched tests/)"
+    spent = (
+        f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) ran out during the leg "
+        f"(stopped at {{}}s) — not a test verdict"
+    )
     try:
         run, label = _run_owner_leg(ctx, wt, script, touched)
     except TimedOutError as exc:
+        if ctx.leg_limit < TEST_TIMEOUT_S:
+            raise BudgetSpentError(spent.format(ctx.leg_limit)) from exc
         exc.base_old = old  # type: ignore[attr-defined]
         exc.base_alone_skip = "the merged run timed out"  # type: ignore[attr-defined]
         raise
+    if run.returncode == 124 and ctx.leg_limit < TEST_TIMEOUT_S:
+        raise BudgetSpentError(spent.format(ctx.leg_limit))  # no base_old: no base-alone run
     if run.returncode != 0:
         tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
         why = f"; NOTE: {note}" if note else ""
@@ -1317,7 +1352,9 @@ def _run_owner_leg(
     ctx: _Ctx, wt: Path, script: str, touched: list[str]
 ) -> tuple[subprocess.CompletedProcess, str]:
     """One run of the owner's tests in ``wt``: ``script`` (the base's merge-tests) when given,
-    else pytest over ``touched``. Returns the finished process and its label."""
+    else pytest over ``touched``. Returns the finished process and its label. Its limit is
+    ``_leg_timeout``'s, kept on ``ctx.leg_limit`` so the caller can tell a spent budget from a red."""
+    limit = ctx.leg_limit = _leg_timeout(ctx)
     if script:
         pythonpath = os.pathsep.join(
             p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
@@ -1325,7 +1362,7 @@ def _run_owner_leg(
         env = {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath}
         argv, label = ["sh", "-e", "-c", script], ".fabrik/merge-tests (base copy)"
         # the outer bound only catches a runner that itself hangs; the runner stops the tests first
-        return _run(_capped(argv, TEST_TIMEOUT_S), TEST_TIMEOUT_S + 60, cwd=wt, env=env), label
+        return _run(_capped(argv, limit), limit + 60, cwd=wt, env=env), label
     venv = ctx.main / ".venv" / "bin" / "python"
     py = str(venv) if os.access(venv, os.X_OK) else sys.executable
     label = f"pytest {' '.join(touched)} under {py}"
@@ -1333,8 +1370,8 @@ def _run_owner_leg(
         Path(shim, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
         env = _fallback_env(wt, Path(shim))
         run = _run(
-            _capped([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S),
-            TEST_TIMEOUT_S + 60,
+            _capped([py, "-m", "pytest", "-q", *touched], limit),
+            limit + 60,
             cwd=wt,
             env=env,
         )
@@ -1809,6 +1846,10 @@ def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
         except RefusedError as exc:
             # the request leg only: a catch-up's refusal parks for `resume`, so it gets no verdict;
             # the merge throwaway is already removed here, so the base-alone one is never nested
+            if isinstance(exc, BudgetSpentError):
+                raise BudgetSpentError(
+                    f"{exc}; the owner retries with `merge_request.py retry {rec['id']}`"
+                ) from exc
             if not hasattr(exc, "base_old") or isinstance(exc, UnreachableError):
                 raise
             raise RefusedError(f"{exc}{_base_alone(ctx, rec, exc.base_old, exc)}") from exc
@@ -1920,6 +1961,8 @@ def _catch_up_refused(ctx: _Ctx, rec: dict, remote: str, exc: RefusedError) -> s
             f"into {base} by hand, then {resume_cmd}"
         )
     why = " ".join(str(exc).split())
+    if isinstance(exc, BudgetSpentError):
+        return f"the catch-up merge of {remote}/{base} into {base} stopped ({why}); {resume_cmd} again (a new run, a new budget)"
     return (
         f"the catch-up merge of {remote}/{base} into {base} refused ({why}); merge "
         f"{remote}/{base} into {base} by hand, then {resume_cmd}"
