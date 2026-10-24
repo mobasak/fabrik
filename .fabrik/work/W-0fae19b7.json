@@ -3,7 +3,7 @@
   "created": "2026-10-23T00:23:02.329395Z",
   "creator": "infra-2",
   "effort": "low",
-  "evidence": "",
+  "evidence": "52ca1e9aa37b598460d0763b9b14e08fee156596",
   "id": "W-0fae19b7",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 3,
   "score_reason": "the Stop hook blocks a builder on the footer the rotation rule prescribes; one cause check plus its test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
