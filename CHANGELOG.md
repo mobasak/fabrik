@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rotate-session says whether asking again can pass: exit 75 transient, 1 permanent (2026-10-25)
+
+`scripts/sysadmin/rotate_session.py request` exited 1 on every abort, so the coordinator retried a session with no identity binding yet (which only a `--force` re-bind clears) exactly as it retried a busy one. It now exits 75 when the abort clears by itself (the session in its turn, a run or seat going, the rotation in flight, tmux slow, a pane restarting or drawn without its box) and 1 only on positive evidence that an act comes first (a bad argument, a permission or choice dialog, text in the input box, two transcripts, no binding yet or one held by another window, uncommitted or unpushed work, a slash-command ending, a request the unit never claimed). The stderr line says `(transient …)` or `(permanent …)` and what to do; "no identity binding yet" names the re-bind command. A tmux timeout, which escaped as a traceback, now rows `aborted:tmux`. `docs/workstation/session-history-retention.md` names the exits. W-05021a03, D-1220.
+
 ### Added — The operator's four Ocoron brand fills, with white text recorded as their override (2026-10-24)
 
 `.windsurf/rules/core/ocoron-design-system.md` (v3.2) adds `--color-brand-blue|magenta|green|orange` (#120AF1, #A50FEA, #08941F, #EA880F) and `--color-brand-fg` #FFFFFF, marketing fills that are never text, indicators or states; the white text is the operator's override (green 3.99:1, orange 2.62:1), recorded with its ratios in § Contrast table. `tests/test_ocoron_contrast_table.py` pins the ruled values and recomputes the override rows, the quoted ratios and the lowest on-surface ratio. W-79008127, D-1206.
