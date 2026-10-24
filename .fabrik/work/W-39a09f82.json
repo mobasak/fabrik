@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-23T17:50:48.035983Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-39a09f82",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "probe first: does a PreToolUse deny run before Claude Code's built-in ask? then the hook + regression test; heavy surface (hook) → full /fabrik-review; register only in the reviewed commit",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "HIGH: completes the operator's D-1172 'no agent waits on a prompt' for every agent; effort high: a new fleet-synced hook needs a probe and the full review — a major, held behind infra's in-flight major",
+  "status": "open",
+  "title": "D-1172 'any agent' half: a PreToolUse hook that denies at once the Bash shape that trips Claude Code's built-in worktree-isolation ask (sed/awk/head given a shell variable, multi-command calls on such paths), telling the agent to use the Read tool or split the call — fail closed for every agent, not just rotated ones (infra proposal with W-1783a9fe, D-1173)"
+}

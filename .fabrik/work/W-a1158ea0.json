@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-62d2ce7d"
+  ],
+  "created": "2026-10-24T08:39:38.459835Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a1158ea0",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fresh branch from master after W-62d2ce7d merges; the exact sentence is in the coordinator's message to kaizen; pin test; full /fabrik-review (sync path)",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: a rule update in every repo's contract, part of an operator ask (D-1182); effort low: one sentence in two pinned copies; held until the code it describes lands",
+  "status": "open",
+  "title": "D-1182 follow-on: CLAUDE.md + templates/governance/CLAUDE.md Session history bullet still says subagent transcripts are 'NEVER archived' — replace with infra's sentence and widen --restore to <session_id | agent-<id>>, after W-62d2ce7d lands (both paths are in kaizen's 2026-10-22 plan lock)"
+}

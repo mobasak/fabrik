@@ -9,8 +9,10 @@ scripted tmux, a fake /proc tree, a registry, an identity store, a transcript an
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -374,6 +376,8 @@ def test_execute_rotates_and_records(world, monkeypatch):
         and row["old_sid"] == SID
         and row["predecessor_row"] is True
     )
+    # W-b72231b8 review r2: /opt/x is no checkout the old session's binding names, so nothing is written
+    assert row["registry"] == "refused:repo", row
     assert row["trigger"] == "ctx" and row["ctx_pre"] == 450000
     keys = _keys(world)
     assert (
@@ -1115,3 +1119,334 @@ def test_w_ee19169d_review_r2_exact_box_at_the_key_and_rewind_only_without_a_box
     row = _rows(world)[-1]
     assert row["outcome"] == "refused:stale-input" and "did not read empty" in row["reason"], row
     assert _keys(world) == [["-t", "%5", "Escape", "Escape"]], _keys(world)
+
+
+def test_w1783a9fe_resume_prompt_steers_off_the_isolation_prompt():
+    """W-1783a9fe: a rotated builder's first turn prints 40-47 KB, the harness saves it to a file, and paging that file
+    with `sed` on a shell variable stops Claude Code's worktree-isolation check for a person. The resume prompt sends the
+    notes and any saved output to the Read tool and every command to a plain call of its own; its prefix and re-bind
+    command stay as `_send` and the fake tmux match them."""
+    text = rs.resume_prompt("dev1")
+    assert text.startswith("You were rotated"), text
+    assert "/opt/fabrik/scripts/whoami_agent.py --as dev1 --force" in text, text
+    assert "and carry on. Read your memory notes and seed with the Read tool, not cat" in text, text
+    assert (
+        "run each command, git included, as a separate Bash call (the self-watch arm stays in the background)"
+        in text
+    )
+    assert "saved to a file with the Read tool" in text, text
+    # review r1: the measured case put the variable in sed's EXPRESSION (`sed -n "${n}p"`), not the file name
+    assert (
+        "never give sed, awk or head a shell variable or $( ), in the file name or the expression"
+        in text
+    ), text
+    for kept in ("selfwatch_arm.sh", "never the previous transcript"):
+        assert kept in text, kept
+
+
+def _clear_hook(world, monkeypatch, bind: bool):
+    """The fake tmux moves the registry record to NEW on `/clear`, and (when `bind`) appends the re-bind row on the
+    resume prompt."""
+    reg_path = world["config"] / "sessions" / "102.json"
+    hook = (
+        "p = os.environ['REG']\n"
+        "if text.startswith('/clear'):\n"
+        "    d = json.load(open(p)); d['sessionId'] = os.environ['NEW']; json.dump(d, open(p, 'w'))\n"
+    )
+    if bind:
+        hook += (
+            "if text.startswith('You were rotated'):\n"
+            "    open(os.environ['AGENT_IDENTITY_FILE'], 'a').write(json.dumps({'session_id': os.environ['NEW'],"
+            " 'name': 'dev1', 'predecessor': os.environ['OLD'], 'at': int(os.environ['BIND_AT'])}) + '\\n')\n"
+        )
+    for k, v in {
+        "REG": str(reg_path),
+        "NEW": NEW,
+        "OLD": SID,
+        "BIND_AT": str(int(time.time()) + 50),
+    }.items():
+        monkeypatch.setenv(k, v)
+    _set(world, on_send=hook)
+
+
+def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path):
+    """W-b72231b8: the verb re-points the repo's session registry from the old session id to the new one itself —
+    key order kept, every other entry untouched — so nobody re-points it by hand."""
+    other, third = "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"
+    regf = tmp_path / "repo" / ".fabrik" / "session-agents.json"
+    regf.parent.mkdir(parents=True)
+    regf.write_text(json.dumps({other: "dev2", SID: "dev1", third: "dev3"}, indent=2))
+    monkeypatch.setattr(rs, "_session_registry", lambda repo, sid: regf)
+    _clear_hook(world, monkeypatch, bind=True)
+    _write_request(world)
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "ok" and row["registry"] == "repointed", row
+    # the bind's own `at` (50 s after the hook was armed), never the moment the loop saw it
+    assert isinstance(row["resume_sent_at"], int) and 45 <= row["rebind_s"] <= 51, row
+    got = json.loads(regf.read_text())
+    assert list(got.items()) == [(other, "dev2"), (NEW, "dev1"), (third, "dev3")]
+    assert regf.read_text().endswith("}\n") and not list(regf.parent.glob(".session-agents.*"))
+
+
+def test_wb72231b8_an_unsent_resume_still_repoints(world, monkeypatch, tmp_path):
+    """Critique r1: the re-point runs as soon as the new session is seen, before the resume prompt, so a resume that
+    never submits still leaves the registry naming the session the pane now runs."""
+    regf = tmp_path / "repo" / ".fabrik" / "session-agents.json"
+    regf.parent.mkdir(parents=True)
+    regf.write_text(json.dumps({SID: "dev1"}))
+    monkeypatch.setattr(rs, "_session_registry", lambda repo, sid: regf)
+    _clear_hook(world, monkeypatch, bind=False)
+    real_send = rs._send
+
+    def send(pane, text):
+        if text.startswith("You were rotated"):
+            raise rs.CheckFailedError("unsent", "the text is still in the input line after C-m")
+        real_send(pane, text)
+
+    monkeypatch.setattr(rs, "_send", send)
+    _write_request(world)
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "typed-unsent:resume" and row["registry"] == "repointed", row
+    assert json.loads(regf.read_text()) == {NEW: "dev1"}
+
+
+def test_wb72231b8_registry_path_needs_a_real_checkout(tmp_path, monkeypatch):
+    """Review r1: `resolve` matches a pane by the repo's folder name alone, so the registry is written only for the
+    checkout whose `.git` the rotated session's newest binding names — never another checkout of the same name, a
+    symlinked repo or `.fabrik`, or a path that cannot be resolved."""
+    repo, clone = tmp_path / "repo", tmp_path / "elsewhere" / "repo"
+    for r in (repo, clone):
+        (r / ".git").mkdir(parents=True)
+    rows = [{"session_id": SID, "name": "dev1", "toplevel": str(repo / ".git")}]
+    monkeypatch.setattr(rs, "_bindings", lambda: rows)
+    assert rs._session_registry(str(repo), SID) == repo / ".fabrik" / "session-agents.json"
+    assert rs._session_registry(str(clone), SID) is None  # same folder name, another checkout
+    assert rs._session_registry(str(repo), NEW) is None  # no binding for that session
+    assert rs._session_registry("relative/repo", SID) is None
+    assert rs._session_registry(str(repo) + "\0x", SID) is None
+    link = tmp_path / "link"
+    link.symlink_to(repo)
+    assert rs._session_registry(str(link), SID) is None  # not its own realpath
+    (repo / ".fabrik").symlink_to(clone)
+    assert rs._session_registry(str(repo), SID) is None  # `.fabrik` points elsewhere
+
+
+def test_wb72231b8_a_damaged_identity_store_never_raises(world):
+    """Review r2: the registry path reads the identity store after the /clear; a non-UTF-8 byte or a deep nest in it
+    skips that line instead of raising into the rotation outcome."""
+    good = json.dumps({"session_id": SID, "name": "dev1", "toplevel": "/x/.git"})
+    world["identity"].write_bytes(b"\xff\xfe\n" + b"[" * 200_000 + b"\n" + good.encode() + b"\n")
+    rows = rs._bindings()
+    assert rows[-1]["session_id"] == SID  # the good line after the bad ones is still read
+    assert rs._session_registry("/x", SID) == Path("/x/.fabrik/session-agents.json")
+
+
+def test_wb72231b8_registry_os_errors_are_a_recorded_state(tmp_path):
+    """Review r2: an OSError on the write (a read-only folder) is the `error:<name>` state, never a raise."""
+    d = tmp_path / "ro"
+    d.mkdir()
+    regf = d / "session-agents.json"
+    regf.write_text(json.dumps({SID: "dev1"}))
+    d.chmod(0o500)
+    try:
+        assert rs._repoint_registry(regf, SID, NEW, "dev1") == "error:PermissionError"
+    finally:
+        d.chmod(0o700)
+    assert json.loads(regf.read_text()) == {SID: "dev1"}
+
+
+def test_wb72231b8_registry_over_the_readers_cap_is_refused(tmp_path, monkeypatch):
+    """Review r1: the readers stop at REGISTRY_MAX bytes, so neither an input over it nor an output that indentation
+    grows past it is written."""
+    regf = tmp_path / "session-agents.json"
+    regf.write_text(json.dumps({SID: "dev1"}))
+    monkeypatch.setattr(rs, "REGISTRY_MAX", 10)
+    before = regf.read_bytes()
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:over 1 MiB"
+    monkeypatch.setattr(
+        rs, "REGISTRY_MAX", len(before) + 2
+    )  # the input fits; the indented output does not
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:over 1 MiB"
+    assert regf.read_bytes() == before and not list(tmp_path.glob(".session-agents.*"))
+
+
+@pytest.mark.parametrize(
+    ("content", "state"),
+    [
+        (None, "absent"),
+        ({"33333333-3333-4333-8333-333333333333": "dev2"}, "no-entry"),
+        ({SID: "dev9"}, "no-entry"),  # the old id names another agent: never re-pointed
+        ({NEW: "dev1"}, "current"),
+        ({SID: "dev1", NEW: "dev2"}, "refused:the new id already names another agent"),
+        ("[1, 2]", "refused:not an object of session id -> agent name"),
+        ("{not json", "refused:not valid JSON"),
+        (f'{{"{SID}": "dev1", "{SID}": "dev1"}}', "refused:a session id appears twice"),
+        ({"NOT-A-UUID": "dev2", SID: "dev1"}, "refused:a key is not a session id"),
+        ({SID: {"nested": 1}}, "refused:not an object of session id -> agent name"),
+        (
+            {SID: "dev1", "33333333-3333-4333-8333-333333333333": "Bad Name"},
+            "refused:a value is not an agent name",
+        ),
+    ],
+)
+def test_wb72231b8_registry_states_never_write_a_bad_file(tmp_path, content, state):
+    """W-b72231b8: every registry state other than a re-pointable entry is recorded and leaves the file
+    byte-identical; nothing the writer emits is a shape agents_up.sh refuses."""
+    regf = tmp_path / "session-agents.json"
+    if content is not None:
+        regf.write_text(content if isinstance(content, str) else json.dumps(content))
+    before = regf.read_bytes() if regf.exists() else None
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == state
+    assert (regf.read_bytes() if regf.exists() else None) == before
+
+
+def test_wb72231b8_registry_refuses_a_symlink_and_a_bad_new_id(tmp_path):
+    target = tmp_path / "real.json"
+    target.write_text(json.dumps({SID: "dev1"}))
+    link = tmp_path / "session-agents.json"
+    link.symlink_to(target)
+    assert rs._repoint_registry(link, SID, NEW, "dev1") == "refused:not a regular file"
+    assert json.loads(target.read_text()) == {SID: "dev1"}
+    plain = tmp_path / "plain.json"
+    plain.write_text(json.dumps({SID: "dev1"}))
+    assert (
+        rs._repoint_registry(plain, SID, "NOT-A-UUID", "dev1")
+        == "refused:the new id is not a session id"
+    )
+
+
+def test_wb72231b8_repoint_keeps_the_mode_drops_a_doubled_name_and_never_overwrites_a_hand_edit(
+    tmp_path, monkeypatch
+):
+    regf = tmp_path / "session-agents.json"
+    regf.write_text(json.dumps({SID: "dev1"}))
+    regf.chmod(0o644)
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "repointed"
+    assert regf.stat().st_mode & 0o777 == 0o644 and json.loads(regf.read_text()) == {NEW: "dev1"}
+    regf.write_text(
+        json.dumps({SID: "dev1", NEW: "dev1"})
+    )  # already current, the old key left behind
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "repointed"
+    assert json.loads(regf.read_text()) == {NEW: "dev1"}
+    regf.write_text(json.dumps({SID: "dev1"}))
+    real_chmod = rs.os.chmod
+
+    def chmod_then_hand_edit(p, mode):  # a hand edit lands between the read and the replace
+        real_chmod(p, mode)
+        regf.write_text(json.dumps({SID: "dev1", "33333333-3333-4333-8333-333333333333": "dev2"}))
+
+    monkeypatch.setattr(rs.os, "chmod", chmod_then_hand_edit)
+    assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:changed on disk"
+    assert NEW not in json.loads(regf.read_text()) and not list(tmp_path.glob(".session-agents.*"))
+
+
+def _late_bind(world, monkeypatch, bind_after: float | None) -> dict:
+    """A fake clock that moves only when the script sleeps, with ROTATE_WAIT_S unset so each wait runs at its
+    production length (the fake panes settle at once, so the waits before the re-bind end early). The identity store
+    gains the re-bind `bind_after` s after the resume prompt, or never when None. Returns the times seen."""
+    monkeypatch.delenv("ROTATE_WAIT_S")
+    clock = {"now": time.time()}
+    monkeypatch.setattr(rs.time, "time", lambda: clock["now"])
+    monkeypatch.setattr(rs.time, "sleep", lambda s: clock.__setitem__("now", clock["now"] + s))
+    _clear_hook(world, monkeypatch, bind=False)
+    seen: dict = {}
+    real_send = rs._send
+
+    def send(pane, text):
+        real_send(pane, text)
+        if text.startswith("You were rotated"):
+            seen["sent"] = clock["now"]
+
+    monkeypatch.setattr(rs, "_send", send)
+    real_bindings = rs._bindings
+
+    def bindings():
+        if "sent" in seen:
+            seen["last_read"] = clock["now"]
+            if bind_after is not None and clock["now"] >= seen["sent"] + bind_after:
+                at = int(seen["sent"] + bind_after)
+                return [{"session_id": NEW, "name": "dev1", "predecessor": SID, "at": at}]
+        return real_bindings()
+
+    monkeypatch.setattr(rs, "_bindings", bindings)
+    _write_request(world)
+    rs.execute()
+    return seen
+
+
+def test_wb72231b8_a_late_bind_inside_the_grace_rows_ok(world, monkeypatch):
+    """W-b72231b8 slice 2: a re-bind landing 98 s after the resume prompt (the one late bind measured since W-b92aa5cf)
+    rows `ok` with its own `rebind_s`, not `partial:rebind`."""
+    _late_bind(world, monkeypatch, 98)
+    row = _rows(world)[-1]
+    assert row["outcome"] == "ok" and row["predecessor_row"] is True, row
+    assert 97 <= row["rebind_s"] <= 99, row
+
+
+def test_wb72231b8_no_bind_waits_the_whole_grace_then_rows_partial(world, monkeypatch):
+    """W-b72231b8 slice 2: with no re-bind the row is `partial:rebind`, never a false `ok`, and only after the identity
+    store was read for the whole REBIND_GRACE_S."""
+    seen = _late_bind(world, monkeypatch, None)
+    row = _rows(world)[-1]
+    assert row["outcome"] == "partial:rebind" and row["predecessor_row"] is False, row
+    waited = seen["last_read"] - seen["sent"]
+    assert rs.REBIND_GRACE_S - 2 <= waited <= rs.REBIND_GRACE_S, waited
+
+
+def test_wb72231b8_execute_claims_nothing_new_after_the_cutoff(world, monkeypatch):
+    """W-b72231b8 slice 2: two requests can meet in one run only by racing past `_pending` (request checks it seconds
+    before it writes its file). A request still waiting once the run has gone CLAIM_CUTOFF_S is left for the path unit's
+    next start — never started where the unit's timeout could kill it with no row."""
+    mono = {"now": 1000.0}
+    monkeypatch.setattr(rs.time, "monotonic", lambda: mono["now"])
+    rows: list = []
+    monkeypatch.setattr(rs, "append_row", lambda row: rows.append(row))
+
+    def one(claimed):
+        mono["now"] += rs.CLAIM_CUTOFF_S + 1  # this rotation took past the cutoff
+        return {"outcome": "ok", "claimed": claimed.name}
+
+    monkeypatch.setattr(rs, "_one", one)
+    world["req"].mkdir(exist_ok=True)
+    first, second = world["req"] / "a--dev1.json", world["req"] / "b--dev2.json"
+    first.write_text("{}")
+    second.write_text("{}")
+    os.utime(first, (1, 1))  # claimed oldest-first
+    assert rs.execute() == 0
+    assert [r["claimed"] for r in rows] == ["a--dev1.claimed"], rows
+    assert second.exists() and not first.exists() and not list(world["req"].glob("*.claimed"))
+
+
+def test_wb72231b8_the_worst_request_fits_the_units_timeout():
+    """W-b72231b8 slice 2: the last request `execute` may start (at CLAIM_CUTOFF_S) ends, at its worst, with 60 s of the
+    oneshot's TimeoutStartSec to spare, so the timeout never kills a rotation before its row; the grace covers the
+    measured 98 s; every wait is a named constant (a literal wait would escape the derivation); the unit sets exactly
+    one integer TimeoutStartSec and no TimeoutSec that could override it. Model boundary (review r2): waits passed to
+    `_wait_s`, the discard's re-check sleep and `_tmux`'s timeout. Outside it, by design: the count of 17 tmux calls is
+    restated here, not counted from the call sites; a wait that bypasses `_wait_s`; a subprocess other than `_tmux`
+    (run_checks' git calls are W-b728822f); a systemd drop-in or a unit Environment= on the installed copy."""
+    unit = (REPO / "scripts" / "sysadmin" / "fabrik-rotate.service").read_text().splitlines()
+    starts = [ln.strip() for ln in unit if ln.strip().startswith("TimeoutStartSec")]
+    assert len(starts) == 1 and re.fullmatch(r"TimeoutStartSec=\d+", starts[0]), starts
+    assert not [ln for ln in unit if ln.strip().startswith("TimeoutSec")]
+    timeout = int(starts[0].split("=", 1)[1])
+    assert rs.REQUEST_WORST_S == (
+        rs.DISCARD_RECHECK_S
+        + rs.DISCARD_WAIT_S
+        + 2 * (rs.SEND_SETTLE_S + rs.SEND_SUBMIT_S)
+        + rs.CLEAR_WAIT_S
+        + rs.REBIND_GRACE_S
+        + 5  # the loops' sleeps after their last check: 5 x 0.5 + 2 x 1 = 4.5, rounded up
+        + 17 * rs.TMUX_TIMEOUT_S
+    )
+    assert timeout >= rs.CLAIM_CUTOFF_S + rs.REQUEST_WORST_S + 60, (rs.REQUEST_WORST_S, timeout)
+    assert rs.REBIND_GRACE_S >= 98
+    src = SCRIPT.read_text()
+    assert not re.findall(r"_wait_s\(\s*[-+.\d]", src), (
+        "a wait passed as a literal escapes REQUEST_WORST_S"
+    )
+    assert "for wait in (0.0, DISCARD_RECHECK_S):" in src
+    tmux_src = inspect.getsource(rs._tmux)
+    assert "timeout=TMUX_TIMEOUT_S" in tmux_src and not re.findall(r"timeout=\d", tmux_src)

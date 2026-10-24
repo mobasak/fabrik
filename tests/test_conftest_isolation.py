@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -529,7 +530,11 @@ def test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box(tmp_path, mo
         "test_assemble_commands_check_reports_no_render_error_and_only_expected_drift",
     ]
     base = {
-        k: v for k, v in os.environ.items() if k not in ("PYTEST_ADDOPTS", "FABRIK_MERGE_CHECK")
+        # an exported PY_COLORS / FORCE_COLOR wraps the lines read below in escapes, and `--color=no`
+        # does not undo it for the traceback lines (executed)
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("PYTEST_ADDOPTS", "FABRIK_MERGE_CHECK", "PY_COLORS", "FORCE_COLOR")
     }
     base["HOME"] = str(home)
 
@@ -558,14 +563,60 @@ def test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box(tmp_path, mo
     assert inside.returncode == 0, inside.stdout + inside.stderr
     assert "2 skipped" in inside.stdout, inside.stdout
     assert inside.stdout.count("FABRIK_MERGE_CHECK") >= 2, inside.stdout  # each skip names why
+
+    # The vision sibling reaches the drifted home only when this checkout's diff against
+    # origin/master touches no fragment: with one it returns early (green), with no origin/master
+    # it skips — both by its own design, so its outcome here is read from the SAME diff it runs,
+    # never assumed red (a checkout behind a fragment change read "1 failed, 1 passed",
+    # W-bda62f32; a clone with no origin/master "1 failed, 1 skipped", W-f661fabf). The diff is
+    # taken before and after the run: a tree or ref that moved in between has no one answer.
+    def sibling_diff():
+        res = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--name-only",
+                "origin/master",
+                "--",
+                "commands/_sources",
+                "commands/_agents",
+                "commands/_fragments",
+            ],
+            cwd=REPO,
+            env=base,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return res.returncode, res.stdout
+
+    before = sibling_diff()
     outside = run(base)
-    assert outside.returncode == 1 and "2 failed" in outside.stdout, outside.stdout + outside.stderr
-    # Each sibling failed on the PRODUCT's own drift line — `assemble_commands.agent_drift` and
-    # `check()` emit `<item>: MISSING in <dir>` — read from that test's one-line traceback
+    # inside-only, and asserted before the moved-diff skip: it does not depend on the diff
+    assert "live_box: FABRIK_MERGE_CHECK=1" not in outside.stdout, outside.stdout
+    if sibling_diff() != before:
+        import pytest
+
+        pytest.skip("the diff against origin/master moved during the run — no single expectation")
+    rc, changed = before
+    if rc != 0:
+        expect, drifted = "1 failed, 1 skipped", ids[:1]
+        assert "no origin/master to attribute drift against" in outside.stdout, outside.stdout
+    elif any(p.startswith("commands/_fragments/") for p in changed.split()):
+        expect, drifted = "1 failed, 1 passed", ids[:1]
+    else:
+        expect, drifted = "2 failed", ids
+    # the WHOLE summary line, so a fixture error beside the expected counts is not read as them
+    summary = re.compile(rf"^{re.escape(expect)}(, \d+ warnings?)? in ", re.MULTILINE)
+    assert outside.returncode == 1 and summary.search(outside.stdout), (
+        outside.stdout + outside.stderr
+    )
+    # Each sibling that failed did so on the PRODUCT's own drift line — `assemble_commands.agent_drift`
+    # and `check()` emit `<item>: MISSING in <dir>` — read from that test's one-line traceback
     # (`--tb=line`: `<file>:<n>: AssertionError: …`). Never a sibling's assertion prose
     # (662ed84dd reworded one and this grader went red on clean master, W-45433793), and never
     # the bare `FAILED <id>`, which an import or permission error would satisfy too.
-    for node in ids:
+    for node in drifted:
         path = node.split("::")[0]
         assert any(
             f"{path}:" in ln and ": AssertionError: " in ln and f"MISSING in {home}" in ln

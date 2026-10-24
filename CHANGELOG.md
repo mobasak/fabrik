@@ -29,9 +29,61 @@ All notable changes to this project will be documented in this file.
   `watchdog: enabled: false` opt-out; `PORTS.md`, `docs/infrastructure/vps-urls.md` and `docs/SERVICES.md` name
   the port. Not yet deployed — the live stack changes at the plan's deploy gate.
 
+### Fixed — a late re-bind no longer ends a rotation `partial:rebind`, inside the executor's timeout (2026-10-24)
+
+- `rotate_session.py` waits `REBIND_GRACE_S` (180 s, was 90) for the rotated agent's re-bind; the one late bind measured
+  took 98 s. Every wait a request runs is now a named constant and `REQUEST_WORST_S` (487 s) is derived from them, tmux
+  overruns included, and `execute` claims no new request after `CLAIM_CUTOFF_S` (50 s), so two requests that race past
+  the one-at-a-time check can no longer overrun the unit's 600 s TimeoutStartSec and lose a row. run_checks' git calls
+  are not counted yet (W-b728822f). D-1181 (W-b72231b8 slice 2).
+
+### Fixed — the watchdog packs say what "approved-write" means (2026-10-24)
+
+- `.windsurf/rules/core/60-watchdog.md` and `core/self-healing.md` called `drop_queue_items` and `rotate_locks` the "approved-write" lane without saying who approves it. fabrik-lib D-471 settles it: the operator approves the lane by setting its four offer conditions, and once offered, a call that passes `check_proposal` runs with no per-call approval and escalates afterwards (`agent.py` executes it inline, then escalates and arms the deadman). Both packs now say this. 60-watchdog adds D-471's stated cost: the row cap is per call, with no combined budget. self-healing's ladder checklist counts the step as a fully-autonomous layer. This was fabrik-lib mail 01M5AKSQQ3, request 5 (W-a624f951). infra's 46b0c7f63 had already rewritten the stale `scale_concurrency` and "never offered" text.
+
+### Fixed — the push ladder no longer drops already-pushed commits after a remote force-rewrite (2026-10-24)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § EXIT told a rejected clean-tree push to run `git pull --rebase=merges`, which "replays only YOUR unpushed commits". After a force-rewrite of the remote branch, that pull exits 0 having silently dropped the commits this clone already pushed. The ladder now runs `git fetch` and reads `git reflog show --format=%gs @{u}`. A `forced-update` above the newest `update by push` means stop and report; otherwise `git rebase --rebase-merges @{u}` then push. This is fabrik-lib's D-480 fix, adopted as D-1178 (W-a312d48c).
+- `/fabrik-execute-plan` step 7 now points at the § EXIT ladder instead of restating the old pull.
+- `tests/test_exit_push_ladder.py` runs each contract's own reflog command against throwaway repos and pins the new clauses. It was proven red on the old text.
+
+### Fixed — the drifted-box grader no longer reds on a checkout behind a fragment change or a clone with no origin/master (2026-10-24)
+
+- `tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` asserted "2 failed" outside a merge check. Its vision sibling returns early when the checkout's diff against `origin/master` touches `commands/_fragments/`, and skips with no `origin/master`. At master's 201a928a7 the grader read "1 failed, 1 passed" (W-bda62f32); in a clone with its origin removed, "1 failed, 1 skipped" (W-f661fabf). The grader now runs the same diff before and after the run and expects the matching outcome, skipping when the two differ. It matches the whole summary line, drops `PY_COLORS`/`FORCE_COLOR` from the inner env, and asserts the merge-check skip reason never appears outside a merge check before anything else. A conftest mutated to always skip is caught.
+
+### Fixed — every coordinator's contract names the live rotation verb, and the merge recipe no longer trips the worktree prompt (2026-10-23)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § Session history no longer tell a coordinator to `/clear` a builder by hand over `tmux send-keys` until infra's rotate-session verb lands. That verb landed under D-1143. Both copies now name `/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session <name>` (with `--compact "<focus>"`), run from the repo's main checkout, and list the six checks `rotate_session.py` runs. They also make two duties the coordinator's, never the operator's (D-1034, D-1172): fixing and re-running a refused rotation, or one whose `rotations.jsonl` outcome is anything but `ok`, and answering a builder's permission prompt. W-c553e5e0 answers the operator's "does all coordinators know how to clear now?".
+- § EXIT's ad-hoc merge recipe no longer builds `MAIN=$(git worktree list --porcelain | sed …)` for `git -C "$MAIN"`. That shape trips Claude Code's worktree-isolation prompt (D-1173). The recipe now runs `git worktree list` as its own call and uses the literal path (W-031aac71).
+- `tests/test_session_rotation_rule.py` pins the new clauses and refuses the stale ones. It was proven red on the old text.
+
+### Added — the rotation verb re-points the session registry itself (2026-10-23)
+
+- `rotate_session.py execute` now re-points `<repo>/.fabrik/session-agents.json` from the rotated agent's old session
+  id to the new one as soon as the new session is seen, before the resume prompt, so the coordinator no longer edits it
+  by hand. It writes only the checkout whose `.git` the old session's binding names, refuses every shape agents_up.sh
+  refuses, never adds an entry, keeps the mode, and never overwrites a hand edit made since its read. Each row records
+  `registry`, `resume_sent_at` and, when bound, `rebind_s`. The identity-store reader now skips a damaged line instead
+  of raising after the /clear (W-b72231b8 slice 1, D-1175; the late-bind grace is slice 2).
+
+### Fixed — the resume prompt after a /clear rotation no longer leads a builder into a permission prompt (2026-10-23)
+
+- `rotate_session.py::resume_prompt` now tells the rotated builder to read its notes, its seed and any output the
+  harness saved to a file with the Read tool, to run each command as a separate Bash call (the self-watch arm stays in
+  the background), and never to give sed, awk or head a shell variable. One Bash call of 40-47 KB, paged with
+  `sed -n '…' $f`, stopped Claude Code's worktree-isolation check for a person (intel waited 10 min). The path, which
+  resolves through a symlink into `~/.claude/projects`, was measured not to be the trigger (W-1783a9fe, D-1173).
+  Test: `tests/test_rotate_session.py::test_w1783a9fe_resume_prompt_steers_off_the_isolation_prompt`.
+
 ### Changed — command-improve: handles are copied from the latest --queue output and grepped back as the whole first field (2026-10-23)
 
 - `commands/_sources/fabrik-command-improve.md` PHASE 1, beside the `ts` definition: the lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyped or taken from a seat's report, maps a seat's row back to its line by verdict text, and before `--reject`, the trailer or `--mark-answered` takes a handle greps that output for it as a line's whole first field (`command grep -P '^\Q<ts>\E\t'`) — a truncated or wrong-line handle no longer passes. Answers `/fabrik-command-improve` feedback rows 1792765907, 1792734774, 1792707211 (recurrence of the held mark-handles-from-take-output subject); reviewed by `/fabrik-review-scoped` (6→3→3 own-fix, scope-growth stop, remainder round 0).
+
+### Fixed — check_convergence refuses when either code-span model refuses; `_fences` link tails and `<!--` read as CommonMark does (2026-10-23)
+
+- `scripts/enforcement/check_convergence.py` reads its closing-row, Board-row, ticket-Status and design-receipt rules under both its single-line span model and the shared `_fences` model, and refuses when either does; the D-497 grandfather needs both; a receipt whose two readings disagree on its route is graded on both (D-1131, D-1170). A wrapped code span holding `<!--` no longer hides a loud closing row or Board row.
+- `scripts/enforcement/_fences.py`: a link's `](…)` tail shields its backticks only when it parses as a link destination with an optional title, escapes included; a line-start `<!--` ends a paragraph, so a span no longer wraps across it.
+- check_rule_grounding and check_spec_convergence are unchanged, their CONVERGED readers pinned by `tests/test_status_readers_code_spans.py` (W-f365c610).
 
 ### Changed — design-gate panel: step 2 states the checks a panel revision owes before its reviewing round (2026-10-23)
 
@@ -41,6 +93,15 @@ All notable changes to this project will be documented in this file.
 
 - The catalogue's Sweep bullet (§ Prose and docs fixes, which `/fabrik-review-scoped` step 3 sends the lead to before a rule sentence is drafted) holds such a fix to `/fabrik-review`'s "does the new form still hold EVERY shape the form it replaces held", quoted with its "the shapes enumerated from the OLD form before the fix is drafted, never from the new one": each case no new clause covers, two now cover or only the new wording reaches is listed with where it lands or, with its reason, that it is dropped on purpose, in the fix's Pass Ledger `method:` cell (`/fabrik-review`) or the report (`/fabrik-review-scoped`) (row 1792730405, the second sighting of held fix-narrowed-input-strands-defensive-guards).
 - Twelve other queued `/fabrik-review-scoped` rows were rejected with reasons after an Opus audit. Row 1792630929 (whether a remainder round fixes or records an own-fix defect that loosens a guard) stays open: the catalogue and term-coverage.md disagree, and its Opus + Fable panel is half done (the Fable seat hit its quota limit).
+
+### Fixed — the drifted-box grader anchors on the product's own drift line, not a sibling's assertion prose (2026-10-23)
+
+- `tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` pinned the second sibling's assertion message, so 662ed84dd's rewording turned it red on clean master while the merge-check isolation it grades was sound. The inner run now prints one-line tracebacks (`--tb=line`) and the grader asserts, per sibling, an `AssertionError` line carrying the product's own `MISSING in <home>` text (`assemble_commands` drift check) — never the sibling's prose, never a bare `FAILED <id>` that an import or permission error would also satisfy (W-45433793, a0c507772; entry added by W-d3d1d924).
+
+### Changed — The mail and work prompt hooks print an unchanged block as one pointer line; the mail digest shows 3 rows under the inbox total (2026-10-23)
+
+- `.claude/hooks/mail_notify.py` and `scripts/thread_anchor.py line --hook` keep a per-session sha256 of the last full block they printed, stored after the print. On UserPromptSubmit, a byte-identical block whose last full print is under 30 minutes old prints as ONE pointer line naming the command that shows it; SessionStart (every source) always prints in full. Measured before the change, every printed copy stays in the session's context: in one infra-2 session the mail digest repeated byte-identically on 76 of 113 prompts, and one coordinator session took 748,661 chars of it over 351 prompts. A live run of the changed hook printed 768 chars full and 121 chars unchanged (W-25f6b2a3 slice 2).
+- The mail digest shows the 3 oldest unread rows (was 10). Its header now counts the inbox's message files — dot-names skipped, as `mail.py list` skips them — where it used to count the rows shown. `thread_anchor.py` never deduplicates a block that carries a rescue warning. New env var `MAIL_NOTIFY_STATE_DIR` (default `~/.claude/state/mail-notify`); the test suite pins it and `THREAD_ANCHOR_DIR` to temp dirs.
 
 ### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
 

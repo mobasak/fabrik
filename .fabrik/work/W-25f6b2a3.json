@@ -3,7 +3,7 @@
   "created": "2026-10-23T14:18:54.979290Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "bacd7e89a3cddea73338d618158f32423c4b6eb4",
   "id": "W-25f6b2a3",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 0,
   "score_reason": "the single largest token-waste cause on the box: a ~640k prefix on every turn of every session; the first cut is measurement plus one or two injections turned into pointers",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],

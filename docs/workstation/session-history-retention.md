@@ -147,12 +147,23 @@ time). The user unit `fabrik-rotate.path` starts `fabrik-rotate.service` (`rotat
 re-runs every check, types `/clear <agent>-<date>` (or `/compact <focus>`) — each text pasted, then `C-m` as its own
 call once the input line shows that text unchanged over two captures, then the input line must hold something other
 than that text (empty, a placeholder, a dialog) (an Enter sent right behind the paste was swallowed, W-b92aa5cf) —
-waits for the registry's new session id,
-then types one resume prompt — re-arm the self-watch (a /clear may kill or orphan background shells), re-bind with
+waits for the registry's new session id, re-points the repo's `.fabrik/session-agents.json` entry from the old
+session id to the new one itself (W-b72231b8, D-1175: only for the checkout the old session's binding names; a file
+agents_up.sh would refuse, a missing entry or a hand edit since its read is left alone, and the state is rowed as
+`registry`), then types one resume prompt — re-arm the self-watch (a /clear may kill or orphan background shells), re-bind with
 `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force`, read only the memory notes, `work.py next` and
-the run's seed — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
+the run's seed, the notes and any output the harness saved to a file through the Read tool and each command as a
+separate Bash call, never sed, awk or head on a shell variable (Claude Code's worktree isolation stops on that for a
+person — W-1783a9fe, D-1173) — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
 `partial:<step>`, `typed-unsent:<step>` — a text that never showed, never settled, or stayed in the input line after `C-m` —, and the verb's `aborted:<check>`) in
-`~/.claude/state/rotations.jsonl`. Nothing is queued or retried: keys typed mid-turn would
+`~/.claude/state/rotations.jsonl`, with `resume_sent_at` and, for a bound row, `rebind_s` (the bind's own time minus
+the send). The re-bind wait is `REBIND_GRACE_S` (180 s, W-b72231b8 slice 2; the one late bind measured took 98 s); a
+bind later than that rows `partial:rebind`. While it waits the executor holds its lock, so another rotation asked in that
+window is refused `aborted:pending` — the coordinator asks again; nothing retries it. Every wait the script itself runs
+is a named constant and `REQUEST_WORST_S` (487 s) is derived from them, and `execute` claims no new request after
+`CLAIM_CUTOFF_S` (50 s), so the last rotation it starts ends inside the unit's 600 s timeout — except that the git calls
+`run_checks` makes (60 s timeout each) are not counted yet (W-b728822f). A request left unclaimed waits for the path
+unit's next start, which almost always rows it `stale` (it is then older than 60 s). Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
 reports). The previous session stays resumable and is archived that night.
 

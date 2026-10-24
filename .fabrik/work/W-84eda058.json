@@ -1,0 +1,26 @@
+{
+  "block_digest": "d3c06d517c040d12c0ba2d800e7dc70b1d1dfdcbb0e7f96c01e4873419e611ce",
+  "blocked_by": [],
+  "created": "2026-10-23T17:42:16.628652Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-84eda058",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "95e1116aa41e94280af30d4a2decbe8386df47a61aabf88786f755a3789f3f94"
+  ],
+  "next": "",
+  "note": "operator 2026-10-23: 'you are the coordinator you must manage who gets it first.' — coordinator's allocation of sarp's last weekly %: 1) infra W-b72231b8 (operator ask, light, in flight); 2) kaizen W-c553e5e0 now as the one heavy exception (operator ask, reaches every coordinator); all other builders hold light-only until GREEN",
+  "owner": "",
+  "priority": 2,
+  "question": "Should kaizen spend part of sarp's last 3% now on the all-coordinators contract rewrite, which needs a full multi-reviewer review?",
+  "status": "done",
+  "title": "Should kaizen spend part of sarp's last 3% now on the all-coordinators contract rewrite, which needs a full multi-reviewer review?"
+}
