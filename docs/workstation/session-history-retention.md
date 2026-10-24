@@ -159,10 +159,11 @@ person — W-1783a9fe, D-1173) — and records every outcome (`ok`, `refused:<ch
 `~/.claude/state/rotations.jsonl`, with `resume_sent_at` and, for a bound row, `rebind_s` (the bind's own time minus
 the send). The re-bind wait is `REBIND_GRACE_S` (180 s, W-b72231b8 slice 2; the one late bind measured took 98 s); a
 bind later than that rows `partial:rebind`. While it waits the executor holds its lock, so another rotation asked in that
-window is refused `aborted:pending` — the coordinator asks again; nothing retries it. Every wait is a named constant
-and `REQUEST_WORST_S` (482 s) is derived from them, and `execute` claims no new request after `CLAIM_CUTOFF_S` (55 s), so
-the last rotation it starts ends inside the unit's 600 s timeout; a request left unclaimed waits for the path unit's next
-start (where it may row `stale`). Nothing is queued or retried: keys typed mid-turn would
+window is refused `aborted:pending` — the coordinator asks again; nothing retries it. Every wait the script itself runs
+is a named constant and `REQUEST_WORST_S` (487 s) is derived from them, and `execute` claims no new request after
+`CLAIM_CUTOFF_S` (50 s), so the last rotation it starts ends inside the unit's 600 s timeout — except that the git calls
+`run_checks` makes (60 s timeout each) are not counted yet (W-b728822f). A request left unclaimed waits for the path
+unit's next start, which almost always rows it `stale` (it is then older than 60 s). Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
 reports). The previous session stays resumable and is archived that night.
 

@@ -56,8 +56,11 @@ HERE = Path(__file__).resolve().parent
 STALE_S = 60
 ORPHAN_S = 900  # past the service's TimeoutStartSec (600 s): a `.claimed` nobody can still hold
 IDLE_S = 30
-# W-b72231b8 slice 2: every wait one request can run, named so the worst case below is derived, never restated.
+# W-b72231b8 slice 2: every wait this script runs for one request, named so the worst case below is derived, never
+# restated. Not counted: run_checks' git calls in hibernate.worktree_state (up to 3 per call, 60 s timeout each) —
+# W-b728822f bounds them.
 TMUX_TIMEOUT_S = 10  # one tmux call; a wait loop checks its deadline only after its capture returns
+DISCARD_RECHECK_S = 2.0  # the discard reads the box twice, this far apart, before its key
 DISCARD_WAIT_S = 10  # the box reads empty after the double Escape
 SEND_SETTLE_S = 10  # a paste settles in the input line
 SEND_SUBMIT_S = 20  # the input line changes after C-m
@@ -65,22 +68,26 @@ CLEAR_WAIT_S = 60  # the registry shows the new session after /clear
 COMPACT_WAIT_S = 60  # the compact boundary lands (the compact path has no re-bind wait, so it is the shorter one)
 # The re-bind wait after the resume prompt: the one late bind measured since W-b92aa5cf landed 98 s after the submit.
 REBIND_GRACE_S = 180
-# The worst /clear request: the discard's 2 s sleep and its wait, two sends, the clear wait and the re-bind grace, plus
-# 17 tmux calls that can each take TMUX_TIMEOUT_S past any deadline — 12 outside every wait (resolve 1, the two
-# run_checks 1 each, _one's box read 1, the discard's three box reads and its Escape pair 4, two pastes and two C-m 4) and
-# the last capture of each of the five capture loops (the discard wait, two settles, two submits) — 482 s.
+# The worst /clear request: the discard's re-check sleep and its wait, two sends, the clear wait and the re-bind grace;
+# the sleep each loop may take after its last check (0.5 s in the five capture loops, 1 s in the clear and re-bind loops
+# — 4.5 s, rounded up to 5); and 17 tmux calls that can each take TMUX_TIMEOUT_S past any deadline — 12 outside every
+# wait (resolve 1, the two run_checks 1 each, _one's box read 1, the discard's three box reads and its Escape pair 4,
+# two pastes and two C-m 4) and the last capture of each of the five capture loops (the discard wait, two settles, two
+# submits) — 487 s.
 REQUEST_WORST_S = (
-    2
+    DISCARD_RECHECK_S
     + DISCARD_WAIT_S
     + 2 * (SEND_SETTLE_S + SEND_SUBMIT_S)
     + CLEAR_WAIT_S
     + REBIND_GRACE_S
+    + 5
     + 17 * TMUX_TIMEOUT_S
 )
 # `execute` claims no new request after this long, so the last request it starts ends inside the unit's
-# TimeoutStartSec=600 with 60 s to spare (55 + 482 + 60 <= 600). A file left unclaimed stays for the path unit, which
-# starts `execute` again when this one exits; two requests can only meet in one run by racing past `_pending`.
-CLAIM_CUTOFF_S = 55
+# TimeoutStartSec=600 with at least 60 s to spare (50 + 487 + 60 <= 600), the git calls above aside. A file left unclaimed
+# stays for the path unit, which starts `execute` again when this one exits; two requests can only meet in one run by
+# racing past `_pending`.
+CLAIM_CUTOFF_S = 50
 VETO_S = 300  # a registry flip after the last turn end vetoes this long; measured flips led a turn's first write by 0.02 s
 SEAT_TAIL = 8 * 1024 * 1024
 TURN_END = ("turn_duration", "stop_hook_summary")
@@ -858,7 +865,7 @@ def _discard(t: dict, seen: str) -> None:
     EMPTY box opens the Rewind menu (measured) — no framed box and the word on screen — which gets ONE Escape and a
     refusal; that Escape is the only key besides the pair."""
     pane = t["pane"]
-    for wait in (0.0, 2.0):
+    for wait in (0.0, DISCARD_RECHECK_S):
         time.sleep(wait)
         if _box_now(pane)[0] != seen:
             raise CheckFailedError("stale-input", "the input box changed since the request")

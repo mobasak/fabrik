@@ -1423,25 +1423,30 @@ def test_wb72231b8_the_worst_request_fits_the_units_timeout():
     """W-b72231b8 slice 2: the last request `execute` may start (at CLAIM_CUTOFF_S) ends, at its worst, with 60 s of the
     oneshot's TimeoutStartSec to spare, so the timeout never kills a rotation before its row; the grace covers the
     measured 98 s; every wait is a named constant (a literal wait would escape the derivation); the unit sets exactly
-    one integer TimeoutStartSec and no TimeoutSec that could override it."""
+    one integer TimeoutStartSec and no TimeoutSec that could override it. Model boundary (review r2): waits passed to
+    `_wait_s`, the discard's re-check sleep and `_tmux`'s timeout. Outside it, by design: the count of 17 tmux calls is
+    restated here, not counted from the call sites; a wait that bypasses `_wait_s`; a subprocess other than `_tmux`
+    (run_checks' git calls are W-b728822f); a systemd drop-in or a unit Environment= on the installed copy."""
     unit = (REPO / "scripts" / "sysadmin" / "fabrik-rotate.service").read_text().splitlines()
     starts = [ln.strip() for ln in unit if ln.strip().startswith("TimeoutStartSec")]
     assert len(starts) == 1 and re.fullmatch(r"TimeoutStartSec=\d+", starts[0]), starts
     assert not [ln for ln in unit if ln.strip().startswith("TimeoutSec")]
     timeout = int(starts[0].split("=", 1)[1])
     assert rs.REQUEST_WORST_S == (
-        2
+        rs.DISCARD_RECHECK_S
         + rs.DISCARD_WAIT_S
         + 2 * (rs.SEND_SETTLE_S + rs.SEND_SUBMIT_S)
         + rs.CLEAR_WAIT_S
         + rs.REBIND_GRACE_S
+        + 5  # the loops' sleeps after their last check: 5 x 0.5 + 2 x 1 = 4.5, rounded up
         + 17 * rs.TMUX_TIMEOUT_S
     )
     assert timeout >= rs.CLAIM_CUTOFF_S + rs.REQUEST_WORST_S + 60, (rs.REQUEST_WORST_S, timeout)
     assert rs.REBIND_GRACE_S >= 98
     src = SCRIPT.read_text()
-    assert not re.findall(r"_wait_s\(\s*\d", src), (
+    assert not re.findall(r"_wait_s\(\s*[-+.\d]", src), (
         "a wait passed as a literal escapes REQUEST_WORST_S"
     )
+    assert "for wait in (0.0, DISCARD_RECHECK_S):" in src
     tmux_src = inspect.getsource(rs._tmux)
     assert "timeout=TMUX_TIMEOUT_S" in tmux_src and not re.findall(r"timeout=\d", tmux_src)
