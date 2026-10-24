@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the red-master rework count no longer counts a hypothetical or a possessive (2026-10-24)
+
+`scripts/sysadmin/kaizen_waste.py`'s `waste_red_master_rework` counted "it would turn master red" and "red on master's skeleton" as a red master. A red-master phrase with a modal among the six words before it in its clause, or the possessive "red on master's", no longer counts; a message holding a real phrase as well still does. Over origin/master's 10,880 non-merge commits the count moves 32 → 29, exactly the three named not-rework commits. The metric moves to v2, a new series (W-d633d5f5).
+
 ### Fixed — five hooks-index table rows no longer split their cells on a pipe inside a code span (2026-10-24)
 
 GFM splits a table cell on an unescaped `|` even inside a code span, so rows 21, 24, 98, 106 and 107 of `docs/workstation/hooks-index.md` rendered shifted cells; each such pipe is now `\|`. `tests/enforcement/test_check_hooks_index.py::_table_pipe_defects` guards it: a row whose unescaped-pipe count differs from its header's, or an unescaped pipe inside a code span, is reported, and lines inside a CommonMark-matched fence are not rows; `test_table_pipe_defects_probe_list` commits the escape variants the scoped review raised (W-7c3abd32).

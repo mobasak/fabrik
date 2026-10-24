@@ -58,8 +58,17 @@ MIN_CLOSES = 20  # a ratio day with fewer top-level closes is plotted, never jud
 BREAKDOWN_VERSION = 1
 
 _RED = re.compile(
-    r"\b(?:red master|master (?:is |went |turned )?red|red on master|master red)\b", re.I
+    r"\b(?:red master|master (?:is |went |turned )?red|red on master(?!['’]s)|master red)\b", re.I
 )
+# A phrase is a hypothetical, not a red master, when a modal sits among the six words before it
+# in its own clause ("it would turn master red", "would read red on master without this"). The
+# clause ends at , . ; : ! ? ( ) but never at a newline: commit bodies wrap mid-clause.
+# Cobra (D-253): the cheap way to lower the count is a modal in front of a real phrase ("it would
+# seem master went red") — the same move as not writing the phrase at all, which the define doc
+# already names; measured on origin/master 2026-10-24 the rule dropped 3 of 32 hits, all three
+# not-rework (2edc9545f, 0e8aacd73, 30ffaabe2), and added none.
+_MODAL = re.compile(r"^(?:would|could|should|might|may|will|can)(?:n['’]t)?$", re.I)
+_CLAUSE_BREAK = re.compile(r"[,.;:!?()]")
 _FIX_SUBJECT = re.compile(r"^(?:fix|test|revert)\b", re.I)
 _AGENT_NAME = re.compile(
     r"^Agent-Name:[ \t]*(\S+)", re.M
@@ -91,11 +100,15 @@ WASTE_METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "waste_red_master_rework",
-        "version": 1,
+        # v2 (W-d633d5f5): a phrase with a modal among the six words before it in its clause
+        # ("would turn master red") and the possessive "red on master's" no longer count
+        "version": 2,
         "counter_metric": "waste_seat_share",
         "formula": (
             "non-merge commits that reached the ref that day (first-parent committer date) with a "
-            "fix-shaped subject and a word-bounded red-master phrase"
+            "fix-shaped subject and a word-bounded red-master phrase that is neither a hypothetical "
+            "(a modal among the six words before it in its clause) nor the possessive "
+            "'red on master's'"
         ),
     },
     {
@@ -447,6 +460,17 @@ def _refreshed_at(ref: str) -> float:
     return max(stamps)
 
 
+def _is_red_master_rework(msg: str) -> bool:
+    """A fix-shaped message carrying at least one red-master phrase that is not a hypothetical."""
+    if not _FIX_SUBJECT.match(msg):
+        return False
+    for m in _RED.finditer(msg):
+        clause = _CLAUSE_BREAK.split(msg[max(0, m.start() - 80) : m.start()])[-1]
+        if not any(_MODAL.match(w) for w in clause.split()[-6:]):
+            return True
+    return False
+
+
 def red_master_rework(day: str) -> tuple[MetricResult, list[dict]]:
     mid = "waste_red_master_rework"
     ref = os.environ.get("KAIZEN_WASTE_GIT_REF") or "origin/master"
@@ -487,7 +511,7 @@ def red_master_rework(day: str) -> tuple[MetricResult, list[dict]]:
     per_agent: dict[str, int] = collections.Counter()
     for msg in messages:
         msg = msg.strip()
-        if not msg or not _FIX_SUBJECT.match(msg) or not _RED.search(msg):
+        if not msg or not _is_red_master_rework(msg):
             continue
         m = _AGENT_NAME.search(msg)
         per_agent[m.group(1) if m else "unattributed"] += 1

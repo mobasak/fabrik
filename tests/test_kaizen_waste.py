@@ -365,6 +365,34 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
     assert not broken.measurable and broken.detail
 
 
+def test_red_master_phrase_skips_hypotheticals_and_possessives():
+    # W-d633d5f5: the shapes on origin/master that are not a red master (2edc9545f, 0e8aacd73,
+    # 30ffaabe2), and the counted shapes that must stay counted — the escape variants both ways
+    not_rework = (
+        "fix: re-apply it\n\ncarried on a branch that is merge-requested, it would turn master red.",
+        "fix: pin the charter\n\nold charter words and would read red on master without this).",
+        "fix: guard\n\nit could not go red on master",
+        "fix: guard\n\nthis will turn master red once merged",
+        "fix(x): one grader per text (red on master's skeleton: the bare `citation` cell).",
+        "fix(x): red on master’s skeleton",
+    )
+    rework = (
+        "fix: allowlist x (red on master since W-1)",
+        "fix(tests): two graders red on master since the retention merge",
+        "fix: x\n\ntest_y went red on master. Both byte-identical paragraphs moved.",
+        "fix: x\n\nMaster went red after the /hibernate merge",
+        "fix: x\n\nthe cap was not updated, so master went red. W-7c8e293f.",
+        "fix: x\n\nthe test would not run, so master went red",
+        "fix: x\n\nit would turn master red. Separately, red on master since a90b35a3b",
+        "fix: x\n\n3 failed on master 0ac19d87d; the existing gate test is the grader (red on master)",
+        "fix: red master again",
+    )
+    for msg in not_rework:
+        assert not kw._is_red_master_rework(msg), msg
+    for msg in rework:
+        assert kw._is_red_master_rework(msg), msg
+
+
 def _series_day(env: Path, metric: str, day: str) -> None:
     d = env / "kaizen" / "series"
     d.mkdir(parents=True, exist_ok=True)
