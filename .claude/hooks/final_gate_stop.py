@@ -2602,8 +2602,13 @@ _ROTATION_HOLDS = frozenset({"claim", "owned", "feedback", "self", "doorbell", "
 _CTX_ROTATE_PCT = 40  # the writer's CTX_ROTATE_PCT: 85-100 are COMPACT-DUE steps past it, due too
 _ROTATE_SID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")  # the writer's `_SID_RE`
 _ROTATE_STAMP_DEFAULT = "~/.claude/state/rotate-advised"
+# The whole NEXT value, strict: `none`, an optional `terminal`, separators, then `awaiting the rotation`
+# and nothing after it but markup or a full stop — a negation (`not awaiting …`), a qualifier (`… of keys`)
+# or a successor named on the line reads as not at the boundary (review pass 1, A-1/B-2).
 _ROTATION_FOOTER_RE = re.compile(
-    r"[ \t*_`]*(?:none\b[^\n]*?)?awaiting[ \t]+the[ \t]+rotation\b", re.I
+    r"[ \t*_`]*(?:none[ \t*_`]*[—–:;,.-]*[ \t]*(?:terminal[ \t*_`]*[—–:;,.-]*[ \t]*)?)?"
+    r"awaiting[ \t]+the[ \t]+rotation[ \t*_`.]*\r?$",
+    re.I | re.M,
 )
 
 
@@ -2614,10 +2619,14 @@ def _rotation_due(sid: str) -> bool:
     base = Path(os.environ.get("ROTATE_STAMP_DIR", _ROTATE_STAMP_DEFAULT)).expanduser()
     for path, floor in ((base / ".ctx" / sid, _CTX_ROTATE_PCT), (base / sid, 1)):
         try:
-            if int(path.read_text(encoding="utf-8").strip()) >= floor:
-                return True
+            if not path.is_file():  # a FIFO or a directory never blocks the Stop
+                continue
+            raw = path.read_text(encoding="utf-8").strip()
         except (OSError, ValueError):
             continue
+        # the writer writes `f"{step}\n"`: ASCII digits only, so `+40`, `4_0` or other digits read not due
+        if raw.isascii() and raw.isdigit() and int(raw) >= floor:
+            return True
     return False
 
 
@@ -2627,11 +2636,20 @@ def _awaits_rotation(text: str | None) -> bool:
         return False
     fences = _fence_spans(text)
     footer = _own_footer_fence(text, fences)
+    # stricter than `_own_footer_fence` alone: a trailing fence is this session's footer only with `NEXT:`
+    # and a second footer key, so a lone fenced example never reads as the boundary (review pass 1, A-3)
+    if footer and len({k.group(1) for k in _FOOTER_KEY_RE.finditer(text, *footer)}) < 2:
+        footer = None
     fences = [f for f in fences if f != footer]
     last = None
     for m in _NEXT_LINE_RE.finditer(text):
-        if not any(lo <= m.start() < hi for lo, hi in fences):
-            last = m
+        if any(lo <= m.start() < hi for lo, hi in fences):
+            continue
+        # a `>` blockquote quotes a footer and a 4-space or tab indent is a markdown code block: neither
+        # makes one (review pass 1, A-2, B-4)
+        lead = text[m.start() : m.end()].split("NEXT", 1)[0]
+        quoted = ">" in lead or "\t" in lead or lead.startswith("    ")
+        last = None if quoted else m
     return last is not None and _ROTATION_FOOTER_RE.match(text, last.end()) is not None
 
 
@@ -2723,6 +2741,8 @@ def _coordinator_duty(
 
     `rotation`: the Stop is at a rotation boundary, so `_ROTATION_HOLDS` (plus `mail` for a worker)
     stand down as AMBER's starts do."""
+    _COORD_STOOD_DOWN.clear()  # this call's stand-downs only, whoever the caller (review pass 1, A-6)
+    _COORD_STOOD_WHY.clear()
     argv = _COORD_ARGV or (sys.executable, str(root / "scripts" / "work.py"))
     if _COORD_ARGV is None and not Path(argv[1]).is_file():
         return None

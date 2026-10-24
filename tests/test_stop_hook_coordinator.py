@@ -422,7 +422,7 @@ def _stamps_from_home(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize(("kind", "value"), [("ctx", "40\n"), ("ctx", "90\n"), ("mb", "200\n")])
-@pytest.mark.parametrize("action", ["claim", "feedback"])
+@pytest.mark.parametrize("action", _ROT_HELD)
 def test_rotation_boundary_stands_down_a_start_action(
     monkeypatch, tmp_path, _stamps_from_home, kind, value, action
 ):
@@ -430,6 +430,8 @@ def test_rotation_boundary_stands_down_a_start_action(
     monkeypatch.setattr(hook, "_COORD_ARGV", _line({**CLAIM, "action": action, "fp": action}))
     _stamp(tmp_path, value, kind=kind)
     assert _drive(monkeypatch, main, lam=_FOOTER)[0] is None, "held at the rotation boundary"
+    stood = [r for r in _events(tmp_path) if r.get("outcome") == "stood_down"]
+    assert stood and stood[-1]["action"] == action and stood[-1]["reason"] == "rotation", stood
 
 
 @pytest.mark.parametrize(
@@ -442,12 +444,21 @@ def test_rotation_boundary_stands_down_a_start_action(
         "done\n\n- NEXT: none — terminal; awaiting the rotation",
         "done\n\nNEXT: awaiting the rotation",
         "done\n\n```\nSTATE: rotation asked\nNEXT: none — terminal; awaiting the rotation\n```",
+        "done\r\n\r\nNEXT: none — terminal; awaiting the rotation\r\n",
+        "done\n\nNEXT: none — terminal; awaiting the rotation.",
+        "done\n\nNEXT: `none — terminal; awaiting the rotation`",
+        "done\n\nNEXT: none awaiting the rotation",
+        "done\n\nNEXT\t: none — terminal; awaiting the rotation",
+        "done\n\n  NEXT: none — terminal; awaiting the rotation",
+        "NEXT: W-00000001 — claim it\n\nlater: done\n\nNEXT: none — terminal; awaiting the rotation",
     ],
 )
 def test_rotation_footer_spellings(monkeypatch, tmp_path, _stamps_from_home, lam):
     main = _repo(tmp_path)
     _stamp(tmp_path, "50\n")
     assert _drive(monkeypatch, main, lam=lam)[0] is None, lam
+    stood = [r for r in _events(tmp_path) if r.get("outcome") == "stood_down"]
+    assert stood and stood[-1]["reason"] == "rotation", (lam, stood)
 
 
 @pytest.mark.parametrize(
@@ -458,6 +469,17 @@ def test_rotation_footer_spellings(monkeypatch, tmp_path, _stamps_from_home, lam
         "The footer reads:\n\n```\nNEXT: none — terminal; awaiting the rotation\n```\n\nbut I go on.",
         "done\n\nNEXT: W-00000001 — the next item, then awaiting the rotation",
         "done\n\nNEXT: none — terminal",
+        "done\n\nNEXT: none — not awaiting the rotation",
+        "done\n\nNEXT: none — terminal; NOT awaiting the rotation",
+        "done\n\nNEXT: none — then claim W-00000001, awaiting the rotation",
+        "done\n\nNEXT: none — awaiting the rotation of keys, then deploy",
+        "done\n\nNEXT: awaiting the rotations",
+        "done\n\n> NEXT: none — terminal; awaiting the rotation",
+        "done\n\n    NEXT: none — terminal; awaiting the rotation",
+        "done\n\n\tNEXT: none — terminal; awaiting the rotation",
+        "done\n\nNEXT: none — W-00000009 is queued; awaiting the rotation",
+        "prose\n\n```\nNEXT: none — terminal; awaiting the rotation\n```\n",
+        "NEXT: none — terminal; awaiting the rotation\n\nNEXT: W-00000001 — claim it",
     ],
 )
 def test_rotation_footer_quoted_or_successor_first_does_not_count(
@@ -476,7 +498,11 @@ def test_rotation_footer_quoted_or_successor_first_does_not_count(
         ("ctx", "39\n", SID),
         ("ctx", "garbage\n", SID),
         ("ctx", "", SID),
+        ("ctx", "+50\n", SID),
+        ("ctx", "5_0\n", SID),
+        ("ctx", "٥٠\n", SID),
         ("mb", "0\n", SID),
+        ("mb", "-200\n", SID),
         ("mb", "x\n", SID),
         ("ctx", "50\n", "another-session"),
     ],
@@ -495,9 +521,22 @@ def test_rotation_hold_needs_both_a_due_stamp_and_the_footer(
 
 def test_rotation_due_refuses_a_sid_the_writer_grammar_refuses(tmp_path, _stamps_from_home):
     _stamp(tmp_path, "50\n")
+    _stamp(
+        tmp_path, "200\n", kind="mb"
+    )  # `.ctx/../<SID>` resolves here: the traversal has a target
     assert hook._rotation_due(SID)
     for bad in ("../" + SID, ".ctx", "", "-" + SID, "a" * 129):
         assert not hook._rotation_due(bad), bad
+
+
+def test_rotation_due_never_reads_a_fifo_or_a_directory(tmp_path, _stamps_from_home):
+    import os
+
+    base = tmp_path / "home" / ".claude" / "state" / "rotate-advised"
+    (base / ".ctx").mkdir(parents=True)
+    os.mkfifo(base / ".ctx" / SID)  # opening it for read would block the Stop forever
+    (base / SID).mkdir()
+    assert not hook._rotation_due(SID)
 
 
 @pytest.mark.parametrize("action", _ROT_ENFORCED)
@@ -553,6 +592,10 @@ def test_rotation_ladder_skips_start_candidates_without_spending_them(
     stood = [r for r in _events(tmp_path) if r.get("outcome") == "stood_down"]
     assert stood and stood[-1]["action"] == "feedback,mail", stood
     assert stood[-1]["reason"] == "rotation", stood
+    ladder["role"] = "coordinator"  # a coordinator's mail is routing work: it still blocks
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line(ladder))
+    out, _ = _drive(monkeypatch, main, lam=_FOOTER)
+    assert out is not None and "answer mail y" in out["reason"]
 
 
 @pytest.mark.parametrize(("stamp", "reason"), [(True, "amber+rotation"), (False, "amber")])
