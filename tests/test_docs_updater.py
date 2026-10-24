@@ -1009,10 +1009,18 @@ def _old_blank_code_spans(content: str) -> str:
     while i < len(runs):
         opener = runs[i]
         i += 1
-        if opener.start() and content[opener.start() - 1] == "\\":
-            continue
-        t = bisect.bisect_right(tail_starts, opener.start()) - 1
-        if t >= 0 and opener.start() < tails[t][1]:
+        # W-753040b8: the opener rule moved to CommonMark's backslash parity in the linear function, and this oracle
+        # takes the SAME rule — its job is linear-vs-quadratic equivalence; the escape rule is graded in test_fences.py
+        o_start, o_len = opener.start(), len(opener.group())
+        b = o_start
+        while b and content[b - 1] == "\\":
+            b -= 1
+        if (o_start - b) % 2:
+            o_start, o_len = o_start + 1, o_len - 1
+            if not o_len:
+                continue
+        t = bisect.bisect_right(tail_starts, o_start) - 1
+        if t >= 0 and o_start < tails[t][1]:
             continue
         line_start = content.rfind("\n", 0, opener.start()) + 1
         one_line = _FX._ONE_LINE_BLOCK_RE.match(content, line_start) is not None
@@ -1025,10 +1033,10 @@ def _old_blank_code_spans(content: str) -> str:
             ):
                 break
             seen = runs[j].end()
-            if len(runs[j].group()) == len(opener.group()):
+            if len(runs[j].group()) == o_len:
                 out += [
-                    content[kept : opener.start()],
-                    du._blank(content[opener.start() : runs[j].end()]),
+                    content[kept:o_start],
+                    du._blank(content[o_start : runs[j].end()]),
                 ]
                 kept, i = runs[j].end(), j + 1
                 break

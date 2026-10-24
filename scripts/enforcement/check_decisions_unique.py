@@ -129,7 +129,8 @@ def _masked(line: str) -> str:
     """The row with every pipe that is TEXT replaced by NUL: one written `\\|` (both characters
     become one NUL) and one inside a code span (intel 01M4405E: six well-formed rows read as
     malformed because their code spans held `a|b`). The spans are `_fences.blank_code_spans`'s — a
-    run of N backticks closes only on a run of exactly N and an escaped one opens nothing; the
+    run of N backticks closes only on a run of exactly N, and an odd backslash run escapes only the
+    run's first backtick (CommonMark parity, W-753040b8); the
     one-backtick regex this replaced split D-1159 (a quoted triple-backtick closer) into 4 cells
     (W-27db8c35). tests/test_decisions_table_shape.py counts its bare pipes from this same string.
 

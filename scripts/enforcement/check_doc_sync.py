@@ -72,6 +72,8 @@ ROUTE_PATTERNS = (
     r"@api_router\.(get|post|put|patch|delete|options|head)\s*\(",
 )
 CHANGELOG_ENTRY_RE = re.compile(r"###\s+(Added|Changed|Fixed|Removed|Security|Deprecated)")
+# An inline code span: a whole backtick run, its text, and an equal run (`_changelog_quality_ok`).
+_SPAN_RUN_RE = re.compile(r"(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)")
 # \bfallback\b was dropped 2026-08-26 (web-ecommerce-factory upstream proposal, measured
 # 4/4 prose false-positives — comments and operator-facing strings): a REAL code fallback
 # almost always co-occurs with retry/backoff/max_retries/circuit-breaker, which still
@@ -354,10 +356,14 @@ def _changelog_quality_ok() -> bool:
     # So: strip spans PER LINE, and only where the line's backticks are BALANCED (even count).
     # An odd count means the pairing is ambiguous, so that line is left intact and its bare
     # markers still fire — fail-closed exactly where the ambiguity lives.
+    #
+    # A span is a whole backtick RUN closed only by an equal run (W-753040b8): the one-backtick pattern read
+    # ``TODO`` as two empty spans around a bare TODO, and deleted a lone `` to glue `todo``todo` into one word.
+    # Deletion stays (a blank where a span sat between letters would pass `to`x`do`, the fail-open direction).
     def _strip_quotations(text: str) -> str:
         out = []
         for line in text.split("\n"):
-            out.append(re.sub(r"`[^`]*`", "", line) if line.count("`") % 2 == 0 else line)
+            out.append(_SPAN_RUN_RE.sub("", line) if line.count("`") % 2 == 0 else line)
         return "\n".join(out)
 
     defenced_for_tokens = _strip_quotations(defenced)

@@ -13,6 +13,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.enforcement import check_env_vars, check_secrets  # noqa: E402
@@ -119,6 +121,28 @@ def test_changelog_quality_accepts_real_entry(tmp_path, monkeypatch):
         "## [Unreleased]\n\n### Fixed — real thing (2026-06-28)\n\n## [1.0]\n"
     )
     assert _changelog_quality_ok() is True
+
+
+# W-753040b8: a span is a whole backtick run closed only by an EQUAL run, so a double-backtick quote is one
+# quotation and a lone `` is no span (the one-backtick regex read ``TODO`` as two empty spans around a bare TODO,
+# and deleted a lone `` to glue `todo``todo` into one word); an odd-count line still fails closed.
+@pytest.mark.parametrize(
+    ("line", "ok"),
+    [
+        ("- quotes a ``TODO`` token", True),
+        ("- quotes ```` ``TODO`` ```` as a nested quote", True),
+        ("- quotes a `TODO` token", True),
+        ("- a bare TODO beside ``x``", False),
+        ("- todo``todo", False),
+        ("- a stray ` and then a TODO", False),
+    ],
+)
+def test_changelog_quality_reads_whole_backtick_runs(tmp_path, monkeypatch, line, ok):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "CHANGELOG.md").write_text(
+        f"## [Unreleased]\n\n### Fixed — real thing (2026-06-28)\n\n{line}\n\n## [1.0]\n"
+    )
+    assert _changelog_quality_ok() is ok
 
 
 # --- #8 + enum-identity: validate_conventions must FAIL on a violation -------

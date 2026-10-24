@@ -416,3 +416,103 @@ def test_the_fence_toggle_has_one_live_copy() -> None:
     ]
     for line in lines:
         assert cdl._local_fence_toggle(line) == _fences.fence_toggle(line), repr(line)
+
+
+# W-753040b8: CommonMark's backslash parity for a span OPENER — an odd run of backslashes escapes the run's first
+# backtick only (the rest still opens), an even run is escaped backslashes and leaves the backtick live; a backslash
+# before a CLOSER is span content (no escapes inside a code span). Expected values are hand-derived from CommonMark.
+_B = "\\"
+
+
+def _blanked(text: str) -> str:
+    return _fences().blank_code_spans(text)
+
+
+@pytest.mark.parametrize(
+    ("text", "span"),
+    [
+        ("x `a|b` y", "`a|b`"),
+        ("x " + _B + "`a|b` y", None),
+        ("x " + _B * 2 + "`a|b` y", "`a|b`"),
+        ("x " + _B * 3 + "`a|b` y", None),
+        ("x " + _B * 4 + "`a|b` y", "`a|b`"),
+    ],
+)
+def test_blank_code_spans_backslash_parity(text: str, span: str | None) -> None:
+    out = _blanked(text)
+    if span is None:
+        assert out == text
+    else:
+        start = text.index(span)
+        assert out == text[:start] + " " * len(span) + text[start + len(span) :]
+
+
+@pytest.mark.parametrize(
+    ("text", "start", "end"),
+    [
+        (
+            "x " + _B + "``a` y",
+            4,
+            7,
+        ),  # an escaped double opens a single-backtick span one character later
+        ("x " + _B + "```a`` y", 4, 9),  # an escaped triple opens a double
+        ("x " + _B * 3 + "``a` y", 6, 9),
+    ],
+)
+def test_blank_code_spans_escaped_run_opens_with_the_rest(text: str, start: int, end: int) -> None:
+    assert _blanked(text) == text[:start] + " " * (end - start) + text[end:]
+
+
+@pytest.mark.parametrize(
+    "text", ["x `a" + _B + "` y", "x `a" + _B * 2 + "` y", "x ``a" + _B + "`` y"]
+)
+def test_blank_code_spans_backslash_before_a_closer_is_content(text: str) -> None:
+    out = _blanked(text)
+    assert out[:2] == "x " and out[-2:] == " y" and set(out[2:-2]) == {" "}, repr(out)
+
+
+def test_blank_code_spans_agrees_with_commonmark_on_inline_fuzz() -> None:
+    """Single-line inline inputs read the same code spans as markdown-it's CommonMark preset. The alphabet has no
+    `[` (link tails) and no block starts (their rules are graded above); an input opening with an unmatched ```
+    is skipped — markdown-it reads the tail after it inconsistently with the same tail alone (W-753040b8 measure)."""
+    markdown_it = pytest.importorskip(
+        "markdown_it", reason="an independent CommonMark parser grades the span model"
+    )
+    md = markdown_it.MarkdownIt("commonmark")
+    fx = _fences()
+    real = fx._blank_span
+
+    def ours(text: str) -> list[str]:
+        fx._blank_span = lambda t: "\x00" * len(t)
+        try:
+            out = fx.blank_code_spans(text)
+        finally:
+            fx._blank_span = real
+        spans, k = [], 0
+        while k < len(out):
+            if out[k] != "\x00":
+                k += 1
+                continue
+            e = k
+            while e < len(out) and out[e] == "\x00":
+                e += 1
+            raw = text[k:e]
+            n = len(raw) - len(raw.lstrip("`"))
+            body = raw[n : len(raw) - n]
+            if len(body) >= 2 and body[0] == " " and body[-1] == " " and body.strip(" "):
+                body = body[1:-1]
+            spans.append(body)
+            k = e
+        return spans
+
+    rng = random.Random(0x753040B8)
+    tokens = ["`", "``", "```", _B, _B * 2, "a", " ", "b"]
+    seen = 0
+    for _ in range(4000):
+        text = "".join(rng.choice(tokens) for _ in range(rng.randint(1, 14)))
+        if text.strip() != text or text.startswith("```"):
+            continue
+        cm = [t.content for t in md.parseInline(text)[0].children if t.type == "code_inline"]
+        assert ours(text) == cm, repr(text)
+        seen += 1
+    assert seen > 2000, seen

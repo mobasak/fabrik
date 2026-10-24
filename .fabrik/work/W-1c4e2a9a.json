@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T09:41:41.893560Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-1c4e2a9a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each reader on its real population (DECISIONS.md rows for decisions.py, the hub tables session_orient reads) old vs CommonMark parity; decisions.py's encoder and decoder must change together or read(append(x)) breaks; full /fabrik-review (a hook and a synced script)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Two span readers outside _fences ignore backslash escapes the other way (found by W-753040b8's measure): scripts/decisions.py _code_span_ranges (the ledger's round-trip encoder and decoder) and .claude/hooks/session_orient.py _code_span_ranges open a code span on an escaped backtick, where CommonMark and _fences (after W-753040b8) open none"
+}
