@@ -123,8 +123,9 @@ screens. Every Phase-2 screen must be reachable; flag any orphan.
 For each screen, one block that lets an agent build it without inventing anything:
 
 - **Layout skeleton** — the regions (header / nav / primary content / aside / actions), no pixels. On a web
-  surface, lay out each screen and its hero through `frontend-design:frontend-design`, the frozen design system
-  as its brief (`core/63-frontend-design.md`).
+  surface, lay out what the brief leaves free on each screen (a marketing or landing hero's form, the one
+  memorable element) through `frontend-design:frontend-design`, the frozen design system as its brief
+  (`core/63-frontend-design.md`) — regions only, still no pixels.
 - **Design-system components/patterns** — which established components (Phase 1) each region uses. Never a
   bespoke component where a system one exists. When the system is shadcn-based, confirm the exact component +
   variant via the **shadcn MCP** (`mcp__shadcn__search_items_in_registries` / `view_items_in_registries`) so

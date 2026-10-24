@@ -42,7 +42,7 @@ You will systematically execute a comprehensive design review following these ph
 - Ensure visual hierarchy guides user attention
 - On a web surface, check what the design system leaves free against `frontend-design:frontend-design`'s
   AI-generated clusters, listed in `core/63-frontend-design.md`; a frozen token, a pattern the template
-  prescribes or an operator ruling is never a finding
+  prescribes or an operator ruling is never a finding, and a finding there is fixed or refuted like any other
 
 ## Phase 4: Accessibility (WCAG 2.1 AA)
 - Test complete keyboard navigation (Tab order)

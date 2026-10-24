@@ -10,11 +10,14 @@ Four things can go false with no other gate turning red:
    past the skill again.
 3. No source, fragment, agent or pack names the bare `frontend-design`: two installed skills share that name
    (the plugin's and the older `example-skills:frontend-design`), so a bare name resolves to either.
-4. The pack's globs load on web GUI files and stay off non-GUI trees (coverage reports, Sphinx/MkDocs output).
+4. The pack's globs load on web GUI files, nested HTML included (the fleet matcher reads a middle `**` as one
+   segment, so depth is spelled out), and stay off the non-GUI paths listed below. Its CSS entry points are the
+   template's and reach wherever the template's do.
 
 The cheapest way past (2) is a pointer that names the pack but not the skill, or the skill but not the pack;
-each site is checked for both. The cheapest way past (3) is the name without backticks — the check reads the
-name as a token whatever surrounds it, except where a `:` or `@` joins it to a namespace or plugin id.
+each site must hold one paragraph naming both. The cheapest way past (3) is the name without backticks — the check reads the
+name as a token in any case, whatever surrounds it, except where a `:` or `@` joins it to a namespace, skill or
+plugin id, or a `/` before it makes it a path segment.
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ PACK = ROOT / ".windsurf" / "rules" / PACK_REL
 TITLE = "Designing what the brief leaves free"
 # a bare name: not joined to a namespace (`x:frontend-design`), a skill (`frontend-design:x`), a plugin id
 # (`frontend-design@x`) or a longer identifier
-BARE = re.compile(r"(?<![:\w@/-])frontend-design(?![:\w@/-])")
+BARE = re.compile(r"(?<![:\w@/-])frontend-design(?!:[\w-]|@|[\w-])", re.IGNORECASE)
 SITES = (
     "commands/_sources/fabrik-ui-design.md",
     "commands/_sources/fabrik-ui-design-review.md",
@@ -42,6 +45,8 @@ SITES = (
     "commands/_agents/fabrik-gui.md",
     ".windsurf/rules/saas/60-saas-ui.md",
     ".windsurf/rules/chrome-ext/70-chrome-ext.md",
+    ".windsurf/rules/desktop-app/72-desktop.md",
+    "docs/reference/gui-toolchain.md",
 )
 SCANNED = ("commands/_sources", "commands/_fragments", "commands/_agents", ".windsurf/rules")
 
@@ -77,16 +82,15 @@ def test_the_pack_states_the_rule() -> None:
     for cluster in ("cream background", "near-black background", "broadsheet", "identical rounded cards", "eyebrow"):
         assert cluster in flat, cluster
     # a finding can close, and an unattended run never stops to ask
-    assert "records why" in flat
+    assert "never closes by editing a frozen contract" in flat
     assert "never stops to confirm" in flat
     assert "never mints" in flat
 
 
 @pytest.mark.parametrize("rel", SITES)
 def test_every_routing_site_points_to_the_pack(rel: str) -> None:
-    text = (ROOT / rel).read_text(encoding="utf-8")
-    assert SKILL in text, rel
-    assert PACK_REL in text, rel
+    paragraphs = re.split(r"\n\s*\n", (ROOT / rel).read_text(encoding="utf-8"))
+    assert any(SKILL in para and PACK_REL in para for para in paragraphs), rel
 
 
 def test_no_source_names_the_bare_skill() -> None:
@@ -100,7 +104,8 @@ def test_no_source_names_the_bare_skill() -> None:
 
 
 def test_the_bare_name_check_reads_the_shapes_it_must() -> None:
-    for bare in ("the `frontend-design` skill", "use frontend-design here", "(frontend-design)"):
+    for bare in ("the `frontend-design` skill", "use frontend-design here", "(frontend-design)",
+                 "Invoke frontend-design: the skill", "load frontend-design/SKILL.md", "the Frontend-Design skill"):
         assert BARE.search(bare), bare
     for joined in (SKILL, "example-skills:frontend-design", "frontend-design@claude-plugins-official",
                    "plugins/frontend-design/skills", "frontend-design-routing"):
@@ -121,7 +126,10 @@ def _globs() -> list[str]:
         "src/components/Card.vue",
         "src/routes/+page.svelte",
         "src/index.html",
+        "src/renderer/pages/index.html",
+        "extension/src/entrypoints/popup/index.html",
         "public/index.html",
+        "public/blog/post.html",
         "src/styles/site-base.css",
         "app/globals.css",
         "src/css/custom.css",

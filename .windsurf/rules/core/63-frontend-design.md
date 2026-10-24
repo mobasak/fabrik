@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/docs/design-system.md", "**/docs/ui-design.md", "**/*.tsx", "**/*.jsx", "**/*.astro", "**/*.vue", "**/*.svelte", "**/src/**/*.html", "**/public/**/*.html", "**/tailwind.config.*", "**/globals.css", "**/global.css", "**/custom.css", "**/tailwind.css", "**/theme.css", "**/src/styles/*.css"]
+globs: ["**/docs/design-system.md", "**/docs/ui-design.md", "**/*.tsx", "**/*.jsx", "**/*.astro", "**/*.vue", "**/*.svelte", "**/src/*.html", "**/src/*/*.html", "**/src/*/*/*.html", "**/public/*.html", "**/public/*/*.html", "**/tailwind.config.*", "**/globals.css", "**/global.css", "**/custom.css", "**/tailwind.css", "**/theme.css", "**/src/styles/*.css"]
 description: Web UI design routes to the frontend-design:frontend-design skill (operator ruling 2026-10-24) — when it is invoked, the brief that outranks it (operator rulings, the frozen ui-design.md and design-system.md with the template's structure), and its AI-generated clusters written out for readers without the skill.
 trigger: glob
 currency_pass: 2026-10-24
@@ -20,10 +20,13 @@ designs in websites"). Never the older `example-skills:frontend-design`, which s
 
 - designing what a new brand's kit leaves free in `/fabrik-ui-design` Phase 1 (the one memorable element, the
   copy's voice);
-- laying out a screen and its hero in `/fabrik-ui-design` Phase 5;
-- building a screen — the skill's build and self-critique passes only, since its plan pass is already frozen in
-  the contract;
-- the visual critique in `/fabrik-ui-design-review` and `/design-review`.
+- laying out what each screen leaves free in `/fabrik-ui-design` Phase 5 (a marketing or landing hero's form,
+  the one memorable element);
+- building a screen — the skill's build and self-critique passes only, inside what the contract lists, since its
+  plan pass is already frozen in the contract.
+
+The visual critique in `/fabrik-ui-design-review` and `/design-review` applies the skill's critique as written out
+below (its AI-generated clusters and generic treatments); a reviewer without the Skill tool needs nothing else.
 
 Mobile surfaces are outside this rule; their packs stand.
 
@@ -40,7 +43,7 @@ is, in order:
 A pattern the template or the surface pack prescribes — the uppercase micro-label, the mono face for numeric
 data, the KPI card, card hover lift, one card radius — is brief, never a free axis. Typography is a frozen row:
 only the treatment of a hero or display moment, within the frozen families and scale, is free. The skill's token
-plan restates the frozen tokens and never mints a hex value. The subject, the audience and the primary job come
+plan restates the frozen tokens (in `/fabrik-ui-design` Phase 1, the brand kit's) and never mints a hex value. The subject, the audience and the primary job come
 from the spec and `docs/ui-design.md`, which answer the skill's "confirm with the client" step: a run never stops
 to confirm them. What stays free is what the brief does not settle: the hero's form, the layout concept of a
 marketing or landing surface, the one memorable element, the copy.
@@ -60,8 +63,9 @@ The skill names traits that AI-generated design clusters around. Written out her
 
 The skill also treats as generic: one accented word in a headline, numbered markers on content that is not a
 sequence, and fade-and-slide entrances on every section. A review that finds one of these on a FREE axis reports
-it; the finding closes when the contract records why the choice was made or changes it. On a frozen token, a
-pattern the template prescribes or an operator ruling it is never a finding.
+it, and the finding terminates like any other: FIXED (the choice changes) or REFUTED (the review cites the line of
+the brief or the spec that makes the choice deliberate). It never closes by editing a frozen contract in place.
+A frozen token, a pattern the template prescribes and an operator ruling are never findings.
 
 ## Without the skill
 
