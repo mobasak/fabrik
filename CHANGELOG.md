@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — an operator-run script for the vps1 Postgres rotation's steps 1-3 (2026-10-24)
+
+- W-80983d8c, D-1176, D-1177. `scripts/sysadmin/vps1_pg_scoped_logins.py` runs
+  `docs/reference/vps1-postgres-admin-rotation-runbook.md` steps 1-3, gated by a typed `yes` per block. The
+  classifier refuses the fleet agent's commands on vps1, so the operator runs it. Passwords and verifiers travel only
+  on ssh stdin. A failed service move restores its files and restarts the service, and a re-run finishes a run that
+  stopped half-way. Step 4 is not in it. Graders: `tests/test_vps1_pg_scoped_logins.py`.
+
 ### Fixed — a late re-bind no longer ends a rotation `partial:rebind`, inside the executor's timeout (2026-10-24)
 
 - `rotate_session.py` waits `REBIND_GRACE_S` (180 s, was 90) for the rotated agent's re-bind; the one late bind measured
