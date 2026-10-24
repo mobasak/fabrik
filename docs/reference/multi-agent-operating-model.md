@@ -190,6 +190,11 @@ python3 scripts/merge_request.py request --review <closing run record or review 
 #    A branch cut before the script existed runs the main checkout's copy by absolute path
 #    (`python3 <main checkout>/scripts/merge_request.py request …`): it finds mail.py, work.py and
 #    whoami_agent.py beside itself, never in the branch. `--item` releases your claim on that item.
+#    `--pretest` first runs step (c)'s owner tests on the merge the owner would build (a throwaway at
+#    the local base) and sends only on green, recording the merged tree in
+#    `<git common dir>/fabrik-merge/pretest/<head>.json`; the merge then skips its own leg when its
+#    merged tree differs from that one only in ledgers and work items (W-1fb11ec8) — run it in place
+#    of a hand run of the suite, never beside one.
 # 2. the merge owner, in the main checkout:
 python3 scripts/merge_request.py merge [<id>]   # the oldest request addressed to it, or <id>
 python3 scripts/merge_request.py resume <id>    # a request left short of `replied` (exit 4)
