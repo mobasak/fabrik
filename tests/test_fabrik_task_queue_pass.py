@@ -542,7 +542,9 @@ def test_plan_locks_are_read_before_the_critique_seats_and_the_terminal_before_d
     1792835476 and 1792831669 (ten answered rejects cite the `--terminal-amend` line, a line not followed): the
     checklist now opens by re-reading `--terminal` against design.md's TERMINAL as MEASURE and the critiques left it."""
     phase2 = _section("## Phase 2", "## Phase 3")
-    lock = phase2.index("read the plan locks (no CLI does:")
+    lock = phase2.index(
+        "Before the critique seats below are stamped, read the plan locks (no CLI does:"
+    )
     assert lock < phase2.index("{{include:design-critique}}"), (
         "the lock read must precede the seats' stamp"
     )
