@@ -1010,6 +1010,7 @@ PIPELINE_ORDER: tuple[str, ...] = (
     "fabrik-epics-review",
     # 1-design
     "fabrik-rivals",
+    "fabrik-reverse-engineer",
     "fabrik-spec",
     "fabrik-spec-review",
     # 5-certify EARLY position → 2-contract

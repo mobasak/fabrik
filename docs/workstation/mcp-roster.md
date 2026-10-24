@@ -49,7 +49,7 @@ on demand — zero context cost), but the *processes* spawn regardless. That is 
 
 ---
 
-## The servers (18 active + 2 retired + 1 planned)
+## The servers (19 active + 2 retired + 1 planned)
 
 Weight = measured RSS across live processes (per-window cost scales with window count).
 
@@ -74,6 +74,7 @@ Weight = measured RSS across live processes (per-window cost scales with window 
 | wsl | Claude Desktop ↔ WSL bridge: `bash`/`read_file`/`write_file`/`edit_file`/`list_dir` (`/opt/fabrik/tools/wsl-mcp`, systemd `wsl-mcp.service`, HTTP :8040; Desktop reaches it via Windows-native `npx mcp-remote`, never `wsl.exe`) — see [wsl-mcp.md](wsl-mcp.md) | Claude Desktop only (Claude Code has native Bash) | light | ON Desktop — REPLACES `wsl-shell` + `wsl-filesystem` (D-616) |
 | fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt/fabrik-citation-verifier`, MCP :8033) | dossier/research: transdoc + fabrik-claim-validator (cross-wire) + future health repos | service | ON transdoc + fabrik-claim-validator — **RULED (D-022: the health pair is cross-wired MCP↔MCP)** |
 | fabrik-scrape | raw-page fetch for research seats — one tool, `scrape(url)` → markdown or `{blocked, reason, status}` (`libs/web_scrape_mcp`, systemd `fabrik-scrape-mcp.service`, MCP :8034; `docs/reference/fabrik-scrape-mcp.md`) | every repo — the researcher's first raw fetch (W-10146d20) | service | ON everywhere — **RULED (D-1102: universal)**; Firecrawl stays the fallback, pinned to the basic proxy |
+| rea | Reverse Engineer Anything (`rea-agents`, MIT, `github.com/morluto/rea`): local stdio inspection of websites (drives the box's Chrome), JavaScript/Electron bundles, APKs, .NET and native binaries — the inspection layer of `/fabrik-reverse-engineer` | hub-class only (hub + fabrik-lib); a project gains it by an overlay row | node, per session | ON hub-class only — **RULED (D-1199)**; pinned global install, never REA's own `setup` (§ REA — the ruling in full) |
 | fabrik-claim-validator | multi-tradition claim validation + substance discovery (`/opt/fabrik-claim-validator`, :8002) — **MCP server NOT YET BUILT** (no MCP surface in its src; build requested of the owning repo by mail) | fabrik-citation-verifier (cross-wire) + future health repos | — (planned) | PLANNED per D-022 — joins the roster when the owning repo ships its MCP endpoint |
 | serena | LSP semantic code navigation | ALL repos — symbol-level grounding (find_symbol, find_referencing_symbols) | light idle | ON all types — **RULED (D-021: adopt-and-wire)**: zero usage before wiring was zero corpus wiring, not quality; named in plan-after-chat's grounding phase + review's adjudication. Still unused after wiring = a retirement case with evidence |
 
@@ -182,6 +183,36 @@ everywhere playwright is granted — the 6 UI-bearing types (D-015) AND every pe
 overlay (D-019: wef gets +chrome-devtools with its D-016 playwright — CWV on a produced storefront
 is conversion tooling, a slow shop loses sales). `mobile-app` stays out (maestro/mobile-mcp loop);
 headless types have nothing to measure. Like playwright, it is NEVER a crawling/research tool.
+
+## REA — the ruling in full (D-1199)
+
+**What:** `rea-agents` (Reverse Engineer Anything) — one MCP server over stdio, run locally; for a website it
+drives a Chrome-family browser (`/usr/bin/google-chrome` on this box) and records page structure, scripts,
+network requests and screenshots; it also reads JavaScript/Electron bundles, APKs and .NET assemblies, and
+disassembles native binaries through Ghidra or Hopper when either is installed (neither is, today).
+`/fabrik-reverse-engineer` is its consumer (operator 2026-10-24: "i need below feature asap", W-eff97ae7).
+
+**Install — pinned, scripts off, never its own setup:** `npm install -g --ignore-scripts rea-agents@6.7.0`,
+and the catalog entry (`scripts/sysadmin/mcp_defs.json` → `rea`) launches that global binary with `mcp`.
+REA's own `setup` is NOT run: it writes `mcpServers.rea` into `~/.claude.json` (every project, every account
+file the rotator syncs) and a personal skill under `~/.claude/skills` — the roster and the emitter are the
+only writers of MCP registrations here. `--ignore-scripts` skips the one dependency install script, the
+optional `frida` binding's prebuilt download, so Frida instrumentation (native and Android runtime
+tracing) is unavailable; websites, bundles, APK and .NET inspection need no install script. Vetted
+2026-10-24: one maintainer (`morluto`, the repository owner), npm provenance (SLSA) on the release, no
+pre/post-install script in the package itself, 174 packages in the tree.
+
+**Who:** hub-class only — the hub and fabrik-lib, through the full catalog (`HUB_EXCLUDE` does not name it).
+No scaffold type and no overlay carries it; a project that needs it gets an overlay row here first, then the
+emitter.
+
+**What it can reach:** it runs as this OS user with the session's permissions — it can read any file the
+user can, launch the browser and reach the network the browser reaches. The MCP grant scopes which sessions
+SEE its tools, not what the process can touch. Targets are the operator's to name (`/fabrik-reverse-engineer`
+§ The target and its limits).
+
+**Update:** a new version is a roster edit (this section's pin) plus the same `npm install -g --ignore-scripts
+rea-agents@<version>`; `rea update` is not used, and nothing tracks `@latest`.
 
 ## Known non-connector classes (distinct from the herd outage)
 
