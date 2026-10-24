@@ -146,11 +146,12 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # APPROACH/MIRROR, before the fix edits it, and amends it with `step --phase 4 --design-amend` once the nested review
 # has closed; phase 2's remedy names the current phase, since `step` sets the record's phase (rows 1792766698,
 # 1792734746, 1792731898, 1792765470; review rounds 1-2 folded).
-# D-1192 (kaizen, 2026-10-24): 26951 -> 27346 — phase 2 reads the plan locks before the critique seats go out and
-# again before `--design` only for a path the critiques added; the pre-`--design` checklist re-reads `--terminal`
-# against design.md's TERMINAL; MEASURE replays a prior slice's stated reason the design builds on and says a zero
-# count is no fail direction (rows 1792835476, 1792831669, 1792834386, 1792830212, 1792780963, 1792832940).
-SIZE_CAP = 27346
+# D-1192 (kaizen, 2026-10-24): 26951 -> 27508 — phase 2 reads the plan locks before the critique fragment stamps the
+# seats, and the pre-`--design` checklist opens by re-reading `--terminal` against design.md's TERMINAL as MEASURE and
+# the critiques left it, then re-runs the lock check on every path; MEASURE replays a prior slice's stated reason the
+# design builds on and says a count is no fail direction (rows 1792835476, 1792831669, 1792834386, 1792830212,
+# 1792780963, 1792832940; review round 1 folded).
+SIZE_CAP = 27508
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
