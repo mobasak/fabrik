@@ -418,7 +418,8 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   seat lives in its own transcript, `<transcript dir>/<sid>/subagents/agent-<id>.jsonl` (a Workflow seat one level down, `subagents/workflows/wf_<id>/`), in the
   parent's per-message shape — the close sums those (in-window assistant lines, per-message maximum)
   into `tok_seat_in/out/cache_read/cache_create` and counts them as `seats_seen`; null when no seat
-  file holds an in-window message. Measured 2026-09-08: one review's 21 seats billed 69.5M input
+  file holds an in-window message. `seats_seen` itself is null — never 0 — when the transcript was not read
+  (no path, not a file, a read that raised), and a measured 0 when it was read and no seat file sat in the window. Measured 2026-09-08: one review's 21 seats billed 69.5M input
   against the orchestrator's 35.7M. The FEEDBACK line prints them as `· seats N: X input / Y output`;
   a window with seats but no orchestrator message prints `tokens — · seats …`, never nothing; a seat still
   writing within 30 s of the close is summed mid-flight and the row says `seats_partial: true`; an unreadable or oversize (256 MiB) seat file is
@@ -426,7 +427,8 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   window lies inside its parent's, so the same seats appear on both rows — the report's seat column is
   non-additive across nested closes, like `tok_*`. The close also records `seats_declared` (the sum of
   `round --seats`) and prints a warning when it differs from `seats_seen` by more than one — the reservation
-  siblings subtract is only as true as the number typed.
+  siblings subtract is only as true as the number typed; when `seats_seen` is null it compares nothing and,
+  with seats declared, prints `seats declared N; seen unknown (transcript not read)` instead.
   The file is read
   backwards from the tail — the WHOLE file, a 2 GiB cap as a backstop — every line pre-filtered by
   a regex for its timestamp and type so only in-window assistant lines are parsed; a 750 MB hub

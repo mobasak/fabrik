@@ -8756,3 +8756,43 @@ def test_an_unreadable_transcript_is_noted_not_silently_recorded(
     assert f"transcript unreadable: {p}" in r.stderr, (
         r.stderr
     )  # the NOTE names the real cause (review ha-1)
+
+
+def test_the_usage_grammar_round_trips_its_optional_cost_bracket() -> None:
+    """W-256d6877: `_USAGE_GRAMMAR` prints the optional field as `[· cost: <…>]`, and the parser read
+    that shape back with the `[` inside `filed` and the `]` inside `cost` — the close then refused
+    `0.01]`. Filled from the constant itself (nested angle placeholders filled fully), the line must
+    parse clean; an opener alone closes nothing it does not own, and a `filed:` id in brackets stays."""
+    cr = _cr_module("w256")
+    filled = cr._USAGE_GRAMMAR
+    while re.search(r"<[^<>]*>", filled):
+        filled = re.sub(r"<[^<>]*>", "x", filled)
+    filled = filled.replace("change: x: x", "change: lean: cut the rubric block")
+    assert "[· cost: x]" in filled, filled
+    for tail, cost in (
+        ("[· cost: 0.01]", "0.01"),
+        ("[· cost: 0.01].", "0.01."),
+        ("[· cost: 0.01]\r\n", "0.01"),
+        ("[· cost: 0.01", "0.01"),
+    ):
+        line = filled.replace("[· cost: x]", tail)
+        fields, missing = cr._parse_usage_feedback(line)
+        assert not missing, (tail, missing)
+        assert fields["cost"] == cost, (tail, fields)
+        assert "[" not in fields["filed"] and "]" not in fields["filed"], (tail, fields)
+    base = "confusion: none · waste: none · change: none · filed: mail [01M5ABC]"
+    fields, _ = cr._parse_usage_feedback(base)
+    assert fields["filed"] == "mail [01M5ABC]", fields
+    fields, _ = cr._parse_usage_feedback(base + " [· cost: 0.01]")
+    assert fields["filed"] == "mail [01M5ABC]" and fields["cost"] == "0.01", fields
+    # a bracketed field that is NOT the last one closes too, at its own end
+    fields, _ = cr._parse_usage_feedback(
+        "waste: none · change: none · filed: x [· confusion: y] · cost: 1"
+    )
+    assert fields["filed"] == "x" and fields["confusion"] == "y" and fields["cost"] == "1", fields
+    # a newline is a separator too: a bracket opened before a wrapped label closes the same way
+    fields, _ = cr._parse_usage_feedback(base + " [\ncost: 0.01]")
+    assert fields["filed"] == "mail [01M5ABC]" and fields["cost"] == "0.01", fields
+    # a bracket with no separator is not a label boundary today and is left alone
+    fields, _ = cr._parse_usage_feedback(base + " [cost: 0.01]")
+    assert fields["filed"] == "mail [01M5ABC] [cost: 0.01]" and "cost" not in fields, fields

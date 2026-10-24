@@ -2127,3 +2127,55 @@ def test_workflow_launched_seats_are_seen_like_agent_tool_seats(tmp_path: Path) 
     _seat_file(sub / "workflows" / "wf_other", "wfseat", [(start + 40, "s3", 400, 30)])
     got = _sum_transcript_usage(tr, start, now)
     assert got["seats_seen"] == 3 and got["tok_seat_out"] == 3400
+
+
+def test_an_unread_transcript_leaves_seats_seen_unknown(tmp_path: Path) -> None:
+    """W-256d6877: the `empty` result (no transcript, not a file, start <= 0, a raise) wrote
+    `seats_seen: 0` — a count never measured read as a measured zero. A transcript READ with no seat
+    file is still a measured 0."""
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _sum_transcript_usage  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    assert _sum_transcript_usage(None, start, now)["seats_seen"] is None
+    assert _sum_transcript_usage(tmp_path / "absent.jsonl", start, now)["seats_seen"] is None
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")
+    assert _sum_transcript_usage(tr, 0, now)["seats_seen"] is None
+    assert _sum_transcript_usage(tr, start, now)["seats_seen"] == 0
+    tr.write_text("", encoding="utf-8")  # read, nothing in the window: the seat scan still ran
+    assert _sum_transcript_usage(tr, start, now)["seats_seen"] == 0
+
+
+def test_the_seats_advisory_reads_only_a_measured_count(run_dir: Path) -> None:
+    """W-256d6877: with no transcript the close printed `seats declared N vs seen 0` — a false
+    mismatch against a count it never measured. Unmeasured says `seen unknown`; a transcript that
+    was read and holds no seat still warns."""
+    import time
+
+    def _close(rd: Path) -> subprocess.CompletedProcess[str]:
+        _cr(rd, "start", "--command", "fabrik-features", "--phases", "1", "--surface", "x")
+        _cr(rd, "dispatch", "--seats", "5")
+        _cr(rd, "round", "--findings", "0", "--classes-swept", "a")
+        return rd
+
+    _close(run_dir)
+    p = _cr(run_dir, "done", "--command", "fabrik-features", "--evidence", "x", "--feedback", STRUCTURED)
+    assert p.returncode == 0, p.stderr
+    assert "vs seen" not in p.stderr, p.stderr
+    assert "seats declared 5; seen unknown (transcript not read)" in p.stderr, p.stderr
+    row = json.loads((run_dir.parent / "command-feedback.jsonl").read_text().splitlines()[-1])
+    assert row["seats_seen"] is None and row["seats_declared"] == 5
+    rd2 = run_dir.parent / "second"
+    rd2.mkdir()
+    _close(rd2)
+    (rd2 / "no-transcript.jsonl").write_text(
+        _usage_line(time.time(), "m1", tout=10) + "\n", encoding="utf-8"
+    )
+    p = _cr(rd2, "done", "--command", "fabrik-features", "--evidence", "x", "--feedback", STRUCTURED)
+    assert p.returncode == 0, p.stderr
+    assert "seats declared 5 (round --seats) vs seen 0" in p.stderr, p.stderr
+    assert "seen unknown" not in p.stderr
