@@ -86,7 +86,7 @@ WireGuard at `10.99.0.1:<port>`.
 | vps1 | `infra/vps1/meilisearch/` | `meilisearch` |
 | vps1 | `infra/vps1/gotenberg/` | `gotenberg` |
 | vps1 | `infra/vps1/browserless/` | `browserless` |
-| vps1 | `infra/vps1/apprise/` | `apprise`, `apprise-mesh-gate` (the spokes' mesh-only door to it, `10.99.0.1:8202`, D-1166) |
+| vps1 | `infra/vps1/apprise/` | `apprise`, `apprise-mesh-gate` (the spokes' mesh-only door to it, `10.99.0.1:8202`, D-1166; pending the W-5dcafaef deploy) |
 | vps1 | `infra/vps1/n8n/` | `n8n` |
 | vps1 | `infra/vps1/site-provisioner/` | `site-provisioner` |
 | vps1 | `infra/vps1/ocoron-com/` | `wordpress`, `nginx`, `db`, `redis`, `backup` (the ocoron.com tenant stack) |

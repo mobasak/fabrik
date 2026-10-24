@@ -126,6 +126,12 @@ def test_a_spoke_named_only_in_the_spec_is_probed_on_that_spoke():
             OK + "\ngate reachable\ngate unreachable",
             ["could not check vps2", "unexpected output"],
         ),
+        (
+            "vps1",
+            f"present {CFG}\npresent {CFG}\npresent {CREDS}",
+            ["could not check vps1", "unexpected output"],
+        ),
+        ("vps2", OK_SPOKE + "\ngate reachable", ["could not check vps2", "unexpected output"]),
     ],
 )
 def test_a_failed_preflight_records_one_failure_and_skips_the_driver(target, stdout, expect):
@@ -181,6 +187,60 @@ def test_an_openrouter_only_watchdog_makes_no_ssh_call():
     ssh.assert_not_called()
     provision.assert_called_once()
     assert not ctx.registrar_failures
+
+
+@pytest.mark.parametrize(
+    "watchdog",
+    [
+        {},
+        {"llm_provider_primary": "claude-code", "llm_provider_fallback": "openrouter"},
+        {"llm_provider_primary": "openrouter", "llm_provider_fallback": "claude-code"},
+    ],
+)
+def test_either_claude_code_lane_runs_the_preflight(watchdog):
+    ctx = _ctx("vps2", dry_run=False, watchdog=watchdog)
+    provision, ssh, _ = _run(ctx, stdout=OK_SPOKE)
+    ssh.assert_called_once()
+    provision.assert_called_once()
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_a_non_mapping_watchdog_block_never_escapes_the_registrar(dry_run):
+    """A raw spec whose ``watchdog:`` is not a mapping is checked with the provider defaults, never raised."""
+    ctx = _ctx("vps2", dry_run=dry_run)
+    ctx.spec = {**ctx.spec, "watchdog": "on"}
+    if dry_run:
+        with patch("fabrik.drivers.ssh.ssh") as ssh:
+            InfrastructureProvisioner(deployer=MagicMock())._provision_watchdog(
+                "spoke-app", ctx, dry_run=True
+            )
+        ssh.assert_not_called()
+    else:
+        _, ssh, _ = _run(ctx, stdout=OK_SPOKE)
+        ssh.assert_called_once()
+
+
+@pytest.mark.parametrize("target", ["vps1", "vps2"])
+def test_the_preflight_command_runs_under_sh_and_its_output_parses(target, tmp_path, monkeypatch):
+    """The generated shell (``sudo -n`` stripped) runs, quotes a path with a space, and its real output parses."""
+    home = tmp_path / "claude home"
+    home.mkdir()
+    (tmp_path / "claude home.json").write_text("{}")
+    monkeypatch.setattr("fabrik.drivers.watchdog.VPS_CLAUDE_HOME", str(home))
+    _, ssh, _ = _run(_ctx(target, dry_run=False), stdout="")
+    cmd = ssh.call_args.args[0]
+    assert cmd.startswith("sudo -n ")
+    # The gate host is the hub's mesh IP; a closed local port keeps the run deterministic off the mesh.
+    local = cmd[len("sudo -n ") :].replace("/dev/tcp/10.99.0.1/8202", "/dev/tcp/0.0.0.0/1")
+    out = subprocess.run(["sh", "-c", local], capture_output=True, text=True, timeout=30).stdout
+    ctx = _ctx(target, dry_run=False)
+    provision, _, _ = _run(ctx, stdout=out)
+    provision.assert_not_called()
+    failure = _wd_failures(ctx)[0]
+    assert f"missing {home}/.credentials.json" in failure and "unexpected output" not in failure
+    # the present file, its path holding a space, reads present
+    assert f"missing {home}.json" not in failure
+    assert ("gate unreachable from vps2" in failure) is (target == "vps2")
 
 
 @pytest.mark.parametrize(
