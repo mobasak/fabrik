@@ -2624,8 +2624,9 @@ def _rotation_due(sid: str) -> bool:
             raw = path.read_text(encoding="utf-8").strip()
         except (OSError, ValueError):
             continue
-        # the writer writes `f"{step}\n"`: ASCII digits only, so `+40`, `4_0` or other digits read not due
-        if raw.isascii() and raw.isdigit() and int(raw) >= floor:
+        # the writer writes `f"{step}\n"`: ASCII digits only, so `+40`, `4_0` or other digits read not due,
+        # and at most 9 of them, so `int()` never meets Python's 4300-digit limit (review pass 2, A2-1)
+        if raw.isascii() and raw.isdigit() and len(raw) <= 9 and int(raw) >= floor:
             return True
     return False
 

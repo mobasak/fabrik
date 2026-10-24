@@ -503,6 +503,7 @@ def test_rotation_footer_quoted_or_successor_first_does_not_count(
         ("ctx", "٥٠\n", SID),
         ("mb", "0\n", SID),
         ("mb", "-200\n", SID),
+        ("mb", "9" * 5000, SID),
         ("mb", "x\n", SID),
         ("ctx", "50\n", "another-session"),
     ],
@@ -529,6 +530,7 @@ def test_rotation_due_refuses_a_sid_the_writer_grammar_refuses(tmp_path, _stamps
         assert not hook._rotation_due(bad), bad
 
 
+@pytest.mark.timeout(20)  # without the `is_file` guard the read blocks: a timeout makes it a red, not a hang
 def test_rotation_due_never_reads_a_fifo_or_a_directory(tmp_path, _stamps_from_home):
     import os
 
