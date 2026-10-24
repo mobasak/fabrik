@@ -1506,8 +1506,15 @@ DRAIN_KEYS = frozenset({"slug", "task", "task_file", "files"})
 DRAIN_DENY = frozenset(
     {"scripts/cloud_dispatch.py", ".fabrik/cloud-routines.json", ".pre-commit-config.yaml"}
 )
-DRAIN_HOME = ("Path.home(", "expanduser", "~/.claude")
-IN_FLIGHT_S = 86400  # a fired run with no branch after a day is taken to have died
+DRAIN_DENY_DIRS = ("commands/", "scripts/sysadmin/")  # the corpus, and the box-local machinery
+# A tests/ file whose text at master names one of these reads the home dir, which a cloud VM lacks.
+# A substring screen, never a proof: an aliased or imported read escapes it, and the merge rule's
+# spot-check is the counter (docs/workstation/cloud-dispatch.md § Draining a batch).
+DRAIN_HOME = ("Path.home", "expanduser", "~/.claude", "HOME", "getpwuid")
+IN_FLIGHT_S = 86400  # a fired run with no landed work after a day is taken to have died
+# A dispatch row with one of these statuses never started a run; every other status may have
+# (``error`` and ``http_5xx`` can follow a request the API accepted), so its slug counts as fired.
+NOT_FIRED = frozenset({"http_401", "http_429", "walled", "chain_dead"})
 
 
 def _git_run(*args: str, timeout: float = 120) -> tuple[int, str]:
@@ -1545,7 +1552,14 @@ def _sync_pattern() -> re.Pattern:
         ) from exc
 
 
+def _maybe_fired(r: dict) -> bool:
+    status = r.get("status")
+    return "kind" not in r and isinstance(status, str) and status not in NOT_FIRED
+
+
 def load_batch(path: Path) -> list[dict]:
+    """The batch, each entry checked and given ``_task``: the task text with its files appended,
+    rendered once here so a missing task file or an oversized payload refuses before any fire."""
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -1567,22 +1581,50 @@ def load_batch(path: Path) -> list[dict]:
         files = e.get("files")
         if not isinstance(files, list) or not files or not all(isinstance(p, str) for p in files):
             raise DispatchError(f"{where}: files must be a non-empty list of repo paths")
+        if len(set(files)) != len(files):
+            raise DispatchError(f"{where}: files lists a path twice")
         if not valid_slug(e.get("slug")):
             raise DispatchError(f"{where}: slug {e.get('slug')!r} is not a branch name")
         if e["slug"] in seen:
             raise DispatchError(f"{where}: duplicate slug {e['slug']}")
         seen.add(e["slug"])
+        try:
+            task = (
+                Path(e["task_file"]).read_text(encoding="utf-8") if "task_file" in e else e["task"]
+            )
+        except (OSError, ValueError) as exc:
+            raise DispatchError(f"{where}: task_file: {exc}") from exc
+        e["_task"] = f"{task.rstrip()}\n\nFiles you may change: {', '.join(files)}\n"
+        try:
+            render_payload(e["slug"], e["_task"])
+        except DispatchError as exc:
+            raise DispatchError(f"{where}: {exc}") from exc
     return data
 
 
 def _unsafe_reason(p: str, sync: re.Pattern) -> str | None:
-    if not p or p != posixpath.normpath(p) or p.startswith(("/", "../")) or p == ".." or "\\" in p:
-        return "not a relative path in normal form"
+    if (
+        not p
+        or p in (".", "..")
+        or p != posixpath.normpath(p)
+        or p.startswith(("/", "../"))
+        or "\\" in p
+    ):
+        return "not a relative file path in normal form"
     if sync.search(p):
         return "on the governance-sync filter"
-    if p in DRAIN_DENY or p.startswith("commands/") or posixpath.basename(p) == "conftest.py":
+    if (
+        p in DRAIN_DENY
+        or p.startswith(DRAIN_DENY_DIRS)
+        or p + "/" in DRAIN_DENY_DIRS
+        or posixpath.basename(p) == "conftest.py"
+    ):
         return "on the drain's deny set"
-    if p.startswith("tests/") and _git_checked("ls-tree", "refs/heads/master", "--", p).strip():
+    entry = _git_checked("ls-tree", "refs/heads/master", "--", p).split("\t", 1)
+    kind = entry[0].split()[1] if len(entry) == 2 and len(entry[0].split()) == 3 else None
+    if kind == "tree":
+        return "a directory at master, not a file"
+    if kind == "blob" and p.startswith("tests/"):
         text = _git_checked("show", f"refs/heads/master:{p}")
         if any(h in text for h in DRAIN_HOME):
             return "a test that reads the home dir"
@@ -1590,9 +1632,12 @@ def _unsafe_reason(p: str, sync: re.Pattern) -> str | None:
 
 
 def _open_work(rows: list[dict]) -> tuple[str, dict[str, set[str]], dict[str, str]]:
-    """``(master sha, {holder: files}, {branch slug: tip})``. A holder is an unmerged ``claude/*``
-    branch (its three-dot diff) or a run fired within a day whose branch is not on origin yet (its
-    ``kind: drain`` row's files; a plain dispatch run holds no files, only a cap slot)."""
+    """``(master sha, {holder: files}, {branch slug: tip})``. A holder is either a ``claude/*``
+    branch that is unmerged (its three-dot diff, renames split into both paths) or that a run fired
+    within a day still owns, or such a run with no branch yet. A run's declared files (its ``kind:
+    drain`` row) join what it holds; a plain dispatch run declares none, so it holds a cap slot
+    only. A run has LANDED, and holds nothing, once master carries its ``Cloud-Dispatch: done
+    <session>`` trailer — a merged-and-deleted branch would otherwise hold its files for a day."""
     heads: dict[str, str] = {}
     for line in _git_checked(
         "ls-remote", "origin", "refs/heads/master", "refs/heads/claude/*"
@@ -1608,35 +1653,48 @@ def _open_work(rows: list[dict]) -> tuple[str, dict[str, set[str]], dict[str, st
             f"{(origin or 'absent')[:12]}; fast-forward master in the main checkout first"
         )
     branches = {ref.removeprefix("refs/heads/claude/"): tip for ref, tip in heads.items()}
+    now = time.time()
+    recent: dict[str, dict] = {}
+    for r in rows:
+        if _maybe_fired(r) and now - (_num(r.get("ts")) or 0) < IN_FLIGHT_S:
+            recent[str(r.get("slug"))] = r
+    if recent:
+        since = min(_num(r.get("ts")) or now for r in recent.values())
+        landed = set(
+            re.findall(
+                rf"^{re.escape(DONE_TRAILER)} (\S+)",
+                _git_checked("log", "refs/heads/master", f"--since=@{int(since)}", "--format=%B"),
+                re.M,
+            )
+        )
+        recent = {s: r for s, r in recent.items() if r.get("session_id") not in landed}
+    declared: dict[str, set[str]] = {}
+    for r in rows:
+        if r.get("kind") == "drain" and isinstance(r.get("files"), list):
+            declared[str(r.get("slug"))] = set(r["files"])
     held: dict[str, set[str]] = {}
     if branches:
         _git_checked("fetch", "-q", "origin", "+refs/heads/claude/*:refs/cloud-dispatch/claude/*")
     for name, tip in branches.items():
         rc, _ = _git_run("merge-base", "--is-ancestor", tip, "refs/heads/master")
-        if rc == 0:
-            continue
-        if rc != 1:
+        if rc not in (0, 1):
             raise DispatchError(f"drain_refused: git merge-base failed (rc {rc})")
-        held[f"claude/{name}"] = set(
-            _git_checked("diff", "--name-only", f"{local}...{tip}").split()
-        )
-    now = time.time()
-    declared = {r.get("slug"): r.get("files") for r in rows if r.get("kind") == "drain"}
-    for r in rows:
-        slug = r.get("slug")
-        if (
-            "kind" not in r
-            and r.get("status") in ("ok", "unparsed")
-            and slug not in branches
-            and f"in-flight {slug}" not in held
-            and now - (_num(r.get("ts")) or 0) < IN_FLIGHT_S
-        ):
-            files = declared.get(slug)
-            held[f"in-flight {slug}"] = set(files) if isinstance(files, list) else set()
+        if rc == 0 and name not in recent:
+            continue
+        files = set(declared.get(name, set()))
+        if rc == 1:
+            out = _git_checked("diff", "--name-only", "--no-renames", "-z", f"{local}...{tip}")
+            files |= {p for p in out.split("\0") if p}
+        held[f"claude/{name}"] = files
+    for slug in recent:
+        if slug not in branches:
+            held[f"in-flight {slug}"] = set(declared.get(slug, set()))
     return local, held, branches
 
 
 def _cmd_drain(args: argparse.Namespace) -> int:
+    if args.max_open < 1:
+        raise DispatchError("drain_refused: --max-open must be at least 1")
     batch = load_batch(args.batch)
     lock_path = Path(args.ledger).parent / "cloud-drain.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1650,17 +1708,15 @@ def _cmd_drain(args: argparse.Namespace) -> int:
 
 def _drain_locked(args: argparse.Namespace, batch: list[dict]) -> int:
     rows = read_ledger(args.ledger)
+    fired_slugs = {r.get("slug") for r in rows if _maybe_fired(r)}
+    todo = [e for e in batch if e["slug"] not in fired_slugs]
     sync = _sync_pattern()
-    for e in batch:
+    for e in todo:
         for p in e["files"]:
             why = _unsafe_reason(p, sync)
             if why:
                 raise DispatchError(f"drain_refused: {e['slug']}: {p!r} is not cloud-safe ({why})")
     _, held, branches = _open_work(rows)
-    fired_slugs = {
-        r.get("slug") for r in rows if "kind" not in r and r.get("status") in ("ok", "unparsed")
-    }
-    todo = [e for e in batch if e["slug"] not in fired_slugs]
     owner: dict[str, str] = {}
     for e in todo:
         if e["slug"] in branches:
@@ -1678,40 +1734,46 @@ def _drain_locked(args: argparse.Namespace, batch: list[dict]) -> int:
         )
     status: dict[str, str] = {e["slug"]: "already fired" for e in batch if e not in todo}
     rc = 0
-    for e in todo:
-        if args.dry_run:
-            status[e["slug"]] = "would fire"
-            continue
-        if rc != 0:
-            status[e["slug"]] = "not reached"
-            continue
-        task = Path(e["task_file"]).read_text(encoding="utf-8") if "task_file" in e else e["task"]
-        task = f"{task.rstrip()}\n\nFiles you may change: {', '.join(e['files'])}\n"
-        append_ledger(
-            args.ledger, {**_now_row({}), "kind": "drain", "slug": e["slug"], "files": e["files"]}
-        )
-        rc = _cmd_dispatch(
-            argparse.Namespace(
-                registry=args.registry,
-                fleet_root=args.fleet_root,
-                ledger=args.ledger,
-                slug=e["slug"],
-                task=task,
-                task_file=None,
-                account=None,
-                force_new=False,
-                allow_plan_usage=args.allow_plan_usage,
+    try:
+        for e in todo:
+            slug = e["slug"]
+            if args.dry_run:
+                status[slug] = "would fire"
+                continue
+            if rc != 0:
+                break
+            if any(r.get("slug") == slug and _maybe_fired(r) for r in read_ledger(args.ledger)):
+                status[slug] = "already fired (by another session, after the pre-flight)"
+                continue
+            append_ledger(
+                args.ledger, {**_now_row({}), "kind": "drain", "slug": slug, "files": e["files"]}
             )
-        )
-        last = last_dispatch(read_ledger(args.ledger), e["slug"]) or {}
-        if rc == 0:
-            status[e["slug"]] = "fired"
-        elif last.get("status") == "unparsed":
-            status[e["slug"]] = "fired? (unparsed — read the ledger before retrying)"
-        else:
-            status[e["slug"]] = f"refused rc{rc}"
-    for e in batch:
-        print(f"cloud_dispatch: drain {e['slug']}: {status[e['slug']]}", file=sys.stderr)
+            rc = _cmd_dispatch(
+                argparse.Namespace(
+                    registry=args.registry,
+                    fleet_root=args.fleet_root,
+                    ledger=args.ledger,
+                    slug=slug,
+                    task=e["_task"],
+                    task_file=None,
+                    account=None,
+                    force_new=False,
+                    allow_plan_usage=args.allow_plan_usage,
+                )
+            )
+            last = last_dispatch(read_ledger(args.ledger), slug) or {}
+            if rc == 0:
+                status[slug] = "fired"
+            elif _maybe_fired(last):
+                status[slug] = f"fired? ({last.get('status')} — read the ledger before retrying)"
+            else:
+                status[slug] = f"refused rc{rc}"
+    finally:
+        for e in batch:
+            print(
+                f"cloud_dispatch: drain {e['slug']}: {status.get(e['slug'], 'not reached')}",
+                file=sys.stderr,
+            )
     return rc
 
 

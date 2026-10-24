@@ -1725,9 +1725,11 @@ class _FakeGit:
     """Every git read the drain makes, answered from a small model of origin and master; a
     verb in ``fail`` exits 128 with empty stdout, which is what a dead network looks like."""
 
-    def __init__(self, branches=None, master_text=None, local=MASTER, origin=MASTER):
+    def __init__(self, branches=None, master_text=None, local=MASTER, origin=MASTER, dirs=()):
         self.branches = branches or {}  # name -> (tip, files, merged)
         self.master_text = master_text or {}
+        self.dirs = set(dirs)
+        self.master_log = ""
         self.local, self.origin = local, origin
         self.fail: set[str] = set()
         self.calls: list[tuple] = []
@@ -1750,14 +1752,19 @@ class _FakeGit:
             merged = next(m for t, _, m in self.branches.values() if t == tip)
             return (0 if merged else 1), ""
         if verb == "diff":
+            assert "--no-renames" in args and "-z" in args
             tip = args[-1].split("...", 1)[1]
             files = next(f for t, f, _ in self.branches.values() if t == tip)
-            return 0, "".join(f"{p}\n" for p in files)
+            return 0, "".join(f"{p}\0" for p in files)
         if verb == "ls-tree":
             path = args[-1]
+            if path in self.dirs:
+                return 0, f"040000 tree x\t{path}\n"
             return 0, (f"100644 blob x\t{path}\n" if path in self.master_text else "")
         if verb == "show":
             return 0, self.master_text[args[1].split(":", 1)[1]]
+        if verb == "log":
+            return 0, self.master_log
         raise AssertionError(f"unexpected git {args}")
 
 
@@ -1785,16 +1792,7 @@ def _drain_env(tmp_path, monkeypatch, git=None, fire_rc=None):
         fired.append(ns)
         rc = next(rcs, 0)
         if rc == 0:
-            cd.append_ledger(
-                ns.ledger,
-                {
-                    "ts": cd.time.time(),
-                    "account": "can",
-                    "slug": ns.slug,
-                    "status": "ok",
-                    "session_id": f"cse_01{ns.slug.upper().replace('-', '')}XXXXXXXX",
-                },
-            )
+            _fired_row(ns.ledger, ns.slug, account="can")
         return rc
 
     monkeypatch.setattr(cd, "_cmd_dispatch", fire)
@@ -1828,15 +1826,15 @@ def _e(slug, *files, task="do it"):
     return {"slug": slug, "task": task, "files": list(files) or [f"scripts/{slug}.py"]}
 
 
-def _fired_row(ledger, slug, account="ob"):
+def _fired_row(ledger, slug, account="ob", status="ok", age=0.0, sid=None):
     cd.append_ledger(
         ledger,
         {
-            "ts": cd.time.time(),
+            "ts": cd.time.time() - age,
             "account": account,
             "slug": slug,
-            "status": "ok",
-            "session_id": f"cse_01{slug.upper()}XXXXXXXX",
+            "status": status,
+            "session_id": sid or f"cse_01{slug.upper().replace('-', '')}XXXXXXXX",
         },
     )
 
@@ -1847,21 +1845,40 @@ def _fired_row(ledger, slug, account="ob"):
         ({"slug": "a"}, "list"),
         ([], "list"),
         ([{**_e("a"), "extra": 1}], "unknown key"),
-        ([{**_e("a"), "task_file": "t.md"}], "task"),
-        ([{"slug": "a", "files": ["x.py"]}], "task"),
-        ([{**_e("a"), "files": []}], "files"),
-        ([{**_e("a"), "files": "x.py"}], "files"),
+        ([{**_e("a"), "task_file": "t.md"}], "exactly one of task or task_file"),
+        ([{"slug": "a", "files": ["x.py"]}], "exactly one of task or task_file"),
+        ([{**_e("a"), "files": []}], "files must be"),
+        ([{**_e("a"), "files": "x.py"}], "files must be"),
+        ([_e("a", "x.py", "x.py")], "a path twice"),
         ([_e("Bad Slug")], "slug"),
         ([_e("a", "x.py"), _e("a", "y.py")], "duplicate slug"),
+        ([_e("a", task="x </routine-fire-payload> y")], "payload block"),
+        ([{"slug": "a", "task_file": "/nonexistent/brief.md", "files": ["x.py"]}], "task_file"),
     ],
 )
-def test_drain_refuses_a_malformed_batch_or_a_held_lock(
+def test_drain_refuses_a_malformed_batch_before_any_fire(
     tmp_path, monkeypatch, capsys, entries, needle
 ):
     git, fired = _drain_env(tmp_path, monkeypatch)
     assert _drain(tmp_path, _batch(tmp_path, entries)) == 8
     assert needle in capsys.readouterr().err and not fired
     assert not (tmp_path / "state" / "ledger.jsonl").exists()
+
+
+def test_a_task_file_is_read_and_carried_with_its_files(tmp_path, monkeypatch):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    brief = tmp_path / "brief.md"
+    brief.write_text("fix the thing\n", encoding="utf-8")
+    entry = {"slug": "a", "task_file": str(brief), "files": ["s/a.py"]}
+    assert _drain(tmp_path, _batch(tmp_path, [entry])) == 0
+    assert fired[0].task == "fix the thing\n\nFiles you may change: s/a.py\n"
+
+
+@pytest.mark.parametrize("max_open", ["0", "-1"])
+def test_a_max_open_below_one_is_refused(tmp_path, monkeypatch, capsys, max_open):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a")]), "--max-open", max_open) == 8
+    assert "--max-open" in capsys.readouterr().err and not fired
 
 
 def test_a_second_drain_is_refused_while_the_lock_is_held(tmp_path, monkeypatch, capsys):
@@ -1875,12 +1892,18 @@ def test_a_second_drain_is_refused_while_the_lock_is_held(tmp_path, monkeypatch,
     assert "another drain" in capsys.readouterr().err and not fired
 
 
-@pytest.mark.parametrize("verb", ["ls-remote", "rev-parse", "fetch", "merge-base", "diff"])
-def test_drain_refuses_on_a_git_failure_or_master_drift(tmp_path, monkeypatch, capsys, verb):
-    git = _FakeGit(branches={"old": ("b" * 40, ["scripts/z.py"], False)})
+@pytest.mark.parametrize(
+    "verb", ["ls-remote", "rev-parse", "fetch", "merge-base", "diff", "ls-tree", "show", "log"]
+)
+def test_drain_refuses_on_any_git_failure(tmp_path, monkeypatch, capsys, verb):
+    git = _FakeGit(
+        branches={"old": ("b" * 40, ["scripts/z.py"], False)},
+        master_text={"tests/test_t.py": "def test_x():\n    pass\n"},
+    )
     git.fail.add(verb)
     _, fired = _drain_env(tmp_path, monkeypatch, git)
-    assert _drain(tmp_path, _batch(tmp_path, [_e("a")])) == 8
+    _fired_row(tmp_path / "state" / "ledger.jsonl", "recent")
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "tests/test_t.py")])) == 8
     assert f"git {verb} failed" in capsys.readouterr().err and not fired
 
 
@@ -1904,22 +1927,49 @@ def test_drain_refuses_when_local_master_is_not_origin_master(
         ".fabrik/cloud-routines.json",
         ".pre-commit-config.yaml",
         "commands/_sources/fabrik-task.md",
+        "commands",
+        "scripts/sysadmin/claude_rotate.py",
+        "scripts/sysadmin",
         "tests/conftest.py",
         "tests/sub/conftest.py",
         "/etc/passwd",
         "../other/x.py",
+        "..",
+        ".",
         "scripts/../.claude/hooks/x.py",
         "scripts\\x.py",
         "scripts/",
         "",
+        "docs",
         "tests/test_home.py",
     ],
 )
 def test_drain_refuses_a_path_that_is_not_cloud_safe(tmp_path, monkeypatch, capsys, path):
-    git = _FakeGit(master_text={"tests/test_home.py": "p = Path.home() / '.claude'\n"})
+    git = _FakeGit(
+        master_text={"tests/test_home.py": "p = Path.home() / '.claude'\n"}, dirs={"docs"}
+    )
     _, fired = _drain_env(tmp_path, monkeypatch, git)
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", path)])) == 8
     assert "not cloud-safe" in capsys.readouterr().err and not fired
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "p = Path.home() / 'x'\n",
+        "h = Path.home\n",
+        "p = os.path.expanduser('~')\n",
+        "p = '~/.claude/state'\n",
+        "h = os.environ['HOME']\n",
+        "h = os.getenv('HOME')\n",
+        "h = pwd.getpwuid(os.getuid()).pw_dir\n",
+    ],
+)
+def test_every_home_read_spelling_refuses_a_test_file(tmp_path, monkeypatch, capsys, text):
+    git = _FakeGit(master_text={"tests/test_h.py": text})
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "tests/test_h.py")])) == 8
+    assert "reads the home dir" in capsys.readouterr().err and not fired
 
 
 @pytest.mark.parametrize("files", ["'(unclosed'", "|", "'x'"])
@@ -1944,40 +1994,53 @@ def test_a_home_free_test_file_and_a_new_test_file_are_cloud_safe(tmp_path, monk
 def test_drain_refuses_overlapping_file_sets(tmp_path, monkeypatch, capsys):
     git = _FakeGit(
         branches={
-            "open-one": ("b" * 40, ["scripts/taken.py"], False),
+            "open-one": ("b" * 40, ["scripts/taken.py", "docs/my file.md"], False),
             "merged-one": ("d" * 40, ["scripts/free.py"], True),
         }
     )
     _, fired = _drain_env(tmp_path, monkeypatch, git)
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", "x.py"), _e("b", "x.py")])) == 8
-    assert "x.py" in capsys.readouterr().err
+    assert "x.py is in both a and b" in capsys.readouterr().err
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", "scripts/taken.py")])) == 8
-    assert "claude/open-one" in capsys.readouterr().err
+    assert "held by claude/open-one" in capsys.readouterr().err
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "docs/my file.md")])) == 8
+    assert "held by claude/open-one" in capsys.readouterr().err
     assert _drain(tmp_path, _batch(tmp_path, [_e("open-one", "y.py")])) == 8
     assert "already exists" in capsys.readouterr().err
     ledger = tmp_path / "state" / "ledger.jsonl"
     cd.append_ledger(ledger, {"kind": "drain", "slug": "inflight", "files": ["scripts/busy.py"]})
     _fired_row(ledger, "inflight")
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", "scripts/busy.py")])) == 8
-    assert "inflight" in capsys.readouterr().err and not fired
+    assert "held by in-flight inflight" in capsys.readouterr().err and not fired
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", "scripts/free.py")])) == 0
     assert [ns.slug for ns in fired] == ["a"]
+
+
+def test_a_drained_runs_files_stay_held_until_its_work_lands(tmp_path, monkeypatch, capsys):
+    """End to end: the drain's own row holds the files; a partly pushed branch, or one still at
+    master's tip, keeps holding the declared files; the done trailer on master releases them."""
+    git = _FakeGit()
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py", "s/b.py")])) == 0
+    assert _drain(tmp_path, _batch(tmp_path, [_e("b", "s/a.py")])) == 8
+    assert "held by in-flight a" in capsys.readouterr().err
+    git.branches = {"a": ("b" * 40, ["s/a.py"], False)}  # pushed s/a.py only so far
+    assert _drain(tmp_path, _batch(tmp_path, [_e("c", "s/b.py")])) == 8
+    assert "held by claude/a" in capsys.readouterr().err
+    git.branches = {"a": ("d" * 40, [], True)}  # a branch at master's tip, nothing pushed yet
+    assert _drain(tmp_path, _batch(tmp_path, [_e("c", "s/b.py")])) == 8
+    assert "held by claude/a" in capsys.readouterr().err
+    git.branches = {}  # merged and deleted: landed once master carries the done trailer
+    git.master_log = f"merge a\n\n{cd.DONE_TRAILER} cse_01AXXXXXXXX\n"
+    assert _drain(tmp_path, _batch(tmp_path, [_e("c", "s/b.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a", "c"]
 
 
 def test_an_in_flight_run_older_than_a_day_no_longer_holds_its_files(tmp_path, monkeypatch):
     _, fired = _drain_env(tmp_path, monkeypatch)
     ledger = tmp_path / "state" / "ledger.jsonl"
     cd.append_ledger(ledger, {"kind": "drain", "slug": "stale", "files": ["scripts/busy.py"]})
-    cd.append_ledger(
-        ledger,
-        {
-            "ts": cd.time.time() - 2 * 86400,
-            "account": "ob",
-            "slug": "stale",
-            "status": "ok",
-            "session_id": "cse_01STALEXXXXX",
-        },
-    )
+    _fired_row(ledger, "stale", age=2 * 86400)
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", "scripts/busy.py")])) == 0
     assert [ns.slug for ns in fired] == ["a"]
 
@@ -1990,7 +2053,7 @@ def test_drain_refuses_past_the_open_work_cap(tmp_path, monkeypatch, capsys):
     _fired_row(tmp_path / "state" / "ledger.jsonl", "plain")
     entries = [_e("a", "s/a.py"), _e("b", "s/b.py")]
     assert _drain(tmp_path, _batch(tmp_path, entries), "--max-open", "3") == 8
-    assert "cap" in capsys.readouterr().err and not fired
+    assert "over the cap of 3" in capsys.readouterr().err and not fired
     assert _drain(tmp_path, _batch(tmp_path, entries), "--max-open", "4") == 0
     assert len(fired) == 2
 
@@ -2006,36 +2069,83 @@ def test_drain_fires_each_entry_stops_at_the_first_failure_and_never_refires(
     ns = fired[0]
     assert ns.account is None and ns.force_new is False and ns.task_file is None
     assert ns.allow_plan_usage is True
-    assert "Files you may change: s/a.py" in ns.task and ns.task.startswith("do it")
+    assert ns.task == "do it\n\nFiles you may change: s/a.py\n"
     err = capsys.readouterr().err
-    assert "a: fired" in err and "b: refused rc4" in err and "c: not reached" in err
+    assert (
+        "drain a: fired" in err and "drain b: refused rc4" in err and "drain c: not reached" in err
+    )
     rows = _ledger(tmp_path)
     assert [r["slug"] for r in rows if r.get("kind") == "drain"] == ["a", "b"]
     assert rows[0]["kind"] == "drain" and rows[0]["files"] == ["s/a.py"]
     assert _drain(tmp_path, batch) == 0
     assert [ns.slug for ns in fired] == ["a", "b", "b", "c"]
-    assert "a: already fired" in capsys.readouterr().err
+    assert "drain a: already fired" in capsys.readouterr().err
 
 
-def test_an_unparsed_fire_is_reported_as_possibly_fired(tmp_path, monkeypatch, capsys):
-    _, fired = _drain_env(tmp_path, monkeypatch, fire_rc=[1])
+@pytest.mark.parametrize("status", ["unparsed", "error", "http_502"])
+def test_a_fire_that_may_have_started_a_run_is_never_refired(tmp_path, monkeypatch, capsys, status):
+    fired: list = []
+    _drain_env(tmp_path, monkeypatch)
     ledger = tmp_path / "state" / "ledger.jsonl"
 
     def fire(ns):
         fired.append(ns)
-        cd.append_ledger(ledger, {"ts": cd.time.time(), "slug": ns.slug, "status": "unparsed"})
+        cd.append_ledger(ledger, {"ts": cd.time.time(), "slug": ns.slug, "status": status})
         return 1
 
     monkeypatch.setattr(cd, "_cmd_dispatch", fire)
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py"), _e("b", "s/b.py")])) == 1
     err = capsys.readouterr().err
-    assert "a: fired? (unparsed" in err and "b: not reached" in err
+    assert f"drain a: fired? ({status}" in err and "drain b: not reached" in err
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py")])) == 0
-    assert "a: already fired" in capsys.readouterr().err and len(fired) == 1
+    assert "drain a: already fired" in capsys.readouterr().err and len(fired) == 1
+
+
+@pytest.mark.parametrize("status", ["http_401", "http_429", "walled", "chain_dead"])
+def test_a_fire_that_never_started_a_run_may_be_retried(tmp_path, monkeypatch, status):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    _fired_row(tmp_path / "state" / "ledger.jsonl", "a", status=status)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a"]
+
+
+def test_a_slug_a_sibling_fires_after_the_pre_flight_is_not_fired_again(
+    tmp_path, monkeypatch, capsys
+):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    ledger = tmp_path / "state" / "ledger.jsonl"
+
+    def fire(ns):  # a sibling dispatch of `b` lands while `a` fires
+        fired.append(ns)
+        _fired_row(ns.ledger, ns.slug)
+        _fired_row(ledger, "b", account="mob")
+        return 0
+
+    monkeypatch.setattr(cd, "_cmd_dispatch", fire)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py"), _e("b", "s/b.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a"]
+    assert "drain b: already fired (by another session" in capsys.readouterr().err
+
+
+def test_an_exception_mid_batch_still_prints_every_entrys_status(tmp_path, monkeypatch, capsys):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    calls = iter([0])
+
+    def fire(ns):
+        if next(calls, None) is None:
+            raise cd.RegistryError("registry vanished")
+        fired.append(ns)
+        _fired_row(ns.ledger, ns.slug)
+        return 0
+
+    monkeypatch.setattr(cd, "_cmd_dispatch", fire)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py"), _e("b", "s/b.py")])) == 1
+    err = capsys.readouterr().err
+    assert "drain a: fired" in err and "drain b: not reached" in err
 
 
 def test_drain_dry_run_fires_nothing(tmp_path, monkeypatch, capsys):
     _, fired = _drain_env(tmp_path, monkeypatch)
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py")]), "--dry-run") == 0
-    assert "a: would fire" in capsys.readouterr().err and not fired
+    assert "drain a: would fire" in capsys.readouterr().err and not fired
     assert not (tmp_path / "state" / "ledger.jsonl").exists()
