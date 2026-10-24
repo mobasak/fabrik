@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T09:46:53.890216Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-47d58d2c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: one wording pass on commands/_fragments/review-probe-catalogue.md § Seat isolation bullet 'A pins-only copy is not a test tree' — name pythonpath/confcutdir among the barred -o keys ('collected or imported'), say 'than the tree's own' for -c, rewrite the SCRATCH clause; re-pin tests/test_seat_recipe_readable.py BULLET",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Seat-isolation pytest-tree bullet residue (W-f1191ec5 scoped review pass 3, RECORDED own-fix per D-1184): -o pythonpath=/confcutdir= escape (import/conftest discovery, not collection); '-c naming any other file' leaves the tree's own file unstated; 'and the like' after -o timeout open; 'where the including command puts pins there' wording"
+}
