@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — subagent transcripts are archived to B2 before the pruner may delete them (2026-10-24)
+
+- `archive_transcripts.py` ships every `<slug>/<session-dir>/subagents/**/*.jsonl` (sidechains, workflow
+  sidechains, workflow journals) to `<slug>/<rel>.zst`, its rows in its own `manifest-subagents.jsonl`; a
+  sidechain that fails to archive is reported and kept while the night goes on. A new object is compressed and
+  tested beside its snapshot and renamed into place, so a failed compress never replaces the last good one.
+- `prune_transcripts.py` deletes a sidechain only when that manifest, its `.zst` and the bucket (now listed
+  `lsf -R --fast-list`) vouch for its current bytes, writes sha256 + object into its ledger row, and
+  `--restore agent-<id>` puts one back (D-1182, W-62d2ce7d). Tasks and shell snapshots stay a 3-day cliff.
+- The two unit-file graders red since the rotation mail's ExecStart now read the unit as shipped.
+
 ### Fixed — a late re-bind no longer ends a rotation `partial:rebind`, inside the executor's timeout (2026-10-24)
 
 - `rotate_session.py` waits `REBIND_GRACE_S` (180 s, was 90) for the rotated agent's re-bind; the one late bind measured
