@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra-2",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "URGENT — operator: adopt the frontend-design plugin for website UI design, and revise the Ocoron design system against it"
 }
