@@ -223,9 +223,9 @@ Three shapes are NOT yours to apply here, and each has a destination:
   **`owned_paths`** list — name that key, a guess like `files` returns `[]` and reads as "no lock
   owns this", which is a silent fail-open past the STOP itself. An entry owns the path it names, every path under it
   when it names a directory, and every path its glob matches (`dir/**`, with `*` inside one path segment), so test all
-  three — neither script that tests a path against a lock's `owned_paths` matches a glob (`_owned` in
-  `scripts/enforcement/check_phase_tests.py` also ignores case; `_path_covers` in
-  `scripts/enforcement/check_plan_tickets.py` also matches an entry under the target), so none of them is the rule — and
+  three — no script that tests a path against a lock's `owned_paths` is that rule (`_owned` in
+  `scripts/enforcement/check_phase_tests.py` matches all three but also ignores case; `_path_covers` in
+  `scripts/enforcement/check_plan_tickets.py` matches no glob and also matches an entry under the target) — and
   read an entry written as prose by hand.
   If an active lock owns it → **STOP and mail the edit** with the exact text you would have written.
   The lock JSON carries no addressee, so route by BEAT (`commands/_sources/` and `.windsurf/rules/`

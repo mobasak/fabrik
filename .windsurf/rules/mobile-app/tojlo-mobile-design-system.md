@@ -12,12 +12,12 @@ currency_pass: 2026-10-01
 
 **Inheritance chain:**
 1. `core/design-system-template.md` — the token slots and their roles (both modes, contrast, motion)
-2. `core/ocoron-design-system.md` — the values Tojlo inherits (colours, fonts)
+2. `core/ocoron-design-system.md` — the values Tojlo inherits (colours; its fonts are its own override)
 3. `core/tojlo-design-system.md` — the Tojlo brand: module naming, layer colour coding, module icons, voice
 4. `mobile-app/ocoron-mobile-design-system.md` — the mobile component patterns (LI1-LI6, BS1-BS5, AS1-AS5, SR1-SR5, NH1-NH4, ON1-ON6, MF1-MF6)
 5. **This file** — the Tojlo mobile additions
 
-**Type and colour** follow the components pack's rules: font roles (heading, body, mono — Tojlo's are Ocoron's), sizes in pt/dp that follow the OS text size, and no type below 13 on a mobile surface (`80-mobile.md` § Styling; core Tojlo allows 11–13 for module chrome, so mobile uses 13). An accent, state or layer colour used AS TEXT or an icon on a surface is its `-text` slot; text or an icon ON a fill is its `-fg` slot. Tojlo's layer colours use Ocoron's current slot names: Core `--color-accent`, Intelligence `--color-ai`, Growth `--color-warning` (`core/tojlo-design-system.md` § Module Color Coding still writes the retired `--color-purple` and `--color-secondary`, which `core/ocoron-design-system.md` maps to these).
+**Type and colour** follow the components pack's rules: font roles (heading, body, mono — Tojlo's own stack, `core/tojlo-design-system.md` § Inheritance Contract; the scaffold embeds the body font, so add `@expo-google-fonts/space-grotesk` with its 600 and 700 weights in the `expo-font` plugin block), sizes in pt/dp that follow the OS text size, and no type below 13 on a mobile surface (`80-mobile.md` § Styling; core Tojlo allows 11–13 for module chrome, so mobile uses 13). An accent, state or layer colour used AS TEXT or an icon on a surface is its `-text` slot; text or an icon ON a fill is its `-fg` slot. Tojlo's layer colours use Ocoron's current slot names: Core `--color-accent`, Intelligence `--color-ai`, Growth `--color-warning` (`core/tojlo-design-system.md` § Module Color Coding still writes the retired `--color-purple` and `--color-secondary`, which `core/ocoron-design-system.md` maps to these).
 
 ---
 

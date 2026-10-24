@@ -642,8 +642,9 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     entry matches a target while locks hold paths, directories and globs. Both sentences are pinned whole. Their facts
     are checked against the code: each append STATEMENT (deleting one fails here, the constant alone would not) and no
     source naming either fragment in an `include:`; and the three-shape ownership rule run through `_glob_matches` in
-    scripts/epic_order.py, an epic `owned_paths` matcher, which implements all three; and the claim that neither script
-    testing a path against a lock's `owned_paths` matches a glob, run on both, each side of the "also" included."""
+    scripts/epic_order.py, an epic `owned_paths` matcher, which implements all three; and the claim that no script
+    testing a path against a lock's `owned_paths` is that rule — `_owned` matches globs since W-9fcb6ce4 but folds
+    case, `_path_covers` matches none — run on both, each side of the "also" included."""
     import importlib.util
     import re as _re
 
@@ -658,11 +659,11 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     )
     owns = (
         "An entry owns the path it names, every path under it when it names a directory, and every path its glob"
-        " matches (`dir/**`, with `*` inside one path segment), so test all three — neither script that tests a path"
-        " against a lock's `owned_paths` matches a glob (`_owned` in `scripts/enforcement/check_phase_tests.py` also"
-        " ignores case;"
-        " `_path_covers` in `scripts/enforcement/check_plan_tickets.py` also matches an entry under the target), so none"
-        " of them is the rule — and read an entry written as prose by hand."
+        " matches (`dir/**`, with `*` inside one path segment), so test all three — no script that tests a path"
+        " against a lock's `owned_paths` is that rule (`_owned` in `scripts/enforcement/check_phase_tests.py` matches"
+        " all three but also ignores case;"
+        " `_path_covers` in `scripts/enforcement/check_plan_tickets.py` matches no glob and also matches an entry under"
+        " the target) — and read an entry written as prose by hand."
     )
     assert lock.count(appended) == 1 and lock.count(owns) == 1
     assert lock.index(appended) < lock.index("ONLY THEN read the locks") < lock.index(owns)
@@ -702,8 +703,11 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
         sp.loader.exec_module(m)
         readers[name] = m
     glob_entry, target = "templates/chrome-extension/**", "templates/chrome-extension/src/a.ts"
-    assert not readers["cpt_lock"]._owned(target, [glob_entry])
+    # `_owned` matches all three shapes since W-9fcb6ce4 (a glob, `*` inside one segment); `_path_covers` none
+    assert readers["cpt_lock"]._owned(target, [glob_entry])
+    assert not readers["cpt_lock"]._owned("src/a/b/deep.py", ["src/a/*"])
     assert not readers["cpk_lock"]._path_covers(glob_entry, target)
+    assert not readers["cpk_lock"]._path_covers("src/a/*", "src/a/b.py")  # nor a single-segment `*`
     assert readers["cpt_lock"]._owned("Commands/_Fragments/a.md", ["commands/_fragments"])
     assert not readers["cpk_lock"]._path_covers("commands/_fragments", "Commands/_Fragments/a.md")
     assert readers["cpk_lock"]._path_covers("commands/_fragments/a.md", "commands/_fragments")
@@ -711,12 +715,12 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
 
 
 def test_the_lock_check_set_of_scripts_that_mention_owned_paths_is_pinned() -> None:
-    """W-bcf6fc2f part 1: the PHASE 2 lock bullet says neither script that tests a path against a lock's
-    `owned_paths` matches a glob, and names `_owned` and `_path_covers`. A new script reading `owned_paths` could
+    """W-bcf6fc2f part 1: the PHASE 2 lock bullet says no script that tests a path against a lock's
+    `owned_paths` is the ownership rule, and names `_owned` and `_path_covers`. A new script reading `owned_paths` could
     make that sentence false while every existing pin stayed green. This test lists every file under scripts/
     that names `owned_paths` by that literal spelling (keyed on the field, not on how the lock directory is
     spelled) and fails on one it has not met, so the bullet is re-read whenever that set changes. Its limit: it pins which files name
-    the field, not what they do with it. Whether the two named matchers miss a glob is pinned by
+    the field, not what they do with it. What the two named matchers do with a glob is pinned by
     test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path, which runs them, and a new glob
     matcher added inside a known file escapes both. The role beside each entry is a note for the reader who adds
     the next one, not a checked fact. Cobra: the cheap way past it is to add a file without reading it."""

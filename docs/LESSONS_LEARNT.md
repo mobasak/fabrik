@@ -1,6 +1,10 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A token rule is a compiler claim: run the compiler before writing it (2026-10-24)
+
+W-dab6a341's first draft wrote CSS-first Tailwind rules from the docs alone. Three were wrong in ways no doc says: a plain `@theme` drops a variable no utility uses, a `var()`-valued slot's utility reads the referenced variable, and an alias under the slot's own name is a cycle. Every one surfaced only when a seat ran `compile()` from an installed `tailwindcss`. The template's own text-colour slots had sat in the font-size namespace since the CSS-first line shipped. **Lesson:** a rule about what a compiler or engine emits is checked by running it on the smallest input that shows the case, and the probe goes in the CLAIMS verify hint so the currency watcher can re-run it. A grader written to catch prose about tokens is judgement-shaped: bound it and say so, or it fires on legitimate sentences.
+
 ## Probe a CLI's limits live before pricing a cap on them; the first real run is also a reviewer (2026-10-24)
 
 W-894f994f (`scripts/api_credit.py`, D-1198): two design critiques, an author's mutation battery, then a full review.

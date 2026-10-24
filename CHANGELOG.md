@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — CSS-first Tailwind usage in the design-system template; colour slots kept out of the font-size namespace (2026-10-24)
+
+- `.windsurf/rules/core/design-system-template.md` gains `## Tailwind (CSS-first) usage` (D-1202): tokens, class detection, reuse order, values and layout, tooling — every line grounded on the page it cites, executed on Tailwind 4.3.3 where the docs are silent, no version literal. Its globs now reach `.astro` files and the CSS-first theme stylesheets (27 of 28 on the box).
+- Fixed: the template's § Mapping sentence and Ocoron's CSS paragraph sent every slot into `@theme`, where `--text-primary|body|muted` compile to a font-size utility; both now route through the section (`@theme static` for namespaced slots, an `@theme inline` alias for the rest).
+- Six `CLAIMS.yaml` rows; new grader `tests/test_design_system_template_pack.py` (35 mutants killed). Residue: W-bcb4647f, W-15bc1ba1, W-dd0383f6, W-1bb62dff.
+
+### Fixed — check_phase_tests reads glob lock entries: `src/app/**` owns its subtree (2026-10-24)
+
+D-1201 (W-9fcb6ce4). The advisory phase-tests check scoped a plan window to the lock's `owned_paths` by literal
+prefix, so a glob entry owned nothing: an untested change under `src/app/**` never warned, and a test under
+`tests/**` never counted as accompaniment. A glob entry is now read as check_plan_tickets' lock discovery reads
+the same files (D-1094): `_norm_glob`, then `_glob_covers`, case-folded. Debris such as `src//**` or `src/**:12`
+is still cleaned to `src/**`, and literal entries are read as before. The /fabrik-command-improve lock bullet now
+says `_owned` matches globs. Live output is unchanged in all 7 repos with an active lock. Residue W-a6975c38.
+
 ### Added — the three prepaid API credits get a capped, read-only lane: `scripts/api_credit.py` (2026-10-24)
 
 D-1198 (W-894f994f, under D-1196). `api_credit.py run` runs ONE `claude -p --bare --restricted` task on a credit key
@@ -12,6 +27,15 @@ fresh config dir; `status` reads each key's spend back; `settle` closes a crashe
 flocked ledger where an unknown cost counts as budget plus the model's per-call ceiling. The rule packs ai/00 and ai/50
 name the exception; ai/00's decision-model lane now cites D-555 instead of an open work item (master's
 `test_egress_wording_matches_the_work_item_state` red). First live run: sonnet, $0.0727.
+
+### Changed — Ocoron house fonts: Arya headings, IBM Plex Sans text; Tojlo keeps its stack as a declared override (2026-10-24)
+
+- The operator ruled the Ocoron fonts (W-eaa745f3): `core/ocoron-design-system.md` v3.1 sets Arya 700 for every heading
+  and IBM Plex Sans 400 and 500 for text, with Plex as the heading fallback for scripts Arya lacks and the Plex Arabic
+  and Devanagari siblings named. `saas/60-saas-ui.md` (the next/font example), `core/42-docusaurus.md`, the Ocoron
+  mobile pack and `CLAIMS.yaml` follow. The Tojlo packs keep Space Grotesk and Inter as a declared override.
+- `tests/test_ocoron_fonts.py` pins the font names across the packs and fails on any retired spelling outside the
+  Tojlo override.
 
 ### Fixed — master green again: the vps1 Postgres login-rotation script gets its hub-root disposition (2026-10-24)
 

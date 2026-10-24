@@ -1,12 +1,12 @@
 ---
 description: Ocoron house identity — the Ocoron BRAND that fills core/design-system-template.md's slots: brand story, verbal identity, logo, colour tokens for both modes with a computed contrast table, typography, radius, icons, sound. Applies ONLY to a project whose docs/design-system.md declares "House identity: ocoron — chosen, not defaulted" (D-051); every other GUI takes its brand from brand-identiy-creator. The structure (components, states, tables, forms, motion, density, accessibility, responsive) is the template's, not this file's.
-currency_pass: 2026-09-24
+currency_pass: 2026-10-24
 ---
 <!-- CONSUMER: coding agents on an Ocoron-declared project; /fabrik-ui-design when a project adopts the house identity; tojlo-design-system.md (inherits these values)
      GOAL: the Ocoron brand's values and voice — one fill of the design-system template
      AGENT USAGE: build with the template's slot names; take the values below. Never invent colours or fonts. -->
 
-# Ocoron Design System v3.0
+# Ocoron Design System v3.1
 
 > The Ocoron BRAND. ⚠️ **A HOUSE identity, chosen — never defaulted** (operator ruling 2026-08-29,
 > D-051): a project uses it only when its `docs/design-system.md` header declares it explicitly;
@@ -221,7 +221,7 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 #### Naming Rules
 
 1. Every digital product carries the Ocoron name.
-2. Sub-brands do NOT get their own logos. They use: Ocoron wordmark + product name set in Inter 500.
+2. Sub-brands do NOT get their own logos. They use: Ocoron wordmark + product name set in IBM Plex Sans 500.
 3. Don't create a sub-brand until the product has paying users or is in active B2B presales. Until then, it's just "Ocoron."
 4. Physical product brands (Atelier Rebul) are completely separate — no Ocoron branding on physical goods.
 5. Ocoron is registered as a Teknokent LLC. The legal entity name appears on invoices and contracts; all product surfaces and marketing use "Ocoron" only.
@@ -354,31 +354,36 @@ but ≤ 0.18333 on white — a disjoint range no single hex satisfies (`#5B5BF7`
 
 | Role | Font | Weights | Source |
 |---|---|---|---|
-| **Headings** (`--font-heading`) | Space Grotesk | 600, 700 | Google Fonts, SIL OFL 1.1 |
-| **Body / UI** (`--font-body`) | Inter | 400, 500 | Google Fonts (variable), SIL OFL 1.1 |
+| **Headings** (`--font-heading`) | Arya | 700 | Google Fonts, SIL OFL 1.1 (Arya ships 400 and 700 only) |
+| **Body / UI** (`--font-body`) | IBM Plex Sans | 400, 500 | Google Fonts (variable — load the `wght` axis), SIL OFL 1.1 |
 | **Code / Data** (`--font-mono`) | JetBrains Mono | 300, 400 | Google Fonts, SIL OFL 1.1 |
 
 ### Type Scale
 
 | Level | Size | Weight | Font | Letter-spacing | Usage |
 |---|---|---|---|---|---|
-| H1 | 32px | 700 | Space Grotesk | -0.5px | Page titles |
-| H2 | 24px | 600 | Space Grotesk | -0.5px | Section titles |
-| H3 | 18px | 600 | Space Grotesk | -0.3px | Card titles, subsections |
-| Body | 14px | 400 | Inter | 0 | Default body text |
-| Body small | 13px | 400 | Inter | 0 | Secondary text, descriptions |
-| Micro-label | 10px | 500 | Inter | 1.5px | Uppercase labels, tag text |
+| H1 | 32px | 700 | Arya | -0.5px | Page titles |
+| H2 | 24px | 700 | Arya | -0.5px | Section titles |
+| H3 | 18px | 700 | Arya | -0.3px | Card titles, subsections |
+| Body | 14px | 400 | IBM Plex Sans | 0 | Default body text |
+| Body small | 13px | 400 | IBM Plex Sans | 0 | Secondary text, descriptions |
+| Micro-label | 10px | 500 | IBM Plex Sans | 1.5px | Uppercase labels, tag text |
 | Code | 13px | 400 | JetBrains Mono | 0 | Code blocks, data tables, metrics |
 | Data large | 28px | 300 | JetBrains Mono | -0.5px | Dashboard KPIs, big numbers |
 
 ### Rules
 
-- Headings: always Space Grotesk. Never Inter or monospace for headings.
-- Body text: always Inter. Never monospace for paragraphs or descriptions.
+- Headings: always Arya, at 700 — Arya has no 600, so a template spec of heading font 600 is Arya 700 on an
+  Ocoron project. IBM Plex Sans sits second in the heading stack only as the per-glyph fallback for scripts
+  Arya lacks; never the body font by choice, never monospace.
+- Body text: always IBM Plex Sans. Never monospace for paragraphs or descriptions.
 - Data/code: always JetBrains Mono. Tables with numeric data, code snippets, terminal output, metrics.
-- Micro-labels: Inter 500, uppercase, letter-spacing 1.5px, 10px.
+- Micro-labels: IBM Plex Sans 500, uppercase, letter-spacing 1.5px, 10px.
 - Line-height: 1.5 for body, 1.2 for headings, 1.4 for code.
-- Script coverage: Inter covers Latin and Cyrillic; add an Arabic-script fallback (e.g. Noto Sans Arabic) for `ar` and `fa` locales.
+- Script coverage: Arya covers Latin, Latin Extended (Turkish included) and Devanagari; IBM Plex Sans covers
+  Latin, Latin Extended, Cyrillic, Greek and Vietnamese, and is the heading fallback for those last three.
+  For `ar` and `fa`, put IBM Plex Sans Arabic second in both stacks; for `hi`, put IBM Plex Sans Devanagari
+  second in the body stack (Arya covers Devanagari headings).
 
 ---
 
@@ -408,9 +413,9 @@ The template's § Scaffold Adaptation Matrix applies; these are the Ocoron-speci
 
 - **Theme mode:** dark is the default; first visit follows OS `prefers-color-scheme`, dark when the OS states none. An Ocoron project switches with `data-theme="dark|light"` on `<html>`, which the CSS below keys on.
 - **saas-skeleton, desktop-app:** all three fonts; shadcn's variables filled from the tokens above.
-- **static-site:** Space Grotesk and Inter only — drop JetBrains Mono unless the page shows code or data.
+- **static-site:** Arya and IBM Plex Sans only — drop JetBrains Mono unless the page shows code or data.
 - **chrome-extension:** all three fonts, JetBrains Mono only for data displays.
-- **mobile-app:** Space Grotesk and Inter loaded as custom fonts (a system sans-serif fallback where needed); the mobile packs map the tokens.
+- **mobile-app:** Arya and IBM Plex Sans loaded as custom fonts (a system sans-serif fallback where needed — React Native has no per-glyph cascade, so a Cyrillic or Greek heading renders in that fallback); the mobile packs map the tokens.
 - **docusaurus:** dark tokens by default; code blocks in JetBrains Mono.
 - **Light mode shadow:** subtle only — `0 1px 3px rgba(0,0,0,0.08)`.
 
@@ -419,8 +424,13 @@ The template's § Scaffold Adaptation Matrix applies; these are the Ocoron-speci
 ## CSS custom properties
 
 The template's defaults (spacing, density, motion, breakpoints) are not repeated here — Ocoron uses
-them unchanged. On a Tailwind CSS-first project declare these in `@theme` (dark mode via
-`@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *))`); on the saas-skeleton's
+them unchanged. On a Tailwind CSS-first project expose this block per template § Tailwind (CSS-first) usage: the
+`--color-*`, `--font-*` and `--radius-*` slots go in `@theme static` (`@theme static inline` for
+`--color-secondary` and `--color-purple`, whose value is a `var()`), and the light block below still
+overrides the colours; `--surface-*`, `--border*` and
+`--text-primary|body|muted` stay in `:root` with an `@theme inline` alias
+(`--color-text-primary: var(--text-primary)`). Dark mode is one hook,
+`@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *))`. On the saas-skeleton's
 Tailwind config, fill shadcn's variables from them (template § Mapping to the scaffold's variables).
 
 ```css
@@ -469,8 +479,8 @@ Tailwind config, fill shadcn's variables from them (template § Mapping to the s
   --color-secondary: var(--color-warning); /* retired name */
   --color-purple: var(--color-ai); /* retired name */
 
-  --font-heading: 'Space Grotesk', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  --font-heading: 'Arya', 'IBM Plex Sans', sans-serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   --radius-card: 8px;
@@ -525,7 +535,8 @@ The template's § Rules for Coding Agents apply; these add Ocoron's own.
 
 ### Brand Rules
 
-1. **Font assignment is strict.** Headings = Space Grotesk. Body = Inter. Code/data = JetBrains Mono. No exceptions.
+1. **Font assignment is strict.** Headings = Arya. Body = IBM Plex Sans. Code/data = JetBrains Mono. No exceptions
+   beyond the heading stack's IBM Plex Sans fallback for scripts Arya lacks (§ Typography, Rules).
 2. **Values come from this file.** Use the tokens above; a new colour is proposed here first, with its contrast rows computed.
 3. **Logo is always an asset.** Never render the Ocoron wordmark in a text font.
 
