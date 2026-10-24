@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra-2",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "URGENT — operator: digest the Tailwind best-practices article FULLY into the fleet rules (every item dispositioned), all projects"
 }
