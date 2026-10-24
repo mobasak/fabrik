@@ -1,0 +1,26 @@
+{
+  "block_digest": "3d630a1138d0358cf6c56a8743665bc5c5c7d43385725742cc052fd3801a8885",
+  "blocked_by": [],
+  "created": "2026-10-24T15:10:45.672257Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-fff7bb8f",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "6c846aa4efb01c961296f9a5e91d64c70828b282d31aabffe4709d155a86fd63"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May infra-2 set up Sarp's account for cloud work, so its $250 cloud credit can be spent before it expires on 2026-11-04?",
+  "status": "awaiting-operator",
+  "title": "May infra-2 set up Sarp's account for cloud work, so its $250 cloud credit can be spent before it expires on 2026-11-04?"
+}
