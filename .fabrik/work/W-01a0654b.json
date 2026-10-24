@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T18:19:46.942034Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-01a0654b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QJ3V4AN7C9CJV9B9Q8QEWB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 2,
+  "status": "open",
+  "title": "URGENT — operator: adopt the frontend-design plugin for website UI design, and revise the Ocoron design system against it"
+}

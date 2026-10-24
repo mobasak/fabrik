@@ -19,5 +19,8 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — operator declined rotation; revisit only if scope changes",
   "status": "open",
+  "tags": [
+    "waits-operator-decision"
+  ],
   "title": "**Bot token rotation** for `SysAdminVPS2` (`8838110344:...`) + `SysAdminVPS3` (`8674270904:...`): Operator declared this private chat 2026-06-07 and declined rotation. Re-evaluate if the chat scope..."
 }

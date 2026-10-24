@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T18:19:47.441293Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-00de7d82",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 0,
+  "score_reason": "URGENT: the operator asked via wef; owner kaizen (command wording) is paused; intel is the free active builder (D-983)",
+  "status": "open",
+  "tags": [
+    "mail-01m5qj3v4an7c9cjv9b9q8qewb"
+  ],
+  "title": "URGENT mail 01M5QJ3V4A (operator via wef 2026-10-24): wire the claude-plugins-official frontend-design plugin skill (commit 58267944f921) into the fleet's website UI design routing (/fabrik-ui-design, design-review, the design packs), so all website UI design uses it"
+}

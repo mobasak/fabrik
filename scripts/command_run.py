@@ -321,6 +321,7 @@ NO_CLOSING_PASS = frozenset(
         "fabrik-generate-tests",
         "fabrik-plan-after-chat",
         "fabrik-release",
+        "fabrik-reverse-engineer",
         "fabrik-spec",
         "fabrik-task",
         "fabrik-upstream",
