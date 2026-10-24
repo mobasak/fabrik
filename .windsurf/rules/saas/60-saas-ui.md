@@ -80,7 +80,9 @@ import { detectLanguage, loadTranslations, SUPPORTED } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/I18nProvider';
 
 // Arya's variable holds the Arya face alone, so the heading family can chain the body font after it
-// (tailwind below); add 'cyrillic', 'greek' or 'vietnamese' to plexSans's subsets for those locales.
+// (tailwind below). Other scripts (core/ocoron-design-system.md § Typography, Rules): add 'cyrillic', 'greek' or
+// 'vietnamese' to plexSans's subsets and 'devanagari' to arya's; an `ar`/`fa` or `hi` locale also loads
+// IBM_Plex_Sans_Arabic or IBM_Plex_Sans_Devanagari with its own variable, chained after the body font.
 const arya = Arya({ weight: ['700'], subsets: ['latin', 'latin-ext'], variable: '--font-heading', display: 'swap', fallback: [], adjustFontFallback: false });
 const plexSans = IBM_Plex_Sans({ weight: ['400', '500'], subsets: ['latin', 'latin-ext'], variable: '--font-body', display: 'swap' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
