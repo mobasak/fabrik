@@ -195,10 +195,17 @@ the local `gh` token — `/web-setup` is hidden headless; drive it through a pty
   setup script is web-only configuration).
 - The repo's own hooks load in the clone: the hub's Stop hook ran inside a probe worker and offered
   it infra's work queue (it refused correctly, and the run ended); the rules forbid claims anyway.
-- Billing: cloud sessions draw the account's plan usage, promotional credit first; the credit
-  balance is visible only at claude.ai/settings/usage (no endpoint exposes it) — the guard above
-  counts the per-run cost estimate against the declared credit and takes the web balance by
-  `calibrate` whenever the operator reads it.
+- Billing: a run draws the account's PLAN usage (5-hour and weekly) first, like an interactive
+  session; usage credits pay only as overage past the plan limit, and only where overage is turned
+  on at claude.ai/settings/usage — without it a run at the wall is rejected
+  (code.claude.com/docs/en/routines § Usage and limits, fetched 2026-10-25). Measured W-b00d9d72:
+  each of the five fires so far opened a fresh 5-hour window on its account (reset ≈ fire + 5 h,
+  idle accounts included), and every run's `rate_limit_info` reads `overageStatus: rejected`
+  (`org_level_disabled` on can, ozgurbasak and mob, `out_of_credits` on ob). So the dollar guard
+  above bounds the credit, not the plan draw: an account near its weekly wall cannot spend credit
+  until overage is on. The credit balance is visible only at claude.ai/settings/usage (no endpoint
+  exposes it) — the guard counts the per-run cost estimate against the declared credit and takes
+  the web balance by `calibrate` whenever the operator reads it.
 
 ## Related scripts
 
