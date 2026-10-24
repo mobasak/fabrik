@@ -2923,7 +2923,11 @@ def test_prompts_point_at_the_stage_verb() -> None:
         assert "on any other refusal (exit 2, the reason on stderr) or `invalid choice: 'stage'`" in p, label
         # review pass 1: a moved pin stops the seat (B-S5); skipped members are UNPINNED (B-S2); PYTEST_PINS's
         # archive is skipped too (B-S3); the verb's one deletion is inside SCRATCH (B-S1)
-        assert "On a refusal naming PIN MOVED" in p and "stage nothing by hand" in p, label
+        assert "On a refusal about the pins dir itself — PIN MOVED, UNPINNED," in p and "stage nothing by hand" in p, label
+        # review pass 2, B-H8: every refusal _read_pins raises is a stop, so the manual overlay never runs on them
+        for why in ("an unsafe path", "no pinned files", "is not JSON", "does not list the files MANIFEST.json names"):
+            assert why in p, (label, why)
         assert "name it UNPINNED, never a red of the change" in p, label
         assert "PYTEST_PINS's archive of the test tree and its overlay too" in p, label
-        assert "inside SCRATCH, so the never-execute rule below does not bar it" in p, label
+        # review pass 2, B-S6: the verb deletes more than its refused tree, all of it inside SCRATCH
+        assert "every deletion it makes is inside SCRATCH" in p and "its own tar under SCRATCH/tmp" in p, label

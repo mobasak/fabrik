@@ -2113,6 +2113,22 @@ def test_stage_removes_its_own_tree_on_a_late_refusal(tmp_path: Path, monkeypatc
     assert not (tmp_path / "s" / "arch").exists()
 
 
+def test_stage_removes_a_part_copied_base(tmp_path: Path) -> None:
+    """Review pass 2, A-S10 (three seats executed it): a base copy that dies part-way — an unreadable file — left
+    the half-built tree behind once the cleanup keyed on `made`; mkdir comes first now, so the tree is ours."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py").returncode == 0
+    blocked = Path(f"{pins}.base") / "sub" / "b.py"
+    blocked.chmod(0)
+    try:
+        (tmp_path / "s").mkdir()
+        got = _stage(pins, tmp_path / "s" / "arch")
+    finally:
+        blocked.chmod(0o444)
+    assert got.returncode == 2 and "cannot stage" in got.stderr, got.stderr
+    assert not os.path.lexists(tmp_path / "s" / "arch"), "a part-copied tree was left behind"
+
+
 def test_stage_quotes_the_launchers_python(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Review pass 1, A-H6: the launcher's python is shell-quoted, so a path with a space stays one word."""
     mod = _module()

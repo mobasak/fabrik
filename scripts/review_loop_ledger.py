@@ -1339,8 +1339,11 @@ def stage(pins_dir: Path, out: Path) -> dict:
     made = False  # only a tree THIS call created is removed on a refusal (review pass 1, A-S1: a racing stager's)
     try:
         if recorded:
-            shutil.copytree(base_dir, out, symlinks=True)
+            # mkdir FIRST: it fails on a tree that appeared since the checks (never ours), and once it succeeds
+            # a copy that dies part-way still leaves a tree this call made (review pass 2, A-S10)
+            out.mkdir()
             made = True
+            shutil.copytree(base_dir, out, symlinks=True, dirs_exist_ok=True)
             listed = doc.get("base_skipped")
             skipped = [s for s in listed if isinstance(s, str)] if isinstance(listed, list) else []
         else:
