@@ -1,6 +1,13 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A permanent verdict needs positive evidence; a missing signal is "unknown", so it is transient (2026-10-25)
+
+W-05021a03 split rotate-session's aborts into transient (exit 75) and permanent (exit 1). The first build classified by check name with a few overrides. Three review readers then found ten places where the permanent verdict rested on something ABSENT: no input box drawn (a blank redraw, copy-mode, a restarting pane), a reason string that lacked "timed out" (hibernate reports a timed-out probe as "detached HEAD"), an identity read that failed and so looked empty, and a second `claude` under the pane (a pool seat).
+- **Call a cause permanent only on positive evidence**: a dialog's numbered options, typed text, two transcripts, a missing binding row in a readable store. Default everything else to transient. A false permanent stops a rotation that would have passed; a false transient only keeps the old loop.
+- **A heuristic's own fix needs its own escape variants**: the first dialog test (the last `❯` row is numbered) also matched a numbered line typed in the box, and it blocked the very `--stale-input discard` the permanent hint recommends. Adding "no box drawn" plus "a numbered sibling option nearby" closed it.
+- **Size a mutation probe to the graders**: running the whole test file per mutant took about 20 minutes for 20 mutants; `-k` on the change's own tests takes seconds per mutant. That probe's one survivor was a threshold edge no test sat between (547 s against 900 s), and the new edge test killed it.
+
 ## A token rule is a compiler claim: run the compiler before writing it (2026-10-24)
 
 W-dab6a341's first draft wrote CSS-first Tailwind rules from the docs alone. Three were wrong in ways no doc says: a plain `@theme` drops a variable no utility uses, a `var()`-valued slot's utility reads the referenced variable, and an alias under the slot's own name is a cycle. Every one surfaced only when a seat ran `compile()` from an installed `tailwindcss`. The template's own text-colour slots had sat in the font-size namespace since the CSS-first line shipped. **Lesson:** a rule about what a compiler or engine emits is checked by running it on the smallest input that shows the case, and the probe goes in the CLAIMS verify hint so the currency watcher can re-run it. A grader written to catch prose about tokens is judgement-shaped: bound it and say so, or it fires on legitimate sentences.
