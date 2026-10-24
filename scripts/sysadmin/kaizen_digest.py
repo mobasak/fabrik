@@ -117,14 +117,29 @@ def _num(v: object) -> float | None:
     return float(v)
 
 
+def _cut(breakdown: list[dict], series: dict[str, Path]) -> dict[tuple[str, str], list[dict]]:
+    """(day, metric) -> the breakdown rows written under the definition of the series judged:
+    a row's `def` (absent = 1) must equal that series file's version, so a day re-published after
+    a version bump never mixes the old definition's cut into the new one (W-d633d5f5)."""
+    ver: dict[str, int] = {}
+    for metric, path in series.items():
+        m = _SERIES_RE.match(path.name)
+        if m:
+            ver[metric] = int(m.group("ver"))
+    cut: dict[tuple[str, str], list[dict]] = {}
+    for row in breakdown:
+        metric = str(row.get("metric"))
+        if row.get("def", 1) != ver.get(metric, 1):
+            continue
+        cut.setdefault((str(row.get("day")), metric), []).append(row)
+    return cut
+
+
 def _control(root: Path, series: dict[str, Path]) -> list[str]:
     waste = sorted(m for m in series if m.startswith("waste_"))
     if not waste:
         return []
-    breakdown = _jsonl(root / BREAKDOWN_FILE)
-    cut: dict[tuple[str, str], list[dict]] = {}
-    for row in breakdown:
-        cut.setdefault((str(row.get("day")), str(row.get("metric"))), []).append(row)
+    cut = _cut(_jsonl(root / BREAKDOWN_FILE), series)
     rebase: dict[str, str] = {}
     for row in _jsonl(root / "waste-baselines.jsonl"):
         if isinstance(row.get("metric"), str) and isinstance(row.get("from"), str):

@@ -295,6 +295,16 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
         "fix: allowlist x (red on master since W-1)",
         date=f"{DAY}T15:00:00",
     )
+    # a hypothetical on DAY is no red master (W-d633d5f5): the count stays 3
+    _git(
+        repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "fix: re-apply x\n\nleft on the branch it would turn master red",
+        date=f"{DAY}T16:00:00",
+    )
     # exactly at the next midnight: the next day's, never both (git's --until is inclusive)
     _git(
         repo,
@@ -365,16 +375,23 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
     assert not broken.measurable and broken.detail
 
 
-def test_red_master_phrase_skips_hypotheticals_and_possessives():
-    # W-d633d5f5: the shapes on origin/master that are not a red master (2edc9545f, 0e8aacd73,
-    # 30ffaabe2), and the counted shapes that must stay counted — the escape variants both ways
+def test_red_master_phrase_skips_hypotheticals():
+    # W-d633d5f5: a modal governing the verb that forms the phrase is a hypothetical, not a red
+    # master (2edc9545f, 0e8aacd73 on origin/master); the escape variants both ways
     not_rework = (
         "fix: re-apply it\n\ncarried on a branch that is merge-requested, it would turn master red.",
         "fix: pin the charter\n\nold charter words and would read red on master without this).",
         "fix: guard\n\nit could not go red on master",
         "fix: guard\n\nthis will turn master red once merged",
-        "fix(x): one grader per text (red on master's skeleton: the bare `citation` cell).",
-        "fix(x): red on master’s skeleton",
+        "fix: guard\n\nit won't go red on master",
+        "fix: guard\n\nit can't turn master red",
+        "fix: guard\n\nit cannot go red on master",
+        "fix: guard\n\nit would've turned master red",
+        "fix: guard\n\nit'd turn master red",
+        "fix: guard\n\nit `would` turn master red",
+        "fix: guard\n\nit WOULD\nturn master red",
+        "fix: guard\n\nit is going to turn master red",
+        "fix: guard\n\nit would turn the build on master red",
     )
     rework = (
         "fix: allowlist x (red on master since W-1)",
@@ -383,7 +400,15 @@ def test_red_master_phrase_skips_hypotheticals_and_possessives():
         "fix: x\n\nMaster went red after the /hibernate merge",
         "fix: x\n\nthe cap was not updated, so master went red. W-7c8e293f.",
         "fix: x\n\nthe test would not run, so master went red",
+        "fix: x\n\nthe test would not run so master went red",
+        "fix: x\n\nthe gate should have caught this but master went red",
+        "fix: x\n\nwe can see that master is red",
+        "fix: x\n\nsince 3 May master went red",
+        "fix: x\n\na bad merge can and did turn master red",
+        "fix: x\n\nit would turn it off. Then master went red",
+        "fix: x\n\nthe scan " + "q" * 75 + " master went red",
         "fix: x\n\nit would turn master red. Separately, red on master since a90b35a3b",
+        "fix(x): one grader per text (red on master's skeleton: the bare `citation` cell).",
         "fix: x\n\n3 failed on master 0ac19d87d; the existing gate test is the grader (red on master)",
         "fix: red master again",
     )
@@ -391,6 +416,26 @@ def test_red_master_phrase_skips_hypotheticals_and_possessives():
         assert not kw._is_red_master_rework(msg), msg
     for msg in rework:
         assert kw._is_red_master_rework(msg), msg
+
+
+def test_a_version_bump_republishes_the_breakdown_and_the_digest_reads_its_own_version(env):
+    # W-d633d5f5: a day whose breakdown was written under v1 gets its v2 cut beside it (once),
+    # and the digest reads only the cut whose `def` matches the series version it judges
+    state = env / "kaizen"
+    mid = "waste_red_master_rework"
+    assert kw.registry()[mid]["version"] == 2
+    old = {"day": DAY, "metric": mid, "version": 1, "by": "agent", "key": "old", "numerator": 3}
+    state.mkdir(parents=True, exist_ok=True)
+    kw.breakdown_path(state).write_text(json.dumps(old) + "\n")
+    cut = {mid: [{"by": "agent", "key": "new", "numerator": 2}]}
+    kw._write_breakdown(DAY, cut, state)
+    kw._write_breakdown(DAY, cut, state)  # idempotent per (day, metric, def)
+    rows = [json.loads(ln) for ln in kw.breakdown_path(state).read_text().splitlines()]
+    assert [(r["key"], r.get("def", 1)) for r in rows] == [("old", 1), ("new", 2)]
+    v1 = {mid: state / "series" / f"{mid}@v1.jsonl"}
+    v2 = {mid: state / "series" / f"{mid}@v2.jsonl"}
+    assert [r["key"] for r in kd._cut(rows, v2)[(DAY, mid)]] == ["new"]
+    assert [r["key"] for r in kd._cut(rows, v1)[(DAY, mid)]] == ["old"]
 
 
 def _series_day(env: Path, metric: str, day: str) -> None:

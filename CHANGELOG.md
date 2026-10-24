@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — the red-master rework count no longer counts a hypothetical or a possessive (2026-10-24)
+### Fixed — the red-master rework count no longer counts a hypothetical (2026-10-24)
 
-`scripts/sysadmin/kaizen_waste.py`'s `waste_red_master_rework` counted "it would turn master red" and "red on master's skeleton" as a red master. A red-master phrase with a modal among the six words before it in its clause, or the possessive "red on master's", no longer counts; a message holding a real phrase as well still does. Over origin/master's 10,880 non-merge commits the count moves 32 → 29, exactly the three named not-rework commits. The metric moves to v2, a new series (W-d633d5f5).
+`scripts/sysadmin/kaizen_waste.py`'s `waste_red_master_rework` counted a hypothetical mention as a red master. A phrase whose verb is governed by a modal ("would turn", "won't go", "could've turned", "is going to turn") no longer counts; a modal elsewhere in the sentence, and any other phrase in the same message, still do. Over origin/master's 10,882 non-merge commits the count moves 32 → 30, exactly the two hypotheticals. The metric moves to v2, a new series; breakdown rows now carry their definition version (`def`) and `kaizen_digest.py` reads only the rows matching the series it judges. Run `kaizen_waste.py --backfill` once after the merge, or the red-master chart has no limits for 14 days (W-d633d5f5).
 
 ### Fixed — five hooks-index table rows no longer split their cells on a pipe inside a code span (2026-10-24)
 
