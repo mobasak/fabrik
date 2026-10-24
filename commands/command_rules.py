@@ -2,15 +2,15 @@
 """The lean program's rule test: a command's text split into keyed units, a rewrite diffed against
 its baseline, and every rule ledger under ``commands/_rules/`` asserted against a render.
 
-Spec: docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md § The rule test.
+Spec: the lean command corpus design (W-96f36043) § The rule test.
 ``assemble_commands.py --check`` and ``tests/test_command_rules.py`` both call ``losses()``, the one
 place the rule lives. ``losses()`` never raises: a malformed ledger is one LOSS line.
 
 COBRA (D-253): the cheapest passes are writing no ledger (kaizen's per-phase test closes it), a
-ledger with no baseline or an ``unchanged`` label on a vanished unit (refused here), labelling every
-vanished unit ``narrative`` (``class_counts`` prints the split for the classifier seats and the
-audit pair), and an ``enforced:`` naming a refusal test on an unrelated call (the lint ties the
-test to the script the ``text`` carrier names; the audit pair reads the test).
+ledger with no baseline or an ``unchanged`` or empty label on a vanished unit (refused here),
+labelling every vanished unit ``narrative`` (``summary()`` prints the split for the classifier
+seats and the audit pair), and an ``enforced:`` naming a refusal test on an unrelated call (the
+lint ties the test's own asserts to the script the ``text`` carrier names; the audit pair reads it).
 """
 
 from __future__ import annotations
@@ -26,17 +26,20 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent  # commands/
 RULES = ROOT / "_rules"
+SRC_DIR = ROOT / "_sources"
 SHARED = "_shared"
 
 # ── units ─────────────────────────────────────────────────────────────────────────────────────
 # U2 (recorded with the tooling): EXACT match after normalisation. A unit is keyed by its nearest
-# heading, so a move across sections vanishes; a comment body never carries a rule. The split and
-# the normalisation are the ledger's key contract and change only with a D-row.
+# (normalised) heading, so a move across sections vanishes; a comment body never carries a rule;
+# a fenced block is one unit whose lines are joined by " ⏎ ", so every key is one line. The split
+# and the normalisation are the ledger's key contract and change only with a D-row.
 _ABBREV = re.compile(r"\b(?:e\.g|i\.e|etc|vs|cf)\.$")
 _BOUNDARY = re.compile(r"[.!?](?=\s+[A-Z0-9`*(\[\"“⚠])")
 _LIST = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 _EMPHASIS = re.compile(r"\*\*|__")
 _INCLUDE = re.compile(r"^\s*\{\{include:[^}]+\}\}\s*$")
+_FENCE_JOIN = " ⏎ "
 
 
 def _outside_code(s: str, fn) -> str:
@@ -68,6 +71,10 @@ def _split_prose(text: str) -> list[str]:
     return [p for p in (x.strip() for x in out) if p]
 
 
+def _is_heading(s: str) -> bool:
+    return bool(re.match(r"#{1,6}\s", s))
+
+
 def units(text: str) -> list[tuple[str, str, str]]:
     """``(heading, kind, text)`` for every unit, in order; kind is heading|table|fence|comment|prose."""
     lines = text.splitlines()
@@ -89,7 +96,7 @@ def units(text: str) -> list[tuple[str, str, str]]:
         s = line.strip()
         if fence is not None:
             if s.startswith("```"):
-                out.append((heading, "fence", "\n".join(fence)))
+                out.append((heading, "fence", _FENCE_JOIN.join(fence)))
                 fence = None
             else:
                 fence.append(s)
@@ -111,9 +118,9 @@ def units(text: str) -> list[tuple[str, str, str]]:
                 comment = [s]
         elif not s or _INCLUDE.match(s):
             flush()
-        elif s.startswith("#"):
+        elif _is_heading(s):
             flush()
-            heading = s
+            heading = normalise(s)
             out.append((heading, "heading", s))
         elif s.startswith("|"):
             flush()
@@ -124,7 +131,7 @@ def units(text: str) -> list[tuple[str, str, str]]:
         else:
             block.append(s)
     if fence is not None:
-        out.append((heading, "fence", "\n".join(fence)))
+        out.append((heading, "fence", _FENCE_JOIN.join(fence)))
     if comment is not None:
         out.append((heading, "comment", " ".join(comment)))
     flush()
@@ -132,14 +139,21 @@ def units(text: str) -> list[tuple[str, str, str]]:
 
 
 def keys(text: str) -> list[str]:
-    """The comparable keys of ``text``: ``<heading> ¦ <unit>``, comments excluded."""
+    """The comparable keys of ``text``: ``<heading> ¦ <unit>``, comments excluded; one line each."""
     return [f"{h} ¦ {t}" for h, k, t in units(text) if k != "comment"]
 
 
 def vanished(baseline: list[str], current_text: str) -> list[int]:
-    """1-based baseline line numbers whose key has no exact match in ``current_text``."""
-    have = set(keys(current_text))
-    return [i for i, k in enumerate(baseline, 1) if k not in have]
+    """1-based baseline line numbers whose key has no exact match left in ``current_text``,
+    counted with multiplicity: a unit the baseline holds twice and the rewrite once vanishes once."""
+    have = Counter(keys(current_text))
+    out = []
+    for i, k in enumerate(baseline, 1):
+        if have[k] > 0:
+            have[k] -= 1
+        else:
+            out.append(i)
+    return out
 
 
 def own_text(source: str) -> str:
@@ -147,63 +161,117 @@ def own_text(source: str) -> str:
     return "\n".join("" if _INCLUDE.match(ln) else ln for ln in source.splitlines())
 
 
+def _read_baseline(raw: bytes) -> list[str]:
+    text = raw.decode("utf-8")
+    lines = text.split("\n")
+    return lines[:-1] if lines and lines[-1] == "" else lines
+
+
+def write_baseline(text: str, out: Path) -> str:
+    """Write ``text``'s keys, one per line, to ``out``; return its sha256 for ``baseline_sha256:``."""
+    data = ("\n".join(keys(text)) + "\n").encode("utf-8")
+    out.write_bytes(data)
+    return hashlib.sha256(data).hexdigest()
+
+
 # ── ledgers ───────────────────────────────────────────────────────────────────────────────────
 _TOP = {"command", "shared", "baseline_sentences", "baseline_sha256", "entries", "retired", "vanished"}
 _ENTRY = {"id", "file", "section", "baseline", "current", "text", "ordered", "forbidden", "enforced", "pins"}
 _CARRIERS = ("text", "ordered", "forbidden", "enforced")
-_REFUSAL_SHAPES = (
-    re.compile(r"\b(?:returncode|exit_code)\s*(?:!=\s*0\b|==\s*[1-9]\d*)"),
-    re.compile(r"pytest\.raises\(\s*SystemExit"),
-    re.compile(r"assert\s+not\s+[\w.\[\]()'\"/ ]+\.exists\(\)"),
-)
+_REFUSAL = re.compile(r"\b(?:returncode|exit_code|code)\s*(?:!=\s*0\b|==\s*[1-9]\d*)")
 
 
 class Malformed(Exception):
     pass
 
 
-def _strip_comments(text: str) -> str:
-    return re.sub(r"<!--.*?-->", "", text, flags=re.S)
+class _NoDupLoader(yaml.SafeLoader):
+    """A SafeLoader that refuses a duplicate mapping key instead of keeping the last one."""
 
 
-def _section_text(text: str, section: str) -> str | None:
-    """The body under the heading line ``section`` (up to the next heading of the same or a higher level)."""
-    lines = text.splitlines()
-    want = section.strip()
+def _no_dup_mapping(loader: _NoDupLoader, node: yaml.MappingNode, deep: bool = False) -> dict:
+    seen = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in seen:
+            raise Malformed(f"duplicate key {key!r}")
+        seen.add(key)
+    return yaml.SafeLoader.construct_mapping(loader, node, deep)
+
+
+_NoDupLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_dup_mapping)
+
+
+def _live_lines(text: str) -> list[str]:
+    """``text``'s lines with HTML comments blanked and fenced lines marked (prefixed ``\0``)."""
+    text = re.sub(r"<!--.*?-->", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.S)
+    out, fence = [], False
+    for ln in text.split("\n"):
+        if ln.strip().startswith("```"):
+            fence = not fence
+            out.append("\0" + ln)
+        else:
+            out.append(("\0" + ln) if fence else ln)
+    return out
+
+
+def _scope(text: str, section: str | None) -> tuple[str, int] | None:
+    """``(body, line)``: the live text under the heading ``section`` (up to the next heading of the
+    same or a higher level, fenced lines never read as headings) and the heading's line index, or
+    the whole live file and 0; comments removed."""
+    lines = _live_lines(text)
+    if not section:
+        return "\n".join(ln.lstrip("\0") for ln in lines), 0
+    want = normalise(section)
+    level = len(section.strip()) - len(section.strip().lstrip("#"))
     for i, ln in enumerate(lines):
-        if ln.strip() == want:
-            level = len(want) - len(want.lstrip("#"))
+        if not ln.startswith("\0") and _is_heading(ln.strip()) and normalise(ln.strip()) == want:
             body = []
             for nxt in lines[i + 1 :]:
                 st = nxt.strip()
-                if st.startswith("#") and len(st) - len(st.lstrip("#")) <= level:
+                if not nxt.startswith("\0") and _is_heading(st) and len(st) - len(st.lstrip("#")) <= level:
                     break
-                body.append(nxt)
-            return "\n".join(body)
+                body.append(nxt.lstrip("\0"))
+            return "\n".join(body), i
     return None
 
 
 def _lint_enforced(node: str, root: Path, phrases: list[str]) -> str | None:
-    path, _, func = node.partition("::")
+    path, _, rest = node.partition("::")
+    func = rest.rsplit("::", 1)[-1].split("[", 1)[0]
     p = (root / path).resolve()
     if not func or not p.is_file() or root.resolve() not in p.parents:
         return f"enforced {node!r} names no test file"
     try:
         tree = ast.parse(p.read_text(encoding="utf-8"))
-    except SyntaxError as exc:
-        return f"enforced {node!r} does not parse ({exc.msg})"
-    fn = next(
-        (n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == func),
-        None,
-    )
-    if fn is None:
-        return f"enforced {node!r}: no function {func!r}"
-    body = ast.get_source_segment(p.read_text(encoding="utf-8"), fn) or ""
-    body = "\n".join(ln.split("#", 1)[0] for ln in body.splitlines())
-    if not any(r.search(body) for r in _REFUSAL_SHAPES):
+    except (SyntaxError, UnicodeDecodeError) as exc:
+        return f"enforced {node!r} does not parse ({type(exc).__name__})"
+    fns = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == func]
+    if len(fns) != 1:
+        return f"enforced {node!r}: {len(fns)} functions named {func!r}, need exactly one"
+    fn = fns[0]
+    # Only the function's own asserts and `with pytest.raises(...)` items count — never a string,
+    # a comment, a docstring or an unrelated variable.
+    refusal = False
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Assert):
+            src = ast.unparse(n.test)
+            if _REFUSAL.search(src) or re.match(r"not\s+.+\.exists\(\)$", src):
+                refusal = True
+        elif isinstance(n, ast.With):
+            for item in n.items:
+                if re.match(r"pytest\.raises\(\s*SystemExit", ast.unparse(item.context_expr)):
+                    refusal = True
+    if not refusal:
         return f"enforced {node!r} asserts no refusal (a printed-text assert is a text pin)"
-    scripts = {m for ph in phrases for m in re.findall(r"[\w./-]+\.(?:py|sh)\b", ph)}
-    if not any(Path(s).name in body for s in scripts):
+    named = {Path(m).name for ph in phrases for m in re.findall(r"[\w./-]+\.(?:py|sh)\b", ph)}
+    called = {
+        Path(tok).name
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+        for tok in n.value.split()
+    }
+    if not named & called:
         return f"enforced {node!r} never invokes the script its text carrier names"
     return None
 
@@ -219,45 +287,71 @@ def _decision_rows(root: Path) -> dict[str, str]:
     return rows
 
 
+def _strs(v: Any) -> bool:
+    return isinstance(v, list) and bool(v) and all(isinstance(x, str) and x.strip() for x in v)
+
+
+def _inside(path: Path, base: Path) -> bool:
+    return base.resolve() == path.resolve() or base.resolve() in path.resolve().parents
+
+
 def load_ledger(path: Path, root: Path) -> dict[str, Any]:
     """The validated ledger at ``path``; raises ``Malformed`` with the reason."""
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
+        data = yaml.load(path.read_text(encoding="utf-8"), Loader=_NoDupLoader)  # noqa: S506 — a SafeLoader subclass
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
         raise Malformed(f"unreadable ({type(exc).__name__})") from exc
     if not isinstance(data, dict):
         raise Malformed("not a mapping")
     if unknown := set(data) - _TOP:
-        raise Malformed(f"unknown key(s) {sorted(unknown)}")
+        raise Malformed(f"unknown key(s) {sorted(map(str, unknown))}")
     shared = path.parent.name == SHARED
     if shared != ("shared" in data) or ("command" in data) == shared:
         raise Malformed("a ledger names exactly one of `command:` (commands/_rules/) or `shared:` (commands/_rules/_shared/)")
+    name = data.get("shared") if shared else data.get("command")
+    if not isinstance(name, str) or not name.strip():
+        raise Malformed("`command:`/`shared:` is not a non-empty string")
+    if shared and not _inside(root / name, root):
+        raise Malformed(f"shared {name!r} escapes the repo")
+    for k in ("baseline_sentences", "baseline_sha256"):
+        if k in data and not isinstance(data[k], str):
+            raise Malformed(f"`{k}` must be a quoted string")
+    for k, kind in (("entries", list), ("retired", list), ("vanished", dict)):
+        if data.get(k) is not None and not isinstance(data[k], kind):
+            raise Malformed(f"`{k}` is not a {kind.__name__}")
     ids: dict[str, dict] = {}
     for e in data.get("entries") or []:
         if not isinstance(e, dict) or not isinstance(e.get("id"), str):
-            raise Malformed("an entry is not a mapping with an id")
+            raise Malformed("an entry is not a mapping with a string id")
         if unknown := set(e) - _ENTRY:
-            raise Malformed(f"entry {e['id']}: unknown key(s) {sorted(unknown)}")
+            raise Malformed(f"entry {e['id']}: unknown key(s) {sorted(map(str, unknown))}")
         if e["id"] in ids:
             raise Malformed(f"duplicate entry id {e['id']}")
         if not any(e.get(c) for c in _CARRIERS):
             raise Malformed(f"entry {e['id']}: no carrier")
+        for c in ("text", "forbidden", "ordered", "pins"):
+            if c in e and not _strs(e[c]):
+                raise Malformed(f"entry {e['id']}: `{c}` is not a non-empty list of non-empty strings")
+        for c in ("file", "section", "baseline", "current", "enforced"):
+            if c in e and not isinstance(e[c], str):
+                raise Malformed(f"entry {e['id']}: `{c}` is not a string")
         if e.get("enforced") and not e.get("text"):
             raise Malformed(f"entry {e['id']}: `enforced` needs a `text` carrier naming the invocation")
-        for c in ("text", "forbidden", "ordered", "pins"):
-            if c in e and not (isinstance(e[c], list) and all(isinstance(x, str) for x in e[c])):
-                raise Malformed(f"entry {e['id']}: `{c}` is not a list of strings")
-        f = str(e.get("file") or "")
-        if f and f != "render" and not f.startswith("_agents/"):
-            rp = (root / f).resolve()
-            if root.resolve() not in rp.parents:
-                raise Malformed(f"entry {e['id']}: file {f!r} escapes the repo")
-        if e.get("enforced") and (why := _lint_enforced(str(e["enforced"]), root, e["text"])):
+        f = e.get("file") or ""
+        if shared and f == "render":
+            raise Malformed(f"entry {e['id']}: a shared ledger has no `render` (its file is the shared file)")
+        if f.startswith("_agents/"):
+            if not _inside(Path("/r") / f, Path("/r/_agents")) or ".." in Path(f).parts:
+                raise Malformed(f"entry {e['id']}: file {f!r} escapes the render's _agents/")
+        elif f and f != "render" and not _inside(root / f, root):
+            raise Malformed(f"entry {e['id']}: file {f!r} escapes the repo")
+        if e.get("enforced") and (why := _lint_enforced(e["enforced"], root, e["text"])):
             raise Malformed(f"entry {e['id']}: {why}")
         ids[e["id"]] = e
     for e in ids.values():
-        files = {str(ids[o].get("file") or "render") for o in e.get("ordered") or [] if o in ids}
-        if len(files | {str(e.get("file") or "render")}) > 1 or any(o not in ids for o in e.get("ordered") or []):
+        order = e.get("ordered") or []
+        files = {ids[o].get("file") or "render" for o in order if o in ids}
+        if any(o not in ids for o in order) or len(files | {e.get("file") or "render"}) > 1:
             raise Malformed(f"entry {e['id']}: `ordered` names an unknown id or spans files")
     rows = _decision_rows(root)
     retired: set[str] = set()
@@ -268,17 +362,19 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         if ent.get("forbidden"):
             raise Malformed(f"retired {ent['id']}: an absence pin is never retired")
         row = rows.get(str(r.get("decision") or ""))
-        if row is None or ent["id"] not in row:
+        if row is None or not re.search(rf"(?<![\w-]){re.escape(ent['id'])}(?![\w-])", row):
             raise Malformed(f"retired {ent['id']}: decision {r.get('decision')!r} has no D-row naming it")
+        if ent["id"] in ids:
+            raise Malformed(f"retired {ent['id']}: also a live entry")
         retired.add(ent["id"])
     for key, label in (data.get("vanished") or {}).items():
-        if not re.fullmatch(r"L\d+", str(key)):
+        if not isinstance(key, str) or not re.fullmatch(r"L[1-9]\d*", key):
             raise Malformed(f"vanished key {key!r} is not a baseline line (L<n>)")
         if label == "narrative":
             continue
-        if isinstance(label, dict) and set(label) == {"rule"} and isinstance(label["rule"], list):
+        if isinstance(label, dict) and set(label) == {"rule"} and _strs(label["rule"]):
             named = label["rule"]
-        elif isinstance(label, dict) and set(label) == {"duplicate-of"}:
+        elif isinstance(label, dict) and set(label) == {"duplicate-of"} and isinstance(label["duplicate-of"], str):
             named = [label["duplicate-of"]]
         else:
             raise Malformed(f"vanished {key}: label {label!r} is not rule: [ids], duplicate-of: id or narrative")
@@ -289,91 +385,98 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
 
 
 def _resolve(entry: dict, ledger: dict, render_dir: Path, root: Path) -> Path:
-    f = str(entry.get("file") or "")
-    if not f:
-        return root / ledger["shared"] if "shared" in ledger else render_dir / f"{ledger['command']}.md"
-    if f == "render":
+    f = entry.get("file") or ""
+    if "shared" in ledger and not f:
+        return root / ledger["shared"]
+    if not f or f == "render":
         return render_dir / f"{ledger['command']}.md"
     return render_dir / f if f.startswith("_agents/") else root / f
 
 
 def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path) -> list[str]:
-    name = path.relative_to(path.parents[1] if path.parent.name == SHARED else path.parent)
-    loss: list[str] = []
-    base = path.parent / str(ledger.get("baseline_sentences") or "")
+    name = path.name if path.parent.name != SHARED else f"{SHARED}/{path.name}"
+    base = path.parent / (ledger.get("baseline_sentences") or "")
     if not ledger.get("baseline_sentences") or not base.is_file():
         return [f"LOSS {name}: baseline file missing"]
     raw = base.read_bytes()
-    if hashlib.sha256(raw).hexdigest() != str(ledger.get("baseline_sha256") or ""):
+    if hashlib.sha256(raw).hexdigest() != (ledger.get("baseline_sha256") or ""):
         return [f"LOSS {name}: baseline_sha256 does not match {base.name}"]
-    baseline = raw.decode("utf-8").splitlines()
-    if "shared" in ledger:
-        own = (root / ledger["shared"]).read_text(encoding="utf-8") if (root / ledger["shared"]).is_file() else None
-    else:
-        src = src_dir / f"{ledger['command']}.md"
-        own = own_text(src.read_text(encoding="utf-8")) if src.is_file() else None
-    if own is None:
-        return [f"LOSS {name}: its own text is missing"]
+    baseline = _read_baseline(raw)
+    own_path = root / ledger["shared"] if "shared" in ledger else src_dir / f"{ledger['command']}.md"
+    if not own_path.is_file():
+        return [f"LOSS {name}: its own text {own_path.name} is missing"]
+    own = own_path.read_text(encoding="utf-8")
+    own = own if "shared" in ledger else own_text(own)
+    loss: list[str] = []
     labels = ledger.get("vanished") or {}
     for n in vanished(baseline, own):
         if f"L{n}" not in labels:
             loss.append(f"LOSS {name}: baseline L{n} vanished, unclassified — {baseline[n - 1][:120]}")
-    positions: dict[str, int] = {}
+    positions: dict[str, tuple[int, int]] = {}
     for e in ledger["_ids"].values():
         f = _resolve(e, ledger, render_dir, root)
         if not f.is_file():
             loss.append(f"LOSS {name} {e['id']}: file {f.name} missing")
             continue
         text = f.read_text(encoding="utf-8")
-        live = _strip_comments(text)
+        flat_all = " ".join(text.split())
         for ph in e.get("forbidden") or []:
-            if ph in text:
+            if " ".join(ph.split()) in flat_all:
                 loss.append(f"LOSS {name} {e['id']}: forbidden phrase present — {ph[:80]}")
-        cur = e.get("current")
-        if not cur:
-            continue
-        scope = _section_text(live, e["section"]) if e.get("section") else live
-        if scope is None:
+        found = _scope(text, e.get("section"))
+        if found is None:
             loss.append(f"LOSS {name} {e['id']}: section {e['section']!r} missing")
             continue
-        flat = " ".join(scope.split())
-        want = " ".join(str(cur).split())
-        at = flat.find(want)
-        if at < 0:
-            loss.append(f"LOSS {name} {e['id']}: `current` not found under its section")
-            continue
-        positions[e["id"]] = " ".join(live.split()).find(want)
-        for ph in e.get("text") or []:
-            if " ".join(ph.split()) not in want:
-                loss.append(f"LOSS {name} {e['id']}: text phrase not in `current` — {ph[:80]}")
+        scope, start = found
+        where = "under its section" if e.get("section") else "in its file"
+        cur = e.get("current")
+        if cur:
+            want = normalise(cur)
+            mine = [t for _h, k, t in units(scope) if k != "comment"]
+            if want not in mine:
+                loss.append(f"LOSS {name} {e['id']}: `current` is not a unit {where}")
+                continue
+            # `ordered` compares (the section's heading line, the unit's index inside it)
+            positions[e["id"]] = (start, mine.index(want))
+            for ph in e.get("text") or []:
+                if normalise(ph) not in want:
+                    loss.append(f"LOSS {name} {e['id']}: text phrase not in `current` — {ph[:80]}")
+        else:
+            flat = normalise(scope)
+            for ph in e.get("text") or []:
+                if normalise(ph) not in flat:
+                    loss.append(f"LOSS {name} {e['id']}: text phrase not {where} — {ph[:80]}")
     for e in ledger["_ids"].values():
-        seq = [positions.get(o, -1) for o in e.get("ordered") or []]
-        if seq and (min(seq) < 0 or seq != sorted(seq)):
+        seq = [positions.get(o) for o in e.get("ordered") or []]
+        if seq and (None in seq or seq != sorted(seq)):
             loss.append(f"LOSS {name} {e['id']}: `ordered` entries out of order or missing")
     return loss
-
-
-def class_counts(ledger: dict) -> Counter:
-    return Counter(
-        "narrative" if v == "narrative" else next(iter(v)) for v in (ledger.get("vanished") or {}).values()
-    )
 
 
 def ledgers(rules: Path | None = None) -> list[Path]:
     rules = RULES if rules is None else rules
     if not rules.is_dir():
         return []
-    return sorted(rules.glob("*.yaml")) + sorted((rules / SHARED).glob("*.yaml"))
+    found: list[Path] = []
+    for d in (rules, rules / SHARED):
+        found += sorted(p for p in d.glob("*") if p.is_file() and p.suffix in (".yaml", ".yml"))
+    return found
 
 
 def losses(render_dir: Path, root: Path, src_dir: Path, rules: Path | None = None) -> list[str]:
-    """Every LOSS line for the ledgers under ``rules``; never raises. A command ledger whose command
-    has no source in ``src_dir`` is skipped (a fixture tree never meets the live ledgers)."""
+    """Every LOSS line for the ledgers under ``rules``; never raises. A command ledger whose
+    command has no source in a FIXTURE ``src_dir`` is skipped (a fixture tree never meets the live
+    ledgers); against the live ``commands/_sources/`` a missing source is a LOSS."""
     out: list[str] = []
+    live = src_dir.resolve() == SRC_DIR.resolve()
     for path in ledgers(rules):
         try:
+            if path.suffix == ".yml":
+                raise Malformed("a ledger is named *.yaml")
             led = load_ledger(path, root)
             if "command" in led and not (src_dir / f"{led['command']}.md").is_file():
+                if live:
+                    out.append(f"LOSS {path.name}: command {led['command']!r} has no source in commands/_sources/")
                 continue
             out += _check(led, path, render_dir, root, src_dir)
         except Malformed as exc:
@@ -383,20 +486,21 @@ def losses(render_dir: Path, root: Path, src_dir: Path, rules: Path | None = Non
     return out
 
 
-def entry_counts(rules: Path | None = None) -> dict[str, int]:
-    """Each ledger's entry count (kaizen's ledger-size trigger reads the printed form)."""
-    counts: dict[str, int] = {}
+def summary(rules: Path | None = None) -> list[str]:
+    """One line per ledger — entry count and the vanished-label split — never raising (kaizen's
+    ledger-size trigger and the classifier seats read it)."""
+    lines = []
     for path in ledgers(rules):
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-            counts[path.name] = len(data.get("entries") or []) if isinstance(data, dict) else 0
-        except (OSError, yaml.YAMLError):
-            counts[path.name] = 0
-    return counts
-
-
-def write_baseline(text: str, out: Path) -> str:
-    """Write ``text``'s keys, one per line, to ``out``; return its sha256 for ``baseline_sha256:``."""
-    data = ("\n".join(keys(text)) + "\n").encode("utf-8")
-    out.write_bytes(data)
-    return hashlib.sha256(data).hexdigest()
+            entries = data.get("entries") if isinstance(data, dict) else None
+            van = data.get("vanished") if isinstance(data, dict) else None
+            n = len(entries) if isinstance(entries, list) else 0
+            split = Counter(
+                v if isinstance(v, str) else (next(iter(v)) if isinstance(v, dict) and v else "?")
+                for v in (van.values() if isinstance(van, dict) else [])
+            )
+            lines.append(f"LEDGER {path.name}: {n} entries · vanished {dict(sorted(split.items()))}")
+        except Exception as exc:  # noqa: BLE001 — a report line, never a crash
+            lines.append(f"LEDGER {path.name}: unreadable — {type(exc).__name__}")
+    return lines

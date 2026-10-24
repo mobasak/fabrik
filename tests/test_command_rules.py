@@ -73,40 +73,76 @@ def _losses(t: dict[str, Path]) -> list[str]:
     return cr.losses(t["out"], t["root"], t["src"], rules=t["rules"])
 
 
+def _one(lost: list[str], phrase: str) -> None:
+    assert len(lost) == 1 and phrase in lost[0], lost
+
+
 ENTRY = {"id": "R1", "section": "## Scope", "baseline": "Never stage a sibling's file.",
          "current": "Never stage a sibling's file.", "text": ["Never stage"]}
 
 
 # ── Behaviour 1 ───────────────────────────────────────────────────────────────────────────────
 def test_the_live_corpus_has_no_loss(tmp_path: Path) -> None:
-    ac.render(tmp_path, None, agents_dest=tmp_path / "_agents")
-    assert list(tmp_path.glob("*.md")), "the render produced no command"
-    counts = cr.entry_counts()
-    for name, n in sorted(counts.items()):
-        print(f"LEDGER {name}: {n} entries")
-    assert cr.losses(tmp_path, ROOT, ac.SRC) == []
+    out = tmp_path / "render"
+    ac.render(out, None, agents_dest=out / "_agents")
+    assert (out / "fabrik-task.md").is_file(), "the render produced no fabrik-task"
+    for line in cr.summary():
+        print(line)
+    assert cr.losses(out, ROOT, ac.SRC) == []
+    # the live path is not vacuous: a ledger on a real command, asserted against the real render
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    source = (ac.SRC / "fabrik-task.md").read_text(encoding="utf-8")
+    sha = cr.write_baseline(cr.own_text(source), rules / "fabrik-task.baseline.txt")
+    good = {"id": "T1", "section": "## Phase 3 — BUILD",
+            "current": "Never run a formatter by hand beyond the declared paths.", "text": ["formatter"]}
+    led = {"command": "fabrik-task", "baseline_sentences": "fabrik-task.baseline.txt", "baseline_sha256": sha,
+           "entries": [good]}
+    (rules / "fabrik-task.yaml").write_text(yaml.safe_dump(led, allow_unicode=True), encoding="utf-8")
+    assert cr.losses(out, ROOT, ac.SRC, rules=rules) == []
+    led["entries"] = [{**good, "text": ["a phrase no command says"]}]
+    (rules / "fabrik-task.yaml").write_text(yaml.safe_dump(led, allow_unicode=True), encoding="utf-8")
+    _one(cr.losses(out, ROOT, ac.SRC, rules=rules), "text phrase not in `current`")
+    (rules / "fabrik-task.yaml").unlink()
+    led["command"] = "no-such-command"
+    (rules / "renamed.yaml").write_text(yaml.safe_dump(led, allow_unicode=True), encoding="utf-8")
+    _one(cr.losses(out, ROOT, ac.SRC, rules=rules), "has no source in commands/_sources/")
 
 
 # ── Behaviour 2 ───────────────────────────────────────────────────────────────────────────────
 def test_units_and_exact_match() -> None:
     text = (
-        "---\nx: y\n---\n# T\n\n| a | b |\n|---|---|\n\n```bash\nrun --x\n```\n"
+        "---\nx: y\n---\n# T\n\n| a | b |\n|---|---|\n\n```bash\nrun --x\n# note\n```\n"
         "<!-- POOL OFF: Never write NO-POOL. -->\n"
-        "2. Use e.g. `a.b` here. Then **stop** now.\n"
+        "2. Use e.g. `a.b` here. Then **stop** now. Read `x. Y` too. Set it to 3. Then i.e. go. Done.\n"
     )
     us = cr.units(text)
     kinds = [k for _h, k, _t in us]
-    assert kinds == ["heading", "table", "table", "fence", "comment", "prose", "prose"], us
-    assert us[5][2] == "Use e.g. `a.b` here"  # step number stripped, no split after e.g. or in backticks
+    assert kinds == ["heading", "table", "table", "fence", "comment"] + ["prose"] * 5, us
+    assert us[3][2] == "run --x ⏎ # note"  # one unit, one line: a fence's `#` is no heading
+    assert us[5][2] == "Use e.g. `a.b` here"  # step number stripped, no split after e.g.
     assert us[6][2] == "Then stop now"  # emphasis stripped, trailing period dropped
+    assert us[7][2] == "Read `x. Y` too"  # never split inside a backtick span
+    assert us[8][2] == "Set it to 3. Then i.e. go"  # no split after a digit-only token or i.e.
+    assert us[9][2] == "Done"
     assert cr.normalise("Never edit `__init__.py`.") == "Never edit `__init__.py`"
     base = cr.keys("## S\n\nNever stage it. Keep going.\n")
     assert cr.vanished(base, "## S\n\nNever   **stage** it.\nKeep going\n") == []
+    assert cr.vanished(base, "## **S**\n\nNever stage it. Keep going.\n") == []  # heading emphasis
     assert cr.vanished(base, "## S\n\nNever stage this. Keep going.\n") == [2]
     assert cr.vanished(base, "## Other\n\nNever stage it. Keep going.\n") == [1, 2, 3]
     assert cr.vanished(base, "## S\n\n<!-- Never stage it. -->\nKeep going.\n") == [2]
     commented = cr.keys("## S\n\n<!-- dead note -->\nKeep going.\n")
     assert cr.vanished(commented, "## S\n\nKeep going.\n") == []  # a comment carries no rule to classify
+    twice = cr.keys("## S\n\nStop.\n\nStop.\n")
+    assert cr.vanished(twice, "## S\n\nStop.\n") == [3]  # multiplicity: one copy deleted vanishes once
+
+
+def test_a_fenced_baseline_round_trips(tmp_path: Path) -> None:
+    src = "## A\n\n```bash\n# note\nrm -rf a\n```\n\nKeep X.\n"
+    t = _tree(tmp_path, source=src, render=src)
+    _ledger(t, [{"id": "R1", "section": "## A", "current": "Keep X.", "text": ["Keep"]}], baseline_from=src)
+    assert _losses(t) == []  # a # line in a fence neither splits the baseline nor ends the section
 
 
 # ── Behaviour 3 ───────────────────────────────────────────────────────────────────────────────
@@ -116,28 +152,63 @@ def test_each_failed_carrier_is_a_loss(tmp_path: Path) -> None:
     assert _losses(t) == []
     t = _tree(tmp_path / "gone", render=SOURCE.replace("Never stage a sibling's file.", "Stage carefully."))
     _ledger(t, [ENTRY])
-    assert any("`current` not found" in x for x in _losses(t))
+    _one(_losses(t), "`current` is not a unit under its section")
+    longer = SOURCE.replace("Never stage a sibling's file.", "Never stage a sibling's file twice.")
+    t = _tree(tmp_path / "longer", render=longer)
+    _ledger(t, [ENTRY])
+    _one(_losses(t), "`current` is not a unit")  # a substring of a longer sentence is not the rule
+    commented = SOURCE.replace("Never stage a sibling's file.", "<!-- Never stage a sibling's file. -->")
+    t = _tree(tmp_path / "commented", render=commented)
+    _ledger(t, [ENTRY])
+    _one(_losses(t), "`current` is not a unit")
     t = _tree(tmp_path / "phrase")
     _ledger(t, [{**ENTRY, "text": ["Never commit"]}])
-    assert any("text phrase not in" in x for x in _losses(t))
-    t = _tree(tmp_path / "forbid", render=SOURCE + "\n<!-- always force-push -->\n")
-    _ledger(t, [{**ENTRY, "forbidden": ["force-push"]}])
-    assert any("forbidden phrase present" in x for x in _losses(t))
-    t = _tree(tmp_path / "commented", render=SOURCE.replace("Never stage a sibling's file.", "<!-- Never stage a sibling's file. -->"))
-    _ledger(t, [ENTRY])
-    assert any("`current` not found" in x for x in _losses(t))
+    _one(_losses(t), "text phrase not in `current`")
+    t = _tree(tmp_path / "textonly")
+    _ledger(t, [{"id": "R2", "section": "## Scope", "text": ["Never commit"]}])
+    _one(_losses(t), "text phrase not under its section")  # a text carrier with no `current` is checked
+    t = _tree(tmp_path / "forbid", render=SOURCE + "\n<!-- always force-\npush -->\n")
+    _ledger(t, [{**ENTRY, "forbidden": ["force- push"]}])
+    _one(_losses(t), "forbidden phrase present")  # comments and line wraps included
     t = _tree(tmp_path / "section")
     _ledger(t, [{**ENTRY, "section": "## Close"}])
-    assert any("`current` not found under its section" in x for x in _losses(t))
+    _one(_losses(t), "`current` is not a unit under its section")
+    t = _tree(tmp_path / "nosection")
+    _ledger(t, [{**ENTRY, "section": "## Absent"}])
+    _one(_losses(t), "section '## Absent' missing")
+    deep = SOURCE.replace("## Close", "### Sub\n\nInner line.\n\n## Close")
+    t = _tree(tmp_path / "deeper", source=deep, render=deep)
+    _ledger(t, [{"id": "R3", "section": "## Scope", "current": "Inner line.", "text": ["Inner"]}], baseline_from=deep)
+    assert _losses(t) == []  # a deeper heading stays inside its parent section
     t = _tree(tmp_path / "order")
     entries = [
         {"id": "C1", "section": "## Close", "current": "Commit by pathspec.", "text": ["Commit"]},
         {"id": "C2", "section": "## Close", "current": "Push it.", "text": ["Push"], "ordered": ["C2", "C1"]},
     ]
     _ledger(t, entries)
-    assert any("out of order" in x for x in _losses(t))
+    _one(_losses(t), "out of order or missing")
     entries[1]["ordered"] = ["C1", "C2"]
     _ledger(t, entries)
+    assert _losses(t) == []
+    gone = SOURCE.replace("1. Commit by pathspec.\n", "")
+    t = _tree(tmp_path / "ordergone", source=SOURCE, render=gone)
+    _ledger(t, entries)
+    lost = _losses(t)
+    assert any("out of order or missing" in x for x in lost) and len(lost) == 2, lost
+    dup = "## Pre\n\nX rule.\n\n## A\n\nY rule.\n\n## B\n\nX rule.\n"
+    t = _tree(tmp_path / "orderscope", source=dup, render=dup)
+    two = [{"id": "Y", "section": "## A", "current": "Y rule.", "text": ["Y"], "ordered": ["Y", "X"]},
+           {"id": "X", "section": "## B", "current": "X rule.", "text": ["X"]}]
+    _ledger(t, two, baseline_from=dup)
+    assert _losses(t) == []  # `ordered` reads the occurrence under each entry's own section
+
+
+def test_agents_files_resolve_in_the_render(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    (t["out"] / "_agents").mkdir()
+    (t["out"] / "_agents" / "seat.md").write_text("## Seat\n\nRead only.\n")
+    seat = {"id": "A1", "file": "_agents/seat.md", "section": "## Seat", "current": "Read only.", "text": ["Read"]}
+    _ledger(t, [seat])
     assert _losses(t) == []
 
 
@@ -147,24 +218,33 @@ def test_classification_and_baseline_losses(tmp_path: Path) -> None:
     t = _tree(tmp_path, source=rewritten, render=rewritten)
     _ledger(t, [ENTRY])
     lost = _losses(t)
-    assert len(lost) == 1 and "vanished, unclassified" in lost[0] and "Run the probe on a copy" in lost[0]
+    _one(lost, "vanished, unclassified")
+    assert "Run the probe on a copy" in lost[0]
     line = next(i for i, k in enumerate(cr.keys(cr.own_text(SOURCE)), 1) if "Run the probe" in k)
-    _ledger(t, [ENTRY], vanished={f"L{line}": "narrative"})
-    assert _losses(t) == []
-    _ledger(t, [ENTRY], vanished={f"L{line}": {"rule": ["R1"]}})
-    assert _losses(t) == []
-    for bad in ("unchanged", {"rule": ["R7"]}, {"duplicate-of": "R7"}):
-        _ledger(t, [ENTRY], vanished={f"L{line}": bad})
-        assert any("malformed" in x for x in _losses(t)), bad
+    for good in ("narrative", {"rule": ["R1"]}, {"duplicate-of": "R1"}):
+        _ledger(t, [ENTRY], vanished={f"L{line}": good})
+        assert _losses(t) == [], good
+    retired = [{"decision": "D-0001", "entry": {"id": "R9", "text": ["x"]}}]
+    for bad in ("unchanged", {"rule": ["R7"]}, {"rule": []}, {"duplicate-of": "R7"}, {"rule": ["R9"]}):
+        _ledger(t, [ENTRY], vanished={f"L{line}": bad}, retired=retired)
+        _one(_losses(t), "malformed")
+    for key in ("42", "L0", "Lx"):
+        _ledger(t, [ENTRY], vanished={key: "narrative"})
+        _one(_losses(t), "is not a baseline line")
     p = _ledger(t, [ENTRY], vanished={f"L{line}": "narrative"})
-    (t["rules"] / "demo.baseline.txt").write_text("tampered\n")
-    assert any("baseline_sha256 does not match" in x for x in _losses(t))
-    (t["rules"] / "demo.baseline.txt").unlink()
-    assert any("baseline file missing" in x for x in _losses(t))
+    base = t["rules"] / "demo.baseline.txt"
+    kept = base.read_bytes()
+    base.write_text("tampered\n")
+    _one(_losses(t), "baseline_sha256 does not match")
+    base.write_bytes(kept)
     data = yaml.safe_load(p.read_text())
     del data["baseline_sentences"]
     p.write_text(yaml.safe_dump(data))
-    assert any("baseline file missing" in x for x in _losses(t))
+    _one(_losses(t), "baseline file missing")  # the file exists; the KEY is what is missing
+    data["baseline_sentences"] = "demo.baseline.txt"
+    p.write_text(yaml.safe_dump(data))
+    base.unlink()
+    _one(_losses(t), "baseline file missing")
 
 
 # ── Behaviour 5 ───────────────────────────────────────────────────────────────────────────────
@@ -174,7 +254,7 @@ def _refused(t: dict[str, Path], **override) -> str:
     sha = cr.write_baseline(cr.own_text(SOURCE), base)
     data = {"command": "demo", "baseline_sentences": base.name, "baseline_sha256": sha, "entries": [ENTRY]}
     data.update(override)
-    p.write_text(yaml.safe_dump(data, sort_keys=False) if not isinstance(data.get("raw"), str) else data["raw"])
+    p.write_text(yaml.safe_dump(data, sort_keys=False))
     lost = _losses(t)
     assert len(lost) == 1 and "malformed" in lost[0], lost
     return lost[0]
@@ -182,17 +262,40 @@ def _refused(t: dict[str, Path], **override) -> str:
 
 def test_malformed_ledgers_are_one_loss_line_each(tmp_path: Path) -> None:
     t = _tree(tmp_path)
-    (t["rules"] / "demo.yaml").write_text("- just\n- a list\n")
+    p = t["rules"] / "demo.yaml"
+    p.write_text("- just\n- a list\n")
     assert _losses(t) == ["LOSS demo.yaml: malformed — not a mapping"]
-    (t["rules"] / "demo.yaml").write_text("command: [unclosed\n")
-    assert "unreadable" in _losses(t)[0]
+    p.write_text("command: [unclosed\n")
+    _one(_losses(t), "unreadable")
+    p.write_text("command: demo\ncommand: other\n")
+    _one(_losses(t), "duplicate key 'command'")
+    p.write_bytes(b"command: \xff\n")
+    _one(_losses(t), "unreadable")
     assert "unknown key" in _refused(t, extra=1)
+    assert "entry R1: unknown key" in _refused(t, entries=[{**ENTRY, "note": 1}])
+    assert "not a mapping with a string id" in _refused(t, entries=[{"id": 7, "text": ["x"]}])
     assert "duplicate entry id" in _refused(t, entries=[ENTRY, ENTRY])
     assert "no carrier" in _refused(t, entries=[{"id": "R2", "current": "Push it."}])
+    assert "non-empty list" in _refused(t, entries=[{**ENTRY, "text": [""]}])
+    assert "non-empty list" in _refused(t, entries=[{**ENTRY, "text": "Never stage"}])
+    assert "`entries` is not a list" in _refused(t, entries=5)
+    assert "must be a quoted string" in _refused(t, baseline_sha256=1234)
+    assert "is not a non-empty string" in _refused(t, command=None)
     two = [ENTRY, {"id": "R3", "file": "docs/DECISIONS.md", "current": "x", "text": ["x"], "ordered": ["R1"]}]
     assert "spans files" in _refused(t, entries=two)
+    assert "unknown id" in _refused(t, entries=[{**ENTRY, "ordered": ["R404"]}])
     assert "escapes the repo" in _refused(t, entries=[{**ENTRY, "file": "../outside.md"}])
+    assert "escapes the render's _agents/" in _refused(t, entries=[{**ENTRY, "file": "_agents/../../x.md"}])
     assert "needs a `text` carrier" in _refused(t, entries=[{"id": "R4", "current": "x", "enforced": "t.py::f"}])
+    p.write_text("entries: 5\n")
+    assert all(x.startswith("LEDGER ") for x in cr.summary(t["rules"]))  # the report never crashes
+    (t["rules"] / "demo.yml").write_text("command: demo\n")
+    assert any("demo.yml: malformed — a ledger is named *.yaml" in x for x in _losses(t))
+
+
+def test_the_enforced_lint(tmp_path: Path) -> None:
+    base_src = SOURCE.replace("Stop at the pin.", "Run `gate.py` first.")
+    t = _tree(tmp_path, source=base_src)
     tests_dir = t["root"] / "tests"
     tests_dir.mkdir()
     (tests_dir / "test_g.py").write_text(
@@ -200,29 +303,45 @@ def test_malformed_ledgers_are_one_loss_line_each(tmp_path: Path) -> None:
         "def test_prints():\n    r = subprocess.run(['gate.py'])\n    assert 'ok' in r.stdout\n"
         "def test_refuses():\n    r = subprocess.run(['gate.py', '--bad'])\n    assert r.returncode != 0\n"
         "def test_other():\n    r = subprocess.run(['other.py'])\n    assert r.returncode == 2\n"
+        "def test_string_only():\n    'returncode != 0'\n    r = subprocess.run(['gate.py'])\n    assert r.ok\n"
+        "def test_suffix():\n    r = subprocess.run(['data_gate.py', '--bad'])\n    assert r.returncode == 1\n"
     )
-    enf = {**ENTRY, "text": ["Never stage"], "current": "Never stage a sibling's file."}
-    assert "asserts no refusal" in _refused(t, entries=[{**enf, "enforced": "tests/test_g.py::test_prints"}])
-    with_script = {**enf, "text": ["Never stage"]}
-    assert "never invokes the script" in _refused(
-        t, entries=[{**with_script, "enforced": "tests/test_g.py::test_other"}]
-    )
-    retired_forbidden = [{"decision": "D-0001", "entry": {"id": "R9", "forbidden": ["x"]}}]
-    assert "never retired" in _refused(t, retired=retired_forbidden)
-    assert "no D-row" in _refused(t, retired=[{"decision": "D-0002", "entry": {"id": "R9", "text": ["x"]}}])
-
-
-def test_an_enforced_entry_passing_the_lint_loads(tmp_path: Path) -> None:
-    t = _tree(tmp_path, source=SOURCE.replace("Stop at the pin.", "Run `gate.py` first."))
-    (t["root"] / "tests").mkdir()
-    (t["root"] / "tests" / "test_g.py").write_text(
-        "import subprocess\ndef test_refuses():\n    r = subprocess.run(['gate.py', '--bad'])\n"
-        "    assert r.returncode != 0\n"
-    )
-    entry = {"id": "R5", "section": "## Scope", "current": "Run `gate.py` first.", "text": ["`gate.py`"],
-             "enforced": "tests/test_g.py::test_refuses"}
-    _ledger(t, [entry], baseline_from=SOURCE.replace("Stop at the pin.", "Run `gate.py` first."))
+    enf = {"id": "R5", "section": "## Scope", "current": "Run `gate.py` first.", "text": ["`gate.py`"]}
+    _ledger(t, [{**enf, "enforced": "tests/test_g.py::test_refuses"}], baseline_from=base_src)
     assert _losses(t) == []
+    for node, why in (
+        ("tests/test_g.py::test_prints", "asserts no refusal"),
+        ("tests/test_g.py::test_string_only", "asserts no refusal"),  # a string is no assert
+        ("tests/test_g.py::test_other", "never invokes the script"),
+        ("tests/test_g.py::test_suffix", "never invokes the script"),  # data_gate.py is not gate.py
+        ("tests/test_g.py::test_absent", "0 functions"),
+        ("tests/nope.py::test_x", "names no test file"),
+    ):
+        _ledger(t, [{**enf, "enforced": node}], baseline_from=base_src)
+        _one(_losses(t), why)
+
+
+def test_retired_rows(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    ok = [{"decision": "D-0001", "entry": {"id": "R9", "text": ["x"]}}]
+    _ledger(t, [ENTRY], retired=ok)
+    assert _losses(t) == []
+    assert "never retired" in _refused(t, retired=[{"decision": "D-0001", "entry": {"id": "R9", "forbidden": ["x"]}}])
+    assert "no D-row" in _refused(t, retired=[{"decision": "D-0002", "entry": {"id": "R9", "text": ["x"]}}])
+    (t["root"] / "docs" / "DECISIONS.md").write_text("| D-0001 | 2026-10-25 | x | retires R90 | y | z |\n")
+    assert "no D-row" in _refused(t, retired=ok)  # R9 is not R90
+    assert "full entry" in _refused(t, retired=[{"decision": "D-0001"}])
+
+
+def test_losses_never_raises(tmp_path: Path, monkeypatch) -> None:
+    t = _tree(tmp_path)
+    _ledger(t, [ENTRY])
+
+    def boom(*_a, **_k):
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(cr, "_check", boom)
+    assert _losses(t) == ["LOSS demo.yaml: unreadable — RuntimeError: kaboom"]
 
 
 # ── Behaviour 6 ───────────────────────────────────────────────────────────────────────────────
@@ -233,17 +352,26 @@ def test_shared_and_skipped_ledgers(tmp_path: Path) -> None:
     frag.write_text("## Orient\n\nRead the packs first.\n")
     base = t["rules"] / "_shared" / "orient.baseline.txt"
     sha = cr.write_baseline(frag.read_text(), base)
+    entry = {"id": "O1", "section": "## Orient", "current": "Read the packs first.", "text": ["packs"]}
     led = {"shared": "commands/_fragments/orient.md", "baseline_sentences": base.name, "baseline_sha256": sha,
-           "entries": [{"id": "O1", "section": "## Orient", "current": "Read the packs first.", "text": ["packs"]}]}
-    (t["rules"] / "_shared" / "orient.yaml").write_text(yaml.safe_dump(led))
+           "entries": [entry]}
+    shared = t["rules"] / "_shared" / "orient.yaml"
+    shared.write_text(yaml.safe_dump(led))
     assert _losses(t) == []
     frag.write_text("## Orient\n\nRead the rules.\n")
     lost = _losses(t)
-    assert any("orient.yaml O1" in x for x in lost) and any("vanished, unclassified" in x for x in lost)
-    (t["rules"] / "_shared" / "orient.yaml").unlink()
+    assert len(lost) == 2 and any("_shared/orient.yaml O1" in x for x in lost), lost
+    led["entries"] = [{**entry, "file": "render"}]
+    shared.write_text(yaml.safe_dump(led))
+    _one(_losses(t), "a shared ledger has no `render`")
+    led["entries"] = [entry]
+    led["shared"] = "../escape.md"
+    shared.write_text(yaml.safe_dump(led))
+    _one(_losses(t), "escapes the repo")
+    shared.unlink()
     _ledger(t, [ENTRY])
     (t["src"] / "demo.md").unlink()
-    assert _losses(t) == []  # a command ledger with no source in src_dir is skipped
+    assert _losses(t) == []  # a command ledger with no source in a FIXTURE src_dir is skipped
 
 
 # ── Behaviour 7 ───────────────────────────────────────────────────────────────────────────────
@@ -252,19 +380,36 @@ def test_check_exits_4_on_a_loss_and_1_on_drift_alone(tmp_path: Path, monkeypatc
     rules.mkdir()
     (rules / "broken.yaml").write_text("- not a mapping\n")
     monkeypatch.setattr(cr, "RULES", rules)
-    monkeypatch.setattr(ac, "OUT", tmp_path / "installed")  # empty: every command reads as drift too
-    monkeypatch.setattr(ac, "SKILLS", tmp_path / "skills")
-    monkeypatch.setattr(ac, "AGENTS", tmp_path / "agents")
+    # 1. LOSS alone: the installed corpus is an exact render, so there is no drift
+    inst, skills, agents = tmp_path / "installed", tmp_path / "skills", tmp_path / "agents"
+    ac.render(inst, skills, agents_dest=agents)
+    monkeypatch.setattr(ac, "OUT", inst)
+    monkeypatch.setattr(ac, "SKILLS", skills)
+    monkeypatch.setattr(ac, "AGENTS", agents)
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as exc:
+        ac.check()
+    assert exc.value.code == 4
+    out = capsys.readouterr().out
+    assert "LOSS:" in out and "DRIFT:" not in out, out
+    # 2. LOSS and drift: 4 outranks 1, LOSS printed first
+    (inst / "fabrik-task.md").write_text("hand edit\n")
     with pytest.raises(SystemExit) as exc:
         ac.check()
     assert exc.value.code == 4
     out = capsys.readouterr().out
     assert out.index("LOSS:") < out.index("DRIFT:")
+    # 3. drift alone
     (rules / "broken.yaml").unlink()
     with pytest.raises(SystemExit) as exc:
         ac.check()
     assert exc.value.code == 1
-    # the main checkout's pre-commit entry passes a 4 through, so a LOSS refuses the commit
+
+
+@pytest.mark.skipif(
+    not Path("/opt/fabrik/.pre-commit-config.yaml").is_file(), reason="the hub's hook runs only in /opt/fabrik"
+)
+def test_the_corpus_check_hook_passes_a_loss_exit_through(tmp_path: Path) -> None:
     entry = next(
         h["entry"]
         for repo in yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text())["repos"]
@@ -283,6 +428,6 @@ def test_check_exits_4_on_a_loss_and_1_on_drift_alone(tmp_path: Path, monkeypatc
 
 def test_baseline_file_is_hashed_as_written(tmp_path: Path) -> None:
     out = tmp_path / "b.txt"
-    sha = cr.write_baseline("## S\n\nOne. Two.\n", out)
+    sha = cr.write_baseline("## S\n\nOne. Two.\n\n```\na\nb\n```\n", out)
     assert sha == hashlib.sha256(out.read_bytes()).hexdigest()
-    assert out.read_text().splitlines() == ["## S ¦ ## S", "## S ¦ One", "## S ¦ Two"]
+    assert cr._read_baseline(out.read_bytes()) == ["## S ¦ ## S", "## S ¦ One", "## S ¦ Two", "## S ¦ a ⏎ b"]

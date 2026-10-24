@@ -1330,7 +1330,8 @@ def check():
         tmp_ag = tmp / "_agents"
         render(tmp, tmp_sk, agents_dest=tmp_ag)
         # The lean program's rule ledgers (commands/command_rules.py): a LOSS outranks drift, so a
-        # mid-rewrite drift never masks it; both are printed, LOSS first, and a LOSS exits 4.
+        # mid-rewrite drift never masks it; both are printed, LOSS first, and a LOSS exits 4. A render
+        # error exits 2 inside render() above: with no render there is nothing to check.
         losses = command_rules.losses(tmp, ROOT.parent, SRC)
         # Agent definitions are part of the corpus now: a hand-edit on the box must show up here,
         # or the repo sources are merely FIRST rather than canonical.
