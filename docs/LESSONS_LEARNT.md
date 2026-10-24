@@ -7753,3 +7753,18 @@ document.
   item's number does not travel on.
 - **Where it lives.** `scripts/sysadmin/archive_transcripts.py::main_key`,
   `scripts/sysadmin/prune_transcripts.py::evaluate_main`, `docs/DECISIONS.md` (D-1188).
+
+## Trusting another run's green needs the inputs it measured AND the code that measured it — bind both, then mutate every binding (2026-10-24)
+
+- **What happened.** W-1fb11ec8 let the merge skip its owner-test leg on the requester's pretest record. The
+  first design bound the record to the merged tree only. Two critique seats and three review seats then found
+  four more inputs a green record silently depends on: the runner's own code (a branch editing
+  merge_request.py writes its record with its own code), the leg's duration (`FABRIK_CAPPED_RUN=/bin/true`
+  yields a green in 0 s), the merge-tests text, and a non-finite JSON number (NaN passed the floor and crashed
+  `int()`). The first mutation battery left 3 of 16 mutants alive; each was a grader that could not fail.
+- **Mechanism.** A skip is a cache hit: every input the cached result depended on is part of its key, and a key
+  field that no test can tell apart from a constant is not a key.
+- **How to apply.** (1) List what the skipped work READ, not what it was given: tree, script, runner, env,
+  duration. (2) Bind each to the record. (3) Mutate each binding on a copy and watch a named grader fail before
+  calling it covered; an option-shaped value (`-R`) is the probe for any field passed to git.
+- **Where it lives.** `scripts/merge_request.py::_pretested`, `_pretest`, `tests/test_merge_request_pretest.py`.
