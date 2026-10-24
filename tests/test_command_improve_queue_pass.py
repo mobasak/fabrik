@@ -707,6 +707,7 @@ def test_the_lock_check_names_the_appended_fragment_and_how_an_entry_owns_a_path
     assert readers["cpt_lock"]._owned(target, [glob_entry])
     assert not readers["cpt_lock"]._owned("src/a/b/deep.py", ["src/a/*"])
     assert not readers["cpk_lock"]._path_covers(glob_entry, target)
+    assert not readers["cpk_lock"]._path_covers("src/a/*", "src/a/b.py")  # nor a single-segment `*`
     assert readers["cpt_lock"]._owned("Commands/_Fragments/a.md", ["commands/_fragments"])
     assert not readers["cpk_lock"]._path_covers("commands/_fragments", "Commands/_Fragments/a.md")
     assert readers["cpk_lock"]._path_covers("commands/_fragments/a.md", "commands/_fragments")
