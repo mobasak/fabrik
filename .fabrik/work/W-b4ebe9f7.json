@@ -3,7 +3,7 @@
   "created": "2026-10-24T09:35:00.536120Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ecf63c4ce167b1265244db5cb0d49a9ef64e0bb7",
   "id": "W-b4ebe9f7",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "fleet",
   "priority": 0,
   "score_reason": "HIGH: a blocking bug — a red test on master fails every merge check and gate; effort low: one path or one allowlist line",
-  "status": "open",
+  "status": "done",
   "title": "Master red: tests/test_hub_write_root.py::test_every_hub_root_write_hit_is_converted_or_allowlisted fails because scripts/sysadmin/vps1_pg_scoped_logins.py (merged 66e37e977, W-80983d8c) hard-codes a hub write root with no disposition — reproduced by the coordinator on master 2026-10-24"
 }
