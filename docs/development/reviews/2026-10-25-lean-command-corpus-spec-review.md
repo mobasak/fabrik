@@ -25,6 +25,16 @@
 
 | Pass 4 | opus×1 + sonnet×1 (round-1 owners) · the scope-growth stop's fixed set (round 3) + the § Time budget section (second panel, D-1219) | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0, edits: 7 | method: re-derivation — B-rest re-counted 17/16/1 intake rows and matched U4's eight figures to intel's receipt (confirmed 0); A-rules re-read `assemble_commands.py:1261-1270`, `:1322`, `:1382`, `:1430-1438` and `fabrik-review-scoped.md:8`; orchestrator re-ran `sed -n -e 164,168p commands/_sources/fabrik-review-scoped.md` (no D-344 pair on the pilot: "never applies here"); own-fix: the § Time budget text added in this review, all 7 | aafb2b9eee3869bd84592c54feb4e812 → 740d7d7bf7dd1c17e3d48c3928af31aa |
 
+| Pass 5 | opus×1 (A-rules round-1 owner; B-rest had no open claim and no fix hunk) · the round-4 fixed set (scope-growth exit) | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 2 | method: re-derivation — C1-C3, C5-C7 CLOSED with their pin-5 lines quoted; `fabrik-repo-review.md:47` and `fabrik-review.md:179,502,512` re-read for the D-344 pair; orchestrator ran `check_review_hygiene.py` (1 split-table hit at the round-3 I17 row, fixed, 0 after) and `check_spec_convergence.py` on a flipped copy (1 examined, 0 findings); own-fix: round 4; 2 RECORDED — measured (folded into the C4 fix; `/fabrik-execute-plan`'s Opus floor is not a pair, one hop out) | 740d7d7bf7dd1c17e3d48c3928af31aa → 3ca433c034eb738c30da61fb650a5996 |
+
+## Round 5 dispositions
+
+| id | finding | disposition |
+|---|---|---|
+| A5-C4 | the frozen sample runs at a phase close, before the new command has run, into a D-row a plain-lever phase never writes | CONFIRMED (pin-5:269, :285 vs :326-328) — fixed: at the after window's end, recorded in the after-window report; T1's D-row is provisional on it |
+| A5-R1 | T1's D-row cannot cite a sample taken after its phase | RECORDED — measured (closed by the A5-C4 fix) |
+| A5-R2 | `/fabrik-execute-plan`'s per-round Opus floor (fabrik-review.md:179) is not a pair | RECORDED — measured (T1 applies only where the pair exists; the floor is untouched by construction) |
+
 ## Round 4 dispositions
 
 | id | finding | disposition |

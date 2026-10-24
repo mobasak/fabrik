@@ -294,9 +294,12 @@ Each rule change is decided by the Opus + Fable panel. Every entry it rewrites g
   - It cuts seat-minutes and tokens, not wall-clock, because paired seats run in parallel.
   - It is proposed only on D-344's own measure, confirmed candidates per seat, which intel produces before any T1
     decision.
-  - It is the one lever that can lose recall, so it is trialled in `/fabrik-review`'s phase (§ Order step 4). Its
-    superseding D-row names the measured recall before and after (confirmed defects per run, and the frozen
-    sample below), and it spreads to the other partitioned loop only when that row stands.
+  - It is the one lever that can lose recall, so it is trialled in `/fabrik-review`'s phase (§ Order step 4),
+    and its superseding D-row is provisional:
+    - The row names the before recall: confirmed defects per run, and per seat, from the before window.
+    - `/fabrik-review`'s after-window report adds the after recall and the frozen sample below.
+    - T1 spreads to the other partitioned loop only when that report shows no rise. A rise reverts it by a new
+      D-row.
 - **T3, a pass a command repeats.** The rewrite ticket names the exact pass, with its evidence, and the ruling or
   line it supersedes. Two things are not T3:
   - The full `/fabrik-review` over committed work that `/fabrik-task` runs after phase 5
@@ -322,9 +325,10 @@ Incremental gates are machinery and belong to W-1fb11ec8 (I10).
   - It counts the confirmed findings later reviews make on a fast-closed run's files within 14 days of that run.
   - The denominator is the files actually re-reviewed, and the never-re-reviewed share is reported beside it.
   - A rise is a rate above the before window's rate.
-- **The frozen sample:** at each phase close, kaizen re-reviews a random sample of 5 of that command's fast-closed
-  surfaces with the frozen pre-program command. It records both confirmed counts in the phase's D-row. A rise is
-  the frozen command confirming more than the new one did.
+- **The frozen sample:** at the end of a command's after window, kaizen re-reviews a random sample of 5 surfaces
+  that the new command fast-closed in that window, using the frozen pre-program command. kaizen records both
+  confirmed counts in the after-window report. A rise is the frozen command confirming more than the new one
+  did.
 
 A rise on either counter is a § Lifecycle trigger, and the panel then revisits the lever.
 
