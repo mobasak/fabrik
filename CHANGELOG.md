@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — REA reverse-engineering MCP (hub-class) and /fabrik-reverse-engineer (2026-10-24)
+
+- `scripts/sysadmin/mcp_defs.json` gains `rea` (Reverse Engineer Anything, `rea-agents`): a stdio server launched from the pinned global install (`npm install -g --ignore-scripts rea-agents@6.7.0`), never REA's own `setup`, which would write `~/.claude.json` and a personal skill. The emitter's hub-class rule carries it to the hub and fabrik-lib only (D-1199); `docs/workstation/mcp-roster.md` § REA records install, scope, reach and update.
+- `/fabrik-reverse-engineer` (`commands/_sources/fabrik-reverse-engineer.md`, NEXT entry, dashboard slot and services row): one feature of a public website, Electron app, APK or binary → a behaviour-only spec under `docs/reference/reverse-engineering/`, in five phases (LOOK · UNDERSTAND · PLAN · BUILD · ITERATE) with Scout / Spec-Writer / Builder / Tester seats and a clean-room check.
+- `tests/test_emit_mcp_project_config.py`: the `rea` entry is a pinned absolute stdio launch (no npx, no @latest, no credential) and reaches the hub class and no scaffold type or overlay.
+
 ### Fixed — master green again: the vps1 Postgres login-rotation script gets its hub-root disposition (2026-10-24)
 
 - `tests/test_hub_write_root.py` failed on master after `scripts/sysadmin/vps1_pg_scoped_logins.py` merged, because
