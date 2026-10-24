@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the hub's own merge-time test leg: differential, name-reference selection (2026-10-24)
+
+- `.fabrik/merge-tests` runs `scripts/merge_test_select.py` in each merge's build tree (W-4e756979, D-1189). The tests it selects are those naming a changed path (file, module stem, import, specific directory) plus every `ls-files` tree grader. They run in 8 shards, each red is confirmed alone and then in its shard's order, and the leg refuses only a red that is new against the base. Master's own reds pass. Without it, `merge_request.py` ran only the tests a branch touched, and the measured red-master merges were each red by themselves. All 17 measured cause merges select their red grader. Three real merges took 487 / 1189 / 1172 s, so the coordinator runs merges in the background (`scripts/rund --timeout 2100 -- capped_run.sh --timeout 2000 -- merge_request.py merge <id>`). The leg is on for every merge by D-1186, from the merge after the one that lands it.
+
 ### Fixed — /fabrik-execute-plan's commit recipes write the message to a file, never a heredoc (2026-10-24)
 
 The command showed its six commit recipes as `git commit -m "$(cat <<'EOF' … EOF)"`, the compound shape the worktree isolation check may refuse. Each now writes the message with the Write tool to a per-commit file in the session scratchpad (`<scratch>/msg-<name>`; a subagent's is `msg-phase-{X}-task-{N}`, since parallel subagents may share the scratchpad) and commits with `git commit -F`, as `docs/reference/multi-agent-operating-model.md` already ruled; the archive step's `-m` and the merge-conflict comment's `&&` follow, and step 5 says one command per call. Scoped review CONVERGED 8 → 0 over three readers (W-0e42a4dc).

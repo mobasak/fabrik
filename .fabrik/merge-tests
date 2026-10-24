@@ -1,0 +1,3 @@
+# The hub's merge-time test leg (W-4e756979): scripts/merge_test_select.py under the main checkout's
+# .venv, found through git's common dir (the build tree is a throwaway with no .venv of its own).
+exec "$(git rev-parse --path-format=absolute --git-common-dir)/../.venv/bin/python" scripts/merge_test_select.py

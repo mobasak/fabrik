@@ -205,7 +205,12 @@ owner's tests (`.fabrik/merge-tests`, read from base, with the throwaway's `src`
 present, with the caller's `PYTHONPATH` dropped and the merged import root — `src`, or the tree's
 root when `src/` is itself a package — placed after the stdlib and before site-packages; both legs
 first get the base's `.worktreeinclude` set copied in from the main checkout, so a gitignored `.env`
-is there as in a worktree, never over a file the tree tracks — D-610), (d) a CAS
+is there as in a worktree, never over a file the tree tracks — D-610; the hub's own merge-tests runs
+`scripts/merge_test_select.py`, W-4e756979: the tests that name a changed path — its file, module,
+import or directory — plus every test whose text says `ls-files`, in 8 shards; it refuses a red that
+is new against the base (green, absent, or failing with another crash line there) and a run it
+could not finish, never one of master's own reds; outside a merge check it never checks out or
+cleans the worktree and compares nothing), (d) a CAS
 of the local base (up to three rebuilds), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
 hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
@@ -417,4 +422,5 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/merge_request.py`
+- `scripts/merge_test_select.py`
 <!-- END related-scripts -->

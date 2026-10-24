@@ -1,6 +1,14 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A work item's cause hypothesis is a claim to execute; a differential gate compares like with like (2026-10-24)
+
+W-4e756979 (the hub's merge-test leg): design critiqued by two seats, full review 15 → 13 → (closing pass).
+- **Run the cause before believing the item's story** — the item said "merges landing on a moving main". Checking out 3 cause branches alone in a throwaway showed each red BY ITSELF, so the real cause was a missing owner-test leg, not a race. Half an hour of measurement replaced a design that would have fixed the wrong thing.
+- **A measurement throwaway must match the consumer's** — the first full-suite count (~112 master reds) lacked the `fabrik-lib` sibling link that merge_request's throwaway makes. The same suite with the link held 18 reds.
+- **A differential verdict compares the same shapes from the same tree state** — the base run must repeat the merge run's shape (alone, or in the shard's order) after the same `git clean`. Otherwise an artefact of one run reads as a difference. A crash line must also drop what changes every run (pytest's temp root, `at 0x…` addresses, default tempfile names) and nothing else: a looser `/tmp/*` rule merged two different failures.
+- **A gate that switches state never does it in the caller's own tree** — the first build's base checkout ran in a requester's worktree too and destroyed uncommitted work. A finder executed it in round 1.
+
 ## Before porting a reader, search the synced siblings for one that already applies the rule (2026-10-24)
 
 W-27db8c35's design ported decisions.py's code-span reader into a fleet-synced checker as a fourth copy; the Fable design critique found `scripts/enforcement/_fences.py::blank_code_spans` in the same directory — a module eight other scripts there already imported, its span reader already used by check_doc_links and check_convergence — which applied the same run-length rule and also honoured an escaped backtick that the copy would have got wrong. Executed on 2896 live rows the two agreed everywhere else. **How to apply:** before a design copies a mechanism, grep the synced directory the file lives in for the rule's own vocabulary (here `backtick`, `code span`) and read what imports it — a shared reader turns a fourth copy into one import.
