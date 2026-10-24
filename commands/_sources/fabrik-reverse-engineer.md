@@ -30,12 +30,13 @@ leans on it.
 **The target and its limits.** Inspect only what the operator named: a public page, an app or binary the
 operator supplied, or our own product. No login with anyone's credentials, no paywall or rate-limit evasion,
 no capture of other users' data. **Before any REA call** on a website, fetch `<origin>/robots.txt` and the
-site's terms page when its front page links one (`mcp__fabrik-scrape__scrape` or `WebFetch`), and do the same
-for every other origin the feature's own requests reach once LOOK names them; write each verdict as a line
-of `reports.md` — the clause read, or `none found` for a robots.txt answered 404 and no terms link. Every
+site's terms page when its front page links one (`mcp__fabrik-scrape__scrape` or `WebFetch`). LOOK's first
+capture lists the other origins the page calls; each one that receives the FEATURE's own calls (its API,
+not a font, analytics or CDN origin) gets the same check before any further REA call runs. Write each
+verdict as a line of `reports.md` — the clause read, or `none found` for a robots.txt answered 404 and no terms link. Every
 other answer (a 5xx, a timeout, a `blocked` result, a bot wall) is unread, never `none found`, and ends the run
-`BLOCKED:` like a `Disallow` covering a path the feature uses (the `*` group and any group naming an agent
-like ours) or a clause forbidding automated access; no later phase runs after a `BLOCKED:` line. For an app,
+`BLOCKED:` like a `Disallow` covering a path the feature uses — the page the operator named, then the API
+paths LOOK lists — (the `*` group and any group naming an agent like ours) or a clause forbidding automated access; no later phase runs after a `BLOCKED:` line. For an app,
 APK or binary, its licence or EULA is read the same way. Inspection stays on the named origin and the requests
 the feature itself makes; a navigation off them is not followed; nothing is submitted, bought, posted or
 changed on a live site beyond the read path that shows the feature; and ONE Scout at a time drives a live
@@ -66,7 +67,8 @@ the bundle code that handles the event, the network captures for payload shapes.
 corroborates a static reading; it is used when static evidence cannot answer, and each answer is marked
 `observed` (runtime) or `inferred` (static). For a feature with independent sub-questions answered from STATIC evidence (bundles,
 captures already taken), those questions are the units of a Scout fan-out; questions that need the live page
-are never units — one Scout answers them in turn, before or after the fan-out. **Dispatch step (D-191):** run `python3
+are never units — one Scout answers them in turn, before or after the fan-out, stamped on its own with
+`python3 scripts/command_run.py dispatch --seats 1`. **Dispatch step (D-191):** run `python3
 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <questions> --mechanical 0` and dispatch exactly
 the `SEATS:` and mix it prints, in ONE message — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch
 --seats <n>` and closed with `python3 scripts/command_run.py round --seats <n> --findings <open questions>`;
@@ -87,8 +89,10 @@ the interface shapes in our own neutral names (a request carries `query: string`
 names); the open unknowns; and a `## Evidence` table mapping each behaviour number to its Evidence IDs in
 `reports.md` AND a one-line summary of what was observed, so the committed spec stands when the run's
 `SCRATCH:` folder is pruned (14 days, `command_run.py` `SCRATCH_RETENTION_S`). Then the CLEAN-ROOM CHECK, by the lead, executed and its output kept in `reports.md`: every behaviour cites at
-least one Evidence ID; `identifiers.txt` exists and holds no blank line (`/usr/bin/grep -c '^[[:space:]]*$'
-<SCRATCH>/identifiers.txt` prints `0` — a blank line would match every line of the spec), and
+least one Evidence ID; `identifiers.txt` exists, its emptiness matches `reports.md` (empty only when `reports.md` says
+`identifiers: none named`), and it holds no blank line and no carriage return (`/usr/bin/grep -c -P
+'^\s*$|\r' <SCRATCH>/identifiers.txt` prints `0` — a blank line would match every line of the spec, and a
+CRLF line would match none), and
 `/usr/bin/grep -n -F -w -f <SCRATCH>/identifiers.txt <spec>` prints nothing and exits 1 (exit 0 lists the
 leaked lines; exit 2, a missing or unreadable list, fails the check too); the spec holds no fenced block copied
 from the target; no asset, copy text or brand of theirs. A failed check is fixed
