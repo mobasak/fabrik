@@ -165,13 +165,17 @@ def test_the_contract_drops_the_false_claim(rel: str) -> None:
     assert "replays only YOUR unpushed" not in step
     assert "`git pull --rebase=merges`" not in step
     ladder = step[step.index("tree CLEAN →") : step.index("**NEVER `--force`**")]
-    # the rule, not loose phrases: the rewrite clause leads to the stop, and only "none" leads to the rebase
+    # the rule, not loose phrases: the stop-to-none span is pinned whole, so no qualifier or extra step fits in it
     assert re.search(
         r"a `forced-update` line above the newest `update by push` line, or anywhere when there is no such line,"
-        r" means .*? → stop and report, never rebase"
-        r" onto it .*?; none → `git rebase --rebase-merges @\{u\}` then push",
+        r" means the remote branch was REWRITTEN since you last pushed \(by this fetch or an earlier one, which"
+        r" comparing tips misses\) → stop and report, never rebase onto it — a rebase pushes back what the rewrite"
+        r" removed, and `git pull --rebase` silently DROPS your own already-pushed commits at exit 0 \(its"
+        r" fork-point skips them; reproduced, fabrik-lib D-480, (?:hub )?D-1178\); none → `git rebase"
+        r" --rebase-merges @\{u\}` then push \(",
         ladder,
-    ), f"{rel}: the stop/rebase rule is reworded or reordered"
+    ), f"{rel}: the stop/rebase rule is reworded, qualified or reordered"
     assert ladder.count("`git rebase --rebase-merges @{u}`") == 1
+    assert ladder.count("git pull") == 1, f"{rel}: `git pull` may appear only as the warning"
     assert "no upstream (`@{u}` errors), or a rejection that is not a non-fast-forward" in ladder
     assert "**NEVER `--force`**" in step
