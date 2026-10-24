@@ -1415,7 +1415,9 @@ def _pretested(ctx: _Ctx, wt: Path, script: str) -> tuple[str, str]:
     head = second.stdout.strip()
     if second.returncode or not head:
         return "", ""  # not a two-parent merge (or no request head): nothing to look up
-    path = _pretest_path(ctx.records, head)
+    path = _pretest_path(
+        ctx.common / "fabrik-merge", head
+    )  # never the pretest ctx's redirected records
     if not path.is_file():
         return "", ""
 
