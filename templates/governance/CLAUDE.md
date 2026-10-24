@@ -195,11 +195,10 @@ never silently complied with and never silently ignored.
    evidence + a concrete direction (verbatim diff or ranked options) + why-filed + blast-radius honesty.
    The same shape applies when the gap is not a file defect (a missing pipeline stage, a command-contract
    flaw) — the target is the hub file that would change.
-3. **Send it**: `python scripts/mail.py send --to fabrik --to-agent infra --kind request --ack required`
-   with the proposal path in the body (synced-file and enforcement defects and the rendering of
-   commands are the infra beat; a command's or rule's wording → `kaizen`; deploy/VPS/spec-yaml →
-   `fleet`; models/benchmarks → `intel`; genuinely unsure → `--broadcast` with `--ack no`). The
-   hub's next session runs HUB mode and replies landed / deferred / refuted.
+3. **Send it**: `python scripts/mail.py send --to fabrik --to-agent <owner> --kind request --ack required`
+   with the proposal path in the body, `<owner>` the beat the **Send / reach others** bullet below
+   names (`infra`, `kaizen`, `fleet` or `intel`; genuinely unsure → `--broadcast` with `--ack no`).
+   The hub's next session runs HUB mode and replies landed / deferred / refuted.
 
 Friction too small for a proposal (a confusing prompt line, a noisy warn) still goes to the hub — one
 `--kind finding` mail beats a silent shrug; the kaizen metrics can only fix what gets reported.
