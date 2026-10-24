@@ -39,6 +39,10 @@ PROJECT_ROOT = Path.cwd()
 LOCK_DIR = PROJECT_ROOT / ".fabrik" / "plan-locks"
 
 _DOC_SUFFIXES = (".md", ".rst", ".txt")
+# An `owned_paths` entry made only of `*` and `/`, at least one `*`. When `_norm_path`'s emphasis
+# strip leaves no glob of it (`**` → empty, `**/**` → `/`), it is read as owning every path; the
+# shapes it keeps (`*`, `**/`) stay globs (W-9fcb6ce4).
+_ALL_STARS = re.compile(r"[*/]*\*[*/]*")
 
 
 def _active_locks() -> list[dict]:
@@ -190,20 +194,21 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
     """Lock-scope filter — on the shared-master tree, SIBLING commits land inside the window
     (review finding, live-verified: three tryton-crm commits sat in this plan's own window).
     Without this filter a sibling's untested source misattributes a WARN to this plan, and a
-    sibling's unrelated tests/ addition masks this plan's real zero-test gap. An entry owns
-    exactly itself or, as a dir prefix, its subtree. Comparison is CASE-INSENSITIVE — a
+    sibling's unrelated tests/ addition masks this plan's real zero-test gap. A literal entry owns
+    exactly itself or, as a dir prefix, its subtree; a GLOB entry (`src/app/**`, `tests/test_*.py`,
+    the bare `**`) owns what it matches, read by `check_plan_tickets._glob_covers` — the directional,
+    `/`-aware matcher the same lock files' discovery reader uses (W-b2bbc1f1, D-1094), whose
+    glob-free branch is this literal rule (W-9fcb6ce4). Comparison is CASE-INSENSITIVE — a
     re-cased entry (`Src/` for `src/`) matched nothing and silenced the window (review
     finding). Honest tradeoff, both directions: on a hypothetical case-COLLIDING tree
     (`src/App/` and `src/app/` as distinct dirs) this can over-scope a WARN or
     cross-attribute a sibling's test as accompaniment (a silence) — accepted: such trees
     are themselves an error class in this fleet, and the typo'd-case lock is the real,
     observed input."""
+    from check_plan_tickets import _glob_covers
+
     p = path.lower()
-    for o in owned_paths:
-        o = o.rstrip("/").lower()
-        if p == o or p.startswith(o + "/"):
-            return True
-    return False
+    return any(_glob_covers(o.lower(), p) for o in owned_paths)
 
 
 _CODE_TEST_SUFFIXES = (".py", ".ts", ".tsx", ".js", ".jsx", ".sh")
@@ -263,12 +268,20 @@ def _check_lock(lock: dict) -> bool:
     # silenced the whole window (review findings: `[""]`, `" src/ "`, `"./src"`, `"."` all
     # live-reproduced false silences; `.` = repo root = the whole-window fallback anyway).
     # An all-dropped list degrades to the whole-window fallback, toward warning.
+    # A normalised entry that still holds `*` or `?` is a GLOB, kept as that same form (so
+    # `src//**` and `src/**:12` are cleaned to `src/**`) and matched by `_owned`'s glob reader.
+    # The one glob `_norm_path` does not keep is an all-star entry its emphasis strip eats (`**` →
+    # empty, `**/**` and `*/*` → `/`): it owns every path, so it is kept as `**` — dropped, it
+    # narrowed a mixed lock to its other entries. Every entry `_norm_path` reads as a literal or drops keeps that reading
+    # (`*src*` → `src`, `*.*` → `.` → dropped), so no shape moves toward silence (W-9fcb6ce4).
     from check_plan_tickets import _norm_path
 
     owned = []
     for o in raw_owned:
         n = _norm_path(str(o))
-        if n and n != "." and n.strip("/"):
+        if not any(c in n for c in "*?") and _ALL_STARS.fullmatch(str(o).strip()):
+            owned.append("**")
+        elif n and n != "." and n.strip("/"):
             owned.append(n)
     baseline = str(lock["baseline_commit"])
     files = _window_files(baseline)
