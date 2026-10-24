@@ -432,7 +432,7 @@ ALLOWLIST: dict[str, str] = {
     # ── the former `deferred` rows, measured (W-319a83d7): update_vps_docs.py is CONVERTED ──
     "scripts/sysadmin/kaizen_digest.py": "read: REPO only locates send-telegram.sh to execute (:123); it writes no tracked file — `kaizen-log-*.md` is text in its message (:115)",
     "scripts/sysadmin/kaizen_shrink_audit.py": "no-write: REPO = Path(__file__).resolve().parents[2] (:53), so kaizen-shrink-audit.md (:1065) is already worktree-relative; its /opt/fabrik literals classify crontab lines (:512, :516)",
-    "scripts/review_loop_ledger.py": "read: its only hit is a comment naming PIN_IMPORT's FABRIK_ROOT warning (:352); it writes only under the caller's --pins-dir",
+    "scripts/review_loop_ledger.py": "read: its hits are a comment naming PIN_IMPORT's FABRIK_ROOT warning and stage's printed launcher text (FABRIK_ROOT set to the staged tree); it writes only under the caller's --pins-dir and stage's --out (refused inside a work tree unless ignored, or under home) with its sibling home/ and tmp/",
 }
 
 _EXCLUDED_DIR_PREFIXES = ("tests/", "libs/", "scripts/.archive/", "scripts/archived/")

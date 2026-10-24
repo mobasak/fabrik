@@ -40,6 +40,10 @@ Phase 2 read the plan locks only after both critique seats had returned, so a lo
 
 `CLAUDE.md` and `templates/governance/CLAUDE.md` still filed subagent transcripts with `~/.claude/tasks` and shell snapshots as "pruned after 3 days … NEVER archived", which D-1182 (infra's W-62d2ce7d) made false: a sidechain is now archived like a main transcript and pruned only once the archive vouches for it. Both bullets carry infra's sentence and `--restore <session_id | agent-<id>>`, the form `prune_transcripts.py::_restore_match` accepts; `tests/test_session_rotation_rule.py` pins both copies and refuses the old sentence (W-a1158ea0).
 
+### Added — `review_loop_ledger.py stage` builds a review seat's test tree in one command (2026-10-24)
+
+A seat that runs pytest or imports pinned code no longer retypes the copy, chmod, overlay and launcher steps from the review-loop prompt. `stage --pins-dir <pins> --out SCRATCH/arch` copies the base copy the pin recorded (or archives its base commit), makes it writable, lays every pin over it with the recipe's link rules, checks each md5, and prints the pytest launcher filled in. The prompt's new `STAGE_VERB` points seats at it and keeps the manual recipe as the fallback. `pin --base` now records `base_copy` and `base_skipped`, and `pin --replace` without `--base` removes a stale base copy that no manifest would vouch for (W-b976638f, kaizen mail 01M5PN3806).
+
 ### Fixed — /fabrik-execute-plan's commit recipes write the message to a file, never a heredoc (2026-10-24)
 
 The command showed its six commit recipes as `git commit -m "$(cat <<'EOF' … EOF)"`, the compound shape the worktree isolation check may refuse. Each now writes the message with the Write tool to a per-commit file in the session scratchpad (`<scratch>/msg-<name>`; a subagent's is `msg-phase-{X}-task-{N}`, since parallel subagents may share the scratchpad) and commits with `git commit -F`, as `docs/reference/multi-agent-operating-model.md` already ruled; the archive step's `-m` and the merge-conflict comment's `&&` follow, and step 5 says one command per call. Scoped review CONVERGED 8 → 0 over three readers (W-0e42a4dc).
