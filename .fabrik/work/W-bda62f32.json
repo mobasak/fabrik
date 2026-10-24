@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-23T17:09:03.696883Z",
   "creator": "infra-2",
+  "effort": "low",
   "evidence": "",
   "id": "W-bda62f32",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "run the test with -v, find which of the two live-box tests passes on a drifted fake home, fix that test's drift detection or the fixture's drift",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "HIGH: a bug — a test red on master for every merge check; effort low: one test's live-box assumption (beside infra-3's W-f661fabf)",
   "status": "open",
   "title": "tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box is red on master (201a928a7, reproduced in a throwaway worktree 2026-10-23): outside FABRIK_MERGE_CHECK it expects '2 failed' from the two live-box tests but gets '1 failed, 1 passed' — the ~/.claude/agents drift test fails (4 agent files MISSING in the fake home) while its sibling passes"
 }
