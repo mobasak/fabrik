@@ -988,7 +988,9 @@ def test_the_documented_multi_commit_close_parses_as_separate_shas(tmp_path: Pat
     assert ">> <durable>/commit.sha\n" in src, "the capture must append"
     assert "--commit <each sha in <durable>/commit.sha, space-separated>" in src
     assert "$(cat" not in src
-    words = ["--commit", *"aaaa111\nbbbb222\n".split()]
+    cap = tmp_path / "commit.sha"
+    cap.write_text("aaaa111\nbbbb222\n", encoding="utf-8")
+    words = ["--commit", *cap.read_text(encoding="utf-8").split()]
     spec = importlib.util.spec_from_file_location("_cr_parse", root / "scripts/command_run.py")
     cr = importlib.util.module_from_spec(spec)
     _sys.modules["_cr_parse"] = cr

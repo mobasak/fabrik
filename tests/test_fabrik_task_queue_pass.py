@@ -283,7 +283,10 @@ def test_design_tabulates_its_inputs_and_the_close_captures_by_subject() -> None
     # message file and is compared byte for byte against a listing, never pasted into a shell argument (a pasted one
     # would run its backticks), so a prefix-sharing sibling and a miss are both refused by the reader
     assert "trailers via -F <msg>," in close
-    assert "Each line is its own plain Bash call, never chained and with no `$( )` or shell variable" in close
+    assert (
+        "Each line is its own plain Bash call, never chained and with no `$( )` or shell variable"
+        in close
+    )
     assert "git log -20 --format='%H %s'" in close
     assert (
         "echo <the sha whose subject equals the first line of <msg>, byte for byte> >> <durable>/commit.sha"
