@@ -530,7 +530,8 @@ def test_rotation_due_refuses_a_sid_the_writer_grammar_refuses(tmp_path, _stamps
         assert not hook._rotation_due(bad), bad
 
 
-@pytest.mark.timeout(20)  # without the `is_file` guard the read blocks: a timeout makes it a red, not a hang
+# without the `is_file` guard the read blocks: a timeout makes it a red, not a hang
+@pytest.mark.timeout(20)
 def test_rotation_due_never_reads_a_fifo_or_a_directory(tmp_path, _stamps_from_home):
     import os
 
