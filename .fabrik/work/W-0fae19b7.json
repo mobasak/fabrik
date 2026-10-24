@@ -20,8 +20,7 @@
   "score_reason": "the Stop hook blocks a builder on the footer the rotation rule prescribes; one cause check plus its test",
   "status": "open",
   "tags": [
-    "queued",
-    "waits-quota"
+    "queued"
   ],
   "title": "final_gate_stop.py's work-waiting cause ignores the rotation boundary: a turn ending 'NEXT: none — terminal; awaiting the rotation' after a ROTATE-DUE line is still blocked to claim the next item (infra-2, 2026-10-23, three attempts on W-85e4e5e4's close)"
 }

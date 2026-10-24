@@ -19,8 +19,5 @@
   "priority": 1,
   "score_reason": "HIGH: a security issue — DML granted on all public tables to watchdog roles; effort low: one driver function, auth surface so full review",
   "status": "open",
-  "tags": [
-    "waits-quota"
-  ],
   "title": "fabrik-lib SB-103 follow-on 3: narrow the {db}_wd_rw grants (src/fabrik/drivers/postgres.py:718, :727 grant DML on ALL TABLES in public plus default privileges) to the allow-listed tables, generated from the db_write_allowlist field"
 }

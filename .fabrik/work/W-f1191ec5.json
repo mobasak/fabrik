@@ -17,8 +17,5 @@
   "owner": "kaizen",
   "priority": 2,
   "status": "open",
-  "tags": [
-    "waits-quota"
-  ],
   "title": "/fabrik-review seat isolation: PIN_IMPORT/PYTEST_PINS are ~15 KB single lines seats skip, and a pins-only copy cannot run tests (conftest needs tests/memguard.py)"
 }
