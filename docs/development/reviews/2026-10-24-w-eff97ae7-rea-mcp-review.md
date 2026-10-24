@@ -1,6 +1,6 @@
 # Review — w-eff97ae7-rea-mcp
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = ed4651a01f8b4b8b7009c589c21688f64592c2b6; range tip ed4651a01f8b4b8b7009c589c21688f64592c2b6; `git diff 5fcc81db9..ed4651a01 -- .fabrik/work/W-97067589.json CHANGELOG.md INDEX.md commands/_sources/fabrik-reverse-engineer.md commands/assemble_commands.py docs/DECISIONS.md docs/workstation/mcp-roster.md scripts/sysadmin/mcp_defs.json scripts/sysadmin/quota_dashboard.py tests/test_emit_mcp_project_config.py tests/test_quota_dashboard.py` md5 bd3b9e2eeae5cc55336e40b87274ba3d (40991 bytes)
 **Command:** /fabrik-review · **Changed:** `.fabrik/work/W-97067589.json`, `CHANGELOG.md`, `INDEX.md`, `commands/_sources/fabrik-reverse-engineer.md`, `commands/assemble_commands.py`, `docs/DECISIONS.md`, `docs/workstation/mcp-roster.md`, `scripts/sysadmin/mcp_defs.json`, `scripts/sysadmin/quota_dashboard.py`, `tests/test_emit_mcp_project_config.py`, `tests/test_quota_dashboard.py`
 **Lane:** fabrik-task
@@ -276,47 +276,15 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 
 `final_gate.py --check --json`, pasted verbatim (check_convergence reads the fenced
 `"status": "success"`). Close order per `/fabrik-review` § Reporting: run it while this receipt reads
-`Status: CONVERGED`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
+`Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
 {
   "status": "success",
   "checks": [
     {
-      "name": "check json",
-      "outcome": "pass"
-    },
-    {
-      "name": "check yaml",
-      "outcome": "pass"
-    },
-    {
-      "name": "mypy",
-      "outcome": "pass"
-    },
-    {
-      "name": "bandit (diff-sensed skip \u2014 no src/ changes)",
+      "name": "static tier (diff-sensed skip)",
       "outcome": "skipped"
-    },
-    {
-      "name": "bandit scripts/ (diff-sensed skip \u2014 no scripts/ changes)",
-      "outcome": "skipped"
-    },
-    {
-      "name": "semgrep (diff-sensed skip \u2014 no src/ changes)",
-      "outcome": "skipped"
-    },
-    {
-      "name": "pytest (NOT RUN)",
-      "outcome": "skipped"
-    },
-    {
-      "name": "sqlfluff-lint",
-      "outcome": "pass"
-    },
-    {
-      "name": "vulture",
-      "outcome": "pass"
     },
     {
       "name": "Convergence Evidence (plans + reviews)",
@@ -404,10 +372,6 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
     },
     {
       "name": "Doc Sync Matrix",
-      "outcome": "pass"
-    },
-    {
-      "name": "Decision Ledger (unique ids)",
       "outcome": "pass"
     },
     {
@@ -548,10 +512,7 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
     }
   ],
   "skipped_checks": [
-    "bandit",
-    "bandit scripts/",
-    "semgrep",
-    "pytest"
+    "static tier"
   ]
 }
 ```
