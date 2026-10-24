@@ -9,7 +9,7 @@
   "kind": "decision",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1196",
     "plan": "",
     "spec": ""
   },
@@ -17,10 +17,10 @@
     "28c610cea8cb49797a403a5308cbf46409cc83ae6900305a4367c15b7a738367"
   ],
   "next": "",
-  "note": "",
+  "note": "now 5 claude's cloud 250$ credits and 3 claude api credits must be utilized before they expired.",
   "owner": "",
   "priority": 2,
   "question": "What should the three $200 API credits pay for?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "What should the three $200 API credits pay for?"
 }

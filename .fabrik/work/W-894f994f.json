@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T13:43:11.634223Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-894f994f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1196",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "HIGH: operator ask, credit lost if unspent; intel's beat (subagent routing and spend); LOW effort: one lane switch, a /fabrik-task",
+  "status": "open",
+  "title": "Spend the three $200 Anthropic API credits (ANTHROPIC_API_KEY_CAN, _SARP, _OZGURBASAK in /opt/fabrik/.env) before they expire — operator 2026-10-24, same words as the cloud item. Recommended use: overflow capacity for builders and review seats when the fleet quota band is AMBER/RED, each key capped at its $200; the plain ANTHROPIC_API_KEY stays empty; add the three names to .env.example + docs/CONFIGURATION.md"
+}
