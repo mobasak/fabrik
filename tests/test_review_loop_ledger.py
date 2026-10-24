@@ -10,6 +10,7 @@ agent whose first and last `timestamp` bound the seat's minutes.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -2000,7 +2001,21 @@ def test_stage_writes_through_an_in_tree_parent_link(tmp_path: Path) -> None:
     assert (arch / "sub" / "c.py").read_text() == "C = 1\n", "a sibling behind the link was dropped"
 
 
-_BAD_OUTS = ["relative", "exists", "basename", "quote", "space", "no-parent", "inside-pins", "inside-repo"]
+_BAD_OUTS = [
+    "relative",
+    "exists",
+    "basename",
+    "quote",
+    "space",
+    "backslash",
+    "no-parent",
+    "inside-pins",
+    "dotdot-into-pins",
+    "inside-repo",
+    "under-home",
+    "dangling-link",
+    "sibling-is-a-file",
+]
 
 
 @pytest.mark.parametrize("case", _BAD_OUTS)
@@ -2014,17 +2029,173 @@ def test_stage_refuses_a_bad_out_and_leaves_no_tree(tmp_path: Path, case: str) -
         "basename": tmp_path / "s" / "tree",
         "quote": tmp_path / "s" / "it's" / "arch",
         "space": tmp_path / "s" / "a b" / "arch",
+        "backslash": tmp_path / "s" / "a\\b" / "arch",
         "no-parent": tmp_path / "nowhere" / "arch",
         "inside-pins": pins / "arch",
+        # review pass 1, A-S2: a lexical check let `..` walk into the pins dir
+        "dotdot-into-pins": Path(f"{tmp_path}/s/taken/../../pins/arch"),
         "inside-repo": repo / "arch",
+        "under-home": tmp_path / "h" / "s" / "arch",
+        "dangling-link": tmp_path / "d" / "arch",
+        "sibling-is-a-file": tmp_path / "f" / "arch",
     }[case]
-    if case in ("quote", "space"):
+    env: dict[str, str] = {}
+    if case in ("quote", "space", "backslash", "under-home"):
         out.parent.mkdir(parents=True)
-    existed = out.exists()
-    got = _stage(pins, out)
+    if case == "under-home":
+        env["HOME"] = str(tmp_path / "h")
+    if case == "dangling-link":  # a link AT --out is never followed, so its target is never created
+        out.parent.mkdir()
+        out.symlink_to(tmp_path / "elsewhere" / "arch")
+        (tmp_path / "elsewhere").mkdir()
+    if case == "sibling-is-a-file":  # `tmp`, not `home`: without the guard, home/ would be made before tmp fails
+        out.parent.mkdir()
+        (out.parent / "tmp").write_text("")
+    if case == "dotdot-into-pins":  # writable, so only the containment guard (not a read-only dir) can refuse it
+        _unlock(pins)
+    scratch = out.parent if out.is_absolute() else tmp_path / out.parent
+    before = {side: os.path.lexists(scratch / side) for side in ("home", "tmp")}
+    existed = os.path.lexists(out)
+    got = _stage(pins, out, **env)
     assert got.returncode == 2 and "review_loop_ledger: " in got.stderr, (case, got.returncode, got.stderr)
-    assert out.exists() == existed, case
-    assert not (repo / "home").exists() and not (repo / "tmp").exists(), case
+    assert os.path.lexists(out) == existed, case
+    # review pass 1, A-H3: the siblings a refusal must not create are the scratch dir's, never the repo's
+    assert {side: os.path.lexists(scratch / side) for side in ("home", "tmp")} == before, case
+    assert not (tmp_path / "elsewhere" / "arch").exists(), case
+    assert not (pins / "arch").exists(), case
+
+
+def _module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("rll_stage_probe", TOOL)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_stage_never_removes_a_tree_it_did_not_create(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Review pass 1, A-S1 (executed): a tree appearing at --out after the checks — another stager's — made the
+    copy fail and the cleanup then deleted THAT tree. Only a tree this call created is removed."""
+    mod = _module()
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py").returncode == 0
+    (tmp_path / "s").mkdir()
+    out = tmp_path / "s" / "arch"
+    real = mod._check_out
+
+    def racing(o: Path, p: Path) -> Path:
+        got = real(o, p)
+        o.mkdir()
+        (o / "theirs.txt").write_text("x")
+        return got
+
+    monkeypatch.setattr(mod, "_check_out", racing)
+    with pytest.raises(mod.PinError):
+        mod.stage(pins, out)
+    assert (out / "theirs.txt").read_text() == "x", "the cleanup deleted a tree another stager built"
+
+
+def test_stage_removes_its_own_tree_on_a_late_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A refusal after the copy (an overlay refusal, an md5 mismatch) leaves no half-built tree."""
+    mod = _module()
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py").returncode == 0
+    (tmp_path / "s").mkdir()
+
+    def refuse(*_a: object) -> None:
+        raise mod.PinError("refused")
+
+    monkeypatch.setattr(mod, "_overlay", refuse)
+    with pytest.raises(mod.PinError):
+        mod.stage(pins, tmp_path / "s" / "arch")
+    assert not (tmp_path / "s" / "arch").exists()
+
+
+def test_stage_quotes_the_launchers_python(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Review pass 1, A-H6: the launcher's python is shell-quoted, so a path with a space stays one word."""
+    mod = _module()
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py").returncode == 0
+    (tmp_path / "s").mkdir()
+    monkeypatch.setattr(mod.sys, "executable", "/opt/my python/bin/python")
+    doc = mod.stage(pins, tmp_path / "s" / "arch")
+    assert doc["pytest"].startswith("'/opt/my python/bin/python' -P -B -c '"), doc["pytest"][:60]
+
+
+def test_overlay_refuses_a_parent_link_leaving_the_tree(tmp_path: Path) -> None:
+    mod = _module()
+    arch, outside = tmp_path / "arch", tmp_path / "outside"
+    arch.mkdir()
+    outside.mkdir()
+    (arch / "l").symlink_to(outside)
+    with pytest.raises(mod.PinError, match="leaving the staged tree"):
+        mod._overlay(arch, "l/x.py", b"X\n")
+    assert not (outside / "x.py").exists()
+
+
+@pytest.mark.parametrize("shape", ["dir-became-a-file", "file-became-a-dir"])
+def test_stage_overlays_a_path_whose_kind_the_change_changed(tmp_path: Path, shape: str) -> None:
+    import shutil as _sh
+
+    repo = _repo(tmp_path)
+    if shape == "dir-became-a-file":  # base has sub/ (a dir); the change makes `sub` a file
+        _sh.rmtree(repo / "sub")
+        (repo / "sub").write_text("NOW A FILE\n")
+        pinned = "sub"
+    else:  # base has a.py (a file); the change makes it a dir holding x.py
+        (repo / "a.py").unlink()
+        (repo / "a.py").mkdir()
+        (repo / "a.py" / "x.py").write_text("X\n")
+        pinned = "a.py/x.py"
+    pins = tmp_path / "pins"
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", pinned)
+    assert got.returncode == 0, got.stderr
+    (tmp_path / "s").mkdir()
+    got = _stage(pins, tmp_path / "s" / "arch")
+    assert got.returncode == 0, got.stderr
+    assert (tmp_path / "s" / "arch" / pinned).read_bytes() == (repo / pinned).read_bytes()
+
+
+def test_stage_archives_when_the_recorded_base_copy_is_gone(tmp_path: Path) -> None:
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py").returncode == 0
+    base = Path(f"{pins}.base")
+    _unlock(base)
+    import shutil as _sh
+
+    _sh.rmtree(base)
+    (tmp_path / "s").mkdir()
+    got = _stage(pins, tmp_path / "s" / "arch")
+    assert got.returncode == 0, got.stderr
+    assert json.loads(got.stdout.splitlines()[-1])["source"] == "archive"
+
+
+def test_pin_replace_removes_a_stale_base_link_not_its_target(tmp_path: Path) -> None:
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "keep.txt").write_text("k")
+    Path(f"{pins}.base").symlink_to(target)
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--replace", "a.py").returncode == 0
+    assert not os.path.lexists(f"{pins}.base") and (target / "keep.txt").read_text() == "k"
+
+
+def test_stage_reports_what_the_base_copy_left_out(tmp_path: Path) -> None:
+    """Review pass 1, A-S5 (executed): the base-copy route printed `skipped: []` while `pin --base` had skipped a
+    member; the manifest now records it, so both routes name what the tree leaves out."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (repo / "vault").symlink_to("/etc/hostname")
+    _commit(repo, "link")
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py").returncode == 0
+    assert json.loads((pins / "MANIFEST.json").read_text())["base_skipped"] == ["vault"]
+    (tmp_path / "s").mkdir()
+    got = _stage(pins, tmp_path / "s" / "arch")
+    assert got.returncode == 0, got.stderr
+    doc = json.loads(got.stdout.splitlines()[-1])
+    assert doc["source"] == "base-copy" and doc["skipped"] == ["vault"], doc
 
 
 def _unlock(p: Path) -> None:

@@ -49,7 +49,8 @@ file, not its scrollback. So:
         workflow refuses a slice file the manifest lacks before any seat runs. A used DIR is refused: each pass
         gets a NEW one (`--replace` re-pins on purpose). A workflow script has no filesystem, so the pins are
         the lead's verb, never the script's.
-        With --base MANIFEST.json also records `base_copy` (the commit DIR.base holds); a --replace re-pin without
+        With --base MANIFEST.json also records `base_copy` (the commit DIR.base holds) and `base_skipped` (the members
+        its safe extract left out); a --replace re-pin without
         --base removes a previous pin's DIR.base, which no manifest would vouch for.
     review_loop_ledger.py stage --pins-dir DIR --out SCRATCH/arch
         A seat's test tree in one command (W-b976638f, kaizen 01M5PN3806): DIR.base copied when MANIFEST.json's
@@ -85,6 +86,7 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import stat
 import subprocess
@@ -1126,6 +1128,17 @@ def pin(
                 head = None  # untracked: not the commit's bytes either
             if head != blobs[f]:
                 dirty.append(f)
+    # the base is extracted BEFORE the manifest is written, so the manifest can record what the copy left out
+    # (`stage` reports it on the base-copy route, where it reads no tar of its own — review pass 1, A-S5)
+    skipped: list[str] = []
+    if base:
+        base_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            skipped = _extract_commit(root, base, base_dir)
+        except (OSError, tarfile.TarError, subprocess.CalledProcessError) as exc:
+            # never leave a half-extracted base for the lead to hand to a seat
+            _unlock_and_remove(base_dir)
+            raise PinError(f"cannot extract base {base} into {base_dir}: {exc}") from exc
     manifest = {f: hashlib.md5(b, usedforsecurity=False).hexdigest() for f, b in blobs.items()}
     try:
         for f, b in blobs.items():
@@ -1147,7 +1160,7 @@ def pin(
                     "base_sha": base_sha,
                     # the commit `<pins_dir>.base` holds, present only when THIS pin wrote it (`stage` copies
                     # a base only when it equals base_sha — an unrecorded copy may be another pin's)
-                    **({"base_copy": base_sha} if base else {}),
+                    **({"base_copy": base_sha, "base_skipped": skipped} if base else {}),
                     "files": manifest,
                     "change_diff": hashlib.md5(change, usedforsecurity=False).hexdigest(),
                     "tree": tree,
@@ -1156,9 +1169,11 @@ def pin(
             )
         )
     except OSError as exc:
-        # a half-written, still-writable pins dir is never left for a seat to read (review A-S3)
+        # a half-written, still-writable pins dir is never left for a seat to read (review A-S3), nor its base
         if pins_dir.exists():
             _unlock_and_remove(pins_dir)
+        if base and base_dir.exists():
+            _unlock_and_remove(base_dir)
         raise PinError(f"cannot write the pins into {pins_dir}: {exc}") from exc
     frag: dict = {
         "pins_dir": str(pins_dir),
@@ -1173,14 +1188,6 @@ def pin(
     }
     _lock_tree(pins_dir)
     if base:
-        base_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            skipped = _extract_commit(root, base, base_dir)
-        except (OSError, tarfile.TarError, subprocess.CalledProcessError) as exc:
-            # never leave a half-extracted base, or the pins written beside it, for the lead to hand to a seat
-            _unlock_and_remove(base_dir)
-            _unlock_and_remove(pins_dir)
-            raise PinError(f"cannot extract base {base} into {base_dir}: {exc}") from exc
         _lock_tree(base_dir)
         frag["base_pin_dir"] = str(base_dir)
         frag["base_skipped"] = skipped
@@ -1207,12 +1214,16 @@ def _writable(top: Path) -> None:
                 p.chmod(stat.S_IMODE(p.stat().st_mode) | stat.S_IWUSR)
 
 
-def _check_out(out: Path, pins_dir: Path) -> None:
+def _check_out(out: Path, pins_dir: Path) -> Path:
     """Every --out refusal, before anything is written (W-b976638f critiques): a seat's shell starts in the LIVE
     checkout, so a relative or in-repo tree lands there (an 87 MB archive once did), and the launcher embeds the path
-    in a single-quoted shell program and a double-quoted Python string."""
+    in a single-quoted shell program and a double-quoted Python string. Returns the path every check judged — `..`
+    and symlinked parents resolved, so no spelling reaches the pins dir or a work tree around them (review pass 1)."""
     if not out.is_absolute():
         raise PinError(f"--out {out} is relative: name an absolute path under your scratch dir")
+    if os.path.lexists(out):  # before any resolving: a link AT --out (even dangling) is never followed
+        raise PinError(f"{out} already exists — stage builds a NEW tree")
+    out = Path(os.path.realpath(out.parent)) / out.name
     if out.name != "arch":
         raise PinError(f"--out {out} must end in /arch: the recipe's later steps name SCRATCH/arch")
     if any(c in str(out) for c in "'\"\\") or any(c.isspace() for c in str(out)):
@@ -1223,10 +1234,10 @@ def _check_out(out: Path, pins_dir: Path) -> None:
     if not scratch.is_dir():
         raise PinError(f"{scratch} is not a directory — --out goes in your existing scratch dir")
     for d in (pins_dir, Path(f"{pins_dir}.base")):
-        if out.is_relative_to(d.resolve()) or out.is_relative_to(d):
+        if out.is_relative_to(Path(os.path.realpath(d))):
             raise PinError(f"--out {out} is inside {d}")
-    home = Path.home().resolve()
-    if out.resolve().is_relative_to(home):
+    home = Path(os.path.realpath(Path.home()))
+    if out.is_relative_to(home):
         raise PinError(f"--out {out} is under the home directory {home}")
     top = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"], cwd=scratch, capture_output=True, text=True, check=False
@@ -1240,6 +1251,7 @@ def _check_out(out: Path, pins_dir: Path) -> None:
     for side in ("home", "tmp"):
         if os.path.lexists(scratch / side) and not (scratch / side).is_dir():
             raise PinError(f"{scratch / side} exists and is not a directory")
+    return out
 
 
 def _read_pins(pins_dir: Path) -> tuple[dict, dict[str, bytes]]:
@@ -1313,7 +1325,7 @@ def stage(pins_dir: Path, out: Path) -> dict:
     """Build a seat's test tree at `out` in one command: the pin's recorded base copy (else an archive of its
     base_sha), user-writable, every pin laid over it and md5-checked. Writes `out` and its siblings `home` and
     `tmp`; on any refusal it removes its own half-built `out` and nothing else."""
-    _check_out(out, pins_dir)
+    out = _check_out(out, pins_dir)
     doc, blobs = _read_pins(pins_dir)
     base_sha, root = doc.get("base_sha"), Path(str(doc.get("root")))
     base_dir = Path(f"{pins_dir}.base")
@@ -1324,11 +1336,16 @@ def stage(pins_dir: Path, out: Path) -> dict:
     for side in ("home", "tmp"):
         (scratch / side).mkdir(exist_ok=True)
     skipped: list[str] = []
+    made = False  # only a tree THIS call created is removed on a refusal (review pass 1, A-S1: a racing stager's)
     try:
         if recorded:
             shutil.copytree(base_dir, out, symlinks=True)
+            made = True
+            listed = doc.get("base_skipped")
+            skipped = [s for s in listed if isinstance(s, str)] if isinstance(listed, list) else []
         else:
             out.mkdir()
+            made = True
             skipped = _extract_commit(root, str(base_sha), out, tmp_dir=scratch / "tmp")
         _writable(out)
         for f, b in blobs.items():
@@ -1337,7 +1354,7 @@ def stage(pins_dir: Path, out: Path) -> dict:
         if bad:
             raise PinError(f"md5 mismatch after the overlay: {', '.join(bad)}")
     except (PinError, OSError, tarfile.TarError, subprocess.CalledProcessError) as exc:
-        if os.path.lexists(out):
+        if made and os.path.lexists(out):
             _unlock_and_remove(out)
         if isinstance(exc, PinError):
             raise
@@ -1352,7 +1369,7 @@ def stage(pins_dir: Path, out: Path) -> dict:
         "base_sha": base_sha,
         "overlaid": len(blobs),
         "skipped": skipped,
-        "pytest": f"{python} -P -B -c '{prog}' <pytest args>",
+        "pytest": f"{shlex.quote(python)} -P -B -c '{prog}' <pytest args>",
     }
 
 

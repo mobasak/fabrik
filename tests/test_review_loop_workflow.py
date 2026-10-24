@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -2812,6 +2813,14 @@ def _pinned_parent_link_tree(tmp: Path) -> tuple[Path, Path]:
     return pins, Path(json.loads(got.stdout.splitlines()[-1])["base_pin_dir"])
 
 
+def _unlock_tree(top: Path) -> None:
+    for d, _, names in os.walk(top):
+        Path(d).chmod(0o755)
+        for n in names:
+            if not (Path(d) / n).is_symlink():
+                (Path(d) / n).chmod(0o644)
+
+
 def _tree_shape(top: Path) -> dict[str, tuple[str, str]]:
     """Every path under `top`: a link by its target text, a file by its bytes, a directory by its kind."""
     shape: dict[str, tuple[str, str]] = {}
@@ -2853,10 +2862,41 @@ def test_stage_builds_the_recipes_tree(tmp_path: Path, shape: str) -> None:
     else:
         pins, base = _pinned_link_tree(tmp_path, link_becomes_file=shape == "link-made-a-file")
     recipe = _run_the_rendered_copy_and_overlay(tmp_path, pins, base)
-    staged = Path(_run_stage(tmp_path, pins)["arch"])
+    doc = _run_stage(tmp_path, pins)
+    staged = Path(doc["arch"])
+    assert doc["source"] == "base-copy", doc
     assert _tree_shape(staged) == _tree_shape(recipe), shape
     if shape == "parent-link":
         assert _tree_shape(staged)["src/lib/y.py"] == ("file", "Y0\n")
+    # the archive route (no base copy beside the pins) builds the same tree (review pass 1, B-S4/B-H3)
+    plain = tmp_path / "plain"
+    manifest = json.loads((pins / "MANIFEST.json").read_text())
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "pin", "--pins-dir", str(plain)]
+        + ["--base", manifest["base_sha"], *manifest["files"]],
+        cwd=manifest["root"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    _unlock_tree(Path(f"{plain}.base"))
+    shutil.rmtree(f"{plain}.base")
+    (tmp_path / "archived").mkdir()
+    arch = tmp_path / "archived" / "arch"
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "stage", "--pins-dir", str(plain)]
+        + ["--out", str(arch)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        cwd=str(tmp_path),
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    assert json.loads(got.stdout.splitlines()[-1])["source"] == "archive"
+    assert _tree_shape(arch) == _tree_shape(recipe), shape
 
 
 def test_stage_launcher_matches_the_recipe(tmp_path: Path) -> None:
@@ -2880,4 +2920,10 @@ def test_prompts_point_at_the_stage_verb() -> None:
         cmd = "`python3 -P -B /opt/fabrik/scripts/review_loop_ledger.py stage --pins-dir /pp --out SCRATCH/arch`"
         assert p.count("ONE COMMAND STAGES THE TREE") == 1 and cmd in p, label
         assert p.index(cmd) < p.index("git archive -o SCRATCH/arch.tar 0 ROOTS"), label
-        assert "on a refusal (exit 2, the reason on stderr) or `invalid choice: 'stage'`" in p, label
+        assert "on any other refusal (exit 2, the reason on stderr) or `invalid choice: 'stage'`" in p, label
+        # review pass 1: a moved pin stops the seat (B-S5); skipped members are UNPINNED (B-S2); PYTEST_PINS's
+        # archive is skipped too (B-S3); the verb's one deletion is inside SCRATCH (B-S1)
+        assert "On a refusal naming PIN MOVED" in p and "stage nothing by hand" in p, label
+        assert "name it UNPINNED, never a red of the change" in p, label
+        assert "PYTEST_PINS's archive of the test tree and its overlay too" in p, label
+        assert "inside SCRATCH, so the never-execute rule below does not bar it" in p, label
