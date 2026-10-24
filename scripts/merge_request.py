@@ -1314,15 +1314,18 @@ _FLAKY_CAP = 400
 
 
 def _flaky_note(stdout: str) -> str:
-    """A green leg's FLAKY line (the selector's), cut at an id boundary, as a summary suffix."""
+    """A green leg's FLAKY line (the selector's), as a summary suffix. Past ``_FLAKY_CAP`` it is cut
+    at the last ", " inside the id list (never in the line's own wording before " — "), or hard at
+    the cap; the suffix says how many characters went, since an id may itself hold ", "."""
     lines = [ln.strip() for ln in stdout.splitlines() if ln.strip().startswith(_FLAKY)]
     if not lines:
         return ""
     line = lines[-1]
     if len(line) > _FLAKY_CAP:
-        cut = line.rfind(", ", 0, _FLAKY_CAP + 1)
-        cut = cut if cut > 0 else _FLAKY_CAP
-        line = f"{line[:cut]} …(+{line[cut:].count(', ')} more)"
+        ids_at = line.find(" — ") + len(" — ")
+        cut = line.rfind(", ", ids_at, _FLAKY_CAP + 1)
+        cut = cut if cut > ids_at else _FLAKY_CAP
+        line = f"{line[:cut]} …(cut: {len(line) - cut} more chars)"
     return f"; {line}"
 
 
@@ -1394,8 +1397,9 @@ def _base_alone(ctx: _Ctx, rec: dict, old: str, red: RefusedError) -> str:
     if marker and out and out[-1].startswith(marker):
         return (
             f"; on base alone: not checked (the owner leg gave no verdict: {' '.join(out[-3:])}) "
-            "— neither side is proven: if the tail names your change, fix it; otherwise change "
-            f"nothing, the owner repairs the leg and runs `merge_request.py retry {rec['id']}`"
+            "— neither side is proven: if the merged run's tail before this clause names your "
+            "change, fix it; otherwise change nothing, the owner repairs the leg and runs "
+            f"`merge_request.py retry {rec['id']}`"
         )
     tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
     said = f"exit {run.returncode}: {tail}" if tail else f"exit {run.returncode}"
@@ -1681,7 +1685,8 @@ def _reply_body(rec: dict) -> str:
             "never a rebase or a force-push: the branch is already pushed. When it says the base "
             "alone is red too, change nothing and send nothing: the owner fixes the base and "
             "runs merge_request.py retry on this request. When it says the owner leg gave no "
-            "verdict, act only if the tail names your change; otherwise wait for the owner's retry."
+            'verdict, act only if the merged run\'s tail (before "on base alone") names your '
+            "change; otherwise wait for the owner's retry."
         )
     body = "\n".join(lines) + "\n"
     return body.replace("acked-by:", "acked by:")  # a body never carries a verbatim ack line

@@ -224,7 +224,7 @@ failed run saw with nothing merged: red too (likely the base's fault), green (th
 branch's change, or is flaky), or not checked and why — new test files, a timed-out or killed run, a
 check that could not run, or an owner leg that gave no verdict (the hub selector's `NOT MEASURED` or
 `LEG FAILED` last line with its exit 2 or 3; neither side is proven, so the requester acts only when
-the quoted tail names its change). A green owner leg's summary carries the selector's `FLAKY` line,
+the merged run's tail names its change). A green owner leg's summary carries the selector's `FLAKY` line,
 when it prints one, onto the reply's `tests:` line. A refusal the base caused is re-run by the OWNER
 with `retry <id>` once the base is fixed, never re-sent by the requester. `retry` exits 1, changing
 nothing, while another request for the same branch or head is open, when the head is already in the

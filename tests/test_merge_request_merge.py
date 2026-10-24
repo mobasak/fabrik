@@ -1953,6 +1953,10 @@ def test_base_alone_reads_a_no_verdict_leg_as_not_checked(world, monkeypatch):
         "lf": (3, "ImportError: conftest broke\nmerge-tests: LEG FAILED on the base (exit 4)\n\n"),
         "wrong-exit": (1, "merge-tests: LEG FAILED on the base (exit 4)\n"),
         "no-marker": (2, "make: *** [test] Error 2\n"),
+        # the marker counts only as the LAST non-blank line, and only at its start: an owner's
+        # free test output may quote it anywhere else
+        "not-last": (2, "merge-tests: NOT MEASURED on the base\nmake: *** [test] Error 2\n"),
+        "mid-line": (2, "E   assert 'merge-tests: NOT MEASURED' in out\n"),
     }
     reasons = {}
     for name, out in cases.items():
@@ -1970,8 +1974,9 @@ def test_base_alone_reads_a_no_verdict_leg_as_not_checked(world, monkeypatch):
         assert "capped_run" not in reason, reason
     assert "ImportError: conftest broke" in reasons["lf"][1], reasons["lf"][1]
     reply = world.replies(reasons["nm"][0])["fleet"]
-    assert "owner leg gave no verdict, act only if the tail names your change" in reply, reply
-    for name in ("wrong-exit", "no-marker"):
+    assert "the merged run's tail before this clause names your" in reasons["nm"][1]
+    assert 'act only if the merged run\'s tail (before "on base alone") names your' in reply, reply
+    for name in ("wrong-exit", "no-marker", "not-last", "mid-line"):
         assert "on base alone (one run): red too (" in reasons[name][1], reasons[name][1]
 
 
@@ -1983,7 +1988,7 @@ def test_a_green_leg_carries_its_flaky_line_into_the_reply(world):
         ".fabrik/merge-tests",
         # the selector's order: FLAKY first, then pre-existing reds, whose crash text is free test
         # output and may hold the marker mid-line
-        f"echo 'merge-tests: FLAKY (red in a shard, green alone and in order) — {ids}'\n"
+        f"echo '  merge-tests: FLAKY (red in a shard, green alone and in order) — {ids}'\n"
         "echo 'merge-tests: pre-existing on the base — t (call): merge-tests: FLAKY (fake)'\n"
         "echo 'merge-tests: green in 3s'\n",
     )
@@ -1995,7 +2000,27 @@ def test_a_green_leg_carries_its_flaky_line_into_the_reply(world):
     )
     assert "(base copy): green; merge-tests: FLAKY (red in a shard" in line, line
     assert "(fake)" not in line, line
-    carried, _, more = line.partition(" …(+")
-    assert carried.endswith(tuple(f"test_{i:03d}" for i in range(40))), carried
-    shown = carried.count("::test_")
-    assert 0 < shown < 40 and more == f"{40 - shown} more)", line
+    flaky = "merge-tests: FLAKY (red in a shard, green alone and in order) — " + ids
+    cut = flaky.rfind(", ", 0, 401)
+    assert line.endswith(f"; {flaky[:cut]} …(cut: {len(flaky) - cut} more chars)"), line
+
+
+def test_a_flaky_line_is_cut_inside_its_id_list_only(world):
+    """The cut lands on the last ", " of the id list within the cap — never on the comma in the
+    line's own wording before " — " — and says how much went, since an id may hold ", "."""
+    head = "merge-tests: FLAKY (red in a shard, green alone and in order) — "
+    note = world.mod._flaky_note
+    params = head + ", ".join(f"t.py::test_a[1, {i}]" for i in range(40))
+    got = note(params)
+    assert got.startswith(f"; {head}t.py::test_a[1, 0]") and len(got) <= 2 + 400 + 30, got
+    assert got.endswith(f" …(cut: {len(params) - params.rfind(', ', 0, 401)} more chars)"), got
+    long_id = head + "t.py::" + "x" * 500 + ", t.py::y"
+    assert note(long_id) == f"; {long_id[:400]} …(cut: {len(long_id) - 400} more chars)"
+    # a ", " starting past index 400 would show 401+ characters: the cut takes the earlier one
+    first = head + "t.py::" + "a" * (300 - len(head) - len("t.py::"))
+    edge = first + ", t.py::" + "b" * (401 - len(first) - len(", t.py::")) + ", t.py::c"
+    assert edge.find(", ", 300 + 1) == 401
+    assert note(edge) == f"; {edge[:300]} …(cut: {len(edge) - 300} more chars)"
+    exact = head + "t.py::" + "z" * (400 - len(head) - len("t.py::"))
+    assert len(exact) == 400 and note(exact) == f"; {exact}"
+    assert note("merge-tests: green in 3s\n") == "" and note("") == ""

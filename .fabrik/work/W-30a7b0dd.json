@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T10:51:30.757428Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-30a7b0dd",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decode leg output with errors='replace' in _run_owner_leg's two _run calls, and cap each quoted tail line (e.g. 300 chars) in _owner_tests and _base_alone; grader: a leg printing 0xff and a 5000-char line",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "merge_request.py one-hop residues of W-6700664a's review: _run is text-mode with strict decoding, so a non-UTF-8 byte in an owner leg's output raises UnicodeDecodeError from _owner_tests (only _base_alone's except Exception absorbs it); and the not-checked / red-too clauses join the last 3 output lines uncapped, so a selector LEG FAILED tail (up to 3000 chars per line) lands whole in the refusal reason"
+}

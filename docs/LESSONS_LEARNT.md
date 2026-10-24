@@ -7731,7 +7731,7 @@ document.
 
 - **What happened.** W-6700664a's grader for "match the FLAKY line by prefix, never by substring" put a decoy
   line carrying the marker mid-line ABOVE the real FLAKY line. The code takes the last matching line, so a
-  substring mutant still picked the real line and the grader stayed green: 1 of 7 mutants survived. The real
+  substring mutant still picked the real line and the grader stayed green. The real
   selector prints FLAKY first and the pre-existing reds (whose free crash text can hold the marker) after it.
   With the decoy moved below, the mutant died.
 - **Mechanism.** A "last match wins" or "first match wins" reader makes a decoy's position decide whether it is

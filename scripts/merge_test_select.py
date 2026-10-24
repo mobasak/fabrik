@@ -18,8 +18,10 @@ recorded for that base under ``<git common dir>/fabrik-merge/``. Outside a merge
 ``git merge-base HEAD origin/master`` and nothing is recorded, so a branch can run the leg before it
 asks for a merge.
 
-Exit codes: 0 green (pre-existing and flaky reds printed) · 1 a new red · 2 cannot select · 3 the leg
-itself failed (a shard exit other than 0/1/5, a checkout git refused) — the verdict is the LAST line.
+Exit codes: 0 green (pre-existing and flaky reds printed) · 1 a new red · 2 NOT MEASURED (only the
+base re-run: no new red was recorded for that base) · 3 the leg itself failed (a shard exit other than
+0/1/5, a checkout git refused) — the verdict is the LAST stdout line, and merge_request.py's
+``_NO_VERDICT`` reads exits 2 and 3 by it.
 
 Cobra (D-253): the cheapest way past this leg is a test whose text names nothing — a grader reaching
 files through computed paths is selected only by a directory it spells or by ``ls-files``. Counter:
