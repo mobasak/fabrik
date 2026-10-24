@@ -1858,3 +1858,207 @@ def test_next_emits_one_row_for_fold_equal_spellings_of_one_claim_in_ids(tmp_pat
     )
     assert r.returncode == 0, r.stderr
     assert _ledger_of(r.stdout) == {"A": ["A-S1"], "alpha": ["alpha-S1"]}, r.stdout
+
+
+# ---- stage (W-b976638f, kaizen mail 01M5PN3806): one command builds a seat's test tree ----
+
+
+def _commit(repo: Path, msg: str) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, env=_VCS_ENV, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", msg],
+        cwd=repo,
+        check=True,
+        env=_VCS_ENV,
+        capture_output=True,
+    )
+
+
+def _stage(pins: Path, out: Path, **env: str) -> subprocess.CompletedProcess:
+    import os
+
+    return subprocess.run(
+        [sys.executable, str(TOOL), "stage", "--pins-dir", str(pins), "--out", str(out)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        env={**os.environ, **env},
+        cwd=str(pins.parent),  # a relative --out a buggy stage accepted would land in tmp, never the checkout
+    )
+
+
+def test_pin_base_records_its_copy_in_the_manifest(tmp_path: Path) -> None:
+    """`base_copy` names the commit the `.base` beside this manifest holds — stage trusts a copy only then."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py").returncode == 0
+    doc = json.loads((pins / "MANIFEST.json").read_text())
+    assert doc["base_copy"] == doc["base_sha"] and len(doc["base_copy"]) == 40, doc
+    plain = tmp_path / "plain"
+    assert _tool_in(repo, "pin", "--pins-dir", str(plain), "a.py").returncode == 0
+    assert "base_copy" not in json.loads((plain / "MANIFEST.json").read_text())
+
+
+def test_stage_copies_the_base_and_overlays_every_pin(tmp_path: Path) -> None:
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (repo / "a.py").write_text("A = 2\n")
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py", "sub/b.py")
+    assert got.returncode == 0, got.stderr
+    (tmp_path / "s").mkdir()
+    got = _stage(pins, tmp_path / "s" / "arch")
+    assert got.returncode == 0, got.stderr
+    doc = json.loads(got.stdout.splitlines()[-1])
+    arch = tmp_path / "s" / "arch"
+    assert doc["arch"] == str(arch) and doc["source"] == "base-copy" and doc["overlaid"] == 2, doc
+    assert (arch / "a.py").read_text() == "A = 2\n" and (arch / "sub" / "b.py").read_text() == "B = 1\n"
+    assert _writable(arch / "a.py") and _writable(arch / "sub" / "b.py") and _writable(arch / "sub")
+    assert (tmp_path / "s" / "home").is_dir() and (tmp_path / "s" / "tmp").is_dir()
+    assert f'os.chdir("{arch}")' in doc["pytest"], doc["pytest"]
+
+
+def test_stage_archives_base_sha_without_a_base_copy(tmp_path: Path) -> None:
+    """No base copy: the base_sha archive, an unsafe member SKIPPED and named, the tar never under TMPDIR."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (repo / "vault").symlink_to("/etc/hostname")
+    _commit(repo, "link")
+    (repo / "sub" / "b.py").write_text("B = 2\n")
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "sub/b.py").returncode == 0
+    (tmp_path / "s").mkdir()
+    got = _stage(pins, tmp_path / "s" / "arch")
+    assert got.returncode == 0, got.stderr
+    doc = json.loads(got.stdout.splitlines()[-1])
+    arch = tmp_path / "s" / "arch"
+    assert doc["source"] == "archive" and doc["skipped"] == ["vault"], doc
+    assert (arch / "a.py").read_text() == "A = 1\n" and (arch / "sub" / "b.py").read_text() == "B = 2\n"
+    assert not (arch / "vault").exists() and not (arch / "vault").is_symlink()
+    assert list((tmp_path / "s" / "tmp").iterdir()) == [], "the archive tar was left behind"
+
+
+def test_stage_writes_its_archive_tar_under_the_seats_tmp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fable critique 4: a seat may create nothing in /tmp outside its scratch, so the tar goes under SCRATCH/tmp.
+    Asserted on the call, in-process: a temp dir cleans itself up, and tempfile falls back to /tmp silently when
+    TMPDIR is unwritable, so no subprocess check can see where it went."""
+    import importlib.util
+    import tempfile
+
+    spec = importlib.util.spec_from_file_location("rll_stage_probe", TOOL)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    seen: list[object] = []
+    real = tempfile.TemporaryDirectory
+
+    def spy(*a: object, **kw: object) -> tempfile.TemporaryDirectory:
+        seen.append(kw.get("dir"))
+        return real(*a, **kw)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(mod.tempfile, "TemporaryDirectory", spy)
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    (tmp_path / "s").mkdir()
+    doc = mod.stage(pins, tmp_path / "s" / "arch")
+    assert doc["source"] == "archive" and seen == [tmp_path / "s" / "tmp"], seen
+
+
+def test_stage_ignores_an_unrecorded_base_copy(tmp_path: Path) -> None:
+    """Both critiques replayed it: `pin --replace` without `--base` left the old `.base` beside a manifest that
+    cannot say whose copy it is. The re-pin removes it now, and stage never copies a `.base` the manifest does not
+    record (a legacy pin, or one a hand put there) — it archives base_sha instead."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py").returncode == 0
+    (repo / "a.py").write_text("A = 3\n")
+    _commit(repo, "c2")
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--replace", "a.py").returncode == 0
+    assert not Path(f"{pins}.base").exists(), "a re-pin without --base left the old base copy"
+    other = tmp_path / "other"
+    assert _tool_in(repo, "pin", "--pins-dir", str(other), "a.py").returncode == 0
+    stale = Path(f"{other}.base")
+    (stale / "sub").mkdir(parents=True)
+    (stale / "sub" / "b.py").write_text("STALE\n")
+    (tmp_path / "s").mkdir()
+    got = _stage(other, tmp_path / "s" / "arch")
+    assert got.returncode == 0, got.stderr
+    assert json.loads(got.stdout.splitlines()[-1])["source"] == "archive"
+    assert (tmp_path / "s" / "arch" / "sub" / "b.py").read_text() == "B = 1\n"
+
+
+def test_stage_writes_through_an_in_tree_parent_link(tmp_path: Path) -> None:
+    """A pinned path under a tracked directory link: the recipe's makedirs+copyfile writes through it and keeps the
+    link's other files, so stage does too (both critiques executed the recipe on this shape)."""
+    repo = _repo(tmp_path)
+    (repo / "sub" / "c.py").write_text("C = 1\n")
+    (repo / "lib").symlink_to("sub")
+    _commit(repo, "dirlink")
+    (repo / "sub" / "b.py").write_text("B = 5\n")
+    pins = tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "lib/b.py").returncode == 0
+    (tmp_path / "s").mkdir()
+    got = _stage(pins, tmp_path / "s" / "arch")
+    assert got.returncode == 0, got.stderr
+    arch = tmp_path / "s" / "arch"
+    assert (arch / "lib").is_symlink() and (arch / "sub" / "b.py").read_text() == "B = 5\n"
+    assert (arch / "sub" / "c.py").read_text() == "C = 1\n", "a sibling behind the link was dropped"
+
+
+_BAD_OUTS = ["relative", "exists", "basename", "quote", "space", "no-parent", "inside-pins", "inside-repo"]
+
+
+@pytest.mark.parametrize("case", _BAD_OUTS)
+def test_stage_refuses_a_bad_out_and_leaves_no_tree(tmp_path: Path, case: str) -> None:
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py").returncode == 0
+    (tmp_path / "s" / "taken").mkdir(parents=True)
+    out = {
+        "relative": Path("s/arch"),
+        "exists": tmp_path / "s" / "taken",
+        "basename": tmp_path / "s" / "tree",
+        "quote": tmp_path / "s" / "it's" / "arch",
+        "space": tmp_path / "s" / "a b" / "arch",
+        "no-parent": tmp_path / "nowhere" / "arch",
+        "inside-pins": pins / "arch",
+        "inside-repo": repo / "arch",
+    }[case]
+    if case in ("quote", "space"):
+        out.parent.mkdir(parents=True)
+    existed = out.exists()
+    got = _stage(pins, out)
+    assert got.returncode == 2 and "review_loop_ledger: " in got.stderr, (case, got.returncode, got.stderr)
+    assert out.exists() == existed, case
+    assert not (repo / "home").exists() and not (repo / "tmp").exists(), case
+
+
+def _unlock(p: Path) -> None:
+    import os
+
+    for d, _, names in os.walk(p):
+        Path(d).chmod(0o755)
+        for n in names:
+            (Path(d) / n).chmod(0o644)
+
+
+_BAD_PINS = ["no-manifest", "moved-pin", "md5-list-differs", "no-files", "unsafe-path", "no-base"]
+
+
+@pytest.mark.parametrize("case", _BAD_PINS)
+def test_stage_refuses_a_bad_pins_dir_and_leaves_no_tree(tmp_path: Path, case: str) -> None:
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    _unlock(pins)
+    mf = pins / "MANIFEST.json"
+    doc = json.loads(mf.read_text())
+    if case == "no-manifest":
+        mf.unlink()
+    elif case == "moved-pin":
+        (pins / "a.py").write_text("A = 99\n")
+    elif case == "md5-list-differs":
+        (pins / "MANIFEST.md5").write_text("")
+    elif case == "no-files":
+        mf.write_text(json.dumps({**doc, "files": {}}))
+    elif case == "unsafe-path":
+        mf.write_text(json.dumps({**doc, "files": {"../a.py": doc["files"]["a.py"]}}))
+    else:
+        mf.write_text(json.dumps({**doc, "base_sha": None}))
+    (tmp_path / "s").mkdir()
+    got = _stage(pins, tmp_path / "s" / "arch")
+    assert got.returncode == 2 and "review_loop_ledger: " in got.stderr, (case, got.stderr)
+    assert not (tmp_path / "s" / "arch").exists(), case
