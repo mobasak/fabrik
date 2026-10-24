@@ -72,7 +72,7 @@ currency_pass: 2026-10-01
 
 Tojlo's structure is `core/design-system-template.md`'s and its values are `core/ocoron-design-system.md`'s (D-406 split the old Ocoron pack in two). Colours, contrast, motion and tokens are pointers in this file and come from those two packs. The sections from Density Modes through Accessibility are different: they are Tojlo's own rule sets, kept from before the split — their rule IDs (D, TBL, F, C, N, A, PR, O, ML, FMT, EX, ACC) collide with the template's and their content differs (Tojlo forbids table striping, for one). On a Tojlo project those sections apply where they state a rule, and the template supplies anything they do not address; a rule marked **Tojlo override** flags a known conflict with the template. The line-by-line dedup is W-68b6a454. Inherited unchanged, and not to be re-specified:
 
-- **Typography stack:** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data) — identical weights, scale, line-heights, letter-spacing.
+- **Typography stack — Tojlo override, pending its own ruling (§ Inheritance from Ocoron, a breaking Ocoron update of 2026-10-24):** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data), with the weights, scale, line-heights and letter-spacing Ocoron used before it moved to Arya and IBM Plex Sans. That ruling named Ocoron only; Tojlo re-specifies nothing else.
 - **Spacing tokens:** `--space-xs` through `--space-2xl` — identical.
 - **Interaction tokens:** transition durations, easings, hover/press/focus — identical.
 - **Motion language:** duration scale, easing curves, canonical patterns, M1-M8 forbidden rules, reduced motion — the template's, identical (§ Motion Language below adds two Tojlo items).
@@ -520,7 +520,7 @@ Use these as 3px left-rail indicators on sidebar items or as 9px micro-label dot
 
 ## Typography
 
-**Inherited from Ocoron unchanged.** Same fonts, same scale, same rules.
+**Tojlo's own stack** (§ Inheritance Contract, the Typography stack override); the scale and rules are otherwise Ocoron's.
 
 Two Tojlo-specific patterns:
 
@@ -1764,7 +1764,7 @@ ACC8. **Touch targets ≥ 44px on touch devices** regardless of density.
 
 ## CSS Custom Properties (Tojlo)
 
-Tojlo's tokens are Ocoron's, with no override — the accent is shared (`core/ocoron-design-system.md` § CSS custom properties, both modes). Declare them as the template says for the scaffold in hand (`core/design-system-template.md` § Mapping to the scaffold's variables). Layer colour coding uses existing slots (§ Module Color Coding), so Tojlo adds no token.
+Tojlo's tokens are Ocoron's, with one override — `--font-heading: 'Space Grotesk', sans-serif;` and `--font-body: 'Inter', sans-serif;` stay Tojlo's own (§ Inheritance Contract) — and the accent is shared (`core/ocoron-design-system.md` § CSS custom properties, both modes). Declare them as the template says for the scaffold in hand (`core/design-system-template.md` § Mapping to the scaffold's variables). Layer colour coding uses existing slots (§ Module Color Coding), so Tojlo adds no token.
 
 ---
 
@@ -1853,7 +1853,7 @@ Each Tojlo surface takes the stack of its scaffold type, owned by that type's pa
 
 ## Rules for AI Agents
 
-Every rule in `core/ocoron-design-system.md` § Rules for coding agents applies in full. Tojlo-specific rules below.
+Every rule in `core/ocoron-design-system.md` § Rules for coding agents applies in full, except rule 1's font names: Tojlo's fonts are § Inheritance Contract's. Tojlo-specific rules below.
 
 ### Tojlo Visual Rules
 

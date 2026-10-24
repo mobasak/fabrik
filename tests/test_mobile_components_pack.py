@@ -42,7 +42,11 @@ SHIPPED = (
     "react-native-keyboard-controller",
     "expo-secure-store",
 )
-TO_ADD = ("@react-native-community/datetimepicker", "@expo-google-fonts/space-grotesk")
+TO_ADD = (
+    "@react-native-community/datetimepicker",
+    "@expo-google-fonts/arya",
+    "@expo-google-fonts/ibm-plex-sans",
+)
 STATES = ("accent", "success", "warning", "danger", "info", "ai")
 
 requires_fabrik_env = pytest.mark.skipif(
@@ -127,7 +131,7 @@ def test_scaffold_names_are_what_the_scaffold_ships(project: Path) -> None:
         "EmptyList no longer shows a spinner: drop LI5's replace-it note"
     )
     fonts = (project / "app.config.ts").read_text(encoding="utf-8")
-    assert "Inter_500Medium" in fonts and "SpaceGrotesk" not in fonts, (
+    assert "Inter_500Medium" in fonts and "Arya" not in fonts and "IBMPlexSans" not in fonts, (
         "the scaffold's embedded fonts changed: update the Ocoron font sentence"
     )
 
@@ -147,7 +151,7 @@ def test_ids_the_tojlo_pack_inherits_are_defined() -> None:
 
 
 def test_brand_fonts_only_in_the_ocoron_sentence() -> None:
-    lines = [ln for ln in _body().splitlines() if re.search(r"\bInter\b|Space Grotesk", ln)]
+    lines = [ln for ln in _body().splitlines() if re.search(r"\bInter\b|Space Grotesk|\bArya\b|IBM Plex", ln)]
     assert len(lines) == 1 and "Ocoron-declared" in lines[0], (
         f"brand font names outside the Ocoron sentence — name the role (heading font, body font): {lines}"
     )
