@@ -279,16 +279,18 @@ def test_design_tabulates_its_inputs_and_the_close_captures_by_subject() -> None
         " green);"
     ) in _section("## Phase 3", "## Phase 4")
     close = _section("## Phase 5", "## UPGRADE")
-    # the subject comes from the -F message file (a pasted one would run its backticks); the grep finds a
-    # candidate; the exact %s comparison refuses a body-quoting sibling, a prefix and a miss
+    # rows 1792837322, 1792777556 (D-1173): the capture is plain separate calls — the subject comes from the -F
+    # message file and is compared byte for byte against a listing, never pasted into a shell argument (a pasted one
+    # would run its backticks), so a prefix-sharing sibling and a miss are both refused by the reader
     assert "trailers via -F <msg>," in close
+    assert "Each line is its own plain Bash call, never chained and with no `$( )` or shell variable" in close
+    assert "git log -20 --format='%H %s'" in close
     assert (
-        '&& subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \\'
-        in close
-    )
-    assert (
-        '&& [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
+        "echo <the sha whose subject equals the first line of <msg>, byte for byte> >> <durable>/commit.sha"
     ) in close
+    assert "No line with that subject means the commit did not land" in close
+    fences = close.split("```")[1::2]
+    assert fences and all("$(" not in f and "$sha" not in f and "&&" not in f for f in fences)
     assert '"<your subject>"' not in close
     assert "rev-parse -q --verify HEAD" not in close
     assert (
@@ -321,13 +323,30 @@ def test_review_fix_commits_go_through_the_capture_and_mirror_censuses_the_whole
     twice; row 1792309961's confusion read the tip rule the same way, after answered rejects 1792289109 and
     1791923102 on that line) and row 1792303601, the second sighting of held ast-census-for-python-imports (a
     `tree.body` scan missed a function-local import)."""
+    close = _section("## Phase 5", "## UPGRADE")
     assert (
-        "Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form"
-        " each commit a review fix makes is a run commit: make it through step 5's capture line so its sha lands in"
-        " `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`'s committed-fix form (a"
-        " sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead —"
-        " the `--restamp` form below):"
-    ) in _section("## Phase 5", "## UPGRADE")
+        "Its range tip must be the LAST `--commit` (`task_lane.py` check (d)). A full review over committed work — the"
+        " after-commit `--range` form, `/fabrik-review`'s committed-fix form — closes in this order:"
+    ) in close
+    assert (
+        "1. every run commit — the build's, the ledgers', each a review fix makes — goes through step 5's capture, so"
+        " its sha lands in `commit.sha`."
+    ) in close
+    assert (
+        "Or review BEFORE the commit — a sync-path run in the main checkout, which `done` holds to one commit, must:"
+    ) in close
+    # rows 1792776551 (recurring held close-order-worked-example) and 1792772514: the after-commit close is a
+    # numbered list in its run order, and phase 4 points at it
+    order = [
+        "1. every run commit",
+        "2. run the full `/fabrik-review` (skipping its own `--init`)",
+        "3. after the last sha in `commit.sha`, `review_receipt.py --init --lane",
+        "4. run `/fabrik-review`'s close ORDER on it",
+        "5. close the nested review's record, then step 6's `done`, `--review <that receipt>` among its arguments.",
+    ]
+    at = [close.index(step) for step in order]
+    assert at == sorted(at)
+    assert "Phase 5 numbers that close's steps." in _section("## Phase 4", "## Phase 5")
     assert (
         "every Python reader of a name by an `ast.walk` census beside the grep, never `tree.body` alone (a"
         " function-local or `try:` import sits below it; a string-named import, `getattr` or subprocess argv is no"

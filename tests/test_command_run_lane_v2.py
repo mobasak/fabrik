@@ -976,27 +976,19 @@ def test_v2_the_in_lane_stop_needs_an_own_fix_only_round_and_a_review(
 
 def test_the_documented_multi_commit_close_parses_as_separate_shas(tmp_path: Path) -> None:
     """T07-S3, routed to T08 (where the space-separated parser lives): the command text's capture
-    file APPENDS each commit and is expanded UNQUOTED, so a two-commit run reaches `--commit` as two
-    arguments — executed through bash and the real parser, never matched as prose."""
+    file APPENDS each commit, and the done line pastes every sha it holds as its own word, so a
+    two-commit run reaches `--commit` as two arguments — parsed by the real parser, never matched as
+    prose. Rows 1792837322, 1792777556 (D-1195): the paste replaced a `$(cat …)` expansion, which a
+    worktree session's isolation check refuses (D-1173)."""
     import importlib.util
-    import re as _re
     import sys as _sys
 
     root = Path(__file__).resolve().parents[1]
     src = (root / "commands/_sources/fabrik-task.md").read_text(encoding="utf-8")
-    assert 'echo "$sha" >> <durable>/commit.sha' in src, "the capture must append"
-    m = _re.search(r"--commit (\$\(cat <durable>[^)]*\))", src)
-    assert m, "the done line must expand the capture file UNQUOTED"
-    cap = tmp_path / "commit.sha"
-    cap.write_text("aaaa111\nbbbb222\n", encoding="utf-8")
-    expr = m.group(1).replace(m.group(1)[6:-1], str(cap))
-    words = subprocess.run(
-        ["bash", "-c", f'printf "%s\\n" --commit {expr}'],
-        capture_output=True,
-        text=True,
-        timeout=15,
-        check=True,
-    ).stdout.split()
+    assert ">> <durable>/commit.sha\n" in src, "the capture must append"
+    assert "--commit <each sha in <durable>/commit.sha, space-separated>" in src
+    assert "$(cat" not in src
+    words = ["--commit", *"aaaa111\nbbbb222\n".split()]
     spec = importlib.util.spec_from_file_location("_cr_parse", root / "scripts/command_run.py")
     cr = importlib.util.module_from_spec(spec)
     _sys.modules["_cr_parse"] = cr

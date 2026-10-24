@@ -151,7 +151,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # the critiques left it, then re-runs the lock check on every path; MEASURE replays a prior slice's stated reason the
 # design builds on and says a count is no fail direction (rows 1792835476, 1792831669, 1792834386, 1792830212,
 # 1792780963, 1792832940; review round 1 folded).
-SIZE_CAP = 27508
+# D-1195 (kaizen, 2026-10-24): 27508 -> 27866 — phase 5's capture is plain separate Bash calls (no `$( )` or shell
+# variable, refused by a worktree session's isolation check, D-1173) and the done line pastes the captured shas; the
+# after-commit review close is a numbered list phase 4 points at (rows 1792837322, 1792777556, 1792776551, 1792772514).
+SIZE_CAP = 27866
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -925,15 +928,15 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     assert "heredoc" not in raw and "`cat <it> >>`" not in raw
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
     assert (
-        raw.count("<durable>") == 11
-    )  # D-1070 adds the nested review's draft (phase 4) and its --out (phase 5)
+        raw.count("<durable>") == 12
+    )  # D-1070 adds the nested review's draft (phase 4) and its --out (phase 5); D-1195 the `cat` call (phase 5)
     for site in (
         "`<durable>/measure.md`, beside phase 2's `design.md`",
         "`<durable>/design.md`. A mechanism copied",
         "--design <durable>/design.md",
-        "mkdir -p <durable> \\",
-        ">> <durable>/commit.sha || exit 1",
-        "--commit $(cat <durable>/commit.sha)",
+        "mkdir -p <durable>\n",
+        ">> <durable>/commit.sha\n",
+        "--commit <each sha in <durable>/commit.sha, space-separated>",
         "--resume <durable>/design.md",
         "`SCRATCH: <path>` — the second is `<durable>`.",
     ):
