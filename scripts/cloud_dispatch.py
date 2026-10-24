@@ -90,10 +90,11 @@ unsettled run is charged at the margin, not at zero.
 "task_file", "files"}`` — after a whole-batch pre-flight that fails CLOSED (exit 8, nothing fired,
 nothing ledgered): every task file read and payload rendered; one drain at a time (``flock`` on
 ``<ledger dir>/cloud-drain.lock``); every git read checked, so a dead network is a refusal and
-never "no branches"; local master equal to origin's; every path a file (never ``.``, ``..`` or a
-directory), relative, in normal form, off the governance-sync filter (READ from ``command_run``)
-and off the deny set (this script, the registry, ``.pre-commit-config.yaml``, ``commands/``,
-``scripts/sysadmin/``, any ``conftest.py``), and no ``tests/`` file whose text at master names the
+never "no branches"; local master equal to origin's; every path a regular file at master or a new
+one (never ``.``, ``..``, a directory, a symlink or a submodule), relative, in normal form, off
+the governance-sync filter (READ from ``command_run``) and off the deny set (this script, the
+registry, ``.pre-commit-config.yaml``, ``commands/``, ``scripts/sysadmin/``, any ``conftest.py``),
+and no ``tests/`` file whose text at master names the
 home dir; file sets disjoint within the batch, from every unmerged ``claude/*`` branch's three-dot
 diff and from every run fired within a day whose done trailer master does not carry (its ``kind:
 drain`` row); open work plus the batch within ``--max-open``. A slug with any row that may have
@@ -1623,14 +1624,24 @@ def _unsafe_reason(p: str, sync: re.Pattern) -> str | None:
     ):
         return "on the drain's deny set"
     entry = _git_checked("ls-tree", "refs/heads/master", "--", p).split("\t", 1)
-    kind = entry[0].split()[1] if len(entry) == 2 and len(entry[0].split()) == 3 else None
-    if kind == "tree":
-        return "a directory at master, not a file"
-    if kind == "blob" and p.startswith("tests/"):
+    mode = entry[0].split()[0] if len(entry) == 2 and len(entry[0].split()) == 3 else None
+    if mode is not None and mode not in ("100644", "100755"):
+        return f"not a regular file at master (mode {mode}: a directory, symlink or submodule)"
+    if mode is not None and p.startswith("tests/"):
         text = _git_checked("show", f"refs/heads/master:{p}")
         if any(h in text for h in DRAIN_HOME):
             return "a test that reads the home dir"
     return None
+
+
+def _session_key(sid: object) -> str | None:
+    """One cloud session under its two spellings: the fire's body names it ``cse_<id>``, the
+    worker's done trailer ``session_<id>`` (measured on W-3478033b), so the part after the prefix
+    is the key. A missing id is no key, so an unparsed fire never lands; a trailer's ``unknown``
+    is its own key, which no recorded fire carries."""
+    if not isinstance(sid, str) or not sid:
+        return None
+    return sid.split("_", 1)[1] if "_" in sid else sid
 
 
 def _open_work(rows: list[dict]) -> tuple[str, dict[str, set[str]], dict[str, str]]:
@@ -1662,14 +1673,18 @@ def _open_work(rows: list[dict]) -> tuple[str, dict[str, set[str]], dict[str, st
             recent[str(r.get("slug"))] = r
     if recent:
         since = min(_num(r.get("ts")) or now for r in recent.values())
-        landed = set(
-            re.findall(
+        landed = {
+            key
+            for sid in re.findall(
                 rf"^{re.escape(DONE_TRAILER)} (\S+)",
                 _git_checked("log", "refs/heads/master", f"--since=@{int(since)}", "--format=%B"),
                 re.M,
             )
-        )
-        recent = {s: r for s, r in recent.items() if r.get("session_id") not in landed}
+            if (key := _session_key(sid))
+        }
+        recent = {
+            s: r for s, r in recent.items() if _session_key(r.get("session_id")) not in landed
+        }
     declared: dict[str, set[str]] = {}
     for r in rows:
         if r.get("kind") == "drain" and isinstance(r.get("files"), list):
@@ -1750,6 +1765,7 @@ def _drain_locked(args: argparse.Namespace, batch: list[dict]) -> int:
             append_ledger(
                 args.ledger, {**_now_row({}), "kind": "drain", "slug": slug, "files": e["files"]}
             )
+            status[slug] = "attempted (raised before a result — read the ledger before retrying)"
             rc = _cmd_dispatch(
                 argparse.Namespace(
                     registry=args.registry,

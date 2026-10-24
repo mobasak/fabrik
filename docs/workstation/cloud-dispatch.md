@@ -63,8 +63,8 @@ with nothing fired and nothing ledgered:
   never read as "no open branches";
 - **parity** — local `master` equals origin's (the cloud clones origin). The drain does not
   fast-forward anything: it refuses, and the main checkout's session fast-forwards master;
-- **cloud-safe paths** — each a file at master or a new one, relative and in normal form (`.`,
-  `..` and a directory refuse); not on the governance-sync filter (read from
+- **cloud-safe paths** — each a regular file at master (mode 100644 or 100755) or a new one,
+  relative and in normal form (`.`, `..`, a directory, a symlink and a submodule refuse); not on the governance-sync filter (read from
   `command_run._sync_filter_source`, and an unreadable or uncompilable filter refuses); not in
   the deny set (`scripts/cloud_dispatch.py`, `.fabrik/cloud-routines.json`,
   `.pre-commit-config.yaml`, `commands/`, `scripts/sysadmin/`, any `conftest.py`); and no
@@ -85,10 +85,13 @@ re-checked against the ledger just before it fires (a sibling may have fired it 
 pre-flight), gets a `kind: drain` ledger row, and fires through `dispatch` by `--pick`, with
 `Files you may change: …` appended to its task; `--allow-plan-usage` is passed to every fire. The
 first failure stops the batch and exits with that fire's code, after the earlier entries have
-fired and been ledgered. stderr gets one line per entry, printed even when the batch stops:
-`fired`, `fired? (<status> — read the ledger before retrying)`, `refused rcN`, `already fired`,
-`already fired (by another session, after the pre-flight)`, `not reached` or (on `--dry-run`)
-`would fire`.
+fired and been ledgered. A pre-flight refusal prints only its reason; once the pre-flight passes,
+stderr gets one line per entry, printed even when the batch stops: `fired`, `fired? (<status> —
+read the ledger before retrying)`, `attempted (raised before a result — …)` (its drain row was
+written, then the fire raised), `refused rcN`, `already fired`, `already fired (by another session,
+after the pre-flight)`, `not reached` or (on `--dry-run`) `would fire`. A run has landed once
+master carries its done trailer: the fire records the session as `cse_<id>` and the worker's
+trailer names it `session_<id>`, so the two are compared by the part after the prefix.
 
 **Merging a drained branch** (the lead's rule, from the panel's verdict): the branch's three-dot
 diff must stay inside its declared files. A local spot-check is mandatory for more than 5 files,

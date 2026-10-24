@@ -1725,10 +1725,13 @@ class _FakeGit:
     """Every git read the drain makes, answered from a small model of origin and master; a
     verb in ``fail`` exits 128 with empty stdout, which is what a dead network looks like."""
 
-    def __init__(self, branches=None, master_text=None, local=MASTER, origin=MASTER, dirs=()):
+    def __init__(
+        self, branches=None, master_text=None, local=MASTER, origin=MASTER, dirs=(), entries=None
+    ):
         self.branches = branches or {}  # name -> (tip, files, merged)
         self.master_text = master_text or {}
         self.dirs = set(dirs)
+        self.entries = entries or {}  # path -> "<mode> <type>", e.g. a gitlink or a symlink
         self.master_log = ""
         self.local, self.origin = local, origin
         self.fail: set[str] = set()
@@ -1760,6 +1763,8 @@ class _FakeGit:
             path = args[-1]
             if path in self.dirs:
                 return 0, f"040000 tree x\t{path}\n"
+            if path in self.entries:
+                return 0, f"{self.entries[path]} x\t{path}\n"
             return 0, (f"100644 blob x\t{path}\n" if path in self.master_text else "")
         if verb == "show":
             return 0, self.master_text[args[1].split(":", 1)[1]]
@@ -1941,16 +1946,28 @@ def test_drain_refuses_when_local_master_is_not_origin_master(
         "scripts/",
         "",
         "docs",
+        "vendor/sub",
+        "s/link.py",
         "tests/test_home.py",
     ],
 )
 def test_drain_refuses_a_path_that_is_not_cloud_safe(tmp_path, monkeypatch, capsys, path):
     git = _FakeGit(
-        master_text={"tests/test_home.py": "p = Path.home() / '.claude'\n"}, dirs={"docs"}
+        master_text={"tests/test_home.py": "p = Path.home() / '.claude'\n"},
+        dirs={"docs"},
+        entries={"vendor/sub": "160000 commit", "s/link.py": "120000 blob"},
     )
     _, fired = _drain_env(tmp_path, monkeypatch, git)
     assert _drain(tmp_path, _batch(tmp_path, [_e("a", path)])) == 8
     assert "not cloud-safe" in capsys.readouterr().err and not fired
+
+
+@pytest.mark.parametrize("entry", ["100644 blob", "100755 blob"])
+def test_a_regular_or_executable_file_at_master_is_cloud_safe(tmp_path, monkeypatch, entry):
+    git = _FakeGit(entries={"s/run.py": entry})
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/run.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a"]
 
 
 @pytest.mark.parametrize(
@@ -2034,6 +2051,49 @@ def test_a_drained_runs_files_stay_held_until_its_work_lands(tmp_path, monkeypat
     git.master_log = f"merge a\n\n{cd.DONE_TRAILER} cse_01AXXXXXXXX\n"
     assert _drain(tmp_path, _batch(tmp_path, [_e("c", "s/b.py")])) == 0
     assert [ns.slug for ns in fired] == ["a", "c"]
+
+
+@pytest.mark.parametrize(
+    ("trailer_id", "lands"),
+    [
+        ("cse_01AXXXXXXXX", True),
+        ("session_01AXXXXXXXX", True),  # what a cloud worker writes (W-3478033b's real trailer)
+        ("01AXXXXXXXX", True),
+        ("unknown", False),
+        ("session_01AXXXXXXXY", False),
+    ],
+)
+def test_a_done_trailer_lands_a_run_whatever_prefix_its_session_id_carries(
+    tmp_path, monkeypatch, capsys, trailer_id, lands
+):
+    git = _FakeGit()
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py")])) == 0
+    git.master_log = f"merge a\n\n{cd.DONE_TRAILER} {trailer_id}\n"
+    assert _drain(tmp_path, _batch(tmp_path, [_e("b", "s/a.py")])) == (0 if lands else 8)
+    assert ("held by in-flight a" in capsys.readouterr().err) is not lands
+
+
+def test_an_unknown_done_trailer_never_lands_a_run_whose_session_id_was_not_parsed(
+    tmp_path, monkeypatch, capsys
+):
+    git = _FakeGit()
+    _drain_env(tmp_path, monkeypatch, git)
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    cd.append_ledger(ledger, {"kind": "drain", "slug": "u", "files": ["s/u.py"]})
+    cd.append_ledger(
+        ledger,
+        {
+            "ts": cd.time.time(),
+            "account": "ob",
+            "slug": "u",
+            "status": "unparsed",
+            "session_id": None,
+        },
+    )
+    git.master_log = f"merge something\n\n{cd.DONE_TRAILER} unknown\n"
+    assert _drain(tmp_path, _batch(tmp_path, [_e("b", "s/u.py")])) == 8
+    assert "held by in-flight u" in capsys.readouterr().err
 
 
 def test_an_in_flight_run_older_than_a_day_no_longer_holds_its_files(tmp_path, monkeypatch):
@@ -2139,9 +2199,12 @@ def test_an_exception_mid_batch_still_prints_every_entrys_status(tmp_path, monke
         return 0
 
     monkeypatch.setattr(cd, "_cmd_dispatch", fire)
-    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py"), _e("b", "s/b.py")])) == 1
+    entries = [_e("a", "s/a.py"), _e("b", "s/b.py"), _e("c", "s/c.py")]
+    assert _drain(tmp_path, _batch(tmp_path, entries)) == 1
     err = capsys.readouterr().err
-    assert "drain a: fired" in err and "drain b: not reached" in err
+    assert "drain a: fired" in err and "drain c: not reached" in err
+    # b's drain row was written before its fire raised: an attempt, never "not reached"
+    assert "drain b: attempted (raised before a result — read the ledger before retrying)" in err
 
 
 def test_drain_dry_run_fires_nothing(tmp_path, monkeypatch, capsys):
