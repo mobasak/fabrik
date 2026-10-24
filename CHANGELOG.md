@@ -6,9 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — check_doc_index no longer lets a code-span example hide a missing doc or index an unlisted one (2026-10-24)
 
-- `scripts/enforcement/check_doc_index.py` reads INDEX.md links the way `check_doc_links.py` does: fenced blocks and inline code spans are blanked first, through the new `_fences.blank_code_examples`. Read raw, a quote inside a code span could swallow a real link to a missing doc, and a link example in a span could index a doc that has no row (D-1179 superseded).
-- `scripts/enforcement/_fences.py` holds the one copy of that masking and of the fence toggle (`fence_toggle`), moved from `check_doc_links.py`; both checks fall back to the raw text where `_fences.py` lags the sync.
-- Six new tests in `tests/enforcement/test_check_doc_index.py` were proven red on the old code, and `tests/enforcement/test_fences.py` pins the single copy. Over 40 `/opt` repos no finding changes.
+- `scripts/enforcement/check_doc_index.py` skips fenced and span-held INDEX.md links as `check_doc_links.py` does: both now blank fenced blocks and inline code spans first, through the new `_fences.blank_code_examples`. Read raw, a quote inside a code span could swallow a real link to a missing doc, and a span-held escaped link could index a doc that has no row (D-1183, superseding D-1179). Line endings become LF before the blanking, so a CR-only INDEX.md cannot pair two spans across a heading.
+- `scripts/enforcement/_fences.py` holds the one copy of that masking and of the fence toggle (`fence_toggle`), moved from `check_doc_links.py`; both checks fall back to the raw text where `_fences.py` is missing or lags the sync.
+- Tests: three new tests in `tests/enforcement/test_check_doc_index.py` fail on the old code, and the agreement and line-ending tests, the regression guards and the single-copy pins in `tests/enforcement/test_fences.py` were proven red by mutants. Run end to end over the 40 `/opt` repositories that carry an INDEX.md, no finding changes.
 
 ### Fixed — every coordinator's contract names the live rotation verb, and the merge recipe no longer trips the worktree prompt (2026-10-23)
 

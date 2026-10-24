@@ -373,8 +373,9 @@ def blank_code_examples(text: str) -> str:
     """`text` with every fence line and fence body (by `fence_toggle`) and then every inline code span blanked,
     length-preserving — the reading check_doc_links and check_doc_index grade links on (W-b9af1d47, W-85bd72fa).
     Fences go first, so a fence's ``` never pairs with an inline ``` run after it and a body's backticks never
-    pair with an opener above the fence; the toggle splits lines as str.splitlines() does (on \\f, \\v and
-    U+2028 too), which the span blanker does not, so masking per line before the span pass is load-bearing.
+    pair with an opener above the fence; the toggle splits lines on every boundary str.splitlines() uses (\\r,
+    \\f, \\v, \\x1c-\\x1e, NEL, U+2028 and U+2029 too), while the span blanker breaks lines only on \\n, so
+    masking per line before the span pass is load-bearing.
     Every offset in the output is the input's, so a caller cuts it at its own raw line offsets."""
     masked = list(text)
     in_fence, pos = False, 0

@@ -293,8 +293,10 @@ def _blank_examples(text: str) -> str:
     """Fence lines, fence bodies and inline code spans blanked, length-preserving, by
     `_fences.blank_code_examples` (W-b9af1d47, W-85bd72fa) — the one reading check_doc_index grades INDEX.md
     links on too. Imported on first use by the sibling directory, with `_fences.fence_toggle` for the skip loop;
-    in a project whose `_fences.py` lags the sync the names are absent and the text comes back unblanked: the
-    pre-W-b9af1d47 reading, never a crash. A sync copies scripts/enforcement whole, so that lag lasts one sync."""
+    where `_fences.py` is missing (ImportError) or lags the sync without `blank_code_examples` — even one that
+    has `blank_code_spans` — the text comes back unblanked: the pre-W-b9af1d47 reading. A sync copies
+    scripts/enforcement whole, so that lag lasts one sync. A `_fences.py` that fails to import any other way
+    raises, as it does in every check importing it."""
     global _BLANKER, _TOGGLE
     if _BLANKER is None:
         here = str(Path(__file__).resolve().parent)

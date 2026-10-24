@@ -1125,6 +1125,17 @@ def test_a_link_split_across_lines_is_still_graded(tmp_path):
     assert rc == 1 and any("docs/gone.md" in d for d in payload["drift"]), payload
 
 
+@pytest.mark.parametrize("eol", ["\r", "\n", "\r\n"])
+def test_a_span_cannot_pair_across_a_heading_whatever_the_line_ending(tmp_path, eol):
+    """INDEX.md is read as bytes, so a lone CR reaches the span blanker, which breaks lines only on LF: a span
+    opened before a CR-ended line paired with one after a heading and hid the real link between (a false green)."""
+    repo = _tree_repo(tmp_path, {})
+    body = f"# Index{eol}{eol}`a{eol}# H [x](docs/nope-cr.md) `b{eol}"
+    (repo / "INDEX.md").write_bytes(body.encode("utf-8"))
+    rc, payload = _run_tree(repo)
+    assert rc == 1 and any("docs/nope-cr.md" in d for d in payload["drift"]), payload
+
+
 def test_a_bracket_inside_a_span_does_not_open_a_later_link(tmp_path):
     """A `[` in a span made a later stray `](` read as a link (a false red); blanked, it opens nothing."""
     repo = _tree_repo(tmp_path, {"INDEX.md": "# Index\n\n`[` then ](docs/stray.md) here\n"})

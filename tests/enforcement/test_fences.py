@@ -410,6 +410,9 @@ def test_the_fence_toggle_has_one_live_copy() -> None:
         "plain",
         "",
         "\t```",
+        "\f```",
+        " ```",
+        " ```",
     ]
     for line in lines:
         assert cdl._local_fence_toggle(line) == _fences.fence_toggle(line), repr(line)
