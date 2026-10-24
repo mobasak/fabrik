@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T15:08:39.962397Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-0bdb360d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q737WZ1YFFKHRRR4X4T5RY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "URGENT — operator ruling: Ocoron fonts are Arya (headings) + IBM Plex Sans (text); change the synced Ocoron design system now"
+}
