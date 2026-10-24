@@ -5,7 +5,7 @@ unpushed commits". After someone force-rewrites the remote branch that is false:
 commit the old remote tip held, so commits this clone had already pushed vanish at exit 0 with no conflict
 (fabrik-lib D-480, reproduced in this file). The ladder now reads `git reflog show --format=%gs @{u}` from the top:
 a `forced-update` line above the newest `update by push` line means stop and report; none means
-`git rebase --rebase-merges @{u}`, which never drops a commit.
+`git rebase --rebase-merges @{u}`, which does no fork-point filtering, so no pushed commit is skipped.
 
 The tests run the documented decision against throwaway repos — the reflog command is taken from each contract's
 own text, so a contract that renames it fails here — and pin that both contracts drop the false claim.
@@ -23,7 +23,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 CONTRACTS = ("CLAUDE.md", "templates/governance/CLAUDE.md")
 ENV = {
-    **os.environ,
+    **{k: v for k, v in os.environ.items() if not k.startswith("GIT_")},  # a hook's GIT_DIR/GIT_INDEX_FILE
     "GIT_AUTHOR_NAME": "t",
     "GIT_AUTHOR_EMAIL": "t@t",
     "GIT_COMMITTER_NAME": "t",
@@ -133,15 +133,45 @@ def test_a_normal_advance_rebases_and_keeps_every_commit(two_clones: tuple[Path,
 
 
 @pytest.mark.parametrize("rel", CONTRACTS)
+def test_a_never_pushed_clone_still_stops_on_a_rewrite(tmp_path: Path, rel: str) -> None:
+    """No `update by push` line at all: the contract's "or anywhere when there is no such line" makes it a stop."""
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    b, c = tmp_path / "B", tmp_path / "C"
+    _git(tmp_path, "clone", "-q", str(origin), str(b))
+    _commit(b, "one.txt")
+    _commit(b, "two.txt")
+    _git(b, "push", "-q", "-u", "origin", "main")
+    _git(tmp_path, "clone", "-q", str(origin), str(c))
+    assert _verdict(c, rel) == "rebase"  # a fresh clone's empty upstream reflog takes the "none" branch
+    _git(b, "reset", "-q", "--hard", "HEAD~1")
+    _commit(b, "three.txt")
+    _git(b, "push", "-q", "--force")
+    _git(c, "fetch", "-q")
+    assert _verdict(c, rel) == "stop"
+
+
+def test_no_upstream_makes_the_reflog_read_fail(tmp_path: Path) -> None:
+    """The contract's `no upstream (`@{u}` errors) → stop` case: the read itself errors, it never reads as clean."""
+    _git(tmp_path, "init", "-q", "-b", "main", str(tmp_path / "solo"))
+    _commit(tmp_path / "solo", "only.txt")
+    cmd = _reflog_command("CLAUDE.md")
+    assert subprocess.run(cmd, cwd=tmp_path / "solo", env=ENV, capture_output=True).returncode != 0
+
+
+@pytest.mark.parametrize("rel", CONTRACTS)
 def test_the_contract_drops_the_false_claim(rel: str) -> None:
     step = _exit_step(rel)
     assert "replays only YOUR unpushed" not in step
     assert "`git pull --rebase=merges`" not in step
-    for clause in (
-        "a `forced-update` line above the newest `update by push` line",
-        "stop and report, never rebase onto it",
-        "`git rebase --rebase-merges @{u}` then push",
-        "no upstream (`@{u}` errors) → stop and report",
-        "**NEVER `--force`**",
-    ):
-        assert clause in step, f"{rel}: missing {clause!r}"
+    ladder = step[step.index("tree CLEAN →") : step.index("**NEVER `--force`**")]
+    # the rule, not loose phrases: the rewrite clause leads to the stop, and only "none" leads to the rebase
+    assert re.search(
+        r"a `forced-update` line above the newest `update by push` line, or anywhere when there is no such line,"
+        r" means .*? → stop and report, never rebase"
+        r" onto it .*?; none → `git rebase --rebase-merges @\{u\}` then push",
+        ladder,
+    ), f"{rel}: the stop/rebase rule is reworded or reordered"
+    assert ladder.count("`git rebase --rebase-merges @{u}`") == 1
+    assert "no upstream (`@{u}` errors), or a rejection that is not a non-fast-forward" in ladder
+    assert "**NEVER `--force`**" in step

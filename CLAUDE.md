@@ -272,13 +272,14 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    UNFINISHED task** (Stop-hook-enforced). **Then PUSH it** (an unpushed task is OFF-BOX-UNPROTECTED;
    Stop-hook-enforced). Rejected? the ladder: tree DIRTY (sibling WIP) → defer + report (the wip-net holds the
    off-box copy; retry next task end) · tree CLEAN → `git fetch`, then read `git reflog show --format=%gs @{u}`
-   from the top: a `forced-update` line above the newest `update by push` line means the remote branch was
-   REWRITTEN since you last pushed (by this fetch or an earlier one, which comparing tips misses) → stop and
-   report, never rebase onto it — a rebase pushes back what the rewrite removed, and `git pull --rebase` silently
-   DROPS your own already-pushed commits at exit 0 (its fork-point skips them; reproduced, fabrik-lib D-480,
-   D-1178); none → `git rebase --rebase-merges @{u}` then push (an explicit upstream replays every commit and
-   keeps merge commits) · no upstream (`@{u}` errors) → stop and report · rebase conflict → `git rebase --abort`
-   + report · **NEVER `--force`**.
+   from the top: a `forced-update` line above the newest `update by push` line, or anywhere when there is no
+   such line, means the remote branch was REWRITTEN since you last pushed (by this fetch or an earlier one, which
+   comparing tips misses) → stop and report, never rebase onto it — a rebase pushes back what the rewrite removed,
+   and `git pull --rebase` silently DROPS your own already-pushed commits at exit 0 (its fork-point skips them;
+   reproduced, fabrik-lib D-480, D-1178); none → `git rebase --rebase-merges @{u}` then push (an explicit
+   upstream does no fork-point filtering, so no pushed commit of yours is skipped, and merge commits are kept) ·
+   no upstream (`@{u}` errors), or a rejection that is not a non-fast-forward (a hook, permissions, an upstream of
+   another name) → stop and report · rebase conflict → `git rebase --abort` + report · **NEVER `--force`**.
    **Then CLEAN your own scratch** — `python3 /opt/fabrik/scripts/scratch_sweep.py` (dry-run table: size · class · reason), read it,
    then `--apply`; `--worktrees` lists EVERY registered worktree with a verdict (`wt-removable` · `wt-prunable` ·
    `wt-dirty` · `wt-unmerged` · `wt-locked` · `wt-held` · `wt-foreign` · `wt-orphan-dir` · `wt-ignored-data` ·
