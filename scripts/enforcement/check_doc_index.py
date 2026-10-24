@@ -228,6 +228,31 @@ def link_targets(text: str):
         i = text.find("](", close.end())
 
 
+_BLANKER: object = None  # unloaded; then _fences.blank_code_examples, or False where it is missing
+
+
+def _blank_examples(text: str) -> str:
+    """Fence lines, fence bodies and inline code spans blanked, length-preserving, by
+    `_fences.blank_code_examples` — the reading check_doc_links grades links on, so one gate run grades an
+    INDEX.md link the same way in both checks (W-85bd72fa). Read raw, a quote inside a span opened a link
+    title that swallowed the real link after it (a missing doc passed (a)), and a span-held escaped link
+    indexed its decoded path for (b) and (c). Imported on first use by the sibling directory; where
+    `_fences.py` is missing or predates the name the text comes back raw — the pre-W-85bd72fa reading, never
+    a crash."""
+    global _BLANKER
+    if _BLANKER is None:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        try:
+            import _fences
+        except ImportError:
+            _BLANKER = False
+        else:
+            _BLANKER = getattr(_fences, "blank_code_examples", False)
+    return _BLANKER(text) if _BLANKER else text  # type: ignore[operator]
+
+
 def _printable(text: str) -> str:
     """Render a surrogateescape string safely for a UTF-8 stdout.
 
@@ -441,8 +466,10 @@ def main() -> int:
     # measured in the W-dd091f0d review: one `[` anywhere above lets a stray `](` on a later line
     # read as a link, so it is graded, as the pre-change regex did (fail-closed). A stray `](` with
     # no unescaped `[` anywhere before it, or an escaped `\](`, is not a link and is skipped
-    # (fail-open), where the pre-change regex graded both (W-f11e740e).
-    index_links = list(link_targets(index_text))
+    # (fail-open), where the pre-change regex graded both (W-f11e740e). Read through `_blank_examples`, as
+    # check_doc_links reads links: a fenced or span-held link is a code example, never graded and indexing
+    # nothing (W-85bd72fa); fence lines follow check_doc_links' toggle, whose costs its _iter_refs docstring states.
+    index_links = list(link_targets(_blank_examples(index_text)))
     linked = {s for t in index_links for s in (t, _pct_decode(t))}
 
     # (a) INDEX targets exist

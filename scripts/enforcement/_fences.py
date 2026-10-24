@@ -19,7 +19,9 @@ distinct-length backtick lines, 10.2 s on one 200 KB run); FENCE_BLOCK and _HTML
 start position. tests/enforcement/test_fences.py keeps the old regexes as the oracle.
 
 ``blank_code_spans`` blanks inline code spans for docs_updater and check_doc_links (W-b9af1d47) — one copy,
-linear (W-16c00597), its quadratic original the oracle in tests/test_docs_updater.py.
+linear (W-16c00597), its quadratic original the oracle in tests/test_docs_updater.py. ``blank_code_examples``
+(fence lines and bodies by ``fence_toggle``, then spans) is the one reading check_doc_links and check_doc_index
+grade markdown links on (W-85bd72fa).
 
 Every consumer imports it by its own name — ``scripts/enforcement`` inserted into ``sys.path`` once, then
 ``import _fences`` — so a package import, a by-path run and a ``spec_from_file_location`` load share one module.
@@ -353,6 +355,37 @@ def blank_code_spans(content: str) -> str:
             ]
             kept, i = runs[j].end(), j + 1
     return "".join(out) + content[kept:]
+
+
+# A backtick run, text, then the same run: an inline code span on one line, not a fence opener.
+_INLINE_SPAN_RE = re.compile(r"(`{3,})[^`]+\1(?!`)")
+
+
+def fence_toggle(line: str) -> bool:
+    """The link checks' fence toggle: any line whose left-stripped text starts with ``` opens or closes a
+    fence — no run length, no ~~~, a closer may carry text (a CommonMark model is W-2725ed54's) — except a
+    line-leading inline span that closes on its own line (```` ```x``` ````), which is code, not a fence."""
+    stripped = line.lstrip()
+    return stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)
+
+
+def blank_code_examples(text: str) -> str:
+    """`text` with every fence line and fence body (by `fence_toggle`) and then every inline code span blanked,
+    length-preserving — the reading check_doc_links and check_doc_index grade links on (W-b9af1d47, W-85bd72fa).
+    Fences go first, so a fence's ``` never pairs with an inline ``` run after it and a body's backticks never
+    pair with an opener above the fence; the toggle splits lines as str.splitlines() does (on \\f, \\v and
+    U+2028 too), which the span blanker does not, so masking per line before the span pass is load-bearing.
+    Every offset in the output is the input's, so a caller cuts it at its own raw line offsets."""
+    masked = list(text)
+    in_fence, pos = False, 0
+    for raw in text.splitlines(keepends=True):
+        line = raw.splitlines()[0]
+        toggle = fence_toggle(line)
+        if toggle or in_fence:
+            masked[pos : pos + len(line)] = " " * len(line)
+        in_fence ^= toggle
+        pos += len(raw)
+    return blank_code_spans("".join(masked))
 
 
 def status_candidates(

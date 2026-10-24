@@ -379,4 +379,36 @@ def test_the_span_blanker_has_one_copy() -> None:
     ):
         assert name not in du_src and name not in cdl_src, name
     assert 'getattr(_fences_module(), "blank_code_spans"' in du_src
-    assert 'getattr(_fences, "blank_code_spans"' in cdl_src
+    # W-85bd72fa: both link checks blank code examples (fences, then spans) through one function
+    cdi_src = (ENF / "check_doc_index.py").read_text(encoding="utf-8")
+    for src in (cdl_src, cdi_src):
+        assert 'getattr(_fences, "blank_code_examples"' in src
+        assert "def blank_code_spans" not in src and "in_fence ^= toggle" not in src
+
+
+def test_the_fence_toggle_has_one_live_copy() -> None:
+    """W-85bd72fa: check_doc_links skips fenced lines with `_fences.fence_toggle` when `_fences` loads; its
+    local predicate is only the no-`_fences` fallback, held equal here so the two cannot drift (Lesson 103)."""
+    import _fences
+    import check_doc_links as cdl
+
+    src = (ENF / "check_doc_links.py").read_text(encoding="utf-8")
+    assert 'getattr(_fences, "fence_toggle"' in src
+    lines = [
+        "```",
+        "```python",
+        "   ```",
+        "```text more",
+        "````",
+        "```x```",
+        "```inline``` tail",
+        "``` `x` ```",
+        "```js `x`",
+        "~~~",
+        "``",
+        "plain",
+        "",
+        "\t```",
+    ]
+    for line in lines:
+        assert cdl._local_fence_toggle(line) == _fences.fence_toggle(line), repr(line)

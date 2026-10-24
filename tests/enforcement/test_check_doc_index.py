@@ -986,8 +986,10 @@ def _tree_repo(
 ) -> Path:
     repo = tmp_path / "repo"
     (repo / "scripts/enforcement").mkdir(parents=True)
-    here = Path(__file__).resolve().parents[2] / "scripts/enforcement/check_doc_index.py"
-    shutil.copy(here, repo / "scripts/enforcement/")
+    here = Path(__file__).resolve().parents[2] / "scripts/enforcement"
+    # _fences.py beside the check, as the sync ships them, or every tree test runs the fallback (W-85bd72fa)
+    for name in ("check_doc_index.py", "_fences.py"):
+        shutil.copy(here / name, repo / "scripts/enforcement/")
     for rel, body in files.items():
         (repo / rel).parent.mkdir(parents=True, exist_ok=True)
         (repo / rel).write_text(body, encoding="utf-8")
@@ -1084,3 +1086,100 @@ def test_a_failed_name_listing_says_so_instead_of_going_quiet(monkeypatch, tmp_p
     with contextlib.redirect_stdout(out):
         rc = tree.main()
     assert rc == 0 and "shared-name check skipped" in out.getvalue(), out.getvalue()
+
+
+# --- W-85bd72fa: INDEX.md links are read through _fences.blank_code_examples, as check_doc_links reads them ---
+
+
+def test_a_span_quote_cannot_swallow_a_real_link_to_a_missing_doc(tmp_path):
+    """Read raw, the quote inside the first span opened a link title that ran to the quote in the
+    second span and swallowed the real link between them, so a missing doc passed (a) — a false green."""
+    repo = _tree_repo(
+        tmp_path,
+        {
+            "INDEX.md": "# Index\n\n`[x](docs/ex.md '` see [real](docs/missing.md) `')`\n",
+            "docs/ex.md": "# e\n",
+        },
+    )
+    rc, payload = _run_tree(repo)
+    assert rc == 1, payload
+    assert any("docs/missing.md" in d for d in payload["drift"]), payload
+
+
+def test_a_span_held_link_does_not_index_a_doc(tmp_path):
+    """A link example in a code span put its decoded path into `linked`, which (b) reads, so a live
+    doc with no INDEX row passed — a false green. The escape keeps the raw substring test blind."""
+    repo = _tree_repo(
+        tmp_path,
+        {"INDEX.md": "# Index\n\n`[x](docs/a\\_b.md)`\n", "docs/a_b.md": "# a\n"},
+    )
+    rc, payload = _run_tree(repo)
+    assert rc == 1, payload
+    assert any("live doc not in INDEX.md: docs/a_b.md" in d for d in payload["drift"]), payload
+
+
+def test_a_link_split_across_lines_is_still_graded(tmp_path):
+    """The whole blanked text is read, never line by line, so link text that wraps (W-dd091f0d) stays graded."""
+    repo = _tree_repo(tmp_path, {"INDEX.md": "# Index\n\n[Notes\n](docs/gone.md)\n"})
+    rc, payload = _run_tree(repo)
+    assert rc == 1 and any("docs/gone.md" in d for d in payload["drift"]), payload
+
+
+def test_a_bracket_inside_a_span_does_not_open_a_later_link(tmp_path):
+    """A `[` in a span made a later stray `](` read as a link (a false red); blanked, it opens nothing."""
+    repo = _tree_repo(tmp_path, {"INDEX.md": "# Index\n\n`[` then ](docs/stray.md) here\n"})
+    rc, payload = _run_tree(repo)
+    assert rc == 0 and payload["drift"] == [], payload
+
+
+def test_index_and_links_checks_read_the_same_links():
+    """One reading for both checks over spans, fences, a one-line ```x``` span and a closing fence beside an
+    inline ``` — single-line links and no stale-marker line, the two differences W-85bd72fa leaves OUT."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "cdl_tree", Path(__file__).resolve().parents[2] / "scripts/enforcement/check_doc_links.py"
+    )
+    cdl = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cdl)
+    text = (
+        "# Index\n\n"
+        "- [a](docs/a.md) and `[b](docs/span.md)` then [c](docs/c.md)\n"
+        "```\n[fenced](docs/fenced.md)\n```\n"
+        "```inline``` [d](docs/d.md)\n"
+        "```\ncode\n```\nSee [e](docs/e.md) then ```x``` end\n"
+        "`[x](docs/q.md '` see [real](docs/missing.md) `')`\n"
+    )
+    index_reads = list(cdi.link_targets(cdi._blank_examples(text)))
+    links_reads = [t for t, k in cdl._iter_refs(text) if k == "link"]
+    assert index_reads == links_reads, (index_reads, links_reads)
+    assert "docs/fenced.md" not in index_reads and "docs/span.md" not in index_reads, index_reads
+    assert "docs/missing.md" in index_reads and "docs/e.md" in index_reads, index_reads
+
+
+@pytest.mark.parametrize("fences_src", [None, "def strip(text, repl=''):\n    return text\n"])
+def test_an_old_scanner_leaves_the_index_read_raw(tmp_path, fences_src):
+    """With no _fences.py, or one predating blank_code_examples, the check reads INDEX.md raw (today's
+    reading, fail-open for the span cases) and never crashes: the span-held, missing docs/ex.md is graded."""
+    repo = _tree_repo(tmp_path, {"INDEX.md": "# Index\n\n`[x](docs/ex.md)`\n"})
+    fences = repo / "scripts/enforcement/_fences.py"
+    if fences_src is None:
+        fences.unlink()
+    else:
+        fences.write_text(fences_src, encoding="utf-8")
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            str(repo / "scripts/enforcement/check_doc_index.py"),
+            "--json",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert "Traceback" not in r.stderr, r.stderr
+    payload = json.loads(r.stdout)
+    assert r.returncode == 1 and any("docs/ex.md" in d for d in payload["drift"]), payload
