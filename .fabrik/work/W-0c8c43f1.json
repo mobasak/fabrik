@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T22:36:24.705338Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0c8c43f1",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1216",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "P0 program member: the queue wait is the largest remaining part of the operator's 2.5 h complaint; infra-3 owns merge_request.py (D-1186/D-1205/D-1211)",
+  "status": "open",
+  "title": "Lean program (D-1216) part of W-1fb11ec8: an UNLOCKED owner-test window — during a merge, build and run the owner's test leg OUTSIDE the merge lock (lock held only for CAS, carry and push), so queued merges stop waiting 52-62 min behind another merge's tests; complementary to B (--pretest, b155e21b7)"
+}
