@@ -52,6 +52,14 @@ The command showed its six commit recipes as `git commit -m "$(cat <<'EOF' … E
 
 `scripts/sysadmin/kaizen_waste.py`'s `waste_red_master_rework` counted a hypothetical mention as a red master. A phrase whose verb is governed by a modal ("would turn", "won't go", "could've turned", "would also turn", "is going to turn") no longer counts; a modal elsewhere in the sentence, a conjunction between ("will be fine now since master is red"), and any other phrase in the same message, still do. Over origin/master's 10,887 non-merge commits (2026-10-24) the count moves 32 → 30, exactly the two hypotheticals. The metric moves to v2, a new series; breakdown rows now carry their definition version (`def`) and `kaizen_digest.py` reads only the rows matching the series it judges. Run `kaizen_waste.py --backfill` once after the merge, or the red-master chart has no limits for 14 days (W-d633d5f5).
 
+### Fixed — the governance template routes hub mail to infra for synced-file defects and the rendering, sync and checks of commands, not all command work (2026-10-24)
+
+- W-a5b90257. `templates/governance/CLAUDE.md`'s Send bullet read "`--to-agent infra` for commands/rules/enforcement/hooks/mail
+  defects" while the same sentence gave kaizen a command's or rule's wording. It now gives infra synced-file defects (the
+  rendering, sync and checks of commands/rules among them) and enforcement, hook, mail and workstation defects; the
+  upstream-proposal step addresses `<owner>` and points at that bullet. Receipt:
+  `docs/development/reviews/2026-10-24-w-a5b90257-template-routing-wording-review.md`.
+
 ### Fixed — the Stop hook no longer orders a builder to start new work at a rotation boundary (2026-10-24)
 
 - W-0fae19b7, D-1197. When a session's rotate stamp is due and its own last `NEXT:` reads `none — terminal; awaiting

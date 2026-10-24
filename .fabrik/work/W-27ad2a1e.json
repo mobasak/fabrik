@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T14:25:59.552655Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-27ad2a1e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add 'the rendering and checks of commands/rules' to the infra line of the refusal text and its test",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "scripts/mail.py:1490 unaddressed-send refusal names infra as 'the CODE of hooks, enforcement checks and fabrik-mail · the sync · workstation' but not the rendering and checks of commands/rules, which templates/governance/CLAUDE.md's Send bullet (W-a5b90257) and the hub charter give infra — two guides, two answers for a command-rendering defect (W-a5b90257 review A-2)"
+}

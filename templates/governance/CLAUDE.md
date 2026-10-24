@@ -195,10 +195,10 @@ never silently complied with and never silently ignored.
    evidence + a concrete direction (verbatim diff or ranked options) + why-filed + blast-radius honesty.
    The same shape applies when the gap is not a file defect (a missing pipeline stage, a command-contract
    flaw) — the target is the hub file that would change.
-3. **Send it**: `python scripts/mail.py send --to fabrik --to-agent infra --kind request --ack required`
-   with the proposal path in the body (synced-file/enforcement/command defects are the infra beat;
-   deploy/VPS/spec-yaml → `fleet`; models/benchmarks → `intel`; genuinely unsure → `--broadcast`
-   with `--ack no`). The hub's next session runs HUB mode and replies landed / deferred / refuted.
+3. **Send it**: `python scripts/mail.py send --to fabrik --to-agent <owner> --kind request --ack required`
+   with the proposal path in the body, `<owner>` the beat the **Send / reach others** bullet below
+   names (`infra`, `kaizen`, `fleet` or `intel`; genuinely unsure → `--broadcast` with `--ack no`).
+   The hub's next session runs HUB mode and replies landed / deferred / refuted.
 
 Friction too small for a proposal (a confusing prompt line, a noisy warn) still goes to the hub — one
 `--kind finding` mail beats a silent shrug; the kaizen metrics can only fix what gets reported.
@@ -455,12 +455,13 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   never travels). `mail.py sweep` is a **backstop, not the exit path** — it archives by AGE, read or not,
   handled or not; under handle-now it should find almost nothing, and a large sweep count is an alarm.
 - **Send / reach others:** `python scripts/mail.py send --to <recipient> --kind <k> [--ack required] < body`.
-  Reach **the hub** (`--to fabrik` — REQUIRES an addressee: `--to-agent infra` for
-  commands/rules/enforcement/hooks/mail defects · `fleet` for VPS/deploy/spec-yaml/monitoring ·
-  `intel` for models/benchmarks · `kaizen` for a command's or rule's WORDING, a workflow step or
-  a way of working (the feedback loop) — or `--broadcast --ack no` when genuinely all-agents; an
-  unaddressed hub send is REFUSED with this guide; only a `--kind reply` carrying `--re` is
-  exempt) or **fabrik-lib**
+  Reach **the hub** (`--to fabrik` — REQUIRES an addressee: `--to-agent infra` for synced-file
+  defects (the rendering, sync and checks of commands/rules among them) and enforcement, hook, mail
+  and workstation defects ·
+  `fleet` for VPS/deploy/spec-yaml/monitoring · `intel` for models/benchmarks · `kaizen` for
+  a command's or rule's WORDING, a workflow step or a way of working (the feedback loop) — or
+  `--broadcast --ack no` when genuinely all-agents; an unaddressed hub send is REFUSED with this
+  guide; only a `--kind reply` carrying `--re` is exempt) or **fabrik-lib**
   (`--to fabrik-lib --kind upstream-feedback --ack required` — a bug/fix in a vendored module). `kind` ∈
   `request|finding|relay|reply|upstream-feedback`; a mail is a **pointer, not a payload** (64 KB cap;
   name paths, never paste secrets — `send` refuses credential patterns).
