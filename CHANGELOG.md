@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the three prepaid API credits get a capped, read-only lane: `scripts/api_credit.py` (2026-10-24)
+
+D-1198 (W-894f994f, under D-1196). `api_credit.py run` runs ONE `claude -p --bare --restricted` task on a credit key
+(`ANTHROPIC_API_KEY_CAN`/`_SARP`/`_OZGURBASAK`) with Read/Grep/Glob only, a vetted `--add-dir`, a stripped env and a
+fresh config dir; `status` reads each key's spend back; `settle` closes a crashed run. Each key is capped at $200 in a
+flocked ledger where an unknown cost counts as budget plus the model's per-call ceiling. The rule packs ai/00 and ai/50
+name the exception; ai/00's decision-model lane now cites D-555 instead of an open work item (master's
+`test_egress_wording_matches_the_work_item_state` red). First live run: sonnet, $0.0727.
+
 ### Fixed — master green again: the vps1 Postgres login-rotation script gets its hub-root disposition (2026-10-24)
 
 - `tests/test_hub_write_root.py` failed on master after `scripts/sysadmin/vps1_pg_scoped_logins.py` merged, because
