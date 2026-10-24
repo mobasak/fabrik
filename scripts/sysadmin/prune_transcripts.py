@@ -26,10 +26,14 @@ FAILS CLOSED (a doubt is a refusal, printed with its reason):
       equals the row's (`zstd -t` proves the frame, not the bytes);
   r6  the bucket lists that object with the SAME size and SHA1 as the local `.zst` (one
       `rclone lsf --format psh --hash SHA1` per slug; a listing that fails refuses the whole slug);
-  r7  every name of the inode — found NOW by (st_dev, st_ino) over the whole tree, never from the
-      manifest's `also_slugs` — passes r1–r3 and has its own manifest row; one name failing ⇒ the
-      inode is skipped, and names with DIFFERENT session ids (`names-differ`) are refused outright.
-      The names are unlinked in one pass after ONE ledger row naming them all.
+  r7  every MAIN name of the inode — `<slug>/<sid>.jsonl` and the set-aside `<slug>/<sid>.jsonl.
+      superseded-<digits>` (D-1188) at depth 2, found NOW by (st_dev, st_ino), never from the
+      manifest's `also_slugs` — passes r1–r3, and each LIVE name has its own manifest row (a set-aside
+      link is vouched through them); one name failing ⇒ the inode is skipped, names with DIFFERENT
+      base session ids (`names-differ`) are refused outright, and an inode whose only names are
+      set-asides is archived but refused (`set-aside-only`: session-recall indexes `*/*.jsonl` only).
+      The names are unlinked in one pass after ONE ledger row naming them all; a link under any
+      other name is not seen and keeps the inode's blocks.
   Then THE LAST LOOK, immediately before the unlink: a re-`stat` (size and mtime_ns unchanged since
   the hash) and r2 again; a change ⇒ `changed-under-hash`.
 
@@ -427,9 +431,12 @@ def _world(cap_override: int | None) -> World:
 
 
 def _main_files(projects: Path) -> list[tuple[Path, os.stat_result]]:
+    """Every MAIN name — live and set-aside (`at.main_key`) — live names first, so each inode's
+    first name, which keys its candidate, is a live one when it has one."""
     out = []
-    for p in sorted(projects.glob("*/*.jsonl")):
-        if "/subagents/" in str(p):
+    names = {q for g in at.MAIN_GLOBS for q in projects.glob(g)}
+    for p in sorted(names, key=at.main_sort_key):
+        if "/subagents/" in str(p) or at.main_key(p) is None:
             continue
         try:
             st = p.stat()
@@ -447,17 +454,21 @@ def _group(files: list[tuple[Path, os.stat_result]]) -> list[Candidate]:
         if key in groups:
             groups[key].names.append(p)
         else:
-            groups[key] = Candidate(p.stem, [p], st.st_mtime_ns, st.st_size, st.st_ino)
+            groups[key] = Candidate(at.main_key(p)[0], [p], st.st_mtime_ns, st.st_size, st.st_ino)
     return list(groups.values())
 
 
 def _newest(
     files: list[tuple[Path, os.stat_result]], agents: dict[str, str], latest: dict
 ) -> tuple[dict[str, str], dict[str, str]]:
-    """(slug → newest session id, agent → newest session id) over EVERY MAIN file, any age."""
+    """(slug → newest session id, agent → newest session id) over EVERY live MAIN file, any age. A
+    set-aside is never a resume point, and Claude Code refreshes its mtime when it sets it aside:
+    counted, a set-aside-only inode would displace the slug's real newest and unprotect it."""
     by_slug: dict[str, tuple[int, str]] = {}
     by_agent: dict[str, tuple[int, str]] = {}
     for p, st in files:
+        if at.SET_ASIDE_RE.fullmatch(p.name):
+            continue
         slug, sid = p.parent.name, p.stem
         if slug not in by_slug or st.st_mtime_ns > by_slug[slug][0]:
             by_slug[slug] = (st.st_mtime_ns, sid)
@@ -497,10 +508,16 @@ def evaluate_main(
             ),
             None,
         )
-        if len({n.stem for n in c.names}) > 1:
+        if len({at.main_key(n)[1] for n in c.names}) > 1:
             # a hand-made link under another session id: every per-name lookup (r3, r4, r7) would
-            # key on ONE stem, so the inode is refused outright (review 2026-10-11, pruner-S2)
+            # key on ONE stem, so the inode is refused outright (review 2026-10-11, pruner-S2); a
+            # set-aside is a name of its live session, compared by its base session id
             c.reason = "names-differ"
+        elif all(at.SET_ASIDE_RE.fullmatch(n.name) for n in c.names):
+            # archived under its own key, never pruned: session-recall indexes `*/*.jsonl` only, so
+            # an r8 pass for a set-aside name can only be a stale row (W-a2cae11b); Claude Code's own
+            # cleanup deletes set-asides
+            c.reason = "set-aside-only"
         elif c.mtime_ns > cutoff_ns:
             c.reason = "in-window"
         elif c.session_id in opened:
@@ -518,7 +535,13 @@ def evaluate_main(
     for c in cands:
         if c.reason:
             continue
-        rows = [latest.get((n.parent.name, c.session_id)) for n in c.names]
+        # r7 over the LIVE names: a set-aside link carries no row of its own — it is vouched through
+        # these rows (same inode), unlinked with them and listed in the ledger row's paths
+        rows = [
+            latest.get((n.parent.name, c.session_id))
+            for n in c.names
+            if not at.SET_ASIDE_RE.fullmatch(n.name)
+        ]
         if any(r is None for r in rows):
             c.reason = "not-archived"  # r7: one name without a row ⇒ the inode is skipped
             continue

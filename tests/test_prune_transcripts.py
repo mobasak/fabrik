@@ -1071,3 +1071,63 @@ def test_unit_file_runs_the_pruner_after_the_archiver_with_the_dash_prefix():
         " --apply --nightly"
     ), "Gate C passed 2026-10-12 (D-746): the unit applies"
     assert starts[2].startswith("ExecStart=-") and "rotate_session.py due" in starts[2]
+
+
+# ── set-asides (W-a2cae11b): `<sid>.jsonl.superseded-<ms>`, Claude Code's name for a moved-aside transcript ──
+
+
+def _set_aside(world: World, live: Path | None, slug: str, sid: str, ms: int, *, days: float = 10) -> Path:
+    """A set-aside: a hard link of `live` (Claude Code's measured shape), or an inode of its own."""
+    p = world.projects / slug / f"{sid}.jsonl.superseded-{ms}"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if live is not None:
+        os.link(live, p)
+    else:
+        p.write_bytes(json.dumps({"sid": sid, "aside": ms}).encode() * 40 + b"\n")
+        _age(p, days)
+    return p
+
+
+def test_pruning_a_live_name_also_unlinks_its_set_aside_links(world):
+    """r7 over EVERY MAIN name of the inode: a set-aside link (one in a slug with no live name of the
+    inode) is vouched through the live rows, unlinked in the same pass and named in the ledger row —
+    so the blocks are freed, and `--restore` puts every name back."""
+    live = world.projects / "-opt-alpha" / "a-old-10.jsonl"
+    near = _set_aside(world, live, "-opt-alpha", "a-old-10", 1792094167189)
+    far = _set_aside(world, live, "-opt-gamma", "a-old-10", 1792288372659)
+    world.ready()
+    verdict = world.evaluate()
+    assert verdict["a-old-10"] is None, verdict  # not names-differ, not not-archived
+    assert not any(k.startswith("a-old-10.superseded") for k in verdict), "one inode, one candidate"
+    n = sum(1 for v in verdict.values() if v is None)
+    assert _apply(n) == 0
+    assert not live.exists() and not near.exists() and not far.exists(), "a set-aside pinned the inode"
+    row = next(r for r in world.ledger() if r.get("session_id") == "a-old-10")
+    assert set(row["paths"]) == {str(live), str(near), str(far)}
+    assert pt.run(["--restore", "a-old-10"]) == 0
+    assert live.exists() and near.exists() and far.exists()
+    assert live.stat().st_ino == near.stat().st_ino == far.stat().st_ino
+
+
+def test_a_set_aside_only_inode_is_archived_but_never_pruned(world):
+    """No live name: session-recall indexes `*/*.jsonl` only, so an index row for this inode can only be
+    a stale one — the inode is archived under its own key and refused, even with that row."""
+    aside = _set_aside(world, None, "-opt-alpha", "a-gone", 1792029283292)
+    world.ready()
+    st = aside.stat()
+    world.index.append((st.st_ino, st.st_size))  # a stale pre-rename row
+    key = "a-gone.superseded-1792029283292"
+    assert (world.archive / "-opt-alpha" / f"{key}.jsonl.zst").is_file()
+    assert world.evaluate()[key] == "set-aside-only"
+    assert _apply(sum(1 for v in world.evaluate().values() if v is None)) == 0
+    assert aside.exists()
+
+
+def test_a_fresh_set_aside_never_displaces_the_newest_live_session(world):
+    """Claude Code refreshes a set-aside's mtime, so a set-aside-only inode is often the slug's newest
+    file; counted by r3 it would unprotect the slug's real newest live session."""
+    _set_aside(world, None, "-opt-beta", "b-older", 1792255742699, days=4)  # newer than b-old-05
+    world.ready()
+    v = world.evaluate()
+    assert v["b-older.superseded-1792255742699"] == "set-aside-only"
+    assert v["b-old-05"] == "newest-of-slug", v
