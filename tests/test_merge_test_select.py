@@ -568,6 +568,9 @@ REPLAY = [
     ("816625088", "tests/test_kaizen_outcomes.py"),
     ("3530aa790", "tests/test_hub_write_root.py"),
     ("9595c8d73", "tests/test_hub_write_root.py"),
+    # live, 2026-10-24: fleet's request merged green under touched-tests-only, then reddened this
+    # grader on master (the coordinator's report; W-b4ebe9f7)
+    ("66e37e977", "tests/test_hub_write_root.py"),
 ]
 
 
