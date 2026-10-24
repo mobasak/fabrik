@@ -455,8 +455,9 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   never travels). `mail.py sweep` is a **backstop, not the exit path** — it archives by AGE, read or not,
   handled or not; under handle-now it should find almost nothing, and a large sweep count is an alarm.
 - **Send / reach others:** `python scripts/mail.py send --to <recipient> --kind <k> [--ack required] < body`.
-  Reach **the hub** (`--to fabrik` — REQUIRES an addressee: `--to-agent infra` for
-  the rendering, sync and checks of commands/rules, and enforcement, hook, mail and workstation defects ·
+  Reach **the hub** (`--to fabrik` — REQUIRES an addressee: `--to-agent infra` for synced-file
+  defects (the rendering, sync and checks of commands/rules among them) and enforcement, hook, mail
+  and workstation defects ·
   `fleet` for VPS/deploy/spec-yaml/monitoring · `intel` for models/benchmarks · `kaizen` for
   a command's or rule's WORDING, a workflow step or a way of working (the feedback loop) — or
   `--broadcast --ack no` when genuinely all-agents; an unaddressed hub send is REFUSED with this
