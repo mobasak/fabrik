@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task reads the plan locks before the critique seats and re-reads its terminal before `--design` (2026-10-24)
+
+Phase 2 read the plan locks only after both critique seats had returned, so a locked path stopped the run after two seats were spent; the read now runs before the seats go out, and again before `--design` only for a path a critique added. The pre-`--design` checklist now re-reads `--terminal` against design.md's TERMINAL: ten earlier rejects had cited the `--terminal-amend` sentence and two more rows asked again. MEASURE replays a prior slice's stated reason when the design builds on it, and says a zero count is no fail direction: a verdict resting on one also runs the inputs the grammar admits and the corpus lacks. D-1192 raises `SIZE_CAP` 26951 → 27346; `tests/test_fabrik_task_queue_pass.py` grades the new order (W-0afeb296).
+
 ### Fixed — both contracts' Session history bullet says subagent transcripts are archived (2026-10-24)
 
 `CLAUDE.md` and `templates/governance/CLAUDE.md` still filed subagent transcripts with `~/.claude/tasks` and shell snapshots as "pruned after 3 days … NEVER archived", which D-1182 (infra's W-62d2ce7d) made false: a sidechain is now archived like a main transcript and pruned only once the archive vouches for it. Both bullets carry infra's sentence and `--restore <session_id | agent-<id>>`, the form `prune_transcripts.py::_restore_match` accepts; `tests/test_session_rotation_rule.py` pins both copies and refuses the old sentence (W-a1158ea0).

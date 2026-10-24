@@ -392,13 +392,13 @@ def test_measure_executes_the_incidents_sequel_both_geometries_prescribed_spelli
 
 
 def test_measure_replays_the_items_proposed_fix_and_reads_an_unreachable_source() -> None:
-    """Rows 1792467014 (a recurrence of held measure-refuted-ticket-premise) and 1792452880: a fix the item
+    """Rows 1792467014 (a recurrence of held measure-refuted-ticket-premise), 1792452880, 1792830212 and 1792780963: a fix the item
     proposed was adopted unreplayed, and an unreachable tool's claim was recorded unverified with its source unread;
     the read never upgrades the claim, since phase 1 counts a source read as no measurement."""
     phase1 = _section("## Phase 1", "## Phase 2")
     assert (
-        "A fix the item proposes is replayed the same way, on a copy, before the design adopts it; a replay that"
-        " overturns it is stated in PROBLEM."
+        "A fix the item proposes is replayed the same way, on a copy, before the design adopts it, and so is a prior"
+        " slice's stated reason the design builds on; a replay that overturns either is stated in PROBLEM."
     ) in phase1
     assert (
         "An unreachable tool's server source, where one exists, is read before a claim is recorded unverified, and"
@@ -532,3 +532,31 @@ def test_mirror_searches_other_checkouts_tests_for_a_changed_path() -> None:
         "docs), every other `/opt` main checkout's tests and CI files citing a changed path, and every vendored copy"
         " outside"
     ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_plan_locks_are_read_before_the_critique_seats_and_the_terminal_before_design() -> None:
+    """Row 1792834386: the plan-lock read sat after both critiques, so a locked path stopped the run only after two
+    seats were spent; it now runs before the seats go out, and again only for a path the critiques added. Rows
+    1792835476 and 1792831669 (ten answered rejects cite the `--terminal-amend` line, a line not followed): the
+    pre-`--design` checklist now re-reads `--terminal` against design.md's TERMINAL."""
+    phase2 = _section("## Phase 2", "## Phase 3")
+    lock = phase2.index("read the plan locks (no CLI does:")
+    assert phase2.index("Before the seats go out:") < lock < phase2.index("Wait for both in-turn")
+    assert "so a locked path stops the run before a seat is spent" in phase2
+    assert phase2.count("read the plan locks") == 1, "the lock read is stated twice in phase 2"
+    checklist = phase2[
+        phase2.index("Then, before this call:") : phase2.index(
+            "```bash python3 scripts/command_run.py"
+        )
+    ]
+    assert "the lock check again on each path the critiques added" in checklist
+    assert "re-read `design.md`, and `--terminal` against its TERMINAL" in checklist
+
+
+def test_measure_says_a_zero_count_is_no_fail_direction() -> None:
+    """Row 1792832940, a recurrence of held zero-instance-class-refusal-first: a no-change verdict rested on a corpus
+    count of zero for a shape the parser's grammar admits; MEASURE now runs the admitted inputs the corpus lacks."""
+    assert (
+        "the n behind any rate, bound or zero the design will claim (a count is no fail direction: a verdict resting on"
+        " a zero also runs the inputs the grammar admits and the corpus lacks);"
+    ) in _section("## Phase 1", "## Phase 2")

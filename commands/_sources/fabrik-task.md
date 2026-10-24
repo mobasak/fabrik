@@ -72,7 +72,8 @@ error path it claims there is replayed on a copy carrying the state it needs (a 
 miss, or a replay on a copy carrying that state that does not fail as claimed, is a finding PROBLEM states, never the
 item's wording, and a replay whose copy cannot carry that state is recorded unverified, never as refuted (MIRROR
 greps every name the design uses again). A fix the item proposes is replayed the same way, on a copy, before the
-design adopts it; a replay that overturns it is stated in PROBLEM. An unreachable tool's server source, where one
+design adopts it, and so is a prior slice's stated reason the design builds on; a replay that overturns either is
+stated in PROBLEM. An unreachable tool's server source, where one
 exists, is read before a claim is recorded unverified, and the read never upgrades it. Then, before phase 2 and any
 edit, each command and its output goes to
 `<durable>/measure.md`, beside phase 2's `design.md`, never in it (a pasted line opening with a field word or a `#`
@@ -87,7 +88,8 @@ thresholds measured (its readers are MIRROR's) — every writer, every
 occurrence of the shape it admits, every host it runs on, every config and env value a changed format can sit in
 (grep them for its shape, e.g. `${`), the transport handing a new env var to the process (compose `environment:`,
 `env_file`, a build arg, another launcher) read on the started process (e.g. `docker compose run --rm <svc> env`, its
-keys recorded, never its values), and the n behind any rate, bound or zero the design will claim; each external
+keys recorded, never its values), and the n behind any rate, bound or zero the design will claim (a count is no
+fail direction: a verdict resting on a zero also runs the inputs the grammar admits and the corpus lacks); each external
 contract probed live once, a list read whole, never a sample — each by EXECUTING the real path on real data (the
 producer's code, the tool's run output per mode, the design's own classifier, the writer of each state value it
 trusts or ranks on), never a source read or a proxy: the tests that drive it by subprocess, the completion gate's own
@@ -122,7 +124,10 @@ duplicate. So is each tag a parser it adds or extends reads, plus that tag quote
 
 {{include:design-critique}}
 
-Before the seats go out: re-read `design.md` against the working tree; DECISION names its evidence and whether it is
+Before the seats go out: re-read `design.md` against the working tree; read the plan locks (no CLI does: each `*.json`
+in `.fabrik/plan-locks/` with `status: active`) — a declared path or one backticked in APPROACH/MIRROR inside another
+lock's `owned_paths` is a STOP, and so is an ACTIVE lock whose `owned_paths` is empty or absent (it matches nothing
+and passes everything), so a locked path stops the run before a seat is spent; DECISION names its evidence and whether it is
 independent of the change; a shipped config is executed; the fixtures a grader borrows are listed with what each
 stubs; the existing suites run against a throwaway scratch build of a new refusal (not phase 3). This lane's brief
 also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher,
@@ -139,10 +144,9 @@ ACCEPTED only after the tests are grepped for every line it touches; an optional
 provable inside the declared files, else filed to its owner; a later executed review finding may override it,
 recorded in the D-row with the drift noted. A second approach the build cannot settle (an equivalent implementation
 is not one), its seat's claim executed and holding, is the § UPGRADE crossing `tradeoffs`, taken here before
-`--design`, never folded in as ACCEPTED. Then, before this call: read the plan locks (no CLI does: each `*.json` in
-`.fabrik/plan-locks/` with `status: active`) — a declared path or one backticked in APPROACH/MIRROR inside another
-lock's `owned_paths` is a STOP, and so is an ACTIVE lock whose `owned_paths` is empty or absent (it matches nothing
-and passes everything); re-read `design.md`; each Behaviour names its test; every touched path is bare in backticks
+`--design`, never folded in as ACCEPTED. Then, before this call: the lock check again on each path the critiques
+added; re-read `design.md`, and `--terminal` against its TERMINAL (a change rides this call as the `--terminal-amend`
+below); each Behaviour names its test; every touched path is bare in backticks
 under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
 
 ```bash
