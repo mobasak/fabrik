@@ -210,8 +210,12 @@ is there as in a worktree, never over a file the tree tracks — D-610; the hub'
 import or directory — plus every test whose text says `ls-files`, in 8 shards; it refuses a red that
 is new against the base (green, absent, or failing with another crash line there) and a run it
 could not finish, never one of master's own reds; outside a merge check it never checks out or
-cleans the worktree and compares nothing), (d) a CAS
-of the local base (up to three rebuilds), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
+cleans the worktree and compares nothing; a rebuild of a branch head whose last green merge differs
+from it only in the selector's SKIP set — ledgers and work items — re-tests nothing, W-347cd0c3), (d) a CAS
+of the local base (up to three rebuilds; every owner-test leg of one invocation, rebuilds and the
+catch-up included, draws on one budget of `MERGE_TEST_BUDGET_S` — a leg runs at most what is left,
+none starts under `LEG_FLOOR_S` left, and a spent budget refuses as not a test verdict, naming
+`retry <id>`, or `resume <id>` for a catch-up), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
 hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. A refusal acks `blocked` with the refused step; the requester fixes and sends a new
