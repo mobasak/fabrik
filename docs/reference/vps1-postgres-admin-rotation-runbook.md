@@ -37,6 +37,11 @@ The fourth column says whether a rotation breaks the consumer.
 
 ## Steps
 
+Steps 2-3, with step 1's stop checks and its sweep of the spokes, are scripted for the operator:
+`cd /opt/fabrik && python3 -I scripts/sysadmin/vps1_pg_scoped_logins.py` (W-80983d8c), one typed `yes` per block.
+Step 1's file sweep of vps1 itself is not in it: fleet ran it read-only on 2026-10-23. In place of step 3's `\password` prompts it sends a SCRAM verifier on ssh
+stdin (D-1177). It also records both logins in the hub `.env` (D-1176). Step 4 is not in it.
+
 ### 1. Inventory: read-only, any time
 
 On vps1, as the deploy user. Nothing changes, and every grep prints file names or masks values.
