@@ -18,6 +18,15 @@ All notable changes to this project will be documented in this file.
   command becomes `rund --timeout 5500 -- capped_run.sh --timeout 5400 -- python3 scripts/merge_request.py merge <id>`
   (D-1205, W-347cd0c3). The selector's tests are exempted from the merge-check grader, which had master red.
 
+### Fixed — The close's `[· cost: …]` bracket round-trips, and an unread transcript's seat count is unknown, not 0 (2026-10-24)
+
+- `scripts/command_run.py`: `_parse_usage_feedback` no longer leaves the usage grammar's optional-field brackets in the
+  fields — `filed: … [· cost: 0.01]` stores `filed` without a trailing `[` and `cost: 0.01`, where the close used to
+  refuse `0.01]`; a `]` anywhere else (a `filed:` id `[01M…]`) is kept. `_sum_transcript_usage` reports `seats_seen`
+  as null when the transcript was never read, and the close compares only a measured seat count — an unmeasured one
+  prints `seats declared N; seen unknown (transcript not read)` instead of a false `vs seen 0` mismatch (W-256d6877,
+  D-1208). `docs/reference/command-run-protocol.md` states both.
+
 ### Added — CSS-first Tailwind usage in the design-system template; colour slots kept out of the font-size namespace (2026-10-24)
 
 - `.windsurf/rules/core/design-system-template.md` gains `## Tailwind (CSS-first) usage` (D-1202): tokens, class detection, reuse order, values and layout, tooling — every line grounded on the page it cites, executed on Tailwind 4.3.3 where the docs are silent, no version literal. Its globs now reach `.astro` files and the CSS-first theme stylesheets (27 of 28 on the box).
