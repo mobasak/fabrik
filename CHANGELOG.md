@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — both contracts' Session history bullet says subagent transcripts are archived (2026-10-24)
+
+`CLAUDE.md` and `templates/governance/CLAUDE.md` still filed subagent transcripts with `~/.claude/tasks` and shell snapshots as "pruned after 3 days … NEVER archived", which D-1182 (infra's W-62d2ce7d) made false: a sidechain is now archived like a main transcript and pruned only once the archive vouches for it. Both bullets carry infra's sentence and `--restore <session_id | agent-<id>>`, the form `prune_transcripts.py::_restore_match` accepts; `tests/test_session_rotation_rule.py` pins both copies and refuses the old sentence (W-a1158ea0).
+
 ### Fixed — /fabrik-execute-plan's commit recipes write the message to a file, never a heredoc (2026-10-24)
 
 The command showed its six commit recipes as `git commit -m "$(cat <<'EOF' … EOF)"`, the compound shape the worktree isolation check may refuse. Each now writes the message with the Write tool to a per-commit file in the session scratchpad (`<scratch>/msg-<name>`; a subagent's is `msg-phase-{X}-task-{N}`, since parallel subagents may share the scratchpad) and commits with `git commit -F`, as `docs/reference/multi-agent-operating-model.md` already ruled; the archive step's `-m` and the merge-conflict comment's `&&` follow, and step 5 says one command per call. Scoped review CONVERGED 8 → 0 over three readers (W-0e42a4dc).
