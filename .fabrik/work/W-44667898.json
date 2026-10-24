@@ -3,7 +3,7 @@
   "created": "2026-10-24T10:29:32.696139Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "95f9b319293d5a9d1fc32f1d1094a107087ff02b",
   "id": "W-44667898",
   "impact": "high",
   "kind": "task",
@@ -17,8 +17,9 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
+  "resolved_by": "W-75cafe7a",
   "score_reason": "HIGH: a block on every agent — a false WALL holds all sessions; another repo's finding; effort low: one posture computation and a test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5b0kzqa3n51ejv1tp8atm2h"
   ],
