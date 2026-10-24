@@ -6,7 +6,7 @@ currency_pass: 2026-10-24
      GOAL: the Ocoron brand's values and voice — one fill of the design-system template
      AGENT USAGE: build with the template's slot names; take the values below. Never invent colours or fonts. -->
 
-# Ocoron Design System v3.1
+# Ocoron Design System v3.2
 
 > The Ocoron BRAND. ⚠️ **A HOUSE identity, chosen — never defaulted** (operator ruling 2026-08-29,
 > D-051): a project uses it only when its `docs/design-system.md` header declares it explicitly;
@@ -257,10 +257,11 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 
 ## Colour tokens
 
-Every slot `core/design-system-template.md` § Token slots names, for both modes. **Dark is the
-default mode.** In dark mode the state fills are light enough to read as text, so text ON them is
-near-black (`#0A0A0A`); in light mode they are dark enough to read as text, so text on them is white.
-The accent is the one fill that is never text in either mode — that is what `--color-accent-text` is for.
+Every slot `core/design-system-template.md` § Token slots names, for both modes, plus Ocoron's four
+brand fills (under the table). **Dark is the default mode.** In dark mode the state fills are light
+enough to read as text, so text ON them is near-black (`#0A0A0A`); in light mode they are dark enough to
+read as text, so text on them is white. The accent and the brand fills are the fills that are never text
+in either mode — for the accent, that is what `--color-accent-text` is for.
 
 | Slot | Dark | Light | Role |
 |---|---|---|---|
@@ -293,10 +294,23 @@ The accent is the one fill that is never text in either mode — that is what `-
 | `--color-ai` · `-text` | `#B483C8` | `#83459D` | AI-generated content and suggestions; category coding — fill and text are the same value in each mode |
 | `--color-ai-fg` | `#0A0A0A` | `#FFFFFF` | Text on the ai fill |
 | `--color-ai-muted` | `rgba(180,131,200,0.12)` | `rgba(131,69,157,0.12)` | The subtle ai tint |
+| `--color-brand-blue` | `#120AF1` | `#120AF1` | Brand FILL — marketing fills that carry their own white text (ocoron.com's homepage quadrants); never text, never a lone indicator or a chart series, never a state |
+| `--color-brand-magenta` | `#A50FEA` | `#A50FEA` | Brand FILL — as `--color-brand-blue` |
+| `--color-brand-green` | `#08941F` | `#08941F` | Brand FILL — as `--color-brand-blue`; not `--color-success` |
+| `--color-brand-orange` | `#EA880F` | `#EA880F` | Brand FILL — as `--color-brand-blue`; not `--color-warning` |
+| `--color-brand-fg` | `#FFFFFF` | `#FFFFFF` | Text on every brand fill — the operator's override (§ Contrast table, Brand fills) |
 | `--focus-ring` | `var(--color-accent)` | `var(--color-accent)` | 2px solid, offset 2px |
 
 `--color-secondary` and `--color-purple` are the retired names of `--color-warning` and `--color-ai`;
 keep them only as aliases in existing code (`--color-secondary: var(--color-warning)`).
+
+The four `--color-brand-*` fills are Ocoron's brand colours (operator ruling 2026-10-24: "blue 120AF1 /
+magenta A50FEA / green 08941F / orange EA880F", with "update brand color as well"). They are brand
+fills, not template semantic slots: a new SEMANTIC colour is proposed to the template first (template §
+Rules for Coding Agents, rule 1), while a brand's own colour is proposed here (§ Rules for coding agents,
+Brand rule 2). `--color-warning` and `--color-success` stay the states and their text. A pack that takes
+Ocoron's tokens (Tojlo, § Inheritance Contract) takes these fills and their white-text override with
+them, as an additive update.
 
 ## Contrast table
 
@@ -341,10 +355,27 @@ recomputed.
 **Forbidden pairs (whatever they compute to):** `--text-muted` on `--surface-3` (dark 4.49:1 — at the
 line, too risky for body text); `--color-accent` as TEXT on any surface (dark 3.76:1 on `--surface-1`;
 accent-as-text is `--color-accent-text`'s job); `--color-accent` text on `--color-accent-muted`; near-black text on `--color-accent` (4.04:1 — white
-it is, 4.90:1).
+it is, 4.90:1); a `--color-brand-*` fill as TEXT, a lone indicator or a chart series (as low as 1.94:1 across surface-0…2 — `--color-brand-blue` on dark `--surface-2`).
 
 **Why the accent text is mode-aware:** AA body text needs relative luminance ≥ 0.18866 on `#0A0A0A`
 but ≤ 0.18333 on white — a disjoint range no single hex satisfies (`#5B5BF7` sits at 0.16422).
+
+### Brand fills — the operator's white-text override (2026-10-24)
+
+This override covers the four `--color-brand-*` fills only; it is no template rule and changes no
+other pair in this file. The operator ruled white text on all four brand fills, "accepting 2.62:1 on orange and 3.99:1 on green
+as their call". For these four pairs only, that overrides template § Contrast contract (4.5:1 for
+`-fg` text on its fill, no large-text exception) and § Color Contrast ("Every text and control pair
+clears the thresholds"). Do not "fix" it with a darker fill or a near-black foreground: the values are
+a ruling, pinned by `tests/test_ocoron_contrast_table.py`, which recomputes every ratio below. The
+table has four columns on purpose — a five-column row would be held to a threshold.
+
+| Foreground | Background | Ratio (both modes) | Ruling |
+|---|---|---|---|
+| `--color-brand-fg` | `--color-brand-blue` | 8.98:1 | passes 4.5:1 |
+| `--color-brand-fg` | `--color-brand-magenta` | 5.45:1 | passes 4.5:1 |
+| `--color-brand-fg` | `--color-brand-green` | 3.99:1 | below 4.5:1 — operator override, do not "fix"; meets WCAG AA only as large text (24px+, or 18.66px+ bold) |
+| `--color-brand-fg` | `--color-brand-orange` | 2.62:1 | below 4.5:1 — operator override, do not "fix"; fails WCAG AA at every text size (large text needs 3:1) |
 
 ---
 
@@ -469,6 +500,11 @@ Tailwind config, fill shadcn's variables from them (template § Mapping to the s
   --color-ai-fg: #0A0A0A;
   --color-ai-text: #B483C8;
   --color-ai-muted: rgba(180,131,200,0.12);
+  --color-brand-blue: #120AF1;
+  --color-brand-magenta: #A50FEA;
+  --color-brand-green: #08941F;
+  --color-brand-orange: #EA880F;
+  --color-brand-fg: #FFFFFF;
   --focus-ring: var(--color-accent);
   --viz-1: var(--color-accent);
   --viz-2: var(--color-info);
@@ -524,6 +560,11 @@ Tailwind config, fill shadcn's variables from them (template § Mapping to the s
   --color-ai-fg: #FFFFFF;
   --color-ai-text: #83459D;
   --color-ai-muted: rgba(131,69,157,0.12);
+  --color-brand-blue: #120AF1;
+  --color-brand-magenta: #A50FEA;
+  --color-brand-green: #08941F;
+  --color-brand-orange: #EA880F;
+  --color-brand-fg: #FFFFFF;
 }
 ```
 
