@@ -142,7 +142,8 @@ The following levers apply in order, and each keeps the rule:
   `command_feedback_report.py --queue` shows `remove:` rows first. **Cobra:** `remove: none` everywhere. The
   digest reports the ratio of `remove: none`, and kaizen reads it as the loop's lean signal.
 - L1's checker and L2's refusal are code in infra's beat (`assemble_commands.py`, `command_run.py`). They land as
-  plan tickets owned by infra. The command wording that names them (the `close-feedback` fragment and the
+  plan tickets owned by infra, under the existing item W-a9b5e763 (infra-2, blocked by this spec). The plan
+  points at that item and does not mint a second one. The command wording that names them (the `close-feedback` fragment and the
   `/fabrik-command-improve` source) is kaizen's.
 
 ## Order
