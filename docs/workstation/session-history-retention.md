@@ -16,7 +16,7 @@ local, the four named hub windows, never a session visible on screen), D-737 (Ph
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
 | `scripts/sysadmin/transcript_size_check.py` | user-level hook (every window) | the ROTATE advisory (D-736 C.1.3): one `ROTATE:` line when a session's transcript crosses a new 100 MB step at or past `ROTATE_ADVISE_MB` (200) — at the next item boundary `rotate <agent>` to the coordinator, who types `/clear <agent>-<date>` and the informed `--force` re-bind; and the context sensor (W-f975fee0): `ROTATE-DUE` from 40% of the window, `COMPACT-DUE` from 85%, once per step; stamped per session, fail-open |
 | `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript (`ARCHIVE_AFTER_DAYS`, default 0 — an open window ships a daily snapshot, compressed from a frozen copy) into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest; since D-1182 also every subagent transcript (`<slug>/<session-dir>/subagents/**/*.jsonl` — sidechains, workflow sidechains, workflow journals; not `.meta.json`) into `~/.claude/archive/<slug>/<rel>.zst` with its row in its OWN `manifest-subagents.jsonl` (keyed slug + `rel`, the path under the slug dir), uploaded beside the MAIN one; a sidechain that fails to archive prints `FAILED … the pruner keeps it` and the night goes on |
-| `scripts/sysadmin/prune_transcripts.py` | main checkout — the unit's second `ExecStart=-` line, after the archiver | the ONLY deleter of MAIN transcripts (D-736 C.2): on `--dry-run` (a hand run; the unit ran this mode until Gate C passed on 2026-10-12) it prints the table and writes a summary row to `~/.claude/archive/prune-log.jsonl`; on `--apply --nightly` it deletes the oldest `PRUNE_MAX_PER_RUN` (200) transcripts that pass EVERY guard — older than `PRUNE_AFTER_DAYS` (3), not an OPEN session, not a project's or an agent's newest, indexed by session-recall to the current inode and size, current sha256 = the manifest row's, the `.zst` decompressing to those bytes, the bucket listing it with the same size and SHA1, every hard-linked name passing — one fsynced `pruned.jsonl` row BEFORE each unlink; `--restore <session_id>` puts one back, `--verify-ledger` re-lists every pruned object, `--status` shows the last row and the last apply row; the subagent tier: a sidechain (`<slug>/<sid>/subagents/agent-*.jsonl`) older than 3 days is deleted only when the archive vouches for it (D-1182: its `manifest-subagents.jsonl` row, then the same sha256 / `.zst` / bucket checks, then the last look) and `--restore agent-<id>` puts it back; `~/.claude/tasks` and `~/.claude/shell-snapshots` stay a 3-day cliff, never archived; the workflow sidechains (`subagents/workflows/…`) are archived and never pruned |
+| `scripts/sysadmin/prune_transcripts.py` | main checkout — the unit's second `ExecStart=-` line, after the archiver | the ONLY deleter of MAIN transcripts (D-736 C.2): on `--dry-run` (a hand run; the unit ran this mode until Gate C passed on 2026-10-12) it prints the table and writes a summary row to `~/.claude/archive/prune-log.jsonl`; on `--apply --nightly` it deletes the oldest `PRUNE_MAX_PER_RUN` (200) transcripts that pass EVERY guard — older than `PRUNE_AFTER_DAYS` (3), not an OPEN session, not a project's or an agent's newest, indexed by session-recall to the current inode and size, current sha256 = the manifest row's, the `.zst` decompressing to those bytes, the bucket listing it with the same size and SHA1, every hard-linked live name passing, its set-aside links (`<session>.jsonl.superseded-<ms>`) unlinked with them and a set-aside-only inode never deleted (D-1188) — one fsynced `pruned.jsonl` row BEFORE each unlink; `--restore <session_id>` puts one back, `--verify-ledger` re-lists every pruned object, `--status` shows the last row and the last apply row; the subagent tier: a sidechain (`<slug>/<sid>/subagents/agent-*.jsonl`) older than 3 days is deleted only when the archive vouches for it (D-1182: its `manifest-subagents.jsonl` row, then the same sha256 / `.zst` / bucket checks, then the last look) and `--restore agent-<id>` puts it back; `~/.claude/tasks` and `~/.claude/shell-snapshots` stay a 3-day cliff, never archived; the workflow sidechains (`subagents/workflows/…`) are archived and never pruned |
 
 Install (from the main checkout, once the archiver change is merged):
 
@@ -61,6 +61,22 @@ copies them and enables the timer.
   while the session appends. A run killed mid-copy leaves that folder behind; the next run removes it.
 - **Hard links** (D-467 links worktree transcripts into their repo's lane) are archived once; the
   row's `also_slugs` names the other folders.
+- **Set-asides** (W-a2cae11b, D-1188): when Claude Code relocates a transcript onto a destination
+  already holding one, it renames the occupant `<slug>/<session>.jsonl.superseded-<ms>`. Both scripts
+  treat that name as a MAIN name. A set-aside that is a hard link of a live `<session>.jsonl` (the
+  usual case) is archived with it, never written into `also_slugs`, and pruned in the same pass that
+  prunes its live names. Before this fix, such a link kept the inode's blocks on disk. A set-aside
+  that is the only name of its inode is archived under its own key — object
+  `<slug>/<session>.superseded-<ms>.jsonl.zst` — and the pruner never deletes it (`set-aside-only`):
+  session-recall indexes `*/*.jsonl` only, so it cannot vouch for one.
+  - Claude Code's own cleanup deletes set-asides. One that it creates and deletes between two
+    nightly runs is never archived.
+  - One that it deletes after an archive has no `pruned.jsonl` row. Fetch it as in § Restore below —
+    `--fetch '/<slug>/<session>.superseded-<ms>.jsonl.zst' /tmp/r.zst`, then
+    `zstd -d /tmp/r.zst -o ~/.claude/projects/<slug>/<session>.jsonl.superseded-<ms>`.
+  - Two pruned inodes can share one session id: the set-aside one and the transcript moved in over
+    it. `prune_transcripts.py --restore <session>` then refuses, listing each slug. Pick one with
+    `--slug=<slug>`, written with `=` because every slug starts with `-`.
 
 ## Restore
 
@@ -108,8 +124,8 @@ with the archive, so the list is off-box too.
 
 ```bash
 cd /opt/fabrik
-.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug <slug>]
-.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore agent-<id> [--slug <slug>]   # a sidechain
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug=<slug>]
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore agent-<id> [--slug=<slug>]   # a sidechain
 ```
 
 - A session id selects MAIN rows only; `agent-<id>` selects only sidechain rows whose path ends in

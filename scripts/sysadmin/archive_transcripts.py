@@ -40,6 +40,12 @@ older row's bytes live on as a prior version in the bucket (it keeps all version
 Hard links (D-467 links worktree transcripts into their repo's lane) are archived ONCE per
 (st_dev, st_ino), under the first slug in sorted order; the others go in `also_slugs`.
 
+SET-ASIDES (D-1188): Claude Code renames a transcript it relocates over to
+`<slug>/<sid>.jsonl.superseded-<ms>` (`SET_ASIDE_RE`). It is a MAIN name: an inode that also has a live
+`<sid>.jsonl` name is archived under that live name (live names sort first, `main_sort_key`) and the
+set-aside's slug never enters `also_slugs`; a set-aside-ONLY inode is archived under its own key
+`<sid>.superseded-<ms>`, object `<slug>/<sid>.superseded-<ms>.jsonl.zst` (`main_key`, `local_name`).
+
 THE `agent` KEY (Phase C.1, D-736): a row carries `"agent": "<name>"` when the session is bound to
 a hub agent — the latest `agent-identity.jsonl` row for its session id (what `whoami_agent.py`
 writes), else the REGISTRY JOIN: the `~/.claude/sessions/<pid>.json` entry carrying this session
@@ -87,6 +93,12 @@ from pathlib import Path
 MANIFEST_NAME = "manifest.jsonl"
 SUBAGENT_MANIFEST_NAME = "manifest-subagents.jsonl"  # the subagent tier's rows (D-1182)
 SUBAGENT_GLOB = "*/*/subagents/**/*.jsonl"
+# A set-aside (W-a2cae11b): Claude Code's `relocateSessionTranscript` renames a transcript occupying a
+# destination to `<sid>.jsonl.superseded-<ms>`. ASCII classes on purpose: `\d` takes non-ASCII digits,
+# which `prune_transcripts._SID_RE` could not restore.
+SET_ASIDE_RE = re.compile(r"([A-Za-z0-9][A-Za-z0-9_-]*)\.jsonl\.superseded-([0-9]+)")
+_SET_ASIDE_KEY_RE = re.compile(r"([A-Za-z0-9][A-Za-z0-9_-]*)\.superseded-([0-9]+)")  # its key
+MAIN_GLOBS = ("*/*.jsonl", "*/*.jsonl.superseded-*")
 LOCK_NAME = ".archive.lock"
 SNAPSHOT_PREFIX = ".snapshot-"  # the frozen copy of a transcript being archived; never shipped
 REMOTE = "sessionb2"
@@ -210,12 +222,37 @@ def _remote_base() -> str:
 # ── selection and archiving (A.1, A.1a, A.1b) ───────────────────────────────────────────────
 
 
+def main_key(p: Path) -> tuple[str, str, bool] | None:
+    """(manifest key, base session id, is a set-aside) for a MAIN name, else None. A live
+    `<sid>.jsonl` keys as `<sid>`; a set-aside `<sid>.jsonl.superseded-<ms>` as `<sid>.superseded-<ms>`,
+    so a set-aside-ONLY inode never takes the key of a different live file beside it. A live stem that
+    itself reads `<sid>.superseded-<ms>` would collide with that key and is not a MAIN name."""
+    m = SET_ASIDE_RE.fullmatch(p.name)
+    if m:
+        return f"{m.group(1)}.superseded-{m.group(2)}", m.group(1), True
+    if p.suffix == ".jsonl" and not _SET_ASIDE_KEY_RE.fullmatch(p.stem):
+        return p.stem, p.stem, False
+    return None
+
+
+def main_sort_key(p: Path) -> tuple[bool, Path]:
+    """Live names before set-asides, so an inode with a live name keeps its live key and primary slug
+    (plain Path order puts `-opt-x/<sid>.jsonl.superseded-*` before `-opt-x--wt/<sid>.jsonl`)."""
+    return SET_ASIDE_RE.fullmatch(p.name) is not None, p
+
+
+def local_name(key: str) -> str:
+    """The on-disk name a manifest key describes — the inverse of `main_key`, by the same grammar."""
+    m = _SET_ASIDE_KEY_RE.fullmatch(key)
+    return f"{m.group(1)}.jsonl.superseded-{m.group(2)}" if m else f"{key}.jsonl"
+
+
 def main_transcripts(projects: Path, after_days: float) -> list[Path]:
-    """MAIN transcripts only — `*/subagents/*` is a separate tier (`subagent_transcripts`)."""
+    """MAIN transcripts only — live names and set-asides; `*/subagents/*` is a separate tier."""
     cutoff = time.time() - after_days * 86400
     out = []
-    for p in projects.glob("*/*.jsonl"):
-        if "/subagents/" in str(p):  # defensive: the glob cannot reach them, the tier can
+    for p in {q for g in MAIN_GLOBS for q in projects.glob(g)}:  # a set: a name may match both
+        if "/subagents/" in str(p) or main_key(p) is None:  # the tier reaches subagents/, not this
             continue
         if p.is_file() and p.stat().st_mtime <= cutoff:
             out.append(p)
@@ -236,16 +273,23 @@ def subagent_transcripts(projects: Path, after_days: float) -> list[Path]:
 
 
 def _group_by_inode(paths: list[Path]) -> list[tuple[Path, list[str]]]:
-    """One (primary path, other slugs) per file; the primary is the first path in sorted order."""
+    """One (primary path, other slugs) per file; the primary is the first path in `main_sort_key`
+    order (a live name when the inode has one). The other slugs are those of its other LIVE names: a
+    set-aside LINK never enters `also_slugs`, which reads as "`<slug>/<sid>.jsonl` is a name of this
+    inode" — the pruner vouches a set-aside link through its inode's live rows (a set-aside-ONLY
+    inode is its own primary, with a row of its own)."""
     groups: dict[tuple[int, int], list[Path]] = {}
-    for p in sorted(paths):
+    for p in sorted(paths, key=main_sort_key):
         try:
             st = p.stat()
         except FileNotFoundError:  # vanished between the scan and this stat (C.2): say so, go on
             print(f"  vanished {p} (removed since the scan) — skipped")
             continue
         groups.setdefault((st.st_dev, st.st_ino), []).append(p)
-    return [(ps[0], sorted({q.parent.name for q in ps[1:]})) for ps in groups.values()]
+    return [
+        (ps[0], sorted({q.parent.name for q in ps[1:] if not SET_ASIDE_RE.fullmatch(q.name)}))
+        for ps in groups.values()
+    ]
 
 
 def _latest_rows(manifest: Path) -> dict[tuple[str, str], dict]:
@@ -387,7 +431,8 @@ def list_agent(manifest: Path, name: str, projects: Path) -> list[str]:
         else:  # absent, null, or a scalar the archiver never writes: no aliases (archiver-S8)
             also = []
         slugs = [str(r.get("project_slug") or ""), *also]
-        local = any((projects / s / f"{r.get('session_id')}.jsonl").exists() for s in slugs if s)
+        name = local_name(str(r.get("session_id")))
+        local = any((projects / s / name).exists() for s in slugs if s)
         out.append(
             f"{r.get('session_id')} {r.get('project_slug')} bytes={r.get('bytes')} "
             f"archived_at={r.get('archived_at')} local={'yes' if local else 'no'}"
@@ -418,7 +463,10 @@ def archive_one(
         )
         return None
     if tier_key is None:
-        slug, session_id = src.parent.name, src.stem
+        name_key = main_key(src)
+        if name_key is None:
+            raise ArchiveError(f"{src} is not a MAIN transcript name")  # main_transcripts never yields one
+        slug, session_id = src.parent.name, name_key[0]
         key = (slug, session_id)
         dest = archive_root / slug / f"{session_id}.jsonl.zst"
     else:
@@ -427,7 +475,12 @@ def archive_one(
         dest = archive_root / slug / f"{rel}.zst"
     prev = latest.get(key)
     if tier_key is None:
-        # a hard-linked twin's row lives under its primary slug (`also_slugs`)
+        # a hard-linked twin's row lives under its primary slug (`also_slugs`) — but only while that
+        # primary key still names the row: once another inode's row owns it (Claude Code moved a new
+        # transcript in, setting this one aside), the object there is the other inode's bytes, so this
+        # inode is archived again under its own slug (review W-a2cae11b r1, O1)
+        if prev and latest.get((prev["project_slug"], session_id)) is not prev:
+            prev = None
         archived = bool(prev) and (archive_root / prev["project_slug"] / dest.name).exists()
     else:
         archived = bool(prev) and dest.exists()
@@ -641,8 +694,9 @@ def _archive(args: argparse.Namespace) -> int:
         agents = _agents()
         rows = []
         for src, also in _group_by_inode(todo):
+            base = (main_key(src) or ("", src.stem, False))[1]  # a set-aside's agent is its session's
             try:
-                row = archive_one(src, archive_root, max_bytes, latest, also, agents.get(src.stem))
+                row = archive_one(src, archive_root, max_bytes, latest, also, agents.get(base))
             except FileNotFoundError as exc:
                 if src.exists():  # a missing zstd or archive dir, not a vanished transcript
                     raise ArchiveError(f"could not archive {src}: {exc}") from exc

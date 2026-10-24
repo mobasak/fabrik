@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
   `backups/` (same filesystem, so the rename stays atomic), and a test proves a failed rename leaves nothing new in the
   hub root.
 
+### Fixed — set-aside chat transcripts are archived, and pruned with their live names (2026-10-24)
+
+Claude Code renames a transcript it relocates over to `<session>.jsonl.superseded-<ms>`. Both retention scripts globbed `*/*.jsonl` only, which had two effects:
+- One such file (371,647 bytes) had no off-box copy.
+- Pruning a live name left its set-aside hard links holding the inode on disk, about 6 GB here once those names age out.
+
+`archive_transcripts.py` and `prune_transcripts.py` now treat the name as a MAIN name:
+- A set-aside link is archived and pruned with its live session.
+- A set-aside-only inode is archived under its own key and never pruned.
+- An `also_slugs` alias row vouches for an inode only while its primary key still names that row.
+- `--restore` refuses a session id that was pruned under two slugs, and asks for `--slug=<slug>`.
+
+D-1188, W-a2cae11b; `docs/workstation/session-history-retention.md` § Set-asides.
 ### Added — the hub's own merge-time test leg: differential, name-reference selection (2026-10-24)
 
 - `.fabrik/merge-tests` runs `scripts/merge_test_select.py` in each merge's build tree (W-4e756979, D-1189). The tests it selects are those naming a changed path (file, module stem, import, specific directory) plus every `ls-files` tree grader. They run in 8 shards, each red is confirmed alone and then in its shard's order, and the leg refuses only a red that is new against the base. Master's own reds pass. Without it, `merge_request.py` ran only the tests a branch touched, and the measured red-master merges were each red by themselves. All 17 measured cause merges select their red grader. Three real merges took 487 / 1189 / 1172 s, so the coordinator runs merges in the background (`scripts/rund --timeout 2100 -- capped_run.sh --timeout 2000 -- merge_request.py merge <id>`). The leg is on for every merge by D-1186, from the merge after the one that lands it.
