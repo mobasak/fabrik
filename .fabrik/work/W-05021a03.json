@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "HIGH: part of the operator's P0 throughput complaint; infra-3 offered to take it after B; LOW: one exit-code split plus callers",
   "status": "open",
+  "tags": [
+    "waits-quota"
+  ],
   "title": "Part D of P0 W-1fb11ec8 (the operator's 2.5-hour merge-cycle complaint): agents_up.sh rotate-session callers loop retrying on PERMANENT refusals (aborted:resolve, a stale identity binding) as if they were transient (aborted:status). Make the verb's exit name transient vs permanent, so a caller retries only the transient ones"
 }
