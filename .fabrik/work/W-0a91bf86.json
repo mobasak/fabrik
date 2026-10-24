@@ -3,7 +3,7 @@
   "created": "2026-10-24T22:50:37.258466Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "e345a5a479248961120605b54991dc95cac3ad72",
   "id": "W-0a91bf86",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 0,
   "score_reason": "P0 program member: kaizen's spec cuts where the minutes are; intel's beat (benchmarks); LOW: one measurement table",
-  "status": "open",
+  "status": "done",
   "title": "Lean program (D-1216) MEASURE for W-96f36043: per-phase wall-clock breakdown of /fabrik-task, /fabrik-review and /fabrik-review-scoped runs since 2026-10-06 (step timestamps, seat dispatch/return windows, round gaps, gate runs, command-text reading), plus the per-run token cost of the rendered command text; one markdown table with denominators, to kaizen and the coordinator; no fixes"
 }
