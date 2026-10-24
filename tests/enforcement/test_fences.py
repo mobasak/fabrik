@@ -367,8 +367,9 @@ def test_phase_tests_fails_soft_without_the_scanner(tmp_path: Path) -> None:
 
 
 def test_the_span_blanker_has_one_copy() -> None:
-    """W-b9af1d47: docs_updater and check_doc_links blank inline code spans with `_fences.blank_code_spans` —
-    two copies of one parser drift (Lesson 103), so neither caller keeps its own scan."""
+    """W-b9af1d47: docs_updater blanks inline code spans with `_fences.blank_code_spans`, and check_doc_links and
+    check_doc_index blank fences then spans with `_fences.blank_code_examples` (W-85bd72fa) — two copies of one
+    parser drift (Lesson 103), so no caller keeps its own scan."""
     du_src = (ROOT / "scripts" / "docs_updater.py").read_text(encoding="utf-8")
     cdl_src = (ENF / "check_doc_links.py").read_text(encoding="utf-8")
     for name in (
