@@ -15,7 +15,7 @@
   },
   "next": "list the 26 matches, park each whose trigger has not fired with work.py assign --tag waits-<slug>, and make migrate-backlog emit the waits- tag for such rows",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — queue offers blocked items as ready",
   "status": "open",
