@@ -63,9 +63,10 @@ RAN = (0, 1, 5)
 _BASETEMP = re.compile(r"[^\s'\"]*/pytest-of-[^/\s]+/pytest-\d+/")
 # and an object's address in its repr (`<function exists at 0x7f…>`), new in every process
 _ADDRESS = re.compile(r"\bat 0x[0-9a-fA-F]+\b")
-# and a name `tempfile` makes with its default prefix (`tmpk3j9_2xq`: "tmp" + 8 of [a-z0-9_]);
-# a custom-prefix name is left alone, since that rule also merged two different failures
-_TMPNAME = re.compile(r"(?<![\w-])tmp[a-z0-9_]{8}(?![\w-])")
+# and a path component `tempfile` names with its default prefix (`/tmpk3j9_2xq`: "tmp" + 8 of
+# [a-z0-9_]); only as a path component, since an identifier like `tmp_results` is the failure's
+# own, and a custom-prefix name is left alone (that rule merged two different failures)
+_TMPNAME = re.compile(r"(?<=/)tmp[a-z0-9_]{8}(?![\w-])")
 # a record line naming no id: the leg refused without a verdict, so the base-alone run measures nothing
 _LEG_MARK = "#leg-failed"
 # The recording plugin: one JSON line per failed report (a collection error's id is the file).
@@ -118,7 +119,9 @@ def import_patterns(path: str) -> set[str]:
     pkg = r"\.".join(re.escape(m) for m in mod[:-1])
     return {
         rf"(?<![\w.]){pkg}\.{name}(?![\w])",
-        rf"\bfrom\s+{pkg}\s+import\s*\(?[\w\s,\\]*?(?<![\w.]){name}(?![\w])",
+        # inside parentheses anything up to the `)` (names, line breaks, comments); without them
+        # one logical line: names, commas, blanks and backslash continuations, never a next statement
+        rf"\bfrom\s+{pkg}\s+import\s*(?:\([^)]*?|(?:[ \t\w,]|\\\n)*?)(?<![\w.]){name}(?![\w])",
     }
 
 
@@ -277,9 +280,12 @@ def _checkout(commit: str) -> None:
 
 def _parallel(runner: _Runner, groups: list[list[str]], what: str) -> dict:
     """Each group in its own process, its files in order; the reds of all, or a LegError."""
-    started = [runner.start(g) for g in groups if g]
+    started: list = []
     reds: dict = {}
     try:
+        for g in groups:  # started one by one, so a start that fails still has its elders reaped
+            if g:
+                started.append(runner.start(g))
         for i, args in enumerate(started):
             rc, got, tail = runner.finish(*args)
             if rc not in RAN:
@@ -373,6 +379,8 @@ def differential(
         try:
             _checkout(merge)
         except LegError as back:
+            if err is not None and not isinstance(err, Exception):
+                raise err from back  # an interrupt stays an interrupt; the restore failure rides along
             raise LegError(f"{err!r}; then {back}" if err else str(back)) from err
     new, old = [], []
     for key, msg in sorted(confirmed.items()):
@@ -442,7 +450,8 @@ def main(argv: list[str] | None = None) -> int:
     print("\n".join(lines))
     if new:
         ids = ", ".join(nid for (nid, _when), _msg in new)
-        verdict = f"red — {len(new)} new failure(s): {ids}"[:1000]
+        what = "new failure(s)" if in_merge else "failure(s), not compared with the base"
+        verdict = f"red — {len(new)} {what}: {ids}"[:1000]
     else:
         verdict = "green"
     print(f"merge-tests: {verdict} in {time.monotonic() - t0:.0f}s")

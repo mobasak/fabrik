@@ -54,8 +54,11 @@ def test_name_and_stem_select():
         "tests/test_prefix.py": "import xfabrik.state",  # another package's module
         "tests/test_inner.py": "a.fabrik.state",  # an attribute path, not the import
         "tests/test_name.py": "from fabrik import statement",
+        "tests/test_comment.py": "from fabrik import (\n    cli,  # why\n    state,\n)",
+        "tests/test_nextstmt.py": "from fabrik import cli\nimport os\nstate = 2",  # a later line
     }
     assert mts.select(["src/fabrik/state.py"], imports) == [
+        "tests/test_comment.py",
         "tests/test_cont.py",
         "tests/test_dotted.py",
         "tests/test_from.py",
@@ -305,6 +308,9 @@ def test_the_record_and_the_base_alone_run(tmp_path, monkeypatch, capsys):
     (repo / "library_x.py").write_text(LIB_BRANCH + "# uncommitted\n")
     rc, out = _run(repo, monkeypatch, capsys, merge_check=False)
     assert rc == 1 and not record.exists() and "not compared with the base" in out, out
+    # the verdict says so too: nothing was compared, so nothing is called new
+    verdict = out.strip().splitlines()[-1]
+    assert "not compared with the base" in verdict and "new failure" not in verdict, verdict
     assert (repo / "wip.txt").exists() and "# uncommitted" in (repo / "library_x.py").read_text()
     assert _git(repo, "symbolic-ref", "--short", "HEAD") == "master"
     _git(repo, "checkout", "-q", "--", "library_x.py")
@@ -439,6 +445,39 @@ def test_a_red_outside_the_selected_files_is_a_leg_failure():
         mts.differential(["tests/test_a.py"], "M", "B", runner, 1, compare=False)
 
 
+def test_a_start_that_fails_still_reaps_the_groups_already_started():
+    slow = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+
+    class Runner:
+        def start(self, files):
+            if files == ["b"]:
+                raise OSError("too many open files")
+            return slow, files, None
+
+        def finish(self, proc, files, _log):
+            return 0, {}, ""
+
+    with pytest.raises(OSError, match="too many open files"):
+        mts._parallel(Runner(), [["a"], ["b"]], "shard")
+    assert slow.poll() is not None
+
+
+def test_an_interrupt_during_the_base_run_stays_an_interrupt_when_the_restore_fails(monkeypatch):
+    runner = _FakeRunner({("tests/test_a.py::test_a", "call"): "boom"})
+    calls = []
+
+    def checkout(commit):
+        calls.append(commit)
+        if len(calls) == 2:
+            raise KeyboardInterrupt  # mid base checkout
+        if len(calls) == 3:
+            raise mts.LegError("the restore failed")
+
+    monkeypatch.setattr(mts, "_checkout", checkout)
+    with pytest.raises(KeyboardInterrupt):
+        mts.differential(["tests/test_a.py"], "M", "B", runner, 1, compare=True)
+
+
 def test_a_failed_restore_keeps_the_first_error(monkeypatch):
     runner = _FakeRunner({("tests/test_a.py::test_a", "call"): "boom"})
     calls = []
@@ -547,6 +586,10 @@ def test_the_crash_line_is_compared_without_the_runs_temp_paths():
     )
     assert mts.normalise("missing /tmp/tmpfiles_old/out") != mts.normalise(
         "missing /tmp/tmpfiles_new/out"
+    )
+    # only as a path component: an identifier that happens to read tmp + 8 is the failure's own
+    assert mts.normalise("NameError: name 'tmp_results' is not defined") != mts.normalise(
+        "NameError: name 'tmp_resultz' is not defined"
     )
 
 
