@@ -7718,3 +7718,17 @@ document.
   superseded by a new row, never edited.
 - **Where it lives.** `scripts/enforcement/check_doc_index.py::_blank_examples`,
   `scripts/enforcement/_fences.py::blank_code_examples`, `docs/DECISIONS.md` (D-1179, D-1183).
+
+## A data-loss size is counted per inode, never per file name — hard links multiply a byte count, not the risk (2026-10-24)
+
+- **What happened.** W-a2cae11b reported 9 set-aside transcripts, about 12 GB, with no off-box copy. A `find -printf
+  '%i %n'` showed 6 inodes, 5 of them hard links of a live `<sid>.jsonl` whose bytes the manifest already held byte
+  for byte. The bytes with no copy were one file of 371,647 bytes. The other real defect was disk, not loss: the
+  pruner never saw the set-aside links, so they would have pinned about 6 GB after pruning the live names.
+- **Mechanism.** On a tree where hard links are routine (D-467 lanes, Claude Code's own relocation), a sum of file
+  sizes counts each inode once per name, and "no copy" for a name says nothing about its inode's other names.
+- **How to apply.** (1) Size a loss claim with `%i %n` and group by inode before designing. (2) Check every name
+  of each inode against the archive (`find -inum`). (3) Put the overturned figure in PROBLEM and the D-row, so the
+  item's number does not travel on.
+- **Where it lives.** `scripts/sysadmin/archive_transcripts.py::main_key`,
+  `scripts/sysadmin/prune_transcripts.py::evaluate_main`, `docs/DECISIONS.md` (D-1188).
