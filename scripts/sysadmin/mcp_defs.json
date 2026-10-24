@@ -114,6 +114,14 @@
       },
       "type": "stdio"
     },
+    "rea": {
+      "args": [
+        "mcp"
+      ],
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/rea-agents",
+      "env": {},
+      "type": "stdio"
+    },
     "serena": {
       "args": [
         "start-mcp-server",

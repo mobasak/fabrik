@@ -43,6 +43,19 @@ name the exception; ai/00's decision-model lane now cites D-555 instead of an op
 - `tests/test_ocoron_fonts.py` pins the font names across the packs and fails on any retired spelling outside the
   Tojlo override.
 
+### Fixed — /fabrik-reverse-engineer listed among the commands with no closing pass (2026-10-24)
+
+- `scripts/command_run.py`: `NO_CLOSING_PASS` gains `fabrik-reverse-engineer`, whose source orders only a
+  `round --seats --findings` fan-out close, so its budget advisory no longer tells a run to take a closing pass
+  the command never orders. The merge test found it on `test_no_closing_pass_set_matches_the_command_sources`
+  (W-eff97ae7). The review's latent findings on that test's line-by-line rule are backlog W-6411f6d0.
+
+### Added — REA reverse-engineering MCP (hub-class) and /fabrik-reverse-engineer (2026-10-24)
+
+- `scripts/sysadmin/mcp_defs.json` gains `rea` (Reverse Engineer Anything, `rea-agents`): a stdio server launched from the pinned global install (`npm install -g --ignore-scripts rea-agents@6.7.0`), never REA's own `setup`, which would write `~/.claude.json` and a personal skill. The emitter's hub-class rule carries it to the hub and fabrik-lib only (D-1199); `docs/workstation/mcp-roster.md` § REA records install, scope, reach and update.
+- `/fabrik-reverse-engineer` (`commands/_sources/fabrik-reverse-engineer.md`, NEXT entry, dashboard slot and services row): one feature of a public website, Electron app, APK or binary → a behaviour-only spec under `docs/reference/reverse-engineering/`, in five phases (LOOK · UNDERSTAND · PLAN · BUILD · ITERATE) with Scout / Spec-Writer / Builder / Tester seats and a clean-room check.
+- `tests/test_emit_mcp_project_config.py`: the `rea` entry is a pinned absolute stdio launch (no npx, no @latest, no credential) and reaches the hub class and no scaffold type or overlay.
+
 ### Fixed — master green again: the vps1 Postgres login-rotation script gets its hub-root disposition (2026-10-24)
 
 - `tests/test_hub_write_root.py` failed on master after `scripts/sysadmin/vps1_pg_scoped_logins.py` merged, because
