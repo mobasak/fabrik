@@ -636,3 +636,114 @@ def test_replay_of_measured_red_merges(cause, grader):
     ]
     tests = {n: _show("show", f"{cause}:{n}") for n in names}
     assert grader in mts.select(changed, tests)
+
+
+# --- W-347cd0c3: a rebuild after a ledger-only base move re-tests nothing ------------------------
+
+GREEN_REPO = {
+    "library_x.py": "VALUE = 1\n",
+    "tests/test_mod.py": "import library_x\n\ndef test_mod():\n    assert library_x.VALUE == 1\n",
+    ".fabrik/work/W-00000001.json": "{}\n",
+    "notes.txt": "notes\n",
+}
+
+
+def _green_record(repo: Path, branch_head: str) -> Path:
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    return common / "fabrik-merge" / f"merge-tests-green-{branch_head}.txt"
+
+
+def _rebuild(repo: Path, base_files: dict[str, str | None]) -> str:
+    """What `_merge_into_base` does after a failed CAS: the base moved (``base_files`` committed on
+    the merge's first parent), and the same branch head is merged ``--no-ff`` again."""
+    _git(repo, "checkout", "-q", "-f", "master")
+    _git(repo, "reset", "-q", "--hard", "HEAD^1")
+    _write(repo, base_files)
+    _git(repo, "add", "-A", "--", *base_files)  # never the leg's own __pycache__
+    _git(repo, "commit", "-qm", "chore(work): the base moves")
+    _git(repo, "merge", "--no-ff", "-q", "-m", "merge again", "feat")
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def test_a_rebuild_after_only_ledger_moves_skips_the_re_test(tmp_path, monkeypatch, capsys):
+    repo = _repo(tmp_path, GREEN_REPO)
+    _base, first = _merge(repo, {"library_x.py": "VALUE = 1\n# the branch\n"})
+    feat = _git(repo, "rev-parse", "feat")
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "1 test file(s)" in out, out
+    assert _green_record(repo, feat).read_text().strip() == first
+    second = _rebuild(repo, {".fabrik/work/W-00000001.json": '{"a": 1}\n', "CHANGELOG.md": "x\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "test file(s) from" not in out, out  # no selection, no leg
+    assert (
+        f"re-test skipped — only ledger/work-item paths changed since the green merge {first[:12]}"
+        in out
+    ), out
+    assert out.strip().splitlines()[-1].startswith("merge-tests: green"), out
+    assert _green_record(repo, feat).read_text().strip() == second  # the latest green merge
+
+
+def test_a_green_record_short_circuits_only_when_valid_and_ledger_only(
+    tmp_path, monkeypatch, capsys
+):
+    repo = _repo(tmp_path, GREEN_REPO)
+    _base, first = _merge(repo, {"library_x.py": "VALUE = 1\n# the branch\n"})
+    feat = _git(repo, "rev-parse", "feat")
+    assert _run(repo, monkeypatch, capsys)[0] == 0
+    record = _green_record(repo, feat)
+    # a base move touching any path outside the SKIP set re-runs the full selection
+    _rebuild(repo, {"notes.txt": "the base moved\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "1 test file(s)" in out and "re-test skipped" not in out, out
+    # ... and so does one touching a ledger AND a path outside the set (every path must be SKIP)
+    _rebuild(repo, {".fabrik/work/W-00000001.json": '{"c": 3}\n', "notes.txt": "again\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "1 test file(s)" in out and "re-test skipped" not in out, out
+    # each invalid record is ignored, with its reason, and the full selection runs
+    head = _rebuild(repo, {".fabrik/work/W-00000001.json": '{"b": 2}\n'})
+    plain = _git(repo, "rev-parse", "HEAD^1")  # a one-parent commit
+    for text, why in (
+        ("not a sha\n", "not a commit id"),
+        ("f" * 40 + "\n", "names no commit here"),
+        (head + "\n", "it names this merge"),
+        (plain + "\n", "not a merge of this branch head"),
+    ):
+        record.write_text(text)
+        rc, out = _run(repo, monkeypatch, capsys)
+        assert rc == 0 and f"green record ignored ({why})" in out, (text, out)
+        assert "1 test file(s)" in out and "re-test skipped" not in out, (text, out)
+    # a green merge whose base is not behind this one (another line of history) is ignored too
+    _git(repo, "checkout", "-q", "-f", "--orphan", "other")
+    _git(repo, "rm", "-rqf", ".")
+    _write(repo, {"other.txt": "o\n"})
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "unrelated root")
+    _git(repo, "merge", "--no-ff", "-q", "--allow-unrelated-histories", "-m", "m", "feat")
+    record.write_text(_git(repo, "rev-parse", "HEAD") + "\n")
+    _git(repo, "checkout", "-q", "-f", "--detach", head)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "green record ignored (its base is not behind this one)" in out, out
+
+
+def test_the_green_record_is_written_only_on_a_green_merge_check(tmp_path, monkeypatch, capsys):
+    repo = _repo(tmp_path, GREEN_REPO)
+    _merge(repo, {"library_x.py": "VALUE = 2\n"})  # test_mod goes red
+    feat = _git(repo, "rev-parse", "feat")
+    record = _green_record(repo, feat)
+    assert _run(repo, monkeypatch, capsys)[0] == 1 and not record.exists()
+    _git(repo, "checkout", "-q", "-f", "master")
+    assert _run(repo, monkeypatch, capsys, args=("--list",))[0] == 0 and not record.exists()
+    _git(repo, "update-ref", "refs/remotes/origin/master", "HEAD^1")
+    rc, out = _run(repo, monkeypatch, capsys, merge_check=False)
+    assert rc == 1 and not record.exists(), out
+    # a record that cannot be written leaves a green verdict green, and says so
+    _git(repo, "checkout", "-q", "-f", "master")
+    _git(repo, "reset", "-q", "--hard", "HEAD^1")
+    _git(repo, "branch", "-qD", "feat")
+    _merge(repo, {"library_x.py": "VALUE = 1\n# fine\n"})
+    record = _green_record(repo, _git(repo, "rev-parse", "feat"))
+    record.mkdir(parents=True)  # os.replace onto a directory fails
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "green record not written" in out, out
+    assert out.strip().splitlines()[-1].startswith("merge-tests: green"), out

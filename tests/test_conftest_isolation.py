@@ -632,6 +632,9 @@ def test_no_test_opts_itself_into_a_merge_check():
         here / "conftest.py",
         Path(__file__).resolve(),
         here / "test_merge_request_merge.py",
+        # the selector IS the merge leg: its tests drive merge-check mode, each inside monkeypatch or
+        # a subprocess env, never module-wide (W-4e756979's tests, exempted by W-347cd0c3)
+        here / "test_merge_test_select.py",
     }
     candidates = list(here.rglob("*.py")) + [
         p

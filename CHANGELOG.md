@@ -8,6 +8,16 @@ All notable changes to this project will be documented in this file.
 
 `.windsurf/rules/core/ocoron-design-system.md` (v3.2) adds `--color-brand-blue|magenta|green|orange` (#120AF1, #A50FEA, #08941F, #EA880F) and `--color-brand-fg` #FFFFFF, marketing fills that are never text, indicators or states; the white text is the operator's override (green 3.99:1, orange 2.62:1), recorded with its ratios in § Contrast table. `tests/test_ocoron_contrast_table.py` pins the ruled values and recomputes the override rows, the quoted ratios and the lowest on-surface ratio. W-79008127, D-1206.
 
+### Fixed — a merge's owner tests fit inside its documented wrapper (2026-10-24)
+
+- `scripts/merge_request.py`: one owner-test budget per invocation (`MERGE_TEST_BUDGET_S`, two full legs);
+  every leg runs at most what is left, none starts under `LEG_FLOOR_S`, and a leg that runs out the budget
+  refuses as "not a test verdict", naming `retry` (or `resume` for a catch-up), never as a red; the
+  requester's reply says to change nothing. `scripts/merge_test_select.py`: a rebuild whose only change since
+  the branch head's last green merge is in the SKIP set (ledgers, work items) re-tests nothing. The merge
+  command becomes `rund --timeout 5500 -- capped_run.sh --timeout 5400 -- python3 scripts/merge_request.py merge <id>`
+  (D-1205, W-347cd0c3). The selector's tests are exempted from the merge-check grader, which had master red.
+
 ### Added — CSS-first Tailwind usage in the design-system template; colour slots kept out of the font-size namespace (2026-10-24)
 
 - `.windsurf/rules/core/design-system-template.md` gains `## Tailwind (CSS-first) usage` (D-1202): tokens, class detection, reuse order, values and layout, tooling — every line grounded on the page it cites, executed on Tailwind 4.3.3 where the docs are silent, no version literal. Its globs now reach `.astro` files and the CSS-first theme stylesheets (27 of 28 on the box).
