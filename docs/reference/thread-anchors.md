@@ -2,7 +2,11 @@
 
 **What:** `scripts/thread_anchor.py` + two hook wirings. The Stop hook harvests every response's
 `NEXT:` line to `~/.claude/state/threads/<session>.json`; `SessionStart` and `UserPromptSubmit`
-re-inject the open anchors into every prompt as a `## 🧵 OPEN THREADS` block. Fleet-synced
+re-inject the open anchors into every prompt as a `## 🧵 OPEN THREADS` block — on `UserPromptSubmit`
+only when it changed: a block byte-identical to the last full one this session was shown, under 30 minutes
+old, prints as ONE line, `work: unchanged since the last full block above — reprint: python3
+scripts/thread_anchor.py line --session <id> --repo .` (its digest is `<session>.prompt-digest` beside the
+state file, written after the print; `SessionStart` always prints in full; W-25f6b2a3). Fleet-synced
 (`CORE_SCRIPTS`) because `.claude/settings.json` — itself synced — references it.
 
 **Why (measured, 2026-08-29, one live session):** 905 `NEXT:` lines emitted, **zero** ever read

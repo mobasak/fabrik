@@ -1139,3 +1139,28 @@ def test_a_seat_runs_a_mutant_against_whole_test_files() -> None:
         "never from the live tree beyond what the seat prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`, "
         "`GATE_PINS`) take from the live disk and name UNPINNED."
     )
+
+
+def test_a_fix_reshaping_a_rule_subject_lists_the_old_cases_before_drafting() -> None:
+    """Row 1792730405 (a recurrence of held fix-narrowed-input-strands-defensive-guards): a round-1 fix split a rule's
+    subject, and the cases the new wording no longer covered cost the next two rounds. The Sweep bullet, read before
+    the draft, quotes /fabrik-review's replaced-form question and its enumeration rule verbatim, and names the record
+    each command keeps the list in."""
+    cat = re.sub(r"\s+", " ", CAT.read_text())
+    question = "does the new form still hold EVERY shape the form it replaces held"
+    quote = (
+        "the shapes enumerated from the OLD form before the fix is drafted, never from the new one"
+    )
+    assert (
+        "held to `/fabrik-review-scoped` step 3's rule for what is already stated; a fix that narrows, widens or splits"
+        " a rule's subject is held to `/fabrik-review`'s \""
+        + question
+        + '", with "'
+        + quote
+        + '": here each case'
+        " no new clause covers, two now cover or only the new wording reaches, listed with where it now lands or, with"
+        " its reason, that it is dropped on purpose, where your command records the fix (`/fabrik-review`'s Pass Ledger `method:` cell,"
+        " `/fabrik-review-scoped`'s report);"
+    ) in cat
+    review = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text())
+    assert question in review and quote in review

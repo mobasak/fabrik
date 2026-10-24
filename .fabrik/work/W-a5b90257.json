@@ -20,7 +20,8 @@
   "score_reason": "one misleading routing phrase in the fleet template; same-line edit",
   "status": "open",
   "tags": [
-    "queued"
+    "queued",
+    "waits-quota"
   ],
   "title": "templates/governance/CLAUDE.md:449-450 (fleet-synced): '`--to-agent infra` for commands/rules/enforcement/hooks/mail defects' reads as ALL command and rule work, though the same line gives kaizen 'a command's or rule's WORDING' — say '`--to-agent infra` for the rendering, sync and checks of commands/rules, enforcement, hooks and mail defects' (kaizen's W-9be0b1c1 review follow-up, 2026-10-23)"
 }

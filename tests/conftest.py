@@ -49,6 +49,11 @@ for _var in ("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS", "CLAUDE_CODE_SUBAGENT_MODEL
 # process-level default below survives any undo; a test that wants a root still sets its own.
 os.environ["FABRIK_MAIL_ROOT"] = tempfile.mkdtemp(prefix="pytest-mail-root-")
 
+# The two prompt hooks keep a per-session digest of the block they last printed (W-25f6b2a3): pinned here so
+# no test that drives `mail_notify.main` or `thread_anchor.py line` with a session id writes ~/.claude/state.
+os.environ["MAIL_NOTIFY_STATE_DIR"] = tempfile.mkdtemp(prefix="pytest-mail-notify-")
+os.environ["THREAD_ANCHOR_DIR"] = tempfile.mkdtemp(prefix="pytest-thread-anchor-")
+
 # Likewise no test takes a lock in the operator's real lock dir (fabrik.locks_local, now ~/.cache/fabrik-locks,
 # W-1f70f2e9): tests that call state.save or an allocation without pinning one left state-*.lock files in the old
 # /tmp default. Set at the top, before any collected module imports locks_local and reads it.

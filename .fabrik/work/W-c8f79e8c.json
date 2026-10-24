@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:31:22.142265Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c8f79e8c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5MW30RB9REWYTD0YDK37W6N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "four doc rows for W-25f6b2a3 slice 2 sit inside your fabrik-deck plan lock — please carry them"
+}

@@ -20,7 +20,8 @@
   "score_reason": "MEDIUM: one gate run grades the same INDEX.md link in check_doc_index while check_doc_links skips it since W-b9af1d47 — an inconsistency with real value, nobody blocked; LOW effort: reuse _fences.py in one reader; synced path, so one commit after the full review",
   "status": "open",
   "tags": [
-    "medium"
+    "medium",
+    "waits-quota"
   ],
   "title": "check_doc_index's own link reader grades INDEX.md links held in inline code spans or fenced blocks — check_doc_links skips both since W-b9af1d47, so one gate run can grade the same INDEX.md link in one check and skip it in the other"
 }

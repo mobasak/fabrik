@@ -147,12 +147,17 @@ time). The user unit `fabrik-rotate.path` starts `fabrik-rotate.service` (`rotat
 re-runs every check, types `/clear <agent>-<date>` (or `/compact <focus>`) — each text pasted, then `C-m` as its own
 call once the input line shows that text unchanged over two captures, then the input line must hold something other
 than that text (empty, a placeholder, a dialog) (an Enter sent right behind the paste was swallowed, W-b92aa5cf) —
-waits for the registry's new session id,
-then types one resume prompt — re-arm the self-watch (a /clear may kill or orphan background shells), re-bind with
+waits for the registry's new session id, re-points the repo's `.fabrik/session-agents.json` entry from the old
+session id to the new one itself (W-b72231b8, D-1175: only for the checkout the old session's binding names; a file
+agents_up.sh would refuse, a missing entry or a hand edit since its read is left alone, and the state is rowed as
+`registry`), then types one resume prompt — re-arm the self-watch (a /clear may kill or orphan background shells), re-bind with
 `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force`, read only the memory notes, `work.py next` and
-the run's seed — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
+the run's seed, the notes and any output the harness saved to a file through the Read tool and each command as a
+separate Bash call, never sed, awk or head on a shell variable (Claude Code's worktree isolation stops on that for a
+person — W-1783a9fe, D-1173) — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
 `partial:<step>`, `typed-unsent:<step>` — a text that never showed, never settled, or stayed in the input line after `C-m` —, and the verb's `aborted:<check>`) in
-`~/.claude/state/rotations.jsonl`. Nothing is queued or retried: keys typed mid-turn would
+`~/.claude/state/rotations.jsonl`, with `resume_sent_at` and, for a bound row, `rebind_s` (the bind's own time minus
+the send). A bind later than the 90 s window still rows `partial:rebind`; a grace for it is W-b72231b8's slice 2. Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
 reports). The previous session stays resumable and is archived that night.
 

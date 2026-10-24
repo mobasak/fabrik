@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:19:02.477189Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f1191ec5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5MVZ2NFYP3VQ2VVDSMPNSGF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-quota"
+  ],
+  "title": "/fabrik-review seat isolation: PIN_IMPORT/PYTEST_PINS are ~15 KB single lines seats skip, and a pins-only copy cannot run tests (conftest needs tests/memguard.py)"
+}

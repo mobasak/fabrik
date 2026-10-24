@@ -17,10 +17,10 @@
     "7b6d1bc1afa5bd9b93b2b691c5c52e65f67d159b20e66701ecf8cb79769baf32"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-23: 'ok but record it .env file proceed' — approved now; the new postgres admin password (and the two scoped logins) are recorded in /opt/fabrik/.env (backed up first), not only handed over",
   "owner": "",
   "priority": 2,
   "question": "May fleet run the vps1 Postgres admin-login rotation now, following docs/reference/vps1-postgres-admin-rotation-runbook.md step by step (read-only inventory that stops on any non-loopback trust line; three generated passwords stored mode 0600; create the `glitchtip` and `postgres_exporter` logins and move GlitchTip's ownership; save the old hash for rollback, then change the `postgres` password; update every consumer, end old sessions, watch the log; hand you the new password)?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May fleet run the vps1 Postgres admin-login rotation now, following docs/reference/vps1-postgres-admin-rotation-runbook.md step by step (read-only inventory that stops on any non-loopback trust line; three generated passwords stored mode 0600; create the `glitchtip` and `postgres_exporter` logins and move GlitchTip's ownership; save the old hash for rollback, then change the `postgres` password; update every consumer, end old sessions, watch the log; hand you the new password)?"
 }

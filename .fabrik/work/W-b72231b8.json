@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:27:31.152563Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b72231b8",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the time from resume prompt to binding across today's ok rows; fix so a late bind is detected and recorded (longer window or a follow-up check that upgrades the row), and the verb itself re-points .fabrik/session-agents.json; regression test; zero partial:rebind on the next rotations",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: an operator ask ('i do not accept any failure in /clear'), a break on the agents' rotation; effort low: one script's rebind step + test",
+  "status": "open",
+  "title": "Operator 2026-10-23: 'i do not accept any failure in /clear command. fix these. Rotated, re-bind step incomplete' — rotate_session.py marks partial:rebind when the fresh session's whoami --as binding lands after the 90 s rebind window (rotate_session.py:924-938). Today 4 of 19 completed rotations: 3 before W-b92aa5cf (09:32, prompt never submitted, bound 30-130 min later) and 1 after (infra-3 17:39, bound 8 s past the window). Nothing re-checks a late bind, so the row stays partial and the coordinator re-points the registry by hand."
+}

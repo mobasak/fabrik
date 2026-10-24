@@ -9,11 +9,11 @@
   "kind": "backlog",
   "legacy": false,
   "links": {
-    "decision": "",
-    "plan": "",
-    "spec": ""
+    "decision": "D-1169",
+    "plan": "docs/development/plans/2026-10-23-plan-1-spoke-watchdog-apprise-mesh-gate.md",
+    "spec": "docs/superpowers/specs/2026-10-23-spoke-watchdog-apprise-mesh-gate-design.md"
   },
-  "next": "size it: a port allocation + live vps1 compose change is deploy-gated; spec the URL rewrite and preflight, board the publish through the coordinator; ACCEPTANCE: once a spoke watchdog can alert, lift D-1153's refusal AND remove the D-1156 opt-out (watchdog: {enabled: false}) from specs/services/spoke-canary.yaml (8b7ae0ee6), then apply the canary as the spoke-watchdog proof",
+  "next": "plan CONVERGED (D-1169, 47c563c9d): run /fabrik-execute-plan docs/development/plans/2026-10-23-plan-1-spoke-watchdog-apprise-mesh-gate.md — Phases A-B build inline, Phase C ends at ONE deploy gate (attachment lock + gate up + probes) BEFORE the merge request",
   "note": "",
   "owner": "fleet",
   "priority": 1,
@@ -22,7 +22,8 @@
   "tags": [
     "deploy",
     "fleet",
-    "queued"
+    "queued",
+    "waits-quota"
   ],
   "title": "Mesh-publish apprise for spoke watchdogs, then lift W-37dda1e1's spoke refusal: apprise has no mesh port (10.99.0.1:8000 is glitchtip; 8000 is in the spokes' FABRIK_MESH_ONLY_PORTS drop list) — allocate a port in PORTS.md, publish it in the live /opt/apprise/compose.yaml (deploy gate) and mirror infra/vps1/apprise, rewrite the sidecar URL for spokes, add WatchdogConfig.apprise_url if an override is wanted, and add the hardened spoke login preflight the W-37dda1e1 critiques specified (sudo test -f <home>.json and <home>/.credentials.json, only when claude-code is primary or fallback, distinct text for an ssh failure vs MISSING, the target the ssh actually hits)"
 }

@@ -1029,7 +1029,25 @@ def _is_paused(paused: dict[str, dict], agent: str, tree: Path, workers: dict[st
     if agent and agent in paused:
         return agent
     by_tree = next((n for n, t in workers.items() if t == tree), "")
-    return by_tree if by_tree and by_tree in paused else ""
+    if by_tree and by_tree in paused:
+        return by_tree
+    # a linked tree re-keyed to its bound agent, or dropped as an agent's second window (W-84ad2ff1): a pause
+    # recorded under its directory name still covers it, unless a worker carries that name — then it is that
+    # agent's pause, not this tree's
+    linked = tree.parent.parts[-2:] == (".claude", "worktrees")
+    by_dir = linked and tree.name != by_tree and tree.name not in workers
+    return tree.name if by_dir and tree.name in paused else ""
+
+
+def _paused_workers(paused: dict[str, dict], workers: dict[str, Path]) -> dict[str, str]:
+    """{worker: the pause name covering it} — `_is_paused` per worker, so the floor, triage and status honour a
+    pause under a re-keyed tree's directory name exactly as the Stop hook does."""
+    out = {}
+    for name, tree in workers.items():
+        hit = _is_paused(paused, name, tree, workers)
+        if hit:
+            out[name] = hit
+    return out
 
 
 def _caller_pause(tree: Path, session: str) -> dict | None:
@@ -4356,7 +4374,10 @@ def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
             f"pausing {name} is {name}'s own, the distributor's ({distributor or 'none'}) "
             f"or the operator's; this caller is {actor}"
         )
-    known = set(_workers(main)) | {distributor, _feedback_owner(main)}
+    # a linked tree's directory name stays a known pause target when the tree is re-keyed to its bound agent or
+    # dropped as a second window (W-84ad2ff1): `_is_paused` honours a pause under it
+    trees = {t.name for t in _worktrees(main)[1:]}
+    known = set(_workers(main)) | trees | {distributor, _feedback_owner(main)}
     if name not in known:
         _warn(
             f"{name} is no worker tree, distributor or feedback owner here — the pause reaches only "
@@ -5292,11 +5313,114 @@ def _feedback_owner(main: Path) -> str:
     return str(cfg.get("distributor") or "").strip()
 
 
+_PROC_CACHE: dict[str, tuple[float, list[tuple[int, Path]] | None]] = {}
+_PROC_TTL_S = (
+    2.0  # one Stop hook reads the roster and presence a few times; a new window is seen within 2 s
+)
+
+
+def _claude_procs() -> list[tuple[int, Path]] | None:
+    """(pid, cwd) of every windowed `claude` process — comm `claude`, not a `-p`/`--print` child — read from /proc
+    (or the root in FABRIK_WORK_PROC); None when the process table cannot be read. ONE scan, shared by `_workers`
+    and `_present` and cached for `_PROC_TTL_S` per proc root, so a test that re-points the root gets a fresh one."""
+    root_s = os.environ.get("FABRIK_WORK_PROC") or "/proc"
+    hit = _PROC_CACHE.get(root_s)
+    if hit and time.monotonic() - hit[0] < _PROC_TTL_S:
+        return hit[1]
+    root = Path(root_s)
+    try:
+        entries = [e for e in root.iterdir() if e.name.isdigit()]
+    except OSError:
+        _PROC_CACHE[root_s] = (time.monotonic(), None)
+        return None
+    found: list[tuple[int, Path]] = []
+    for entry in entries:
+        try:
+            if (entry / "comm").read_text(encoding="utf-8").strip() != "claude":
+                continue
+            argv = _proc_argv(entry)
+            if argv and _argv_prints(argv):
+                continue  # a `claude -p` child in the tree is not a window (01M4PAJWV1)
+            found.append((int(entry.name), Path(os.readlink(entry / "cwd")).resolve()))
+        except (OSError, RuntimeError, ValueError):
+            # RuntimeError: a symlink loop under resolve() on Python 3.12; ValueError: a comm that is not UTF-8
+            # (any bytes may be set by prctl PR_SET_NAME), or an entry name that is a non-ASCII numeral
+            continue
+    _PROC_CACHE[root_s] = (time.monotonic(), found)
+    return found
+
+
+def _proc_agent(pid: int, rows: Callable[[], list[dict]]) -> str:
+    """The agent a claude process is bound to (W-84ad2ff1): `CLAUDE_AGENT` in its environ (how agents_up launches a
+    builder), else the whoami store's LAST row with this pid AND this pid_start — field 22 of its stat, whoami's own
+    unit and pid-reuse guard (whoami_agent.py `_pid_start`), which a /clear keeps — under the name rule; "" when
+    neither reads. Fail-open: an unreadable environ or stat, or no matching row, is no name."""
+    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc") / str(pid)
+    try:
+        for kv in (root / "environ").read_bytes().split(b"\0"):
+            if kv.startswith(b"CLAUDE_AGENT="):
+                name = kv.split(b"=", 1)[1].decode("utf-8", "replace").strip()
+                if _valid_name(name):
+                    return name
+    except OSError:
+        pass
+    try:
+        raw = (root / "stat").read_text(encoding="utf-8", errors="replace")
+        start = int(raw[raw.rindex(")") + 1 :].split()[19])
+    except (OSError, ValueError, IndexError):
+        return ""
+    bound = ""
+    for row in rows():
+        if _as_int(row.get("pid")) == pid and _as_int(row.get("pid_start")) == start:
+            bound = str(row.get("name") or "")  # LAST row wins, as whoami resolves
+    return bound if _valid_name(bound) else ""
+
+
+def _as_int(value: object) -> int | None:
+    """A stored pid or start time as an int (whoami_agent.py `_as_int`): a digit string counts, a bool never does."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None  # a non-ASCII digit such as '²' passes isdigit but not int()
+    return None
+
+
+_WHOAMI_MOD: list = []  # whoami_agent.py, loaded once per process (a Stop hook builds the roster several times)
+
+
+def _whoami_rows() -> list[dict]:
+    """Every whoami store row, read through `WHOAMI_PY` (its own path and lock); [] when it cannot be read."""
+    try:
+        if not _WHOAMI_MOD:
+            spec = importlib.util.spec_from_file_location("_work_whoami_rows", WHOAMI_PY)
+            if spec is None or spec.loader is None:
+                return []
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _WHOAMI_MOD.append(mod)
+        mod = _WHOAMI_MOD[0]
+        return list(mod._rows(mod.store_path()))
+    except Exception:
+        return []
+
+
 def _workers(main: Path) -> dict[str, Path]:
     """Registered `<main>/.claude/worktrees/<name>` trees that are not harness worktrees. A feedback
     owner that is not the distributor is NOT a pool worker: its tree is dropped here, so the doorbell
     rung never fires for it and the distributor's triage never routes general backlog to it — its
-    queue is the feedback ledger, not the pool (design critique, Opus #4)."""
+    queue is the feedback ledger, not the pool (design critique, Opus #4).
+
+    A tree holding a live window is named by the agent that window is bound to, not by its directory
+    (W-84ad2ff1: infra's window in `infra-uncapped` read as an empty worker below the floor). When every
+    named window in the tree gives one valid name N other than the directory: N is the distributor or
+    the (non-distributor) feedback owner → the tree leaves the pool; N's own-named tree is live too →
+    this is N's second window and leaves the pool; else the tree is keyed N, replacing an idle N tree.
+    Two stray live trees bound to one N, or an unreadable binding, keep their directory names."""
     base = (main / ".claude" / "worktrees").resolve()
     out: dict[str, Path] = {}
     owner = _feedback_owner(main)
@@ -5309,6 +5433,71 @@ def _workers(main: Path) -> dict[str, Path]:
             if owner and tree.name == owner and owner != distributor:
                 continue
             out[tree.name] = tree
+    procs = _claude_procs() if out else None
+    if not procs:
+        return out
+    try:
+        return _rekey(out, procs, distributor, owner)
+    except Exception:
+        return out  # fail-open: any surprise in the binding read leaves today's directory roster
+
+
+def _rekey(
+    orig: dict[str, Path], procs: list[tuple[int, Path]], distributor: str, owner: str
+) -> dict[str, Path]:
+    """`_workers`' re-key, decided against the unchanged directory map `orig` and independent of /proc order:
+    every live tree's bound name N is read first, then each tree gets one fate — DROPPED (bound to the distributor
+    or the non-distributor feedback owner, or N's own tree holds N's window: this is a second window), KEPT under
+    its directory (unbound, ambiguous, or N is held by a tree that itself keeps its name), or RENAMED to N, which
+    replaces an idle tree of that name. Kept names are found to a fixed point, so a rename never lands on a key a
+    kept tree still holds; two trees bound to each other's names swap."""
+    rows: list[dict] | None = None
+
+    def _rows() -> list[dict]:
+        nonlocal rows
+        if rows is None:
+            rows = _whoami_rows()  # read only when some window carries no CLAUDE_AGENT
+        return rows
+
+    names: dict[str, set[str]] = {}
+    live: set[str] = set()
+    for pid, cwd in procs:  # order-free: every fate below is decided on sets
+        for key in sorted(orig):
+            tree = orig[key]
+            if cwd == tree or tree in cwd.parents:
+                live.add(key)
+                # an unnamed window reads as its directory's agent (fail-open), so it counts as that name
+                names.setdefault(key, set()).add(_proc_agent(pid, _rows) or key)
+    bound = {k: next(iter(v)) for k, v in names.items() if len(v) == 1 and next(iter(v)) != k}
+    claims: dict[str, list[str]] = {}
+    for key in sorted(bound):
+        claims.setdefault(bound[key], []).append(key)
+    dropped = {
+        k
+        for k, n in bound.items()
+        if n == distributor
+        or (owner and n == owner and owner != distributor)
+        # N's own tree is live and holds only N's windows: this is N's second window
+        or names.get(n) == {n}
+    }
+    # a live tree with no single foreign name keeps its directory
+    kept = {k for k in live if k not in bound}
+    kept |= {k for k in bound if k not in dropped and len(claims[bound[k]]) > 1}
+    while True:  # a claim on a key a kept tree holds falls back to its own directory name
+        more = {k for k in bound if k not in dropped and k not in kept and bound[k] in kept}
+        if not more:
+            break
+        kept |= more
+    renamed = {bound[k]: k for k in bound if k not in dropped and k not in kept}
+    out: dict[str, Path] = {}
+    for key in sorted(orig):
+        if key in dropped or key in renamed.values():
+            continue
+        if key in renamed:
+            continue  # an idle (or bound-away) tree yields its name to the window bound to it
+        out[key] = orig[key]
+    for agent, key in renamed.items():
+        out[agent] = orig[key]
     return out
 
 
@@ -5377,22 +5566,11 @@ def _print_mode() -> bool:
 def _present(workers: dict[str, Path]) -> set[str] | None:
     """Workers with a live `claude` process inside their tree, read from /proc (or the root in
     FABRIK_WORK_PROC); None when the process table cannot be read — then nobody is topped up."""
-    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc")
-    try:
-        entries = [e for e in root.iterdir() if e.name.isdigit()]
-    except OSError:
+    procs = _claude_procs()
+    if procs is None:
         return None
     found: set[str] = set()
-    for entry in entries:
-        try:
-            if (entry / "comm").read_text(encoding="utf-8").strip() != "claude":
-                continue
-            argv = _proc_argv(entry)
-            if argv and _argv_prints(argv):
-                continue  # a `claude -p` child in the tree is not a window (01M4PAJWV1)
-            cwd = Path(os.readlink(entry / "cwd")).resolve()
-        except OSError:
-            continue
+    for _pid, cwd in procs:
         for name, tree in workers.items():
             if cwd == tree or tree in cwd.parents:
                 found.add(name)
@@ -5760,7 +5938,7 @@ def _classic_rungs(
         }
     if workers and coordinator and agent == coordinator:
         # a paused worker is never "below the floor" (W-da4bc702)
-        present = (_present(workers) or set()) - set(_paused(main))
+        present = (_present(workers) or set()) - set(_paused_workers(_paused(main), workers))
         floor = _floor(main)
         counts = _worker_queues(main, {w: workers[w] for w in present})
         below = sorted(w for w in present if len(counts[w]) < floor)
@@ -6126,8 +6304,9 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
     pdir = _paused_dir(main)
     if pdir.exists() and not pdir.is_dir():
         _warn(f"{pdir} is not a directory — no pause can be read, every agent reads as unpaused")
+    covered = _paused_workers(paused, workers)
     for a in agents:
-        rec = paused.get(str(a["agent"]))
+        rec = paused.get(covered.get(str(a["agent"]), str(a["agent"])))
         if rec is not None:
             a["paused_by"] = str(rec.get("by") or "?")
             a["paused_at"] = rec.get("at")
@@ -6174,7 +6353,8 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
         )
     workers = _workers(main)
     paused = _paused(main)
-    present = (_present(workers) or set()) - set(paused)  # triage plans nothing for a paused worker
+    # triage plans nothing for a paused worker
+    present = (_present(workers) or set()) - set(_paused_workers(paused, workers))
     floor = _floor(main)
     pool = _pool(main)
     free = list(pool["routable"])

@@ -4,9 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — every coordinator's contract names the live rotation verb, and the merge recipe no longer trips the worktree prompt (2026-10-23)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § Session history no longer tell a coordinator to `/clear` a builder by hand over `tmux send-keys` until infra's rotate-session verb lands. That verb landed under D-1143. Both copies now name `/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session <name>` (with `--compact "<focus>"`), run from the repo's main checkout, and list the six checks `rotate_session.py` runs. They also make two duties the coordinator's, never the operator's (D-1034, D-1172): fixing and re-running a refused rotation, or one whose `rotations.jsonl` outcome is anything but `ok`, and answering a builder's permission prompt. W-c553e5e0 answers the operator's "does all coordinators know how to clear now?".
+- § EXIT's ad-hoc merge recipe no longer builds `MAIN=$(git worktree list --porcelain | sed …)` for `git -C "$MAIN"`. That shape trips Claude Code's worktree-isolation prompt (D-1173). The recipe now runs `git worktree list` as its own call and uses the literal path (W-031aac71).
+- `tests/test_session_rotation_rule.py` pins the new clauses and refuses the stale ones. It was proven red on the old text.
+
+### Added — the rotation verb re-points the session registry itself (2026-10-23)
+
+- `rotate_session.py execute` now re-points `<repo>/.fabrik/session-agents.json` from the rotated agent's old session
+  id to the new one as soon as the new session is seen, before the resume prompt, so the coordinator no longer edits it
+  by hand. It writes only the checkout whose `.git` the old session's binding names, refuses every shape agents_up.sh
+  refuses, never adds an entry, keeps the mode, and never overwrites a hand edit made since its read. Each row records
+  `registry`, `resume_sent_at` and, when bound, `rebind_s`. The identity-store reader now skips a damaged line instead
+  of raising after the /clear (W-b72231b8 slice 1, D-1175; the late-bind grace is slice 2).
+
+### Fixed — the resume prompt after a /clear rotation no longer leads a builder into a permission prompt (2026-10-23)
+
+- `rotate_session.py::resume_prompt` now tells the rotated builder to read its notes, its seed and any output the
+  harness saved to a file with the Read tool, to run each command as a separate Bash call (the self-watch arm stays in
+  the background), and never to give sed, awk or head a shell variable. One Bash call of 40-47 KB, paged with
+  `sed -n '…' $f`, stopped Claude Code's worktree-isolation check for a person (intel waited 10 min). The path, which
+  resolves through a symlink into `~/.claude/projects`, was measured not to be the trigger (W-1783a9fe, D-1173).
+  Test: `tests/test_rotate_session.py::test_w1783a9fe_resume_prompt_steers_off_the_isolation_prompt`.
+
+### Changed — command-improve: handles are copied from the latest --queue output and grepped back as the whole first field (2026-10-23)
+
+- `commands/_sources/fabrik-command-improve.md` PHASE 1, beside the `ts` definition: the lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyped or taken from a seat's report, maps a seat's row back to its line by verdict text, and before `--reject`, the trailer or `--mark-answered` takes a handle greps that output for it as a line's whole first field (`command grep -P '^\Q<ts>\E\t'`) — a truncated or wrong-line handle no longer passes. Answers `/fabrik-command-improve` feedback rows 1792765907, 1792734774, 1792707211 (recurrence of the held mark-handles-from-take-output subject); reviewed by `/fabrik-review-scoped` (6→3→3 own-fix, scope-growth stop, remainder round 0).
+
+### Fixed — check_convergence refuses when either code-span model refuses; `_fences` link tails and `<!--` read as CommonMark does (2026-10-23)
+
+- `scripts/enforcement/check_convergence.py` reads its closing-row, Board-row, ticket-Status and design-receipt rules under both its single-line span model and the shared `_fences` model, and refuses when either does; the D-497 grandfather needs both; a receipt whose two readings disagree on its route is graded on both (D-1131, D-1170). A wrapped code span holding `<!--` no longer hides a loud closing row or Board row.
+- `scripts/enforcement/_fences.py`: a link's `](…)` tail shields its backticks only when it parses as a link destination with an optional title, escapes included; a line-start `<!--` ends a paragraph, so a span no longer wraps across it.
+- check_rule_grounding and check_spec_convergence are unchanged, their CONVERGED readers pinned by `tests/test_status_readers_code_spans.py` (W-f365c610).
+
+### Changed — design-gate panel: step 2 states the checks a panel revision owes before its reviewing round (2026-10-23)
+
+- `commands/_fragments/design-gate-panel.md` step 2 (rendered into `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-flows-review`, `/fabrik-ui-design-review`): before the round that reviews the revision is pinned, each change sits beside the ACCEPTED concern it answers (quoted whole) and its counter-case in the artifact or its review receipt; each added or changed sentence cites a durable source (code line, decision row, an artifact section the revision neither adds nor changes, or that concern entry — never the seat's report itself) and is written whole from it, not spliced; each new name is traced through every reader, process boundaries included. Step 3's approval row carries each change with its concern and counter-case. Answers `/fabrik-spec-review` feedback rows 1792767893, 1792279737, 1792592328, 1792609741, 1792558161; reviewed by `/fabrik-review-scoped` (4→6→6 own-fix, scope-growth stop, remainder round 0; residue W-15970d2a).
+
+### Changed — review probe catalogue: a fix that narrows, widens or splits a rule's subject lists the old subject's cases before drafting (2026-10-23)
+
+- The catalogue's Sweep bullet (§ Prose and docs fixes, which `/fabrik-review-scoped` step 3 sends the lead to before a rule sentence is drafted) holds such a fix to `/fabrik-review`'s "does the new form still hold EVERY shape the form it replaces held", quoted with its "the shapes enumerated from the OLD form before the fix is drafted, never from the new one": each case no new clause covers, two now cover or only the new wording reaches is listed with where it lands or, with its reason, that it is dropped on purpose, in the fix's Pass Ledger `method:` cell (`/fabrik-review`) or the report (`/fabrik-review-scoped`) (row 1792730405, the second sighting of held fix-narrowed-input-strands-defensive-guards).
+- Twelve other queued `/fabrik-review-scoped` rows were rejected with reasons after an Opus audit. Row 1792630929 (whether a remainder round fixes or records an own-fix defect that loosens a guard) stays open: the catalogue and term-coverage.md disagree, and its Opus + Fable panel is half done (the Fable seat hit its quota limit).
+
 ### Fixed — the drifted-box grader anchors on the product's own drift line, not a sibling's assertion prose (2026-10-23)
 
 - `tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` pinned the second sibling's assertion message, so 662ed84dd's rewording turned it red on clean master while the merge-check isolation it grades was sound. The inner run now prints one-line tracebacks (`--tb=line`) and the grader asserts, per sibling, an `AssertionError` line carrying the product's own `MISSING in <home>` text (`assemble_commands` drift check) — never the sibling's prose, never a bare `FAILED <id>` that an import or permission error would also satisfy (W-45433793, a0c507772; entry added by W-d3d1d924).
+
+### Changed — The mail and work prompt hooks print an unchanged block as one pointer line; the mail digest shows 3 rows under the inbox total (2026-10-23)
+
+- `.claude/hooks/mail_notify.py` and `scripts/thread_anchor.py line --hook` keep a per-session sha256 of the last full block they printed, stored after the print. On UserPromptSubmit, a byte-identical block whose last full print is under 30 minutes old prints as ONE pointer line naming the command that shows it; SessionStart (every source) always prints in full. Measured before the change, every printed copy stays in the session's context: in one infra-2 session the mail digest repeated byte-identically on 76 of 113 prompts, and one coordinator session took 748,661 chars of it over 351 prompts. A live run of the changed hook printed 768 chars full and 121 chars unchanged (W-25f6b2a3 slice 2).
+- The mail digest shows the 3 oldest unread rows (was 10). Its header now counts the inbox's message files — dot-names skipped, as `mail.py list` skips them — where it used to count the rows shown. `thread_anchor.py` never deduplicates a block that carries a rescue warning. New env var `MAIL_NOTIFY_STATE_DIR` (default `~/.claude/state/mail-notify`); the test suite pins it and `THREAD_ANCHOR_DIR` to temp dirs.
 
 ### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
 
@@ -41,6 +89,10 @@ All notable changes to this project will be documented in this file.
 ### Added — a worktree session can no longer sync or install into the venv it shares with the main checkout (2026-10-23)
 
 - `.claude/hooks/seat_guard.py` (fleet-synced PreToolUse Bash hook) now refuses, for every session, a uv or pip write whose target venv resolves to the one a linked worktree shares through its `.venv` symlink: `uv run|sync|add|remove`, `uv version --bump`, `uv venv --clear`, `uv pip install|sync|uninstall`, `pip`/`python -m pip install|uninstall`, an installer under `uv run --no-sync`, and a `-e` of a worktree path. `uv run --no-sync` and `.venv/bin/python` run on the shared venv as it is; a pin the merge owner approved passes with an inline `FABRIK_SHARED_VENV_WRITE=1`. The kill and git checks stay seat-only; their tokeniser now applies the shell's comment rule, keeps a spaced digit argument (`kill 0 > f`), unwraps by basename and parses `flock` whole. Closes trade-intelligence's report 01M3RYGETKD5HQZRBTDF3EK3EK (W-46d148b0, D-1167); pre-existing seat-check gaps the review found are W-5a828a2f.
+
+### Fixed — a pool worker is named by the agent its live window is bound to, not its worktree directory (2026-10-23)
+
+- `scripts/work.py::_workers` named every `.claude/worktrees/<dir>` tree after its directory, so infra's live window in `infra-uncapped` read as an empty worker `infra-uncapped` below the floor and the coordinator's Stop hook demanded triage every turn (W-84ad2ff1). A tree holding a live windowed `claude` is now keyed by that window's bound agent: `CLAUDE_AGENT` in its environ, else the whoami row with its pid AND pid_start. `_rekey` decides every tree's fate against the unchanged directory map, independent of /proc order: dropped (bound to the coordinator or the feedback owner, or a second window of an agent whose own tree is live), kept (unbound, ambiguous, or an unnamed window beside a named one), or renamed. Any error falls back to the directory roster. A pause under a tree's directory name still covers it in the Stop hook, the floor, triage and `queue` (`_paused_workers`). Tests: `tests/test_work_roster_agent.py`, 22 cases, every clause's mutant killed by name. Reviewed by the full `/fabrik-review`.
 
 ### Fixed — a rotation's typed prompts now submit (2026-10-23)
 
