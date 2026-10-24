@@ -185,7 +185,8 @@ def _table_pipe_defects(text: str) -> list[str]:
 
     pipe = re.compile(r"(?<!\\)\|")
     span = re.compile(r"`[^`]*`")
-    fence = re.compile(r" {0,3}(`{3,}|~{3,})(.*)$")
+    # a backtick fence's info string holds no backtick (CommonMark), else it is inline code
+    fence = re.compile(r" {0,3}(`{3,}(?=[^`]*$)|~{3,})(.*)$")
     width = None
     opener = ""
     bad = []
@@ -229,6 +230,8 @@ def test_table_pipe_defects_probe_list() -> None:
     for outer in ("````", "~~~"):
         text = outer + "\n```\n" + outer + "\n\n" + head + "| x | y |\n"
         assert _table_pipe_defects(text) != [], outer
+    # ```a`b is inline code, not an opener, so it hides no table
+    assert _table_pipe_defects("```a`b\n\n" + head + "| x | y |\n") != []
 
 
 def test_real_hub_index_table_rows_keep_their_header_column_count() -> None:
