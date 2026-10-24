@@ -456,11 +456,11 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   handled or not; under handle-now it should find almost nothing, and a large sweep count is an alarm.
 - **Send / reach others:** `python scripts/mail.py send --to <recipient> --kind <k> [--ack required] < body`.
   Reach **the hub** (`--to fabrik` — REQUIRES an addressee: `--to-agent infra` for
-  commands/rules/enforcement/hooks/mail defects · `fleet` for VPS/deploy/spec-yaml/monitoring ·
-  `intel` for models/benchmarks · `kaizen` for a command's or rule's WORDING, a workflow step or
-  a way of working (the feedback loop) — or `--broadcast --ack no` when genuinely all-agents; an
-  unaddressed hub send is REFUSED with this guide; only a `--kind reply` carrying `--re` is
-  exempt) or **fabrik-lib**
+  the rendering, sync and checks of commands/rules, enforcement, hooks and mail defects ·
+  `fleet` for VPS/deploy/spec-yaml/monitoring · `intel` for models/benchmarks · `kaizen` for
+  a command's or rule's WORDING, a workflow step or a way of working (the feedback loop) — or
+  `--broadcast --ack no` when genuinely all-agents; an unaddressed hub send is REFUSED with this
+  guide; only a `--kind reply` carrying `--re` is exempt) or **fabrik-lib**
   (`--to fabrik-lib --kind upstream-feedback --ack required` — a bug/fix in a vendored module). `kind` ∈
   `request|finding|relay|reply|upstream-feedback`; a mail is a **pointer, not a payload** (64 KB cap;
   name paths, never paste secrets — `send` refuses credential patterns).
