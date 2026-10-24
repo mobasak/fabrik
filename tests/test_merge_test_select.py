@@ -47,11 +47,24 @@ def test_name_and_stem_select():
         "tests/test_dotted.py": "from fabrik.state import load",
         "tests/test_from.py": "from fabrik import state",
         "tests/test_other.py": "from fabrik.statement import x",
+        "tests/test_paren.py": "from fabrik import (\n    load,\n    state,\n)",
+        "tests/test_list.py": "from fabrik import cli, state as st",
+        "tests/test_tab.py": "from\tfabrik  import\tstate",
+        "tests/test_cont.py": "from fabrik import cli, \\\n    state",
+        "tests/test_prefix.py": "import xfabrik.state",  # another package's module
+        "tests/test_inner.py": "a.fabrik.state",  # an attribute path, not the import
+        "tests/test_name.py": "from fabrik import statement",
     }
     assert mts.select(["src/fabrik/state.py"], imports) == [
+        "tests/test_cont.py",
         "tests/test_dotted.py",
         "tests/test_from.py",
+        "tests/test_list.py",
+        "tests/test_paren.py",
+        "tests/test_tab.py",
     ]
+    # a top-level module has no import form beyond its own name
+    assert mts.import_patterns("library_x.py") == set()
 
 
 def test_directory_and_tree_grader_keys():
@@ -237,8 +250,10 @@ def test_differential_verdicts(tmp_path, monkeypatch, capsys):
     assert sorted(ln.split("\t")[0] for ln in record) == sorted(new), record
     assert "FLAKY" in out and "tests/test_flaky.py::test_flaky" in out, out
     lines = out.strip().splitlines()
-    assert lines[-1].startswith("merge-tests: red"), out  # the verdict is LAST
-    assert all("NEW red" in ln for ln in lines[-4:-1]), out  # the 3 lines the refusal quotes
+    assert lines[-1].startswith("merge-tests: red — 3 new failure(s): "), out  # the verdict is LAST
+    # the refusal quotes the last 3 lines: the verdict names every new red, the 2 above it are NEW
+    assert all(nid in lines[-1] for nid in new), out
+    assert all("NEW red" in ln for ln in lines[-3:-1]), out
     assert _git(repo, "rev-parse", "HEAD") == merge  # back at the merge, though a test dirtied it
     # the same merge with only master's own reds is green (the leg left HEAD detached at the merge,
     # as the merge leg's build tree is; master is reset under it)
@@ -383,6 +398,91 @@ def test_a_base_run_that_fails_still_restores_the_merge(tmp_path, monkeypatch, c
     assert record.read_text().startswith("#leg-failed\t"), record.read_text()
 
 
+class _FakeRunner:
+    """Every run reports the same reds — enough to drive differential's bookkeeping alone."""
+
+    class _Done:
+        def poll(self):
+            return 1
+
+    def __init__(self, reds):
+        self.reds = reds
+
+    def start(self, files):
+        return self._Done(), files, None
+
+    def finish(self, _proc, _files, _log):
+        return 1, dict(self.reds), "tail"
+
+    def run(self, files):
+        return self.finish(*self.start(files))
+
+
+def test_a_failing_group_leaves_no_other_group_running():
+    slow = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+
+    class Runner:
+        def start(self, files):
+            return (slow if files == ["b"] else _FakeRunner._Done()), files, None
+
+        def finish(self, proc, files, _log):
+            return (4, {}, "usage error") if files == ["a"] else (0, {}, "")
+
+    with pytest.raises(mts.LegError, match="exited 4"):
+        mts._parallel(Runner(), [["a"], ["b"]], "shard")
+    assert slow.poll() is not None  # killed and reaped, never left under the next checkout
+
+
+def test_a_red_outside_the_selected_files_is_a_leg_failure():
+    runner = _FakeRunner({("tests/elsewhere.py::test_x", "call"): "boom"})
+    with pytest.raises(mts.LegError, match="red outside the selected files"):
+        mts.differential(["tests/test_a.py"], "M", "B", runner, 1, compare=False)
+
+
+def test_a_failed_restore_keeps_the_first_error(monkeypatch):
+    runner = _FakeRunner({("tests/test_a.py::test_a", "call"): "boom"})
+    calls = []
+
+    def checkout(commit):
+        calls.append(commit)
+        if len(calls) == 2:
+            raise mts.LegError("the base checkout failed")
+        if len(calls) == 3:
+            raise mts.LegError("the restore failed")
+
+    monkeypatch.setattr(mts, "_checkout", checkout)
+    with pytest.raises(mts.LegError) as exc:
+        mts.differential(["tests/test_a.py"], "M", "B", runner, 1, compare=True)
+    assert "the base checkout failed" in str(exc.value) and "the restore failed" in str(exc.value)
+    assert calls == ["M", "B", "M"]
+
+
+def test_a_leg_that_dies_without_a_verdict_leaves_the_in_progress_mark(
+    tmp_path, monkeypatch, capsys
+):
+    repo = _repo(
+        tmp_path,
+        {
+            "library_x.py": LIB_BASE,
+            "tests/test_mod.py": "import library_x\n\ndef test_mod():\n    pass\n",
+        },
+    )
+    base, _merge_sha = _merge(repo, {"library_x.py": LIB_BRANCH})
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    record = common / "fabrik-merge" / f"merge-tests-{base}.txt"
+
+    def interrupted(*_a, **_k):
+        raise KeyboardInterrupt  # not an Exception: no handler runs, as a signal's death
+
+    monkeypatch.setattr(mts, "differential", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        _run(repo, monkeypatch, capsys)
+    assert record.read_text() == "#leg-failed\tin-progress\n"
+    monkeypatch.undo()
+    rc, out = _run(repo, monkeypatch, capsys)  # a green leg leaves no record behind
+    assert rc == 0 and not record.exists(), out
+
+
 def test_an_unreadable_failure_record_is_a_leg_failure(tmp_path):
     runner = mts._Runner(tmp_path)
     rec = tmp_path / "torn.jsonl"
@@ -441,6 +541,13 @@ def test_the_crash_line_is_compared_without_the_runs_temp_paths():
     assert mts.normalise("value 0x10") != mts.normalise(
         "value 0x20"
     )  # a hex VALUE is not an address
+    # a default tempfile name changes in every run; a named directory is the failure's own
+    assert mts.normalise("missing /tmp/tmpk3j9_2xq/out") == mts.normalise(
+        "missing /tmp/tmpzz81_q0a/out"
+    )
+    assert mts.normalise("missing /tmp/tmpfiles_old/out") != mts.normalise(
+        "missing /tmp/tmpfiles_new/out"
+    )
 
 
 # (cause commit, the grader its merge left red) — measured 2026-10-23, W-4e756979's measure.md

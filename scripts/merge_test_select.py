@@ -63,6 +63,9 @@ RAN = (0, 1, 5)
 _BASETEMP = re.compile(r"[^\s'\"]*/pytest-of-[^/\s]+/pytest-\d+/")
 # and an object's address in its repr (`<function exists at 0x7f…>`), new in every process
 _ADDRESS = re.compile(r"\bat 0x[0-9a-fA-F]+\b")
+# and a name `tempfile` makes with its default prefix (`tmpk3j9_2xq`: "tmp" + 8 of [a-z0-9_]);
+# a custom-prefix name is left alone, since that rule also merged two different failures
+_TMPNAME = re.compile(r"(?<![\w-])tmp[a-z0-9_]{8}(?![\w-])")
 # a record line naming no id: the leg refused without a verdict, so the base-alone run measures nothing
 _LEG_MARK = "#leg-failed"
 # The recording plugin: one JSON line per failed report (a collection error's id is the file).
@@ -99,9 +102,11 @@ def _git(*args: str) -> str:
     return r.stdout
 
 
-def import_keys(path: str) -> set[str]:
-    """The import spellings of a module path (`fabrik.state`, `fabrik import state`), matched only
-    where no identifier character or dot continues them, so `fabrik.state` misses `fabrik.statement`."""
+def import_patterns(path: str) -> set[str]:
+    """Regexes for the ways a test imports a module path: `fabrik.state` (dotted, never inside
+    `fabrik.statement` or `xfabrik.state`), and `from fabrik import state` in any of its spellings —
+    other names beside it, parentheses, line breaks, tabs, a backslash continuation. A top-level
+    module (one part) has neither form; its file name and stem keys select it."""
     p = Path(path)
     if p.suffix != ".py":
         return set()
@@ -109,7 +114,12 @@ def import_keys(path: str) -> set[str]:
     mod = mod[1:] if mod[:1] == ["src"] else mod
     if len(mod) < 2:
         return set()
-    return {".".join(mod), f"{'.'.join(mod[:-1])} import {mod[-1]}"}
+    name = re.escape(mod[-1])
+    pkg = r"\.".join(re.escape(m) for m in mod[:-1])
+    return {
+        rf"(?<![\w.]){pkg}\.{name}(?![\w])",
+        rf"\bfrom\s+{pkg}\s+import\s*\(?[\w\s,\\]*?(?<![\w.]){name}(?![\w])",
+    }
 
 
 def keys_for(path: str) -> set[str]:
@@ -138,12 +148,8 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
     for p in changed:
         if not SKIP.fullmatch(p):
             keys |= keys_for(p)
-            mods |= import_keys(p)
-    bounded = (
-        re.compile("|".join(rf"(?<![\w.]){re.escape(m)}(?![\w])" for m in sorted(mods)))
-        if mods
-        else None
-    )
+            mods |= import_patterns(p)
+    bounded = re.compile("|".join(sorted(mods))) if mods else None
     if keys:
         for name, text in tests.items():
             if (
@@ -156,9 +162,10 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
 
 
 def normalise(msg: str) -> str:
-    """A crash line with pytest's per-run temp root and object addresses replaced, so two runs of
-    one failure compare equal."""
-    return _ADDRESS.sub("at 0x?", _BASETEMP.sub("<basetemp>/", msg))
+    """A crash line with pytest's per-run temp root, object addresses and default `tempfile` names
+    replaced, so two runs of one failure compare equal."""
+    msg = _BASETEMP.sub("<basetemp>/", msg)
+    return _TMPNAME.sub("tmp<mkdtemp>", _ADDRESS.sub("at 0x?", msg))
 
 
 def _ignored() -> set[str]:
@@ -272,11 +279,17 @@ def _parallel(runner: _Runner, groups: list[list[str]], what: str) -> dict:
     """Each group in its own process, its files in order; the reds of all, or a LegError."""
     started = [runner.start(g) for g in groups if g]
     reds: dict = {}
-    for i, args in enumerate(started):
-        rc, got, tail = runner.finish(*args)
-        if rc not in RAN:
-            raise LegError(f"{what} {i + 1} of {len(started)} exited {rc}:\n{tail}")
-        reds.update(got)
+    try:
+        for i, args in enumerate(started):
+            rc, got, tail = runner.finish(*args)
+            if rc not in RAN:
+                raise LegError(f"{what} {i + 1} of {len(started)} exited {rc}:\n{tail}")
+            reds.update(got)
+    finally:  # one red group never leaves the others running under the next checkout
+        for proc, _rec, _log in started:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
     return reds
 
 
@@ -304,12 +317,15 @@ def differential(
     first = _parallel(runner, groups, "shard")
     if not first:
         return [], out
-    group_of = {key: next(g for g in groups if key[0].split("::")[0] in g) for key in first}
+    group_of = {key: next((g for g in groups if key[0].split("::")[0] in g), None) for key in first}
+    stray = sorted(key[0] for key, g in group_of.items() if g is None)
+    if stray:  # a red no selected file owns cannot be confirmed or compared: no verdict
+        raise LegError(f"red outside the selected files: {', '.join(stray)}")
     # confirm each red alone first (cheap); one green alone is re-run in its shard's own order,
     # since another file of that shard may be what makes it red (rare, so the cost is too)
     if compare:
         _checkout(merge)
-    rc, alone, tail = runner.run(_files_of(first))
+    rc, alone, tail = runner.run(_files_of(first))  # `tail` is the MERGE's, printed with its reds
     if rc not in RAN:
         raise LegError(f"the serial confirm exited {rc}:\n{tail}")
     confirmed = {k: v for k, v in alone.items() if k in first}
@@ -335,7 +351,7 @@ def differential(
             )
         return sorted(confirmed.items()), out
     # the base runs the same shapes: each red file alone, and each ordering red in its shard's order
-    err: LegError | None = None
+    err: BaseException | None = None
     try:
         _checkout(base)
         alone_files = [
@@ -343,21 +359,21 @@ def differential(
         ]
         on_base: dict = {}
         if alone_files:
-            rc, on_base, tail = runner.run(alone_files)
+            rc, on_base, base_tail = runner.run(alone_files)
             if rc not in RAN:
-                raise LegError(f"the base run exited {rc}:\n{tail}")
+                raise LegError(f"the base run exited {rc}:\n{base_tail}")
         if ordered:
             _checkout(base)
             in_order = [[f for f in g if Path(f).is_file()] for g in ordered]
             on_base.update(_parallel(runner, in_order, "the ordered base run of shard"))
-    except LegError as exc:
+    except BaseException as exc:
         err = exc
         raise
     finally:
         try:
             _checkout(merge)
         except LegError as back:
-            raise LegError(f"{err}; then {back}" if err else str(back)) from err
+            raise LegError(f"{err!r}; then {back}" if err else str(back)) from err
     new, old = [], []
     for key, msg in sorted(confirmed.items()):
         was = on_base.get(key)
@@ -391,6 +407,8 @@ def main(argv: list[str] | None = None) -> int:
             if in_merge and (_record_path(head).exists() or len(parents) < 2):
                 return _base_alone(head, runner)
             base = parents[0] if in_merge else _git("merge-base", "HEAD", "origin/master").strip()
+            if in_merge:  # until a verdict replaces it, any death reads as "measured nothing"
+                _write_record(base, [f"{_LEG_MARK}\tin-progress"])
             changed = [
                 p
                 for p in _git("diff", "--name-only", "--no-renames", "-z", base, head).split("\0")
@@ -402,6 +420,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             if args.list:
                 print("\n".join(files))
+                if in_merge:
+                    _record_path(base).unlink(missing_ok=True)
                 return 0
             new, lines = differential(
                 files, head, base, runner, max(1, args.shards), compare=in_merge
@@ -409,16 +429,22 @@ def main(argv: list[str] | None = None) -> int:
             rc = 1 if new else 0
             if in_merge and new:
                 _write_record(base, [f"{nid}\t{when}" for (nid, when), _ in new])
+            elif in_merge:
+                _record_path(base).unlink(missing_ok=True)
     except Exception as exc:  # noqa: BLE001 — every failure without a verdict is exit 3, said so
         if in_merge and base:
             try:
                 _write_record(base, [f"{_LEG_MARK}\t{type(exc).__name__}"])
-            except OSError:
-                pass  # the refusal stands; the base-alone run then says it measured nothing
+            except Exception:  # noqa: BLE001 — the in-progress mark already says the same
+                pass
         print(f"{exc}\nmerge-tests: LEG FAILED — no verdict (exit 3)")
         return 3
     print("\n".join(lines))
-    verdict = "red — a new failure" if rc else "green"
+    if new:
+        ids = ", ".join(nid for (nid, _when), _msg in new)
+        verdict = f"red — {len(new)} new failure(s): {ids}"[:1000]
+    else:
+        verdict = "green"
     print(f"merge-tests: {verdict} in {time.monotonic() - t0:.0f}s")
     return rc
 
