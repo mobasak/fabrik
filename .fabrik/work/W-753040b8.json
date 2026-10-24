@@ -3,7 +3,7 @@
   "created": "2026-10-24T08:35:46.708295Z",
   "creator": "infra-2",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b391d9b699b2f944b2fc497421403e00e9c782a2",
   "id": "W-753040b8",
   "impact": "low",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "infra-2",
   "priority": 3,
   "score_reason": "LOW: a rare edge in code-span readers (escaped-backslash backtick, one legacy regex), no ledger row affected today; effort low",
-  "status": "open",
+  "status": "done",
   "title": "Code-span readers still disagree with CommonMark (found by the W-27db8c35 review): _fences.blank_code_spans (scripts/enforcement/_fences.py:337) treats a backtick after an ESCAPED backslash as escaped, so a row like 'x \\\\`a|b` y' reads 7 cells where it is 6 (2 live rows hold the shape, 0 change count; 8 hub .md files hold it); scripts/enforcement/check_doc_sync.py:360 still blanks spans with the one-backtick regex the checker just dropped"
 }

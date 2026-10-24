@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — code-span readers follow CommonMark's backslash parity, and the CHANGELOG strip pairs whole backtick runs (2026-10-24)
+
+`scripts/enforcement/_fences.py::blank_code_spans` skipped any backtick run after one backslash, so a span opened after escaped backslashes (`\\`a`) or after an escaped run longer than one (`\``a`) went unblanked for every reader of the shared span model (check_doc_links, check_doc_index, check_decisions_unique, check_convergence, docs_updater). An odd backslash run now escapes only the run's first backtick. `scripts/enforcement/check_doc_sync.py`'s CHANGELOG placeholder strip pairs whole equal backtick runs in a linear scan, so ``` ``TODO`` ``` is one quotation and a lone ``` `` ``` glues nothing. Graders in `tests/enforcement/test_fences.py` (parity, escaped runs, a markdown-it agreement fuzz over multi-line paragraphs) and `tests/test_enforcement_gate_fixes.py` (the strip's cases, a regex-oracle fuzz, a linearity ratio). (W-753040b8, D-1191)
+
 ### Fixed — five hooks-index table rows no longer split their cells on a pipe inside a code span (2026-10-24)
 
 GFM splits a table cell on an unescaped `|` even inside a code span, so rows 21, 24, 98, 106 and 107 of `docs/workstation/hooks-index.md` rendered shifted cells; each such pipe is now `\|`. `tests/enforcement/test_check_hooks_index.py::_table_pipe_defects` guards it: a row whose unescaped-pipe count differs from its header's, or an unescaped pipe inside a code span, is reported, and lines inside a CommonMark-matched fence are not rows; `test_table_pipe_defects_probe_list` commits the escape variants the scoped review raised (W-7c3abd32).
