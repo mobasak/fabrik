@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "infra: when the UserPromptSubmit ROTATE-DUE line fired this session and the footer reads 'awaiting the rotation', the work-waiting cause stands down (the contract: once a rotation is due, start no new item)",
+  "next": "resume from seed ~/.claude/state/command-runs/seeds/89110d4e-3d45-46ff-a631-8d9419bb12e6-88f4572d49c04f59.md (command_run.py start --resume-from <seed>); design + Opus/Fable critiques folded, kaizen consented to the final_gate_stop.py edit inside its plan lock; ADD the feedback-queue cause to the design (kaizen's case, infra mail 01M5MST4C9): both the work-waiting and the feedback causes stand down when ROTATE-DUE fired and the turn ends on 'NEXT: none — terminal; awaiting the rotation'; leave the one hooks-index clause to fleet (Deck lock, no answer yet)",
   "note": "",
   "owner": "infra-2",
   "priority": 1,
