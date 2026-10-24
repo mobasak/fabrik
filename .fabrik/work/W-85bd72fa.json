@@ -3,7 +3,7 @@
   "created": "2026-10-21T05:06:32.945619Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3d01ac857c0d360db04ef9883d071fd4b3220621",
   "id": "W-85bd72fa",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "MEDIUM: one gate run grades the same INDEX.md link in check_doc_index while check_doc_links skips it since W-b9af1d47 — an inconsistency with real value, nobody blocked; LOW effort: reuse _fences.py in one reader; synced path, so one commit after the full review",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],
