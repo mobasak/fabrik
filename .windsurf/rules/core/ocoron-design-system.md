@@ -425,8 +425,9 @@ The template's § Scaffold Adaptation Matrix applies; these are the Ocoron-speci
 
 The template's defaults (spacing, density, motion, breakpoints) are not repeated here — Ocoron uses
 them unchanged. On a Tailwind CSS-first project expose this block per template § Tailwind (CSS-first) usage: the
-`--color-*`, `--font-*` and `--radius-*` slots go in `@theme static` (`@theme static inline` for the two
-whose value is a `var()`), and the light block below still overrides them; `--surface-*`, `--border*` and
+`--color-*`, `--font-*` and `--radius-*` slots go in `@theme static` (`@theme static inline` for
+`--color-secondary` and `--color-purple`, whose value is a `var()`), and the light block below still
+overrides the colours; `--surface-*`, `--border*` and
 `--text-primary|body|muted` stay in `:root` with an `@theme inline` alias
 (`--color-text-primary: var(--text-primary)`). Dark mode is one hook,
 `@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *))`. On the saas-skeleton's

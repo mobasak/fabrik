@@ -17,7 +17,10 @@ states can go false with no other gate turning red:
    pack goes stale — `docs/reference/rules-currency-pass.md` § Version literals).
 
 The cheapest way past (3) is to drop the sentence that names `@theme` beside the slots while keeping a block
-that still puts them there; the check reads every pack's `@theme { … }` CSS blocks too. The cheapest way past
+that still puts them there; the check reads every pack's `@theme [modifiers] { … }` CSS block too. Its prose half
+is BOUNDED: it catches the "declare these/them/the slots in `@theme`" family in any wrap or case, skips a negated
+sentence, and does not try other verbs ("put every slot in `@theme`") — a sentence-level verb list fired on two
+legitimate sentences in the 57 live packs, so that class stays the review's. The cheapest way past
 (1) is a glob that matches only the example paths below; the examples are the measured basenames.
 """
 
@@ -132,6 +135,7 @@ def test_tailwind_section_is_placed_once() -> None:
 
 def _theme_blocks(text: str) -> list[str]:
     """Every `@theme [modifiers] { … }` body, any case, with nested braces (a `@keyframes` inside) counted."""
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     bodies = []
     for m in re.finditer(r"@theme\b[\w \t-]*\{", text, re.IGNORECASE):
         depth, i = 1, m.end()
@@ -147,6 +151,7 @@ _SEND_ALL_TO_THEME = re.compile(
     r"\bdeclar\w*\s+(?:these|them|the\s+slots|every\s+slot|all\s+(?:the\s+)?slots)\b[^.]{0,60}?`@theme`(?!\s+inline)",
     re.IGNORECASE | re.DOTALL,
 )
+_NEGATION = re.compile(r"\b(?:never|not|don't|do not)\b", re.IGNORECASE)
 
 
 def test_text_colour_slots_never_declared_in_theme() -> None:
@@ -154,32 +159,35 @@ def test_text_colour_slots_never_declared_in_theme() -> None:
     for slot in TEXT_SLOTS:
         assert slot in section, slot
     assert "COLOUR slots inside the FONT-SIZE namespace" in section  # the warning itself, not words elsewhere
+    assert "they compile to `.text-primary { font-size: var(--text-primary) }`" in section  # and what goes wrong
     assert "--color-text-primary: var(--text-primary)" in section
     for pack in sorted(RULES.rglob("*.md")):
         text = pack.read_text(encoding="utf-8")
         for block in _theme_blocks(text):
             for slot in TEXT_SLOTS:
                 assert not re.search(re.escape(slot) + r"\s*:", block), (pack.name, slot, block)
-        hit = _SEND_ALL_TO_THEME.search(text)
-        assert not hit, (pack.name, hit and hit.group(0))
+        for sentence in re.split(r"(?<=[.!?])\s+|\n\s*\n", text):
+            flat = " ".join(sentence.split())
+            if _SEND_ALL_TO_THEME.search(flat) and not _NEGATION.search(flat):
+                pytest.fail(f"{pack.name}: {flat[:160]}")
 
 
 def test_no_js_config_font_family_token() -> None:
     # a DEFINITION of the JS-config key; the section's own warning names it as `--font-family-*`
-    hits = [p.name for p in RULES.rglob("*.md") if re.search(r"--font-family(?:-[A-Za-z0-9-]+)?\s*:", p.read_text(encoding="utf-8"))]
+    hits = [p.name for p in RULES.rglob("*.md") if re.search(r"--font-family(?:-[\w-]+)?\s*:", p.read_text(encoding="utf-8"))]
     assert not hits, hits
 
 
 def test_section_cites_sources_and_carries_no_version() -> None:
     section = _section()
-    cited = set(re.findall(r"https://[^\s)]+", section))
+    cited = {u.rstrip(".,;:`") for u in re.findall(r"https://[^\s)]+", section)}
     for page in CITED_PAGES:
         assert page in cited, page
     found = re.findall(
         r"\b[vV]\d+(?:\.\d+)?\b"  # v4, V4, v3.4
         r"|\b\d+\.(?:\d+|x)(?:\.\d+)?\b"  # 4.3.3, 16.4, 4.x
-        r"|\b(?:Tailwind(?:\s?CSS)?|tailwindcss|Node(?:\.js)?|Safari|Chrome|Firefox|Edge|iOS|Android|Astro|Prettier|version)[\s/]+\d+"
-        r"|\bTW\d|@\d|\d+\+"  # TW4, pkg@4, 16+
+        r"|\b(?:Tailwind(?:\s?CSS)?|tailwindcss|Node(?:\.js)?|Safari|Chrom(?:e|ium)|Firefox|Edge|iOS|macOS|Android|Astro|Vite|React|Svelte|Next\.js|Prettier|version)[\s/]+\d+"
+        r"|\bTW\d|\bES\d{4}\b|@\d|\d+\+"  # TW4, ES2022, pkg@4, 16+
         r"|[≥>]=?\s?\d+",
         section,
     )
