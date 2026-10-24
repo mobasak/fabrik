@@ -97,3 +97,23 @@ def test_both_contracts_route_the_rotation_through_the_coordinator(rel: str) -> 
 @pytest.mark.parametrize("rel", CONTRACTS)
 def test_the_rebind_command_survives(rel: str) -> None:
     _assert_all(rel, ("python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force",))
+
+
+@pytest.mark.parametrize("rel", CONTRACTS)
+def test_both_contracts_state_the_archived_subagent_tier(rel: str) -> None:
+    """W-a1158ea0 — D-1182 archives subagent transcripts and prunes them only once the archive vouches for them;
+    `prune_transcripts.py --restore agent-<id>` puts one back (`_restore_match`). The bullet said they were never
+    archived, which sends a reader looking for an old sidechain to conclude it is gone."""
+    hub = "hub " if rel.startswith("templates/") else ""  # the template cites hub D-ids as `hub D-NNN`
+    _assert_all(
+        rel,
+        (
+            f"Subagent transcripts are archived the same way ({hub}D-1182) and pruned after 3 days only once the "
+            "archive vouches for them; `~/.claude/tasks` and shell snapshots are pruned after 3 days and are NEVER "
+            "archived.",
+            "prune_transcripts.py --restore <session_id | agent-<id>> [--slug <slug>]`",
+        ),
+    )
+    assert "Subagent transcripts, `~/.claude/tasks` and shell snapshots" not in _bullet(rel), (
+        f"{rel}: the old sentence filing subagent transcripts as never archived survives"
+    )
