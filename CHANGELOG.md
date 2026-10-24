@@ -13,6 +13,15 @@ flocked ledger where an unknown cost counts as budget plus the model's per-call 
 name the exception; ai/00's decision-model lane now cites D-555 instead of an open work item (master's
 `test_egress_wording_matches_the_work_item_state` red). First live run: sonnet, $0.0727.
 
+### Changed — Ocoron house fonts: Arya headings, IBM Plex Sans text; Tojlo keeps its stack as a declared override (2026-10-24)
+
+- The operator ruled the Ocoron fonts (W-eaa745f3): `core/ocoron-design-system.md` v3.1 sets Arya 700 for every heading
+  and IBM Plex Sans 400 and 500 for text, with Plex as the heading fallback for scripts Arya lacks and the Plex Arabic
+  and Devanagari siblings named. `saas/60-saas-ui.md` (the next/font example), `core/42-docusaurus.md`, the Ocoron
+  mobile pack and `CLAIMS.yaml` follow. The Tojlo packs keep Space Grotesk and Inter as a declared override.
+- `tests/test_ocoron_fonts.py` pins the font names across the packs and fails on any retired spelling outside the
+  Tojlo override.
+
 ### Fixed — master green again: the vps1 Postgres login-rotation script gets its hub-root disposition (2026-10-24)
 
 - `tests/test_hub_write_root.py` failed on master after `scripts/sysadmin/vps1_pg_scoped_logins.py` merged, because

@@ -2224,10 +2224,10 @@ claims:
   - id: ocoron-fonts-ofl
     pack: core/ocoron-design-system.md
     kind: practice
-    claim: "Space Grotesk (300-700), Inter (variable 100-900) and JetBrains Mono (incl. 300) are on Google Fonts under the SIL Open Font License 1.1"
-    verify: "https://fonts.google.com/specimen/Space+Grotesk ; https://fonts.google.com/specimen/JetBrains+Mono ; https://www.jetbrains.com/lp/mono/ (exa + WebSearch, 2026-09-24; ledger ut-15..ut-18)"
+    claim: "Arya (400 and 700 only; latin, latin-ext, devanagari), IBM Plex Sans (variable wght 100-700; latin, latin-ext, cyrillic, greek, vietnamese) and JetBrains Mono (incl. 300) are on Google Fonts under the SIL Open Font License 1.1; IBM Plex Sans Arabic covers arabic and IBM Plex Sans Devanagari covers devanagari"
+    verify: "https://fonts.googleapis.com/css2?family=Arya:wght@400;700&family=IBM+Plex+Sans:wght@400;500 and family=IBM+Plex+Sans+Arabic and family=IBM+Plex+Sans+Devanagari (curl, subset comments) ; https://raw.githubusercontent.com/google/fonts/main/ofl/arya/METADATA.pb ; https://raw.githubusercontent.com/google/fonts/main/ofl/ibmplexsans/METADATA.pb ; https://www.jetbrains.com/lp/mono/ (curl, 2026-10-24, W-eaa745f3)"
     window_days: 365
-    last_verified: 2026-09-24
+    last_verified: 2026-10-24
 
   - id: eu-billing-outside-store-terms
     pack: mobile-app/00-domain-mobile-app.md
