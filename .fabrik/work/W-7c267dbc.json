@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T19:55:30.042488Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-7c267dbc",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure which /opt/<repo>/scripts/ forms the corpus prints, then decide own-root-only vs leave as is",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "quota_stop.py: the lane and wall verbs accept any /opt/<repo>/scripts/ prefix (_ALLOWED_BASH :113, _PIPE_MAIL :199, _LANE_BASH :744), so a parked session may run /opt/<another repo>/scripts/work.py claim or mail.py from a repo it does not judge; decide whether to pin the own-repo root (W-cff56c52 follow-up, out of its scope)"
+}

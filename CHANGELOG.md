@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the quota lane lets a /clear-rotated window re-bind its own name and run `work.py next` (2026-10-24)
+
+- `.claude/hooks/quota_stop.py` (D-1209, W-cff56c52): at the urgent-90 lane a `/clear` rotation's first two steps — `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force` and `python3 scripts/work.py next` — were held, so a rotated merge owner or P0 owner stayed parked until the lift. The lane now admits a bare `work.py next` and the re-bind in one exact shape, only to the name this window's claude process (pid + start tick) held last in this repo; any other name stays held.
+- Nine graders in `tests/test_quota_stop_hook.py`, each proven red by a named mutant (19 in all); `docs/workstation/claude-account-rotation.md` lists the two new finishing verbs.
+
 ### Added — CSS-first Tailwind usage in the design-system template; colour slots kept out of the font-size namespace (2026-10-24)
 
 - `.windsurf/rules/core/design-system-template.md` gains `## Tailwind (CSS-first) usage` (D-1202): tokens, class detection, reuse order, values and layout, tooling — every line grounded on the page it cites, executed on Tailwind 4.3.3 where the docs are silent, no version literal. Its globs now reach `.astro` files and the CSS-first theme stylesheets (27 of 28 on the box).
