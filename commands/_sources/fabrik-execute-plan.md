@@ -369,12 +369,14 @@ Every commit made during plan execution MUST include git trailers that identify 
 
 ### Commit message format
 
-Every commit below goes through a file: write the message with the Write tool to the session
-scratchpad as `<scratch>/msg`, then run `git commit -F <scratch>/msg`. A heredoc, even quoted
-(`<<'EOF'`), is a compound shape the worktree isolation check may refuse
-(`docs/reference/multi-agent-operating-model.md`).
+Every commit message in this command that carries trailers goes through a file: write the message
+with the Write tool to a NEW file in the session scratchpad (`<scratch>/msg-<name>`, one name per
+commit, since parallel subagents may share the scratchpad), then run `git commit -F <scratch>/msg-<name>`. A heredoc, even quoted (`<<'EOF'`),
+is a compound shape the worktree isolation check may refuse, in any position (`git commit -F - <<'EOF'`
+included) — `/opt/fabrik/docs/reference/multi-agent-operating-model.md`, the commit-message rule in
+its worktree list. Run each git command in its own Bash call.
 
-**Subagent commit** (in worktree, before merge) — `<scratch>/msg`:
+**Subagent commit** (in worktree, before merge) — `<scratch>/msg-<name>`:
 ```text
 feat(scope): Phase B Task 5 — GDPR schema + routes
 
@@ -385,7 +387,7 @@ Agent-Context: GDPR schema migration + Flask consent routes
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
 ```
 
-**Orchestrator phase commit** (after squash-merging subagent branches) — `<scratch>/msg`:
+**Orchestrator phase commit** (after squash-merging subagent branches) — `<scratch>/msg-<name>`:
 ```text
 feat(scope): Phase B — Compliance
 
@@ -397,7 +399,7 @@ Conflicts-Resolved: 0
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
 ```
 
-**Inline phase commit** (no subagents, orchestrator did the work directly) — `<scratch>/msg`:
+**Inline phase commit** (no subagents, orchestrator did the work directly) — `<scratch>/msg-<name>`:
 ```text
 feat(scope): Phase D — File Cache
 
@@ -407,7 +409,7 @@ Agent-Context: inline execution, no subagents (low complexity)
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
 ```
 
-**Review-fix commit** (from `/fabrik-review` findings) — `<scratch>/msg`:
+**Review-fix commit** (from `/fabrik-review` findings) — `<scratch>/msg-<name>`:
 ```text
 fix(scope): Phase B review — null guard in audit_log.record_event
 
@@ -419,7 +421,7 @@ Co-Authored-By: Claude <model> <noreply@anthropic.com>
 
 Each one is then committed with:
 ```bash
-git commit -F <scratch>/msg
+git commit -F <scratch>/msg-<name>
 ```
 
 ### Querying provenance after the fact
@@ -924,9 +926,11 @@ Test: {list}
 
 ## When done
 
-Commit your work to the worktree branch with provenance trailers. Write this message with the
-Write tool to a file `msg` in your session scratchpad — call its absolute path <msg> (a heredoc is a
-compound shape the worktree isolation check may refuse):
+Commit your work to the worktree branch with provenance trailers. Write the message — exactly the
+lines from `feat(scope)` through `Co-Authored-By`, unindented — with the Write tool to a NEW file
+`msg-phase-{X}-task-{N}` in your session scratchpad (sibling subagents may share it; the task-unique
+name keeps their messages apart) — call its absolute path <msg-file>. Never a heredoc, in any position
+(`git commit -F - <<'EOF'` included): it is a compound shape the worktree isolation check may refuse.
 
 feat(scope): Phase {X} Task {N} — {title}
 
@@ -938,7 +942,7 @@ Co-Authored-By: Claude <model> <noreply@anthropic.com>
 
 then run, one command per call:
   git add {explicit file list}
-  git commit -F <msg>
+  git commit -F <msg-file>
 
 Do NOT push. Do NOT merge. The orchestrator handles that.
 
@@ -1105,7 +1109,7 @@ git merge --no-ff phase-B-task-6 -m "merge: Phase B Task 6 — audit wiring"
 #    - For additive conflicts (both added to same file, different locations):
 #      keep both additions
 #    - For import conflicts: combine both import sets
-#    - Resolve, then: git add <resolved files> && git merge --continue
+#    - Resolve, then, one command per call: git add <resolved files>   then   git merge --continue
 
 # 4. After all merges: verify the combined result compiles
 python -c "import src.module_that_changed"  # or whatever the plan's verify command is
@@ -1134,7 +1138,8 @@ After merging all subagent branches for a phase:
 3. Run `python scripts/enforcement/check_doc_sync.py`
 4. Fix any issues (you're the orchestrator — you fix merge-induced bugs)
 5. Squash the merge commits into one phase commit with provenance trailers — the message written
-   with the Write tool to `<scratch>/msg` (§ Commit message format):
+   with the Write tool to `<scratch>/msg-<name>` (§ Commit message format), then the three git
+   commands below, one per Bash call:
    ```text
    feat(scope): Phase {X} — {title}
 
@@ -1148,7 +1153,7 @@ After merging all subagent branches for a phase:
    ```bash
    git reset --soft <pre-merge-commit>
    git add <all phase files — explicit list>
-   git commit -F <scratch>/msg
+   git commit -F <scratch>/msg-<name>
    ```
 6. THEN proceed to `/fabrik-review`
 
@@ -1362,7 +1367,7 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    today's grammar (four 2026-08/09 receipts redded on the first try, `01M4BYT60T`), and the link check
    never reads `docs/development/`, so its pre-archive cite stays as written. ⚠️ **`git mv` moves the INDEXED content, not your working tree — re-stage the plan
    AFTER the move:** `git add docs/development/plans/archived/<plan>.md`. ⚠️ **And the scoped commit
-   must name BOTH paths** — `git commit -m <msg> -- <old-path> <new-path>` — or the deletion half of the
+   must name BOTH paths** — `git commit -F <scratch>/msg-<name> -- <old-path> <new-path>` (§ Commit message format) — or the deletion half of the
    rename stays staged-uncommitted and the plan lives at TWO paths in HEAD (youtube `01M1584B0`;
    the constitutions carry the same clause at the realign rule). Step 5's `Status: EXECUTED`
    flip is an unstaged working-tree edit, so the rename carries the OLD bytes and the archived plan
