@@ -450,11 +450,16 @@ def archive_one(
         after = src.stat()
         mtime_ns = after.st_mtime_ns if after.st_size == size else st.st_mtime_ns
         dest.parent.mkdir(parents=True, exist_ok=True)
+        # Compressed and tested beside the snapshot, then renamed into place (same filesystem): a
+        # compress or test that fails never leaves a partial `.zst` at `dest` for `ship()` to upload
+        # over the key's last good version (review W-62d2ce7d pass 1, A-haiku-1).
+        out = Path(tmp) / "object.jsonl.zst"
         subprocess.run(  # noqa: S603
-            ["zstd", "-12", "-q", "-f", str(snap), "-o", str(dest)], check=True, timeout=1800
+            ["zstd", "-12", "-q", "-f", str(snap), "-o", str(out)], check=True, timeout=1800
         )
-    # A manifest row is a PROMISE that the bytes exist and are readable.
-    subprocess.run(["zstd", "-t", "-q", str(dest)], check=True, timeout=600)  # noqa: S603
+        # A manifest row is a PROMISE that the bytes exist and are readable.
+        subprocess.run(["zstd", "-t", "-q", str(out)], check=True, timeout=600)  # noqa: S603
+        os.replace(out, dest)
     row = {
         "project_slug": slug,
         "session_id": session_id,

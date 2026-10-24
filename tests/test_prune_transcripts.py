@@ -966,6 +966,35 @@ def test_c3_a_sidechain_is_deleted_only_when_the_archive_vouches_for_it(world):
     assert lsf and all("-R" in c and "--fast-list" in c for c in lsf), "one recursive B2 list per slug"
 
 
+def test_the_summary_line_counts_each_tier_when_a_main_inode_is_skipped(world, monkeypatch, capsys):
+    """The closing line once split `deleted` by `len(run_main)`: a MAIN inode skipped by its last look
+    was reported as a subagent-tier deletion (review W-62d2ce7d pass 1, B-haiku-2/B-sonnet-4)."""
+    _sidechain(world, "-opt-alpha", "a-old-06", "agent-one", days=10, running=False)
+    world.ready()
+    real = pt.open_sessions
+    calls = {"n": 0}
+
+    def opens_late(*a, **kw):
+        calls["n"] += 1  # 1 evaluate_main, 2 evaluate_subagents, 3+ the per-unlink re-reads
+        out = real(*a, **kw)
+        return out | {"a-old-10"} if calls["n"] >= 3 else out
+
+    monkeypatch.setattr(pt, "open_sessions", opens_late)
+    assert pt.run(["--apply", "--nightly"]) == 0
+    assert "deleted 3 (MAIN 2 inode(s), subagent-tier 1)" in capsys.readouterr().out
+
+
+def test_a_zst_that_vanishes_before_its_sha1_refuses_the_file_not_the_night(world, monkeypatch):
+    world.ready()
+
+    def gone(_path):
+        raise FileNotFoundError("removed under the pruner")
+
+    monkeypatch.setattr(pt, "_sha1", gone)
+    reasons = world.evaluate()
+    assert reasons["a-old-10"] == "zst-missing" and reasons["b-old-10"] == "zst-missing"
+
+
 def test_c3_the_last_look_skips_a_sidechain_that_changed(world, monkeypatch):
     target = _sidechain(world, "-opt-alpha", "a-old-10", "agent-late", days=10, running=False)
     world.ready()

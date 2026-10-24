@@ -355,7 +355,10 @@ def _vouch(
         return Proof("zst-corrupt", sha)
     if content != sha:
         return Proof("zst-bytes-differ", sha)
-    size, sha1 = zst.stat().st_size, _sha1(zst)
+    try:
+        size, sha1 = zst.stat().st_size, _sha1(zst)
+    except OSError:  # the object went between the decompress and here: refuse this file, not the night
+        return Proof("zst-missing", sha)
     objects = listing.objects(slug)
     if objects is None:
         return Proof("listing-failed", sha, size, sha1)
@@ -797,6 +800,7 @@ def prune(
             with contextlib.suppress(FileNotFoundError):
                 n.unlink()
         deleted += 1
+    deleted_main = deleted  # a MAIN inode skipped by its last look is in neither count
     for s in run_scraps:
         row = {
             "tier": "subagents",
@@ -840,8 +844,8 @@ def prune(
         deleted += 1
     summary["deleted"] = deleted
     print(
-        f"prune_transcripts: deleted {deleted} (MAIN {min(deleted, len(run_main))} inode(s), "
-        f"subagent-tier {max(0, deleted - len(run_main))}); deferred {deferred}; ledger {ledger}"
+        f"prune_transcripts: deleted {deleted} (MAIN {deleted_main} inode(s), "
+        f"subagent-tier {deleted - deleted_main}); deferred {deferred}; ledger {ledger}"
     )
     return EXIT_OK
 

@@ -189,6 +189,50 @@ def test_a_failing_subagent_transcript_does_not_stop_the_night(tree, rec, monkey
     assert rec.verbs()[0] == "copy"
 
 
+def test_a_failed_test_of_a_new_object_keeps_the_last_good_object(tree, rec, monkeypatch, capsys):
+    """A compress or `zstd -t` that fails never leaves bytes at the object path for `ship()` to upload
+    over the key's last good version: the new object is built beside the snapshot and renamed in only
+    once tested (review W-62d2ce7d pass 1, A-haiku-1)."""
+    projects, archive = tree
+    assert at.run([]) == 0
+    zst = archive / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl.zst"
+    good = zst.read_bytes()
+    with (projects / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl").open("ab") as fh:
+        fh.write(b"grown")
+    real = subprocess.run
+
+    def verify_fails(argv, *a, **kw):
+        if argv[:2] == ["zstd", "-t"]:
+            raise subprocess.CalledProcessError(1, argv)
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(at.subprocess, "run", verify_fails)
+    assert at.run([]) == 0
+    assert "FAILED" in capsys.readouterr().out
+    assert zst.read_bytes() == good, "the last good object was replaced by an untested one"
+    assert len(_sub_rows(archive)) == 1
+
+
+def test_a_zstd_failure_on_a_subagent_transcript_does_not_stop_the_night(
+    tree, rec, monkeypatch, capsys
+):
+    """The zstd branch of the same rule (review W-62d2ce7d pass 1, A-sonnet-2): a compressor that fails on
+    a sidechain is a reported skip, while MAIN still archives and ships."""
+    _projects, archive = tree
+    real = subprocess.run
+
+    def zstd_fails_for_sidechains(argv, *a, **kw):
+        if argv and argv[0] == "zstd" and any("/subagents/" in str(x) or "agent-" in str(x) for x in argv):
+            raise subprocess.CalledProcessError(1, argv)
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(at.subprocess, "run", zstd_fails_for_sidechains)
+    assert at.run([]) == 0
+    out = capsys.readouterr().out
+    assert "FAILED" in out and "1 subagent failure(s)" in out
+    assert _sub_rows(archive) == [] and len(_rows(archive)) == 2
+
+
 def test_file_over_the_ceiling_is_reported_not_archived(tree, rec, monkeypatch, capsys):
     _projects, archive = tree
     monkeypatch.setenv(
@@ -567,6 +611,7 @@ def test_a_stale_marker_readme_is_rewritten_and_names_the_pruner(tree, rec):
     text = readme.read_text()
     assert "Nothing on this box prunes" not in text
     assert "prune_transcripts.py" in text and "--restore" in text
+    assert "subagents/ transcripts" in text and "--restore agent-<id>" in text, "D-1182: the tier is archived"
     assert text == at.MARKER
 
 
@@ -661,8 +706,9 @@ def test_the_manifest_upload_skips_the_destination_check(tree, rec):
     """B2's download host is the one copyto HEADs first; an upload must not depend on it
     (2026-10-08: the HEAD hung 42 min behind an SNI filter while every upload worked)."""
     assert at.run([]) == 0
-    manifest_call = next(c[0] for c in rec.calls if c[0][1] == "copyto")
-    assert "--no-check-dest" in manifest_call
+    manifest_calls = [c[0] for c in rec.calls if c[0][1] == "copyto"]
+    assert len(manifest_calls) == 2, "the MAIN manifest and the subagent tier's (D-1182)"
+    assert all("--no-check-dest" in call for call in manifest_calls)
 
 
 def test_fetch_refuses_a_local_path_that_already_exists(tree, rec, tmp_path, capsys):
