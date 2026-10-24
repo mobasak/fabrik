@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import importlib.util
 import os
-import shlex
 import stat
 import subprocess
 from pathlib import Path
@@ -169,7 +168,10 @@ def test_pg_up_values_reads_the_prometheus_answer():
 
 
 class _Fake:
-    """Stands in for ssh: records each remote command and fails the first one containing `fail_on`."""
+    """Stands in for ssh: records each remote command and fails the first one containing `fail_on`.
+
+    `docker compose config` renders the service's own two (glitchtip) or one (exporter) scoped DSNs.
+    """
 
     def __init__(self, fail_on: str):
         self.calls: list[str] = []
@@ -178,44 +180,52 @@ class _Fake:
     def __call__(self, cmd, stdin=None, host=None, timeout=300):
         self.calls.append(cmd)
         failed = self.fail_on in cmd and not any(self.fail_on in c for c in self.calls[:-1])
-        out = (
-            ""
-            if "compose config" not in cmd
-            else "x://glitchtip:p@postgres-main:5432/ y://glitchtip:p@postgres-main:5432/"
-        )
+        out = ""
+        if "compose config" in cmd:
+            out = (
+                "a: postgresql://glitchtip:p@postgres-main:5432/glitchtip\nb: postgresql://glitchtip:p@postgres-main:5432/glitchtip\n"
+                if "/opt/glitchtip" in cmd
+                else "c: postgresql://postgres_exporter:q@postgres-main:5432/postgres?sslmode=disable\n"
+            )
         return subprocess.CompletedProcess(cmd, 1 if failed else 0, out, "boom" if failed else "")
+
+
+def _move(monkeypatch, fail_on, state):
+    fake = _Fake(fail_on)
+    monkeypatch.setattr(m, "run", fake)
+    monkeypatch.setattr(m, "gate", lambda *a: None)
+    pws = {"glitchtip": "p", "postgres_exporter": "q"}
+    m.step3d_move(pws, {"glitchtip": state, "postgres_exporter": state})
+    return fake
 
 
 @pytest.mark.parametrize(
     "fail_on", ["sh -c", "sed -i", "compose config", "compose up -d glitchtip-web glitchtip-worker"]
 )
-def test_a_failed_service_move_restores_both_files_and_restarts(monkeypatch, fail_on):
-    fake = _Fake(fail_on)
-    monkeypatch.setattr(m, "run", fake)
-    monkeypatch.setattr(m, "gate", lambda *a: None)
+def test_a_failed_fresh_move_restores_both_files_and_restarts(monkeypatch, fail_on):
     with pytest.raises(SystemExit):
-        m.step3d_move(
-            {"glitchtip": "p", "postgres_exporter": "q"},
-            {"glitchtip": "fresh", "postgres_exporter": "fresh"},
-        )
+        _move(monkeypatch, fail_on, "fresh")
+    fake = m.run
     restore = [c for c in fake.calls if "cp -p compose.yaml.backup." in c]
     assert len(restore) == 1 and restore[0].startswith("cd /opt/glitchtip")
+    assert "sudo cp -p .env.backup." in restore[0]
     assert restore[0].endswith("docker compose up -d glitchtip-web glitchtip-worker")
     assert not any("/opt/monitoring" in c for c in fake.calls)
 
 
-def test_a_moved_service_is_not_sed_edited_again(monkeypatch):
-    fake = _Fake("never-matches")
-    monkeypatch.setattr(m, "run", fake)
-    monkeypatch.setattr(m, "gate", lambda *a: None)
-    with pytest.raises(
-        SystemExit
-    ):  # the fake renders glitchtip DSNs for the exporter too, so its assert stops
-        m.step3d_move(
-            {"glitchtip": "p", "postgres_exporter": "q"},
-            {"glitchtip": "moved", "postgres_exporter": "moved"},
-        )
+def test_a_failed_moved_rerun_keeps_the_new_env(monkeypatch):
+    with pytest.raises(SystemExit):
+        _move(monkeypatch, "compose config", "moved")
+    restore = [c for c in m.run.calls if "cp -p compose.yaml.backup." in c]
+    assert len(restore) == 1 and ".env.backup" not in restore[0].split("compose.yaml && ", 1)[1]
+    assert restore[0].endswith("docker compose up -d glitchtip-web glitchtip-worker")
+
+
+def test_a_successful_move_restores_nothing_and_skips_sed_when_moved(monkeypatch):
+    fake = _move(monkeypatch, "never-matches", "moved")
+    assert not any("cp -p compose.yaml.backup." in c for c in fake.calls)
     assert not any("sed -i" in c for c in fake.calls)
+    assert sum("docker compose up -d" in c for c in fake.calls) == 2
 
 
 def test_no_secret_reaches_any_remote_command_line(monkeypatch):
@@ -223,11 +233,50 @@ def test_no_secret_reaches_any_remote_command_line(monkeypatch):
     monkeypatch.setattr(m, "run", fake)
     monkeypatch.setattr(m, "gate", lambda *a: None)
     pws = {"glitchtip": "GTSECRETGTSECRET", "postgres_exporter": "EXSECRETEXSECRET"}
-    with pytest.raises(SystemExit):
-        m.step3d_move(pws, {"glitchtip": "fresh", "postgres_exporter": "fresh"})
-    assert not any(s in c for c in fake.calls for s in pws.values())
-    login_cmd = shlex.split(fake.calls[0])  # any call: the argv never carries a secret
-    assert all("SECRET" not in a for a in login_cmd)
+    m.step3d_move(pws, {"glitchtip": "fresh", "postgres_exporter": "fresh"})
+    assert fake.calls and not any(s in c for c in fake.calls for s in pws.values())
+
+
+def test_scoped_count_checks_role_and_database():
+    r = "postgresql://glitchtip:x@postgres-main:5432/glitchtip\npostgresql://glitchtip:x@postgres-main:5432/glitchtip_old\n"
+    assert m.scoped_count(r, "glitchtip", "glitchtip") == 1
+    assert (
+        m.scoped_count(
+            "postgresql://postgres_exporter:x@postgres-main:5432/postgres?sslmode=disable",
+            "postgres_exporter",
+            "postgres",
+        )
+        == 1
+    )
+    assert (
+        m.scoped_count(
+            "postgresql://glitchtip:x@postgres-main:5432/other", "glitchtip", "glitchtip"
+        )
+        == 0
+    )
+
+
+def test_the_sweep_needs_its_sentinel_and_a_grep_rc_of_0_or_1():
+    assert m.sweep_result("/opt/a/.env\n__grep_rc=0") == ["/opt/a/.env"]
+    assert m.sweep_result("__grep_rc=1") == []
+    assert m.sweep_result("") is None  # sudo refused: grep never ran
+    assert m.sweep_result("/opt/a/.env\n__grep_rc=2") is None
+    out = subprocess.run(
+        ["sh", "-c", m.sweep_sh().replace("/opt", "/nonexistent-sweep-probe")],
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert m.sweep_result(out) is None  # grep rc 2 on a missing directory
+
+
+def test_verify_problems_names_each_failed_check():
+    assert m.verify_problems("glitchtip,postgres_exporter", "0", "200", ["1", "1"]) == []
+    assert m.verify_problems("glitchtip,postgres_exporter", "0", "401", ["1"]) == []
+    assert len(m.verify_problems("glitchtip", "2", "", [])) == 4
+    assert m.verify_problems("glitchtip,postgres_exporter", "0", "502", ["1", "0"]) == [
+        "GlitchTip /api/0/ answered 502",
+        "pg_up: ['1', '0']",
+    ]
 
 
 def test_step2_writes_each_password_file_mode_0600(monkeypatch, tmp_path):
