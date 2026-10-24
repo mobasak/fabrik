@@ -422,4 +422,5 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/merge_request.py`
+- `scripts/merge_test_select.py`
 <!-- END related-scripts -->
