@@ -456,3 +456,39 @@ def test_a_timeout_at_the_declared_full_leg_is_a_timeout_not_a_spent_budget(worl
 
     reply = world.replies(msg_id)["fleet"]
     assert "ran out during the leg" not in reply and "the leg ran its whole limit" in reply
+
+
+def test_a_124_after_the_whole_declared_leg_is_a_red_not_a_spent_budget(world, monkeypatch):
+    """The leg's own exit 124 after its WHOLE declared limit is a test verdict (the owner's `timeout`
+    or the runner): "budget spent" is only a leg the budget cut short."""
+    import subprocess as sp
+    import time as real_time
+
+    _counting_tests(world, "# merge-test-timeout: 600\nexit 0\n")
+    head = _branch(world)
+    msg_id = world.send(head)
+    mod = world.mod
+    skew = {"s": 0.0}
+
+    class Clock:  # the module's `time`, with the leg's 600 s passing instantly
+        def __getattr__(self, name):
+            return getattr(real_time, name)
+
+        def monotonic(self):
+            return real_time.monotonic() + skew["s"]
+
+    monkeypatch.setattr(mod, "time", Clock())
+
+    def leg(ctx, wt, script, touched):
+        ctx.leg_limit = mod._leg_timeout(ctx)
+        skew["s"] += ctx.leg_limit + 1
+        return sp.CompletedProcess(
+            ["sh"], 124, "", "timed out\n"
+        ), ".fabrik/merge-tests (base copy)"
+
+    monkeypatch.setattr(mod, "_run_owner_leg", leg)
+
+    assert world.run("merge") != 0
+
+    reply = world.replies(msg_id)["fleet"]
+    assert "owner tests red" in reply and "ran out during the leg" not in reply
