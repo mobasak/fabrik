@@ -5379,8 +5379,6 @@ def main(argv: list[str]) -> int:
                 if not run_active and not decision_ground and not _blocked_header(lam or ""):
                     band = _coord_band(transcript_p) or ""
                     if band not in _COORD_QUIET_BANDS:
-                        _COORD_STOOD_DOWN.clear()
-                        _COORD_STOOD_WHY.clear()
                         rotation = _awaits_rotation(lam) and _rotation_due(sid)
                         duty = _coordinator_duty(
                             root, sid, Path(data.get("cwd") or root), band, rotation=rotation

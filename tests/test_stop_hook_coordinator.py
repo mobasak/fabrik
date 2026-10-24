@@ -600,6 +600,15 @@ def test_rotation_ladder_skips_start_candidates_without_spending_them(
     assert out is not None and "answer mail y" in out["reason"]
 
 
+def test_the_duty_reports_only_its_own_stand_downs(monkeypatch, tmp_path):
+    """The duty clears both lists itself, so a stale stand-down never reaches the event."""
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line({**CLAIM, "action": "owned", "fp": "owned"}))
+    hook._COORD_STOOD_DOWN[:] = ["feedback"]
+    hook._COORD_STOOD_WHY[:] = ["amber"]
+    assert hook._coordinator_duty(tmp_path, SID, tmp_path, rotation=True) is None
+    assert (hook._COORD_STOOD_DOWN, hook._COORD_STOOD_WHY) == (["owned"], ["rotation"])
+
+
 @pytest.mark.parametrize(("stamp", "reason"), [(True, "amber+rotation"), (False, "amber")])
 def test_a_stand_down_event_names_its_reason(
     monkeypatch, tmp_path, _stamps_from_home, stamp, reason
