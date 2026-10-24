@@ -392,6 +392,11 @@ def test_red_master_phrase_skips_hypotheticals():
         "fix: guard\n\nit WOULD\nturn master red",
         "fix: guard\n\nit is going to turn master red",
         "fix: guard\n\nit would turn the build on master red",
+        "fix: guard\n\nit would turn the whole build on master red",
+        "fix: guard\n\nit would also turn master red",
+        "fix: guard\n\nit could easily go red on master",
+        "fix: guard\n\nit would mean master is red",
+        "fix: guard\n\nit would cause a red master",
     )
     rework = (
         "fix: allowlist x (red on master since W-1)",
@@ -404,6 +409,10 @@ def test_red_master_phrase_skips_hypotheticals():
         "fix: x\n\nthe gate should have caught this but master went red",
         "fix: x\n\nwe can see that master is red",
         "fix: x\n\nsince 3 May master went red",
+        "fix: x\n\nwe'd left master red for two hours",
+        "fix: x\n\nthe merge they'd made left master red",
+        "fix: x\n\nwe will be fine now since master is red",
+        "fix: x\n\nit will keep working because master turned red",
         "fix: x\n\na bad merge can and did turn master red",
         "fix: x\n\nit would turn it off. Then master went red",
         "fix: x\n\nthe scan " + "q" * 75 + " master went red",

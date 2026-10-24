@@ -62,8 +62,9 @@ _RED = re.compile(
 )
 # A phrase is a hypothetical, not a red master, when the text right before it ends in a modal
 # governing the verb that forms the phrase: "it would turn master red", "would read red on master
-# without this", "won't go", "could've turned", "it'd turn", "is going to turn" — up to three
-# words between the verb and the phrase, none ending a sentence or clause. A modal elsewhere in the
+# without this", "won't go", "could've turned", "it'd turn", "would also turn" — up to five
+# words between the verb and the phrase, none ending a sentence or clause and none a conjunction
+# ("will be fine now since master is red" counts). A modal elsewhere in the
 # sentence ("we can see master went red", "should have caught this but master went red", "3 May")
 # is not one. Model boundary: a modal split from its verb by a clause ("would, if merged, turn")
 # and a negation ("never red on master") still count.
@@ -73,10 +74,11 @@ _RED = re.compile(
 # hits, exactly 2edc9545f and 0e8aacd73; by construction the rule only removes hits.
 _HYPOTHETICAL = re.compile(
     r"(?:\b(?:would|could|should|might|may|will|can|must|shall)(?:n['’]?t)?(?:['’]ve)?"
-    r"|\b(?:wo|ca|sha)n['’]?t|\bcannot|\b\w+['’]d|\bgoing\s+to)[`\"'“”‘’*_]*"
+    r"|\b(?:wo|ca|sha)n['’]?t|\bcannot|\b(?:it|that|this)['’]d|\bgoing\s+to)[`\"'“”‘’*_]*"
+    r"(?:\s+(?:\w+ly|also|never|not|still|soon|then|just|already|even|probably))?"
     r"(?:\s+not)?(?:\s+have)?(?:\s+been)?"
-    r"\s+(?:turn(?:ed)?|go|gone|leave|left|make|made|read|be|stay(?:ed)?|keep|kept|end\s+up)"
-    r"(?:\s+[^\s.,;:!?()]+){0,3}\s+$",
+    r"\s+(?:turn(?:ed)?|go|gone|leave|left|make|made|read|be|stay(?:ed)?|keep|kept|end\s+up|mean|cause|show|put)"
+    r"(?:\s+(?!(?:since|because|and|so|but|or|when|while|after|as|until|though)\b)[^\s.,;:!?()]+){0,5}\s+$",
     re.I,
 )
 _FIX_SUBJECT = re.compile(r"^(?:fix|test|revert)\b", re.I)
