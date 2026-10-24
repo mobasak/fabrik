@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T09:35:00.536120Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b4ebe9f7",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "convert the path (mirror src/fabrik/config.py::_resolve_fabrik_root) or add a one-line ALLOWLIST reason in tests/test_hub_write_root.py; run that test green on the merged tree; right-now + /fabrik-review-scoped",
+  "note": "",
+  "owner": "fleet",
+  "priority": 0,
+  "score_reason": "HIGH: a blocking bug — a red test on master fails every merge check and gate; effort low: one path or one allowlist line",
+  "status": "open",
+  "title": "Master red: tests/test_hub_write_root.py::test_every_hub_root_write_hit_is_converted_or_allowlisted fails because scripts/sysadmin/vps1_pg_scoped_logins.py (merged 66e37e977, W-80983d8c) hard-codes a hub write root with no disposition — reproduced by the coordinator on master 2026-10-24"
+}
