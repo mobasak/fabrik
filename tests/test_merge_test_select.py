@@ -696,6 +696,10 @@ def test_a_green_record_short_circuits_only_when_valid_and_ledger_only(
     _rebuild(repo, {"notes.txt": "the base moved\n"})
     rc, out = _run(repo, monkeypatch, capsys)
     assert rc == 0 and "1 test file(s)" in out and "re-test skipped" not in out, out
+    # ... and so does one touching a ledger AND a path outside the set (every path must be SKIP)
+    _rebuild(repo, {".fabrik/work/W-00000001.json": '{"c": 3}\n', "notes.txt": "again\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "1 test file(s)" in out and "re-test skipped" not in out, out
     # each invalid record is ignored, with its reason, and the full selection runs
     head = _rebuild(repo, {".fabrik/work/W-00000001.json": '{"b": 2}\n'})
     plain = _git(repo, "rev-parse", "HEAD^1")  # a one-parent commit

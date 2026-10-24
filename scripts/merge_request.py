@@ -1314,6 +1314,7 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) ran out during the leg "
         f"(stopped at {{}}s) — not a test verdict"
     )
+    t0 = time.monotonic()
     try:
         run, label = _run_owner_leg(ctx, wt, script, touched)
     except TimedOutError as exc:
@@ -1322,7 +1323,10 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         exc.base_old = old  # type: ignore[attr-defined]
         exc.base_alone_skip = "the merged run timed out"  # type: ignore[attr-defined]
         raise
-    if run.returncode == 124 and ctx.leg_limit < TEST_TIMEOUT_S:
+    # a 124 is the budget's only when the leg ran its whole shortened limit: the owner's own
+    # `timeout` (or a plain `exit 124`) inside the leg exits sooner and stays a red
+    shortened = ctx.leg_limit < TEST_TIMEOUT_S
+    if run.returncode == 124 and shortened and time.monotonic() - t0 >= ctx.leg_limit:
         raise BudgetSpentError(spent.format(ctx.leg_limit))  # no base_old: no base-alone run
     if run.returncode != 0:
         tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
@@ -1689,7 +1693,8 @@ def _reply_body(rec: dict) -> str:
             "push, re-review, and run merge_request.py request again with the updated receipt — "
             "never a rebase or a force-push: the branch is already pushed. When it says the base "
             "alone is red too, change nothing and send nothing: the owner fixes the base and "
-            "runs merge_request.py retry on this request."
+            "runs merge_request.py retry on this request. When it names the owner-test budget of "
+            "the run, change nothing and send nothing either: the owner runs merge_request.py retry."
         )
     body = "\n".join(lines) + "\n"
     return body.replace("acked-by:", "acked by:")  # a body never carries a verbatim ack line
@@ -2255,10 +2260,15 @@ def merge(args: argparse.Namespace) -> int:
                         remote = _remote_name(ctx.main, base) if rec.get("base") else "origin"
                     except RefusedError:
                         remote = "<push remote>"
+                    # the parked reason is _catch_up_refused's own instruction (a budget stop is a
+                    # plain resume, never a hand merge); a record parked without one keeps the default
+                    how = rec.get("reason") or (
+                        f"merge {remote}/{base} into {base} by hand, then `merge_request.py resume "
+                        f"{rec['id']}`"
+                    )
                     print(
                         f"merge_request: request {rec['id']} is parked at catchup-refused — "
-                        f"merge {remote}/{base} into {base} by hand, then `merge_request.py resume "
-                        f"{rec['id']}`; nothing claimed from the inbox until then",
+                        f"{how}; nothing claimed from the inbox until then",
                         file=sys.stderr,
                     )
                 return EXIT_PARTIAL

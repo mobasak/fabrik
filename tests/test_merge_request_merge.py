@@ -1947,9 +1947,9 @@ def test_the_owner_test_budget_refuses_before_any_outer_wrapper(world):
     import time
 
     log = _logging_runner(world)
-    # the budget (3 s) is shorter than one leg's limit (60 s): the leg is stopped at what is left
+    # the budget (8 s) is shorter than one leg's limit (60 s): the leg is stopped at what is left
     world.mp.setattr(world.mod, "TEST_TIMEOUT_S", 60)
-    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 3, raising=False)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 8, raising=False)
     world.mp.setattr(world.mod, "LEG_FLOOR_S", 1, raising=False)
     world.write(".fabrik/merge-tests", "sleep 30\n")
     world.commit_main("slow owner tests", ".fabrik/merge-tests")
@@ -1965,8 +1965,70 @@ def test_the_owner_test_budget_refuses_before_any_outer_wrapper(world):
     limits = [
         int(ln.split()[1]) for ln in log.read_text().splitlines() if ln.startswith("--timeout ")
     ]
-    assert len(limits) == 1 and 1 <= limits[0] <= 3, limits  # one leg, at what the budget left
+    assert len(limits) == 1 and 1 <= limits[0] <= 8, limits  # one leg, at what the budget left
     assert took < 25, took  # the leg was stopped at the budget, not run for its 30 s
+    # the requester is told it is not theirs to fix
+    replies = world.replies(msg_id)
+    assert replies and all("names the owner-test budget" in r for r in replies.values()), replies
+
+
+def test_an_owner_exit_124_inside_a_shortened_leg_stays_a_red(world):
+    """The owner's own `timeout` (here a plain exit 124) ends the leg well inside its shortened
+    limit: that is the tests' verdict, never the budget's."""
+    _logging_runner(world)
+    world.mp.setattr(world.mod, "TEST_TIMEOUT_S", 60)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 30)
+    world.mp.setattr(world.mod, "LEG_FLOOR_S", 1)
+    world.write(".fabrik/merge-tests", "exit 124\n")
+    world.commit_main("owner tests time out themselves", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"t.txt": "t\n"}, msg="t"))
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "owner tests red" in reason and "exit 124" in reason and "budget" not in reason, reason
+
+
+def test_an_outer_timeout_under_a_shortened_limit_is_the_budget(world, monkeypatch):
+    """A runner that itself hangs past limit + 60 raises TimedOutError; under a shortened limit
+    that is the budget too, with no base-alone run."""
+    world.write(".fabrik/merge-tests", "true\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+
+    def hangs_short(ctx, wt, script, touched):
+        ctx.leg_limit = 5
+        raise world.mod.TimedOutError("sh -e -c timed out after 65s")
+
+    monkeypatch.setattr(world.mod, "_run_owner_leg", hangs_short)
+    msg_id = world.send(world.branch({"h.txt": "h\n"}, msg="h"))
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "budget" in reason and "stopped at 5s" in reason, reason
+    assert "on base alone" not in reason and "timed out after" not in reason, reason
+
+
+def test_the_leg_floor_is_exact(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    floor = world.mod.LEG_FLOOR_S
+    ctx.test_deadline = world.mod.time.monotonic() + floor + 0.5
+    assert world.mod._leg_timeout(ctx) == floor  # exactly the floor left: a leg of that length
+    ctx.test_deadline = world.mod.time.monotonic() + floor - 0.5
+    with pytest.raises(world.mod.BudgetSpentError):
+        world.mod._leg_timeout(ctx)
+
+
+def test_a_parked_budget_catch_up_is_told_resume_not_a_hand_merge(world, capsys):
+    parked = _strand(world, _dead_pid(), "1", phase="catchup-refused")
+    path = world.main / ".git" / "fabrik-merge" / f"{parked}.json"
+    rec = json.loads(path.read_text())
+    rec["reason"] = world.mod._catch_up_refused(
+        world.mod._Ctx(world.main, world.main / ".git", "infra"),
+        rec,
+        "origin",
+        world.mod.BudgetSpentError("the owner-test budget of this run (3600s) ran out"),
+    )
+    path.write_text(json.dumps(rec))
+    assert world.run("merge") == 4
+    err = capsys.readouterr().err
+    assert f"`merge_request.py resume {parked}` again" in err and "by hand" not in err, err
 
 
 def test_a_spent_budget_starts_no_leg_and_a_catch_up_names_resume(world):
@@ -1983,9 +2045,9 @@ def test_a_spent_budget_starts_no_leg_and_a_catch_up_names_resume(world):
     after = world.state()
     assert (after["refs"], after["origin"]) == (before["refs"], before["origin"])
     # a catch-up refused by the budget is a new run's job, never a hand merge
-    spent = getattr(world.mod, "BudgetSpentError", world.mod.RefusedError)
     ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
-    text = world.mod._catch_up_refused(ctx, {"id": msg_id, "base": "master"}, "origin", spent("x"))
+    spent = world.mod.BudgetSpentError("x")
+    text = world.mod._catch_up_refused(ctx, {"id": msg_id, "base": "master"}, "origin", spent)
     assert f"`merge_request.py resume {msg_id}` again" in text and "by hand" not in text, text
 
 
