@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra-2",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "URGENT — operator ruling: Ocoron fonts are Arya (headings) + IBM Plex Sans (text); change the synced Ocoron design system now"
 }
