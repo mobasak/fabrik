@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review-scoped says how to pin a surface that is already committed (2026-10-24)
+
+- Step 5's pin recipe takes `base_sha` from `git rev-parse HEAD` and pins the working tree, so a lead who committed first got a `change.diff` with only a header line. The fix rule existed only in the probe catalogue's § Seat isolation, which a docs-only brief need not load. Step 5 now quotes that catalogue clause whole, and adds two shapes the clause leaves out: a merge as the last commit counts as several, and a surface that is partly committed is pinned from the working tree with `--base`. It also says the brief's `base_sha` is the one the pin records. The rule is graded by `tests/test_review_scoped_queue_pass.py::test_a_committed_surface_is_pinned_from_its_commit_by_its_shape`. This answers feedback rows 1792829562, 1792779119 and 1792774372 (W-2a444037).
+
 ### Fixed — a late re-bind no longer ends a rotation `partial:rebind`, inside the executor's timeout (2026-10-24)
 
 - `rotate_session.py` waits `REBIND_GRACE_S` (180 s, was 90) for the rotated agent's re-bind; the one late bind measured
