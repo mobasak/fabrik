@@ -9,8 +9,10 @@ scripted tmux, a fake /proc tree, a registry, an identity store, a transcript an
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -1338,3 +1340,113 @@ def test_wb72231b8_repoint_keeps_the_mode_drops_a_doubled_name_and_never_overwri
     monkeypatch.setattr(rs.os, "chmod", chmod_then_hand_edit)
     assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:changed on disk"
     assert NEW not in json.loads(regf.read_text()) and not list(tmp_path.glob(".session-agents.*"))
+
+
+def _late_bind(world, monkeypatch, bind_after: float | None) -> dict:
+    """A fake clock that moves only when the script sleeps, with ROTATE_WAIT_S unset so each wait runs at its
+    production length (the fake panes settle at once, so the waits before the re-bind end early). The identity store
+    gains the re-bind `bind_after` s after the resume prompt, or never when None. Returns the times seen."""
+    monkeypatch.delenv("ROTATE_WAIT_S")
+    clock = {"now": time.time()}
+    monkeypatch.setattr(rs.time, "time", lambda: clock["now"])
+    monkeypatch.setattr(rs.time, "sleep", lambda s: clock.__setitem__("now", clock["now"] + s))
+    _clear_hook(world, monkeypatch, bind=False)
+    seen: dict = {}
+    real_send = rs._send
+
+    def send(pane, text):
+        real_send(pane, text)
+        if text.startswith("You were rotated"):
+            seen["sent"] = clock["now"]
+
+    monkeypatch.setattr(rs, "_send", send)
+    real_bindings = rs._bindings
+
+    def bindings():
+        if "sent" in seen:
+            seen["last_read"] = clock["now"]
+            if bind_after is not None and clock["now"] >= seen["sent"] + bind_after:
+                at = int(seen["sent"] + bind_after)
+                return [{"session_id": NEW, "name": "dev1", "predecessor": SID, "at": at}]
+        return real_bindings()
+
+    monkeypatch.setattr(rs, "_bindings", bindings)
+    _write_request(world)
+    rs.execute()
+    return seen
+
+
+def test_wb72231b8_a_late_bind_inside_the_grace_rows_ok(world, monkeypatch):
+    """W-b72231b8 slice 2: a re-bind landing 98 s after the resume prompt (the one late bind measured since W-b92aa5cf)
+    rows `ok` with its own `rebind_s`, not `partial:rebind`."""
+    _late_bind(world, monkeypatch, 98)
+    row = _rows(world)[-1]
+    assert row["outcome"] == "ok" and row["predecessor_row"] is True, row
+    assert 97 <= row["rebind_s"] <= 99, row
+
+
+def test_wb72231b8_no_bind_waits_the_whole_grace_then_rows_partial(world, monkeypatch):
+    """W-b72231b8 slice 2: with no re-bind the row is `partial:rebind`, never a false `ok`, and only after the identity
+    store was read for the whole REBIND_GRACE_S."""
+    seen = _late_bind(world, monkeypatch, None)
+    row = _rows(world)[-1]
+    assert row["outcome"] == "partial:rebind" and row["predecessor_row"] is False, row
+    waited = seen["last_read"] - seen["sent"]
+    assert rs.REBIND_GRACE_S - 2 <= waited <= rs.REBIND_GRACE_S, waited
+
+
+def test_wb72231b8_execute_claims_nothing_new_after_the_cutoff(world, monkeypatch):
+    """W-b72231b8 slice 2: two requests can meet in one run only by racing past `_pending` (request checks it seconds
+    before it writes its file). A request still waiting once the run has gone CLAIM_CUTOFF_S is left for the path unit's
+    next start — never started where the unit's timeout could kill it with no row."""
+    mono = {"now": 1000.0}
+    monkeypatch.setattr(rs.time, "monotonic", lambda: mono["now"])
+    rows: list = []
+    monkeypatch.setattr(rs, "append_row", lambda row: rows.append(row))
+
+    def one(claimed):
+        mono["now"] += rs.CLAIM_CUTOFF_S + 1  # this rotation took past the cutoff
+        return {"outcome": "ok", "claimed": claimed.name}
+
+    monkeypatch.setattr(rs, "_one", one)
+    world["req"].mkdir(exist_ok=True)
+    first, second = world["req"] / "a--dev1.json", world["req"] / "b--dev2.json"
+    first.write_text("{}")
+    second.write_text("{}")
+    os.utime(first, (1, 1))  # claimed oldest-first
+    assert rs.execute() == 0
+    assert [r["claimed"] for r in rows] == ["a--dev1.claimed"], rows
+    assert second.exists() and not first.exists() and not list(world["req"].glob("*.claimed"))
+
+
+def test_wb72231b8_the_worst_request_fits_the_units_timeout():
+    """W-b72231b8 slice 2: the last request `execute` may start (at CLAIM_CUTOFF_S) ends, at its worst, with 60 s of the
+    oneshot's TimeoutStartSec to spare, so the timeout never kills a rotation before its row; the grace covers the
+    measured 98 s; every wait is a named constant (a literal wait would escape the derivation); the unit sets exactly
+    one integer TimeoutStartSec and no TimeoutSec that could override it. Model boundary (review r2): waits passed to
+    `_wait_s`, the discard's re-check sleep and `_tmux`'s timeout. Outside it, by design: the count of 17 tmux calls is
+    restated here, not counted from the call sites; a wait that bypasses `_wait_s`; a subprocess other than `_tmux`
+    (run_checks' git calls are W-b728822f); a systemd drop-in or a unit Environment= on the installed copy."""
+    unit = (REPO / "scripts" / "sysadmin" / "fabrik-rotate.service").read_text().splitlines()
+    starts = [ln.strip() for ln in unit if ln.strip().startswith("TimeoutStartSec")]
+    assert len(starts) == 1 and re.fullmatch(r"TimeoutStartSec=\d+", starts[0]), starts
+    assert not [ln for ln in unit if ln.strip().startswith("TimeoutSec")]
+    timeout = int(starts[0].split("=", 1)[1])
+    assert rs.REQUEST_WORST_S == (
+        rs.DISCARD_RECHECK_S
+        + rs.DISCARD_WAIT_S
+        + 2 * (rs.SEND_SETTLE_S + rs.SEND_SUBMIT_S)
+        + rs.CLEAR_WAIT_S
+        + rs.REBIND_GRACE_S
+        + 5  # the loops' sleeps after their last check: 5 x 0.5 + 2 x 1 = 4.5, rounded up
+        + 17 * rs.TMUX_TIMEOUT_S
+    )
+    assert timeout >= rs.CLAIM_CUTOFF_S + rs.REQUEST_WORST_S + 60, (rs.REQUEST_WORST_S, timeout)
+    assert rs.REBIND_GRACE_S >= 98
+    src = SCRIPT.read_text()
+    assert not re.findall(r"_wait_s\(\s*[-+.\d]", src), (
+        "a wait passed as a literal escapes REQUEST_WORST_S"
+    )
+    assert "for wait in (0.0, DISCARD_RECHECK_S):" in src
+    tmux_src = inspect.getsource(rs._tmux)
+    assert "timeout=TMUX_TIMEOUT_S" in tmux_src and not re.findall(r"timeout=\d", tmux_src)

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T08:00:57.912877Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-23c59b6a",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B35M8AF3TSR9ND5CKWJ1MQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: another repo's request (fabrik-lib SB-037 contract change); effort low: route and update consumers",
+  "status": "done",
+  "title": "WHAT: fabrik-lib `revenuecat-entitlements` changed its corrupt-stored-row contract (SB-037; fabrik-lib D-481 approved it, D-484 executed it). Every project that vendors this module should re-vendor it."
+}

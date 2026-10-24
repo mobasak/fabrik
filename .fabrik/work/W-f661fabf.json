@@ -3,7 +3,7 @@
   "created": "2026-10-22T23:15:58.606034Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "e35ea2b8de0cfe12f086ddcf4df1a6312d233935",
   "id": "W-f661fabf",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 3,
   "score_reason": "two false reds of one test on unusual trees, no gate verdict on master changes; one condition or skip in one test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],

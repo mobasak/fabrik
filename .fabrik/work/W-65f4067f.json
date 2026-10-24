@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-23T17:39:01.095238Z",
   "creator": "infra-2",
-  "evidence": "",
+  "evidence": "9e83d5c37fe6b1a4f3ca108b5679ef0aa3af28e2",
   "id": "W-65f4067f",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "docs/workstation/hooks-index.md rows 21 (agent_status.py, '|| true') and 24 (final_gate_stop.py, 'gate|underivable|owned') carry unescaped pipes — GFM splits a cell on a raw '|' even inside backticks, so both rows render with extra cells (the file's own escape is '\\|'); found by the W-25f6b2a3 doc-row review"
 }

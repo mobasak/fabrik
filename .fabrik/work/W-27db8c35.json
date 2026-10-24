@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "LOW: an advisory-only checker edge (backtick runs pair by length) behind one malformed row, already repaired; effort low, but enforcement code owes the full review — held until GREEN",
   "status": "done",
-  "tags": [
-    "waits-quota"
-  ],
   "title": "check_decisions_unique._cells pairs backticks without run length (regex `[^`]*` at scripts/enforcement/check_decisions_unique.py:120), while scripts/decisions.py::_code_span_ranges follows CommonMark — a row holding a 2+ backtick run (the D-1159 case, W-9b3ee1bf) is split wrongly by the checker and read as malformed"
 }

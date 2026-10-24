@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — metrics gap in a coroner script, no breakage",
   "status": "open",
-  "tags": [
-    "waits-quota"
-  ],
   "title": "kaizen_coroner.py should count a turn that died on a network error (EAI_AGAIN, no response) the same way as the self-watch does after W-5279e834/D-919; left out deliberately because closing those run records now would close sessions being revived"
 }
