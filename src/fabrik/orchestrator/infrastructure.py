@@ -1712,6 +1712,8 @@ class InfrastructureProvisioner:
 def _watchdog_uses_claude(ctx: Any) -> bool:
     """Whether the sidecar's LLM lane needs the Claude login files — read with the driver's provider defaults."""
     wcfg = (getattr(ctx, "spec", None) or {}).get("watchdog", {}) or {}
+    if not isinstance(wcfg, dict):  # a raw spec's malformed block: the defaults, so the driver reports it
+        wcfg = {}
     pair = (
         wcfg.get("llm_provider_primary", "claude-code"),
         wcfg.get("llm_provider_fallback", "openrouter"),

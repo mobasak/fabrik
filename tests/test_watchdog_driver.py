@@ -153,6 +153,11 @@ class TestRenderContext:
         assert "@10.99.0.1:5432/" in spoke.pg_dsn and "postgres-main" not in spoke.pg_dsn
         # Apprise is reached through its mesh-only gate (D-1166), never its Docker-DNS name.
         assert spoke.apprise_url == "http://10.99.0.1:8202/notify/alerts"
+        # ...and that URL is what the sidecar's environment actually carries.
+        assert (
+            WatchdogDriver()._render_env(spoke)["WATCHDOG_APPRISE_URL"]
+            == "http://10.99.0.1:8202/notify/alerts"
+        )
         hub = WatchdogDriver()._build_render_context(
             {"id": "demo", "watchdog": {"enabled": True}}, _ctx({"id": "demo"}, target_vps="vps1")
         )

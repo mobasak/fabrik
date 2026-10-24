@@ -146,7 +146,7 @@ These resolve only *inside* a container on the same `fabrik` network on the same
 | Loki push API | `http://loki:3100/loki/api/v1/push` |
 | Prometheus query | `http://prometheus:9090` |
 | Authelia forward-auth target | `http://authelia:9091/api/verify` |
-| Apprise notify (stateful — the fleet convention; vps1 containers. A spoke posts to `http://10.99.0.1:8202/notify/alerts` instead, the mesh-only gate — § Mesh URLs) | `http://apprise:8000/notify/alerts` |
+| Apprise notify (stateful — the fleet convention; vps1 containers. A spoke posts to `http://10.99.0.1:8202/notify/alerts` instead, the mesh-only gate — § Mesh URLs; pending the W-5dcafaef deploy) | `http://apprise:8000/notify/alerts` |
 | Apprise notify (stateless — n8n only) | `http://apprise:8000/notify` |
 | Gotenberg | `http://gotenberg:3000` |
 | Browserless | `http://browserless:3000` |
@@ -294,7 +294,7 @@ const resp = await fetch('https://translator.vps1.ocoron.com/api/translate', { h
 | 8000/tcp | `10.99.0.1:8000` | (mesh-only) | glitchtip-web ingest |
 | 9091/tcp | `10.99.0.1:9091` | (mesh-only) | authelia (cross-host forward-auth) |
 | 3100/tcp | `10.99.0.1:3100` | (mesh-only) | loki push API |
-| 8202/tcp | `10.99.0.1:8202` | (mesh-only) | apprise-mesh-gate — `POST /notify/alerts` only (D-1166) |
+| 8202/tcp | `10.99.0.1:8202` | (mesh-only) | apprise-mesh-gate — `POST /notify/alerts` only (D-1166); pending the W-5dcafaef deploy |
 | 8080/tcp | `127.0.0.1:8080` | localhost | Traefik API dashboard |
 
 ### vps2 / vps3 UFW (identical) — active + enforcing as of 2026-05-31 evening (W1 shipped)
