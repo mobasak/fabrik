@@ -151,9 +151,11 @@ class World:
             self.index.append((st.st_ino, st.st_size))
 
     def bucket_from_archive(self) -> None:
+        """slug → {path under the slug: (size, sha1)} — what `lsf -R` prints (a MAIN key is a bare name)."""
         self.bucket = {}
-        for zst in self.archive.glob("*/*.jsonl.zst"):
-            self.bucket.setdefault(zst.parent.name, {})[zst.name] = (zst.stat().st_size, _sha1(zst))
+        for zst in self.archive.glob("*/**/*.jsonl.zst"):
+            slug, key = zst.relative_to(self.archive).as_posix().split("/", 1)
+            self.bucket.setdefault(slug, {})[key] = (zst.stat().st_size, _sha1(zst))
 
     def ready(self) -> None:
         self.archive_all()
@@ -168,7 +170,11 @@ class World:
             objects = self.bucket.get(slug)
             if objects is None:
                 return subprocess.CompletedProcess(argv, 1, "", "listing failed")
-            out = "".join(f"{n};{s};{h}\n" for n, (s, h) in sorted(objects.items()))
+            # like rclone: without -R a listing shows the top-level objects only
+            recursive = "-R" in argv
+            out = "".join(
+                f"{n};{s};{h}\n" for n, (s, h) in sorted(objects.items()) if recursive or "/" not in n
+            )
             return subprocess.CompletedProcess(argv, 0, out, "")
         if verb == "copyto":  # --fetch: hand back the LOCAL archive's copy of that object
             src, dst = argv[-2], argv[-1]
@@ -178,11 +184,10 @@ class World:
                 # the bucket's copy of the restore list: served from `self.bucket_ledger` when set
                 if self.bucket_ledger is not None:
                     Path(dst).write_text(self.bucket_ledger)
-            elif (
-                local.is_file()
-                and self.bucket.get(local.parent.name, {}).get(local.name) is not None
-            ):
-                shutil.copyfile(local, dst)
+            elif local.is_file() and "/" in rel:
+                slug, key = rel.split("/", 1)
+                if (self.bucket.get(slug) or {}).get(key) is not None:
+                    shutil.copyfile(local, dst)
             return subprocess.CompletedProcess(argv, 0, "", "")
         return subprocess.CompletedProcess(argv, 0, "", "")
 
@@ -924,6 +929,98 @@ def test_nightly_runs_both_tiers_under_the_cap_without_expect(world, monkeypatch
     assert world.log()[-1]["tiers"] == ["main", "subagents"] and world.log()[-1]["deferred"] == 2
 
 
+# ── D-1182: the subagent tier is archived, so its pruning is vouched ──────────────────────
+
+
+def test_c3_a_sidechain_is_deleted_only_when_the_archive_vouches_for_it(world):
+    side = {
+        n: _sidechain(world, "-opt-alpha", "a-old-10", n, days=10, running=False)
+        for n in ("agent-changed", "agent-nozst", "agent-nobucket", "agent-good")
+    }
+    world.ready()
+    norow = _sidechain(world, "-opt-alpha", "a-old-10", "agent-norow", days=10, running=False)
+    with side["agent-changed"].open("ab") as fh:
+        fh.write(b'{"late":1}\n')
+    _age(side["agent-changed"], 10)
+    zdir = world.archive / "-opt-alpha" / "a-old-10" / "subagents"
+    (zdir / "agent-nozst.jsonl.zst").unlink()
+    del world.bucket["-opt-alpha"]["a-old-10/subagents/agent-nobucket.jsonl.zst"]
+    good_sha = at._sha256(side["agent-good"])
+    assert pt.run(["--tier", "subagents"]) == 0
+    s_ref = world.log()[-1]["subagents_refusals"]
+    assert {k: s_ref.get(k) for k in ("not-archived", "sha-mismatch", "zst-missing", "remote-missing")} == {
+        "not-archived": 1,
+        "sha-mismatch": 1,
+        "zst-missing": 1,
+        "remote-missing": 1,
+    }, s_ref
+    assert pt.run(["--apply", "--tier", "subagents", "--expect", "1"]) == 0
+    assert not side["agent-good"].exists()
+    assert norow.exists() and all(side[n].exists() for n in side if n != "agent-good")
+    row = world.ledger()[-1]
+    key = "a-old-10/subagents/agent-good.jsonl.zst"
+    assert row["kind"] == "subagent" and row["sha256"] == good_sha
+    assert row["object"] == f"-opt-alpha/{key}"
+    assert (row["object_bytes"], row["object_sha1"]) == world.bucket["-opt-alpha"][key]
+    lsf = [c for c in world.rclone_calls if c[1] == "lsf"]
+    assert lsf and all("-R" in c and "--fast-list" in c for c in lsf), "one recursive B2 list per slug"
+
+
+def test_c3_the_last_look_skips_a_sidechain_that_changed(world, monkeypatch):
+    target = _sidechain(world, "-opt-alpha", "a-old-10", "agent-late", days=10, running=False)
+    world.ready()
+    real = pt.open_sessions
+    calls = {"n": 0}
+
+    def grow_then_answer(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 2:  # evaluate_subagents made the first; this is the one right before the unlink
+            with target.open("ab") as fh:
+                fh.write(b'{"late turn":1}\n')
+        return real(*a, **kw)
+
+    monkeypatch.setattr(pt, "open_sessions", grow_then_answer)
+    assert pt.run(["--apply", "--tier", "subagents", "--expect", "1"]) == 0
+    assert target.exists()
+    assert not any(r.get("kind") == "subagent" for r in world.ledger()), "no row for a skipped file"
+    assert world.log()[-1]["subagents_refusals"]["changed-under-hash"] == 1
+
+
+def test_restore_puts_a_pruned_sidechain_back_and_keeps_the_main_selection(world, capsys):
+    side = _sidechain(world, "-opt-alpha", "a-old-10", "agent-back", days=10, running=False)
+    body = side.read_bytes()
+    world.ready()
+    assert _apply(3) == 0  # MAIN first: a-old-10's own transcript is pruned
+    assert pt.run(["--apply", "--tier", "subagents", "--expect", "1"]) == 0  # then its sidechain
+    assert not side.exists()
+    # a MAIN restore still picks the MAIN row although a later subagent row carries the same session id
+    assert pt.run(["--restore", "a-old-10"]) == 0
+    assert (world.projects / "-opt-alpha" / "a-old-10.jsonl").exists() and not side.exists()
+    assert pt.run(["--restore", "agent-back"]) == 0
+    assert side.read_bytes() == body
+    assert time.time() - side.stat().st_mtime < 60
+    capsys.readouterr()
+    assert pt.run(["--verify-ledger"]) == 0
+    assert "OK      -opt-alpha/a-old-10/subagents/agent-back.jsonl.zst" in capsys.readouterr().out
+    # a pre-D-1182 row (no sha256) refuses by name; two distinct paths for one id refuse and list both
+    with (world.archive / pt.LEDGER_NAME).open("a") as fh:
+        for sid in ("x-1", "x-2"):
+            p = world.projects / "-opt-alpha" / sid / "subagents" / "agent-twice.jsonl"
+            fh.write(json.dumps({"tier": "subagents", "kind": "subagent", "project_slug": "-opt-alpha",
+                                 "session_id": sid, "paths": [str(p)], "sha256": "ab" * 32,
+                                 "object": f"-opt-alpha/{sid}/subagents/agent-twice.jsonl.zst",
+                                 "pruned_at": "2026-10-24T00:00:00Z"}) + "\n")
+        old = world.projects / "-opt-alpha" / "x-3" / "subagents" / "agent-old.jsonl"
+        fh.write(json.dumps({"tier": "subagents", "kind": "subagent", "project_slug": "-opt-alpha",
+                             "session_id": "x-3", "paths": [str(old)], "pruned_at": "2026-10-20T00:00:00Z"}) + "\n")
+    capsys.readouterr()
+    assert pt.run(["--restore", "agent-twice"]) == 3
+    err = capsys.readouterr().err
+    assert "x-1/subagents/agent-twice.jsonl" in err and "x-2/subagents/agent-twice.jsonl" in err
+    assert pt.run(["--restore", "agent-old"]) == 3
+    assert "no sha256" in capsys.readouterr().err
+
+
 # ── the unit file (C.2 unit ordering) ─────────────────────────────────────────────────────
 
 
@@ -935,12 +1032,13 @@ def test_unit_file_runs_the_pruner_after_the_archiver_with_the_dash_prefix():
     ]
     assert "Type=oneshot" in lines
     starts = [ln for ln in lines if ln.startswith("ExecStart=")]
-    assert len(starts) == 2
+    assert len(starts) == 3, "archiver, pruner, rotation mail (W-f975fee0 slice 3)"
     assert (
         starts[0]
         == "ExecStart=/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/archive_transcripts.py"
     )
-    assert starts[1].startswith(
+    assert starts[1] == (
         "ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py"
-    )
-    assert starts[1].endswith("--dry-run"), "the unit stays on dry-run until Gate C step (6)"
+        " --apply --nightly"
+    ), "Gate C passed 2026-10-12 (D-746): the unit applies"
+    assert starts[2].startswith("ExecStart=-") and "rotate_session.py due" in starts[2]

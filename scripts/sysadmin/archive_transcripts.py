@@ -5,6 +5,15 @@
 Compresses MAIN Claude transcripts to zstd, records them in a manifest, and ships the archive
 straight to the Backblaze B2 bucket with rclone (D-565). Nothing lands on a VPS.
 
+THE SUBAGENT TIER (D-1182): every `<slug>/<session-dir>/subagents/**/*.jsonl` — sidechains, workflow
+sidechains and workflow journals; never a `.meta.json` — is archived the same way, keyed
+(project_slug, rel) where `rel` is its path under the slug dir, the object at `<slug>/<rel>.zst` (the
+local layout, so `ship()` uploads it unchanged), its rows in their OWN manifest
+`manifest-subagents.jsonl` (project_slug, rel, session_id = the session dir, sha256, bytes, mtime_ns,
+archived_at) so no reader of the MAIN manifest can mis-key one. A tier file that fails to archive is
+printed `FAILED … the pruner keeps it` and the night goes on: `prune_transcripts.py` deletes a sidechain
+only when this manifest, its `.zst` and the bucket vouch for its bytes.
+
 ⚠️ THIS SCRIPT NEVER DELETES A TRANSCRIPT OR AN ARCHIVED OBJECT — locally or in the bucket (it
 removes only its own temporary `.snapshot-*` copy). Pruning is Phase C's
 `prune_transcripts.py` — the ONLY deleter, eight fail-closed guards, a 3-day window (D-736) — which
@@ -76,6 +85,8 @@ import time
 from pathlib import Path
 
 MANIFEST_NAME = "manifest.jsonl"
+SUBAGENT_MANIFEST_NAME = "manifest-subagents.jsonl"  # the subagent tier's rows (D-1182)
+SUBAGENT_GLOB = "*/*/subagents/**/*.jsonl"
 LOCK_NAME = ".archive.lock"
 SNAPSHOT_PREFIX = ".snapshot-"  # the frozen copy of a transcript being archived; never shipped
 REMOTE = "sessionb2"
@@ -200,7 +211,7 @@ def _remote_base() -> str:
 
 
 def main_transcripts(projects: Path, after_days: float) -> list[Path]:
-    """MAIN transcripts only — `*/subagents/*` is a separate tier and never enters the archive."""
+    """MAIN transcripts only — `*/subagents/*` is a separate tier (`subagent_transcripts`)."""
     cutoff = time.time() - after_days * 86400
     out = []
     for p in projects.glob("*/*.jsonl"):
@@ -208,6 +219,19 @@ def main_transcripts(projects: Path, after_days: float) -> list[Path]:
             continue
         if p.is_file() and p.stat().st_mtime <= cutoff:
             out.append(p)
+    return sorted(out)
+
+
+def subagent_transcripts(projects: Path, after_days: float) -> list[Path]:
+    """The subagent tier (D-1182): every `.jsonl` below a `<slug>/<session-dir>/subagents/` dir."""
+    cutoff = time.time() - after_days * 86400
+    out = []
+    for p in projects.glob(SUBAGENT_GLOB):
+        try:
+            if p.is_file() and not p.is_symlink() and p.stat().st_mtime <= cutoff:
+                out.append(p)
+        except FileNotFoundError:  # vanished between the glob and the stat
+            continue
     return sorted(out)
 
 
@@ -237,6 +261,16 @@ def _latest_rows(manifest: Path) -> dict[tuple[str, str], dict]:
                     latest[(alias, r["session_id"])] = r
             except (ValueError, KeyError, TypeError):
                 continue
+    return latest
+
+
+def _latest_subagent_rows(manifest: Path) -> dict[tuple[str, str], dict]:
+    """(project_slug, rel) → the latest row of the subagent tier's own manifest (D-1182)."""
+    latest: dict[tuple[str, str], dict] = {}
+    for r in _json_rows(manifest):
+        slug, rel = r.get("project_slug"), r.get("rel")
+        if isinstance(slug, str) and isinstance(rel, str) and slug and rel:
+            latest[(slug, rel)] = r
     return latest
 
 
@@ -368,9 +402,14 @@ def archive_one(
     latest: dict[tuple[str, str], dict],
     also_slugs: list[str],
     agent: str | None = None,
+    *,
+    tier_key: tuple[str, str] | None = None,
 ) -> dict | None:
     """Compress one transcript and return its NEW manifest row, or None when nothing changed.
 
+    MAIN (`tier_key` None): keyed (slug, session id) from `<slug>/<sid>.jsonl`, object
+    `<slug>/<sid>.jsonl.zst`. The subagent tier passes `tier_key=(slug, rel)`, `rel` being the path under
+    the slug dir: object `<slug>/<rel>.zst`, `latest` the tier's own manifest (D-1182).
     A file over the per-file ceiling is REPORTED and skipped, never silently archived."""
     st = src.stat()
     if max_bytes is not None and st.st_size > max_bytes:
@@ -378,10 +417,20 @@ def archive_one(
             f"  OVER-CEILING {src.name}: {st.st_size} bytes > {max_bytes} — reported, NOT archived"
         )
         return None
-    slug, session_id = src.parent.name, src.stem
-    dest = archive_root / slug / f"{session_id}.jsonl.zst"
-    prev = latest.get((slug, session_id))
-    archived = bool(prev) and (archive_root / prev["project_slug"] / dest.name).exists()
+    if tier_key is None:
+        slug, session_id = src.parent.name, src.stem
+        key = (slug, session_id)
+        dest = archive_root / slug / f"{session_id}.jsonl.zst"
+    else:
+        (slug, rel), key = tier_key, tier_key
+        session_id = rel.split("/", 1)[0]  # the session dir: `<uuid>` or `<uuid>.superseded-<ms>`
+        dest = archive_root / slug / f"{rel}.zst"
+    prev = latest.get(key)
+    if tier_key is None:
+        # a hard-linked twin's row lives under its primary slug (`also_slugs`)
+        archived = bool(prev) and (archive_root / prev["project_slug"] / dest.name).exists()
+    else:
+        archived = bool(prev) and dest.exists()
     if archived and prev.get("bytes") == st.st_size and prev.get("mtime_ns") == st.st_mtime_ns:
         return None  # A.1a: unchanged since the last archive — no hash, no compression
     # An open window appends while we read, so hash and compress ONE frozen copy: the row must
@@ -412,9 +461,12 @@ def archive_one(
         "sha256": digest,
         "bytes": size,
         "mtime_ns": mtime_ns,
-        "also_slugs": also_slugs,
         "archived_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if tier_key is None:
+        row["also_slugs"] = also_slugs
+    else:
+        row["rel"] = tier_key[1]
     if agent:
         row["agent"] = agent  # absent, never null, for an unbound session (C.1.1)
     return row
@@ -432,6 +484,8 @@ def ship(archive_root: Path, env: dict[str, str]) -> None:
         "--exclude",
         f"/{MANIFEST_NAME}",
         "--exclude",
+        f"/{SUBAGENT_MANIFEST_NAME}",
+        "--exclude",
         f"/{LOCK_NAME}",
         "--exclude",
         f"/{SNAPSHOT_PREFIX}*/**",
@@ -444,13 +498,16 @@ def ship_manifest(archive_root: Path, env: dict[str, str]) -> None:
     # network that blocks that host (an SNI filter did on 2026-10-08, while uploads worked) hangs
     # the upload. Cost: a run that appended no row uploads an identical manifest, one more kept
     # version (~2 MB); with open windows changing daily, nearly every run appends rows anyway.
-    _rclone(
-        "copyto",
-        "--no-check-dest",
-        str(archive_root / MANIFEST_NAME),
-        f"{_remote_base()}/{MANIFEST_NAME}",
-        env=env,
-    )
+    # The MAIN manifest first, then the subagent tier's (D-1182) when it exists.
+    for name in (MANIFEST_NAME, SUBAGENT_MANIFEST_NAME):
+        if (archive_root / name).exists():
+            _rclone(
+                "copyto",
+                "--no-check-dest",
+                str(archive_root / name),
+                f"{_remote_base()}/{name}",
+                env=env,
+            )
 
 
 # ── the verification verbs the gates use (A.2b) ─────────────────────────────────────────────
@@ -501,12 +558,13 @@ session, and what session-recall indexes. Deleting them to free disk space loses
 (it happened on 2026-09-03: 11 project folders emptied, found days later).
 
 An off-site copy is shipped daily to Backblaze B2 by scripts/sysadmin/archive_transcripts.py
-(docs/workstation/session-history-retention.md in /opt/fabrik). The ONLY thing that prunes
-them is scripts/sysadmin/prune_transcripts.py (D-736): after a 3-day window, never an open
-session, never a project's or an agent's newest, never a file the archive and the bucket cannot
-prove byte-for-byte — and every deletion is listed in ~/.claude/archive/pruned.jsonl, which
-`prune_transcripts.py --restore <session_id>` puts back. If disk is short, ask before removing
-anything by hand.
+(docs/workstation/session-history-retention.md in /opt/fabrik) — the subagents/ transcripts
+too (D-1182). The ONLY thing that prunes them is scripts/sysadmin/prune_transcripts.py (D-736):
+after a 3-day window, never an open session, never a project's or an agent's newest, never a
+file the archive and the bucket cannot prove byte-for-byte — and every deletion is listed in
+~/.claude/archive/pruned.jsonl, which `prune_transcripts.py --restore <session_id>` (or
+`--restore agent-<id>` for a subagent transcript) puts back. If disk is short, ask before
+removing anything by hand.
 """
 
 
@@ -552,9 +610,11 @@ def _archive(args: argparse.Namespace) -> int:
     if not projects.is_dir():
         raise ArchiveError(f"projects dir not found: {projects}")
     todo = main_transcripts(projects, after_days)
+    subs = subagent_transcripts(projects, after_days)
     print(f"archive_transcripts: {len(todo)} MAIN transcript(s) eligible (idle > {after_days}d)")
+    print(f"archive_transcripts: {len(subs)} subagent transcript(s) eligible (idle > {after_days}d)")
     if args.dry_run:
-        for p in todo:
+        for p in [*todo, *subs]:
             print(f"  would archive {p}")
         return 0
 
@@ -590,6 +650,30 @@ def _archive(args: argparse.Namespace) -> int:
             if row:
                 rows.append(row)
 
+        # The subagent tier (D-1182): a per-file failure is reported and the night goes on — the
+        # pruner deletes nothing this manifest does not vouch for, so a skipped file is only kept.
+        sub_manifest = archive_root / SUBAGENT_MANIFEST_NAME
+        sub_latest = _latest_subagent_rows(sub_manifest)
+        sub_rows, sub_failed = [], 0
+        for src in subs:
+            slug = src.relative_to(projects).parts[0]
+            tier_key = (slug, src.relative_to(projects / slug).as_posix())
+            try:
+                row = archive_one(src, archive_root, max_bytes, sub_latest, [], tier_key=tier_key)
+            except FileNotFoundError:
+                if not src.exists():
+                    print(f"  vanished {src} (removed since the scan) — skipped")
+                    continue
+                sub_failed += 1
+                print(f"  FAILED {src}: missing file or binary — not archived; the pruner keeps it")
+                continue
+            except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+                sub_failed += 1
+                print(f"  FAILED {src}: {exc} — not archived; the pruner keeps it")
+                continue
+            if row:
+                sub_rows.append(row)
+
         # ⚠️ The objects ship BEFORE their rows are appended: a row must never vouch for bytes
         # that did not land. A failed copy ⇒ exit 1, no rows.
         if env is not None:
@@ -600,8 +684,15 @@ def _archive(args: argparse.Namespace) -> int:
         with manifest.open("a", encoding="utf-8") as fh:
             for row in rows:
                 fh.write(json.dumps(row, sort_keys=True) + "\n")
-        print(f"archive_transcripts: {len(rows)} new manifest row(s); archive at {archive_root}")
-        if env is not None and manifest.exists():
+        if sub_rows:
+            with sub_manifest.open("a", encoding="utf-8") as fh:
+                for row in sub_rows:
+                    fh.write(json.dumps(row, sort_keys=True) + "\n")
+        print(
+            f"archive_transcripts: {len(rows)} new manifest row(s), {len(sub_rows)} subagent row(s), "
+            f"{sub_failed} subagent failure(s); archive at {archive_root}"
+        )
+        if env is not None:
             # The bytes landed, so the rows are true; a failed manifest upload is retried next run.
             try:
                 ship_manifest(archive_root, env)
