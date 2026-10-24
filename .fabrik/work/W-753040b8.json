@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-24T08:35:46.708295Z",
   "creator": "infra-2",
+  "effort": "low",
   "evidence": "",
   "id": "W-753040b8",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "count the run of backslashes before an opener in _fences (odd = escaped) with a test; move check_doc_sync.py:360 onto _fences.blank_code_spans; measure every _fences caller's output on the hub .md population before and after; enforcement surface, full /fabrik-review",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra-2",
+  "priority": 3,
+  "score_reason": "LOW: a rare edge in code-span readers (escaped-backslash backtick, one legacy regex), no ledger row affected today; effort low",
   "status": "open",
   "title": "Code-span readers still disagree with CommonMark (found by the W-27db8c35 review): _fences.blank_code_spans (scripts/enforcement/_fences.py:337) treats a backtick after an ESCAPED backslash as escaped, so a row like 'x \\\\`a|b` y' reads 7 cells where it is 6 (2 live rows hold the shape, 0 change count; 8 hub .md files hold it); scripts/enforcement/check_doc_sync.py:360 still blanks spans with the one-backtick regex the checker just dropped"
 }
