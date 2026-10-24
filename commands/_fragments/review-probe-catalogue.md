@@ -274,6 +274,19 @@ it, or name in the brief why the shape does not have it.
   laid over it (`<pins_dir>.base` when the pin was taken `--base`, else the archive of its `base_sha`), never from the
   live tree beyond what the seat prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and
   name UNPINNED.
+- A pins-only copy is not a test tree: it holds the pins and nothing else — no package, no pytest config, no
+  conftest, none of the files a conftest loads by path (the hub's `tests/conftest.py` loads `tests/memguard.py`; its
+  root `conftest.py` mutes live alerting and imports this tree's `src`). A seat runs pytest only on the tree this
+  section stages — the archive, or the lead's base copy, with the pins laid over it — never on the pins dir, a copy of
+  it or any hand-assembled subset, and never with a conftest or the pytest config dropped or moved (`--noconftest`,
+  `--confcutdir`, `-c`, `-o`, `--rootdir`, a test file run outside its tree); a test it cannot run that way is
+  unverified, never run another way. A seat that runs pytest needs the unmodified tree, so its brief's pin takes
+  `--base` (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`'s PIN paragraph), the same way on
+  every pass of the review: `HEAD` for a working-tree pin (its basis and `base_sha` are `HEAD` either way; a repo
+  with no commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never
+  `<c>`, which calls every file `UNCHANGED`), and the commit before the fix when it spans several. The brief's
+  `base_sha` is then the one the pin records, and it gives `<pins_dir>.base` as the recipe's `${args.base_pin_dir}`,
+  so each seat copies that tree in place of the archive steps of both `PIN_IMPORT` and `PYTEST_PINS`.
 - A delta brief also names the previous pass's `base_sha` (for the working-tree pin `/fabrik-review-scoped` step 5
   takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it,
   and null in a repo with no commit; for any other pin the brief names the commit itself, since one taken `--base`
