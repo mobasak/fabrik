@@ -190,20 +190,21 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
     """Lock-scope filter — on the shared-master tree, SIBLING commits land inside the window
     (review finding, live-verified: three tryton-crm commits sat in this plan's own window).
     Without this filter a sibling's untested source misattributes a WARN to this plan, and a
-    sibling's unrelated tests/ addition masks this plan's real zero-test gap. An entry owns
-    exactly itself or, as a dir prefix, its subtree. Comparison is CASE-INSENSITIVE — a
+    sibling's unrelated tests/ addition masks this plan's real zero-test gap. A literal entry owns
+    exactly itself or, as a dir prefix, its subtree; a GLOB entry (`src/app/**`, `tests/test_*.py`,
+    the bare `**`) owns what it matches, read by `check_plan_tickets._glob_covers` — the directional,
+    `/`-aware matcher the same lock files' discovery reader uses (W-b2bbc1f1, D-1094), whose
+    glob-free branch is this literal rule (W-9fcb6ce4). Comparison is CASE-INSENSITIVE — a
     re-cased entry (`Src/` for `src/`) matched nothing and silenced the window (review
     finding). Honest tradeoff, both directions: on a hypothetical case-COLLIDING tree
     (`src/App/` and `src/app/` as distinct dirs) this can over-scope a WARN or
     cross-attribute a sibling's test as accompaniment (a silence) — accepted: such trees
     are themselves an error class in this fleet, and the typo'd-case lock is the real,
     observed input."""
+    from check_plan_tickets import _glob_covers
+
     p = path.lower()
-    for o in owned_paths:
-        o = o.rstrip("/").lower()
-        if p == o or p.startswith(o + "/"):
-            return True
-    return False
+    return any(_glob_covers(o.lower(), p) for o in owned_paths)
 
 
 _CODE_TEST_SUFFIXES = (".py", ".ts", ".tsx", ".js", ".jsx", ".sh")
@@ -256,19 +257,31 @@ def _check_lock(lock: dict) -> bool:
         # Any other type (int, dict, …) falls back to the whole window — toward warning,
         # never toward silence (review finding: an int aborted the WHOLE run pre-isolation).
         raw_owned = []
-    # Entries are normalized through the SSOT `_norm_path` (check_plan_tickets — the very
+    # A LITERAL entry is normalized through the SSOT `_norm_path` (check_plan_tickets — the very
     # function that builds File-Scope tokens, so every form IT accepts is a real input
     # shape here): strips padding, `./` prefixes, emphasis/backtick wraps, `/./`
     # self-references. Empty, `.`, and slash-only entries drop — each matched NOTHING and
     # silenced the whole window (review findings: `[""]`, `" src/ "`, `"./src"`, `"."` all
     # live-reproduced false silences; `.` = repo root = the whole-window fallback anyway).
     # An all-dropped list degrades to the whole-window fallback, toward warning.
-    from check_plan_tickets import _norm_path
+    # A GLOB entry — one whose `_norm_glob` form holds `*` or `?` — is read as the same lock
+    # files' discovery reader reads it (W-b2bbc1f1, D-1094): `_norm_glob` (edge backticks and
+    # quotes, `./`, `/./`), then `_owned`'s `_glob_covers`. `_norm_path`'s emphasis strip eats
+    # stars (`**` → empty, `**/x/**` → `/x/`, `**/*` → `*/`), so its form is taken only when it
+    # keeps every `*` and `?` of the `_norm_glob` form — then it removed debris alone (`src//**`,
+    # `src/**:12`, `src/**.` → `src/**`), which discovery leaves unmatched (W-9fcb6ce4). Accepted
+    # cost, 0 of 5 720 live entries: an entry reads as the glob it spells — a star-WRAPPED literal
+    # (`*src*`, `*.*`) included, and `*/*` owns exactly two segments and `***` one.
+    from check_plan_tickets import _norm_glob, _norm_path
 
     owned = []
     for o in raw_owned:
+        g = _norm_glob(str(o))
         n = _norm_path(str(o))
-        if n and n != "." and n.strip("/"):
+        if any(c in g for c in "*?"):
+            keeps_wildcards = sum(n.count(c) for c in "*?") == sum(g.count(c) for c in "*?")
+            owned.append(n if keeps_wildcards else g)
+        elif n and n != "." and n.strip("/"):
             owned.append(n)
     baseline = str(lock["baseline_commit"])
     files = _window_files(baseline)

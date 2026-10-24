@@ -10,6 +10,15 @@ All notable changes to this project will be documented in this file.
 - Fixed: the template's § Mapping sentence and Ocoron's CSS paragraph sent every slot into `@theme`, where `--text-primary|body|muted` compile to a font-size utility; both now route through the section (`@theme static` for namespaced slots, an `@theme inline` alias for the rest).
 - Six `CLAIMS.yaml` rows; new grader `tests/test_design_system_template_pack.py` (35 mutants killed). Residue: W-bcb4647f, W-15bc1ba1, W-dd0383f6, W-1bb62dff.
 
+### Fixed — check_phase_tests reads glob lock entries: `src/app/**` owns its subtree (2026-10-24)
+
+D-1201 (W-9fcb6ce4). The advisory phase-tests check scoped a plan window to the lock's `owned_paths` by literal
+prefix, so a glob entry owned nothing: an untested change under `src/app/**` never warned, and a test under
+`tests/**` never counted as accompaniment. A glob entry is now read as check_plan_tickets' lock discovery reads
+the same files (D-1094): `_norm_glob`, then `_glob_covers`, case-folded. Debris such as `src//**` or `src/**:12`
+is still cleaned to `src/**`, and literal entries are read as before. The /fabrik-command-improve lock bullet now
+says `_owned` matches globs. Live output is unchanged in all 7 repos with an active lock. Residue W-a6975c38.
+
 ### Added — the three prepaid API credits get a capped, read-only lane: `scripts/api_credit.py` (2026-10-24)
 
 D-1198 (W-894f994f, under D-1196). `api_credit.py run` runs ONE `claude -p --bare --restricted` task on a credit key
