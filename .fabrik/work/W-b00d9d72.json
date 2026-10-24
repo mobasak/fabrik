@@ -15,7 +15,7 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra-2",
+  "owner": "infra-3",
   "priority": 1,
   "score_reason": "HIGH: operator ask with a fixed 2026-11-04 deadline; LOW effort: cloud_dispatch.py exists (D-857/D-860), only sarp's routine and dispatching remain",
   "status": "open",
