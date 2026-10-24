@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T21:16:08.027371Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-36687f76",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add an OnFailure= unit (or the archiver's own exit-code mail) that mails @infra and the coordinator when archive_transcripts.py fails or uploads 0 rows on a night with new transcripts; decide whether the pruner's '-' should stay (a prune failure must not fail the backup, but should still be reported); regression test on the alert path",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: a silent failure of the only chat backup is a data-loss risk; effort low: one systemd unit or an exit-code mail, one test",
+  "status": "open",
+  "title": "session-archive.service has no OnFailure= alert and runs its pruner and rotation steps with the '-' prefix (~/.config/systemd/user/session-archive.service:18,26,31), so a failed or partial nightly chat backup is silent: nobody learns until local disk fills or a restore finds a gap (coordinator babysit of the 2026-10-24 run, operator ask)"
+}

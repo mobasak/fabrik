@@ -12,6 +12,18 @@ All notable changes to this project will be documented in this file.
   the one-at-a-time check can no longer overrun the unit's 600 s TimeoutStartSec and lose a row. run_checks' git calls
   are not counted yet (W-b728822f). D-1181 (W-b72231b8 slice 2).
 
+### Fixed — the push ladder no longer drops already-pushed commits after a remote force-rewrite (2026-10-24)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § EXIT told a rejected clean-tree push to run `git pull --rebase=merges`, which "replays only YOUR unpushed commits". After a force-rewrite of the remote branch, that pull exits 0 having silently dropped the commits this clone already pushed. The ladder now runs `git fetch` and reads `git reflog show --format=%gs @{u}`. A `forced-update` above the newest `update by push` means stop and report; otherwise `git rebase --rebase-merges @{u}` then push. This is fabrik-lib's D-480 fix, adopted as D-1178 (W-a312d48c).
+- `/fabrik-execute-plan` step 7 now points at the § EXIT ladder instead of restating the old pull.
+- `tests/test_exit_push_ladder.py` runs each contract's own reflog command against throwaway repos and pins the new clauses. It was proven red on the old text.
+
+### Fixed — every coordinator's contract names the live rotation verb, and the merge recipe no longer trips the worktree prompt (2026-10-23)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § Session history no longer tell a coordinator to `/clear` a builder by hand over `tmux send-keys` until infra's rotate-session verb lands. That verb landed under D-1143. Both copies now name `/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session <name>` (with `--compact "<focus>"`), run from the repo's main checkout, and list the six checks `rotate_session.py` runs. They also make two duties the coordinator's, never the operator's (D-1034, D-1172): fixing and re-running a refused rotation, or one whose `rotations.jsonl` outcome is anything but `ok`, and answering a builder's permission prompt. W-c553e5e0 answers the operator's "does all coordinators know how to clear now?".
+- § EXIT's ad-hoc merge recipe no longer builds `MAIN=$(git worktree list --porcelain | sed …)` for `git -C "$MAIN"`. That shape trips Claude Code's worktree-isolation prompt (D-1173). The recipe now runs `git worktree list` as its own call and uses the literal path (W-031aac71).
+- `tests/test_session_rotation_rule.py` pins the new clauses and refuses the stale ones. It was proven red on the old text.
+
 ### Added — the rotation verb re-points the session registry itself (2026-10-23)
 
 - `rotate_session.py execute` now re-points `<repo>/.fabrik/session-agents.json` from the rotated agent's old session
@@ -52,6 +64,11 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the drifted-box grader anchors on the product's own drift line, not a sibling's assertion prose (2026-10-23)
 
 - `tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` pinned the second sibling's assertion message, so 662ed84dd's rewording turned it red on clean master while the merge-check isolation it grades was sound. The inner run now prints one-line tracebacks (`--tb=line`) and the grader asserts, per sibling, an `AssertionError` line carrying the product's own `MISSING in <home>` text (`assemble_commands` drift check) — never the sibling's prose, never a bare `FAILED <id>` that an import or permission error would also satisfy (W-45433793, a0c507772; entry added by W-d3d1d924).
+
+### Changed — The mail and work prompt hooks print an unchanged block as one pointer line; the mail digest shows 3 rows under the inbox total (2026-10-23)
+
+- `.claude/hooks/mail_notify.py` and `scripts/thread_anchor.py line --hook` keep a per-session sha256 of the last full block they printed, stored after the print. On UserPromptSubmit, a byte-identical block whose last full print is under 30 minutes old prints as ONE pointer line naming the command that shows it; SessionStart (every source) always prints in full. Measured before the change, every printed copy stays in the session's context: in one infra-2 session the mail digest repeated byte-identically on 76 of 113 prompts, and one coordinator session took 748,661 chars of it over 351 prompts. A live run of the changed hook printed 768 chars full and 121 chars unchanged (W-25f6b2a3 slice 2).
+- The mail digest shows the 3 oldest unread rows (was 10). Its header now counts the inbox's message files — dot-names skipped, as `mail.py list` skips them — where it used to count the rows shown. `thread_anchor.py` never deduplicates a block that carries a rescue warning. New env var `MAIL_NOTIFY_STATE_DIR` (default `~/.claude/state/mail-notify`); the test suite pins it and `THREAD_ANCHOR_DIR` to temp dirs.
 
 ### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
 

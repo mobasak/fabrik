@@ -357,9 +357,9 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sysadmin/send-telegram.sh": "untracked: reads gitignored .env.sysadmin only; sends to the Telegram API, no local tracked-file write",
     "scripts/sysadmin/transcript_size_check.py": "untracked: reads the default SESSION_ARCHIVE_ENV_FILE `/opt/fabrik/.env` and PRINTS a `/opt/fabrik/scripts/whoami_agent.py` command; its one write is the rotate-advised stamp under ~/.claude/state (the context sensor's under its .ctx/ subdir)",
     "scripts/sysadmin/vps_script_drift.py": "untracked: reads the hub HEAD via git (honours $FABRIK_ROOT) and the VPS copies over ssh; its watermark lives under ~/.claude/state, no tracked-file write",
+    ".claude/hooks/mail_notify.py": "untracked: reads /opt/fabrik-mail (sanctioned exception, CLAUDE.md HARD STOPS); its one write is the per-session digest under ~/.claude/state/mail-notify, outside the repo",
     "src/fabrik/drivers/modal_provider.py": "untracked: reads gitignored .env.sysadmin + a fixed template dir; its Modal deployment output is written into the TARGET project, not a hub-hardcoded tracked path",
     # ── other-repo: the write target is a DIFFERENT store/repo than the hub's own tree ──
-    ".claude/hooks/mail_notify.py": "other-repo: writes /opt/fabrik-mail (sanctioned exception, CLAUDE.md HARD STOPS)",
     "scripts/bootstrap/bootstrap-hub.sh": "other-repo: reads/restores from /opt/fabrik-dr-store, the disaster-recovery env store",
     "scripts/bootstrap/bootstrap-spoke-restore.sh": "other-repo: reads/restores from /opt/fabrik-dr-store",
     "scripts/deploy_doc_policy.py": "other-repo: writes .doc-policy.md into every /opt/<project> repo, not the hub's own tree",

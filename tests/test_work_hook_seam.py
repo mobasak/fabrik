@@ -205,7 +205,10 @@ def test_v1_two_stops_become_two_awaiting_items_every_session_sees(tmp_path):
             assert "Deploy the certified build to production now?" in out, (rnd, out)
             assert "Rotate the signing key to production now?" in out, (rnd, out)
             assert out.count("work: awaiting operator — W-") == 2, (rnd, out)
+        # the session's state goes whole — its anchors and the digest of the block it was last shown
+        # (W-25f6b2a3), else the next prompt rightly prints the one-line "unchanged" pointer
         (Path(env["THREAD_ANCHOR_DIR"]) / "s-c.json").unlink(missing_ok=True)
+        (Path(env["THREAD_ANCHOR_DIR"]) / "s-c.prompt-digest").unlink(missing_ok=True)
 
 
 # ── V1 (T05b): a NEXT claims the item it names, or becomes the session's one `next` item ─────

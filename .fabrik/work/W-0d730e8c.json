@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T21:16:08.425048Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0d730e8c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the nightly inflow of newly deletable MAIN transcripts vs the 200 cap over a week of pruned.jsonl rows; if the backlog does not fall, raise the default or make the cap adaptive (the cap exists to bound one night's blast radius, so keep a ceiling); state the cobra way out in the change",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: disk housekeeping, the backup itself is complete; effort low: one default after a week's measurement",
+  "status": "open",
+  "title": "prune_transcripts.py deletes at most PRUNE_MAX_PER_RUN=200 MAIN transcripts a night (prune_transcripts.py:109), and the backlog of deletable ones stays near 1,500: 1,557 deferred on 2026-10-23, 1,470 on 2026-10-24, with 86-115 new archived each night, so at this rate it takes about 3 weeks to clear (coordinator babysit, operator ask)"
+}

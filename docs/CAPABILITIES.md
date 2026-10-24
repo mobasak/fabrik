@@ -269,6 +269,7 @@
 - [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): FEEDBACK relay — closes the loop the operator asked for five times (D-055, then the 6th ask:
 - [scripts/sysadmin/hibernate.py](../INDEX.md) (owner: infra): hibernate.py — the machinery behind /hibernate (W-1e9ae1e5): find every repo's live agents, hand out the pause
 - [scripts/sysadmin/incident_context.py](../INDEX.md) (owner: infra): Incident context marshaller — the HOST side of the pool-diagnosis path.
+- [scripts/sysadmin/install_rotate_unit.sh](../INDEX.md) (owner: infra): install_rotate_unit.sh [--check] — install (or check) the user systemd units that execute session rotations
 - [scripts/sysadmin/install_user_hooks.py](../INDEX.md) (owner: infra): Install / verify the USER-LEVEL hook registrations in every account dir (review 2026-09-06, B10).
 - [scripts/sysadmin/inventory_read.py](../INDEX.md) (owner: infra): The registry read the Services view runs, as a CHILD PROCESS the board spawns and kills at the read's deadline.
 - [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): Kaizen T08 — noise-floor backfill over the pre-event transcript corpus.
@@ -289,6 +290,7 @@
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): The command centre (plan 2026-10-17-plan-1): the localhost board the operator leaves open — six
 - [scripts/sysadmin/quota_governor.py](../INDEX.md) (owner: infra): Quota governor — headroom-aware router for the single-key ob@ VPS Claude.
 - [scripts/sysadmin/quota_posture_hook.py](../INDEX.md) (owner: infra): The box-local quota-posture hook — one injected line per prompt, one hold at RED.
+- [scripts/sysadmin/rotate_session.py](../INDEX.md) (owner: infra): rotate_session — rotate an agent's session (/clear) at an item boundary, typed by a unit, never by an agent.
 - [scripts/sysadmin/rules_currency_watch.py](../INDEX.md) (owner: infra): Rules-pack version-pin tripwire (operator question 2026-09-01: "what will happen
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): Version injection for the rules corpus (D-062 — no version literals in packs).
 - [scripts/sysadmin/selfwatch_check.py](../INDEX.md) (owner: infra): UserPromptSubmit (USER level — every window, every project) — is this session's self-watch ARMED?
@@ -462,7 +464,7 @@
 - [mail_notify.py](workstation/hooks-index.md) (owner: infra): SessionStart + UserPromptSubmit hook — surface unread fabrik-mail (Fabrik-synced).
 - [mcp_watch.py](workstation/hooks-index.md) (owner: infra): UserPromptSubmit hook — the PER-MESSAGE MCP forcing layer (D-041; Fabrik-synced).
 - [quota_stop.py](workstation/hooks-index.md) (owner: infra): PreToolUse — the fleet-wide GRACEFUL STOP when the quota is exhausted with nothing to rotate to.
-- [seat_guard.py](workstation/hooks-index.md) (owner: infra): PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside scratch.
+- [seat_guard.py](workstation/hooks-index.md) (owner: infra): PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside
 - [session_orient.py](workstation/hooks-index.md) (owner: infra): SessionStart orientation (Fabrik-synced, stdlib-only, fail-open).
 - [skill_router.py](workstation/hooks-index.md) (owner: infra): Claude Code UserPromptSubmit hook — bilingual (EN+TR) skill router.
 

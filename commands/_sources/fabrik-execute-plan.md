@@ -1375,9 +1375,9 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    --check --json` green over them (the step 5-6 commits have not been gated), then **PUSH them now** (`git push`,
    which pushes the current branch; at position (b) that is the branch step 4 merged INTO, pushed from the
    main checkout; a branch with no upstream yet — an agent window's first push — `git push -u origin "$BASE"`;
-   the task-end law: rejected → dirty tree: defer + report, wip-net protects · clean tree:
-   `git pull --rebase=merges` then push (preserves the Merge Protocol's `--no-ff` merge commits —
-   plain `--rebase` linearizes them away) · conflict: abort + report · NEVER `--force`). The only remaining
+   the task-end law: rejected → `CLAUDE.md` § EXIT's ladder, whose clean-tree step checks the
+   upstream's reflog for a rewrite before `git rebase --rebase-merges @{u}`, which keeps the Merge
+   Protocol's `--no-ff` merge commits · NEVER `--force`). The only remaining
    operator call is **deploy**: `fabrik redeploy` / `fabrik apply` is **hub-side + user-run**
    (trigger-not-execute) — name it as the next step, don't run it. Don't trail off with "what next?" —
    push, name the deploy decision, stop.

@@ -8,9 +8,15 @@ real filesystem + a controllable stdin/subprocess.
 
 from __future__ import annotations
 
+import builtins
 import importlib.util
 import io
+import json
+import os
+import time
 from pathlib import Path
+
+import pytest
 
 _HOOK_PY = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "mail_notify.py"
 
@@ -134,7 +140,7 @@ def test_summary_skips_malformed(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# flood cap — at most 10 summaries then "+N more"
+# flood cap — at most 3 summaries, oldest first, then "+N more"; the header counts the inbox
 # ---------------------------------------------------------------------------
 def test_summary_flood_cap(tmp_path):
     inbox = tmp_path / "inbox"
@@ -142,8 +148,117 @@ def test_summary_flood_cap(tmp_path):
         _write_msg(inbox, f"01MSG{i:02d}")
     lines = hook._summaries(inbox)
     summaries = [x for x in lines if x.startswith("[untrusted")]
-    assert len(summaries) == 10
-    assert any("+5 more" in x for x in lines)
+    assert len(summaries) == 3
+    assert any("+12 more" in x for x in lines)
+
+
+# ---------------------------------------------------------------------------
+# inject only on change (W-25f6b2a3 slice 2): every printed copy stays in the session's context
+# ---------------------------------------------------------------------------
+def _prompt(monkeypatch, capsys, event="UserPromptSubmit", session="sess-A"):
+    payload = {"cwd": "/opt/testrepo", "hook_event_name": event}
+    if session is not None:
+        payload["session_id"] = session
+    assert _run_main(monkeypatch, json.dumps(payload)) == 0
+    return capsys.readouterr().out
+
+
+@pytest.fixture
+def mailbox(monkeypatch, tmp_path):
+    monkeypatch.setenv("FABRIK_MAIL_ROOT", str(tmp_path / "root"))
+    monkeypatch.setenv("MAIL_NOTIFY_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(hook, "_resolve_repo", lambda cwd: "testrepo")
+    inbox = tmp_path / "root" / "testrepo" / "inbox"
+    for i in range(5):
+        _write_msg(inbox, f"01MSG{i:02d}", body=f"subject {i}")
+    return inbox
+
+
+def test_digest_shows_three_rows_under_the_total(monkeypatch, capsys, mailbox):
+    out = _prompt(monkeypatch, capsys).splitlines()
+    assert out[0].startswith("## 📬 fabrik-mail — 5 unread in testrepo")
+    rows = [ln for ln in out if ln.startswith(hook._DELIM)]
+    assert [r.rsplit(" ", 1)[-1] for r in rows] == ["0", "1", "2"]  # oldest first, the queue
+    assert out[-1].startswith("+2 more")
+    # the total is every message file, wherever an unparseable one sorts against the cap
+    (mailbox / "01AAA.md").write_text("no frontmatter\n")
+    (mailbox / "01ZZZ.md").write_text("no frontmatter\n")
+    (mailbox / ".01TMP.md").write_text("a dot-name `mail.py list` skips\n")
+    assert _prompt(monkeypatch, capsys).startswith("## 📬 fabrik-mail — 7 unread in testrepo")
+
+
+def test_the_conftest_pins_both_prompt_digest_stores_outside_home():
+    home_state = str(Path.home() / ".claude" / "state")
+    for var in ("MAIL_NOTIFY_STATE_DIR", "THREAD_ANCHOR_DIR"):
+        assert os.environ.get(var) and not os.environ[var].startswith(home_state), var
+
+
+def test_unchanged_digest_prints_one_pointer_line(monkeypatch, capsys, mailbox):
+    first = _prompt(monkeypatch, capsys)
+    second = _prompt(monkeypatch, capsys)
+    assert second.splitlines() == [
+        "## 📬 fabrik-mail — 5 unread in testrepo, unchanged since the last full digest above — "
+        "python scripts/mail.py list"
+    ]
+    _write_msg(mailbox, "01MSG99", body="subject new")  # a change reprints in full
+    assert _prompt(monkeypatch, capsys).startswith("## 📬 fabrik-mail — 6 unread in testrepo (")
+    # a full digest older than the refresh bound reprints even when unchanged
+    state = Path(os.environ["MAIL_NOTIFY_STATE_DIR"]) / "sess-A.json"
+    rec = json.loads(state.read_text())
+    rec["at"] -= 1800  # the 30-minute refresh bound, never read from the code under test
+    state.write_text(json.dumps(rec))
+    assert _prompt(monkeypatch, capsys) == first.replace("5 unread", "6 unread").replace(
+        "+2 more", "+3 more"
+    )
+    assert _prompt(monkeypatch, capsys).count("\n") == 1  # and that reprint was stored again
+    # just under the bound still points; a future or NaN time never does
+    for at, pointer in ((time.time() - 1799.5, True), (time.time() + 100, False)):
+        state.write_text(json.dumps({**json.loads(state.read_text()), "at": at}))
+        assert ("unchanged since" in _prompt(monkeypatch, capsys)) is pointer, at
+    state.write_text(json.dumps({**json.loads(state.read_text()), "at": float("nan")}))
+    assert "unchanged since" not in _prompt(monkeypatch, capsys)
+
+
+def test_session_start_always_prints_in_full(monkeypatch, capsys, mailbox):
+    full = _prompt(monkeypatch, capsys)
+    assert _prompt(monkeypatch, capsys, event="SessionStart") == full
+    # the start's print was stored too: the next prompt is the pointer
+    assert "unchanged since the last full digest above" in _prompt(monkeypatch, capsys)
+
+
+def test_digest_is_stored_after_the_print_and_never_by_the_pointer(monkeypatch, capsys, mailbox):
+    order = []
+    real_print, real_store = builtins.print, hook._store_digest
+    monkeypatch.setattr(
+        hook, "print", lambda *a, **k: (order.append("print"), real_print(*a, **k)), raising=False
+    )
+    monkeypatch.setattr(hook, "_store_digest", lambda *a: (order.append("store"), real_store(*a)))
+    real_flush = hook.sys.stdout.flush
+    monkeypatch.setattr(hook.sys.stdout, "flush", lambda: (order.append("flush"), real_flush()))
+    _prompt(monkeypatch, capsys)
+    assert order.count("store") == 1
+    stored = order.index("store")
+    assert order[stored - 2 : stored] == ["print", "flush"], (
+        order
+    )  # the block, flushed, then stored
+    order.clear()
+    _prompt(monkeypatch, capsys)  # the pointer path
+    assert "store" not in order
+
+
+def test_dedup_fails_toward_the_full_block(monkeypatch, capsys, mailbox, tmp_path):
+    full = _prompt(monkeypatch, capsys, session=None)
+    assert _prompt(monkeypatch, capsys, session=None) == full  # no session id: no dedup
+    state = tmp_path / "state" / "sess-A.json"
+    _prompt(monkeypatch, capsys)
+    state.write_text("{not json")
+    assert _prompt(monkeypatch, capsys) == full
+    state.write_text('{"digest": 3, "at": "x"}')
+    assert _prompt(monkeypatch, capsys) == full
+    # an unwritable state dir: still the full block every time, still exit 0
+    monkeypatch.setenv("MAIL_NOTIFY_STATE_DIR", str(state))  # a FILE, so mkdir/write fail
+    assert _prompt(monkeypatch, capsys) == full
+    assert _prompt(monkeypatch, capsys) == full
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +355,7 @@ def test_summary_shows_the_map_marker_from_the_header(tmp_path):
     _write_routed(inbox, "01F", "fleet", "notabeat · v1")
     _write_routed(inbox, "01G", "fleet", "mixed:infra,infra · v1")
     _write_routed(inbox, "01H", "fleet", "a" * 4000 + " · v1")
-    lines = [ln for ln in hook._summaries(inbox) if ln.startswith(hook._DELIM)]
+    lines = [ln for ln in hook._summaries(inbox, cap=10) if ln.startswith(hook._DELIM)]
     assert lines[0].endswith("→ map: infra")
     assert not lines[1].endswith("infra")
     assert lines[2].endswith("→ mixed: fleet,infra")
