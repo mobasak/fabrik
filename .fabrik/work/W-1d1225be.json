@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T09:57:36.312167Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-1d1225be",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-measure over origin/master's fix-shaped red-master hits; widen _HYPOTHETICAL only for a shape that occurs, with a probe both ways",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "kaizen_waste red-master hypothetical rule: shapes still outside the model after W-d633d5f5's review (scope-growth stop) — 'would have to turn master red', a quote or paren right before the phrase ('would turn `master red`'), a modal split from its verb by a clause ('would, if merged, turn'), negations ('never red on master'), and a message quoting the old shapes; each matched 0 of 10,887 master commits on 2026-10-24"
+}

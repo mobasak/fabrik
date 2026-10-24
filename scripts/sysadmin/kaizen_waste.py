@@ -60,6 +60,41 @@ BREAKDOWN_VERSION = 1
 _RED = re.compile(
     r"\b(?:red master|master (?:is |went |turned )?red|red on master|master red)\b", re.I
 )
+# A phrase is a hypothetical, not a red master, when the text right before it ends in a modal
+# governing the verb that forms the phrase: "it would turn master red", "would read red on master
+# without this", "won't go", "could've turned", "we'd turn", "would not necessarily turn" — up to
+# five words between the verb and the phrase, none ending a sentence or clause and none a
+# conjunction or relative word ("will be fine now since master is red", "should make the check
+# that turned master red pass" count). X'd is "would" only before a base verb ("we'd left master
+# red" is "had", a real red). A modal elsewhere in the sentence ("we can see master went red",
+# "should have caught this but master went red", "3 May") is not one. Model boundary: a modal
+# split from its verb by a clause ("would, if merged, turn") and a negation ("never red on
+# master") still count; further shapes are backlog item W-1d1225be.
+# Cobra (D-253): the cheap way to lower the count is to phrase a real red master as a hypothetical
+# ("it would turn master red, and did") — the same move as not writing the phrase at all, which
+# the define doc already names. Old rule vs this one over origin/master 2026-10-24: 32 -> 30
+# hits, exactly 2edc9545f and 0e8aacd73; by construction the rule only removes hits.
+_ADVERBS = r"(?:\s+(?:\w+ly|also|never|not|still|soon|then|just|already|even|probably)){0,2}"
+_BASE_VERB = r"(?:turn|go|leave|make|read|be|stay|keep|end\s+up|mean|cause|show|put)"
+_ANY_VERB = r"(?:turn(?:ed)?|go|gone|leave|left|make|made|read|be|stay(?:ed)?|keep|kept|end\s+up|mean|cause|show|put)"
+_GAP = (
+    r"(?:\s+(?!(?:since|because|and|so|but|or|when|while|after|as|until|though|that|which|where"
+    r"|who|whom|whose|now|once|if|then|yet)\b)[^\s.,;:!?()]+){0,5}\s+$"
+)
+_HYPOTHETICAL = re.compile(
+    r"(?:(?:\b(?:would|could|should|might|may|will|can|must|shall)(?:n['’]?t)?(?:['’]ve)?"
+    r"|\b(?:wo|ca|sha)n['’]?t|\bcannot|\bgoing\s+to)[`\"'“”‘’*_]*"
+    + _ADVERBS
+    + r"(?:\s+not)?(?:\s+have)?(?:\s+been)?\s+"
+    + _ANY_VERB
+    + r"|\b\w+['’]d"
+    + _ADVERBS
+    + r"\s+"
+    + _BASE_VERB
+    + r")"
+    + _GAP,
+    re.I,
+)
 _FIX_SUBJECT = re.compile(r"^(?:fix|test|revert)\b", re.I)
 _AGENT_NAME = re.compile(
     r"^Agent-Name:[ \t]*(\S+)", re.M
@@ -91,11 +126,13 @@ WASTE_METRIC_DEFS: tuple[dict, ...] = (
     },
     {
         "id": "waste_red_master_rework",
-        "version": 1,
+        # v2 (W-d633d5f5): a hypothetical phrase ("it would turn master red") no longer counts
+        "version": 2,
         "counter_metric": "waste_seat_share",
         "formula": (
             "non-merge commits that reached the ref that day (first-parent committer date) with a "
-            "fix-shaped subject and a word-bounded red-master phrase"
+            "fix-shaped subject and a word-bounded red-master phrase not governed by a modal verb "
+            "('would turn master red')"
         ),
     },
     {
@@ -447,6 +484,13 @@ def _refreshed_at(ref: str) -> float:
     return max(stamps)
 
 
+def _is_red_master_rework(msg: str) -> bool:
+    """A fix-shaped message carrying at least one red-master phrase that is not a hypothetical."""
+    if not _FIX_SUBJECT.match(msg):
+        return False
+    return any(not _HYPOTHETICAL.search(msg[: m.start()]) for m in _RED.finditer(msg))
+
+
 def red_master_rework(day: str) -> tuple[MetricResult, list[dict]]:
     mid = "waste_red_master_rework"
     ref = os.environ.get("KAIZEN_WASTE_GIT_REF") or "origin/master"
@@ -487,7 +531,7 @@ def red_master_rework(day: str) -> tuple[MetricResult, list[dict]]:
     per_agent: dict[str, int] = collections.Counter()
     for msg in messages:
         msg = msg.strip()
-        if not msg or not _FIX_SUBJECT.match(msg) or not _RED.search(msg):
+        if not msg or not _is_red_master_rework(msg):
             continue
         m = _AGENT_NAME.search(msg)
         per_agent[m.group(1) if m else "unattributed"] += 1
@@ -528,13 +572,23 @@ def publish_bound(today: str, state: Path | None = None) -> str:
 
 
 def _write_breakdown(day: str, cuts: dict[str, list[dict]], state: Path | None) -> None:
+    # each row carries its metric's definition version as `def` (a row without one is v1): a
+    # metric's version bump re-publishes a day under its new definition beside the old rows, and
+    # kaizen_digest reads only the rows whose `def` matches the series it judges (W-d633d5f5)
     path = breakdown_path(state)
+    defs = {mid: int(d["version"]) for mid, d in registry().items()}
     with kc._store_lock(path):
-        have = {(r.get("day"), r.get("metric")) for r in _jsonl(path)}
+        have = {(r.get("day"), r.get("metric"), r.get("def", 1)) for r in _jsonl(path)}
         fresh = [
-            {"day": day, "metric": mid, "version": BREAKDOWN_VERSION, **row}
+            {
+                "day": day,
+                "metric": mid,
+                "version": BREAKDOWN_VERSION,
+                "def": defs.get(mid, 1),
+                **row,
+            }
             for mid, rows in cuts.items()
-            if (day, mid) not in have
+            if (day, mid, defs.get(mid, 1)) not in have
             for row in rows
         ]
         if fresh:
