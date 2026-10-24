@@ -83,7 +83,7 @@ runs, zeros included; "k runs" says how many of them record that phase.
 - A run reopened with `--resume-from` (68 of the 1,583 by the `run_close` events' `resumed_from_start`: task 29,
   review 23, scoped 16; the ledger's own `resumed_from` field marks 64 of its done closes: 27 / 23 / 14) is measured from its
   reopening only. Its earlier segment is dropped, and the time in the phase it resumed at lands in "Before the first
-  `step`". The ledger's `wall_s` does the same.
+  `step`".
 - A `final_gate.py` call run in the background returns at once and is paired as about 0 s, which pulls the gate
   rows down: 4,414 of the 42,432 Bash calls naming `final_gate.py` in the in-scope sessions (40,051 of them run it;
   session-wide, not clipped to run windows) ran in the background.
