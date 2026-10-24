@@ -3,7 +3,7 @@
 Status: DRAFT
 Profile: full
 Size: large
-Work item: W-96f36043 (P0) · Decision: D-1216 · Author: kaizen · 2026-10-25
+Work item: W-96f36043 (P0) · Decisions: D-1216 (the program), D-1217 (this design, panel-approved) · Author: kaizen · 2026-10-25
 
 ## Problem
 
@@ -49,17 +49,18 @@ reads 2,621 `accurate` against 235 `lean`.
 | I1 | "every /fabrik-* command at half its rendered size or less" | IN | § Target |
 | I2 | "WITHOUT losing a rule" (D-331) | IN | § The rule test |
 | I3 | "proven by a before/after rule test per command … no byte count as the measure" | IN | § The rule test |
-| I4 | "longest and most-run first: /fabrik-review, /fabrik-task, /fabrik-review-scoped, then the rest" | IN | § Order |
+| I4 | "longest and most-run first: /fabrik-review, /fabrik-task, /fabrik-review-scoped, then the rest" | IN | § Order. The panel moved `/fabrik-review-scoped` first, as the pilot, and the shared fragments ahead of `/fabrik-review` |
 | I5 | "/fabrik-command-improve may land only an edit that keeps or shrinks the rendered size" | IN | § Loop changes L1 |
 | I6 | "the FEEDBACK form gains a required 'what could be removed' field" | IN | § Loop changes L2 |
 | I7 | "measure the RENDERED text plus everything it orders read" (cobra, D-253) | IN | § The measure |
 | I8 | "governance-sync paths, so the full /fabrik-review" | IN | § Review and landing |
 | I9 | "intel will send you a per-phase time breakdown" (W-0a91bf86) | IN | § Order, an input to the per-command cut |
-| I10 | "The speed items (W-1fb11ec8 and its parts) count as the same program" (D-1216) | OUT-OF-SCOPE | They are W-1fb11ec8's own items. This spec cuts text, not machinery; § Order names the hand-off |
+| I10 | "The speed items (W-1fb11ec8 and its parts) count as the same program" (D-1216) | OUT-OF-SCOPE | They are W-1fb11ec8's own items. This spec cuts text, not machinery |
 | I11 | infra-2's preview-first lane clause, W-a0a32de2 | IN | § Order: lands first, and the rewrite carries it under the rule test |
 | I12 | "the 2026-09-21 byte-cut program is the anti-pattern" (D-330) | IN | § Rejected alternatives R1 |
+| I13 | coordinator: the L1/L2 code is the existing item W-a9b5e763 (infra-2) | IN | § Loop changes |
 
-Intake: 12 items. 11 are IN and 1 is OUT-OF-SCOPE (named above). None is ASK.
+Intake: 13 items. 12 are IN and 1 is OUT-OF-SCOPE (named above). None is ASK.
 
 ## Constraints Digest
 
@@ -70,117 +71,190 @@ Intake: 12 items. 11 are IN and 1 is OUT-OF-SCOPE (named above). None is ASK.
 The command text is not code, so it is otherwise unconstrained by the ACTIVE packs. The binding constraints are
 the rulings below: D-331, D-330 and D-253, plus `CLAUDE.md` § Behavior "Merge-time render only".
 
+## Panel
+
+On 2026-10-25 an Opus seat and a Fable seat each read this draft, author-blind and independently. Both returned
+`APPROVE-WITH-AMENDMENTS` and their amendments agree, so the panel decides the design (D-1217). Every amendment
+is folded into the sections below. Where the two differed in degree, both are kept:
+- L1's headroom (Opus) and its split ceilings (Fable).
+- The floor: Opus would accept the KILL clause, while Fable asked for a floor derived from the ledger. The
+  derived floor is kept, because it is evidence, not a failure.
+
 ## Target
 
-Every rendered `/fabrik-*` command is at most 50% of its baseline **measure** (§ The measure). The baseline is
-fixed at this spec's approval commit. A command meets the target only when its rule test (§ The rule test) is
-green at the same commit.
+The **halved quantity** is a command's *own text*: its rendered words plus the kaizen-owned files it reads (the
+fragments already expanded, and the `commands/_agents/*.md` definition of every seat it dispatches). Each
+command reaches at most 50% of its own-text baseline, or the floor its ledger sets (§ Binding, KILL).
+
+The baseline is measured at the start of the command's own phase, never at spec approval. Kaizen keeps editing
+commands until then, and a ledger cut early would miss rules added later. Non-program edits to a command are
+frozen while its phase runs. A command meets the target only when its rule test is green at the same commit.
+
+Each command's **full measure** (§ The measure) is published as its baseline before any cut. It must not grow
+(L1).
 
 ## The measure (anti-cobra)
 
-`measure(cmd)` is the words of the rendered command plus the words of every repo file the rendered text tells the
-agent to READ. Such a file is found by a path match on a read verb (`read`, `open`, `see … for`, `follow`, `per`)
-or by an `{{include:}}` already expanded. Each file counts once, at its size at the measuring commit, closed one
-level deep. Files the agent only RUNS (scripts) or WRITES (ledgers) do not count. The decision ledger
-`docs/DECISIONS.md` and `CLAUDE.md` do not count: they are loaded or queried by every session whatever the
-command says.
+`measure(cmd) = render + reads`. `render` is the words of the rendered command (fragments included). `reads` is
+the words of everything else the run's agent or its seats take in because the command points at it:
+1. **Every repo file path the rendered text names, whatever the verb or none.** A file the agent only WRITES is
+   excluded through a declared allowlist of output-path patterns (`docs/development/reviews/*`, `<SCRATCH>/…`,
+   the ledgers), never by guessing from the verb. A script the agent only runs is excluded. Each file counts
+   once, at its size at the measuring commit, closed one level deep.
+2. **The agent definition of every `subagent_type` the command dispatches**, once per command. A seat loads it
+   as its prompt whether or not the text says "read".
+3. **The full text of every decision row the command orders the agent to consult or apply.** A decision id kept
+   only as a history marker is free, but lever (a) deletes those anyway. `docs/DECISIONS.md` as a whole and
+   `CLAUDE.md` do not count, since every session loads or queries them regardless of the command.
+4. **The `--help` or printed form of any script whose output the command orders the agent to read and follow.**
 
-**Cobra:**
-- Moving text into a fragment does nothing, because the rendered text already includes it.
-- Moving text into a new or grown reference doc the command orders read counts in full.
-- Moving a rule into a script's refusal message counts as carried only through § The rule test's `enforced`
-  carrier, which needs a test that proves the refusal fires.
-- The remaining cheap evasion is **deleting a rule**, and the rule test exists to catch exactly that.
-- Weakening a rule's wording until it no longer binds is caught by the seat audit (§ The rule test, step 3), not
-  by the measure.
+**Cobra:** the cheapest evasions and what closes each:
+- Moving text into a fragment, a seat definition or a reference doc does nothing, because each counts.
+- Moving text into a decision row the command cites counts the row (item 3).
+- Moving text into a script's stdout ("run X and follow what it prints") counts it (item 4), and the rule test
+  refuses an `enforced` carrier that only proves a printed string.
+- Deleting a rule is caught by the rule test.
+- Weakening a rule's wording is caught by the rule test's sentence check and the audit pair.
 
 ## The rule test
 
-1. **Baseline ledger.** Before a command is rewritten, its rendered text is cut into rule units by two
-   author-blind seats over the pinned baseline. A rule unit is one normative statement: a step, an order, a ban,
-   a threshold, a format, a refusal or a close condition. The seats' union is adjudicated by the lead and written
-   to `commands/_rules/<cmd>.yaml`, one entry per rule: `id`, the verbatim baseline sentence, and a `carrier`.
-   Every phrase that an existing pin test (`tests/test_*` asserting command text) holds is an input. A pinned
-   phrase with no ledger entry is a rule the seats missed, and it is added.
-2. **Carriers.** Each rule is carried in one of two ways:
-   - `text: [<key phrase>, …]`: one or more short phrases that must all appear in the new rendered text.
-   - `enforced: <test node id>`: a test proving a script refuses or performs it. Only a rule a script already
-     enforces may use this carrier.
-3. **The test.** `tests/test_command_rules.py` loads each ledger and asserts every carrier against the rendered
-   text from `assemble_commands.py --check`'s temp render. A rule with no carrier present is a LOSS, and the test
-   is red. Then a seat audit pairs every ledger entry with the new line that states it and reports any entry whose
-   new statement is weaker than the baseline sentence. It is author-blind, one Sonnet seat plus one Haiku seat,
-   inside the command's full `/fabrik-review`. A weakened rule is a confirmed finding.
-4. **Retiring pins.** A phrase pin whose rule is now a ledger entry is deleted in the same commit. The ledger
-   replaces it, so a later rewording edits one key phrase, not N pin tests.
-5. **A rule removed on purpose** needs a D-row that names the ledger id. It is never deleted silently.
+1. **Fragment ledgers first.** A fragment rendered into more than one command gets its own ledger,
+   `commands/_rules/_fragments/<frag>.yaml`, built and landed before that fragment is cut. That ledger is asserted
+   against every render that includes the fragment, so a cut made in one command's phase cannot lose a rule in
+   another command that has no ledger yet.
+2. **Completeness by construction.** At the phase start a script splits the baseline render into sentences and
+   diffs them against the rewrite. **Every baseline sentence with no surviving match must be classified**:
+   - `rule:<ledger id>`, where the rule is still carried elsewhere;
+   - `duplicate-of:<ledger id>`;
+   - `narrative`, meaning history, an anecdote, an id or a date that binds nothing.
+
+   Two author-blind seats (one Sonnet, one Haiku) classify the vanished sentences and the lead adjudicates their
+   union. Recall therefore does not depend on a seat noticing every rule in 27k words. A deleted sentence with no
+   classification fails the test.
+3. **The ledger.** `commands/_rules/<cmd>.yaml` holds one entry per rule unit (a step, an order, a ban, a
+   threshold, a format, a refusal or a close condition), with these fields:
+   - `id`
+   - `section`: the heading the rule must sit under
+   - `baseline`: the verbatim baseline sentence
+   - `current`: the verbatim sentence that states it now
+   - its carriers
+
+   Every phrase an existing pin test holds is an input. A pinned phrase with no entry is a rule that was missed,
+   and it is added.
+4. **Carriers.** Every entry has at least one:
+   - `text: [<phrase>, …]`: each phrase must sit inside the sentence equal to `current`, under `section`.
+   - `ordered: [<id>, …]`: the named rules appear in this order, for step sequences and close orders.
+   - `forbidden: [<phrase>, …]`: an absence pin. Wording that must stay gone. Absence pins are never retired.
+   - `enforced: <test node id>`: valid only with three conditions. The test proves a REFUSAL (a non-zero exit or
+     an absent side effect), using the call shape the command actually issues. The refusal fires at the step
+     that forms the input, never only at the close. And a `text` carrier names the invocation and shows one
+     correct example, so the agent still knows to call the script and what passes. A test that asserts a
+     printed string is a text pin, and the ledger loader refuses it.
+5. **The test.** `tests/test_command_rules.py` asserts every ledger against a temp render. It reads the render
+   from `assemble_commands.py --check`'s temp directory and tolerates that command's drift exit code, which is
+   expected mid-rewrite. A failed carrier is a LOSS, and the test is red. Because `current` is stored, any later
+   reword shows up as a ledger diff the reviewer must read. The audit pair inside the command's full
+   `/fabrik-review` also reports any `current` that is weaker than its `baseline`. For example, the positive
+   lever must not drop a ban: a NEVER clause keeps its NEVER as a `text` phrase.
+6. **Standing gate.** After the program the ledger test runs inside `assemble_commands.py --check` for every
+   edit to a ledgered command, `/fabrik-command-improve`'s included. It is the edit contract, not a one-off.
+7. **Retiring pins.** A presence pin whose rule is now a ledger entry is deleted in the same commit. Absence pins
+   become `forbidden:` carriers or stay.
+8. **A rule removed on purpose** needs a D-row that names its ledger id, and the entry moves to a `retired:`
+   list. It is never deleted silently.
+9. **The tail.** Commands outside the top four (under 400 hours combined) may use the light form: steps 1, 2 and
+   7 only. The sentence classification table is the rule test, and `text` carriers are written only for the
+   rules whose sentences were reworded.
 
 ## How a command is cut (the rewrite rules)
 
-The following levers apply in order, and each keeps the rule:
+Each lever keeps the rule:
 - **(a) Remove narrative.** Incident stories, dates, mail ids, "measured: …" anecdotes and decision ids cited as
-  the rule's history all go (D-331). A decision id stays only where the agent must consult it.
-- **(b) State a rule once.** Where the same rule appears in more than one place in one rendered command, keep
-  one statement.
-- **(c) Let tools enforce the format.** Where a script refuses a malformed input with a message, the command
-  shows the correct form once, and the refusal grammar goes. The rule's carrier becomes `enforced`.
-- **(d) Write positive imperatives with a one-clause reason**, per the Anthropic guidance above.
-- **(e) Load only what the run needs.** A branch most runs never take (for example `/fabrik-spec`'s epic-file
-  intake) may move into a reference file the command orders read only on that branch. It still counts in the
-  measure, so this lever buys clarity, not score.
+  history all go (D-331). Keep a narrative clause only when it is the rule's one-clause reason, the sentence
+  that defines the class the rule covers. For example, keep "a grader constructs the rows it needs, so it only
+  tests the branch the author imagined", and drop the measured anecdote around it.
+- **(b) State a rule once.** A rule stated in more than one place in one render keeps one statement. A rule in a
+  fragment is never merged with one in the source, because they sit in different ledgers.
+- **(c) Let a tool enforce a format**, only under the `enforced` carrier's conditions above: the refusal fires
+  where the input is formed, and the text keeps the invocation plus one correct example. A refusal that fires
+  only at the close stays as text, because a wrong form found at close costs a whole re-close.
+- **(d) Write positive imperatives with a one-clause reason**, per the Anthropic guidance above. A NEVER or
+  refusal clause keeps its ban verbatim.
+- **(e) Load only what the run needs.** A branch most runs never take may move into a file the command reads on
+  that branch only. It still counts in the measure, so this lever buys clarity, not score.
 
 ## Loop changes
 
-- **L1 — the size ratchet.** `commands/_size_ceiling.json` holds each command's measure. `assemble_commands.py
-  --check` fails a render whose measure for any command exceeds its ceiling. A shrink lowers the ceiling in the
-  same commit, so the ceiling only ever goes down. Raising it needs a D-row. `/fabrik-command-improve`'s PHASE
-  text says that an edit answering a row must fit inside the ceiling, taking from elsewhere in the command what
-  it adds. **Cobra:** the cheapest way to pass is to move the added text into a reference doc. The measure counts
-  ordered reads, which closes that.
-- **L2 — the remove field.** The FEEDBACK verdict gains a fifth required field, `remove: <the sentence or step
-  this run did not need> | none`. `command_run.py` refuses a close without it, as it does for the other four.
-  `command_feedback_report.py --queue` shows `remove:` rows first. **Cobra:** `remove: none` everywhere. The
-  digest reports the ratio of `remove: none`, and kaizen reads it as the loop's lean signal.
-- L1's checker and L2's refusal are code in infra's beat (`assemble_commands.py`, `command_run.py`). They land as
-  plan tickets owned by infra, under the existing item W-a9b5e763 (infra-2, blocked by this spec). The plan
-  points at that item and does not mint a second one. The command wording that names them (the `close-feedback` fragment and the
-  `/fabrik-command-improve` source) is kaizen's.
+- **L1 — the size ratchet.** `commands/_size_ceiling.json` holds two ceilings per command:
+  - `render`: the new own-text measure plus 3% headroom. It ratchets down on every shrink, and raising it needs
+    a D-row.
+  - `reads`: the frozen set of paths plus their total. A grown or added file needs a D-row naming it. Each
+    ordered-read doc's own size belongs to its beat, so an infra doc growing for its own reasons does not block
+    a command render; it is reported.
+
+  `assemble_commands.py --check` fails a render over either ceiling, and only after the ledger test passes, so a
+  render cannot be paid for by deleting a rule. A command with no ledger yet refuses additions outright: they are
+  queued to its phase rather than paid for with deletions. `/fabrik-command-improve`'s text says that an edit must
+  fit its ceiling and pass the ledger.
+  **Cobra:** the cheapest pass is deleting a rule to make room, which the ledger gate stops. The second cheapest is
+  D-row inflation to raise ceilings, which the digest lists by command.
+- **L2 — the remove field.** The FEEDBACK verdict gains a fifth required field: `remove: "<a sentence quoted
+  verbatim from the rendered command>" | none`. `command_run.py` refuses a quote that is absent from the render.
+  The digest groups `remove:` rows by phrase, so N runs naming one sentence become a deletion candidate with
+  evidence. `/fabrik-command-improve` treats a candidate as a ledger check, never as permission to delete. This is
+  the only new close grammar the program adds.
+  **Cobra:** `remove: none` everywhere. The digest reports that ratio, and kaizen reads it as the loop's lean
+  signal.
+- L1's checker, L2's refusal and the ledger test's hook into `--check` are code in infra's beat
+  (`assemble_commands.py`, `command_run.py`). They land as the plan's infra tickets under the existing item
+  W-a9b5e763 (infra-2, blocked by this spec), and the plan mints no second item. The command wording that names
+  them is kaizen's: the `close-feedback` fragment and the `/fabrik-command-improve` source.
 
 ## Order
 
-Each item is one plan phase, one command, one full `/fabrik-review`, and one merge by the coordinator:
-- P0 is L1 and L2 plus the ledger tooling.
-- Then `/fabrik-review` with its fragments (`term-coverage`, `term-edit`, `subagents-core`,
-  `review-probe-catalogue`).
-- Then `/fabrik-task`, `/fabrik-review-scoped`, `/fabrik-execute-plan` and `/fabrik-command-improve`.
-- The remaining commands follow in descending order of hours.
+Each item is one plan phase, one full `/fabrik-review` and one merge by the coordinator:
+1. **Tooling:** the sentence-diff and ledger loader, the measure script, `test_command_rules.py`, and L1 and L2
+   (W-a9b5e763). Every command's full-measure baseline is published.
+2. **Pilot: `/fabrik-review-scoped`** (1,120 runs, 9,551 words, the same fragments). It shakes out the YAML
+   grammar, the audit pair and the ceilings at a third of `/fabrik-review`'s size.
+3. **Shared fragments**, with fragment ledgers asserted in every including render: `term-coverage`, `term-edit`,
+   `subagents-core`, `review-probe-catalogue`, `close-chain`, `close-feedback` and `orient`.
+4. **`/fabrik-review`.** The review that reviews every later phase lands only after the pilot has proven the
+   tooling.
+5. `/fabrik-task`, `/fabrik-execute-plan`, `/fabrik-command-improve`.
+6. The rest, in descending order of hours, in the light form.
 
-intel's per-phase time table (W-0a91bf86) picks the sections cut hardest inside each command. infra-2's lane
-clause (W-a0a32de2) lands before the commands it touches are rewritten, and the rewrite carries it.
+intel's per-phase time table (W-0a91bf86) picks the sections each command cuts hardest. infra-2's lane clause
+(W-a0a32de2) lands before the commands it touches are rewritten, and the rewrite carries it.
 
 ## Review and landing
 
-Every command source is a governance-sync path, so every phase owes the full `/fabrik-review`, its seats
-including the rule test's audit pair. The worktree never renders. The coordinator renders the corpus at merge.
+Every command source is a governance-sync path, so every phase owes the full `/fabrik-review`, whose seats
+include the rule test's audit pair. The worktree never renders; the coordinator renders the corpus at merge.
 
 ## Rejected alternatives
 
 - **R1 — a byte cut with existing graders as the loss check** (the 2026-09-21 program, D-330). It passed every
-  grader and lost 21 ungraded rules. The ledger exists because graders only cover what someone pinned.
+  grader and lost 21 ungraded rules, because graders only cover what someone pinned.
 - **R2 — a word cap alone.** It invites the fragment and reference-doc evasion and says nothing about loss.
-- **R3 — progressive disclosure scored at firing frequency** (counting a conditional read by how often its branch
-  fires). It is more accurate, but it needs per-branch telemetry that does not exist, and it rewards moving rules
-  out of sight. Lever (e) stays, unscored.
+- **R3 — progressive disclosure scored at firing frequency.** It needs per-branch telemetry that does not exist
+  and rewards moving rules out of sight. Lever (e) stays, unscored.
+- **R4 — a seat-extracted rule list as the only completeness proof** (this draft's first version). Recall rests
+  on a seat reading 27k words. The sentence diff makes completeness mechanical (both panel seats).
+- **R5 — halving the full measure.** That would mean cutting infra's and docs' reference files, which belong to
+  other beats. The own-text quantity is halved, and the full measure must not grow.
 
 ## § Binding (ONE-WAY: every command, fleet-wide)
 
-CLASS: one-way. Every project's rendered commands change, and the ledger becomes the edit contract.
-BUDGET: about 30 commands, the top four first, and one session per large command.
-KILL: a command whose rule test cannot reach 50% without a LOSS stops at its floor, with a D-row naming the
-rules that hold it there.
-CONFIDENCE: medium. The narrative share is large: 129 decision ids and 23 dates in `/fabrik-review` alone.
-COUNTER: the ledger's own size. Its YAML is not rendered and costs no run tokens.
-TRIPWIRE: median wall-minutes per command, which `command-feedback.jsonl` reports, does not fall within 2 weeks
-of a command landing.
-CLOSE-OUT: every command at or under its 50% ceiling, or at a recorded floor; L1 and L2 live; `remove:` rows
-flowing.
+CLASS: one-way. Every project's rendered commands change, and the ledger becomes the standing edit contract.
+BUDGET: about 30 commands. The pilot and the top four take one session each; the tail uses the light form.
+KILL: no KILL per command. A command that cannot reach 50% without a LOSS stops at a **recorded floor** derived
+from its ledger (its live rule count × the median words per rule of the commands that reached 50%), written as a
+D-row. The program is killed if the pilot cannot reach 60% of its own-text baseline with a green rule test.
+CONFIDENCE: medium. Both panel seats estimated `/fabrik-review` at 40-65% of its render from a dense sample, so
+a floor near 55-60% is likely there.
+COUNTER: the ledger's own size. Its YAML is not rendered and costs no run tokens; the measure counts none of it.
+TRIPWIRE: median wall-minutes AND median Mtok per run, both from `command-feedback.jsonl`, fail to fall within 2
+weeks of a command landing.
+CLOSE-OUT: every command at or under 50% of its own text, or at a recorded floor; the full measure not grown;
+L1, L2 and the standing ledger gate live; `remove:` rows flowing.

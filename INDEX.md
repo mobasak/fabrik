@@ -1748,6 +1748,7 @@ docs/
 │       ├── 2026-10-21-own-scrape-tools-design.md
 │       ├── 2026-10-22-least-operator-approval-design.md
 │       ├── 2026-10-23-spoke-watchdog-apprise-mesh-gate-design.md
+│       ├── 2026-10-25-lean-command-corpus-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
