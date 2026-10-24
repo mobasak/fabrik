@@ -3,7 +3,7 @@
   "created": "2026-10-24T18:03:16.112545Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d7a0368b1f16730b537ca115ee3fa5cf19d98a0a",
   "id": "W-79008127",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-2",
   "priority": 0,
   "score_reason": "URGENT: operator ruling on the brand colour, blocks ocoron.com; infra-2 just landed the same file's font change (D-1200); kaizen (wording owner) is paused",
-  "status": "open",
+  "status": "done",
   "title": "URGENT (operator via wef-coordinator 2026-10-24): 'i asked for orange should be vivid, update brand color as well.' Add a vivid brand orange (proposed #E87400; white text 3.03:1 = AA large only, #0A0A0A for any size) to .windsurf/rules/core/ocoron-design-system.md as its own token (e.g. --color-orange or a --viz slot), NOT by changing --color-warning (warning text must keep 4.5:1). ocoron.com uses #E87400 as a local override until it lands; reply landed/deferred/refuted to wef"
 }
