@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
   The merge skips its own leg when its merged tree differs from that one only in CHANGELOG.md,
   docs/DECISIONS.md, docs/LESSONS_LEARNT.md and work items, the same `merge_request.py` wrote the record and its
   leg ran at least a minute; anything else re-runs the leg and the reply says why. On web-ecommerce-factory's
-  last 21 merges 15 would have skipped a 18-28 min run under the serial merge lock.
+  last 21 merges 15 would have skipped an 18-28 min run under the serial merge lock.
 - A base's `.fabrik/merge-tests` may declare `# merge-test-timeout: <seconds>`, clamped to
   `LEG_FLOOR_S`..`MERGE_TEST_BUDGET_S`: web-ecommerce-factory's one leg now runs past 1800 s.
 - `scripts/merge_test_select.py` writes its records under `FABRIK_MERGE_TESTS_RECORDS` when set, which a pretest
