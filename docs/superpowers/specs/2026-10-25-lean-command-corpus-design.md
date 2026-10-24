@@ -83,7 +83,6 @@ pages were read with `exa web_fetch`; IFScale was first located by `WebSearch`.
 | I14 | "ALL OTHER BUILDER WORK PAUSES UNTIL IT IS FINISHED" (D-1216) | IN | § Program holds |
 | I15 | "/fabrik-command-improve runs are PAUSED until the loop is changed" (D-1216) | IN | § Program holds |
 | I16 | "kaizen is not doing its work properly" (D-1216) | IN | § Loop changes: L1 and L2 change what the loop is measured on, and § Program holds lifts the improve pause only when they land |
-
 | I17 | coordinator, relaying the complaint's TIME: "the spec must also set the seat and round budget each command may spend … with its own before/after measure: wall-clock per run" | IN | § Time budget |
 
 Intake: 17 items. 16 are IN and 1 is OUT-OF-SCOPE (named above). None is ASK.
