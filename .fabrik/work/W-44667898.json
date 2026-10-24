@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T10:29:32.696139Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-44667898",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce from the mail's readings; fix the posture writer so a stale or post-reset reading never yields WALL without a hold; regression test; reply to fabrik-lib",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: a block on every agent — a false WALL holds all sessions; another repo's finding; effort low: one posture computation and a test",
+  "status": "open",
+  "tags": [
+    "mail-01m5b0kzqa3n51ejv1tp8atm2h"
+  ],
+  "title": "fabrik-lib mail 01M5B0KZQA3N51EJV1TP8ATM2H: the quota posture reads WALL after a 5h reset while every reading is cool and --status shows 'hold none' — a false WALL holds every agent"
+}
