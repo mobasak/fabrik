@@ -8,9 +8,17 @@ All notable changes to this project will be documented in this file.
 
 GFM splits a table cell on an unescaped `|` even inside a code span, so rows 21, 24, 98, 106 and 107 of `docs/workstation/hooks-index.md` rendered shifted cells; each such pipe is now `\|`. `tests/enforcement/test_check_hooks_index.py::_table_pipe_defects` guards it: a row whose unescaped-pipe count differs from its header's, or an unescaped pipe inside a code span, is reported, and lines inside a CommonMark-matched fence are not rows; `test_table_pipe_defects_probe_list` commits the escape variants the scoped review raised (W-7c3abd32).
 
-### Fixed — the decision-ledger checker pairs backtick runs by length, as markdown does (2026-10-24)
+### Added — an operator-run script for the vps1 Postgres rotation's steps 1-3 (2026-10-24)
 
-`scripts/enforcement/check_decisions_unique.py` read a decision row's code spans with a one-backtick pattern, so a row quoting a triple-backtick fence (D-1159) or a double-backtick span read as the wrong number of cells and was reported malformed. It now takes its spans from `blank_code_spans` in `scripts/enforcement/_fences.py`, the span reader check_doc_links and check_convergence already use, and the ledger shape test counts pipes from the same mask (W-27db8c35, D-1180). No live row changes: 0 of 2896 rows across 51 ledgers.
+- W-80983d8c, D-1176, D-1177. `scripts/sysadmin/vps1_pg_scoped_logins.py` runs
+  `docs/reference/vps1-postgres-admin-rotation-runbook.md` steps 1-3, gated by a typed `yes` per block. The
+  classifier refuses the fleet agent's commands on vps1, so the operator runs it. Passwords and verifiers travel only
+  on ssh stdin. A failed service move restores its files and restarts the service, and a re-run finishes a run that
+  stopped half-way. Step 4 is not in it. Graders: `tests/test_vps1_pg_scoped_logins.py`.
+
+### Fixed — /fabrik-review-scoped says how to pin a surface that is already committed (2026-10-24)
+
+- Step 5's pin recipe takes `base_sha` from `git rev-parse HEAD` and pins the working tree, so a lead who committed first got a `change.diff` with only a header line. The fix rule existed only in the probe catalogue's § Seat isolation, which a docs-only brief need not load. Step 5 now quotes that catalogue clause whole, and adds two shapes the clause leaves out: a merge as the last commit counts as several, and a surface that is partly committed is pinned from the working tree with `--base`. It also says the brief's `base_sha` is the one the pin records. The rule is graded by `tests/test_review_scoped_queue_pass.py::test_a_committed_surface_is_pinned_from_its_commit_by_its_shape`. This answers feedback rows 1792829562, 1792779119 and 1792774372 (W-2a444037).
 
 ### Fixed — a late re-bind no longer ends a rotation `partial:rebind`, inside the executor's timeout (2026-10-24)
 
@@ -33,6 +41,16 @@ GFM splits a table cell on an unescaped `|` even inside a code span, so rows 21,
 ### Fixed — the drifted-box grader no longer reds on a checkout behind a fragment change or a clone with no origin/master (2026-10-24)
 
 - `tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` asserted "2 failed" outside a merge check. Its vision sibling returns early when the checkout's diff against `origin/master` touches `commands/_fragments/`, and skips with no `origin/master`. At master's 201a928a7 the grader read "1 failed, 1 passed" (W-bda62f32); in a clone with its origin removed, "1 failed, 1 skipped" (W-f661fabf). The grader now runs the same diff before and after the run and expects the matching outcome, skipping when the two differ. It matches the whole summary line, drops `PY_COLORS`/`FORCE_COLOR` from the inner env, and asserts the merge-check skip reason never appears outside a merge check before anything else. A conftest mutated to always skip is caught.
+
+### Fixed — the decision-ledger checker pairs backtick runs by length, as markdown does (2026-10-24)
+
+`scripts/enforcement/check_decisions_unique.py` read a decision row's code spans with a one-backtick pattern, so a row quoting a triple-backtick fence (D-1159) or a double-backtick span read as the wrong number of cells and was reported malformed. It now takes its spans from `blank_code_spans` in `scripts/enforcement/_fences.py`, the span reader check_doc_links and check_convergence already use, and the ledger shape test counts pipes from the same mask (W-27db8c35, D-1180). No live row changes: 0 of 2896 rows across 51 ledgers.
+
+### Fixed — check_doc_index no longer lets a code-span example hide a missing doc or index an unlisted one (2026-10-24)
+
+- `scripts/enforcement/check_doc_index.py` skips fenced and span-held INDEX.md links as `check_doc_links.py` does: both now blank fenced blocks and inline code spans first, through the new `_fences.blank_code_examples`. Read raw, a quote inside a code span could swallow a real link to a missing doc, and a span-held escaped link could index a doc that has no row (D-1183, superseding D-1179). Line endings become LF before the blanking, so a CR-only INDEX.md cannot pair two spans across a heading.
+- `scripts/enforcement/_fences.py` holds the one copy of that masking and of the fence toggle (`fence_toggle`), moved from `check_doc_links.py`; both checks fall back to the raw text where `_fences.py` is missing or lags the sync.
+- Tests: three new tests in `tests/enforcement/test_check_doc_index.py` fail on the old code, and the agreement and line-ending tests, the regression guards and the single-copy pins in `tests/enforcement/test_fences.py` were proven red by mutants. Run end to end over the 40 `/opt` repositories that carry an INDEX.md, no finding changes.
 
 ### Fixed — every coordinator's contract names the live rotation verb, and the merge recipe no longer trips the worktree prompt (2026-10-23)
 

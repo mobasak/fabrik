@@ -278,27 +278,38 @@ def link_targets(text: str):
 _INLINE_SPAN_RE = re.compile(r"(`{3,})[^`]+\1(?!`)")
 
 
-_SPAN_BLANKER: object = (
-    None  # unloaded; then _fences.blank_code_spans, or False where it is missing
-)
+def _local_fence_toggle(line: str) -> bool:
+    """`_fences.fence_toggle`'s fallback copy, read only where `_fences.py` is missing or predates it;
+    tests/enforcement/test_fences.py holds the two equal."""
+    stripped = line.lstrip()
+    return stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)
 
 
-def _blank_spans(text: str) -> str:
-    """Inline code spans blanked, length-preserving, by `_fences.blank_code_spans` (W-b9af1d47) — the copy
-    docs_updater blanks with. Imported on first use by the sibling directory; in a project whose `_fences.py`
-    lags the sync it is absent, and the text comes back unblanked: today's reading, never a crash."""
-    global _SPAN_BLANKER
-    if _SPAN_BLANKER is None:
+_BLANKER: object = None  # unloaded; then _fences.blank_code_examples, or False where it is missing
+_TOGGLE = _local_fence_toggle
+
+
+def _blank_examples(text: str) -> str:
+    """Fence lines, fence bodies and inline code spans blanked, length-preserving, by
+    `_fences.blank_code_examples` (W-b9af1d47, W-85bd72fa) — the one reading check_doc_index grades INDEX.md
+    links on too. Imported on first use by the sibling directory, with `_fences.fence_toggle` for the skip loop;
+    where `_fences.py` is missing (ImportError) or lags the sync without `blank_code_examples` — even one that
+    has `blank_code_spans` — the text comes back unblanked: the pre-W-b9af1d47 reading. A sync copies
+    scripts/enforcement whole, so that lag lasts one sync. A `_fences.py` that fails to import any other way
+    raises, as it does in every check importing it."""
+    global _BLANKER, _TOGGLE
+    if _BLANKER is None:
         here = str(Path(__file__).resolve().parent)
         if here not in sys.path:
             sys.path.insert(0, here)
         try:
             import _fences
         except ImportError:
-            _SPAN_BLANKER = False
+            _BLANKER = False
         else:
-            _SPAN_BLANKER = getattr(_fences, "blank_code_spans", False)
-    return _SPAN_BLANKER(text) if _SPAN_BLANKER else text  # type: ignore[operator]
+            _BLANKER = getattr(_fences, "blank_code_examples", False)
+            _TOGGLE = getattr(_fences, "fence_toggle", _local_fence_toggle)
+    return _BLANKER(text) if _BLANKER else text  # type: ignore[operator]
 
 
 def _iter_refs(text: str):
@@ -313,34 +324,18 @@ def _iter_refs(text: str):
     own line (```` ```x``` ````) is inline code, never a fence — it would hide every link below it.
     Cost, stated: a fence that is never closed stops grading links and bare paths to the end of the
     file. A link inside an inline code span is an example too (W-b9af1d47): the link reader reads the
-    line with spans blanked, while the fence toggle, the stale markers and the bare-path scan read it
-    raw, and fence lines and bodies are blanked before the span pass (a closing fence's ``` would pair with
-    an inline ``` below it). The blanked text is cut at each raw line's offsets — the blanker keeps every length, and a
+    line from `_blank_examples` (fences, then spans, blanked by `_fences.blank_code_examples`, which
+    check_doc_index reads too — W-85bd72fa), while the fence toggle, the stale markers and the bare-path
+    scan read it raw. The blanked text is cut at each raw line's offsets — the blanker keeps every length, and a
     second splitlines() would not, since it also breaks on the \\f, \\v and U+2028 a span turns into
     spaces."""
-    rows = []  # (line, its offset in text, a fence line or fence body)
+    blanked = _blank_examples(text)
     in_fence, pos = False, 0
     for raw in text.splitlines(keepends=True):
-        line = raw.splitlines()[0]
-        stripped = line.lstrip()
-        toggle = stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)
-        rows.append((line, pos, toggle or in_fence))
-        in_fence ^= toggle
+        line, start = raw.splitlines()[0], pos
         pos += len(raw)
-    # Fence lines and bodies are blanked before the span pass, so a fence's ``` never pairs with an inline ```
-    # run in the paragraph after it, and a body's backticks never pair with an opener above the fence — a
-    # blanked fence line alone does not stop that when the fence opens after a \f, \v or U+2028, which this
-    # toggle splits on and the span blanker does not (review pass 2).
-    masked = list(text)
-    for line, start, fenced in rows:
-        if fenced:
-            masked[start : start + len(line)] = " " * len(line)
-    blanked = _blank_spans("".join(masked))
-    in_fence = False
-    for line, start, _fenced in rows:
         span_free = blanked[start : start + len(line)]
-        stripped = line.lstrip()
-        if stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped):
+        if _TOGGLE(line):
             in_fence = not in_fence
             continue
         # documented-stale convention: a line carrying the warning marker or an
