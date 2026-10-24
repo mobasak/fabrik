@@ -303,6 +303,9 @@ def test_a_killed_pretests_leftovers_are_swept_by_the_next(world, monkeypatch):
         ("# merge-test-timeout: 2400\n# merge-test-timeout: 3000\n", 2400),  # the first one
         ("# merge-test-timeout: 2700\r\nexit 0\r\n", 2700),  # a CRLF file
         ("# merge-test-timeout: 1234567\n", 3600),  # a long value is clamped, never ignored
+        ("# merge-test-timeout: 9999999999999999\n", 3600),
+        ("# merge-test-timeout: " + "9" * 5000 + "\n", 3600),  # past int()'s digit limit
+        ("# merge-test-timeout: 0000000000600\n", 600),  # leading zeros are still a number
     ],
 )
 def test_the_declared_leg_grammar(world, script, expected):

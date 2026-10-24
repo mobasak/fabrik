@@ -550,7 +550,7 @@ LEG_FLOOR_S = 60  # under a minute left, no leg starts: a stub run tells nothing
 # read, clamped to [LEG_FLOOR_S, MERGE_TEST_BUDGET_S] — so the budget, and the documented wrapper,
 # still bound the run; a longer leg leaves less of the budget for a rebuild (W-1fb11ec8, wef's ~5240-test
 # leg past 1800 s on 2026-10-24).
-_LEG_DECL_RE = re.compile(r"(?m)^#[ \t]*merge-test-timeout:[ \t]*([0-9]{1,12})[ \t\r]*$")
+_LEG_DECL_RE = re.compile(r"(?m)^#[ \t]*merge-test-timeout:[ \t]*([0-9]+)[ \t\r]*$")
 PUSH_TIMEOUT_S = 600
 SYNC_TIMEOUT_S = 900
 EXIT_OK = 0
@@ -619,7 +619,10 @@ def _declared_leg(script: str) -> int:
     m = _LEG_DECL_RE.search(script)
     if not m:
         return TEST_TIMEOUT_S
-    return max(LEG_FLOOR_S, min(int(m.group(1)), MERGE_TEST_BUDGET_S))
+    digits = m.group(1).lstrip("0") or "0"
+    if len(digits) > 9:  # past any budget, and int() refuses a string over 4300 digits
+        return MERGE_TEST_BUDGET_S
+    return max(LEG_FLOOR_S, min(int(digits), MERGE_TEST_BUDGET_S))
 
 
 def _leg_timeout(ctx: _Ctx) -> int:
