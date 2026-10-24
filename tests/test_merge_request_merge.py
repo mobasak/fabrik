@@ -1926,3 +1926,76 @@ def test_base_alone_names_an_outer_timeout_and_a_check_that_could_not_run(world,
     reason = world.record(second)["reason"]
     assert reason.startswith("(a)-(d) build, preflight, tests, CAS: owner tests red"), reason
     assert "not checked (the check could not run: the base tree is unusable)" in reason, reason
+
+
+def test_base_alone_reads_a_no_verdict_leg_as_not_checked(world, monkeypatch):
+    """The hub's selector re-run on the base exits 2 (NOT MEASURED) or 3 (LEG FAILED) when it has
+    no verdict; neither proves a red base, so the refusal must not send the requester to wait for a
+    base fix (W-6700664a). The marker decides only with its own exit, and only on STDOUT:
+    capped_run.sh's lines arrive on stderr, after the verdict. A generic owner's exit 2 or 3, or
+    the marker under another exit, still reads "red too"."""
+    world.write(".fabrik/merge-tests", "exit 1\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    real = world.mod._run_owner_leg
+    base_run: dict = {}
+
+    def red_then(ctx, wt, script, touched):
+        if base_run.get("seen"):
+            out = base_run["out"]
+            run = subprocess.CompletedProcess(["sh"], out[0], out[1], "capped_run: admission ok\n")
+            return run, "stub"
+        base_run["seen"] = True
+        return real(ctx, wt, script, touched)
+
+    monkeypatch.setattr(world.mod, "_run_owner_leg", red_then)
+    cases = {
+        "nm": (2, "merge-tests: NOT MEASURED on the base — no new red recorded for HEAD abc\n"),
+        "lf": (3, "ImportError: conftest broke\nmerge-tests: LEG FAILED on the base (exit 4)\n\n"),
+        "wrong-exit": (1, "merge-tests: LEG FAILED on the base (exit 4)\n"),
+        "no-marker": (2, "make: *** [test] Error 2\n"),
+    }
+    reasons = {}
+    for name, out in cases.items():
+        base_run.clear()
+        base_run["out"] = out
+        msg_id = world.send(world.branch({f"{name}.txt": "x\n"}, msg=name))
+        assert world.run("merge") == 1
+        reasons[name] = (msg_id, world.record(msg_id)["reason"])
+
+    for name in ("nm", "lf"):
+        msg_id, reason = reasons[name]
+        assert "on base alone: not checked (the owner leg gave no verdict: " in reason, reason
+        assert "neither side is proven" in reason and "red too" not in reason, reason
+        assert f"merge_request.py retry {msg_id}" in reason, reason
+        assert "capped_run" not in reason, reason
+    assert "ImportError: conftest broke" in reasons["lf"][1], reasons["lf"][1]
+    reply = world.replies(reasons["nm"][0])["fleet"]
+    assert "owner leg gave no verdict, act only if the tail names your change" in reply, reply
+    for name in ("wrong-exit", "no-marker"):
+        assert "on base alone (one run): red too (" in reasons[name][1], reasons[name][1]
+
+
+def test_a_green_leg_carries_its_flaky_line_into_the_reply(world):
+    """A green owner leg said only "green", so the selector's FLAKY ids never reached anyone
+    (W-6700664a). Its FLAKY line rides on the summary, cut at an id boundary when long."""
+    ids = ", ".join(f"tests/test_x.py::test_{i:03d}" for i in range(40))
+    world.write(
+        ".fabrik/merge-tests",
+        # the selector's order: FLAKY first, then pre-existing reds, whose crash text is free test
+        # output and may hold the marker mid-line
+        f"echo 'merge-tests: FLAKY (red in a shard, green alone and in order) — {ids}'\n"
+        "echo 'merge-tests: pre-existing on the base — t (call): merge-tests: FLAKY (fake)'\n"
+        "echo 'merge-tests: green in 3s'\n",
+    )
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"f.txt": "f\n"}))
+    assert world.run("merge") == 0
+    line = next(
+        ln for ln in world.replies(msg_id)["fleet"].splitlines() if "(base copy): green" in ln
+    )
+    assert "(base copy): green; merge-tests: FLAKY (red in a shard" in line, line
+    assert "(fake)" not in line, line
+    carried, _, more = line.partition(" …(+")
+    assert carried.endswith(tuple(f"test_{i:03d}" for i in range(40))), carried
+    shown = carried.count("::test_")
+    assert 0 < shown < 40 and more == f"{40 - shown} more)", line

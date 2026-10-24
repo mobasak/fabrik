@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a merge refusal no longer calls a no-verdict merge-test leg a red base, and a green leg names its flaky tests (2026-10-24)
+
+- `merge_request.py::_base_alone` read the hub selector's base re-run exiting 2 `NOT MEASURED` or 3 `LEG FAILED` as "red too — likely a base-side fault: fix the base", which sent the requester to wait for a base fix the base did not need (W-6700664a). A base run whose exit is 2 or 3 AND whose last STDOUT line is that marker now reads "not checked (the owner leg gave no verdict: <last 3 lines>) — neither side is proven", and the refusal reply's HOW sentence says what to do with it. Another owner's exit 2 or 3 without the marker still reads "red too" (`make` exits 2). A green owner leg's `tests:` summary now carries the selector's `FLAKY` line, cut at an id boundary past 400 characters. Graders in `tests/test_merge_request_merge.py`: red first, and 7 of 7 guard mutants killed. Docs: `docs/reference/multi-agent-operating-model.md`.
+
 ### Added — the hub's own merge-time test leg: differential, name-reference selection (2026-10-24)
 
 - `.fabrik/merge-tests` runs `scripts/merge_test_select.py` in each merge's build tree (W-4e756979, D-1189). The tests it selects are those naming a changed path (file, module stem, import, specific directory) plus every `ls-files` tree grader. They run in 8 shards, each red is confirmed alone and then in its shard's order, and the leg refuses only a red that is new against the base. Master's own reds pass. Without it, `merge_request.py` ran only the tests a branch touched, and the measured red-master merges were each red by themselves. All 17 measured cause merges select their red grader. Three real merges took 487 / 1189 / 1172 s, so the coordinator runs merges in the background (`scripts/rund --timeout 2100 -- capped_run.sh --timeout 2000 -- merge_request.py merge <id>`). The leg is on for every merge by D-1186, from the merge after the one that lands it.

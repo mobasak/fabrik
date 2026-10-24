@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T10:25:49.411592Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-7ecfff55",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "write the in-progress mark before the first git read that can fail, or have the base re-run refuse (NOT MEASURED) when no record exists for HEAD in a merge check",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "merge_test_select.py: a merged run that dies before 'base' is set (or whose two _write_record calls fail) leaves no record, so _base_alone's re-run at a base that is itself a merge commit runs a FULL differential of that base's own merge instead of NOT MEASURED (merge_test_select.py:408-419, :443-445) — a real red/green there is misread as the base-alone verdict; residue of W-6700664a's design critiques"
+}

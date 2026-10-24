@@ -1300,11 +1300,30 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
                 f"the merged run timed out or was killed (exit {run.returncode})"
             )
         raise red
-    return f"{label}: green"
+    return f"{label}: green{_flaky_note(run.stdout)}"
 
 
 # capped_run.sh's own verdicts: 124 its time limit, 137 its memory ceiling (scripts/capped_run.sh)
 _KILLED_EXITS = (124, 137)
+# The hub selector's (scripts/merge_test_select.py) last stdout line when it has no verdict, with
+# its exit: 2 NOT MEASURED, 3 LEG FAILED. Read with the exit and on STDOUT only — another owner's
+# exit 2 or 3 is a red (make exits 2), and capped_run.sh prints to stderr, after the verdict.
+_NO_VERDICT = {2: "merge-tests: NOT MEASURED", 3: "merge-tests: LEG FAILED"}
+_FLAKY = "merge-tests: FLAKY ("
+_FLAKY_CAP = 400
+
+
+def _flaky_note(stdout: str) -> str:
+    """A green leg's FLAKY line (the selector's), cut at an id boundary, as a summary suffix."""
+    lines = [ln.strip() for ln in stdout.splitlines() if ln.strip().startswith(_FLAKY)]
+    if not lines:
+        return ""
+    line = lines[-1]
+    if len(line) > _FLAKY_CAP:
+        cut = line.rfind(", ", 0, _FLAKY_CAP + 1)
+        cut = cut if cut > 0 else _FLAKY_CAP
+        line = f"{line[:cut]} …(+{line[cut:].count(', ')} more)"
+    return f"; {line}"
 
 
 def _base_merge_tests(ctx: _Ctx, old: str) -> str:
@@ -1347,7 +1366,8 @@ def _base_alone(ctx: _Ctx, rec: dict, old: str, red: RefusedError) -> str:
     base and a red branch, so the owner could not tell a request worth retrying from one the
     requester must change. One run is weak evidence (a flaky test reads either way), so the
     wording hedges. Never raises: a check that cannot run is the "not checked" clause, so it can
-    never change the refusal or the exit code."""
+    never change the refusal or the exit code. The hub selector's no-verdict line (``_NO_VERDICT``)
+    is "not checked" too: a leg that measured nothing proves neither side (W-6700664a)."""
     skip = getattr(red, "base_alone_skip", None)
     if skip:
         return f"; on base alone: not checked ({skip})"
@@ -1369,6 +1389,14 @@ def _base_alone(ctx: _Ctx, rec: dict, old: str, red: RefusedError) -> str:
         )
     if run.returncode in _KILLED_EXITS:
         return f"; on base alone: not checked (the base run timed out or was killed, exit {run.returncode})"
+    out = [ln.strip() for ln in run.stdout.splitlines() if ln.strip()]
+    marker = _NO_VERDICT.get(run.returncode)
+    if marker and out and out[-1].startswith(marker):
+        return (
+            f"; on base alone: not checked (the owner leg gave no verdict: {' '.join(out[-3:])}) "
+            "— neither side is proven: if the tail names your change, fix it; otherwise change "
+            f"nothing, the owner repairs the leg and runs `merge_request.py retry {rec['id']}`"
+        )
     tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
     said = f"exit {run.returncode}: {tail}" if tail else f"exit {run.returncode}"
     return (
@@ -1652,7 +1680,8 @@ def _reply_body(rec: dict) -> str:
             "push, re-review, and run merge_request.py request again with the updated receipt — "
             "never a rebase or a force-push: the branch is already pushed. When it says the base "
             "alone is red too, change nothing and send nothing: the owner fixes the base and "
-            "runs merge_request.py retry on this request."
+            "runs merge_request.py retry on this request. When it says the owner leg gave no "
+            "verdict, act only if the tail names your change; otherwise wait for the owner's retry."
         )
     body = "\n".join(lines) + "\n"
     return body.replace("acked-by:", "acked by:")  # a body never carries a verbatim ack line

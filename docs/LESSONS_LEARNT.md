@@ -7726,3 +7726,17 @@ document.
   superseded by a new row, never edited.
 - **Where it lives.** `scripts/enforcement/check_doc_index.py::_blank_examples`,
   `scripts/enforcement/_fences.py::blank_code_examples`, `docs/DECISIONS.md` (D-1179, D-1183).
+
+## A decoy in a test fixture only bites in the producer's real order — put it where the producer prints it (2026-10-24)
+
+- **What happened.** W-6700664a's grader for "match the FLAKY line by prefix, never by substring" put a decoy
+  line carrying the marker mid-line ABOVE the real FLAKY line. The code takes the last matching line, so a
+  substring mutant still picked the real line and the grader stayed green: 1 of 7 mutants survived. The real
+  selector prints FLAKY first and the pre-existing reds (whose free crash text can hold the marker) after it.
+  With the decoy moved below, the mutant died.
+- **Mechanism.** A "last match wins" or "first match wins" reader makes a decoy's position decide whether it is
+  read at all. A decoy on the side the reader never reaches tests nothing.
+- **How to apply.** Order a fixture's lines as the producer emits them, with the decoy on the side the reader
+  picks. Then run the mutant the decoy exists to kill: a test that has never gone red has not been shown to work.
+- **Where it lives.** `tests/test_merge_request_merge.py::test_a_green_leg_carries_its_flaky_line_into_the_reply`,
+  `scripts/merge_request.py::_flaky_note`.
