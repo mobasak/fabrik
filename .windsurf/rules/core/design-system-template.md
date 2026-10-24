@@ -1,6 +1,6 @@
 ---
 activation: glob
-globs: ["**/docs/design-system.md", "**/*.tsx", "**/*.jsx", "**/*.astro", "**/tailwind.config.*", "**/globals.css", "**/global.css", "**/custom.css", "**/tailwind.css", "**/*theme*.css", "**/styles/*.css", "**/src/styles/**/*.css"]
+globs: ["**/docs/design-system.md", "**/*.tsx", "**/*.jsx", "**/*.astro", "**/tailwind.config.*", "**/globals.css", "**/global.css", "**/custom.css", "**/tailwind.css", "**/theme.css", "**/src/styles/*.css"]
 description: The brand-neutral design-system TEMPLATE every Fabrik GUI inherits — the token slots a brand must fill (both modes), the computed-contrast contract, and the structure (components, states, tables, forms, motion, density, accessibility, responsive layout). A project's docs/design-system.md fills the slots; brand-identiy-creator emits that file in this shape; ocoron-design-system.md is one brand that fills it.
 trigger: glob
 currency_pass: 2026-09-24
@@ -108,8 +108,8 @@ Components below say "heading font", "body font" and "mono font" for these three
 The saas-skeleton emits shadcn/ui's HSL variables in `app/globals.css` (Tailwind's `theme.extend`
 reads them as `hsl(var(--x))`). A Tailwind CSS-first project keeps the slots in `:root` and exposes
 them to utilities per § Tailwind (CSS-first) usage — `--color-surface-0: var(--surface-0)` in
-`@theme inline` gives `bg-surface-0` without breaking the specs' `var(--surface-0)`, and the
-text-colour slots are never declared in `@theme`. Fill shadcn's names FROM the slots so shadcn components inherit the brand:
+`@theme inline` gives `bg-surface-0` without breaking the specs' `var(--surface-0)`, and
+`--text-primary`, `--text-body` and `--text-muted` are never declared in `@theme`. Fill shadcn's names FROM the slots so shadcn components inherit the brand:
 
 | shadcn variable | Slot |
 |---|---|
@@ -1513,12 +1513,12 @@ breakpoints are Tailwind's defaults (§ Responsive Layout).
 
 ## Tailwind (CSS-first) usage
 
-Applies where Tailwind is configured in CSS (`@import "tailwindcss"` plus `@theme`), which covers every Astro site the factory produces. The saas-skeleton still uses the JS-config line (`tailwind.config.ts`, § Mapping to the scaffold's variables). Moving a project off it is its own change: `npx @tailwindcss/upgrade` on a new branch, diff reviewed, and only where the audience's browsers clear the upgrade guide's floor (https://tailwindcss.com/docs/upgrade-guide). The mobile scaffold's Uniwind theme is governed by `mobile-app/80-mobile.md`.
+Applies where Tailwind is configured in CSS (`@import "tailwindcss"` plus `@theme`), which covers the Astro sites the web factory produces. The saas-skeleton still uses the JS-config line (`tailwind.config.ts`, § Mapping to the scaffold's variables). Moving a project off it is its own change: `npx @tailwindcss/upgrade` on a new branch, diff reviewed, and only where the audience's browsers clear the upgrade guide's floor (https://tailwindcss.com/docs/upgrade-guide). The mobile scaffold's Uniwind theme is governed by `mobile-app/80-mobile.md`.
 
 **Tokens** (https://tailwindcss.com/docs/theme)
-- `@theme` holds tokens that should generate utilities; `:root` holds variables that should not. The slots live in `:root` (both modes). A `--color-*` or `--font-*` slot may instead be declared in `@theme` (`bg-accent`, `font-heading`). Every other slot is aliased with `@theme inline`, because it references another variable: `--color-surface-0: var(--surface-0)` → `bg-surface-0`.
-- ⚠️ `--text-primary`, `--text-body` and `--text-muted` are COLOUR slots inside the FONT-SIZE namespace `--text-*`. In `@theme` they compile to `.text-primary { font-size: var(--text-primary) }` (executed). Alias them instead: `@theme inline { --color-text-primary: var(--text-primary); }` → `text-text-primary`. A brand kit that also defines `--text-body` as a size collides with the slot; the fleet-wide rename is W-bcb4647f, so rename neither side meanwhile.
-- A font token is `--font-<role>: "<Family>", <fallback stack>, <generic>;`. The namespace is `--font-*`, never `--font-family-*`, which compiles to a dead `font-family-<role>` class. A type-scale step is `--text-<step>` with `--text-<step>--line-height` (documented); `--text-<step>--letter-spacing` and `--text-<step>--font-weight` compile too (executed) and carry a level's tracking and weight. Never name a weight token after a font role: `--font-weight-heading` is shadowed by `--font-heading` (executed).
+- `@theme` holds tokens that should generate utilities; `:root` holds variables that should not. A slot whose name already sits in a Tailwind namespace (`--color-*`, `--font-*`, `--radius-*`, `--ease-*`) is declared in `@theme static` (`bg-accent`, `font-heading`, `rounded-card`): `static` keeps the variable when no utility uses it, so a hand-written `var(--color-danger)` in a separately bundled `<style>` still resolves, and the other mode overrides it in its own selector block (executed). A namespaced slot whose value is a `var()` goes in `@theme static inline`. Never alias a slot under its own name: `--radius-card: var(--radius-card)` is a cycle that leaves `rounded-card` empty (executed). Every other slot stays in `:root` with an `@theme inline` alias: `--color-surface-0: var(--surface-0)` → `bg-surface-0`.
+- ⚠️ `--text-primary`, `--text-body` and `--text-muted` are COLOUR slots inside the FONT-SIZE namespace `--text-*`. In `@theme` they compile to `.text-primary { font-size: var(--text-primary) }` (executed). Alias them instead: `@theme inline { --color-text-primary: var(--text-primary); }` → `text-text-primary`. A brand kit that also defines `--text-body` as a size collides with the slot; the fleet-wide rename is an open hub decision, so rename neither side meanwhile.
+- A font token is `--font-<role>: "<Family>", <fallback stack>, <generic>;`. The namespace is `--font-*`, never `--font-family-*`, which compiles to a `font-family-<role>` class and never `font-<role>` (executed). A type-scale step is `--text-<step>` with `--text-<step>--line-height` (documented); `--text-<step>--letter-spacing` and `--text-<step>--font-weight` compile too (executed) and carry a level's tracking and weight. Never name a weight token after a font role: with `--font-heading` present, `font-heading` emits only the family and `--font-weight-heading` reaches no utility (executed).
 - Spacing follows § Rules for Coding Agents rule 7. If the `--space-*` slots are exposed as `--spacing-<step>`, `max-w-md` and `w-md` switch from the container size to the spacing step (executed). Size containers with `max-w-(--container-md)` there.
 - One theme file per brand, `@import`ed by every site after `@import "tailwindcss"`. A domain utility is an `@utility` in that shared file, never copied into one site. Prefer `@utility`/`@custom-variant` for house code; `@plugin` and `@config` load JS plugins and configs for compatibility (https://tailwindcss.com/docs/functions-and-directives).
 - Dark mode is one hook: `@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));` or the `.dark` form (https://tailwindcss.com/docs/dark-mode).
@@ -1529,11 +1529,11 @@ Applies where Tailwind is configured in CSS (`@import "tailwindcss"` plus `@them
 
 **Reuse, in this order** (https://tailwindcss.com/docs/styling-with-utility-classes)
 - A loop renders the class list once; a pattern repeated across files becomes a component (an `.astro` component, a React component). A single-element class or a third-party override may be custom CSS in `@layer components`, `@apply` included (not deprecated). House rule: an element carrying more than about a dozen utilities is a component waiting to be extracted.
-- An Astro, Vue or Svelte `<style>` block or a CSS module is bundled apart: `@apply`, `@variant` and custom utilities fail there until it starts with `@reference "<main stylesheet>"`. A plain `var(--slot)` needs nothing (https://tailwindcss.com/docs/upgrade-guide).
+- An Astro, Vue or Svelte `<style>` block or a CSS module is bundled apart: `@apply`, `@variant` and custom utilities fail there until it starts with `@reference "<main stylesheet>"`. A plain `var(--slot)` needs nothing, because the `:root` variables are global at runtime (https://tailwindcss.com/docs/upgrade-guide covers the compile-time half).
 - Never put two utilities for one property on an element; a component exposes a variant prop instead of accepting outside classes, and `!` is a last resort. Conditional classes use `class:list` in Astro (https://docs.astro.build/en/reference/directives-reference/) and `cn()` (`clsx` + `tailwind-merge`) in the saas-skeleton.
 
 **Values and layout**
-- An arbitrary value (`w-[347px]`) is for a one-off (https://tailwindcss.com/docs/adding-custom-styles). House rule: where a token exists use it, and a value written twice becomes a token.
+- An arbitrary value is for a one-off no token covers, such as `top-[117px]` to place a background image (https://tailwindcss.com/docs/adding-custom-styles); never for spacing, colour or type, which rules 1 and 7 keep on the tokens. House rule: a value written twice becomes a token.
 - Page layout uses the viewport breakpoints, mobile-first: unprefixed is the mobile style, and `sm:` means from the small breakpoint up (https://tailwindcss.com/docs/responsive-design). A component placed in slots of varying width uses container queries: `@container` on the slot, `@md:` on its children.
 - Card rows whose internals must align use `grid-cols-subgrid` (https://tailwindcss.com/docs/grid-template-columns). A below-the-fold island hydrates with `client:visible` (https://docs.astro.build/en/reference/directives-reference/).
 

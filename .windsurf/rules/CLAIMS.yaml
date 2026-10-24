@@ -2224,8 +2224,8 @@ claims:
   - id: tailwind-css-first-theme-namespaces
     pack: core/design-system-template.md
     kind: platform
-    claim: "CSS-first Tailwind: @theme tokens generate utilities and :root variables do not; namespaces --color-*, --font-* (font family), --text-* (font SIZE, with --text-<step>--line-height), --tracking-*, --font-weight-*, --breakpoint-*, --container-*; @theme inline when a token references another variable; a --text-primary colour declared in @theme compiles to a font-size utility (executed on the current release, 2026-10-24); a --spacing-<step> alias replaces max-w-<step>'s container size; --text-<step>--letter-spacing and --font-weight compile; --font-weight-<role> is shadowed by --font-<role>"
-    verify: "https://tailwindcss.com/docs/theme (WebFetch, 2026-10-24) + compile() probe against the installed tailwindcss (W-dab6a341 measure.md)"
+    claim: "CSS-first Tailwind: @theme tokens generate utilities and :root variables do not; namespaces --color-*, --font-* (font family), --text-* (font SIZE, with --text-<step>--line-height), --tracking-*, --font-weight-*, --breakpoint-*, --container-*; @theme inline when a token references another variable; @theme static keeps a variable no utility uses; a --text-primary colour declared in @theme compiles to a font-size utility (executed on the current release, 2026-10-24); a --spacing-<step> alias replaces max-w-<step>'s container size; --text-<step>--letter-spacing and --font-weight compile; --font-weight-<role> is shadowed by --font-<role>"
+    verify: "https://tailwindcss.com/docs/theme (WebFetch, 2026-10-24) + re-run: import { compile } from <a project's node_modules/tailwindcss/dist/lib.mjs>; compile('@theme { --text-primary: #fff } @theme inline { --spacing-md: var(--space-md) } @tailwind utilities;', {base: '/', loadStylesheet: async () => ({content: '', base: '/'})}) then .build(['text-primary', 'max-w-md']) — a font-size utility and a spacing-valued max-width mean the claim still holds"
     window_days: 180
     last_verified: 2026-10-24
 
