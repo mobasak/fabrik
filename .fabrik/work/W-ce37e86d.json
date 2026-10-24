@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T11:01:39.145809Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-ce37e86d",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-task",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "feedback queue /fabrik-task"
+}
