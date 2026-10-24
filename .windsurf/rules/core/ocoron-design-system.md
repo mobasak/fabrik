@@ -419,8 +419,11 @@ The template's § Scaffold Adaptation Matrix applies; these are the Ocoron-speci
 ## CSS custom properties
 
 The template's defaults (spacing, density, motion, breakpoints) are not repeated here — Ocoron uses
-them unchanged. On a Tailwind CSS-first project declare these in `@theme` (dark mode via
-`@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *))`); on the saas-skeleton's
+them unchanged. On a Tailwind CSS-first project keep this block in `:root` and expose it per template
+§ Tailwind (CSS-first) usage — `--color-*` and `--font-*` may be declared in `@theme`; `--surface-*`,
+`--border*`, `--radius-*` and the text-colour slots are aliased in `@theme inline`
+(`--color-text-primary: var(--text-primary)`), never declared there — with dark mode via
+`@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *))`; on the saas-skeleton's
 Tailwind config, fill shadcn's variables from them (template § Mapping to the scaffold's variables).
 
 ```css

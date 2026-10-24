@@ -5,7 +5,8 @@ states can go false with no other gate turning red:
 
 1. Its globs reach the files the fleet's sites are written in — `.astro` components and the CSS-first theme
    stylesheets, whose names vary (`global.css`, `theme.css`, `onepage-theme.css`, `site-base.css`, …), as well
-   as the React/shadcn surfaces it always covered.
+   as the React/shadcn surfaces it always covered — and stay off non-GUI CSS (coverage reports, API docs,
+   Sphinx builds, vendored kits), which a bare `**/*.css` would activate the 1,600-line pack on.
 2. The § Tailwind (CSS-first) usage section exists once, between § Default tokens (CSS) and § Rules for Coding
    Agents, and § Mapping to the scaffold's variables points to it.
 3. The text-colour slots (`--text-primary`, `--text-body`, `--text-muted`) sit inside Tailwind's FONT-SIZE
@@ -84,9 +85,23 @@ def test_globs_match_astro_and_css_first_stylesheets(path: str) -> None:
     assert any(pack_matches_path(path, g, empty_matches_all=False) for g in _globs()), (path, _globs())
 
 
-def test_globs_stay_off_non_gui_files() -> None:
-    for path in ("app/main.py", "README.md", "compose.yaml", "src/index.ts"):
-        assert not any(pack_matches_path(path, g, empty_matches_all=False) for g in _globs()), path
+@pytest.mark.parametrize(
+    "path",
+    [
+        "app/main.py",
+        "README.md",
+        "src/index.ts",
+        "htmlcov/style.css",
+        "static/swagger-ui.css",
+        "docs/assets/extra.css",
+        "_build/html/_static/basic.css",
+        "tests/fixtures/sample.css",
+        "public/vendor/bootstrap.min.css",
+        "scripts/sysadmin/dashboard_ui/static/app.css",
+    ],
+)
+def test_globs_stay_off_non_gui_files(path: str) -> None:
+    assert not any(pack_matches_path(path, g, empty_matches_all=False) for g in _globs()), path
 
 
 def test_tailwind_section_is_placed_once() -> None:
@@ -113,14 +128,14 @@ def test_text_colour_slots_never_declared_in_theme() -> None:
         for block in _theme_blocks(text):
             for slot in TEXT_SLOTS:
                 assert not re.search(re.escape(slot) + r"\s*:", block), (pack.name, slot, block)
-        # a prose instruction that sends the colour slots into @theme
-        for para in text.split("\n\n"):
-            if "declare these in `@theme`" in para:
-                pytest.fail(f"{pack.name}: '{para[:120]}…' sends every slot, the text-colour ones included, into @theme")
+        # a prose instruction that sends every slot, the colour ones included, into @theme
+        for phrase in ("declare these in `@theme`", "declares the slots in `@theme`"):
+            assert phrase not in text, (pack.name, phrase)
 
 
 def test_no_js_config_font_family_token() -> None:
-    hits = [p.name for p in RULES.rglob("*.md") if "--font-family-" in p.read_text(encoding="utf-8")]
+    # a DEFINITION of the JS-config key; the section's own warning names it as `--font-family-*`
+    hits = [p.name for p in RULES.rglob("*.md") if re.search(r"--font-family-[a-z]+\s*:", p.read_text(encoding="utf-8"))]
     assert not hits, hits
 
 

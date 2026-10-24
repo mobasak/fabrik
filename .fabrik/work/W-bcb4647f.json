@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T16:23:53.098595Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-bcb4647f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "panel or operator decides the slot rename; then a /fabrik-task across design-system-template, ocoron, tojlo, brand-identiy-creator emitter",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "residue"
+  ],
+  "title": "Template text-colour slots --text-primary/--text-body/--text-muted collide with CSS-first Tailwind's --text-* FONT-SIZE namespace (declared in @theme they compile to .text-primary{font-size:…}, Tailwind 4.3.3 executed); the factory's brand kit (intake-brand-kit.mjs, bhdtrade theme.css:142) and brand-identiy-creator web_bundle emit --text-body as a SIZE — decide the fleet-wide rename (e.g. --fg-*) or keep the --color-text-* alias; found by W-dab6a341"
+}
