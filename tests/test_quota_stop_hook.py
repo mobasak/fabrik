@@ -1341,6 +1341,12 @@ def test_the_park_message_names_the_item_and_lift_and_orders_only_allowed_comman
             order = order.replace(k, v)
         assert "<" not in order, f"an unfilled placeholder in an order: {order!r}"
         assert _at_lane(order) == "allow", order
+    assert "`python3 scripts/work.py next`" in msg, (
+        "the rotation resume step is ordered (W-cff56c52)"
+    )
+    assert "whoami_agent.py" in msg and "`python3 /opt/fabrik/scripts/whoami_agent.py" not in msg, (
+        "the re-bind passes only for the window's own name, so it is named in prose, never ordered"
+    )
 
 
 def test_every_lane_error_holds_and_never_raises(lane, tmp_path):
@@ -1571,3 +1577,217 @@ def test_a_p0_item_its_owner_cannot_work_exempts_nobody(lane):
         assert hook.lane_exempt("sq", str(lane.main))[0] is False, status
     r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sq"})
     assert _denied(r), r.stdout
+
+
+# ── W-cff56c52: a /clear-rotated window re-binds its own name at the lane ──────────────────────
+_REBIND = "python3 /opt/fabrik/scripts/whoami_agent.py --as {} --force"
+_CLAUDE_PID, _CLAUDE_START = 4242, 777
+
+
+def _proc_stat(pid: int, start: int, name: str = "claude") -> str:
+    # field 22 (start time) is index 19 after the `)` — the layout `_pid_start` reads
+    return f"{pid} ({name}) " + " ".join(["S", *["0"] * 18, str(start), *["0"] * 5]) + "\n"
+
+
+def _fake_proc(
+    root: Path,
+    *,
+    chain: bool = True,
+    btime: int | None = 1,
+    live: dict[int, int] | None = None,
+) -> Path:
+    """A /proc tree whose ancestry from THIS process ends at a `claude` (pid 4242, start 777):
+    `chain=False` ends it at pid 1 instead; `live` adds other running processes {pid: start}."""
+    me = os.getpid()
+    (root / str(me)).mkdir(parents=True)
+    (root / str(me) / "status").write_text(
+        f"Name:\tpython3\nPPid:\t{_CLAUDE_PID if chain else 1}\n"
+    )
+    (root / str(_CLAUDE_PID)).mkdir()
+    (root / str(_CLAUDE_PID) / "status").write_text("Name:\tclaude\nPPid:\t1\n")
+    (root / str(_CLAUDE_PID) / "stat").write_text(_proc_stat(_CLAUDE_PID, _CLAUDE_START))
+    for pid, start in (live or {}).items():
+        (root / str(pid)).mkdir()
+        (root / str(pid) / "status").write_text("Name:\tclaude\nPPid:\t1\n")
+        (root / str(pid) / "stat").write_text(_proc_stat(pid, start))
+    if btime is not None:
+        (root / "stat").write_text(f"cpu  1 2 3\nbtime {btime}\n")
+    return root
+
+
+def _main_out(lane, monkeypatch, capsys, cmd: str, *, sid: str = "new-sid", cwd=None) -> str:
+    """Run the real `main()` in-process (so the fake /proc tree describes THIS process) and
+    return what it printed: a deny is a JSON object, an allow prints nothing on stdout."""
+    import io
+
+    payload = {
+        "tool_name": "Bash",
+        "tool_input": {"command": cmd},
+        "session_id": sid,
+        "cwd": str(lane.wt if cwd is None else cwd),
+    }
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    capsys.readouterr()
+    assert hook.main() == 0
+    return capsys.readouterr().out
+
+
+def _mine(lane, sid: str, name: str, **extra: object) -> None:
+    lane.bind(sid, name, pid=_CLAUDE_PID, pid_start=_CLAUDE_START, **extra)
+
+
+def test_a_rotated_window_can_rebind_its_own_name_at_the_lane(lane, tmp_path, monkeypatch, capsys):
+    """Behaviour 1 (W-cff56c52): a `/clear` keeps the claude process and mints a new sid; the
+    re-bind of the name this process held last passes the lane through the real `main()`, in
+    every spelling the rotation prints — and the same call with no claude ancestor is held, so
+    the grader reaches the seam rather than an allow-everything path."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
+    _mine(lane, "old-sid", "infra-3")
+    assert hook.lane_exempt("new-sid", str(lane.main))[0] is False  # parked before the re-bind
+    for cmd in (
+        _REBIND.format("infra-3"),
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --force --as infra-3",
+    ):
+        assert _main_out(lane, monkeypatch, capsys, cmd) == "", cmd
+        assert _main_out(lane, monkeypatch, capsys, cmd, cwd=lane.main) == "", cmd
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "p2", chain=False)))
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, _REBIND.format("infra-3"))
+
+
+def test_a_rebind_to_a_name_this_window_did_not_hold_last_is_held(
+    lane, tmp_path, monkeypatch, capsys
+):
+    """Behaviour 2: the lane's COBRA guard survives — a parked builder cannot bind the merge
+    owner's or another builder's name: never held here, held but not LAST, re-taken by another
+    window since, held by a LIVE foreign process (`--force` would override it), judged from
+    another repo's cwd, or reached through a nested claude (`CLAUDE_PID` disagreeing)."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
+
+    def held(name: str, **kw: object) -> bool:
+        return '"deny"' in _main_out(lane, monkeypatch, capsys, _REBIND.format(name), **kw)
+
+    lane.bind("coord-sid", "coordinator", pid=9001, pid_start=5)
+    _mine(lane, "s1", "infra-3")
+    assert held("coordinator")  # never this window's
+    _mine(lane, "s2", "infra-5")  # the operator moved this window to infra-5
+    assert held("infra-3") and not held("infra-5")
+    lane.bind("other", "infra-5", pid=5555, pid_start=1)  # another window took it since
+    assert held("infra-5")
+    _mine(lane, "s3", "infra-7")
+    assert not held("infra-7")
+    assert held("infra-7", cwd=tmp_path)  # a cwd outside the judged repo writes another scope
+    monkeypatch.setenv("CLAUDE_PID", "31337")
+    assert held("infra-7")
+    monkeypatch.setenv("CLAUDE_PID", str(_CLAUDE_PID))
+    assert not held("infra-7")
+    # an OLDER row of the name held by a live foreign process: --force would make two holders
+    lane.bind("live", "infra-8", pid=6666, pid_start=2)
+    _mine(lane, "s4", "infra-8")
+    assert not held("infra-8")  # 6666 is not running in the tree yet: a dead holder is no holder
+    live = _fake_proc(tmp_path / "p3", live={6666: 2})
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(live))
+    assert held("infra-8")
+    (live / "6666" / "stat").write_text(_proc_stat(6666, 3))  # pid reused by another process
+    assert not held("infra-8")
+
+
+def test_same_window_name_fails_closed(lane, tmp_path, monkeypatch):
+    """Behaviour 3: every doubt is "" (held) — no claude ancestor, rows without pid or start,
+    a bool pid, a row from before this boot, an unreadable boot time, another scope; corrupt
+    lines are skipped and digit strings count (whoami's `_as_int`). And the rows whoami's own
+    `bind` writes are the ones the hook reads (the writer/reader agreement)."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    proc = _fake_proc(tmp_path / "proc", btime=1000)
+
+    def name(root: Path = proc, cwd: Path | None = None) -> str:
+        return hook._same_window_name(lane.common, str(lane.wt if cwd is None else cwd), root)
+
+    assert name() == ""  # an empty store
+    lane.bind("a", "infra-1")  # no pid at all
+    lane.bind("b", "infra-2", pid=_CLAUDE_PID)  # no start
+    lane.bind("c", "infra-3", pid=True, pid_start=_CLAUDE_START)
+    lane.bind("d", "infra-4", pid=_CLAUDE_PID, pid_start=_CLAUDE_START, at=999)  # pre-boot
+    lane.bind("e", "infra-6", toplevel="/elsewhere/.git", pid=_CLAUDE_PID, pid_start=_CLAUDE_START)
+    assert name() == ""
+    with lane.store.open("a") as fh:
+        fh.write("{corrupt\n[]\n")
+    lane.bind("f", "infra-9", pid=str(_CLAUDE_PID), pid_start=str(_CLAUDE_START))
+    assert name() == "infra-9"
+    assert name(_fake_proc(tmp_path / "p2", chain=False)) == ""
+    assert name(_fake_proc(tmp_path / "p3", btime=None)) == ""
+    assert name(tmp_path / "missing") == ""
+
+    spec = importlib.util.spec_from_file_location("whoami_parity_rebind", _WHOAMI_PY)
+    who = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(who)
+    monkeypatch.setattr(who, "_session_pid", lambda: _CLAUDE_PID)
+    monkeypatch.setattr(who, "_pid_start", lambda pid: _CLAUDE_START if pid else None)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "fresh")
+    monkeypatch.chdir(lane.wt)
+    assert who.bind("infra-11", force=True)[0] == 0
+    assert name(_fake_proc(tmp_path / "p4", btime=1)) == "infra-11"
+
+
+def test_the_rebind_shape_is_exact():
+    """Behaviour 4: whoami's argparse binds `--a`, `--as=`, `--f` and the LAST of repeated
+    `--as` (executed by both critique seats), so the lane admits one literal shape: the hub's
+    absolute path, one `--as <name>`, at most one `--force`, nothing else — and only for the
+    name the hook resolved for this window."""
+
+    def at_lane(cmd: str, rebind: str = "infra-3") -> str:
+        return hook.decide(
+            "Bash", cmd, stamp_exists=True, tick_age_s=10.0, tier="urgent-90", exempt=False,
+            rebind=rebind,
+        )[0]  # fmt: skip
+
+    assert at_lane(_REBIND.format("infra-3")) == "allow"
+    assert at_lane(_REBIND.format("infra-3"), rebind="") == "deny"
+    assert at_lane(_REBIND.format("coordinator")) == "deny"
+    for cmd in (
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as=infra-3 --force",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --a infra-3 --force",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --as coordinator",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --force --as coordinator",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --force --as infra-3 --force",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --f",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --force extra",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as INFRA-3",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as -infra-3",
+        "python3 /opt/fabrik/scripts/whoami_agent.py infra-3",
+        "python3 scripts/whoami_agent.py --as infra-3 --force",
+        "python3 /opt/evil/scripts/whoami_agent.py --as infra-3 --force",
+        "python3 x/opt/fabrik/scripts/whoami_agent.py --as infra-3 --force",
+        _REBIND.format("infra-3") + " && touch m",
+        _REBIND.format("infra-3") + "; python3 scripts/foo.py",
+        "cd /tmp && " + _REBIND.format("infra-3"),
+        _REBIND.format("infra-3") + " > /tmp/x",
+    ):
+        assert at_lane(cmd) == "deny", cmd
+
+
+def test_the_lane_admits_work_next_only_bare_and_only_at_urgent():
+    """Behaviour 5: `work.py next` is read-only (`cmd_next` prints one line) and the rotation's
+    resume prompt runs it, so a parked session may; any argument is held, and at `walled` both
+    new verbs stay held like the claim verbs."""
+    for cmd in ("python3 scripts/work.py next", "python3 /opt/fabrik/scripts/work.py next"):
+        assert _at_lane(cmd) == "allow", cmd
+    for cmd in (
+        "python3 scripts/work.py next --repo /tmp",
+        "python3 scripts/work.py next W-0123abcd",
+        "python3 scripts/work.py nextx",
+        "python3 scripts/work.py next && touch m",
+    ):
+        assert _at_lane(cmd) == "deny", cmd
+    for cmd, rebind in (
+        ("python3 scripts/work.py next", ""),
+        (_REBIND.format("infra-3"), "infra-3"),
+    ):
+        assert (
+            hook.decide(
+                "Bash", cmd, stamp_exists=True, tick_age_s=10.0, tier="walled", rebind=rebind
+            )[0]
+            == "deny"
+        ), cmd
