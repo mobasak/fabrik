@@ -5,6 +5,24 @@ Profile: full
 Size: large
 Work item: W-96f36043 (P0) · Decisions: D-1216 (the program), D-1217 (this design, panel-approved) · Author: kaizen · 2026-10-25
 
+## Personas
+
+- **PRIMARY — the operator**, who pays for every run's minutes and tokens: "most of our commands like this and
+  taking too much time to execute them" (D-1216). Their loop is: invoke a `/fabrik-*` command, wait, and read the
+  close. This spec shortens the wait, not the loop.
+- **The agents that execute the commands**: the hub's builders (infra, infra-2, infra-3, fleet, intel, kaizen),
+  every project's agents on ~46 repos, and the seats they dispatch. They read the rendered text and pay its
+  tokens on every run and every seat.
+- **kaizen**: the duty-holder for the rewrites, the ledgers and the command wording of L1/L2 (D-627 beat).
+- **infra-2 (W-a9b5e763)**: the duty-holder for the code: the measure script's hook into `--check`, L1's ceiling
+  check and L2's refusal.
+- **The coordinator**: merges each phase and renders the corpus at merge (D-874). It holds the edit freeze on a
+  command while that command's phase runs.
+- **The Opus + Fable panel and the review seats**: the automated consumers of the ledger. They audit vanished
+  sentences and weakened rules.
+- **Later `/fabrik-command-improve` runs**: the consumer of the standing gate. Every edit after the program passes
+  the ledger and the ceiling.
+
 ## Problem
 
 The `/fabrik-*` corpus grew 2.7× in ten weeks, and the loop that edits it only adds text. The operator's
@@ -29,7 +47,8 @@ commands. Of the 35,892 fragment words, three fragments hold 18,371: `review-pro
 and `term-edit`. Rendered `/fabrik-review` cites 129 decision ids and 23 dates. Since 09-21 the `change:` axis
 reads 2,621 `accurate` against 235 `lean`.
 
-**External grounding.** Each item below was fetched on 2026-10-25 by a `fabrik-researcher` seat through exa.
+**External grounding.** Each item below was fetched on 2026-10-25 by a `fabrik-researcher` seat. All three
+pages were read with `exa web_fetch`; IFScale was first located by `WebSearch`.
 - Anthropic's skill guidance: "Keep the `SKILL.md` body under 500 lines for optimal performance". It also says
   "Claude reads `SKILL.md` only when the Skill becomes relevant, and reads additional files only as needed",
   that "every token competes with conversation history", and asks of each paragraph "Does this paragraph justify
@@ -227,6 +246,31 @@ Each item is one plan phase, one full `/fabrik-review` and one merge by the coor
 intel's per-phase time table (W-0a91bf86) picks the sections each command cuts hardest. infra-2's lane clause
 (W-a0a32de2) lands before the commands it touches are rewritten, and the rewrite carries it.
 
+## fabrik-lib verdict
+
+| Capability | Verdict | Module | Why |
+|---|---|---|---|
+| Sentence diff and classification table | build | none | Hub-internal tooling over the command corpus. No `/opt/fabrik-lib/README.md` module diffs prose or holds a rule ledger. The nearest, `claude-evaluator/`, scores items and does not diff them. |
+| Rule ledger loader and `test_command_rules.py` | build | none | It reads hub-only paths (`commands/_rules/`) and is consumed by `assemble_commands.py`. No project reuses it, so it is not proposed as a module. |
+| The measure and the L1 ceilings | build (extends `commands/assemble_commands.py`) | none | It extends the renderer that already owns `--check`. |
+| L2's quoted `remove:` refusal | build (extends `scripts/command_run.py`) | none | It extends the close that already refuses the other four fields. |
+
+## Lifecycle
+
+- **Growth:** the ledgers grow with the rules. A command whose ledger passes about 300 entries is a signal that the
+  command does too much, and it is split, not trimmed.
+- **Escalation triggers, measured from `command-feedback.jsonl` and the ceiling file:**
+  - the TRIPWIRE in § Binding;
+  - a command raising its `render` ceiling twice in 30 days;
+  - the `remove: none` ratio staying above 90% for two weeks after L2 lands, which means the field is answered
+    by rote.
+
+  Each trigger opens a kaizen work item naming the command.
+- **Retirement:** a command retired from the corpus takes its ledger and ceiling row with it, in the same commit.
+- **Documentation:** this spec. When the tooling phase lands, `docs/reference/command-corpus-check.md` (the
+  corpus integrity gate's doc) gains a "Rule ledger and size ceiling" section and its `INDEX.md` row is updated;
+  no second doc is created. The kaizen charter's Method step 3 names the ledger gate.
+
 ## Review and landing
 
 Every command source is a governance-sync path, so every phase owes the full `/fabrik-review`, whose seats
@@ -243,6 +287,25 @@ include the rule test's audit pair. The worktree never renders; the coordinator 
   on a seat reading 27k words. The sentence diff makes completeness mechanical (both panel seats).
 - **R5 — halving the full measure.** That would mean cutting infra's and docs' reference files, which belong to
   other beats. The own-text quantity is halved, and the full measure must not grow.
+
+## Residual unknowns
+
+Resolved:
+- the halved quantity: own text, not the full measure (R5);
+- the first target: the pilot is `/fabrik-review-scoped`;
+- who owns the code: W-a9b5e763.
+
+Still open, each with its resolution step:
+- **U1 — the words-per-rule figure behind the floor** is unknown until the pilot lands. The resolution is the
+  pilot's measured median, recorded in its phase's D-row.
+- **U2 — the sentence matcher's tolerance.** How much rewording still counts as "surviving" is set at the
+  tooling phase. It is probed against the pilot's baseline with both an over-matching case (a reworded ban read
+  as surviving) and an under-matching case (an unchanged sentence read as vanished), and recorded with the
+  tooling.
+- **U3 — whether infra's reference docs grow** while the program runs. They are reported against the frozen
+  `reads` set, never blocked (L1). They are reviewed at each phase's close.
+- **U4 — intel's per-phase time table (W-0a91bf86)** is not yet received. It only orders the cuts inside a
+  command, and no design element depends on it.
 
 ## § Binding (ONE-WAY: every command, fleet-wide)
 
