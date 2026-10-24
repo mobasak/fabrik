@@ -19,8 +19,5 @@
   "priority": 1,
   "score_reason": "HIGH: another active repo's request (fabrik-lib SB-103); effort low: one refusal table in spec_loader",
   "status": "open",
-  "tags": [
-    "waits-quota"
-  ],
   "title": "fabrik-lib SB-103 follow-on 1+6: spec_loader _LLM_ACTION_REFUSALS drops scale_concurrency and replaces the drop_queue_items/rotate_locks never-offered rows with the four-condition rule (warn at render without an allow-list); CONFIGURATION.md:300 and the per_incident_budget_usd description (the sidecar does not pass --max-budget-usd) follow"
 }

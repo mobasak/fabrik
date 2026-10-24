@@ -369,9 +369,15 @@ Every commit made during plan execution MUST include git trailers that identify 
 
 ### Commit message format
 
-**Subagent commit** (in worktree, before merge):
-```bash
-git commit -m "$(cat <<'EOF'
+Every commit message in this command that carries trailers goes through a file: write the message
+with the Write tool to a NEW file in the session scratchpad (`<scratch>/msg-<name>`, one name per
+commit, since parallel subagents may share the scratchpad), then run `git commit -F <scratch>/msg-<name>`. A heredoc, even quoted (`<<'EOF'`),
+is a compound shape the worktree isolation check may refuse, in any position (`git commit -F - <<'EOF'`
+included) — `/opt/fabrik/docs/reference/multi-agent-operating-model.md`, the commit-message rule in
+its worktree list. Run each git command in its own Bash call.
+
+**Subagent commit** (in worktree, before merge) — `<scratch>/msg-<name>`:
+```text
 feat(scope): Phase B Task 5 — GDPR schema + routes
 
 Agent-Role: subagent
@@ -379,13 +385,10 @@ Agent-Phase: B
 Agent-Task: 5
 Agent-Context: GDPR schema migration + Flask consent routes
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-)"
 ```
 
-**Orchestrator phase commit** (after squash-merging subagent branches):
-```bash
-git commit -m "$(cat <<'EOF'
+**Orchestrator phase commit** (after squash-merging subagent branches) — `<scratch>/msg-<name>`:
+```text
 feat(scope): Phase B — Compliance
 
 Merged-From: phase-B-task-4 (audit-log vendor), phase-B-task-5 (GDPR schema), phase-B-task-6 (audit wiring)
@@ -394,34 +397,31 @@ Agent-Phase: B
 Agent-Context: merged 3 subagent branches, ran phase gate + review
 Conflicts-Resolved: 0
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-)"
 ```
 
-**Inline phase commit** (no subagents, orchestrator did the work directly):
-```bash
-git commit -m "$(cat <<'EOF'
+**Inline phase commit** (no subagents, orchestrator did the work directly) — `<scratch>/msg-<name>`:
+```text
 feat(scope): Phase D — File Cache
 
 Agent-Role: orchestrator
 Agent-Phase: D
 Agent-Context: inline execution, no subagents (low complexity)
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-)"
 ```
 
-**Review-fix commit** (from `/fabrik-review` findings):
-```bash
-git commit -m "$(cat <<'EOF'
+**Review-fix commit** (from `/fabrik-review` findings) — `<scratch>/msg-<name>`:
+```text
 fix(scope): Phase B review — null guard in audit_log.record_event
 
 Agent-Role: review-fix
 Agent-Phase: B
 Agent-Context: fixed CONFIRMED finding from /fabrik-review — missing None check on target_id
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-)"
+```
+
+Each one is then committed with:
+```bash
+git commit -F <scratch>/msg-<name>
 ```
 
 ### Querying provenance after the fact
@@ -926,9 +926,12 @@ Test: {list}
 
 ## When done
 
-Commit your work to the worktree branch with provenance trailers:
-  git add {explicit file list}
-  git commit -m "$(cat <<'EOF'
+Commit your work to the worktree branch with provenance trailers. Write the message — exactly the
+lines from `feat(scope)` through `Co-Authored-By`, unindented — with the Write tool to a NEW file
+`msg-phase-{X}-task-{N}` in your session scratchpad (sibling subagents may share it; the task-unique
+name keeps their messages apart) — call its absolute path <msg-file>. Never a heredoc, in any position
+(`git commit -F - <<'EOF'` included): it is a compound shape the worktree isolation check may refuse.
+
 feat(scope): Phase {X} Task {N} — {title}
 
 Agent-Role: subagent
@@ -936,8 +939,10 @@ Agent-Phase: {X}
 Agent-Task: {N}
 Agent-Context: {one-line summary of what you did}
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-  )"
+
+then run, one command per call:
+  git add {explicit file list}
+  git commit -F <msg-file>
 
 Do NOT push. Do NOT merge. The orchestrator handles that.
 
@@ -1104,7 +1109,7 @@ git merge --no-ff phase-B-task-6 -m "merge: Phase B Task 6 — audit wiring"
 #    - For additive conflicts (both added to same file, different locations):
 #      keep both additions
 #    - For import conflicts: combine both import sets
-#    - Resolve, then: git add <resolved files> && git merge --continue
+#    - Resolve, then, one command per call: git add <resolved files>   then   git merge --continue
 
 # 4. After all merges: verify the combined result compiles
 python -c "import src.module_that_changed"  # or whatever the plan's verify command is
@@ -1132,21 +1137,23 @@ After merging all subagent branches for a phase:
 2. Run the phase validation gate
 3. Run `python scripts/enforcement/check_doc_sync.py`
 4. Fix any issues (you're the orchestrator — you fix merge-induced bugs)
-5. Squash the merge commits into one phase commit with provenance trailers:
+5. Squash the merge commits into one phase commit with provenance trailers — the message written
+   with the Write tool to `<scratch>/msg-<name>` (§ Commit message format), then the three git
+   commands below, one per Bash call:
+   ```text
+   feat(scope): Phase {X} — {title}
+
+   Merged-From: phase-{X}-task-{A} ({desc}), phase-{X}-task-{B} ({desc})
+   Agent-Role: orchestrator
+   Agent-Phase: {X}
+   Agent-Context: merged {N} subagent branches, ran phase gate
+   Conflicts-Resolved: {count}
+   Co-Authored-By: Claude <model> <noreply@anthropic.com>
+   ```
    ```bash
    git reset --soft <pre-merge-commit>
    git add <all phase files — explicit list>
-   git commit -m "$(cat <<'EOF'
-feat(scope): Phase {X} — {title}
-
-Merged-From: phase-{X}-task-{A} ({desc}), phase-{X}-task-{B} ({desc})
-Agent-Role: orchestrator
-Agent-Phase: {X}
-Agent-Context: merged {N} subagent branches, ran phase gate
-Conflicts-Resolved: {count}
-Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-   )"
+   git commit -F <scratch>/msg-<name>
    ```
 6. THEN proceed to `/fabrik-review`
 
@@ -1360,7 +1367,7 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    today's grammar (four 2026-08/09 receipts redded on the first try, `01M4BYT60T`), and the link check
    never reads `docs/development/`, so its pre-archive cite stays as written. ⚠️ **`git mv` moves the INDEXED content, not your working tree — re-stage the plan
    AFTER the move:** `git add docs/development/plans/archived/<plan>.md`. ⚠️ **And the scoped commit
-   must name BOTH paths** — `git commit -m <msg> -- <old-path> <new-path>` — or the deletion half of the
+   must name BOTH paths** — `git commit -F <scratch>/msg-<name> -- <old-path> <new-path>` (§ Commit message format) — or the deletion half of the
    rename stays staged-uncommitted and the plan lives at TWO paths in HEAD (youtube `01M1584B0`;
    the constitutions carry the same clause at the realign rule). Step 5's `Status: EXECUTED`
    flip is an unstaged working-tree edit, so the rename carries the OLD bytes and the archived plan
@@ -1375,9 +1382,9 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    --check --json` green over them (the step 5-6 commits have not been gated), then **PUSH them now** (`git push`,
    which pushes the current branch; at position (b) that is the branch step 4 merged INTO, pushed from the
    main checkout; a branch with no upstream yet — an agent window's first push — `git push -u origin "$BASE"`;
-   the task-end law: rejected → dirty tree: defer + report, wip-net protects · clean tree:
-   `git pull --rebase=merges` then push (preserves the Merge Protocol's `--no-ff` merge commits —
-   plain `--rebase` linearizes them away) · conflict: abort + report · NEVER `--force`). The only remaining
+   the task-end law: rejected → `CLAUDE.md` § EXIT's ladder, whose clean-tree step checks the
+   upstream's reflog for a rewrite before `git rebase --rebase-merges @{u}`, which keeps the Merge
+   Protocol's `--no-ff` merge commits · NEVER `--force`). The only remaining
    operator call is **deploy**: `fabrik redeploy` / `fabrik apply` is **hub-side + user-run**
    (trigger-not-execute) — name it as the next step, don't run it. Don't trail off with "what next?" —
    push, name the deploy decision, stop.

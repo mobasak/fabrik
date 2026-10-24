@@ -3,25 +3,24 @@
   "created": "2026-10-21T05:06:32.945619Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "4d08fb42fedb7f0bfbddce47af2ca6c0c1e67495",
   "id": "W-85bd72fa",
   "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1183",
     "plan": "",
     "spec": ""
   },
-  "next": "measure INDEX.md files fleet-wide for span- or fence-held link rows, then read check_doc_index.py:153 link_targets and :445 through _fences (blank_code_spans + fence lines) or record why an index entry in code font still counts",
+  "next": "",
   "note": "",
   "owner": "intel",
   "priority": 3,
   "score_reason": "MEDIUM: one gate run grades the same INDEX.md link in check_doc_index while check_doc_links skips it since W-b9af1d47 — an inconsistency with real value, nobody blocked; LOW effort: reuse _fences.py in one reader; synced path, so one commit after the full review",
-  "status": "open",
+  "status": "done",
   "tags": [
-    "medium",
-    "waits-quota"
+    "medium"
   ],
   "title": "check_doc_index's own link reader grades INDEX.md links held in inline code spans or fenced blocks — check_doc_links skips both since W-b9af1d47, so one gate run can grade the same INDEX.md link in one check and skip it in the other"
 }

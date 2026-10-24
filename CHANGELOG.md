@@ -4,9 +4,72 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-execute-plan's commit recipes write the message to a file, never a heredoc (2026-10-24)
+
+The command showed its six commit recipes as `git commit -m "$(cat <<'EOF' … EOF)"`, the compound shape the worktree isolation check may refuse. Each now writes the message with the Write tool to a per-commit file in the session scratchpad (`<scratch>/msg-<name>`; a subagent's is `msg-phase-{X}-task-{N}`, since parallel subagents may share the scratchpad) and commits with `git commit -F`, as `docs/reference/multi-agent-operating-model.md` already ruled; the archive step's `-m` and the merge-conflict comment's `&&` follow, and step 5 says one command per call. Scoped review CONVERGED 8 → 0 over three readers (W-0e42a4dc).
+
+### Fixed — five hooks-index table rows no longer split their cells on a pipe inside a code span (2026-10-24)
+
+GFM splits a table cell on an unescaped `|` even inside a code span, so rows 21, 24, 98, 106 and 107 of `docs/workstation/hooks-index.md` rendered shifted cells; each such pipe is now `\|`. `tests/enforcement/test_check_hooks_index.py::_table_pipe_defects` guards it: a row whose unescaped-pipe count differs from its header's, or an unescaped pipe inside a code span, is reported, and lines inside a CommonMark-matched fence are not rows; `test_table_pipe_defects_probe_list` commits the escape variants the scoped review raised (W-7c3abd32).
+
+### Added — an operator-run script for the vps1 Postgres rotation's steps 1-3 (2026-10-24)
+
+- W-80983d8c, D-1176, D-1177. `scripts/sysadmin/vps1_pg_scoped_logins.py` runs
+  `docs/reference/vps1-postgres-admin-rotation-runbook.md` steps 1-3, gated by a typed `yes` per block. The
+  classifier refuses the fleet agent's commands on vps1, so the operator runs it. Passwords and verifiers travel only
+  on ssh stdin. A failed service move restores its files and restarts the service, and a re-run finishes a run that
+  stopped half-way. Step 4 is not in it. Graders: `tests/test_vps1_pg_scoped_logins.py`.
+
+### Fixed — review seats run pytest only on a staged tree, from a base copy (2026-10-24)
+
+- In a review of W-25f6b2a3, 3 of 4 finder seats skipped the `PIN_IMPORT`/`PYTEST_PINS` recipe and ran pytest on a copy of the pinned files with `--noconftest`. That copy holds no conftest, and the flag drops the hub's memory watchdog and alert mute. The probe catalogue's § Seat isolation now has a bullet saying a copy of the pins alone is not a test tree. A Python test runs only through pytest, on the recipe's whole archive, the lead's base copy or the clone, with no conftest or pytest config dropped or redirected; a test that cannot run that way is unverified. A brief whose seats run pytest or import pinned code takes its pin with `--base`, so each seat copies that whole commit in place of the archive steps, and the lead removes the copy once the pass is adjudicated. The rule is graded by `tests/test_seat_recipe_readable.py`. D-1187, mail 01M5MVZ2NF (W-f1191ec5).
+
+### Fixed — /fabrik-review-scoped says how to pin a surface that is already committed (2026-10-24)
+
+- Step 5's pin recipe takes `base_sha` from `git rev-parse HEAD` and pins the working tree, so a lead who committed first got a `change.diff` with only a header line. The fix rule existed only in the probe catalogue's § Seat isolation, which a docs-only brief need not load. Step 5 now quotes that catalogue clause whole, and adds two shapes the clause leaves out: a merge as the last commit counts as several, and a surface that is partly committed is pinned from the working tree with `--base`. It also says the brief's `base_sha` is the one the pin records. The rule is graded by `tests/test_review_scoped_queue_pass.py::test_a_committed_surface_is_pinned_from_its_commit_by_its_shape`. This answers feedback rows 1792829562, 1792779119 and 1792774372 (W-2a444037).
+
+### Added — subagent transcripts are archived to B2 before the pruner may delete them (2026-10-24)
+
+- `archive_transcripts.py` ships every `<slug>/<session-dir>/subagents/**/*.jsonl` (sidechains, workflow
+  sidechains, workflow journals) to `<slug>/<rel>.zst`, its rows in its own `manifest-subagents.jsonl`; a
+  sidechain that fails to archive is reported and kept while the night goes on. A new object is compressed and
+  tested beside its snapshot and renamed into place, so a failed compress never replaces the last good one.
+- `prune_transcripts.py` deletes a sidechain only when that manifest, its `.zst` and the bucket (now listed
+  `lsf -R --fast-list`) vouch for its current bytes, writes sha256 + object into its ledger row, and
+  `--restore agent-<id>` puts one back (D-1182, W-62d2ce7d). Tasks and shell snapshots stay a 3-day cliff.
+- The two unit-file graders red since the rotation mail's ExecStart now read the unit as shipped.
+
+### Fixed — a late re-bind no longer ends a rotation `partial:rebind`, inside the executor's timeout (2026-10-24)
+
+- `rotate_session.py` waits `REBIND_GRACE_S` (180 s, was 90) for the rotated agent's re-bind; the one late bind measured
+  took 98 s. Every wait a request runs is now a named constant and `REQUEST_WORST_S` (487 s) is derived from them, tmux
+  overruns included, and `execute` claims no new request after `CLAIM_CUTOFF_S` (50 s), so two requests that race past
+  the one-at-a-time check can no longer overrun the unit's 600 s TimeoutStartSec and lose a row. run_checks' git calls
+  are not counted yet (W-b728822f). D-1181 (W-b72231b8 slice 2).
+
+### Fixed — the watchdog packs say what "approved-write" means (2026-10-24)
+
+- `.windsurf/rules/core/60-watchdog.md` and `core/self-healing.md` called `drop_queue_items` and `rotate_locks` the "approved-write" lane without saying who approves it. fabrik-lib D-471 settles it: the operator approves the lane by setting its four offer conditions, and once offered, a call that passes `check_proposal` runs with no per-call approval and escalates afterwards (`agent.py` executes it inline, then escalates and arms the deadman). Both packs now say this. 60-watchdog adds D-471's stated cost: the row cap is per call, with no combined budget. self-healing's ladder checklist counts the step as a fully-autonomous layer. This was fabrik-lib mail 01M5AKSQQ3, request 5 (W-a624f951). infra's 46b0c7f63 had already rewritten the stale `scale_concurrency` and "never offered" text.
+
+### Fixed — the push ladder no longer drops already-pushed commits after a remote force-rewrite (2026-10-24)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § EXIT told a rejected clean-tree push to run `git pull --rebase=merges`, which "replays only YOUR unpushed commits". After a force-rewrite of the remote branch, that pull exits 0 having silently dropped the commits this clone already pushed. The ladder now runs `git fetch` and reads `git reflog show --format=%gs @{u}`. A `forced-update` above the newest `update by push` means stop and report; otherwise `git rebase --rebase-merges @{u}` then push. This is fabrik-lib's D-480 fix, adopted as D-1178 (W-a312d48c).
+- `/fabrik-execute-plan` step 7 now points at the § EXIT ladder instead of restating the old pull.
+- `tests/test_exit_push_ladder.py` runs each contract's own reflog command against throwaway repos and pins the new clauses. It was proven red on the old text.
+
 ### Fixed — the drifted-box grader no longer reds on a checkout behind a fragment change or a clone with no origin/master (2026-10-24)
 
 - `tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` asserted "2 failed" outside a merge check. Its vision sibling returns early when the checkout's diff against `origin/master` touches `commands/_fragments/`, and skips with no `origin/master`. At master's 201a928a7 the grader read "1 failed, 1 passed" (W-bda62f32); in a clone with its origin removed, "1 failed, 1 skipped" (W-f661fabf). The grader now runs the same diff before and after the run and expects the matching outcome, skipping when the two differ. It matches the whole summary line, drops `PY_COLORS`/`FORCE_COLOR` from the inner env, and asserts the merge-check skip reason never appears outside a merge check before anything else. A conftest mutated to always skip is caught.
+
+### Fixed — the decision-ledger checker pairs backtick runs by length, as markdown does (2026-10-24)
+
+`scripts/enforcement/check_decisions_unique.py` read a decision row's code spans with a one-backtick pattern, so a row quoting a triple-backtick fence (D-1159) or a double-backtick span read as the wrong number of cells and was reported malformed. It now takes its spans from `blank_code_spans` in `scripts/enforcement/_fences.py`, the span reader check_doc_links and check_convergence already use, and the ledger shape test counts pipes from the same mask (W-27db8c35, D-1180). No live row changes: 0 of 2896 rows across 51 ledgers.
+
+### Fixed — check_doc_index no longer lets a code-span example hide a missing doc or index an unlisted one (2026-10-24)
+
+- `scripts/enforcement/check_doc_index.py` skips fenced and span-held INDEX.md links as `check_doc_links.py` does: both now blank fenced blocks and inline code spans first, through the new `_fences.blank_code_examples`. Read raw, a quote inside a code span could swallow a real link to a missing doc, and a span-held escaped link could index a doc that has no row (D-1183, superseding D-1179). Line endings become LF before the blanking, so a CR-only INDEX.md cannot pair two spans across a heading.
+- `scripts/enforcement/_fences.py` holds the one copy of that masking and of the fence toggle (`fence_toggle`), moved from `check_doc_links.py`; both checks fall back to the raw text where `_fences.py` is missing or lags the sync.
+- Tests: three new tests in `tests/enforcement/test_check_doc_index.py` fail on the old code, and the agreement and line-ending tests, the regression guards and the single-copy pins in `tests/enforcement/test_fences.py` were proven red by mutants. Run end to end over the 40 `/opt` repositories that carry an INDEX.md, no finding changes.
 
 ### Fixed — every coordinator's contract names the live rotation verb, and the merge recipe no longer trips the worktree prompt (2026-10-23)
 

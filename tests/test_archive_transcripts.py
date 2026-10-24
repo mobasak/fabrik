@@ -83,9 +83,13 @@ def rec(monkeypatch):
     return r
 
 
-def _rows(archive: Path) -> list[dict]:
-    m = archive / at.MANIFEST_NAME
+def _rows(archive: Path, name: str | None = None) -> list[dict]:
+    m = archive / (name or at.MANIFEST_NAME)
     return [json.loads(x) for x in m.read_text().splitlines()] if m.exists() else []
+
+
+def _sub_rows(archive: Path) -> list[dict]:
+    return _rows(archive, at.SUBAGENT_MANIFEST_NAME)
 
 
 # ── revision-1 behaviours, kept ─────────────────────────────────────────────────────────────
@@ -113,12 +117,120 @@ def test_manifest_key_disambiguates_the_same_session_id_across_projects(tree, re
         assert (archive / r["project_slug"] / f"{r['session_id']}.jsonl.zst").is_file()
 
 
-def test_subagent_transcripts_never_enter_the_archive(tree, rec):
+def test_subagent_transcripts_are_archived_under_their_path(tree, rec):
+    """D-1182: the */subagents/** tier is archived like MAIN — object at <slug>/<rel>.zst, row in its OWN
+    manifest (manifest.jsonl stays MAIN-only, so no MAIN reader can mis-key a sidechain row)."""
+    projects, archive = tree
+    subs = projects / "-opt-alpha" / "shared-id" / "subagents"
+    wf = subs / "workflows" / "wf_1"
+    wf.mkdir(parents=True)
+    (wf / "agent-y.jsonl").write_bytes(b"W" * 3000)
+    (wf / "journal.jsonl").write_bytes(b'{"j":1}\n' * 10)
+    (subs / "agent-x.meta.json").write_text("{}")
+    sup = projects / "-opt-beta" / "old-id.superseded-17" / "subagents"
+    sup.mkdir(parents=True)
+    (sup / "agent-z.jsonl").write_bytes(b"Z" * 700)
+    assert at.run([]) == 0
+    sub = {(r["project_slug"], r["rel"]): r for r in _sub_rows(archive)}
+    assert set(sub) == {
+        ("-opt-alpha", "shared-id/subagents/agent-x.jsonl"),
+        ("-opt-alpha", "shared-id/subagents/workflows/wf_1/agent-y.jsonl"),
+        ("-opt-alpha", "shared-id/subagents/workflows/wf_1/journal.jsonl"),
+        ("-opt-beta", "old-id.superseded-17/subagents/agent-z.jsonl"),
+    }
+    for (slug, rel), r in sub.items():
+        assert r["session_id"] == rel.split("/", 1)[0], "the session dir, never the leaf's parent"
+        src = projects / slug / rel
+        assert r["sha256"] == at._sha256(src) and r["bytes"] == src.stat().st_size
+        zst = archive / slug / f"{rel}.zst"
+        plain = subprocess.run(["zstd", "-dc", "-q", str(zst)], check=True, capture_output=True)
+        assert hashlib.sha256(plain.stdout).hexdigest() == r["sha256"], "the object holds the bytes"
+    assert not list(archive.rglob("*.meta.json*")), "a sidecar is not a transcript"
+    assert {(r["project_slug"], r["session_id"]) for r in _rows(archive)} == {
+        ("-opt-alpha", "shared-id"),
+        ("-opt-beta", "shared-id"),
+    }, "manifest.jsonl carries MAIN rows only"
+
+
+def test_an_unchanged_subagent_transcript_is_skipped_and_a_grown_one_rearchived(tree, rec):
+    projects, archive = tree
+    assert at.run([]) == 0
+    zst = archive / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl.zst"
+    before, n = zst.stat().st_mtime_ns, len(_sub_rows(archive))
+    assert n == 1
+    assert at.run([]) == 0
+    assert zst.stat().st_mtime_ns == before, "an unchanged sidechain was re-compressed"
+    assert len(_sub_rows(archive)) == n, "an unchanged sidechain was re-rowed"
+    src = projects / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl"
+    with src.open("ab") as fh:
+        fh.write(b"more")
+    assert at.run([]) == 0
+    rows = _sub_rows(archive)
+    assert len(rows) == n + 1 and rows[-1]["sha256"] == at._sha256(src)
+
+
+def test_a_failing_subagent_transcript_does_not_stop_the_night(tree, rec, monkeypatch, capsys):
+    """A sidechain that cannot be archived is reported and kept (the pruner refuses it as not-archived);
+    the MAIN rows and the transport still happen."""
     _projects, archive = tree
-    at.run([])
-    assert _rows(archive), "nothing archived — the exclusion below would pass vacuously"
-    assert all("agent-" not in r["session_id"] for r in _rows(archive))
-    assert not list(archive.rglob("agent-*.zst"))
+    real = shutil.copyfile
+
+    def denied_for_sidechains(src, dst):
+        if "/subagents/" in str(src):
+            raise PermissionError(13, "Permission denied")
+        return real(src, dst)
+
+    monkeypatch.setattr(at.shutil, "copyfile", denied_for_sidechains)
+    assert at.run([]) == 0
+    out = capsys.readouterr().out
+    assert "FAILED" in out and "agent-x.jsonl" in out and "the pruner keeps it" in out
+    assert "1 subagent failure(s)" in out
+    assert _sub_rows(archive) == [] and len(_rows(archive)) == 2
+    assert rec.verbs()[0] == "copy"
+
+
+def test_a_failed_test_of_a_new_object_keeps_the_last_good_object(tree, rec, monkeypatch, capsys):
+    """A compress or `zstd -t` that fails never leaves bytes at the object path for `ship()` to upload
+    over the key's last good version: the new object is built beside the snapshot and renamed in only
+    once tested (review W-62d2ce7d pass 1, A-haiku-1)."""
+    projects, archive = tree
+    assert at.run([]) == 0
+    zst = archive / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl.zst"
+    good = zst.read_bytes()
+    with (projects / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl").open("ab") as fh:
+        fh.write(b"grown")
+    real = subprocess.run
+
+    def verify_fails(argv, *a, **kw):
+        if argv[:2] == ["zstd", "-t"]:
+            raise subprocess.CalledProcessError(1, argv)
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(at.subprocess, "run", verify_fails)
+    assert at.run([]) == 0
+    assert "FAILED" in capsys.readouterr().out
+    assert zst.read_bytes() == good, "the last good object was replaced by an untested one"
+    assert len(_sub_rows(archive)) == 1
+
+
+def test_a_zstd_failure_on_a_subagent_transcript_does_not_stop_the_night(
+    tree, rec, monkeypatch, capsys
+):
+    """The zstd branch of the same rule (review W-62d2ce7d pass 1, A-sonnet-2): a compressor that fails on
+    a sidechain is a reported skip, while MAIN still archives and ships."""
+    _projects, archive = tree
+    real = subprocess.run
+
+    def zstd_fails_for_sidechains(argv, *a, **kw):
+        if argv and argv[0] == "zstd" and any("/subagents/" in str(x) or "agent-" in str(x) for x in argv):
+            raise subprocess.CalledProcessError(1, argv)
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(at.subprocess, "run", zstd_fails_for_sidechains)
+    assert at.run([]) == 0
+    out = capsys.readouterr().out
+    assert "FAILED" in out and "1 subagent failure(s)" in out
+    assert _sub_rows(archive) == [] and len(_rows(archive)) == 2
 
 
 def test_file_over_the_ceiling_is_reported_not_archived(tree, rec, monkeypatch, capsys):
@@ -228,12 +340,14 @@ def test_ab1_a_missing_zst_is_archived_again(tree, rec):
 def test_ab4_ship_order_copy_then_rows_then_manifest(tree, rec):
     _projects, archive = tree
     assert at.run([]) == 0
-    assert rec.verbs() == ["copy", "copyto"]
+    assert rec.verbs() == ["copy", "copyto", "copyto"]
     copy_argv = rec.calls[0][0]
     assert f"/{at.MANIFEST_NAME}" in copy_argv[copy_argv.index("--exclude") + 1 :]
+    assert f"/{at.SUBAGENT_MANIFEST_NAME}" in copy_argv[copy_argv.index("--exclude") + 1 :]
     assert rec.calls[1][2] == len(_rows(archive)) > 0, (
         "the manifest shipped before its rows existed"
     )
+    assert rec.calls[2][0][-1].endswith(f"/{at.SUBAGENT_MANIFEST_NAME}"), "the tier's manifest ships too"
     assert (tree[0] / "README").is_file(), "A.6: the data-not-cache marker"
 
 
@@ -456,11 +570,13 @@ def test_ab13_units_load_no_env_file_run_main_checkout_and_catch_up():
     assert "ExecStartPre=-/opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh" in service
     assert "Persistent=true" in timer and "Unit=session-archive.service" in timer
     assert "Restart=on-failure" in service, "a boot-time run without network must be retried"
-    # C.2 unit ordering: Type=oneshot, the archiver's ExecStart first, the pruner's `ExecStart=-` second
+    # C.2 unit ordering: Type=oneshot, the archiver's ExecStart first, the pruner's `ExecStart=-` second,
+    # the rotation mail's `ExecStart=-` third (W-f975fee0 slice 3, D-1119)
     assert "Type=oneshot" in service.splitlines()
     starts = [ln for ln in service.splitlines() if ln.startswith("ExecStart=")]
-    assert len(starts) == 2 and "archive_transcripts.py" in starts[0]
+    assert len(starts) == 3 and "archive_transcripts.py" in starts[0]
     assert starts[1].startswith("ExecStart=-") and "prune_transcripts.py" in starts[1]
+    assert starts[2].startswith("ExecStart=-") and "rotate_session.py due" in starts[2]
 
 
 def test_a_path_that_vanishes_between_the_scan_and_group_by_inode_is_skipped(
@@ -495,6 +611,7 @@ def test_a_stale_marker_readme_is_rewritten_and_names_the_pruner(tree, rec):
     text = readme.read_text()
     assert "Nothing on this box prunes" not in text
     assert "prune_transcripts.py" in text and "--restore" in text
+    assert "subagents/ transcripts" in text and "--restore agent-<id>" in text, "D-1182: the tier is archived"
     assert text == at.MARKER
 
 
@@ -589,8 +706,9 @@ def test_the_manifest_upload_skips_the_destination_check(tree, rec):
     """B2's download host is the one copyto HEADs first; an upload must not depend on it
     (2026-10-08: the HEAD hung 42 min behind an SNI filter while every upload worked)."""
     assert at.run([]) == 0
-    manifest_call = next(c[0] for c in rec.calls if c[0][1] == "copyto")
-    assert "--no-check-dest" in manifest_call
+    manifest_calls = [c[0] for c in rec.calls if c[0][1] == "copyto"]
+    assert len(manifest_calls) == 2, "the MAIN manifest and the subagent tier's (D-1182)"
+    assert all("--no-check-dest" in call for call in manifest_calls)
 
 
 def test_fetch_refuses_a_local_path_that_already_exists(tree, rec, tmp_path, capsys):

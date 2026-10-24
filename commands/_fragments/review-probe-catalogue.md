@@ -274,6 +274,30 @@ it, or name in the brief why the shape does not have it.
   laid over it (`<pins_dir>.base` when the pin was taken `--base`, else the archive of its `base_sha`), never from the
   live tree beyond what the seat prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and
   name UNPINNED.
+- A pins-only copy is not a test tree: it holds the pins and nothing else — no package, no pytest config, no
+  conftest, none of the files a conftest loads by path (the hub's `tests/conftest.py` loads `tests/memguard.py`; its
+  root `conftest.py` mutes live alerting and imports this tree's `src`). A seat runs a Python test only through
+  pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe builds (the
+  whole test tree, the root conftest, the pytest config and every root the tests import, read or run, never a subset
+  that leaves one out), the lead's base copy, or, for a test that reads git history or the tracked set, the clone
+  above — never on the pins dir, a copy of it or any hand-assembled tree, and never with a conftest or the pytest
+  config dropped, skipped or pointed elsewhere by any flag, option or environment variable (`--noconftest`,
+  `--confcutdir`, `--ignore` of a conftest, `-p no:` on a conftest's plugin, `PYTEST_ADDOPTS`, `-c` or `--rootdir`
+  naming any other file or tree, or `-o` on `addopts`, `testpaths`, `python_files` or another key that changes what
+  is collected; `-o timeout=…` and the like stay legal); a test it cannot run that way is unverified, never run
+  another way. A seat that runs
+  pytest or imports pinned code needs the unmodified tree, so its brief's pin takes `--base` (the pin command of
+  `/opt/fabrik/commands/_fragments/subagents-core.md`'s PIN paragraph), on each pass by the shape that pass's
+  surface has then (a surface committed since the previous pass is pinned `--from`, as the bullet above says):
+  `HEAD` for a working-tree pin (its basis is `HEAD` and its `base_sha` HEAD's commit either way; a repo with no
+  commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which
+  calls every file `UNCHANGED`), and the commit before the fix when it spans several. The brief's `base_sha` is then
+  the one the pin records, and it gives `<pins_dir>.base` as the recipe's `${args.base_pin_dir}`, so each seat
+  copies that tree in place of the archive steps of both `PIN_IMPORT` and `PYTEST_PINS`. A base copy is a whole
+  commit (some 120 MB in the hub) beside the pins dir — in the durable `SCRATCH:` folder, which `start` keeps 14
+  days, where the including command puts pins there: once the pass is adjudicated, the lead removes it (`chmod -R
+  u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins afresh and a
+  delta brief reads the previous `pins_dir`, never its base copy.
 - A delta brief also names the previous pass's `base_sha` (for the working-tree pin `/fabrik-review-scoped` step 5
   takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it,
   and null in a repo with no commit; for any other pin the brief names the commit itself, since one taken `--base`

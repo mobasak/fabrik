@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "LOW: disk housekeeping, the backup itself is complete; effort low: one default after a week's measurement",
   "status": "open",
-  "tags": [
-    "waits-quota"
-  ],
   "title": "prune_transcripts.py deletes at most PRUNE_MAX_PER_RUN=200 MAIN transcripts a night (prune_transcripts.py:109), and the backlog of deletable ones stays near 1,500: 1,557 deferred on 2026-10-23, 1,470 on 2026-10-24, with 86-115 new archived each night, so at this rate it takes about 3 weeks to clear (coordinator babysit, operator ask)"
 }

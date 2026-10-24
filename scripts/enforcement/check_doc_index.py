@@ -228,6 +228,32 @@ def link_targets(text: str):
         i = text.find("](", close.end())
 
 
+_BLANKER: object = None  # unloaded; then _fences.blank_code_examples, or False where it is missing
+
+
+def _blank_examples(text: str) -> str:
+    """Fence lines, fence bodies and inline code spans blanked, length-preserving, by
+    `_fences.blank_code_examples` — the reading check_doc_links grades links on, so a fenced or span-held
+    INDEX.md link is skipped by both checks in one gate run (W-85bd72fa; the two still differ by
+    check_doc_links' stale-marker skip and its per-line read). Read raw, a quote inside a span opened a link
+    title that swallowed the real link after it (a missing doc passed (a)), and a span-held escaped link
+    indexed its decoded path for (b) and (c). Imported on first use by the sibling directory; where
+    `_fences.py` is missing (ImportError) or predates the name, the text comes back raw — the pre-W-85bd72fa
+    reading. A `_fences.py` that fails to import any other way raises, as it does in every check importing it."""
+    global _BLANKER
+    if _BLANKER is None:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        try:
+            import _fences
+        except ImportError:
+            _BLANKER = False
+        else:
+            _BLANKER = getattr(_fences, "blank_code_examples", False)
+    return _BLANKER(text) if _BLANKER else text  # type: ignore[operator]
+
+
 def _printable(text: str) -> str:
     """Render a surrogateescape string safely for a UTF-8 stdout.
 
@@ -441,8 +467,16 @@ def main() -> int:
     # measured in the W-dd091f0d review: one `[` anywhere above lets a stray `](` on a later line
     # read as a link, so it is graded, as the pre-change regex did (fail-closed). A stray `](` with
     # no unescaped `[` anywhere before it, or an escaped `\](`, is not a link and is skipped
-    # (fail-open), where the pre-change regex graded both (W-f11e740e).
-    index_links = list(link_targets(index_text))
+    # (fail-open), where the pre-change regex graded both (W-f11e740e). Read through `_blank_examples`, as
+    # check_doc_links reads links: a fenced or span-held link is a code example, never graded, and its
+    # destination stays out of `linked` — though (b) and (c) still count a bare mention of its path in the raw
+    # text (W-85bd72fa); fence lines follow check_doc_links' toggle, whose costs its _iter_refs docstring states.
+    # Line endings become LF first: INDEX.md is read as bytes, so a lone CR reaches here, and the span blanker
+    # breaks lines only on LF — a span opened before a CR-ended line would pair across a heading and hide a
+    # real link (check_doc_links never sees a CR: read_text() translates it).
+    index_links = list(
+        link_targets(_blank_examples(index_text.replace("\r\n", "\n").replace("\r", "\n")))
+    )
     linked = {s for t in index_links for s in (t, _pct_decode(t))}
 
     # (a) INDEX targets exist

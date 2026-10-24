@@ -37,8 +37,13 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from collections import Counter
 from pathlib import Path
+
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
 
 LEDGER = Path("docs/DECISIONS.md")
 _ID_CELL = re.compile(r"^\|\s*\**(D-\d+)\**\s*\|")
@@ -117,16 +122,38 @@ def _all_row_ids(text: str) -> list[tuple[int, str]]:
     ]
 
 
-_CODE_SPAN = re.compile(r"`[^`]*`")
 _WORD = re.compile(r"\w")
 
 
+def _masked(line: str) -> str:
+    """The row with every pipe that is TEXT replaced by NUL: one written `\\|` (both characters
+    become one NUL) and one inside a code span (intel 01M4405E: six well-formed rows read as
+    malformed because their code spans held `a|b`). The spans are `_fences.blank_code_spans`'s — a
+    run of N backticks closes only on a run of exactly N and an escaped one opens nothing; the
+    one-backtick regex this replaced split D-1159 (a quoted triple-backtick closer) into 4 cells
+    (W-27db8c35). tests/test_decisions_table_shape.py counts its bare pipes from this same string.
+
+    STATED COST: spans are found over the WHOLE row, before the split, so a backtick run left
+    open in one cell pairs with an equal run in a later cell and hides the pipes between them
+    (0 of 2896 D-rows across the 51 /opt/*/docs/DECISIONS.md ledgers changed cell count on
+    2026-10-24; pinned by test_a_long_run_pairs_across_cells_by_design).
+    """
+    blank = _fences.blank_code_spans(line)
+    out: list[str] = []
+    i = 0
+    while i < len(line):
+        if line[i] == "\\" and line[i + 1 : i + 2] == "|":
+            out.append("\0")
+            i += 2
+            continue
+        out.append("\0" if line[i] == "|" and blank[i] != "|" else line[i])
+        i += 1
+    return "".join(out)
+
+
 def _cells(line: str) -> list[str]:
-    """The row's cells, split on BARE pipes only — a pipe inside a code span or written `\\|` is
-    text, as tests/test_decisions_table_shape.py::_bare_pipes counts it (intel 01M4405E: six
-    well-formed rows read as malformed because their code spans held `a|b`)."""
-    masked = _CODE_SPAN.sub(lambda m: m.group(0).replace("|", "\0"), line.replace("\\|", "\0"))
-    return [c.replace("\0", "|").strip() for c in masked.strip().strip("|").split("|")]
+    """The row's cells, split on the bare pipes `_masked` leaves."""
+    return [c.replace("\0", "|").strip() for c in _masked(line).strip().strip("|").split("|")]
 
 
 def malformed_ids(text: str) -> dict[str, str]:

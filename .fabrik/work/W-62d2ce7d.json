@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T08:31:04.217070Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-62d2ce7d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "extend archive_transcripts.py to the subagent tier (same .zst + manifest + B2 path, keyed by parent session); make the pruner's subagent tier refuse a file the archive/bucket cannot vouch for, as MAIN does; extend --restore to a subagent file; measure B2 size first (4.3 GB raw today); prove on the next nightly run that fabrik-lib subagent rows land in the manifest; update docs/workstation/session-history-retention.md and CLAUDE.md § Pointers' Session history line (and the template copy) that says NEVER archived",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: an operator ask, and a data-loss gap in the only chat backup; effort low-to-medium: one archiver tier plus the pruner guard and docs",
+  "status": "open",
+  "title": "Operator 2026-10-24 (D-1182): 'be sure the gap is closed and fabrik-lib is also implemented it' — archive the */subagents/* transcript tier to B2 before the nightly pruner deletes it (today archive_transcripts.py:203 skips it and prune_transcripts.py deletes it after 3 days, 547-614 files a night); every repo on the box including fabrik-lib's -opt-fabrik-lib* slugs"
+}

@@ -19,8 +19,5 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — red mesh test hides rotation regressions",
   "status": "open",
-  "tags": [
-    "waits-quota"
-  ],
   "title": "mesh-test A0a ('default-ON rotation did not fire with a healthy sibling') fails on the untouched baseline too; find why and fix the test or the rotation path"
 }

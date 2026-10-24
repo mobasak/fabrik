@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-23T17:19:02.477189Z",
   "creator": "kaizen",
+  "effort": "low",
   "evidence": "",
   "id": "W-f1191ec5",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -13,12 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
-  "priority": 2,
-  "status": "open",
-  "tags": [
-    "waits-quota"
-  ],
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work, a review-recipe wording fix asked by infra-2; effort low",
+  "status": "done",
   "title": "/fabrik-review seat isolation: PIN_IMPORT/PYTEST_PINS are ~15 KB single lines seats skip, and a pins-only copy cannot run tests (conftest needs tests/memguard.py)"
 }

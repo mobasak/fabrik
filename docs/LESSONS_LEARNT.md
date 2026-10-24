@@ -1,6 +1,10 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Before porting a reader, search the synced siblings for one that already applies the rule (2026-10-24)
+
+W-27db8c35's design ported decisions.py's code-span reader into a fleet-synced checker as a fourth copy; the Fable design critique found `scripts/enforcement/_fences.py::blank_code_spans` in the same directory — a module eight other scripts there already imported, its span reader already used by check_doc_links and check_convergence — which applied the same run-length rule and also honoured an escaped backtick that the copy would have got wrong. Executed on 2896 live rows the two agreed everywhere else. **How to apply:** before a design copies a mechanism, grep the synced directory the file lives in for the rule's own vocabulary (here `backtick`, `code span`) and read what imports it — a shared reader turns a fourth copy into one import.
+
 ## A dedup test that seeds a time and then starts an interpreter needs a margin; grade the exact edge in-process (2026-10-23)
 
 W-25f6b2a3 slice 2: two prompt hooks now print an unchanged block as a pointer, and the review ran 3 passes, confirming 13, then 3, then 0 defects.
@@ -7696,3 +7700,21 @@ document.
   guarded.
 - **Where it lives.** `scripts/sysadmin/transcript_size_check.py::_window`, `docs/DECISIONS.md` (D-1165),
   `docs/development/reviews/2026-10-23-w-25f6b2a3-window-review.md`.
+
+## A zero on today's corpus is not a fail direction — probe the reader with inputs the corpus does not hold (2026-10-24)
+
+- **What happened.** W-85bd72fa asked why `check_doc_index` graded INDEX.md links held in code spans while
+  `check_doc_links` skipped them. Measured over all 42 `/opt` INDEX.md files, no such link existed, so the first
+  verdict was "no change" (D-1179), justified by "the raw read fails safe: it can only red more". One of three
+  author-blind seats then built two inputs that are in no INDEX.md today: a quote inside a span that opened a link
+  title swallowing the real link after it, and a span-held escaped link that indexed a doc. Both passed the gate.
+  The fix (D-1183) followed, and the live corpus still moved no finding.
+- **Mechanism.** A population count answers "does it fire today", never "which way does it fail". A reader's fail
+  direction is a property of its grammar, so the corpus can sit at zero while the reader is open in the dangerous
+  direction.
+- **How to apply.** (1) Before a no-change verdict that rests on a fail direction, construct the inputs the grammar
+  admits and the corpus lacks, and run them through the real reader. (2) Ask the review seat for escape variants
+  in both directions, by name, as the scoped review's ASK requires. (3) A no-change row that a review refutes is
+  superseded by a new row, never edited.
+- **Where it lives.** `scripts/enforcement/check_doc_index.py::_blank_examples`,
+  `scripts/enforcement/_fences.py::blank_code_examples`, `docs/DECISIONS.md` (D-1179, D-1183).
