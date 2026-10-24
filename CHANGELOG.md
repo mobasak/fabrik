@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the governance template routes hub mail to infra for synced-file defects and the rendering, sync and checks of commands, not all command work (2026-10-24)
+
+- W-a5b90257. `templates/governance/CLAUDE.md`'s Send bullet read "`--to-agent infra` for commands/rules/enforcement/hooks/mail
+  defects" while the same sentence gave kaizen a command's or rule's wording. It now gives infra synced-file defects (the
+  rendering, sync and checks of commands/rules among them) and enforcement, hook, mail and workstation defects; the
+  upstream-proposal step addresses `<owner>` and points at that bullet. Receipt:
+  `docs/development/reviews/2026-10-24-w-a5b90257-template-routing-wording-review.md`.
+
 ### Fixed — the Stop hook no longer orders a builder to start new work at a rotation boundary (2026-10-24)
 
 - W-0fae19b7, D-1197. When a session's rotate stamp is due and its own last `NEXT:` reads `none — terminal; awaiting
