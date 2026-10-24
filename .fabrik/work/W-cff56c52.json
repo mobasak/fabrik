@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T17:00:04.374089Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-cff56c52",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "HIGH: a break that blocks an agent (the P0 owner cannot resume during the lane); hook beat infra; LOW: one allow-list entry plus a test",
+  "status": "open",
+  "title": "quota lane blocks a P0 owner's re-bind after /clear (infra-3, 2026-10-24): .claude/hooks/quota_stop.py lets the P0 owner through only when an agent name is bound to the session, but the rotation's re-bind step python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force (and work.py next) is itself refused during the urgent-90 lane, so a rotated P0 owner can never resume until the lane lifts. Add the re-bind (and work.py next/claim) to the lane's finishing allow-list, with a regression test"
+}
