@@ -41,11 +41,11 @@ precondition).
 **Process model:** every VS Code Claude window spawns its OWN copy of every enabled server
 (most run 2 processes: npx wrapper + server). Tool *schemas* are deferred (ToolSearch loads them
 on demand — zero context cost), but the *processes* spawn regardless. That is the CPU/RAM problem:
-18 servers × 1–3 windows × 46+ repos.
+19 servers × 1–3 windows × 46+ repos.
 
 **Measured** (a few windows open, post-restart): 34 processes, **2.2 GB RSS**; at ~13 sessions the full roster measured ~23 GB.
 
-**⚠️ **Fetch-at-spawn fragility (D-042): every npx/uvx fetch-at-spawn server is a LOCAL PINNED INSTALL** (npm -g for the 9 node servers, `uv tool install` for serena + postgres-mcp) — a spawn is an exec, no registry fetch, no herd: full hub resolution measured **15/15 Connected in 9.2s** (was 60-90s with 4-8 timeouts). ⚠️ nvm-upgrade caveat: the bins live under the node VERSION dir (`~/.nvm/versions/node/v24.18.0/bin`) — a node major upgrade orphans them (the node-pty ABI class); after upgrading node, re-run the npm -g installs and re-run the emitter. The fragility this closes: a fetch-at-spawn server cold-fetched by every window at once (after an `_npx` cache wipe plus a WSL restart) times out on connect, and the harness marks it disconnected for the whole session — the registry is fine, the simultaneity is not; a window reload reconnects on the warm cache.
+**⚠️ **Fetch-at-spawn fragility (D-042): every npx/uvx fetch-at-spawn server is a LOCAL PINNED INSTALL** (npm -g for the 10 node servers, `uv tool install` for serena + postgres-mcp) — a spawn is an exec, no registry fetch, no herd: full hub resolution measured **15/15 Connected in 9.2s** (was 60-90s with 4-8 timeouts). ⚠️ nvm-upgrade caveat: the bins live under the node VERSION dir (`~/.nvm/versions/node/v24.18.0/bin`) — a node major upgrade orphans them (the node-pty ABI class); after upgrading node, re-run the npm -g installs and re-run the emitter. The fragility this closes: a fetch-at-spawn server cold-fetched by every window at once (after an `_npx` cache wipe plus a WSL restart) times out on connect, and the harness marks it disconnected for the whole session — the registry is fine, the simultaneity is not; a window reload reconnects on the warm cache.
 
 ---
 
@@ -236,7 +236,7 @@ runs 24.18.0), and a Node move changes `/home/ozgur/.nvm/versions/node/<v>/bin/`
 `/opt/apidoccreator` (docs-registry, port 8302) is the box's own crawling/docs service: registers any
 docs URL, auto-detects OpenAPI/llms.txt/sitemap/HTML, scrapes, LLM-generates + chunks, serves via
 REST — and ships its own MCP server (`docs-mcp` console script → `/opt/apidoccreator/src/docs_registry/mcp_server.py`,
-4 tools: list_docs · get_doc · search…). It is NOT in the 18-server roster — never connected to any
+4 tools: list_docs · get_doc · search…). It is NOT in the 19-server roster — never connected to any
 Claude window. Candidate: wire it (self-hosted, $0) as a partial context7 replacement for
 already-registered sources; decision rides the same split.
 

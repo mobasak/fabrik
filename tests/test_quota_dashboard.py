@@ -2004,6 +2004,7 @@ def test_every_registered_detector_is_pinned_by_a_positive_probe(tmp_path, monke
             "vps3",
         ],
         "aic": ["ai-consult", "ai_consult"],
+        "rea": ["mcp__rea__binary_session", "rea-agents mcp"],
         "cit": [
             "verify_citation(doi)",
             "verify_batch(",

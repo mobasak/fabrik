@@ -23,18 +23,24 @@ health matter only.
 `rea: CONNECTED` in a repo whose roster row grants it; absent there, the row is a roster decision, never a
 hand edit of `.mcp.json`. Dead or missing in a granted repo is FIX-FIRST (`CLAUDE.md` § Behavior): the
 installed binary is pinned by the roster row, and a server only a reload restores needs a new window — say
-so. Start every investigation with `binary_session` called with `{}`: its `result.tool_availability` names
+so. Start every investigation — on a website, right after the target check below — with `binary_session` called with `{}`: its `result.tool_availability` names
 which operations this host can run, so a missing engine (Ghidra, Hopper, Frida) is known before a plan
 leans on it.
 
 **The target and its limits.** Inspect only what the operator named: a public page, an app or binary the
 operator supplied, or our own product. No login with anyone's credentials, no paywall or rate-limit evasion,
 no capture of other users' data. **Before any REA call** on a website, fetch `<origin>/robots.txt` and the
-site's terms page when it links one (`mcp__fabrik-scrape__scrape` or `WebFetch`) and write the verdict as the
-first line of `reports.md`: the clause read, or `none found`; a `Disallow` covering the feature's path, or a
-clause forbidding automated access, ends the run `BLOCKED:` naming it. Inspection stays on the named origin
-and the requests the feature itself makes; a navigation off that origin is not followed, and ONE Scout at a
-time drives a live site. Nothing the original ships — code, minified identifiers, assets, copy —
+site's terms page when its front page links one (`mcp__fabrik-scrape__scrape` or `WebFetch`), and do the same
+for every other origin the feature's own requests reach once LOOK names them; write each verdict as a line
+of `reports.md` — the clause read, or `none found` for a robots.txt answered 404 and no terms link. Every
+other answer (a 5xx, a timeout, a `blocked` result, a bot wall) is unread, never `none found`, and ends the run
+`BLOCKED:` like a `Disallow` covering a path the feature uses (the `*` group and any group naming an agent
+like ours) or a clause forbidding automated access; no later phase runs after a `BLOCKED:` line. For an app,
+APK or binary, its licence or EULA is read the same way. Inspection stays on the named origin and the requests
+the feature itself makes; a navigation off them is not followed; nothing is submitted, bought, posted or
+changed on a live site beyond the read path that shows the feature; and ONE Scout at a time drives a live
+site. The spec may NAME the target (its file name and header do); it carries none of the target's code,
+assets or copy. Nothing the original ships — code, minified identifiers, assets, copy —
 enters our tree: the spec states behaviour in our own words, and the evidence stays in the run's
 `SCRATCH:` folder.
 
@@ -58,30 +64,34 @@ receives, what state changes, what the user sees, what happens on each failure) 
 evidence, entry point to result: the focused browser tools for runtime behaviour, the JavaScript tools for
 the bundle code that handles the event, the network captures for payload shapes. Runtime observation
 corroborates a static reading; it is used when static evidence cannot answer, and each answer is marked
-`observed` (runtime) or `inferred` (static). For a feature with independent sub-questions, the
-questions are the units of a Scout fan-out. **Dispatch step (D-191):** run `python3
+`observed` (runtime) or `inferred` (static). For a feature with independent sub-questions answered from STATIC evidence (bundles,
+captures already taken), those questions are the units of a Scout fan-out; questions that need the live page
+are never units — one Scout answers them in turn, before or after the fan-out. **Dispatch step (D-191):** run `python3
 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <questions> --mechanical 0` and dispatch exactly
 the `SEATS:` and mix it prints, in ONE message — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch
 --seats <n>` and closed with `python3 scripts/command_run.py round --seats <n> --findings <open questions>`;
 each Scout is a general-purpose seat whose brief names its question, the target, `reports.md` and its seat
-folder under `RUN-SCRATCH:`, and whose toolset carries the REA tools; a
-website's questions that need the live page are answered by ONE Scout in turn, never N browser sessions at
-once. Each returns its answer with Evidence
+folder under `RUN-SCRATCH:`, and whose toolset carries the REA tools. Each returns its answer with Evidence
 IDs and its unresolved gaps; append them to `reports.md`. Done when every question is `answered`,
 `partial` or `unresolved` with the search that bounds it — never "complete" while one is open.
 
 ## Phase 3 — PLAN: the behaviour-only spec
 
 A Spec-Writer seat (`model: "opus"`, `subagent_type: "fabrik-reviewer"`, whose tools are Read, Grep, Glob and
-Bash only — no MCP, so no REA) reads `reports.md` alone and RETURNS the spec, which the lead writes to
+Bash only — no MCP, so no REA) reads `reports.md` alone — its brief bars running `rea-agents`, fetching the target or reading anything
+else — and RETURNS the spec, which the lead writes to
 `docs/reference/reverse-engineering/<target-slug>-<feature-slug>.md`, its header naming the run
 (`started_at`) and the durable `<SCRATCH>/reports.md` path the Evidence IDs live in: the feature in one paragraph; each
 behaviour as `trigger → observable result`, numbered, with its inputs, outputs, states and error cases;
 the interface shapes in our own neutral names (a request carries `query: string`, never their variable
-names); the open unknowns; and a `## Evidence` table mapping each behaviour number to the Evidence IDs in
-`reports.md`. Then the CLEAN-ROOM CHECK, by the lead, executed and its output kept in `reports.md`: every behaviour cites at
-least one Evidence ID; `/usr/bin/grep -c -F -w -f <SCRATCH>/identifiers.txt <spec>` prints `0`; the spec
-holds no fenced block copied from the target; no asset, copy text or brand of theirs. A failed check is fixed
+names); the open unknowns; and a `## Evidence` table mapping each behaviour number to its Evidence IDs in
+`reports.md` AND a one-line summary of what was observed, so the committed spec stands when the run's
+`SCRATCH:` folder is pruned (14 days, `command_run.py` `SCRATCH_RETENTION_S`). Then the CLEAN-ROOM CHECK, by the lead, executed and its output kept in `reports.md`: every behaviour cites at
+least one Evidence ID; `identifiers.txt` exists and holds no blank line (`/usr/bin/grep -c '^[[:space:]]*$'
+<SCRATCH>/identifiers.txt` prints `0` — a blank line would match every line of the spec), and
+`/usr/bin/grep -n -F -w -f <SCRATCH>/identifiers.txt <spec>` prints nothing and exits 1 (exit 0 lists the
+leaked lines; exit 2, a missing or unreadable list, fails the check too); the spec holds no fenced block copied
+from the target; no asset, copy text or brand of theirs. A failed check is fixed
 in the spec, never waived.
 
 ## Phase 4 — BUILD: hand the spec on, never the original
