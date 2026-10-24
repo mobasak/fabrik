@@ -157,9 +157,12 @@ separate Bash call, never sed, awk or head on a shell variable (Claude Code's wo
 person — W-1783a9fe, D-1173) — and records every outcome (`ok`, `refused:<check>` — `request`, `claim`, `error`, `orphan` among them —, `stale`,
 `partial:<step>`, `typed-unsent:<step>` — a text that never showed, never settled, or stayed in the input line after `C-m` —, and the verb's `aborted:<check>`) in
 `~/.claude/state/rotations.jsonl`, with `resume_sent_at` and, for a bound row, `rebind_s` (the bind's own time minus
-the send). The re-bind wait is `REBIND_GRACE_S` (300 s, W-b72231b8 slice 2; the one late bind measured took 98 s); a
+the send). The re-bind wait is `REBIND_GRACE_S` (180 s, W-b72231b8 slice 2; the one late bind measured took 98 s); a
 bind later than that rows `partial:rebind`. While it waits the executor holds its lock, so another rotation asked in that
-window is refused `aborted:pending` and is asked again. Nothing is queued or retried: keys typed mid-turn would
+window is refused `aborted:pending` — the coordinator asks again; nothing retries it. Every wait is a named constant
+and `REQUEST_WORST_S` (482 s) is derived from them, and `execute` claims no new request after `CLAIM_CUTOFF_S` (55 s), so
+the last rotation it starts ends inside the unit's 600 s timeout; a request left unclaimed waits for the path unit's next
+start (where it may row `stale`). Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
 reports). The previous session stays resumable and is archived that night.
 

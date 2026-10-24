@@ -56,10 +56,31 @@ HERE = Path(__file__).resolve().parent
 STALE_S = 60
 ORPHAN_S = 900  # past the service's TimeoutStartSec (600 s): a `.claimed` nobody can still hold
 IDLE_S = 30
-# W-b72231b8 slice 2: the re-bind wait after the resume prompt. The one late bind measured since W-b92aa5cf landed 98 s
-# after the submit; the longest wait path before this one is 132 s (the discard 2 + 10, the /clear send 10 + 20, the clear
-# wait 60, the resume send 10 + 20), so 132 + 300 leaves 168 s of the unit's TimeoutStartSec=600 for checks and tmux.
-REBIND_GRACE_S = 300
+# W-b72231b8 slice 2: every wait one request can run, named so the worst case below is derived, never restated.
+TMUX_TIMEOUT_S = 10  # one tmux call; a wait loop checks its deadline only after its capture returns
+DISCARD_WAIT_S = 10  # the box reads empty after the double Escape
+SEND_SETTLE_S = 10  # a paste settles in the input line
+SEND_SUBMIT_S = 20  # the input line changes after C-m
+CLEAR_WAIT_S = 60  # the registry shows the new session after /clear
+COMPACT_WAIT_S = 60  # the compact boundary lands (the compact path has no re-bind wait, so it is the shorter one)
+# The re-bind wait after the resume prompt: the one late bind measured since W-b92aa5cf landed 98 s after the submit.
+REBIND_GRACE_S = 180
+# The worst /clear request: the discard's 2 s sleep and its wait, two sends, the clear wait and the re-bind grace, plus
+# 17 tmux calls that can each take TMUX_TIMEOUT_S past any deadline — 12 outside every wait (resolve 1, the two
+# run_checks 1 each, _one's box read 1, the discard's three box reads and its Escape pair 4, two pastes and two C-m 4) and
+# the last capture of each of the five capture loops (the discard wait, two settles, two submits) — 482 s.
+REQUEST_WORST_S = (
+    2
+    + DISCARD_WAIT_S
+    + 2 * (SEND_SETTLE_S + SEND_SUBMIT_S)
+    + CLEAR_WAIT_S
+    + REBIND_GRACE_S
+    + 17 * TMUX_TIMEOUT_S
+)
+# `execute` claims no new request after this long, so the last request it starts ends inside the unit's
+# TimeoutStartSec=600 with 60 s to spare (55 + 482 + 60 <= 600). A file left unclaimed stays for the path unit, which
+# starts `execute` again when this one exits; two requests can only meet in one run by racing past `_pending`.
+CLAIM_CUTOFF_S = 55
 VETO_S = 300  # a registry flip after the last turn end vetoes this long; measured flips led a turn's first write by 0.02 s
 SEAT_TAIL = 8 * 1024 * 1024
 TURN_END = ("turn_duration", "stop_hook_summary")
@@ -267,7 +288,10 @@ def _repoint_registry(path: Path, old_sid: str, new_sid: str, name: str) -> str:
 
 def _tmux(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [os.environ.get("ROTATE_TMUX", "tmux"), *args], capture_output=True, text=True, timeout=10
+        [os.environ.get("ROTATE_TMUX", "tmux"), *args],
+        capture_output=True,
+        text=True,
+        timeout=TMUX_TIMEOUT_S,
     )
 
 
@@ -844,7 +868,7 @@ def _discard(t: dict, seen: str) -> None:
         raise CheckFailedError("stale-input", "the input box changed since the request")
     if _tmux("send-keys", "-t", pane, "Escape", "Escape").returncode != 0:
         raise CheckFailedError("stale-input", "tmux refused the keys")
-    deadline = time.time() + _wait_s(10)
+    deadline = time.time() + _wait_s(DISCARD_WAIT_S)
     while time.time() < deadline:
         box, screen = _box_now(pane)
         if box == "":
@@ -871,7 +895,7 @@ def _send(pane: str, text: str) -> None:
     if _tmux("send-keys", "-t", pane, "-l", "--", text).returncode != 0:
         raise CheckFailedError("send", "tmux refused the keys")
     head, seen, prev, settled = text[:20], False, None, None
-    deadline = time.time() + _wait_s(10)
+    deadline = time.time() + _wait_s(SEND_SETTLE_S)
     while time.time() < deadline:
         line = _input_line(_capture(pane))
         shown = bool(line) and (head in line or line.startswith("[Pasted text"))
@@ -886,7 +910,7 @@ def _send(pane: str, text: str) -> None:
         raise CheckFailedError("unsent", f"the pasted text {why}")
     if _tmux("send-keys", "-t", pane, "C-m").returncode != 0:
         raise CheckFailedError("send", "tmux refused the Enter")
-    deadline = time.time() + _wait_s(20)
+    deadline = time.time() + _wait_s(SEND_SUBMIT_S)
     while time.time() < deadline:
         line = _input_line(_capture(pane))
         if line is not None and line != settled:
@@ -1004,7 +1028,7 @@ def _one(claimed: Path) -> dict:
             step = "compact-send"  # a row names WHICH text stayed unsent (review r1)
             _send(data["pane"], f"/compact {data['focus']}")
             step = "compact"
-            deadline = time.time() + _wait_s(60)
+            deadline = time.time() + _wait_s(COMPACT_WAIT_S)
             while time.time() < deadline:
                 if any(
                     r.get("subtype") == "compact_boundary"
@@ -1017,7 +1041,7 @@ def _one(claimed: Path) -> dict:
             row["outcome"] = "partial:queued"
             return row
         _send(data["pane"], f"/clear {data['name']}-{time.strftime('%Y-%m-%d')}")
-        step, new_sid, deadline = "clear", None, time.time() + _wait_s(60)
+        step, new_sid, deadline = "clear", None, time.time() + _wait_s(CLEAR_WAIT_S)
         while time.time() < deadline:
             with contextlib.suppress(CheckFailedError):
                 sid = _registry(_home(), _proc(), data["pid"]).get("sessionId")
@@ -1085,7 +1109,10 @@ def execute() -> int:
             except OSError:
                 return 0.0  # dangling or vanished: claimed first, and refused below
 
+        started = time.monotonic()
         for f in sorted(d.glob("*.json"), key=_age):
+            if time.monotonic() - started > CLAIM_CUTOFF_S:
+                break  # W-b72231b8: left for the path unit's next start, never begun where the timeout could kill it
             claimed = f.with_suffix(".claimed")
             try:
                 if not f.is_file() or f.is_symlink():
