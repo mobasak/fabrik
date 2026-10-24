@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen work, a review-recipe wording fix asked by infra-2; effort low",
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-review seat isolation: PIN_IMPORT/PYTEST_PINS are ~15 KB single lines seats skip, and a pins-only copy cannot run tests (conftest needs tests/memguard.py)"
 }
