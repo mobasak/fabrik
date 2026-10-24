@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T16:24:58.369280Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-a6975c38",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure live lock entries per shape in both readers, then extract one lock_entry_covers(entry, path) into check_plan_tickets and point check_phase_tests at it — covering debris beside a star-eaten glob too (**/x/**:3, **/**:3 own nothing in check_phase_tests at 52a5c5fbe; W-9fcb6ce4 review pass 3, RECORDED); D-1094 owner area",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Unify the two lock-entry readers' glob dialect: check_plan_tickets lock discovery reads every owned_paths entry with a bare _norm_glob (src//**, src/**:12, src/**. own nothing there), while check_phase_tests since W-9fcb6ce4 cleans that debris; both leave /** and **:3 owning nothing — one shared lock-entry reader in check_plan_tickets used by both"
+}

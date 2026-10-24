@@ -1,6 +1,27 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A token rule is a compiler claim: run the compiler before writing it (2026-10-24)
+
+W-dab6a341's first draft wrote CSS-first Tailwind rules from the docs alone. Three were wrong in ways no doc says: a plain `@theme` drops a variable no utility uses, a `var()`-valued slot's utility reads the referenced variable, and an alias under the slot's own name is a cycle. Every one surfaced only when a seat ran `compile()` from an installed `tailwindcss`. The template's own text-colour slots had sat in the font-size namespace since the CSS-first line shipped. **Lesson:** a rule about what a compiler or engine emits is checked by running it on the smallest input that shows the case, and the probe goes in the CLAIMS verify hint so the currency watcher can re-run it. A grader written to catch prose about tokens is judgement-shaped: bound it and say so, or it fires on legitimate sentences.
+
+## Probe a CLI's limits live before pricing a cap on them; the first real run is also a reviewer (2026-10-24)
+
+W-894f994f (`scripts/api_credit.py`, D-1198): two design critiques, an author's mutation battery, then a full review.
+- **An author's mutation battery covers the guards the author thought of** — the review's finders mutated independently and found guards no test pinned (the `ANTHROPIC*` strip, the timeout settle, the error flag, a duplicate start). Have a finder mutate before trusting your own all-red battery.
+- **Probe the limit you price** — the cap's margin rested on "a run overshoots by one turn". A three-Read probe at a $0.000001 budget stopped after ONE API call. The overshoot is one call, so the reserve became a per-model per-call ceiling, priced from current list prices rather than a guessed $10.
+- **A variadic flag eats a positional argument** — `claude -p … --tools "" "prompt"` failed with "Input must be provided": `--tools <tools...>` swallowed the prompt. Put the prompt on stdin whenever a variadic flag precedes it.
+- **Classify on the error flag, never the subtype** — a bogus key returns `subtype: "success"` with `is_error: true`.
+- **The first live run doubled as a finder** — a $0.07 Sonnet run reviewing the script over a two-file pin found seven real defects that the mutants could not, because the mutants only covered guards that already existed (a settle racing a live run, an unscrubbed field, uncaught overflow and symlink-loop errors).
+
+## A work item's cause hypothesis is a claim to execute; a differential gate compares like with like (2026-10-24)
+
+W-4e756979 (the hub's merge-test leg): design critiqued by two seats, full review 15 → 13 → (closing pass).
+- **Run the cause before believing the item's story** — the item said "merges landing on a moving main". Checking out 3 cause branches alone in a throwaway showed each red BY ITSELF, so the real cause was a missing owner-test leg, not a race. Half an hour of measurement replaced a design that would have fixed the wrong thing.
+- **A measurement throwaway must match the consumer's** — the first full-suite count (~112 master reds) lacked the `fabrik-lib` sibling link that merge_request's throwaway makes. The same suite with the link held 18 reds.
+- **A differential verdict compares the same shapes from the same tree state** — the base run must repeat the merge run's shape (alone, or in the shard's order) after the same `git clean`. Otherwise an artefact of one run reads as a difference. A crash line must also drop what changes every run (pytest's temp root, `at 0x…` addresses, default tempfile names) and nothing else: a looser `/tmp/*` rule merged two different failures.
+- **A gate that switches state never does it in the caller's own tree** — the first build's base checkout ran in a requester's worktree too and destroyed uncommitted work. A finder executed it in round 1.
+
 ## Before porting a reader, search the synced siblings for one that already applies the rule (2026-10-24)
 
 W-27db8c35's design ported decisions.py's code-span reader into a fleet-synced checker as a fourth copy; the Fable design critique found `scripts/enforcement/_fences.py::blank_code_spans` in the same directory — a module eight other scripts there already imported, its span reader already used by check_doc_links and check_convergence — which applied the same run-length rule and also honoured an escaped backtick that the copy would have got wrong. Executed on 2896 live rows the two agreed everywhere else. **How to apply:** before a design copies a mechanism, grep the synced directory the file lives in for the rule's own vocabulary (here `backtick`, `code span`) and read what imports it — a shared reader turns a fourth copy into one import.
@@ -7718,3 +7739,17 @@ document.
   superseded by a new row, never edited.
 - **Where it lives.** `scripts/enforcement/check_doc_index.py::_blank_examples`,
   `scripts/enforcement/_fences.py::blank_code_examples`, `docs/DECISIONS.md` (D-1179, D-1183).
+
+## A data-loss size is counted per inode, never per file name — hard links multiply a byte count, not the risk (2026-10-24)
+
+- **What happened.** W-a2cae11b reported 9 set-aside transcripts, about 12 GB, with no off-box copy. A `find -printf
+  '%i %n'` showed 6 inodes, 5 of them hard links of a live `<sid>.jsonl` whose bytes the manifest already held byte
+  for byte. The bytes with no copy were one file of 371,647 bytes. The other real defect was disk, not loss: the
+  pruner never saw the set-aside links, so they would have pinned about 6 GB after pruning the live names.
+- **Mechanism.** On a tree where hard links are routine (D-467 lanes, Claude Code's own relocation), a sum of file
+  sizes counts each inode once per name, and "no copy" for a name says nothing about its inode's other names.
+- **How to apply.** (1) Size a loss claim with `%i %n` and group by inode before designing. (2) Check every name
+  of each inode against the archive (`find -inum`). (3) Put the overturned figure in PROBLEM and the D-row, so the
+  item's number does not travel on.
+- **Where it lives.** `scripts/sysadmin/archive_transcripts.py::main_key`,
+  `scripts/sysadmin/prune_transcripts.py::evaluate_main`, `docs/DECISIONS.md` (D-1188).

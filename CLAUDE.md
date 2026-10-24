@@ -493,9 +493,10 @@ session-recall — structured rows beat lexical transcripts.
 - **Session history (D-736):** every MAIN transcript ships to B2 nightly (`scripts/sysadmin/archive_transcripts.py`)
   and its local copy is pruned after 3 days by the guarded pruner `scripts/sysadmin/prune_transcripts.py` — never an
   open session, never a project's or an agent's newest, never a file the archive, the bucket and session-recall's
-  index cannot vouch for byte-for-byte. Subagent transcripts, `~/.claude/tasks` and shell snapshots are pruned after 3
-  days too and are NEVER archived. Old history is searched through session-recall (§ Past sessions are searchable) or
-  put back with `.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug <slug>]`
+  index cannot vouch for byte-for-byte. Subagent transcripts are archived the same way (D-1182) and pruned after 3 days
+  only once the archive vouches for them; `~/.claude/tasks` and shell snapshots are pruned after 3 days and are NEVER
+  archived. Old history is searched through session-recall (§ Past sessions are searchable) or put back with
+  `.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id | agent-<id>> [--slug <slug>]`
   (`--status` and `--verify-ledger` are the morning check). Rotating the session (`/clear <agent>-<date>`, D-1119,
   D-1123) happens at an item boundary, never mid-item — the item (a work-store item, or the task you were given)
   closed, committed and pushed, no run record `running`, no seat in flight, the worktree clean — and is due there once

@@ -290,3 +290,22 @@ def test_step2_writes_each_password_file_mode_0600(monkeypatch, tmp_path):
     for role, pw in pws.items():
         f = tmp_path / "s" / f"{role}.pw"
         assert f.read_text() == pw + "\n" and stat.S_IMODE(f.stat().st_mode) == 0o600
+
+
+def test_step3c_strands_nothing_in_the_hub_root_when_the_replace_fails(monkeypatch, tmp_path):
+    """The new .env is staged under the gitignored backups/, so a crash never strands a secret in the hub root."""
+    hub = tmp_path / "hub"  # tmp_path itself also holds the conftest's state dirs
+    (hub / "backups").mkdir(parents=True)
+    (hub / ".env").write_text("A=1\n")
+    monkeypatch.setattr(m, "HUB", hub)
+    monkeypatch.setattr(m, "gate", lambda *a: None)
+
+    def boom(*a):
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(m.os, "replace", boom)
+    pws = dict.fromkeys(m.HUB_ENV_KEYS, "x" * 32)
+    with pytest.raises(OSError):
+        m.step3c_record_hub(pws)
+    assert sorted(p.name for p in hub.iterdir()) == [".env", "backups"]
+    assert (hub / ".env").read_text() == "A=1\n"

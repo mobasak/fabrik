@@ -295,6 +295,16 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
         "fix: allowlist x (red on master since W-1)",
         date=f"{DAY}T15:00:00",
     )
+    # a hypothetical on DAY is no red master (W-d633d5f5): the count stays 3
+    _git(
+        repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "fix: re-apply x\n\nleft on the branch it would turn master red",
+        date=f"{DAY}T16:00:00",
+    )
     # exactly at the next midnight: the next day's, never both (git's --until is inclusive)
     _git(
         repo,
@@ -363,6 +373,84 @@ def test_red_master_counts_arrivals_and_fails_open(env, monkeypatch):
     monkeypatch.setenv("KAIZEN_WASTE_GIT_REPO", str(env / "missing"))
     broken, _ = kw.compute_day(DAY)["waste_red_master_rework"]
     assert not broken.measurable and broken.detail
+
+
+def test_red_master_phrase_skips_hypotheticals():
+    # W-d633d5f5: a modal governing the verb that forms the phrase is a hypothetical, not a red
+    # master (2edc9545f, 0e8aacd73 on origin/master); the escape variants both ways
+    not_rework = (
+        "fix: re-apply it\n\ncarried on a branch that is merge-requested, it would turn master red.",
+        "fix: pin the charter\n\nold charter words and would read red on master without this).",
+        "fix: guard\n\nit could not go red on master",
+        "fix: guard\n\nthis will turn master red once merged",
+        "fix: guard\n\nit won't go red on master",
+        "fix: guard\n\nit can't turn master red",
+        "fix: guard\n\nit cannot go red on master",
+        "fix: guard\n\nit would've turned master red",
+        "fix: guard\n\nit'd turn master red",
+        "fix: guard\n\nit `would` turn master red",
+        "fix: guard\n\nit WOULD\nturn master red",
+        "fix: guard\n\nit is going to turn master red",
+        "fix: guard\n\nit would turn the build on master red",
+        "fix: guard\n\nit would turn the whole build on master red",
+        "fix: guard\n\nit would also turn master red",
+        "fix: guard\n\nit could easily go red on master",
+        "fix: guard\n\nit would mean master is red",
+        "fix: guard\n\nit would cause a red master",
+        "fix: guard\n\nwe'd turn master red",
+        "fix: guard\n\nI’d turn master red",
+        "fix: guard\n\nit would not necessarily turn master red",
+    )
+    rework = (
+        "fix: allowlist x (red on master since W-1)",
+        "fix(tests): two graders red on master since the retention merge",
+        "fix: x\n\ntest_y went red on master. Both byte-identical paragraphs moved.",
+        "fix: x\n\nMaster went red after the /hibernate merge",
+        "fix: x\n\nthe cap was not updated, so master went red. W-7c8e293f.",
+        "fix: x\n\nthe test would not run, so master went red",
+        "fix: x\n\nthe test would not run so master went red",
+        "fix: x\n\nthe gate should have caught this but master went red",
+        "fix: x\n\nwe can see that master is red",
+        "fix: x\n\nsince 3 May master went red",
+        "fix: x\n\nwe'd left master red for two hours",
+        "fix: x\n\nthe merge they'd made left master red",
+        "fix: x\n\nwe will be fine now since master is red",
+        "fix: x\n\nit will keep working because master turned red",
+        "fix: x\n\nthis should make the check that turned master red pass again",
+        "fix: x\n\nthe tests should be green now that red on master is fixed",
+        "fix: x\n\nwe will put the guard back where master went red",
+        "fix: x\n\na bad merge can and did turn master red",
+        "fix: x\n\nit would turn it off. Then master went red",
+        "fix: x\n\nthe scan " + "q" * 75 + " master went red",
+        "fix: x\n\nit would turn master red. Separately, red on master since a90b35a3b",
+        "fix(x): one grader per text (red on master's skeleton: the bare `citation` cell).",
+        "fix: x\n\n3 failed on master 0ac19d87d; the existing gate test is the grader (red on master)",
+        "fix: red master again",
+    )
+    for msg in not_rework:
+        assert not kw._is_red_master_rework(msg), msg
+    for msg in rework:
+        assert kw._is_red_master_rework(msg), msg
+
+
+def test_a_version_bump_republishes_the_breakdown_and_the_digest_reads_its_own_version(env):
+    # W-d633d5f5: a day whose breakdown was written under v1 gets its v2 cut beside it (once),
+    # and the digest reads only the cut whose `def` matches the series version it judges
+    state = env / "kaizen"
+    mid = "waste_red_master_rework"
+    assert kw.registry()[mid]["version"] == 2
+    old = {"day": DAY, "metric": mid, "version": 1, "by": "agent", "key": "old", "numerator": 3}
+    state.mkdir(parents=True, exist_ok=True)
+    kw.breakdown_path(state).write_text(json.dumps(old) + "\n")
+    cut = {mid: [{"by": "agent", "key": "new", "numerator": 2}]}
+    kw._write_breakdown(DAY, cut, state)
+    kw._write_breakdown(DAY, cut, state)  # idempotent per (day, metric, def)
+    rows = [json.loads(ln) for ln in kw.breakdown_path(state).read_text().splitlines()]
+    assert [(r["key"], r.get("def", 1)) for r in rows] == [("old", 1), ("new", 2)]
+    v1 = {mid: state / "series" / f"{mid}@v1.jsonl"}
+    v2 = {mid: state / "series" / f"{mid}@v2.jsonl"}
+    assert [r["key"] for r in kd._cut(rows, v2)[(DAY, mid)]] == ["new"]
+    assert [r["key"] for r in kd._cut(rows, v1)[(DAY, mid)]] == ["old"]
 
 
 def _series_day(env: Path, metric: str, day: str) -> None:

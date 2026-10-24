@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T16:23:56.286225Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-dd0383f6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure per-site counts, then decide ratchet vs advisory in the project gate",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "residue"
+  ],
+  "title": "Mechanical Tailwind checks the factory asked for (mail 01M5Q7EJMS): arbitrary-value count, raw-hex count, prettier-plugin-tailwindcss ordering, CSS size budget — measured baseline in web-ecommerce-factory templates+sites+packages: 172 arbitrary values, 6 raw hex in 70 .astro files; measure fire rate per FIX DIRECTIVE 5 before any gate; found by W-dab6a341"
+}

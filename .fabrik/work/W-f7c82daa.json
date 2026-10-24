@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T11:14:29.913413Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f7c82daa",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one timer, one script, one test; after W-36687f76 merges",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: closes the silent-failure gap in the only chat backup that the run-time alert cannot see; effort low: one timer, one script, one test",
+  "status": "open",
+  "title": "Morning freshness check for the nightly chat backup (follow-up to W-36687f76): a small morning timer that mails when the newest row of ~/.claude/archive/manifest.jsonl or the newest apply row of prune-log.jsonl is older than ~26 h — catches a night the timer never fired, a down user manager (W-44213bf6's class) or a box that was off, which the run-time failure alert cannot see (Opus + Fable design critiques on W-36687f76)"
+}

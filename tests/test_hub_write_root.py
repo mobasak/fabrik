@@ -356,6 +356,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sysadmin/selfwatch_check.py": "untracked: self-watch arm marker under ~/.claude, outside the repo (invokes selfwatch_arm.sh by path)",
     "scripts/sysadmin/send-telegram.sh": "untracked: reads gitignored .env.sysadmin only; sends to the Telegram API, no local tracked-file write",
     "scripts/sysadmin/transcript_size_check.py": "untracked: reads the default SESSION_ARCHIVE_ENV_FILE `/opt/fabrik/.env` and PRINTS a `/opt/fabrik/scripts/whoami_agent.py` command; its one write is the rotate-advised stamp under ~/.claude/state (the context sensor's under its .ctx/ subdir)",
+    "scripts/sysadmin/vps1_pg_scoped_logins.py": "untracked: operator-run credential rotation (D-1176), refused from any cwd but /opt/fabrik; its local writes go only there, to the gitignored .env and under backups/ (password files, the .env backup, the .env staging file); its other writes are vps1 files over ssh",
     "scripts/sysadmin/vps_script_drift.py": "untracked: reads the hub HEAD via git (honours $FABRIK_ROOT) and the VPS copies over ssh; its watermark lives under ~/.claude/state, no tracked-file write",
     ".claude/hooks/mail_notify.py": "untracked: reads /opt/fabrik-mail (sanctioned exception, CLAUDE.md HARD STOPS); its one write is the per-session digest under ~/.claude/state/mail-notify, outside the repo",
     "src/fabrik/drivers/modal_provider.py": "untracked: reads gitignored .env.sysadmin + a fixed template dir; its Modal deployment output is written into the TARGET project, not a hub-hardcoded tracked path",
@@ -431,7 +432,7 @@ ALLOWLIST: dict[str, str] = {
     # ── the former `deferred` rows, measured (W-319a83d7): update_vps_docs.py is CONVERTED ──
     "scripts/sysadmin/kaizen_digest.py": "read: REPO only locates send-telegram.sh to execute (:123); it writes no tracked file — `kaizen-log-*.md` is text in its message (:115)",
     "scripts/sysadmin/kaizen_shrink_audit.py": "no-write: REPO = Path(__file__).resolve().parents[2] (:53), so kaizen-shrink-audit.md (:1065) is already worktree-relative; its /opt/fabrik literals classify crontab lines (:512, :516)",
-    "scripts/review_loop_ledger.py": "read: its only hit is a comment naming PIN_IMPORT's FABRIK_ROOT warning (:352); it writes only under the caller's --pins-dir",
+    "scripts/review_loop_ledger.py": "read: its hits are a comment naming PIN_IMPORT's FABRIK_ROOT warning and stage's printed launcher text (FABRIK_ROOT set to the staged tree); it writes only under the caller's --pins-dir and stage's --out (refused inside a work tree unless ignored, or under home) with its sibling home/ and tmp/",
 }
 
 _EXCLUDED_DIR_PREFIXES = ("tests/", "libs/", "scripts/.archive/", "scripts/archived/")

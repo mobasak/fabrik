@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -2782,3 +2783,151 @@ def test_overlay_replaces_a_link_the_change_made_a_file(tmp_path: Path) -> None:
     assert not (arch / "scripts" / "inrepo.py").is_symlink()
     assert (arch / "scripts" / "inrepo.py").read_text() == "print('NEWFILE')\n"
     assert (arch / "templates" / "t.py").read_text() == "print('template')\n"
+
+
+# ---- W-b976638f: the `stage` verb builds the tree the rendered recipe builds ----
+
+
+def _pinned_parent_link_tree(tmp: Path) -> tuple[Path, Path]:
+    """A tracked directory link `lib -> src/lib` holding x.py and y.py; the change edits x.py through the link."""
+    repo = tmp / "repo"
+    (repo / "src" / "lib").mkdir(parents=True)
+    (repo / "src" / "lib" / "x.py").write_text("X0\n")
+    (repo / "src" / "lib" / "y.py").write_text("Y0\n")
+    (repo / "lib").symlink_to("src/lib")
+    env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "PATH": "/usr/bin:/bin"}
+    for argv in (["init", "-q"], ["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "b"]):
+        subprocess.run(["git", *argv], cwd=repo, check=True, env=env, capture_output=True)
+    (repo / "src" / "lib" / "x.py").write_text("XP\n")
+    pins = tmp / "pins"
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "pin", "--pins-dir", str(pins)]
+        + ["--base", "HEAD", "lib/x.py"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    return pins, Path(json.loads(got.stdout.splitlines()[-1])["base_pin_dir"])
+
+
+def _unlock_tree(top: Path) -> None:
+    for d, _, names in os.walk(top):
+        Path(d).chmod(0o755)
+        for n in names:
+            if not (Path(d) / n).is_symlink():
+                (Path(d) / n).chmod(0o644)
+
+
+def _tree_shape(top: Path) -> dict[str, tuple[str, str]]:
+    """Every path under `top`: a link by its target text, a file by its bytes, a directory by its kind."""
+    shape: dict[str, tuple[str, str]] = {}
+    for d, dirs, names in os.walk(top):
+        for n in dirs + names:
+            p = Path(d) / n
+            rel = str(p.relative_to(top))
+            if p.is_symlink():
+                shape[rel] = ("link", os.readlink(p))
+            elif p.is_dir():
+                shape[rel] = ("dir", "")
+            else:
+                shape[rel] = ("file", p.read_text())
+    return shape
+
+
+def _run_stage(tmp: Path, pins: Path) -> dict:
+    (tmp / "stage").mkdir()
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "stage", "--pins-dir", str(pins)]
+        + ["--out", str(tmp / "stage" / "arch")],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        cwd=str(tmp),
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    return json.loads(got.stdout.splitlines()[-1])
+
+
+@pytest.mark.parametrize("shape", ["link-target-pinned", "link-made-a-file", "parent-link"])
+def test_stage_builds_the_recipes_tree(tmp_path: Path, shape: str) -> None:
+    """EXECUTE both: the rendered recipe's copy, chmod and overlay program, and `stage` — on the same pins, the two
+    trees are path-for-path identical (links by target, files by bytes). The parent-link shape is the one both design
+    critiques executed: the recipe writes through an in-tree directory link and keeps its other files."""
+    if shape == "parent-link":
+        pins, base = _pinned_parent_link_tree(tmp_path)
+    else:
+        pins, base = _pinned_link_tree(tmp_path, link_becomes_file=shape == "link-made-a-file")
+    recipe = _run_the_rendered_copy_and_overlay(tmp_path, pins, base)
+    doc = _run_stage(tmp_path, pins)
+    staged = Path(doc["arch"])
+    assert doc["source"] == "base-copy", doc
+    assert _tree_shape(staged) == _tree_shape(recipe), shape
+    if shape == "parent-link":
+        assert _tree_shape(staged)["src/lib/y.py"] == ("file", "Y0\n")
+    # the archive route (no base copy beside the pins) builds the same tree (review pass 1, B-S4/B-H3)
+    plain = tmp_path / "plain"
+    manifest = json.loads((pins / "MANIFEST.json").read_text())
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "pin", "--pins-dir", str(plain)]
+        + ["--base", manifest["base_sha"], *manifest["files"]],
+        cwd=manifest["root"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    _unlock_tree(Path(f"{plain}.base"))
+    shutil.rmtree(f"{plain}.base")
+    (tmp_path / "archived").mkdir()
+    arch = tmp_path / "archived" / "arch"
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "stage", "--pins-dir", str(plain)]
+        + ["--out", str(arch)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        cwd=str(tmp_path),
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    assert json.loads(got.stdout.splitlines()[-1])["source"] == "archive"
+    assert _tree_shape(arch) == _tree_shape(recipe), shape
+
+
+def test_stage_launcher_matches_the_recipe(tmp_path: Path) -> None:
+    """The `pytest` line stage prints is PYTEST_PINS's launcher program with SCRATCH bound — byte-equal, so the two
+    copies cannot drift — and its python is the repo's .venv one when the pinned repo has it."""
+    pins, _ = _pinned_link_tree(tmp_path, link_becomes_file=False)
+    p = _finder_and_refuter_prompts({**_ARGS, "pins_dir": str(pins)})["find:S:sonnet"]
+    m = re.search(r"`python -P -B -c '(import os,site,sys; os\.chdir\(\"SCRATCH/arch\"\).+?)' <pytest args>`", p)
+    assert m, "the PYTEST_PINS launcher moved"
+    doc = _run_stage(tmp_path, pins)
+    scratch = str(tmp_path / "stage")
+    python, _, rest = doc["pytest"].partition(" -P -B -c '")
+    assert rest == m.group(1).replace("SCRATCH", scratch) + "' <pytest args>", (rest, m.group(1))
+    assert python == sys.executable  # the fixture repo has no .venv
+
+
+def test_prompts_point_at_the_stage_verb() -> None:
+    """Every prompt carrying the recipe names the verb once, with the pins dir filled, BEFORE the archive steps,
+    which stay whole as its fallback."""
+    for label, p in _finder_and_refuter_prompts({**_ARGS, "pins_dir": "/pp"}).items():
+        cmd = "`python3 -P -B /opt/fabrik/scripts/review_loop_ledger.py stage --pins-dir /pp --out SCRATCH/arch`"
+        assert p.count("ONE COMMAND STAGES THE TREE") == 1 and cmd in p, label
+        assert p.index(cmd) < p.index("git archive -o SCRATCH/arch.tar 0 ROOTS"), label
+        assert "on any other refusal (exit 2, the reason on stderr) or `invalid choice: 'stage'`" in p, label
+        # review pass 1: a moved pin stops the seat (B-S5); skipped members are UNPINNED (B-S2); PYTEST_PINS's
+        # archive is skipped too (B-S3); the verb's one deletion is inside SCRATCH (B-S1)
+        assert "On a refusal about the pins dir itself — PIN MOVED, UNPINNED," in p and "stage nothing by hand" in p, label
+        # review pass 2, B-H8: every refusal _read_pins raises is a stop, so the manual overlay never runs on them
+        for why in ("an unsafe path", "no pinned files", "is not JSON", "does not list the files MANIFEST.json names"):
+            assert why in p, (label, why)
+        assert "name it UNPINNED, never a red of the change" in p, label
+        assert "PYTEST_PINS's archive of the test tree and its overlay too" in p, label
+        # review pass 2, B-S6: the verb deletes more than its refused tree, all of it inside SCRATCH
+        assert "every deletion it makes is inside SCRATCH" in p and "its own tar under SCRATCH/tmp" in p, label

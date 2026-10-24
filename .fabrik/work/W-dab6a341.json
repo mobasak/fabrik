@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T15:12:00.888775Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-dab6a341",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 0,
+  "score_reason": "URGENT: the operator said 'this work is urgent'; owner kaizen (rule wording) is paused; infra-2 already holds the sibling design-system font change W-eaa745f3, so it runs second (D-983)",
+  "status": "open",
+  "tags": [
+    "mail-01m5q7ejmsw4790z8j1g6cnn2h"
+  ],
+  "title": "URGENT mail 01M5Q7EJMS (web-ecommerce-factory, operator 2026-10-24: 'i want it to be utilized utmost… this work is urgent'): digest the Tailwind best-practices article fully into the fleet rules — 26 items dispositioned (ADOPT 15, ADAPT 6, COVERED 3, REJECT 2); proposed home a 'Tailwind v4 usage' section in core/design-system-template.md grounded on tailwindcss.com v4 docs; verify the font-token name and @apply claims; fix the pack's globs to match *.astro and v4 @theme stylesheets; reply landed/deferred/refuted"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "63836a851d843f2f7aa2c59ba09109cb9de3e0a51f8fc850683482d9996358f3",
+  "blocked_by": [],
+  "created": "2026-10-24T15:20:03.962777Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-29cc295e",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "047c61840ffd3d38ea82dc6fe26e2e14f4cf31edf093ee02e47d1a24a3bedd70"
+  ],
+  "next": "",
+  "note": "yes it is urgent dispatch a new agent i need it asap.",
+  "owner": "",
+  "priority": 2,
+  "question": "May I resume one more builder, infra-3, just for REA, so it starts now instead of after infra-2's two urgent items?",
+  "status": "done",
+  "title": "May I resume one more builder, infra-3, just for REA, so it starts now instead of after infra-2's two urgent items?"
+}

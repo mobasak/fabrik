@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T15:50:47.563642Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-b61e5f00",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1200",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide with fleet whether the chrome-ext scaffold emits brand-neutral slots or nothing; fix the emitter and its test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "src/fabrik/scaffold.py:6753-6760 emits the chrome-extension global.css as 'Ocoron Design System (Compact) tokens' with --font-sans 'Inter' and a stale accent (#4f46e5 vs #5B5BF7), and cites a chrome-ext/70-chrome-ext.md section that does not exist — after D-1200 the Ocoron fonts are Arya + IBM Plex Sans, and D-051 says a house brand is declared, never a scaffold default (found by the W-eaa745f3 design critiques)"
+}

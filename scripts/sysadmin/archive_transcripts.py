@@ -5,6 +5,15 @@
 Compresses MAIN Claude transcripts to zstd, records them in a manifest, and ships the archive
 straight to the Backblaze B2 bucket with rclone (D-565). Nothing lands on a VPS.
 
+THE SUBAGENT TIER (D-1182): every `<slug>/<session-dir>/subagents/**/*.jsonl` — sidechains, workflow
+sidechains and workflow journals; never a `.meta.json` — is archived the same way, keyed
+(project_slug, rel) where `rel` is its path under the slug dir, the object at `<slug>/<rel>.zst` (the
+local layout, so `ship()` uploads it unchanged), its rows in their OWN manifest
+`manifest-subagents.jsonl` (project_slug, rel, session_id = the session dir, sha256, bytes, mtime_ns,
+archived_at) so no reader of the MAIN manifest can mis-key one. A tier file that fails to archive is
+printed `FAILED … the pruner keeps it` and the night goes on: `prune_transcripts.py` deletes a sidechain
+only when this manifest, its `.zst` and the bucket vouch for its bytes.
+
 ⚠️ THIS SCRIPT NEVER DELETES A TRANSCRIPT OR AN ARCHIVED OBJECT — locally or in the bucket (it
 removes only its own temporary `.snapshot-*` copy). Pruning is Phase C's
 `prune_transcripts.py` — the ONLY deleter, eight fail-closed guards, a 3-day window (D-736) — which
@@ -30,6 +39,12 @@ older row's bytes live on as a prior version in the bucket (it keeps all version
 
 Hard links (D-467 links worktree transcripts into their repo's lane) are archived ONCE per
 (st_dev, st_ino), under the first slug in sorted order; the others go in `also_slugs`.
+
+SET-ASIDES (D-1188): Claude Code renames a transcript it relocates over to
+`<slug>/<sid>.jsonl.superseded-<ms>` (`SET_ASIDE_RE`). It is a MAIN name: an inode that also has a live
+`<sid>.jsonl` name is archived under that live name (live names sort first, `main_sort_key`) and the
+set-aside's slug never enters `also_slugs`; a set-aside-ONLY inode is archived under its own key
+`<sid>.superseded-<ms>`, object `<slug>/<sid>.superseded-<ms>.jsonl.zst` (`main_key`, `local_name`).
 
 THE `agent` KEY (Phase C.1, D-736): a row carries `"agent": "<name>"` when the session is bound to
 a hub agent — the latest `agent-identity.jsonl` row for its session id (what `whoami_agent.py`
@@ -76,6 +91,14 @@ import time
 from pathlib import Path
 
 MANIFEST_NAME = "manifest.jsonl"
+SUBAGENT_MANIFEST_NAME = "manifest-subagents.jsonl"  # the subagent tier's rows (D-1182)
+SUBAGENT_GLOB = "*/*/subagents/**/*.jsonl"
+# A set-aside (W-a2cae11b): Claude Code's `relocateSessionTranscript` renames a transcript occupying a
+# destination to `<sid>.jsonl.superseded-<ms>`. ASCII classes on purpose: `\d` takes non-ASCII digits,
+# which `prune_transcripts._SID_RE` could not restore.
+SET_ASIDE_RE = re.compile(r"([A-Za-z0-9][A-Za-z0-9_-]*)\.jsonl\.superseded-([0-9]+)")
+_SET_ASIDE_KEY_RE = re.compile(r"([A-Za-z0-9][A-Za-z0-9_-]*)\.superseded-([0-9]+)")  # its key
+MAIN_GLOBS = ("*/*.jsonl", "*/*.jsonl.superseded-*")
 LOCK_NAME = ".archive.lock"
 SNAPSHOT_PREFIX = ".snapshot-"  # the frozen copy of a transcript being archived; never shipped
 REMOTE = "sessionb2"
@@ -199,29 +222,74 @@ def _remote_base() -> str:
 # ── selection and archiving (A.1, A.1a, A.1b) ───────────────────────────────────────────────
 
 
+def main_key(p: Path) -> tuple[str, str, bool] | None:
+    """(manifest key, base session id, is a set-aside) for a MAIN name, else None. A live
+    `<sid>.jsonl` keys as `<sid>`; a set-aside `<sid>.jsonl.superseded-<ms>` as `<sid>.superseded-<ms>`,
+    so a set-aside-ONLY inode never takes the key of a different live file beside it. A live stem that
+    itself reads `<sid>.superseded-<ms>` would collide with that key and is not a MAIN name."""
+    m = SET_ASIDE_RE.fullmatch(p.name)
+    if m:
+        return f"{m.group(1)}.superseded-{m.group(2)}", m.group(1), True
+    if p.suffix == ".jsonl" and not _SET_ASIDE_KEY_RE.fullmatch(p.stem):
+        return p.stem, p.stem, False
+    return None
+
+
+def main_sort_key(p: Path) -> tuple[bool, Path]:
+    """Live names before set-asides, so an inode with a live name keeps its live key and primary slug
+    (plain Path order puts `-opt-x/<sid>.jsonl.superseded-*` before `-opt-x--wt/<sid>.jsonl`)."""
+    return SET_ASIDE_RE.fullmatch(p.name) is not None, p
+
+
+def local_name(key: str) -> str:
+    """The on-disk name a manifest key describes — the inverse of `main_key`, by the same grammar."""
+    m = _SET_ASIDE_KEY_RE.fullmatch(key)
+    return f"{m.group(1)}.jsonl.superseded-{m.group(2)}" if m else f"{key}.jsonl"
+
+
 def main_transcripts(projects: Path, after_days: float) -> list[Path]:
-    """MAIN transcripts only — `*/subagents/*` is a separate tier and never enters the archive."""
+    """MAIN transcripts only — live names and set-asides; `*/subagents/*` is a separate tier."""
     cutoff = time.time() - after_days * 86400
     out = []
-    for p in projects.glob("*/*.jsonl"):
-        if "/subagents/" in str(p):  # defensive: the glob cannot reach them, the tier can
+    for p in {q for g in MAIN_GLOBS for q in projects.glob(g)}:  # a set: a name may match both
+        if "/subagents/" in str(p) or main_key(p) is None:  # the tier reaches subagents/, not this
             continue
         if p.is_file() and p.stat().st_mtime <= cutoff:
             out.append(p)
     return sorted(out)
 
 
+def subagent_transcripts(projects: Path, after_days: float) -> list[Path]:
+    """The subagent tier (D-1182): every `.jsonl` below a `<slug>/<session-dir>/subagents/` dir."""
+    cutoff = time.time() - after_days * 86400
+    out = []
+    for p in projects.glob(SUBAGENT_GLOB):
+        try:
+            if p.is_file() and not p.is_symlink() and p.stat().st_mtime <= cutoff:
+                out.append(p)
+        except FileNotFoundError:  # vanished between the glob and the stat
+            continue
+    return sorted(out)
+
+
 def _group_by_inode(paths: list[Path]) -> list[tuple[Path, list[str]]]:
-    """One (primary path, other slugs) per file; the primary is the first path in sorted order."""
+    """One (primary path, other slugs) per file; the primary is the first path in `main_sort_key`
+    order (a live name when the inode has one). The other slugs are those of its other LIVE names: a
+    set-aside LINK never enters `also_slugs`, which reads as "`<slug>/<sid>.jsonl` is a name of this
+    inode" — the pruner vouches a set-aside link through its inode's live rows (a set-aside-ONLY
+    inode is its own primary, with a row of its own)."""
     groups: dict[tuple[int, int], list[Path]] = {}
-    for p in sorted(paths):
+    for p in sorted(paths, key=main_sort_key):
         try:
             st = p.stat()
         except FileNotFoundError:  # vanished between the scan and this stat (C.2): say so, go on
             print(f"  vanished {p} (removed since the scan) — skipped")
             continue
         groups.setdefault((st.st_dev, st.st_ino), []).append(p)
-    return [(ps[0], sorted({q.parent.name for q in ps[1:]})) for ps in groups.values()]
+    return [
+        (ps[0], sorted({q.parent.name for q in ps[1:] if not SET_ASIDE_RE.fullmatch(q.name)}))
+        for ps in groups.values()
+    ]
 
 
 def _latest_rows(manifest: Path) -> dict[tuple[str, str], dict]:
@@ -237,6 +305,16 @@ def _latest_rows(manifest: Path) -> dict[tuple[str, str], dict]:
                     latest[(alias, r["session_id"])] = r
             except (ValueError, KeyError, TypeError):
                 continue
+    return latest
+
+
+def _latest_subagent_rows(manifest: Path) -> dict[tuple[str, str], dict]:
+    """(project_slug, rel) → the latest row of the subagent tier's own manifest (D-1182)."""
+    latest: dict[tuple[str, str], dict] = {}
+    for r in _json_rows(manifest):
+        slug, rel = r.get("project_slug"), r.get("rel")
+        if isinstance(slug, str) and isinstance(rel, str) and slug and rel:
+            latest[(slug, rel)] = r
     return latest
 
 
@@ -353,7 +431,8 @@ def list_agent(manifest: Path, name: str, projects: Path) -> list[str]:
         else:  # absent, null, or a scalar the archiver never writes: no aliases (archiver-S8)
             also = []
         slugs = [str(r.get("project_slug") or ""), *also]
-        local = any((projects / s / f"{r.get('session_id')}.jsonl").exists() for s in slugs if s)
+        name = local_name(str(r.get("session_id")))
+        local = any((projects / s / name).exists() for s in slugs if s)
         out.append(
             f"{r.get('session_id')} {r.get('project_slug')} bytes={r.get('bytes')} "
             f"archived_at={r.get('archived_at')} local={'yes' if local else 'no'}"
@@ -368,9 +447,14 @@ def archive_one(
     latest: dict[tuple[str, str], dict],
     also_slugs: list[str],
     agent: str | None = None,
+    *,
+    tier_key: tuple[str, str] | None = None,
 ) -> dict | None:
     """Compress one transcript and return its NEW manifest row, or None when nothing changed.
 
+    MAIN (`tier_key` None): keyed (slug, session id) from `<slug>/<sid>.jsonl`, object
+    `<slug>/<sid>.jsonl.zst`. The subagent tier passes `tier_key=(slug, rel)`, `rel` being the path under
+    the slug dir: object `<slug>/<rel>.zst`, `latest` the tier's own manifest (D-1182).
     A file over the per-file ceiling is REPORTED and skipped, never silently archived."""
     st = src.stat()
     if max_bytes is not None and st.st_size > max_bytes:
@@ -378,10 +462,28 @@ def archive_one(
             f"  OVER-CEILING {src.name}: {st.st_size} bytes > {max_bytes} — reported, NOT archived"
         )
         return None
-    slug, session_id = src.parent.name, src.stem
-    dest = archive_root / slug / f"{session_id}.jsonl.zst"
-    prev = latest.get((slug, session_id))
-    archived = bool(prev) and (archive_root / prev["project_slug"] / dest.name).exists()
+    if tier_key is None:
+        name_key = main_key(src)
+        if name_key is None:
+            raise ArchiveError(f"{src} is not a MAIN transcript name")  # main_transcripts never yields one
+        slug, session_id = src.parent.name, name_key[0]
+        key = (slug, session_id)
+        dest = archive_root / slug / f"{session_id}.jsonl.zst"
+    else:
+        (slug, rel), key = tier_key, tier_key
+        session_id = rel.split("/", 1)[0]  # the session dir: `<uuid>` or `<uuid>.superseded-<ms>`
+        dest = archive_root / slug / f"{rel}.zst"
+    prev = latest.get(key)
+    if tier_key is None:
+        # a hard-linked twin's row lives under its primary slug (`also_slugs`) — but only while that
+        # primary key still names the row: once another inode's row owns it (Claude Code moved a new
+        # transcript in, setting this one aside), the object there is the other inode's bytes, so this
+        # inode is archived again under its own slug (review W-a2cae11b r1, O1)
+        if prev and latest.get((prev["project_slug"], session_id)) is not prev:
+            prev = None
+        archived = bool(prev) and (archive_root / prev["project_slug"] / dest.name).exists()
+    else:
+        archived = bool(prev) and dest.exists()
     if archived and prev.get("bytes") == st.st_size and prev.get("mtime_ns") == st.st_mtime_ns:
         return None  # A.1a: unchanged since the last archive — no hash, no compression
     # An open window appends while we read, so hash and compress ONE frozen copy: the row must
@@ -401,20 +503,28 @@ def archive_one(
         after = src.stat()
         mtime_ns = after.st_mtime_ns if after.st_size == size else st.st_mtime_ns
         dest.parent.mkdir(parents=True, exist_ok=True)
+        # Compressed and tested beside the snapshot, then renamed into place (same filesystem): a
+        # compress or test that fails never leaves a partial `.zst` at `dest` for `ship()` to upload
+        # over the key's last good version (review W-62d2ce7d pass 1, A-haiku-1).
+        out = Path(tmp) / "object.jsonl.zst"
         subprocess.run(  # noqa: S603
-            ["zstd", "-12", "-q", "-f", str(snap), "-o", str(dest)], check=True, timeout=1800
+            ["zstd", "-12", "-q", "-f", str(snap), "-o", str(out)], check=True, timeout=1800
         )
-    # A manifest row is a PROMISE that the bytes exist and are readable.
-    subprocess.run(["zstd", "-t", "-q", str(dest)], check=True, timeout=600)  # noqa: S603
+        # A manifest row is a PROMISE that the bytes exist and are readable.
+        subprocess.run(["zstd", "-t", "-q", str(out)], check=True, timeout=600)  # noqa: S603
+        os.replace(out, dest)
     row = {
         "project_slug": slug,
         "session_id": session_id,
         "sha256": digest,
         "bytes": size,
         "mtime_ns": mtime_ns,
-        "also_slugs": also_slugs,
         "archived_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if tier_key is None:
+        row["also_slugs"] = also_slugs
+    else:
+        row["rel"] = tier_key[1]
     if agent:
         row["agent"] = agent  # absent, never null, for an unbound session (C.1.1)
     return row
@@ -432,6 +542,8 @@ def ship(archive_root: Path, env: dict[str, str]) -> None:
         "--exclude",
         f"/{MANIFEST_NAME}",
         "--exclude",
+        f"/{SUBAGENT_MANIFEST_NAME}",
+        "--exclude",
         f"/{LOCK_NAME}",
         "--exclude",
         f"/{SNAPSHOT_PREFIX}*/**",
@@ -444,13 +556,16 @@ def ship_manifest(archive_root: Path, env: dict[str, str]) -> None:
     # network that blocks that host (an SNI filter did on 2026-10-08, while uploads worked) hangs
     # the upload. Cost: a run that appended no row uploads an identical manifest, one more kept
     # version (~2 MB); with open windows changing daily, nearly every run appends rows anyway.
-    _rclone(
-        "copyto",
-        "--no-check-dest",
-        str(archive_root / MANIFEST_NAME),
-        f"{_remote_base()}/{MANIFEST_NAME}",
-        env=env,
-    )
+    # The MAIN manifest first, then the subagent tier's (D-1182) when it exists.
+    for name in (MANIFEST_NAME, SUBAGENT_MANIFEST_NAME):
+        if (archive_root / name).exists():
+            _rclone(
+                "copyto",
+                "--no-check-dest",
+                str(archive_root / name),
+                f"{_remote_base()}/{name}",
+                env=env,
+            )
 
 
 # ── the verification verbs the gates use (A.2b) ─────────────────────────────────────────────
@@ -501,12 +616,13 @@ session, and what session-recall indexes. Deleting them to free disk space loses
 (it happened on 2026-09-03: 11 project folders emptied, found days later).
 
 An off-site copy is shipped daily to Backblaze B2 by scripts/sysadmin/archive_transcripts.py
-(docs/workstation/session-history-retention.md in /opt/fabrik). The ONLY thing that prunes
-them is scripts/sysadmin/prune_transcripts.py (D-736): after a 3-day window, never an open
-session, never a project's or an agent's newest, never a file the archive and the bucket cannot
-prove byte-for-byte — and every deletion is listed in ~/.claude/archive/pruned.jsonl, which
-`prune_transcripts.py --restore <session_id>` puts back. If disk is short, ask before removing
-anything by hand.
+(docs/workstation/session-history-retention.md in /opt/fabrik) — the subagents/ transcripts
+too (D-1182). The ONLY thing that prunes them is scripts/sysadmin/prune_transcripts.py (D-736):
+after a 3-day window, never an open session, never a project's or an agent's newest, never a
+file the archive and the bucket cannot prove byte-for-byte — and every deletion is listed in
+~/.claude/archive/pruned.jsonl, which `prune_transcripts.py --restore <session_id>` (or
+`--restore agent-<id>` for a subagent transcript) puts back. If disk is short, ask before
+removing anything by hand.
 """
 
 
@@ -552,9 +668,11 @@ def _archive(args: argparse.Namespace) -> int:
     if not projects.is_dir():
         raise ArchiveError(f"projects dir not found: {projects}")
     todo = main_transcripts(projects, after_days)
+    subs = subagent_transcripts(projects, after_days)
     print(f"archive_transcripts: {len(todo)} MAIN transcript(s) eligible (idle > {after_days}d)")
+    print(f"archive_transcripts: {len(subs)} subagent transcript(s) eligible (idle > {after_days}d)")
     if args.dry_run:
-        for p in todo:
+        for p in [*todo, *subs]:
             print(f"  would archive {p}")
         return 0
 
@@ -576,8 +694,9 @@ def _archive(args: argparse.Namespace) -> int:
         agents = _agents()
         rows = []
         for src, also in _group_by_inode(todo):
+            base = (main_key(src) or ("", src.stem, False))[1]  # a set-aside's agent is its session's
             try:
-                row = archive_one(src, archive_root, max_bytes, latest, also, agents.get(src.stem))
+                row = archive_one(src, archive_root, max_bytes, latest, also, agents.get(base))
             except FileNotFoundError as exc:
                 if src.exists():  # a missing zstd or archive dir, not a vanished transcript
                     raise ArchiveError(f"could not archive {src}: {exc}") from exc
@@ -590,6 +709,30 @@ def _archive(args: argparse.Namespace) -> int:
             if row:
                 rows.append(row)
 
+        # The subagent tier (D-1182): a per-file failure is reported and the night goes on — the
+        # pruner deletes nothing this manifest does not vouch for, so a skipped file is only kept.
+        sub_manifest = archive_root / SUBAGENT_MANIFEST_NAME
+        sub_latest = _latest_subagent_rows(sub_manifest)
+        sub_rows, sub_failed = [], 0
+        for src in subs:
+            slug = src.relative_to(projects).parts[0]
+            tier_key = (slug, src.relative_to(projects / slug).as_posix())
+            try:
+                row = archive_one(src, archive_root, max_bytes, sub_latest, [], tier_key=tier_key)
+            except FileNotFoundError:
+                if not src.exists():
+                    print(f"  vanished {src} (removed since the scan) — skipped")
+                    continue
+                sub_failed += 1
+                print(f"  FAILED {src}: missing file or binary — not archived; the pruner keeps it")
+                continue
+            except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+                sub_failed += 1
+                print(f"  FAILED {src}: {exc} — not archived; the pruner keeps it")
+                continue
+            if row:
+                sub_rows.append(row)
+
         # ⚠️ The objects ship BEFORE their rows are appended: a row must never vouch for bytes
         # that did not land. A failed copy ⇒ exit 1, no rows.
         if env is not None:
@@ -600,8 +743,15 @@ def _archive(args: argparse.Namespace) -> int:
         with manifest.open("a", encoding="utf-8") as fh:
             for row in rows:
                 fh.write(json.dumps(row, sort_keys=True) + "\n")
-        print(f"archive_transcripts: {len(rows)} new manifest row(s); archive at {archive_root}")
-        if env is not None and manifest.exists():
+        if sub_rows:
+            with sub_manifest.open("a", encoding="utf-8") as fh:
+                for row in sub_rows:
+                    fh.write(json.dumps(row, sort_keys=True) + "\n")
+        print(
+            f"archive_transcripts: {len(rows)} new manifest row(s), {len(sub_rows)} subagent row(s), "
+            f"{sub_failed} subagent failure(s); archive at {archive_root}"
+        )
+        if env is not None:
             # The bytes landed, so the rows are true; a failed manifest upload is retried next run.
             try:
                 ship_manifest(archive_root, env)

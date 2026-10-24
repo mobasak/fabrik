@@ -392,13 +392,14 @@ def test_measure_executes_the_incidents_sequel_both_geometries_prescribed_spelli
 
 
 def test_measure_replays_the_items_proposed_fix_and_reads_an_unreachable_source() -> None:
-    """Rows 1792467014 (a recurrence of held measure-refuted-ticket-premise) and 1792452880: a fix the item
-    proposed was adopted unreplayed, and an unreachable tool's claim was recorded unverified with its source unread;
-    the read never upgrades the claim, since phase 1 counts a source read as no measurement."""
+    """Rows 1792467014 (a recurrence of held measure-refuted-ticket-premise), 1792452880, 1792830212 and
+    1792780963: a fix the item proposed, or a prior slice's stated reason, was adopted unreplayed, and an unreachable
+    tool's claim was recorded unverified with its source unread; the read never upgrades the claim, since phase 1
+    counts a source read as no measurement."""
     phase1 = _section("## Phase 1", "## Phase 2")
     assert (
-        "A fix the item proposes is replayed the same way, on a copy, before the design adopts it; a replay that"
-        " overturns it is stated in PROBLEM."
+        "A fix the item proposes, and a prior slice's stated reason the design builds on, are replayed the same way, on"
+        " a copy, before the design adopts either; a replay that overturns either is stated in PROBLEM."
     ) in phase1
     assert (
         "An unreachable tool's server source, where one exists, is read before a claim is recorded unverified, and"
@@ -532,3 +533,39 @@ def test_mirror_searches_other_checkouts_tests_for_a_changed_path() -> None:
         "docs), every other `/opt` main checkout's tests and CI files citing a changed path, and every vendored copy"
         " outside"
     ) in _section("## Phase 2", "## Phase 3")
+
+
+def test_plan_locks_are_read_before_the_critique_seats_and_the_terminal_before_design() -> None:
+    """Row 1792834386: the plan-lock read sat after both critiques, so a locked path stopped the run only after two
+    seats were spent; it now precedes the critique fragment that stamps the seats, and the pre-`--design` checklist
+    re-runs it on every path, since a lock may be taken while the seats run (row 1791868540's defect). Rows
+    1792835476 and 1792831669 (ten answered rejects cite the `--terminal-amend` line, a line not followed): the
+    checklist now opens by re-reading `--terminal` against design.md's TERMINAL as MEASURE and the critiques left it."""
+    phase2 = _section("## Phase 2", "## Phase 3")
+    lock = phase2.index(
+        "Before the critique seats below are stamped, read the plan locks (no CLI does:"
+    )
+    assert lock < phase2.index("{{include:design-critique}}"), (
+        "the lock read must precede the seats' stamp"
+    )
+    pre_seats = phase2[lock : phase2.index("{{include:design-critique}}")]
+    assert "inside another lock's `owned_paths` is a STOP," in pre_seats
+    assert "so a locked path stops the run before a seat is spent." in pre_seats
+    assert phase2.count("read the plan locks") == 1, "the lock read is stated twice in phase 2"
+    start = phase2.index("Then, before this call:")
+    checklist = phase2[start : phase2.index("```bash", start)]
+    assert checklist.startswith(
+        "Then, before this call: re-read `design.md`, and `--terminal` against its TERMINAL as MEASURE and the"
+        " critiques left it (a change rides this call as the `--terminal-amend` below); the lock check again, on every"
+        " path (a critique may add one, and a lock may be taken while the seats ran); each Behaviour names its test;"
+    )
+
+
+def test_measure_says_a_zero_count_is_no_fail_direction() -> None:
+    """Row 1792832940, a recurrence of held zero-instance-class-refusal-first: a no-change verdict rested on a corpus
+    count for a shape the parser's grammar admits; MEASURE now constructs and runs the admitted inputs the corpus
+    lacks before such a verdict."""
+    assert (
+        "the n behind any rate, bound or zero the design will claim (a count is no fail direction: before a no-change"
+        " verdict rests on one, the inputs the grammar admits and the corpus lacks are constructed and run);"
+    ) in _section("## Phase 1", "## Phase 2")

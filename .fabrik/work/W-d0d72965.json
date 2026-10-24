@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T15:12:00.555777Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d0d72965",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q7EJMSW4790Z8J1G6CNN2H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra-2",
+  "priority": 2,
+  "status": "done",
+  "title": "URGENT — operator: digest the Tailwind best-practices article FULLY into the fleet rules (every item dispositioned), all projects"
+}
