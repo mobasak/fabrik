@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Lean command corpus design: half the text and seat time, no rule lost (2026-10-25)
+
+`docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` is CONVERGED. It went through 7 review rounds,
+with confirmed findings of 25 → 8 → 3 → 7 → 1 → 1 → 0. The Opus + Fable panel approved it as D-1217 (the
+design) and D-1219 (the time budget). It is the P0 lean program, W-96f36043, ruled by the operator as D-1216.
+
+The spec sets four things:
+- Every `/fabrik-*` command is cut to half its own text. No rule may be lost, and a sentence-diff plus a YAML
+  rule ledger prove it.
+- A full measure that counts everything a command orders read, so moving text out of the command does not count
+  as a cut.
+- Two ceilings, render and reads, that only ratchet down. The FEEDBACK form gains a required, quoted `remove:`
+  field.
+- A wall-clock and seat-minutes budget for the review-family commands, with no round cap (D-355).
+
+The order is: tooling (W-a9b5e763), a `/fabrik-review-scoped` pilot, the shared files, `/fabrik-review`, then
+the rest. The review receipt is `docs/development/reviews/2026-10-25-lean-command-corpus-spec-review.md`.
+
 ### Added — `merge_request.py request --pretest`: the owner merge tests run once per change, and a base may declare its leg limit (2026-10-24)
 
 - `scripts/merge_request.py request --pretest` runs the base's `.fabrik/merge-tests` on the merge the owner
