@@ -3,7 +3,7 @@
   "created": "2026-10-23T17:07:03.956127Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "92c0c47a6f15533bb350619b2088e921dfa0f22b",
   "id": "W-d633d5f5",
   "impact": "low",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: a measurement accuracy edge (2 of 32 hits) in intel's metrics code; about one edit",
-  "status": "open",
+  "status": "done",
   "title": "kaizen_waste red-master regex counts 'would turn master red' as rework: 2 of W-4e756979's 32 hits are not rework (infra-3 measurement, 2026-10-23)"
 }
