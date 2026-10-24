@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T23:42:27.453185Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-1766db7c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "grade against the ruling of the tree that emitted the file (the main checkout's emitter, /opt/fabrik), or downgrade a server present in master's ruling but absent from the branch's to a warning naming 'merge master'; red-prove in a throwaway worktree at a pre-REA commit",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "check_mcp_scope.py grades the LIVE /opt/*.mcp.json (emitted from master) against the running tree's ruling, so every hub worktree behind master reads a false red when master adds a server (kaizen's ca56c3462, no REA commit 1152e439f, failed on rea 2026-10-25 while master passes 41/41)"
+}
