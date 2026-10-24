@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_feedback_report.py --reasons prints each row's verdict text (2026-10-24)
+`--reasons <command>` now appends a fourth tab-separated column to every rejected row: that row's `change:` verdict text from the feedback ledger, joined on the row's `ts`. The text is cut at 200 characters (with `…`), escaped like the other columns so a row stays one line, and prints `-` when the ledger has no `change:` for it. A D-711 audit can now match held subjects on what the verdict asked for, not on slugs alone.
+
 ### Fixed — master green again: the vps1 Postgres login-rotation script gets its hub-root disposition (2026-10-24)
 
 - `tests/test_hub_write_root.py` failed on master after `scripts/sysadmin/vps1_pg_scoped_logins.py` merged, because

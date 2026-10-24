@@ -3853,11 +3853,33 @@ def test_reasons_prints_the_rejected_rows_of_one_command(tmp_path: Path, capsys)
             "1791000004.5",
             "1791000002.5",
         ], out
-        assert out[1] == "1791000001.5\tpin-recipe\tx.md:1 HELD:pin-recipe one-off, tab\\there"
+        assert out[1] == (
+            "1791000001.5\tpin-recipe\tx.md:1 HELD:pin-recipe one-off, tab\\there\t-"
+        )
         assert out[3].split("\t")[1] == "-"
         assert "answered-not-rejected" not in "\n".join(out) and "other-command" not in "\n".join(
             out
         )
+
+
+def test_reasons_prints_each_rows_verdict_text(tmp_path: Path, capsys) -> None:
+    """The ledger row's `change:` text rides on its rejected line: truncated, escaped, `-` when absent."""
+    m = _cfr()
+    ledger, _ = _reasons_index(tmp_path)
+    rows = [
+        {"ts": "1791000001.5", "command": "fabrik-review", "change": "lean: cut the\nseat | table"},
+        {"ts": "1791000004.5", "command": "fabrik-review", "change": "accurate: " + "z" * 500},
+        {"ts": "1791000002.5", "command": "fabrik-review"},
+    ]
+    ledger.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert m.main(["--reasons", "fabrik-review", "--ledger", str(ledger)]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert len(out) == 4, out
+    cols = [ln.split("\t") for ln in out[1:]]
+    assert all(len(c) == 4 for c in cols), cols
+    assert cols[0][3] == "lean: cut the\\nseat | table"
+    assert cols[1][3] == "accurate: " + "z" * 190 + "…"
+    assert cols[2][3] == "-"
 
 
 def test_reasons_held_keeps_only_tagged_rows(tmp_path: Path, capsys) -> None:
@@ -3972,7 +3994,7 @@ def test_reasons_review_fixes_hold(tmp_path: Path, capsys) -> None:
         )
     assert m.main(["--reasons", "c5", "--ledger", str(ledger)]) == 0
     out = capsys.readouterr().out.splitlines()
-    assert out[1:] == ["w\\tx\\ny\t-\tline1\\nline2\\r\\\\end"], out
+    assert out[1:] == ["w\\tx\\ny\t-\tline1\\nline2\\r\\\\end\t-"], out
     assert m.main(["--reasons", "no-such-command", "--ledger", str(ledger)]) == 0
     assert "NO row of any kind for /no-such-command" in capsys.readouterr().out
     for argv in (

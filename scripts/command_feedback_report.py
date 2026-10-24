@@ -2409,6 +2409,9 @@ def _lane_text(doc: dict) -> str:
     return "\n".join(lines)
 
 
+REASONS_VERDICT_MAX = 200  # chars of a row's `change:` verdict text `--reasons` prints
+
+
 def reasons(command: str, ledger: Path | None, held_only: bool = False) -> tuple[str, int]:
     """``(text, rc)`` for ``--reasons``: the REJECTED rows of one command from the answered index —
     the read-only view a D-711 audit needs, since tag names alone cannot find a subject held under a
@@ -2433,6 +2436,11 @@ def reasons(command: str, ledger: Path | None, held_only: bool = False) -> tuple
             return 0.0
         return out if math.isfinite(out) else 0.0
 
+    verdicts = {
+        _ts_key(r.get("ts")): str(r.get("change") or "")
+        for r in _rows(ledger)
+        if str(r.get("command") or "") == command
+    }
     seen = 0
     rejected: list[tuple[float, float, str, str, str]] = []
     for ln in text.splitlines():
@@ -2466,7 +2474,10 @@ def reasons(command: str, ledger: Path | None, held_only: bool = False) -> tuple
         return text.replace("\n", "\\n").replace("\r", "\\r")
 
     for _at, _ts, handle, tags, reason in shown:
-        out.append(f"{_esc(handle)}\t{tags or '-'}\t{_esc(reason)}")
+        verdict = verdicts.get(handle, "").strip()
+        if len(verdict) > REASONS_VERDICT_MAX:
+            verdict = verdict[:REASONS_VERDICT_MAX] + "…"
+        out.append(f"{_esc(handle)}\t{tags or '-'}\t{_esc(reason)}\t{_esc(verdict) or '-'}")
     return "\n".join(out), 0
 
 
@@ -2522,7 +2533,8 @@ def main(argv: list[str] | None = None) -> int:
         metavar="COMMAND",
         help=(
             "print one command's REJECTED rows from the answered index — TAB-separated `<ts> <held "
-            "tags or -> <reason>`, newest reject first — and exit (read-only; rc 1 when the index "
+            "tags or -> <reason> <change: verdict text from the ledger, or -, cut at 200 chars>`, "
+            "newest reject first — and exit (read-only; rc 1 when the index "
             "is unreadable). Large: redirect to a file and grep it"
         ),
     )
