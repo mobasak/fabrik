@@ -20,7 +20,8 @@
   "score_reason": "D-958 re-score 2026-10-18: HIGH — review-loop seat isolation from kaizen mail",
   "status": "open",
   "tags": [
-    "review-loop"
+    "review-loop",
+    "waits-operator-proof"
   ],
   "title": "review-loop seats: cwd and write isolation by construction (mail 01M4PHYNXJ rows 1791209046, 1791049341, 1791225410)"
 }
