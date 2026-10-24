@@ -1969,7 +1969,8 @@ def test_the_owner_test_budget_refuses_before_any_outer_wrapper(world):
     assert took < 25, took  # the leg was stopped at the budget, not run for its 30 s
     # the requester is told it is not theirs to fix
     replies = world.replies(msg_id)
-    assert replies and all("names the owner-test budget" in r for r in replies.values()), replies
+    told = "the owner-test budget of the run, change nothing and send nothing either"
+    assert replies and all(told in " ".join(r.split()) for r in replies.values()), replies
 
 
 def test_an_owner_exit_124_inside_a_shortened_leg_stays_a_red(world):
