@@ -172,7 +172,7 @@ For specialized categories 7–15 (Robotics / Synthetic data / Recommendation / 
 
 ## Operational AI paths — auth boundary
 
-Operational stack (sysadmin, watchdog, bootstrap) uses **Claude Code CLI w/ subscription OAuth** — never `ANTHROPIC_API_KEY`. No fabrik code path reads that key (the `fabrik ai generate` utilities were removed 2026-06-16) except the hub's `scripts/api_credit.py`, D-1196's dollar-capped `--bare` spend of three prepaid API credits; a project that needs a metered LLM goes through OpenRouter. Per-LLM-call cost caps apply to paid APIs via `core/cost-budget.md`; they must not be placed on the operational diagnose loop.
+Operational stack (sysadmin, watchdog, bootstrap) uses **Claude Code CLI w/ subscription OAuth** — never `ANTHROPIC_API_KEY`. No fabrik code path reads or sets that key (the `fabrik ai generate` utilities were removed 2026-06-16) except the hub's `scripts/api_credit.py`, which sets it only for its own dollar-capped `--bare` child from D-1196's three prepaid API credit keys; a project that needs a metered LLM goes through OpenRouter. Per-LLM-call cost caps apply to paid APIs via `core/cost-budget.md`; they must not be placed on the operational diagnose loop.
 
 ## In-code AI agent calls — the dispatch ladder (BINDING)
 

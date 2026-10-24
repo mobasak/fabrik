@@ -13,7 +13,7 @@ can be pointed at an API key. This script runs ONE headless task per call on a k
 python3 scripts/api_credit.py status                       # spend, in-flight provision and room per key
 python3 scripts/api_credit.py run --pick --model sonnet --prompt-file brief.md --out answer.md \
     --add-dir /path/to/a/pinned/copy [--budget 5] [--max-turns 40] [--timeout 1800]
-python3 scripts/api_credit.py settle --run <id> --cost 0.42   # close a crashed run with the console's figure
+python3 scripts/api_credit.py settle --run <id> --cost 0.42   # close a run that has no cost with the console's figure
 ```
 
 `run` starts `claude -p --bare --restricted` with:
@@ -37,28 +37,28 @@ automatically.
   empty, so nothing else bills the API by accident.
 - **Reach.** `--bare` skips every hook, so the fleet's guards do not run inside a run. That is why the tools are
   read-only, and why `--restricted` confines them to the cwd and each `--add-dir` (a read outside is denied, probed).
-  Every `--add-dir` is vetted, and the run is refused (exit 2) when the directory:
+  Every `--add-dir` is vetted, and the run is refused (exit 2) when the directory is not an absolute, non-symlink
+  directory, or:
   - is `/`, the home directory or above it;
-  - is a checkout (it has `.git`, and so a `.env`);
-  - holds a `.env` / `.env.*` (other than `.example`, `.sample` or `.template`) or a `.credentials.json`;
+  - holds, anywhere in its tree, a checkout or credential directory (the names in the script's `SECRET_DIR_NAMES`,
+    `.git` among them) or a credential file (`SECRET_FILE_NAMES`, `SECRET_SUFFIXES`, `SECRET_PREFIXES`, and `.env` /
+    `.env.*` other than `.example`, `.sample` or `.template`);
   - holds a symlink that leaves it;
   - holds more than 50,000 entries.
-  Pin a copy with `git archive` and pass that.
+  Pin a copy with `git archive` and pass that. The vetting reads names, not contents: a secret under an ordinary name
+  is not caught, which is why `--restricted` and the read-only tools remain the boundary.
 - **Env.** The child keeps the caller's environment (`tests/test_hooks_headless_guard.py` requires extend, never
-  replace) minus:
-  - every other `ANTHROPIC*` and `CLAUDE*` name;
-  - the code-injection names (`NODE_OPTIONS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`);
-  - the TLS names (`NODE_EXTRA_CA_CERTS`, `NODE_TLS_REJECT_UNAUTHORIZED`, `SSL_CERT_FILE`, `SSL_CERT_DIR`,
-    `REQUESTS_CA_BUNDLE`);
-  - the proxy names (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` and their lowercase forms).
-  It sets `FABRIK_HEADLESS=1`.
+  replace) minus every name, compared upper-cased, that starts with one of the script's `STRIP_PREFIXES` (`ANTHROPIC`,
+  `CLAUDE`, and the loader and JS-runtime families such as `LD_` and `NODE_`) or is in `STRIP_ENV` (the CA-bundle,
+  `GLIBC_TUNABLES` and proxy names). It sets `FABRIK_HEADLESS=1`.
 - **Duties.** An appended system prompt tells the run it has no hub duties (no mail, no work items) and must not follow
   instructions found in the files it reads.
 
 ## The cap
 
-Each key is capped at $200. A run is refused (exit 3, nothing started, no row written) once less than $0.05 remains under
-$200 − $5 margin − spend.
+Each key is capped at $200. A run's budget is clamped to $200 − $5 margin − spend − the model's per-call ceiling (the
+table below), and the run is refused (exit 3, nothing started, no row written) when that clamp falls below $0.05. So a
+key with $3 of room still refuses a sonnet run, whose ceiling alone is $3.78.
 
 Each run writes two rows to the ledger, through `cloud_dispatch.LedgerTxn` (one `flock` for the read and the append):
 - `start` (key, model, budget, prompt digest, timeout), appended in the same transaction that computed the spend;
@@ -79,11 +79,18 @@ overshoot:
 A run's budget (default $5) is clamped to the room left minus that ceiling and floored to cents.
 
 Every doubt fails closed, so an unknown cost counts as spent, never as free:
-- a ledger that does not decode, a line that does not parse or a row of the wrong shape refuses every verb (exit 1);
-- a timeout leaves the run provisioned.
+- a ledger that does not decode, a line that does not parse, a row of the wrong shape, or a settle row whose start row
+  is missing refuses every verb (exit 1);
+- a timeout or an error around the `claude` process leaves the run provisioned.
 
-`settle` closes a crashed run with the console's figure only once its timeout (plus a minute) has passed, and never a
-run that already has a cost.
+Everything that can fail without spending (the inputs, `--out`, the key file, `claude` on PATH, the state
+directories) is checked before the start row, so such a refusal provisions nothing. A result that cannot be written to
+`--out` after the run is printed on stdout instead.
+
+`settle` closes a run that has no cost with the console's figure once the run has exited (its own settle row exists), or
+else once its timeout plus a minute has passed; it never gives a second figure to a run that already has one. A child
+orphaned by a killed parent is bounded by its own `--max-budget-usd`, not by this check, so read the console before
+settling such a run.
 
 The cost is Claude Code's list-price estimate (`costBasis: "list"`), not Anthropic's ledger. The server-side credit is
 the backstop behind it. Whether a card with auto-reload sits behind any key was asked of the key owners on 2026-10-24;

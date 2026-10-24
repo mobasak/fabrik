@@ -3,7 +3,8 @@
 
 ## Probe a CLI's limits live before pricing a cap on them; the first real run is also a reviewer (2026-10-24)
 
-W-894f994f (`scripts/api_credit.py`, D-1198): two design critiques, then 18 guard mutants all red.
+W-894f994f (`scripts/api_credit.py`, D-1198): two design critiques, an author's mutation battery, then a full review.
+- **An author's mutation battery covers the guards the author thought of** — the review's finders mutated independently and found guards no test pinned (the `ANTHROPIC*` strip, the timeout settle, the error flag, a duplicate start). Have a finder mutate before trusting your own all-red battery.
 - **Probe the limit you price** — the cap's margin rested on "a run overshoots by one turn". A three-Read probe at a $0.000001 budget stopped after ONE API call. The overshoot is one call, so the reserve became a per-model per-call ceiling, priced from current list prices rather than a guessed $10.
 - **A variadic flag eats a positional argument** — `claude -p … --tools "" "prompt"` failed with "Input must be provided": `--tools <tools...>` swallowed the prompt. Put the prompt on stdin whenever a variadic flag precedes it.
 - **Classify on the error flag, never the subtype** — a bogus key returns `subtype: "success"` with `is_error: true`.

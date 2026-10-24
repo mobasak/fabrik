@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -28,10 +29,12 @@ ENV_NAME = {
 }
 
 FAKE_CLAUDE = """#!{python}
-import json, os, sys
+import json, os, sys, time
 log = os.environ["FAKE_LOG"]
 with open(log, "a", encoding="utf-8") as f:
-    f.write(json.dumps({{"argv": sys.argv[1:], "env": dict(os.environ), "stdin": sys.stdin.read()}}) + "\\n")
+    f.write(json.dumps({{"argv": sys.argv[1:], "env": dict(os.environ), "stdin": sys.stdin.read(),
+                        "cwd": os.getcwd()}}) + "\\n")
+time.sleep(float(os.environ.get("FAKE_SLEEP", "0")))
 reply = open(os.environ["FAKE_REPLY"], encoding="utf-8").read()
 reply = reply.replace("@KEY@", os.environ.get("ANTHROPIC_API_KEY", ""))
 sys.stdout.write(reply)
@@ -193,32 +196,131 @@ def test_unsettled_run_counts_at_budget_plus_ceiling(box: dict) -> None:
     can = _status(box)["keys"]["can"]
     assert can["provisioned_usd"] == pytest.approx(5.95)
     assert can["spent_usd"] == 0
-    lines = box["ledger"].read_text(encoding="utf-8").splitlines()
-    start = json.loads(lines[0])
-    run = start["run"]
-    early = _run(box, "settle", "--run", run, "--cost", "0.4")
-    assert early.returncode == 2 and "may still be running" in early.stderr, (
-        "a run inside its timeout was settled"
-    )
-    start["ts"] -= start["timeout"] + 120  # the run's timeout has now passed
-    box["ledger"].write_text("\n".join([json.dumps(start), *lines[1:]]) + "\n", encoding="utf-8")
+    run = json.loads(box["ledger"].read_text(encoding="utf-8").splitlines()[0])["run"]
+    # the child exited (its own settle row exists), so the console's figure may close it at once
     s = _run(box, "settle", "--run", run, "--cost", "0.4")
     assert s.returncode == 0, s.stderr
     can = _status(box)["keys"]["can"]
     assert can["provisioned_usd"] == pytest.approx(0.0) and can["spent_usd"] == pytest.approx(0.4)
     again = _run(box, "settle", "--run", run, "--cost", "0.1")
-    assert again.returncode != 0, "a run with a finite cost was settled twice"
+    assert again.returncode == 2 and "already has a cost" in again.stderr, "a run was settled twice"
+
+    # a start with no exit row is a run that may still be spending: refused inside its timeout, allowed after
+    live = uuid.uuid4().hex
+    row = {
+        "kind": "start",
+        "run": live,
+        "key": "can",
+        "model": "haiku",
+        "budget": 2.0,
+        "timeout": 1800,
+        "ts": time.time(),
+    }
+    with open(box["ledger"], "a", encoding="utf-8") as f:
+        f.write(json.dumps(row) + "\n")
+    early = _run(box, "settle", "--run", live, "--cost", "0.2")
+    assert early.returncode == 2 and "may still be running" in early.stderr, (
+        "a live run was settled"
+    )
+    lines = box["ledger"].read_text(encoding="utf-8").splitlines()
+    row["ts"] -= row["timeout"] + 120
+    box["ledger"].write_text("\n".join([*lines[:-1], json.dumps(row)]) + "\n", encoding="utf-8")
+    late = _run(box, "settle", "--run", live, "--cost", "0.2")
+    assert late.returncode == 0, late.stderr
+
+
+def test_timeout_and_error_flag_and_fallback_scrub(box: dict) -> None:
+    # a timeout writes a cost-less settle: the run stays provisioned at budget + ceiling, and --out says so
+    _reply(box, _ok(0.01))
+    box["env"]["FAKE_SLEEP"] = "5"
+    p = _launch(box, "--timeout", "1")
+    assert p.returncode == 1 and "timed out" in p.stderr
+    assert _status(box)["keys"]["can"]["provisioned_usd"] == pytest.approx(5.95)
+    assert "timed out" in (box["tmp"] / "out.md").read_text(encoding="utf-8")
+    box["env"].pop("FAKE_SLEEP")
+
+    # is_error true with rc 0 (a bogus key's shape) is an error, and its reported cost still settles
+    _reply(box, {**_ok(0.0, "Invalid API key"), "is_error": True}, rc=0)
+    p = _launch(box, key="sarp")
+    assert p.returncode == 1 and "ERROR" in p.stdout
+    assert (
+        _status(box)["keys"]["sarp"]["spent_usd"] == 0
+        and _status(box)["keys"]["sarp"]["provisioned_usd"] == 0
+    )
+
+    # output that is not JSON is echoed through the scrubber: no key value survives it
+    _reply(box, "boom @KEY@ sk-ant-api03-" + "W" * 40, rc=1)
+    p = _launch(box, key="ozgurbasak")
+    text = (box["tmp"] / "out.md").read_text(encoding="utf-8")
+    assert p.returncode == 1 and "boom" in text
+    assert KEYS["ozgurbasak"] not in text and "W" * 40 not in text
+    # the tail kept is the last 4000 characters: a key straddling that cut must not leave its own tail behind
+    _reply(box, "@KEY@" + "x" * 3990, rc=1)
+    p = _launch(box, key="ozgurbasak")
+    text = (box["tmp"] / "out.md").read_text(encoding="utf-8")
+    # 57-character key + 3990 filler = 4047: the window keeps the key's last 10 characters unless it was scrubbed first
+    assert KEYS["ozgurbasak"][-6:] not in text, (
+        "a key cut by the 4000-character window leaked its tail"
+    )
+
+
+def test_ledger_figures_over_count_never_under(box: dict) -> None:
+    run = "b" * 32
+    rows = [
+        {"kind": "start", "run": run, "key": "can", "model": "haiku", "budget": 5.0},
+        {
+            "kind": "start",
+            "run": run,
+            "key": "sarp",
+            "model": "fable",
+            "budget": 50.0,
+        },  # duplicate: the first start owns the run, so its spend lands on can, never on sarp
+        {"kind": "settle", "run": run, "key": "can", "cost": 2.0},
+        {"kind": "settle", "run": run, "key": "can", "cost": 7.0},  # two figures: the larger counts
+        {"kind": "settle", "run": run, "key": "can", "cost": 3.0},
+    ]
+    box["ledger"].write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    st = _status(box)["keys"]
+    assert st["can"]["spent_usd"] == pytest.approx(7.0) and st["can"]["runs"] == 1
+    assert st["sarp"]["spent_usd"] == 0 and st["sarp"]["runs"] == 0
+    # a figure past float range is no usable cost: the run reads provisioned (first start: 5 + 0.95), no traceback
+    box["ledger"].write_text(
+        json.dumps(rows[0])
+        + "\n"
+        + '{"kind": "settle", "run": "'
+        + run
+        + '", "key": "can", "cost": 1'
+        + "0" * 400
+        + "}\n",
+        encoding="utf-8",
+    )
+    can = _status(box)["keys"]["can"]
+    assert can["spent_usd"] == 0 and can["provisioned_usd"] == pytest.approx(5.95)
 
 
 def test_child_argv_env_and_no_key_leak(box: dict) -> None:
-    box["env"].update(
-        NODE_OPTIONS="--require /tmp/evil.js",
-        HTTPS_PROXY="http://mitm:8080",
-        https_proxy="http://mitm:8080",
-        ANTHROPIC_API_KEY="sk-ant-api03-" + "Z" * 40,
-        CLAUDE_CODE_OAUTH_TOKEN="oauth-secret",
-        CLAUDE_CONFIG_DIR="/home/someone/.claude-fleet/ob",
-    )
+    stripped = {
+        "NODE_OPTIONS": "--require /tmp/evil.js",
+        "NODE_PATH": "/evil",
+        "LD_PRELOAD": "/evil.so",
+        "LD_AUDIT": "/evil.so",
+        "GLIBC_TUNABLES": "x",
+        "NODE_EXTRA_CA_CERTS": "/evil.pem",
+        "SSL_CERT_FILE": "/evil.pem",
+        "CURL_CA_BUNDLE": "/evil.pem",
+        "HTTPS_PROXY": "http://mitm:8080",
+        "https_proxy": "http://mitm:8080",
+        "ANTHROPIC_BASE_URL": "http://evil.example",
+        "ANTHROPIC_API_KEY_SARP": KEYS["sarp"],
+        "ANTHROPIC_API_KEY": "sk-ant-api03-" + "Z" * 40,
+        "CLAUDE_CODE_OAUTH_TOKEN": "oauth-secret",
+        "CLAUDE_CONFIG_DIR": "/home/someone/.claude-fleet/ob",
+    }
+    box["env"].update(stripped)
+    box["env"].pop(
+        "LD_PRELOAD"
+    )  # set in the child's env only through the check below: it would load in the parent
+    box["env"].pop("LD_AUDIT")
     foreign = (
         "sk-ant-api03-" + "F" * 40
     )  # a key this script never loaded: only the pattern can catch it
@@ -237,8 +339,10 @@ def test_child_argv_env_and_no_key_leak(box: dict) -> None:
     assert call["stdin"] == "Say ok."
     assert env["ANTHROPIC_API_KEY"] == KEYS["can"]
     assert env["FABRIK_HEADLESS"] == "1"
-    for gone in ("NODE_OPTIONS", "HTTPS_PROXY", "https_proxy", "CLAUDE_CODE_OAUTH_TOKEN"):
-        assert gone not in env, gone
+    for gone in stripped:
+        if gone not in ("ANTHROPIC_API_KEY", "CLAUDE_CONFIG_DIR", "LD_PRELOAD", "LD_AUDIT"):
+            assert gone not in env, gone
+    assert call["cwd"] == str((box["state"] / "api-credit" / "cwd").resolve()), call["cwd"]
     cfg = Path(env["CLAUDE_CONFIG_DIR"])
     assert str(cfg).startswith(str(box["state"])) and not cfg.exists(), (
         "per-run config dir not under state or not removed"
@@ -264,8 +368,25 @@ def test_child_argv_env_and_no_key_leak(box: dict) -> None:
         + b'", "key": "can", "model": "haiku", "budget": NaN}\n',
         b'{"kind": "settle", "run": "' + b"a" * 32 + b'", "key": "can", "cost": "12"}\n',
         b"\xff\xfe broken bytes\n",
+        b'{"kind": "start", "run": "not-hex", "key": "can", "model": "haiku", "budget": 1.0}\n',
+        # a settle whose start was deleted would carry spend no tally counts
+        b'{"kind": "settle", "run": "' + b"a" * 32 + b'", "key": "can", "cost": 150.0}\n',
+        b'{"kind": "start", "run": "'
+        + b"a" * 32
+        + b'", "key": "can", "model": "haiku", "budget": 1.0}\n{"kind": "settle", "run": "'
+        + b"a" * 32
+        + b'", "key": "sarp", "cost": 0.5}\n',
     ],
-    ids=["not-json", "empty-dict", "nan-budget", "string-cost", "non-utf8"],
+    ids=[
+        "not-json",
+        "empty-dict",
+        "nan-budget",
+        "string-cost",
+        "non-utf8",
+        "bad-run-id",
+        "orphan-settle",
+        "key-mismatch",
+    ],
 )
 def test_corrupt_ledger_refuses(box: dict, bad: bytes) -> None:
     box["ledger"].write_bytes(bad)
@@ -288,22 +409,40 @@ def test_pick_and_add_dir_vetting(box: dict) -> None:
     assert _calls(box)[-1]["env"]["ANTHROPIC_API_KEY"] == KEYS["sarp"]
 
     t = box["tmp"]
-    holds_env = t / "holds-env"
-    (holds_env / "sub").mkdir(parents=True)
-    (holds_env / "sub" / ".env").write_text("X=1\n", encoding="utf-8")
-    checkout = t / "checkout"
-    (checkout / ".git").mkdir(parents=True)
+    unsafe = []
+    for rel in (
+        "sub/.env",
+        "sub/.env.local",
+        ".envrc",
+        ".netrc",
+        "keys/id_rsa",
+        "deploy.pem",
+        ".credentials.json",
+        "sub/.git/config",
+        ".git",
+        ".ssh/known_hosts",
+    ):
+        d = t / ("holds-" + rel.replace("/", "_"))
+        (d / rel).parent.mkdir(parents=True, exist_ok=True)
+        (d / rel).write_text("token=abc\n", encoding="utf-8")
+        unsafe.append(str(d))
     escapes = t / "escapes"
     escapes.mkdir()
-    (escapes / "link").symlink_to(t / "holds-env")
+    (escapes / "link").symlink_to(t / "holds-.netrc")
+    linked_root = t / "linked-root"
     clean = t / "clean"
     clean.mkdir()
+    linked_root.symlink_to(clean)
     (clean / "a.py").write_text("x = 1\n", encoding="utf-8")
     (clean / ".env.example").write_text("X=\n", encoding="utf-8")
+    home = t / "home"
+    (home / "work").mkdir(parents=True)
+    box["env"]["HOME"] = str(home)
     n = len(_calls(box))
-    for bad in (str(holds_env), str(checkout), str(escapes), "relative/dir", "/"):
+    for bad in (*unsafe, str(escapes), str(linked_root), str(home), "relative/dir", "/"):
         r = _launch(box, "--add-dir", bad)
         assert r.returncode == 2, (bad, r.returncode, r.stderr)
+        assert "Traceback" not in r.stderr, (bad, r.stderr)
     assert len(_calls(box)) == n, "claude ran with an unsafe --add-dir"
     ok = _launch(box, "--add-dir", str(clean))
     assert ok.returncode == 0, ok.stderr
@@ -318,11 +457,17 @@ def test_bad_inputs_refuse_before_claude_and_budget_floors_to_cents(
     loop = tmp_path / "loop"
     loop.mkdir()
     (loop / "a").symlink_to(loop / "a")
+    (tmp_path / "out-dir").mkdir()
     cases = [
         ("--out", str(tmp_path / "missing" / "out.md")),
+        ("--out", str(tmp_path / "out-dir")),
         ("--timeout", str(10**20)),
         ("--max-turns", "0"),
         ("--add-dir", str(loop)),
+        ("--budget", "0"),
+        ("--budget", "-1"),
+        ("--budget", "nan"),
+        ("--budget", "0.01"),
     ]
     for flag, value in cases:
         sel = ["--key", "can", "--model", "haiku", "--prompt-file", str(box["prompt"])]
@@ -346,3 +491,79 @@ def test_bad_inputs_refuse_before_claude_and_budget_floors_to_cents(
     assert rows[1]["subtype"] is None and "Q" * 40 not in p.stdout, (
         "an unexpected subtype was stored or echoed"
     )
+
+
+def test_missing_claude_and_empty_keys_refuse_without_a_row(box: dict) -> None:
+    _reply(box, _ok(0.01))
+    # no `claude` on PATH: refused before the start row, so nothing is provisioned
+    env = dict(box["env"])
+    box["env"]["PATH"] = str(box["tmp"] / "empty-bin")
+    p = _launch(box)
+    assert p.returncode == 2 and "no `claude`" in p.stderr, (p.returncode, p.stderr)
+    assert not box["ledger"].exists(), "a run that could not start provisioned a row"
+    box["env"] = env
+
+    # --pick passes over a key with no value; --key on that key is refused before any row
+    Path(box["env"]["API_CREDIT_ENV_FILE"]).write_text(
+        'export ANTHROPIC_API_KEY_CAN=""\n'
+        f'export ANTHROPIC_API_KEY_SARP="{KEYS["sarp"]}" # the Sarp credit\n'
+        f"ANTHROPIC_API_KEY_OZGURBASAK={KEYS['ozgurbasak']} # trailing comment\n",
+        encoding="utf-8",
+    )
+    _seed(box, "ozgurbasak", 100.0)  # sarp has the most room among the keys present
+    p = _launch(box, key="pick")
+    assert p.returncode == 0, p.stderr
+    assert _calls(box)[-1]["env"]["ANTHROPIC_API_KEY"] == KEYS["sarp"], (
+        "export/comment parsing or pick broke"
+    )
+    p = _launch(box, key="ozgurbasak")
+    assert p.returncode == 0 and _calls(box)[-1]["env"]["ANTHROPIC_API_KEY"] == KEYS["ozgurbasak"]
+    rows = len(box["ledger"].read_text(encoding="utf-8").splitlines())
+    p = _launch(box, key="can")
+    assert p.returncode == 2 and "missing or empty" in p.stderr
+    assert len(box["ledger"].read_text(encoding="utf-8").splitlines()) == rows
+
+
+def test_child_env_strips_loader_and_runtime_families(monkeypatch: pytest.MonkeyPatch) -> None:
+    # LD_* cannot be set on the subprocess the other tests start (the loader would act on the test's own python),
+    # so the family rule is graded on child_env directly.
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import api_credit
+
+    for name in (
+        "LD_PRELOAD",
+        "LD_AUDIT",
+        "LD_LIBRARY_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "BUN_OPTIONS",
+        "npm_config_registry",
+        "all_proxy",
+    ):
+        monkeypatch.setenv(name, "x")
+    monkeypatch.setenv("KEEP_ME", "1")
+    env = api_credit.child_env("sk-ant-api03-" + "K" * 40, Path("/abs/config"))
+    for name in (
+        "LD_PRELOAD",
+        "LD_AUDIT",
+        "LD_LIBRARY_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "BUN_OPTIONS",
+        "npm_config_registry",
+        "all_proxy",
+    ):
+        assert name not in env, name
+    assert env["KEEP_ME"] == "1" and env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"
+
+
+def test_ambient_git_dir_does_not_move_the_key_file(box: dict, tmp_path: Path) -> None:
+    # an ambient GIT_DIR naming another repository must not move the key file to that repository's .env
+    other = tmp_path / "other"
+    subprocess.run(["git", "init", "-q", str(other)], check=True)
+    env = {k: v for k, v in box["env"].items() if k != "API_CREDIT_ENV_FILE"}
+    env["GIT_DIR"] = str(other / ".git")
+    code = f"import sys; sys.path.insert(0, {str(ROOT / 'scripts')!r}); import api_credit as a; print(a.env_file())"
+    p = subprocess.run(
+        [sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=60
+    )
+    assert p.returncode == 0, p.stderr
+    assert not p.stdout.strip().startswith(str(other)), p.stdout
