@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
   the one-at-a-time check can no longer overrun the unit's 600 s TimeoutStartSec and lose a row. run_checks' git calls
   are not counted yet (W-b728822f). D-1181 (W-b72231b8 slice 2).
 
+### Fixed — the watchdog packs say what "approved-write" means (2026-10-24)
+
+- `.windsurf/rules/core/60-watchdog.md` and `core/self-healing.md` called `drop_queue_items` and `rotate_locks` the "approved-write" lane without saying who approves it. fabrik-lib D-471 settles it: the operator approves the lane by setting its four offer conditions, and once offered, a call that passes `check_proposal` runs with no per-call approval and escalates afterwards (`agent.py` executes it inline, then escalates and arms the deadman). Both packs now say this. 60-watchdog adds D-471's stated cost: the row cap is per call, with no combined budget. self-healing's ladder checklist counts the step as a fully-autonomous layer. This was fabrik-lib mail 01M5AKSQQ3, request 5 (W-a624f951). infra's 46b0c7f63 had already rewritten the stale `scale_concurrency` and "never offered" text.
+
 ### Fixed — the push ladder no longer drops already-pushed commits after a remote force-rewrite (2026-10-24)
 
 - `CLAUDE.md` and `templates/governance/CLAUDE.md` § EXIT told a rejected clean-tree push to run `git pull --rebase=merges`, which "replays only YOUR unpushed commits". After a force-rewrite of the remote branch, that pull exits 0 having silently dropped the commits this clone already pushed. The ladder now runs `git fetch` and reads `git reflog show --format=%gs @{u}`. A `forced-update` above the newest `update by push` means stop and report; otherwise `git rebase --rebase-merges @{u}` then push. This is fabrik-lib's D-480 fix, adopted as D-1178 (W-a312d48c).
