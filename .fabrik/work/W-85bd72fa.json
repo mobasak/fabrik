@@ -3,7 +3,7 @@
   "created": "2026-10-21T05:06:32.945619Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "3d01ac857c0d360db04ef9883d071fd4b3220621",
+  "evidence": "4d08fb42fedb7f0bfbddce47af2ca6c0c1e67495",
   "id": "W-85bd72fa",
   "impact": "low",
   "kind": "task",
@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure INDEX.md files fleet-wide for span- or fence-held link rows, then read check_doc_index.py:153 link_targets and :445 through _fences (blank_code_spans + fence lines) or record why an index entry in code font still counts",
+  "next": "",
   "note": "",
   "owner": "intel",
   "priority": 3,
