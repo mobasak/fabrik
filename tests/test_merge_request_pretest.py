@@ -11,13 +11,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_merge_request_merge import _git, world  # noqa: E402,F401 — the merge tests' own fixture
+from test_merge_request_merge import World, _dead_pid, _git  # noqa: E402 — the merge tests' World
+
+
+@pytest.fixture()
+def world(tmp_path, monkeypatch):
+    return World(tmp_path, monkeypatch)
 
 
 def _counting_tests(world, script: str = "") -> Path:
@@ -33,6 +40,7 @@ def _pretest(world, monkeypatch) -> int:
     """`request --pretest` from the requester's worktree, as the requester."""
     review = world.tmp / "review.md"
     review.write_text("# receipt\n", encoding="utf-8")
+    monkeypatch.setattr(world.mod, "PRETEST_FLOOR_S", 0)  # a fixture leg takes milliseconds
     monkeypatch.setenv("CLAUDE_AGENT", "fleet")
     monkeypatch.chdir(world.wt)
     try:
@@ -134,9 +142,7 @@ def test_a_code_base_move_runs_the_leg(world, monkeypatch):
     assert "requester's pretest" not in world.replies(msg_id)["fleet"]
 
 
-@pytest.mark.parametrize(
-    "tamper", ["script", "tree", "green", "head", "runner_sha256", "garbage"]
-)
+@pytest.mark.parametrize("tamper", ["script", "tree", "green", "head", "runner_sha256", "garbage"])
 def test_a_record_failing_a_check_runs_the_leg_and_says_why(world, monkeypatch, tamper):
     counter = _counting_tests(world)
     head = _branch(world)
@@ -152,7 +158,10 @@ def test_a_record_failing_a_check_runs_the_leg_and_says_why(world, monkeypatch, 
         path.write_text("{not json", encoding="utf-8")
     else:
         rec[tamper] = {
-            "tree": "0" * 40, "green": "yes", "head": "f" * 40, "runner_sha256": "0" * 64
+            "tree": "0" * 40,
+            "green": "yes",
+            "head": "f" * 40,
+            "runner_sha256": "0" * 64,
         }[tamper]
         path.write_text(json.dumps(rec), encoding="utf-8")
 
@@ -188,8 +197,6 @@ def test_a_base_move_on_index_md_runs_the_leg(world, monkeypatch):
 
 def test_the_owners_sweep_leaves_a_live_pretest_throwaway_alone(world):
     """A pretest runs outside the merge lock, so a merge's start-of-run sweep must not remove it."""
-    import tempfile
-
     parent = Path(tempfile.mkdtemp(prefix=world.mod._PRETEST_PREFIX))
     live = parent / world.main.name
     _git(world.main, "worktree", "add", "--detach", "-q", str(live), "master")
@@ -200,3 +207,120 @@ def test_the_owners_sweep_leaves_a_live_pretest_throwaway_alone(world):
 
     assert live.is_dir()
     assert str(live) in _git(world.main, "worktree", "list", "--porcelain")
+
+
+def test_a_leg_under_the_floor_is_not_trusted(world, monkeypatch):
+    counter = _counting_tests(world)
+    _branch(world)
+    assert _pretest(world, monkeypatch) == 0
+    msg_id = _owner_request(world)
+    monkeypatch.setattr(world.mod, "PRETEST_FLOOR_S", 60)
+
+    assert world.run("merge") == 0
+
+    assert counter.read_text() == "xx"
+    assert "under 60s" in world.replies(msg_id)["fleet"]
+
+
+def test_a_pretest_never_skips_its_own_leg_on_an_old_record(world, monkeypatch):
+    counter = _counting_tests(world)
+    head = _branch(world)
+    assert _pretest(world, monkeypatch) == 0
+
+    assert _pretest(world, monkeypatch) == 0  # the first run's green record is on disk
+
+    assert counter.read_text() == "xx"
+    assert json.loads(_record(world, head).read_text())["green"] is True
+
+
+def test_a_killed_pretest_leg_is_not_called_a_red(world, monkeypatch, capsys):
+    _counting_tests(world, "exit 124\n")
+    head = _branch(world)
+
+    assert _pretest(world, monkeypatch) != 0
+
+    err = capsys.readouterr().err
+    assert "timed out or was killed" in err and "not a test verdict" in err
+    assert not _record(world, head).exists() and world.inbox() == []
+
+
+def test_the_pretest_leg_writes_its_selector_records_privately(world, monkeypatch):
+    seen = world.tmp / "records-dir"
+    _counting_tests(world, f'echo "$FABRIK_MERGE_TESTS_RECORDS" > {seen}\n')
+    _branch(world)
+
+    assert _pretest(world, monkeypatch) == 0
+
+    where = seen.read_text().strip()
+    assert where and ".git" not in where and not Path(where).exists()  # private, and removed
+    assert "FABRIK_MERGE_TESTS_RECORDS" not in os.environ
+
+
+def test_a_killed_pretests_leftovers_are_swept_by_the_next(world, monkeypatch):
+    _counting_tests(world)
+    parent = Path(tempfile.mkdtemp(prefix=world.mod._PRETEST_PREFIX))
+    stale = parent / world.main.name
+    _git(world.main, "worktree", "add", "--detach", "-q", str(stale), "master")
+    left = world.main / ".git" / "fabrik-merge" / "pretest" / ("e" * 40 + ".json")
+    left.parent.mkdir(parents=True)
+    rec = {"id": "e" * 40, "worktree": str(stale), "pid": _dead_pid(), "start": "1"}
+    left.write_text(json.dumps(rec), encoding="utf-8")
+    _branch(world)
+
+    assert _pretest(world, monkeypatch) == 0
+
+    assert not left.exists() and not stale.exists()
+    assert str(stale) not in _git(world.main, "worktree", "list", "--porcelain")
+
+
+# --- a repo-declared leg limit (wef's one leg outgrew TEST_TIMEOUT_S, 2026-10-24) ------------------
+@pytest.mark.parametrize(
+    ("script", "expected"),
+    [
+        ("pytest\n", 1800),
+        ("# merge-test-timeout: 2700\npytest\n", 2700),
+        ("#merge-test-timeout:2700\n", 2700),
+        ("# merge-test-timeout: 99999\n", 3600),  # clamped to the per-run budget
+        ("# merge-test-timeout: 5\n", 60),  # clamped to the floor
+        ("  # merge-test-timeout: 2700\n", 1800),  # not at line start: not a declaration
+        ("# merge-test-timeout: 2700s\n", 1800),  # not the grammar
+        ("# merge-test-timeout: 2400\n# merge-test-timeout: 3000\n", 2400),  # the first one
+    ],
+)
+def test_the_declared_leg_grammar(world, script, expected):
+    assert world.mod._declared_leg(script) == expected
+
+
+def _limits(world, monkeypatch) -> list[int]:
+    seen: list[int] = []
+    real = world.mod._capped
+
+    def capped(argv, timeout):
+        seen.append(int(timeout))
+        return real(argv, timeout)
+
+    monkeypatch.setattr(world.mod, "_capped", capped)
+    return seen
+
+
+def test_the_bases_declared_leg_is_the_merges_limit(world, monkeypatch):
+    _counting_tests(world, "# merge-test-timeout: 2700\nexit 0\n")
+    head = _branch(world)
+    world.send(head)
+    seen = _limits(world, monkeypatch)
+
+    assert world.run("merge") == 0
+
+    assert seen == [2700]
+
+
+def test_a_branch_cannot_raise_its_own_leg_limit(world, monkeypatch):
+    _counting_tests(world, "exit 0\n")
+    _git(world.wt, "merge", "-q", "--ff-only", "master")
+    head = world.branch({".fabrik/merge-tests": "# merge-test-timeout: 3600\nexit 0\n"})
+    world.send(head)
+    seen = _limits(world, monkeypatch)
+
+    assert world.run("merge") == 0
+
+    assert seen == [1800]

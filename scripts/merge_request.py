@@ -544,6 +544,12 @@ TEST_TIMEOUT_S = 1800
 # covers it plus PUSH_TIMEOUT_S, SYNC_TIMEOUT_S and 300 s for the builds, preflights, carry and reply.
 MERGE_TEST_BUDGET_S = 2 * TEST_TIMEOUT_S
 LEG_FLOOR_S = 60  # under a minute left, no leg starts: a stub run tells nothing and holds the lock
+# A repo whose one leg outgrows TEST_TIMEOUT_S declares its own in the BASE's .fabrik/merge-tests (a
+# branch cannot raise it): `# merge-test-timeout: <seconds>` on a line of its own, the first such line
+# read, clamped to [LEG_FLOOR_S, MERGE_TEST_BUDGET_S] — so the budget, and the documented wrapper,
+# still bound the run; a longer leg leaves less of the budget for a rebuild (W-1fb11ec8, wef's ~5240-test
+# leg past 1800 s on 2026-10-24).
+_LEG_DECL_RE = re.compile(r"(?m)^#[ \t]*merge-test-timeout:[ \t]*([0-9]{1,6})[ \t]*$")
 PUSH_TIMEOUT_S = 600
 SYNC_TIMEOUT_S = 900
 EXIT_OK = 0
@@ -603,6 +609,15 @@ class _Ctx:
         # every owner-test leg of this invocation draws on one budget (_leg_timeout)
         self.test_deadline = time.monotonic() + MERGE_TEST_BUDGET_S
         self.leg_limit = TEST_TIMEOUT_S
+        self.full_leg = TEST_TIMEOUT_S  # a full leg: TEST_TIMEOUT_S, or the base's declared one
+
+
+def _declared_leg(script: str) -> int:
+    """The base script's ``# merge-test-timeout:`` value, clamped; TEST_TIMEOUT_S without one."""
+    m = _LEG_DECL_RE.search(script)
+    if not m:
+        return TEST_TIMEOUT_S
+    return max(LEG_FLOOR_S, min(int(m.group(1)), MERGE_TEST_BUDGET_S))
 
 
 def _leg_timeout(ctx: _Ctx) -> int:
@@ -614,7 +629,7 @@ def _leg_timeout(ctx: _Ctx) -> int:
             f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) is spent — no leg started, "
             "not a test verdict"
         )
-    return min(TEST_TIMEOUT_S, left)
+    return min(ctx.full_leg, left)
 
 
 def _lit_env() -> dict:
@@ -938,9 +953,7 @@ def _merge3(path: str, ours: str, orig: str, theirs: str) -> str:
 
 # --- (a)-(d): build, preflight, tests, CAS --------------------------------------------------
 @contextlib.contextmanager
-def _throwaway(
-    ctx: _Ctx, rec: dict, commit: str, prefix: str | None = None
-) -> Iterator[Path]:
+def _throwaway(ctx: _Ctx, rec: dict, commit: str, prefix: str | None = None) -> Iterator[Path]:
     """A detached worktree at ``commit`` under a scratch parent, named after the main checkout
     (``<tmp>/<repo basename>``) with a ``fabrik-lib`` link beside it when the main checkout's
     parent holds one (what the repo's tests reach as ``../fabrik-lib``). Removed and pruned on
@@ -1306,6 +1319,7 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     if note and note not in ctx.notes:  # once per merge: this runs per rebuild and per catch-up
         ctx.notes.append(note)
     script = _base_merge_tests(ctx, old)
+    ctx.full_leg = _declared_leg(script)
     touched: list[str] = []
     if not script:
         touched = [
@@ -1331,14 +1345,14 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     try:
         run, label = _run_owner_leg(ctx, wt, script, touched)
     except TimedOutError as exc:
-        if ctx.leg_limit < TEST_TIMEOUT_S:
+        if ctx.leg_limit < ctx.full_leg:
             raise BudgetSpentError(spent.format(ctx.leg_limit)) from exc
         exc.base_old = old  # type: ignore[attr-defined]
         exc.base_alone_skip = "the merged run timed out"  # type: ignore[attr-defined]
         raise
     # a 124 is the budget's only when the leg ran its whole shortened limit: the owner's own
     # `timeout` (or a plain `exit 124`) inside the leg exits sooner and stays a red
-    shortened = ctx.leg_limit < TEST_TIMEOUT_S
+    shortened = ctx.leg_limit < ctx.full_leg
     if run.returncode == 124 and shortened and time.monotonic() - t0 >= ctx.leg_limit:
         raise BudgetSpentError(spent.format(ctx.leg_limit))  # no base_old: no base-alone run
     if run.returncode != 0:
@@ -1359,13 +1373,18 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
 # A builder ran the suite before requesting and the merge ran it again under the serial lock
 # (web-ecommerce-factory 2026-10-24: 18-28 min each). The requester's run of the merge the owner
 # would build is recorded by its merged TREE, so a moved base cannot match a stale record.
-PRETEST_DIR = "pretest"  # a subdirectory: `_resume_stranded`/`_parked` glob only `fabrik-merge/*.json`
+PRETEST_DIR = (
+    "pretest"  # a subdirectory: `_resume_stranded`/`_parked` glob only `fabrik-merge/*.json`
+)
 _TREE_RE = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
 # The paths a base move may change without a re-test: the three ledgers no repo's tests read as input
 # (wef's tests/scripts/test_cross_repo_cites.py globs docs/*.md and INDEX.md but excludes exactly
 # these) and work-item files. Narrower than LEDGERS on purpose: INDEX.md and STRATEGIC_BACKLOG are
 # test inputs there. Measured on wef's last 21 merges: 15 match with this set, 16 with LEDGERS.
 PRETEST_SKIP = frozenset({"CHANGELOG.md", DECISIONS, "docs/LESSONS_LEARNT.md"})
+# A pretest leg shorter than this is re-run rather than trusted: a suite worth skipping takes minutes
+# (wef 18-28 min), and a leg that "passed" in seconds is a stub runner or an empty selection.
+PRETEST_FLOOR_S = LEG_FLOOR_S
 
 
 def _pretest_path(records: Path, head: str) -> Path:
@@ -1414,6 +1433,11 @@ def _pretested(ctx: _Ctx, wt: Path, script: str) -> tuple[str, str]:
         return ignored("the base's .fabrik/merge-tests changed since")
     if rec.get("runner_sha256") != _runner_sha():
         return ignored("written by a merge_request.py other than this one")
+    seconds = rec.get("seconds")
+    if not isinstance(seconds, (int, float)) or seconds < PRETEST_FLOOR_S:
+        # a suite that finished in under a minute (a stub runner, FABRIK_CAPPED_RUN=/bin/true) is
+        # cheap to re-run and is not trusted as the change's one run
+        return ignored(f"its leg ran {seconds!r}s, under {PRETEST_FLOOR_S}s")
     diff = _run(
         ["git", "diff", "--name-only", "-z", "--no-renames", tree, "HEAD^{tree}"],
         GIT_TIMEOUT_S,
@@ -1427,7 +1451,7 @@ def _pretested(ctx: _Ctx, wt: Path, script: str) -> tuple[str, str]:
         return ignored(f"{len(code)} non-ledger path(s) differ, e.g. {code[0]}")
     return (
         f".fabrik/merge-tests (base copy): green on the requester's pretest "
-        f"(tree {tree[:12]}, {len(paths)} ledger path(s) differ)",
+        f"(tree {tree[:12]}, {int(seconds)}s, {len(paths)} ledger path(s) differ)",
         "",
     )
 
@@ -1445,20 +1469,41 @@ def _pretest(main: Path, common: Path, owner: str, base: str, branch: str, head:
     script = _base_merge_tests(ctx, old)
     if not script:
         return f"--pretest: nothing to pretest (the base {base} has no .fabrik/merge-tests)"
+    _sweep_pretests(ctx)
     path = ctx.records / f"{head}.json"
     path.unlink(missing_ok=True)
-    rec: dict = {"id": head}
+    rec: dict = {"id": head, **_claimer()}  # pid + start: a killed pretest's leftovers are swept
+    killed = (
+        "the pretest timed out or was killed ({}) — not a test verdict; run it again, "
+        "or request without --pretest"
+    )
+    saved = os.environ.get("FABRIK_MERGE_TESTS_RECORDS")
     try:
-        with _throwaway(ctx, rec, old, _PRETEST_PREFIX) as wt:
-            new = _build(ctx, wt, head, f"pretest {branch}", base)
-            summary = _owner_tests(ctx, wt, old, _merged_paths(main, old, new))
-            tree = _gitc(wt, "rev-parse", f"{new}^{{tree}}").strip()
+        with tempfile.TemporaryDirectory(prefix="merge-pretest-records-") as private:
+            os.environ["FABRIK_MERGE_TESTS_RECORDS"] = private
+            with _throwaway(ctx, rec, old, _PRETEST_PREFIX) as wt:
+                new = _build(ctx, wt, head, f"pretest {branch}", base)
+                t0 = time.monotonic()
+                try:
+                    summary = _owner_tests(ctx, wt, old, _merged_paths(main, old, new))
+                except TimedOutError as exc:
+                    raise RefusedError(killed.format("the outer bound")) from exc
+                except RefusedError as exc:
+                    skip = getattr(exc, "base_alone_skip", None)
+                    if skip:
+                        raise RefusedError(killed.format(skip)) from exc
+                    raise
+                seconds = round(time.monotonic() - t0)
+                tree = _gitc(wt, "rev-parse", f"{new}^{{tree}}").strip()
+        for key in ("pid", "start", "session"):
+            rec.pop(key, None)
         rec.update(
             head=head,
             base_old=old,
             tree=tree,
             script_sha256=_script_sha(script),
             runner_sha256=_runner_sha(),
+            seconds=seconds,
             green=True,
             at=_now(),
         )
@@ -1466,7 +1511,29 @@ def _pretest(main: Path, common: Path, owner: str, base: str, branch: str, head:
     except BaseException:
         path.unlink(missing_ok=True)
         raise
-    return f"--pretest: {summary} on {base} at {old[:12]} (tree {tree[:12]})"
+    finally:
+        if saved is None:
+            os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
+        else:
+            os.environ["FABRIK_MERGE_TESTS_RECORDS"] = saved
+    return f"--pretest: {summary} in {seconds}s on {base} at {old[:12]} (tree {tree[:12]})"
+
+
+def _sweep_pretests(ctx: _Ctx) -> None:
+    """A pretest SIGKILLed mid-leg leaves its throwaway registered and its bookkeeping record (the
+    owner's sweep never takes ``fabrik-pretest-`` dirs, so nothing else would): remove each whose
+    process is gone. A green record carries no ``worktree`` and is kept."""
+    for path in sorted(ctx.records.glob("*.json")) if ctx.records.is_dir() else []:
+        try:
+            rec = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError):
+            continue
+        if not isinstance(rec, dict) or not isinstance(rec.get("worktree"), str):
+            continue
+        if not _stranded(rec):
+            continue  # a live pretest of this head by another session
+        _remove_throwaway(ctx, Path(rec["worktree"]), _PRETEST_DIR_RE)
+        path.unlink(missing_ok=True)
 
 
 # capped_run.sh's own verdicts: 124 its time limit, 137 its memory ceiling (scripts/capped_run.sh)
