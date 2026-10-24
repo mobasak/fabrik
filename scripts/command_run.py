@@ -2911,7 +2911,8 @@ def _parse_usage_feedback(
     for i, m in enumerate(marks):
         end = marks[i + 1].start(1) if i + 1 < len(marks) else len(text)
         value = text[m.end() : end]
-        if i in owns_closer:
+        # ...and only an UNBALANCED `]`: `[· filed: mail [01M5ABC]` ends in the id's own bracket
+        if i in owns_closer and value.count("]") > value.count("["):
             value = _USAGE_OPT_CLOSE_RE.sub("", value, count=1)
         value = value.strip()
         value = value.rstrip("·|;, \t").strip()

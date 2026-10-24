@@ -8790,6 +8790,13 @@ def test_the_usage_grammar_round_trips_its_optional_cost_bracket() -> None:
         "waste: none · change: none · filed: x [· confusion: y] · cost: 1"
     )
     assert fields["filed"] == "x" and fields["confusion"] == "y" and fields["cost"] == "1", fields
+    # a bracketed field whose value ENDS in an id's own bracket keeps it: only an unbalanced `]`
+    # closes the opener (review pass 1, A-haiku-1)
+    lead = "confusion: none · waste: none · change: lean: x "
+    fields, _ = cr._parse_usage_feedback(lead + "[· filed: mail [01M5ABC]")
+    assert fields["filed"] == "mail [01M5ABC]", fields
+    fields, _ = cr._parse_usage_feedback(lead + "[· filed: mail [01M5ABC]]")
+    assert fields["filed"] == "mail [01M5ABC]", fields
     # a newline is a separator too: a bracket opened before a wrapped label closes the same way
     fields, _ = cr._parse_usage_feedback(base + " [\ncost: 0.01]")
     assert fields["filed"] == "mail [01M5ABC]" and fields["cost"] == "0.01", fields

@@ -417,8 +417,8 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   completion notice repeats that number, and a background launch carries no usage at all. The whole
   seat lives in its own transcript, `<transcript dir>/<sid>/subagents/agent-<id>.jsonl` (a Workflow seat one level down, `subagents/workflows/wf_<id>/`), in the
   parent's per-message shape — the close sums those (in-window assistant lines, per-message maximum)
-  into `tok_seat_in/out/cache_read/cache_create` and counts them as `seats_seen`; null when no seat
-  file holds an in-window message. `seats_seen` itself is null — never 0 — when the transcript was not read
+  into `tok_seat_in/out/cache_read/cache_create` (each null when no seat file holds an in-window message)
+  and counts them as `seats_seen`. `seats_seen` itself is null — never 0 — when the transcript was not read
   (no path, not a file, a read that raised), and a measured 0 when it was read and no seat file sat in the window. Measured 2026-09-08: one review's 21 seats billed 69.5M input
   against the orchestrator's 35.7M. The FEEDBACK line prints them as `· seats N: X input / Y output`;
   a window with seats but no orchestrator message prints `tokens — · seats …`, never nothing; a seat still
