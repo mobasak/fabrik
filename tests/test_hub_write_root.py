@@ -381,6 +381,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh": "main-only: spec § What exists today — the kilo pipeline commits only in the main checkout",
     "scripts/kilo-benchmarks/daily_refresh.sh": "main-only: kilo-benchmarks daily cron refresh, fixed to /opt/fabrik (no env override)",
     "scripts/sysadmin/bot.py": "main-only: the veteran-sysadmin AI dispatcher — production cron pattern, fixed to /opt/fabrik",
+    "scripts/sysadmin/vps1_pg_scoped_logins.py": "main-only: operator-run credential rotation (D-1176); main() refuses any cwd but /opt/fabrik, and it writes only the gitignored .env and backups/ there",
     "scripts/sysadmin/canary_grounding.py": "main-only: sysadmin monitoring cron, fixed to /opt/fabrik",
     "scripts/sysadmin/ci_health_probe.py": "main-only: sysadmin monitoring cron; the matched write is a mesh-notify subprocess argument, not a file write",
     "scripts/sysadmin/daily-digest.sh": "main-only: daily cron digest, fixed to /opt/fabrik",
