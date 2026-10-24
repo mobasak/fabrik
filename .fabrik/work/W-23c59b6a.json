@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: another repo's request (fabrik-lib SB-037 contract change); effort low: route and update consumers",
-  "status": "open",
+  "status": "done",
   "title": "WHAT: fabrik-lib `revenuecat-entitlements` changed its corrupt-stored-row contract (SB-037; fabrik-lib D-481 approved it, D-484 executed it). Every project that vendors this module should re-vendor it."
 }
