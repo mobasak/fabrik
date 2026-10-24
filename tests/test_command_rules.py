@@ -105,6 +105,8 @@ def test_units_and_exact_match() -> None:
     assert cr.vanished(base, "## S\n\nNever stage this. Keep going.\n") == [2]
     assert cr.vanished(base, "## Other\n\nNever stage it. Keep going.\n") == [1, 2, 3]
     assert cr.vanished(base, "## S\n\n<!-- Never stage it. -->\nKeep going.\n") == [2]
+    commented = cr.keys("## S\n\n<!-- dead note -->\nKeep going.\n")
+    assert cr.vanished(commented, "## S\n\nKeep going.\n") == []  # a comment carries no rule to classify
 
 
 # ── Behaviour 3 ───────────────────────────────────────────────────────────────────────────────
@@ -121,6 +123,9 @@ def test_each_failed_carrier_is_a_loss(tmp_path: Path) -> None:
     t = _tree(tmp_path / "forbid", render=SOURCE + "\n<!-- always force-push -->\n")
     _ledger(t, [{**ENTRY, "forbidden": ["force-push"]}])
     assert any("forbidden phrase present" in x for x in _losses(t))
+    t = _tree(tmp_path / "commented", render=SOURCE.replace("Never stage a sibling's file.", "<!-- Never stage a sibling's file. -->"))
+    _ledger(t, [ENTRY])
+    assert any("`current` not found" in x for x in _losses(t))
     t = _tree(tmp_path / "section")
     _ledger(t, [{**ENTRY, "section": "## Close"}])
     assert any("`current` not found under its section" in x for x in _losses(t))

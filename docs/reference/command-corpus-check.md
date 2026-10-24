@@ -299,6 +299,37 @@ Two classes of citation rot were fixed alongside it and should not be reintroduc
 - **Prefer a section anchor to a line range** when citing another command; two
   `/fabrik-deploy-verify` self-citations had slid three lines.
 
+## Rule ledger (the lean program's loss check)
+
+`commands/command_rules.py` is the rule test of the lean corpus program
+(`docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` § The rule test). One YAML ledger per
+command lives at `commands/_rules/<command>.yaml`, and one per shared file at
+`commands/_rules/_shared/<name>.yaml`. Each ledger carries a sha-pinned baseline of its own text,
+split into heading-keyed units. `losses()` asserts every ledger against a render. A failed carrier
+(`text`, `ordered`, `forbidden`, `enforced`), a baseline unit that vanished unclassified, or a
+malformed ledger is a LOSS. `losses()` never raises.
+
+- **Own text:** a command's source with every `{{include:…}}` line blanked; a shared file is its
+  own text.
+- **Units:** frontmatter is dropped. A heading, a table row, a fenced block or an HTML comment is
+  one unit, and prose splits into sentences. A comment carries no rule.
+- **Matching (U2):** exact after collapsing whitespace, removing `**`/`__` outside backticks and
+  dropping a trailing period. A reworded or moved rule therefore vanishes and must be classified
+  as `rule: [ids]`, `duplicate-of: id` or `narrative` in the ledger's `vanished:` map, keyed
+  `L<n>` by baseline line.
+- `tests/test_command_rules.py` renders the corpus itself, asserts no LOSS and prints each
+  ledger's entry count.
+
+`assemble_commands.py --check` exits:
+
+| Exit | Meaning |
+|---|---|
+| 0 | in sync, no LOSS |
+| 1 | drift (the installed corpus differs from the render) or a `SystemExit("…")` render defect |
+| 2 | a render error |
+| 3 | a write refused outside the main checkout (`--extract`, or a render into the installed corpus) |
+| 4 | a rule LOSS, printed before any drift and outranking it |
+
 ## Related
 
 - `docs/reference/ticket-breadth.md` — the sibling advisory check on plan sets
