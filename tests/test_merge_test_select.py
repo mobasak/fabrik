@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,16 @@ def test_name_and_stem_select():
     ]
     # a stem under MIN_STEM characters is not a key: `run` would select half the suite
     assert mts.select(["scripts/run.py"], {"tests/test_d.py": "run the thing"}) == []
+    # a short module is still selected by the way a test imports it
+    imports = {
+        "tests/test_dotted.py": "from fabrik.state import load",
+        "tests/test_from.py": "from fabrik import state",
+        "tests/test_other.py": "from fabrik.statement import x",
+    }
+    assert mts.select(["src/fabrik/state.py"], imports) == [
+        "tests/test_dotted.py",
+        "tests/test_from.py",
+    ]
 
 
 def test_directory_and_tree_grader_keys():
@@ -152,6 +163,19 @@ def test_pyproject_ignores_are_dropped(tmp_path, monkeypatch, capsys):
     assert rc == 0 and "tests/test_tool_one.py" in out and "test_ignored" not in out, out
 
 
+@pytest.mark.parametrize(
+    "addopts",
+    [
+        '"--ignore tests/test_ignored.py"',  # the flag and its value as two words
+        '["--ignore=tests/test_ignored.py"]',  # a list-valued addopts
+    ],
+)
+def test_every_ignore_spelling_is_dropped(tmp_path, monkeypatch, addopts):
+    (tmp_path / "pyproject.toml").write_text(f"[tool.pytest.ini_options]\naddopts = {addopts}\n")
+    monkeypatch.chdir(tmp_path)
+    assert mts._ignored() == {"tests/test_ignored.py"}
+
+
 # library_x.py (stem >= MIN_STEM) is named by every test below, so a change to it selects them all
 LIB_BASE = "VALUE = 1\nMSG = 'base message'\n"
 LIB_BRANCH = "VALUE = 2\nMSG = 'branch message'\n"
@@ -176,6 +200,8 @@ LEG_REPO = {
     "tests/test_dirty.py": (
         "import library_x\n\ndef test_dirty():\n    open('data.txt', 'w').write('dirtied')\n"
     ),
+    # red on both, its crash line naming pytest's per-run temp root, which differs run to run
+    "tests/test_tmp.py": "import library_x\n\ndef test_tmp(tmp_path):\n    assert False, str(tmp_path)\n",
 }
 
 
@@ -184,7 +210,12 @@ def test_differential_verdicts(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("FLAKY_FILE", str(tmp_path / "flaky-ran"))
     newred = "import library_x\n\ndef test_newred():\n    assert False, 'new in the branch'\n"
     base, merge = _merge(
-        repo, {"library_x.py": LIB_BRANCH, "tests/test_newred.py": newred, "data.txt": "branch\n"}
+        repo,
+        {
+            "library_x.py": LIB_BRANCH,
+            "tests/test_newred.py": newred,
+            "data.txt": "branch\n",
+        },
     )
     rc, out = _run(repo, monkeypatch, capsys)
     assert rc == 1, out
@@ -195,9 +226,19 @@ def test_differential_verdicts(tmp_path, monkeypatch, capsys):
         "tests/test_newred.py::test_newred",
     }, out
     pre = {ln.split(" — ")[1].split(" (")[0] for ln in out.splitlines() if "pre-existing" in ln}
-    assert pre == {"tests/test_keep.py::test_keep", "tests/test_broken.py"}, out
+    assert pre == {
+        "tests/test_keep.py::test_keep",
+        "tests/test_broken.py",
+        "tests/test_tmp.py::test_tmp",
+    }, out
+    # every NEW red is recorded, by id, under the base the merge refused onto
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    record = (common / "fabrik-merge" / f"merge-tests-{base}.txt").read_text().splitlines()
+    assert sorted(ln.split("\t")[0] for ln in record) == sorted(new), record
     assert "FLAKY" in out and "tests/test_flaky.py::test_flaky" in out, out
-    assert out.strip().splitlines()[-1].startswith("merge-tests: red"), out  # the verdict is LAST
+    lines = out.strip().splitlines()
+    assert lines[-1].startswith("merge-tests: red"), out  # the verdict is LAST
+    assert all("NEW red" in ln for ln in lines[-4:-1]), out  # the 3 lines the refusal quotes
     assert _git(repo, "rev-parse", "HEAD") == merge  # back at the merge, though a test dirtied it
     # the same merge with only master's own reds is green (the leg left HEAD detached at the merge,
     # as the merge leg's build tree is; master is reset under it)
@@ -240,11 +281,19 @@ def test_the_record_and_the_base_alone_run(tmp_path, monkeypatch, capsys):
     base, _merge_sha = _merge(repo, {"library_x.py": LIB_BRANCH})
     common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     record = common / "fabrik-merge" / f"merge-tests-{base}.txt"
-    # outside a merge check (a requester's run) nothing is recorded
+    # outside a merge check (a requester's own worktree) nothing is recorded, nothing compared,
+    # and the tree is never checked out or cleaned: uncommitted work survives
     monkeypatch.setenv("FLAKY_FILE", str(tmp_path / "unused"))
     _git(repo, "update-ref", "refs/remotes/origin/master", base)
+    _git(repo, "checkout", "-q", "master")
+    (repo / "wip.txt").write_text("untracked work\n")
+    (repo / "library_x.py").write_text(LIB_BRANCH + "# uncommitted\n")
     rc, out = _run(repo, monkeypatch, capsys, merge_check=False)
-    assert rc == 1 and not record.exists(), out
+    assert rc == 1 and not record.exists() and "not compared with the base" in out, out
+    assert (repo / "wip.txt").exists() and "# uncommitted" in (repo / "library_x.py").read_text()
+    assert _git(repo, "symbolic-ref", "--short", "HEAD") == "master"
+    _git(repo, "checkout", "-q", "--", "library_x.py")
+    (repo / "wip.txt").unlink()
     # the merge leg records the NEW red by id, keyed by its base
     rc, out = _run(repo, monkeypatch, capsys)
     assert rc == 1 and record.read_text().split("\n")[0] == "tests/test_mod.py::test_mod\tcall"
@@ -264,13 +313,134 @@ def test_the_record_and_the_base_alone_run(tmp_path, monkeypatch, capsys):
     _git(repo, "checkout", "-q", "--detach", base)
     rc, out = _run(repo, monkeypatch, capsys)
     assert rc == 0 and "file new in the branch" in out, out
+    # a recorded id that IS red on the base: red there too
+    record.write_text("tests/test_mod.py::test_master_red\tcall\n")
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "1 of 1 new red(s) red here too" in out, out
+    # a refusal without a verdict records that it measured nothing
+    record.write_text("#leg-failed\tLegError\n")
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 2 and "NOT MEASURED on the base" in out.strip().splitlines()[-1], out
+
+
+def test_a_base_that_is_itself_a_merge_commit_takes_the_base_alone_path(
+    tmp_path, monkeypatch, capsys
+):
+    """4 of master's last 12 first-parent tips are merge commits: the base-alone re-run lands on
+    one as often as not, and must not take it for the merge under check."""
+    repo = _repo(
+        tmp_path,
+        {
+            "library_x.py": LIB_BASE,
+            "tests/test_mod.py": "import library_x\n\ndef test_mod():\n    assert library_x.VALUE == 1\n",
+        },
+    )
+    _base0, base = _merge(repo, {"README": "an earlier branch\n"})  # the base: a merge commit
+    _git(repo, "branch", "-qD", "feat")
+    _merge(repo, {"library_x.py": LIB_BRANCH})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "NEW red — tests/test_mod.py::test_mod" in out, out
+    _git(repo, "checkout", "-q", "--detach", base)
+    assert len(_git(repo, "show", "-s", "--format=%P", "HEAD").split()) == 2
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "0 of 1 new red(s) red here too" in out, out
+
+
+def test_a_red_another_file_of_its_shard_causes_is_compared_in_that_order(
+    tmp_path, monkeypatch, capsys
+):
+    """The branch adds a test that leaves an untracked file behind; a base test fails when it finds
+    one. Alone it is green, so a confirm of the file alone would call it flaky and admit it; in its
+    shard's order it is red, and on the base — cleaned, the branch's writer absent — green: NEW."""
+    reader = (
+        "import os, library_x\n\ndef test_reader():\n"
+        "    assert not os.path.exists('leftover.flag'), 'a leftover from another test'\n"
+    )
+    writer = "import library_x\n\ndef test_writer():\n    open('leftover.flag', 'w').close()\n"
+    repo = _repo(tmp_path, {"library_x.py": LIB_BASE, "tests/test_b_reader.py": reader})
+    _merge(repo, {"library_x.py": LIB_BRANCH, "tests/test_a_writer.py": writer})
+    rc, out = _run(repo, monkeypatch, capsys, args=("--shards", "1"))
+    assert rc == 1 and "NEW red — tests/test_b_reader.py::test_reader" in out, out
+    assert "FLAKY" not in out, out
+
+
+def test_a_base_run_that_fails_still_restores_the_merge(tmp_path, monkeypatch, capsys):
+    repo = _repo(
+        tmp_path,
+        {
+            "library_x.py": LIB_BASE,
+            "tests/conftest.py": "import no_such_module_anywhere\n",  # the base cannot run
+            "tests/test_mod.py": "import library_x\n\ndef test_mod():\n    assert library_x.VALUE == 1\n",
+        },
+    )
+    _base, merge = _merge(repo, {"library_x.py": LIB_BRANCH, "tests/conftest.py": None})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 3 and "LEG FAILED" in out.strip().splitlines()[-1], out
+    assert _git(repo, "rev-parse", "HEAD") == merge
+    # the refusal records that it measured nothing, so the base-alone run says so
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    record = common / "fabrik-merge" / f"merge-tests-{_base}.txt"
+    assert record.read_text().startswith("#leg-failed\t"), record.read_text()
+
+
+def test_an_unreadable_failure_record_is_a_leg_failure(tmp_path):
+    runner = mts._Runner(tmp_path)
+    rec = tmp_path / "torn.jsonl"
+    rec.write_text(
+        '{"id": "tests/test_x.py::test_x", "when": "call", "msg": "boo'
+    )  # killed mid-write
+    log = tmp_path / "log.txt"
+    log.write_text("")
+    proc = subprocess.Popen(["true"])
+    with pytest.raises(mts.LegError, match="unreadable failure record"):
+        runner.finish(proc, rec, log)
+
+
+def test_the_merge_tests_line_runs_the_selector_as_the_merge_leg_does(tmp_path):
+    """`.fabrik/merge-tests` executed the way `_run_owner_leg` runs it — `sh -e -c <its text>` in
+    the build tree with FABRIK_MERGE_CHECK=1 — in a repo whose common dir holds a `.venv`."""
+    repo = _repo(tmp_path, {"README": "x\n", "tests/test_ok.py": "def test_ok():\n    pass\n"})
+    (repo / "scripts").mkdir()
+    (repo / "scripts" / "merge_test_select.py").write_bytes(SCRIPT.read_bytes())
+    venv = repo / ".venv" / "bin"
+    venv.mkdir(parents=True)
+    (venv / "python").symlink_to(sys.executable)
+    _merge(repo, {"README": "y\n"})
+    text = (ROOT / ".fabrik" / "merge-tests").read_text(encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
+    r = subprocess.run(
+        ["sh", "-e", "-c", text],
+        cwd=repo,
+        env={**env, "FABRIK_MERGE_CHECK": "1"},
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.strip().splitlines()[-1].startswith("merge-tests: green"), r.stdout
 
 
 def test_the_crash_line_is_compared_without_the_runs_temp_paths():
-    a = "AssertionError: /tmp/pytest-of-ozgur/pytest-4644/test_x0/out.txt missing in /tmp/merge-q1w2e3r4/x"
-    b = "AssertionError: /tmp/pytest-of-ozgur/pytest-4651/test_x0/out.txt missing in /tmp/merge-zz99xx88/x"
+    a = "AssertionError: /tmp/pytest-of-ozgur/pytest-4644/test_x0/out.txt missing"
+    b = "AssertionError: /tmp/pytest-of-ozgur/pytest-4651/test_x0/out.txt missing"
     assert a != b and mts.normalise(a) == mts.normalise(b)
+    # under another TMPDIR too, and quoted
+    c = "OSError: '/var/tmp/x/pytest-of-ci/pytest-7/test_x0/out.txt'"
+    d = "OSError: '/var/tmp/x/pytest-of-ci/pytest-9/test_x0/out.txt'"
+    assert mts.normalise(c) == mts.normalise(d)
+    # only pytest's root: two failures naming different paths of their own stay different
+    assert mts.normalise("FileNotFoundError: /tmp/fabrik_lib_check") != mts.normalise(
+        "FileNotFoundError: /tmp/zzz_other_thing"
+    )
     assert mts.normalise("assert 1 == 2") != mts.normalise("assert 1 == 3")
+    # an object's address in its repr changes in every process
+    e = "assert not True\n +  where True = <function exists at 0x7f3a1c2b9e40>('leftover.flag')"
+    f = "assert not True\n +  where True = <function exists at 0x7f88d0a1b160>('leftover.flag')"
+    assert mts.normalise(e) == mts.normalise(f)
+    assert mts.normalise("value 0x10") != mts.normalise(
+        "value 0x20"
+    )  # a hex VALUE is not an address
 
 
 # (cause commit, the grader its merge left red) — measured 2026-10-23, W-4e756979's measure.md
@@ -313,9 +483,3 @@ def test_replay_of_measured_red_merges(cause, grader):
     ]
     tests = {n: _show("show", f"{cause}:{n}") for n in names}
     assert grader in mts.select(changed, tests)
-
-
-def test_merge_tests_file_runs_the_selector_under_the_main_checkouts_venv():
-    text = (ROOT / ".fabrik" / "merge-tests").read_text(encoding="utf-8")
-    assert "scripts/merge_test_select.py" in text and "git-common-dir" in text, text
-    assert os.access(SCRIPT, os.R_OK)

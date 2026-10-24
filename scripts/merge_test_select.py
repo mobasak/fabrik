@@ -57,8 +57,14 @@ MIN_STEM = 6
 TREE_GRADER = "ls-files"
 # pytest's own exits that still mean "the tests ran": 0 green, 1 failures, 5 nothing collected
 RAN = (0, 1, 5)
-_BASETEMP = re.compile(r"/tmp/pytest-of-[^/\s]+/pytest-\d+/")
-_MKDTEMP = re.compile(r"/tmp/[A-Za-z0-9_.-]*?[a-z0-9_]{8}(?=/|\b)")
+# pytest's per-run temp root, under whatever TMPDIR the leg inherits: the one part of a crash line that
+# differs between two runs of one failure (measured on master's reds: raw lines equal 7 of 16,
+# with this replaced 16 of 16; a looser mkdtemp rule merged two different failures, so none)
+_BASETEMP = re.compile(r"[^\s'\"]*/pytest-of-[^/\s]+/pytest-\d+/")
+# and an object's address in its repr (`<function exists at 0x7f…>`), new in every process
+_ADDRESS = re.compile(r"\bat 0x[0-9a-fA-F]+\b")
+# a record line naming no id: the leg refused without a verdict, so the base-alone run measures nothing
+_LEG_MARK = "#leg-failed"
 # The recording plugin: one JSON line per failed report (a collection error's id is the file).
 _PLUGIN = """
 import json, os
@@ -93,6 +99,19 @@ def _git(*args: str) -> str:
     return r.stdout
 
 
+def import_keys(path: str) -> set[str]:
+    """The import spellings of a module path (`fabrik.state`, `fabrik import state`), matched only
+    where no identifier character or dot continues them, so `fabrik.state` misses `fabrik.statement`."""
+    p = Path(path)
+    if p.suffix != ".py":
+        return set()
+    mod = list(p.with_suffix("").parts)
+    mod = mod[1:] if mod[:1] == ["src"] else mod
+    if len(mod) < 2:
+        return set()
+    return {".".join(mod), f"{'.'.join(mod[:-1])} import {mod[-1]}"}
+
+
 def keys_for(path: str) -> set[str]:
     """The strings whose presence in a test's text selects it for a change to ``path``."""
     p = Path(path)
@@ -114,20 +133,32 @@ def keys_for(path: str) -> set[str]:
 def select(changed: list[str], tests: dict[str, str]) -> list[str]:
     """``tests`` maps each test file to its text; returns the files to run, sorted."""
     keys: set[str] = set()
+    mods: set[str] = set()
     picked = {p for p in changed if p in tests}
     for p in changed:
         if not SKIP.fullmatch(p):
             keys |= keys_for(p)
+            mods |= import_keys(p)
+    bounded = (
+        re.compile("|".join(rf"(?<![\w.]){re.escape(m)}(?![\w])" for m in sorted(mods)))
+        if mods
+        else None
+    )
     if keys:
         for name, text in tests.items():
-            if TREE_GRADER in text or any(k in text for k in keys):
+            if (
+                TREE_GRADER in text
+                or any(k in text for k in keys)
+                or (bounded is not None and bounded.search(text))
+            ):
                 picked.add(name)
     return sorted(picked)
 
 
 def normalise(msg: str) -> str:
-    """A crash line with the run's own temp paths replaced, so two runs of one failure compare equal."""
-    return _MKDTEMP.sub("/tmp/<mkdtemp>", _BASETEMP.sub("<basetemp>/", msg))
+    """A crash line with pytest's per-run temp root and object addresses replaced, so two runs of
+    one failure compare equal."""
+    return _ADDRESS.sub("at 0x?", _BASETEMP.sub("<basetemp>/", msg))
 
 
 def _ignored() -> set[str]:
@@ -156,8 +187,9 @@ def _record_path(base: str) -> Path:
 def _write_record(base: str, keys: list[str]) -> None:
     rec = _record_path(base)
     rec.parent.mkdir(parents=True, exist_ok=True)
-    tmp = rec.with_name(rec.name + ".tmp")
-    tmp.write_text("".join(k + "\n" for k in keys), encoding="utf-8")
+    fd, tmp = tempfile.mkstemp(dir=rec.parent, prefix=rec.name + ".")  # never a shared temp name
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write("".join(k + "\n" for k in keys))
     os.replace(tmp, rec)  # a reader never sees half a list
 
 
@@ -187,7 +219,12 @@ class _Runner:
         path = os.pathsep.join(p for p in (os.environ.get("PYTHONPATH", ""), str(self.dir)) if p)
         env = {**os.environ, "PYTHONPATH": path, "FABRIK_MERGE_TESTS_REC": str(rec)}
         argv = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
-        argv += ["--continue-on-collection-errors", "-p", "_fabrik_merge_tests_rec", *files]
+        argv += [
+            "--continue-on-collection-errors",
+            "-p",
+            "_fabrik_merge_tests_rec",
+            *files,
+        ]
         # each run writes to its own file: a pipe left unread while another is awaited fills at
         # 64 KiB and stalls that run, which would serialise the shards
         with log.open("w", encoding="utf-8") as fh:
@@ -200,8 +237,15 @@ class _Runner:
         tail = log.read_text(encoding="utf-8", errors="replace").strip()[-3000:]
         reds: dict = {}
         for line in rec.read_text(encoding="utf-8").splitlines():
-            d = json.loads(line)
-            reds[(d["id"], d["when"])] = d["msg"]
+            try:
+                d = json.loads(line)
+                reds[(d["id"], d["when"])] = d["msg"]
+            except (
+                ValueError,
+                KeyError,
+                TypeError,
+            ) as exc:  # a run killed mid-write: no verdict
+                raise LegError(f"an unreadable failure record ({exc}): {line[:200]}") from exc
         return rc, reds, tail
 
     def run(self, files: list[str]) -> tuple[int, dict, str]:
@@ -213,57 +257,118 @@ def _files_of(reds) -> list[str]:
 
 
 def _checkout(commit: str) -> None:
-    for argv in (["git", "checkout", "-q", "-f", "--detach", commit], ["git", "clean", "-fdq"]):
+    """``commit``'s tree with no untracked file left by an earlier run (ignored ones, the copied
+    ``.env`` among them, stay): every run the verdict compares starts from the same state."""
+    for argv in (
+        ["git", "checkout", "-q", "-f", "--detach", commit],
+        ["git", "clean", "-fdq"],
+    ):
         r = subprocess.run(argv, capture_output=True, text=True)
         if r.returncode != 0:
             raise LegError(f"`{' '.join(argv)}` refused: {(r.stderr or r.stdout).strip()}")
 
 
+def _parallel(runner: _Runner, groups: list[list[str]], what: str) -> dict:
+    """Each group in its own process, its files in order; the reds of all, or a LegError."""
+    started = [runner.start(g) for g in groups if g]
+    reds: dict = {}
+    for i, args in enumerate(started):
+        rc, got, tail = runner.finish(*args)
+        if rc not in RAN:
+            raise LegError(f"{what} {i + 1} of {len(started)} exited {rc}:\n{tail}")
+        reds.update(got)
+    return reds
+
+
+def _one_line(msg: str, width: int) -> str:
+    return " ".join(msg.split())[:width]
+
+
 def differential(
-    files: list[str], merge: str, base: str, runner: _Runner, shards: int
+    files: list[str],
+    merge: str,
+    base: str,
+    runner: _Runner,
+    shards: int,
+    *,
+    compare: bool,
 ) -> tuple[list[tuple], list[str]]:
     """Run ``files`` in shards on ``merge``; returns the reds NEW against ``base`` (each
-    ``((id, when), crash line)``) and the lines to print."""
+    ``((id, when), crash line)``) and the lines to print. ``compare`` is the merge leg's alone:
+    it checks the tree out and cleans it, which in a requester's own worktree would destroy
+    uncommitted work — there the confirmed reds are returned unverified against the base."""
     out: list[str] = []
     if not files:
         return [], out
     groups = [g for g in (files[i::shards] for i in range(shards)) if g]
-    started = [runner.start(g) for g in groups]
-    first: dict = {}
-    for i, args in enumerate(started):
-        rc, reds, tail = runner.finish(*args)
-        if rc not in RAN:
-            raise LegError(f"shard {i + 1} of {len(groups)} exited {rc}:\n{tail}")
-        first.update(reds)
+    first = _parallel(runner, groups, "shard")
     if not first:
         return [], out
-    rc, confirmed, tail = runner.run(_files_of(first))
+    group_of = {key: next(g for g in groups if key[0].split("::")[0] in g) for key in first}
+    # confirm each red alone first (cheap); one green alone is re-run in its shard's own order,
+    # since another file of that shard may be what makes it red (rare, so the cost is too)
+    if compare:
+        _checkout(merge)
+    rc, alone, tail = runner.run(_files_of(first))
     if rc not in RAN:
         raise LegError(f"the serial confirm exited {rc}:\n{tail}")
+    confirmed = {k: v for k, v in alone.items() if k in first}
+    ordered: list[list[str]] = []
+    if len(confirmed) < len(first):
+        ordered = [g for g in groups if any(group_of[k] is g for k in first if k not in confirmed)]
+        if compare:
+            _checkout(merge)
+        again = _parallel(runner, ordered, "the ordered confirm of shard")
+        confirmed.update({k: v for k, v in again.items() if k in first and k not in confirmed})
     flaky = sorted(k[0] for k in first if k not in confirmed)
-    confirmed = {k: v for k, v in confirmed.items() if k in first}
     if flaky:
-        out.append(f"merge-tests: FLAKY (red in a shard, green alone) — {', '.join(flaky)}")
+        out.append(
+            f"merge-tests: FLAKY (red in a shard, green alone and in order) — {', '.join(flaky)}"
+        )
     if not confirmed:
         return [], out
+    if not compare:
+        out.append(tail)
+        for (nid, when), msg in sorted(confirmed.items()):
+            out.append(
+                f"merge-tests: red, not compared with the base outside a merge check — {nid} ({when}): {_one_line(msg, 200)}"
+            )
+        return sorted(confirmed.items()), out
+    # the base runs the same shapes: each red file alone, and each ordering red in its shard's order
+    err: LegError | None = None
     try:
         _checkout(base)
-        present = [f for f in _files_of(confirmed) if Path(f).is_file()]
-        rc, on_base, tail = runner.run(present) if present else (0, {}, "")
-        if rc not in RAN:
-            raise LegError(f"the base run exited {rc}:\n{tail}")
+        alone_files = [
+            f for f in _files_of(k for k in confirmed if k in alone) if Path(f).is_file()
+        ]
+        on_base: dict = {}
+        if alone_files:
+            rc, on_base, tail = runner.run(alone_files)
+            if rc not in RAN:
+                raise LegError(f"the base run exited {rc}:\n{tail}")
+        if ordered:
+            _checkout(base)
+            in_order = [[f for f in g if Path(f).is_file()] for g in ordered]
+            on_base.update(_parallel(runner, in_order, "the ordered base run of shard"))
+    except LegError as exc:
+        err = exc
+        raise
     finally:
-        _checkout(merge)
+        try:
+            _checkout(merge)
+        except LegError as back:
+            raise LegError(f"{err}; then {back}" if err else str(back)) from err
     new, old = [], []
     for key, msg in sorted(confirmed.items()):
         was = on_base.get(key)
         (old if was is not None and normalise(was) == normalise(msg) else new).append((key, msg))
-    for (nid, when), msg in old:
-        out.append(f"merge-tests: pre-existing on the base — {nid} ({when}): {msg[:200]}")
-    for (nid, when), msg in new:
-        out.append(f"merge-tests: NEW red — {nid} ({when}): {msg[:300]}")
     if new:
         out.append(tail)
+    for (nid, when), msg in old:
+        out.append(f"merge-tests: pre-existing on the base — {nid} ({when}): {_one_line(msg, 200)}")
+    # last before the verdict, one line each: the refusal quotes only the last 3 lines
+    for (nid, when), msg in new:
+        out.append(f"merge-tests: NEW red — {nid} ({when}): {_one_line(msg, 300)}")
     return new, out
 
 
@@ -274,12 +379,16 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     in_merge = os.environ.get("FABRIK_MERGE_CHECK") == "1"
     t0 = time.monotonic()
+    base = ""
     try:
         head = _git("rev-parse", "HEAD").strip()
         parents = _git("show", "-s", "--format=%P", head).split()
         with tempfile.TemporaryDirectory(prefix="merge-tests-") as tmp:
             runner = _Runner(Path(tmp))
-            if in_merge and len(parents) < 2:
+            # _base_alone re-runs this at the base, which is itself a merge commit as often as
+            # not (4 of master's last 12 first-parent tips): a record for HEAD is what says so,
+            # since only a refusal of a merge onto HEAD writes one, the moment before that re-run
+            if in_merge and (_record_path(head).exists() or len(parents) < 2):
                 return _base_alone(head, runner)
             base = parents[0] if in_merge else _git("merge-base", "HEAD", "origin/master").strip()
             changed = [
@@ -294,16 +403,20 @@ def main(argv: list[str] | None = None) -> int:
             if args.list:
                 print("\n".join(files))
                 return 0
-            new, lines = differential(files, head, base, runner, max(1, args.shards))
+            new, lines = differential(
+                files, head, base, runner, max(1, args.shards), compare=in_merge
+            )
             rc = 1 if new else 0
             if in_merge and new:
                 _write_record(base, [f"{nid}\t{when}" for (nid, when), _ in new])
-    except LegError as exc:
+    except Exception as exc:  # noqa: BLE001 — every failure without a verdict is exit 3, said so
+        if in_merge and base:
+            try:
+                _write_record(base, [f"{_LEG_MARK}\t{type(exc).__name__}"])
+            except OSError:
+                pass  # the refusal stands; the base-alone run then says it measured nothing
         print(f"{exc}\nmerge-tests: LEG FAILED — no verdict (exit 3)")
         return 3
-    except (subprocess.CalledProcessError, OSError) as exc:
-        print(f"merge-tests: cannot select: {exc}")
-        return 2
     print("\n".join(lines))
     verdict = "red — a new failure" if rc else "green"
     print(f"merge-tests: {verdict} in {time.monotonic() - t0:.0f}s")
@@ -320,8 +433,10 @@ def _base_alone(head: str, runner: _Runner) -> int:
             if ln
         }
     except FileNotFoundError:
+        keys = set()
+    if not keys or any(k[0] == _LEG_MARK for k in keys):
         print(
-            f"merge-tests: NOT MEASURED on the base — no selection recorded for HEAD {head[:9]} (not a base-side fault)"
+            f"merge-tests: NOT MEASURED on the base — no new red recorded for HEAD {head[:9]} (not a base-side fault)"
         )
         return 2
     present = [f for f in _files_of(keys) if Path(f).is_file()]
