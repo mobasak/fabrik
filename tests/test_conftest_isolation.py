@@ -530,7 +530,11 @@ def test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box(tmp_path, mo
         "test_assemble_commands_check_reports_no_render_error_and_only_expected_drift",
     ]
     base = {
-        k: v for k, v in os.environ.items() if k not in ("PYTEST_ADDOPTS", "FABRIK_MERGE_CHECK")
+        # an exported PY_COLORS / FORCE_COLOR wraps the lines read below in escapes, and `--color=no`
+        # does not undo it for the traceback lines (executed)
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("PYTEST_ADDOPTS", "FABRIK_MERGE_CHECK", "PY_COLORS", "FORCE_COLOR")
     }
     base["HOME"] = str(home)
 
@@ -588,11 +592,12 @@ def test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box(tmp_path, mo
 
     before = sibling_diff()
     outside = run(base)
+    # inside-only, and asserted before the moved-diff skip: it does not depend on the diff
+    assert "live_box: FABRIK_MERGE_CHECK=1" not in outside.stdout, outside.stdout
     if sibling_diff() != before:
         import pytest
 
         pytest.skip("the diff against origin/master moved during the run — no single expectation")
-    assert "live_box: FABRIK_MERGE_CHECK=1" not in outside.stdout, outside.stdout  # inside-only
     rc, changed = before
     if rc != 0:
         expect, drifted = "1 failed, 1 skipped", ids[:1]
