@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a late re-bind no longer ends a rotation `partial:rebind`, inside the executor's timeout (2026-10-24)
+
+- `rotate_session.py` waits `REBIND_GRACE_S` (180 s, was 90) for the rotated agent's re-bind; the one late bind measured
+  took 98 s. Every wait a request runs is now a named constant and `REQUEST_WORST_S` (487 s) is derived from them, tmux
+  overruns included, and `execute` claims no new request after `CLAIM_CUTOFF_S` (50 s), so two requests that race past
+  the one-at-a-time check can no longer overrun the unit's 600 s TimeoutStartSec and lose a row. run_checks' git calls
+  are not counted yet (W-b728822f). D-1181 (W-b72231b8 slice 2).
+
 ### Added — the rotation verb re-points the session registry itself (2026-10-23)
 
 - `rotate_session.py execute` now re-points `<repo>/.fabrik/session-agents.json` from the rotated agent's old session

@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure live git status/rev-list times on the agent worktrees, then a per-request monotonic deadline in _one (or a named git budget counted in REQUEST_WORST_S); review round 2 of W-b72231b8 slice 2 found it (seats sonnet N1, opus NEW-1)",
+  "next": "measure live git status/rev-list times on the agent worktrees, then a per-request monotonic deadline in _one (or a named git budget counted in REQUEST_WORST_S). RECORDED from W-b72231b8 review r3: worktree_state makes up to 4 git calls (hibernate.py:409, :418, :421, :427), not the 3 rotate_session.py:60 says; fix that comment and the opening sentence of test_wb72231b8_the_worst_request_fits_the_units_timeout's docstring; the guard restates the +5 loop-tail figure and its regex catches a literal wait only in first position (an AST check of _wait_s args for ast.Constant would close both)",
   "note": "",
   "owner": "",
   "priority": 3,
   "status": "open",
-  "title": "rotate_session.py: bound run_checks' git calls inside the rotation executor's 600 s TimeoutStartSec — hibernate.worktree_state makes up to 3 git calls (timeout=60 each, hibernate.py:395), run twice on the stale-discard path (~360 s), so a request started at CLAIM_CUTOFF_S plus REQUEST_WORST_S can pass 600 s under slow git and be killed with no row; W-b72231b8 slice 2 scoped REQUEST_WORST_S to tmux and its own waits"
+  "title": "rotate_session.py: bound run_checks' git calls inside the rotation executor's 600 s TimeoutStartSec — hibernate.worktree_state makes up to 4 git calls (timeout=60 each, hibernate.py:395), run twice on the stale-discard path (~480 s), so a request started at CLAIM_CUTOFF_S plus REQUEST_WORST_S can pass 600 s under slow git and be killed with no row; W-b72231b8 slice 2 scoped REQUEST_WORST_S to tmux and its own waits"
 }
