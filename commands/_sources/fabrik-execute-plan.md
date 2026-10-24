@@ -300,8 +300,9 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 3b. **GUI phases also run the Build Verification Loop (per `/fabrik-ui-design`) — a BLOCKING per-screen gate,
    looped to a no-op, alongside `/fabrik-review`.** **A GUI-phase build+verify subagent runs as
    `subagent_type: fabrik-gui`** (web/extension surfaces — browser MCPs Playwright/shadcn/chrome-devtools to
-   build the screen and drive/screenshot its own render); the rendered critique stays the `design-review`
-   agent. For each screen the phase built: **drive the running screen
+   build the screen and drive/screenshot its own render; on a web surface it builds through
+   `frontend-design:frontend-design` under `core/63-frontend-design.md`'s brief); the rendered critique stays the
+   `design-review` agent. For each screen the phase built: **drive the running screen
    via the surface's MCP** — **web:** Playwright MCP (screenshot 375/768/1440); **mobile (RN):** Maestro MCP +
    Mobile Next MCP, **deferring to `.windsurf/rules/mobile-app/80-mobile.md`**; **extension (MV3):** the web loop
    via a Playwright load-extension fixture, **deferring to `.windsurf/rules/chrome-ext/70-chrome-ext.md`** — match

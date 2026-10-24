@@ -20,7 +20,8 @@ currency_pass: 2026-10-03
 Fabrik-deployed backend.
 **Scope:** `desktop-app` scaffold. Composes with `12-node.md` (main-process runtime), `20-typescript.md` (renderer
 TS), `35-security-auth.md` (sign-in, tokens), `55-observability.md` (Sentry/GlitchTip in main + renderer),
-`design-system-template.md`.
+`design-system-template.md`, and `core/63-frontend-design.md` (renderer UI design runs through
+`frontend-design:frontend-design`).
 
 ---
 

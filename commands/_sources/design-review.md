@@ -44,6 +44,9 @@ Follow and implement THIS project's design contract as the design principles + s
 1. **`docs/ui-design.md`** (the FROZEN screen+flow contract from `/fabrik-ui-design`) — the authoritative screens, minimal-click flows + click budgets, per-screen components/states, and screen↔`docs/data-contract.md` field mapping. Judge the UI against THIS: every screen present, flows within budget, all enriched states, no invented field/component.
 2. The **design system, resolved by the LADDER** (`saas/60-saas-ui.md`, operator ruling 2026-08-29): the project's own `docs/design-system.md` (BIC-sourced) first; `ocoron-design-system.md` / `tojlo-design-system.md` ONLY on the project's explicit house-identity declaration; the structure is `design-system-template.md` whatever the brand — plus `.windsurf/rules/saas/60-saas-ui.md` (web) / `mobile-app/80-mobile.md` (RN) — tokens, components, motion, density, accessibility (WCAG 2.2 AA), responsive, voice/microcopy. Judging a BIC-branded product against ocoron tokens is itself a finding.
 3. A project-local `context/design-principles.md` / `context/style-guide.md` if present.
+4. On a web surface, `frontend-design:frontend-design`'s critique — its AI-generated clusters and generic
+   treatments, written out in `core/63-frontend-design.md` — applied only to what 1–3 leave free; a finding there
+   terminates FIXED or REFUTED like any other, never by editing a frozen contract in place.
 If `docs/ui-design.md` is absent, fall back to the design system + `saas/60-saas-ui.md`'s "Done When" checklist.
 {{include:term-edit}}
 

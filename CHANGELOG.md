@@ -50,6 +50,12 @@ All notable changes to this project will be documented in this file.
 - `.claude/hooks/quota_stop.py` (D-1209, W-cff56c52): at the urgent-90 lane a `/clear` rotation's first two steps — `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force` and `python3 scripts/work.py next` — were held, so a rotated merge owner or P0 owner stayed parked until the lift. The lane now admits a bare `work.py next` and the re-bind in one exact shape, only to the name this window's claude process (pid + start tick) held last in this repo; any other name stays held.
 - Nine graders in `tests/test_quota_stop_hook.py`, each proven red by a named mutant (19 in all); `docs/workstation/claude-account-rotation.md` lists the two new finishing verbs.
 
+### Added — Web UI design routes to the frontend-design:frontend-design skill under a brief that outranks it (2026-10-24)
+
+- New pack `.windsurf/rules/core/63-frontend-design.md` (D-1207, operator ruling relayed in web-ecommerce-factory mail 01M5QJ3V4AN7C9CJV9B9Q8QEWB): every web UI-design act invokes the claude-plugins-official skill `frontend-design:frontend-design` (never the older `example-skills:frontend-design`); the brief — operator rulings, the frozen `docs/ui-design.md`, `docs/design-system.md` with the template's structure — always wins; the skill's AI-generated clusters are written out for readers without the skill, and a cluster finding terminates FIXED or REFUTED, never by editing a frozen contract.
+- Pointers in `/fabrik-ui-design` (Phases 1 and 5), `/fabrik-ui-design-review`, `/design-review` (command and agent), the `fabrik-gui` builder, `/fabrik-execute-plan`'s GUI phase and the saas, chrome-ext and desktop packs; `docs/reference/gui-toolchain.md` corrected (full skill name, Apache-2.0 licence, project design system, review stage).
+- New grader `tests/test_frontend_design_routing.py` (40 cases; 4 mutants killed). Matcher defect found on the way (a middle `**` reads as one segment) filed to infra, mail 01M5QKWMKM.
+
 ### Added — CSS-first Tailwind usage in the design-system template; colour slots kept out of the font-size namespace (2026-10-24)
 
 - `.windsurf/rules/core/design-system-template.md` gains `## Tailwind (CSS-first) usage` (D-1202): tokens, class detection, reuse order, values and layout, tooling — every line grounded on the page it cites, executed on Tailwind 4.3.3 where the docs are silent, no version literal. Its globs now reach `.astro` files and the CSS-first theme stylesheets (27 of 28 on the box).

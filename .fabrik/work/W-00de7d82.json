@@ -3,7 +3,7 @@
   "created": "2026-10-24T18:19:47.441293Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "0e69d18c63e9b518d47feb7a4912a972ae8542ce",
   "id": "W-00de7d82",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 0,
   "score_reason": "URGENT: the operator asked via wef; owner kaizen (command wording) is paused; intel is the free active builder (D-983)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5qj3v4an7c9cjv9b9q8qewb"
   ],
