@@ -498,21 +498,35 @@ def test_blank_code_spans_agrees_with_commonmark_on_inline_fuzz() -> None:
                 e += 1
             raw = text[k:e]
             n = len(raw) - len(raw.lstrip("`"))
-            body = raw[n : len(raw) - n]
+            body = (
+                raw[n : len(raw) - n].replace("\r\n", " ").replace("\n", " ")
+            )  # CommonMark: a line ending is a space
             if len(body) >= 2 and body[0] == " " and body[-1] == " " and body.strip(" "):
                 body = body[1:-1]
             spans.append(body)
             k = e
         return spans
 
+    def commonmark(text: str) -> list[str]:
+        # md.parse, not parseInline: a line break inside a paragraph is read as the block parser reads it
+        return [
+            c.content
+            for t in md.parse(text)
+            if t.type == "inline"
+            for c in (t.children or [])
+            if c.type == "code_inline"
+        ]
+
     rng = random.Random(0x753040B8)
-    tokens = ["`", "``", "```", _B, _B * 2, "a", " ", "b"]
+    tokens = ["`", "``", "```", _B, _B * 2, "a", " ", "b", "\n", "\r\n"]
     seen = 0
-    for _ in range(4000):
+    for _ in range(6000):
         text = "".join(rng.choice(tokens) for _ in range(rng.randint(1, 14)))
-        if text.strip() != text or text.startswith("```"):
+        lines = text.replace("\r\n", "\n").split("\n")
+        # one paragraph only: no blank line, no edge whitespace, no fence-opening line (block rules are not
+        # this fuzz's subject)
+        if any(not ln.strip() or ln != ln.strip() or ln.startswith("```") for ln in lines):
             continue
-        cm = [t.content for t in md.parseInline(text)[0].children if t.type == "code_inline"]
-        assert ours(text) == cm, repr(text)
+        assert ours(text) == commonmark(text), repr(text)
         seen += 1
-    assert seen > 2000, seen
+    assert seen > 1500, seen

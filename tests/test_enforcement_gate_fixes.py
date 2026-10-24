@@ -130,7 +130,7 @@ def test_changelog_quality_accepts_real_entry(tmp_path, monkeypatch):
     ("line", "ok"),
     [
         ("- quotes a ``TODO`` token", True),
-        ("- quotes ```` ``TODO`` ```` as a nested quote", True),
+        ("- quotes `` TODO` ` `` as a nested quote", True),
         ("- quotes a `TODO` token", True),
         ("- a bare TODO beside ``x``", False),
         ("- todo``todo", False),
@@ -143,6 +143,31 @@ def test_changelog_quality_reads_whole_backtick_runs(tmp_path, monkeypatch, line
         f"## [Unreleased]\n\n### Fixed — real thing (2026-06-28)\n\n{line}\n\n## [1.0]\n"
     )
     assert _changelog_quality_ok() is ok
+
+
+def test_strip_span_runs_equals_its_regex_oracle_and_is_linear():
+    """`_strip_span_runs` deletes exactly what the whole-run regex it replaced deletes, on a fuzz over runs,
+    text and spaces; and it stays linear on the distinct-length line that made the regex quadratic."""
+    import random
+    import re
+    import time
+
+    from scripts.enforcement.check_doc_sync import _strip_span_runs
+
+    oracle = re.compile(r"(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)")
+    rng = random.Random(0x753040B8)
+    tokens = ["`", "``", "```", "a", " ", "todo"]
+    for _ in range(5000):
+        line = "".join(rng.choice(tokens) for _ in range(rng.randint(0, 16)))
+        assert _strip_span_runs(line) == oracle.sub("", line), repr(line)
+    slow = " ".join("`" * k for k in range(1, 632))  # every run a distinct length: no span at all
+    start = time.perf_counter()
+    _strip_span_runs(slow)
+    linear = time.perf_counter() - start
+    start = time.perf_counter()
+    oracle.sub("", slow)
+    quadratic = time.perf_counter() - start
+    assert linear * 10 < quadratic, (linear, quadratic)
 
 
 # --- #8 + enum-identity: validate_conventions must FAIL on a violation -------
