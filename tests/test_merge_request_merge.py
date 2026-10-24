@@ -1961,7 +1961,10 @@ def test_the_owner_test_budget_refuses_before_any_outer_wrapper(world):
     assert "budget" in reason and "not a test verdict" in reason, reason
     assert f"`merge_request.py retry {msg_id}`" in reason, reason
     assert "on base alone" not in reason and "owner tests red" not in reason, reason
-    limits = [int(ln.split()[1]) for ln in log.read_text().splitlines()]
+    # one line per runner call (the script's own newline splits an argv across two log lines)
+    limits = [
+        int(ln.split()[1]) for ln in log.read_text().splitlines() if ln.startswith("--timeout ")
+    ]
     assert len(limits) == 1 and 1 <= limits[0] <= 3, limits  # one leg, at what the budget left
     assert took < 25, took  # the leg was stopped at the budget, not run for its 30 s
 
