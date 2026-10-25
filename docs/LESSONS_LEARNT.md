@@ -14,6 +14,18 @@
   `test_generate_unchanged_ledgers_pass_on_the_live_corpus`, `test_normalise_is_idempotent_on_every_live_unit`).
   A fixture shows the grammar works on the cases you thought of; the corpus shows the cases you didn't.
 
+## `git log --since` stops at the first older tip; a window filter belongs on the commit's own time (2026-10-25)
+
+W-487e966a counted commits per window with `git log --since/--until`. A fixture repo whose branch tip was committed
+before the window returned 0, because git stops walking once it meets a commit older than `--since`. Live repos
+read correctly that day only because no tip was old. The fix is to log once and filter on `%ct` per window.
+- **Filter a window on each record's own time.** Never trust a producer's cutoff flag to mean "every record in
+  range": `--since` is a walk limit, not a filter.
+- **A guard's refusal test must assert its own message.** The first refusal test passed every case because the
+  default command list tripped a different refusal first. Asserting each case's own flag name exposed it.
+- **A typo guard checks only what the caller named.** Applied to the built-in default list, it refused a valid
+  run on any ledger lacking one default command. Two review seats found it.
+
 ## A permanent verdict needs positive evidence; a missing signal is "unknown", so it is transient (2026-10-25)
 
 W-05021a03 split rotate-session's aborts into transient (exit 75) and permanent (exit 1). The first build classified by check name with a few overrides. Three review readers then found ten places where the permanent verdict rested on something ABSENT: no input box drawn (a blank redraw, copy-mode, a restarting pane), a reason string that lacked "timed out" (hibernate reports a timed-out probe as "detached HEAD"), an identity read that failed and so looked empty, and a second `claude` under the pane (a pool seat).
@@ -33,6 +45,19 @@ W-05021a03 split rotate-session's aborts into transient (exit 75) and permanent 
 - **Apply:** before re-pinning after a batch fix, write and run one probe per new branch the batch
   added. A fix that adds positions, scopes or name filters is probed with both sibling and nested
   inputs.
+
+## Read a headless run's tool set from the CLI's init event, never from a design claim or the model (2026-10-25)
+
+W-230abfd5 (`scripts/api_credit.py`, D-1223): the script, its doc and D-1198 all said the child had Read, Grep and
+Glob, and a review passed that claim. On CLI 2.1.310 `--bare` silently dropped Grep and Glob whatever `--tools`
+listed; only a live finder saying "I had no Glob tool" exposed it.
+- **The authoritative tool list is the `system/init` event** of `--output-format stream-json --verbose`; a keyless
+  run prints it without spending (it then fails "Not logged in"), so the check costs nothing and belongs in a test or
+  a pre-flight, not in prose.
+- **Bisect the flags on that event** — seven keyless probes separated `--bare` (Read only) from `--safe-mode`
+  (Glob, Grep, Read) in minutes; reading help text and docs had not.
+- **A model's self-report of its tools is a hint, not a measure** — it was right here, but only the init event is the
+  CLI's own answer.
 
 ## A token rule is a compiler claim: run the compiler before writing it (2026-10-24)
 

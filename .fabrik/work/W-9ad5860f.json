@@ -21,6 +21,7 @@
   "status": "open",
   "tags": [
     "mail-01m5qkg9y78thdmcdz5bkvjre7",
+    "queued",
     "waits-lean-program"
   ],
   "title": "Mail 01M5QKG9Y7 (wef1 finding): the seat-isolation test recipe imports the LIVE tree unless it uses -P + env -C; git show --output writes nothing; map-owner intel (.claude/workflows/fabrik-review-loop.js); fold the recipe fix into the lean rewrite of the fragment and fix the loop's recipe"

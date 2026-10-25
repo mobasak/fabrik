@@ -118,7 +118,7 @@ _DECLARED_SPAWNERS = (
     "scripts/rivals_run.py",
     "scripts/sysadmin/claude_broker.py",
     "scripts/cloud_dispatch.py",  # D-857's cloud routines fire through `claude -p` (W-a4272e57)
-    "scripts/api_credit.py",  # D-1196's prepaid API-credit runs, `claude -p --bare` on a key (W-894f994f)
+    "scripts/api_credit.py",  # D-1196's prepaid API-credit runs, `claude -p --safe-mode` on a key (W-894f994f, W-230abfd5)
 )
 
 # Known `claude -p` spawners that have NOT adopted it — recorded here so the discovery test can

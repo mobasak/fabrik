@@ -1,6 +1,7 @@
-"""api_credit.py — spend the three prepaid API credits through capped, read-only `claude -p --bare` runs (D-1196,
-W-894f994f). Each test is one Behaviour of the phase-2 design. The subject runs as a subprocess against a fake `claude`
-on PATH that records its argv, env and stdin and prints a configured result, so nothing here reaches a provider."""
+"""api_credit.py — spend the three prepaid API credits through capped, read-only `claude -p --safe-mode` runs (D-1196,
+W-894f994f, W-230abfd5). Each test is one Behaviour of the phase-2 design. The subject runs as a subprocess against a
+fake `claude` on PATH that records its argv, env and stdin and prints a configured result (the keyless pre-flight's
+stream from FAKE_PREFLIGHT), so nothing here reaches a provider."""
 
 from __future__ import annotations
 
@@ -34,6 +35,10 @@ log = os.environ["FAKE_LOG"]
 with open(log, "a", encoding="utf-8") as f:
     f.write(json.dumps({{"argv": sys.argv[1:], "env": dict(os.environ), "stdin": sys.stdin.read(),
                         "cwd": os.getcwd()}}) + "\\n")
+if "stream-json" in sys.argv:  # the keyless pre-flight: answer from FAKE_PREFLIGHT, never the run's reply
+    time.sleep(float(os.environ.get("FAKE_PREFLIGHT_SLEEP", "0")))
+    sys.stdout.write(open(os.environ["FAKE_PREFLIGHT"], encoding="utf-8").read())
+    sys.exit(1)
 time.sleep(float(os.environ.get("FAKE_SLEEP", "0")))
 reply = open(os.environ["FAKE_REPLY"], encoding="utf-8").read()
 reply = reply.replace("@KEY@", os.environ.get("ANTHROPIC_API_KEY", ""))
@@ -65,8 +70,11 @@ def box(tmp_path: Path) -> dict:
         "API_CREDIT_ENV_FILE": str(env_file),
         "FAKE_LOG": str(tmp_path / "fake.log"),
         "FAKE_REPLY": str(tmp_path / "reply.json"),
+        "FAKE_PREFLIGHT": str(tmp_path / "preflight.jsonl"),
+        "API_CREDIT_MANAGED_DIR": str(tmp_path / "no-managed-settings"),
     }
     env.pop("FAKE_RC", None)
+    _preflight_reply(env)
     return {
         "tmp": tmp_path,
         "state": state,
@@ -74,6 +82,42 @@ def box(tmp_path: Path) -> dict:
         "prompt": prompt,
         "ledger": state / "api-credit.jsonl",
     }
+
+
+def _preflight_events(**overrides: object) -> list[dict]:
+    """The keyless pre-flight's stream as CLI 2.1.310 printed it (measured: init, assistant, result)."""
+    init = {
+        "type": "system",
+        "subtype": "init",
+        "apiKeySource": "none",
+        "tools": ["Glob", "Grep", "Read"],
+    }
+    result = {
+        "type": "result",
+        "subtype": "success",  # what the CLI prints on this auth failure — the pre-flight never reads it
+        "is_error": True,
+        "total_cost_usd": 0,
+        "duration_api_ms": 0,
+        "result": "Not logged in · Please run /login",
+    }
+    for k, v in overrides.items():
+        target = init if k in ("apiKeySource", "tools") else result
+        if v is None:
+            target.pop(k, None)
+        else:
+            target[k] = v
+    return [init, {"type": "assistant", "error": "authentication_failed"}, result]
+
+
+def _preflight_reply(env: dict, events: list[dict] | str | None = None) -> None:
+    text = (
+        events
+        if isinstance(events, str)
+        else "".join(
+            json.dumps(e) + "\n" for e in (events if events is not None else _preflight_events())
+        )
+    )
+    Path(env["FAKE_PREFLIGHT"]).write_text(text, encoding="utf-8")
 
 
 def _reply(box: dict, obj: object | str, rc: int = 0) -> None:
@@ -121,13 +165,22 @@ def _launch(
     )
 
 
-def _calls(box: dict) -> list[dict]:
+def _all_calls(box: dict) -> list[dict]:
     log = Path(box["env"]["FAKE_LOG"])
     if not log.exists():
         return []
     return [
         json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()
     ]
+
+
+def _calls(box: dict) -> list[dict]:
+    """The real runs — every spawn but the keyless pre-flight."""
+    return [c for c in _all_calls(box) if "stream-json" not in c["argv"]]
+
+
+def _preflights(box: dict) -> list[dict]:
+    return [c for c in _all_calls(box) if "stream-json" in c["argv"]]
 
 
 def _seed(box: dict, key: str, cost: float, model: str = "haiku") -> None:
@@ -329,8 +382,15 @@ def test_child_argv_env_and_no_key_leak(box: dict) -> None:
     assert p.returncode == 0, p.stderr
     call = _calls(box)[0]
     argv, env = call["argv"], call["env"]
-    for flag in ("-p", "--bare", "--restricted", "--strict-mcp-config", "--no-session-persistence"):
+    for flag in (
+        "-p",
+        "--safe-mode",
+        "--restricted",
+        "--strict-mcp-config",
+        "--no-session-persistence",
+    ):
         assert flag in argv, flag
+    assert "--bare" not in argv, "--bare drops Grep and Glob on CLI 2.1.310"
     assert argv[argv.index("--tools") + 1] == "Read,Grep,Glob"
     assert argv[argv.index("--permission-mode") + 1] == "dontAsk"
     assert argv[argv.index("--permission-prompts") + 1] == "none"
@@ -604,3 +664,164 @@ def test_a_failure_around_the_process_stays_provisioned_and_unsettleable(box: di
     assert early.returncode == 2 and "may still be running" in early.stderr, (
         "a run not known to have exited was settled"
     )
+
+
+# --- the keyless pre-flight (W-230abfd5): --safe-mode keeps Grep and Glob, so the auth boundary is executed per run ---
+
+_PREFLIGHT_ONLY_FLAGS = {"--output-format", "--verbose", "--max-turns", "--max-budget-usd"}
+
+
+def _strip_flags(argv: list[str]) -> list[str]:
+    out, skip = [], False
+    for a in argv:
+        if skip:
+            skip = False
+            continue
+        if a in _PREFLIGHT_ONLY_FLAGS:
+            skip = a != "--verbose"
+            continue
+        out.append(a)
+    return out
+
+
+def test_the_run_uses_safe_mode_and_the_preflight_mirrors_its_argv(box: dict) -> None:
+    pin = box["tmp"] / "pin"
+    pin.mkdir()
+    _reply(box, _ok(0.01))
+    p = _launch(box, "--add-dir", str(pin), model="sonnet")
+    assert p.returncode == 0, p.stderr
+    (pre,), (run,) = _preflights(box), _calls(box)
+    assert "--safe-mode" in run["argv"] and "--bare" not in run["argv"]
+    assert _strip_flags(pre["argv"]) == _strip_flags(run["argv"]), (pre["argv"], run["argv"])
+    a = pre["argv"]
+    assert a[a.index("--output-format") + 1] == "stream-json" and "--verbose" in a
+    assert a[a.index("--max-turns") + 1] == "1" and a[a.index("--max-budget-usd") + 1] == "0.05"
+
+
+@pytest.mark.parametrize(
+    "tools",
+    [
+        ["Read"],
+        ["Glob", "Grep", "Read", "Write"],
+        ["Glob", "Grep", "Read", "Bash"],
+        [],
+        "Read,Grep,Glob",
+    ],
+)
+def test_preflight_refuses_a_wrong_tool_set(box: dict, tools: object) -> None:
+    _preflight_reply(box["env"], _preflight_events(tools=tools))
+    _reply(box, _ok(0.01))
+    p = _launch(box)
+    assert p.returncode == 2 and "pre-flight" in p.stderr, (p.returncode, p.stderr)
+    assert _calls(box) == [] and not box["ledger"].exists(), (
+        "a run started after a failed pre-flight"
+    )
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"apiKeySource": "/login managed key"},
+        {"apiKeySource": None},
+        {"is_error": False},
+        {"is_error": "true"},
+        {"total_cost_usd": 0.0003},
+        {"duration_api_ms": 412},
+        {"total_cost_usd": None},
+        {"duration_api_ms": False},  # a bool is no count, though False == 0
+    ],
+)
+def test_preflight_refuses_when_a_keyless_run_authenticates(box: dict, override: dict) -> None:
+    _preflight_reply(box["env"], _preflight_events(**override))
+    _reply(box, _ok(0.01))
+    p = _launch(box)
+    assert p.returncode == 2 and "pre-flight" in p.stderr, (override, p.returncode, p.stderr)
+    assert _calls(box) == [] and not box["ledger"].exists()
+
+
+@pytest.mark.parametrize("case", ["empty", "no-init", "no-result", "garbage", "timeout"])
+def test_preflight_refuses_unreadable_output(box: dict, case: str) -> None:
+    init, assistant, result = _preflight_events()
+    stream = {
+        "empty": "",
+        "no-init": json.dumps(result) + "\n",
+        "no-result": json.dumps(init) + "\n" + json.dumps(assistant) + "\n",
+        "garbage": "Not logged in · Please run /login\n",
+        "timeout": None,
+    }[case]
+    if case == "timeout":
+        box["env"]["FAKE_PREFLIGHT_SLEEP"] = "5"
+        box["env"]["API_CREDIT_PREFLIGHT_TIMEOUT"] = "1"
+    else:
+        _preflight_reply(box["env"], stream)
+    _reply(box, _ok(0.01))
+    p = _launch(box)
+    assert p.returncode == 2 and "pre-flight" in p.stderr, (case, p.returncode, p.stderr)
+    assert _calls(box) == [] and not box["ledger"].exists()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {
+            "type": "system",
+            "subtype": "init",
+            "apiKeySource": "none",
+            "tools": ["Glob", "Grep", "Read", "Write"],
+        },
+        {
+            "type": "system",
+            "subtype": "init",
+            "apiKeySource": "ANTHROPIC_API_KEY",
+            "tools": ["Glob", "Grep", "Read"],
+        },
+        {"type": "result", "is_error": False, "total_cost_usd": 0, "duration_api_ms": 0},
+        {"type": "result", "is_error": True, "total_cost_usd": 0.002, "duration_api_ms": 0},
+    ],
+)
+def test_preflight_reads_every_event_not_the_first(box: dict, bad: dict) -> None:
+    # a clean first init and result, then a bad second one: a reader of the first event alone would pass it
+    _preflight_reply(box["env"], [*_preflight_events(), bad])
+    _reply(box, _ok(0.01))
+    p = _launch(box)
+    assert p.returncode == 2 and "pre-flight" in p.stderr, (bad, p.returncode, p.stderr)
+    assert _calls(box) == [] and not box["ledger"].exists()
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-1", "0", "soon"])
+def test_preflight_timeout_must_be_a_finite_positive_number(box: dict, value: str) -> None:
+    box["env"]["API_CREDIT_PREFLIGHT_TIMEOUT"] = value
+    _reply(box, _ok(0.01))
+    p = _launch(box)
+    assert p.returncode == 2 and "API_CREDIT_PREFLIGHT_TIMEOUT" in p.stderr, (
+        value,
+        p.returncode,
+        p.stderr,
+    )
+    assert _all_calls(box) == [] and not box["ledger"].exists(), (
+        "claude ran with an unbounded pre-flight"
+    )
+
+
+def test_preflight_runs_keyless_on_its_own_config(box: dict) -> None:
+    _reply(box, _ok(0.01))
+    p = _launch(box)
+    assert p.returncode == 0, p.stderr
+    (pre,), (run,) = _preflights(box), _calls(box)
+    assert "ANTHROPIC_API_KEY" not in pre["env"], "the pre-flight carried a key"
+    assert run["env"]["ANTHROPIC_API_KEY"] == KEYS["can"]
+    assert pre["stdin"] == "hi" and run["stdin"] == "Say ok."
+    assert pre["env"]["FABRIK_HEADLESS"] == "1"
+    pre_cfg, run_cfg = Path(pre["env"]["CLAUDE_CONFIG_DIR"]), Path(run["env"]["CLAUDE_CONFIG_DIR"])
+    assert pre_cfg != run_cfg and not pre_cfg.exists(), (
+        "the pre-flight's config dir was shared or kept"
+    )
+
+
+def test_managed_settings_refuse_the_run(box: dict) -> None:
+    managed = Path(box["env"]["API_CREDIT_MANAGED_DIR"])
+    managed.mkdir()
+    _reply(box, _ok(0.01))
+    p = _launch(box)
+    assert p.returncode == 2 and "managed" in p.stderr, (p.returncode, p.stderr)
+    assert _all_calls(box) == [] and not box["ledger"].exists(), "claude ran under managed settings"

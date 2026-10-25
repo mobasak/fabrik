@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T01:24:55.913048Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-41bbf146",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1224",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "measured by infra-3 (phase 1 + Opus critique): a ratchet commit on master never enters a merge's own base..merge selection; the only cost is a record compared across it, and ratcheting only after merge --queue drains (my Do order) leaves no record spanning a ratchet; the selector-only rule is reachable only via a leftover record on a single merge <id>. Zero-code option A chosen; the hermetic-test defect found alongside is W-bce8914b",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "P0 program member: without it every lean merge pays a full re-test after the ratchet commit; infra-3 owns the selector (D-1189/D-1211); LOW: one selector rule plus a test",
+  "status": "dropped",
+  "title": "Lean program (D-1216): merge_test_select.py treats a master commit touching only commands/_size_ceiling.json (the merge-time --ratchet commit, slice C) as a ledger-class change for the D-1211 re-test skip, as a SELECTOR rule (tests/test_command_measure.py::test_live_corpus_within_ceiling reads that file, so a path filter alone is wrong); else every ratchet commit re-triggers a full test leg on the next merge"
+}

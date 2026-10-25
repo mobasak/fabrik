@@ -3,7 +3,7 @@
   "created": "2026-10-24T19:37:59.992634Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "a87998bd8e963ffcd556b2ad9d5f3b7ccf56f1bc",
   "id": "W-05021a03",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "HIGH: part of the operator's P0 throughput complaint; infra-3 offered to take it after B; LOW: one exit-code split plus callers",
-  "status": "open",
+  "status": "done",
   "tags": [
     "waits-quota"
   ],

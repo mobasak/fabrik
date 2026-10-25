@@ -769,6 +769,42 @@ def test_an_exported_ssh_jump_variable_is_scrubbed_before_any_test():
     assert r.returncode == 0 and "1 passed" in r.stdout, r.stdout[-1500:]
 
 
+MERGE_RECORDS_VAR = "FABRIK_MERGE_TESTS_RECORDS"
+
+
+def test_an_exported_merge_records_override_is_scrubbed_before_any_test(tmp_path):
+    """W-bce8914b: a pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to point its
+    own records at a private dir, and its pytest shards inherited it: every selector test that
+    checks a record at the shared common-dir path went red (8 measured at 6473c6e1b, 7 in
+    test_merge_test_select.py and one in test_merge_request_pretest.py). One of them runs here
+    with the variable exported, through the real conftest chain, as a leg runs its shards."""
+    # the name the conftest pops is the one the selector reads and merge_request sets: a rename
+    # there would leave this grader exporting a name nothing reads
+    for script in ("merge_test_select.py", "merge_request.py"):
+        text = (REPO / "scripts" / script).read_text(encoding="utf-8")
+        assert f'os.environ.get("{MERGE_RECORDS_VAR}")' in text, script
+    env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
+    env[MERGE_RECORDS_VAR] = str(tmp_path / "private-records")
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            f"{REPO / 'tests' / 'test_merge_test_select.py'}"
+            "::test_a_rebuild_after_only_ledger_moves_skips_the_re_test",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+        cwd=str(REPO),
+    )
+    assert r.returncode == 0 and "1 passed" in r.stdout, r.stdout[-1500:]
+
+
 def test_the_reachability_preflight_is_a_stub_for_a_module_that_does_not_opt_in():
     """W-6a96f699 (review P1-17): the conftest pin makes `deploy`'s ssh probe a no-op here.
     Imported with no try: an ImportError the fixture would swallow reds this instead."""

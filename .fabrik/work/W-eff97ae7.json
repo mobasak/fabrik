@@ -1,5 +1,7 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-96f36043"
+  ],
   "created": "2026-10-24T15:19:07.643354Z",
   "creator": "coordinator",
   "effort": "low",

@@ -15,6 +15,57 @@ All notable changes to this project will be documented in this file.
 - `command_rules.py`: `generate_unchanged()` for the light form, `changed-by` entries, an idempotent `normalise()`, inline
   comments kept as text, and slice A's two residuals fixed.
 
+### Fixed — the test suite drops the merge leg's records override (2026-10-25)
+
+W-bce8914b. A `request --pretest` or `merge --queue` leg exports `FABRIK_MERGE_TESTS_RECORDS` to send its own
+records to a private dir, and the leg's pytest shards inherited it. Every selector test that checks a record at
+the shared path then went red inside such a leg (8 measured: 7 in `tests/test_merge_test_select.py`, one in
+`tests/test_merge_request_pretest.py`), so a branch touching the selector was refused by its own queue leg.
+`tests/conftest.py` now pops the variable at configure time, beside the `FABRIK_SSH_JUMP_*` scrub;
+`tests/test_conftest_isolation.py` runs one of those record tests with the variable exported (red on the unfixed
+base, green here) and pins that both scripts still read the name it exports.
+
+### Added — `merge_request.py merge --queue`: a queue's owner tests run outside the merge lock (2026-10-25)
+
+W-0c8c43f1 (D-1224). A queue of N merge requests used to wait N owner-test legs one after another
+under the merge lock (36-129 min in the hub on 2026-10-24). `merge --queue` builds the waiting
+requests as a stacked chain in merge order, runs each leg in parallel outside the lock (`--jobs 2`),
+records each green tree as `request --pretest` does, and lands each request through the unchanged
+locked merge, which skips its leg on the matching tree. Every `git worktree` add, remove and prune
+in the file now serialises under one lock, closing a race where a prune broke a sibling's add. Run it
+as `rund --timeout 9100 -- capped_run.sh --timeout 9000 -- python3 scripts/merge_request.py merge
+--queue` (docs/reference/multi-agent-operating-model.md).
+
+### Changed — Lean command corpus plan set converged by /fabrik-plan-review (2026-10-25)
+
+The plan set `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` is CONVERGED (D-1227) after four review passes
+(confirmed 48 → 10 → 3 → 0). Every cutting ticket now runs the reader-test run, the tests that read each cut file, with reds
+measured against the start commit. Preconditions are probed by what landed on master. T46 gained steps and goal gates. Receipt:
+`docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-plan-review.md`.
+
+### Added — Lean command corpus plan set: 45 units in 57 tickets (2026-10-25)
+
+`docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` turns the converged lean-corpus spec into a
+plan set for `/fabrik-execute-plan`, in the spec's order: the `/fabrik-review-scoped` pilot, the remaining
+shared files, `/fabrik-review`, `/fabrik-task`, `/fabrik-execute-plan`, `/fabrik-command-improve`, then the
+35-command tail by hours, then the Integration receipt. The tooling stays infra-2's three merge requests
+(W-a9b5e763), and pin tests are migrated into the ledgers or kept verbatim (D-1222). Status: DRAFT, for
+`/fabrik-plan-review`.
+
+### Added — The lean program's time measure as one script, `scripts/command_time_measure.py` (2026-10-25)
+
+D-1219 makes the lean program's time budget "one pinned script (intel's method)". This is that script
+(W-487e966a, D-1228). Per command and per equal 14-day window, over every close, it reports:
+- wall-clock (median, mean, p90) and the non-done share;
+- seat-minutes, as the gap-cut union (the W-0a91bf86 table's figure) and as the sum of each seat's time;
+- rounds, wall-clock and closes per work item, runs per commit, and surface size.
+
+`--json --per-run` emits the rows behind the figures, so infra-2's nightly job (slice B) can store them before
+the seat transcripts are pruned. On the table's window the script reproduces the table's wall-clock row and both
+seat share rows. It counts commits by committer time rather than `git log --since`, which stops at the first
+older branch tip. A typed command or state the ledger never holds is refused, not read as "no runs". The fixture
+test holds 26 graders; 29 mutants of the script each turn one red.
+
 ### Added — Lean command corpus design: half the text and seat time, no rule lost (2026-10-25)
 
 `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` is CONVERGED. It went through 7 review rounds,
@@ -43,6 +94,16 @@ the rest. The review receipt is `docs/development/reviews/2026-10-25-lean-comman
   corpus-check pre-commit hook passes the 4 through, so a lost rule refuses the commit.
 - `tests/test_command_rules.py` (26 tests) renders the corpus itself and drives each behaviour.
   `docs/reference/command-corpus-check.md` § Rule ledger and size ceiling documents the grammar and the exit table.
+
+### Changed — `api_credit.py run`: finder runs get Grep and Glob, behind a keyless auth pre-flight (2026-10-25)
+
+- On Claude Code 2.1.310 `--bare` dropped the Grep and Glob tools whatever `--tools` listed, so a finder seat on a
+  prepaid API key could only Read files whose paths it was handed. The child now starts
+  `--safe-mode --restricted --tools Read,Grep,Glob`; a live Haiku finder over a full hub pin used all three for $0.02.
+- `--safe-mode` documents auth as working normally, so every run first spawns the same argv with no API key on its
+  own empty config dir and is refused (exit 2, nothing provisioned) unless the CLI reports exactly those three
+  tools, `apiKeySource` none and an error with zero cost and zero API time. A managed-settings directory refuses the
+  run. New knobs `API_CREDIT_MANAGED_DIR` and `API_CREDIT_PREFLIGHT_TIMEOUT` (docs/CONFIGURATION.md). D-1223, W-230abfd5.
 
 ### Added — `merge_request.py request --pretest`: the owner merge tests run once per change, and a base may declare its leg limit (2026-10-24)
 
