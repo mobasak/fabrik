@@ -1,4 +1,39 @@
 shared: commands/_fragments/orient.md
 baseline_sentences: orient.baseline.txt
 baseline_sha256: 607714a72f6c35c5c89c7de30ae5c9c8e419eaca60726100d396a044c6252928
-entries: []
+entries:
+- id: orient-scripts-sysadmin-mcp-health-py
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
+  current: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
+  text:
+  - scripts/sysadmin/mcp_health.py
+- id: orient-scripts-select-rules-py
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
+  current: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
+  text:
+  - scripts/select_rules.py
+- id: orient-agents-fabrik-md
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
+  current: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
+  text:
+  - agents-fabrik.md
+- id: orient-docs-reference-operating-manifesto-md
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
+  current: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
+  text:
+  - docs/reference/operating-manifesto.md
+- id: orient-orient
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: '`ORIENT: mcp <live>/<assigned> · rules <n> of <N> matched (<pack names, or none>) · infra <agents-fabrik.md sections read> · manifesto <Phase n>`'
+  current: '`ORIENT: mcp <live>/<assigned> · rules <n> of <N> matched (<pack names, or none>) · infra <agents-fabrik.md sections read> · manifesto <Phase n>`'
+  text:
+  - 'ORIENT:'

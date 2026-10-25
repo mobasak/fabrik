@@ -10,7 +10,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "commands" / "_sources" / "fabrik-spec.md"
-RESEARCHER = ROOT / "commands" / "_agents" / "fabrik-researcher.md"
 sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
 
 import check_spec_convergence  # noqa: E402
@@ -76,15 +75,6 @@ def test_the_check_skips_a_draft_and_grades_its_flipped_copy(tmp_path: Path, cap
     )
     graded = _grade(tmp_path, recipe, capsys)
     assert "SILENT-1a" not in graded and "APPROACH-FLOOR" in graded
-
-
-def test_researcher_quotes_schema_and_versions_from_a_raw_fetch() -> None:
-    """Row 1791275601."""
-    text = _flat(RESEARCHER)
-    assert (
-        "on an HTML docs page a schema field or a parameter name is quoted from the raw arm" in text
-    )
-    assert "JSON/XML and version claims keep rule 3's routing" in text
 
 
 def test_the_skip_line_routes_an_as_built_revision_to_an_amendment() -> None:

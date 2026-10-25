@@ -15,3 +15,28 @@ entries:
   current: A step this command's text names as running BEFORE the record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step routed to another command, whose record replaces this one
   text:
   - A step this command's text names as running BEFORE the record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step routed to another command, whose record replaces this one.
+- id: runrec-two-more-stops-close-blocked-too
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: 'Two more stops close `blocked` too: the quota wall (`blocked --wall`, at the RED or WALL band of `CLAUDE.md`''s quota bands: commit, push, then close) and a pause the operator ordered (`blocked --paused`, its `--reason` the operator''s words, D-993)'
+  current: 'Two more stops close `blocked` too: the quota wall (`blocked --wall`, at the RED or WALL band of `CLAUDE.md`''s quota bands: commit, push, then close) and a pause the operator ordered (`blocked --paused`, its `--reason` the operator''s words, D-993)'
+  text:
+  - 'Two more stops close `blocked` too: the quota wall (`blocked --wall`, at the RED or WALL band of `CLAUDE.md`''s quota bands: commit, push, then close) and a pause the operator ordered (`blocked --paused`, its `--reason` the operator''s words, D-993)'
+  ordered:
+  - runrec-two-more-stops-close-blocked-too
+  - runrec-both-hold-in-every-command-even
+- id: runrec-both-hold-in-every-command-even
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too — and a BLOCKED run is exactly when the machinery friction is worth reporting, so the verdict is required here too
+  current: Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too — and a BLOCKED run is exactly when the machinery friction is worth reporting, so the verdict is required here too
+  text:
+  - Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too
+- id: runrec-no-nothing-else-is-a-legitimate-halt
+  file: commands/_fragments/run-record.md
+  forbidden:
+  - Nothing else is a legitimate halt
+- id: runrec-no-nothing-else-halts-a-run
+  file: commands/_fragments/run-record.md
+  forbidden:
+  - nothing else halts a run

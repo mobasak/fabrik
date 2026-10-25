@@ -289,6 +289,14 @@
       "coder_head": "c312a59fc",
       "started_at": "2026-10-25T07:47:00+03:00",
       "note": "no-op: zero pins qualify under D-1231"
+    },
+    "T01c": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a4d64eef1eac2f18a",
+      "branch": "worktree-agent-a4d64eef1eac2f18a",
+      "base_commit": "c8c225fc6",
+      "coder_head": "187141bef0ccc80315adbac80a8f55b140157431",
+      "started_at": "2026-10-25T07:50:00+03:00"
     }
   }
 }

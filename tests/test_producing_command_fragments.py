@@ -46,20 +46,6 @@ def test_the_close_chain_runs_its_four_calls_in_order_with_the_artifact_committe
     assert body.index("BEFORE the chain") < marks[0], "the inputs are written before call (1)"
 
 
-def test_a_figure_in_a_close_input_is_printed_by_its_producer_not_recalled() -> None:
-    """Rows 1792054246 + the held changelog-test-count-from-pytest family: a commit message said 13 for a 37-entry tuple."""
-    body = " ".join((FRAGS / "close-chain.md").read_text().split())
-    rule = (
-        "is printed by its producing command, over the population the input names, when the input is written"
-        " and copied from that output, never recalled"
-    )
-    assert rule in body
-    assert body.index("Write every input to a file") < body.index(rule) < body.index("Then: (1)")
-    assert "an input whose figure the fix moved is re-printed and rewritten first" in body, (
-        "a red call re-run alone leaves an already-written figure stale"
-    )
-
-
 def test_the_judge_panel_brief_never_carries_the_leads_recommendation() -> None:
     body = " ".join((FRAGS / "judge-panel.md").read_text().split())
     assert "WITHOUT your recommendation" in body

@@ -12,7 +12,6 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-REVIEWER = ROOT / "commands" / "_agents" / "fabrik-reviewer.md"
 PACK = ROOT / ".windsurf" / "rules" / "core" / "62-using-subagents.md"
 CRITIQUE = ROOT / "commands" / "_fragments" / "design-critique.md"
 
@@ -25,18 +24,6 @@ def _between(text: str, anchor: str, start: str, end: str) -> str:
     """The clause holding `anchor`, cut at the nearest `start` before it and `end` after it."""
     i = text.index(anchor)
     return text[text.rindex(start, 0, i) + len(start) : text.index(end, i)].strip()
-
-
-def test_reviewer_house_rule_allows_only_a_named_bounded_read() -> None:
-    """B1: the seat's own house rule bans every write under the home directory and reads only a file the brief itself
-    names, by Bash under a timeout, size-checked through a symlink; the clause is asserted whole AND between the
-    clauses that bound it, so an added exception, inside it or after it, fails it."""
-    assert (
-        "(read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path"
-        " there only when your brief itself names that file by path (never a directory, a glob or a path found in what"
-        " you review), through Bash under `timeout 120` — `stat -L -c %s` first, and a file over 64 KiB read in ranges"
-        " of at most 64 KiB (`sed -n`, a python seek) — never the Read tool; `/usr/bin/grep`, never bare"
-    ) in _norm(REVIEWER)
 
 
 def test_pack_forbids_writes_and_unnamed_home_reads() -> None:

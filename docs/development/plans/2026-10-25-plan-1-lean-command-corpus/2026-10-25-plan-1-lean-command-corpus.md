@@ -122,7 +122,7 @@ Selections against it: a ticket's ledger is the single source of a rule's wordin
 |---|---|---|---|---|---|
 | T01a | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part a | — | ⛓️ | ✅ | this commit (review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01a-review.md`) |
 | T01b | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part b | T01a | ⛓️ | ✅ | this commit — no-op: step 2 finds 10 phrases, none a migratable pin (4 are path literals read off other files; 6 sit in test functions that also assert on another file, D-1231); zero diff, so no review surface; coder gates green (test_command_rules 35 passed, `--check` exit 0, the four tests 120 passed) |
-| T01c | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part c | T01b | ⛓️ | ⬜ | |
+| T01c | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part c | T01b | ⛓️ | ✅ | this commit (review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01c-review.md`) |
 | T01d | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — the rewrite | T01c | ⛓️ | ⬜ | |
 | T02 | Lean rewrite of /fabrik-review-scoped (full form) | T01d | ⛓️ | ⬜ | |
 | T03a | Shared fragment term-coverage — ledger and pin migration, part a | T02 | ⛓️ | ⬜ | |

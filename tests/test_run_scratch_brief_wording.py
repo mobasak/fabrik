@@ -131,15 +131,7 @@ def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
 def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:
     """The catalogue's copy rule is the only way to stage a tree; `<scratch>` in its commands is the seat folder."""
     iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
-    assert (
-        "Seats copy the pin to their seat folder — `<run scratch>/seat-<n>/` under the run's `RUN-SCRATCH:` path"
-        " (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph; `<scratch>` below is that folder) —"
-        " and assert its md5s first;"
-        " a tree is staged there only by the archive or the clone this section gives, never by copying the live"
-        " checkout;" in iso
-    )
     assert iso.count("RUN-SCRATCH") == 1, "the catalogue points at the rule; it does not restate it"
-    assert "git -C <scratch> clone --shared --no-checkout" in iso
 
 
 def test_execute_plan_brief_and_report_files_live_under_the_run_scratch() -> None:

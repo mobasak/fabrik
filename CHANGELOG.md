@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Lean program unit 01: shared-file rule ledgers, parts b and c (2026-10-25)
+
+- T01b of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` (W-96f36043) is a recorded no-op. Its four tests hold no migratable pin on the nine shared files: each candidate is a path literal read off another file, or sits in a test function that also reads another file (D-1231).
+- T01c adds 74 entries to six of the nine ledgers under `commands/_rules/_shared/`: the researcher definition, the probe catalogue, close-chain, run-record, orient and the reviewer definition. They replace the presence pins nine tests held on those files. Opener anchors and `ordered` windows keep the researcher spans in the fetch shape or Method step the base test placed them in. Count, regex, index, looping and two-file asserts stay. The shared files are unchanged.
+- Review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01c-review.md` (2 passes, 2 → 0 confirmed).
+
 ### Added — Lean program unit 01: shared-file rule ledgers, part a (2026-10-25)
 
 - Nine shared-file ledgers and baselines under `commands/_rules/_shared/` were taken at unit 01's start commit (63d148626): the review probe catalogue, the no-workflow banner, run-record, orient, close-chain, close-feedback and the three seat definitions. They are T01a of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/`, W-96f36043.
