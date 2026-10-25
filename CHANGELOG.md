@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Rule ledgers for the lean command program: a sentence diff and a `--check` LOSS exit (2026-10-25)
+
+- `commands/command_rules.py` is the lean program's loss check (W-a9b5e763 slice A, D-1221). It splits a
+  command's own text into heading-keyed units, diffs a rewrite against a sha-pinned baseline (an exact
+  match after normalisation, U2), and asserts every ledger under `commands/_rules/` and `_shared/`
+  through `text`, `ordered`, `forbidden` and `enforced` carriers. `losses()` never raises.
+- `assemble_commands.py --check` prints LOSS before DRIFT and exits 4 on a LOSS, else 1. The
+  corpus-check pre-commit hook passes the 4 through, so a lost rule refuses the commit.
+- `tests/test_command_rules.py` (26 tests) renders the corpus itself and drives each behaviour.
+  `docs/reference/command-corpus-check.md` § Rule ledger documents the grammar and the exit table.
+
 ### Added — `merge_request.py request --pretest`: the owner merge tests run once per change, and a base may declare its leg limit (2026-10-24)
 
 - `scripts/merge_request.py request --pretest` runs the base's `.fabrik/merge-tests` on the merge the owner
