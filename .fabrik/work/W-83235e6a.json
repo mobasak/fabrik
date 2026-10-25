@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T01:49:34.107114Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-83235e6a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5R8D7Z5G8XZFJH5FMEH2A60",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: two rule packs describe scripts/api_credit.py's child as `--bare`; once branch intel-w0a91bf86 (W-230abfd5) merges, that child runs `--safe-mode` behind a keyless auth pre-flight, so both sentences go stale."
+}

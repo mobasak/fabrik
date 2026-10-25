@@ -2,11 +2,6 @@
   "plan": "docs/development/plans/2026-10-21-plan-3-own-scrape-slice-1a.md",
   "owned_paths": [
     "tests/test_firecrawl_proxy_basic.py",
-    "commands/_sources/fabrik-spec.md",
-    "commands/_sources/fabrik-spec-review.md",
-    "commands/_sources/fabrik-plan-after-chat.md",
-    "commands/_sources/fabrik-vision.md",
-    "commands/_agents/fabrik-researcher.md",
     "libs/web_scrape_mcp/",
     "libs/web_tools.py",
     "scripts/scrape_ledger.py",
