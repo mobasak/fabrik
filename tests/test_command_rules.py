@@ -94,8 +94,11 @@ def test_the_live_corpus_has_no_loss(tmp_path: Path) -> None:
     rules.mkdir()
     source = (ac.SRC / "fabrik-task.md").read_text(encoding="utf-8")
     sha = cr.write_baseline(cr.own_text(source), rules / "fabrik-task.baseline.txt")
-    good = {"id": "T1", "section": "## Phase 3 — BUILD",
-            "current": "Never run a formatter by hand beyond the declared paths.", "text": ["formatter"]}
+    # any real prose unit of the live source (picked, never hardcoded: the program rewrites it)
+    heading, unit = next(
+        (h, u) for h, k, u in cr.units(cr.own_text(source)) if k == "prose" and h.startswith("## ") and len(u) > 20
+    )
+    good = {"id": "T1", "section": heading, "current": unit, "text": [unit.split()[0]]}
     led = {"command": "fabrik-task", "baseline_sentences": "fabrik-task.baseline.txt", "baseline_sha256": sha,
            "entries": [good]}
     (rules / "fabrik-task.yaml").write_text(yaml.safe_dump(led, allow_unicode=True), encoding="utf-8")
@@ -407,7 +410,9 @@ def test_check_exits_4_on_a_loss_and_1_on_drift_alone(tmp_path: Path, monkeypatc
 
 
 @pytest.mark.skipif(
-    not Path("/opt/fabrik/.pre-commit-config.yaml").is_file(), reason="the hub's hook runs only in /opt/fabrik"
+    not Path("/opt/fabrik").is_dir()
+    or "assemble_commands.py --check" not in (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"),
+    reason="the hub's corpus-check hook runs only in /opt/fabrik",
 )
 def test_the_corpus_check_hook_passes_a_loss_exit_through(tmp_path: Path) -> None:
     entry = next(
@@ -525,6 +530,38 @@ def test_missing_files_and_whole_file_text(tmp_path: Path) -> None:
     (t["rules"] / "_shared" / "gone.yaml").write_text(yaml.safe_dump(led))
     frag.unlink()
     assert any("its own text gone.md is missing" in x for x in _losses(t))
+
+
+def test_scope_edges(tmp_path: Path) -> None:
+    src = "## Scope\n\nA rule.\n<!-- Never push. -->\n\n## Close\n\nPush it.\n"
+    t = _tree(tmp_path, source=src, render=src)
+    _ledger(t, [{"id": "C", "section": "## Scope", "text": ["Never push"]}], baseline_from=src)
+    _one(_losses(t), "text phrase not under its section")  # a comment never carries a text phrase
+    _ledger(t, [{"id": "S", "section": "## Scope", "current": "Push it.", "text": ["Push"]}], baseline_from=src)
+    _one(_losses(t), "`current` is not a unit under its section")  # a sibling section ends the scope
+    _ledger(t, [{"id": "H", "section": "## **Scope**.", "current": "A rule.", "text": ["rule"]}], baseline_from=src)
+    assert _losses(t) == []  # a `section` is matched after the same normalisation as units
+    t = _tree(tmp_path / "xr", source=SOURCE)
+    (t["root"] / "docs" / "DECISIONS.md").write_text("| D-0001 | 2026-10-25 | x | retires XR9 | y | z |\n")
+    assert "no D-row" in _refused(t, retired=[{"decision": "D-0001", "entry": {"id": "R9", "text": ["x"]}}])
+
+
+def test_the_enforced_lint_refusal_shapes(tmp_path: Path) -> None:
+    base_src = SOURCE.replace("Stop at the pin.", "Run `gate.py` first.")
+    t = _tree(tmp_path, source=base_src)
+    (t["root"] / "tests").mkdir()
+    (t["root"] / "tests" / "test_s.py").write_text(
+        "import subprocess, pytest\n"
+        "def test_absent(tmp_path):\n    subprocess.run(['gate.py', '--bad'])\n    assert not (tmp_path / 'out').exists()\n"
+        "def test_raises():\n    with pytest.raises(SystemExit):\n        subprocess.run(['gate.py'])\n"
+        "@pytest.mark.parametrize('x', [1])\ndef test_param(x):\n    r = subprocess.run(['gate.py'])\n    assert r.returncode != 0\n"
+        "class TestK:\n    def test_m(self):\n        r = subprocess.run(['gate.py'])\n        assert r.returncode == 3\n"
+    )
+    enf = {"id": "R5", "section": "## Scope", "current": "Run `gate.py` first.", "text": ["`gate.py`"]}
+    for node in ("tests/test_s.py::test_absent", "tests/test_s.py::test_raises",
+                 "tests/test_s.py::test_param[1]", "tests/test_s.py::TestK::test_m"):
+        _ledger(t, [{**enf, "enforced": node}], baseline_from=base_src)
+        assert _losses(t) == [], node
 
 
 def test_losses_survives_an_unreadable_rules_dir(tmp_path: Path, monkeypatch) -> None:
