@@ -30,9 +30,9 @@ brief. Execute each, or name in the brief why the shape lacks it.
   when the fix keeps one of them) and probe it again before each delta; keep an
   adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions — false
   green and false red — committing the positive/negative probe list beside it.
-- Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, vendored venvs and
-  `.claude/worktrees` excluded) before patching one instance; diff sibling implementations, and before adding a sibling
-  of a pinned or guarded line, read the comment on the line it copies; port vendored code, or reimplement another tool's
+- Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively, vendored venvs and
+  `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side by side, and before
+  adding a sibling of a pinned or guarded line, read the comment on the line it copies; port vendored code, or reimplement another tool's
   semantics (a YAML merge, a compose override), and prove parity by an executable diff against that tool's own output
   over its edge cases (for a merge: nesting, mixed types, cycles) before the fix lands, never a model from memory.
 - One mutant per clause the edit states and one per guard it adds or alters (that guard removed — term-coverage rule
@@ -58,7 +58,7 @@ brief. Execute each, or name in the brief why the shape lacks it.
 
 ## The brief's hunt lines (name the ones the shape has)
 - Callers and consumers: every caller of a changed exit code, output line or gated script; every consumer of a changed
-  prompt output, of import-time side effects, of a flipped Status or of a renamed name; callers that use a normaliser's
+  prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link fields, hand-kept indexes); callers that use a normaliser's
   return value; every line that joins, compares or keys a changed output against another producer's, named with the form
   each side's values take (a path relative to a subdirectory or to the top level, say); a pure helper's own return
   contract, not only what its callers observe; the line that copies a template-emitted claim; every gate grading the old

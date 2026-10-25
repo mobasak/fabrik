@@ -230,9 +230,119 @@ def write_baseline(text: str, out: Path) -> str:
 
 # ── ledgers ───────────────────────────────────────────────────────────────────────────────────
 _TOP = {"command", "shared", "baseline_sentences", "baseline_sha256", "entries", "retired", "vanished"}
-_ENTRY = {"id", "file", "section", "baseline", "current", "text", "ordered", "forbidden", "enforced", "pins", "changed-by"}
+_ENTRY = {"id", "file", "section", "baseline", "current", "text", "ordered", "forbidden", "enforced", "pins", "changed-by", "class", "clauses"}
+_CLASSES = ("ban", "grammar", "behavioural", "prose")
 _CARRIERS = ("text", "ordered", "forbidden", "enforced")
 _REFUSAL = re.compile(r"\b(?:returncode|exit_code)\s*(?:!=\s*0\b|==\s*[1-9]\d*)")
+
+
+# ── D-1236: what a reworded carrier must still hold ──────────────────────────────────────────
+# Verbatim binds three classes (ban, grammar, behavioural); a ``prose`` carrier may be reworded or
+# shrunk to its operative clauses. COBRA (D-253): the cheapest way past these lints is tagging every
+# entry ``prose`` and labelling each shrunk clause ``narrative``; the author-blind audit pair reads
+# every reworded entry old against new and each receipt states reworded/total beside its weaker-count.
+_BAN = re.compile(r"\b(?:never|refus\w*|forbid\w*|must not|do not|don't|cannot|may not)\b", re.I)
+_ANCHOR = re.compile(r"`[^`]+`|\b\d[\d.,]*\b|[\w.-]*/[\w./-]+|\b[\w-]+\.(?:py|md|json|sh|ya?ml|js|jsonl)\b|\b(?:never|must|only|refus\w*)\b", re.I)
+
+
+def clauses_of(baseline: str) -> list[str]:
+    """The baseline split at ``;`` and `` — ``, outside backticks and outside any parenthetical (a
+    ``(…; …)`` aside is one clause), empty pieces dropped."""
+    out, cur, in_code, depth = [], "", False, 0
+    i = 0
+    while i < len(baseline):
+        ch = baseline[i]
+        if ch == "`":
+            in_code = not in_code
+        elif not in_code and ch == "(":
+            depth += 1
+        elif not in_code and ch == ")":
+            depth = max(0, depth - 1)
+        if not in_code and depth == 0 and (ch == ";" or baseline.startswith(" — ", i)):
+            out.append(cur)
+            cur = ""
+            i += 1 if ch == ";" else 3
+            continue
+        cur += ch
+        i += 1
+    out.append(cur)
+    return [c.strip() for c in out if c.strip()]
+
+
+_HISTORY = re.compile(r"\b[DW]-[0-9a-f]+\b|\b\d{4}-\d{2}-\d{2}\b|\b01M[0-9A-Z]{5,}\b")
+_INNER_PAREN = re.compile(r"\([^()]*\)")
+
+
+def _history_free(text: str) -> str:
+    """``text`` with every parenthetical that cites history (a decision or work-item id, an ISO date, a
+    mail id, 'measured') removed innermost-first, then the bare ids and dates (spec lever (a))."""
+    mark = re.compile(r"\b[DW]-[0-9a-f]+\b|\b\d{4}-\d{2}-\d{2}\b|\b01M[0-9A-Z]{5,}\b|\bmeasured\b|\blive case\b")
+    prev = None
+    while prev != text:
+        prev = text
+        text = _INNER_PAREN.sub(lambda m: " " if mark.search(m.group(0)) else m.group(0).replace("(", "\0").replace(")", "\1"), text)
+    text = text.replace("\0", "(").replace("\1", ")")
+    return _HISTORY.sub(" ", text)
+
+
+def _anchors(text: str) -> set[str]:
+    """What a reworded clause must keep: backticked tokens, numbers, paths and never/must/only/refuse
+    words. History (a decision, work-item or mail id, an ISO date, a parenthetical citing one) is no anchor."""
+    text = _history_free(text)
+    return {normalise(m.group(0)).lower() for m in _ANCHOR.finditer(text) if normalise(m.group(0))}
+
+
+def _class_problems(e: dict, ids: dict[str, dict]) -> list[str]:
+    """Every D-1236 loader-lint problem of one entry that carries a ``class`` (empty when clean)."""
+    cls = e["class"]
+    if cls not in _CLASSES:
+        return [f"class {cls!r} is not one of {list(_CLASSES)}"]
+    out: list[str] = []
+    phrases = [normalise(p) for p in e.get("text") or []]
+    base = e.get("baseline") or ""
+    if cls == "prose":
+        short = [p for p in phrases if len(p.split()) < 6]
+        if short:
+            out.append(f"a prose `text` phrase is under 6 normalised words — {short[0][:60]}")
+    labels = e.get("clauses") or {}
+    if not isinstance(labels, dict):
+        return out + ["`clauses` is not a mapping"]
+    parts = clauses_of(base) if base else []
+    # a ban token inside a clause labelled narrative or duplicate-of is history, not a ban
+    live_base = " ".join(_history_free(p) for i, p in enumerate(parts, 1) if i not in labels)
+    if live_base and (tokens := {m.group(0).lower() for m in _BAN.finditer(live_base)}):
+        held = " ".join(phrases).lower()
+        if not any(t in held for t in tokens):
+            out.append(f"its baseline holds a ban token ({sorted(tokens)[0]!r}) and no `text` carrier does")
+    if not base or not phrases:
+        return out
+    held_text = " ".join(phrases).lower().replace("`", "")
+    if " ⏎ " in base:  # a fence is one unit whose ``# …`` comments are not clauses; its lines are the carrier
+        return out
+    for k, v in labels.items():
+        if not isinstance(k, int) or not 1 <= k <= len(parts):
+            out.append(f"clauses key {k!r} is not a 1-based clause of its baseline ({len(parts)} clauses)")
+        elif v == "narrative":
+            continue
+        elif not (isinstance(v, dict) and set(v) == {"duplicate-of"} and isinstance(v["duplicate-of"], str) and v["duplicate-of"] in ids):
+            out.append(f"clauses {k}: {v!r} is not narrative or duplicate-of: <live id>")
+    for n, clause in enumerate(parts, 1):
+        bare = re.sub(r"\(\s*[,;]?\s*\)", "", _history_free(clause))
+        if n in labels or normalise(bare).lower().replace("`", "") in held_text or not re.search(r"[A-Za-z0-9]", bare):
+            continue
+        missing = {a for a in _anchors(clause) if a.replace("`", "") not in held_text}
+        if missing or not _anchors(clause):
+            out.append(
+                f"baseline clause {n} is in no `text` phrase and not classified (narrative|duplicate-of) — "
+                f"{clause[:70]}" + (f" [lost: {sorted(missing)[:3]}]" if missing else "")
+            )
+    return out
+
+
+def _lint_class(e: dict, ids: dict[str, dict]) -> None:
+    """Raise the first D-1236 loader-lint problem of one entry that carries a ``class``."""
+    if problems := _class_problems(e, ids):
+        raise LedgerError(f"entry {e['id']}: {problems[0]}")
 
 
 class LedgerError(Exception):
@@ -446,6 +556,12 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         if e.get("enforced") and (why := _lint_enforced(e["enforced"], root, e["text"])):
             raise LedgerError(f"entry {e['id']}: {why}")
         ids[e["id"]] = e
+    live = shared and path.resolve().parent == (RULES / SHARED).resolve()
+    for e in ids.values():
+        if live and "class" not in e:
+            raise LedgerError(f"entry {e['id']}: a live shared ledger entry needs a `class` (ban|grammar|behavioural|prose)")
+        if "class" in e:
+            _lint_class(e, ids)
     for e in ids.values():
         order = e.get("ordered") or []
         files = {ids[o].get("file") or "render" for o in order if o in ids}
@@ -513,6 +629,10 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
     for n in vanished(baseline, own):
         if f"L{n}" not in labels:
             loss.append(f"LOSS {name}: baseline L{n} vanished, unclassified — {baseline[n - 1][:120]}")
+    flat_base = [normalise(b.split(" ¦ ", 1)[-1]) for b in baseline]
+    for e in ledger["_ids"].values():
+        if e.get("class") and e.get("baseline") and not any(normalise(e["baseline"]) in b for b in flat_base):
+            loss.append(f"LOSS {name} {e['id']}: `baseline` is not text of {base.name} (the baseline is immutable)")
     positions: dict[str, int] = {}
     for e in ledger["_ids"].values():
         f = _resolve(e, ledger, render_dir, root)
@@ -549,6 +669,11 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
             for ph in e.get("text") or []:
                 if normalise(ph) not in flat:
                     loss.append(f"LOSS {name} {e['id']}: text phrase not {where} — {ph[:80]}")
+        if e.get("class") == "prose":
+            whole = normalise(text)
+            for ph in e.get("text") or []:
+                if whole.count(normalise(ph)) > 1:
+                    loss.append(f"LOSS {name} {e['id']}: prose text phrase is not unique in its file — {ph[:80]}")
     for e in ledger["_ids"].values():
         seq = [positions.get(o) for o in e.get("ordered") or []]
         at = [p for p in seq if p is not None]

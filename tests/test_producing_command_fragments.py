@@ -251,11 +251,6 @@ def test_the_close_chain_gates_before_it_pushes() -> None:
         "gate first, then push"
     )
     assert (
-        "the gate runs BEFORE the push, so a check scoped to work not yet integrated still sees it"
-        in three
-    )
-    assert "its fix is committed as at (2) before (3) re-runs, so the push carries it" in three
-    assert (
         "A run that wrote nothing tracked commits nothing at (2), runs (3)'s gate but pushes nothing, and runs "
         "(4)."
     ) in body

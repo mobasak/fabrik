@@ -2,7 +2,7 @@
 
 A step this command's text names as running BEFORE the record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step routed to another command, whose record replaces this one.
 
-The Stop hook BLOCKS ending the turn while a record says `running`.
+`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation; the Stop hook BLOCKS ending the turn while a record says `running`.
 
 ```bash
 python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \
@@ -16,11 +16,11 @@ Where the outcome rests on an act this run does not perform (a deploy, a service
 
 Close it EXACTLY ONE of these ways — never by simply stopping (a third, ``handoff --resume <a file with a `## RESUME` block>``, only where this command's own text names that close):
 
-- `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "<what proves the terminal condition was met>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` — "finished" is not evidence. ⚠️ **`--feedback` is REQUIRED: the close REFUSES without it** (§ Close-out feedback, at the end of this command). `none` is a valid verdict; silence is not.
+- `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "<what proves the terminal condition was met>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` — "finished" is not evidence. ⚠️ **`--feedback` is REQUIRED: the close REFUSES without it** (§ Close-out feedback, at the end of this command), and a refused close leaves the record `running`. `none` is a valid verdict; silence is not.
 - `python3 scripts/command_run.py blocked --command {{COMMAND}} --reason "<what · searched · missing>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` on one of the three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · an unresolvable spec contradiction). Two more stops close `blocked` too: the quota wall (`blocked --wall`, at the RED or WALL band of `CLAUDE.md`'s quota bands: commit, push, then close) and a pause the operator ordered (`blocked --paused`, its `--reason` the operator's words, D-993). Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too; the verdict is required here too.
 
-**Always name the run you close:** a bare close ends the *caller* when another command invoked this one. A mismatched name is refused; closing an already-closed run is a warned no-op.
+**Always name the run you close.** A bare close ends whatever is live — which, when this command was invoked BY another, silently ends the *caller* instead. A mismatched name is refused; closing an already-closed run is a warned no-op.
 
 **Open the `RUN:` line (`python3 scripts/command_run.py line`) on every reply until this run closes.**
 
-**Sync-excluded repo (fabrik-lib and its worktrees):** absence of a check this command names is never compliance; run the HUB copy read-only — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`) — and report ITS verdict.
+**Sync-excluded repo (fabrik-lib and its worktrees)?** A check this command names by script is NOT necessarily present locally; absence is never compliance — run the HUB copy read-only, `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`), and report ITS verdict.

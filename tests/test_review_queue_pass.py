@@ -115,24 +115,10 @@ def test_the_opt_in_fallback_is_stated_in_every_copy() -> None:
         assert not missing, (clause, missing)
 
 
-_BANNER = ROOT / "commands" / "_fragments" / "no-workflow-hub.md"
-
-
 def test_every_workflow_command_carries_the_no_workflow_in_the_hub_note() -> None:
     """D-961: the override sits at the TOP of every source that launches the review-loop Workflow, so
     no lead sentence ("They run as ONE `Workflow` call …") is read before it; the note names the hub
     test and replaces every launch, later passes and relaunches included."""
-    note = _norm(_BANNER)
-    for phrase in (
-        "NO `Workflow` IN THE HUB — D-961",
-        "a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under "
-        "`/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool",
-        "Every `Workflow` launch this command names (a round-1 pass, a delta or closing pass, a "
-        "relaunch, a wave) is replaced by its Agent-tool fallback",
-        "A workflow, permission or approval question never goes to the operator.",
-        "Outside the hub this command's text stands as written.",
-    ):
-        assert phrase in note, phrase
     launching = [
         p
         for p in sorted((ROOT / "commands" / "_sources").glob("*.md"))
@@ -594,11 +580,6 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
             "written as the readers' round-trip (a value is accepted only when every reader parses back what was "
             "written), never as a check for that one input"
         ) in text, frag
-    cc = _norm(ROOT / "commands" / "_fragments" / "close-chain.md")
-    assert (
-        "In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only "
-        "after the closing pass, printed then by its producing command; a draft written mid-loop carries none."
-    ) in cc
 
 
 def test_round_zero_opens_a_pointer_from_every_repo_the_surface_ships_to() -> None:

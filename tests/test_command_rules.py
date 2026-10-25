@@ -758,3 +758,80 @@ def test_summary_never_raises_on_unreadable_rules_dir(tmp_path: Path) -> None:
     finally:
         rules.chmod(0o755)
     assert len(lines) == 1 and "unreadable" in lines[0], lines
+
+
+# ── D-1236: what a reworded carrier must still hold ───────────────────────────────────────────
+LEAN_SRC = "## Scope\n\nRun the probe on a copy first; never stage a sibling's file with `git add -A` (2026-10-25).\n"
+LEAN_BASE = "Run the probe on a copy first; never stage a sibling's file with `git add -A` (2026-10-25)"
+LEAN_NEW = "## Scope\n\nProbe a copy; never stage a sibling's file with `git add -A`.\n"
+HELD = "Probe a copy; never stage a sibling's file with `git add -A`"
+
+
+def _lean(tmp_path: Path, entry: dict, rendered: str = LEAN_NEW) -> list[str]:
+    t = _tree(tmp_path, source=rendered)
+    _ledger(t, [{"id": "L1", "section": "## Scope", "baseline": LEAN_BASE, **entry}], baseline_from=LEAN_SRC,
+            vanished={"L2": {"rule": ["L1"]}})
+    return _losses(t)
+
+
+def test_a_reworded_prose_entry_passes_when_every_clause_is_held_or_classified(tmp_path: Path) -> None:
+    # clause 1 ("Run the probe on a copy first") is reworded, so it is classified; the ban clause is held
+    assert _lean(tmp_path / "a", {"class": "prose", "text": [HELD], "clauses": {1: "narrative"}}) == []
+    # unclassified, a reworded clause with no anchor is a hole
+    lost = _lean(tmp_path / "b", {"class": "prose", "text": [HELD]})
+    assert len(lost) == 1 and "baseline clause 1" in lost[0], lost
+
+
+def test_a_dropped_ban_token_or_anchor_is_malformed(tmp_path: Path) -> None:
+    gone = "## Scope\n\nProbe a copy; stage only your own file.\n"
+    _one(_lean(tmp_path / "a", {"class": "ban", "text": ["Probe a copy; stage only your own file"]}, gone), "ban token")
+    # the ban word survives but the backticked token is gone: the lint names it
+    no_tok = "## Scope\n\nProbe a copy; never stage a sibling's file at all.\n"
+    lost = _lean(tmp_path / "b", {"class": "prose", "text": ["Probe a copy; never stage a sibling's file at all"],
+                                    "clauses": {1: "narrative"}}, no_tok)
+    assert len(lost) == 1 and "`git add -a`" in lost[0], lost
+
+
+def test_a_clause_label_must_be_narrative_or_duplicate_of_and_in_range(tmp_path: Path) -> None:
+    base = {"class": "prose", "text": [HELD]}
+    _one(_lean(tmp_path / "a", {**base, "clauses": {1: "kept"}}), "is not narrative or duplicate-of")
+    _one(_lean(tmp_path / "b", {**base, "clauses": {9: "narrative"}}), "is not a 1-based clause")
+    dup = {**base, "clauses": {1: {"duplicate-of": "nowhere"}}}
+    _one(_lean(tmp_path / "c", dup), "is not narrative or duplicate-of")
+
+
+def test_a_prose_phrase_is_six_words_and_unique_in_its_file(tmp_path: Path) -> None:
+    short = {"class": "prose", "text": ["never stage"], "clauses": {1: "narrative"}}
+    _one(_lean(tmp_path / "a", short), "under 6 normalised words")
+    twice = LEAN_NEW + "\nProbe a copy; never stage a sibling's file with `git add -A`.\n"
+    dup = {"class": "prose", "text": [HELD], "clauses": {1: "narrative"}}
+    lost = _lean(tmp_path / "b", dup, twice)
+    assert any("not unique in its file" in x for x in lost), lost
+    # a ban phrase is exempt from the 6-word floor
+    assert _lean(tmp_path / "c", {"class": "ban", "text": ["never stage a sibling's file with `git add -A`"],
+                                    "clauses": {1: "narrative"}}) == []
+
+
+def test_an_unknown_class_and_an_edited_baseline_are_refused(tmp_path: Path) -> None:
+    _one(_lean(tmp_path / "a", {"class": "essay", "text": [HELD]}), "not one of")
+    t = _tree(tmp_path / "b", source=LEAN_NEW)
+    _ledger(t, [{"id": "L1", "section": "## Scope", "baseline": "Probe a copy and never stage a sibling's file",
+                 "class": "ban", "text": [HELD]}], baseline_from=LEAN_SRC, vanished={"L2": {"rule": ["L1"]}})
+    lost = _losses(t)
+    assert any("is not text of" in x and "immutable" in x for x in lost), lost
+
+
+def test_a_live_shared_entry_needs_a_class(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    t = _tree(tmp_path)
+    frag = t["root"] / "commands" / "_fragments" / "orient.md"
+    frag.parent.mkdir(parents=True)
+    frag.write_text("## Orient\n\nRead the packs first.\n")
+    base = t["rules"] / "_shared" / "orient.baseline.txt"
+    sha = cr.write_baseline(frag.read_text(), base)
+    entry = {"id": "O1", "section": "## Orient", "current": "Read the packs first.", "text": ["packs"]}
+    led = {"shared": "commands/_fragments/orient.md", "baseline_sentences": base.name, "baseline_sha256": sha,
+           "entries": [entry]}
+    (t["rules"] / "_shared" / "orient.yaml").write_text(yaml.safe_dump(led))
+    assert _losses(t) == []  # a fixture tree is not the live rules dir
+    monkeypatch.setattr(cr, "RULES", t["rules"])
+    _one(_losses(t), "needs a `class`")
