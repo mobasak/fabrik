@@ -21,6 +21,19 @@ W-05021a03 split rotate-session's aborts into transient (exit 75) and permanent 
   added. A fix that adds positions, scopes or name filters is probed with both sibling and nested
   inputs.
 
+## Read a headless run's tool set from the CLI's init event, never from a design claim or the model (2026-10-25)
+
+W-230abfd5 (`scripts/api_credit.py`, D-1223): the script, its doc and D-1198 all said the child had Read, Grep and
+Glob, and a review passed that claim. On CLI 2.1.310 `--bare` silently dropped Grep and Glob whatever `--tools`
+listed; only a live finder saying "I had no Glob tool" exposed it.
+- **The authoritative tool list is the `system/init` event** of `--output-format stream-json --verbose`; a keyless
+  run prints it without spending (it then fails "Not logged in"), so the check costs nothing and belongs in a test or
+  a pre-flight, not in prose.
+- **Bisect the flags on that event** — seven keyless probes separated `--bare` (Read only) from `--safe-mode`
+  (Glob, Grep, Read) in minutes; reading help text and docs had not.
+- **A model's self-report of its tools is a hint, not a measure** — it was right here, but only the init event is the
+  CLI's own answer.
+
 ## A token rule is a compiler claim: run the compiler before writing it (2026-10-24)
 
 W-dab6a341's first draft wrote CSS-first Tailwind rules from the docs alone. Three were wrong in ways no doc says: a plain `@theme` drops a variable no utility uses, a `var()`-valued slot's utility reads the referenced variable, and an alias under the slot's own name is a cycle. Every one surfaced only when a seat ran `compile()` from an installed `tailwindcss`. The template's own text-colour slots had sat in the font-size namespace since the CSS-first line shipped. **Lesson:** a rule about what a compiler or engine emits is checked by running it on the smallest input that shows the case, and the probe goes in the CLAIMS verify hint so the currency watcher can re-run it. A grader written to catch prose about tokens is judgement-shaped: bound it and say so, or it fires on legitimate sentences.

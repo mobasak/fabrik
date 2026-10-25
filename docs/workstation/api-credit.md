@@ -16,9 +16,9 @@ python3 scripts/api_credit.py run --pick --model sonnet --prompt-file brief.md -
 python3 scripts/api_credit.py settle --run <id> --cost 0.42   # close a run that has no cost with the console's figure
 ```
 
-`run` starts `claude -p --bare --restricted` with:
+`run` starts `claude -p --safe-mode --restricted` with:
 - the chosen key as `ANTHROPIC_API_KEY`;
-- the tools fixed at Read, Grep and Glob;
+- the tools fixed at Read, Grep and Glob (a finder can locate files and follow callers in the pinned copy);
 - `--permission-mode dontAsk` and `--permission-prompts none`;
 - a fresh `CLAUDE_CONFIG_DIR`, deleted after the run;
 - an empty cwd under `~/.claude/state/api-credit/`.
@@ -32,10 +32,28 @@ automatically.
 
 ## The safety boundary
 
-- **Auth.** `--bare` reads `ANTHROPIC_API_KEY` only and never OAuth or the keychain, so a run cannot spend subscription
-  quota. A bad key fails rather than falling back (probed 2026-10-24). The plain `ANTHROPIC_API_KEY` in `.env` stays
-  empty, so nothing else bills the API by accident.
-- **Reach.** `--bare` skips every hook, so the fleet's guards do not run inside a run. That is why the tools are
+- **Why not `--bare`.** On CLI 2.1.310 `--bare` drops Grep and Glob whatever `--tools` lists (the init event shows
+  `['Read']`; probed 2026-10-25, W-230abfd5), which left a finder unable to search. `--safe-mode` keeps them and
+  disables hooks, CLAUDE.md, plugins and MCP servers, but its help says auth "works normally", so the auth guarantee is
+  executed rather than assumed (next bullet).
+- **Auth — the keyless pre-flight.** Before the start row, `run` starts the same argv once with no `ANTHROPIC_API_KEY`,
+  differing only in stdin `hi`, `--max-turns 1`, `--max-budget-usd 0.05` and `--output-format stream-json --verbose`,
+  on its own empty config dir (removed after), within `API_CREDIT_PREFLIGHT_TIMEOUT` seconds (60). The run is refused
+  (exit 2, nothing provisioned) unless every init event lists exactly Glob, Grep and Read with `apiKeySource` `none`,
+  and every result event is an error with `total_cost_usd` 0 and `duration_api_ms` 0. So no other credential — an
+  OAuth login, a keychain — can answer for the run; the result's `subtype` reads `success` on this failure and is
+  never read. Should some credential answer, the pre-flight's one turn is billed to it, outside this ledger, before the
+  refusal. The real run then has only the key: its config dir is fresh and empty, and every inherited
+  `ANTHROPIC*`/`CLAUDE*` name is stripped from its env but `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` (forced to `1`)
+  before the key and the config dir are set. A bad key fails rather than falling back (probed 2026-10-24 and
+  2026-10-25). The one source the pre-flight cannot see is a credential the CLI would read only when a key is present;
+  the server-side prepaid credit is the backstop there. The plain `ANTHROPIC_API_KEY` in `.env` stays empty, so nothing
+  else bills the API by accident.
+- **Managed settings.** A managed-settings directory (`/etc/claude-code`, or `API_CREDIT_MANAGED_DIR`) refuses every
+  run before anything spawns: its env and hooks apply under `--safe-mode` and `--restricted` alike, and a managed env
+  (a base URL, say) need not change what a keyless probe reports.
+- **Reach.** `--safe-mode` disables the user, project and plugin hooks (managed hooks would still run, which is why
+  managed settings refuse the run), so the fleet's guards do not run inside a run. That is why the tools are
   read-only, and why `--restricted` confines them to the cwd and each `--add-dir` (a read outside is denied, probed).
   Every `--add-dir` is vetted, and the run is refused (exit 2) when the directory is not an absolute, non-symlink
   directory, or:
@@ -83,11 +101,12 @@ Every doubt fails closed, so an unknown cost counts as spent, never as free:
   is missing refuses every verb (exit 1);
 - a timeout or an error around the `claude` process leaves the run provisioned.
 
-Everything that can fail without spending (the inputs, `--out`, the key file, `claude` on PATH, the state
-directories) is checked before the start row, so such a refusal provisions nothing. A result that cannot be written to
+Everything that can fail without spending (the inputs, `--out`, the key file, `claude` on PATH, managed settings, the
+state directories, the keyless pre-flight) is checked before the start row, so such a refusal provisions nothing. A result that cannot be written to
 `--out` after the run is printed on stdout instead.
 
-`settle` closes a run that has no cost with the console's figure once the run has exited (its own settle row exists), or
+`settle` closes a run that has no cost with the console's figure once the run has exited (the settle row its own `run` writes after the child returns or times out exists; a spawn
+error's row does not count), or
 else once its timeout plus a minute has passed; it never gives a second figure to a run that already has one. A child
 orphaned by a killed parent is bounded by its own `--max-budget-usd`, not by this check, so read the console before
 settling such a run.

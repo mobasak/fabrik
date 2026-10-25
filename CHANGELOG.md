@@ -33,6 +33,16 @@ the rest. The review receipt is `docs/development/reviews/2026-10-25-lean-comman
 - `tests/test_command_rules.py` (26 tests) renders the corpus itself and drives each behaviour.
   `docs/reference/command-corpus-check.md` § Rule ledger documents the grammar and the exit table.
 
+### Changed — `api_credit.py run`: finder runs get Grep and Glob, behind a keyless auth pre-flight (2026-10-25)
+
+- On Claude Code 2.1.310 `--bare` dropped the Grep and Glob tools whatever `--tools` listed, so a finder seat on a
+  prepaid API key could only Read files whose paths it was handed. The child now starts
+  `--safe-mode --restricted --tools Read,Grep,Glob`; a live Haiku finder over a full hub pin used all three for $0.02.
+- `--safe-mode` documents auth as working normally, so every run first spawns the same argv with no API key on its
+  own empty config dir and is refused (exit 2, nothing provisioned) unless the CLI reports exactly those three
+  tools, `apiKeySource` none and an error with zero cost and zero API time. A managed-settings directory refuses the
+  run. New knobs `API_CREDIT_MANAGED_DIR` and `API_CREDIT_PREFLIGHT_TIMEOUT` (docs/CONFIGURATION.md). D-1223, W-230abfd5.
+
 ### Added — `merge_request.py request --pretest`: the owner merge tests run once per change, and a base may declare its leg limit (2026-10-24)
 
 - `scripts/merge_request.py request --pretest` runs the base's `.fabrik/merge-tests` on the merge the owner

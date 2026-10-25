@@ -1153,8 +1153,8 @@ in `docs/reference/external-services-registry.md`.
 
 ## Prepaid API credits (D-1196)
 
-Three prepaid $200 Anthropic API credits are spent by `scripts/api_credit.py` on capped, read-only `claude -p --bare`
-runs ([workstation/api-credit.md](workstation/api-credit.md)). The script reads the keys from the main checkout's
+Three prepaid $200 Anthropic API credits are spent by `scripts/api_credit.py` on capped, read-only `claude -p --safe-mode`
+runs, each behind a keyless pre-flight ([workstation/api-credit.md](workstation/api-credit.md)). The script reads the keys from the main checkout's
 `.env`, never prints them, and hands one key to each run as that run's own `ANTHROPIC_API_KEY`.
 
 | Var | Default | Effect |
@@ -1163,6 +1163,8 @@ runs ([workstation/api-credit.md](workstation/api-credit.md)). The script reads 
 | `ANTHROPIC_API_KEY_SARP` | empty | the Sarp credit's key; `--key sarp` |
 | `ANTHROPIC_API_KEY_OZGURBASAK` | empty | the Ozgur Basak credit's key; `--key ozgurbasak` |
 | `API_CREDIT_ENV_FILE` | the main checkout's `.env` | where `api_credit.py` reads the three keys (tests point it at a fixture) |
+| `API_CREDIT_MANAGED_DIR` | `/etc/claude-code` | the managed-settings directory whose existence refuses every run (tests point it at a fixture) |
+| `API_CREDIT_PREFLIGHT_TIMEOUT` | `60` | seconds the keyless pre-flight may take before the run is refused (tests shorten it) |
 
 The plain `ANTHROPIC_API_KEY` stays empty on purpose, so no tool bills the API by accident. The ledger lives under
 `ROTATE_STATE_DIR` (default `~/.claude/state`) as `api-credit.jsonl`.

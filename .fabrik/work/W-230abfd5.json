@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-24T23:13:54.687663Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "2f1afab51d07fd521b9dfcb0628bd9215724cc13",
   "id": "W-230abfd5",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 0,
-  "status": "open",
+  "status": "done",
   "tags": [
     "child-of-w-96f36043",
     "lean-program"
