@@ -286,7 +286,7 @@ def test_queue_without_owner_tests_lands_in_order(world):
 
     assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
     pretest = world.main / ".git" / "fabrik-merge" / "pretest"
-    assert not list(pretest.glob("*.json")) if pretest.is_dir() else True
+    assert not pretest.is_dir() or not list(pretest.glob("*.json"))  # no leg ran outside the lock
 
 
 def test_queue_refuses_jobs_under_one(world):
@@ -305,6 +305,21 @@ def test_queue_starts_no_landing_past_its_wall(world, monkeypatch, capsys):
 
     assert "run `merge_request.py merge --queue` again" in capsys.readouterr().err
     assert m1 in world.inbox()  # nothing was claimed
+
+
+def test_queue_wall_counts_the_lock_wait(world, monkeypatch, capsys):
+    """A landing may first wait QUEUE_WAIT_S for the merge lock (`_land`): a wall that fits one locked
+    merge but not that wait as well starts no landing (review pass 2, slice A)."""
+    _leg_log(world)
+    h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
+    m1 = world.send(h1, branch=b1)
+    mod = world.mod
+    one_merge = mod.MERGE_TEST_BUDGET_S + mod.PUSH_TIMEOUT_S + mod.SYNC_TIMEOUT_S + 300
+    monkeypatch.setattr(mod, "QUEUE_WALL_S", one_merge + 60)
+
+    assert _queue(world) == 0
+
+    assert "again" in capsys.readouterr().err and m1 in world.inbox()
 
 
 def test_worktree_lock_that_cannot_open_refuses(world, monkeypatch):

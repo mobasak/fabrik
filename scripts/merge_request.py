@@ -2524,10 +2524,12 @@ QUEUE_JOBS = 2  # two hub legs at 4 shards each = the 8 shards one leg takes tod
 QUEUE_MAX = 4  # 2 waves of ~16 min + 4 locked merges fit the documented 5400 s wrapper (D-1205)
 QUEUE_SHARDS = "4"  # FABRIK_MERGE_SHARDS for a child's selector when the caller set none
 QUEUE_WAIT_S = 1800  # how long the queue waits for a merge it did not start to finish
-# One landing may run a whole locked merge with its own leg (its record did not match): the D-1205
-# wrapper's 5400 s. The queue's documented wrapper is QUEUE_WALL_S (+100 for rund), and a landing
-# starts only while that whole worst case still fits, so the wrapper never kills a merge mid-step.
-LANDING_WORST_S = MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIMEOUT_S + 300
+# One landing may first wait QUEUE_WAIT_S for a merge lock another run holds (`_land`), then run a
+# whole locked merge with its own leg (its record did not match): the D-1205 wrapper's 5400 s. The
+# queue's documented wrapper is QUEUE_WALL_S (+100 for rund), and a landing starts only while that
+# whole worst case still fits, so the wrapper never kills a merge mid-step. A merge's resume of
+# OTHER stranded records is not in it, exactly as it is not in the D-1205 wrapper.
+LANDING_WORST_S = QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIMEOUT_S + 300
 QUEUE_WALL_S = 9000
 
 
