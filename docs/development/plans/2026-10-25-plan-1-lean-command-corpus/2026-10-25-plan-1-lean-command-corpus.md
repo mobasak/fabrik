@@ -26,7 +26,7 @@ Spec: `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` (Status:
 | I7 | the three filed findings W-6effedda, W-9ad5860f, W-f723cb66 | IN | the pilot shared-file unit (T01a-T01d) |
 | I8 | no `/fabrik-command-improve` run until L1 and L2 land | IN | § Global Constraints; it lifts at the L2 merge (spec § Program holds) |
 | I9 | the tooling (W-a9b5e763) is infra-2's, as three merge requests | IN | § Interfaces (precondition merges), not a dispatched ticket (D-1222) |
-| I10 | the § Lifecycle notes for the tooling: the frozen sample's source is the after-window report, a window with fewer than 5 fast-closed surfaces samples them all, and "confirmed defects per run" joins the measure list | IN | § Interfaces, slice B's delivery list |
+| I10 | the § Lifecycle notes for the tooling: the frozen sample's source is the after-window report, a window with fewer than 5 fast-closed surfaces samples them all, and "confirmed defects per run" joins the measure list | IN | § Interfaces, the time measure's delivery list |
 | I11 | intel's W-0a91bf86 measuring scripts are untracked (`docs/development/reviews/2026-10-25-w-0a91bf86-lean-program-phase-wall-clock.md:96`) | IN | § Residual unknowns R4; intel commits it (W-487e966a) and infra-2 pins it |
 | I12 | the W-9ad5860f half in `.claude/workflows/fabrik-review-loop.js` | OUT-OF-SCOPE | intel's beat; the item W-9ad5860f stays open with intel |
 | I13 | lever T1's spread to `/fabrik-repo-review` | OUT-OF-SCOPE | after `/fabrik-review`'s after-window report (spec § Time budget); kaizen opens that item at the report (§ Execution Discipline) |
@@ -1167,7 +1167,7 @@ Each ticket cites its primary path in its Touches and its spec rules verbatim at
 
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
-| Pass 1 | opus×1 + sonnet×2 (slices A, B, C) · all axes | found: 49, new: 49, confirmed: 48, fixed: 48, unexecuted: 0, edits: 22 | method: citation — full pass over all 58 files (A 205 claims, B ~700, C ~150); orchestrator executed the reader-test class sweep (366 unnamed, 71 named-but-ungated over 626 test files), the lock-overlap probe (2 active locks, 10 paths), `-rP` on a printing test, `assemble_commands.py` drift and exit lines (:1340-1343, :1395), `_ENTRY` (:183, no `changed-by`), `units()` frontmatter drop (:82-84), the anchors (:34, :1326, :1395); flip gates on a flipped scratch copy: rule grounding 6 examined 0 findings, plan quality 58 examined 0 findings (planted mutant → 1), convergence graded the spine; 1 RECORDED — by design (S2-14b, `fabrik-task.md:216-217` matches the spec's own cite) | 4516608359d074abaf6f0dcf7c0f580a → 080c6a235526cb152f117ec134bfedb7 |
+| Pass 1 | opus×1 + sonnet×2 (slices A, B, C) · all axes | found: 49, new: 49, confirmed: 48, fixed: 48, unexecuted: 0, edits: 23 | method: citation — full pass over all 58 files (A 205 claims, B ~700, C ~150); orchestrator executed the reader-test class sweep (366 unnamed, 71 named-but-ungated over 626 test files), the lock-overlap probe (2 active locks, 10 paths), `-rP` on a printing test, `assemble_commands.py` drift and exit lines (:1340-1343, :1395), `_ENTRY` (:183, no `changed-by`), `units()` frontmatter drop (:82-84), the anchors (:34, :1326, :1395); flip gates on a flipped scratch copy: rule grounding 6 examined 0 findings, plan quality 58 examined 0 findings (planted mutant → 1), convergence graded the spine; 1 RECORDED — by design (S2-14b, `fabrik-task.md:216-217` matches the spec's own cite) | 4516608359d074abaf6f0dcf7c0f580a → 13e4df8a85eb5afa96c94e86a6fef3e0 |
 
 ## Self-audit
 
@@ -1196,7 +1196,7 @@ None of the three drifts changes a ticket: the tooling is infra-2's, and the unt
 
 Gaps: none.
 
-(b) **Cross-ticket signature consistency.** Every ticket calls the same four slice-A functions by the same symbols (`command_rules.py::vanished`, `::own_text`, `::write_baseline`, `::losses`), writes the same ledger shape, and names `generate_unchanged` exactly as slice B's interface does. The ledger and baseline file names follow the tooling's test fixture (`commands/_rules/<cmd>.baseline.txt`).
+(b) **Cross-ticket signature consistency.** Every ticket calls the same four slice-A functions by the same symbols (`command_rules.py::vanished`, `::own_text`, `::write_baseline`, `::losses`), writes the same ledger shape, and names `generate_unchanged` exactly as the text-measure merge's interface does. The ledger and baseline file names follow the tooling's test fixture (`commands/_rules/<cmd>.baseline.txt`).
 
 Fixed point: not claimed. `/fabrik-plan-review` converges it.
 
