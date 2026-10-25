@@ -3,11 +3,6 @@
   "owned_paths": [
     "CLAUDE.md",
     "templates/governance/CLAUDE.md",
-    "commands/_fragments/design-gate-panel.md",
-    "commands/_fragments/deploy-chain.md",
-    "commands/_sources/fabrik-deploy.md",
-    "commands/_sources/fabrik-deploy-plan-review.md",
-    "commands/_sources/fabrik-release.md",
     "commands/assemble_commands.py",
     ".claude/hooks/final_gate_stop.py",
     "tests/test_least_operator_approval.py",
