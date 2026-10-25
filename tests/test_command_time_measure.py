@@ -461,6 +461,8 @@ def test_seat_population_and_skip_accounting(tmp_path, capsys):
     ("extra", "names"),
     [
         (["--gap-min", "nan"], "--gap-min"),
+        (["--gap-min", "inf"], "--gap-min"),
+        (["--end", "0001-01-05T00:00:00+00:00"], "outside the calendar"),
         (["--gap-min", "0"], "--gap-min"),
         (["--days", "1000000"], "--days"),
         (["--windows", "0"], "--windows"),
@@ -481,6 +483,22 @@ def test_refusals_never_read_as_an_empty_result(tmp_path, capsys, extra, names):
         ctm.main([*args, *extra])
     assert e.value.code not in (0, None)
     assert names in f"{e.value.code} {capsys.readouterr().err}"
+
+
+def test_start_near_the_calendar_end_is_a_refusal(tmp_path, capsys):
+    args = _args(tmp_path, _ledger(tmp_path / "l.jsonl", [_row("fabrik-review", "done", 1)]))
+    args = [a for a in args if a not in ("--end", END)]
+    with pytest.raises(SystemExit) as e:
+        ctm.main([*args, "--commands", "fabrik-review", "--start", "9999-12-30T00:00:00+00:00"])
+    assert "outside the calendar" in str(e.value.code)
+
+
+def test_the_default_command_list_is_not_typo_checked(tmp_path, capsys):
+    # a ledger with only one of the four default commands: the plain call reports, never refuses
+    args = _args(tmp_path, _ledger(tmp_path / "l.jsonl", [_row("fabrik-task", "done", 7)]))
+    out = _run(args, capsys)
+    cmds = out["windows"][0]["commands"]
+    assert cmds["fabrik-task"]["closes"] == 1 and cmds["fabrik-review"]["closes"] == 0
 
 
 def test_missing_ledger_is_a_refusal_not_a_traceback(tmp_path):

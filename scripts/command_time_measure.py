@@ -420,12 +420,18 @@ def windows(
         s = _aware(start)
         if s is None:
             raise SystemExit("--start needs ISO 8601 with a UTC offset")
-        e = e or s + span
+        try:
+            e = e or s + span
+        except OverflowError:
+            raise SystemExit("--start + --days falls outside the calendar") from None
         if s >= e:
             raise SystemExit("--start must precede --end")
         return [(s, e)]
     e = e or dt.datetime.now(dt.UTC)
-    return [(e - span * (k + 1), e - span * k) for k in reversed(range(count))]
+    try:
+        return [(e - span * (k + 1), e - span * k) for k in reversed(range(count))]
+    except OverflowError:
+        raise SystemExit("--end - --days x --windows falls outside the calendar") from None
 
 
 def _fmt(st: dict) -> str:
@@ -452,7 +458,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--windows", type=int, default=1, help="equal windows ending at --end, oldest first"
     )
-    ap.add_argument("--commands", default=",".join(DEFAULT_COMMANDS))
+    ap.add_argument(
+        "--commands",
+        help=f"comma-separated (default {','.join(DEFAULT_COMMANDS)}; a named one the ledger never holds is refused)",
+    )
     ap.add_argument(
         "--state",
         action="append",
@@ -480,9 +489,13 @@ def main(argv: list[str] | None = None) -> int:
     days = 14 if a.days is None else a.days
     if not (1 <= days <= MAX_DAYS and 1 <= a.windows <= MAX_DAYS // days):
         ap.error(f"--days and --windows must be >= 1, spanning at most {MAX_DAYS} days together")
-    if not a.gap_min > 0:  # NaN fails the comparison too; inf is a legitimate "no gap cut"
-        ap.error("--gap-min must be a number > 0")
-    commands = tuple(c.strip() for c in a.commands.split(",") if c.strip())
+    # finite: NaN would cut every stamp apart, and inf would print as invalid JSON (`Infinity`)
+    if not (math.isfinite(a.gap_min) and a.gap_min > 0):
+        ap.error("--gap-min must be a finite number > 0")
+    named = a.commands is not None
+    commands = (
+        tuple(c.strip() for c in a.commands.split(",") if c.strip()) if named else DEFAULT_COMMANDS
+    )
     if not commands:
         ap.error("--commands names no command")
     wins = windows(a.start, a.end, days, a.windows)
@@ -506,9 +519,10 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"not found: {', '.join(missing) or 'any transcript projects root'}")
     skipped: collections.Counter = collections.Counter()
     whole = load_ledger(a.ledger, skipped)
-    # A typo must not read as "no runs": refuse a command or state the ledger has never held.
+    # A typo must not read as "no runs": refuse a NAMED command or state the ledger has never held.
+    # The default list is not checked — a ledger without one of its commands prints "closes 0".
     for flag, wanted, held in (
-        ("--commands", commands, {r.get("command") for r in whole}),
+        ("--commands", commands if named else (), {r.get("command") for r in whole}),
         ("--state", a.state or [], {r.get("state") for r in whole}),
     ):
         unknown = [v for v in wanted if v not in held]
