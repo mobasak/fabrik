@@ -867,11 +867,20 @@
       "claude-sonnet-5-5": 108399992
     },
     "2026-10-24": {
-      "claude-opus-5-5": 42274646
+      "claude-opus-5-5": 5534597364,
+      "claude-fable-5-1": 28308574,
+      "claude-haiku-5-5": 301400923,
+      "claude-sonnet-5-5": 167241981
+    },
+    "2026-10-25": {
+      "claude-opus-5-5": 1267582623,
+      "claude-fable-5-1": 111489635,
+      "claude-haiku-5-5": 41369510,
+      "claude-sonnet-5-5": 61589195
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-10-24T06:01:52+03:00",
+  "merged_at": "2026-10-25T06:02:16+03:00",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
@@ -1033,7 +1042,8 @@
     "2026-10-21": "transcripts",
     "2026-10-22": "transcripts",
     "2026-10-23": "transcripts",
-    "2026-10-24": "transcripts"
+    "2026-10-24": "transcripts",
+    "2026-10-25": "transcripts"
   },
   "_discrepancy": {
     "2026-08-29": {
@@ -1070,7 +1080,7 @@
   "collector_version": 3,
   "_unusable": {},
   "_added": 0,
-  "_total_days": 161,
+  "_total_days": 162,
   "_transcript_added": 1,
   "_transcript_refreshed": 1,
   "extension_source_present": true,
