@@ -8,7 +8,8 @@ bodies with {{include:NAME}} markers) + PARAMS below (per-command variance).
   --extract   regenerate _sources/ from the pristine backup (one-time / re-baseline)
   (default)   render _sources + _fragments -> ~/.claude/commands/*.md
   --check     render to temp, diff against installed; non-zero exit on drift (4 LOSS > 5 ceiling > 1 drift)
-  --ratchet   render to temp, lower commands/_size_ceiling.json (silent, exit 0, when nothing changed)
+  --ratchet   render to temp, lower commands/_size_ceiling.json (silent, exit 0, when nothing changed;
+              exit 5 on a malformed ceiling file); the three modes are mutually exclusive
 Rendered files carry a DO-NOT-HAND-EDIT banner. Edit fragments/sources, re-render.
 """
 
@@ -1413,10 +1414,20 @@ def ratchet_cli() -> None:
     `commands/_size_ceiling.json`; prints one line per change and nothing when nothing changed."""
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        with contextlib.redirect_stdout(io.StringIO()):  # the render's banner line is not a change
-            render(tmp, None, agents_dest=tmp / "_agents")
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):  # the render's banner line is not a change
+                render(tmp, None, agents_dest=tmp / "_agents")
+        except SystemExit:
+            print(out.getvalue(), end="")  # a render error prints its reasons: never swallow them
+            raise
         measured = command_measure.measure_all(tmp, ROOT.parent, SRC, (_CLOSE_FEEDBACK, _AGENT_FEEDBACK))
-    for line in command_measure.ratchet(measured, command_measure.CEILING):
+    try:
+        changes = command_measure.ratchet(measured, command_measure.CEILING)
+    except ValueError as exc:  # a malformed ceiling file: the same breach --check reports, same exit
+        print(f"CEILING {command_measure.CEILING.name}: {exc}")
+        sys.exit(5)
+    for line in changes:
         print(line)
 
 
@@ -1477,9 +1488,10 @@ def _guard_main_checkout() -> None:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--extract", action="store_true")
-    ap.add_argument("--check", action="store_true")
-    ap.add_argument("--ratchet", action="store_true")
+    mode = ap.add_mutually_exclusive_group()  # one mode per run: a combined call would skip a mode silently
+    mode.add_argument("--extract", action="store_true")
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--ratchet", action="store_true")
     ap.add_argument("--dest", default=str(OUT))
     a = ap.parse_args()
     if a.extract:

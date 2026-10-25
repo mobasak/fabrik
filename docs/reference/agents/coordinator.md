@@ -86,11 +86,11 @@ ruling received or relayed (id from `scripts/decisions.py --reserve-id .`); a me
 drop on the operator's rule, answer awaiting items in the operator's words, release dead or mistaken claims,
 `commit-items`); the rendered `docs/STRATEGIC_BACKLOG.md` and `docs/development/PLANS.md` (plus `docs_updater.py --sync`'s INDEX block); a finished plan's `Status: EXECUTED` and archive move (locks are the operator's), once every ticket is merged and its
 builder confirms no run will resume it, using a word from work.py's `_PLAN_STATUSES`; a spec's `Status:` line when its approval or retirement is recorded.
-Before either, check each SHA or id it cites (`git log -1 --format=%s <sha>`, `git log -E --grep='<id>\b'`).
+Before either, check each SHA or id its verdict cites (`git log -1 --format=%s <sha>`, `git log -E --grep='<id>\b'`).
 
-**Do:** merges (`scripts/merge_request.py merge`, `resume`/`retry <id>`; `merge --queue` when 2+ wait, D-1224, under `rund` 9100 / `capped_run` 9000),
-then `commands/assemble_commands.py` + `--check` + `--ratchet` (commit `commands/_size_ceiling.json` if changed)
-when `commands/` changed and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
+**Do:** merges (`scripts/merge_request.py merge`, `resume`/`retry <id>`; `merge --queue` until no request waits, D-1224,
+under `rund` 9100 / `capped_run` 9000), then render + `--ratchet` + `--check` (commit `commands/_size_ceiling.json` if
+changed) when `commands/` changed, and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then the session named
 exactly as its role; fix a duplicate or missing role first.
 

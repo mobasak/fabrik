@@ -9,7 +9,8 @@ All notable changes to this project will be documented in this file.
 - `commands/command_measure.py` measures every rendered command's own text (render, named `commands/` files, named seat
   definitions) and its reads; `commands/_size_ceiling.json` freezes them for all 40 commands (D-1226, W-a9b5e763 slice C).
 - `assemble_commands.py --check` exits 5 on a ceiling breach, after a LOSS (4) and before drift (1); `--ratchet` lowers the
-  ceilings and prints nothing when nothing changed. The coordinator runs it on every merged tree.
+  ceilings and prints nothing when nothing changed. The coordinator runs it after the merge queue drains,
+  whenever `commands/` changed.
 - `command_rules.py`: `generate_unchanged()` for the light form, `changed-by` entries, an idempotent `normalise()`, inline
   comments kept as text, and slice A's two residuals fixed.
 
@@ -40,7 +41,7 @@ the rest. The review receipt is `docs/development/reviews/2026-10-25-lean-comman
 - `assemble_commands.py --check` prints LOSS before DRIFT and exits 4 on a LOSS, else 1. The
   corpus-check pre-commit hook passes the 4 through, so a lost rule refuses the commit.
 - `tests/test_command_rules.py` (26 tests) renders the corpus itself and drives each behaviour.
-  `docs/reference/command-corpus-check.md` § Rule ledger documents the grammar and the exit table.
+  `docs/reference/command-corpus-check.md` § Rule ledger and size ceiling documents the grammar and the exit table.
 
 ### Added — `merge_request.py request --pretest`: the owner merge tests run once per change, and a base may declare its leg limit (2026-10-24)
 

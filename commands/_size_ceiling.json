@@ -8,7 +8,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 23194,
-   "own": 23194,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -70,7 +69,6 @@
     "fabrik-researcher"
    ],
    "baseline_own": 10542,
-   "own": 10542,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -106,7 +104,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 22453,
-   "own": 22453,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -148,7 +145,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 24448,
-   "own": 24448,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -208,7 +204,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 24199,
-   "own": 24199,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -271,7 +266,6 @@
     "fabrik-researcher"
    ],
    "baseline_own": 10585,
-   "own": 10585,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -300,7 +294,6 @@
     "fabrik-researcher"
    ],
    "baseline_own": 12631,
-   "own": 12631,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -332,7 +325,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 25545,
-   "own": 25545,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -398,7 +390,6 @@
     "fabrik-researcher"
    ],
    "baseline_own": 12518,
-   "own": 12518,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -430,7 +421,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 21182,
-   "own": 21182,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -486,7 +476,6 @@
     "fabrik-researcher"
    ],
    "baseline_own": 15351,
-   "own": 15351,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -525,7 +514,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 23030,
-   "own": 23030,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -597,7 +585,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 30204,
-   "own": 30204,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -661,7 +648,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 23797,
-   "own": 23797,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -719,7 +705,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 28614,
-   "own": 28614,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -788,7 +773,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 40554,
-   "own": 40554,
    "reads": {
     "paths": {
      ".claude/settings.json": 1047,
@@ -823,14 +807,14 @@
      "docs/FEATURES.md": 12208,
      "docs/PROJECT_CATALOG.md": 1385,
      "docs/README.md": 555,
-     "docs/reference/agents/coordinator.md": 1527,
+     "docs/reference/agents/coordinator.md": 1523,
      "docs/reference/command-run-protocol.md": 10365,
      "docs/reference/fabrik-mail.md": 5435,
      "docs/reference/multi-agent-operating-model.md": 5547,
      "docs/reference/operating-manifesto.md": 1637,
      "docs/reference/work-tracking.md": 8895
     },
-    "total": 80702
+    "total": 80698
    },
    "render": 41771
   },
@@ -841,7 +825,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 23250,
-   "own": 23250,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -909,7 +892,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 23554,
-   "own": 23554,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -974,7 +956,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 25073,
-   "own": 25073,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1041,7 +1022,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 14030,
-   "own": 14030,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1079,7 +1059,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 28508,
-   "own": 28508,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1146,7 +1125,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 37052,
-   "own": 37052,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1216,7 +1194,6 @@
     "fabrik-researcher"
    ],
    "baseline_own": 9952,
-   "own": 9952,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1250,7 +1227,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 24768,
-   "own": 24768,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1314,7 +1290,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 8230,
-   "own": 8230,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1346,7 +1321,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 41412,
-   "own": 41412,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1417,7 +1391,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 34855,
-   "own": 34855,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1464,7 +1437,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 19545,
-   "own": 19545,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1520,7 +1492,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 23257,
-   "own": 23257,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1585,7 +1556,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 24417,
-   "own": 24417,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1636,7 +1606,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 38097,
-   "own": 38097,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1699,7 +1668,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 34513,
-   "own": 34513,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1769,7 +1737,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 11306,
-   "own": 11306,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1805,14 +1772,13 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 20986,
-   "own": 20986,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
      ".windsurf/rules/chrome-ext/70-chrome-ext.md": 4875,
      ".windsurf/rules/core/design-system-template.md": 14375,
      ".windsurf/rules/core/ocoron-design-system.md": 5438,
-     ".windsurf/rules/core/tojlo-design-system.md": 18646,
+     ".windsurf/rules/core/tojlo-design-system.md": 18650,
      ".windsurf/rules/mobile-app/80-mobile.md": 5832,
      "agents-fabrik.md": 8210,
      "docs/DECISIONS.md#D-035": 96,
@@ -1853,7 +1819,7 @@
      "docs/reference/operating-manifesto.md": 1637,
      "docs/workflows/FINAL_GATE_WORKFLOW.md": 13205
     },
-    "total": 126282
+    "total": 126286
    },
    "render": 21616
   },
@@ -1864,13 +1830,12 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 25498,
-   "own": 25498,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
      ".windsurf/rules/core/design-system-template.md": 14375,
      ".windsurf/rules/core/ocoron-design-system.md": 5438,
-     ".windsurf/rules/core/tojlo-design-system.md": 18646,
+     ".windsurf/rules/core/tojlo-design-system.md": 18650,
      ".windsurf/rules/mobile-app/tojlo-mobile-design-system.md": 3764,
      "agents-fabrik.md": 8210,
      "docs/DECISIONS.md#D-035": 96,
@@ -1924,7 +1889,7 @@
      "docs/reference/subagent-pool-contract.md": 3798,
      "docs/workflows/FINAL_GATE_WORKFLOW.md": 13205
     },
-    "total": 128804
+    "total": 128808
    },
    "render": 26263
   },
@@ -1935,7 +1900,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 15603,
-   "own": 15603,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -1973,7 +1937,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 27137,
-   "own": 27137,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -2023,7 +1986,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 32333,
-   "own": 32333,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -2099,7 +2061,6 @@
     "fabrik-reviewer"
    ],
    "baseline_own": 22454,
-   "own": 22454,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,
@@ -2159,7 +2120,6 @@
   "hibernate": {
    "agents": [],
    "baseline_own": 4841,
-   "own": 4841,
    "reads": {
     "paths": {
      ".fabrik/beat-owners.json": 218,

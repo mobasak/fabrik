@@ -647,19 +647,35 @@ def test_generate_unchanged_ledgers_pass_on_the_live_corpus(tmp_path: Path) -> N
 
 
 def test_changed_by_lists_existing_decision_rows(tmp_path: Path) -> None:
-    # § The rule test step 8: a rule changed on purpose appends its D-row to `changed-by:`
+    # § The rule test step 8: a rule changed on purpose appends its D-row to `changed-by:` — distinct
+    # rows that exist AND name the entry, as a `retired` row's decision must
     t = _tree(tmp_path)
-    _ledger(t, [{**ENTRY, "changed-by": ["D-0001"]}])
+    with (t["root"] / "docs" / "DECISIONS.md").open("a") as fh:
+        fh.write("| D-0002 | 2026-10-25 | x | changes R1 | y | z |\n| D-0003 | 2026-10-25 | x | changes R1 again | y | z |\n")
+    _ledger(t, [{**ENTRY, "changed-by": ["D-0002", "D-0003"]}])
     assert _losses(t) == []
-    for bad in (["D-0404"], "D-0001", [], ["D-0001", 7]):
+    for bad in (["D-0404"], "D-0002", [], ["D-0002", 7], ["D-0001"], ["D-0002", "D-0002"]):
         _ledger(t, [{**ENTRY, "changed-by": bad}])
         _one(_losses(t), "changed-by")
+    retired = [{"decision": "D-0001", "entry": {"id": "R9", "text": ["x"], "changed-by": ["D-0002"]}}]
+    _ledger(t, [ENTRY], retired=retired)
+    _one(_losses(t), "changed-by")
+
+
+def test_a_phrase_that_normalises_to_nothing_is_refused(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    for c, ph in (("text", "..."), ("text", "**"), ("forbidden", ". .")):
+        _ledger(t, [{**ENTRY, c: [ph]}])
+        _one(_losses(t), "normalises to nothing")
 
 
 def test_normalise_is_idempotent_on_every_live_unit() -> None:
     # `_check` re-normalises a stored `current`; a unit that changes on a second pass can never match
-    # (a unit ending in " ." kept its space: "HTTP 404 ." -> "HTTP 404 " -> "HTTP 404")
-    assert cr.normalise("HTTP 404 .") == cr.normalise(cr.normalise("HTTP 404 ."))
+    # (a unit ending in " ." kept its space: "HTTP 404 ." -> "HTTP 404 " -> "HTTP 404"; emphasis
+    # re-formed by one strip: "_**_" -> "__" -> "")
+    for raw in ("HTTP 404 .", "ends with dots ..", "_**_", "a *_*_* b", "x __**__ y."):
+        once = cr.normalise(raw)
+        assert cr.normalise(once) == once, (raw, once)
     assert cr.normalise("ends with dots ..") == "ends with dots"
     bad = [
         (src.stem, u)
@@ -688,6 +704,36 @@ def test_generate_unchanged_keeps_only_surviving_units(tmp_path: Path) -> None:
     cr.write_baseline(cr.own_text(twice), base)
     once = [e for e in cr.generate_unchanged(base, cr.own_text(SOURCE)) if e["current"] == "Stop at the pin"]
     assert len(once) == 1
+
+
+def test_generate_unchanged_section_pins_resolve_to_their_own_unit(tmp_path: Path) -> None:
+    # a repeated heading, a spliced include, a literal marker-like line, an indented (unspliced)
+    # include, and an include inside a comment: every generated entry must pass its own gate
+    src = (
+        "# /demo\n\n## Notes\n\nAlpha rule.\n\n## Other\n\nOther rule.\n\n## Notes\n\nBeta rule.\n\n"
+        "## Spliced\n\nBefore it.\n\n{{include:orient}}\n\nAfter it.\n\n"
+        "## Literal\n\n⟪include⟫\n\nAfter a literal.\n\n  {{include:orient}}\n\nAfter an indent.\n\n"
+        "<!--\n{{include:orient}}\n-->\n\nAfter a comment.\n"
+    )
+    t = _tree(tmp_path, source=src, render=src.replace("{{include:orient}}\n\nAfter it.", "## Orient\n\nAfter it."))
+    base = t["rules"] / "demo.baseline.txt"
+    sha = cr.write_baseline(cr.own_text(src), base)
+    entries = cr.generate_unchanged(base, cr.own_text(src))
+    by = {e["current"]: e for e in entries}
+    assert "section" not in by["Alpha rule"] and "section" not in by["Beta rule"]  # repeated heading
+    assert by["Other rule"]["section"] == "## Other" and by["Before it"]["section"] == "## Spliced"
+    assert "section" not in by["After it"]  # follows a spliced include
+    for unit in ("After a literal", "After an indent", "After a comment"):
+        assert by[unit]["section"] == "## Literal", (unit, by[unit])
+    led = {"command": "demo", "baseline_sentences": base.name, "baseline_sha256": sha, "entries": entries}
+    (t["rules"] / "demo.yaml").write_text(yaml.safe_dump(led, allow_unicode=True), encoding="utf-8")
+    assert _losses(t) == []
+
+
+def test_an_include_inside_a_fence_keeps_its_old_key() -> None:
+    # slice A blanked include lines in own text; inside a fence that blank was part of the key
+    fenced = "## A\n\n```\n{{include:x}}\nline\n```\n"
+    assert cr.keys(cr.own_text(fenced)) == cr.keys(fenced.replace("{{include:x}}", ""))
 
 
 def test_scope_horizontal_rule_is_not_front_matter(tmp_path: Path) -> None:

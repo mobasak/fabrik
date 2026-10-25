@@ -41,7 +41,8 @@ _LIST = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 _EMPHASIS = re.compile(r"\*\*|__")
 _INCLUDE = re.compile(r"^\s*\{\{include:[^}]+\}\}\s*$")
 _FENCE_JOIN = " ⏎ "
-_SPLICE = "⟪include⟫"  # generate_unchanged's marker for a spliced fragment; never a key
+# the renderer splices ONLY this exact line (assemble_commands.py render(): `^\{\{include:([\w-]+)\}\}$`)
+_SPLICE = re.compile(r"^\{\{include:[\w-]+\}\}$")
 
 
 def _outside_code(s: str, fn) -> str:
@@ -50,9 +51,12 @@ def _outside_code(s: str, fn) -> str:
 
 
 def normalise(s: str) -> str:
-    s = _outside_code(s, lambda p: _EMPHASIS.sub("", p))
-    # trailing periods AND the spaces before them, so a second pass is a no-op: `_check` re-normalises
-    # a stored `current`, and "404 ." -> "404 " -> "404" could never match (W-a9b5e763 slice C)
+    # idempotent, because `_check` re-normalises a stored `current` (W-a9b5e763 slice C): emphasis is
+    # stripped to a fixed point ("_**_" leaves "__"), then trailing periods AND the spaces before them
+    # ("404 ." would otherwise give "404 ", then "404")
+    prev = None
+    while s != prev:
+        prev, s = s, _outside_code(s, lambda p: _EMPHASIS.sub("", p))
     return " ".join(s.split()).rstrip(" .")
 
 
@@ -78,10 +82,12 @@ def _is_heading(s: str) -> bool:
     return bool(re.match(r"#{1,6}\s", s))
 
 
-def units(text: str, front_matter: bool = True) -> list[tuple[str, str, str]]:
+def units(text: str, front_matter: bool = True, splices: bool = False) -> list[tuple[str, str, str]]:
     """``(heading, kind, text)`` for every unit, in order; kind is heading|table|fence|comment|prose.
     A leading ``---`` block is front matter only for a whole file (``front_matter``); a section
-    body that opens with a ``---`` rule keeps every unit."""
+    body that opens with a ``---`` rule keeps every unit. An ``{{include:…}}`` line is no unit (the
+    fragment's text is its own; inside a fence the line is blanked); with ``splices`` each line the
+    renderer splices also yields a ``splice`` unit, so a caller sees where a fragment lands."""
     lines = text.splitlines()
     if front_matter and lines and lines[0].strip() == "---":
         end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
@@ -104,7 +110,7 @@ def units(text: str, front_matter: bool = True) -> list[tuple[str, str, str]]:
                 out.append((heading, "fence", _FENCE_JOIN.join(fence)))
                 fence = None
             else:
-                fence.append(" ".join(s.split()))
+                fence.append("" if _INCLUDE.match(s) else " ".join(s.split()))
             continue
         if comment is not None:
             comment.append(s)
@@ -123,6 +129,8 @@ def units(text: str, front_matter: bool = True) -> list[tuple[str, str, str]]:
                 comment = [s]
         elif not s or _INCLUDE.match(s):
             flush()
+            if s and splices and _SPLICE.match(line):
+                out.append((heading, "splice", s))
         elif _is_heading(s):
             flush()
             heading = normalise(s)
@@ -167,23 +175,20 @@ def generate_unchanged(baseline_path: Path, new_own_text: str) -> list[dict[str,
     the baseline holds twice and the rewrite once yields one entry. Heading units are skipped (a
     heading is not inside its own section's scope), and so are fences (no single sentence) and
     comments (they carry no rule). Each entry is ``{id: u-L<n>, file: render, section, baseline,
-    current, text}``. ``section`` is omitted for a unit under no heading, and for a unit that
-    follows an ``{{include:…}}`` line inside its section: the render splices the fragment there,
-    and a heading inside it re-parents what follows, so that unit is pinned to the whole file."""
-    marked, fence = [], False
-    for ln in new_own_text.splitlines():
-        if ln.strip().startswith("```"):
-            fence = not fence
-        marked.append("\n" + _SPLICE + "\n" if not fence and _INCLUDE.match(ln) else ln)
+    current, text}``. ``section`` is omitted — the unit pinned to the whole file instead — for a unit
+    under no heading, for a unit that follows a spliced ``{{include:…}}`` line inside its section (the
+    render splices the fragment there, and a heading inside it re-parents what follows), and for a
+    unit under a heading the file repeats (``_scope`` resolves a section name to its FIRST heading)."""
+    found = units(new_own_text, splices=True)
+    repeated = {h for h, n in Counter(h for h, k, _t in found if k == "heading").items() if n > 1}
     seen: dict[str, list[tuple[str, bool]]] = {}
     after = False
-    for h, k, t in units("\n".join(marked)):
+    for h, k, t in found:
         if k == "heading":
             after = False
-        if t == _SPLICE:
+        elif k == "splice":
             after = True
-            continue
-        if k != "comment":
+        elif k != "comment":
             seen.setdefault(f"{h} ¦ {t}", []).append((k, after))
     out: list[dict[str, Any]] = []
     for i, key in enumerate(_read_baseline(baseline_path.read_bytes()), 1):
@@ -194,7 +199,7 @@ def generate_unchanged(baseline_path: Path, new_own_text: str) -> list[dict[str,
             continue
         heading, unit = key.split(" ¦ ", 1)
         entry: dict[str, Any] = {"id": f"u-L{i}", "file": "render"}
-        if heading and not spliced:
+        if heading and not spliced and heading not in repeated:
             entry["section"] = heading
         entry.update(baseline=unit, current=unit, text=[unit])
         out.append(entry)
@@ -368,6 +373,17 @@ def _inside(path: Path, base: Path) -> bool:
     return base.resolve() == path.resolve() or base.resolve() in path.resolve().parents
 
 
+def _changed_by(e: dict, rows: dict[str, str], label: str) -> None:
+    """§ The rule test step 8: a rule changed on purpose lists each D-row that changed it — distinct
+    rows of docs/DECISIONS.md, each naming the entry id (as a `retired` row's decision must)."""
+    if "changed-by" not in e:
+        return
+    cb = e["changed-by"]
+    pat = rf"(?<![\w-]){re.escape(e['id'])}(?![\w-])"
+    if not (_strs(cb) and len(set(cb)) == len(cb) and all(d in rows and re.search(pat, rows[d]) for d in cb)):
+        raise LedgerError(f"{label} {e['id']}: `changed-by` is not a list of distinct D-rows in docs/DECISIONS.md naming {e['id']}")
+
+
 def load_ledger(path: Path, root: Path) -> dict[str, Any]:
     """The validated ledger at ``path``; raises ``LedgerError`` with the reason."""
     try:
@@ -410,6 +426,9 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         for c in ("text", "forbidden", "ordered", "pins"):
             if c in e and not _strs(e[c]):
                 raise LedgerError(f"entry {e['id']}: `{c}` is not a non-empty list of non-empty strings")
+        for c in ("text", "forbidden"):
+            if c in e and not all(normalise(p) for p in e[c]):
+                raise LedgerError(f"entry {e['id']}: a `{c}` phrase normalises to nothing, so it matches every text")
         for c in ("file", "section", "baseline", "current", "enforced"):
             if c in e and not isinstance(e[c], str):
                 raise LedgerError(f"entry {e['id']}: `{c}` is not a string")
@@ -433,9 +452,7 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
             raise LedgerError(f"entry {e['id']}: `ordered` names an unknown id or spans files")
     rows = _decision_rows(root)
     for e in ids.values():
-        # § The rule test step 8: a rule changed on purpose lists each D-row that changed it
-        if "changed-by" in e and not (_strs(e["changed-by"]) and all(d in rows for d in e["changed-by"])):
-            raise LedgerError(f"entry {e['id']}: `changed-by` is not a list of D-rows in docs/DECISIONS.md")
+        _changed_by(e, rows, "entry")
     retired: set[str] = set()
     for r in data.get("retired") or []:
         ent = r.get("entry") if isinstance(r, dict) else None
@@ -443,6 +460,7 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
             raise LedgerError("a retired row keeps its full entry under `entry:`")
         if ent.get("forbidden"):
             raise LedgerError(f"retired {ent['id']}: an absence pin is never retired")
+        _changed_by(ent, rows, "retired")
         row = rows.get(str(r.get("decision") or ""))
         if row is None or not re.search(rf"(?<![\w-]){re.escape(ent['id'])}(?![\w-])", row):
             raise LedgerError(f"retired {ent['id']}: decision {r.get('decision')!r} has no D-row naming it")

@@ -335,30 +335,41 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
 **The size ceiling (L1)** — `commands/command_measure.py`, ceilings in `commands/_size_ceiling.json`.
 A command's **own text** is its render plus every file under `commands/` the render names (another
 command's source included; never a fragment already in the render, its own source or a script) plus
-the rendered definition of every seat it names as a bare token outside the appended `close-feedback`
-and `agent-feedback` text. Its **reads** are every other repo file it names (outputs and ledgers —
-`docs/development/reviews/*`, `CHANGELOG.md`, `INDEX.md`, `docs/DECISIONS.md`,
+the rendered definition of every seat it, or an own-text file it names, names as a bare token
+(the appended `close-feedback` and `agent-feedback` text excluded; an appended fragment named by path
+counts unless its text is already in the render or in a counted seat definition). Its **reads** are
+every other repo file it names (outputs and ledgers — `docs/development/reviews/*`, `.tmp/*`,
+`CHANGELOG.md`, `INDEX.md`, `docs/DECISIONS.md`,
 `docs/LESSONS_LEARNT.md`, `docs/STRATEGIC_BACKLOG.md`, the `CLAUDE.md`s — and scripts excluded) and
 the row of every D-id it cites. A path counts when it resolves to a file (`./`, `//` and
-`/opt/fabrik/` spellings, root files included); a directory or glob is a location, not a read. Each
-row freezes `baseline_own`, the ceiling (`render`, own +3%), the seats (`agents`) and the reads.
+`/opt/fabrik/` spellings, root files included); a directory or glob is a location, not a read; a
+zero-width character never glues two words into one. Each row freezes `baseline_own`, the ceiling
+(`render`, own +3%), the seats (`agents`) and the reads.
 
 `--check` breaches (exit 5) on: own over `render`; a `render` above `baseline_own`+3% without a
-`raised_by: D-<n>` naming a real row (a raise is a hand edit); a seat no longer named and not
-`released: {<seat>: D-<n>}`; a seat named but not in the row; a read outside the frozen set not
-`added: {<key>: D-<n>}`; a command with no row, a row with no command; a missing or malformed file;
-a measure that raises. It REPORTS, never failing: a frozen read that grew (its owner's reasons) and
+`raised_by: D-<n>` (a raise is a hand edit); a seat no longer named and not `released: {<seat>:
+D-<n>}`; a seat named but not in the row; a read outside the frozen set not `added: {<key>: D-<n>}`;
+a command with no row, a row with no command; a missing or malformed file; a measure that raises.
+Each licence is a row of `docs/DECISIONS.md` that NAMES its subject — the command, the seat, or the
+read's path (a D-row read: its id) — per L1's "a D-row naming it". Every breach line names its remedy.
+A read the render stops naming needs no licence: it is read no more. It REPORTS, never failing: a frozen read that grew (its owner's reasons) and
 a ceiling with slack. `--ratchet` renders to a temp dir and rewrites only the file: each ceiling
 lowered to own +3% when lower, a newly named seat added, a new command given a row (a retired name
-reuses its old ceiling), an orphan row moved to `retired`; it never raises a ceiling or touches
-`baseline_own`, `raised_by`, `released`, `added` or a frozen reads set, and prints nothing when
-nothing changed. **The coordinator runs `--ratchet` on every merged tree whose `commands/` changed**
-and commits the file when it changed: a branch-side ratchet, computed against its own base, could
-push another command below growth master made legally. A growth in a shared definition breaches
+takes the lower of its tombstone and its own +3%, with a baseline no higher than the tombstone), an
+orphan row moved to `retired`, a tombstone beside a live row dropped; it never raises a ceiling or
+touches `baseline_own`, `raised_by`, `released`, `added` or a frozen reads set, writes atomically, and
+prints nothing when nothing changed. A render error under `--ratchet` prints its reasons and exits 2;
+a malformed ceiling file prints the `CEILING` line `--check` would and exits 5. `--extract`, `--check`
+and `--ratchet` are mutually exclusive. **The coordinator, once `merge_request.py merge --queue` has
+drained the queue, renders, runs `--ratchet`, then `--check`, whenever `commands/` changed** (a new
+command or a newly named seat breaches `--check` until `--ratchet` adds it), and commits the file
+when it changed: a branch-side ratchet, computed against its own base, could push another command
+below growth master made legally, and a ratchet mid-queue would fork a fresh test leg. A growth in a shared definition breaches
 every command naming it, so kaizen's "two raises in 30 days" counter reads raises per D-row. The
 blind spots (text moved into a script the agent is told to read, a fragment named by bare stem, a
-file under `docs/development/reviews/`, a script's printed output) are listed in the module's COBRA
-docstring; kaizen's audit pair is their catcher.
+file named without an extension or as a bare dotfile, a file under `docs/development/reviews/`, a
+script's printed output) are listed in the module's COBRA docstring; kaizen's audit pair is their
+catcher, and kaizen counts every increase of `render` or `baseline_own` from the file's git log.
 
 `assemble_commands.py` exits:
 
@@ -369,7 +380,7 @@ docstring; kaizen's audit pair is their catcher.
 | 2 | `--check` or a render: a render error; there is then no render to check, so no LOSS is computed |
 | 3 | `--extract`, or a render into the installed corpus, refused outside the main checkout |
 | 4 | `--check`: a rule LOSS, printed before any breach or drift and outranking both |
-| 5 | `--check`: a size-ceiling breach (L1), printed after LOSS and before drift; outranks drift |
+| 5 | `--check`: a size-ceiling breach (L1), printed after LOSS and before drift; outranks drift · `--ratchet`: a malformed ceiling file |
 
 ## Related
 

@@ -55,11 +55,14 @@ def _tree(tmp_path: Path, render: str) -> dict[str, Path]:
     _w(root / "CHANGELOG.md", "c " * 50)
     _w(root / "docs" / "development" / "reviews" / "r.md", "r " * 50)
     _w(root / "scripts" / "tool.py", "t " * 50)
-    _w(root / "docs" / "DECISIONS.md", "| D-1 | d | w | the first row | y | z |\n| D-2 | d | w | names `docs/new.md` | y | z |\n")
+    _w(root / "docs" / "DECISIONS.md",
+       "| D-1 | d | w | raises demo; releases seat-a | y | z |\n| D-2 | d | w | names `docs/new.md` | y | z |\n"
+       "| D-3 | d | w | an unrelated row | y | z |\n")
     _w(out / "demo.md", render)
     _w(out / "other.md", "# /other\n")
     _w(out / "_agents" / "seat-a.md", "rendered seat a has six words\n")
-    _w(out / "_agents" / "seat-b.md", "seat b eight words in its rendered definition\n")
+    # a rendered seat definition carries the appended agent-feedback text, as the renderer writes it
+    _w(out / "_agents" / "seat-b.md", "seat b eight words in its rendered definition\nagent feedback three\n")
     return {"root": root, "src": src, "out": out, "ceiling": root / "commands" / "_size_ceiling.json"}
 
 
@@ -93,16 +96,37 @@ def test_measure_splits_own_text_from_reads(tmp_path: Path) -> None:
     assert m["own"] == m["render"] + 4 + 7 + 6
     # reads: `//` collapsed, the root file under both spellings once; never a ledger, a review, a
     # script, an absent row, a home path, another repo, a directory or a URL
-    # the D-1 row "| D-1 | d | w | the first row | y | z |" is 15 whitespace-split words
-    assert m["reads"] == {"docs/reference/guide.md": 10, "agents-fabrik.md": 7, "docs/DECISIONS.md#D-1": 15}
+    # the D-1 row "| D-1 | d | w | raises demo; releases seat-a | y | z |" is 16 whitespace-split words
+    assert m["reads"] == {"docs/reference/guide.md": 10, "agents-fabrik.md": 7, "docs/DECISIONS.md#D-1": 16}
     assert m["reads_total"] == sum(m["reads"].values())
 
 
-def test_agent_feedback_is_not_counted_beside_a_seat(tmp_path: Path) -> None:
-    t = _tree(tmp_path, "Use seat-a; see commands/_fragments/agent-feedback.md.\n")
+def test_an_appended_fragment_is_skipped_only_where_its_text_is_read(tmp_path: Path) -> None:
+    # agent-feedback rides inside seat-b's rendered definition: counted once, there
+    t = _tree(tmp_path, "Use seat-b; see commands/_fragments/agent-feedback.md.\n")
     assert "commands/_fragments/agent-feedback.md" not in _measure(t)["own_reads"]
+    # no seat carries it: the named file is read on its own
     t = _tree(tmp_path / "b", "See commands/_fragments/agent-feedback.md.\n")
     assert _measure(t)["own_reads"] == {"commands/_fragments/agent-feedback.md": 3}
+    # close-feedback named by path while NOT appended to this render: counted, a seat or not
+    t = _tree(tmp_path / "c", "Use seat-a; read commands/_fragments/close-feedback.md.\n")
+    assert _measure(t)["own_reads"] == {"commands/_fragments/close-feedback.md": len(FEEDBACK.split())}
+
+
+def test_seats_named_in_own_text_files_and_by_path(tmp_path: Path) -> None:
+    # a seat named only inside a fragment the render points at is dispatched by the command too
+    t = _tree(tmp_path, "Read commands/_fragments/catalogue.md first.\n")
+    _w(t["root"] / "commands" / "_fragments" / "catalogue.md", "then dispatch a seat-a seat\n")
+    m = _measure(t)
+    assert m["agents"] == {"seat-a": 6} and m["own_reads"] == {"commands/_fragments/catalogue.md": 5}
+    # a definition named by path counts once, as its RENDERED text; the own source never counts
+    t = _tree(tmp_path / "b", "See commands/_agents/seat-b.md and commands/_sources/demo.md; use seat-b.\n")
+    m = _measure(t)
+    assert m["agents"] == {"seat-b": 11} and m["own_reads"] == {}
+
+
+def test_zero_width_characters_do_not_merge_words() -> None:
+    assert cm.words("a\u200bb a\u00a0b a\ufeffb") == 6
 
 
 def test_a_non_utf8_render_is_measured_not_raised(tmp_path: Path) -> None:
@@ -132,20 +156,26 @@ def test_ceiling_breach_kinds(tmp_path: Path) -> None:
     row = doc["commands"]["demo"]
     # own over the ceiling
     _w(t["out"] / "demo.md", "Use seat-a and read docs/reference/guide.md. Cite D-1.\n" + "grow " * 40)
-    assert any("demo" in b and "> ceiling" in b for b in _breaches(t)), _breaches(t)
+    assert any("demo" in b and "> ceiling" in b and "cut it back" in b for b in _breaches(t)), _breaches(t)
     # a hand raise without raised_by, then with a missing row, then with an existing one
     row["render"] = math.ceil(row["baseline_own"] * 1.03) + 100
     _rewrite(t, doc)
     assert any("raised" in b for b in _breaches(t)), _breaches(t)
     row["raised_by"] = "D-77"
     _rewrite(t, doc)
-    assert any("D-77" in b for b in _breaches(t)), _breaches(t)
+    assert any("D-77" in b and "add `raised_by" in b for b in _breaches(t)), _breaches(t)
+    row["raised_by"] = "D-3"  # a real row that does not name the command
+    _rewrite(t, doc)
+    assert any("name demo" in b for b in _breaches(t)), _breaches(t)
     row["raised_by"] = "D-1"
     _rewrite(t, doc)
     assert _breaches(t) == []
     # a seat dropped from the render: breach until a D-row releases it
     _w(t["out"] / "demo.md", "Read docs/reference/guide.md. Cite D-1.\n")
     assert any("seat-a" in b and "released" in b for b in _breaches(t)), _breaches(t)
+    row["released"] = {"seat-a": "D-2"}  # a real row that does not name the seat
+    _rewrite(t, doc)
+    assert any("name seat-a" in b for b in _breaches(t)), _breaches(t)
     row["released"] = {"seat-a": "D-1"}
     _rewrite(t, doc)
     assert not any("seat-a" in b for b in _breaches(t)), _breaches(t)
@@ -156,6 +186,9 @@ def test_ceiling_breach_kinds(tmp_path: Path) -> None:
     _w(t["root"] / "docs" / "new.md", "n " * 5)
     _w(t["out"] / "demo.md", "Read docs/reference/guide.md and docs/new.md. Cite D-1.\n")
     assert any("docs/new.md" in b for b in _breaches(t)), _breaches(t)
+    row["added"] = {"docs/new.md": "D-1"}  # a real row that does not name the read
+    _rewrite(t, doc)
+    assert any("name docs/new.md" in b for b in _breaches(t)), _breaches(t)
     row["added"] = {"docs/new.md": "D-2"}
     _rewrite(t, doc)
     assert not any("docs/new.md" in b for b in _breaches(t)), _breaches(t)
@@ -166,9 +199,15 @@ def test_ceiling_breach_kinds(tmp_path: Path) -> None:
     found = _breaches(t)
     assert any("other" in b and "no ceiling row" in b for b in found), found
     assert any("gone" in b and "no command" in b for b in found), found
-    # a malformed or missing file is one breach, never a raise
+    # a malformed or missing file is one breach, never a raise, and says how to fix it
     t["ceiling"].write_text("{not json", encoding="utf-8")
-    assert len(_breaches(t)) == 1
+    assert len(_breaches(t)) == 1 and "fix the file by hand" in _breaches(t)[0]
+    for bad in ({"agents": [["x"]]}, {"reads": {"total": 1, "paths": {"a": "x"}}}, {"reads": {"paths": {}}},
+                {"added": {"a": 1}}, {"baseline_own": True}):
+        _rewrite(t, {"commands": {"demo": {**row, **bad}}})
+        assert len(_breaches(t)) == 1 and "is not {" in _breaches(t)[0], (bad, _breaches(t))
+    _rewrite(t, {"commands": {}, "retired": {"x": "big"}})
+    assert len(_breaches(t)) == 1 and "retired" in _breaches(t)[0]
     t["ceiling"].unlink()
     assert len(_breaches(t)) == 1 and "missing" in _breaches(t)[0]
 
@@ -214,8 +253,35 @@ def test_ratchet_lowers_adds_never_raises(tmp_path: Path) -> None:
     old = doc["retired"]["other"]
     _w(t["out"] / "other.md", "# /other\n" + "big " * 500)
     back = _ratcheted(t)["commands"]["other"]
-    assert back["render"] == old, back
+    assert back["render"] == old and back["baseline_own"] == old, back
     assert any("other" in b and "> ceiling" in b for b in _breaches(t)), _breaches(t)
+    # a retired name coming back SMALLER takes its own +3%, and the file --ratchet wrote passes --check
+    doc = json.loads(t["ceiling"].read_text())
+    doc["commands"].pop("other")
+    doc["retired"]["other"] = 5000
+    _rewrite(t, doc)
+    _w(t["out"] / "other.md", "# /other\n")
+    back = _ratcheted(t)["commands"]["other"]
+    assert back["render"] == math.ceil(back["baseline_own"] * 1.03) < 5000, back
+    assert not any("other" in b for b in _breaches(t)), _breaches(t)
+
+
+def test_ratchet_is_silent_atomic_and_drops_a_stale_tombstone(tmp_path: Path) -> None:
+    t = _tree(tmp_path, "Use seat-a and read docs/reference/guide.md.\n")
+    _ratcheted(t)
+    t["ceiling"].chmod(0o644)
+    before, stat = t["ceiling"].read_bytes(), t["ceiling"].stat()
+    assert cm.ratchet(_all(t), t["ceiling"]) == []
+    assert t["ceiling"].read_bytes() == before and t["ceiling"].stat().st_mtime_ns == stat.st_mtime_ns
+    doc = json.loads(before)
+    doc["retired"]["demo"] = 7
+    _rewrite(t, doc)
+    t["ceiling"].chmod(0o644)
+    changes = cm.ratchet(_all(t), t["ceiling"])
+    assert any("stale tombstone" in c for c in changes), changes
+    assert "demo" not in json.loads(t["ceiling"].read_text())["retired"]
+    assert t["ceiling"].stat().st_mode & 0o777 == 0o644
+    assert [p.name for p in t["ceiling"].parent.iterdir() if p.name.startswith(".size_ceiling.")] == []
 
 
 def test_ratchet_cli_never_renders_the_installed_corpus(tmp_path: Path, monkeypatch) -> None:
@@ -232,6 +298,35 @@ def test_ratchet_cli_never_renders_the_installed_corpus(tmp_path: Path, monkeypa
     ac.ratchet_cli()
     assert calls and all(c.resolve() != ac.OUT.resolve() for c in calls), calls
     assert "fabrik-task" in json.loads(target.read_text())["commands"]
+
+
+def test_ratchet_cli_reports_render_errors_and_a_malformed_file(tmp_path: Path, monkeypatch, capsys) -> None:
+    target = tmp_path / "ceiling.json"
+    monkeypatch.setattr(cm, "CEILING", target)
+    real = ac.render
+
+    def broken(dest, *a, **k):
+        print("RENDER ERRORS:")
+        print(" - demo: unknown fragment nosuch")
+        raise SystemExit(2)
+
+    monkeypatch.setattr(ac, "render", broken)
+    with pytest.raises(SystemExit) as exc:
+        ac.ratchet_cli()
+    assert exc.value.code == 2 and "unknown fragment nosuch" in capsys.readouterr().out
+    monkeypatch.setattr(ac, "render", real)
+    target.write_text("{bad", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        ac.ratchet_cli()
+    assert exc.value.code == 5 and "CEILING ceiling.json: unreadable" in capsys.readouterr().out
+
+
+def test_the_modes_are_mutually_exclusive() -> None:
+    import subprocess
+
+    r = subprocess.run([sys.executable, str(ROOT / "commands" / "assemble_commands.py"), "--ratchet", "--check"],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 2 and "not allowed with" in r.stderr, (r.returncode, r.stderr)
 
 
 # ── Behaviour 5 ───────────────────────────────────────────────────────────────────────────────
