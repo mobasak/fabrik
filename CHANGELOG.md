@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-25)
+
+`.claude/hooks/quota_stop.py` (the fleet wall and the urgent-90 lane) and
+`scripts/sysadmin/quota_posture_hook.py` (the RED band) now let a session through when its env
+carries `ANTHROPIC_API_KEY` and no `CLAUDE_CODE_OAUTH_TOKEN`: it draws no plan quota, and a
+builder launched on API credit is the only capacity left at the wall. Each hook prints a stderr
+note naming the exemption. The battery hold (D-898) still holds it. W-effb7141.
+
 ### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
 
 - `commands/command_measure.py` measured a named path whenever the file existed on disk, so the main checkout's
