@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "coordinator",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-lean-program"
+  ],
   "title": "Seat-isolation test recipe imports the LIVE tree unless it uses `-P` + `env -C`; `git show --output` writes nothing"
 }

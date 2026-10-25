@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "coordinator",
+  "owner": "kaizen",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-lean-program"
+  ],
   "title": "finding: /fabrik-review-scoped seat briefs have no \"never spawn the real paid service\" guard — a finder seat started the billed claude CLI"
 }
