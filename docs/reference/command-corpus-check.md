@@ -324,19 +324,26 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   whole unit under its `section`.
 - **Changed on purpose** (§ The rule test step 8): an entry's `changed-by:` lists each D-row that
   changed it; every id must be a row in `docs/DECISIONS.md`.
-- **Loader lints** (D-1236): each is a LOSS line naming the ledger file, entry id and lint, for every
-  entry with a `baseline:`. An entry's `class:` is `ban | grammar | behavioural | prose`; absent, a
-  baseline holding a ban token (NEVER, only, not, refus*, MUST, stays) is `ban`, else `prose`, and
-  `summary()` prints the class counts. **A** — a `ban` entry needs a `text` carrier holding each ban token
-  of its baseline with the word that follows it. **B** — split `baseline` at `;` and ` — `; each clause
-  must be held in `current`, share ≥6 consecutive normalised words with a `text` phrase or be contained
-  in one, or be named in `clauses: {<n>: narrative | duplicate-of: <id>}`. **C** — a `text` phrase is ≥6
-  normalised words and appears exactly once in its file (a phrase equal to the whole `current` unit is
-  exempt: the unit match anchors it). **D** — in classes `ban`, `grammar` and `behavioural` the clause a
-  phrase covers stays verbatim in `current`; `prose` may reword. `pins:` lists the retired pin test node
-  ids (strings). COBRA: the cheapest pass is a stub carrier, then a weakened `current` — A/B read the
-  immutable baseline, C/D the live file, and the author-blind audit pair reads every reworded entry. The
-  `class:` tag is set at baseline and changed only by a D-row (by review: the loader holds no history).
+- **Ledger lints** (D-1236): they run in the command check (`_check`), not in `load_ledger`, so a ledger whose
+  baseline file is missing, whose `baseline_sha256` mismatches or whose own text is missing reports only that
+  LOSS until it is fixed; the `clauses:` label checks (below) run at load. Each lint is a LOSS line naming the
+  ledger file, entry id and lint, for an entry with a `baseline:` that carries `class:`, `clauses:` or `pins:`
+  or whose baseline holds a ban token — a legacy prose entry with none of these is never newly failed. An
+  entry's `class:` is `ban | grammar | behavioural | prose`; absent, a baseline holding a ban token (`NEVER`
+  and `MUST` upper-case only; `only`, `not`, `refus*`, `stays` any case; whole words, `_x_` emphasis ignored)
+  is `ban`, else `prose`, and `summary()` prints the class counts. **A** — a `ban` entry needs `text` carriers
+  holding EVERY (ban token, next word) pair of its baseline. **B** — split `baseline` at `;`, a spaced `—` `–`
+  `--` or an unspaced `—` (never inside a code span); each clause must share ≥6 consecutive normalised words
+  with a `text` phrase (or be contained in one) or be named in `clauses: {<n>: narrative | duplicate-of: <id>}`;
+  at load a key must be within the clause count, a `duplicate-of` id must be a live entry, and `narrative` is
+  refused for a clause holding a ban token. **C** — a `text` phrase is ≥6 normalised words and appears exactly
+  once, as whole words, in the entry's own section (a phrase equal to the whole `current` unit is exempt: the
+  unit match anchors it). **D** — in classes `ban`, `grammar` and `behavioural` every unlabelled clause stays
+  verbatim (word for word, `refuse` ≠ `refusing`) in the LIVE section text, with or without a `current`;
+  `prose` may reword. `pins:` lists retired pin test node ids (non-empty strings). COBRA: the cheapest pass is
+  a stub carrier, then a reworded clause — A/B read the immutable baseline, C/D the live file; what is left
+  is a `duplicate-of` label to a live id, or no `class:` on a baseline with no ban token. The `class:` tag is
+  set at baseline and changed only by a D-row (by review: the loader holds no history).
   `command_rules.LINTS = False` switches them off for the pre-D-1236 fixture tests only.
 - **Light form** (step 9): `generate_unchanged(baseline_path, new_own_text)` returns one `text`
   entry per baseline prose or table unit that survives unchanged, `section`-pinned unless an

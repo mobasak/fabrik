@@ -89,6 +89,7 @@ ENTRY = {"id": "R1", "section": "## Scope", "baseline": "Never stage a sibling's
 
 
 # ── Behaviour 1 ───────────────────────────────────────────────────────────────────────────────
+@pytest.mark.lints
 def test_the_live_corpus_has_no_loss(tmp_path: Path) -> None:
     out = tmp_path / "render"
     ac.render(out, None, agents_dest=out / "_agents")
@@ -633,6 +634,7 @@ def test_losses_survives_an_unreadable_rules_dir(tmp_path: Path, monkeypatch) ->
 
 
 # ── W-a9b5e763 slice C: the light form's generator and two slice-A residuals ─────────────────
+@pytest.mark.lints
 def test_generate_unchanged_ledgers_pass_on_the_live_corpus(tmp_path: Path) -> None:
     out = tmp_path / "render"
     ac.render(out, None, agents_dest=out / "_agents")
@@ -802,7 +804,7 @@ def test_lints_pass_on_a_faithful_entry(tmp_path: Path) -> None:
 @pytest.mark.lints
 def test_lint_a_ban_token_needs_a_carrier(tmp_path: Path) -> None:
     lost = _lint_tree(tmp_path, text=["Read every changed file first; never edit"])
-    assert any("lint A" in x and "'refus'" in x for x in lost), lost
+    assert any("lint A" in x and "'refuse'" in x for x in lost), lost
 
 
 @pytest.mark.lints
@@ -825,12 +827,12 @@ def test_lint_c_six_words_and_unique(tmp_path: Path) -> None:
 
 @pytest.mark.lints
 def test_lint_d_verbatim_for_ban_but_prose_may_reword(tmp_path: Path) -> None:
-    t = _tree(tmp_path, LSRC)
-    reword = "Read every changed file first; never edit a sibling's file; refuse any push to master."
-    ent = {"id": "R1", "section": "## Scope", "baseline": LBASE, "current": "Keep the diff small", "text": [reword.rstrip(".")]}
+    reworded = LSRC.replace("a sibling's file", "a sibling file")
+    t = _tree(tmp_path, reworded)
+    ent = {"id": "R1", "section": "## Scope", "baseline": LBASE, "text": ["Read every changed file first; never edit a sibling's file", "and refuse any push to master"]}
     _ledger(t, [ent], baseline_from=LSRC)
     lost = [x for x in _losses(t) if "lint" in x]
-    assert any("lint D" in x for x in lost), lost
+    assert any("lint D" in x and "clause 2" in x for x in lost), lost
     _ledger(t, [{**ent, "class": "prose"}], baseline_from=LSRC)
     assert not any("lint D" in x for x in _losses(t))
 
@@ -847,3 +849,108 @@ def test_class_field_and_pins_validated_and_counted(tmp_path: Path) -> None:
     _ledger(t, [{**ENTRY, "class": "grammar"}, {**ENTRY, "id": "R2", "baseline": "Stop at the pin", "current": "Stop at the pin", "text": ["Stop at the pin"]}])
     line = cr.summary(t["rules"])[0]
     assert "classes {'grammar': 1, 'prose': 1}" in line, line
+
+
+# ── D-1236 lint review round 1 (one test per finding) ─────────────────────────────────────────
+def _ph(n: int) -> str:
+    return " ".join(f"w{i}" for i in range(n))
+
+
+def _fires(e: dict, scope: str) -> set[str]:
+    return {k for k, _m in cr._lint(e, scope)}
+
+
+def test_lint_d_reads_the_live_file_without_current() -> None:
+    e = {"id": "R", "class": "grammar", "baseline": "Write each heading in sentence case with no trailing period",
+         "text": ["each heading in sentence case with"]}
+    assert "D" in _fires(e, "Write each heading in sentence case with a trailing period")
+    assert "D" not in _fires(e, "Write each heading in sentence case with no trailing period")
+
+
+def test_legacy_entries_without_class_or_ban_token_never_newly_fail() -> None:
+    legacy = {"id": "R2", "section": "## Scope", "baseline": "Stop at the pin.", "current": "Stop at the pin.", "text": ["Stop at"]}
+    assert cr._lint(legacy, "Stop at the pin.") == []
+    assert cr._lint({"id": "R3", "text": ["Stop at the pin"]}, "Stop at the pin") == []  # no baseline
+    assert "C" in _fires({**legacy, "class": "prose"}, "Stop at the pin.")  # opted in by `class:`
+
+
+@pytest.mark.lints
+def test_legacy_ledger_loses_nothing_with_lints_on(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    _ledger(t, [{"id": "R9", "section": "## Scope", "baseline": "Stop at the pin.", "current": "Stop at the pin.", "text": ["Stop at"]}], baseline_from=SOURCE)
+    assert [x for x in _losses(t) if "lint" in x] == []
+
+
+def test_clauses_labels_are_validated(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    _ledger(t, [{**ENTRY, "clauses": {1: {"duplicate-of": "NOPE"}}}])
+    _one(_losses(t), "duplicate-of unknown id")
+    _ledger(t, [{**ENTRY, "clauses": {99: "narrative"}}])
+    _one(_losses(t), "past the baseline")
+    _ledger(t, [{**ENTRY, "baseline": "NEVER stage a sibling's file.", "clauses": {1: "narrative"}}])
+    _one(_losses(t), "holds a ban token")
+
+
+def test_lint_a_needs_every_ban_pair() -> None:
+    e = {"id": "R", "baseline": "NEVER edit a sibling's file; NEVER push to master", "text": ["NEVER edit a sibling's file"]}
+    assert "A" in _fires(e, "x")
+    e["text"].append("NEVER push to master")
+    assert "A" not in _fires(e, "x")
+    w = {"id": "R", "baseline": "refuse any push", "text": ["Read every changed file first; refuse nothing"]}
+    assert "A" in _fires(w, "x")
+
+
+def test_ban_tokens_are_case_exact_whole_words_and_ignore_emphasis() -> None:
+    assert cr.entry_class({"baseline": "You must read the file first"}) == "prose"
+    assert cr.entry_class({"baseline": "NEVER push"}) == "ban"
+    assert cr.entry_class({"baseline": "tie a knot, take a note"}) == "prose"
+    assert cr.entry_class({"baseline": "Do _NOT_ push to master"}) == "ban"
+    assert cr._words("_never_ push") == ["never", "push"]
+
+
+def test_clause_split_dashes_and_code_spans() -> None:
+    assert cr._clauses("Run it first -- then post") == ["Run it first", "then post"]
+    assert cr._clauses("Run it first – then post") == ["Run it first", "then post"]
+    assert cr._clauses("never push—or edit; keep small") == ["never push", "or edit", "keep small"]
+    assert cr._clauses("see `a; b — c` now") == ["see `a; b — c` now"]
+
+
+def test_lint_b_second_rule_after_a_double_dash_needs_a_carrier() -> None:
+    e = {"id": "R", "class": "prose", "baseline": "Run the full test suite first -- then post the summary to the owner channel",
+         "text": ["Run the full test suite first"]}
+    assert "B" in _fires(e, "Run the full test suite first -- then post the summary to the owner channel")
+
+
+def test_lint_b_needs_a_text_phrase_even_when_current_holds_the_clause() -> None:
+    e = {"id": "R", "class": "prose", "baseline": "alpha beta gamma delta epsilon zeta eta; theta iota", "current": "alpha beta gamma delta epsilon zeta eta; theta iota",
+         "text": ["alpha beta gamma delta epsilon zeta"]}
+    assert [m for k, m in cr._lint(e, e["current"]) if k == "B"]
+
+
+def test_lint_c_five_vs_six_word_boundary() -> None:
+    base = {"id": "R", "class": "prose", "baseline": _ph(6)}
+    assert "C" in _fires({**base, "text": [_ph(5)]}, _ph(6))
+    assert "C" not in _fires({**base, "text": [_ph(6)]}, _ph(6))
+
+
+def test_lint_c_counts_whole_words_in_its_section_only() -> None:
+    e = {"id": "R", "class": "prose", "baseline": "run the tests before you push now", "text": ["run the tests before you push"]}
+    assert "C" not in _fires(e, "run the tests before you push now")
+    assert "C" not in _fires(e, "run the tests before you push\n\nrerun the tests before you push")  # 'rerun' is not 'run'
+    assert "C" in _fires(e, "run the tests before you push\n\nrun the tests before you push")
+    fence = "echo `date\n\nrun **the** full test suite now"
+    assert "C" not in _fires({"id": "R", "class": "prose", "baseline": "run the full test suite now", "text": ["run the full test suite now"]}, fence)
+
+
+def test_lint_d_refusal_is_not_refuse() -> None:
+    e = {"id": "R", "class": "ban", "baseline": "refuse to merge red checks", "text": ["refuse to merge red checks"]}
+    assert "D" in _fires(e, "Refusing to merge red checks is optional")
+
+
+def test_summary_survives_malformed_entries(tmp_path: Path) -> None:
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    (rules / "bad.yaml").write_text("entries: [{id: R1, baseline: 5, text: [x]}, {id: R2, class: [a], baseline: x}]\n", encoding="utf-8")
+    (rules / "good.yaml").write_text("entries: [{id: R1, baseline: NEVER x, text: [x]}]\n", encoding="utf-8")
+    lines = cr.summary(rules)
+    assert all("unreadable" not in ln for ln in lines), lines
