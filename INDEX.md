@@ -1884,6 +1884,8 @@ docs/
 
 ### Operations
 
+<!-- duplicati-setup.md archived 2026-04-28; Backrest is the live backup tool — see backup.vps1.ocoron.com and AGENTS.md -->
+
 | Document | Purpose |
 |----------|--------|
 | [vps-status.md](docs/infrastructure/vps-status.md) | Current VPS state and configuration |
@@ -1892,7 +1894,6 @@ docs/
 | [probe-reports/README.md](docs/infrastructure/probe-reports/README.md) | Infrastructure probe reports — the dated fleet-state baselines |
 | [disaster-recovery.md](docs/operations/disaster-recovery.md) | Backup and recovery procedures |
 | [postgres-major-upgrade-runbook.md](docs/operations/postgres-major-upgrade-runbook.md) | PostgreSQL major upgrade (16→18): WSL rehearsal, hub dump/restore window, release, project requests |
-<!-- duplicati-setup.md archived 2026-04-28; Backrest is the live backup tool — see backup.vps1.ocoron.com and AGENTS.md -->
 | [coolify-migration.md](docs/infrastructure/archive/coolify-migration.md) | Coolify migration procedures |
 
 ### Workflows
