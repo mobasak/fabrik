@@ -1,4 +1,197 @@
 shared: commands/_agents/fabrik-gui.md
 baseline_sentences: fabrik-gui.baseline.txt
 baseline_sha256: 2e6d0b62eed976859551d680c316c5b7819d28a62cdc5852d67c09534562e062
-entries: []
+entries:
+- id: gui-fm-tools
+  file: commands/_agents/fabrik-gui.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - 'mcpServers: [playwright, shadcn, chrome-devtools]'
+  - 'disallowedTools: Agent'
+  - 'model: inherit'
+- id: gui-fm-pool
+  file: commands/_agents/fabrik-gui.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - Never a pool worker — browser tools have no pool equivalent, and the OpenRouter pool is OFF by ruling anyway (D-181/D-182)
+- id: gui-never-invent
+  file: commands/_agents/fabrik-gui.md
+  baseline: You build a screen against the frozen contract and prove it matches — you never invent screens, fields, or components
+  current: You build a web / chrome-extension screen against the frozen contract and prove it matches — you never invent screens, fields, or components
+  text:
+  - you never invent screens, fields, or components
+- id: gui-git-readonly
+  file: commands/_agents/fabrik-gui.md
+  section: '## Your toolset'
+  baseline: 'Read-only git (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
+  current: 'Read-only git (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy'
+  text:
+  - NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy
+- id: gui-playwright
+  file: commands/_agents/fabrik-gui.md
+  section: '## Your toolset'
+  baseline: 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, run the frozen flow, screenshot at 375/768/1440; for an extension, load the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`)'
+  current: '`mcp__playwright__*` drives and screenshots the running UI (a11y tree, the frozen flow, 375/768/1440; an extension loads the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`); `mcp__chrome-devtools__*` debugs the render'
+  text:
+  - '`mcp__playwright__*` drives and screenshots the running UI'
+  - 375/768/1440
+  - '`goto(''chrome-extension://<id>/…'')`'
+  - '`mcp__chrome-devtools__*` debugs the render'
+- id: gui-shadcn
+  file: commands/_agents/fabrik-gui.md
+  section: '## Your toolset'
+  baseline: 'Vetted components: `mcp__shadcn__*` — install real components; never hand-invent markup a registry provides'
+  current: '`mcp__shadcn__*` installs vetted components; never hand-invent markup a registry provides'
+  text:
+  - '`mcp__shadcn__*` installs vetted components; never hand-invent markup a registry provides'
+- id: gui-build-gate-tools
+  file: commands/_agents/fabrik-gui.md
+  section: '## Your toolset'
+  baseline: 'Build + gate: `Read`/`Grep`/`Glob`/`Edit`/`Write`/`Bash` — edit the real component source and run the CI gate (`@axe-core/playwright` → `violations == []`, `toHaveScreenshot`, the design-token lint, `size-limit` for extensions)'
+  current: '`Read`/`Grep`/`Glob`/`Edit`/`Write`/`Bash` edit the real component source and run the CI gate (`@axe-core/playwright` → `violations == []`, `toHaveScreenshot`, the design-token lint, `size-limit` for extensions)'
+  text:
+  - edit the real component source and run the CI gate
+  - '`@axe-core/playwright` → `violations == []`'
+  - '`size-limit` for extensions'
+- id: gui-build-contract
+  file: commands/_agents/fabrik-gui.md
+  section: '## Method (per screen — iterate to a no-op)'
+  baseline: Build the screen against `docs/ui-design.md` (layout skeleton · design-system components · enriched states) — invent nothing not in the frozen contract; render only fields present in `docs/data-contract.md`
+  current: Build against `docs/ui-design.md` (layout skeleton · design-system components · enriched states); render only fields present in `docs/data-contract.md`
+  text:
+  - '**Build** against `docs/ui-design.md`'
+  - render only fields present in `docs/data-contract.md`
+- id: gui-frontend-design
+  file: commands/_agents/fabrik-gui.md
+  section: '## Method (per screen — iterate to a no-op)'
+  baseline: On a web surface, `frontend-design:frontend-design`'s build and self-critique passes shape what the contract leaves free (a marketing or landing hero's form, the one memorable element — never a spacing, motion or type pattern the template prescribes) inside what it lists — never a screen, component or field it does not list — with the frozen contract and design system as its brief (`core/63-frontend-design.md`)
+  current: On a web surface, `frontend-design:frontend-design`'s build and self-critique passes shape what the contract leaves free (a hero's form, the one memorable element — never a spacing, motion or type pattern the template prescribes) and never a screen, component or field the contract does not list (`core/63-frontend-design.md`)
+  text:
+  - '`frontend-design:frontend-design`''s build and self-critique passes shape what the contract leaves free'
+  - never a spacing, motion or type pattern the template prescribes
+  - never a screen, component or field the contract does not list
+  - (`core/63-frontend-design.md`)
+- id: gui-see-it
+  file: commands/_agents/fabrik-gui.md
+  section: '## Method (per screen — iterate to a no-op)'
+  baseline: See it — drive the running screen, read the a11y tree, run the frozen flow within its click budget, screenshot every enriched state (loading/empty/error/permission-denied/success/partial/disabled)
+  current: See it — drive the screen, read the a11y tree, run the frozen flow within its click budget, screenshot every enriched state (loading/empty/error/permission-denied/success/partial/disabled)
+  text:
+  - screenshot every enriched state (loading/empty/error/permission-denied/success/partial/disabled)
+  - within its click budget
+- id: gui-gate-it
+  file: commands/_agents/fabrik-gui.md
+  section: '## Method (per screen — iterate to a no-op)'
+  baseline: Gate it (red-on-fail) — `@axe-core/playwright` (WCAG 2.2 AA), `toHaveScreenshot` (byte-stable in the Playwright Docker image), the design-token lint; extensions add `bypassCSP:true` for axe + a pinned 400px popup viewport + `size-limit`
+  current: Gate it (red-on-fail) — `@axe-core/playwright` (WCAG 2.2 AA), `toHaveScreenshot` (byte-stable in the Playwright Docker image), the design-token lint; extensions add `bypassCSP:true` for axe, a pinned 400px popup viewport and `size-limit`
+  text:
+  - '`@axe-core/playwright` (WCAG 2.2 AA)'
+  - '`toHaveScreenshot`'
+  - the design-token lint
+  - '`bypassCSP:true` for axe'
+  - a pinned 400px popup viewport
+- id: gui-fix-rerun
+  file: commands/_agents/fabrik-gui.md
+  section: '## Method (per screen — iterate to a no-op)'
+  baseline: Fix → re-run. Every finding terminates FIXED or REFUTED; the screen is done only on an edit-free, gate-green no-op pass
+  current: Fix → re-run. Every finding terminates FIXED or REFUTED; the screen is done only on an edit-free, gate-green no-op pass
+  text:
+  - Every finding terminates FIXED or REFUTED
+  - edit-free, gate-green **no-op** pass
+- id: gui-sync-run
+  file: commands/_agents/fabrik-gui.md
+  section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
+  baseline: You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background (or arm a Monitor) and then end your turn to "wait for the result," you will stall until your budget is exhausted and return no verdict — the single most common way this agent fails
+  current: Background/Monitor notifications do NOT deliver to a subagent, so a backgrounded run stalls you with no verdict
+  text:
+  - Background/Monitor notifications do NOT deliver to a subagent
+- id: gui-sync-plain
+  file: commands/_agents/fabrik-gui.md
+  section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
+  baseline: 'So: run every test/build as a plain synchronous shell call (`npx playwright test …` with a generous `timeout`) and read its exit output in the same turn'
+  current: Run every test/build as a plain synchronous shell call with a generous `timeout` and read its exit output in the same turn; if a suite is too slow, split its scope and run each slice synchronously
+  text:
+  - Run every test/build as a plain synchronous shell call
+- id: gui-sync-split
+  file: commands/_agents/fabrik-gui.md
+  section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
+  baseline: If a suite is too slow for one call, split its scope and run each slice synchronously — never defer a slice to a signal that will not arrive
+  current: Run every test/build as a plain synchronous shell call with a generous `timeout` and read its exit output in the same turn; if a suite is too slow, split its scope and run each slice synchronously
+  text:
+  - split its scope and run each slice synchronously
+- id: gui-real-exit-output
+  file: commands/_agents/fabrik-gui.md
+  section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
+  baseline: Return only when you have real exit output to report
+  current: Return only with real exit output
+  text:
+  - Return only with real exit output
+- id: gui-defer
+  file: commands/_agents/fabrik-gui.md
+  section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
+  baseline: Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system for anything the contract doesn't spell out
+  current: Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system where the contract is silent; `/design-review` critiques rendered-UI aesthetics
+  text:
+  - Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system where the contract is silent
+- id: gui-report
+  file: commands/_agents/fabrik-gui.md
+  section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
+  baseline: 'Report: screens built, gate output (verbatim), the per-screen Pass Ledger, any FIXED/REFUTED findings'
+  current: 'Report: screens built, gate output (verbatim), the per-screen Pass Ledger, any FIXED/REFUTED findings'
+  text:
+  - 'Report: screens built, gate output (verbatim), the per-screen Pass Ledger, any FIXED/REFUTED findings'
+vanished:
+  L1: narrative
+  L2:
+    rule:
+    - gui-never-invent
+  L4:
+    rule:
+    - gui-git-readonly
+  L5:
+    rule:
+    - gui-playwright
+  L6:
+    rule:
+    - gui-shadcn
+  L7:
+    rule:
+    - gui-playwright
+  L8:
+    rule:
+    - gui-build-gate-tools
+  L10:
+    rule:
+    - gui-build-contract
+  L11:
+    rule:
+    - gui-frontend-design
+  L12:
+    rule:
+    - gui-see-it
+  L13:
+    rule:
+    - gui-gate-it
+  L16:
+    rule:
+    - gui-sync-run
+  L17:
+    rule:
+    - gui-sync-plain
+  L18:
+    rule:
+    - gui-sync-split
+  L19:
+    rule:
+    - gui-real-exit-output
+  L20:
+    rule:
+    - gui-defer
+    - gui-report
+  L21:
+    rule:
+    - gui-defer

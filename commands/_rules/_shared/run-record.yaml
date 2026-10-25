@@ -29,7 +29,7 @@ entries:
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
   baseline: Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too — and a BLOCKED run is exactly when the machinery friction is worth reporting, so the verdict is required here too
-  current: Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too — and a BLOCKED run is exactly when the machinery friction is worth reporting, so the verdict is required here too
+  current: Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too; the verdict is required here too
   text:
   - Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too
 - id: runrec-no-nothing-else-is-a-legitimate-halt
@@ -40,3 +40,152 @@ entries:
   file: commands/_fragments/run-record.md
   forbidden:
   - nothing else halts a run
+- id: rr-stop-hook-blocks
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: '`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation, and the Stop hook''s fifth cause reads it: while a record says `running`, ending the turn is BLOCKED'
+  current: The Stop hook BLOCKS ending the turn while a record says `running`
+  text:
+  - The Stop hook BLOCKS ending the turn while a record says `running`
+- id: rr-start-block
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \ ⏎ --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \ ⏎ --terminal "<this command's own terminal condition, in your words>"
+  current: python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \ ⏎ --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \ ⏎ --terminal "<this command's own terminal condition, in your words>"
+  text:
+  - python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}}
+  - --surface "<what this run is OVER
+  - --terminal "<this command's own terminal condition, in your words>"
+- id: rr-step-each-phase
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run actually is rather than where it started
+  current: Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the `RUN:` line shows where the run is
+  text:
+  - '`step --phase <N> --title "<the phase title>"` on entering each phase'
+- id: rr-surface
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: '`--surface` is what makes the run''s ledger row ANALYSABLE — a 40-file plan set and a 3-file diff are different runs of the same command; name it at `start` (the close accepts `--surface` too if you learn it late)'
+  current: '`--surface` is what makes the run''s ledger row ANALYSABLE; name it at `start` (the close accepts `--surface` too if you learn it late)'
+  text:
+  - '`--surface` is what makes the run''s ledger row ANALYSABLE'
+  - name it at `start`
+- id: rr-act-handoff
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: Where the outcome rests on an act this run does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close
+  current: Where the outcome rests on an act this run does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close
+  text:
+  - Where the outcome rests on an act this run does not perform
+  - the `--terminal` names the hand-off and who performs the act
+  - '`--evidence` says whether they had acted at the close'
+  ordered:
+  - rr-surface
+  - rr-act-handoff
+  - rr-close-one-way
+- id: rr-close-one-way
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: 'Close it EXACTLY ONE of these ways — never by simply stopping (a third, ``handoff --resume <a file with a `## RESUME` block>``, only where this command''s own text names that close):'
+  current: 'Close it EXACTLY ONE of these ways — never by simply stopping (a third, ``handoff --resume <a file with a `## RESUME` block>``, only where this command''s own text names that close):'
+  text:
+  - Close it EXACTLY ONE of these ways — never by simply stopping
+- id: rr-done
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: '`python3 scripts/command_run.py done --command {{COMMAND}} --evidence "<what proves the terminal condition was met>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` — the evidence is the point; "finished" is not evidence'
+  current: '`python3 scripts/command_run.py done --command {{COMMAND}} --evidence "<what proves the terminal condition was met>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` — "finished" is not evidence'
+  text:
+  - python3 scripts/command_run.py done --command {{COMMAND}}
+  - '"finished" is not evidence'
+- id: rr-feedback-required
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: '⚠️ `--feedback` is REQUIRED: the close REFUSES without it (§ Close-out feedback, at the end of this command), and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
+  current: '⚠️ `--feedback` is REQUIRED: the close REFUSES without it (§ Close-out feedback, at the end of this command)'
+  text:
+  - '`--feedback` is REQUIRED: the close REFUSES without it'
+- id: rr-none-valid
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: '`none` is a valid verdict; silence is not'
+  current: '`none` is a valid verdict; silence is not'
+  text:
+  - '`none` is a valid verdict; silence is not'
+- id: rr-blocked
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: '`python3 scripts/command_run.py blocked --command {{COMMAND}} --reason "<what · searched · missing>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` on one of the three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · an unresolvable spec contradiction)'
+  current: '`python3 scripts/command_run.py blocked --command {{COMMAND}} --reason "<what · searched · missing>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` on one of the three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · an unresolvable spec contradiction)'
+  text:
+  - python3 scripts/command_run.py blocked --command {{COMMAND}}
+  - three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · an unresolvable spec contradiction)
+- id: rr-name-the-run
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: Always name the run you close. A bare close ends whatever is live — which, when this command was invoked BY another, silently ends the *caller* instead
+  current: 'Always name the run you close: a bare close ends the *caller* when another command invoked this one'
+  text:
+  - Always name the run you close
+- id: rr-mismatch-refused
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: A mismatched name is refused; closing an already-closed run is a warned no-op
+  current: A mismatched name is refused; closing an already-closed run is a warned no-op
+  text:
+  - A mismatched name is refused
+  - closing an already-closed run is a warned no-op
+- id: rr-run-line
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: Open the `RUN:` line (`python3 scripts/command_run.py line`) on every reply until this run closes
+  current: Open the `RUN:` line (`python3 scripts/command_run.py line`) on every reply until this run closes
+  text:
+  - Open the `RUN:` line (`python3 scripts/command_run.py line`) on every reply until this run closes
+- id: rr-sync-excluded
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally — enforcement freezes there at vendor date
+  current: 'Sync-excluded repo (fabrik-lib and its worktrees): absence of a check this command names is never compliance; run the HUB copy read-only — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`) — and report ITS verdict'
+  text:
+  - absence of a check this command names is never compliance
+  - run the HUB copy read-only
+  - python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>
+  - report ITS verdict
+vanished:
+  L3:
+    rule:
+    - rr-stop-hook-blocks
+  L4:
+    duplicate-of: rr-stop-hook-blocks
+  L6:
+    rule:
+    - rr-step-each-phase
+  L7:
+    rule:
+    - rr-surface
+  L8: narrative
+  L11:
+    rule:
+    - rr-done
+  L12:
+    rule:
+    - rr-feedback-required
+  L13:
+    rule:
+    - rr-none-valid
+  L17:
+    rule:
+    - runrec-both-hold-in-every-command-even
+  L18:
+    rule:
+    - rr-name-the-run
+  L19:
+    rule:
+    - rr-mismatch-refused
+  L21:
+    rule:
+    - rr-sync-excluded
+  L22:
+    duplicate-of: rr-sync-excluded

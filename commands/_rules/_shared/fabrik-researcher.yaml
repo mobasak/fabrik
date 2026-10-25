@@ -13,21 +13,21 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: '`WebFetch` does not follow a cross-host redirect, and it reads a long page in windows. A redirect to another host comes back as a `REDIRECT DETECTED` reply naming the server''s `Location` URL, which the tool has not verified: fetch that URL and cite both the original and the final one, judging the claim on the final page like any other; a redirect loop or a chain you cannot finish is a `NEEDS-RAW-FETCH` (api.slack.com → docs.slack.dev, measured 2026-10-18)'
-  current: '`WebFetch` does not follow a cross-host redirect, and it reads a long page in windows. A redirect to another host comes back as a `REDIRECT DETECTED` reply naming the server''s `Location` URL, which the tool has not verified: fetch that URL and cite both the original and the final one, judging the claim on the final page like any other; a redirect loop or a chain you cannot finish is a `NEEDS-RAW-FETCH` (api.slack.com → docs.slack.dev, measured 2026-10-18)'
+  current: '`WebFetch` does not follow a cross-host redirect, and it reads a long page in windows. A redirect to another host comes back as a `REDIRECT DETECTED` reply naming the server''s `Location` URL, which the tool has not verified: fetch that URL and cite both the original and the final one, judging the claim on the final page like any other; a redirect loop or a chain you cannot finish is a `NEEDS-RAW-FETCH`'
   text:
   - '`REDIRECT DETECTED` reply naming the server''s `Location` URL'
 - id: agent-rsr-fetch-that-url-and-cite-both
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: '`WebFetch` does not follow a cross-host redirect, and it reads a long page in windows. A redirect to another host comes back as a `REDIRECT DETECTED` reply naming the server''s `Location` URL, which the tool has not verified: fetch that URL and cite both the original and the final one, judging the claim on the final page like any other; a redirect loop or a chain you cannot finish is a `NEEDS-RAW-FETCH` (api.slack.com → docs.slack.dev, measured 2026-10-18)'
-  current: '`WebFetch` does not follow a cross-host redirect, and it reads a long page in windows. A redirect to another host comes back as a `REDIRECT DETECTED` reply naming the server''s `Location` URL, which the tool has not verified: fetch that URL and cite both the original and the final one, judging the claim on the final page like any other; a redirect loop or a chain you cannot finish is a `NEEDS-RAW-FETCH` (api.slack.com → docs.slack.dev, measured 2026-10-18)'
+  current: '`WebFetch` does not follow a cross-host redirect, and it reads a long page in windows. A redirect to another host comes back as a `REDIRECT DETECTED` reply naming the server''s `Location` URL, which the tool has not verified: fetch that URL and cite both the original and the final one, judging the claim on the final page like any other; a redirect loop or a chain you cannot finish is a `NEEDS-RAW-FETCH`'
   text:
   - fetch that URL and cite both the original and the final one
 - id: agent-rsr-line-that-the-tool-appends-after
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'A page longer than one window ends with a bracketed `[WebFetch note: …]` line that the TOOL appends after the answer, giving the characters read and the `offset` to continue from; the answering model''s own words about truncation are not that note and can deny it'
-  current: 'A page longer than one window ends with a bracketed `[WebFetch note: …]` line that the TOOL appends after the answer, giving the characters read and the `offset` to continue from; the answering model''s own words about truncation are not that note and can deny it'
+  current: 'A page longer than one window ends with a bracketed `[WebFetch note: …]` line that the TOOL appends after the answer, giving the characters read and the `offset` to continue from; the answering model''s own words about truncation are not that note'
   text:
   - line that the TOOL appends after the answer
 - id: agent-rsr-before-any-absence-verdict-on-that
@@ -48,7 +48,7 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'Paging is necessary, not sufficient: shape 4''s raw-fetch-or-second-arm rule still binds, and shape 5''s `WebFetch` check pages the same way (docs.python.org''s stdtypes page, measured 2026-10-18)'
-  current: 'Paging is necessary, not sufficient: shape 4''s raw-fetch-or-second-arm rule still binds, and shape 5''s `WebFetch` check pages the same way (docs.python.org''s stdtypes page, measured 2026-10-18)'
+  current: 'Paging is necessary, not sufficient: shape 4''s raw-fetch-or-second-arm rule still binds, and shape 5''s `WebFetch` check pages the same way'
   text:
   - Paging is necessary, not sufficient
 - id: agent-rsr-try-mcp-exa-web-fetch-exa
@@ -62,7 +62,7 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: '`WebFetch` does not follow a cross-host redirect, and it reads a long page in windows. A redirect to another host comes back as a `REDIRECT DETECTED` reply naming the server''s `Location` URL, which the tool has not verified: fetch that URL and cite both the original and the final one, judging the claim on the final page like any other; a redirect loop or a chain you cannot finish is a `NEEDS-RAW-FETCH` (api.slack.com → docs.slack.dev, measured 2026-10-18)'
-  current: '`WebFetch` does not follow a cross-host redirect, and it reads a long page in windows. A redirect to another host comes back as a `REDIRECT DETECTED` reply naming the server''s `Location` URL, which the tool has not verified: fetch that URL and cite both the original and the final one, judging the claim on the final page like any other; a redirect loop or a chain you cannot finish is a `NEEDS-RAW-FETCH` (api.slack.com → docs.slack.dev, measured 2026-10-18)'
+  current: '`WebFetch` does not follow a cross-host redirect, and it reads a long page in windows. A redirect to another host comes back as a `REDIRECT DETECTED` reply naming the server''s `Location` URL, which the tool has not verified: fetch that URL and cite both the original and the final one, judging the claim on the final page like any other; a redirect loop or a chain you cannot finish is a `NEEDS-RAW-FETCH`'
   text:
   - judging the claim on the final page like any other
 - id: agent-rsr-verified-inference-stale-wrong-dead-needs
@@ -195,14 +195,14 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'Keep every fetch under ~25,000 characters — one URL per call, and on `mcp__exa__web_fetch_exa` set `maxCharacters` to 25000 or less: a larger result is saved under a `$HOME/.claude*` path you may not read, and the page is lost'
-  current: 'Keep every fetch under ~25,000 characters — one URL per call, and on `mcp__exa__web_fetch_exa` set `maxCharacters` to 25000 or less: a larger result is saved under a `$HOME/.claude*` path you may not read, and the page is lost'
+  current: 'Keep every fetch under ~25,000 characters — one URL per call, and on `mcp__exa__web_fetch_exa` set `maxCharacters` to 25000 or less: a larger result is saved where you cannot read it'
   text:
   - on `mcp__exa__web_fetch_exa` set `maxCharacters` to 25000 or less
 - id: agent-rsr-a-reply-that-stops-at-exactly
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: A reply that stops at exactly the cap was cut, not finished; a source file longer than the cap goes to shape 1's long-page call or a `NEEDS-RAW-FETCH`, never to a bigger fetch (01M4VHFP7S)
-  current: A reply that stops at exactly the cap was cut, not finished; a source file longer than the cap goes to shape 1's long-page call or a `NEEDS-RAW-FETCH`, never to a bigger fetch (01M4VHFP7S)
+  current: A reply that stops at exactly the cap was cut, not finished; a source file longer than the cap goes to shape 1's long-page call or a `NEEDS-RAW-FETCH`, never to a bigger fetch
   text:
   - A reply that stops at exactly the cap was cut, not finished; a source file longer than the cap goes to shape 1's long-page call or a `NEEDS-RAW-FETCH`, never to a bigger fetch
 - id: agent-rsr-wrong-dead-the-citation-doesn-t-2
@@ -216,14 +216,15 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'A `WebFetch` reply is a small model''s ANSWER about the page, never an extract — for an exact-quote / string-match verification use `mcp__exa__web_fetch_exa` on a SHORT page and name the fetch path in your verdict (01M176BR: WebFetch silently dropped a sentence''s leading clause and would have failed a correct quote as MISQUOTED)'
-  current: 'A `WebFetch` reply is a small model''s ANSWER about the page, never an extract — for an exact-quote / string-match verification use `mcp__exa__web_fetch_exa` on a SHORT page and name the fetch path in your verdict (01M176BR: WebFetch silently dropped a sentence''s leading clause and would have failed a correct quote as MISQUOTED)'
+  current: A `WebFetch` reply is a small model's ANSWER about the page, never an extract — for an exact-quote check use `mcp__exa__web_fetch_exa` on a SHORT page and name the fetch path in your verdict (it would have failed a correct quote as MISQUOTED)
   text:
   - use `mcp__exa__web_fetch_exa` on a SHORT page
+  - have failed a correct quote as MISQUOTED)
 - id: agent-rsr-on-a-long-page-a-source
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'On a LONG page (a source file, a long reference page — anything longer than exa''s cap) go to firecrawl FIRST instead — `mcp__firecrawl__firecrawl_scrape` with `formats: ["query"]`, `queryOptions: {"mode": "directQuote", "prompt": "<a locator: the symbol or the heading the span sits under>"}`, `maxAge: 0` and `proxy: "basic"`, which returned "a short verbatim excerpt from a long page" where WebFetch summarised and a size-capped exa fetch truncated (01M4VHFP7S: `Command.invoke` inside click''s 3,000-line `core.py`)'
-  current: 'On a LONG page (a source file, a long reference page — anything longer than exa''s cap) go to firecrawl FIRST instead — `mcp__firecrawl__firecrawl_scrape` with `formats: ["query"]`, `queryOptions: {"mode": "directQuote", "prompt": "<a locator: the symbol or the heading the span sits under>"}`, `maxAge: 0` and `proxy: "basic"`, which returned "a short verbatim excerpt from a long page" where WebFetch summarised and a size-capped exa fetch truncated (01M4VHFP7S: `Command.invoke` inside click''s 3,000-line `core.py`)'
+  current: 'On a LONG page (a source file, a long reference page — anything longer than exa''s cap) go to firecrawl FIRST instead — `mcp__firecrawl__firecrawl_scrape` with `formats: ["query"]`, `queryOptions: {"mode": "directQuote", "prompt": "<a locator: the symbol or the heading the span sits under>"}`, `maxAge: 0` and `proxy: "basic"`'
   text:
   - 'On a LONG page (a source file, a long reference page — anything longer than exa''s cap) go to firecrawl FIRST instead — `mcp__firecrawl__firecrawl_scrape` with `formats: ["query"]`, `queryOptions: {"mode": "directQuote", "prompt": "<a locator: the symbol or the heading the span sits under>"}`, `maxAge: 0` and `proxy: "basic"`'
 - id: agent-rsr-compare-the-returned-excerpt-character-by
@@ -258,14 +259,14 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'The same bar binds a summariser''s claim that a page DOCUMENTS something, when the verdict rests on that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return `INFERENCE` (Method step 4: name the arms tried) when no line states it but what you read implies it, else `WRONG` — and `NEEDS-RAW-FETCH` instead of either when no arm could read the page faithfully (a markup, table, tail or non-HTML bound — shapes 2, 3, 5, 6) and a curl of a named URL would settle it (a `WebSearch` summary invented a "documented hidden+deprecated click pattern" its cited page does not contain — 01M4VHFP7S); JSON/XML keeps shape 3''s routing'
-  current: 'The same bar binds a summariser''s claim that a page DOCUMENTS something, when the verdict rests on that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return `INFERENCE` (Method step 4: name the arms tried) when no line states it but what you read implies it, else `WRONG` — and `NEEDS-RAW-FETCH` instead of either when no arm could read the page faithfully (a markup, table, tail or non-HTML bound — shapes 2, 3, 5, 6) and a curl of a named URL would settle it (a `WebSearch` summary invented a "documented hidden+deprecated click pattern" its cited page does not contain — 01M4VHFP7S); JSON/XML keeps shape 3''s routing'
+  current: 'The same bar binds a summariser''s claim that a page DOCUMENTS something, when the verdict rests on that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return `INFERENCE` (Method step 4: name the arms tried) when no line states it but what you read implies it, else `WRONG` — and `NEEDS-RAW-FETCH` instead of either when no arm could read the page faithfully (a markup, table, tail or non-HTML bound — shapes 2, 3, 5, 6) and a curl of a named URL would settle it; JSON/XML keeps shape 3''s routing'
   text:
   - 'The same bar binds a summariser''s claim that a page DOCUMENTS something, when the verdict rests on that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return `INFERENCE` (Method step 4: name the arms tried) when no line states it but what you read implies it, else `WRONG` — and `NEEDS-RAW-FETCH` instead of either when no arm could read the page faithfully (a markup, table, tail or non-HTML bound — shapes 2, 3, 5, 6) and a curl of a named URL would settle it'
 - id: agent-rsr-json-xml-keeps-shape-3-s
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'The same bar binds a summariser''s claim that a page DOCUMENTS something, when the verdict rests on that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return `INFERENCE` (Method step 4: name the arms tried) when no line states it but what you read implies it, else `WRONG` — and `NEEDS-RAW-FETCH` instead of either when no arm could read the page faithfully (a markup, table, tail or non-HTML bound — shapes 2, 3, 5, 6) and a curl of a named URL would settle it (a `WebSearch` summary invented a "documented hidden+deprecated click pattern" its cited page does not contain — 01M4VHFP7S); JSON/XML keeps shape 3''s routing'
-  current: 'The same bar binds a summariser''s claim that a page DOCUMENTS something, when the verdict rests on that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return `INFERENCE` (Method step 4: name the arms tried) when no line states it but what you read implies it, else `WRONG` — and `NEEDS-RAW-FETCH` instead of either when no arm could read the page faithfully (a markup, table, tail or non-HTML bound — shapes 2, 3, 5, 6) and a curl of a named URL would settle it (a `WebSearch` summary invented a "documented hidden+deprecated click pattern" its cited page does not contain — 01M4VHFP7S); JSON/XML keeps shape 3''s routing'
+  current: 'The same bar binds a summariser''s claim that a page DOCUMENTS something, when the verdict rests on that claim rather than on a line you quoted: quote the line from a raw fetch or a second arm, or return `INFERENCE` (Method step 4: name the arms tried) when no line states it but what you read implies it, else `WRONG` — and `NEEDS-RAW-FETCH` instead of either when no arm could read the page faithfully (a markup, table, tail or non-HTML bound — shapes 2, 3, 5, 6) and a curl of a named URL would settle it; JSON/XML keeps shape 3''s routing'
   text:
   - JSON/XML keeps shape 3's routing
 - id: agent-rsr-a-webfetch-404-is-not-dead
@@ -279,28 +280,28 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'Two more bounds worth naming, both silent: `mcp__exa__web_fetch_exa` has no offset/pagination (only `maxCharacters` from the top), so a reference page longer than the cap has an unreachable tail that reads as absence; and `web.archive.org` is blocked on BOTH arms (exa `CRAWL_LIVECRAWL_TIMEOUT`, WebFetch a hard refusal), so a claim whose only source is a since-deleted page — a live 404 included, with no other source after searching both engines for one — is a `NEEDS-RAW-FETCH`, not an absence: its fact field says the URL is `DEAD` on the live fetch, cites any exa copy as crawl cache, and names `https://web.archive.org/web/2/<url>`, which redirects to the newest capture (measured 2026-10-19)'
-  current: 'Two more bounds worth naming, both silent: `mcp__exa__web_fetch_exa` has no offset/pagination (only `maxCharacters` from the top), so a reference page longer than the cap has an unreachable tail that reads as absence; and `web.archive.org` is blocked on BOTH arms (exa `CRAWL_LIVECRAWL_TIMEOUT`, WebFetch a hard refusal), so a claim whose only source is a since-deleted page — a live 404 included, with no other source after searching both engines for one — is a `NEEDS-RAW-FETCH`, not an absence: its fact field says the URL is `DEAD` on the live fetch, cites any exa copy as crawl cache, and names `https://web.archive.org/web/2/<url>`, which redirects to the newest capture (measured 2026-10-19)'
+  current: 'Two more bounds, both silent: `mcp__exa__web_fetch_exa` has no offset/pagination (only `maxCharacters` from the top), so a reference page longer than the cap has an unreachable tail that reads as absence; and `web.archive.org` is blocked on BOTH arms, so a claim whose only source is a since-deleted page — a live 404 included, with no other source after searching both engines for one — is a `NEEDS-RAW-FETCH`, not an absence: its fact field says the URL is `DEAD` on the live fetch, cites any exa copy as crawl cache, and names `https://web.archive.org/web/2/<url>`, which redirects to the newest capture (measured 2026-10-19)'
   text:
   - 'so a claim whose only source is a since-deleted page — a live 404 included, with no other source after searching both engines for one — is a `NEEDS-RAW-FETCH`, not an absence: its fact field says the URL is `DEAD` on the live fetch, cites any exa copy as crawl cache, and names `https://web.archive.org/web/2/<url>`, which redirects to the newest capture (measured 2026-10-19)'
 - id: agent-rsr-a-firecrawl-error-that-is-not
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'A firecrawl error that is not a 404 (credit, auth, a timeout) decides nothing: the verdict is then `NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED` (`WebFetch` 404''d a raw.githubusercontent.com file that exa served, "possibly from its crawl cache" — 01M4VHFP7S)'
-  current: 'A firecrawl error that is not a 404 (credit, auth, a timeout) decides nothing: the verdict is then `NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED` (`WebFetch` 404''d a raw.githubusercontent.com file that exa served, "possibly from its crawl cache" — 01M4VHFP7S)'
+  current: 'A firecrawl error that is not a 404 (credit, auth, a timeout) decides nothing: the verdict is then `NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED`'
   text:
   - 'A firecrawl error that is not a 404 (credit, auth, a timeout) decides nothing: the verdict is then `NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED`'
 - id: agent-rsr-on-an-html-docs-page-a
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa''s fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3''s routing (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`)'
-  current: 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa''s fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3''s routing (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`)'
+  current: 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone; JSON/XML and version claims keep rule 3''s routing'
   text:
   - on an HTML docs page a schema field or a parameter name is quoted from the raw arm
 - id: agent-rsr-json-xml-and-version-claims-keep
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa''s fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3''s routing (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`)'
-  current: 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa''s fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3''s routing (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`)'
+  current: 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone; JSON/XML and version claims keep rule 3''s routing'
   text:
   - JSON/XML and version claims keep rule 3's routing
 - id: agent-rsr-no-as-many-times
@@ -311,7 +312,7 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'A `WebFetch` reply is a small model''s ANSWER about the page, never an extract — for an exact-quote / string-match verification use `mcp__exa__web_fetch_exa` on a SHORT page and name the fetch path in your verdict (01M176BR: WebFetch silently dropped a sentence''s leading clause and would have failed a correct quote as MISQUOTED)'
-  current: 'A `WebFetch` reply is a small model''s ANSWER about the page, never an extract — for an exact-quote / string-match verification use `mcp__exa__web_fetch_exa` on a SHORT page and name the fetch path in your verdict (01M176BR: WebFetch silently dropped a sentence''s leading clause and would have failed a correct quote as MISQUOTED)'
+  current: A `WebFetch` reply is a small model's ANSWER about the page, never an extract — for an exact-quote check use `mcp__exa__web_fetch_exa` on a SHORT page and name the fetch path in your verdict (it would have failed a correct quote as MISQUOTED)
   text:
   - A `WebFetch` reply is a small model
   ordered:
@@ -327,14 +328,14 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'The raw arm silently drops angle-bracket markup inside code spans (01M17XXF, reproduced on sitemaps.org: `<loc>`/`<lastmod>` arrive as EMPTY backticks, no error, no marker) — so a quote containing markup cannot be verbatim-verified by ANY in-session fetch'
-  current: 'The raw arm silently drops angle-bracket markup inside code spans (01M17XXF, reproduced on sitemaps.org: `<loc>`/`<lastmod>` arrive as EMPTY backticks, no error, no marker) — so a quote containing markup cannot be verbatim-verified by ANY in-session fetch'
+  current: The raw arm silently drops angle-bracket markup inside code spans, so a quote containing markup cannot be verbatim-verified by ANY in-session fetch
   text:
   - The raw arm silently drops angle-bracket markup
 - id: agent-rsr-anchor-non-html-content-the-two-arms-differ
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: Non-HTML content — the two arms differ, so TRY WebFetch FIRST on JSON/XML. `mcp__exa__web_fetch_exa` has returned `CRAWL_UNEXPECTED_CONTENT_TYPE` for these, and has also fetched JSON raw (api.bls.gov, api.cerebras.ai, 2026-09-02), so what it does on a given URL is not predictable; `WebFetch` renders `application/json` fine and will quote fields from it (verified 2026-09-05 on `registry.npmjs.org`, exact field values returned; and by iterative_image_editor on fal's OpenAPI, which returned an enum verbatim — `01M1KMS2WZQT8KTSG8VSKS0YCD`)
-  current: Non-HTML content — the two arms differ, so TRY WebFetch FIRST on JSON/XML. `mcp__exa__web_fetch_exa` has returned `CRAWL_UNEXPECTED_CONTENT_TYPE` for these, and has also fetched JSON raw (api.bls.gov, api.cerebras.ai, 2026-09-02), so what it does on a given URL is not predictable; `WebFetch` renders `application/json` fine and will quote fields from it (verified 2026-09-05 on `registry.npmjs.org`, exact field values returned; and by iterative_image_editor on fal's OpenAPI, which returned an enum verbatim — `01M1KMS2WZQT8KTSG8VSKS0YCD`)
+  current: Non-HTML content — the two arms differ, so TRY WebFetch FIRST on JSON/XML. `WebFetch` renders `application/json`; exa may return `CRAWL_UNEXPECTED_CONTENT_TYPE`
   text:
   - Non-HTML content — the two arms differ
   ordered:
@@ -345,7 +346,7 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: ⚠️ A summariser answering ABSENCE is not evidence of absence. Both arms fail by confidently saying LESS than is true, and that is the costliest shape for the existence questions these briefs ask — it quietly kills a live option
-  current: ⚠️ A summariser answering ABSENCE is not evidence of absence. Both arms fail by confidently saying LESS than is true, and that is the costliest shape for the existence questions these briefs ask — it quietly kills a live option
+  current: ⚠️ A summariser answering ABSENCE is not evidence of absence. Both arms fail by confidently saying LESS than is true
   text:
   - ⚠️ A summariser answering ABSENCE
   ordered:
@@ -360,7 +361,7 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: The raw arm silently DROPS TABLES and late sections. `mcp__exa__web_fetch_exa` returned a page's prose around a rights table with the table itself absent — no marker, no ellipsis — and truncated a long page before its final sections; an ABSENCE verdict on a table or a page tail needs `WebFetch` on the same URL AND a `NEEDS-RAW-FETCH` when the two disagree
-  current: The raw arm silently DROPS TABLES and late sections. `mcp__exa__web_fetch_exa` returned a page's prose around a rights table with the table itself absent — no marker, no ellipsis — and truncated a long page before its final sections; an ABSENCE verdict on a table or a page tail needs `WebFetch` on the same URL AND a `NEEDS-RAW-FETCH` when the two disagree
+  current: The raw arm silently DROPS TABLES and late sections. `mcp__exa__web_fetch_exa` drops a table with no marker and truncates a long page before its final sections; an ABSENCE verdict on a table or a page tail needs `WebFetch` on the same URL AND a `NEEDS-RAW-FETCH` when the two disagree
   text:
   - The raw arm silently DROPS TABLES
 - id: agent-rsr-anchor-freshness-binds-a-fact-you-did-not-open
@@ -376,3 +377,342 @@ entries:
   - agent-rsr-firecrawl-maxage-0-with-proxy-basic
   - agent-rsr-a-webfetch-answer-asked-for-the
   - agent-rsr-a-quote-s-wording-stays-shape
+- id: rsr-L1-you-are-a-grounding-subagent
+  file: commands/_agents/fabrik-researcher.md
+  baseline: You are a grounding subagent
+  current: You are a grounding subagent
+  text:
+  - You are a grounding subagent
+- id: rsr-L2-your-job-is-to-verify-external-facts-again
+  file: commands/_agents/fabrik-researcher.md
+  baseline: Your job is to verify external facts against the live web and report — nothing else
+  current: Your job is to verify external facts against the live web and report — nothing else
+  text:
+  - Your job is to verify external facts against the live web and report — nothing else
+- id: rsr-L3-you-do-not-edit-files-run-shell-or-make-de
+  file: commands/_agents/fabrik-researcher.md
+  baseline: You do not edit files, run shell, or make design decisions
+  current: You do not edit files, run shell, or make design decisions
+  text:
+  - You do not edit files, run shell, or make design decisions
+- id: rsr-L4-the-git-verb-prohibition-spec-d8-binds-any
+  file: commands/_agents/fabrik-researcher.md
+  baseline: 'The git-verb prohibition (spec D8) binds your Bash-less reads and any future tool grant: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
+  current: 'The git-verb prohibition (spec D8) binds any tool grant: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy'
+  text:
+  - NO git command that mutates state in the shared tree
+  - no stash, checkout, reset, restore, apply, commit, clean
+  - read-only git only (`show`, `diff`, `log`, `status`, `ls-files`)
+  - every probe on a copy
+- id: rsr-L6-search-websearch-and-mcp-brave-search-firs
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: 'Search: `WebSearch` and `mcp__brave-search__*` (Brave) first; on a miss `mcp__exa__*` (Exa, metered) — independent engines; cross-check when a fact is load-bearing (D-337)'
+  current: 'Search: `WebSearch` and `mcp__brave-search__*` first; on a miss `mcp__exa__*` (metered) — independent engines; cross-check a load-bearing fact (D-337)'
+  text:
+  - '`WebSearch` and `mcp__brave-search__*` first; on a miss `mcp__exa__*` (metered)'
+  - cross-check a load-bearing fact
+- id: rsr-L7-scrape-fetch-mcp-exa-web-fetch-exa-the-one
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: 'Scrape/fetch: `mcp__exa__web_fetch_exa` (the ONE raw arm) and `WebFetch` — open the actual page and read the claim in context; `mcp__firecrawl__*` (scrape with `proxy: "basic"`, search, structured extraction) is the tier-2 arm beside exa (re-wired 2026-09-23 — it was absent from this list, so four seats reported it unavailable)'
+  current: 'Scrape/fetch: `mcp__exa__web_fetch_exa` (the ONE raw arm) and `WebFetch` — open the page and read the claim in context; `mcp__firecrawl__*` (scrape with `proxy: "basic"`) is the tier-2 arm beside exa'
+  text:
+  - '`mcp__exa__web_fetch_exa` (the ONE raw arm) and `WebFetch`'
+  - '`mcp__firecrawl__*` (scrape with `proxy: "basic"`) is the tier-2 arm beside exa'
+- id: rsr-L10-number-every-fact-you-return-the-dispatche
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: Number every fact you return; the dispatcher files your report whole in a research ledger
+  current: Number every fact you return; the dispatcher files your report whole in a research ledger
+  text:
+  - Number every fact you return; the dispatcher files your report whole in a research ledger
+- id: rsr-L13-exa-serves-a-crawl-cache-so-before-you-rep
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: 'Exa serves a crawl cache, so before you report a quote NOT FOUND re-fetch the page through `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"` (a live fetch)'
+  current: 'Exa serves a crawl cache, so before you report a quote NOT FOUND re-fetch the page through `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"` (a live fetch)'
+  text:
+  - 'Exa serves a crawl cache, so before you report a quote NOT FOUND re-fetch the page through `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"` (a live fetch)'
+- id: rsr-L22-pdfs-mcp-exa-web-fetch-exa-which-extracts-
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: PDFs → `mcp__exa__web_fetch_exa`, which extracts their text (up to `maxCharacters`, no offset — the tail of a long PDF is a `NEEDS-RAW-FETCH`); `WebFetch` on a PDF saves the binary under a `$HOME/.claude*` path you may not read, so it is useless here (2026-09-23, four readers)
+  current: PDFs → `mcp__exa__web_fetch_exa`, which extracts their text (up to `maxCharacters`, no offset — the tail of a long PDF is a `NEEDS-RAW-FETCH`); `WebFetch` on a PDF is useless
+  text:
+  - PDFs → `mcp__exa__web_fetch_exa`, which extracts their text
+  - the tail of a long PDF is a `NEEDS-RAW-FETCH`
+  - '`WebFetch` on a PDF is useless'
+- id: rsr-L24-never-mark-such-a-citation-unverifiable-th
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: Never mark such a citation UNVERIFIABLE — the ORCHESTRATOR owns shell and can `curl` the file, then verify itself or re-dispatch you with the content inlined
+  current: Never mark such a citation UNVERIFIABLE — the ORCHESTRATOR owns shell and can `curl` the file, then verify itself or re-dispatch you with the content inlined
+  text:
+  - Never mark such a citation UNVERIFIABLE — the ORCHESTRATOR owns shell and can `curl` the file, then verify itself or re-dispatch you with the content inlined
+- id: rsr-L27-an-absence-verdict-needs-a-raw-fetch-or-a-
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: An ABSENCE verdict needs a raw fetch or a SECOND independent arm — never one summariser's word, and that applies to `WebSearch` too, which the shapes above never mentioned
+  current: An ABSENCE verdict needs a raw fetch or a SECOND independent arm — never one summariser's word, and that applies to `WebSearch` too
+  text:
+  - An ABSENCE verdict needs a raw fetch or a SECOND independent arm — never one summariser's word
+- id: rsr-L32-a-vendor-model-catalogue-can-split-one-ans
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: 'And a vendor model catalogue can SPLIT one answer across two URLs, which is a bound with nothing to notice — not a truncation, a rendering difference: on fal.ai, `/models/<id>` renders the input schema and drops the licence badge, while `/models/<id>/api` renders the badge and drops the schema, so a single-URL fetch yields half the answer and both halves are clean- looking NEGATIVES ("no camera field", "no licence badge")'
+  current: 'A vendor model catalogue can SPLIT one answer across two URLs (fal.ai''s `/models/<id>` and `/models/<id>/api` each drop half), so a one-URL fetch yields false NEGATIVES: fetch BOTH, or take the schema from the vendor''s OpenAPI JSON; a vendor''s pricing API and model pages can DISAGREE — quote the surface you read'
+  text:
+  - A vendor model catalogue can SPLIT one answer across two URLs
+  - fetch BOTH, or take the schema from the vendor's OpenAPI JSON
+  - quote the surface you read
+- id: rsr-L36-a-rewritten-link-whose-host-differs-from-t
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: A rewritten link whose host differs from the cited one is the arm's link-rewrite, not a mirror — name the fetch path in the verdict (01M1RKFVK)
+  current: A rewritten link whose host differs from the cited one is the arm's link-rewrite, not a mirror — name the fetch path in the verdict
+  text:
+  - A rewritten link whose host differs from the cited one is the arm's link-rewrite, not a mirror — name the fetch path in the verdict
+- id: rsr-L41-the-25-000-character-bound-is-not-about-th
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: A call returns the answering model's reply and the note, not the window it read, so the ~25,000-character bound above is not about that window
+  current: The ~25,000-character bound is not about that window
+  text:
+  - The ~25,000-character bound is not about that window
+- id: rsr-L42-a-transient-claude-sonnet-5-1m-is-temporar
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: A transient `claude-sonnet-5[1m] is temporarily unavailable…` refusal on a fetch call is the permission classifier's backend hiccup, not a denial — retry once before rerouting (docs/TROUBLESHOOTING.md § Common Error Messages)
+  current: A transient `claude-sonnet-5[1m] is temporarily unavailable…` refusal on a fetch call is a backend hiccup, not a denial — retry once before rerouting
+  text:
+  - retry once before rerouting
+- id: rsr-L44-repo-read-grep-glob-check-docs-docs-refere
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Your toolset'
+  baseline: 'Repo: `Read`, `Grep`, `Glob` — check `docs/`, `docs/reference/`, `AFCL.md` FIRST (repo-first, per CLAUDE.md) before going external'
+  current: 'Repo: `Read`, `Grep`, `Glob` — check `docs/`, `docs/reference/`, `AFCL.md` FIRST (repo-first, per CLAUDE.md) before going external'
+  text:
+  - 'Repo: `Read`, `Grep`, `Glob` — check `docs/`, `docs/reference/`, `AFCL.md` FIRST (repo-first, per CLAUDE.md) before going external'
+- id: rsr-L46-repo-first-grep-the-repo-for-an-already-gr
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Method (per fact)'
+  baseline: Repo-first. Grep the repo for an already-grounded answer before spending a web call
+  current: Repo-first. Grep the repo for an already-grounded answer before spending a web call
+  text:
+  - Repo-first. Grep the repo for an already-grounded answer before spending a web call
+- id: rsr-L47-fetch-the-real-source-don-t-trust-a-search
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Method (per fact)'
+  baseline: Fetch the real source. Don't trust a search snippet — open the page (`mcp__exa__web_fetch_exa`/`WebFetch`, per the routing above) or the library's official docs (`WebFetch`) and confirm the source actually says what's claimed
+  current: Fetch the real source. Don't trust a search snippet — open the page (per the routing above) and confirm the source actually says what's claimed
+  text:
+  - Don't trust a search snippet
+  - confirm the source actually says what's claimed
+- id: rsr-L48-cross-check-load-bearing-facts-pricing-rat
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Method (per fact)'
+  baseline: Cross-check load-bearing facts (pricing, rate limits, auth model, a version-pinned API) across ≥2 sources / both search engines
+  current: Cross-check load-bearing facts (pricing, rate limits, auth model, a version-pinned API) across ≥2 sources / both search engines
+  text:
+  - Cross-check load-bearing facts (pricing, rate limits, auth model, a version-pinned API) across ≥2 sources / both search engines
+- id: rsr-L49-report-a-verdict-not-a-summary
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Method (per fact)'
+  baseline: 'Report a verdict, not a summary:'
+  current: 'Report a verdict, not a summary:'
+  text:
+  - 'Report a verdict, not a summary:'
+- id: rsr-L56-this-is-a-handoff-not-a-failure-the-orches
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Method (per fact)'
+  baseline: This is a HANDOFF, not a failure — the orchestrator owns shell
+  current: This is a HANDOFF, not a failure — the orchestrator owns shell
+  text:
+  - This is a HANDOFF, not a failure — the orchestrator owns shell
+- id: rsr-L57-unverifiable-couldn-t-confirm-live-say-why
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Method (per fact)'
+  baseline: '`UNVERIFIABLE` — couldn''t confirm live; say why + what a human should check'
+  current: '`UNVERIFIABLE` — couldn''t confirm live; say why + what a human should check'
+  text:
+  - '`UNVERIFIABLE` — couldn''t confirm live; say why + what a human should check'
+- id: rsr-L58-never-use-this-when-needs-raw-fetch-applie
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Method (per fact)'
+  baseline: Never use this when `NEEDS-RAW-FETCH` applies — "my tools can't read it" is routable, not unverifiable
+  current: Never use this when `NEEDS-RAW-FETCH` applies — "my tools can't read it" is routable, not unverifiable
+  text:
+  - Never use this when `NEEDS-RAW-FETCH` applies — "my tools can't read it" is routable, not unverifiable
+- id: rsr-L66-one-line-per-claim
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Return format'
+  baseline: One line per claim
+  current: One line per claim
+  text:
+  - One line per claim
+- id: rsr-L67-no-prose-padding-your-caller-merges-your-f
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Return format'
+  baseline: No prose padding — your caller merges/refutes your findings, so give it clean, sourced verdicts
+  current: 'No prose padding: your caller merges your findings'
+  text:
+  - No prose padding
+- id: rsr-L68-when-the-dispatching-brief-specifies-its-o
+  file: commands/_agents/fabrik-researcher.md
+  section: '## Return format'
+  baseline: When the dispatching brief specifies its own output format, the caller's format wins — this line is the default for briefs that specify none, not a contradiction to fight (a live dispatch lost a turn flagging exactly that conflict)
+  current: When the dispatching brief specifies its own output format, the caller's format wins — this line is the default for briefs that specify none
+  text:
+  - the caller's format wins
+- id: rsr-fm-read-only
+  file: commands/_agents/fabrik-researcher.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - Read-only — never edits files or runs shell
+- id: rsr-fm-pool-off-fanout
+  file: commands/_agents/fabrik-researcher.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - this agent IS the research fan-out — one seat per independent fact, in parallel, nothing recorded to the flywheel
+- id: rsr-fm-lone-fact-inline
+  file: commands/_agents/fabrik-researcher.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - A lone quick fact is cheaper checked inline
+- id: rsr-fm-session-directives-outrank
+  file: commands/_agents/fabrik-researcher.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - Session-level directives (e.g. a standing no-subagent rule) always outrank availability
+- id: rsr-fm-mcp-servers
+  file: commands/_agents/fabrik-researcher.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - 'mcpServers: [exa, brave-search, firecrawl]'
+- id: rsr-fm-tools-allow-list
+  file: commands/_agents/fabrik-researcher.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - 'tools: Read, Grep, Glob, WebFetch, WebSearch, ToolSearch'
+- id: rsr-fm-disallowed-tools
+  file: commands/_agents/fabrik-researcher.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - 'disallowedTools: Edit, Write, MultiEdit, NotebookEdit, Bash'
+- id: rsr-fm-allow-list-not-deny-list
+  file: commands/_agents/fabrik-researcher.md
+  section: ''
+  baseline: ''
+  current: ''
+  text:
+  - Explicit allow-list (the fabrik-reviewer convention), never deny-list-only
+vanished:
+  L4:
+    rule:
+    - rsr-L4-the-git-verb-prohibition-spec-d8-binds-any
+  L6:
+    rule:
+    - rsr-L6-search-websearch-and-mcp-brave-search-firs
+  L7:
+    rule:
+    - rsr-L7-scrape-fetch-mcp-exa-web-fetch-exa-the-one
+  L8:
+    rule:
+    - agent-rsr-on-mcp-exa-web-fetch-exa
+  L9:
+    rule:
+    - agent-rsr-a-reply-that-stops-at-exactly
+  L12:
+    rule:
+    - agent-rsr-use-mcp-exa-web-fetch-exa
+    - agent-rsr-anchor-a-webfetch-reply-is-a-small-model
+  L14:
+    rule:
+    - agent-rsr-on-a-long-page-a-source
+  L18:
+    rule:
+    - agent-rsr-anchor-the-raw-arm-silently-drops-angle-bracket
+  L20:
+    rule:
+    - agent-rsr-anchor-non-html-content-the-two-arms-differ
+  L21: narrative
+  L22:
+    rule:
+    - rsr-L22-pdfs-mcp-exa-web-fetch-exa-which-extracts-
+  L25:
+    rule:
+    - agent-rsr-anchor-a-summariser-answering-absence
+  L26: narrative
+  L27:
+    rule:
+    - rsr-L27-an-absence-verdict-needs-a-raw-fetch-or-a-
+  L28:
+    rule:
+    - agent-rsr-the-same-bar-binds-a-summariser
+    - agent-rsr-json-xml-keeps-shape-3-s
+  L30:
+    rule:
+    - agent-rsr-a-firecrawl-error-that-is-not
+  L31:
+    rule:
+    - agent-rsr-so-a-claim-whose-only-source
+  L32:
+    rule:
+    - rsr-L32-a-vendor-model-catalogue-can-split-one-ans
+  L33:
+    rule:
+    - rsr-L32-a-vendor-model-catalogue-can-split-one-ans
+  L34:
+    rule:
+    - rsr-L32-a-vendor-model-catalogue-can-split-one-ans
+  L35:
+    rule:
+    - agent-rsr-anchor-the-raw-arm-silently-drops-tables
+  L36:
+    rule:
+    - rsr-L36-a-rewritten-link-whose-host-differs-from-t
+  L37:
+    rule:
+    - agent-rsr-redirect-detected-reply-naming-the-server
+    - agent-rsr-fetch-that-url-and-cite-both
+    - agent-rsr-judging-the-claim-on-the-final
+  L38:
+    rule:
+    - agent-rsr-line-that-the-tool-appends-after
+  L40:
+    rule:
+    - agent-rsr-paging-is-necessary-not-sufficient
+  L41:
+    rule:
+    - rsr-L41-the-25-000-character-bound-is-not-about-th
+  L42:
+    rule:
+    - rsr-L42-a-transient-claude-sonnet-5-1m-is-temporar
+  L43:
+    rule:
+    - agent-rsr-on-an-html-docs-page-a
+    - agent-rsr-json-xml-and-version-claims-keep
+  L47:
+    rule:
+    - rsr-L47-fetch-the-real-source-don-t-trust-a-search
+  L67:
+    rule:
+    - rsr-L67-no-prose-padding-your-caller-merges-your-f
+  L68:
+    rule:
+    - rsr-L68-when-the-dispatching-brief-specifies-its-o

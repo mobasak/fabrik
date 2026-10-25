@@ -5,7 +5,7 @@ entries:
 - id: banner-every-workflow-command-carries-the-no
   file: commands/_fragments/no-workflow-hub.md
   baseline: '> ⚠️ NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part). In the hub — a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool'
-  current: '> ⚠️ NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part). In the hub — a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool'
+  current: '> ⚠️ NO `Workflow` IN THE HUB — D-961. In the hub — a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool'
   text:
   - NO `Workflow` IN THE HUB — D-961
   - a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool
@@ -34,3 +34,7 @@ entries:
   current: Outside the hub this command's text stands as written
   text:
   - Outside the hub this command's text stands as written.
+vanished:
+  L1:
+    rule:
+    - banner-every-workflow-command-carries-the-no
