@@ -451,7 +451,7 @@ def preflight_verdict(stdout: str) -> str | None:
         if not isinstance(tools, list) or sorted(map(str, tools)) != want:
             return f"tool set is {tools!r}, not {want}"
         if e.get("apiKeySource") != "none":
-            return "a keyless run found an API key source"
+            return f"apiKeySource is {e.get('apiKeySource')!r}, not 'none'"
     for e in results:
         if e.get("is_error") is not True:
             return "a keyless run did not fail"
@@ -462,6 +462,17 @@ def preflight_verdict(stdout: str) -> str | None:
 
 def preflight(model: str, add_dirs: list[str], base: Path) -> None:
     """Run the real argv once with no key on its own empty config dir; refuse (exit 2) unless the stream passes."""
+    raw = os.environ.get("API_CREDIT_PREFLIGHT_TIMEOUT") or str(PREFLIGHT_TIMEOUT_S)
+    try:
+        timeout = float(raw)
+    except ValueError:
+        timeout = math.nan
+    if not (
+        _finite(timeout) and 0 < timeout <= MAX_TIMEOUT_S
+    ):  # nan/inf would mean no timeout at all
+        raise RefusalError(
+            2, f"API_CREDIT_PREFLIGHT_TIMEOUT must be 0 < seconds ≤ {MAX_TIMEOUT_S}, got {raw!r}"
+        )
     config = None
     try:
         config = Path(tempfile.mkdtemp(prefix="preflight-", dir=base / "preflight"))
@@ -477,11 +488,14 @@ def preflight(model: str, add_dirs: list[str], base: Path) -> None:
             env=env,
             capture_output=True,
             text=True,
-            timeout=float(os.environ.get("API_CREDIT_PREFLIGHT_TIMEOUT") or PREFLIGHT_TIMEOUT_S),
+            timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         raise RefusalError(2, "the keyless pre-flight timed out — nothing started") from None
-    except (OSError, ValueError) as e:
+    except (
+        OSError,
+        ValueError,
+    ) as e:  # ValueError: an argv or env value subprocess cannot pass (a NUL)
         raise RefusalError(
             2, f"the keyless pre-flight could not run ({type(e).__name__}) — nothing started"
         ) from None

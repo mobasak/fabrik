@@ -760,6 +760,49 @@ def test_preflight_refuses_unreadable_output(box: dict, case: str) -> None:
     assert _calls(box) == [] and not box["ledger"].exists()
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {
+            "type": "system",
+            "subtype": "init",
+            "apiKeySource": "none",
+            "tools": ["Glob", "Grep", "Read", "Write"],
+        },
+        {
+            "type": "system",
+            "subtype": "init",
+            "apiKeySource": "ANTHROPIC_API_KEY",
+            "tools": ["Glob", "Grep", "Read"],
+        },
+        {"type": "result", "is_error": False, "total_cost_usd": 0, "duration_api_ms": 0},
+        {"type": "result", "is_error": True, "total_cost_usd": 0.002, "duration_api_ms": 0},
+    ],
+)
+def test_preflight_reads_every_event_not_the_first(box: dict, bad: dict) -> None:
+    # a clean first init and result, then a bad second one: a reader of the first event alone would pass it
+    _preflight_reply(box["env"], [*_preflight_events(), bad])
+    _reply(box, _ok(0.01))
+    p = _launch(box)
+    assert p.returncode == 2 and "pre-flight" in p.stderr, (bad, p.returncode, p.stderr)
+    assert _calls(box) == [] and not box["ledger"].exists()
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-1", "0", "soon"])
+def test_preflight_timeout_must_be_a_finite_positive_number(box: dict, value: str) -> None:
+    box["env"]["API_CREDIT_PREFLIGHT_TIMEOUT"] = value
+    _reply(box, _ok(0.01))
+    p = _launch(box)
+    assert p.returncode == 2 and "API_CREDIT_PREFLIGHT_TIMEOUT" in p.stderr, (
+        value,
+        p.returncode,
+        p.stderr,
+    )
+    assert _all_calls(box) == [] and not box["ledger"].exists(), (
+        "claude ran with an unbounded pre-flight"
+    )
+
+
 def test_preflight_runs_keyless_on_its_own_config(box: dict) -> None:
     _reply(box, _ok(0.01))
     p = _launch(box)
