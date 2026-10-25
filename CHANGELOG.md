@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `merge_request.py merge --queue`: a queue's owner tests run outside the merge lock (2026-10-25)
+
+W-0c8c43f1 (D-1224). A queue of N merge requests used to wait N owner-test legs one after another
+under the merge lock (36-129 min in the hub on 2026-10-24). `merge --queue` builds the waiting
+requests as a stacked chain in merge order, runs each leg in parallel outside the lock (`--jobs 2`),
+records each green tree as `request --pretest` does, and lands each request through the unchanged
+locked merge, which skips its leg on the matching tree. Every `git worktree` add, remove and prune
+in the file now serialises under one lock, closing a race where a prune broke a sibling's add. Run it
+as `rund --timeout 9100 -- capped_run.sh --timeout 9000 -- python3 scripts/merge_request.py merge
+--queue` (docs/reference/multi-agent-operating-model.md).
+
 ### Added — Lean command corpus design: half the text and seat time, no rule lost (2026-10-25)
 
 `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` is CONVERGED. It went through 7 review rounds,
