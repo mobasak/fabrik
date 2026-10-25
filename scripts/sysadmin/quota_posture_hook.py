@@ -268,6 +268,16 @@ def _live_tier() -> str | None:
     return _stamp_tier(stamp)
 
 
+def _api_key_session() -> bool:
+    """COPIED from `.claude/hooks/quota_stop.py::_api_key_session` (its docstring carries the
+    reason, the cobra and the mirror): an Anthropic API key with no plan OAuth token in the env
+    this hook inherits from claude — such a session draws no plan quota, so the band holds nothing
+    of it (W-effb7141)."""
+    return bool((os.environ.get("ANTHROPIC_API_KEY") or "").strip()) and not (
+        os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or ""
+    ).strip()
+
+
 def _wall_stamp_stands() -> bool:
     """Does `quota_stop.py` hold EVERY session? Only at the `walled` tier. At `urgent-90` it runs
     the LANE — it parks builders and lets the merge owner and P0 owners continue — so this hook
@@ -1146,6 +1156,14 @@ def main(argv: list[str] | None = None) -> int:
     # the markers stop accumulating in the state dir with nobody to prune them.
     if band != "AMBER":
         _clear_said(sid)
+    if action != "pass" and _api_key_session():
+        if action == "deny":
+            sys.stderr.write(
+                f"quota-posture: the band is {band or 'RED'}, but this session runs on an "
+                "Anthropic API key (no plan login), so it draws no plan quota and is not held "
+                "(W-effb7141)\n"
+            )
+        return 0
     if action == "deny":
         print(
             json.dumps(

@@ -685,6 +685,21 @@ def _stamp_is_battery(stamp: Path) -> bool:
     return len(lines) > 1 and lines[1].strip() == "battery"
 
 
+def _api_key_session() -> bool:
+    """A session on an Anthropic API key draws no PLAN quota, so the plan's wall and lane must not
+    hold it (W-effb7141): a builder launched on API credit (`scripts/api_credit.py::child_env`) is
+    the only capacity left at the wall. Read from THIS process's env, which the hook inherits from
+    the claude process — a Bash-tool `export` never reaches it. A `CLAUDE_CODE_OAUTH_TOKEN` beside
+    the key means a plan login is in play, so it holds as before. COPIED in
+    `scripts/sysadmin/quota_posture_hook.py`. Cobra: a dummy key at launch passes this check, but
+    Claude Code then authenticates with that key and every request fails — only a real paid key
+    gets work through. Mirror: a key that interactive Claude Code was told NOT to use is exempt
+    while spending plan quota; the stderr note names the exemption so the transcript shows it."""
+    return bool((os.environ.get("ANTHROPIC_API_KEY") or "").strip()) and not (
+        os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or ""
+    ).strip()
+
+
 def _tick_log() -> Path:
     return Path(
         os.environ.get("QUOTA_STOP_TICK_LOG") or Path.home() / ".claude" / "rotate-tick.log"
@@ -1403,6 +1418,13 @@ def main() -> int:
     except OSError:
         exists = False
     tier = _stamp_tier(_stamp()) if exists else _STAMP_TIER_WALLED
+    if exists and not _stamp_is_battery(_stamp()) and _api_key_session():
+        # the battery hold protects the BOX, so a paid key passes only the quota tiers
+        sys.stderr.write(
+            "quota-stop: the fleet quota hold is in force, but this session runs on an Anthropic "
+            "API key (no plan login), so it draws no plan quota and is not held (W-effb7141)\n"
+        )
+        return 0
     age: float | None
     try:
         age = time.time() - _tick_log().stat().st_mtime

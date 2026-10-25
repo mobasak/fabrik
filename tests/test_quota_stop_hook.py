@@ -58,7 +58,11 @@ def test_a_stale_stamp_from_a_dead_tick_never_freezes_the_fleet(monkeypatch):
 
 
 def _run(
-    tmp_path: Path, payload: object, stamp: bool, tick_fresh: bool
+    tmp_path: Path,
+    payload: object,
+    stamp: bool,
+    tick_fresh: bool,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
@@ -70,6 +74,11 @@ def _run(
         old = time.time() - 4000
         os.utime(log, (old, old))
     env = {**os.environ, "ROTATE_STATE_DIR": str(state), "QUOTA_STOP_TICK_LOG": str(log)}
+    # hermetic: an API-key session is exempt from the hold (W-effb7141), so a suite run from one
+    # must not inherit the key
+    env.pop("ANTHROPIC_API_KEY", None)
+    env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+    env.update(extra_env or {})
     data = payload if isinstance(payload, str) else json.dumps(payload)
     return subprocess.run(
         [sys.executable, str(_HOOK)],
@@ -1876,3 +1885,58 @@ def test_the_scope_realpath_runs_once_per_distinct_scope(lane, monkeypatch):
     assert len(hook._scoped_rows(lane.common)) == 30
     # the judged scope itself, then one per distinct row scope (2): 3, where per-row was 32
     assert len(seen) == 3 and seen.count("/elsewhere/.git") == 1, seen
+
+
+# --- W-effb7141: a session on an Anthropic API key draws no plan quota --------------------------
+
+
+@pytest.mark.parametrize("tier", ["walled", "urgent-90"])
+def test_an_api_key_session_is_not_held_by_the_wall_or_the_lane(tmp_path, tier):
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text(f"1\n{tier}\n")
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "session_id": "s1"},
+        stamp=False,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert r.returncode == 0
+    assert r.stdout.strip() == "", r.stdout
+    assert "API key" in r.stderr
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-x"},
+        {"ANTHROPIC_API_KEY": "  "},
+        {},
+    ],
+    ids=["oauth-token-beside-the-key", "blank-key", "no-key"],
+)
+def test_a_plan_session_is_still_held_at_the_wall(tmp_path, extra):
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=True,
+        tick_fresh=True,
+        extra_env=extra,
+    )
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_the_battery_hold_still_holds_an_api_key_session(tmp_path):
+    """The battery stamp (D-898) protects the BOX, not plan quota — a paid key changes nothing."""
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text("1\nbattery\n")
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=False,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"

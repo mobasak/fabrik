@@ -137,6 +137,9 @@ def _hook(payload: dict, *, state: Path, runs: Path | None = None, extra_env=Non
     tick.write_text("tick: ok\n")
     env["QUOTA_STOP_TICK_LOG"] = str(tick)
     env.pop("QUOTA_STOP_TICK_STALE_S", None)
+    # hermetic: an API-key session is exempt from the band's hold (W-effb7141)
+    env.pop("ANTHROPIC_API_KEY", None)
+    env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
     if runs is not None:
         env["COMMAND_RUN_DIR"] = str(runs)
     env.update(extra_env or {})
@@ -1603,3 +1606,24 @@ def test_the_three_tier_readers_agree_on_the_shapes_that_actually_diverge(tmp_pa
     d = tmp_path / "d"
     (d / "fleet-exhausted").mkdir(parents=True)
     assert {m._stamp_tier(d / "fleet-exhausted") for m in mods} == {"walled"}
+
+
+# --- W-effb7141: a session on an Anthropic API key draws no plan quota --------------------------
+
+
+def test_red_does_not_hold_an_api_key_session(tmp_path):
+    state, runs = tmp_path / "state", tmp_path / "runs"
+    runs.mkdir()
+    _posture(state, band="RED", successor=None)
+    call = {"hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": "s1"}
+    p = _hook(call, state=state, runs=runs, extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"})
+    assert p.stdout.strip() == "", p.stdout
+    assert "API key" in p.stderr
+
+    p = _hook(
+        call,
+        state=state,
+        runs=runs,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_OAUTH_TOKEN": "t"},
+    )
+    assert json.loads(p.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
