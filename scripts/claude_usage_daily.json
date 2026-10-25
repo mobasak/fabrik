@@ -873,14 +873,14 @@
       "claude-sonnet-5-5": 167241981
     },
     "2026-10-25": {
-      "claude-opus-5-5": 1429538376,
-      "claude-fable-5-1": 151324451,
+      "claude-opus-5-5": 1447173027,
+      "claude-fable-5-1": 158736343,
       "claude-haiku-5-5": 45225162,
       "claude-sonnet-5-5": 102860928
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-10-25T13:08:57+03:00",
+  "merged_at": "2026-10-25T14:39:05+03:00",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
