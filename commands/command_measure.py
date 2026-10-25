@@ -12,7 +12,8 @@ merge queue drains, before ``--check``) only lowers; a raise is a hand edit carr
 
 Detection is mechanical and each row FREEZES what was detected: a path counts when the render names
 it and git TRACKS it (the index of the root's checkout — so every checkout holding the same index
-measures the same, whatever untracked or ignored files sit on its disk; a tracked symlink counts only
+counts the same set of files, whatever untracked or ignored files sit on its disk; the words are read
+from the working tree, so an unstaged edit to a counted file still moves its count; a tracked symlink counts only
 when its target is tracked too; a tracked path absent from disk is an error, never skipped, since a
 skip would let --ratchet lower a ceiling in a sparse checkout; a root with no ``.git`` entry, a test
 fixture, falls back to "it is a file"), a seat when the render, or an own-text file the render names, names it as a
@@ -116,11 +117,12 @@ def _named_files(text: str, root: Path, tracked: set[str] | None = None) -> list
             continue
         if rel not in tracked:
             continue  # untracked or ignored: not part of the repo at this index
-        if not p.exists() and not p.is_symlink():
-            raise FileNotFoundError(f"{rel} is tracked but absent on disk (sparse checkout or unstaged deletion) — restore it or stage the deletion")
         target = p.resolve()
-        if target.is_file() and target.is_relative_to(top) and target.relative_to(top).as_posix() in tracked:
-            out.append(rel)
+        if not target.is_relative_to(top) or target.relative_to(top).as_posix() not in tracked:
+            continue  # a symlink to an untracked or outside target: not part of the repo
+        if not target.is_file():  # tracked, yet missing or not a file: never a silent drop
+            raise FileNotFoundError(f"{rel} is tracked but absent on disk (sparse checkout, unstaged deletion, or not a file) — restore it or stage the change")
+        out.append(rel)
     return out
 
 

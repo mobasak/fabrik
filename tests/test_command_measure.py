@@ -480,6 +480,21 @@ def test_tracked_but_absent_raises_and_symlink_targets_must_be_tracked(tmp_path:
         cm.measure_all(t["out"], t["root"], t["src"], APPENDED)
     breaches, _ = cm.findings(t["out"], t["root"], t["src"], APPENDED, t["ceiling"])
     assert len(breaches) == 1 and "tracked but absent" in breaches[0], breaches
+    # a tracked symlink whose TRACKED target is gone, and a tracked file replaced by a directory, raise too
+    _git(t["root"], "checkout", "--", "docs/reference/guide.md")
+    (t["root"] / "docs" / "other.md").write_text("o " * 3, encoding="utf-8")
+    (t["root"] / "docs" / "to-other.md").symlink_to("other.md")
+    _git(t["root"], "add", "docs/other.md", "docs/to-other.md")
+    _w(t["out"] / "demo.md", "Read docs/to-other.md and docs/reference/guide.md.\n")
+    assert cm.measure_all(t["out"], t["root"], t["src"], APPENDED)["demo"]["reads"]["docs/to-other.md"] == 3
+    (t["root"] / "docs" / "other.md").unlink()
+    with pytest.raises(FileNotFoundError, match="docs/to-other.md is tracked but absent"):
+        cm.measure_all(t["out"], t["root"], t["src"], APPENDED)
+    _git(t["root"], "checkout", "--", "docs/other.md")
+    (t["root"] / "docs" / "reference" / "guide.md").unlink()
+    (t["root"] / "docs" / "reference" / "guide.md").mkdir()
+    with pytest.raises(FileNotFoundError, match="docs/reference/guide.md is tracked but absent"):
+        cm.measure_all(t["out"], t["root"], t["src"], APPENDED)
 
 
 def test_a_failing_git_listing_is_a_breach(tmp_path: Path, monkeypatch) -> None:
@@ -488,4 +503,4 @@ def test_a_failing_git_listing_is_a_breach(tmp_path: Path, monkeypatch) -> None:
     t = _tree(tmp_path, "Read docs/reference/guide.md.\n")
     _w(t["root"] / ".git", "gitdir: /nonexistent/gitdir\n")  # a broken linked-worktree pointer
     breaches, _ = cm.findings(t["out"], t["root"], t["src"], APPENDED, t["ceiling"])
-    assert len(breaches) == 1 and "measure failed" in breaches[0] and "git" in breaches[0].lower(), breaches
+    assert len(breaches) == 1 and "git ls-files failed" in breaches[0], breaches
