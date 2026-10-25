@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Usage grammar prints `[· cost: …]` brackets — the parser now accepts them (W-256d6877); dropping them from the grammar text is yours"
 }
