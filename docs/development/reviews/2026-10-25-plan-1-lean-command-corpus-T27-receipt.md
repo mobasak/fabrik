@@ -1,0 +1,11 @@
+# T27 receipt — /hibernate (light form, D-1236)
+
+- Start commit: 8ac547a6139658fed456bb3f3f069596856d6316 (kaizen-lean-u01); baseline sha256 b5471ffe1131bad91fe0ac043022c9b6ec50bbfb0d0c0bd8cd54b8d2ce4c16e5 (36 units).
+- Own text words: 880 -> 601 (68%; frontmatter description trimmed too). Floor named: 22 live rule units (23 incl. ledger entries) at roughly 25 words each, and each was kept to the clauses D-1236 requires (every ban, backticked token, number, command form and bound survives); a further cut would lose a clause with no narrative label.
+- Ledger entries: 25 total (22 hand-written reworded / 3 generated unchanged: u-L8, u-L10, u-L24). By class (set at baseline, `# class:` comments): ban 6, grammar 2, behavioural 0, prose 17.
+- Pins deleted: none. The step-2 scan over the reader tests found no plain string-in-file pin on `hibernate.md`; `tests/test_hibernate.py` is behavioural and untouched.
+- Vanished labels (author labels — audit owed): 27 lines: 3 narrative (L6, L9, L27), 24 mapped to rule ids (see `vanished:` in `commands/_rules/hibernate.yaml`).
+- Clauses with no text carrier (classified narrative, audit owed): L6 (why mark starts a fresh pause), L9 (output shape of `targets`), the `(you)` marker and the list of `BLOCKS` causes (L19, describes script output), the parenthetical causes of exit 2 (L25), the quoted self-watch wake wording (L33), why `lift` always runs (L36), the wake-drops-cache reason (L31), "a coordinator relays its lines" (L18, duplicate of the relay section).
+- Gates: `tests/test_command_rules.py -rP` 32 passed, 3 skipped, `LEDGER hibernate.yaml: 25 entries`; `assemble_commands.py --check` exit 1, only MISSING drift lines for hibernate, no LOSS or ceiling.
+- Reader-test run (hibernate, orient, producing-command, check_command_corpus, exit_row tests + command_rules): failure set at start = failure set at end = 8 (`test_hibernate::test_targets_flags_duplicate_missing_failed_self_and_outside` and 7 in `test_check_command_corpus.py`, all `web_tools`/`detach` clone-environment reds). The wider corpus-glob test list was not run (clone lacks box services).
+- LEFT FOR THE HUB: ceiling ratchet (`commands/_size_ceiling.json`), CHANGELOG/INDEX rows for the new `commands/_rules/hibernate.*` files, the Sonnet+Haiku vanished audit and the author-blind audit pair on the 22 reworded entries.
