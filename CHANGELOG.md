@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Lean command corpus plan set: 45 units in 57 tickets (2026-10-25)
+
+`docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` turns the converged lean-corpus spec into a
+plan set for `/fabrik-execute-plan`, in the spec's order: the `/fabrik-review-scoped` pilot, the remaining
+shared files, `/fabrik-review`, `/fabrik-task`, `/fabrik-execute-plan`, `/fabrik-command-improve`, then the
+35-command tail by hours, then the Integration receipt. The tooling stays infra-2's three merge requests
+(W-a9b5e763), and pin tests are migrated into the ledgers or kept verbatim (D-1222). Status: DRAFT, for
+`/fabrik-plan-review`.
+
 ### Added — Lean command corpus design: half the text and seat time, no rule lost (2026-10-25)
 
 `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` is CONVERGED. It went through 7 review rounds,
