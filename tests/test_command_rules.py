@@ -664,9 +664,12 @@ def test_changed_by_lists_existing_decision_rows(tmp_path: Path) -> None:
 
 def test_a_phrase_that_normalises_to_nothing_is_refused(tmp_path: Path) -> None:
     t = _tree(tmp_path)
-    for c, ph in (("text", "..."), ("text", "**"), ("forbidden", ". .")):
-        _ledger(t, [{**ENTRY, c: [ph]}])
+    for ph in ("...", "**", ". ."):
+        _ledger(t, [{**ENTRY, "text": [ph]}])
         _one(_losses(t), "normalises to nothing")
+    # `forbidden` is matched raw: "**" is a real absence pin, absent from SOURCE, so no LOSS
+    _ledger(t, [{**ENTRY, "forbidden": ["**"]}])
+    assert _losses(t) == []
 
 
 def test_normalise_is_idempotent_on_every_live_unit() -> None:

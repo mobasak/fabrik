@@ -9,8 +9,9 @@ All notable changes to this project will be documented in this file.
 - `commands/command_measure.py` measures every rendered command's own text (render, named `commands/` files, named seat
   definitions) and its reads; `commands/_size_ceiling.json` freezes them for all 40 commands (D-1226, W-a9b5e763 slice C).
 - `assemble_commands.py --check` exits 5 on a ceiling breach, after a LOSS (4) and before drift (1); `--ratchet` lowers the
-  ceilings and prints nothing when nothing changed. The coordinator runs it after the merge queue drains,
-  whenever `commands/` changed.
+  ceilings and prints nothing when nothing changed; a malformed ceiling file or a failed measure or write
+  under `--ratchet` is a `CEILING` line and exit 5, and the three modes are mutually exclusive. The
+  coordinator runs it after the merge queue drains, whenever `commands/` changed.
 - `command_rules.py`: `generate_unchanged()` for the light form, `changed-by` entries, an idempotent `normalise()`, inline
   comments kept as text, and slice A's two residuals fixed.
 

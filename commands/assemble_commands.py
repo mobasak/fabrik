@@ -1421,12 +1421,15 @@ def ratchet_cli() -> None:
         except SystemExit:
             print(out.getvalue(), end="")  # a render error prints its reasons: never swallow them
             raise
-        measured = command_measure.measure_all(tmp, ROOT.parent, SRC, (_CLOSE_FEEDBACK, _AGENT_FEEDBACK))
-    try:
-        changes = command_measure.ratchet(measured, command_measure.CEILING)
-    except ValueError as exc:  # a malformed ceiling file: the same breach --check reports, same exit
-        print(f"CEILING {command_measure.CEILING.name}: {exc}")
-        sys.exit(5)
+        try:
+            measured = command_measure.measure_all(tmp, ROOT.parent, SRC, (_CLOSE_FEEDBACK, _AGENT_FEEDBACK))
+            changes = command_measure.ratchet(measured, command_measure.CEILING)
+        except ValueError as exc:  # a malformed ceiling file: the same breach --check reports, same exit
+            print(f"CEILING {command_measure.CEILING.name}: {exc}")
+            sys.exit(5)
+        except Exception as exc:  # noqa: BLE001 — a failed measure or write is a breach line, never a traceback
+            print(f"CEILING: ratchet failed — {type(exc).__name__}: {exc} — fix the file or code it names, then re-run")
+            sys.exit(5)
     for line in changes:
         print(line)
 

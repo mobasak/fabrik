@@ -22,7 +22,7 @@ that gates and needs no licence.
 
 COBRA (D-253), the cheapest passes and what catches each: deleting the last mention of a seat (a
 breach until a D-row releases it); a shrink left un-ratcheted to regrow into the slack (a report
-line, and the coordinator ratchets every merged tree); a hand edit that raises ``render`` and
+line, and the coordinator ratchets after every merge that changed ``commands/``); a hand edit that raises ``render`` and
 ``baseline_own`` together, or names a thin D-row — the file holds only current values, so kaizen
 counts every increase of either field per command from ``git log -p -- commands/_size_ceiling.json``
 (spec § Lifecycle, "Ceiling raises"). NOT measured, so kaizen's audit pair is the catcher: text moved
@@ -229,7 +229,8 @@ def _load(path: Path) -> dict[str, Any]:
 def _licence(rows: dict[str, str], did: Any, subject: str, what: str, remedy: str) -> str | None:
     """Why ``did`` does not license ``what`` (L1: "a D-row naming it"), else None: the row must exist
     in docs/DECISIONS.md AND name ``subject``."""
-    if isinstance(did, str) and did in rows and _names(subject, rows[did]):
+    # a D-row read is named by its id, so the row cannot license itself: its own `| D-n |` cell names it
+    if isinstance(did, str) and did in rows and did != subject and _names(subject, rows[did]):
         return None
     got = "none" if did is None else repr(did)
     return f"{what} — {remedy} (got {got}; the row must exist in docs/DECISIONS.md and name {subject})"
@@ -293,7 +294,7 @@ def findings(render_dir: Path, root: Path, src_dir: Path, appended: tuple[str, .
     try:
         return ceiling_findings(measure_all(render_dir, root, src_dir, appended), CEILING if path is None else path, root)
     except Exception as exc:  # noqa: BLE001 — a failed measure is a breach (exit 5), never drift's exit 1
-        return [f"CEILING: measure failed — {type(exc).__name__}: {exc}"], []
+        return [f"CEILING: measure failed — {type(exc).__name__}: {exc} — fix the file or code it names, then re-run --check"], []
 
 
 def ratchet(measured: dict[str, dict[str, Any]], path: Path) -> list[str]:

@@ -426,9 +426,10 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         for c in ("text", "forbidden", "ordered", "pins"):
             if c in e and not _strs(e[c]):
                 raise LedgerError(f"entry {e['id']}: `{c}` is not a non-empty list of non-empty strings")
-        for c in ("text", "forbidden"):
-            if c in e and not all(normalise(p) for p in e[c]):
-                raise LedgerError(f"entry {e['id']}: a `{c}` phrase normalises to nothing, so it matches every text")
+        # a `text` phrase is compared AFTER normalise, so one that normalises to nothing ("...", "**")
+        # matches every unit; a `forbidden` phrase is matched raw, so "**" is a legitimate absence pin
+        if "text" in e and not all(normalise(p) for p in e["text"]):
+            raise LedgerError(f"entry {e['id']}: a `text` phrase normalises to nothing, so it matches every text")
         for c in ("file", "section", "baseline", "current", "enforced"):
             if c in e and not isinstance(e[c], str):
                 raise LedgerError(f"entry {e['id']}: `{c}` is not a string")

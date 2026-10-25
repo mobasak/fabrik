@@ -190,6 +190,16 @@ def test_ceiling_breach_kinds(tmp_path: Path) -> None:
     _rewrite(t, doc)
     assert any("name docs/new.md" in b for b in _breaches(t)), _breaches(t)
     row["added"] = {"docs/new.md": "D-2"}
+    # a D-row read is licensed by ANOTHER row naming its id, never by itself
+    _w(t["out"] / "demo.md", "Read docs/reference/guide.md and docs/new.md. Cite D-1 and D-3.\n")
+    row["added"]["docs/DECISIONS.md#D-3"] = "D-3"
+    _rewrite(t, doc)
+    assert any("D-3" in b and "new to the frozen set" in b for b in _breaches(t)), _breaches(t)
+    _w(t["root"] / "docs" / "DECISIONS.md",
+       (t["root"] / "docs" / "DECISIONS.md").read_text() + "| D-4 | d | w | adds the D-3 read | y | z |\n")
+    row["added"]["docs/DECISIONS.md#D-3"] = "D-4"
+    _rewrite(t, doc)
+    assert not any("D-3" in b for b in _breaches(t)), _breaches(t)
     _rewrite(t, doc)
     assert not any("docs/new.md" in b for b in _breaches(t)), _breaches(t)
     # a missing row, an orphan row
@@ -269,18 +279,18 @@ def test_ratchet_lowers_adds_never_raises(tmp_path: Path) -> None:
 def test_ratchet_is_silent_atomic_and_drops_a_stale_tombstone(tmp_path: Path) -> None:
     t = _tree(tmp_path, "Use seat-a and read docs/reference/guide.md.\n")
     _ratcheted(t)
-    t["ceiling"].chmod(0o644)
+    t["ceiling"].chmod(0o664)  # not the 0644 a new file gets, so a constant mode would fail below
     before, stat = t["ceiling"].read_bytes(), t["ceiling"].stat()
     assert cm.ratchet(_all(t), t["ceiling"]) == []
     assert t["ceiling"].read_bytes() == before and t["ceiling"].stat().st_mtime_ns == stat.st_mtime_ns
     doc = json.loads(before)
     doc["retired"]["demo"] = 7
     _rewrite(t, doc)
-    t["ceiling"].chmod(0o644)
+    t["ceiling"].chmod(0o664)
     changes = cm.ratchet(_all(t), t["ceiling"])
     assert any("stale tombstone" in c for c in changes), changes
     assert "demo" not in json.loads(t["ceiling"].read_text())["retired"]
-    assert t["ceiling"].stat().st_mode & 0o777 == 0o644
+    assert t["ceiling"].stat().st_mode & 0o777 == 0o664
     assert [p.name for p in t["ceiling"].parent.iterdir() if p.name.startswith(".size_ceiling.")] == []
 
 
@@ -319,6 +329,15 @@ def test_ratchet_cli_reports_render_errors_and_a_malformed_file(tmp_path: Path, 
     with pytest.raises(SystemExit) as exc:
         ac.ratchet_cli()
     assert exc.value.code == 5 and "CEILING ceiling.json: unreadable" in capsys.readouterr().out
+    target.unlink()
+
+    def unwritable(*a, **k):
+        raise PermissionError("read-only directory")
+
+    monkeypatch.setattr(cm, "ratchet", unwritable)
+    with pytest.raises(SystemExit) as exc:
+        ac.ratchet_cli()
+    assert exc.value.code == 5 and "ratchet failed — PermissionError" in capsys.readouterr().out
 
 
 def test_the_modes_are_mutually_exclusive() -> None:

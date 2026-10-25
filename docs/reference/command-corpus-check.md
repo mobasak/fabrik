@@ -359,7 +359,8 @@ takes the lower of its tombstone and its own +3%, with a baseline no higher than
 orphan row moved to `retired`, a tombstone beside a live row dropped; it never raises a ceiling or
 touches `baseline_own`, `raised_by`, `released`, `added` or a frozen reads set, writes atomically, and
 prints nothing when nothing changed. A render error under `--ratchet` prints its reasons and exits 2;
-a malformed ceiling file prints the `CEILING` line `--check` would and exits 5. `--extract`, `--check`
+a malformed ceiling file prints the `CEILING` line `--check` would and exits 5, and so does a measure
+or a write that fails (a `CEILING: ratchet failed` line). `--extract`, `--check`
 and `--ratchet` are mutually exclusive. **The coordinator, once `merge_request.py merge --queue` has
 drained the queue, renders, runs `--ratchet`, then `--check`, whenever `commands/` changed** (a new
 command or a newly named seat breaches `--check` until `--ratchet` adds it), and commits the file
@@ -380,7 +381,7 @@ catcher, and kaizen counts every increase of `render` or `baseline_own` from the
 | 2 | `--check` or a render: a render error; there is then no render to check, so no LOSS is computed |
 | 3 | `--extract`, or a render into the installed corpus, refused outside the main checkout |
 | 4 | `--check`: a rule LOSS, printed before any breach or drift and outranking both |
-| 5 | `--check`: a size-ceiling breach (L1), printed after LOSS and before drift; outranks drift · `--ratchet`: a malformed ceiling file |
+| 5 | `--check`: a size-ceiling breach (L1), printed after LOSS and before drift; outranks drift · `--ratchet`: a malformed ceiling file, or a measure or write that failed |
 
 ## Related
 
