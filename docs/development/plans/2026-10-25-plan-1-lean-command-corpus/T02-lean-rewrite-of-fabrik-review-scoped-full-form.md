@@ -46,6 +46,7 @@ Docs: none owned (the orchestrator applies `CHANGELOG.md`, the `INDEX.md` rows f
 6. Count own text before and after (`command_rules.own_text` for a source, the word count for a shared file). If it is still over 50% and no further cut is possible without a LOSS, hand the orchestrator a floor D-row (live rule count × the U1 words-per-rule figure) through Deltas.
 7. Lower this ticket's ceiling rows in `commands/_size_ceiling.json` only through the text-measure merge's ratchet (`docs/reference/command-corpus-check.md` § Rule ledger; spine § Residual unknowns R2), never by hand.
 8. Run the Gate lines. A red test outside Touches is a Touches miss: hand it to the orchestrator (spine § Global Constraints), and never skip or xfail it.
+9. Mint the floor D-row for each open floor unit 01's merge named, using the pilot figure this ticket records (spine § Interfaces).
 
 ## Context Files
 - .windsurf/rules/core/40-documentation.md
