@@ -12,6 +12,7 @@ serialise under one lock (Fable's probe: 317 add failures in 2387 beside a prune
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 from pathlib import Path
@@ -36,7 +37,7 @@ def _owner_tests(world, body: str) -> None:
     _git(world.main, "push", "-q", "origin", "master")
 
 
-def _leg_log(world) -> Path:
+def _leg_log(world, sleep: float = 0.3) -> Path:
     """A merge-tests leg that appends `<request head> <start> <stop> <subject of HEAD^1>` per run,
     so a test reads how many legs ran, on which chain element, and whether they overlapped."""
     log = world.tmp / "legs.log"
@@ -44,7 +45,7 @@ def _leg_log(world) -> Path:
         "python3 - <<'PY'\n"
         "import subprocess, time\n"
         "t0 = time.time()\n"
-        "time.sleep(0.3)\n"
+        f"time.sleep({sleep})\n"
         "def out(*a):\n"
         "    return subprocess.run(a, capture_output=True, text=True).stdout.strip()\n"
         "head = out('git', 'rev-parse', 'HEAD^2')\n"
@@ -91,9 +92,20 @@ def _decision_row(world, n: int, text: str) -> str:
 
 
 def _queue(world, *extra: str) -> int:
-    review = world.tmp / "review.md"
-    review.write_text("# receipt\n", encoding="utf-8")
     return world.run("merge", "--queue", *extra)
+
+
+# `_pretested`'s own summary when the locked merge SKIPS its leg on a record; a record it read and
+# rejected is appended as "; pretest record ignored (...)" to a leg that ran, so "pretest" alone
+# matches both (review pass 1, slice B)
+SKIPPED = ".fabrik/merge-tests (base copy): green on the requester's pretest"
+
+
+def _skipped(world, msg_id: str) -> bool:
+    tests = [e for e in _record(world, msg_id).get("evidence", []) if e.startswith("tests: ")]
+    return (
+        len(tests) == 1 and tests[0].startswith(f"tests: {SKIPPED}") and "ignored" not in tests[0]
+    )
 
 
 def _record(world, msg_id: str) -> dict:
@@ -121,9 +133,7 @@ def test_queue_lands_stacked_requests_skipping_legs(world):
     assert _record(world, m2)["outcome"] == "merged"
     ran = [head for head, _, _ in _legs(log)]
     assert sorted(ran) == sorted([h1, h2]), ran  # one leg each, both run by the queue's children
-    for mid in (m1, m2):
-        tests = [e for e in _record(world, mid)["evidence"] if e.startswith("tests: ")]
-        assert tests and "pretest" in tests[0], tests  # the locked merge skipped its own leg
+    assert _skipped(world, m1) and _skipped(world, m2)  # each locked merge skipped its own leg
     decisions = world.read("docs/DECISIONS.md")
     assert "| D-900 |" in decisions and "| D-901 |" in decisions
 
@@ -146,8 +156,7 @@ def test_queue_skips_conflicting_request_and_rechains(world):
     # three was chained past the conflict onto one's STACKED element in the first wave, not
     # tested only after one landed
     assert on3 == ["queue pretest one"], on3
-    tests3 = [e for e in _record(world, m3)["evidence"] if e.startswith("tests: ")]
-    assert "pretest" in tests3[0], tests3  # three was chained onto one, so its record matched
+    assert _skipped(world, m3)  # three was chained onto one, so its record matched
 
 
 def test_queue_red_leg_rechains_later_requests(world):
@@ -170,13 +179,15 @@ def test_queue_red_leg_rechains_later_requests(world):
     assert _record(world, m1)["outcome"] == "refused"
     assert _record(world, m2)["outcome"] == "merged"
     assert "red.txt" not in _git(world.main, "ls-tree", "-r", "--name-only", "master")
-    tests2 = [e for e in _record(world, m2)["evidence"] if e.startswith("tests: ")]
+    assert not _pretest_record(world, h1).exists()  # a red leg leaves no record to trust
+    assert not _skipped(world, m1)  # one's locked merge ran its own leg and refused
     # the first chain built two onto one's tree; after one's refusal two was re-chained onto the
     # base and re-tested there, so its locked merge still skipped
-    assert "pretest" in tests2[0], tests2
+    assert _skipped(world, m2)
 
 
-def test_queue_reuses_matching_record(world):
+def test_queue_reuses_matching_record(world, monkeypatch):
+    monkeypatch.delenv("FABRIK_MERGE_SHARDS", raising=False)
     log = _leg_log(world)
     h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
     h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
@@ -188,11 +199,13 @@ def test_queue_reuses_matching_record(world):
     assert [e["head"] for e in chain] == [h1, h2]
     for el in chain:
         assert world.mod._run_leg(ctx, el, world.mod._runner_sha()) == 0
+    assert "FABRIK_MERGE_SHARDS" not in os.environ  # the child's default is restored
     assert len(_legs(log)) == 2
 
     assert _queue(world) == 0
 
     assert len(_legs(log)) == 2  # no leg re-ran: both records already named these trees
+    assert _skipped(world, m1) and _skipped(world, m2)
     assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
 
 
@@ -208,7 +221,7 @@ def test_queue_lock_refuses_second(world, capsys):
 
 
 def test_queue_jobs_bounds_overlap(world):
-    log = _leg_log(world)
+    log = _leg_log(world, sleep=1.5)  # long enough that two children started apart still overlap
     sends = []
     for i in range(4):
         h, b = _new_branch(world, f"r{i}", {f"f{i}.txt": f"{i}\n"})
@@ -261,3 +274,68 @@ def test_plain_merge_names_the_queue_when_two_wait(world, capsys):
     assert world.run("merge") == 0
 
     assert "merge --queue" in capsys.readouterr().err
+
+
+def test_queue_without_owner_tests_lands_in_order(world):
+    """A fleet repo with no `.fabrik/merge-tests`: nothing runs outside the lock, both still land."""
+    h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
+    h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
+    m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
+
+    assert _queue(world) == 0
+
+    assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
+    pretest = world.main / ".git" / "fabrik-merge" / "pretest"
+    assert not list(pretest.glob("*.json")) if pretest.is_dir() else True
+
+
+def test_queue_refuses_jobs_under_one(world):
+    with pytest.raises(SystemExit) as exc:
+        world.run("merge", "--queue", "--jobs", "0")
+    assert exc.value.code == 2
+
+
+def test_queue_starts_no_landing_past_its_wall(world, monkeypatch, capsys):
+    _leg_log(world)
+    h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
+    m1 = world.send(h1, branch=b1)
+    monkeypatch.setattr(world.mod, "QUEUE_WALL_S", world.mod.LANDING_WORST_S - 1)
+
+    assert _queue(world) == 0
+
+    assert "run `merge_request.py merge --queue` again" in capsys.readouterr().err
+    assert m1 in world.inbox()  # nothing was claimed
+
+
+def test_worktree_lock_that_cannot_open_refuses(world, monkeypatch):
+    ctx = world.mod._context(world.main)
+
+    def refuse(*_a, **_k):
+        raise PermissionError("read-only common dir")
+
+    monkeypatch.setattr(world.mod.os, "open", refuse)
+    with pytest.raises(world.mod.RefusedError, match="cannot open the worktree lock"):
+        with world.mod._worktree_lock(ctx):
+            pass
+
+
+def test_land_passes_a_request_another_run_took(world, capsys):
+    assert world.mod._land("01NOSUCHREQUEST0000000000") == 0
+    assert "was taken by another run" in capsys.readouterr().err
+
+
+def test_live_merge_never_waits_on_this_process(world):
+    ctx = world.mod._context(world.main)
+    rec = {"id": "01OWNRECORD", "phase": "claimed", **world.mod._claimer()}
+    world.mod._save(ctx, rec)
+    assert world.mod._live_merge(ctx, set()) is None  # a record this process drives
+    world.mod._save(ctx, {**rec, "pid": 1, "start": world.mod._proc_start(1)})
+    assert world.mod._live_merge(ctx, set()) == "01OWNRECORD"  # another live process's record
+
+
+def test_queue_window_skips_landed_requests_before_the_limit(world):
+    h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
+    h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
+    m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
+    ctx = world.mod._context(world.main)
+    assert [e["id"] for e in world.mod._queue_entries(ctx, 1, {m1})] == [m2]

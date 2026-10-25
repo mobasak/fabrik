@@ -200,15 +200,20 @@ python3 scripts/merge_request.py request --review <closing run record or review 
 # 2. the merge owner, in the main checkout:
 python3 scripts/merge_request.py merge [<id>]   # the oldest request addressed to it, or <id>
 python3 scripts/merge_request.py merge --queue [--jobs 2] [--max 4]
-#    → 2+ requests waiting: builds them as a STACKED chain in merge order (S0 the local base, Sk
-#      request k merged onto S(k-1)) in pretest throwaways, runs each leg OUTSIDE the merge lock in a
-#      forked child (at most --jobs at once, FABRIK_MERGE_SHARDS=4 each when unset), records each
-#      green tree as --pretest does, then lands each request in order through the unchanged locked
-#      `merge <id>`, which skips its leg on the matching tree. A request that will not build is
-#      skipped and the chain continues; after each landing the rest is rebuilt on the new base and
-#      every record that still matches is reused, so a refused request costs its own leg only. One
-#      queue at a time (`fabrik-merge/pretest/queue.lock`). W-0c8c43f1. Plain `merge` names the
-#      verb when 2+ requests wait.
+#    → builds the waiting requests (up to --max) as a STACKED chain in merge order (S0 the local
+#      base, Sk request k merged onto S(k-1)) in pretest throwaways, runs each leg OUTSIDE the merge
+#      lock in a forked child (at most --jobs at once, FABRIK_MERGE_SHARDS=4 each when unset), records
+#      each green tree as --pretest does, then lands each request in order through the unchanged
+#      locked `merge <id>`, which skips its leg on the matching tree. A request that will not build
+#      is skipped and the chain continues; after each landing the rest is rebuilt on the new base and
+#      every record that still matches is reused, so the requests stacked behind a REFUSED one are
+#      rebuilt without it and tested again. A base with no `.fabrik/merge-tests` runs nothing outside
+#      the lock: the queue lands in order. A landing starts only while its worst case still fits the
+#      queue's own wall (QUEUE_WALL_S, 9000 s — run it as `rund --timeout 9100 --
+#      /opt/fabrik/scripts/capped_run.sh --timeout 9000 -- python3 scripts/merge_request.py merge
+#      --queue`); past it the queue says so and stops — run it again. Exit: the worst landing's
+#      (0 merged, 1 one refused, 4 one left partial, where it stops). One queue at a time
+#      (`fabrik-merge/pretest/queue.lock`). W-0c8c43f1. Plain `merge` names the verb when 2+ wait.
 python3 scripts/merge_request.py resume <id>    # a request left short of `replied` (exit 4)
 python3 scripts/merge_request.py retry <id>     # re-run a REFUSED request whose branch is unchanged
 ```

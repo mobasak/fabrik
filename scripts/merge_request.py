@@ -583,6 +583,10 @@ class BudgetSpentError(RefusedError):
     ``resume``) has a new budget."""
 
 
+class NotWaitingError(RefusedError):
+    """``merge <id>``: no such request waits in the inbox (another run took it, or it never came)."""
+
+
 class ConflictError(RefusedError):
     """A build conflict the auto-resolve may not settle; ``paths`` names where."""
 
@@ -1026,7 +1030,8 @@ def _remove_throwaway(ctx: _Ctx, wt: Path, dir_re: re.Pattern | None = None) -> 
             TOOL_TIMEOUT_S,
             cwd=ctx.main,
         )
-        shutil.rmtree(wt.parent, ignore_errors=True)
+    shutil.rmtree(wt.parent, ignore_errors=True)  # outside the lock: a big tree blocks no add
+    with _worktree_lock(ctx):
         _run(["git", "worktree", "prune"], GIT_TIMEOUT_S, cwd=ctx.main)
 
 
@@ -1039,7 +1044,10 @@ def _worktree_lock(ctx: _Ctx) -> Iterator[None]:
     ``remove`` alone). Every writer of the registrations in this file takes it; git itself and
     other tools do not, so a by-hand ``git worktree prune`` keeps the old race. Fail direction: a
     lock that cannot be opened raises, which refuses the merge — never an unlocked add."""
-    fd = os.open(ctx.common / "fabrik-worktrees.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fd = os.open(ctx.common / "fabrik-worktrees.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    except OSError as exc:
+        raise RefusedError(f"cannot open the worktree lock: {exc}") from exc
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
         yield
@@ -2516,6 +2524,11 @@ QUEUE_JOBS = 2  # two hub legs at 4 shards each = the 8 shards one leg takes tod
 QUEUE_MAX = 4  # 2 waves of ~16 min + 4 locked merges fit the documented 5400 s wrapper (D-1205)
 QUEUE_SHARDS = "4"  # FABRIK_MERGE_SHARDS for a child's selector when the caller set none
 QUEUE_WAIT_S = 1800  # how long the queue waits for a merge it did not start to finish
+# One landing may run a whole locked merge with its own leg (its record did not match): the D-1205
+# wrapper's 5400 s. The queue's documented wrapper is QUEUE_WALL_S (+100 for rund), and a landing
+# starts only while that whole worst case still fits, so the wrapper never kills a merge mid-step.
+LANDING_WORST_S = MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIMEOUT_S + 300
+QUEUE_WALL_S = 9000
 
 
 @contextlib.contextmanager
@@ -2542,7 +2555,7 @@ def _pretest_ctx(ctx: _Ctx) -> _Ctx:
     return pctx
 
 
-def _queue_entries(ctx: _Ctx, limit: int) -> list[dict]:
+def _queue_entries(ctx: _Ctx, limit: int, landed: set[str] = frozenset()) -> list[dict]:
     """The waiting requests in the order ``merge`` takes them (``_owner_requests``), the first
     ``limit``. Read BEFORE the base (Opus 3): a merge landing between the two reads then shows as a
     base whose tree the chain does not hold, never as a request silently missing from it. ``ok`` is
@@ -2550,7 +2563,7 @@ def _queue_entries(ctx: _Ctx, limit: int) -> list[dict]:
     fetches, which would race the locked merge's own fetch): it still lands, in order, through the
     locked merge, which refuses it or tests it itself."""
     out: list[dict] = []
-    for fm in _owner_requests(ctx)[:limit]:
+    for fm in [fm for fm in _owner_requests(ctx) if fm.get("id") not in landed][:limit]:
         try:
             text = (_mail_root() / ctx.mailbox / "inbox" / f"{fm['id']}.md").read_text(
                 encoding="utf-8", errors="replace"
@@ -2653,7 +2666,9 @@ def _run_leg(ctx: _Ctx, el: dict, runner: str) -> int:
         f"the queue's leg for {el['id']} timed out or was killed ({{}}) — not a test verdict; its "
         "locked merge runs the leg itself"
     )
-    os.environ.setdefault("FABRIK_MERGE_SHARDS", QUEUE_SHARDS)
+    shards = os.environ.get("FABRIK_MERGE_SHARDS")
+    if shards is None:
+        os.environ["FABRIK_MERGE_SHARDS"] = QUEUE_SHARDS
     saved = os.environ.get("FABRIK_MERGE_TESTS_RECORDS")
     try:
         with tempfile.TemporaryDirectory(prefix="merge-pretest-records-") as private:
@@ -2676,6 +2691,8 @@ def _run_leg(ctx: _Ctx, el: dict, runner: str) -> int:
             os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
         else:
             os.environ["FABRIK_MERGE_TESTS_RECORDS"] = saved
+        if shards is None:
+            os.environ.pop("FABRIK_MERGE_SHARDS", None)
     print(f"merge_request: queue leg {el['id']}: {summary} in {seconds}s", file=sys.stderr)
     return 0
 
@@ -2686,8 +2703,9 @@ def _leg_child(ctx: _Ctx, el: dict, runner: str) -> None:
 
 def _live_merge(ctx: _Ctx, mine: set[str]) -> str | None:
     """The id of a merge record ANOTHER live process is driving (short of ``replied``, its pid and
-    start alive), or None. A record this queue landed (``mine``) is never waited on: one it left
-    short of ``replied`` (a deferred remote, a reply that failed) names this process, which is alive."""
+    start alive), or None. Never one this queue landed (``mine``) or one THIS process drives: a
+    landing's ``merge`` resumes OTHER stranded records under its own pid, and one it leaves short of
+    ``replied`` (a deferred remote, a failed reply) would read as live forever."""
     for path in sorted(ctx.records.glob("*.json")) if ctx.records.is_dir() else []:
         if path.stem in mine:
             continue
@@ -2695,7 +2713,8 @@ def _live_merge(ctx: _Ctx, mine: set[str]) -> str | None:
             rec = _load(ctx, path.stem)
         except RefusedError:
             continue
-        if rec and rec.get("phase") not in DONE_PHASES and not _stranded(rec):
+        own = rec and rec.get("pid") == os.getpid() and rec.get("start") == _proc_start(os.getpid())
+        if rec and not own and rec.get("phase") not in DONE_PHASES and not _stranded(rec):
             return path.stem
     return None
 
@@ -2707,7 +2726,7 @@ def _land(msg_id: str) -> int:
         try:
             return merge(argparse.Namespace(id=msg_id, queue=False, landing=True))
         except RefusedError as exc:
-            if f"no merge-request {msg_id} " in str(exc):
+            if isinstance(exc, NotWaitingError):
                 # another run took it between the queue's listing and this landing: not this
                 # queue's to report, and the rest of the queue still lands
                 print(f"merge_request: queue: {msg_id} was taken by another run", file=sys.stderr)
@@ -2717,11 +2736,24 @@ def _land(msg_id: str) -> int:
             time.sleep(QUEUE_POLL_S)
 
 
+def _past_wall(started: float, waiting: int) -> bool:
+    """True, with the line saying so, when a landing's worst case no longer fits QUEUE_WALL_S."""
+    if time.monotonic() - started + LANDING_WORST_S <= QUEUE_WALL_S:
+        return False
+    print(
+        f"merge_request: queue: {waiting} request(s) still wait, and one more landing may not fit "
+        f"the queue's {QUEUE_WALL_S}s wall — run `merge_request.py merge --queue` again",
+        file=sys.stderr,
+    )
+    return True
+
+
 def _queue(args: argparse.Namespace) -> int:
     """``merge --queue``: see the block comment above. Exit: the worst of the landings (0 all
     merged, 1 one refused, 4 one left partial — the queue stops there)."""
     ctx = _context(Path.cwd())
-    jobs, limit = max(1, args.jobs), max(1, args.max)
+    jobs, limit = args.jobs, args.max
+    started = time.monotonic()
     runner = _runner_sha()  # once, before any carry can rewrite this file (Opus 9)
     fork = multiprocessing.get_context("fork")
     running: dict[str, object] = {}  # head -> its leg child
@@ -2735,11 +2767,13 @@ def _queue(args: argparse.Namespace) -> int:
                     time.sleep(QUEUE_POLL_S)  # a merge this queue did not start: wait it out
                 if live:
                     raise RefusedError(f"merge {live} is still running after {QUEUE_WAIT_S}s")
-                entries = [e for e in _queue_entries(ctx, limit) if e["id"] not in landed]
+                entries = _queue_entries(ctx, limit, landed)
                 if not entries:
                     return rc
                 base_tip = _rev(ctx.main, HEADS + entries[0]["base"])
                 script = _base_merge_tests(ctx, base_tip) if base_tip else ""
+                if _past_wall(started, len(entries)):
+                    return rc
                 if not base_tip or not script:
                     # no base or no owner tests: nothing runs outside the lock; land in order
                     landed.add(entries[0]["id"])
@@ -2774,6 +2808,8 @@ def _queue(args: argparse.Namespace) -> int:
                     ):
                         break  # the first request is ready to land: tested, reused, or untestable
                     time.sleep(QUEUE_POLL_S)
+                if _past_wall(started, len(entries)):
+                    return rc
                 landed.add(first["id"])
                 code = _land(first["id"])
                 rc = max(rc, code)
@@ -2840,7 +2876,7 @@ def merge(args: argparse.Namespace) -> int:
             if args.id:
                 waiting = [fm for fm in waiting if fm.get("id") == args.id]
                 if not waiting:
-                    raise RefusedError(
+                    raise NotWaitingError(
                         f"no merge-request {args.id} addressed to {ctx.owner} in the inbox"
                     )
             if not waiting:
@@ -3083,6 +3119,16 @@ def _remote_tip(ctx: _Ctx, remote: str, branch: str) -> str | None:
     return None
 
 
+def _positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not an integer") from None
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"{value} is under 1")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="merge_request.py", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -3104,8 +3150,10 @@ def main(argv: list[str] | None = None) -> int:
         help="land the waiting requests in order, their owner tests run first OUTSIDE the merge "
         "lock on a stacked chain (W-0c8c43f1)",
     )
-    pm.add_argument("--jobs", type=int, default=QUEUE_JOBS, help="--queue: legs at once")
-    pm.add_argument("--max", type=int, default=QUEUE_MAX, help="--queue: requests per pass")
+    pm.add_argument("--jobs", type=_positive_int, default=QUEUE_JOBS, help="--queue: legs at once")
+    pm.add_argument(
+        "--max", type=_positive_int, default=QUEUE_MAX, help="--queue: requests per pass"
+    )
     pr = sub.add_parser("resume", help="continue a request from its recorded phase")
     pr.add_argument("id")
     pt = sub.add_parser("retry", help="re-run a refused request whose branch is unchanged")
