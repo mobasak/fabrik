@@ -341,8 +341,10 @@ counts unless its text is already in the render or in a counted seat definition)
 every other repo file it names (outputs and ledgers — `docs/development/reviews/*`, `.tmp/*`,
 `CHANGELOG.md`, `INDEX.md`, `docs/DECISIONS.md`,
 `docs/LESSONS_LEARNT.md`, `docs/STRATEGIC_BACKLOG.md`, the `CLAUDE.md`s — and scripts excluded) and
-the row of every D-id it cites. A path counts when it resolves to a file (`./`, `//` and
-`/opt/fabrik/` spellings, root files included); a directory or glob is a location, not a read; a
+the row of every D-id it cites. A path counts when git tracks it (the index — so every checkout
+holding the same index counts the same files, their words read from the working tree; a tracked symlink only when its target is tracked; a tracked
+path absent from disk or not a file is an error) and it is a file (`./`, `//` and `/opt/fabrik/` spellings, root
+files included); a directory or glob is a location, not a read; a
 zero-width character never glues two words into one. Each row freezes `baseline_own`, the ceiling
 (`render`, own +3%), the seats (`agents`) and the reads.
 

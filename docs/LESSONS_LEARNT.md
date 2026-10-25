@@ -1,6 +1,15 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A measure built in a worktree must not read the disk (2026-10-25)
+
+- **What happened:** slice C's size measure (D-1226) counted a path when the file existed. Its baseline was built in a
+  linked worktree, which holds only tracked files; the main checkout also holds gitignored data and secrets, so
+  master's `--check` failed there and refused every commit (D-1230).
+- **Rule:** anything that must agree across checkouts reads the repo (the git index), never the disk; and a test for it
+  builds a real repo plus a linked worktree with a file only one of them holds, because a fixture tree without git
+  cannot show the difference.
+
 ## Run a key contract over the whole live corpus before anything is keyed on it (2026-10-25)
 
 - **What happened:** slice A of the lean tooling (W-a9b5e763) shipped a sentence matcher reviewed over four rounds
