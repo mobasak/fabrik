@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Lean command corpus plan set converged by /fabrik-plan-review (2026-10-25)
+
+The plan set `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` is CONVERGED (D-1227) after four review passes
+(confirmed 48 → 10 → 3 → 0). Every cutting ticket now runs the reader-test run, the tests that read each cut file, with reds
+measured against the start commit. Preconditions are probed by what landed on master. T46 gained steps and goal gates. Receipt:
+`docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-plan-review.md`.
+
 ### Added — Lean command corpus plan set: 45 units in 57 tickets (2026-10-25)
 
 `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` turns the converged lean-corpus spec into a
