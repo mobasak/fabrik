@@ -55,7 +55,6 @@ entries:
   pins:
   - tests/test_review_queue_pass.py::test_fourth_review_queue_pass_lines
   - tests/test_review_queue_pass.py::test_the_input_class_takes_every_order_of_duplicate_records
-  - tests/test_review_scoped_queue_pass.py::test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds
   - tests/test_review_scoped_queue_pass.py::test_the_input_class_names_every_reader_of_a_printed_command
 - id: cat-a-new-sibling-of-a-pinned
   file: commands/_fragments/review-probe-catalogue.md
@@ -425,7 +424,6 @@ entries:
   class: ban
   pins:
   - tests/test_review_scoped_queue_pass.py::test_seats_run_scripts_from_the_archive_and_pin_callees
-  - tests/test_review_scoped_queue_pass.py::test_a_brief_says_what_the_pin_holds_and_where_the_rest_is_read
   - tests/test_review_scoped_queue_pass.py::test_a_seat_runs_a_mutant_against_whole_test_files
 - id: cat-a-brief-says-what-the-pin-2
   file: commands/_fragments/review-probe-catalogue.md
@@ -571,8 +569,6 @@ entries:
   text:
   - Lint or format findings are compared against HEAD — and against the committed diff, under every claimed toolchain version — before they are reported or refuted; tests re-run after the last lint fix; a refutation that a later commit lands is checked against the completion gate; read the callee before confirming a wrong-method finding; a refuter that needs a forbidden surface marks it `unverified` naming the surface, and the lead executes it; run the files a reader names, not every grep hit
   class: ban
-  pins:
-  - tests/test_review_scoped_queue_pass.py::test_a_brief_names_the_bound_on_the_evidence_it_hands_a_seat
 - id: cat-a-capped-round-one-merges-low
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Loop bookkeeping'

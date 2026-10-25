@@ -292,6 +292,27 @@ def _anchors(text: str) -> set[str]:
     return {normalise(m.group(0)).lower() for m in _ANCHOR.finditer(text) if normalise(m.group(0))}
 
 
+_STEM = re.compile(r"[a-z]{4,}")
+_RECALL = 0.7
+_SHORT = 8  # a clause of up to this many stems must be held whole
+
+
+def _stems(text: str) -> set[str]:
+    return {w[:5] for w in _STEM.findall(text.lower())}
+
+
+def _recall(clause: str, held: str) -> float:
+    """The share of ``clause``'s content stems (letters-only words of 4+ letters, cut to 5; a clause of up to 8 stems must be held whole) still in ``held``:
+    the mechanical proxy for 'this reworded phrase still says it'. COBRA (D-253): the cheapest way past it is a
+    carrier padded with the clause's vocabulary; the carrier is the rewritten text itself, the audit pair reads
+    old against new, and a clause with an anchor must also keep every anchor."""
+    want = _stems(clause)
+    if not want:
+        return 1.0
+    share = len(want & _stems(held)) / len(want)
+    return share if len(want) > _SHORT else float(share == 1.0)
+
+
 def _class_problems(e: dict, ids: dict[str, dict]) -> list[str]:
     """Every D-1236 loader-lint problem of one entry that carries a ``class`` (empty when clean)."""
     cls = e["class"]
@@ -331,6 +352,8 @@ def _class_problems(e: dict, ids: dict[str, dict]) -> list[str]:
         if n in labels or normalise(bare).lower().replace("`", "") in held_text or not re.search(r"[A-Za-z0-9]", bare):
             continue
         missing = {a for a in _anchors(clause) if a.replace("`", "") not in held_text}
+        if not missing and _recall(bare, held_text) >= _RECALL:
+            continue
         if missing or not _anchors(clause):
             out.append(
                 f"baseline clause {n} is in no `text` phrase and not classified (narrative|duplicate-of) — "

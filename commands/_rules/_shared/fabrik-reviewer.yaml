@@ -177,8 +177,6 @@ entries:
   - Never any git verb that rewrites the working tree (the refused set is every verb that WRITES; any other read-only query, `git grep`, `git rev-parse`, `git worktree list` included, needs no permission)
   section: '## Hard limits'
   class: ban
-  clauses:
-    1: narrative
 - id: limits-probe-copy
   file: commands/_agents/fabrik-reviewer.md
   current: Probe a mutation on a COPY under your own scratch directory, never on the tracked file

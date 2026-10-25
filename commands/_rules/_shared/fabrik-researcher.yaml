@@ -105,7 +105,6 @@ entries:
   class: prose
   pins:
   - tests/test_agent_definitions.py::test_the_researcher_returns_a_bounded_inference_verdict
-  - tests/test_agent_definitions.py::test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar
 - id: agent-rsr-needs-raw-fetch-the-source-exists
   file: commands/_agents/fabrik-researcher.md
   section: '## Method (per fact)'
@@ -128,8 +127,6 @@ entries:
   - agent-rsr-give-the-reasoning-and-the-url
   - agent-rsr-stale
   class: prose
-  pins:
-  - tests/test_agent_definitions.py::test_the_researcher_returns_a_bounded_inference_verdict
 - id: agent-rsr-stale
   file: commands/_agents/fabrik-researcher.md
   section: '## Method (per fact)'
@@ -236,14 +233,14 @@ entries:
   text:
   - A `WebFetch` reply is a small model's ANSWER about the page, never an extract — for an exact-quote check use `mcp__exa__web_fetch_exa` on a SHORT page and name the fetch path in your verdict (it would have failed a correct quote as MISQUOTED)
   class: ban
-  pins:
-  - tests/test_agent_definitions.py::test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar
   ordered:
   - agent-rsr-on-a-long-page-a-source
   - agent-rsr-compare-the-returned-excerpt-character-by
   - agent-rsr-an-excerpt-from-the-wrong-place
   - agent-rsr-an-empty-or-not-found-reply
   - agent-rsr-anchor-the-raw-arm-silently-drops-angle-bracket
+  pins:
+  - tests/test_agent_definitions.py::test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar
 - id: agent-rsr-on-a-long-page-a-source
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
@@ -380,8 +377,6 @@ entries:
   clauses:
     1: narrative
     2: narrative
-  pins:
-  - tests/test_agent_definitions.py::test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar
 - id: agent-rsr-anchor-the-raw-arm-silently-drops-tables
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
@@ -392,7 +387,6 @@ entries:
   class: prose
   clauses:
     2: narrative
-    3: narrative
 - id: agent-rsr-anchor-freshness-binds-a-fact-you-did-not-open
   file: commands/_agents/fabrik-researcher.md
   section: '## Method (per fact)'
@@ -605,8 +599,6 @@ entries:
   text:
   - 'No prose padding: your caller merges/refutes your findings'
   class: grammar
-  clauses:
-    2: narrative
 - id: rsr-L68-when-the-dispatching-brief-specifies-its-o
   file: commands/_agents/fabrik-researcher.md
   section: '## Return format'

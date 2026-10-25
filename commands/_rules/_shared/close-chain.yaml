@@ -67,7 +67,7 @@ entries:
   current: It runs BEFORE the response's closing seven-line block (CLAUDE.md § FINAL OUTPUT), whose `FEEDBACK:` line the chain's last call prints
   text:
   - It runs BEFORE the response's closing seven-line block (CLAUDE.md § FINAL OUTPUT), whose `FEEDBACK:` line the chain's last call prints
-  class: prose
+  class: grammar
   clauses:
     2: narrative
 - id: cc2-recheck-after-pass

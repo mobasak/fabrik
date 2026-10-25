@@ -324,6 +324,21 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   whole unit under its `section`.
 - **Changed on purpose** (§ The rule test step 8): an entry's `changed-by:` lists each D-row that
   changed it; every id must be a row in `docs/DECISIONS.md`.
+- **Class and clause lints** (D-1236): an entry may carry `class:` (`ban` · `grammar` · `behavioural` ·
+  `prose`) and `clauses:` (`{<n>: narrative | {duplicate-of: id}}`, keyed by the 1-based clause of its
+  `baseline`, split at `;` and ` — ` outside backticks and parentheses). Every entry of a live
+  `_shared/` ledger needs a `class`. For an entry with a `class` the load fails when: a `prose` `text`
+  phrase is under 6 normalised words; the baseline's unlabelled clauses hold a ban token (`never`,
+  `refus…`, `forbid…`, `must not`, `do not`, `cannot`, `may not`) and no `text` phrase does; or a
+  baseline clause is neither inside the `text` phrases, nor labelled, nor covered (every backticked
+  token, number, path and `never`/`must`/`only`/`refus…` word of the clause held, and for a clause
+  without such an anchor 70% of its content stems — all of them for a clause of up to 8 stems). A
+  decision id, work-item id, ISO date, mail id or a parenthetical citing one is history and no anchor.
+  `losses()` adds: a `prose` phrase must be unique in its file, and an entry's `baseline` must be text of
+  its baseline file (the baseline is immutable). The cheapest ways past these are tagging every entry
+  `prose`, labelling a live clause `narrative`, and padding a carrier with the clause's vocabulary
+  (D-253): the author-blind audit pair reads every reworded entry old against new, and each receipt
+  states reworded/total entries beside the audit's weaker-count.
 - **Light form** (step 9): `generate_unchanged(baseline_path, new_own_text)` returns one `text`
   entry per baseline prose or table unit that survives unchanged, `section`-pinned unless an
   `{{include:…}}` precedes it in its section (the render splices the fragment there, so that unit is

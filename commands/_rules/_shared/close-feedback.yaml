@@ -48,7 +48,7 @@ entries:
   current: '> `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · tokens <input> input / <output> output (<n>% cached) · confusion: <what in the > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without > changing the outcome | none> · change: <axis>: <the ONE concrete edit to this command or a rule that > would have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none > — surfaces exercised: <what your run touched>> [· cost: <a PLAIN AMOUNT, e.g. `0.0125` or `$0.30` — prose or `10 usd` is refused, it is summed>]`'
   text:
   - '> `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · tokens <input> input / <output> output (<n>% cached) · confusion: <what in the > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without > changing the outcome | none> · change: <axis>: <the ONE concrete edit to this command or a rule that > would have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none > — surfaces exercised: <what your run touched>> [· cost: <a PLAIN AMOUNT, e.g. `0.0125` or `$0.30` — prose or `10 usd` is refused, it is summed>]`'
-  class: ban
+  class: grammar
 - id: cf-9
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -200,7 +200,7 @@ entries:
   current: The close prints the finished `FEEDBACK:` line; paste it as the 7th line of the FINAL OUTPUT block
   text:
   - The close prints the finished `FEEDBACK:` line; paste it as the 7th line of the FINAL OUTPUT block
-  class: prose
+  class: grammar
 - id: cf-26
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'

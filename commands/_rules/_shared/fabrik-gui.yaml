@@ -31,8 +31,6 @@ entries:
   text:
   - 'Read-only git (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy'
   class: ban
-  clauses:
-    5: narrative
 - id: gui-playwright
   file: commands/_agents/fabrik-gui.md
   section: '## Your toolset'
@@ -117,7 +115,7 @@ entries:
   current: Run every test/build as a plain synchronous shell call (`npx playwright test …` with a generous `timeout`) and read its exit output in the same turn; if a suite is too slow for one call, split its scope and run each slice synchronously, never deferring a slice to a signal that will not arrive
   text:
   - Run every test/build as a plain synchronous shell call (`npx playwright test …` with a generous `timeout`) and read its exit output in the same turn; if a suite is too slow for one call, split its scope and run each slice synchronously, never deferring a slice to a signal that will not arrive
-  class: prose
+  class: ban
 - id: gui-sync-split
   file: commands/_agents/fabrik-gui.md
   section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'

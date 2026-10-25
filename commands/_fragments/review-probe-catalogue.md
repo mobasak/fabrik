@@ -30,11 +30,12 @@ brief. Execute each, or name in the brief why the shape lacks it.
   when the fix keeps one of them) and probe it again before each delta; keep an
   adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions — false
   green and false red — committing the positive/negative probe list beside it.
-- Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively, vendored venvs and
-  `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side by side, and before
-  adding a sibling of a pinned or guarded line, read the comment on the line it copies; port vendored code, or reimplement another tool's
-  semantics (a YAML merge, a compose override), and prove parity by an executable diff against that tool's own output
-  over its edge cases (for a merge: nesting, mixed types, cycles) before the fix lands, never a model from memory.
+- Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively,
+  vendored venvs and `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side by
+  side, and before adding a sibling of a pinned or guarded line, read the comment on the line it copies; port vendored
+  code, or reimplement another tool's semantics (a YAML merge, a compose override), and prove parity by an executable
+  diff against that tool's own output over its edge cases (for a merge: nesting, mixed types, cycles) before the fix
+  lands, never a model from memory.
 - One mutant per clause the edit states and one per guard it adds or alters (that guard removed — term-coverage rule
   (4): "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it"), written
   as a literal before/after (an ordering claim names its mutant); re-run every prior mutant and the reproducing probe
@@ -58,18 +59,19 @@ brief. Execute each, or name in the brief why the shape lacks it.
 
 ## The brief's hunt lines (name the ones the shape has)
 - Callers and consumers: every caller of a changed exit code, output line or gated script; every consumer of a changed
-  prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link fields, hand-kept indexes); callers that use a normaliser's
-  return value; every line that joins, compares or keys a changed output against another producer's, named with the form
-  each side's values take (a path relative to a subdirectory or to the top level, say); a pure helper's own return
-  contract, not only what its callers observe; the line that copies a template-emitted claim; every gate grading the old
-  name; every reader of a changed or vendored file's text that never imports it (a scaffold fold such as
-  `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and
-  the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob
-  that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by
-  `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the file named in the brief; every outbound
-  sink a production-reaching test can touch; every actor touching an RLS table; placeholder resolution per consumer;
-  repo-wide service lists and absence statements; every reader of a changed predicate's verdict (a notice, message or
-  wall line that reads the same hold), and of each field a fix writes, named before the closing round.
+  prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link
+  fields, hand-kept indexes); callers that use a normaliser's return value; every line that joins, compares or keys a
+  changed output against another producer's, named with the form each side's values take (a path relative to a
+  subdirectory or to the top level, say); a pure helper's own return contract, not only what its callers observe; the
+  line that copies a template-emitted claim; every gate grading the old name; every reader of a changed or vendored
+  file's text that never imports it (a scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a
+  drift or sync checker), found by the lead grepping the hub and the fleet repos for the file's path, basename and
+  directory and reading `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read
+  through each project's `.fabrik/synced.lock` by `scripts/enforcement/check_synced_unmodified.py`), each hit that
+  reads the file named in the brief; every outbound sink a production-reaching test can touch; every actor touching an
+  RLS table; placeholder resolution per consumer; repo-wide service lists and absence statements; every reader of a
+  changed predicate's verdict (a notice, message or wall line that reads the same hold), and of each field a fix
+  writes, named before the closing round.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate keys,
   ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed at its
   truncation edges, and run beside the parent commit's redactor over one generated input corpus, its generator and size

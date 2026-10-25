@@ -79,7 +79,7 @@ entries:
   current: Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the `RUN:` line shows where the run is
   text:
   - Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the `RUN:` line shows where the run is
-  class: prose
+  class: grammar
 - id: rr-surface
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
