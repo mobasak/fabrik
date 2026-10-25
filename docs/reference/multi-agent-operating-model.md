@@ -199,6 +199,16 @@ python3 scripts/merge_request.py request --review <closing run record or review 
 #    suite, never beside one.
 # 2. the merge owner, in the main checkout:
 python3 scripts/merge_request.py merge [<id>]   # the oldest request addressed to it, or <id>
+python3 scripts/merge_request.py merge --queue [--jobs 2] [--max 4]
+#    → 2+ requests waiting: builds them as a STACKED chain in merge order (S0 the local base, Sk
+#      request k merged onto S(k-1)) in pretest throwaways, runs each leg OUTSIDE the merge lock in a
+#      forked child (at most --jobs at once, FABRIK_MERGE_SHARDS=4 each when unset), records each
+#      green tree as --pretest does, then lands each request in order through the unchanged locked
+#      `merge <id>`, which skips its leg on the matching tree. A request that will not build is
+#      skipped and the chain continues; after each landing the rest is rebuilt on the new base and
+#      every record that still matches is reused, so a refused request costs its own leg only. One
+#      queue at a time (`fabrik-merge/pretest/queue.lock`). W-0c8c43f1. Plain `merge` names the
+#      verb when 2+ requests wait.
 python3 scripts/merge_request.py resume <id>    # a request left short of `replied` (exit 4)
 python3 scripts/merge_request.py retry <id>     # re-run a REFUSED request whose branch is unchanged
 ```
