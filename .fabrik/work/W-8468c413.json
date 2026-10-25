@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T01:49:00.243099Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-8468c413",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task the two-file wording edit with infra-3's proposed clause; counter = rotations.jsonl consecutive-repeat census a week after",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "mail-01m5r4ef2g"
+  ],
+  "title": "Name rotate-session's exit codes (75 transient = ask again once the target ends its turn, never on a timer; 1 permanent = do the named act first) in the coordinator's rotation sentence, CLAUDE.md:519 + templates/governance/CLAUDE.md (mail 01M5R4EF2G, infra-3; code merged a87998bd8, W-05021a03) — governance-sync path, full /fabrik-review; tests/test_session_rotation_rule.py pins the bullet"
+}
