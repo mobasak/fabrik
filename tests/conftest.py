@@ -154,8 +154,8 @@ def pytest_configure(config):
     # two elements; tests that want a jump set it with monkeypatch.
     for key in [k for k in os.environ if k.startswith("FABRIK_SSH_JUMP_")]:
         os.environ.pop(key, None)
-    # A pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to redirect its OWN record
-    # writes; inherited by the shards, it redirected the selector tests' writes too (W-bce8914b).
+    # A pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to redirect its OWN
+    # records; inherited by the shards, it redirected the selector tests' records too (W-bce8914b).
     os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
     _install_fleet_guard()
     # A runaway test is killed past FABRIK_TEST_RSS_MAX, never the host: two WSL crashes on
