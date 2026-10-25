@@ -312,8 +312,8 @@ raises.
 
 - **Own text:** a command's source with every `{{include:…}}` line blanked; a shared file is its
   own text.
-- **Units:** frontmatter is dropped. A heading, a table row, a fenced block (its lines joined by
-  ` ⏎ `, kept verbatim) or an HTML comment is one unit, and prose splits into sentences. A comment
+- **Units:** frontmatter is dropped. A heading, a table row, a fenced block (each line
+  whitespace-collapsed, the lines joined by ` ⏎ `) or an HTML comment is one unit, and prose splits into sentences. A comment
   carries no rule.
 - **Matching (U2):** prose, headings and table rows match exactly after collapsing whitespace,
   removing `**`/`__` outside backticks and dropping a trailing period. A reworded or moved rule
@@ -328,8 +328,8 @@ raises.
 | Exit | Meaning |
 |---|---|
 | 0 | `--check`: in sync, no LOSS |
-| 1 | `--check`: drift (the installed corpus differs from the render) · any mode: a `SystemExit("…")` render defect |
-| 2 | any mode: a render error; there is then no render to check, so no LOSS is computed |
+| 1 | `--check`: drift (the installed corpus differs from the render) · `--check` or a render: a `SystemExit("…")` render defect |
+| 2 | `--check` or a render: a render error; there is then no render to check, so no LOSS is computed |
 | 3 | `--extract`, or a render into the installed corpus, refused outside the main checkout |
 | 4 | `--check`: a rule LOSS, printed before any drift and outranking it |
 

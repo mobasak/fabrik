@@ -431,3 +431,105 @@ def test_baseline_file_is_hashed_as_written(tmp_path: Path) -> None:
     sha = cr.write_baseline("## S\n\nOne. Two.\n\n```\na\nb\n```\n", out)
     assert sha == hashlib.sha256(out.read_bytes()).hexdigest()
     assert cr._read_baseline(out.read_bytes()) == ["## S ¦ ## S", "## S ¦ One", "## S ¦ Two", "## S ¦ a ⏎ b"]
+
+
+# ── review pass 2: own-fix regressions and the reasons no test triggered ──────────────────────
+def test_ordered_compares_whole_file_positions(tmp_path: Path) -> None:
+    nested = "## X\n\n### Sub\n\nBeta rule two.\n\nAlpha rule one.\n"
+    t = _tree(tmp_path, source=nested, render=nested)
+    a = {"id": "A", "section": "## X", "current": "Alpha rule one.", "text": ["Alpha"]}
+    b = {"id": "B", "section": "### Sub", "current": "Beta rule two.", "text": ["Beta"]}
+    _ledger(t, [{**a, "ordered": ["A", "B"]}, b], baseline_from=nested)
+    _one(_losses(t), "out of order")  # B precedes A in the file, parent and child sections alike
+    _ledger(t, [{**a, "ordered": ["B", "A"]}, b], baseline_from=nested)
+    assert _losses(t) == []
+    flat = "## A\n\nX rule.\n\n## B\n\nY rule.\n\nZ rule.\n"
+    t = _tree(tmp_path / "mixed", source=flat, render=flat)
+    w = {"id": "W", "current": "Z rule.", "text": ["Z"]}  # no section: the whole file
+    sec = {"id": "S", "section": "## B", "current": "Y rule.", "text": ["Y"]}
+    _ledger(t, [{**w, "ordered": ["W", "S"]}, sec], baseline_from=flat)
+    _one(_losses(t), "out of order")
+    _ledger(t, [{**w, "ordered": ["S", "W"]}, sec], baseline_from=flat)
+    assert _losses(t) == []
+
+
+def test_fenced_units_match_and_survive_whitespace(tmp_path: Path) -> None:
+    src = "## A\n\n```\nrm -x a.\necho  hi\n```\n"
+    t = _tree(tmp_path, source=src, render=src.replace("echo  hi", "echo hi"))
+    fence = {"id": "F", "section": "## A", "current": "rm -x a. ⏎ echo hi", "text": ["rm -x"]}
+    _ledger(t, [fence], baseline_from=src)
+    assert _losses(t) == []  # a fence is a `current`; interior whitespace is no change
+    assert cr.vanished(cr.keys(src), src.replace("echo  hi", "echo   hi")) == []
+
+
+def test_an_empty_own_text_has_an_empty_baseline(tmp_path: Path) -> None:
+    sha = cr.write_baseline("", tmp_path / "b.txt")
+    assert (tmp_path / "b.txt").read_bytes() == b"" and cr._read_baseline(b"") == []
+    assert sha == hashlib.sha256(b"").hexdigest()
+
+
+def test_the_enforced_lint_reads_call_arguments_only(tmp_path: Path) -> None:
+    base_src = SOURCE.replace("Stop at the pin.", "Run `gate.py` first.")
+    t = _tree(tmp_path, source=base_src)
+    (t["root"] / "tests").mkdir()
+    (t["root"] / "tests" / "test_g.py").write_text(
+        "import subprocess\n"
+        "def test_doc():\n    '''see gate.py for the refusal'''\n    r = subprocess.run(['other.py'])\n"
+        "    assert r.returncode == 2\n"
+        "def test_http():\n    r = subprocess.run(['gate.py'])\n    assert r.code == 200\n"
+        "def test_kw():\n    r = subprocess.run(args=['gate.py', '-x'])\n    assert r.returncode != 0\n"
+        "def test_dup():\n    pass\n"
+        "class K:\n    def test_dup(self):\n        pass\n"
+    )
+    (t["root"] / "tests" / "test_bad.py").write_text("def broken(:\n")
+    enf = {"id": "R5", "section": "## Scope", "current": "Run `gate.py` first.", "text": ["`gate.py`"]}
+    _ledger(t, [{**enf, "enforced": "tests/test_g.py::test_kw"}], baseline_from=base_src)
+    assert _losses(t) == []  # a keyword argument is a call argument
+    for node, why in (
+        ("tests/test_g.py::test_doc", "never invokes the script"),  # a docstring is not a call
+        ("tests/test_g.py::test_http", "asserts no refusal"),  # `code == 200` is not an exit code
+        ("tests/test_g.py::test_dup", "2 functions"),
+        ("tests/test_bad.py::broken", "does not parse"),
+    ):
+        _ledger(t, [{**enf, "enforced": node}], baseline_from=base_src)
+        _one(_losses(t), why)
+
+
+def test_more_malformed_shapes(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    assert "not a bare command name" in _refused(t, command="../demo")
+    assert "not a file beside the ledger" in _refused(t, baseline_sentences="../demo.baseline.txt")
+    assert "`retired` is not a list" in _refused(t, retired={"a": 1})
+    assert "`vanished` is not a dict" in _refused(t, vanished=["L1"])
+    assert "`current` is not a string" in _refused(t, entries=[{**ENTRY, "current": 5}])
+    live = [{"decision": "D-0001", "entry": {"id": "R9", "text": ["x"]}}]
+    assert "also a live entry" in _refused(t, entries=[ENTRY, {**ENTRY, "id": "R9"}], retired=live)
+    p = t["rules"] / "demo.yaml"
+    p.write_text("command: demo\ncommand: other\n")
+    assert cr.summary(t["rules"]) == ["LEDGER demo.yaml: unreadable — Malformed"]
+
+
+def test_missing_files_and_whole_file_text(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    _ledger(t, [{"id": "A1", "file": "_agents/absent.md", "current": "x.", "text": ["x"]}])
+    _one(_losses(t), "file absent.md missing")
+    _ledger(t, [{"id": "W1", "text": ["no such words"]}])
+    _one(_losses(t), "text phrase not in its file")
+    frag = t["root"] / "commands" / "_fragments" / "gone.md"
+    frag.parent.mkdir(parents=True)
+    frag.write_text("## G\n\nKeep.\n")
+    base = t["rules"] / "_shared" / "gone.baseline.txt"
+    sha = cr.write_baseline(frag.read_text(), base)
+    led = {"shared": "commands/_fragments/gone.md", "baseline_sentences": base.name, "baseline_sha256": sha,
+           "entries": [{"id": "G1", "text": ["Keep"]}]}
+    (t["rules"] / "_shared" / "gone.yaml").write_text(yaml.safe_dump(led))
+    frag.unlink()
+    assert any("its own text gone.md is missing" in x for x in _losses(t))
+
+
+def test_losses_survives_an_unreadable_rules_dir(tmp_path: Path, monkeypatch) -> None:
+    def boom(*_a, **_k):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(cr, "ledgers", boom)
+    assert cr.losses(tmp_path, tmp_path, tmp_path) == ["LOSS rules: unreadable — PermissionError: denied"]

@@ -99,7 +99,7 @@ def units(text: str) -> list[tuple[str, str, str]]:
                 out.append((heading, "fence", _FENCE_JOIN.join(fence)))
                 fence = None
             else:
-                fence.append(s)
+                fence.append(" ".join(s.split()))
             continue
         if comment is not None:
             comment.append(s)
@@ -163,13 +163,16 @@ def own_text(source: str) -> str:
 
 def _read_baseline(raw: bytes) -> list[str]:
     text = raw.decode("utf-8")
+    if not text:
+        return []
     lines = text.split("\n")
-    return lines[:-1] if lines and lines[-1] == "" else lines
+    return lines[:-1] if lines[-1] == "" else lines
 
 
 def write_baseline(text: str, out: Path) -> str:
     """Write ``text``'s keys, one per line, to ``out``; return its sha256 for ``baseline_sha256:``."""
-    data = ("\n".join(keys(text)) + "\n").encode("utf-8")
+    ks = keys(text)
+    data = ("\n".join(ks) + "\n" if ks else "").encode("utf-8")
     out.write_bytes(data)
     return hashlib.sha256(data).hexdigest()
 
@@ -178,7 +181,7 @@ def write_baseline(text: str, out: Path) -> str:
 _TOP = {"command", "shared", "baseline_sentences", "baseline_sha256", "entries", "retired", "vanished"}
 _ENTRY = {"id", "file", "section", "baseline", "current", "text", "ordered", "forbidden", "enforced", "pins"}
 _CARRIERS = ("text", "ordered", "forbidden", "enforced")
-_REFUSAL = re.compile(r"\b(?:returncode|exit_code|code)\s*(?:!=\s*0\b|==\s*[1-9]\d*)")
+_REFUSAL = re.compile(r"\b(?:returncode|exit_code)\s*(?:!=\s*0\b|==\s*[1-9]\d*)")
 
 
 class Malformed(Exception):
@@ -267,7 +270,10 @@ def _lint_enforced(node: str, root: Path, phrases: list[str]) -> str | None:
     named = {Path(m).name for ph in phrases for m in re.findall(r"[\w./-]+\.(?:py|sh)\b", ph)}
     called = {
         Path(tok).name
-        for n in ast.walk(fn)
+        for call in ast.walk(fn)
+        if isinstance(call, ast.Call)
+        for arg in [*call.args, *(k.value for k in call.keywords)]
+        for n in ast.walk(arg)
         if isinstance(n, ast.Constant) and isinstance(n.value, str)
         for tok in n.value.split()
     }
@@ -313,6 +319,11 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         raise Malformed("`command:`/`shared:` is not a non-empty string")
     if shared and not _inside(root / name, root):
         raise Malformed(f"shared {name!r} escapes the repo")
+    if not shared and ("/" in name or "\\" in name or name.startswith(".")):
+        raise Malformed(f"command {name!r} is not a bare command name")
+    bs = data.get("baseline_sentences")
+    if isinstance(bs, str) and ("/" in bs or "\\" in bs or bs.startswith(".")):
+        raise Malformed(f"baseline_sentences {bs!r} is not a file beside the ledger")
     for k in ("baseline_sentences", "baseline_sha256"):
         if k in data and not isinstance(data[k], str):
             raise Malformed(f"`{k}` must be a quoted string")
@@ -412,7 +423,7 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
     for n in vanished(baseline, own):
         if f"L{n}" not in labels:
             loss.append(f"LOSS {name}: baseline L{n} vanished, unclassified — {baseline[n - 1][:120]}")
-    positions: dict[str, tuple[int, int]] = {}
+    positions: dict[str, int] = {}
     for e in ledger["_ids"].values():
         f = _resolve(e, ledger, render_dir, root)
         if not f.is_file():
@@ -431,13 +442,15 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
         where = "under its section" if e.get("section") else "in its file"
         cur = e.get("current")
         if cur:
-            want = normalise(cur)
             mine = [t for _h, k, t in units(scope) if k != "comment"]
-            if want not in mine:
+            want = next((c for c in (normalise(cur), " ".join(cur.split())) if c in mine), None)
+            if want is None:
                 loss.append(f"LOSS {name} {e['id']}: `current` is not a unit {where}")
                 continue
-            # `ordered` compares (the section's heading line, the unit's index inside it)
-            positions[e["id"]] = (start, mine.index(want))
+            # `ordered` compares each entry's unit index in the WHOLE live file: the units before
+            # its section's heading line (heading included), plus its index inside the section
+            before = units("\n".join(ln.lstrip("\0") for ln in _live_lines(text)[: start + 1])) if e.get("section") else []
+            positions[e["id"]] = len([u for u in before if u[1] != "comment"]) + mine.index(want)
             for ph in e.get("text") or []:
                 if normalise(ph) not in want:
                     loss.append(f"LOSS {name} {e['id']}: text phrase not in `current` — {ph[:80]}")
@@ -468,8 +481,12 @@ def losses(render_dir: Path, root: Path, src_dir: Path, rules: Path | None = Non
     command has no source in a FIXTURE ``src_dir`` is skipped (a fixture tree never meets the live
     ledgers); against the live ``commands/_sources/`` a missing source is a LOSS."""
     out: list[str] = []
-    live = src_dir.resolve() == SRC_DIR.resolve()
-    for path in ledgers(rules):
+    try:
+        live = src_dir.resolve() == SRC_DIR.resolve()
+        paths = ledgers(rules)
+    except Exception as exc:  # noqa: BLE001 — losses() never raises
+        return [f"LOSS rules: unreadable — {type(exc).__name__}: {exc}"]
+    for path in paths:
         try:
             if path.suffix == ".yml":
                 raise Malformed("a ledger is named *.yaml")
@@ -492,7 +509,7 @@ def summary(rules: Path | None = None) -> list[str]:
     lines = []
     for path in ledgers(rules):
         try:
-            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            data = yaml.load(path.read_text(encoding="utf-8"), Loader=_NoDupLoader) or {}  # noqa: S506
             entries = data.get("entries") if isinstance(data, dict) else None
             van = data.get("vanished") if isinstance(data, dict) else None
             n = len(entries) if isinstance(entries, list) else 0
