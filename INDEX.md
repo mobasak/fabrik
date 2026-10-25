@@ -1771,7 +1771,7 @@ docs/
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
 │   ├── agent-command-routing-and-gates.md
 │   ├── agent-identity.md
-│   ├── api-credit.md               # Capped, read-only `claude -p --bare` runs that spend the three prepaid API credits (D-1196, W-894f994f)
+│   ├── api-credit.md               # Capped, read-only `claude -p --safe-mode` runs that spend the three prepaid API credits (D-1196, W-894f994f)
 │   ├── chat-history-render.md
 │   ├── ci-health-probe.md
 │   ├── claude-account-rotation.md
@@ -1817,7 +1817,7 @@ docs/
 | [docs/README.md](docs/README.md) | The docs/ tree's charter and folder map — one role per folder |
 | [preplans/README.md](docs/preplans/README.md) | Preplans folder — stage 1 of the Fabrik lifecycle, captured intent before `fabrik scaffold` |
 | [workstation/kaizen.md](docs/workstation/kaizen.md) | The kaizen continuous-improvement loop on this box — the daily measurement half and the analysis half |
-| [workstation/api-credit.md](docs/workstation/api-credit.md) | Spending the three prepaid API credits (D-1196): `scripts/api_credit.py` runs one `claude -p --bare --restricted` read-only task on a key, caps each key at $200 in a flocked ledger (unknown cost counts as spent), `status` reads the spend back |
+| [workstation/api-credit.md](docs/workstation/api-credit.md) | Spending the three prepaid API credits (D-1196): `scripts/api_credit.py` runs one `claude -p --safe-mode --restricted` read-only task (Read, Grep, Glob) on a key behind a keyless auth pre-flight, caps each key at $200 in a flocked ledger (unknown cost counts as spent), `status` reads the spend back |
 | [workstation/cloud-dispatch.md](docs/workstation/cloud-dispatch.md) | Cloud subagents that spend the per-account cloud-session credit: `scripts/cloud_dispatch.py` fires a fleet account's claude.ai routine (`.fabrik/cloud-routines.json`), waits for its `claude/<slug>` branch, reads its log (D-857) |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
 | [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) | Deploy code architecture reference |

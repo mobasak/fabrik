@@ -16,9 +16,9 @@ python3 scripts/api_credit.py run --pick --model sonnet --prompt-file brief.md -
 python3 scripts/api_credit.py settle --run <id> --cost 0.42   # close a run that has no cost with the console's figure
 ```
 
-`run` starts `claude -p --bare --restricted` with:
+`run` starts `claude -p --safe-mode --restricted` with:
 - the chosen key as `ANTHROPIC_API_KEY`;
-- the tools fixed at Read, Grep and Glob;
+- the tools fixed at Read, Grep and Glob (a finder can locate files and follow callers in the pinned copy);
 - `--permission-mode dontAsk` and `--permission-prompts none`;
 - a fresh `CLAUDE_CONFIG_DIR`, deleted after the run;
 - an empty cwd under `~/.claude/state/api-credit/`.
@@ -32,10 +32,23 @@ automatically.
 
 ## The safety boundary
 
-- **Auth.** `--bare` reads `ANTHROPIC_API_KEY` only and never OAuth or the keychain, so a run cannot spend subscription
-  quota. A bad key fails rather than falling back (probed 2026-10-24). The plain `ANTHROPIC_API_KEY` in `.env` stays
+- **Why not `--bare`.** On CLI 2.1.310 `--bare` drops Grep and Glob whatever `--tools` lists (the init event shows
+  `['Read']`; probed 2026-10-25, W-230abfd5), which left a finder unable to search. `--safe-mode` keeps them and
+  disables hooks, CLAUDE.md, plugins and MCP servers, but its help says auth "works normally", so the auth guarantee is
+  executed rather than assumed (next bullet).
+- **Auth — the keyless pre-flight.** Before the start row, `run` starts the same argv once with no `ANTHROPIC_API_KEY`,
+  stdin `hi`, `--max-turns 1`, `--output-format stream-json --verbose`, on its own empty config dir (removed after).
+  The run is refused (exit 2, nothing provisioned) unless the init event lists exactly Glob, Grep and Read with
+  `apiKeySource` `none`, and the result is an error with `total_cost_usd` 0 and `duration_api_ms` 0. So no other
+  credential — an OAuth login, a keychain, a managed env — can answer for the run; the result's `subtype` reads
+  `success` on this failure and is never read. The real run then has only the key: its config dir is fresh and empty,
+  and every `ANTHROPIC*`/`CLAUDE*` name is stripped from its env. A bad key fails rather than falling back (probed
+  2026-10-24 and 2026-10-25). The one source the pre-flight cannot see is a credential the CLI would read only when a
+  key is present; the server-side prepaid credit is the backstop there. The plain `ANTHROPIC_API_KEY` in `.env` stays
   empty, so nothing else bills the API by accident.
-- **Reach.** `--bare` skips every hook, so the fleet's guards do not run inside a run. That is why the tools are
+- **Managed settings.** A managed-settings directory (`/etc/claude-code`, or `API_CREDIT_MANAGED_DIR`) refuses every
+  run: its env and hooks apply under `--safe-mode` and `--restricted` alike, and the pre-flight cannot see them.
+- **Reach.** `--safe-mode` disables every hook, so the fleet's guards do not run inside a run. That is why the tools are
   read-only, and why `--restricted` confines them to the cwd and each `--add-dir` (a read outside is denied, probed).
   Every `--add-dir` is vetted, and the run is refused (exit 2) when the directory is not an absolute, non-symlink
   directory, or:
