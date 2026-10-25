@@ -199,22 +199,24 @@ the local `gh` token — `/web-setup` is hidden headless; drive it through a pty
   registry's `credit_note` says the $250 promotional credit is "spent before plan usage".
   Anthropic's docs say a cloud session "counts toward your plan's usage limits"
   (code.claude.com/docs/en/claude-code-on-the-web), that scheduled tasks "draw down subscription
-  usage the same way interactive sessions do", and they name usage credits only as metered
-  overage past the plan limit (code.claude.com/docs/en/routines § Usage and limits; both fetched
-  2026-10-25). Neither doc mentions a promotional credit. Measured for W-b00d9d72:
-  - Three of the five fires (can and ozgurbasak on 10-14, ob on 10-24, each an account no
-    session was using) opened a 5-hour plan window. Each reset came at fire + 4.9–5.0 h (every reset
-    here is a whole multiple of 10 minutes).
+  usage the same way interactive sessions do", and they name usage credits as metered overage
+  past the plan limit (code.claude.com/docs/en/routines § Usage and limits; both pages fetched
+  whole 2026-10-25). Neither page mentions a promotional credit. Measured for W-b00d9d72:
+  - Three of the five fires (can and ozgurbasak on 10-14, ob on 10-24, none of them the box's
+    active account at the fire in the rotation ledger) opened a 5-hour plan window. Each reset came
+    at fire + 4.91–5.01 h; every reset here is a whole multiple of 10 minutes.
   - mob's window was already open (its reset came at fire + 0.5 h). ob's 10-14 fire landed in a
-    window its active session had opened at 17:00.
-  - No reading moved by a visible 1 % step.
+    window that had reset at 17:00 while ob was the active account.
+  - Each run has one reading, taken after it, with no before/after pair. can, ozgurbasak and ob
+    (10-24) read 5-hour utilization 0 (two decimals) after runs costing $0.33–$0.57.
   - Every run's `rate_limit_info` reads `overageStatus: rejected`: `org_level_disabled` on can,
     ozgurbasak and mob, and `out_of_credits` on ob from its first run on.
 
   If the docs hold, every run spends plan quota, none spends the credit while overage is off, and
-  the dollar guard counts a list-price estimate of the plan draw. One web balance read before
-  and after a known run settles it. The balance is visible only at claude.ai/settings/usage (no
-  endpoint exposes it), and `calibrate` records it.
+  the dollar guard counts a list-price estimate of the plan draw. The web balance read before and
+  after a known run, with no other cloud run on that account between, settles it, provided the
+  run is large enough to move the displayed balance. The balance is visible only at
+  claude.ai/settings/usage (no endpoint exposes it), and `calibrate` records it.
 
 ## Related scripts
 
