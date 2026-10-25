@@ -1,0 +1,17 @@
+shared: commands/_fragments/run-record.md
+baseline_sentences: run-record.baseline.txt
+baseline_sha256: 895ff6f4a17762d1a9dec8ae0f9f218eaf83f680fe1e8a14a6731726dddb0e86
+entries:
+- id: runrec-run-record-yields-to-a-prior
+  file: commands/_fragments/run-record.md
+  baseline: '## Run record — open it as this command''s FIRST act'
+  current: '## Run record — open it as this command''s FIRST act'
+  text:
+  - '## Run record — open it as this command''s FIRST act'
+- id: runrec-run-record-yields-to-a-prior-2
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: A step this command's text names as running BEFORE the record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step routed to another command, whose record replaces this one
+  current: A step this command's text names as running BEFORE the record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step routed to another command, whose record replaces this one
+  text:
+  - A step this command's text names as running BEFORE the record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step routed to another command, whose record replaces this one.

@@ -1,0 +1,10 @@
+shared: commands/_fragments/close-chain.md
+baseline_sentences: close-chain.baseline.txt
+baseline_sha256: 816654d7cb62f00a8b2d77ca7719c031ad2b9107f62a85713e78e9ef1987fa39
+entries:
+- id: cc-briefs-durable-unchanged-slices-said-guards
+  file: commands/_fragments/close-chain.md
+  baseline: In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass, printed then by its producing command; a draft written mid-loop carries none
+  current: In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass, printed then by its producing command; a draft written mid-loop carries none
+  text:
+  - In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass, printed then by its producing command; a draft written mid-loop carries none.

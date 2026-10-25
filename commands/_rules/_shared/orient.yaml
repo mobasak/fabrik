@@ -1,0 +1,4 @@
+shared: commands/_fragments/orient.md
+baseline_sentences: orient.baseline.txt
+baseline_sha256: 607714a72f6c35c5c89c7de30ae5c9c8e419eaca60726100d396a044c6252928
+entries: []

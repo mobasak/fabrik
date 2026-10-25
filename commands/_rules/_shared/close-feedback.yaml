@@ -1,0 +1,4 @@
+shared: commands/_fragments/close-feedback.md
+baseline_sentences: close-feedback.baseline.txt
+baseline_sha256: 07ace22e88d69a39139086313fa353fd1802efb035e52d82a59378e19b832d27
+entries: []

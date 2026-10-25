@@ -120,7 +120,7 @@ Selections against it: a ticket's ledger is the single source of a rule's wordin
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part a | — | ⛓️ | 🔵 | |
+| T01a | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part a | — | ⛓️ | ✅ | this commit (review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01a-review.md`) |
 | T01b | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part b | T01a | ⛓️ | ⬜ | |
 | T01c | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part c | T01b | ⛓️ | ⬜ | |
 | T01d | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — the rewrite | T01c | ⛓️ | ⬜ | |

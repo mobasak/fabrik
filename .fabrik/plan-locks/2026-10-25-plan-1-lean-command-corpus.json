@@ -272,5 +272,14 @@
     "status": "success",
     "red": []
   },
-  "tickets": {}
+  "tickets": {
+    "T01a": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a153e4572d894b169",
+      "branch": "worktree-agent-a153e4572d894b169",
+      "base_commit": "1659737af248326e6f54b909e06cd04760be7976",
+      "coder_head": "e78204231802d9ce1ade5f3bd98642b1e67826d0",
+      "started_at": "2026-10-25T06:33:23+03:00"
+    }
+  }
 }

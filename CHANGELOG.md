@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Lean program unit 01: shared-file rule ledgers, part a (2026-10-25)
+
+- Nine shared-file ledgers and baselines under `commands/_rules/_shared/` were taken at unit 01's start commit (63d148626): the review probe catalogue, the no-workflow banner, run-record, orient, close-chain, close-feedback and the three seat definitions. They are T01a of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/`, W-96f36043.
+- The pins `tests/test_review_queue_pass.py` and `tests/test_review_scoped_queue_pass.py` held on those files, in test functions that read them alone, moved into the ledgers as `text`, `forbidden` and `ordered` carriers. Every assert in a test function that also reads another file stays (D-1231). The shared files are unchanged.
+- Review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01a-review.md` (5 passes, 4 → 3 → 5 → 3 → 0 confirmed).
+
 ### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
 
 - `commands/command_measure.py` measured a named path whenever the file existed on disk, so the main checkout's

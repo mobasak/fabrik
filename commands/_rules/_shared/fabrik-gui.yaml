@@ -1,0 +1,4 @@
+shared: commands/_agents/fabrik-gui.md
+baseline_sentences: fabrik-gui.baseline.txt
+baseline_sha256: 2e6d0b62eed976859551d680c316c5b7819d28a62cdc5852d67c09534562e062
+entries: []

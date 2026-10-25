@@ -1,0 +1,4 @@
+shared: commands/_agents/fabrik-researcher.md
+baseline_sentences: fabrik-researcher.baseline.txt
+baseline_sha256: 5ed40263b474ece8a66b88535cd6488698ea4a612bcdd8c2baf9b92f75920653
+entries: []
