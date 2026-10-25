@@ -1,0 +1,565 @@
+command: fabrik-decommission
+baseline_sentences: fabrik-decommission.baseline.txt
+baseline_sha256: c564a5da2dcd8c646de3f137ffa568a6825d8a0b8b2262b78c161a0b9a636193
+entries:
+- id: dc-run-from-hub  # class: prose
+  file: render
+  baseline: Run this from the hub (`/opt/fabrik`) — it needs fleet DNS/SSH reachability a project-side agent does not have (deploy is trigger-not-execute for projects; the hub is the execution side)
+  current: Run from the hub (`/opt/fabrik`), which has the fleet DNS/SSH reachability a project-side agent lacks
+  text:
+  - Run from the hub (`/opt/fabrik`), which has the fleet DNS/SSH reachability
+- id: dc-bounded-run  # class: prose
+  file: render
+  baseline: This is a bounded GROUND TRUTH → DECIDE → CONFIRM → EXECUTE run for ONE name, not an open loop
+  current: 'This is a bounded GROUND TRUTH → DECIDE → CONFIRM → EXECUTE run for ONE name: finish Phase 0 (liveness probe AND consumer sweep) before Phase 1 states one outcome, and get the operator''s explicit go-ahead at Phase 1.5 before Phase 2 touches a file'
+  text:
+  - finish Phase 0 (liveness probe AND consumer sweep) before Phase 1 states one outcome
+  - get the operator's explicit go-ahead at Phase 1.5 before Phase 2 touches a file
+- id: dc-done-receipts  # class: prose
+  file: render
+  baseline: You are done only when Phase 2's receipts table accounts for every bookkeeping surface (source location, file count, catalog, fleet audit, PORTS row, spec disposition, memory record, decision-ledger row, runtime-teardown disposition) with `path:line` or command-output evidence — a cell filled from memory instead of a fresh command is not a receipt
+  current: You are done only when Phase 2's receipts table accounts for every surface with `path:line` or command-output evidence; a cell filled from memory is not a receipt
+  text:
+  - accounts for every surface with `path:line` or command-output evidence
+  - a cell filled from memory is not a receipt
+- id: dc-teardown-never  # class: ban
+  file: render
+  baseline: Runtime teardown (containers, Traefik route, registrar entries, DNS, Gatus probe) is NEVER one of this run's own actions, in any outcome — it is always NAMED as a separate, explicitly operator-gated follow-up, never executed inline
+  current: Runtime teardown (containers, Traefik route, registrar entries, DNS, Gatus probe) is NEVER one of this run's own actions, in any outcome; it is NAMED as a separate operator-gated follow-up
+  text:
+  - is NEVER one of this run's own actions, in any outcome
+  - it is NAMED as a separate operator-gated follow-up
+- id: dc-two-stops  # class: prose
+  file: render
+  baseline: 'Two legitimate stops, both before Phase 2: (1) the consumer sweep finds a live blocking consumer with no migration path — name it, stop, that is outcome C; (2) Phase 1.5''s confirmation has not yet been given — present the Phase 0 evidence + the Phase 1 outcome and WAIT; an outcome stated but not confirmed is not yet actionable'
+  current: 'Two legitimate stops, both before Phase 2: a live blocking consumer with no migration path (outcome C), and an unconfirmed Phase 1.5, where you WAIT'
+  text:
+  - Two legitimate stops, both before Phase 2
+  - a live blocking consumer with no migration path (outcome C)
+- id: dc-consumer-sweep  # class: behavioural
+  file: render
+  baseline: Consumer sweep. Grep every fleet project's `.env`, `.env.example`, `specs/services/*.yaml`, and code for the target's hostname, URL, API base, or import path (`command grep -rn` across `/opt/*` excluding `/opt/archived/`)
+  current: Consumer sweep. Grep every fleet project's `.env`, `.env.example`, `specs/services/*.yaml` and code for the target's hostname, URL, API base or import path (`command grep -rn` across `/opt/*` excluding `/opt/archived/`)
+  text:
+  - '`command grep -rn` across `/opt/*` excluding `/opt/archived/`'
+  - Grep every fleet project's `.env`, `.env.example`, `specs/services/*.yaml` and code
+- id: dc-list-hits  # class: prose
+  file: render
+  baseline: Enumerate every hit with `path:line` — a project referencing the target is a consumer whether or not it currently calls the reference
+  current: List every hit with `path:line`; any project referencing the target is a consumer
+  text:
+  - List every hit with `path:line`; any project referencing the target is a consumer
+- id: dc-liveness-probe  # class: prose
+  file: render
+  baseline: Liveness probe — DNS vs siblings, never registry rows. Resolve the target's public domain (e.g. `dig +short <name>.vps1.ocoron.com` or `getent hosts`) in the SAME probe run as two KNOWN-LIVE sibling domains on the same VPS — VERIFY they resolve before trusting them as controls (e.g. `status.vps1.ocoron.com` plus a live spec domain; `gatus.vps1`/`grafana.vps1` are NXDOMAIN — the dead-sibling trap; on vps2/vps3 wildcard DNS makes bare resolution non-evidentiary, so the discriminating evidence moves to the HTTPS layer, per `/fabrik-deploy-verify`'s control probe)
+  current: Liveness probe — DNS vs siblings, never registry rows. Resolve the target's public domain (`dig +short <name>.vps1.ocoron.com` or `getent hosts`) in the SAME probe run as two KNOWN-LIVE sibling domains on the same VPS, and VERIFY the siblings resolve (`status.vps1.ocoron.com`; `gatus.vps1`/`grafana.vps1` are NXDOMAIN)
+  text:
+  - in the SAME probe run as two KNOWN-LIVE sibling domains
+  - VERIFY the siblings resolve
+  - '`gatus.vps1`/`grafana.vps1` are NXDOMAIN'
+- id: dc-vps23-https  # class: prose
+  file: render
+  baseline: Liveness probe — DNS vs siblings, never registry rows. Resolve the target's public domain (e.g. `dig +short <name>.vps1.ocoron.com` or `getent hosts`) in the SAME probe run as two KNOWN-LIVE sibling domains on the same VPS — VERIFY they resolve before trusting them as controls (e.g. `status.vps1.ocoron.com` plus a live spec domain; `gatus.vps1`/`grafana.vps1` are NXDOMAIN — the dead-sibling trap; on vps2/vps3 wildcard DNS makes bare resolution non-evidentiary, so the discriminating evidence moves to the HTTPS layer, per `/fabrik-deploy-verify`'s control probe)
+  current: On vps2/vps3 wildcard DNS makes bare resolution non-evidentiary; use the HTTPS layer per `/fabrik-deploy-verify`'s control probe
+  text:
+  - use the HTTPS layer per `/fabrik-deploy-verify`'s control probe
+- id: dc-live-dead-inconclusive  # class: prose
+  file: render
+  baseline: 'Three outcomes only: target resolves → LIVE'
+  current: Target resolves → LIVE; target fails AND both siblings resolve → DEAD; target AND siblings all fail → inconclusive outage, re-probe later
+  text:
+  - Target resolves → LIVE; target fails AND both siblings resolve → DEAD
+  - target AND siblings all fail → inconclusive outage, re-probe later
+- id: dc-unreachable-not-dead  # class: ban
+  file: render
+  baseline: Where the host is directly reachable, cross-check with a container/compose check on that VPS — never conclude dead from an unreachable host (that is an outage, not an absence)
+  current: Never conclude dead from an unreachable host
+  text:
+  - Never conclude dead from an unreachable host
+- id: dc-no-registry-evidence  # class: ban
+  file: render
+  baseline: 'Never treat a catalog row, `PORTS.md` row, a `specs/services/*.yaml` file''s mere existence, or a `.env` reference as evidence of liveness either way — the captcha case is the cautionary tale: the catalog/env rows still read "live" after the service''s DNS record was already gone (`CHANGELOG.md` § "Removed — captcha.vps1.ocoron.com torn down…" (2026-08-07) — the corrected finding)'
+  current: Never treat a catalog row, `PORTS.md` row, a `specs/services/*.yaml` file's mere existence, or a `.env` reference as evidence of liveness either way
+  text:
+  - Never treat a catalog row, `PORTS.md` row, a `specs/services/*.yaml` file's mere existence, or a `.env` reference as evidence of liveness either way
+- id: dc-archived-not-dead  # class: prose
+  file: render
+  baseline: 'The archived-source ≠ dead-service principle itself rests on the MECHANISM, not on any changelog anecdote: a hub-side `mv /opt/<name> /opt/archived/<name>` only relocates the SOURCE tree — it never touches the VPS runtime'
+  current: 'Archived source says nothing about liveness: `mv /opt/<name> /opt/archived/<name>` only relocates the SOURCE tree; only `fabrik destroy` (`src/fabrik/orchestrator/destroyer.py:338-340`) touches the VPS runtime'
+  text:
+  - Archived source says nothing about liveness
+  - only relocates the SOURCE tree
+  - only `fabrik destroy` (`src/fabrik/orchestrator/destroyer.py:338-340`) touches the VPS runtime
+- id: dc-outcome-archive  # class: grammar
+  file: render
+  baseline: '| archive-source-only | Liveness probe = LIVE, and/or the consumer sweep found a live consumer with no migration need yet | Phase 2 moves the SOURCE project only; the deployed service is untouched — `CHANGELOG.md` § "Changed — wpf retired and archived" (2026-08-07)''s wpf precedent (8 uncommitted files preserved exactly across the move) is the clean archive-source-only case. Captcha''s move preserved 6 files the same way, but its "service stays live" claim was ITSELF RETRACTED the SAME DAY after a fresh DNS probe (`CHANGELOG.md` § "Removed — captcha.vps1.ocoron.com torn down…" (2026-08-07)) — the file-preservation figure still stands, the liveness claim doesn''t; that gap is the cautionary tale behind Phase 0 step 2''s only-a-probe-run-THIS-session rule |'
+  current: '| archive-source-only | Liveness = LIVE, and/or a live consumer with no migration need yet | Phase 2 moves the SOURCE project only; the deployed service is untouched |'
+  text:
+  - Liveness = LIVE, and/or a live consumer with no migration need yet
+  - Phase 2 moves the SOURCE project only; the deployed service is untouched
+- id: dc-outcome-full  # class: grammar
+  file: render
+  baseline: '| full decommission | Liveness probe = DEAD, and no live consumer remains | Phase 2 moves the source AND names runtime teardown as a separate operator-gated step (below) — never executes it |'
+  current: '| full decommission | Liveness = DEAD, and no live consumer remains | Phase 2 moves the source AND names runtime teardown as a separate operator-gated step; never executes it |'
+  text:
+  - Liveness = DEAD, and no live consumer remains
+  - names runtime teardown as a separate operator-gated step; never executes it
+- id: dc-outcome-migrate  # class: grammar
+  file: render
+  baseline: '| migrate-consumers-first | Consumer sweep found ≥1 live consumer with NO migration path named | STOP here. List each blocking consumer (`path:line`) + what it needs (e.g. an equivalent `fabrik-lib/<module>` capability, the captcha → `fabrik-lib/captcha-solve` precedent) — do not proceed to Phase 2 |'
+  current: '| migrate-consumers-first | Consumer sweep found ≥1 live consumer with NO migration path named | STOP. List each blocking consumer (`path:line`) and what it needs (e.g. an equivalent `fabrik-lib/<module>` capability); do not proceed to Phase 2 |'
+  text:
+  - Consumer sweep found ≥1 live consumer with NO migration path named
+  - STOP. List each blocking consumer (`path:line`)
+  - do not proceed to Phase 2
+- id: dc-teardown-named  # class: prose
+  file: render
+  baseline: 'Runtime teardown, named but never run here (only reachable from *full decommission*): containers / compose app, the Traefik route, every registrar entry the spec''s `shape:` block provisioned (GlitchTip project, Gatus endpoint, Meilisearch index, Authelia rule, Backrest plan, Postgres/Redis if `--drop-data`), the DNS A record, and the Gatus probe itself'
+  current: 'Runtime teardown, named but never run here (only from *full decommission*): containers, the Traefik route, every registrar entry the spec''s `shape:` block provisioned, the DNS A record and the Gatus probe'
+  text:
+  - Runtime teardown, named but never run here (only from *full decommission*)
+  - every registrar entry the spec's `shape:` block provisioned
+  - the DNS A record and the Gatus probe
+- id: dc-destroy-cite  # class: prose
+  file: render
+  baseline: The hub-side tool that reverses these is `fabrik destroy specs/services/<id>.yaml` (`src/fabrik/cli.py::destroy`, def at `:903` — reverses MeiliSearch, Authelia, GlitchTip, Backrest, Gatus, and Postgres/Redis registrars, then the compose app and DNS record; its own docstring examples at `:924-926`)
+  current: The tool is `fabrik destroy specs/services/<id>.yaml` (`src/fabrik/cli.py::destroy`); cite it for the operator to run, since this command never shells out to it
+  text:
+  - The tool is `fabrik destroy specs/services/<id>.yaml` (`src/fabrik/cli.py::destroy`)
+  - this command never shells out to it
+- id: dc-destroy-ledger  # class: prose
+  file: render
+  baseline: 'Cite it here for the operator to run themselves — this command never shells out to it and never decides to run it — and cite WITH it the ledger obligation: the hub session that executes the destroy mints the superseding ONE-WAY row (§ Binding field block) in that same change'
+  current: 'Cite WITH it the ledger obligation: the hub session that executes the destroy mints the superseding ONE-WAY row (§ Binding field block) in that same change'
+  text:
+  - the hub session that executes the destroy mints the superseding ONE-WAY row (§ Binding field block) in that same change
+- id: dc-vps-wipe  # class: prose
+  file: render
+  baseline: 'That compose-destroy step is itself irreversible on the remote side: `_destroy_compose` runs `docker compose down` then `sudo rm -rf /opt/<name>` ON THE VPS (`src/fabrik/orchestrator/destroyer.py:338-340`) — the remote tree is wiped even though this command''s own hub-side move to `/opt/archived/<name>` is preserved untouched; that VPS-side wipe, not the hub-side archive, is what makes a *full decommission* irreversible'
+  current: Its VPS-side `sudo rm -rf /opt/<name>` is what makes a *full decommission* irreversible
+  text:
+  - Its VPS-side `sudo rm -rf /opt/<name>` is what makes a *full decommission* irreversible
+- id: dc-present-and-stop  # class: prose
+  file: render
+  baseline: Present the Phase 0 evidence (consumer sweep hit count + files, the liveness verdict) and the Phase 1 outcome chosen, then STOP
+  current: Present the Phase 0 evidence (consumer sweep hit count + files, the liveness verdict) and the Phase 1 outcome, then STOP
+  text:
+  - Present the Phase 0 evidence (consumer sweep hit count + files, the liveness verdict) and the Phase 1 outcome, then STOP
+- id: dc-wait-go-ahead  # class: ban
+  file: render
+  baseline: Do not proceed to Phase 2 on inference or silence — wait for the operator's explicit go-ahead
+  current: Do not proceed to Phase 2 on inference or silence; wait for the operator's explicit go-ahead
+  text:
+  - Do not proceed to Phase 2 on inference or silence
+  - wait for the operator's explicit go-ahead
+- id: dc-gate-all-outcomes  # class: prose
+  file: render
+  baseline: 'This gate applies to all three outcomes, not just *full decommission*: even *archive-source-only* moves a tree and edits hub bookkeeping, which is exactly the class of action this command exists to gate rather than silently execute'
+  current: This gate applies to all three outcomes
+  text:
+  - This gate applies to all three outcomes
+- id: dc-count-before  # class: prose
+  file: render
+  baseline: Count before. `git -C /opt/<name> ls-files | wc -l` (tracked), `git -C /opt/<name> status --porcelain | wc -l` (uncommitted), and `find /opt/<name> -type f | wc -l` (raw total — catches gitignored files the other two counts blind-spot)
+  current: Count before. Record `git -C /opt/<name> ls-files | wc -l` (tracked), `git -C /opt/<name> status --porcelain | wc -l` (uncommitted) and `find /opt/<name> -type f | wc -l` (raw total, catching gitignored files)
+  text:
+  - Record `git -C /opt/<name> ls-files | wc -l` (tracked)
+  - '`git -C /opt/<name> status --porcelain | wc -l` (uncommitted)'
+  - '`find /opt/<name> -type f | wc -l` (raw total'
+- id: dc-collision-guard  # class: prose
+  file: render
+  baseline: 'Collision guard, then move. `test ! -e /opt/archived/<name>` first — if that fails (the destination already exists, e.g. a prior partial retirement), STOP: do not overwrite, ask the operator whether to reuse it or append a `-<YYYYMMDD>` suffix (`/opt/archived/<name>-<YYYYMMDD>`) before proceeding'
+  current: Collision guard, then move. Run `test ! -e /opt/archived/<name>` first
+  text:
+  - Run `test ! -e /opt/archived/<name>` first
+- id: dc-collision-stop  # class: ban
+  file: render
+  baseline: 'Collision guard, then move. `test ! -e /opt/archived/<name>` first — if that fails (the destination already exists, e.g. a prior partial retirement), STOP: do not overwrite, ask the operator whether to reuse it or append a `-<YYYYMMDD>` suffix (`/opt/archived/<name>-<YYYYMMDD>`) before proceeding'
+  current: 'If it fails, STOP: do not overwrite; ask the operator whether to reuse it or append a `-<YYYYMMDD>` suffix'
+  text:
+  - 'If it fails, STOP: do not overwrite'
+  - ask the operator whether to reuse it or append a `-<YYYYMMDD>` suffix
+- id: dc-mv-crossdev  # class: prose
+  file: render
+  baseline: 'Once clear: `mv /opt/<name> /opt/archived/<name>` — atomic only when `/opt` and `/opt/archived` share a filesystem (the fabrik convention); across a filesystem boundary `mv` silently falls back to copy-then-unlink, which CAN drop a file mid-copy — the before/after count in step 3 is what actually proves nothing was lost, and matters most in that cross-device case'
+  current: Across a filesystem boundary `mv` copies then unlinks and CAN drop a file, so step 3's counts prove nothing was lost
+  text:
+  - Across a filesystem boundary `mv` copies then unlinks and CAN drop a file
+  - step 3's counts prove nothing was lost
+- id: dc-counts-match  # class: prose
+  file: render
+  baseline: All three MUST match the "before" counts exactly — the wpf move preserved 8 uncommitted files, the captcha move preserved 6 (`CHANGELOG.md` § "Changed — captcha project retired and archived; the deployed service stays live" (2026-08-07, the RETRACTED claim), `CHANGELOG.md` § "Changed — wpf retired and archived" (2026-08-07)) precisely because this was verified, not assumed
+  current: All three MUST match "before" exactly
+  text:
+  - All three MUST match "before" exactly
+- id: dc-bookkeeping-mechanism  # class: prose
+  file: render
+  baseline: 'Hub bookkeeping (each step is the mechanism, not a hand-edit):'
+  current: 'Hub bookkeeping (run the mechanism, never hand-edit):'
+  text:
+  - 'Hub bookkeeping (run the mechanism, never hand-edit):'
+- id: dc-sync-projects  # class: prose
+  file: render
+  baseline: '`python scripts/sync_projects.py` — regenerates `data/projects.yaml` + `docs/PROJECT_CATALOG.md`'
+  current: '`python scripts/sync_projects.py` regenerates `data/projects.yaml` + `docs/PROJECT_CATALOG.md`'
+  text:
+  - '`python scripts/sync_projects.py` regenerates `data/projects.yaml` + `docs/PROJECT_CATALOG.md`'
+- id: dc-sync-exclusion  # class: ban
+  file: render
+  baseline: 'The move itself does the exclusion work: `scan_projects()` walks `root.iterdir()` over `/opt/*` top-level only and checks each name against `DEFAULT_EXCLUDES`, which already contains the literal `"archived"` (`scripts/sync_projects.py:35-42`, checked at `:109-123`) — so `/opt/archived/<name>` is never visited once the move lands'
+  current: The move does the exclusion (`DEFAULT_EXCLUDES` holds `"archived"`, `scripts/sync_projects.py:35-42`); never hand-edit the catalog
+  text:
+  - The move does the exclusion (`DEFAULT_EXCLUDES` holds `"archived"`, `scripts/sync_projects.py:35-42`); never hand-edit the catalog
+- id: dc-fleet-audit  # class: prose
+  file: render
+  baseline: '`python scripts/fleet_doc_audit.py` — regenerates the fleet audit report'
+  current: '`python scripts/fleet_doc_audit.py` regenerates the fleet audit report, excluded by LOCATION (`scripts/fleet_doc_audit.py:43-60`)'
+  text:
+  - '`python scripts/fleet_doc_audit.py` regenerates the fleet audit report, excluded by LOCATION'
+- id: dc-no-retired-list  # class: ban
+  file: render
+  baseline: Do not add one back
+  current: Never add a hardcoded retired-name list
+  text:
+  - Never add a hardcoded retired-name list
+- id: dc-ports-row  # class: ban
+  file: render
+  baseline: '`PORTS.md` — annotate the project''s row RETIRED + date + reason (never delete the row silently)'
+  current: '`PORTS.md`: annotate the project''s row RETIRED + date + reason; never delete the row silently'
+  text:
+  - annotate the project's row RETIRED + date + reason; never delete the row silently
+- id: dc-spec-rm  # class: prose
+  file: render
+  baseline: 'Spec disposition. If outcome was *full decommission* AND the operator has since confirmed the separately-gated runtime teardown actually ran: `git rm specs/services/<id>.yaml`'
+  current: Spec disposition. *Full decommission* AND the separately-gated teardown has actually run → `git rm specs/services/<id>.yaml`
+  text:
+  - '*Full decommission* AND the separately-gated teardown has actually run → `git rm specs/services/<id>.yaml`'
+- id: dc-spec-annotate  # class: ban
+  file: render
+  baseline: 'If outcome was *archive-source-only*, or teardown hasn''t run yet: annotate the spec''s header comment (source archived, service still deployed) — never delete a spec for a service still running'
+  current: '*Archive-source-only*, or teardown not yet run → annotate the spec''s header comment (source archived, service still deployed); never delete a spec for a service still running'
+  text:
+  - annotate the spec's header comment (source archived, service still deployed); never delete a spec for a service still running
+- id: dc-memory-record  # class: prose
+  file: render
+  baseline: 'Memory record — one entry that states BOTH facts as separate, dated clauses even when they land in the same note: "source archived to `/opt/archived/<name>` on `<date>`" is NOT "the service is decommissioned" — conflating them is the exact defect this command exists to prevent (a real entry briefly claimed "the deployed service stays live" after the service was in fact already dead; corrected only by a fresh DNS probe, `CHANGELOG.md` § "Removed — captcha.vps1.ocoron.com torn down…" (2026-08-07))'
+  current: 'Memory record: one entry stating BOTH facts as separate, dated clauses; "source archived to `/opt/archived/<name>` on `<date>`" is NOT "the service is decommissioned"'
+  text:
+  - one entry stating BOTH facts as separate, dated clauses
+  - is NOT "the service is decommissioned"
+- id: dc-changelog  # class: prose
+  file: render
+  baseline: CHANGELOG entry per the Doc Sync Matrix (`Changed` for archive-source-only, `Removed` once a real teardown lands)
+  current: CHANGELOG entry (`Changed` for archive-source-only, `Removed` once a real teardown lands)
+  text:
+  - CHANGELOG entry (`Changed` for archive-source-only, `Removed` once a real teardown lands)
+- id: dc-decision-row  # class: prose
+  file: render
+  baseline: The `docs/DECISIONS.md` retirement row (see the Receipts table's Decision-ledger row for its exact classification semantics) — minted HERE, in this same bookkeeping change, never deferred to the run close
+  current: The `docs/DECISIONS.md` retirement row (see the Receipts table), minted HERE in this bookkeeping change, never deferred to the run close
+  text:
+  - minted HERE in this bookkeeping change, never deferred to the run close
+- id: dc-receipts-awaiting  # class: prose
+  file: render
+  baseline: A run that stops at Phase 1.5 (the mandatory operator-confirmation gate) has not reached Phase 2 and owes none of these rows yet — it emits the AWAITING form of the Output block instead, with FILES and RECEIPTS both marked `n/a (pre-execution)`
+  current: A run that stops at Phase 1.5 owes none of these rows and emits the AWAITING form of the Output block
+  text:
+  - A run that stops at Phase 1.5 owes none of these rows and emits the AWAITING form of the Output block
+- id: dc-receipts-executed  # class: prose
+  file: render
+  baseline: Paused runs emit the AWAITING form; only EXECUTED runs (operator confirmed, Phase 2 ran) owe the full Receipts-table reconciliation — every row below, count derived from the table itself
+  current: Only EXECUTED runs owe every row below
+  text:
+  - Only EXECUTED runs owe every row below
+- id: dc-receipts-decision-ledger  # class: grammar
+  file: render
+  baseline: '| Decision ledger | — | the retirement ROW minted in the HUB''s `/opt/fabrik/docs/DECISIONS.md` in Phase 2''s own change (never the archived project''s — that ledger leaves the fleet query path with the move) (the ledger duty''s "retirement/adoption" trigger), classified at mint as REVERSIBLE — the archive move is undoable and nothing irreversible has happened yet. The later `fabrik destroy` is a NEW decision: the hub session that runs it mints a superseding ONE-WAY row carrying the § Binding field block in THAT change (rows are immutable — never "grow" an existing one); this run only NAMES that obligation alongside the teardown command | the row, quoted |'
+  current: '| Decision ledger | — | the retirement ROW minted in the HUB''s `/opt/fabrik/docs/DECISIONS.md` in Phase 2''s own change (never the archived project''s ledger), classified REVERSIBLE; the later `fabrik destroy` is a NEW decision, and this run only NAMES that obligation | the row, quoted |'
+  text:
+  - the retirement ROW minted in the HUB's `/opt/fabrik/docs/DECISIONS.md` in Phase 2's own change (never the archived project's ledger), classified REVERSIBLE
+  - this run only NAMES that obligation
+- id: dc-paused-handoff  # class: grammar
+  file: render
+  baseline: 'Paused at Phase 1.5 (the mandatory stop — outcome stated, operator go-ahead not yet given; the run closes with `python3 scripts/command_run.py handoff --command fabrik-decommission --resume <a file holding this block under a ## RESUME heading> --reason "awaiting operator confirmation at Phase 1.5" --feedback …`, never `done` — nothing has executed):'
+  current: 'Paused at Phase 1.5: close with `python3 scripts/command_run.py handoff --command fabrik-decommission --resume <a file holding this block under a ## RESUME heading> --reason "awaiting operator confirmation at Phase 1.5" --feedback …`, never `done`, since nothing has executed'
+  text:
+  - '`python3 scripts/command_run.py handoff --command fabrik-decommission --resume <a file holding this block under a ## RESUME heading> --reason "awaiting operator confirmation at Phase 1.5" --feedback …`'
+  - never `done`, since nothing has executed
+- id: dc-next-command  # class: prose
+  file: render
+  baseline: 'Next command: none in the pipeline — this is a standalone hub-side runbook'
+  current: 'Next command: none; after *full decommission* the operator''s own `fabrik destroy specs/services/<id>.yaml` is next, never auto-chained; after *migrate-consumers-first*, the named blockers'
+  text:
+  - after *migrate-consumers-first*, the named blockers
+  - '`fabrik destroy specs/services/<id>.yaml` is next, never auto-chained'
+- id: u-L23  # class: grammar
+  file: render
+  section: '## Phase 1 — DECIDE (state exactly one, before touching a file)'
+  baseline: '| Outcome | When | What happens |'
+  current: '| Outcome | When | What happens |'
+  text:
+  - '| Outcome | When | What happens |'
+- id: u-L24  # class: grammar
+  file: render
+  section: '## Phase 1 — DECIDE (state exactly one, before touching a file)'
+  baseline: '|---|---|---|'
+  current: '|---|---|---|'
+  text:
+  - '|---|---|---|'
+- id: u-L41  # class: prose
+  file: render
+  section: '## Phase 2 — EXECUTE (source move + hub bookkeeping only — never runtime teardown)'
+  baseline: Count after. Re-run the same three counts at the new path
+  current: Count after. Re-run the same three counts at the new path
+  text:
+  - Count after. Re-run the same three counts at the new path
+- id: u-L43  # class: ban
+  file: render
+  section: '## Phase 2 — EXECUTE (source move + hub bookkeeping only — never runtime teardown)'
+  baseline: 'A mismatch is a CRITICAL failure: stop, do not proceed to bookkeeping, report the discrepancy'
+  current: 'A mismatch is a CRITICAL failure: stop, do not proceed to bookkeeping, report the discrepancy'
+  text:
+  - 'A mismatch is a CRITICAL failure: stop, do not proceed to bookkeeping, report the discrepancy'
+- id: u-L61  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '| Surface | Before | After | Evidence |'
+  current: '| Surface | Before | After | Evidence |'
+  text:
+  - '| Surface | Before | After | Evidence |'
+- id: u-L62  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '|---|---|---|---|'
+  current: '|---|---|---|---|'
+  text:
+  - '|---|---|---|---|'
+- id: u-L63  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '| Source location | `/opt/<name>` | `/opt/archived/<name>` | `ls` / the move command''s own output |'
+  current: '| Source location | `/opt/<name>` | `/opt/archived/<name>` | `ls` / the move command''s own output |'
+  text:
+  - '| Source location | `/opt/<name>` | `/opt/archived/<name>` | `ls` / the move command''s own output |'
+- id: u-L64  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '| File count | tracked N, uncommitted N, total N | same three, re-counted | exact match or CRITICAL stop |'
+  current: '| File count | tracked N, uncommitted N, total N | same three, re-counted | exact match or CRITICAL stop |'
+  text:
+  - '| File count | tracked N, uncommitted N, total N | same three, re-counted | exact match or CRITICAL stop |'
+- id: u-L65  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '| Catalog (`data/projects.yaml`) | listed | excluded | `sync_projects.py` run output |'
+  current: '| Catalog (`data/projects.yaml`) | listed | excluded | `sync_projects.py` run output |'
+  text:
+  - '| Catalog (`data/projects.yaml`) | listed | excluded | `sync_projects.py` run output |'
+- id: u-L66  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '| Fleet audit | scanned | excluded | `fleet_doc_audit.py` run output |'
+  current: '| Fleet audit | scanned | excluded | `fleet_doc_audit.py` run output |'
+  text:
+  - '| Fleet audit | scanned | excluded | `fleet_doc_audit.py` run output |'
+- id: u-L67  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '| `PORTS.md` row | live | RETIRED + date + reason | diff |'
+  current: '| `PORTS.md` row | live | RETIRED + date + reason | diff |'
+  text:
+  - '| `PORTS.md` row | live | RETIRED + date + reason | diff |'
+- id: u-L68  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '| Spec (`specs/services/<id>.yaml`) | present | `git rm`''d (real teardown) or annotated (source-only) | diff / `git rm` output |'
+  current: '| Spec (`specs/services/<id>.yaml`) | present | `git rm`''d (real teardown) or annotated (source-only) | diff / `git rm` output |'
+  text:
+  - '| Spec (`specs/services/<id>.yaml`) | present | `git rm`''d (real teardown) or annotated (source-only) | diff / `git rm` output |'
+- id: u-L69  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '| Memory record | — | written, archived-source vs dead-service stated separately | quoted entry |'
+  current: '| Memory record | — | written, archived-source vs dead-service stated separately | quoted entry |'
+  text:
+  - '| Memory record | — | written, archived-source vs dead-service stated separately | quoted entry |'
+- id: u-L71  # class: grammar
+  file: render
+  section: '## Receipts (Termination — every row filled with evidence, or the run isn''t done)'
+  baseline: '| Runtime teardown | — | NAMED as the operator''s own `fabrik destroy` call, or n/a | — never executed here |'
+  current: '| Runtime teardown | — | NAMED as the operator''s own `fabrik destroy` call, or n/a | — never executed here |'
+  text:
+  - '| Runtime teardown | — | NAMED as the operator''s own `fabrik destroy` call, or n/a | — never executed here |'
+- id: u-L77  # class: prose
+  file: render
+  section: '## Output (always, last thing)'
+  baseline: 'Executed (operator confirmed, Phase 2 ran to completion):'
+  current: 'Executed (operator confirmed, Phase 2 ran to completion):'
+  text:
+  - 'Executed (operator confirmed, Phase 2 ran to completion):'
+vanished:
+  L1:
+    rule:
+    - dc-teardown-never
+  L2:
+    rule:
+    - dc-run-from-hub
+  L4:
+    rule:
+    - dc-bounded-run
+  L5:
+    rule:
+    - dc-bounded-run
+  L6:
+    rule:
+    - dc-done-receipts
+  L7:
+    rule:
+    - dc-teardown-never
+  L8:
+    rule:
+    - dc-two-stops
+  L10:
+    rule:
+    - dc-consumer-sweep
+  L11:
+    rule:
+    - dc-list-hits
+  L12:
+    rule:
+    - dc-liveness-probe
+    - dc-vps23-https
+  L13:
+    rule:
+    - dc-live-dead-inconclusive
+  L14:
+    rule:
+    - dc-live-dead-inconclusive
+  L15:
+    rule:
+    - dc-live-dead-inconclusive
+  L16:
+    rule:
+    - dc-unreachable-not-dead
+  L17:
+    rule:
+    - dc-no-registry-evidence
+  L18:
+    rule:
+    - dc-archived-not-dead
+  L19:
+    rule:
+    - dc-archived-not-dead
+  L20:
+    rule:
+    - dc-archived-not-dead
+  L21: narrative
+  L25:
+    rule:
+    - dc-outcome-archive
+  L26:
+    rule:
+    - dc-outcome-full
+  L27:
+    rule:
+    - dc-outcome-migrate
+  L28:
+    rule:
+    - dc-teardown-named
+  L29:
+    rule:
+    - dc-destroy-cite
+  L30:
+    rule:
+    - dc-destroy-cite
+    - dc-destroy-ledger
+  L31:
+    rule:
+    - dc-vps-wipe
+  L33:
+    rule:
+    - dc-present-and-stop
+  L34:
+    rule:
+    - dc-wait-go-ahead
+  L35:
+    rule:
+    - dc-gate-all-outcomes
+  L37:
+    rule:
+    - dc-count-before
+  L38:
+    rule:
+    - dc-count-before
+  L39:
+    rule:
+    - dc-collision-guard
+    - dc-collision-stop
+  L40:
+    rule:
+    - dc-mv-crossdev
+  L42:
+    rule:
+    - dc-counts-match
+  L44:
+    rule:
+    - dc-bookkeeping-mechanism
+  L45:
+    rule:
+    - dc-sync-projects
+  L46:
+    rule:
+    - dc-sync-exclusion
+  L47:
+    rule:
+    - dc-sync-exclusion
+  L48:
+    rule:
+    - dc-fleet-audit
+  L49:
+    rule:
+    - dc-fleet-audit
+  L50:
+    rule:
+    - dc-no-retired-list
+  L51:
+    rule:
+    - dc-ports-row
+  L52:
+    rule:
+    - dc-spec-rm
+  L53:
+    rule:
+    - dc-spec-annotate
+  L54:
+    rule:
+    - dc-spec-annotate
+  L55:
+    rule:
+    - dc-memory-record
+  L56:
+    rule:
+    - dc-changelog
+  L57:
+    rule:
+    - dc-decision-row
+  L59:
+    rule:
+    - dc-receipts-awaiting
+  L60:
+    rule:
+    - dc-receipts-executed
+  L70:
+    rule:
+    - dc-receipts-decision-ledger
+  L73: narrative
+  L74:
+    rule:
+    - dc-paused-handoff
+  L76: narrative
+  L79:
+    rule:
+    - dc-next-command
+  L80:
+    rule:
+    - dc-next-command
