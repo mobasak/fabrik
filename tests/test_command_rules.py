@@ -513,7 +513,7 @@ def test_more_malformed_shapes(tmp_path: Path) -> None:
     assert "also a live entry" in _refused(t, entries=[ENTRY, {**ENTRY, "id": "R9"}], retired=live)
     p = t["rules"] / "demo.yaml"
     p.write_text("command: demo\ncommand: other\n")
-    assert cr.summary(t["rules"]) == ["LEDGER demo.yaml: unreadable — Malformed"]
+    assert cr.summary(t["rules"]) == ["LEDGER demo.yaml: unreadable — LedgerError"]
 
 
 def test_missing_files_and_whole_file_text(tmp_path: Path) -> None:

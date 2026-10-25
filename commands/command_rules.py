@@ -185,7 +185,7 @@ _CARRIERS = ("text", "ordered", "forbidden", "enforced")
 _REFUSAL = re.compile(r"\b(?:returncode|exit_code)\s*(?:!=\s*0\b|==\s*[1-9]\d*)")
 
 
-class Malformed(Exception):
+class LedgerError(Exception):
     pass
 
 
@@ -198,7 +198,7 @@ def _no_dup_mapping(loader: _NoDupLoader, node: yaml.MappingNode, deep: bool = F
     for key_node, _ in node.value:
         key = loader.construct_object(key_node, deep=deep)
         if key in seen:
-            raise Malformed(f"duplicate key {key!r}")
+            raise LedgerError(f"duplicate key {key!r}")
         seen.add(key)
     return yaml.SafeLoader.construct_mapping(loader, node, deep)
 
@@ -313,85 +313,85 @@ def _inside(path: Path, base: Path) -> bool:
 
 
 def load_ledger(path: Path, root: Path) -> dict[str, Any]:
-    """The validated ledger at ``path``; raises ``Malformed`` with the reason."""
+    """The validated ledger at ``path``; raises ``LedgerError`` with the reason."""
     try:
         data = yaml.load(path.read_text(encoding="utf-8"), Loader=_NoDupLoader)  # noqa: S506 — a SafeLoader subclass
     except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
-        raise Malformed(f"unreadable ({type(exc).__name__})") from exc
+        raise LedgerError(f"unreadable ({type(exc).__name__})") from exc
     if not isinstance(data, dict):
-        raise Malformed("not a mapping")
+        raise LedgerError("not a mapping")
     if unknown := set(data) - _TOP:
-        raise Malformed(f"unknown key(s) {sorted(map(str, unknown))}")
+        raise LedgerError(f"unknown key(s) {sorted(map(str, unknown))}")
     shared = path.parent.name == SHARED
     if shared != ("shared" in data) or ("command" in data) == shared:
-        raise Malformed("a ledger names exactly one of `command:` (commands/_rules/) or `shared:` (commands/_rules/_shared/)")
+        raise LedgerError("a ledger names exactly one of `command:` (commands/_rules/) or `shared:` (commands/_rules/_shared/)")
     name = data.get("shared") if shared else data.get("command")
     if not isinstance(name, str) or not name.strip():
-        raise Malformed("`command:`/`shared:` is not a non-empty string")
+        raise LedgerError("`command:`/`shared:` is not a non-empty string")
     if shared and not _inside(root / name, root):
-        raise Malformed(f"shared {name!r} escapes the repo")
+        raise LedgerError(f"shared {name!r} escapes the repo")
     if not shared and ("/" in name or "\\" in name or name.startswith(".")):
-        raise Malformed(f"command {name!r} is not a bare command name")
+        raise LedgerError(f"command {name!r} is not a bare command name")
     bs = data.get("baseline_sentences")
     if isinstance(bs, str) and ("/" in bs or "\\" in bs or bs.startswith(".")):
-        raise Malformed(f"baseline_sentences {bs!r} is not a file beside the ledger")
+        raise LedgerError(f"baseline_sentences {bs!r} is not a file beside the ledger")
     for k in ("baseline_sentences", "baseline_sha256"):
         if k in data and not isinstance(data[k], str):
-            raise Malformed(f"`{k}` must be a quoted string")
+            raise LedgerError(f"`{k}` must be a quoted string")
     for k, kind in (("entries", list), ("retired", list), ("vanished", dict)):
         if data.get(k) is not None and not isinstance(data[k], kind):
-            raise Malformed(f"`{k}` is not a {kind.__name__}")
+            raise LedgerError(f"`{k}` is not a {kind.__name__}")
     ids: dict[str, dict] = {}
     for e in data.get("entries") or []:
         if not isinstance(e, dict) or not isinstance(e.get("id"), str):
-            raise Malformed("an entry is not a mapping with a string id")
+            raise LedgerError("an entry is not a mapping with a string id")
         if unknown := set(e) - _ENTRY:
-            raise Malformed(f"entry {e['id']}: unknown key(s) {sorted(map(str, unknown))}")
+            raise LedgerError(f"entry {e['id']}: unknown key(s) {sorted(map(str, unknown))}")
         if e["id"] in ids:
-            raise Malformed(f"duplicate entry id {e['id']}")
+            raise LedgerError(f"duplicate entry id {e['id']}")
         if not any(e.get(c) for c in _CARRIERS):
-            raise Malformed(f"entry {e['id']}: no carrier")
+            raise LedgerError(f"entry {e['id']}: no carrier")
         for c in ("text", "forbidden", "ordered", "pins"):
             if c in e and not _strs(e[c]):
-                raise Malformed(f"entry {e['id']}: `{c}` is not a non-empty list of non-empty strings")
+                raise LedgerError(f"entry {e['id']}: `{c}` is not a non-empty list of non-empty strings")
         for c in ("file", "section", "baseline", "current", "enforced"):
             if c in e and not isinstance(e[c], str):
-                raise Malformed(f"entry {e['id']}: `{c}` is not a string")
+                raise LedgerError(f"entry {e['id']}: `{c}` is not a string")
         if e.get("enforced") and not e.get("text"):
-            raise Malformed(f"entry {e['id']}: `enforced` needs a `text` carrier naming the invocation")
+            raise LedgerError(f"entry {e['id']}: `enforced` needs a `text` carrier naming the invocation")
         f = e.get("file") or ""
         if shared and f == "render":
-            raise Malformed(f"entry {e['id']}: a shared ledger has no `render` (its file is the shared file)")
+            raise LedgerError(f"entry {e['id']}: a shared ledger has no `render` (its file is the shared file)")
         if f.startswith("_agents/"):
             if not _inside(Path("/r") / f, Path("/r/_agents")) or ".." in Path(f).parts:
-                raise Malformed(f"entry {e['id']}: file {f!r} escapes the render's _agents/")
+                raise LedgerError(f"entry {e['id']}: file {f!r} escapes the render's _agents/")
         elif f and f != "render" and not _inside(root / f, root):
-            raise Malformed(f"entry {e['id']}: file {f!r} escapes the repo")
+            raise LedgerError(f"entry {e['id']}: file {f!r} escapes the repo")
         if e.get("enforced") and (why := _lint_enforced(e["enforced"], root, e["text"])):
-            raise Malformed(f"entry {e['id']}: {why}")
+            raise LedgerError(f"entry {e['id']}: {why}")
         ids[e["id"]] = e
     for e in ids.values():
         order = e.get("ordered") or []
         files = {ids[o].get("file") or "render" for o in order if o in ids}
         if any(o not in ids for o in order) or len(files | {e.get("file") or "render"}) > 1:
-            raise Malformed(f"entry {e['id']}: `ordered` names an unknown id or spans files")
+            raise LedgerError(f"entry {e['id']}: `ordered` names an unknown id or spans files")
     rows = _decision_rows(root)
     retired: set[str] = set()
     for r in data.get("retired") or []:
         ent = r.get("entry") if isinstance(r, dict) else None
         if not isinstance(ent, dict) or not isinstance(ent.get("id"), str):
-            raise Malformed("a retired row keeps its full entry under `entry:`")
+            raise LedgerError("a retired row keeps its full entry under `entry:`")
         if ent.get("forbidden"):
-            raise Malformed(f"retired {ent['id']}: an absence pin is never retired")
+            raise LedgerError(f"retired {ent['id']}: an absence pin is never retired")
         row = rows.get(str(r.get("decision") or ""))
         if row is None or not re.search(rf"(?<![\w-]){re.escape(ent['id'])}(?![\w-])", row):
-            raise Malformed(f"retired {ent['id']}: decision {r.get('decision')!r} has no D-row naming it")
+            raise LedgerError(f"retired {ent['id']}: decision {r.get('decision')!r} has no D-row naming it")
         if ent["id"] in ids:
-            raise Malformed(f"retired {ent['id']}: also a live entry")
+            raise LedgerError(f"retired {ent['id']}: also a live entry")
         retired.add(ent["id"])
     for key, label in (data.get("vanished") or {}).items():
         if not isinstance(key, str) or not re.fullmatch(r"L[1-9]\d*", key):
-            raise Malformed(f"vanished key {key!r} is not a baseline line (L<n>)")
+            raise LedgerError(f"vanished key {key!r} is not a baseline line (L<n>)")
         if label == "narrative":
             continue
         if isinstance(label, dict) and set(label) == {"rule"} and _strs(label["rule"]):
@@ -399,9 +399,9 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         elif isinstance(label, dict) and set(label) == {"duplicate-of"} and isinstance(label["duplicate-of"], str):
             named = [label["duplicate-of"]]
         else:
-            raise Malformed(f"vanished {key}: label {label!r} is not rule: [ids], duplicate-of: id or narrative")
+            raise LedgerError(f"vanished {key}: label {label!r} is not rule: [ids], duplicate-of: id or narrative")
         if bad := [n for n in named if n not in ids or n in retired]:
-            raise Malformed(f"vanished {key}: names unknown or retired id(s) {bad}")
+            raise LedgerError(f"vanished {key}: names unknown or retired id(s) {bad}")
     data["_ids"] = ids
     return data
 
@@ -502,14 +502,14 @@ def losses(render_dir: Path, root: Path, src_dir: Path, rules: Path | None = Non
     for path in paths:
         try:
             if path.suffix == ".yml":
-                raise Malformed("a ledger is named *.yaml")
+                raise LedgerError("a ledger is named *.yaml")
             led = load_ledger(path, root)
             if "command" in led and not (src_dir / f"{led['command']}.md").is_file():
                 if live:
                     out.append(f"LOSS {path.name}: command {led['command']!r} has no source in commands/_sources/")
                 continue
             out += _check(led, path, render_dir, root, src_dir)
-        except Malformed as exc:
+        except LedgerError as exc:
             out.append(f"LOSS {path.name}: malformed — {exc}")
         except Exception as exc:  # noqa: BLE001 — losses() never raises: a crash is a LOSS, not drift
             out.append(f"LOSS {path.name}: unreadable — {type(exc).__name__}: {exc}")
