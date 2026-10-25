@@ -93,8 +93,8 @@ def test_measure_splits_own_text_from_reads(tmp_path: Path) -> None:
     assert m["own"] == m["render"] + 4 + 7 + 6
     # reads: `//` collapsed, the root file under both spellings once; never a ledger, a review, a
     # script, an absent row, a home path, another repo, a directory or a URL
-    # the D-1 row "| D-1 | d | w | the first row | y | z |" is 16 whitespace-split words
-    assert m["reads"] == {"docs/reference/guide.md": 10, "agents-fabrik.md": 7, "docs/DECISIONS.md#D-1": 16}
+    # the D-1 row "| D-1 | d | w | the first row | y | z |" is 15 whitespace-split words
+    assert m["reads"] == {"docs/reference/guide.md": 10, "agents-fabrik.md": 7, "docs/DECISIONS.md#D-1": 15}
     assert m["reads_total"] == sum(m["reads"].values())
 
 
