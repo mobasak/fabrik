@@ -1,6 +1,6 @@
 # Lean command corpus — the rewrite plan set
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** kaizen
 Spec: `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` (Status: CONVERGED, D-1217, D-1219) · Work item: W-96f36043 (the P0 lean program, D-1216) · Plan decisions: D-1222
 
@@ -120,7 +120,7 @@ Selections against it: a ticket's ledger is the single source of a rule's wordin
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part a | — | ⛓️ | ⬜ | |
+| T01a | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part a | — | ⛓️ | 🔵 | |
 | T01b | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part b | T01a | ⛓️ | ⬜ | |
 | T01c | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part c | T01b | ⛓️ | ⬜ | |
 | T01d | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — the rewrite | T01c | ⛓️ | ⬜ | |
