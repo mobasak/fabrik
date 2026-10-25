@@ -195,17 +195,26 @@ the local `gh` token — `/web-setup` is hidden headless; drive it through a pty
   setup script is web-only configuration).
 - The repo's own hooks load in the clone: the hub's Stop hook ran inside a probe worker and offered
   it infra's work queue (it refused correctly, and the run ended); the rules forbid claims anyway.
-- Billing: a run draws the account's PLAN usage (5-hour and weekly) first, like an interactive
-  session; usage credits pay only as overage past the plan limit, and only where overage is turned
-  on at claude.ai/settings/usage — without it a run at the wall is rejected
-  (code.claude.com/docs/en/routines § Usage and limits, fetched 2026-10-25). Measured W-b00d9d72:
-  each of the five fires so far opened a fresh 5-hour window on its account (reset ≈ fire + 5 h,
-  idle accounts included), and every run's `rate_limit_info` reads `overageStatus: rejected`
-  (`org_level_disabled` on can, ozgurbasak and mob, `out_of_credits` on ob). So the dollar guard
-  above bounds the credit, not the plan draw: an account near its weekly wall cannot spend credit
-  until overage is on. The credit balance is visible only at claude.ai/settings/usage (no endpoint
-  exposes it) — the guard counts the per-run cost estimate against the declared credit and takes
-  the web balance by `calibrate` whenever the operator reads it.
+- Billing is UNRESOLVED, and the sections above assume the side the evidence leans against. The
+  registry's `credit_note` says the $250 promotional credit is "spent before plan usage".
+  Anthropic's docs say a cloud session "counts toward your plan's usage limits"
+  (code.claude.com/docs/en/claude-code-on-the-web), that scheduled tasks "draw down subscription
+  usage the same way interactive sessions do", and they name usage credits only as metered
+  overage past the plan limit (code.claude.com/docs/en/routines § Usage and limits; both fetched
+  2026-10-25). Neither doc mentions a promotional credit. Measured for W-b00d9d72:
+  - Three of the five fires (can and ozgurbasak on 10-14, ob on 10-24, each an account no
+    session was using) opened a 5-hour plan window. Each reset came at fire + 4.9–5.0 h (every reset
+    here is a whole multiple of 10 minutes).
+  - mob's window was already open (its reset came at fire + 0.5 h). ob's 10-14 fire landed in a
+    window its active session had opened at 17:00.
+  - No reading moved by a visible 1 % step.
+  - Every run's `rate_limit_info` reads `overageStatus: rejected`: `org_level_disabled` on can,
+    ozgurbasak and mob, and `out_of_credits` on ob from its first run on.
+
+  If the docs hold, every run spends plan quota, none spends the credit while overage is off, and
+  the dollar guard counts a list-price estimate of the plan draw. One web balance read before
+  and after a known run settles it. The balance is visible only at claude.ai/settings/usage (no
+  endpoint exposes it), and `calibrate` records it.
 
 ## Related scripts
 
