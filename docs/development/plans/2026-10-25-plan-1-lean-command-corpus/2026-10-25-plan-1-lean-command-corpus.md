@@ -24,10 +24,10 @@ Spec: `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` (Status:
 | I5 | "lean seat briefs" (the question and the pin) | IN | § Execution Discipline, and lever T4 in T01d |
 | I6 | "finders via intel's API lane when it lands" (W-230abfd5) | IN | § Execution Discipline |
 | I7 | the three filed findings W-6effedda, W-9ad5860f, W-f723cb66 | IN | the pilot shared-file unit (T01a-T01d) |
-| I8 | no `/fabrik-command-improve` run until L1 and L2 land | IN | § Global Constraints; T10 lifts it |
+| I8 | no `/fabrik-command-improve` run until L1 and L2 land | IN | § Global Constraints; it lifts at the L2 merge (spec § Program holds) |
 | I9 | the tooling (W-a9b5e763) is infra-2's, as three merge requests | IN | § Interfaces (precondition merges), not a dispatched ticket (D-1222) |
 | I10 | the § Lifecycle notes for the tooling: the frozen sample's source is the after-window report, a window with fewer than 5 fast-closed surfaces samples them all, and "confirmed defects per run" joins the measure list | IN | § Interfaces, slice B's delivery list |
-| I11 | intel's W-0a91bf86 measuring scripts are untracked (`docs/development/reviews/2026-10-25-w-0a91bf86-lean-program-phase-wall-clock.md:96`) | IN | § Residual unknowns R4; slice B commits and pins it (sent to infra-2) |
+| I11 | intel's W-0a91bf86 measuring scripts are untracked (`docs/development/reviews/2026-10-25-w-0a91bf86-lean-program-phase-wall-clock.md:96`) | IN | § Residual unknowns R4; intel commits it (W-487e966a) and infra-2 pins it |
 | I12 | the W-9ad5860f half in `.claude/workflows/fabrik-review-loop.js` | OUT-OF-SCOPE | intel's beat; the item W-9ad5860f stays open with intel |
 | I13 | lever T1's spread to `/fabrik-repo-review` | OUT-OF-SCOPE | after `/fabrik-review`'s after-window report (spec § Time budget); kaizen opens that item at the report (§ Execution Discipline) |
 | I14 | the after-window reports, frozen samples and cobra counters | OUT-OF-SCOPE | kaizen's § Lifecycle duties after each merge; one kaizen work item per landed top-four unit (§ Execution Discipline) |
@@ -36,8 +36,11 @@ Intake: 14 items — 11 IN, 3 OUT-OF-SCOPE (each named above), 0 ASK.
 
 ## Global Constraints
 
-- Every ticket waits for its tooling precondition (§ Interfaces). Slice A is on master (merge bc2a9c30b). T01a starts only after slice B is on master, and T10 only after slice C is. `git log --oneline master --grep 'W-a9b5e763 slice B'` (and `slice C`) shows them; a bare `--grep 'W-a9b5e763'` already matches slice A's commits and proves nothing about B or C.
-- The `/fabrik-command-improve` hold (spec § Program holds) stands until T10 merges. kaizen runs no `/fabrik-command-improve`, and the rows keep accumulating.
+- Every ticket waits for its preconditions (§ Interfaces), each probed on master by what landed, never by a merge's name:
+  - T01a: `python3 scripts/work.py show W-487e966a` reads done, `scripts/command_time_measure.py` exists, `commands/command_rules.py` holds `def generate_unchanged`, and `commands/_size_ceiling.json` exists;
+  - T01a: neither `.fabrik/plan-locks/2026-10-21-plan-3-own-scrape-slice-1a.json` nor `.fabrik/plan-locks/2026-10-22-plan-1-least-operator-approval.json` lists a path this plan's § File Scope lists, while it is `active` (R9);
+  - T10: `scripts/command_run.py` holds L2's `remove:` field.
+- The `/fabrik-command-improve` hold (spec § Program holds) stands until the L2 merge, the last tooling piece, lands; kaizen tells the coordinator in that turn. Until then kaizen runs no `/fabrik-command-improve`, and the rows keep accumulating.
 - The coordinator freezes non-program edits to a unit's files from its first ticket's start to its merge (spec § Target).
 - A unit's baseline is taken at its first ticket's start commit, never earlier (spec § Target).
 - Ledger grammar is slice A's, exactly:
@@ -49,7 +52,15 @@ Intake: 14 items — 11 IN, 3 OUT-OF-SCOPE (each named above), 0 ASK.
 - A single-command fragment (`scope-growth-exit`, `judge-panel`, `agent-feedback`) takes the `shared:` form, because a command ledger's baseline covers the source alone (D-1222).
 - A corpus-text pin test has its presence pins migrated into the ledger in its unit. A behavioural test (it drives code) keeps its pins, and the ledger carries each pinned phrase verbatim, so the rewrite never edits it (D-1222).
 - A test outside a ticket's Touches that the rewrite turns red is a Touches miss. The orchestrator adds it to that ticket's Touches and to § File Scope in an amendment commit before the ticket merges. It is never skipped, xfailed or left red.
-- No ticket edits a tooling file: `commands/command_rules.py`, `commands/assemble_commands.py`, `commands/_size_ceiling.json` (except through slice B's ratchet), `scripts/command_run.py`, `scripts/command_feedback_report.py`, `tests/test_command_rules.py`.
+- No ticket edits a tooling file: `commands/command_rules.py`, `commands/assemble_commands.py`, `commands/_size_ceiling.json`, `scripts/command_run.py`, `scripts/command_feedback_report.py`, `tests/test_command_rules.py`. `commands/_size_ceiling.json` is in a rewrite ticket's Touches only because the text-measure merge's ratchet writes it in that ticket's commit; no hand edit, as infra-2 agreed (§ What we already agreed).
+- **The reader-test run.** Every ticket that cuts a file runs every test naming that file, whatever its role. At the ticket's start, list them per cut file's stem: `command grep -rlE "<stem>(\.md|['\"/])" tests/`. Run their union through `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q <the files>`. That run is the net for every pin the step-2 literal scan misses: a pin under 25 characters, a regex or structure assert, or a phrase the test normalises differently. A red test there is a Touches miss (the rule above).
+- A test assert that relates two files, or loops over several commands (the same sentence in two files, a minimum count of copies, a list of commands), is never migrated into one unit's ledger, because a ledger grades one file. It stays, the reader-test run keeps it green, and each unit it names keeps the asserted text verbatim.
+- A kept test that asserts raw text (a line break, emphasis) holds the rewrite to those bytes, though the ledger normalises them; the reader-test run is the check.
+- In a rewrite ticket, the presence pins to delete are listed by running step 2's snippet over the Touches tests against the start-commit file.
+- A ledger entry's `current` is one whole unit as `command_rules.units()` returns it: a sentence as its splitter cuts it, a whole table row, or a fence joined with ` ⏎ `.
+- `units()` drops a leading frontmatter block. So a rule in an agent definition's frontmatter (`tools`, `disallowedTools`, `model`, `omitClaudeMd`, a ban in `description`) is carried by an entry with `section: ""`, `current: ""` and the phrase as a `text` carrier, which `_check` grades against the whole live file.
+- L2's `close-feedback.md` sentence lands before T01a starts, so the baseline holds it, or after unit 01 merges, carrying its own entry in `commands/_rules/_shared/close-feedback.yaml`; never inside unit 01's freeze.
+- A ticket's 50% row grades each file it cuts: a source by `command_rules.own_text`, a shared file whole, both in words. A command's own text in spec § Target (its render plus its kaizen-owned reads) is the sum of those files, so it is halved when every one of them is. Floors break that sum, so T46 tabulates the per-command figure.
 - The worktree never renders. `python3 commands/assemble_commands.py --check` is safe because it renders to a temp dir. The coordinator renders at merge (`CLAUDE.md` § Behavior, merge-time render only).
 - Tests run through `/opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest …` and never bare. No seat runs a package-manager verb.
 - 12-Factor non-negotiables, inherited though this plan writes only Markdown, YAML and tests:
@@ -325,15 +336,17 @@ The tail, in its order (spec § Order step 6: descending hours, ties by own word
 
 - **Precondition merges (producer: infra-2, W-a9b5e763; consumer: every ticket).**
   - Slice A: `commands/command_rules.py` with `own_text`, `write_baseline`, `vanished`, `load_ledger` and `losses`, and the `--check` LOSS exit 4. On master since merge bc2a9c30b (D-1221; review receipt 4ce9a1a48, CONVERGED).
-  - Slice B, needed before T01a:
+  - The text-measure merge (infra-2, W-a9b5e763), needed before T01a:
     - `command_rules.generate_unchanged(baseline_path, new_own_text) -> [entry]`, the measure, and `commands/_size_ceiling.json` with its ratchet and `--check` exit 5;
     - every command's full-measure baseline, published;
-    - the D-1219 measuring script, committed and pinned by commit, run nightly with the kaizen digest. It must carry the frozen-sample source (the after-window report), the all-of-them rule for fewer than 5 fast-closed surfaces, and the confirmed-defects-per-run column.
-  - Slice C, needed before T10: L2's `remove:` field in `scripts/command_run.py` and its grouping in `scripts/command_feedback_report.py`, plus the `remove:` sentence in `commands/_fragments/close-feedback.md`.
+    - `changed-by` in the ledger grammar's entry keys, which T07c's T1 rule change needs (spec § The rule test step 8; requested of infra-2).
+  - The time measure (intel, W-487e966a), needed before T01a: the D-1219 measuring script committed as `scripts/command_time_measure.py` with a fixture test; infra-2 then pins it by commit and runs it nightly with the kaizen digest. It must carry the frozen-sample source (the after-window report), the all-of-them rule for fewer than 5 fast-closed surfaces, and the confirmed-defects-per-run column.
+  - The L2 merge (infra-2, W-a9b5e763), needed before T10: L2's `remove:` field in `scripts/command_run.py` and its grouping in `scripts/command_feedback_report.py`, plus the `remove:` sentence in `commands/_fragments/close-feedback.md`.
+  - infra-2 names its own merges; the plan's earlier slice letters B and C are retired.
   - **Seam test:** `tests/test_command_rules.py`, owned by the producer and run read-only by every ticket's first Gate line. It auto-discovers the ledgers.
 - **Shared ledgers (producers: T01a-T01d, T03a-T03c, T04a-T04c, T05a-T05c, T06; consumers: every later command unit).** `commands/_rules/_shared/<name>.yaml` asserts each shared file against itself. A command unit never re-ledgers or re-cuts a shared file. Its seam is the same `tests/test_command_rules.py` run.
 - **Unit ledger across its tickets (producer: a unit's migration part a; consumer: its later parts and its rewrite).** Part a writes `<name>.baseline.txt` and the entries. A later ticket extends the ledger and never rewrites its baseline.
-- **The pilot's words-per-rule figure (producer: T02; consumer: every floor D-row).** It is recorded in the pilot D-row (spec § Residual unknowns U1).
+- **The pilot's words-per-rule figure (producer: T02; consumer: every floor D-row).** It is recorded in the pilot D-row (spec § Residual unknowns U1). T01d lands before it, so a T01d floor uses unit 01's own figure: its words after the cut divided by its live ledger entries, stated in that floor's D-row.
 
 ## Behavior Contract
 
@@ -345,7 +358,7 @@ The tail, in its order (spec § Order step 6: descending hours, ties by own word
 - **Given** the shared files `no-workflow-hub.md`, `run-record.md`, `orient.md`, `close-chain.md`, `close-feedback.md`, `review-probe-catalogue.md`, `fabrik-reviewer.md`, `fabrik-researcher.md`, `fabrik-gui.md` rewritten, **When** its own text is counted with `command_rules.own_text`, **Then** it is at most 50% of the baseline count or a floor D-row names the shortfall (spec § Target)
 - **Given** every baseline unit of the shared files `no-workflow-hub.md`, `run-record.md`, `orient.md`, `close-chain.md`, `close-feedback.md`, `review-probe-catalogue.md`, `fabrik-reviewer.md`, `fabrik-researcher.md`, `fabrik-gui.md` with no surviving match, **When** the ledger is loaded, **Then** each has a `vanished:` label adjudicated from a Sonnet and a Haiku seat's union (spec § The rule test)
 - **Given** a NEVER or refusal clause, or a phrase a kept behavioural test pins, in the baseline of the shared files `no-workflow-hub.md`, `run-record.md`, `orient.md`, `close-chain.md`, `close-feedback.md`, `review-probe-catalogue.md`, `fabrik-reviewer.md`, `fabrik-researcher.md`, `fabrik-gui.md`, **When** it is rewritten, **Then** the phrase survives verbatim as a `text` carrier (spec § How a command is cut)
-- **Given** the corpus after the the shared files `no-workflow-hub.md`, `run-record.md`, `orient.md`, `close-chain.md`, `close-feedback.md`, `review-probe-catalogue.md`, `fabrik-reviewer.md`, `fabrik-researcher.md`, `fabrik-gui.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
+- **Given** the corpus after the shared files `no-workflow-hub.md`, `run-record.md`, `orient.md`, `close-chain.md`, `close-feedback.md`, `review-probe-catalogue.md`, `fabrik-reviewer.md`, `fabrik-researcher.md`, `fabrik-gui.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
 - **Given** the `review-probe-catalogue.md` seat-isolation recipe, **When** the code under test imports a gitignored generated file or runs from a git archive, **Then** the recipe says to copy that file into the archive tree and to run Python with `-P` and `env -C` (W-6effedda, W-9ad5860f)
 - **Given** `commands/_agents/fabrik-reviewer.md` rewritten, **When** a seat reads its house rules, **Then** they forbid executing the surface under review, and the T4 panel verdict on brief contents is a D-row (W-f723cb66, spec § Time budget)
 - **Given** the ledger for `/fabrik-review-scoped` written from its baseline own text at the unit's start commit, **When** `tests/test_command_rules.py` renders the corpus, **Then** it prints a LEDGER line for it with zero LOSS lines (spec § The rule test)
@@ -362,7 +375,7 @@ The tail, in its order (spec § Order step 6: descending hours, ties by own word
 - **Given** the shared file `term-coverage.md` rewritten, **When** its own text is counted with `command_rules.own_text`, **Then** it is at most 50% of the baseline count or a floor D-row names the shortfall (spec § Target)
 - **Given** every baseline unit of the shared file `term-coverage.md` with no surviving match, **When** the ledger is loaded, **Then** each has a `vanished:` label adjudicated from a Sonnet and a Haiku seat's union (spec § The rule test)
 - **Given** a NEVER or refusal clause, or a phrase a kept behavioural test pins, in the baseline of the shared file `term-coverage.md`, **When** it is rewritten, **Then** the phrase survives verbatim as a `text` carrier (spec § How a command is cut)
-- **Given** the corpus after the the shared file `term-coverage.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
+- **Given** the corpus after the shared file `term-coverage.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
 - **Given** the shared file `term-edit.md` at the unit's start commit, **When** its baseline and ledger are written before any cut, **Then** `tests/test_command_rules.py` prints its LEDGER line with zero LOSS lines and the files are byte-identical to the start commit (spec § The rule test)
 - **Given** the presence pins on the shared file `term-edit.md` in the tests of migration part a, **When** this ticket commits, **Then** each is deleted and its phrase is a carrier in the ledger, and an absence pin is a `forbidden:` carrier or stays (spec § The rule test)
 - **Given** the presence pins on the shared file `term-edit.md` in the tests of migration part b, **When** this ticket commits, **Then** each is deleted and its phrase is a carrier in the ledger, and an absence pin is a `forbidden:` carrier or stays (spec § The rule test)
@@ -370,7 +383,7 @@ The tail, in its order (spec § Order step 6: descending hours, ties by own word
 - **Given** the shared file `term-edit.md` rewritten, **When** its own text is counted with `command_rules.own_text`, **Then** it is at most 50% of the baseline count or a floor D-row names the shortfall (spec § Target)
 - **Given** every baseline unit of the shared file `term-edit.md` with no surviving match, **When** the ledger is loaded, **Then** each has a `vanished:` label adjudicated from a Sonnet and a Haiku seat's union (spec § The rule test)
 - **Given** a NEVER or refusal clause, or a phrase a kept behavioural test pins, in the baseline of the shared file `term-edit.md`, **When** it is rewritten, **Then** the phrase survives verbatim as a `text` carrier (spec § How a command is cut)
-- **Given** the corpus after the the shared file `term-edit.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
+- **Given** the corpus after the shared file `term-edit.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
 - **Given** the shared files `subagents-core.md`, `delegated-reads.md`, `grounding-artifact.md`, `grounding-code.md`, `grounding-rules.md`, `questionbar.md`, `injection.md`, `test-generation-loop.md`, `chat-intake.md`, `repo-identity.md` at the unit's start commit, **When** its baseline and ledger are written before any cut, **Then** `tests/test_command_rules.py` prints its LEDGER line with zero LOSS lines and the files are byte-identical to the start commit (spec § The rule test)
 - **Given** the presence pins on the shared files `subagents-core.md`, `delegated-reads.md`, `grounding-artifact.md`, `grounding-code.md`, `grounding-rules.md`, `questionbar.md`, `injection.md`, `test-generation-loop.md`, `chat-intake.md`, `repo-identity.md` in the tests of migration part a, **When** this ticket commits, **Then** each is deleted and its phrase is a carrier in the ledger, and an absence pin is a `forbidden:` carrier or stays (spec § The rule test)
 - **Given** the presence pins on the shared files `subagents-core.md`, `delegated-reads.md`, `grounding-artifact.md`, `grounding-code.md`, `grounding-rules.md`, `questionbar.md`, `injection.md`, `test-generation-loop.md`, `chat-intake.md`, `repo-identity.md` in the tests of migration part b, **When** this ticket commits, **Then** each is deleted and its phrase is a carrier in the ledger, and an absence pin is a `forbidden:` carrier or stays (spec § The rule test)
@@ -378,13 +391,13 @@ The tail, in its order (spec § Order step 6: descending hours, ties by own word
 - **Given** the shared files `subagents-core.md`, `delegated-reads.md`, `grounding-artifact.md`, `grounding-code.md`, `grounding-rules.md`, `questionbar.md`, `injection.md`, `test-generation-loop.md`, `chat-intake.md`, `repo-identity.md` rewritten, **When** its own text is counted with `command_rules.own_text`, **Then** it is at most 50% of the baseline count or a floor D-row names the shortfall (spec § Target)
 - **Given** every baseline unit of the shared files `subagents-core.md`, `delegated-reads.md`, `grounding-artifact.md`, `grounding-code.md`, `grounding-rules.md`, `questionbar.md`, `injection.md`, `test-generation-loop.md`, `chat-intake.md`, `repo-identity.md` with no surviving match, **When** the ledger is loaded, **Then** each has a `vanished:` label adjudicated from a Sonnet and a Haiku seat's union (spec § The rule test)
 - **Given** a NEVER or refusal clause, or a phrase a kept behavioural test pins, in the baseline of the shared files `subagents-core.md`, `delegated-reads.md`, `grounding-artifact.md`, `grounding-code.md`, `grounding-rules.md`, `questionbar.md`, `injection.md`, `test-generation-loop.md`, `chat-intake.md`, `repo-identity.md`, **When** it is rewritten, **Then** the phrase survives verbatim as a `text` carrier (spec § How a command is cut)
-- **Given** the corpus after the the shared files `subagents-core.md`, `delegated-reads.md`, `grounding-artifact.md`, `grounding-code.md`, `grounding-rules.md`, `questionbar.md`, `injection.md`, `test-generation-loop.md`, `chat-intake.md`, `repo-identity.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
+- **Given** the corpus after the shared files `subagents-core.md`, `delegated-reads.md`, `grounding-artifact.md`, `grounding-code.md`, `grounding-rules.md`, `questionbar.md`, `injection.md`, `test-generation-loop.md`, `chat-intake.md`, `repo-identity.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
 - **Given** the ledger for the shared files `design-critique.md`, `design-gate-panel.md`, `deploy-chain.md`, `cert-board-contract.md`, `cert-execution.md`, `cert-handoff-grammar.md`, `cert-visual-deliverable.md`, `autonomy-run.md`, `design-review.md` written from its baseline own text at the unit's start commit, **When** `tests/test_command_rules.py` renders the corpus, **Then** it prints a LEDGER line for it with zero LOSS lines (spec § The rule test)
 - **Given** the shared files `design-critique.md`, `design-gate-panel.md`, `deploy-chain.md`, `cert-board-contract.md`, `cert-execution.md`, `cert-handoff-grammar.md`, `cert-visual-deliverable.md`, `autonomy-run.md`, `design-review.md` rewritten, **When** its own text is counted with `command_rules.own_text`, **Then** it is at most 50% of the baseline count or a floor D-row names the shortfall (spec § Target)
 - **Given** every baseline unit of the shared files `design-critique.md`, `design-gate-panel.md`, `deploy-chain.md`, `cert-board-contract.md`, `cert-execution.md`, `cert-handoff-grammar.md`, `cert-visual-deliverable.md`, `autonomy-run.md`, `design-review.md` with no surviving match, **When** the ledger is loaded, **Then** each has a `vanished:` label adjudicated from a Sonnet and a Haiku seat's union (spec § The rule test)
 - **Given** a NEVER or refusal clause, or a phrase a kept behavioural test pins, in the baseline of the shared files `design-critique.md`, `design-gate-panel.md`, `deploy-chain.md`, `cert-board-contract.md`, `cert-execution.md`, `cert-handoff-grammar.md`, `cert-visual-deliverable.md`, `autonomy-run.md`, `design-review.md`, **When** it is rewritten, **Then** the phrase survives verbatim as a `text` carrier (spec § How a command is cut)
 - **Given** a presence pin in a corpus-text test on the shared files `design-critique.md`, `design-gate-panel.md`, `deploy-chain.md`, `cert-board-contract.md`, `cert-execution.md`, `cert-handoff-grammar.md`, `cert-visual-deliverable.md`, `autonomy-run.md`, `design-review.md`, **When** this ticket commits, **Then** the pin is deleted and its phrase is a ledger carrier, and an absence pin is a `forbidden:` carrier or stays (spec § The rule test)
-- **Given** the corpus after the the shared files `design-critique.md`, `design-gate-panel.md`, `deploy-chain.md`, `cert-board-contract.md`, `cert-execution.md`, `cert-handoff-grammar.md`, `cert-visual-deliverable.md`, `autonomy-run.md`, `design-review.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
+- **Given** the corpus after the shared files `design-critique.md`, `design-gate-panel.md`, `deploy-chain.md`, `cert-board-contract.md`, `cert-execution.md`, `cert-handoff-grammar.md`, `cert-visual-deliverable.md`, `autonomy-run.md`, `design-review.md` rewrite, **When** `assemble_commands.py --check` runs, **Then** it exits 0 or 1 and never 4 or 5 (spec § The rule test)
 - **Given** `/fabrik-review` at the unit's start commit, **When** its baseline and ledger are written before any cut, **Then** `tests/test_command_rules.py` prints its LEDGER line with zero LOSS lines and the files are byte-identical to the start commit (spec § The rule test)
 - **Given** the presence pins on `/fabrik-review` in the tests of migration part a, **When** this ticket commits, **Then** each is deleted and its phrase is a carrier in the ledger, and an absence pin is a `forbidden:` carrier or stays (spec § The rule test)
 - **Given** the presence pins on `/fabrik-review` in the tests of migration part b, **When** this ticket commits, **Then** each is deleted and its phrase is a carrier in the ledger, and an absence pin is a `forbidden:` carrier or stays (spec § The rule test)
@@ -613,7 +626,7 @@ The tail, in its order (spec § Order step 6: descending hours, ties by own word
 - **Given** every command and shared-file ledger merged, **When** the receipt tabulates baseline and final own-text words, **Then** each is at or under 50% or names its floor D-row (spec § Binding)
 - **Given** the tooling phase's published full-measure baselines, **When** the full measure is re-run at the close, **Then** no command's full measure has grown (spec § Target)
 - **Given** the merged plan, **When** `final_gate.py --check --json` and `check_convergence.py` run, **Then** both report success and the receipt embeds their output (spec § Review and landing)
-- **Given** the feedback ledger after slice C merged, **When** the receipt counts close rows, **Then** it reports the `remove:` rows flowing with their `none` share (spec § Lifecycle)
+- **Given** the feedback ledger after the L2 merge, **When** the receipt counts close rows, **Then** it reports the `remove:` rows flowing with their `none` share (spec § Lifecycle)
 
 ## File Scope (owned paths)
 
@@ -880,7 +893,6 @@ The tail, in its order (spec § Order step 6: descending hours, ties by own word
 - commands/_rules/fabrik-workflow-review.yaml
 - commands/_rules/fabrik-workflow-review.baseline.txt
 - docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md
-- docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md
 
 ## Review rubric
 
@@ -1019,15 +1031,15 @@ The `review_rubric.py` run over this plan's File Scope (`python3 scripts/review_
 
 | Class | Source | Verdict | Evidence |
 |---|---|---|---|
-| no package-manager verb from a seat; tests via `.venv/bin/python` | FLOOR `core/10-python.md` | UNCHECKED | |
-| the twelve factors, inherited | FLOOR 12-FACTOR | UNCHECKED | |
-| one source of truth; heading and fence form | MATCHED `core/40-documentation.md` | UNCHECKED | |
-| every behaviour has a test; red-on-revert; no cosmetic asserts | MATCHED `core/45-testing-strategy.md` | UNCHECKED | |
-| native seats, author-blind roles, dispatch sizing | MATCHED `core/62-using-subagents.md` | UNCHECKED | |
-| fail-open vs fail-closed on every gate and guard | standing | UNCHECKED | |
-| cost, quota and limit accounting edges | standing | UNCHECKED | |
-| boundary, sentinel and prefix collisions | standing | UNCHECKED | |
-| behaviour without a test | standing | UNCHECKED | |
+| no package-manager verb from a seat; tests via `.venv/bin/python` | FLOOR `core/10-python.md` | CLEAN | `command grep -nE '\buv (run\|sync\|add\|lock\|pip)\b\|pip install'` over the 58 files: hits only inside the verbatim rubric block; every pytest Gate line and the reader-test run go through `capped_run.sh -- .venv/bin/python` (plan-review pass 1) |
+| the twelve factors, inherited | FLOOR 12-FACTOR | CLEAN | the set writes Markdown, YAML ledgers and test edits only; no process, config, port, log or migration surface (§ Touches of all 57 tickets, § File Scope) |
+| one source of truth; heading and fence form | MATCHED `core/40-documentation.md` | FIXED | heading/fence script over 58 files: 0 skipped levels, 0 unclosed fences; a ledger is a rule's one source, and a cross-file assert stays a test rather than a second ledger copy (§ Global Constraints, S1-4/S2-5) |
+| every behaviour has a test; red-on-revert; no cosmetic asserts | MATCHED `core/45-testing-strategy.md` | FIXED | the reader-test run (§ Global Constraints) on every cutting ticket: 366 unnamed reader tests and 71 named-but-ungated tests found by the class sweep (S1-1..5, S2-1/4/5/8/10, S3-1..7) |
+| native seats, author-blind roles, dispatch sizing | MATCHED `core/62-using-subagents.md` | CLEAN | § Execution Discipline: native `Agent` seats only (D-961), the Sonnet + Haiku classification pair, the Opus + Fable panel, panel-floor briefs; this review ran at `dispatch_headroom.py --slices opus=1,sonnet=2` → `SEATS: 3` |
+| fail-open vs fail-closed on every gate and guard | standing | FIXED | `--check` exit 1 now passes only `DIFFERS`/`MISSING` DRIFT lines (`assemble_commands.py:1340-1343`, `:1395`); the LEDGER criterion read through `-rP`; T46 gains goal gates (S1-8/9, S2-2/9, S3-8/9/11) |
+| cost, quota and limit accounting edges | standing | CLEAN | the reader-test run is bounded by the cut file's readers (76 test files at most, `fabrik-review`) against the 28-minute suite, under `capped_run.sh`; seats at the panel floor; API-credit lane R7 |
+| boundary, sentinel and prefix collisions | standing | FIXED | the reader regex `<stem>(\.md\|['"/])` keeps `fabrik-review` from matching `fabrik-review-scoped`; the precondition probes key on delivered names, not on an id prefix slice A already matched (O1, S1-14) |
+| behaviour without a test | standing | FIXED | T46's Behavior Contract rows each have a Gate or a step command now (S3-10/11); every cutting ticket's kept tests run (reader-test run) |
 
 ## Evidence
 
@@ -1139,15 +1151,23 @@ Over 142 test files at base 4c0827c22. The one failure, `tests/test_prune_transc
 
 Grounded anchors, each read in this run:
 - `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md:125` (target), `:177` (completeness), `:232` (retiring pins), `:239` (the tail), `:291` (T1), `:362` (L1 text), `:495` (KILL).
-- `commands/assemble_commands.py:31` (`_CLOSE_FEEDBACK`) and `:1323` (`def check()`, whose exit is at `:1383`).
+- `commands/assemble_commands.py:34` (`_CLOSE_FEEDBACK`) and `:1326` (`def check()`, whose exit is at `:1395`).
 - `commands/_sources/fabrik-task.md:216-219` (the nested review and the full review after phase 5 step 5).
 - `commands/_agents/fabrik-reviewer.md:6` (`omitClaudeMd: true`).
-- `commands/_sources/fabrik-command-improve.md:290-299` (today's size paragraph).
+- `commands/_sources/fabrik-command-improve.md:288-300` (today's size paragraph).
 - `docs/development/reviews/2026-10-25-w-0a91bf86-lean-program-phase-wall-clock.md:96-106` (the untracked measuring scripts).
 - `scripts/api_credit.py:657-673` (the `run`/`status`/`settle` verbs).
 - `scripts/command_run.py:2608` (`_USAGE_FIELDS`) and `:2896` (`_parse_usage_feedback`).
 
 Each ticket cites its primary path in its Touches and its spec rules verbatim at `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md:<line>`.
+
+## Pass Ledger
+
+`/fabrik-plan-review`, receipt `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-plan-review.md`. Slices: A (spine, T01a-T02, opus), B (T03a-T20, sonnet), C (T21-T46, sonnet); shape `agent-tool` (D-961). Hash: the combined set md5, run from inside the set dir; a row's end hash is taken before the row is written.
+
+| Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 + sonnet×2 (slices A, B, C) · all axes | found: 49, new: 49, confirmed: 48, fixed: 48, unexecuted: 0, edits: 22 | method: citation — full pass over all 58 files (A 205 claims, B ~700, C ~150); orchestrator executed the reader-test class sweep (366 unnamed, 71 named-but-ungated over 626 test files), the lock-overlap probe (2 active locks, 10 paths), `-rP` on a printing test, `assemble_commands.py` drift and exit lines (:1340-1343, :1395), `_ENTRY` (:183, no `changed-by`), `units()` frontmatter drop (:82-84), the anchors (:34, :1326, :1395); flip gates on a flipped scratch copy: rule grounding 6 examined 0 findings, plan quality 58 examined 0 findings (planted mutant → 1), convergence graded the spine; 1 RECORDED — by design (S2-14b, `fabrik-task.md:216-217` matches the spec's own cite) | 4516608359d074abaf6f0dcf7c0f580a → 080c6a235526cb152f117ec134bfedb7 |
 
 ## Self-audit
 
@@ -1155,20 +1175,20 @@ Grounding passes run:
 - **The census** (above): sources, fragment fan-in, seat definitions and hours.
 - **Three grounding seats.**
   - An Opus `fabrik-researcher` checked the spec's repo anchors. It found three drifts:
-    - the `check()` exit is at `assemble_commands.py:1383`, not `:1382`;
+    - the `check()` exit was at `assemble_commands.py:1383`, not `:1382`, on slice A's branch (`:1395` on master since slice A merged);
     - `tests/test_assemble_agents_dest.py` calls `ac.render(Path(td))`, not the `render(tmp_path, None, …)` the spec quotes;
     - intel's measuring scripts are untracked.
   - A Sonnet seat censused the pin tests on the pilot files.
   - A Sonnet seat located the measure script, the API-credit lane and the close-feedback parser.
 - **An AST literal scan** of every candidate test for ≥25-character literals found verbatim in the file being cut. It replaced a name-only match that had listed 22 over-budget tickets, most of them false hits.
 
-None of the three drifts changes a ticket: the tooling is infra-2's, and the untracked script is slice B's delivery (§ Interfaces).
+None of the three drifts changes a ticket: the tooling is infra-2's, and the untracked script is the time measure's delivery (§ Interfaces).
 
 (a) **Coverage of What we already agreed:**
 - The goal and the measure: every unit's Behavior Contract rows 1-2, and T46.
 - The order: § Merge Order.
 - The levers: each rewrite's step 4 and the T07c and T08 rows.
-- L1 and L2: slices B and C, and T10.
+- L1 and L2: the text-measure and L2 merges (§ Interfaces), and T10.
 - The holds: § Global Constraints and T10.
 - Ruling (a): § Execution Discipline.
 - The coordinator's brief: § Execution Discipline and T01a-T01d.
@@ -1189,11 +1209,12 @@ Resolved:
 - **The READ budget:** every ticket is under 262144 bytes (§ Evidence).
 
 Still open, each with its resolution step:
-- **R1 — when slices B and C merge.** Resolution: the executor probes `git log --oneline master --grep 'W-a9b5e763 slice B'` before T01a and `--grep 'W-a9b5e763 slice C'` before T10, and waits on the precondition rather than starting. Waiting is not a mid-run question, because the plan names it. Slice A is on master (bc2a9c30b), so the emit gate grades the set clean (§ Evidence).
-- **R2 — the name of slice B's ceiling ratchet.** Resolution: slice B documents it in `docs/reference/command-corpus-check.md` § Rule ledger, and each ticket's step 7 reads it there. No ticket starts before B merges (R1).
-- **R3 — a pin shorter than 25 characters is missed by the scan, so a test outside Touches may go red.** Resolution: § Global Constraints' Touches-miss rule, an amendment commit before merge.
-- **R4 — intel's measuring script.** Resolution: slice B commits it and pins it by commit (sent to infra-2 on 2026-10-25). Until it lands, no time baseline is cut and no unit starts (R1).
-- **R5 — intel's D-344 measure for T1.** Resolution: T07c proposes T1 only if the measure exists at its start, and otherwise records it as not proposed.
-- **R6 — infra-2's lane clause W-a0a32de2.** Resolution: T08 carries it if it merged first. Otherwise it lands later under its own D-row.
+- **R1 — when the text-measure, time-measure and L2 merges land.** Resolution: the executor runs § Global Constraints' precondition probes before T01a and before T10, and waits rather than starting. Waiting is not a mid-run question, because the plan names it. Slice A is on master (bc2a9c30b), so the emit gate grades the set clean (§ Evidence).
+- **R2 — the name of the text-measure merge's ceiling ratchet.** Resolution: that merge documents it in `docs/reference/command-corpus-check.md` § Rule ledger, and each ticket's step 7 reads it there. No ticket starts before it merges (R1).
+- **R3 — the step-2 scan misses a pin under 25 characters, a regex or structure assert, and a phrase its test normalises differently.** Resolution: § Global Constraints' reader-test run turns each such miss red inside the ticket, and the Touches-miss rule amends it before merge.
+- **R4 — intel's measuring script.** Resolution: intel commits it as `scripts/command_time_measure.py` (W-487e966a), and infra-2 pins it by commit. Until it lands, no time baseline is cut and no unit starts (R1).
+- **R5 — intel's D-344 measure for T1.** Resolution: at its start T07c runs `python3 scripts/decisions.py D-344`. It proposes T1 only if a row after D-1219 records the D-344 pair's measured recall in `/fabrik-review`, and otherwise records T1 as not proposed.
+- **R6 — infra-2's lane clause W-a0a32de2.** Resolution: at its start T08 runs `python3 scripts/work.py show W-a0a32de2`. If it reads done, T08 carries the clause; otherwise the clause lands later under its own D-row.
 - **R7 — whether the API-credit lane is live.** Resolution: native `fabrik-reviewer` seats until W-230abfd5 is done.
-- **R8 — the spec's U1, U2 and U3** are carried as the spec states them: U1 at T02, U2 with slice B, U3 at each unit's close.
+- **R8 — the spec's U1, U2 and U3** are carried as the spec states them: U1 at T02 (T01d's own figure before it, § Interfaces), U2 with the text-measure merge, U3 at each unit's close.
+- **R9 — two active plan locks overlap this plan's scope**, and `/fabrik-execute-plan` stops on any overlap. `2026-10-21-plan-3-own-scrape-slice-1a` (intel) lists `commands/_agents/fabrik-researcher.md` and the `fabrik-spec`, `fabrik-plan-after-chat`, `fabrik-spec-review` and `fabrik-vision` sources. `2026-10-22-plan-1-least-operator-approval` (kaizen, parked) listed `deploy-chain.md`, `design-gate-panel.md` and the `fabrik-release`, `fabrik-deploy` and `fabrik-deploy-plan-review` sources. Neither branch has unmerged edits to those ten files. Resolution, from each lock's owner (`docs/reference/plan-lock-lifecycle.md` § Remediation): kaizen narrowed its lock in 108f46748 on this branch; intel narrows its lock in its W-487e966a branch. T01a waits on § Global Constraints' lock probe.
