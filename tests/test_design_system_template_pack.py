@@ -18,8 +18,8 @@ states can go false with no other gate turning red:
 
 The cheapest way past (3) is to drop the sentence that names `@theme` beside the slots while keeping a block
 that still puts them there; the check reads every pack's `@theme [modifiers] { … }` CSS block too. Its prose half
-is BOUNDED: it catches the "declare these/them/the slots in `@theme`" family in any wrap or case, skips a negated
-sentence, and does not try other verbs ("put every slot in `@theme`") — a sentence-level verb list fired on two
+is BOUNDED: it catches the "declare these/them/the slots in `@theme`" family in any wrap or case, skips a sentence
+negated BEFORE the verb (sentences split at their ends, not after e.g./i.e.), and does not try other verbs ("put every slot in `@theme`") — a sentence-level verb list fired on two
 legitimate sentences in the 57 live packs, so that class stays the review's. The cheapest way past
 (1) is a glob that matches only the example paths below; the examples are the measured basenames.
 """
@@ -134,24 +134,50 @@ def test_tailwind_section_is_placed_once() -> None:
 
 
 def _theme_blocks(text: str) -> list[str]:
-    """Every `@theme [modifiers] { … }` body, any case, with nested braces (a `@keyframes` inside) counted."""
-    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    """Every `@theme [modifiers] { … }` body, any case, with nested braces (a `@keyframes` inside) counted; comments are stripped
+    inside the body only, so glob prose like `**/*.tsx … **/*.css` outside it cannot pair into a fake comment."""
     bodies = []
     for m in re.finditer(r"@theme\b[\w \t-]*\{", text, re.IGNORECASE):
         depth, i = 1, m.end()
         while i < len(text) and depth:
             depth += {"{": 1, "}": -1}.get(text[i], 0)
             i += 1
-        bodies.append(text[m.end() : i])
+        bodies.append(re.sub(r"/\*.*?\*/", "", text[m.end() : i], flags=re.DOTALL))
     return bodies
 
 
 # a prose instruction that sends every slot, the text-colour ones included, into @theme — any wrap, case or verb form
 _SEND_ALL_TO_THEME = re.compile(
-    r"\bdeclar\w*\s+(?:these|them|the\s+slots|every\s+slot|all\s+(?:the\s+)?slots)\b[^.]{0,60}?`@theme`(?!\s+inline)",
+    r"\bdeclar\w*\s+(?:these|them|the\s+slots|every\s+slot|all\s+(?:the\s+)?slots)\b(?:e\.g\.|i\.e\.|[^.]){0,60}?`@theme`(?!\s+inline)",
     re.IGNORECASE | re.DOTALL,
 )
 _NEGATION = re.compile(r"\b(?:never|not|don't|do not)\b", re.IGNORECASE)
+
+
+def _send_all_sentences(text: str) -> list[str]:
+    """Sentences that send every slot into `@theme` and are not negated."""
+    out = []
+    for sentence in re.split(r"(?<=[.!?])(?<!e\.g\.)(?<!i\.e\.)\s+|\n\s*\n", text):
+        flat = " ".join(sentence.split())
+        m = _SEND_ALL_TO_THEME.search(flat)
+        if m and not _NEGATION.search(flat[: m.start()]):
+            out.append(flat)
+    return out
+
+
+def test_theme_block_hidden_between_glob_prose_is_still_read() -> None:
+    text = "globs: **/*.tsx\n@theme {\n  --text-primary: red;\n}\nmore: **/*.css"
+    assert any("--text-primary" in b for b in _theme_blocks(text))
+
+
+def test_negation_after_the_verb_does_not_excuse_the_sentence() -> None:
+    assert _send_all_sentences("Declare these in `@theme` (not `@theme inline`).")
+    assert not _send_all_sentences("Never declare these in `@theme`.")
+
+
+def test_sentence_split_ignores_eg_and_ie() -> None:
+    assert _send_all_sentences("Declare these (e.g. the colours) in `@theme`.")
+    assert _send_all_sentences("Declare these (i.e. all of them) in `@theme`.")
 
 
 def test_text_colour_slots_never_declared_in_theme() -> None:
@@ -166,10 +192,8 @@ def test_text_colour_slots_never_declared_in_theme() -> None:
         for block in _theme_blocks(text):
             for slot in TEXT_SLOTS:
                 assert not re.search(re.escape(slot) + r"\s*:", block), (pack.name, slot, block)
-        for sentence in re.split(r"(?<=[.!?])\s+|\n\s*\n", text):
-            flat = " ".join(sentence.split())
-            if _SEND_ALL_TO_THEME.search(flat) and not _NEGATION.search(flat):
-                pytest.fail(f"{pack.name}: {flat[:160]}")
+        for flat in _send_all_sentences(text):
+            pytest.fail(f"{pack.name}: {flat[:160]}")
 
 
 def test_no_js_config_font_family_token() -> None:
