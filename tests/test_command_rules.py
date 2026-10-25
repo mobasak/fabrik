@@ -29,6 +29,12 @@ cr = _load("command_rules", "commands/command_rules.py")
 ac = _load("ac_rules", "commands/assemble_commands.py")
 
 
+@pytest.fixture(autouse=True)
+def _lints_off(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The older fixtures pin short phrases (they predate D-1236); only the `lints` tests run the lints."""
+    monkeypatch.setattr(cr, "LINTS", "lints" in request.keywords)
+
+
 # ── fixture tree: one command source, its render, a rules dir ─────────────────────────────────
 SOURCE = """---
 description: demo
@@ -764,3 +770,80 @@ def test_summary_never_raises_on_unreadable_rules_dir(tmp_path: Path) -> None:
     finally:
         rules.chmod(0o755)
     assert len(lines) == 1 and "unreadable" in lines[0], lines
+
+
+# ── D-1236 loader lints ───────────────────────────────────────────────────────────────────────
+LSRC = """# /demo
+
+## Scope
+
+Read every changed file first; never edit a sibling's file, and refuse any push to master. Keep the diff small.
+"""
+LBASE = "Read every changed file first; never edit a sibling's file; refuse any push to master"
+
+
+def _lint_tree(tmp_path: Path, **entry) -> list[str]:
+    t = _tree(tmp_path, LSRC)
+    e = {"id": "R1", "section": "## Scope", "baseline": LBASE, **entry}
+    _ledger(t, [e], baseline_from=LSRC)
+    return _losses(t)
+
+
+CUR = "Read every changed file first; never edit a sibling's file, and refuse any push to master"
+
+
+@pytest.mark.lints
+def test_lints_pass_on_a_faithful_entry(tmp_path: Path) -> None:
+    t = _tree(tmp_path, LSRC)
+    _ledger(t, [{"id": "R1", "section": "## Scope", "baseline": LBASE, "current": CUR, "text": [LBASE.replace("; refuse", ", and refuse")]}], baseline_from=LSRC)
+    assert _losses(t) == []
+
+
+@pytest.mark.lints
+def test_lint_a_ban_token_needs_a_carrier(tmp_path: Path) -> None:
+    lost = _lint_tree(tmp_path, text=["Read every changed file first; never edit"])
+    assert any("lint A" in x and "'refus'" in x for x in lost), lost
+
+
+@pytest.mark.lints
+def test_lint_b_clause_coverage_and_narrative_label(tmp_path: Path) -> None:
+    text = ["never edit a sibling's file, and refuse any push to master"]
+    lost = _lint_tree(tmp_path, text=text)
+    assert any("lint B" in x and "clause 1" in x for x in lost), lost
+    lost = _lint_tree(tmp_path, text=text, clauses={1: "narrative"})
+    assert not any("lint B" in x for x in lost), lost
+
+
+@pytest.mark.lints
+def test_lint_c_six_words_and_unique(tmp_path: Path) -> None:
+    lost = _lint_tree(tmp_path, text=["Read every changed file first", "never edit"])
+    assert any("lint C" in x and "under 6 words" in x for x in lost), lost
+    t = _tree(tmp_path / "dup", LSRC.replace("Keep the diff small.", "Read every changed file first; never edit a sibling's file."))
+    _ledger(t, [{"id": "R1", "section": "## Scope", "baseline": LBASE, "text": ["Read every changed file first; never edit a sibling's file"]}], baseline_from=LSRC)
+    assert any("lint C" in x and "2x" in x for x in _losses(t))
+
+
+@pytest.mark.lints
+def test_lint_d_verbatim_for_ban_but_prose_may_reword(tmp_path: Path) -> None:
+    t = _tree(tmp_path, LSRC)
+    reword = "Read every changed file first; never edit a sibling's file; refuse any push to master."
+    ent = {"id": "R1", "section": "## Scope", "baseline": LBASE, "current": "Keep the diff small", "text": [reword.rstrip(".")]}
+    _ledger(t, [ent], baseline_from=LSRC)
+    lost = [x for x in _losses(t) if "lint" in x]
+    assert any("lint D" in x for x in lost), lost
+    _ledger(t, [{**ent, "class": "prose"}], baseline_from=LSRC)
+    assert not any("lint D" in x for x in _losses(t))
+
+
+@pytest.mark.lints
+def test_class_field_and_pins_validated_and_counted(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    _ledger(t, [{**ENTRY, "class": "bogus"}])
+    _one(_losses(t), "`class` is not one of")
+    _ledger(t, [{**ENTRY, "pins": [3]}])
+    _one(_losses(t), "`pins` is not")
+    _ledger(t, [{**ENTRY, "clauses": {1: "maybe"}}])
+    _one(_losses(t), "`clauses` is not")
+    _ledger(t, [{**ENTRY, "class": "grammar"}, {**ENTRY, "id": "R2", "baseline": "Stop at the pin", "current": "Stop at the pin", "text": ["Stop at the pin"]}])
+    line = cr.summary(t["rules"])[0]
+    assert "classes {'grammar': 1, 'prose': 1}" in line, line

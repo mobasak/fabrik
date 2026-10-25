@@ -230,7 +230,12 @@ def write_baseline(text: str, out: Path) -> str:
 
 # ── ledgers ───────────────────────────────────────────────────────────────────────────────────
 _TOP = {"command", "shared", "baseline_sentences", "baseline_sha256", "entries", "retired", "vanished"}
-_ENTRY = {"id", "file", "section", "baseline", "current", "text", "ordered", "forbidden", "enforced", "pins", "changed-by"}
+_ENTRY = {"id", "file", "section", "baseline", "current", "text", "ordered", "forbidden", "enforced", "pins", "changed-by", "class", "clauses"}
+_CLASSES = ("ban", "grammar", "behavioural", "prose")
+# D-1236 lint A: a baseline holding one of these is class ban unless the entry says otherwise
+_BAN = re.compile(r"\b(NEVER|only|not|refus\w*|MUST|stays)\b", re.IGNORECASE)
+LINTS = True  # the D-1236 loader lints; the older fixture tests switch them off, the lint tests on
+_WORD = re.compile(r"\w+(?:['’]\w+)*")
 _CARRIERS = ("text", "ordered", "forbidden", "enforced")
 _REFUSAL = re.compile(r"\b(?:returncode|exit_code)\s*(?:!=\s*0\b|==\s*[1-9]\d*)")
 
@@ -430,6 +435,17 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         # matches every unit; a `forbidden` phrase is matched raw, so "**" is a legitimate absence pin
         if "text" in e and not all(normalise(p) for p in e["text"]):
             raise LedgerError(f"entry {e['id']}: a `text` phrase normalises to nothing, so it matches every text")
+        if "class" in e and e["class"] not in _CLASSES:
+            raise LedgerError(f"entry {e['id']}: `class` is not one of {'|'.join(_CLASSES)}")
+        if "clauses" in e:
+            cl = e["clauses"]
+            ok = isinstance(cl, dict) and bool(cl) and all(
+                re.fullmatch(r"[1-9]\d*", str(k))
+                and (v == "narrative" or (isinstance(v, dict) and set(v) == {"duplicate-of"} and isinstance(v["duplicate-of"], str)))
+                for k, v in cl.items()
+            )
+            if not ok:
+                raise LedgerError(f"entry {e['id']}: `clauses` is not {{<n>: narrative | duplicate-of: id}}")
         for c in ("file", "section", "baseline", "current", "enforced"):
             if c in e and not isinstance(e[c], str):
                 raise LedgerError(f"entry {e['id']}: `{c}` is not a string")
@@ -485,6 +501,77 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
     return data
 
 
+def _words(s: str) -> list[str]:
+    """Normalised lowercase words; every refus* form reads as one token (refuse, refused, refusal)."""
+    return ["refus" if w.startswith("refus") else w for w in _WORD.findall(normalise(s).lower())]
+
+
+def _has_run(hay: list[str], needle: list[str]) -> bool:
+    n = len(needle)
+    return bool(n) and any(hay[i : i + n] == needle for i in range(len(hay) - n + 1))
+
+
+def entry_class(e: dict) -> str:
+    """The entry's class: its `class:` field, else `ban` when its baseline holds a ban token, else `prose`."""
+    return e.get("class") or ("ban" if _BAN.search(e.get("baseline") or "") else "prose")
+
+
+def _clauses(baseline: str) -> list[str]:
+    return [c.strip() for c in re.split(r";| — ", baseline) if c.strip()]
+
+
+def _covered(clause: str, phrases: list[list[str]]) -> bool:
+    cw = _words(clause)
+    if not cw:
+        return True
+    for pw in phrases:
+        if _has_run(pw, cw):
+            return True
+        if len(cw) >= 6 and any(_has_run(pw, cw[i : i + 6]) for i in range(len(cw) - 5)):
+            return True
+    return False
+
+
+def _lint(e: dict, flat_file: str) -> list[tuple[str, str]]:
+    """D-1236 loader lints on one entry: ``(lint, message)`` pairs. A needs a ban-token carrier, B clause
+    coverage, C a >=6-word unique phrase (a phrase that is the whole `current` unit is exempt: the unit
+    match anchors it), D verbatim clauses for classes ban/grammar/behavioural.
+    COBRA (D-253): the cheapest abuse is a stub carrier, then a weakened `current`; A and B read the
+    immutable `baseline`, C and D the live file, and the author-blind audit pair reads each reworded entry."""
+    out: list[tuple[str, str]] = []
+    phrases = e.get("text") or []
+    cur = normalise(e["current"]) if e.get("current") else None
+    for ph in phrases:
+        if cur is not None and normalise(ph) == cur:
+            continue
+        if len(_words(ph)) < 6:
+            out.append(("C", f"text phrase under 6 words — {ph[:80]}"))
+        elif (n := flat_file.count(normalise(ph))) != 1:
+            out.append(("C", f"text phrase appears {n}x in its file, need exactly once — {ph[:80]}"))
+    base = e.get("baseline")
+    if not base:
+        return out
+    cls = entry_class(e)
+    pw = [_words(p) for p in phrases]
+    bw = _words(base)
+    if cls == "ban":
+        for tok in sorted({"refus" if m.group(1).lower().startswith("refus") else m.group(1).lower() for m in _BAN.finditer(base)}):
+            nxt = {tuple(bw[i : i + 2]) for i, t in enumerate(bw) if t == tok}
+            if not any(_has_run(w, list(n)) for n in nxt for w in pw):
+                out.append(("A", f"ban token {tok!r} (with the word after it) is in no text carrier"))
+    cl = {str(k) for k in (e.get("clauses") or {})}
+    for n, clause in enumerate(_clauses(base), 1):
+        if str(n) in cl:
+            continue
+        held = cur is not None and _has_run(_words(cur), _words(clause))
+        covered = _covered(clause, pw)
+        if not held and not covered:
+            out.append(("B", f"baseline clause {n} is in no text phrase and is not classified — {clause[:80]}"))
+        elif cls != "prose" and cur is not None and covered and not held:
+            out.append(("D", f"class {cls}: clause {n} is not verbatim in `current` — {clause[:80]}"))
+    return out
+
+
 def _resolve(entry: dict, ledger: dict, render_dir: Path, root: Path) -> Path:
     f = entry.get("file") or ""
     if "shared" in ledger and not f:
@@ -521,6 +608,8 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
             continue
         text = f.read_text(encoding="utf-8")
         flat_all = " ".join(text.split())
+        for lint, msg in _lint(e, normalise(_scope(text, None)[0])) if LINTS else []:
+            loss.append(f"LOSS {name} {e['id']}: lint {lint} — {msg}")
         for ph in e.get("forbidden") or []:
             if " ".join(ph.split()) in flat_all:
                 loss.append(f"LOSS {name} {e['id']}: forbidden phrase present — {ph[:80]}")
@@ -614,7 +703,8 @@ def summary(rules: Path | None = None) -> list[str]:
                 v if isinstance(v, str) else (next(iter(v)) if isinstance(v, dict) and v else "?")
                 for v in (van.values() if isinstance(van, dict) else [])
             )
-            lines.append(f"LEDGER {path.name}: {n} entries · vanished {dict(sorted(split.items()))}")
+            cls = Counter(entry_class(x) for x in entries if isinstance(x, dict)) if isinstance(entries, list) else {}
+            lines.append(f"LEDGER {path.name}: {n} entries · classes {dict(sorted(cls.items()))} · vanished {dict(sorted(split.items()))}")
         except Exception as exc:  # noqa: BLE001 — a report line, never a crash
             lines.append(f"LEDGER {path.name}: unreadable — {type(exc).__name__}")
     return lines

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — lean ledger lints for D-1236 (2026-10-25)
+
+- `commands/command_rules.py` gains an optional per-entry `class:` (ban | grammar | behavioural | prose, inferred
+  from a ban token when absent), `clauses:` and `pins:`, and four loader lints (A ban-token carrier, B clause
+  coverage, C ≥6-word unique phrase, D verbatim clause for non-prose classes), each a LOSS line naming ledger,
+  entry and lint; `summary()` prints class counts. Documented in `docs/reference/command-corpus-check.md`.
+
 ### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
 
 - `commands/command_measure.py` measured a named path whenever the file existed on disk, so the main checkout's
