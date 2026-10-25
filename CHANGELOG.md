@@ -9,8 +9,8 @@ All notable changes to this project will be documented in this file.
 - `commands/command_measure.py` measured a named path whenever the file existed on disk, so the main checkout's
   gitignored `data/projects.yaml` and `secrets/all-envs.env` read as new reads there and `assemble_commands.py --check`
   refused every commit (D-1230). A path now counts only when git tracks it; a tracked symlink to an untracked target,
-  an untracked file and an ignored file never count; a tracked file missing from disk (or a tracked symlink whose
-  tracked target is) and a failing git listing are CEILING breaches; word counts still come from the working tree. The published ceilings are unchanged.
+  an untracked file and an ignored file never count; a tracked file missing from disk or not a file (or a tracked
+  symlink whose tracked target is) and a failing git listing are CEILING breaches; word counts still come from the working tree. The published ceilings are unchanged.
 
 ### Added — Lean corpus L1: size measure, ceiling file, `--check` exit 5 and `--ratchet` (2026-10-25)
 

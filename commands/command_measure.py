@@ -14,7 +14,7 @@ Detection is mechanical and each row FREEZES what was detected: a path counts wh
 it and git TRACKS it (the index of the root's checkout — so every checkout holding the same index
 counts the same set of files, whatever untracked or ignored files sit on its disk; the words are read
 from the working tree, so an unstaged edit to a counted file still moves its count; a tracked symlink counts only
-when its target is tracked too; a tracked path absent from disk is an error, never skipped, since a
+when its target is tracked too; a tracked path absent from disk or not a file is an error, never skipped, since a
 skip would let --ratchet lower a ceiling in a sparse checkout; a root with no ``.git`` entry, a test
 fixture, falls back to "it is a file"), a seat when the render, or an own-text file the render names, names it as a
 bare token outside the appended fragments (identical in every render, so they carry no dispatch
