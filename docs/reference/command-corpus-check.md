@@ -299,6 +299,40 @@ Two classes of citation rot were fixed alongside it and should not be reintroduc
 - **Prefer a section anchor to a line range** when citing another command; two
   `/fabrik-deploy-verify` self-citations had slid three lines.
 
+## Rule ledger (the lean program's loss check)
+
+`commands/command_rules.py` is the rule test of the lean corpus program (W-96f36043, its design
+§ The rule test). A command's ledger goes at `commands/_rules/<command>.yaml`, and a shared file's
+at `commands/_rules/_shared/<name>.yaml`. Each ledger carries a sha-pinned baseline of its own text,
+split into heading-keyed units. `losses()` asserts every ledger against a render, and a LOSS is one
+of: a failed `text`, `ordered` or `forbidden` carrier; a baseline unit that vanished unclassified;
+or a malformed ledger. `enforced:` is a load-time lint: the named test's own asserts must show a
+refusal, and a call that runs something (a subprocess or runner callee, never `print()` or a
+logger) must name the script the entry's `text` carrier names. `losses()` never raises.
+
+- **Own text:** a command's source with every `{{include:…}}` line blanked; a shared file is its
+  own text.
+- **Units:** frontmatter is dropped. A heading, a table row, a fenced block (each line
+  whitespace-collapsed, the lines joined by ` ⏎ `) or an HTML comment is one unit, and prose splits into sentences. A comment
+  carries no rule.
+- **Matching (U2):** prose, headings and table rows match exactly after collapsing whitespace,
+  removing `**`/`__` outside backticks and dropping a trailing period. A reworded or moved rule
+  therefore vanishes and must be classified as `rule: [ids]`, `duplicate-of: id` or `narrative`
+  in the ledger's `vanished:` map, keyed `L<n>` by baseline line. An entry's `current` must be a
+  whole unit under its `section`.
+- `tests/test_command_rules.py` renders the corpus itself, asserts no LOSS and prints one
+  `LEDGER <file>: <n> entries · vanished {…}` line per ledger (`command_rules.summary()`).
+
+`assemble_commands.py` exits:
+
+| Exit | Meaning |
+|---|---|
+| 0 | `--check`: in sync, no LOSS |
+| 1 | `--check`: drift (the installed corpus differs from the render) · `--check` or a render: a `SystemExit("…")` render defect |
+| 2 | `--check` or a render: a render error; there is then no render to check, so no LOSS is computed |
+| 3 | `--extract`, or a render into the installed corpus, refused outside the main checkout |
+| 4 | `--check`: a rule LOSS, printed before any drift and outranking it |
+
 ## Related
 
 - `docs/reference/ticket-breadth.md` — the sibling advisory check on plan sets

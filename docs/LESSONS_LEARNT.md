@@ -8,6 +8,19 @@ W-05021a03 split rotate-session's aborts into transient (exit 75) and permanent 
 - **A heuristic's own fix needs its own escape variants**: the first dialog test (the last `❯` row is numbered) also matched a numbered line typed in the box, and it blocked the very `--stale-input discard` the permanent hint recommends. Adding "no box drawn" plus "a numbered sibling option nearby" closed it.
 - **Size a mutation probe to the graders**: running the whole test file per mutant took about 20 minutes for 20 mutants; `-k` on the change's own tests takes seconds per mutant. That probe's one survivor was a threshold edge no test sat between (547 s against 900 s), and the new edge test killed it.
 
+## A one-batch rewrite that closes 30 findings opens 18 of its own: probe its own inputs first (2026-10-25)
+
+- **What happened:** the rule-ledger module's first review confirmed 30 defects. The fix batch
+  rewrote the module whole, and the next pass confirmed 18 more, 16 inside that rewrite. Pass 3 then
+  confirmed 7, all own-fix, and the scope-growth stop fired.
+- **Lesson:** a rewrite answering many findings needs round zero applied to it before the pin: the
+  fix's own input space (nested and sibling sections, fences, empty input, unreadable dirs) enumerated
+  and executed by the author. Re-running the finders' cases is not enough, because they only cover the
+  old code's shape.
+- **Apply:** before re-pinning after a batch fix, write and run one probe per new branch the batch
+  added. A fix that adds positions, scopes or name filters is probed with both sibling and nested
+  inputs.
+
 ## A token rule is a compiler claim: run the compiler before writing it (2026-10-24)
 
 W-dab6a341's first draft wrote CSS-first Tailwind rules from the docs alone. Three were wrong in ways no doc says: a plain `@theme` drops a variable no utility uses, a `var()`-valued slot's utility reads the referenced variable, and an alias under the slot's own name is a cycle. Every one surfaced only when a seat ran `compile()` from an installed `tailwindcss`. The template's own text-colour slots had sat in the font-size namespace since the CSS-first line shipped. **Lesson:** a rule about what a compiler or engine emits is checked by running it on the smallest input that shows the case, and the probe goes in the CLAIMS verify hint so the currency watcher can re-run it. A grader written to catch prose about tokens is judgement-shaped: bound it and say so, or it fires on legitimate sentences.

@@ -24,6 +24,9 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import command_rules  # noqa: E402 — the rule ledgers' one module, beside this script
+
 ROOT = Path(__file__).resolve().parent
 FRAG, SRC = ROOT / "_fragments", ROOT / "_sources"
 # Auto-appended to EVERY rendered command (see render()). Named once so the fragment cannot be
@@ -1326,6 +1329,10 @@ def check():
         tmp_sk = tmp / "_skills"
         tmp_ag = tmp / "_agents"
         render(tmp, tmp_sk, agents_dest=tmp_ag)
+        # The lean program's rule ledgers (commands/command_rules.py): a LOSS outranks drift, so a
+        # mid-rewrite drift never masks it; both are printed, LOSS first, and a LOSS exits 4. A render
+        # error exits 2 inside render() above: with no render there is nothing to check.
+        losses = command_rules.losses(tmp, ROOT.parent, SRC)
         # Agent definitions are part of the corpus now: a hand-edit on the box must show up here,
         # or the repo sources are merely FIRST rather than canonical.
         drift = list(agent_drift(AGENTS))
@@ -1376,11 +1383,16 @@ def check():
                 drift.append(
                     f"skills/{sk.parent.name}: ORPHAN (generated, no _source — re-render to prune)"
                 )
+        if losses:
+            print("LOSS:")
+            for x in losses:
+                print(" -", x)
         if drift:
             print("DRIFT:")
             for x in drift:
                 print(" -", x)
-            sys.exit(1)
+        if losses or drift:
+            sys.exit(4 if losses else 1)
         print("check OK — installed commands + skills match rendered sources")
 
 
