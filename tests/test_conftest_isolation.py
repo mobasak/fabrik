@@ -769,6 +769,37 @@ def test_an_exported_ssh_jump_variable_is_scrubbed_before_any_test():
     assert r.returncode == 0 and "1 passed" in r.stdout, r.stdout[-1500:]
 
 
+def test_no_merge_records_override_reaches_a_test():
+    """W-bce8914b: a pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to point its
+    own record writes at a private dir; the inner pytest shards inherited it, so the selector's
+    green-record tests wrote there and read the shared path (4 red inside every such leg)."""
+    assert "FABRIK_MERGE_TESTS_RECORDS" not in os.environ
+
+
+def test_an_exported_merge_records_override_is_scrubbed_before_any_test(tmp_path):
+    """The check above with the variable EXPORTED, through the real conftest chain, as a leg runs
+    its shards — in-process it passes in any shell that exports nothing."""
+    env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
+    env["FABRIK_MERGE_TESTS_RECORDS"] = str(tmp_path / "private-records")
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            f"{Path(__file__).resolve()}::test_no_merge_records_override_reaches_a_test",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+        cwd=str(REPO),
+    )
+    assert r.returncode == 0 and "1 passed" in r.stdout, r.stdout[-1500:]
+
+
 def test_the_reachability_preflight_is_a_stub_for_a_module_that_does_not_opt_in():
     """W-6a96f699 (review P1-17): the conftest pin makes `deploy`'s ssh probe a no-op here.
     Imported with no try: an ImportError the fixture would swallow reds this instead."""
