@@ -36,6 +36,8 @@ def repo(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
     (main / "commands").mkdir(parents=True)
     shutil.copy2(HUB_COMMANDS / "assemble_commands.py", main / "commands")
     shutil.copy2(HUB_COMMANDS / "command_rules.py", main / "commands")  # the renderer imports it
+    shutil.copy2(HUB_COMMANDS / "command_measure.py", main / "commands")  # and the size measure
+    shutil.copy2(HUB_COMMANDS / "_size_ceiling.json", main / "commands")  # which --check reads
     for sub in ("_fragments", "_sources", "_agents"):
         shutil.copytree(HUB_COMMANDS / sub, main / "commands" / sub)
     _git(main, "init", "-q", "-b", "master")
@@ -170,6 +172,7 @@ def test_copy_outside_any_git_repo_fails_closed(tmp_path):
     (loose / "commands").mkdir(parents=True)
     shutil.copy2(HUB_COMMANDS / "assemble_commands.py", loose / "commands")
     shutil.copy2(HUB_COMMANDS / "command_rules.py", loose / "commands")  # the renderer imports it
+    shutil.copy2(HUB_COMMANDS / "command_measure.py", loose / "commands")  # and the size measure
     for sub in ("_fragments", "_sources", "_agents"):
         shutil.copytree(HUB_COMMANDS / sub, loose / "commands" / sub)
     home = tmp_path / "home"

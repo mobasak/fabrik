@@ -624,3 +624,137 @@ def test_losses_survives_an_unreadable_rules_dir(tmp_path: Path, monkeypatch) ->
 
     monkeypatch.setattr(cr, "ledgers", boom)
     assert cr.losses(tmp_path, tmp_path, tmp_path) == ["LOSS rules: unreadable — PermissionError: denied"]
+
+
+# ── W-a9b5e763 slice C: the light form's generator and two slice-A residuals ─────────────────
+def test_generate_unchanged_ledgers_pass_on_the_live_corpus(tmp_path: Path) -> None:
+    out = tmp_path / "render"
+    ac.render(out, None, agents_dest=out / "_agents")
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    total = 0
+    for src in sorted(ac.SRC.glob("*.md")):
+        own = cr.own_text(src.read_text(encoding="utf-8"))
+        base = rules / f"{src.stem}.baseline.txt"
+        sha = cr.write_baseline(own, base)
+        entries = cr.generate_unchanged(base, own)
+        assert entries, f"{src.stem}: no entry generated"
+        total += len(entries)
+        led = {"command": src.stem, "baseline_sentences": base.name, "baseline_sha256": sha, "entries": entries}
+        (rules / f"{src.stem}.yaml").write_text(yaml.safe_dump(led, allow_unicode=True), encoding="utf-8")
+    assert cr.losses(out, ROOT, ac.SRC, rules=rules) == []
+    print(f"generated {total} entries over {len(list(ac.SRC.glob('*.md')))} commands")
+
+
+def test_changed_by_lists_existing_decision_rows(tmp_path: Path) -> None:
+    # § The rule test step 8: a rule changed on purpose appends its D-row to `changed-by:` — distinct
+    # rows that exist AND name the entry, as a `retired` row's decision must
+    t = _tree(tmp_path)
+    with (t["root"] / "docs" / "DECISIONS.md").open("a") as fh:
+        fh.write("| D-0002 | 2026-10-25 | x | changes R1 | y | z |\n| D-0003 | 2026-10-25 | x | changes R1 again | y | z |\n")
+    _ledger(t, [{**ENTRY, "changed-by": ["D-0002", "D-0003"]}])
+    assert _losses(t) == []
+    for bad in (["D-0404"], "D-0002", [], ["D-0002", 7], ["D-0001"], ["D-0002", "D-0002"]):
+        _ledger(t, [{**ENTRY, "changed-by": bad}])
+        _one(_losses(t), "changed-by")
+    retired = [{"decision": "D-0001", "entry": {"id": "R9", "text": ["x"], "changed-by": ["D-0002"]}}]
+    _ledger(t, [ENTRY], retired=retired)
+    _one(_losses(t), "changed-by")
+
+
+def test_a_phrase_that_normalises_to_nothing_is_refused(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    for ph in ("...", "**", ". ."):
+        _ledger(t, [{**ENTRY, "text": [ph]}])
+        _one(_losses(t), "normalises to nothing")
+    # `forbidden` is matched raw: "**" is a real absence pin, absent from SOURCE, so no LOSS
+    _ledger(t, [{**ENTRY, "forbidden": ["**"]}])
+    assert _losses(t) == []
+
+
+def test_normalise_is_idempotent_on_every_live_unit() -> None:
+    # `_check` re-normalises a stored `current`; a unit that changes on a second pass can never match
+    # (a unit ending in " ." kept its space: "HTTP 404 ." -> "HTTP 404 " -> "HTTP 404"; emphasis
+    # re-formed by one strip: "_**_" -> "__" -> "")
+    for raw in ("HTTP 404 .", "ends with dots ..", "_**_", "a *_*_* b", "x __**__ y."):
+        once = cr.normalise(raw)
+        assert cr.normalise(once) == once, (raw, once)
+    assert cr.normalise("ends with dots ..") == "ends with dots"
+    bad = [
+        (src.stem, u)
+        for src in sorted(ac.SRC.glob("*.md"))
+        for _h, k, u in cr.units(cr.own_text(src.read_text(encoding="utf-8")))
+        if k != "fence" and cr.normalise(u) != u
+    ]
+    assert bad == [], bad[:3]
+
+
+def test_generate_unchanged_keeps_only_surviving_units(tmp_path: Path) -> None:
+    base = tmp_path / "b.txt"
+    cr.write_baseline(cr.own_text(SOURCE), base)
+    rewrite = SOURCE.replace("Never stage a sibling's file.", "Never stage another session's file.")
+    entries = cr.generate_unchanged(base, cr.own_text(rewrite))
+    currents = [e["current"] for e in entries]
+    assert "Run the probe on a copy" in currents and "Stop at the pin" in currents
+    assert not any("sibling" in c for c in currents)
+    assert not any(c.startswith("#") for c in currents), "a heading unit is never an entry"
+    e = next(e for e in entries if e["current"] == "Push it")
+    assert e["section"] == "## Close" and e["file"] == "render" and e["text"] == ["Push it"]
+    assert e["baseline"] == e["current"] and e["id"].startswith("u-L")
+    assert len({x["id"] for x in entries}) == len(entries)
+    # multiplicity: a unit the baseline holds twice and the rewrite once yields one entry
+    twice = SOURCE + "\n## Again\n\nStop at the pin.\n"
+    cr.write_baseline(cr.own_text(twice), base)
+    once = [e for e in cr.generate_unchanged(base, cr.own_text(SOURCE)) if e["current"] == "Stop at the pin"]
+    assert len(once) == 1
+
+
+def test_generate_unchanged_section_pins_resolve_to_their_own_unit(tmp_path: Path) -> None:
+    # a repeated heading, a spliced include, a literal marker-like line, an indented (unspliced)
+    # include, and an include inside a comment: every generated entry must pass its own gate
+    src = (
+        "# /demo\n\n## Notes\n\nAlpha rule.\n\n## Other\n\nOther rule.\n\n## Notes\n\nBeta rule.\n\n"
+        "## Spliced\n\nBefore it.\n\n{{include:orient}}\n\nAfter it.\n\n"
+        "## Literal\n\n⟪include⟫\n\nAfter a literal.\n\n  {{include:orient}}\n\nAfter an indent.\n\n"
+        "<!--\n{{include:orient}}\n-->\n\nAfter a comment.\n"
+    )
+    t = _tree(tmp_path, source=src, render=src.replace("{{include:orient}}\n\nAfter it.", "## Orient\n\nAfter it."))
+    base = t["rules"] / "demo.baseline.txt"
+    sha = cr.write_baseline(cr.own_text(src), base)
+    entries = cr.generate_unchanged(base, cr.own_text(src))
+    by = {e["current"]: e for e in entries}
+    assert "section" not in by["Alpha rule"] and "section" not in by["Beta rule"]  # repeated heading
+    assert by["Other rule"]["section"] == "## Other" and by["Before it"]["section"] == "## Spliced"
+    assert "section" not in by["After it"]  # follows a spliced include
+    for unit in ("After a literal", "After an indent", "After a comment"):
+        assert by[unit]["section"] == "## Literal", (unit, by[unit])
+    led = {"command": "demo", "baseline_sentences": base.name, "baseline_sha256": sha, "entries": entries}
+    (t["rules"] / "demo.yaml").write_text(yaml.safe_dump(led, allow_unicode=True), encoding="utf-8")
+    assert _losses(t) == []
+
+
+def test_an_include_inside_a_fence_keeps_its_old_key() -> None:
+    # slice A blanked include lines in own text; inside a fence that blank was part of the key
+    fenced = "## A\n\n```\n{{include:x}}\nline\n```\n"
+    assert cr.keys(cr.own_text(fenced)) == cr.keys(fenced.replace("{{include:x}}", ""))
+
+
+def test_scope_horizontal_rule_is_not_front_matter(tmp_path: Path) -> None:
+    src = "# /demo\n\n## Scope\n---\n\nFirst rule here.\n\n---\n\nSecond rule here.\n"
+    t = _tree(tmp_path, source=src)
+    entry = {"id": "R1", "section": "## Scope", "current": "First rule here.", "text": ["First rule"]}
+    _ledger(t, [entry], baseline_from=src)
+    assert _losses(t) == []
+
+
+def test_summary_never_raises_on_unreadable_rules_dir(tmp_path: Path) -> None:
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    rules.chmod(0)
+    try:
+        if os.access(rules, os.R_OK):
+            pytest.skip("running as a user who can read a mode-000 dir")
+        lines = cr.summary(rules)
+    finally:
+        rules.chmod(0o755)
+    assert len(lines) == 1 and "unreadable" in lines[0], lines

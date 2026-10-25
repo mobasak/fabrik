@@ -299,7 +299,7 @@ Two classes of citation rot were fixed alongside it and should not be reintroduc
 - **Prefer a section anchor to a line range** when citing another command; two
   `/fabrik-deploy-verify` self-citations had slid three lines.
 
-## Rule ledger (the lean program's loss check)
+## Rule ledger and size ceiling
 
 `commands/command_rules.py` is the rule test of the lean corpus program (W-96f36043, its design
 § The rule test). A command's ledger goes at `commands/_rules/<command>.yaml`, and a shared file's
@@ -310,28 +310,78 @@ or a malformed ledger. `enforced:` is a load-time lint: the named test's own ass
 refusal, and a call that runs something (a subprocess or runner callee, never `print()` or a
 logger) must name the script the entry's `text` carrier names. `losses()` never raises.
 
-- **Own text:** a command's source with every `{{include:…}}` line blanked; a shared file is its
-  own text.
+- **Own text:** a command's source; an `{{include:…}}` line stays as a marker that `units()` skips,
+  so the fragment's text is never the command's. A shared file is its own text.
 - **Units:** frontmatter is dropped. A heading, a table row, a fenced block (each line
   whitespace-collapsed, the lines joined by ` ⏎ `) or an HTML comment is one unit, and prose splits into sentences. A comment
   carries no rule.
 - **Matching (U2):** prose, headings and table rows match exactly after collapsing whitespace,
-  removing `**`/`__` outside backticks and dropping a trailing period. A reworded or moved rule
+  removing `**`/`__` outside backticks and dropping trailing periods and the spaces before them
+  (so a second normalisation is a no-op; only a comment that STARTS its line is a comment, so an
+  inline `<!-- … -->` in a code span stays text). A reworded or moved rule
   therefore vanishes and must be classified as `rule: [ids]`, `duplicate-of: id` or `narrative`
   in the ledger's `vanished:` map, keyed `L<n>` by baseline line. An entry's `current` must be a
   whole unit under its `section`.
+- **Changed on purpose** (§ The rule test step 8): an entry's `changed-by:` lists each D-row that
+  changed it; every id must be a row in `docs/DECISIONS.md`.
+- **Light form** (step 9): `generate_unchanged(baseline_path, new_own_text)` returns one `text`
+  entry per baseline prose or table unit that survives unchanged, `section`-pinned unless an
+  `{{include:…}}` precedes it in its section (the render splices the fragment there, so that unit is
+  matched over the whole file). Over every live command its ledgers pass with no LOSS.
 - `tests/test_command_rules.py` renders the corpus itself, asserts no LOSS and prints one
-  `LEDGER <file>: <n> entries · vanished {…}` line per ledger (`command_rules.summary()`).
+  `LEDGER <file>: <n> entries · vanished {…}` line per ledger (`command_rules.summary()`, which never
+  raises).
+
+**The size ceiling (L1)** — `commands/command_measure.py`, ceilings in `commands/_size_ceiling.json`.
+A command's **own text** is its render plus every file under `commands/` the render names (another
+command's source included; never a fragment already in the render, its own source or a script) plus
+the rendered definition of every seat it, or an own-text file it names, names as a bare token
+(the appended `close-feedback` and `agent-feedback` text excluded; an appended fragment named by path
+counts unless its text is already in the render or in a counted seat definition). Its **reads** are
+every other repo file it names (outputs and ledgers — `docs/development/reviews/*`, `.tmp/*`,
+`CHANGELOG.md`, `INDEX.md`, `docs/DECISIONS.md`,
+`docs/LESSONS_LEARNT.md`, `docs/STRATEGIC_BACKLOG.md`, the `CLAUDE.md`s — and scripts excluded) and
+the row of every D-id it cites. A path counts when it resolves to a file (`./`, `//` and
+`/opt/fabrik/` spellings, root files included); a directory or glob is a location, not a read; a
+zero-width character never glues two words into one. Each row freezes `baseline_own`, the ceiling
+(`render`, own +3%), the seats (`agents`) and the reads.
+
+`--check` breaches (exit 5) on: own over `render`; a `render` above `baseline_own`+3% without a
+`raised_by: D-<n>` (a raise is a hand edit); a seat no longer named and not `released: {<seat>:
+D-<n>}`; a seat named but not in the row; a read outside the frozen set not `added: {<key>: D-<n>}`;
+a command with no row, a row with no command; a missing or malformed file; a measure that raises.
+Each licence is a row of `docs/DECISIONS.md` that NAMES its subject — the command, the seat, or the
+read's path (a D-row read: its id) — per L1's "a D-row naming it". Every breach line names its remedy.
+A read the render stops naming needs no licence: it is read no more. It REPORTS, never failing: a frozen read that grew (its owner's reasons) and
+a ceiling with slack. `--ratchet` renders to a temp dir and rewrites only the file: each ceiling
+lowered to own +3% when lower, a newly named seat added, a new command given a row (a retired name
+takes the lower of its tombstone and its own +3%, with a baseline no higher than the tombstone), an
+orphan row moved to `retired`, a tombstone beside a live row dropped; it never raises a ceiling or
+touches `baseline_own`, `raised_by`, `released`, `added` or a frozen reads set, writes atomically, and
+prints nothing when nothing changed. A render error under `--ratchet` prints its reasons and exits 2;
+a malformed ceiling file prints the `CEILING` line `--check` would and exits 5, and so does a measure
+or a write that fails (a `CEILING: ratchet failed` line). `--extract`, `--check`
+and `--ratchet` are mutually exclusive. **The coordinator, once `merge_request.py merge --queue` has
+drained the queue, renders, runs `--ratchet`, then `--check`, whenever `commands/` changed** (a new
+command or a newly named seat breaches `--check` until `--ratchet` adds it), and commits the file
+when it changed: a branch-side ratchet, computed against its own base, could push another command
+below growth master made legally, and a ratchet mid-queue would fork a fresh test leg. A growth in a shared definition breaches
+every command naming it, so kaizen's "two raises in 30 days" counter reads raises per D-row. The
+blind spots (text moved into a script the agent is told to read, a fragment named by bare stem, a
+file named without an extension or as a bare dotfile, a file under `docs/development/reviews/`, a
+script's printed output) are listed in the module's COBRA docstring; kaizen's audit pair is their
+catcher, and kaizen counts every increase of `render` or `baseline_own` from the file's git log.
 
 `assemble_commands.py` exits:
 
 | Exit | Meaning |
 |---|---|
-| 0 | `--check`: in sync, no LOSS |
+| 0 | `--check`: in sync, no LOSS, no ceiling breach · `--ratchet`: done (silent when nothing changed) |
 | 1 | `--check`: drift (the installed corpus differs from the render) · `--check` or a render: a `SystemExit("…")` render defect |
 | 2 | `--check` or a render: a render error; there is then no render to check, so no LOSS is computed |
 | 3 | `--extract`, or a render into the installed corpus, refused outside the main checkout |
-| 4 | `--check`: a rule LOSS, printed before any drift and outranking it |
+| 4 | `--check`: a rule LOSS, printed before any breach or drift and outranking both |
+| 5 | `--check`: a size-ceiling breach (L1), printed after LOSS and before drift; outranks drift · `--ratchet`: a malformed ceiling file, or a measure or write that failed |
 
 ## Related
 
