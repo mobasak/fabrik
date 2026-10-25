@@ -7,7 +7,8 @@ Canonical content lives here: _fragments/ (shared blocks) + _sources/ (per-comma
 bodies with {{include:NAME}} markers) + PARAMS below (per-command variance).
   --extract   regenerate _sources/ from the pristine backup (one-time / re-baseline)
   (default)   render _sources + _fragments -> ~/.claude/commands/*.md
-  --check     render to temp, diff against installed; non-zero exit on drift
+  --check     render to temp, diff against installed; non-zero exit on drift (4 LOSS > 5 ceiling > 1 drift)
+  --ratchet   render to temp, lower commands/_size_ceiling.json (silent, exit 0, when nothing changed)
 Rendered files carry a DO-NOT-HAND-EDIT banner. Edit fragments/sources, re-render.
 """
 
@@ -16,6 +17,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import difflib
+import io
 import re
 import subprocess
 import sys
@@ -25,6 +27,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import command_measure  # noqa: E402 — the L1 size measure and ceiling, beside this script
 import command_rules  # noqa: E402 — the rule ledgers' one module, beside this script
 
 ROOT = Path(__file__).resolve().parent
@@ -1333,6 +1336,9 @@ def check():
         # mid-rewrite drift never masks it; both are printed, LOSS first, and a LOSS exits 4. A render
         # error exits 2 inside render() above: with no render there is nothing to check.
         losses = command_rules.losses(tmp, ROOT.parent, SRC)
+        # L1, the size ceiling (commands/command_measure.py): after the LOSS gate, before drift, so
+        # no render is paid for by deleting a rule; never raises (a failed measure is a breach).
+        breaches, reports = command_measure.findings(tmp, ROOT.parent, SRC, (_CLOSE_FEEDBACK, _AGENT_FEEDBACK))
         # Agent definitions are part of the corpus now: a hand-edit on the box must show up here,
         # or the repo sources are merely FIRST rather than canonical.
         drift = list(agent_drift(AGENTS))
@@ -1387,13 +1393,31 @@ def check():
             print("LOSS:")
             for x in losses:
                 print(" -", x)
+        if breaches:
+            print("CEILING:")
+            for x in breaches:
+                print(" -", x)
         if drift:
             print("DRIFT:")
             for x in drift:
                 print(" -", x)
-        if losses or drift:
-            sys.exit(4 if losses else 1)
+        for x in reports:
+            print(x)
+        if losses or breaches or drift:
+            sys.exit(4 if losses else 5 if breaches else 1)
         print("check OK — installed commands + skills match rendered sources")
+
+
+def ratchet_cli() -> None:
+    """`--ratchet`: render to a temp dir (never the installed corpus) and lower the ceilings in
+    `commands/_size_ceiling.json`; prints one line per change and nothing when nothing changed."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        with contextlib.redirect_stdout(io.StringIO()):  # the render's banner line is not a change
+            render(tmp, None, agents_dest=tmp / "_agents")
+        measured = command_measure.measure_all(tmp, ROOT.parent, SRC, (_CLOSE_FEEDBACK, _AGENT_FEEDBACK))
+    for line in command_measure.ratchet(measured, command_measure.CEILING):
+        print(line)
 
 
 def main_checkout_refusal() -> str | None:
@@ -1455,6 +1479,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--extract", action="store_true")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--ratchet", action="store_true")
     ap.add_argument("--dest", default=str(OUT))
     a = ap.parse_args()
     if a.extract:
@@ -1462,6 +1487,8 @@ if __name__ == "__main__":
         extract()
     elif a.check:
         check()
+    elif a.ratchet:
+        ratchet_cli()
     else:
         dest = Path(a.dest)
         # path-normalized: only emit skills when rendering to the REAL commands dir,

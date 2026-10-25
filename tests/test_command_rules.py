@@ -624,3 +624,88 @@ def test_losses_survives_an_unreadable_rules_dir(tmp_path: Path, monkeypatch) ->
 
     monkeypatch.setattr(cr, "ledgers", boom)
     assert cr.losses(tmp_path, tmp_path, tmp_path) == ["LOSS rules: unreadable — PermissionError: denied"]
+
+
+# ── W-a9b5e763 slice C: the light form's generator and two slice-A residuals ─────────────────
+def test_generate_unchanged_ledgers_pass_on_the_live_corpus(tmp_path: Path) -> None:
+    out = tmp_path / "render"
+    ac.render(out, None, agents_dest=out / "_agents")
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    total = 0
+    for src in sorted(ac.SRC.glob("*.md")):
+        own = cr.own_text(src.read_text(encoding="utf-8"))
+        base = rules / f"{src.stem}.baseline.txt"
+        sha = cr.write_baseline(own, base)
+        entries = cr.generate_unchanged(base, own)
+        assert entries, f"{src.stem}: no entry generated"
+        total += len(entries)
+        led = {"command": src.stem, "baseline_sentences": base.name, "baseline_sha256": sha, "entries": entries}
+        (rules / f"{src.stem}.yaml").write_text(yaml.safe_dump(led, allow_unicode=True), encoding="utf-8")
+    assert cr.losses(out, ROOT, ac.SRC, rules=rules) == []
+    print(f"generated {total} entries over {len(list(ac.SRC.glob('*.md')))} commands")
+
+
+def test_changed_by_lists_existing_decision_rows(tmp_path: Path) -> None:
+    # § The rule test step 8: a rule changed on purpose appends its D-row to `changed-by:`
+    t = _tree(tmp_path)
+    _ledger(t, [{**ENTRY, "changed-by": ["D-0001"]}])
+    assert _losses(t) == []
+    for bad in (["D-0404"], "D-0001", [], ["D-0001", 7]):
+        _ledger(t, [{**ENTRY, "changed-by": bad}])
+        _one(_losses(t), "changed-by")
+
+
+def test_normalise_is_idempotent_on_every_live_unit() -> None:
+    # `_check` re-normalises a stored `current`; a unit that changes on a second pass can never match
+    # (a unit ending in " ." kept its space: "HTTP 404 ." -> "HTTP 404 " -> "HTTP 404")
+    assert cr.normalise("HTTP 404 .") == cr.normalise(cr.normalise("HTTP 404 ."))
+    assert cr.normalise("ends with dots ..") == "ends with dots"
+    bad = [
+        (src.stem, u)
+        for src in sorted(ac.SRC.glob("*.md"))
+        for _h, k, u in cr.units(cr.own_text(src.read_text(encoding="utf-8")))
+        if k != "fence" and cr.normalise(u) != u
+    ]
+    assert bad == [], bad[:3]
+
+
+def test_generate_unchanged_keeps_only_surviving_units(tmp_path: Path) -> None:
+    base = tmp_path / "b.txt"
+    cr.write_baseline(cr.own_text(SOURCE), base)
+    rewrite = SOURCE.replace("Never stage a sibling's file.", "Never stage another session's file.")
+    entries = cr.generate_unchanged(base, cr.own_text(rewrite))
+    currents = [e["current"] for e in entries]
+    assert "Run the probe on a copy" in currents and "Stop at the pin" in currents
+    assert not any("sibling" in c for c in currents)
+    assert not any(c.startswith("#") for c in currents), "a heading unit is never an entry"
+    e = next(e for e in entries if e["current"] == "Push it")
+    assert e["section"] == "## Close" and e["file"] == "render" and e["text"] == ["Push it"]
+    assert e["baseline"] == e["current"] and e["id"].startswith("u-L")
+    assert len({x["id"] for x in entries}) == len(entries)
+    # multiplicity: a unit the baseline holds twice and the rewrite once yields one entry
+    twice = SOURCE + "\n## Again\n\nStop at the pin.\n"
+    cr.write_baseline(cr.own_text(twice), base)
+    once = [e for e in cr.generate_unchanged(base, cr.own_text(SOURCE)) if e["current"] == "Stop at the pin"]
+    assert len(once) == 1
+
+
+def test_scope_horizontal_rule_is_not_front_matter(tmp_path: Path) -> None:
+    src = "# /demo\n\n## Scope\n---\n\nFirst rule here.\n\n---\n\nSecond rule here.\n"
+    t = _tree(tmp_path, source=src)
+    entry = {"id": "R1", "section": "## Scope", "current": "First rule here.", "text": ["First rule"]}
+    _ledger(t, [entry], baseline_from=src)
+    assert _losses(t) == []
+
+
+def test_summary_never_raises_on_unreadable_rules_dir(tmp_path: Path) -> None:
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    rules.chmod(0)
+    try:
+        if os.access(rules, os.R_OK):
+            pytest.skip("running as a user who can read a mode-000 dir")
+        lines = cr.summary(rules)
+    finally:
+        rules.chmod(0o755)
+    assert len(lines) == 1 and "unreadable" in lines[0], lines
