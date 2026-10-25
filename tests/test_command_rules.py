@@ -412,6 +412,7 @@ def test_check_exits_4_on_a_loss_and_1_on_drift_alone(tmp_path: Path, monkeypatc
 
 @pytest.mark.skipif(
     not Path("/opt/fabrik").is_dir()
+    or not (ROOT / ".pre-commit-config.yaml").is_file()
     or "assemble_commands.py --check" not in (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"),
     reason="the hub's corpus-check hook runs only in /opt/fabrik",
 )
@@ -580,6 +581,29 @@ def test_review_pass_3_fixes(tmp_path: Path) -> None:
     t = _tree(tmp_path / "fields")
     for field in ("file", "section", "baseline", "enforced"):
         assert f"`{field}` is not a string" in _refused(t, entries=[{**ENTRY, field: 5}])
+
+
+def test_review_pass_3_survivors(tmp_path: Path) -> None:
+    sib = "## B\n\nX rule.\n\n## A\n\nY rule.\n"
+    t = _tree(tmp_path, source=sib, render=sib)
+    y = {"id": "Y", "section": "## A", "current": "Y rule.", "text": ["Y"], "ordered": ["Y", "X"]}
+    x = {"id": "X", "section": "## B", "current": "X rule.", "text": ["X"]}
+    _ledger(t, [y, x], baseline_from=sib)
+    _one(_losses(t), "out of order")  # sibling sections in reverse: X's section comes first
+    flat = "## A\n\nX rule.\n\n## B\n\nY rule.\n"
+    t = _tree(tmp_path / "heading", source=flat, render=flat)
+    w = {"id": "W", "current": "## B", "text": ["B"]}  # the heading unit itself, no section
+    s = {"id": "S", "section": "## B", "current": "Y rule.", "text": ["Y"], "ordered": ["S", "W"]}
+    _ledger(t, [w, s], baseline_from=flat)
+    _one(_losses(t), "out of order")  # a section's first unit sits after its own heading
+    fence = "## A\n\n```\nrm a.\n```\n"
+    t = _tree(tmp_path / "fence", source=fence, render=fence)
+    _ledger(t, [{"id": "F", "section": "## A", "current": "rm a.", "text": ["rm"]}], baseline_from=fence)
+    assert _losses(t) == []  # a fence keeps its trailing period, so `current` is matched as written
+    t = _tree(tmp_path / "names")
+    for bad in ("a/b", "a\\b", ".hid"):
+        assert "not a bare command name" in _refused(t, command=bad)
+        assert "not a file beside the ledger" in _refused(t, baseline_sentences=bad)
 
 
 def test_an_unreadable_shared_dir_is_a_loss(tmp_path: Path) -> None:
