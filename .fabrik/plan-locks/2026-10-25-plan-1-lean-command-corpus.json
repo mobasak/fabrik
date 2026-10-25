@@ -280,6 +280,15 @@
       "base_commit": "1659737af248326e6f54b909e06cd04760be7976",
       "coder_head": "e78204231802d9ce1ade5f3bd98642b1e67826d0",
       "started_at": "2026-10-25T06:33:23+03:00"
+    },
+    "T01b": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a2b589a4fd525df69",
+      "branch": "worktree-agent-a2b589a4fd525df69",
+      "base_commit": "c312a59fc",
+      "coder_head": "c312a59fc",
+      "started_at": "2026-10-25T07:47:00+03:00",
+      "note": "no-op: zero pins qualify under D-1231"
     }
   }
 }
