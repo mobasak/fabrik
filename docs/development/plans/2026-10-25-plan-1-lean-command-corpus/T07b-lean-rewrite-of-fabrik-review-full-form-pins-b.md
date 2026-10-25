@@ -8,7 +8,7 @@ Depends: T07a
 Parallel: ⛓️
 Complexity: native
 Gate: /opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest tests/test_command_rules.py -q -rP — green; its PASSES section shows one LEDGER line per ledger this ticket wrote
-Gate: python3 commands/assemble_commands.py --check — exit 0, or exit 1 only when every DRIFT line reads `DIFFERS from what this tree renders` or `: MISSING in` (the installed corpus stays master's until the coordinator renders at merge); any other DRIFT line (a missing D-191 dispatch step, an ORPHAN), a render `SystemExit` message, or exit 2, 4 (LOSS) or 5 (ceiling) fails
+Gate: python3 commands/assemble_commands.py --check — exit 0, or exit 1 only when every DRIFT line reads `DIFFERS from what this tree renders` or `MISSING` (the installed corpus stays master's until the coordinator renders at merge); any other DRIFT line (a missing D-191 dispatch step, an ORPHAN), a render `SystemExit` message, or exit 2, 4 (LOSS) or 5 (ceiling) fails
 Gate: /opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q tests/test_command_improve_queue_pass.py tests/test_execute_plan_d7.py tests/test_plan_review_queue_pass.py tests/test_review_command_text_defects.py tests/test_spec_review_queue_pass.py — green
 Docs: none owned (the orchestrator applies `CHANGELOG.md`, the `INDEX.md` rows for new `commands/_rules/` files and every D-row through Deltas)
 
@@ -28,8 +28,8 @@ Docs: none owned (the orchestrator applies `CHANGELOG.md`, the `INDEX.md` rows f
 1. The baseline and ledger already exist from part a; extend the ledger, never rewrite its baseline.
 2. List each Touches test's literals that occur in the files this unit cuts, passing the Touches tests as `<the tests>`:
    `python3 -c "import ast,sys; t=' '.join(open(sys.argv[1]).read().split()); [print(f+': '+v) for f in sys.argv[2:] for n in ast.walk(ast.parse(open(f).read())) if isinstance(n,ast.Constant) and isinstance(n.value,str) for v in [' '.join(n.value.split())] if len(v)>=25 and v in t]" <the file being cut> <the tests>`
-   Each printed phrase that a presence assert pins becomes a ledger entry (`text` carrier, `current` = the sentence holding it); each phrase an absence assert pins becomes a `forbidden:` carrier.
-3. Delete each migrated presence assert from its test in this same commit (spec § The rule test step 7). Absence asserts may stay. A test function left with no assert is deleted.
+   Each printed phrase that a presence assert pins becomes a ledger entry (`text` carrier, `current` = the unit holding it, as `command_rules.units()` returns it (spine § Global Constraints)); each phrase an absence assert pins becomes a `forbidden:` carrier.
+3. Delete each migrated presence assert from its test in this same commit, except an assert relating two files or looping over several commands, which stays (spine § Global Constraints) (spec § The rule test step 7). Absence asserts may stay. A test function left with no assert is deleted.
 4. Cut nothing here: the source and shared files are byte-identical at this ticket's close.
 5. Run the Gate lines.
 
@@ -37,7 +37,7 @@ Docs: none owned (the orchestrator applies `CHANGELOG.md`, the `INDEX.md` rows f
 - .windsurf/rules/core/40-documentation.md
 - commands/_sources/fabrik-review.md
 
-> Tooling API (W-a9b5e763 slice A, on master since merge bc2a9c30b, D-1221; cited by symbol because review fixes move its lines): `commands/command_rules.py::own_text(source)` blanks every `{{include:}}` line · `commands/command_rules.py::write_baseline(text, out)` writes the unit keys and returns the sha256 for `baseline_sha256:` · `commands/command_rules.py::vanished(baseline, current_text)` lists the 1-based baseline lines with no exact match · `commands/command_rules.py::losses(render_dir, root, src_dir)` is what `--check` and `tests/test_command_rules.py` assert. infra-2's text-measure merge adds `command_rules.generate_unchanged(baseline_path, new_own_text) -> [entry]`, the measure and `commands/_size_ceiling.json` with `--check` exit 5 (spine § Interfaces).
+> Tooling API (W-a9b5e763 slice A, on master since merge bc2a9c30b, D-1221; cited by symbol because review fixes move its lines): `commands/command_rules.py::own_text(source)` returns a source's own text, no included fragment text in it · `commands/command_rules.py::write_baseline(text, out)` writes the unit keys and returns the sha256 for `baseline_sha256:` · `commands/command_rules.py::vanished(baseline, current_text)` lists the 1-based baseline lines with no exact match · `commands/command_rules.py::losses(render_dir, root, src_dir)` is what `--check` and `tests/test_command_rules.py` assert. infra-2's text-measure merge adds `command_rules.generate_unchanged(baseline_path, new_own_text) -> [entry]`, the measure and `commands/_size_ceiling.json` with `--check` exit 5 (spine § Interfaces).
 
 > `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md:125` — this program creates or grows for a command. Each command reaches at most 50% of its own-text baseline, or the
 
