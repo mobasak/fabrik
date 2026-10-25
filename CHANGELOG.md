@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the test suite drops the merge leg's records override (2026-10-25)
+
+W-bce8914b. A `request --pretest` or `merge --queue` leg exports `FABRIK_MERGE_TESTS_RECORDS` to send its own
+records to a private dir, and the leg's pytest shards inherited it. Every selector test that checks a record at
+the shared path then went red inside such a leg (8 measured: 7 in `tests/test_merge_test_select.py`, one in
+`tests/test_merge_request_pretest.py`), so a branch touching the selector was refused by its own queue leg.
+`tests/conftest.py` now pops the variable at configure time, beside the `FABRIK_SSH_JUMP_*` scrub;
+`tests/test_conftest_isolation.py` runs one of those record tests with the variable exported (red on the unfixed
+base, green here) and pins that both scripts still read the name it exports.
+
 ### Added — `merge_request.py merge --queue`: a queue's owner tests run outside the merge lock (2026-10-25)
 
 W-0c8c43f1 (D-1224). A queue of N merge requests used to wait N owner-test legs one after another
