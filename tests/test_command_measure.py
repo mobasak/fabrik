@@ -7,6 +7,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -425,3 +426,66 @@ def test_live_corpus_within_ceiling(tmp_path: Path) -> None:
     assert set(doc["commands"]) == {p.stem for p in ac.SRC.glob("*.md")}
     for line in reports:
         print(line)
+
+
+# ── the measure is the same in every checkout of one index (P0 after slice C's merge) ───────────
+_GIT_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")
+
+
+def _git(cwd: Path, *args: str) -> None:
+    import subprocess
+
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_ENV}
+    subprocess.run(["git", "-C", str(cwd), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                   check=True, capture_output=True, env=env)
+
+
+def _repo(tmp_path: Path, render: str) -> dict[str, Path]:
+    """A git fixture: the repo commits its tracked files; `data/` is ignored; a linked worktree
+    holds only what is tracked, as the incident's worktree did."""
+    t = _tree(tmp_path, render)
+    _w(t["root"] / ".gitignore", "data/\n")
+    _git(t["root"], "init", "-q", "-b", "master")
+    _git(t["root"], "add", ".")
+    _git(t["root"], "commit", "-q", "-m", "seed")
+    _w(t["root"] / "data" / "secret.md", "s " * 40)  # ignored: only the main tree holds it
+    _w(t["root"] / "docs" / "untracked.md", "u " * 30)  # never added
+    t["wt"] = tmp_path / "wt"
+    _git(t["root"], "worktree", "add", "-q", "--detach", str(t["wt"]))
+    return t
+
+
+def test_only_tracked_files_are_measured_in_a_git_checkout(tmp_path: Path, monkeypatch) -> None:
+    for k in _GIT_ENV:
+        monkeypatch.delenv(k, raising=False)
+    t = _repo(tmp_path, "Read docs/reference/guide.md, data/secret.md and docs/untracked.md.\n")
+    main = cm.measure_all(t["out"], t["root"], t["src"], APPENDED)
+    wt = cm.measure_all(t["out"], t["wt"], t["wt"] / "commands" / "_sources", APPENDED)
+    assert main["demo"]["reads"] == {"docs/reference/guide.md": 10}, main["demo"]["reads"]
+    assert wt["demo"] == main["demo"]
+    # the ceiling the worktree publishes holds in the main tree, which holds the extra files
+    cm.ratchet(wt, t["ceiling"])
+    assert cm.ceiling_findings(main, t["ceiling"], t["root"])[0] == []
+
+
+def test_tracked_but_absent_raises_and_symlink_targets_must_be_tracked(tmp_path: Path, monkeypatch) -> None:
+    for k in _GIT_ENV:
+        monkeypatch.delenv(k, raising=False)
+    t = _repo(tmp_path, "Read docs/link.md and docs/reference/guide.md.\n")
+    (t["root"] / "docs" / "link.md").symlink_to(Path("..") / "data" / "secret.md")
+    _git(t["root"], "add", "docs/link.md")
+    assert cm.measure_all(t["out"], t["root"], t["src"], APPENDED)["demo"]["reads"] == {"docs/reference/guide.md": 10}
+    (t["root"] / "docs" / "reference" / "guide.md").unlink()  # an unstaged deletion
+    with pytest.raises(FileNotFoundError, match="tracked but absent"):
+        cm.measure_all(t["out"], t["root"], t["src"], APPENDED)
+    breaches, _ = cm.findings(t["out"], t["root"], t["src"], APPENDED, t["ceiling"])
+    assert len(breaches) == 1 and "tracked but absent" in breaches[0], breaches
+
+
+def test_a_failing_git_listing_is_a_breach(tmp_path: Path, monkeypatch) -> None:
+    for k in _GIT_ENV:
+        monkeypatch.delenv(k, raising=False)
+    t = _tree(tmp_path, "Read docs/reference/guide.md.\n")
+    _w(t["root"] / ".git", "gitdir: /nonexistent/gitdir\n")  # a broken linked-worktree pointer
+    breaches, _ = cm.findings(t["out"], t["root"], t["src"], APPENDED, t["ceiling"])
+    assert len(breaches) == 1 and "measure failed" in breaches[0] and "git" in breaches[0].lower(), breaches

@@ -11,7 +11,11 @@ LOSS gate's 4 and before drift's 1. ``ratchet()`` (``--ratchet``, run by the coo
 merge queue drains, before ``--check``) only lowers; a raise is a hand edit carrying ``raised_by``.
 
 Detection is mechanical and each row FREEZES what was detected: a path counts when the render names
-it and it is a file, a seat when the render, or an own-text file the render names, names it as a
+it and git TRACKS it (the index of the root's checkout — so every checkout holding the same index
+measures the same, whatever untracked or ignored files sit on its disk; a tracked symlink counts only
+when its target is tracked too; a tracked path absent from disk is an error, never skipped, since a
+skip would let --ratchet lower a ceiling in a sparse checkout; a root with no ``.git`` entry, a test
+fixture, falls back to "it is a file"), a seat when the render, or an own-text file the render names, names it as a
 bare token outside the appended fragments (identical in every render, so they carry no dispatch
 information), a decision row when the render cites its id. A seat no longer named and a read not in
 the frozen set are breaches until a D-row that NAMES the seat or the read is recorded in the row
@@ -41,6 +45,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -78,14 +83,43 @@ def _read(p: Path) -> str:
     return p.read_text(encoding="utf-8", errors="replace")
 
 
-def _named_files(text: str, root: Path) -> list[str]:
+def tracked_files(root: Path) -> set[str] | None:
+    """The paths git tracks at ``root`` (its index), or None when ``root`` is no git checkout (no
+    ``.git`` entry — a linked worktree's ``.git`` is a file). A failing git call raises: a breach,
+    never a silent fall back to "whatever is on disk". GIT_DIR and friends are dropped so a caller's
+    environment cannot point git at another repo; GIT_INDEX_FILE stays, so a commit's own index is
+    the one read."""
+    if not (root / ".git").exists():
+        return None
+    env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR")}
+    try:
+        done = subprocess.run(  # noqa: S603 — a fixed argv, no shell
+            ["git", "-C", str(root), "ls-files", "-z"],  # noqa: S607 — git from PATH, as every hub script runs it
+            capture_output=True, check=True, env=env, timeout=60,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"git ls-files failed at {root}: {exc.stderr.decode('utf-8', 'replace').strip()}") from exc
+    return set(done.stdout.decode("utf-8", "surrogateescape").split("\0")) - {""}
+
+
+def _named_files(text: str, root: Path, tracked: set[str] | None = None) -> list[str]:
     out: list[str] = []
+    top = root.resolve()
     for m in _PATH.finditer(text):
         rel = re.sub(r"/+", "/", m.group(1))
         if rel in out or ".." in Path(rel).parts:
             continue
         p = root / rel
-        if p.is_file() and p.resolve().is_relative_to(root.resolve()):
+        if tracked is None:
+            if p.is_file() and p.resolve().is_relative_to(top):
+                out.append(rel)
+            continue
+        if rel not in tracked:
+            continue  # untracked or ignored: not part of the repo at this index
+        if not p.exists() and not p.is_symlink():
+            raise FileNotFoundError(f"{rel} is tracked but absent on disk (sparse checkout or unstaged deletion) — restore it or stage the deletion")
+        target = p.resolve()
+        if target.is_file() and target.is_relative_to(top) and target.relative_to(top).as_posix() in tracked:
             out.append(rel)
     return out
 
@@ -111,9 +145,11 @@ def measure(
     src_dir: Path,
     appended: tuple[str, ...] = (),
     rows: dict[str, str] | None = None,
+    tracked: set[str] | None = None,
 ) -> dict[str, Any]:
     """The own text and the reads of ``cmd``'s render in ``render_dir`` (seats under ``_agents/``).
-    ``appended`` names the fragments the renderer appends without an include line."""
+    ``appended`` names the fragments the renderer appends without an include line; ``tracked`` is
+    ``tracked_files(root)`` (None: count a path when it is a file)."""
     text = _read(render_dir / f"{cmd}.md")
     src = src_dir / f"{cmd}.md"
     frag_dir = src_dir.parent / "_fragments"
@@ -126,7 +162,7 @@ def measure(
     reads: dict[str, int] = {}
     named_seats: list[str] = []
     pending: list[str] = []  # appended fragments named by path: counted unless already read once
-    for rel in _named_files(text, root):
+    for rel in _named_files(text, root, tracked):
         path = Path(rel)
         if path.suffix in _SCRIPT or rel == own_src:
             continue
@@ -172,8 +208,8 @@ def measure(
 
 
 def measure_all(render_dir: Path, root: Path, src_dir: Path, appended: tuple[str, ...] = ()) -> dict[str, dict[str, Any]]:
-    rows = decision_rows(root)
-    return {p.stem: measure(p.stem, render_dir, root, src_dir, appended, rows) for p in sorted(render_dir.glob("*.md"))}
+    rows, tracked = decision_rows(root), tracked_files(root)
+    return {p.stem: measure(p.stem, render_dir, root, src_dir, appended, rows, tracked) for p in sorted(render_dir.glob("*.md"))}
 
 
 def ceiling_of(own: int) -> int:
