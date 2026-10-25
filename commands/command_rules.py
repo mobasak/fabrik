@@ -371,7 +371,7 @@ def _inside(path: Path, base: Path) -> bool:
 def load_ledger(path: Path, root: Path) -> dict[str, Any]:
     """The validated ledger at ``path``; raises ``LedgerError`` with the reason."""
     try:
-        data = yaml.load(path.read_text(encoding="utf-8"), Loader=_NoDupLoader)  # noqa: S506 — a SafeLoader subclass
+        data = yaml.load(path.read_text(encoding="utf-8"), Loader=_NoDupLoader)  # noqa: S506 # nosec B506 — a SafeLoader subclass
     except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
         raise LedgerError(f"unreadable ({type(exc).__name__})") from exc
     if not isinstance(data, dict):
@@ -532,7 +532,8 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
                     loss.append(f"LOSS {name} {e['id']}: text phrase not {where} — {ph[:80]}")
     for e in ledger["_ids"].values():
         seq = [positions.get(o) for o in e.get("ordered") or []]
-        if seq and (None in seq or seq != sorted(seq)):
+        at = [p for p in seq if p is not None]
+        if seq and (len(at) < len(seq) or at != sorted(at)):
             loss.append(f"LOSS {name} {e['id']}: `ordered` entries out of order or missing")
     return loss
 
@@ -586,7 +587,7 @@ def summary(rules: Path | None = None) -> list[str]:
         return [f"LEDGER rules: unreadable — {type(exc).__name__}"]
     for path in paths:
         try:
-            data = yaml.load(path.read_text(encoding="utf-8"), Loader=_NoDupLoader) or {}  # noqa: S506
+            data = yaml.load(path.read_text(encoding="utf-8"), Loader=_NoDupLoader) or {}  # noqa: S506 # nosec B506 — a SafeLoader subclass
             entries = data.get("entries") if isinstance(data, dict) else None
             van = data.get("vanished") if isinstance(data, dict) else None
             n = len(entries) if isinstance(entries, list) else 0

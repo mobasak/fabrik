@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Lean corpus L1: size measure, ceiling file, `--check` exit 5 and `--ratchet` (2026-10-25)
+
+- `commands/command_measure.py` measures every rendered command's own text (render, named `commands/` files, named seat
+  definitions) and its reads; `commands/_size_ceiling.json` freezes them for all 40 commands (D-1226, W-a9b5e763 slice C).
+- `assemble_commands.py --check` exits 5 on a ceiling breach, after a LOSS (4) and before drift (1); `--ratchet` lowers the
+  ceilings and prints nothing when nothing changed. The coordinator runs it on every merged tree.
+- `command_rules.py`: `generate_unchanged()` for the light form, `changed-by` entries, an idempotent `normalise()`, inline
+  comments kept as text, and slice A's two residuals fixed.
+
 ### Added — Lean command corpus design: half the text and seat time, no rule lost (2026-10-25)
 
 `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` is CONVERGED. It went through 7 review rounds,

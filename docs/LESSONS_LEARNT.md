@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Run a key contract over the whole live corpus before anything is keyed on it (2026-10-25)
+
+- **What happened:** slice A of the lean tooling (W-a9b5e763) shipped a sentence matcher reviewed over four rounds
+  against fixtures. Slice C generated a ledger for every unit of all 40 live commands and asserted it against the
+  render: 140 units could never match (an inline `<!-- … -->` in a code span was blanked on one side only), 97
+  more sat under a fragment's heading in the render, and 3 never matched because `normalise()` was not idempotent
+  (`"404 ."` became `"404 "`, then `"404"`).
+- **Why it matters:** a key contract changes for free only while nothing is keyed on it. Once kaizen writes ledgers,
+  each fix costs a re-baseline of every ledger.
+- **Rule:** before a grammar freezes, generate its artifact over the real corpus in a test (D-1226:
+  `test_generate_unchanged_ledgers_pass_on_the_live_corpus`, `test_normalise_is_idempotent_on_every_live_unit`).
+  A fixture shows the grammar works on the cases you thought of; the corpus shows the cases you didn't.
+
 ## A permanent verdict needs positive evidence; a missing signal is "unknown", so it is transient (2026-10-25)
 
 W-05021a03 split rotate-session's aborts into transient (exit 75) and permanent (exit 1). The first build classified by check name with a few overrides. Three review readers then found ten places where the permanent verdict rested on something ABSENT: no input box drawn (a blank redraw, copy-mode, a restarting pane), a reason string that lacked "timed out" (hibernate reports a timed-out probe as "detached HEAD"), an identity read that failed and so looked empty, and a second `claude` under the pane (a pool seat).
