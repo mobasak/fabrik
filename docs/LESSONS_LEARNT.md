@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## `git log --since` stops at the first older tip; a window filter belongs on the commit's own time (2026-10-25)
+
+W-487e966a counted commits per window with `git log --since/--until`. A fixture repo whose branch tip was committed
+before the window returned 0, because git stops walking once it meets a commit older than `--since`. Live repos
+read correctly that day only because no tip was old. The fix is to log once and filter on `%ct` per window.
+- **Filter a window on each record's own time.** Never trust a producer's cutoff flag to mean "every record in
+  range": `--since` is a walk limit, not a filter.
+- **A guard's refusal test must assert its own message.** The first refusal test passed every case because the
+  default command list tripped a different refusal first. Asserting each case's own flag name exposed it.
+- **A typo guard checks only what the caller named.** Applied to the built-in default list, it refused a valid
+  run on any ledger lacking one default command. Two review seats found it.
+
 ## A permanent verdict needs positive evidence; a missing signal is "unknown", so it is transient (2026-10-25)
 
 W-05021a03 split rotate-session's aborts into transient (exit 75) and permanent (exit 1). The first build classified by check name with a few overrides. Three review readers then found ten places where the permanent verdict rested on something ABSENT: no input box drawn (a blank redraw, copy-mode, a restarting pane), a reason string that lacked "timed out" (hibernate reports a timed-out probe as "detached HEAD"), an identity read that failed and so looked empty, and a second `claude` under the pane (a pool seat).
