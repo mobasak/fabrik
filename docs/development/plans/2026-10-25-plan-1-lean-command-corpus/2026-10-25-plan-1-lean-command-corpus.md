@@ -36,7 +36,7 @@ Intake: 14 items — 11 IN, 3 OUT-OF-SCOPE (each named above), 0 ASK.
 
 ## Global Constraints
 
-- Every ticket waits for its tooling precondition (§ Interfaces). T01a starts only after slices A and B are on master, and T10 only after slice C is. `git log --oneline master --grep 'W-a9b5e763'` shows them.
+- Every ticket waits for its tooling precondition (§ Interfaces). Slice A is on master (merge bc2a9c30b). T01a starts only after slice B is on master, and T10 only after slice C is. `git log --oneline master --grep 'W-a9b5e763 slice B'` (and `slice C`) shows them; a bare `--grep 'W-a9b5e763'` already matches slice A's commits and proves nothing about B or C.
 - The `/fabrik-command-improve` hold (spec § Program holds) stands until T10 merges. kaizen runs no `/fabrik-command-improve`, and the rows keep accumulating.
 - The coordinator freezes non-program edits to a unit's files from its first ticket's start to its merge (spec § Target).
 - A unit's baseline is taken at its first ticket's start commit, never earlier (spec § Target).
@@ -88,7 +88,7 @@ Selections against it: a ticket's ledger is the single source of a rule's wordin
 | `agents-fabrik.md` | no infra invariant touched (no compose, port, DB or deploy surface) | `agents-fabrik.md` § Planning Constraints, read by its heading |
 | `specs/services/*.yaml` `shape:` | none: no service changes | n/a |
 | `docs/data-contract.md`, `docs/ui-design.md` | none: the hub has neither, and this plan builds no UI | n/a |
-| The tooling (W-a9b5e763 slice A) | the ledger grammar and the functions every ticket calls | `commands/command_rules.py::vanished`, `::own_text`, `::write_baseline`, `::losses` on `w-a9b5e763-lean-tooling` (D-1221; by symbol, since review fixes move its lines) |
+| The tooling (W-a9b5e763 slice A) | the ledger grammar and the functions every ticket calls | `commands/command_rules.py::vanished`, `::own_text`, `::write_baseline`, `::losses` on master since merge bc2a9c30b (D-1221; by symbol, since later slices move its lines) |
 
 ## Execution Discipline (binding on /fabrik-execute-plan)
 
@@ -231,6 +231,8 @@ Selections against it: a ticket's ledger is the single source of a rule's wordin
 
 A unit is one command or one shared-file group. A unit whose files and corpus-text pin tests exceed the READ budget (262144 bytes) splits into migration tickets, which move its pins into its ledger, and a final rewrite ticket. All of a unit's tickets land as one merge (D-1222).
 
+Breadth advisory (`check_ticket_breadth.py`, plan-review pass 1): 46 of 57 tickets score ≥ 5, every flag `areas=1 (commands)` (T46: docs-only), scored on its Behavior-Contract rows alone. Kept, not split: a rewrite ticket's rows (the start-commit ledger with no LOSS, the 50% target or a floor, every vanished unit labelled, bans and pinned phrases carried verbatim, presence pins migrated, `--check` never 4 or 5) are facets of ONE invariant, no rule lost in this file's cut, and a split would put the ledger and the cut it grades in different tickets.
+
 | Unit | Tickets | Files cut | Kept behavioural pin tests |
 |---|---|---|---|
 | 01 | T01a, T01b, T01c, T01d | `no-workflow-hub.md`, `run-record.md`, `orient.md`, `close-chain.md`, `close-feedback.md`, `review-probe-catalogue.md`, `fabrik-reviewer.md`, `fabrik-researcher.md`, `fabrik-gui.md` | `test_command_feedback_report.py`, `test_command_run.py`, `test_review_loop_workflow.py` |
@@ -322,7 +324,7 @@ The tail, in its order (spec § Order step 6: descending hours, ties by own word
 ## Interfaces
 
 - **Precondition merges (producer: infra-2, W-a9b5e763; consumer: every ticket).**
-  - Slice A: `commands/command_rules.py` with `own_text`, `write_baseline`, `vanished`, `load_ledger` and `losses`, and the `--check` LOSS exit 4. On `w-a9b5e763-lean-tooling` (tip 4040e0211, D-1221), in its full review.
+  - Slice A: `commands/command_rules.py` with `own_text`, `write_baseline`, `vanished`, `load_ledger` and `losses`, and the `--check` LOSS exit 4. On master since merge bc2a9c30b (D-1221; review receipt 4ce9a1a48, CONVERGED).
   - Slice B, needed before T01a:
     - `command_rules.generate_unchanged(baseline_path, new_own_text) -> [entry]`, the measure, and `commands/_size_ceiling.json` with its ratchet and `--check` exit 5;
     - every command's full-measure baseline, published;
@@ -1120,23 +1122,20 @@ design-review 3 ['design-review', 'fabrik-execute-plan', 'fabrik-user-test']
 tickets 57 units 45 over [] max 258980
 ```
 
-**The emit gate** (`python -m scripts.enforcement.check_plan_tickets --plan-dir docs/development/plans/2026-10-25-plan-1-lean-command-corpus`), run in a throwaway worktree at slice A's tip (`w-a9b5e763-lean-tooling`, 4040e0211) with this set copied in:
+**The emit gate**, run from the repo root on this branch rebased onto master (slice A merged at bc2a9c30b):
 
 ```
-✓ [plan_tickets] /tmp/claude-1000/-opt-fabrik--claude-worktrees-kaizen/516f8b9a-afe0-4693-93de-00f5813c4037/scratchpad/run-fabrik-plan-after-chat-2026-10-25T03-06-14-0300-f6fb9c/probe-a/docs/development/plans/2026-10-25-plan-1-lean-command-corpus: graded 57 ticket(s), 483 Touches path(s), 110 Context-Files entry(ies); READ budget measured against /tmp/claude-1000/-opt-fabrik--claude-worktrees-kaizen/516f8b9a-afe0-4693-93de-00f5813c4037/scratchpad/run-fabrik-plan-after-chat-2026-10-25T03-06-14-0300-f6fb9c/probe-a; 0 finding(s)
-
-rc=0
+$ python -m scripts.enforcement.check_plan_tickets --plan-dir docs/development/plans/2026-10-25-plan-1-lean-command-corpus
+✓ [plan_tickets] /opt/fabrik/.claude/worktrees/kaizen/docs/development/plans/2026-10-25-plan-1-lean-command-corpus: graded 57 ticket(s), 483 Touches path(s), 110 Context-Files entry(ies); READ budget measured against /opt/fabrik/.claude/worktrees/kaizen; 0 finding(s)
 ```
-
-On this branch's own base (master, which does not yet carry slice A), the same command reports 56 findings, all one class: each ticket's first Gate line runs `tests/test_command_rules.py`, "which exists nowhere". That is the precondition of § Interfaces, read by the gate: the set grades clean once slice A is on master, and the CONVERGED flip waits for it (§ Residual unknowns R1).
 
 **The corpus-reading test suite at the base commit** (`run_corpus_suite.py`: every `tests/**/test_*.py` naming `_sources`, `_fragments`, `_agents` or `assemble_commands`, under `capped_run.sh`):
 
 ```
-(still running when the plan was committed; the last progress lines of its live output, over 142 test files)
-........................................................................ [ 53%]
-.......................................................
+1 failed, 5941 passed, 2 skipped, 1 warning in 1693.34s (0:28:13)
 ```
+
+Over 142 test files at base 4c0827c22. The one failure, `tests/test_prune_transcripts.py::test_c3_a_live_parent_keeps_every_sidechain_and_an_in_flight_one_stays`, is outside the corpus surface. The 28 minutes are why no ticket gate runs the whole set.
 
 Grounded anchors, each read in this run:
 - `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md:125` (target), `:177` (completeness), `:232` (retiring pins), `:239` (the tail), `:291` (T1), `:362` (L1 text), `:495` (KILL).
@@ -1190,7 +1189,7 @@ Resolved:
 - **The READ budget:** every ticket is under 262144 bytes (§ Evidence).
 
 Still open, each with its resolution step:
-- **R1 — when slices B and C merge.** Resolution: the executor probes `git log --oneline master --grep 'W-a9b5e763'` before T01a and before T10, and waits on the precondition rather than starting. Waiting is not a mid-run question, because the plan names it. The CONVERGED flip waits for slice A too: until it is on master, the emit gate reads every ticket's `tests/test_command_rules.py` Gate line as a test that exists nowhere (§ Evidence).
+- **R1 — when slices B and C merge.** Resolution: the executor probes `git log --oneline master --grep 'W-a9b5e763 slice B'` before T01a and `--grep 'W-a9b5e763 slice C'` before T10, and waits on the precondition rather than starting. Waiting is not a mid-run question, because the plan names it. Slice A is on master (bc2a9c30b), so the emit gate grades the set clean (§ Evidence).
 - **R2 — the name of slice B's ceiling ratchet.** Resolution: slice B documents it in `docs/reference/command-corpus-check.md` § Rule ledger, and each ticket's step 7 reads it there. No ticket starts before B merges (R1).
 - **R3 — a pin shorter than 25 characters is missed by the scan, so a test outside Touches may go red.** Resolution: § Global Constraints' Touches-miss rule, an amendment commit before merge.
 - **R4 — intel's measuring script.** Resolution: slice B commits it and pins it by commit (sent to infra-2 on 2026-10-25). Until it lands, no time baseline is cut and no unit starts (R1).
