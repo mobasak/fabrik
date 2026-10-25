@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T00:05:17.783941Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b8ba95f7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q5GDZGDZ6SWAACYYD17415",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: The review probe catalogue's § Seat isolation recipe (tests run from a `git archive` of the pin's base SHA) does not say that a gitignored GENERATED file the code imports must be copied into the extract. In web-ecommerce-factory, sites/bhdtrade/src/content/site.ts:70 imports ../generated/image"
+}

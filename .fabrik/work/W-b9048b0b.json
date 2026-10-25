@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T00:05:18.116748Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b9048b0b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QKG9Y78THDMCDZ5BKVJRE7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "Seat-isolation test recipe imports the LIVE tree unless it uses `-P` + `env -C`; `git show --output` writes nothing"
+}
