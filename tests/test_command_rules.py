@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -562,6 +563,35 @@ def test_the_enforced_lint_refusal_shapes(tmp_path: Path) -> None:
                  "tests/test_s.py::test_param[1]", "tests/test_s.py::TestK::test_m"):
         _ledger(t, [{**enf, "enforced": node}], baseline_from=base_src)
         assert _losses(t) == [], node
+
+
+def test_review_pass_3_fixes(tmp_path: Path) -> None:
+    base_src = SOURCE.replace("Stop at the pin.", "Run `gate.py` first.")
+    t = _tree(tmp_path, source=base_src)
+    (t["root"] / "tests").mkdir()
+    (t["root"] / "tests" / "test_p.py").write_text(
+        "import subprocess\n"
+        "def test_print():\n    print('gate.py')\n    r = subprocess.run(['other.py'])\n    assert r.returncode == 2\n"
+    )
+    enf = {"id": "R5", "section": "## Scope", "current": "Run `gate.py` first.", "text": ["`gate.py`"],
+           "enforced": "tests/test_p.py::test_print"}
+    _ledger(t, [enf], baseline_from=base_src)
+    _one(_losses(t), "never invokes the script")  # a print() names the script; it runs nothing
+    t = _tree(tmp_path / "fields")
+    for field in ("file", "section", "baseline", "enforced"):
+        assert f"`{field}` is not a string" in _refused(t, entries=[{**ENTRY, field: 5}])
+
+
+def test_an_unreadable_shared_dir_is_a_loss(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    (t["rules"] / "_shared" / "s.yaml").write_text("- not a mapping\n")
+    (t["rules"] / "_shared").chmod(0)
+    try:
+        if os.access(t["rules"] / "_shared", os.R_OK):
+            pytest.skip("running as a user who reads a mode-0 directory")
+        _one(_losses(t), "LOSS rules: unreadable — PermissionError")
+    finally:
+        (t["rules"] / "_shared").chmod(0o755)
 
 
 def test_losses_survives_an_unreadable_rules_dir(tmp_path: Path, monkeypatch) -> None:

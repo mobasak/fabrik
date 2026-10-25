@@ -307,8 +307,8 @@ at `commands/_rules/_shared/<name>.yaml`. Each ledger carries a sha-pinned basel
 split into heading-keyed units. `losses()` asserts every ledger against a render, and a LOSS is one
 of: a failed `text`, `ordered` or `forbidden` carrier; a baseline unit that vanished unclassified;
 or a malformed ledger. `enforced:` is a load-time lint: the named test's own asserts must show a
-refusal and its call must name the script the entry's `text` carrier names. `losses()` never
-raises.
+refusal, and a call that runs something (a subprocess or runner callee, never `print()` or a
+logger) must name the script the entry's `text` carrier names. `losses()` never raises.
 
 - **Own text:** a command's source with every `{{include:…}}` line blanked; a shared file is its
   own text.

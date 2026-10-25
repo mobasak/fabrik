@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import os
 import re
 from collections import Counter
 from pathlib import Path
@@ -268,10 +269,11 @@ def _lint_enforced(node: str, root: Path, phrases: list[str]) -> str | None:
     if not refusal:
         return f"enforced {node!r} asserts no refusal (a printed-text assert is a text pin)"
     named = {Path(m).name for ph in phrases for m in re.findall(r"[\w./-]+\.(?:py|sh)\b", ph)}
+    # only a call that RUNS something — a subprocess/runner callee, never print() or a logger
     called = {
         Path(tok).name
         for call in ast.walk(fn)
-        if isinstance(call, ast.Call)
+        if isinstance(call, ast.Call) and _runner(call)
         for arg in [*call.args, *(k.value for k in call.keywords)]
         for n in ast.walk(arg)
         if isinstance(n, ast.Constant) and isinstance(n.value, str)
@@ -280,6 +282,15 @@ def _lint_enforced(node: str, root: Path, phrases: list[str]) -> str | None:
     if not named & called:
         return f"enforced {node!r} never invokes the script its text carrier names"
     return None
+
+
+_RUNNERS = {"run", "Popen", "call", "check_call", "check_output", "invoke", "main", "spawn", "exec"}
+
+
+def _runner(call: ast.Call) -> bool:
+    f = call.func
+    name = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else ""
+    return name in _RUNNERS or name.startswith("run_") or name.endswith("_run")
 
 
 def _decision_rows(root: Path) -> dict[str, str]:
@@ -472,7 +483,9 @@ def ledgers(rules: Path | None = None) -> list[Path]:
         return []
     found: list[Path] = []
     for d in (rules, rules / SHARED):
-        found += sorted(p for p in d.glob("*") if p.is_file() and p.suffix in (".yaml", ".yml"))
+        if d.exists():
+            names = os.listdir(d)  # raises on an unreadable dir, where Path.glob returns nothing
+            found += sorted(d / n for n in names if (d / n).is_file() and Path(n).suffix in (".yaml", ".yml"))
     return found
 
 
