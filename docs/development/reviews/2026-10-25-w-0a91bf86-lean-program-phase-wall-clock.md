@@ -104,3 +104,7 @@ The scripts and their data are kept, untracked, in
 - `subset.py` (seat runtime on runs with seat transcripts).
 
 Run each with `python3`; `phases.py` and `transcripts.py` take the output paths as arguments.
+
+The rows D-1219 carries (wall-clock, seat time, rounds) are reproduced by `scripts/command_time_measure.py`
+(W-487e966a): `--start 2026-10-06T00:00:00+00:00 --end 2026-10-25T01:00:00+03:00 --state done` prints this
+table's wall-clock row and both seat share rows unchanged.
