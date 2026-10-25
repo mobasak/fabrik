@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The lean program's time measure as one script, `scripts/command_time_measure.py` (2026-10-25)
+
+D-1219 makes the lean program's time budget "one pinned script (intel's method)". This is that script
+(W-487e966a, D-1228). Per command and per equal 14-day window, over every close, it reports:
+- wall-clock (median, mean, p90) and the non-done share;
+- seat-minutes, as the gap-cut union (the W-0a91bf86 table's figure) and as the sum of each seat's time;
+- rounds, wall-clock and closes per work item, runs per commit, and surface size.
+
+`--json --per-run` emits the rows behind the figures, so infra-2's nightly job (slice B) can store them before
+the seat transcripts are pruned. On the table's window the script reproduces the table's wall-clock row and both
+seat share rows. It counts commits by committer time rather than `git log --since`, which stops at the first
+older branch tip. A typed command or state the ledger never holds is refused, not read as "no runs". The fixture
+test holds 26 graders; 29 mutants of the script each turn one red.
+
 ### Added — Lean command corpus design: half the text and seat time, no rule lost (2026-10-25)
 
 `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` is CONVERGED. It went through 7 review rounds,
