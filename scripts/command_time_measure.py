@@ -7,8 +7,8 @@ long run that closes `blocked` cannot leave the median), it reports:
 
 - closes, by state, and the non-`done` share;
 - wall-clock per run: median, mean and p90 of the ledger's `wall_s`;
-- rounds per run: the ledger's `rounds`. A /fabrik-task or /fabrik-execute-plan close records 0 —
-  its rounds are its nested /fabrik-review run's own ledger rows;
+- rounds per run: the ledger's `rounds`. A /fabrik-task or /fabrik-execute-plan close usually
+  records 0 (median 0) — its rounds are mostly its nested /fabrik-review runs' own ledger rows;
 - wall-clock per work item: closes grouped by the first `W-xxxxxxxx` id in their `surface`, the
   item's minutes summed; closes carrying no id are counted, never grouped. Grouped per command and
   per window, so an item straddling a window boundary is split, and a task's nested review counts
@@ -20,26 +20,30 @@ long run that closes `blocked` cannot leave the median), it reports:
   the repos of every in-scope close in the ledger. It is a box-wide ratio, about a third of it
   work-store bookkeeping, so it moves with commits unrelated to these runs; closes per item is the
   split signal;
-- surface size: `loc_added`, over closes that recorded a commit. Only /fabrik-task closes carry it
-  (`command_run.py`'s close-time re-measure), and a close with no commit writes a placeholder "0"
-  beside `oversized_mini: unmeasurable=no-commit`, which is left out; other commands print n 0;
+- surface size: `loc_added` (lines ADDED, not the spec's changed lines), over closes that recorded
+  a commit. Only /fabrik-task closes carry it (`command_run.py`'s close-time re-measure), and a
+  close with no commit writes a placeholder "0" beside `oversized_mini: unmeasurable=no-commit`,
+  which is left out; other commands print n 0;
 - seat-minutes per run, two ways: `seat_min`, the union of every seat transcript's active segments
   inside the run's `run_open`..`run_close` window (the table's "seats running, idle gaps over 10 min
   cut" row: a segment breaks where two consecutive lines of one seat are more than `--gap-min`
   apart), and `seat_sum_min`, the sum of each seat's own clipped active time. Removing one of two
   seats that run side by side moves the sum and barely moves the union. Measured on runs with a
-  `dispatch` event and at least one surviving seat transcript; a /fabrik-task run's figure includes
-  its nested review's seats, as the table's did. Seat transcripts are pruned after 3 days (D-1182),
-  so a window older than that reads n 0: store the `--per-run` rows nightly and aggregate those.
+  `dispatch` event and at least one seat segment of positive length inside the run; a /fabrik-task
+  run's figure includes its nested review's seats, as the table's did. Seat transcripts are pruned
+  after 3 days (D-1182), so a window older than that reads n 0 unless they are restored first
+  (`scripts/sysadmin/prune_transcripts.py --restore`) or the `--per-run` rows were stored nightly.
   The table published the gap-cut figure as a SHARE (`seat_share`); its per-run medians are new.
+  A `--gap-min` larger than any idle gap gives the table's uncut "upper bound" row.
 
 Sources: `~/.claude/state/command-feedback.jsonl` (one row per close, `ts` = the close's epoch),
 `~/.claude/state/events/<sid>.jsonl` (run_open, dispatch, run_close; a run is a `run_open` to the
 next `run_close` of the same command in the same session, nesting tracked as a stack), and the
 seat transcripts `<projects root>/<project>/<sid>/subagents/*.jsonl` under `~/.claude/projects`
-and every `~/.claude-fleet/*/projects`. Lines that do not parse (bad JSON, a non-number, a time with
-no UTC offset) are skipped and COUNTED in the report's `skipped`; a missing ledger, events dir or
-projects root stops the run (a silent seat n 0 would read as a met target). Nothing is written.
+and every `~/.claude-fleet/*/projects` that exists. Lines that do not parse (bad JSON, a non-number
+or non-finite value, a time with no UTC offset) are skipped and COUNTED in the report's `skipped`;
+a missing ledger, events dir or named projects root, and a `--commands` or `--state` value the
+ledger never holds, stop the run (a silent n 0 would read as a met target). Nothing is written.
 `--per-run` adds the rows behind the figures: every close (`closes`) and every event-stream run
 (`runs`), so a nightly job can store them and later columns read the same rows.
 
@@ -63,6 +67,7 @@ import collections
 import datetime as dt
 import glob
 import json
+import math
 import os
 import re
 import statistics
@@ -72,7 +77,14 @@ import sys
 DEFAULT_COMMANDS = ("fabrik-review", "fabrik-review-scoped", "fabrik-task", "fabrik-execute-plan")
 WORK_ID = re.compile(r"\bW-[0-9a-f]{8}\b")
 NO_COMMIT = "unmeasurable=no-commit"
+DIGITS = re.compile(r"[0-9]+")
+MAX_DAYS = 3650  # ten years: past it `timedelta` arithmetic on the window overflows
 STATE = os.path.expanduser("~/.claude/state")
+
+
+def _num(value: object) -> bool:
+    """A finite int or float (json.loads admits NaN and Infinity; a bool is no number here)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def _aware(value: object) -> dt.datetime | None:
@@ -110,7 +122,7 @@ def load_ledger(path: str, skipped: collections.Counter) -> list[dict]:
             except ValueError:
                 skipped["ledger_lines"] += 1
                 continue
-            if isinstance(row, dict) and isinstance(row.get("ts"), (int, float)):
+            if isinstance(row, dict) and _num(row.get("ts")):
                 rows.append(row)
             else:
                 skipped["ledger_lines"] += 1
@@ -126,6 +138,8 @@ def load_runs(events_dir: str, since: float, skipped: collections.Counter) -> li
         evs = []
         with open(path, errors="replace") as fh:
             for line in fh:
+                if not line.strip():
+                    continue
                 try:
                     r = json.loads(line)
                 except ValueError:
@@ -141,10 +155,13 @@ def load_runs(events_dir: str, since: float, skipped: collections.Counter) -> li
                 if t is None:
                     skipped["event_lines"] += 1
                     continue
-                evs.append((t, r))
-        evs.sort(key=lambda x: x[0])
+                seq = r.get("seq")
+                evs.append((t, seq if _num(seq) else 0, r))
+        # `ts` is quantized to the millisecond, so a close and the next open can tie: `seq`, the
+        # writer's own counter, orders them (command_run.py `_queue`)
+        evs.sort(key=lambda x: (x[0], x[1]))
         stack: list[dict] = []
-        for t, r in evs:
+        for t, _seq, r in evs:
             if r["event"] == "run_open":
                 stack.append(
                     {"sid": r.get("sid"), "command": r.get("command"), "open": t, "dispatches": 0}
@@ -181,9 +198,12 @@ def seat_segments(
             if '"timestamp"' not in line:
                 continue
             try:
-                t = _aware(json.loads(line).get("timestamp"))
-            except (ValueError, AttributeError):
-                t = None
+                obj = json.loads(line)
+            except ValueError:
+                obj = None
+            if isinstance(obj, dict) and "timestamp" not in obj:
+                continue  # the word sits in the line's content, not its top-level key
+            t = _aware(obj.get("timestamp")) if isinstance(obj, dict) else None
             if t is None:
                 skipped["transcript_stamps"] += 1
                 continue
@@ -237,7 +257,8 @@ def per_run(
         for path in seats.get(run["sid"], []):
             if path not in cache:
                 cache[path] = seat_segments(path, gap_s, skipped)
-            mine = [(max(o, a), min(c, b)) for a, b in cache[path] if a < c and b > o]
+            # positive length only: a lone stamp is a seat that was seen, not one that ran
+            mine = [(max(o, a), min(c, b)) for a, b in cache[path] if max(o, a) < min(c, b)]
             if mine:
                 clipped.append(mine)
         out.append(
@@ -257,12 +278,11 @@ def per_run(
     return out
 
 
-def commit_count(
-    repos: set[str], start: dt.datetime, end: dt.datetime
-) -> tuple[int, list[str], list[str], list[str]]:
-    """Trailered commits in [start, end) on any branch or remote, one per sha per git common dir.
+def commit_times(repos: set[str]) -> tuple[list[int], list[str], list[str], list[str]]:
+    """Committer times of every trailered non-merge commit on any branch or remote, one per sha per
+    git common dir — read ONCE, then counted per window by `commits_in`.
 
-    Returns (count, common dirs read, paths gone, failures). A removed `.claude/worktrees/<name>`
+    Returns (times, common dirs read, paths gone, failures). A removed `.claude/worktrees/<name>`
     path is read through its main checkout, which holds its branches; any other path no longer on
     disk is listed as gone. A path that is not a git repo, or whose `git log` exits non-zero, is a
     failure. Both undercount, which reads as MORE runs per commit, so each is listed beside the
@@ -287,7 +307,7 @@ def commit_count(
             errors.append(repo)
             continue
         commons.setdefault(p.stdout.strip(), repo)
-    shas: set[tuple[str, str]] = set()
+    shas: dict[tuple[str, str], int] = {}
     for common, repo in commons.items():
         # No --since/--until: git stops walking at the first commit older than --since, so a branch
         # tip committed before the window hides every in-window commit behind it. The window is
@@ -312,14 +332,15 @@ def commit_count(
         for rec in p.stdout.split("\x1e"):
             sha, _, rest = rec.strip("\n").partition("\x1f")
             ct, _, role = rest.partition("\x1f")
-            if (
-                sha
-                and role.strip()
-                and ct.isdigit()
-                and start.timestamp() <= int(ct) < end.timestamp()
-            ):
-                shas.add((common, sha))
-    return len(shas), sorted(commons), gone, errors
+            if sha and role.strip() and DIGITS.fullmatch(ct):
+                shas[(common, sha)] = int(ct)
+    return sorted(shas.values()), sorted(commons), gone, errors
+
+
+def commits_in(times: list[int], start: dt.datetime, end: dt.datetime) -> int:
+    """How many of `commit_times`' committer times fall in [start, end)."""
+    lo, hi = start.timestamp(), end.timestamp()
+    return sum(1 for t in times if lo <= t < hi)
 
 
 def measure(
@@ -340,21 +361,22 @@ def measure(
     for cmd in commands:
         closes = [r for r in ledger if r.get("command") == cmd and lo <= r["ts"] < hi]
         states = collections.Counter(str(r.get("state")) for r in closes)
-        wall = [r["wall_s"] / 60 for r in closes if isinstance(r.get("wall_s"), (int, float))]
-        rounds = [float(r["rounds"]) for r in closes if isinstance(r.get("rounds"), int)]
+        wall = [r["wall_s"] / 60 for r in closes if _num(r.get("wall_s"))]
+        rounds = [float(r["rounds"]) for r in closes if _num(r.get("rounds"))]
         items: dict[str, float] = collections.defaultdict(float)
         item_closes: collections.Counter = collections.Counter()
         for r in closes:
             ids = WORK_ID.findall(str(r.get("surface") or ""))
             if ids:
                 item_closes[ids[0]] += 1
-                if isinstance(r.get("wall_s"), (int, float)):
+                if _num(r.get("wall_s")):
                     items[ids[0]] += r["wall_s"] / 60
         # A close with no commit writes a placeholder "0" beside this marker (command_run.py's lane close).
         loc = [
             float(r["loc_added"])
             for r in closes
-            if str(r.get("loc_added") or "").isdigit() and r.get("oversized_mini") != NO_COMMIT
+            if DIGITS.fullmatch(str(r.get("loc_added") or ""))
+            and r.get("oversized_mini") != NO_COMMIT
         ]
         runs = [
             r
@@ -456,19 +478,43 @@ def main(argv: list[str] | None = None) -> int:
     if a.start and a.windows != 1:
         ap.error("--start names one window; drop --windows")
     days = 14 if a.days is None else a.days
-    if days < 1 or a.windows < 1 or a.gap_min <= 0:
-        ap.error("--days and --windows must be >= 1 and --gap-min > 0")
+    if not (1 <= days <= MAX_DAYS and 1 <= a.windows <= MAX_DAYS // days):
+        ap.error(f"--days and --windows must be >= 1, spanning at most {MAX_DAYS} days together")
+    if not a.gap_min > 0:  # NaN fails the comparison too; inf is a legitimate "no gap cut"
+        ap.error("--gap-min must be a number > 0")
     commands = tuple(c.strip() for c in a.commands.split(",") if c.strip())
+    if not commands:
+        ap.error("--commands names no command")
     wins = windows(a.start, a.end, days, a.windows)
-    roots = a.projects or sorted(
-        {os.path.realpath(p) for p in glob.glob(os.path.expanduser("~/.claude-fleet/*/projects"))}
-        | {os.path.realpath(os.path.expanduser("~/.claude/projects"))}
-    )
+    # A named root must exist; a derived fleet root that does not (a dangling profile link) is
+    # skipped, so one stale profile cannot stop the run.
+    roots = a.projects or [
+        p
+        for p in sorted(
+            {
+                os.path.realpath(p)
+                for p in glob.glob(os.path.expanduser("~/.claude-fleet/*/projects"))
+            }
+            | {os.path.realpath(os.path.expanduser("~/.claude/projects"))}
+        )
+        if os.path.isdir(p)
+    ]
     missing = [p for p in [a.events, *roots] if not os.path.isdir(p)]
-    if missing:
-        raise SystemExit(f"not a directory: {', '.join(missing)}")
+    if not os.path.isfile(a.ledger):
+        missing.insert(0, a.ledger)
+    if missing or not roots:
+        raise SystemExit(f"not found: {', '.join(missing) or 'any transcript projects root'}")
     skipped: collections.Counter = collections.Counter()
-    ledger = [r for r in load_ledger(a.ledger, skipped) if r.get("command") in commands]
+    whole = load_ledger(a.ledger, skipped)
+    # A typo must not read as "no runs": refuse a command or state the ledger has never held.
+    for flag, wanted, held in (
+        ("--commands", commands, {r.get("command") for r in whole}),
+        ("--state", a.state or [], {r.get("state") for r in whole}),
+    ):
+        unknown = [v for v in wanted if v not in held]
+        if unknown:
+            raise SystemExit(f"{flag}: the ledger holds no close of {', '.join(unknown)}")
+    ledger = [r for r in whole if r.get("command") in commands]
     runs = [
         r for r in load_runs(a.events, wins[0][0].timestamp(), skipped) if r["command"] in commands
     ]
@@ -486,10 +532,9 @@ def main(argv: list[str] | None = None) -> int:
         },
         "windows": [],
     }
+    times, read, gone, failed = ([], [], [], []) if a.no_commits else commit_times(repos)
     for s, e in wins:
-        commits, read, gone, failed = (
-            (None, [], [], []) if a.no_commits else commit_count(repos, s, e)
-        )
+        commits = None if a.no_commits else commits_in(times, s, e)
         w = measure(ledger, rows, commands, s, e, commits)
         w["commit_repos"], w["repos_gone"], w["commit_errors"] = read, gone, failed
         report["windows"].append(w)
@@ -522,6 +567,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     for w in report["windows"]:
         head = f"window {w['start']} .. {w['end']} · "
+        if a.state:
+            head += f"ONLY closes in state {', '.join(a.state)} (non-done is 0 by this filter) · "
         head += (
             "commits not counted"
             if w["commits"] is None
@@ -534,13 +581,21 @@ def main(argv: list[str] | None = None) -> int:
             + (f" · git FAILED for {', '.join(w['commit_errors'])}" if w["commit_errors"] else "")
         )
         for cmd, m in w["commands"].items():
+            share = m["seat_share"]
+            seat_lines = [
+                f"    seat-minutes    {_fmt(m['seat_min'])} (of {m['dispatched_runs']} runs with a dispatch)"
+                + (f" · {share * 100:.1f}% of those runs' wall-clock" if share is not None else ""),
+                f"    seat sum min    {_fmt(m['seat_sum_min'])}",
+            ]
             if not m["closes"]:
+                # the event stream can hold runs the ledger has no row for; show what was measured
                 print(f"  {cmd}: closes 0")
+                if m["dispatched_runs"]:
+                    print("\n".join(seat_lines))
                 continue
             print(
                 f"  {cmd}: closes {m['closes']} {m['states']} · non-done {m['non_done_share'] * 100:.1f}%"
             )
-            share = m["seat_share"]
             print(
                 f"    wall-clock min  {_fmt(m['wall_min'])}"
                 + (
@@ -549,11 +604,7 @@ def main(argv: list[str] | None = None) -> int:
                     else ""
                 )
             )
-            print(
-                f"    seat-minutes    {_fmt(m['seat_min'])} (of {m['dispatched_runs']} runs with a dispatch)"
-                + (f" · {share * 100:.1f}% of those runs' wall-clock" if share is not None else "")
-            )
-            print(f"    seat sum min    {_fmt(m['seat_sum_min'])}")
+            print("\n".join(seat_lines))
             print(f"    rounds          {_fmt(m['rounds'])}")
             print(
                 f"    per work item   {_fmt(m['item_wall_min'])} · closes without an id {m['closes_without_item']}"

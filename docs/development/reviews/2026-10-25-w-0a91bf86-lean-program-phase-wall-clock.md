@@ -106,5 +106,8 @@ The scripts and their data are kept, untracked, in
 Run each with `python3`; `phases.py` and `transcripts.py` take the output paths as arguments.
 
 The rows D-1219 carries (wall-clock, seat time, rounds) are reproduced by `scripts/command_time_measure.py`
-(W-487e966a): `--start 2026-10-06T00:00:00+00:00 --end 2026-10-25T01:00:00+03:00 --state done` prints this
-table's wall-clock row and both seat share rows unchanged.
+(W-487e966a): `--start 2026-10-06T00:00:00+00:00 --end 2026-10-25T01:00:00+03:00 --state done --commands
+fabrik-task,fabrik-review,fabrik-review-scoped` prints this table's wall-clock row and its "idle gaps over 10 min
+cut" seat share row; adding `--gap-min 100000` (no gap cut) prints its "Seats running" upper-bound row. Both seat
+rows read the seat transcripts, which are pruned after 3 days (D-1182), so they reproduce only while those
+transcripts are on disk or restored.

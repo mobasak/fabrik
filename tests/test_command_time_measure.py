@@ -243,7 +243,7 @@ def test_seat_minutes_gap_cut_union_and_sum(tmp_path, capsys):
     assert m["seat_min"]["median"] == pytest.approx(55.0)
 
 
-def _git(cwd: Path, *a: str, when: str | None = None) -> str:
+def _git(cwd: Path, *a: str, when: str | None = None, author: str | None = None) -> str:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     env.update(
         GIT_AUTHOR_NAME="t",
@@ -254,7 +254,7 @@ def _git(cwd: Path, *a: str, when: str | None = None) -> str:
         GIT_CONFIG_NOSYSTEM="1",
     )
     if when:
-        env.update(GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when)
+        env.update(GIT_AUTHOR_DATE=author or when, GIT_COMMITTER_DATE=when)
     return subprocess.run(
         ["git", "-C", str(cwd), "-c", "core.hooksPath=/dev/null", *a],
         check=True,
@@ -333,6 +333,206 @@ def test_surface_size_and_unparseable_input(tmp_path, capsys):
     assert out["skipped"] == {"ledger_lines": 2, "event_lines": 2}
     with pytest.raises(SystemExit):
         ctm.main([*args[:2], "--events", str(tmp_path / "missing"), *args[4:]])
+
+
+def _commit(repo: Path, name: str, when: str, author: str | None = None) -> str:
+    (repo / name).write_text(name)
+    _git(repo, "add", name)
+    _git(repo, "commit", "-q", "-m", f"{name}\n\nAgent-Role: primary\n", when=when, author=author)
+    return _git(repo, "rev-parse", "HEAD").strip()
+
+
+def test_commits_on_remote_refs_count_merges_do_not_and_committer_time_decides(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _commit(repo, "base", "2026-09-01T00:00:00+00:00")
+    # committed in the window, authored before it: counted (the committer time decides)
+    _commit(repo, "late", "2026-10-14T09:00:00+00:00", author="2026-09-02T00:00:00+00:00")
+    # authored in the window, committed after it: not counted (an author-time reading would count it
+    # and drop "late", so "early" is authored outside the window too, keeping the reading one-sided)
+    _commit(repo, "early", "2026-10-20T00:00:00+00:00", author="2026-10-16T00:00:00+00:00")
+    # a commit reachable only from a remote-tracking ref: counted
+    _git(repo, "checkout", "-q", "-b", "gone-branch")
+    remote_only = _commit(repo, "remote", "2026-10-14T10:00:00+00:00")
+    _git(repo, "update-ref", "refs/remotes/origin/gone-branch", remote_only)
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "branch", "-q", "-D", "gone-branch")
+    # a trailered merge commit in the window: not counted (--no-merges); its side commit is
+    _git(repo, "checkout", "-q", "-b", "side")
+    _commit(repo, "side", "2026-10-14T11:00:00+00:00")
+    _git(repo, "checkout", "-q", "main")
+    _git(
+        repo,
+        "merge",
+        "-q",
+        "--no-ff",
+        "-m",
+        "merge side\n\nAgent-Role: primary\n",
+        "side",
+        when="2026-10-14T12:00:00+00:00",
+    )
+    rows = [_row("fabrik-review", "done", 10, repo=str(repo))]
+    args = [
+        a
+        for a in _args(tmp_path, _ledger(tmp_path / "l.jsonl", rows), "--commands", "fabrik-review")
+        if a != "--no-commits"
+    ]
+    w = _run(args, capsys)["windows"][0]
+    assert w["commits"] == 3  # late, remote, side
+
+
+def test_runs_are_windowed_by_their_close_and_ordered_by_seq(tmp_path, capsys):
+    rows = [
+        _row("fabrik-review", "done", 30, ago_days=1),
+        _row("fabrik-review", "done", 30, ago_days=20),
+    ]
+    args = _args(
+        tmp_path,
+        _ledger(tmp_path / "l.jsonl", rows),
+        "--commands",
+        "fabrik-review",
+        "--windows",
+        "2",
+        "--state",
+        "done",
+        "--per-run",
+    )
+    tie = "2026-10-14T11:00:00.000+00:00"
+    (tmp_path / "events" / f"{SID}.jsonl").write_text(
+        _event("2026-09-24T10:00:00+00:00", "run_open", seq=1)
+        + _event("2026-09-24T10:01:00+00:00", "dispatch", seq=2)
+        + _event("2026-09-24T10:30:00+00:00", "run_close", verdict="done", seq=3)
+        + _event("2026-10-14T10:00:00+00:00", "run_open", seq=4)
+        + _event("2026-10-14T10:01:00+00:00", "dispatch", seq=5)
+        # the next run opens in the same millisecond its predecessor closes, written FIRST: seq orders them
+        + _event(tie, "run_open", seq=7)
+        + _event(tie, "run_close", verdict="done", seq=6)
+        + _event("2026-10-14T11:20:00+00:00", "run_close", verdict="done", seq=8)
+        # a run closing exactly at --end: in no window and in no --per-run row
+        + _event("2026-10-14T12:00:00+00:00", "run_open", seq=9)
+        + _event("2026-10-15T00:00:00+00:00", "run_close", verdict="done", seq=10)
+    )
+    sub = tmp_path / "projects" / "-opt-x" / SID / "subagents"
+    _seat(sub / "agent-a.jsonl", ["2026-09-24T10:05:00Z", "2026-09-24T10:10:00Z"])
+    _seat(
+        sub / "agent-b.jsonl",
+        ["2026-10-14T10:05:00Z", "2026-10-14T10:15:00Z", "2026-10-14T10:25:00Z"],
+    )
+    out = _run(args, capsys)
+    old, new = (w["commands"]["fabrik-review"] for w in out["windows"])
+    assert (old["seat_min"]["median"], old["dispatched_runs"]) == (pytest.approx(5.0), 1)
+    assert (new["seat_min"]["median"], new["dispatched_runs"]) == (pytest.approx(20.0), 1)
+    assert sorted(r["wall_s"] for r in out["runs"]) == [
+        1200.0,
+        1800.0,
+        3600.0,
+    ]  # the done run is kept
+
+
+def test_seat_population_and_skip_accounting(tmp_path, capsys):
+    rows = [_row("fabrik-review", "done", 60, ago_days=0.5)]
+    args = _args(tmp_path, _ledger(tmp_path / "l.jsonl", rows), "--commands", "fabrik-review")
+    (tmp_path / "events" / f"{SID}.jsonl").write_text(
+        "\n"
+        + _event("2026-10-14T10:00:00+00:00", "run_open")
+        + "   \n"
+        + _event("2026-10-14T10:01:00+00:00", "dispatch")
+        + _event("2026-10-14T11:00:00+00:00", "run_close", verdict="done")
+    )
+    sub = tmp_path / "projects" / "-opt-x" / SID / "subagents"
+    sub.mkdir(parents=True)
+    # one stamp only (seen, never ran), a line whose CONTENT says timestamp, and one unparseable stamp
+    (sub / "agent-a.jsonl").write_text(
+        json.dumps({"timestamp": "2026-10-14T10:30:00Z"})
+        + "\n"
+        + json.dumps({"message": {"timestamp": "inside the content"}})
+        + "\n"
+        + json.dumps({"timestamp": "yesterday"})
+        + "\n"
+    )
+    out = _run(args, capsys)
+    m = out["windows"][0]["commands"]["fabrik-review"]
+    assert m["seat_min"]["n"] == 0 and m["dispatched_runs"] == 1
+    assert out["skipped"] == {"transcript_stamps": 1}
+
+
+@pytest.mark.parametrize(
+    ("extra", "names"),
+    [
+        (["--gap-min", "nan"], "--gap-min"),
+        (["--gap-min", "0"], "--gap-min"),
+        (["--days", "1000000"], "--days"),
+        (["--windows", "0"], "--windows"),
+        (["--commands", "fabrik-reveiw"], "fabrik-reveiw"),
+        (["--commands", ","], "--commands"),
+        (["--state", "dnoe"], "dnoe"),
+        (["--projects", "/nonexistent/projects"], "/nonexistent/projects"),
+    ],
+)
+def test_refusals_never_read_as_an_empty_result(tmp_path, capsys, extra, names):
+    ledger = _ledger(tmp_path / "l.jsonl", [_row("fabrik-review", "done", 1)])
+    args = _args(tmp_path, ledger, "--commands", "fabrik-review")
+    assert (
+        ctm.main([*args, "--json"]) == 0
+    )  # the base call is accepted: each refusal is its flag's own
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as e:
+        ctm.main([*args, *extra])
+    assert e.value.code not in (0, None)
+    assert names in f"{e.value.code} {capsys.readouterr().err}"
+
+
+def test_missing_ledger_is_a_refusal_not_a_traceback(tmp_path):
+    args = _args(tmp_path, _ledger(tmp_path / "l.jsonl", []))
+    with pytest.raises(SystemExit) as e:
+        ctm.main(["--ledger", str(tmp_path / "absent.jsonl"), *args[2:]])
+    assert "absent.jsonl" in str(e.value.code)
+
+
+def test_non_finite_and_non_ascii_values_are_unreadable_not_fatal(tmp_path, capsys):
+    good = _row("fabrik-task", "done", 10, loc="12", mini="0")
+    nan = json.dumps(_row("fabrik-task", "done", 1)).replace('"wall_s": 60', '"wall_s": NaN')
+    sup = _row("fabrik-task", "done", 10, loc="²", mini="0")
+    out = _run(
+        _args(
+            tmp_path, _ledger(tmp_path / "l.jsonl", [good, sup], nan), "--commands", "fabrik-task"
+        ),
+        capsys,
+    )
+    m = out["windows"][0]["commands"]["fabrik-task"]
+    assert m["closes"] == 3 and m["wall_n_unreadable"] == 1 and m["wall_min"]["n"] == 2
+    assert m["loc_added"]["n"] == 1
+
+
+def test_text_report_names_the_state_filter_and_shows_seats_without_closes(tmp_path):
+    rows = [
+        _row("fabrik-review", "done", 10, ago_days=30),
+        _row("fabrik-review", "blocked", 5, ago_days=30),
+    ]
+    args = _args(
+        tmp_path,
+        _ledger(tmp_path / "l.jsonl", rows),
+        "--commands",
+        "fabrik-review",
+        "--state",
+        "done",
+    )
+    (tmp_path / "events" / f"{SID}.jsonl").write_text(
+        _event("2026-10-14T10:00:00+00:00", "run_open")
+        + _event("2026-10-14T10:01:00+00:00", "dispatch")
+        + _event("2026-10-14T11:00:00+00:00", "run_close", verdict="done")
+    )
+    _seat(
+        tmp_path / "projects" / "-opt-x" / SID / "subagents" / "agent-a.jsonl",
+        ["2026-10-14T10:05:00Z", "2026-10-14T10:15:00Z"],
+    )
+    p = subprocess.run(
+        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, check=False
+    )
+    assert p.returncode == 0, p.stderr
+    assert "ONLY closes in state done" in p.stdout
+    assert "fabrik-review: closes 0" in p.stdout and "seat-minutes    median 10.0" in p.stdout
 
 
 def test_text_report_runs_as_a_script(tmp_path):
