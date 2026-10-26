@@ -73,13 +73,10 @@ entries:
 - id: cc2-recheck-after-pass
   file: commands/_fragments/close-chain.md
   baseline: In such a command, what an input says about the change — the commit message, the `--evidence` text, a D-row, a `CHANGELOG.md` or other ledger hunk — is written, or checked sentence by sentence against the final text, after that pass too, and again after any fix the chain's own check or `final_gate.py` forces
-  current: In such a command, what an input says about the change is written, or checked sentence by sentence against the final text, after that pass too, and again after any fix the chain's own check or `final_gate.py` forces
+  current: In such a command, what an input says about the change (the commit message, the `--evidence` text, a D-row, a `CHANGELOG.md` or other ledger hunk) is written, or checked sentence by sentence against the final text, after that pass too, and again after any fix the chain's own check or `final_gate.py` forces
   text:
-  - In such a command, what an input says about the change is written, or checked sentence by sentence against the final text, after that pass too, and again after any fix the chain's own check or `final_gate.py` forces
+  - In such a command, what an input says about the change (the commit message, the `--evidence` text, a D-row, a `CHANGELOG.md` or other ledger hunk) is written, or checked sentence by sentence against the final text, after that pass too, and again after any fix the chain's own check or `final_gate.py` forces
   class: prose
-  clauses:
-    2:
-      duplicate-of: cc-write-every-input-to-a-file
   pins:
   - tests/test_command_improve_queue_pass.py::test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass
 - id: cc2-nothing-tracked
