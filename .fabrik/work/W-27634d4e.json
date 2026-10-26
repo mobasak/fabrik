@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-26T21:51:02.618952Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-27634d4e",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "strip {# #} and {% raw %}…{% endraw %} (newline-preserving) before the span scan, list the dict-literal case in the comment, add the two probes",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "test hygiene residue from W-6eb61fa0",
   "status": "open",
   "tags": [
     "fleet"
