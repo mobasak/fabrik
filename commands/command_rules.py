@@ -232,140 +232,13 @@ def write_baseline(text: str, out: Path) -> str:
 _TOP = {"command", "shared", "baseline_sentences", "baseline_sha256", "entries", "retired", "vanished"}
 _ENTRY = {"id", "file", "section", "baseline", "current", "text", "ordered", "forbidden", "enforced", "pins", "changed-by", "class", "clauses"}
 _CLASSES = ("ban", "grammar", "behavioural", "prose")
+# D-1236 lint A, D-1238 point 2: the ban words are never/must/only/refuse (refuses/refused/refusal), any
+# case; "not" and "stays" are not ban words. A clause holding one binds whatever the entry's `class:`.
+_BAN = re.compile(r"(?i)(?<!\w)(?:never|must|only|refus(?:e|es|ed|al))(?!\w)")
+_EMPH1 = re.compile(r"(?<!\w)_+(?=\w)|(?<=\w)_+(?!\w)")  # single-underscore emphasis: _NOT_, _never_
+_WORD = re.compile(r"\w+(?:['’]\w+)*")
 _CARRIERS = ("text", "ordered", "forbidden", "enforced")
 _REFUSAL = re.compile(r"\b(?:returncode|exit_code)\s*(?:!=\s*0\b|==\s*[1-9]\d*)")
-
-
-# ── D-1236: what a reworded carrier must still hold ──────────────────────────────────────────
-# Verbatim binds three classes (ban, grammar, behavioural); a ``prose`` carrier may be reworded or
-# shrunk to its operative clauses. COBRA (D-253): the cheapest way past these lints is tagging every
-# entry ``prose`` and labelling each shrunk clause ``narrative``; the author-blind audit pair reads
-# every reworded entry old against new and each receipt states reworded/total beside its weaker-count.
-_BAN = re.compile(r"\b(?:never|refus\w*|forbid\w*|must not|do not|don't|cannot|may not)\b", re.I)
-_ANCHOR = re.compile(r"`[^`]+`|\b\d[\d.,]*\b|[\w.-]*/[\w./-]+|\b[\w-]+\.(?:py|md|json|sh|ya?ml|js|jsonl)\b|\b(?:never|must|only|refus\w*)\b", re.I)
-
-
-def clauses_of(baseline: str) -> list[str]:
-    """The baseline split at ``;`` and `` — ``, outside backticks and outside any parenthetical (a
-    ``(…; …)`` aside is one clause), empty pieces dropped."""
-    out, cur, in_code, depth = [], "", False, 0
-    i = 0
-    while i < len(baseline):
-        ch = baseline[i]
-        if ch == "`":
-            in_code = not in_code
-        elif not in_code and ch == "(":
-            depth += 1
-        elif not in_code and ch == ")":
-            depth = max(0, depth - 1)
-        if not in_code and depth == 0 and (ch == ";" or baseline.startswith(" — ", i)):
-            out.append(cur)
-            cur = ""
-            i += 1 if ch == ";" else 3
-            continue
-        cur += ch
-        i += 1
-    out.append(cur)
-    return [c.strip() for c in out if c.strip()]
-
-
-_HISTORY = re.compile(r"\b[DW]-[0-9a-f]+\b|\b\d{4}-\d{2}-\d{2}\b|\b01M[0-9A-Z]{5,}\b")
-_INNER_PAREN = re.compile(r"\([^()]*\)")
-
-
-def _history_free(text: str) -> str:
-    """``text`` with every parenthetical that cites history (a decision or work-item id, an ISO date, a
-    mail id, 'measured') removed innermost-first, then the bare ids and dates (spec lever (a))."""
-    mark = re.compile(r"\b[DW]-[0-9a-f]+\b|\b\d{4}-\d{2}-\d{2}\b|\b01M[0-9A-Z]{5,}\b|\bmeasured\b|\blive case\b")
-    prev = None
-    while prev != text:
-        prev = text
-        text = _INNER_PAREN.sub(lambda m: " " if mark.search(m.group(0)) else m.group(0).replace("(", "\0").replace(")", "\1"), text)
-    text = text.replace("\0", "(").replace("\1", ")")
-    return _HISTORY.sub(" ", text)
-
-
-def _anchors(text: str) -> set[str]:
-    """What a reworded clause must keep: backticked tokens, numbers, paths and never/must/only/refuse
-    words. History (a decision, work-item or mail id, an ISO date, a parenthetical citing one) is no anchor."""
-    text = _history_free(text)
-    return {normalise(m.group(0)).lower() for m in _ANCHOR.finditer(text) if normalise(m.group(0))}
-
-
-_STEM = re.compile(r"[a-z]{4,}")
-_RECALL = 0.7
-_SHORT = 8  # a clause of up to this many stems must be held whole
-
-
-def _stems(text: str) -> set[str]:
-    return {w[:5] for w in _STEM.findall(text.lower())}
-
-
-def _recall(clause: str, held: str) -> float:
-    """The share of ``clause``'s content stems (letters-only words of 4+ letters, cut to 5; a clause of up to 8 stems must be held whole) still in ``held``:
-    the mechanical proxy for 'this reworded phrase still says it'. COBRA (D-253): the cheapest way past it is a
-    carrier padded with the clause's vocabulary; the carrier is the rewritten text itself, the audit pair reads
-    old against new, and a clause with an anchor must also keep every anchor."""
-    want = _stems(clause)
-    if not want:
-        return 1.0
-    share = len(want & _stems(held)) / len(want)
-    return share if len(want) > _SHORT else float(share == 1.0)
-
-
-def _class_problems(e: dict, ids: dict[str, dict]) -> list[str]:
-    """Every D-1236 loader-lint problem of one entry that carries a ``class`` (empty when clean)."""
-    cls = e["class"]
-    if cls not in _CLASSES:
-        return [f"class {cls!r} is not one of {list(_CLASSES)}"]
-    out: list[str] = []
-    phrases = [normalise(p) for p in e.get("text") or []]
-    base = e.get("baseline") or ""
-    if cls == "prose":
-        short = [p for p in phrases if len(p.split()) < 6]
-        if short:
-            out.append(f"a prose `text` phrase is under 6 normalised words — {short[0][:60]}")
-    labels = e.get("clauses") or {}
-    if not isinstance(labels, dict):
-        return out + ["`clauses` is not a mapping"]
-    parts = clauses_of(base) if base else []
-    # a ban token inside a clause labelled narrative or duplicate-of is history, not a ban
-    live_base = " ".join(_history_free(p) for i, p in enumerate(parts, 1) if i not in labels)
-    if live_base and (tokens := {m.group(0).lower() for m in _BAN.finditer(live_base)}):
-        held = " ".join(phrases).lower()
-        if not any(t in held for t in tokens):
-            out.append(f"its baseline holds a ban token ({sorted(tokens)[0]!r}) and no `text` carrier does")
-    if not base or not phrases:
-        return out
-    held_text = " ".join(phrases).lower().replace("`", "")
-    if " ⏎ " in base:  # a fence is one unit whose ``# …`` comments are not clauses; its lines are the carrier
-        return out
-    for k, v in labels.items():
-        if not isinstance(k, int) or not 1 <= k <= len(parts):
-            out.append(f"clauses key {k!r} is not a 1-based clause of its baseline ({len(parts)} clauses)")
-        elif v == "narrative":
-            continue
-        elif not (isinstance(v, dict) and set(v) == {"duplicate-of"} and isinstance(v["duplicate-of"], str) and v["duplicate-of"] in ids):
-            out.append(f"clauses {k}: {v!r} is not narrative or duplicate-of: <live id>")
-    for n, clause in enumerate(parts, 1):
-        bare = re.sub(r"\(\s*[,;]?\s*\)", "", _history_free(clause))
-        if n in labels or normalise(bare).lower().replace("`", "") in held_text or not re.search(r"[A-Za-z0-9]", bare):
-            continue
-        missing = {a for a in _anchors(clause) if a.replace("`", "") not in held_text}
-        if not missing and _recall(bare, held_text) >= _RECALL:
-            continue
-        if missing or not _anchors(clause):
-            out.append(
-                f"baseline clause {n} is in no `text` phrase and not classified (narrative|duplicate-of) — "
-                f"{clause[:70]}" + (f" [lost: {sorted(missing)[:3]}]" if missing else "")
-            )
-    return out
-
-
-def _lint_class(e: dict, ids: dict[str, dict]) -> None:
-    """Raise the first D-1236 loader-lint problem of one entry that carries a ``class``."""
-    if problems := _class_problems(e, ids):
-        raise LedgerError(f"entry {e['id']}: {problems[0]}")
 
 
 class LedgerError(Exception):
@@ -563,6 +436,17 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         # matches every unit; a `forbidden` phrase is matched raw, so "**" is a legitimate absence pin
         if "text" in e and not all(normalise(p) for p in e["text"]):
             raise LedgerError(f"entry {e['id']}: a `text` phrase normalises to nothing, so it matches every text")
+        if "class" in e and e["class"] not in _CLASSES:
+            raise LedgerError(f"entry {e['id']}: `class` is not one of {'|'.join(_CLASSES)}")
+        if "clauses" in e:
+            cl = e["clauses"]
+            ok = isinstance(cl, dict) and bool(cl) and all(
+                re.fullmatch(r"[1-9]\d*", str(k))
+                and (v == "narrative" or (isinstance(v, dict) and set(v) == {"duplicate-of"} and isinstance(v["duplicate-of"], str)))
+                for k, v in cl.items()
+            )
+            if not ok:
+                raise LedgerError(f"entry {e['id']}: `clauses` is not {{<n>: narrative | duplicate-of: id}}")
         for c in ("file", "section", "baseline", "current", "enforced"):
             if c in e and not isinstance(e[c], str):
                 raise LedgerError(f"entry {e['id']}: `{c}` is not a string")
@@ -579,17 +463,13 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         if e.get("enforced") and (why := _lint_enforced(e["enforced"], root, e["text"])):
             raise LedgerError(f"entry {e['id']}: {why}")
         ids[e["id"]] = e
-    live = shared and path.resolve().parent == (RULES / SHARED).resolve()
-    for e in ids.values():
-        if live and "class" not in e:
-            raise LedgerError(f"entry {e['id']}: a live shared ledger entry needs a `class` (ban|grammar|behavioural|prose)")
-        if "class" in e:
-            _lint_class(e, ids)
     for e in ids.values():
         order = e.get("ordered") or []
         files = {ids[o].get("file") or "render" for o in order if o in ids}
         if any(o not in ids for o in order) or len(files | {e.get("file") or "render"}) > 1:
             raise LedgerError(f"entry {e['id']}: `ordered` names an unknown id or spans files")
+    for e in ids.values():
+        _check_clauses(e, ids)
     rows = _decision_rows(root)
     for e in ids.values():
         _changed_by(e, rows, "entry")
@@ -624,6 +504,227 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
     return data
 
 
+def _deemph(s: str) -> str:
+    return _outside_code(s, lambda p: _EMPH1.sub("", p))
+
+
+def _words(s: str) -> list[str]:
+    """Normalised lowercase words (curly apostrophes read straight, single-underscore emphasis dropped)."""
+    return _WORD.findall(_deemph(normalise(s)).lower().replace("’", "'"))
+
+
+def _has_run(hay: list[str], needle: list[str]) -> bool:
+    n = len(needle)
+    return bool(n) and any(hay[i : i + n] == needle for i in range(len(hay) - n + 1))
+
+
+def _ban_hits(s: str) -> list[re.Match]:
+    """The ban words of ``_deemph(s)`` outside code spans (an identifier like `never-route` bans nothing);
+    the match positions index ``_deemph(s)``, since a masked span keeps its length."""
+    return list(_BAN.finditer(re.sub(r"`[^`]*`", lambda m: "x" * len(m.group(0)), _deemph(s))))
+
+
+def _is_ban(baseline: object) -> bool:
+    return isinstance(baseline, str) and bool(_ban_hits(baseline))
+
+
+def entry_class(e: dict) -> str:
+    """The entry's class: its `class:` field, else `ban` when its baseline holds a ban word, else `prose`.
+    Total on malformed YAML (an invalid `class:` falls back to inference; `load_ledger` is what refuses it).
+    The class only adds: a ban-bearing clause binds in every class (D-1238), grammar/behavioural bind every clause."""
+    c = e.get("class")
+    if isinstance(c, str) and c in _CLASSES:
+        return c
+    return "ban" if _is_ban(e.get("baseline")) else "prose"
+
+
+def _clauses(baseline: str) -> list[str]:
+    """Split at `;`, a spaced `—` `–` `--` or an unspaced `—`; never inside a code span (a run of N backticks
+    closed by a run of N) or a parenthetical, so a `(…; …)` aside stays inside its clause (D-1240)."""
+    out, cur, i, depth, fence = [], "", 0, 0, 0
+    while i < len(baseline):
+        if baseline[i] == "`":
+            run = len(baseline[i:]) - len(baseline[i:].lstrip("`"))
+            if not fence:
+                fence = run if baseline.find("`" * run, i + run) >= 0 else 0
+            elif run == fence:
+                fence = 0
+            cur += baseline[i : i + run]
+            i += run
+            continue
+        ch = baseline[i]
+        if not fence:
+            depth += (ch == "(") - (ch == ")" and depth > 0)
+            sep = 1 if ch in ";—" else next((len(s) for s in (" — ", " – ", " -- ") if baseline.startswith(s, i)), 0)
+            if not depth and sep:
+                out.append(cur)
+                cur, i = "", i + sep
+                continue
+        cur += ch
+        i += 1
+    out.append(cur)
+    return [c.strip() for c in out if c.strip()]
+
+
+def _baseline_clauses(baseline: str) -> list[str]:
+    """The clauses the lints and `clauses:` keys count: a fenced unit (lines joined by " ⏎ ") splits at its
+    lines only, since its `;` and `—` sit in code and comments a parser reads whole."""
+    if _FENCE_JOIN in baseline:
+        return [ln.strip() for ln in baseline.split(_FENCE_JOIN.strip()) if ln.strip()]
+    return _clauses(baseline)
+
+
+# ── D-1240: the two readings the loader applies, one function each, changed only by a D-row ──
+# order matters: a path or file name is tried before a number, so `0/5/0` is one anchor, never `0` + `/5/0`
+_ANCHOR = re.compile(r"`[^`]+`|[\w.-]*/[\w./-]+|\b[\w-]+\.(?:py|md|json|jsonl|sh|ya?ml|js|ts|toml)\b|(?<![\w.])\d[\d.,]*\b")
+_STEM = re.compile(r"[a-z]{4,}")
+STEM_RECALL = 0.7  # D-1240: the share of a clause's content stems one phrase must hold
+STEM_CAP = 8  # D-1240: only the clause's first 8 content stems count
+
+
+def _anchors(clause: str) -> set[str]:
+    """What no rewording may drop: backticked tokens, numbers, paths, file names and the ban words."""
+    found = {normalise(m.group(0)).lower() for m in _ANCHOR.finditer(clause)}
+    found |= {m.group(0).lower() for m in _ban_hits(clause)}
+    return {a for a in found if a}
+
+
+def _whole(s: str) -> str:
+    """A regex for ``s`` standing whole: a word boundary is demanded only at an edge that is a word character,
+    so `0/5/0`, `` `x` `` or `(see D-9)` match where they stand (anchors, the C count and D all read it)."""
+    lead = r"(?<!\w)" if re.match(r"\w", s) else ""
+    tail = r"(?!\w)" if re.search(r"\w$", s) else ""
+    return lead + re.escape(s) + tail
+
+
+def _holds(low: str, anchor: str) -> bool:
+    return bool(re.search(_whole(anchor), low))
+
+
+def _stems(text: str) -> list[str]:
+    """Content stems in order: letters-only words of 4+ letters, cut to 5, first occurrence kept."""
+    return list(dict.fromkeys(w[:5] for w in _STEM.findall(_deemph(text).lower())))
+
+
+def _covered(clause: str, phrases: list[str]) -> bool:
+    """D-1240 (settling D-1238 point 3): ONE phrase holds every anchor of the clause AND at least
+    STEM_RECALL of its first STEM_CAP content stems — per phrase, never pooled, so extra carrier words earn
+    nothing. COBRA (D-253): the cheapest pass is a phrase padded with the clause's vocabulary; the cap and the
+    per-phrase rule bound it, the anchors stop a stub, and the author-blind audit pair reads old against new."""
+    want = _stems(clause)[:STEM_CAP]
+    anchors = _anchors(clause)
+    for ph in phrases:
+        # as written OR de-emphasised: a code anchor (`_X_ROW`) keeps its underscores, a ban word (_never_) drops them
+        forms = (normalise(ph).lower(), normalise(_deemph(ph)).lower())
+        if not all(any(_holds(f, a) for f in forms) for a in anchors):
+            continue
+        held = set(_stems(ph))
+        if not want or sum(s in held for s in want) >= STEM_RECALL * len(want):
+            return True
+    return False
+
+
+def _ban_span(clause: str, m: re.Match) -> str:
+    """D-1240: a ban clause is verbatim from its ban word to the end of its `;`/`—` clause or the sentence
+    end, whichever comes first; a `,` or `(` does not end it (``clause`` is already one `;`/`—` clause)."""
+    rest = clause[m.start() :]
+    masked = re.sub(r"`[^`]*`", lambda c: "x" * len(c.group(0)), rest)  # a `.` inside code ends nothing
+    end = re.search(r"[.!?](?=\s|$)", masked)
+    return rest[: end.start()] if end else rest
+
+
+def _check_clauses(e: dict, ids: dict[str, dict]) -> None:
+    cl = e.get("clauses")
+    if not cl:
+        return
+    parts = _baseline_clauses(e["baseline"]) if isinstance(e.get("baseline"), str) else []
+    if not parts:
+        raise LedgerError(f"entry {e['id']}: `clauses` needs a `baseline`")
+    for k, v in cl.items():
+        n = int(k)
+        if n > len(parts):
+            raise LedgerError(f"entry {e['id']}: `clauses` key {n} is past the baseline's {len(parts)} clause(s)")
+        if _is_ban(parts[n - 1]):  # D-1238 point 1: a ban-bearing clause is never narrative or a duplicate
+            raise LedgerError(f"entry {e['id']}: clause {n} holds a ban word and cannot be labelled")
+        if v != "narrative":
+            tgt = ids.get(v["duplicate-of"])
+            if tgt is None or tgt is e:
+                raise LedgerError(f"entry {e['id']}: clause {n} is a duplicate-of unknown id {v['duplicate-of']!r}")
+            if not _covered(parts[n - 1], tgt.get("text") or []):
+                raise LedgerError(f"entry {e['id']}: clause {n} is a duplicate-of {tgt['id']}, whose `text` does not cover it")
+
+
+def _paras(scope: str) -> list[str]:
+    """Blank-line paragraphs, with every fence marker line a break of its own: an odd backtick run must not flip
+    code parity for the prose beside it."""
+    return re.split(r"\n\s*\n|^\s*(?:```|~~~).*$", scope, flags=re.M)
+
+
+def _verbatim(span: str, paras: list[str]) -> bool:
+    """``span`` stands in one live paragraph as written: whitespace and emphasis normalised, case folded
+    (D-1238 matches ban words in any case), punctuation and word boundaries kept."""
+    want = normalise(_deemph(span.replace(_FENCE_JOIN, " "))).casefold()
+    return bool(want) and any(_holds(p, want) for p in paras)
+
+
+def _lintable(e: dict) -> bool:
+    """Entries written under D-1236 only: a `class:` or `clauses:`, or a ban-word baseline (D-1238).
+    A legacy prose entry with none of these is never newly failed; `pins:` predates D-1236 and opts nothing in."""
+    return isinstance(e.get("baseline"), str) and bool(e.get("class") or e.get("clauses") or _is_ban(e["baseline"]))
+
+
+def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
+    """D-1236 lints on one entry (``scope`` the live text under its section, ``text`` its whole file):
+    ``(lint, message)`` pairs. A: every (ban word, next word) pair of a ban-bearing clause is in a text phrase.
+    B: each clause is covered by one text phrase (``_covered``, D-1240) or labelled in `clauses:`.
+    C (class prose only, the carriers D-1236 lets be reworded): a text phrase is >=6 whitespace words and
+    appears once as a whole in its FILE (a phrase equal to the whole `current` unit is exempt: `_check` proves
+    that unit live). D: a ban-bearing clause stands
+    verbatim in the live section from its ban word on (``_ban_span``, D-1240), and in classes grammar and
+    behavioural every unlabelled clause does. COBRA (D-253): the cheapest abuse is a stub carrier, then a
+    reworded clause; A and B read the immutable `baseline`, C and D the live file, and the author-blind audit
+    pair reads each reworded entry. The cheapest pass left is a `duplicate-of` label to a live id whose text
+    covers the clause (checked at load), or a baseline with no ban word left unclassified, which is the
+    decision's own scope."""
+    if not _lintable(e):
+        return []
+    out: list[tuple[str, str]] = []
+    phrases = e.get("text") or []
+    cur = normalise(e["current"]) if e.get("current") else None
+    file_paras = [normalise(p) for p in _paras(text)]
+    cls = entry_class(e)
+    # C binds the carriers D-1236 lets be reworded (prose); a ban/grammar/behavioural pin is held by A, B and D
+    for ph in phrases if cls == "prose" else []:
+        if cur is not None and normalise(ph) == cur:
+            continue
+        if len(normalise(ph).split()) < 6:
+            out.append(("C", f"text phrase under 6 words — {ph[:80]}"))
+        elif (n := sum(len(re.findall(_whole(normalise(ph)), p)) for p in file_paras)) != 1:
+            out.append(("C", f"text phrase appears {n}x in its file, need exactly once — {ph[:80]}"))
+    labels = {str(k) for k in (e.get("clauses") or {})}
+    pw = [_words(p) for p in phrases]
+    live = [normalise(_deemph(p)).casefold() for p in _paras(scope)]
+    for n, clause in enumerate(_baseline_clauses(e["baseline"]), 1):
+        if not _words(clause):
+            continue  # punctuation only: no word to carry
+        dc = _deemph(clause)
+        bans = _ban_hits(clause)
+        for m in bans:
+            nxt = _words(dc[m.end() :])[:1]
+            need = [m.group(0).lower()] + nxt
+            if not any(_has_run(w, need) for w in pw):
+                out.append(("A", f"clause {n}: ban word {m.group(0)!r} (with the word after it) is in no text phrase"))
+        if bans and not _verbatim(_ban_span(dc, bans[0]), live):
+            out.append(("D", f"clause {n}: not verbatim in the live text from its ban word — {_ban_span(dc, bans[0])[:80]}"))
+        if str(n) in labels:
+            continue
+        if not _covered(clause, phrases):
+            out.append(("B", f"baseline clause {n} is covered by no text phrase and is not classified — {clause[:80]}"))
+        elif cls in ("grammar", "behavioural") and not bans and not _verbatim(dc, live):
+            out.append(("D", f"class {cls}: clause {n} is not verbatim in the live text — {clause[:80]}"))
+    return out
+
+
 def _resolve(entry: dict, ledger: dict, render_dir: Path, root: Path) -> Path:
     f = entry.get("file") or ""
     if "shared" in ledger and not f:
@@ -652,10 +753,8 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
     for n in vanished(baseline, own):
         if f"L{n}" not in labels:
             loss.append(f"LOSS {name}: baseline L{n} vanished, unclassified — {baseline[n - 1][:120]}")
-    flat_base = [normalise(b.split(" ¦ ", 1)[-1]) for b in baseline]
-    for e in ledger["_ids"].values():
-        if e.get("class") and e.get("baseline") and not any(normalise(e["baseline"]) in b for b in flat_base):
-            loss.append(f"LOSS {name} {e['id']}: `baseline` is not text of {base.name} (the baseline is immutable)")
+        elif labels[f"L{n}"] == "narrative" and _is_ban(baseline[n - 1]):  # D-1238 point 1, the line-level label
+            loss.append(f"LOSS {name}: baseline L{n} holds a ban word and cannot vanish as narrative — {baseline[n - 1][:120]}")
     positions: dict[str, int] = {}
     for e in ledger["_ids"].values():
         f = _resolve(e, ledger, render_dir, root)
@@ -672,6 +771,8 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
             loss.append(f"LOSS {name} {e['id']}: section {e['section']!r} missing")
             continue
         scope, start = found
+        for lint, msg in _lint(e, scope, text):
+            loss.append(f"LOSS {name} {e['id']}: lint {lint} — {msg}")
         where = "under its section" if e.get("section") else "in its file"
         cur = e.get("current")
         if cur:
@@ -692,11 +793,6 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
             for ph in e.get("text") or []:
                 if normalise(ph) not in flat:
                     loss.append(f"LOSS {name} {e['id']}: text phrase not {where} — {ph[:80]}")
-        if e.get("class") == "prose":
-            whole = normalise(text)
-            for ph in e.get("text") or []:
-                if whole.count(normalise(ph)) > 1:
-                    loss.append(f"LOSS {name} {e['id']}: prose text phrase is not unique in its file — {ph[:80]}")
     for e in ledger["_ids"].values():
         seq = [positions.get(o) for o in e.get("ordered") or []]
         at = [p for p in seq if p is not None]
@@ -762,7 +858,8 @@ def summary(rules: Path | None = None) -> list[str]:
                 v if isinstance(v, str) else (next(iter(v)) if isinstance(v, dict) and v else "?")
                 for v in (van.values() if isinstance(van, dict) else [])
             )
-            lines.append(f"LEDGER {path.name}: {n} entries · vanished {dict(sorted(split.items()))}")
+            cls = Counter(entry_class(x) for x in entries if isinstance(x, dict)) if isinstance(entries, list) else {}
+            lines.append(f"LEDGER {path.name}: {n} entries · classes {dict(sorted(cls.items()))} · vanished {dict(sorted(split.items()))}")
         except Exception as exc:  # noqa: BLE001 — a report line, never a crash
             lines.append(f"LEDGER {path.name}: unreadable — {type(exc).__name__}")
     return lines
