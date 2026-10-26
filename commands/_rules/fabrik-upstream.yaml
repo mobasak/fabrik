@@ -292,9 +292,9 @@ entries:
   file: render
   baseline: 'Syncedness test, primary: this project''s own `.fabrik/synced.lock` (present in every synced project — the md5 of every synced file AS DISTRIBUTED here) and the generated `.gitignore` "Fabrik-synced" block (between `# Fabrik-synced files — DO NOT EDIT` — a prefix of the real generated line, which continues `(centrally managed)` per `scripts/fabrik_synced_manifest.py` — and `# End Fabrik-synced block`)'
   class: prose
-  current: 'Syncedness test, primary: this project''s `.fabrik/synced.lock` and the generated `.gitignore` block (between `# Fabrik-synced files — DO NOT EDIT` — a prefix of the real generated line, which continues `(centrally managed)` per `scripts/fabrik_synced_manifest.py` — and `# End Fabrik-synced block`)'
+  current: 'Syncedness test, primary: this project''s own `.fabrik/synced.lock` (present in every synced project — the md5 of every synced file AS DISTRIBUTED here) and the generated `.gitignore` block (between `# Fabrik-synced files — DO NOT EDIT` — a prefix of the real generated line, which continues `(centrally managed)` per `scripts/fabrik_synced_manifest.py` — and `# End Fabrik-synced block`)'
   text:
-  - '**Syncedness test, primary:** this project''s `.fabrik/synced.lock` and the generated `.gitignore` block (between `# Fabrik-synced files — DO NOT EDIT` — a prefix of the real generated line, which continues `(centrally managed)` per `scripts/fabrik_synced_manifest.py` — and `# End Fabrik-synced block`)'
+  - '**Syncedness test, primary:** this project''s own `.fabrik/synced.lock` (present in every synced project — the md5 of every synced file AS DISTRIBUTED here) and the generated `.gitignore` block (between `# Fabrik-synced files — DO NOT EDIT` — a prefix of the real generated line, which continues `(centrally managed)` per `scripts/fabrik_synced_manifest.py` — and `# End Fabrik-synced block`)'
 - id: up-manifest-hubonly
   file: render
   baseline: (`scripts/fabrik_synced_manifest.py` is the canonical list, but it is hub-side-only — it lives at `/opt/fabrik`, not in this project's tree, so treat it as a secondary cross-check when you happen to have hub access, never the primary test from inside a project.)
@@ -335,16 +335,16 @@ entries:
   file: render
   baseline: '`sync_enforcement_to_projects.py` is what OVERWRITES a local edit — on the next hub sync, not immediately'
   class: prose
-  current: 'Synced AND enforced: `sync_enforcement_to_projects.py` OVERWRITES a local edit at the next hub sync, not immediately; `scripts/enforcement/check_synced_unmodified.py` gate tooth REDS this project''s `final_gate.py` run against `.fabrik/synced.lock`'
+  current: 'Synced AND enforced: `sync_enforcement_to_projects.py` OVERWRITES a local edit at the next hub sync, not immediately; `scripts/enforcement/check_synced_unmodified.py` gate tooth REDS this project''s own `final_gate.py` run in the meantime, by comparing against `.fabrik/synced.lock`'
   text:
   - '`sync_enforcement_to_projects.py` OVERWRITES a local edit at the next hub sync, not immediately'
 - id: up-teeth-reds
   file: render
   baseline: '`scripts/enforcement/check_synced_unmodified.py` is the gate tooth that REDS this project''s own `final_gate.py` run in the meantime, by comparing against `.fabrik/synced.lock`'
   class: prose
-  current: 'Synced AND enforced: `sync_enforcement_to_projects.py` OVERWRITES a local edit at the next hub sync, not immediately; `scripts/enforcement/check_synced_unmodified.py` gate tooth REDS this project''s `final_gate.py` run against `.fabrik/synced.lock`'
+  current: 'Synced AND enforced: `sync_enforcement_to_projects.py` OVERWRITES a local edit at the next hub sync, not immediately; `scripts/enforcement/check_synced_unmodified.py` gate tooth REDS this project''s own `final_gate.py` run in the meantime, by comparing against `.fabrik/synced.lock`'
   text:
-  - '`scripts/enforcement/check_synced_unmodified.py` gate tooth REDS this project''s `final_gate.py` run against `.fabrik/synced.lock`'
+  - '`scripts/enforcement/check_synced_unmodified.py` gate tooth REDS this project''s own `final_gate.py` run in the meantime, by comparing against `.fabrik/synced.lock`'
 - id: up-hard-stop
   file: render
   baseline: CLAUDE.md's HARD STOP forbids editing it here regardless of how small the fix looks or how long until the next sync
@@ -398,7 +398,7 @@ entries:
   file: render
   baseline: Blast-radius honesty — name who ELSE is affected fleet-wide if this ships, and separately the cost of NOT fixing it
   class: prose
-  current: Blast-radius honesty — who ELSE is affected fleet-wide if this ships, and separately the cost of NOT fixing it (either heading satisfies the property; what matters is the honesty, not the section name)
+  current: Blast-radius honesty — who ELSE is affected fleet-wide if this ships, and separately the cost of NOT fixing it (either the `## Impact if not fixed` or the `## Severity` heading satisfies the property; what matters is the honesty, not the section name)
   text:
   - '**Blast-radius honesty** — who ELSE is affected fleet-wide if this ships, and separately the cost of NOT fixing it'
 - id: up-heading
@@ -410,7 +410,7 @@ entries:
     2: narrative
     3: narrative
     4: narrative
-  current: Blast-radius honesty — who ELSE is affected fleet-wide if this ships, and separately the cost of NOT fixing it (either heading satisfies the property; what matters is the honesty, not the section name)
+  current: Blast-radius honesty — who ELSE is affected fleet-wide if this ships, and separately the cost of NOT fixing it (either the `## Impact if not fixed` or the `## Severity` heading satisfies the property; what matters is the honesty, not the section name)
   text:
   - what matters is the honesty, not the section name
 - id: up-selfcheck-intro
@@ -525,9 +525,9 @@ entries:
   clauses:
     3:
       duplicate-of: up-dispatch-step
-  current: 'Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per claim (or per proposal file) plus the Opus authoritative seat, all dispatched in a single message — the claim count is the PARTITION; `dispatch_headroom.py --units <claims> --mechanical 0` prints the seats — never a token one (D-191 — re-verifying a claim is a judgement, no Haiku mechanical seat)'
+  current: 'Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per claim (or per proposal file when several arrive together) plus the Opus authoritative seat, all dispatched in a single message — the claim count is the PARTITION; `dispatch_headroom.py --units <claims> --mechanical 0` prints the seats — never a token one (D-191 — re-verifying a claim is a judgement, no Haiku mechanical seat)'
   text:
-  - 'Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per claim (or per proposal file) plus the Opus authoritative seat, all dispatched in a single message'
+  - 'Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per claim (or per proposal file when several arrive together) plus the Opus authoritative seat, all dispatched in a single message'
   - the claim count is the PARTITION; `dispatch_headroom.py --units <claims> --mechanical 0` prints the seats
   - never a token one (D-191 — re-verifying a claim is a judgement, no Haiku mechanical seat)
 - id: up-verdict
