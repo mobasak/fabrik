@@ -1368,6 +1368,13 @@ _BACKLOG_BULLET_RE = re.compile(r"^(\s*[-*]\s+(?:\[[ xX]\]\s+)?)(.*)$")
 # A GFM separator row: every non-blank char is `-`, `:`, or `|` (Tag column, header
 # rows, and this row itself are all distinguished from ordinary data rows elsewhere).
 _BACKLOG_SEPARATOR_RE = re.compile(r"^\|?[\s:|-]*-[\s:|-]*\|?$")
+# W-e89d7983: an Item cell that is ONE bracketed phrase — `[Feature/Refactor]`,
+# `**[System Overhaul]**` — is the scaffold template's fill-in-the-blank, never a work
+# item (both template generations ship such rows as live table rows). Emphasis must be
+# balanced: `(?(1)\1)` repeats the opening run, since a plain `\1` never matches when
+# the optional group did not. A link, a reference link, `[[wiki]]` or any text outside
+# the brackets is not a placeholder. Module-level so work.py can import it.
+_BACKLOG_PLACEHOLDER_ITEM_RE = re.compile(r"^(\*{1,3}|_{1,3})?\[[^\]\n]*\](?(1)\1)$")
 _BACKLOG_TAG_HEADER = "Tag"
 # D5: the hub's own "Now" table names its owner cell `Owner`, never `Tag` (its
 # header row starts `| Effort | Owner | Item | Why Priority | ...` — grep
@@ -1444,8 +1451,9 @@ def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
     cell — tag prefixes that cell), or `"skip"` (every other table and every bullet,
     W-77e00147; already
     tagged AT ITS OWN POSITION — never anywhere else in the row, r2 DEFECT-1 — the
-    legend table — header cell 0 == `Tag`, the header/separator row itself, or a
-    struck-through Item). `header_cells` is the enclosing table's already-split
+    legend table — header cell 0 == `Tag`, the header/separator row itself, a
+    struck-through Item, or an Item that is only a bracketed template placeholder,
+    W-e89d7983). `header_cells` is the enclosing table's already-split
     header — supplied by the CALLER, which alone tracks fences and table
     boundaries; this function never infers table state from `line` alone, so it
     stays a pure per-line classifier callable directly in tests without
@@ -1467,6 +1475,12 @@ def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
         struck = [cells[item_idx]] if item_idx is not None and item_idx < len(cells) else cells
         if any(c.strip().startswith("~~") for c in struck):
             return "skip"
+        if (
+            item_idx is not None
+            and item_idx < len(cells)
+            and _BACKLOG_PLACEHOLDER_ITEM_RE.match(cells[item_idx].strip())
+        ):
+            return "skip"  # a template placeholder row, not a work item (W-e89d7983)
         tag_idx = _backlog_tag_header_index(names)
         if tag_idx is not None:
             if (
