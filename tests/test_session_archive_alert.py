@@ -202,6 +202,9 @@ def test_failed_mails_infra_and_the_coordinator_with_the_result_and_journal_tail
     )
     for field in ("WHAT:", "WHERE:", "WHEN:", "WHO:", "WHY:", "HOW:", "SYSTEMIC:"):
         assert field in body, field
+    assert "systemctl --user reset-failed session-archive.service" in body, (
+        "after the retries the start limit refuses a bare `start` until reset-failed clears its counter"
+    )
 
 
 def test_failed_still_mails_when_systemd_passes_no_monitor_env(world):
@@ -403,7 +406,7 @@ def test_check_reads_the_last_summary_and_reports_zero_eligible_with_a_held_lock
         SUMMARY_OK.replace("0 subagent failure(s)", "2 subagent failure(s)") + SUMMARY_OK,
     )
     world.run("check", **CHECK_ENV)
-    assert world.mails() == [], "the last summary is this run's"
+    assert world.mails() == [], "only the last summary line counts"
     world.set(
         "journal",
         "archive_transcripts: 0 MAIN transcript(s) eligible (idle > 0.0d)\n"
@@ -424,17 +427,22 @@ def test_check_reads_a_crlf_show_and_flags_a_non_numeric_status(world):
     assert "status unreadable (status=abc)" in world.mails()[0]["body"]
 
 
-def test_check_says_stopped_when_the_archiver_row_did_not_exit_zero(world):
+@pytest.mark.parametrize("archiver", [("killed", "15/TERM"), ("exited", "abc")])
+def test_check_says_stopped_when_the_archiver_row_did_not_exit_zero(world, archiver):
     """A stop mid-run still ends SERVICE_RESULT=success (A-opus-5)."""
-    world.set("show", _show(archiver=("killed", "15/TERM")))
+    world.set("show", _show(archiver=archiver))
     world.set("journal", SUMMARY_OK)
     world.run("check", **CHECK_ENV)
     body = world.mails()[0]["body"]
     assert "STOPPED" in body.splitlines()[0] and "the archive did not complete" in body
 
 
-def test_check_reports_a_run_with_no_step_record(world):
-    world.set("show", "ExecStartPre=\nExecStart=\n")
+@pytest.mark.parametrize(
+    "show", ["ExecStartPre=\nExecStart=\n", _row("ExecStartPre", SAMPLER, "yes") + "\nExecStart=\n"]
+)
+def test_check_reports_a_run_with_no_step_record(world, show):
+    """An ExecStartPre row alone is not a run: no ExecStart row means the archiver's status is unknown."""
+    world.set("show", show)
     world.set("journal", SUMMARY_OK)
     world.run("check", **CHECK_ENV)
     assert "no step record" in world.mails()[0]["body"]
@@ -588,16 +596,18 @@ def test_the_units_wire_the_alert_and_verify():
     assert start_s >= 3600, "a hung archiver must still end"
 
     # the retries must be able to reach the start limit, or a slow failure retries forever and OnFailure= never
-    # fires: StartLimitBurst attempts, each up to TimeoutStartSec plus RestartSec, fit inside the interval
+    # fires: StartLimitBurst attempts fit inside the interval, each up to TimeoutStartSec, then the five stop stages
+    # a timed-out attempt can wait TimeoutStopSec in (stop-sigterm, stop-sigkill, stop-post, final-sigterm,
+    # final-sigkill), then RestartSec
+    stop_s = _seconds(stop[0].split("=", 1)[1])
     (interval,) = [v for v in svc["[Unit]"] if v.startswith("StartLimitIntervalSec=")]
     (burst,) = [v for v in svc["[Unit]"] if v.startswith("StartLimitBurst=")]
     (restart,) = [v for v in service if v.startswith("RestartSec=")]
     assert _seconds(interval.split("=", 1)[1]) >= int(burst.split("=", 1)[1]) * (
-        start_s + _seconds(restart.split("=", 1)[1])
+        start_s + 5 * stop_s + _seconds(restart.split("=", 1)[1])
     )
 
     sa = _module("session_archive_alert_budget")
-    stop_s = _seconds(stop[0].split("=", 1)[1])
     assert stop_s > sa.CHECK_BUDGET_S, (
         "a check slower than TimeoutStopSec turns a good night into `timeout` and re-runs the archiver"
     )

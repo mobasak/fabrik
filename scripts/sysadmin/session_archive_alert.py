@@ -256,7 +256,8 @@ def cmd_failed() -> int:
             "WHO: infra owns session-history retention (D-736); the coordinator is told so it can schedule the fix.",
             "WHY: the archive is the only off-box copy of every transcript, and the pruner deletes local copies "
             "after 3 days; a failed night unfixed for three days loses those transcripts for good.",
-            f"HOW: `journalctl --user -u {unit} -n 80`; fix the cause, then `systemctl --user start {unit}`.",
+            f"HOW: `journalctl --user -u {unit} -n 80`; fix the cause, then `systemctl --user reset-failed {unit}` "
+            f"(the start limit refuses a bare start until its counter is cleared) and `systemctl --user start {unit}`.",
             "SYSTEMIC: sent by session-archive-alert.service (OnFailure=, W-36687f76); a repeat each night means "
             "the cause is still there.",
         ],
