@@ -1,0 +1,12 @@
+# T43 receipt — /fabrik-rules-review (light form, cloud worker)
+
+- Start commit: 8ac547a6139658fed456bb3f3f069596856d6316 (origin/kaizen-lean-u01)
+- Baseline: `commands/_rules/fabrik-rules-review.baseline.txt`, 78 units, sha256 158d1a5e09fe35af5a638f0a29578452399335f6f7680c38d04bfae8b398a45a
+- Own-text words (`command_rules.own_text`): 2056 -> 1198 (58.3%). Target was <=50% (<=1028): **not met, floor named**. The remainder is the frontmatter description (~105 words, its TRIGGER phrases pinned by `tests/test_skill_router_hook.py`), the 4-item blast-radius checklist, the per-phase obligations, the `round` grammar line and the NEVER/READ-ONLY bans; each further cut dropped a clause that the ledger would have to label a rule. Live rules ~38 hand entries x ~20 words plus the unchanged units.
+- Ledger entries: 52 total = 14 generated (`generate_unchanged`, class prose) + 38 hand-written (reworded). By class: prose 43, ban 6, behavioural 2, grammar 1 (recorded as `# class:` comments; the loader on this base has no `class:` key).
+- Reworded / total entries: 38 / 52. D-1236 applied: ban, grammar and behavioural phrases verbatim; prose carriers reworded to operative clauses, each >=6 normalised words, with their backticked tokens, numbers, paths and NEVER/MUST/only/refuse words kept (reasons and example lists dropped).
+- Vanished: 59 baseline lines, every one labelled `rule: [ids]` under `vanished:`; none labelled `narrative` (lines that are reason-only or examples are mapped to the rule they motivate). **Author labels — audit owed.**
+- Pins deleted: none. No plain string-in-file presence pin on this command's text exists in the tests naming it (`tests/test_assemble_dispatch_step.py` and `tests/test_skill_router_hook.py` assert render counts and router regexes, not source text).
+- Gates: `tests/test_command_rules.py` 32 passed, 3 skipped, prints `LEDGER fabrik-rules-review.yaml: 52 entries · vanished {'rule': 59}`, zero LOSS; `assemble_commands.py --check` exit 0 (only MISSING installed-skill drift; REPORT: rules-review shrank to 22399 words vs ceiling 23955).
+- Reader-test run (union: tests naming the stem + corpus-globbing tests): start-commit failure set vs end failure set — see `/tmp`-recorded diff summarised in the commit message; the set did not grow (see FAILURE SETS below).
+- LEFT FOR THE HUB: `commands/_size_ceiling.json` ratchet at merge; audit pair (Sonnet+Haiku) over the 59 vanished labels and the 38 reworded entries old-vs-new; decision whether 58.3% is an accepted floor.
