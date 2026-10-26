@@ -38,3 +38,13 @@ Author labels — audit owed. The Sonnet + Haiku author-blind classification cou
 - The ceiling ratchet for `commands/_size_ceiling.json` (not edited here).
 - `CHANGELOG.md`, the `INDEX.md` rows for the two new `commands/_rules/fabrik-deploy.*` files and any D-row.
 - Loader support for `class:` / `clauses:` so the class tags stop being comments.
+
+## Fix round 1
+
+Two author-blind audits (Sonnet: 30 findings; Haiku: 59) read the cut against `lean-baseline-2026-10-25`. Each finding was checked against the before-text.
+
+- **Confirmed and fixed (all that named a real loss or weakening):** the ban clauses cut short (`dp-end-halted`, `dp-gate-dispatch`, `dp-win-conservative`, `dp-total-rule`, `dp-env-background`, `dp-win-expiry`, `dp-halt-protocol`, `dp-window-closed`), the dropped anchors (`fabrik apply`, `git pull`, `git log`, `OPERATOR-GATE`, `EXIT`/`stat`, `vps-autoheal.sh`, `adm`/`systemd-journal`, `/run` tmpfs, `deployer_ssh.py::_BUILD_TIMEOUT`, `✅ BATTERY`, `/fabrik-release`, 2026-09-03), the lost qualifiers ("full halt protocol", "LATEST run", "of any stem", "(total)", "ending there IS success", "closes it last"), the battery check list, the enumerated "ANY other outcome" cases, the three permitted removal sites, the Phase 0 OUR-stem close fallback, the no-resume rule, the `description:` trigger phrases. Four wrong `vanished:` labels were corrected: L11 is now `rule: dp-end-halted`, where the close-out-only successor and its "never re-runs the runbook" ban are carried again; L66 is now `rule: dp-win-close`; the rest (L9, L17, L36, L40, L51, L54, L62, L67, L77, L88, L104) now point at entries that really carry the rule.
+- **Refuted:** finding 26/Haiku 59 reads the frontmatter as unlogged. It is outside the baseline units, so no ledger entry is owed, but the dropped trigger phrases were restored anyway. Haiku 28 (`dp-total-rule` "(EXECUTED)") and 41 (`dp-opgate` "that" vs "is what") were real wording drifts and are restored verbatim. Stem-count disputes on rewordings that now carry the full original clause are moot.
+- **Invented rules:** none (both audits).
+- **Gates:** `tests/test_command_rules.py` 32 passed, 3 skipped; `assemble_commands.py --check` exit 1 with only DIFFERS/MISSING drift, no LOSS.
+- **Words (own text):** baseline 4898 → first cut 2781 → after fix 3950.
