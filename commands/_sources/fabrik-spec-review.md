@@ -4,13 +4,9 @@ argument-hint: "[path to the spec file — omit to use the spec under discussion
 ---
 {{include:no-workflow-hub}}
 
-
-Converge this design spec to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet CLOSING round (§ Termination contract defines it; D-206, D-212).** This is to
+Converge this design spec to a fixed point. **Fixed point = the fragment's quiet CLOSING round (§ Termination contract defines it; D-206, D-212).** This is to
 `/fabrik-spec` what `/fabrik-plan-review` is to `/fabrik-plan-after-chat`: the adversarial, independent
-hardening of a DRAFT before it is trusted. The two things a spec gets wrong — and the two this pass exists to
-catch — are **(1) an external fact taken from training memory or backed by a dead/hallucinated citation**, and
-**(2) a fabrik-lib verdict that reinvents what already exists** — both invisible until someone re-verifies
-against the real world.
+hardening of a DRAFT before it is trusted. 
 
 {{include:run-record}}
 {{include:orient}}
@@ -38,7 +34,7 @@ claim + cited URL, every fabrik-lib **vendor / enhance / build** verdict, every 
 requirement, and the `shape:` flags. Consult only the **design-shaping** `.windsurf/rules` (self-host auth
 default, vendor-from-fabrik-lib, the AI model-selection packs *if* it's an AI feature) — the full rules/invariant grounding is `/fabrik-plan-after-chat`'s job, not this pass's.
 
-**Flip gates, at Pass 1 and at the close:** run term-edit's flip gates on a flipped SCRATCH copy before Pass 1 and again at the close (its "Before Pass 1 and before every pin" paragraph) — a Status-reading gate skips a DRAFT, so the unflipped spec passes over nothing.
+**Flip gates, at Pass 1 and at the close:** run term-edit's flip gates on a flipped SCRATCH copy before Pass 1 and again at the close (its "Before Pass 1 and before every pin" paragraph).
 
 ## Phase 1 — Adversarial grounding to a fixed point (the section partition)
 
@@ -46,15 +42,14 @@ Treat every design claim as unproven until verified. Run rounds until the closin
 defines it). Cover every axis below — A0, A0b and A–E — the Opus and Sonnet seats split them by SECTION (§ Parallelism below), a `fabrik-researcher` seat only for a fact the spec cites:
 
 **A0) Intake coverage — re-derive the conversation's denominator AUTHOR-BLIND, then diff.** The spec
-carries an `## Intake Inventory` (its authoring contract); do NOT trust it. Re-read the conversation
+carries an `## Intake Inventory` (its authoring contract). Re-read the conversation
 that produced the spec — the whole session, `session-recall` post-compact — and enumerate the
 items YOURSELF: every issue found, goal stated, feature requested, constraint, exclusion. Then diff
 both directions: an item in your list with no `I#` row is a SILENT DROP (the exact defect the
 operator chases — a session that found 10 issues and specced some, telling no one); an `I#` with no
 disposition, or an `OUT-OF-SCOPE` whose named destination does not actually exist (the backlog row
 never written, the "separate spec" never named), is a hollow disposition. Both are defects to fix in
-place. This axis is the checking half of the authoring contract; without it the inventory is graded
-by the agent it constrains.
+place. 
 
 **A0b) Personas — the section is mandatory, and its claims are re-derived, not admired.** The spec
 MUST carry `## Personas` first among content sections (operator law 2026-08-29); its absence is a
@@ -92,10 +87,7 @@ cache (below), so a quote — yours or a grounder's — is called NOT FOUND only
 whitespace first** (raw HTML wraps lines mid-sentence, so a bare `grep -c` on a true quote returns 0;
 strip tags + collapse whitespace before matching, or a REAL quote gets flagged fabricated — the
 inverse error, hit live 2026-08-30 on a martinfowler.com quote). Flag as
-hallucinated any quoted sentence you cannot find verbatim in the raw source. Live 2026-08-27
-(fabrik-lib): a WebFetch answer supplied a sentence that is nowhere in the page AND inverted the
-mechanism it described; the fabricated quote survived the author's self-review and carried the spec's
-central build-vs-buy verdict.
+hallucinated any quoted sentence you cannot find verbatim in the raw source. 
 - ⚠️ **A cached/mirroring fetch tool is NOT a liveness oracle.** `mcp__exa__web_fetch_exa` serves crawl
   cache: it returned a complete, live-looking page for `docs.exa.ai/reference/find-similar-links`, which
   actually **307s to an HTTP 404** (reproduced twice by brand-identiy-creator `01M14R5WAD`; the 307→404
@@ -114,8 +106,7 @@ central build-vs-buy verdict.
   a seat's quote matched — whitespace normalised first, as the quote rule above says — against your own raw fetch when the raw-fetch
   tools are down. Content is
   what a mirror is good for; existence is not. And **absence from a vendor's `llms.txt` is weak sole
-  evidence of removal** — that file is a curated index, not a manifest (the same report found a leaked
-  third-party planning doc inside one).
+  evidence of removal**.
 
 **Best-practice / approach citations too (the 1c gate):** re-verify every source backing an *approach* choice
 (the current best-practice / leanest / low-maintenance research), not just external API facts — a dead /
@@ -135,8 +126,7 @@ after they do.
 
 **B) fabrik-lib verdict — audit against real module capability.** For EACH capability's vendor/enhance/build
 call, OPEN the real module (`/opt/fabrik-lib/README.md` + the module's own `README.md`/API) and confirm it:
-- a **build** verdict for a capability an existing module already covers → WRONG (should be vendor/enhance)
-  — the #1 spec defect;
+- a **build** verdict for a capability an existing module already covers → WRONG (should be vendor/enhance);
 - a capability the spec **missed** — it says "build," or is silent, on something fabrik-lib has a module for;
 - an **enhance** touching the module's core with **no upstream note** (a silent fork);
 - a **vendor** where the module does NOT actually cover the need (over-optimistic reuse);
@@ -212,8 +202,7 @@ If the design has an **unattended loop over an external dependency** (an LLM cha
 hammers, any job whose progress depends on a third party), it must state how it satisfies all three of
 `58-resilience.md` § Provider-death resilience: **(1)** no single point of death in the chain, **(2)** a
 last rung that is actually **exercised**, **(3)** an alarm on **zero forward progress**. A design carrying
-timeout + retry + backoff + circuit-breaker and *none* of these is a **DEFECT, not a gap** — those four
-heal a TRANSIENT fault; a permanent provider death needs a SWAP no retry loop can make. Two specific
+timeout + retry + backoff + circuit-breaker and *none* of these is a **DEFECT, not a gap**. Two specific
 things to catch: a design that says "we use OpenRouter" without naming WHICH mechanism (pinning `sort`/
 `order` disables the outage-aware routing it is claiming), and a fallback ladder whose bottom rung has
 never been run. ⚠️ **This row is graded by YOU reading the design — there is no mechanical check for it**,
@@ -335,7 +324,6 @@ field-freeze / UI / plan work begins. Once the quiet closing round (§ Terminati
   `docs/DECISIONS.md` row in that turn's change (standalone, immediately, when the turn carries no other
   change), the row `/fabrik-plan-after-chat`'s spec-fed skip cites. If they ask for changes, **re-open the
   loop** on their feedback. Never reach the gate before the quiet closing round — converge first.
-
 
 {{include:subagents-core}}
 
