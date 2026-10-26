@@ -1,237 +1,297 @@
 command: fabrik-generate-tests
 baseline_sentences: fabrik-generate-tests.baseline.txt
-baseline_sha256: "f3429533f71d8aa20a9a724566fe60a35a3a552735bb8e468c553637c2a1c088"
+baseline_sha256: f3429533f71d8aa20a9a724566fe60a35a3a552735bb8e468c553637c2a1c088
 entries:
-  # class: prose (unchanged, generated)
-  - id: u-L20
-    file: render
-    section: "### 2. Curate (YOU — the anti-bloat + anti-gap gate)"
-    baseline: "Evaluate the union: ADD missing behaviors, CUT trivia + dupes, RISK-ORDER"
-    current: "Evaluate the union: ADD missing behaviors, CUT trivia + dupes, RISK-ORDER"
-    text:
-      - "Evaluate the union: ADD missing behaviors, CUT trivia + dupes, RISK-ORDER"
-  # class: prose (unchanged, generated)
-  - id: u-L22
-    file: render
-    section: "### 2. Curate (YOU — the anti-bloat + anti-gap gate)"
-    baseline: "Emit a curated list: one behavior per line, each a `Given / When / Then`, mapped to the test file it belongs in"
-    current: "Emit a curated list: one behavior per line, each a `Given / When / Then`, mapped to the test file it belongs in"
-    text:
-      - "Emit a curated list: one behavior per line, each a `Given / When / Then`, mapped to the test file it belongs in"
-  # class: prose (unchanged, generated)
-  - id: u-L31
-    file: render
-    section: "### 4. Author (native, parallel — one seat per curated behavior)"
-    baseline: "Dispatch them in parallel; a seat that returns without a collecting test is re-dispatched once, then the behavior is yours to author"
-    current: "Dispatch them in parallel; a seat that returns without a collecting test is re-dispatched once, then the behavior is yours to author"
-    text:
-      - "Dispatch them in parallel; a seat that returns without a collecting test is re-dispatched once, then the behavior is yours to author"
-  # class: prose (unchanged, generated)
-  - id: u-L36
-    file: render
-    section: "### 5. Review test-quality (YOU) → keep the survivors"
-    baseline: "Finally `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill mutants (advisory)"
-    current: "Finally `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill mutants (advisory)"
-    text:
-      - "Finally `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill mutants (advisory)"
-  # class: prose (unchanged, generated)
-  - id: u-L41
-    file: render
-    section: "## Where this auto-fires (3 call sites — the same loop, different trigger)"
-    baseline: "`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it"
-    current: "`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it"
-    text:
-      - "`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it"
-  # class: prose (unchanged, generated)
-  - id: u-L42
-    file: render
-    section: "## Where this auto-fires (3 call sites — the same loop, different trigger)"
-    baseline: "Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite"
-    current: "Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite"
-    text:
-      - "Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite"
-  # class: ban
-  - id: r-pool-off
-    file: render
-    baseline: "the provider credentials stay provisioned … this text is the control; every fanout/pick_models/set_quality/record_agent_run/results_table instruction is SUSPENDED"
-    text:
-      - "this text is the control, so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED"
-  # class: prose
-  - id: r-native
-    file: render
-    baseline: "Run every fan-out NATIVELY — Claude Task subagents … skip every flywheel back-fill; libs/subagents is not called"
-    text:
-      - "Run every fan-out NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose)"
-      - "same unit split, same author-blind rule, same decide/refute/merge by you"
-      - "a native seat records nothing, so no flywheel back-fill"
-      - "`libs/subagents` is not called"
-  # class: ban
-  - id: r-no-nopool
-    file: render
-    baseline: "Never write `NO-POOL:` for it … no `NO-POOL:` is owed"
-    text:
-      - "Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)"
-      - "so no `NO-POOL:` is owed"
-      - "Canonical: `62-using-subagents.md` § Dispatch policy"
-  # class: grammar
-  - id: r-dispatch
-    file: render
-    baseline: "Dispatch step (D-191): run dispatch_headroom.py … stamped BEFORE … closed with round --seats"
-    text:
-      - "**Dispatch step (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]`"
-      - "dispatch exactly the `SEATS:` and mix it prints, all in ONE message"
-      - "stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>`"
-      - "closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …`"
-      - "the box is the ceiling, the units only the partition"
-  # class: prose
-  # clauses: L7: dropped 'from a rule into cheap' and '(the pool is OFF, D-181)' twice
-  - id: r-intro
-    file: render
-    baseline: "Turn 'test every user-observable behavior' … you own WHAT gets tested; Target = $ARGUMENTS; if empty infer from git diff"
-    text:
-      - "(the Behavior Contract — `CLAUDE.md` Completion Contract + `.windsurf/rules/core/45-testing-strategy.md`)"
-      - "**native seats author the tests; you own WHAT gets tested and the final quality.**"
-      - "Target = `$ARGUMENTS` (a module / dir / file, or a phase's `## Behavior Contract`); if empty, infer the behaviors from the current changed surface (`git diff`)"
-  # class: ban
-  - id: r-no-trivia
-    file: render
-    baseline: "Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior"
-    text:
-      - "Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior"
-  # class: ban
-  - id: r-context
-    file: render
-    baseline: "Context is never a reason to stop: the harness auto-compacts and the run continues — keep going"
-    text:
-      - "Context is never a reason to stop: the harness auto-compacts and the run continues — keep going"
-  # class: prose
-  - id: r-sections
-    file: render
-    baseline: "The ### sections below are the per-step DETAIL for exactly those five steps, and they live only here"
-    text:
-      - "The `###` sections below are the per-step DETAIL for exactly those five steps, and they live only here"
-  # class: prose
-  # clauses: L16: dropped 'silently'
-  - id: r-fragment
-    file: render
-    baseline: "The five-step list renders from /opt/fabrik/commands/_fragments/test-generation-loop.md, which /fabrik-review renders too — edit the fragment, not the copy"
-    text:
-      - "`/opt/fabrik/commands/_fragments/test-generation-loop.md`, which `/fabrik-review` renders too — it is the ONE place the shape is defined"
-      - "edit the fragment, not the copy, or the reviewer's view of this pipeline stops matching it"
-  # class: prose
-  # clauses: L18: dropped 'a single suggester is the blind spot — different families catch what one misses' as the one-clause reason kept short; dropped the D-191 stamp restatement (r-dispatch owns it)
-  - id: r-suggest
-    file: render
-    baseline: "Dispatch one native seat (Sonnet) per module/area, differently-angled brief, module count is the PARTITION, never a token 2 (D-186), propose behaviors, union them"
-    text:
-      - "Dispatch **one native Sonnet seat per module/area of the target**"
-      - "the module count is the PARTITION"
-      - "never a token 2 (D-186) —"
-      - "to propose the distinct user-observable behaviors of the target, then **union** them"
-  # class: prose
-  - id: r-curate-own
-    file: render
-    baseline: "You own WHAT gets tested — bloat and gaps are stopped here, before any authoring spend"
-    text:
-      - "You own WHAT gets tested — bloat and gaps stop here, before any authoring spend"
-  # class: ban
-  - id: r-secrets
-    file: render
-    baseline: "Never inline SECRET material into a task text … a behavior that needs a live credential is authored NATIVE instead — non-secret code MAY be inlined"
-    text:
-      - "Never inline SECRET material into a task text (the corpus-wide carve-out family; a behavior that needs a live credential is authored NATIVE instead) — non-secret code MAY be inlined"
-  # class: prose
-  - id: r-commit-first
-    file: render
-    baseline: "the code the tests target MUST be committed (or fully inlined into the author task)"
-    text:
-      - "Tool-enabled authors run in a worktree on committed HEAD (`git worktree add --detach HEAD`), which carries only tracked files, so an UNCOMMITTED `.env`/key never reaches a pool author; a repo with a committed key gets NATIVE authors"
-      - "So the code the tests target MUST be committed (or fully inlined into the author task)"
-      - "else they test stale or absent code"
-  # class: ban
-  - id: r-commit-pathspec
-    file: render
-    baseline: "Commit it now if it isn't — explicit pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree"
-    text:
-      - "Commit it now if it isn't: explicit pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree (mid-pipeline is exactly when a sibling's WIP gets swept in)"
-  # class: prose
-  # clauses: L30: dropped 'commit the code-under-test first (step 3) so every seat reads the same HEAD' (duplicate of r-commit-first)
-  - id: r-author
-    file: render
-    baseline: "One native general-purpose seat per curated behavior (Sonnet), DISJOINT test file, write ONLY that file, run pytest in .venv; commit code-under-test first"
-    text:
-      - "One native `general-purpose` seat per curated behavior (Sonnet), each with a DISJOINT test file, briefed to write ONLY that file — never the code under test"
-      - "to run `pytest` on it (activating the project's `.venv` first) before returning"
-  # class: prose
-  - id: r-review-fail
-    file: render
-    baseline: "would the test FAIL if the behavior broke? Real assertions, no mock-theater, no test that passes if the feature is reverted"
-    text:
-      - "For each authored test file: would the test FAIL if the behavior broke?"
-      - "Real assertions, no mock-theater, no test that passes if the feature is reverted (`45-testing-strategy.md` + `/fabrik-review`'s test-quality checklist)"
-  # class: prose
-  - id: r-review-env
-    file: render
-    baseline: "could it fail in THIS environment at all? … flag it rather than banking it; never degrade shared or paid infrastructure to make it provable"
-    text:
-      - "And: could it fail in THIS environment at all?"
-      - "A test whose environment cannot express the failure (a superuser role for an RLS behavior, one tenant for an isolation behavior) is green for the wrong reason — flag it rather than banking it; never degrade shared or paid infrastructure to make it provable"
-  # class: prose
-  - id: r-review-keep
-    file: render
-    baseline: "Then keep each surviving test (the seats wrote them in the tree — delete a rejected one); fix any weak test yourself"
-    text:
-      - "Then keep each surviving test (the seats wrote them in the tree — delete a rejected one) and fix any weak test yourself"
-  # class: prose
-  - id: r-site-plan
-    file: render
-    baseline: "/fabrik-execute-plan, per phase (proactive): after the phase CODE is committed + the phase gate is green, BEFORE the phase-boundary /fabrik-review — author tests the implementer did NOT already TDD"
-    text:
-      - "`/fabrik-execute-plan`, per phase (proactive):"
-      - "after the phase CODE is committed + the phase gate is green, BEFORE the phase-boundary `/fabrik-review`"
-      - "author the tests for the phase's `## Behavior Contract` behaviors the implementer did NOT already TDD (the risky ones stay implementer-TDD'd; native seats fill the rest)"
-  # class: ban
-  # carrier of the rules in the suspended pool comment blocks (L11/L24-52, L82-93, L109-158, L161-172, L184-194), kept inert for re-enable
-  - id: r-pool-rules
-    file: render
-    baseline: "POOL OFF comment bodies: STOP with the stated fail-mode; never call record_agent_run by hand; never a mechanical output-check; AUTHOR_PROMPT MUST activate .venv; manual sweep ONLY when NO sibling agents are running"
-    text:
-      - "if `fanout` is `None` STOP with the stated fail-mode"
-      - "so you never call `record_agent_run` by hand"
-      - "Score the AUTHOR'S judgment, never a mechanical output-check"
-      - "`AUTHOR_PROMPT` MUST activate the project's `.venv` before `pytest`"
-      - "manual `.tmp/subagents` sweep ONLY when NO sibling agents are running"
-      - "your test-quality review is the whole verdict"
+- id: u-L8
+  file: render
+  section: '# Behavior-Contract Test Generation — native seats author, you curate'
+  baseline: Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior
+  current: Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior
+  text:
+  - Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior
+- id: u-L13
+  file: render
+  section: '## The loop — suggest → curate → author → review → apply'
+  baseline: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
+  current: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
+  text:
+  - 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
+- id: u-L14
+  file: render
+  baseline: The `###` sections below are the per-step DETAIL for exactly those five steps, and they live only here
+  current: The `###` sections below are the per-step DETAIL for exactly those five steps, and they live only here
+  text:
+  - The `###` sections below are the per-step DETAIL for exactly those five steps, and they live only here
+- id: u-L20
+  file: render
+  section: '### 2. Curate (YOU — the anti-bloat + anti-gap gate)'
+  baseline: 'Evaluate the union: ADD missing behaviors, CUT trivia + dupes, RISK-ORDER'
+  current: 'Evaluate the union: ADD missing behaviors, CUT trivia + dupes, RISK-ORDER'
+  text:
+  - 'Evaluate the union: ADD missing behaviors, CUT trivia + dupes, RISK-ORDER'
+- id: u-L22
+  file: render
+  section: '### 2. Curate (YOU — the anti-bloat + anti-gap gate)'
+  baseline: 'Emit a curated list: one behavior per line, each a `Given / When / Then`, mapped to the test file it belongs in'
+  current: 'Emit a curated list: one behavior per line, each a `Given / When / Then`, mapped to the test file it belongs in'
+  text:
+  - 'Emit a curated list: one behavior per line, each a `Given / When / Then`, mapped to the test file it belongs in'
+- id: u-L26
+  file: render
+  section: '### 3. Commit the code-under-test FIRST (mandatory)'
+  baseline: Never inline SECRET material into a task text (the corpus-wide carve-out family; a behavior that needs a live credential is authored NATIVE instead) — non-secret code MAY be inlined, that is the sanctioned read_only path
+  current: Never inline SECRET material into a task text (the corpus-wide carve-out family; a behavior that needs a live credential is authored NATIVE instead) — non-secret code MAY be inlined, that is the sanctioned read_only path
+  text:
+  - Never inline SECRET material into a task text (the corpus-wide carve-out family; a behavior that needs a live credential is authored NATIVE instead) — non-secret code MAY be inlined, that is the sanctioned read_only path
+- id: u-L27
+  file: render
+  section: '### 3. Commit the code-under-test FIRST (mandatory)'
+  baseline: So the code the tests target MUST be committed (or fully inlined into the author task)
+  current: So the code the tests target MUST be committed (or fully inlined into the author task)
+  text:
+  - So the code the tests target MUST be committed (or fully inlined into the author task)
+- id: u-L28
+  file: render
+  section: '### 3. Commit the code-under-test FIRST (mandatory)'
+  baseline: Commit it now if it isn't — explicit pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree (mid-pipeline is exactly when a sibling's WIP gets swept in) — else the authors test stale/absent code
+  current: Commit it now if it isn't — explicit pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree (mid-pipeline is exactly when a sibling's WIP gets swept in) — else the authors test stale/absent code
+  text:
+  - Commit it now if it isn't — explicit pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree (mid-pipeline is exactly when a sibling's WIP gets swept in) — else the authors test stale/absent code
+- id: u-L30
+  file: render
+  section: '### 4. Author (native, parallel — one seat per curated behavior)'
+  baseline: One native `general-purpose` seat per curated behavior (Sonnet), each with a DISJOINT test file, briefed to write ONLY that file — never the code under test — and to run `pytest` on it (activating the project's `.venv` first) before returning; commit the code-under-test first (step 3) so every seat reads the same HEAD
+  current: One native `general-purpose` seat per curated behavior (Sonnet), each with a DISJOINT test file, briefed to write ONLY that file — never the code under test — and to run `pytest` on it (activating the project's `.venv` first) before returning; commit the code-under-test first (step 3) so every seat reads the same HEAD
+  text:
+  - One native `general-purpose` seat per curated behavior (Sonnet), each with a DISJOINT test file, briefed to write ONLY that file — never the code under test — and to run `pytest` on it (activating the project's `.venv` first) before returning; commit the code-under-test first (step 3) so every seat reads the same HEAD
+- id: u-L31
+  file: render
+  section: '### 4. Author (native, parallel — one seat per curated behavior)'
+  baseline: Dispatch them in parallel; a seat that returns without a collecting test is re-dispatched once, then the behavior is yours to author
+  current: Dispatch them in parallel; a seat that returns without a collecting test is re-dispatched once, then the behavior is yours to author
+  text:
+  - Dispatch them in parallel; a seat that returns without a collecting test is re-dispatched once, then the behavior is yours to author
+- id: u-L35
+  file: render
+  section: '### 5. Review test-quality (YOU) → keep the survivors'
+  baseline: Then keep each surviving test (the seats wrote them in the tree — delete a rejected one); fix any weak test yourself
+  current: Then keep each surviving test (the seats wrote them in the tree — delete a rejected one); fix any weak test yourself
+  text:
+  - Then keep each surviving test (the seats wrote them in the tree — delete a rejected one); fix any weak test yourself
+- id: u-L36
+  file: render
+  section: '### 5. Review test-quality (YOU) → keep the survivors'
+  baseline: Finally `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill mutants (advisory)
+  current: Finally `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill mutants (advisory)
+  text:
+  - Finally `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill mutants (advisory)
+- id: r-pool-off
+  class: prose
+  baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  text:
+  - 'Pool OFF (D-181, operator, 2026-09-07; mechanism D-182). The OpenRouter subagent pool stays off, though its credentials are provisioned and a `fanout` would still SPEND: this text is the control, so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (kept in the Re-enable rules line below, formerly in `<!-- POOL OFF -->` comments)'
+- id: r-native
+  class: prose
+  baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+  text:
+  - 'Run every fan-out this command names NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you; a native seat records nothing, so no flywheel back-fill'
+  - so no flywheel back-fill; `libs/subagents` is not called
+- id: r-no-nopool
+  class: ban
+  baseline: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  text:
+  - 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  - 'Canonical: `62-using-subagents.md` § Dispatch policy'
+- id: r-dispatch
+  class: ban
+  baseline: 'Dispatch step (D-191): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition'
+  text:
+  - 'Dispatch step (D-191): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition'
+- id: r-intro
+  class: prose
+  baseline: 'Turn "test every user-observable behavior" (the Behavior Contract — `CLAUDE.md` Completion Contract + `.windsurf/rules/core/45-testing-strategy.md`) from a rule into cheap, minutes-not-hours reality: native Claude seats author the tests (the pool is OFF, D-181); you own WHAT gets tested and the final quality. Target = `$ARGUMENTS` (a module / dir / file, or a phase''s `## Behavior Contract`); if empty, infer the behaviors from the current changed surface (`git diff`)'
+  text:
+  - 'Turn "test every user-observable behavior" (the Behavior Contract — `CLAUDE.md` Completion Contract + `.windsurf/rules/core/45-testing-strategy.md`) into minutes-not-hours reality: native seats author the tests (D-181); you own WHAT gets tested and the final quality. Target = `$ARGUMENTS` (a module / dir / file, or a phase''s `## Behavior Contract`); if empty, infer the behaviors from the current changed surface (`git diff`)'
+- id: r-fragment-edit
+  section: '## The loop — suggest → curate → author → review → apply'
+  class: prose
+  baseline: ⚠️ The five-step list above renders from `/opt/fabrik/commands/_fragments/test-generation-loop.md`, which `/fabrik-review` renders too — it is the ONE place the shape is defined
+  text:
+  - The five-step list above renders from `/opt/fabrik/commands/_fragments/test-generation-loop.md`, which `/fabrik-review` renders too — it is the ONE place the shape is defined; edit the fragment, not the copy, or the reviewer's view of this pipeline stops matching it
+- id: r-suggest
+  section: '### 1. Suggest (one seat per module/area)'
+  class: ban
+  baseline: 'Dispatch one native seat (Sonnet) per module/area of the target, each with a differently-angled brief — the module count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191), never a token 2 (D-186) — to each propose the distinct user-observable behaviors of the target, then union them (a single suggester is the blind spot — different families catch what one misses):'
+  text:
+  - Dispatch one native Sonnet seat per module/area of the target, each with a differently-angled brief
+  - the module count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats, stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them (D-191), never a token 2 (D-186)
+  - to propose the distinct user-observable behaviors of the target, then union them
+- id: r-curate-own
+  section: '### 2. Curate (YOU — the anti-bloat + anti-gap gate)'
+  class: prose
+  baseline: You own WHAT gets tested — bloat and gaps are stopped here, before any authoring spend
+  text:
+  - You own WHAT gets tested — bloat and gaps stop here, before any authoring spend
+- id: r-commit-first
+  section: '### 3. Commit the code-under-test FIRST (mandatory)'
+  class: ban
+  baseline: 'Tool-enabled authors run in a worktree on committed HEAD (`git worktree add --detach HEAD`) — which is also the secrets boundary: a worktree carries only tracked files, so an UNCOMMITTED `.env`/key never reaches a pool author — but committed HEAD is exactly where a LEAKED secret lives, and a write-mode pool author READS it off disk with no inlining needed (the carve-out binds BOTH modes; a repo with a committed key gets NATIVE authors)'
+  text:
+  - 'Tool-enabled authors run in a worktree on committed HEAD (`git worktree add --detach HEAD`), which is also the secrets boundary: a worktree carries only tracked files, so an UNCOMMITTED `.env`/key never reaches a pool author — but committed HEAD is exactly where a LEAKED secret lives, and a write-mode pool author READS it off disk with no inlining needed (the carve-out binds BOTH modes; a repo with a committed key gets NATIVE authors)'
+- id: r-secrets
+  section: '### 3. Commit the code-under-test FIRST (mandatory)'
+  class: ban
+  baseline: Never inline SECRET material into a task text (the corpus-wide carve-out family; a behavior that needs a live credential is authored NATIVE instead) — non-secret code MAY be inlined, that is the sanctioned read_only path
+  text:
+  - Never inline SECRET material into a task text (the corpus-wide carve-out family; a behavior that needs a live credential is authored NATIVE instead) — non-secret code MAY be inlined, that is the sanctioned read_only path
+- id: r-must-commit
+  section: '### 3. Commit the code-under-test FIRST (mandatory)'
+  class: ban
+  baseline: So the code the tests target MUST be committed (or fully inlined into the author task)
+  text:
+  - So the code the tests target MUST be committed (or fully inlined into the author task)
+- id: r-commit-pathspec
+  section: '### 3. Commit the code-under-test FIRST (mandatory)'
+  class: ban
+  baseline: Commit it now if it isn't — explicit pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree (mid-pipeline is exactly when a sibling's WIP gets swept in) — else the authors test stale/absent code
+  text:
+  - Commit it now if it isn't — explicit pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree (mid-pipeline is exactly when a sibling's WIP gets swept in) — else the authors test stale/absent code
+- id: r-author
+  section: '### 4. Author (native, parallel — one seat per curated behavior)'
+  class: ban
+  baseline: One native `general-purpose` seat per curated behavior (Sonnet), each with a DISJOINT test file, briefed to write ONLY that file — never the code under test — and to run `pytest` on it (activating the project's `.venv` first) before returning; commit the code-under-test first (step 3) so every seat reads the same HEAD
+  text:
+  - One native `general-purpose` seat per curated behavior (Sonnet), each with a DISJOINT test file, briefed to write ONLY that file — never the code under test — and to run `pytest` on it (activating the project's `.venv` first) before returning; commit the code-under-test first (step 3) so every seat reads the same HEAD
+- id: r-review-fail
+  section: '### 5. Review test-quality (YOU) → keep the survivors'
+  class: prose
+  baseline: 'For each authored test file: would the test FAIL if the behavior broke? Real assertions, no mock-theater, no test that passes if the feature is reverted (`45-testing-strategy.md` + `/fabrik-review`''s test-quality checklist)'
+  text:
+  - 'For each authored test file: would the test FAIL if the behavior broke? Real assertions, no mock-theater, no test that passes if the feature is reverted (`45-testing-strategy.md` + `/fabrik-review`''s test-quality checklist)'
+- id: r-review-env
+  section: '### 5. Review test-quality (YOU) → keep the survivors'
+  class: ban
+  baseline: 'And: could it fail in THIS environment at all? A test whose environment cannot express the failure (a superuser role for an RLS behavior, one tenant for an isolation behavior) is green for the wrong reason — flag it rather than banking it; never degrade shared or paid infrastructure to make it provable'
+  text:
+  - 'And: could it fail in THIS environment at all? A test whose environment cannot express the failure (a superuser role for an RLS behavior, one tenant for an isolation behavior) is green for the wrong reason — flag it rather than banking it; never degrade shared or paid infrastructure to make it provable'
+- id: r-review-keep
+  section: '### 5. Review test-quality (YOU) → keep the survivors'
+  class: prose
+  baseline: Then keep each surviving test (the seats wrote them in the tree — delete a rejected one); fix any weak test yourself
+  text:
+  - Then keep each surviving test (the seats wrote them in the tree — delete a rejected one); fix any weak test yourself
+- id: r-site-plan
+  section: '## Where this auto-fires (3 call sites)'
+  class: prose
+  baseline: '`/fabrik-execute-plan`, per phase (proactive): after the phase CODE is committed + the phase gate is green, BEFORE the phase-boundary `/fabrik-review` — author the tests for the phase''s `## Behavior Contract` behaviors the implementer did NOT already TDD (the risky behaviors stay implementer-TDD''d; native seats fill the rest)'
+  text:
+  - '`/fabrik-execute-plan`, per phase (proactive): after the phase CODE is committed + the phase gate is green, BEFORE the phase-boundary `/fabrik-review` — author the tests for the phase''s `## Behavior Contract` behaviors the implementer did NOT already TDD (the risky behaviors stay implementer-TDD''d; native seats fill the rest)'
+- id: r-review-verdict
+  class: ban
+  text:
+  - Your test-quality review is the whole verdict
+- id: r-site-review
+  section: '## Where this auto-fires (3 call sites)'
+  class: prose
+  baseline: '`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it'
+  text:
+  - '`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it'
+- id: r-site-standalone
+  section: '## Where this auto-fires (3 call sites)'
+  class: prose
+  baseline: 'Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite'
+  text:
+  - 'Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite'
+- id: r-pool-rules
+  class: ban
+  text:
+  - '`from libs.subagents import fanout, pick_models, set_quality`; if `fanout` is `None` STOP with the stated fail-mode'
+  - so you never call `record_agent_run` by hand
+  - Score the AUTHOR'S judgment, never a mechanical output-check
+  - '`AUTHOR_PROMPT` MUST activate the project''s `.venv` before `pytest`'
+  - Manual `.tmp/subagents` sweep ONLY when NO sibling agents are running
 vanished:
-  L2: {rule: [r-pool-off]}
-  L3: {rule: [r-native]}
-  L4: {rule: [r-no-nopool]}
-  L5: {rule: [r-no-nopool]}  # carries the `62-using-subagents.md` § Dispatch policy pointer
-  L6: {rule: [r-dispatch]}
-  L7: {rule: [r-intro]}
-  L8: {rule: [r-no-trivia]}
-  L9: narrative  # author label: heading of the removed Import section
-  L10: {rule: [r-native]}
-  L11: {rule: [r-pool-rules]}  # import STOP guard kept in the POOL OFF comment
-  L13: {rule: [r-context]}
-  L14: {rule: [r-sections]}
-  L15: {rule: [r-fragment]}
-  L16: {rule: [r-fragment]}
-  L17: narrative  # author label: heading restated in the rewrite
-  L18: {rule: [r-suggest]}
-  L21: {rule: [r-curate-own]}
-  L23: {rule: [r-native]}  # author label: no flywheel line — duplicate of the native/no-flywheel rule
-  L25: {rule: [r-commit-first, r-secrets]}  # uncommitted-key and committed-key-gets-native rules restored in r-commit-first
-  L26: {rule: [r-secrets]}
-  L27: {rule: [r-commit-first]}
-  L28: {rule: [r-commit-pathspec]}
-  L30: {rule: [r-author]}
-  L33: {rule: [r-review-fail]}
-  L34: {rule: [r-review-env]}
-  L35: {rule: [r-review-keep]}
-  L37: {rule: [r-native, r-pool-rules]}  # no flywheel back-fill; test-quality review is the whole verdict
-  L38: {rule: [r-pool-rules]}  # housekeeping sweep ban kept in the POOL OFF comment
-  L40: {rule: [r-site-plan]}
-  L43: narrative  # author label: heading of the removed flywheel section
-  L44: {rule: [r-no-nopool]}
-  L45: {rule: [r-pool-rules]}  # recording contract rules kept in the POOL OFF comment
+  L2:
+    rule:
+    - r-pool-off
+  L3:
+    rule:
+    - r-native
+  L4:
+    rule:
+    - r-no-nopool
+  L5:
+    rule:
+    - r-no-nopool
+  L6:
+    rule:
+    - r-dispatch
+  L7:
+    rule:
+    - r-intro
+  L9: narrative
+  L10:
+    rule:
+    - r-native
+  L11:
+    rule:
+    - r-pool-rules
+  L15:
+    rule:
+    - r-fragment-edit
+  L16:
+    rule:
+    - r-fragment-edit
+  L17: narrative
+  L18:
+    rule:
+    - r-suggest
+  L21:
+    rule:
+    - r-curate-own
+  L23:
+    duplicate-of: r-native
+  L25:
+    rule:
+    - r-commit-first
+  L26:
+    rule:
+    - r-secrets
+  L27:
+    rule:
+    - r-must-commit
+  L28:
+    rule:
+    - r-commit-pathspec
+  L30:
+    rule:
+    - r-author
+  L33:
+    rule:
+    - r-review-fail
+  L34:
+    rule:
+    - r-review-env
+  L35:
+    rule:
+    - r-review-keep
+  L37:
+    rule:
+    - r-review-verdict
+  L38: narrative
+  L39: narrative
+  L40:
+    rule:
+    - r-site-plan
+  L41:
+    rule:
+    - r-site-review
+  L42:
+    rule:
+    - r-site-standalone
+  L43: narrative
+  L44:
+    duplicate-of: r-no-nopool
+  L45:
+    rule:
+    - r-pool-rules

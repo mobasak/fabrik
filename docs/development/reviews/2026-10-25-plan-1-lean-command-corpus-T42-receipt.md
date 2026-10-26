@@ -18,3 +18,15 @@ Two audits (Sonnet 9, Haiku 18 findings; overlapping) checked against the baseli
 - Refuted/not restored: r-intro ("(the pool is OFF, D-181)" — D-181 survives in the Pool OFF line; no instruction in the dropped parenthetical); r-commit-first "invented" — the worktree-scoped wording is restored, so moot; the receipt's "dropped only inside narrative" claim is withdrawn.
 - Words (own text): 2314 baseline → 941 first cut → 1205 after fix.
 - Gates: tests/test_command_rules.py 32 passed, 3 skipped; assemble_commands.py --check only DIFFERS drift.
+
+## Re-ledger round (cloud worker lean-t42-grp-rl-run, branch claude/lean-t42-rl)
+
+- Loader swap: first commit alone (files from `origin/infra-3-d1236-lints`; no W-9cd8653d merge on master yet); never edited after.
+- Ledger regenerated with real `class:` keys; every reworded entry now holds the REAL baseline line (the fix round's entries cited paraphrases with `…`, which is what lints D/B caught). Own-ledger LOSS 10 → **0**.
+- Own text (`command_rules.own_text`, whole file): baseline 2314 → fix round 1205 → now **1152 (49.8%)**, target ≤50% met.
+- Entries 12 unchanged + 21 hand = 33 (reworded/total 21/33). Vanished 32: `rule` 24, `narrative` 5 (L9, L17, L38, L39, L43), `duplicate-of` 2 (L23 → r-native, L44 → r-no-nopool). `r-pool-rules` and `r-review-verdict` carry the former pool-comment bodies and have no baseline (comments are not units); their lines are the Re-enable rules line and one sentence in step 5.
+- Cuts this round: description pipeline recital and the "fires for AUTHORING" tail, argument-hint, step-1 heading, the auto-fires heading, bold/duplicate wording, the Re-enable paragraph (import line, housekeeping prose, hardcoded-ID list) down to its ban/MUST/ONLY items.
+- Self-audit: one fresh Sonnet audit; it found `r-commit-first` weaker (dropped "the carve-out binds BOTH modes" and "with no inlining needed" — restored) and L37's label pointing at the inert Re-enable banner (the verdict sentence moved into step 5 as `r-review-verdict`). Last pass: `COUNTS: 33 / 21 / 0 / 0 / 0 / 0` (after-fix author re-check, no second seat).
+- Floor table (clauses still above anchors + 6 stems): r-pool-off 60w (one clause with 5 tokens + 2 dates + `<!-- POOL OFF -->`), r-dispatch 100w (baseline line verbatim: 4 anchored tokens + `only` ban clause), r-commit-first 62w (ban `only`/`never` span + c3 stems), r-secrets 40w (ban span incl. parenthetical), r-commit-pathspec 40w (ban span incl. parenthetical), r-author 55w (two ban clauses + c4), r-review-env 70w (ban span), r-site-plan 55w (anchors `## Behavior Contract`, two tokens).
+- Gates: `tests/test_command_rules.py` 53 passed, 3 skipped, 1 failed (`test_the_live_corpus_has_no_loss`: only `_shared/review-probe-catalogue` T01d LOSS lines); `assemble_commands.py --check` rc 1, DIFFERS/MISSING drift only. Reader-test run: see the closing summary.
+- LEFT FOR THE HUB: second author-blind audit; ceiling ratchet at merge.
