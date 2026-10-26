@@ -3,10 +3,10 @@
 After `start`: ONE Bash call, output READ, then ONE reply line before phase 1's first read:
 
 ```bash
-python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs (~3 s)
-python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface's paths> # rules
-command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — sections touched
-command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — Phase
+python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo's assigned vs live (~3 s)
+python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface's paths> # rules — the packs this surface activates
+command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches
+command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is
 ```
 
 `ORIENT: mcp <live>/<assigned> · rules <n> of <N> matched (<pack names, or none>) · infra <agents-fabrik.md sections read> · manifesto <Phase n>`

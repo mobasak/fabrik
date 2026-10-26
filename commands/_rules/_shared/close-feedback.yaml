@@ -110,9 +110,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: '(2) Never paste the grammar. `_is_placeholder` strips an axis key before its `<…>` test, so a keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one — it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed'
-  current: '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at close'
+  current: '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one'
   text:
-  - '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at close'
+  - '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one'
   class: ban
   clauses:
     2: narrative
