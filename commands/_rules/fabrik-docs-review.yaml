@@ -1,0 +1,468 @@
+command: fabrik-docs-review
+baseline_sentences: fabrik-docs-review.baseline.txt
+baseline_sha256: 90a6b1c22e2f17ad655ae593b188cf89dffef26f87ce52ac23c45818bbc685f7
+entries:
+- id: dr-resweep-same-docs  # class: prose
+  baseline: "The ledger is the doc set — re-sweep the SAME docs each pass rather than re-scoping to whichever doc looks suspicious now"
+  current: "The ledger is the doc set — re-sweep the SAME docs each pass rather than re-scoping"
+  text:
+  - "The ledger is the doc set — re-sweep the SAME docs each pass rather than re-scoping"
+- id: dr-done-blocked-close  # class: grammar
+  baseline: "`done --command fabrik-docs-review --evidence \"<the closing round + the verbatim gate line>\" --feedback \"<what you filed, to whom | none — surfaces exercised>\"` at the TERMINAL verdict; `blocked --command fabrik-docs-review --reason \"…\" --feedback \"<what you filed, to whom | none — surfaces exercised>\"` otherwise"
+  current: "`done --command fabrik-docs-review --evidence \"<the closing round + the verbatim gate line>\" --feedback \"<what you filed, to whom | none — surfaces exercised>\"` at the TERMINAL verdict; `blocked --command fabrik-docs-review --reason \"…\" --feedback \"<…>\"` otherwise"
+  text:
+  - "`done --command fabrik-docs-review --evidence \"<the closing round + the verbatim gate line>\" --feedback \"<what you filed, to whom | none — surfaces exercised>\"` at the TERMINAL verdict; `blocked --command fabrik-docs-review --reason"
+- id: dr-name-the-run-you-close  # class: prose
+  baseline: "Always name the run you close — a bare close would end the CALLER when this command runs nested inside one"
+  current: "Always name the run you close — a bare close would end the CALLER when nested"
+  text:
+  - "Always name the run you close — a bare close would end the CALLER when nested"
+- id: dr-pool-off  # class: ban
+  baseline: "> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)"
+  current: "> ⚠️ POOL OFF — D-181. Run every fan-out NATIVELY (Claude Task subagents: `fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose); every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED; never write `NO-POOL:` for it"
+  text:
+  - "every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED; never write `NO-POOL:` for it"
+- id: dr-synced-lock-list  # class: grammar
+  baseline: "# The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are ⏎ # SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay ⏎ # normal reconciliation targets. ⏎ python3 -c \"import json;print('\\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))\" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md' ⏎ # Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/** ⏎ # docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · …"
+  current: "# PORTS.md + docs/DECISIONS.md are SEEDED_NOT_ENFORCED (projects may edit them) → normal reconciliation targets. ⏎ python3 -c \"import json;print('\\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))\" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'"
+  text:
+  - "python3 -c \"import json;print('\\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))\" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'"
+- id: dr-never-rewrite-synced  # class: ban
+  baseline: "Never reconcile/rewrite a synced doc inside a project — the next sync overwrites it, and editing it is a Tier-1 violation"
+  current: "Never reconcile/rewrite a synced doc inside a project — the next sync overwrites it"
+  text:
+  - "Never reconcile/rewrite a synced doc inside a project — the next sync overwrites it"
+- id: dr-synced-binding-context  # class: prose
+  baseline: "Its claims are still binding context for the project docs you ARE reconciling — read it and cite it, but it stays OUTSIDE Phase 1's claim-ledger denominator: the zero-skipped-lines count covers only the docs you are reconciling"
+  current: "Read and cite it as binding context, outside Phase 1's claim-ledger denominator"
+  text:
+  - "Read and cite it as binding context, outside Phase 1's claim-ledger denominator"
+- id: dr-hub-synced-in-denominator  # class: prose
+  baseline: "(On the HUB, where synced docs ARE reconciled, they are in-denominator.)"
+  current: "HUB (`/opt/fabrik`) — the synced docs ARE the product and are in-denominator"
+  text:
+  - "HUB (`/opt/fabrik`) — the synced docs ARE the product and are in-denominator"
+- id: dr-hub-reconcile-harder  # class: prose
+  baseline: "Reconcile them harder, and treat a wrong enumeration (counts, scaffold types, pack lists) as high-severity: it will be copied into ~46 repos on the next sync"
+  current: "Reconcile them harder: a wrong enumeration (counts, scaffold types, pack lists) is high-severity, copied into ~46 repos on the next sync"
+  text:
+  - "Reconcile them harder: a wrong enumeration (counts, scaffold types, pack lists) is high-severity, copied into ~46 repos on the next sync"
+- id: dr-synced-in-diff-is-finding  # class: ban
+  baseline: "A synced doc in the diff is ITSELF the finding: revert + propose upstream in `/opt/fabrik`"
+  current: "A synced doc in the diff is ITSELF the finding: revert + propose upstream in `/opt/fabrik`; fix a stale claim in one upstream, never in the local copy"
+  text:
+  - "fix a stale claim in one upstream, never in the local copy"
+- id: dr-seeded-not-enforced  # class: ban
+  baseline: "The `SEEDED_NOT_ENFORCED` set is the exception (live set in `fabrik_synced_manifest.py` — today `PORTS.md` + `docs/DECISIONS.md`) — projects may edit these → reconcile them normally; NEVER revert a project's `docs/DECISIONS.md` (project-owned rows — reverting is data loss)"
+  current: "`SEEDED_NOT_ENFORCED` is the exception — reconcile it normally; NEVER revert a project's `docs/DECISIONS.md` (project-owned rows — reverting is data loss)"
+  text:
+  - "NEVER revert a project's `docs/DECISIONS.md` (project-owned rows — reverting is data loss)"
+- id: dr-target-arguments-diff  # class: prose
+  baseline: "If an argument was given, treat it as the target: `$ARGUMENTS` (a changed area, a specific doc, or a git range)"
+  current: "The target is `$ARGUMENTS`; without one, use `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then `git diff HEAD~1`; add `git diff HEAD` for uncommitted changes)"
+  text:
+  - "The target is `$ARGUMENTS`; without one, use `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then `git diff HEAD~1`; add `git diff HEAD` for uncommitted changes)"
+- id: dr-scope-and-rules  # class: prose
+  baseline: "Scope is every doc touched by the change PLUS any doc that references the changed code"
+  current: "Scope is every doc the change touches PLUS any doc that references the changed code; obey `.windsurf/rules` throughout"
+  text:
+  - "Scope is every doc the change touches PLUS any doc that references the changed code; obey `.windsurf/rules` throughout"
+- id: dr-claim-ledger-rows  # class: prose
+  baseline: "Build a numbered claim ledger — one row per factual assertion (a path, a count, a command, an invariant, \"X does Y\", \"N services\", a flag, a port, an env var, a schema reference)"
+  current: "Build a numbered claim ledger — one row per factual assertion (a path, a count, a command, an invariant, a flag, a port, an env var, a schema reference)"
+  text:
+  - "Build a numbered claim ledger — one row per factual assertion (a path, a count, a command, an invariant, a flag, a port, an env var, a schema reference)"
+- id: dr-non-prose-line-claim  # class: prose
+  baseline: "Every non-prose line maps to ≥1 claim or is explicitly marked N/A (heading/formatting)"
+  current: "Every non-prose line maps to ≥1 claim or is marked N/A (heading/formatting); an unaccounted line was skipped — go back"
+  text:
+  - "Every non-prose line maps to ≥1 claim or is marked N/A (heading/formatting); an unaccounted line was skipped — go back"
+- id: dr-stale-until-proven-both-directions  # class: prose
+  baseline: "Treat every claim as STALE until proven against the real source, and check BOTH directions:"
+  current: "Treat every claim as STALE until proven against the real source, BOTH directions:"
+  text:
+  - "Treat every claim as STALE until proven against the real source, BOTH directions:"
+- id: dr-doc-to-code-open  # class: prose
+  baseline: "Doc → code: for each claim in the ledger, OPEN the actual code/migration and confirm it holds — the symbol exists, the count matches"
+  current: "Doc → code: OPEN the actual code/migration per claim"
+  text:
+  - "Doc → code: OPEN the actual code/migration per claim"
+- id: dr-code-to-doc  # class: prose
+  baseline: "Code → doc: scan what ACTUALLY changed (new/renamed/removed endpoints, fields, flags, env vars, files, migrations, features) and confirm each is reflected in the right doc"
+  current: "Code → doc: scan what ACTUALLY changed (endpoints, fields, flags, env vars, files, migrations, features); a shipped change no doc mentions is a discrepancy"
+  text:
+  - "Code → doc: scan what ACTUALLY changed (endpoints, fields, flags, env vars, files, migrations, features); a shipped change no doc mentions is a discrepancy"
+- id: dr-external-verified-or-wrong  # class: prose
+  baseline: "A live-checkable external claim is VERIFIED-or-WRONG, never parked as UNVERIFIABLE — a stale price / dead endpoint / wrong version in a doc is exactly the drift this catches"
+  current: "A live-checkable external claim is VERIFIED-or-WRONG, never parked as UNVERIFIABLE"
+  text:
+  - "A live-checkable external claim is VERIFIED-or-WRONG, never parked as UNVERIFIABLE"
+- id: dr-needs-raw-fetch-row  # class: prose
+  baseline: "| NEEDS-RAW-FETCH | A `fabrik-researcher` return: the source exists (or existed: the return names its archive URL) but the seat's tools cannot extract it | The orchestrator curls the named URL and section (a seat never curls), then classifies the claim by the rows above. If that curl cannot read the source either (a login wall, a page gone with no archive copy), the orchestrator re-dispatches a `fabrik-researcher` seat for other live sources and classifies the claim by what they say, by the rows above, a source that seat cannot read either counting as none; when they conflict, the primary source decides (the vendor's own docs, the standard itself); only when none of them states or contradicts it, or they conflict with no single primary source to settle it (two primary surfaces that disagree settle nothing), is it UNVERIFIABLE, naming what a human should check and, for a conflict, every source on each side |"
+  current: "| NEEDS-RAW-FETCH | A `fabrik-researcher` return: the source exists (or existed: the return names its archive URL) but the seat's tools cannot extract it | The orchestrator curls the named URL and section (a seat never curls), then classifies the claim by the rows above. If that curl cannot read it either, the orchestrator re-dispatches a `fabrik-researcher` seat for other live sources and classifies the claim by what they say, by the rows above, a source that seat cannot read either counting as none; when they conflict, the primary source decides (the vendor's own docs, the standard itself); only when none of them states or contradicts it, or they conflict with no single primary source to settle it (two primary surfaces that disagree settle nothing), is it UNVERIFIABLE, naming what a human should check and, for a conflict, every source on each side |"
+  text:
+  - "the orchestrator re-dispatches a `fabrik-researcher` seat for other live sources and classifies the claim by what they say, by the rows above, a source that seat cannot read either counting as none; when they conflict, the primary source decides (the vendor's own docs, the standard itself)"
+  pins:
+  - tests/test_docs_review_queue_pass.py::test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated
+- id: dr-drift-classes  # class: prose
+  baseline: "Hunt the drift classes: changed signatures/return shapes; renamed/removed symbols; added/removed config keys, env vars, ports, flags; outdated counts/tables; schema docs vs the latest migration; dead links/cross-references; stale versions/dates/\"as of\"; and features documented-but-removed or shipped-but-undocumented"
+  current: "Hunt the drift classes: changed signatures; renamed/removed symbols; config keys, env vars, ports, flags; outdated counts/tables; schema docs vs the latest migration; dead links; stale versions/dates; documented-but-removed and shipped-but-undocumented features"
+  text:
+  - "Hunt the drift classes: changed signatures; renamed/removed symbols; config keys, env vars, ports, flags; outdated counts/tables; schema docs vs the latest migration; dead links; stale versions/dates; documented-but-removed and shipped-but-undocumented features"
+- id: dr-seat-per-doc-parallel  # class: prose
+  baseline: "Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong (quote the code/doc line that disproves the discrepancy) before acting — before the next pass"
+  current: "Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in § Subagents), in parallel, then merge + dedupe their findings, refuting any provably wrong (quote the code/doc line that disproves it) before acting"
+  text:
+  - "Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in § Subagents), in parallel, then merge + dedupe their findings, refuting any provably wrong (quote the code/doc line that disproves it) before acting"
+- id: dr-round1-units-floor  # class: prose
+  baseline: "Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles, measured not assumed — 1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186); every later round is sized by the fragment's D5 sentence (one seat per unit with an open claim, the round-1 `--units` count as the ceiling, D-335)"
+  current: "Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles); every later round is sized by the fragment's D5 sentence (one seat per unit with an open claim, the round-1 `--units` count as the ceiling, D-335)"
+  text:
+  - "Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles); every later round is sized by the fragment's D5 sentence (one seat per unit with an open claim, the round-1 `--units` count as the ceiling, D-335)"
+- id: dr-verify-subagents-sample  # class: ban
+  baseline: "Verify subagents: after merging subagent ledgers, independently re-check a random sample (~20%) of each subagent's VERIFIED claims against the code"
+  current: "Verify subagents: re-check a random sample (~20%) of each subagent's VERIFIED claims against the code; their summaries are NOT proof"
+  text:
+  - "Verify subagents: re-check a random sample (~20%) of each subagent's VERIFIED claims against the code; their summaries are NOT proof"
+- id: dr-each-pass-shows-verified  # class: prose
+  baseline: "After each pass, show what you VERIFIED (which code/paths you actually read) and what you found, then fix"
+  current: "Each pass shows what you VERIFIED (the code/paths actually read), then fixes"
+  text:
+  - "Each pass shows what you VERIFIED (the code/paths actually read), then fixes"
+- id: dr-doc-reconcile-loop  # class: prose
+  baseline: "Dispatch the doc author-fixes through the Tier-1 reconcile loop — `scripts/doc_reconcile.py` (its pool author is OFF — D-181 — so its author leg is a native `general-purpose` seat, or you) emitting a minimal structured patch, verified-before-applied — rather than hand-editing each doc; keep the Opus adjudication (what's actually wrong + the routing decision) yours"
+  current: "Dispatch the doc author-fixes through the Tier-1 reconcile loop — `scripts/doc_reconcile.py` (its author leg is a native `general-purpose` seat, or you) emitting a minimal structured patch, verified-before-applied; the Opus adjudication stays yours"
+  text:
+  - "Dispatch the doc author-fixes through the Tier-1 reconcile loop — `scripts/doc_reconcile.py` (its author leg is a native `general-purpose` seat, or you) emitting a minimal structured patch, verified-before-applied; the Opus adjudication stays yours"
+- id: dr-loop-ends-closing-round  # class: ban
+  baseline: "The loop ends ONLY at the Termination contract's closing round (the fragment above: the closing pass, the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged)"
+  current: "The loop ends ONLY at the Termination contract's closing round (the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged)"
+  text:
+  - "The loop ends ONLY at the Termination contract's closing round (the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged)"
+- id: dr-empty-pass-no-count  # class: prose
+  baseline: "A pass that finds nothing must still enumerate its coverage (what you actually read); an empty pass with no evidence does not count"
+  current: "An empty pass with no coverage evidence does not count"
+  text:
+  - "An empty pass with no coverage evidence does not count"
+- id: dr-run-next-pass-unprompted  # class: prose
+  baseline: "Run that next pass UNPROMPTED — the moment a pass makes any doc edit you owe it, automatically. Never wait to be asked *\"did you reconcile to the closing round?\"*; the obligation is yours and predates any challenge — reframing your own skipped rule as a *\"fair challenge\"* you then conceded to is itself the dodge"
+  current: "Run the next pass UNPROMPTED the moment a pass makes any doc edit. Three thoughts that each mean run the next pass now: *\"the docs were already in sync,\"* *\"the fix was trivial,\"* *\"it's obviously clean.\"* Only the closing round is convergence"
+  text:
+  - "Run the next pass UNPROMPTED the moment a pass makes any doc edit. Three thoughts that each mean run the next pass now: *\"the docs were already in sync,\"* *\"the fix was trivial,\"* *\"it's obviously clean.\"* Only the closing round is convergence"
+- id: dr-whole-loop-one-invocation  # class: ban
+  baseline: "⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes. Context is never a reason to stop: the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; \"low context\" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred"
+  current: "⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes. Context is never a reason to stop: the harness AUTO-COMPACTS; \"low context\" filed as BLOCKED is a violation, and a heavy remainder goes to fresh subagents"
+  text:
+  - "Context is never a reason to stop"
+- id: dr-straight-into-next-pass  # class: prose
+  baseline: "When a pass makes any doc edit, do not stop, do not print \"Pass 1 done\" and hand back, do not wait for the caller to re-invoke `/fabrik-docs-review`"
+  current: "After a doc edit go straight into the next pass in the SAME turn"
+  text:
+  - "After a doc edit go straight into the next pass in the SAME turn"
+- id: dr-return-control-once  # class: prose
+  baseline: "You return control EXACTLY ONCE: at the closing round. (Invoked as the final step of `/fabrik-execute-plan`, the whole loop completes before the run finishes.) Ending the turn with an unresolved discrepancy so the operator has to re-invoke is THE failure this kills — run the next pass instead"
+  current: "You return control EXACTLY ONCE: at the closing round"
+  text:
+  - "You return control EXACTLY ONCE: at the closing round"
+- id: dr-discovery-then-batch  # class: prose
+  baseline: "Within each pass: complete the pass's DISCOVERY first, then apply that pass's fixes in one batch — do not interleave discovery and editing"
+  current: "Per pass: complete DISCOVERY first, then apply that pass's fixes in one batch"
+  text:
+  - "Per pass: complete DISCOVERY first, then apply that pass's fixes in one batch"
+- id: dr-route-to-doc-type  # class: prose
+  baseline: "Route each fact to the document type it belongs to and respect that type's contract — API reference, architecture, quickstart/README, runbook/ops, CHANGELOG — and do not cross-contaminate (an ops detail does not belong in the API reference, a changelog line is not architecture prose)"
+  current: "Route each fact to its document type (API reference, architecture, quickstart/README, runbook/ops, CHANGELOG) without cross-contaminating them"
+  text:
+  - "Route each fact to its document type (API reference, architecture, quickstart/README, runbook/ops, CHANGELOG) without cross-contaminating them"
+- id: dr-dead-retirement-row  # class: prose
+  baseline: "Delete DEAD claims rather than polishing them — and when a DEAD sweep retires a whole documented subsystem or feature (not just a stale line), that deletion is a decision-shaped RETIREMENT: its `docs/DECISIONS.md` row lands in the SAME change, classified at mint (a doc-recorded retirement is normally a plain row; ONE-WAY — § Binding block — once dependents have dropped the subsystem) (CLAUDE.md § the decision ledger); a routine dead-line deletion stays doc hygiene, no row"
+  current: "Delete DEAD claims rather than polishing them; when a DEAD sweep retires a whole documented subsystem or feature, that is a decision-shaped RETIREMENT: its `docs/DECISIONS.md` row lands in the SAME change, classified at mint (normally a plain row; ONE-WAY — § Binding block — once dependents have dropped it) (CLAUDE.md § the decision ledger); a routine dead-line deletion needs no row"
+  text:
+  - "Delete DEAD claims rather than polishing them; when a DEAD sweep retires a whole documented subsystem or feature, that is a decision-shaped RETIREMENT: its `docs/DECISIONS.md` row lands in the SAME change, classified at mint (normally a plain row; ONE-WAY — § Binding block — once dependents have dropped it) (CLAUDE.md § the decision ledger); a routine dead-line deletion needs no row"
+- id: dr-run-doc-sync-gate  # class: prose
+  baseline: "Run the doc-sync gate (`docs_updater.py --check`, plus the project's Doc Sync Matrix via `python scripts/enforcement/check_doc_sync.py`) as the final step, but treat it as necessary, NOT sufficient — it verifies presence/format, not truth"
+  current: "Run the doc-sync gate (`docs_updater.py --check`, plus `python scripts/enforcement/check_doc_sync.py`) last; it is necessary, NOT sufficient — it verifies presence/format, not truth"
+  text:
+  - "Run the doc-sync gate (`docs_updater.py --check`, plus `python scripts/enforcement/check_doc_sync.py`) last; it is necessary, NOT sufficient — it verifies presence/format, not truth"
+- id: dr-final-message-proof  # class: ban
+  baseline: "Your final message MUST embed structured proof — not a summary, not \"all looks good\":"
+  current: "Your final message MUST embed structured proof, not a summary:"
+  text:
+  - "Your final message MUST embed structured proof, not a summary:"
+- id: dr-no-converged-without-proof  # class: ban
+  baseline: "Per CLAUDE.md's convergence HARD STOP, do NOT say \"reviewed\" / \"in-sync\" / \"converged\" without that embedded proof + the gate green (or its out-of-surface red embedded with the `GATE-SCOPE` line)"
+  current: "Do NOT say \"reviewed\" / \"in-sync\" / \"converged\" without that embedded proof + the gate green (or its out-of-surface red embedded with the `GATE-SCOPE` line)"
+  text:
+  - "Do NOT say \"reviewed\" / \"in-sync\" / \"converged\" without that embedded proof + the gate green (or its out-of-surface red embedded with the `GATE-SCOPE` line)"
+  pins:
+  - tests/test_docs_review_queue_pass.py::test_an_out_of_surface_red_gate_is_declared_not_blocking
+- id: dr-no-zero-discrepancies-promise  # class: ban
+  baseline: "Do not promise \"zero discrepancies\" as a claim — iterate to a fixed point, then explicitly list any residual risks the tooling can't catch (hard-to-verify prose, screenshots/diagrams, external-facing copy, examples that need a live service to run)"
+  current: "Never promise \"zero discrepancies\"; list the residual risks the tooling can't catch (hard-to-verify prose, screenshots/diagrams, external-facing copy, examples needing a live service)"
+  text:
+  - "Never promise \"zero discrepancies\"; list the residual risks the tooling can't catch (hard-to-verify prose, screenshots/diagrams, external-facing copy, examples needing a live service)"
+- id: dr-convergence-is-closing-round  # class: prose
+  baseline: "Convergence = the Termination contract's closing round (the round-1 seats confirming their own docs at `confirmed: 0`, md5 unchanged); not your say-so, and not \"I fixed what I found.\""
+  current: "Convergence = the Termination contract's closing round, not your say-so, and not \"I fixed what I found.\""
+  text:
+  - "Convergence = the Termination contract's closing round, not your say-so, and not \"I fixed what I found.\""
+- id: u-L1  # class: prose (generated, unchanged)
+  baseline: "DOCS UPDATE CONVERGENCE"
+  current: "DOCS UPDATE CONVERGENCE"
+  text:
+  - "DOCS UPDATE CONVERGENCE"
+- id: u-L2  # class: prose (generated, unchanged)
+  baseline: "Converge the documentation to a fixed point — do not stop after one pass"
+  current: "Converge the documentation to a fixed point — do not stop after one pass"
+  text:
+  - "Converge the documentation to a fixed point — do not stop after one pass"
+- id: u-L4  # class: prose (generated, unchanged)
+  section: "## Run record — open it FIRST, close it only at the closing round"
+  baseline: "5 phases (0–4); terminal condition: the Termination contract's closing round (`confirmed: 0`, md5 unchanged) with the doc-sync gate green, or red only out-of-surface and declared (Phase 4 item 2)"
+  current: "5 phases (0–4); terminal condition: the Termination contract's closing round (`confirmed: 0`, md5 unchanged) with the doc-sync gate green, or red only out-of-surface and declared (Phase 4 item 2)"
+  text:
+  - "5 phases (0–4); terminal condition: the Termination contract's closing round (`confirmed: 0`, md5 unchanged) with the doc-sync gate green, or red only out-of-surface and declared (Phase 4 item 2)"
+  pins:
+  - tests/test_docs_review_queue_pass.py::test_an_out_of_surface_red_gate_is_declared_not_blocking
+- id: u-L6  # class: prose (generated, unchanged)
+  baseline: "`step --phase <N> --title \"<phase title>\"` on entering each phase; one `round --seats <seats dispatched this pass> --findings <discrepancies raised> --confirmed <discrepancies that held, executed> --classes-swept <doc/claim classes swept clean> --classes-new <classes this pass opened>` per Phase-2/3 pass"
+  current: "`step --phase <N> --title \"<phase title>\"` on entering each phase; one `round --seats <seats dispatched this pass> --findings <discrepancies raised> --confirmed <discrepancies that held, executed> --classes-swept <doc/claim classes swept clean> --classes-new <classes this pass opened>` per Phase-2/3 pass"
+  text:
+  - "`step --phase <N> --title \"<phase title>\"` on entering each phase; one `round --seats <seats dispatched this pass> --findings <discrepancies raised> --confirmed <discrepancies that held, executed> --classes-swept <doc/claim classes swept clean> --classes-new <classes this pass opened>` per Phase-2/3 pass"
+- id: u-L10  # class: prose (generated, unchanged)
+  baseline: "Open the `RUN:` line on every reply until the run closes"
+  current: "Open the `RUN:` line on every reply until the run closes"
+  text:
+  - "Open the `RUN:` line on every reply until the run closes"
+- id: u-L13  # class: prose (generated, unchanged)
+  section: "### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)"
+  baseline: "Am I in the HUB or a PROJECT? → `git rev-parse --show-toplevel`"
+  current: "Am I in the HUB or a PROJECT? → `git rev-parse --show-toplevel`"
+  text:
+  - "Am I in the HUB or a PROJECT? → `git rev-parse --show-toplevel`"
+- id: u-L14  # class: prose (generated, unchanged)
+  section: "### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)"
+  baseline: "PROJECT (repo root ≠ `/opt/fabrik`) — the centrally-distributed docs are read-only here (gate: `check_synced_unmodified.py`)"
+  current: "PROJECT (repo root ≠ `/opt/fabrik`) — the centrally-distributed docs are read-only here (gate: `check_synced_unmodified.py`)"
+  text:
+  - "PROJECT (repo root ≠ `/opt/fabrik`) — the centrally-distributed docs are read-only here (gate: `check_synced_unmodified.py`)"
+- id: u-L15  # class: prose (generated, unchanged)
+  section: "### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)"
+  baseline: "Get the list mechanically; never hand-copy it (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project's own lock):"
+  current: "Get the list mechanically; never hand-copy it (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project's own lock):"
+  text:
+  - "Get the list mechanically; never hand-copy it (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project's own lock):"
+- id: u-L21  # class: prose (generated, unchanged)
+  section: "### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)"
+  baseline: "*(In the HUB, or from anywhere on this box, the canonical list is `python /opt/fabrik/scripts/fabrik_synced_manifest.py --review-readonly`.)*"
+  current: "*(In the HUB, or from anywhere on this box, the canonical list is `python /opt/fabrik/scripts/fabrik_synced_manifest.py --review-readonly`.)*"
+  text:
+  - "*(In the HUB, or from anywhere on this box, the canonical list is `python /opt/fabrik/scripts/fabrik_synced_manifest.py --review-readonly`.)*"
+- id: u-L36  # class: prose (generated, unchanged)
+  section: "## Phase 1 — Claim extraction (zero skips)"
+  baseline: "Read every line of every in-scope doc"
+  current: "Read every line of every in-scope doc"
+  text:
+  - "Read every line of every in-scope doc"
+- id: u-L41  # class: prose (generated, unchanged)
+  section: "## Phase 2 — Bidirectional reconciliation (to a fixed point)"
+  baseline: "In this single turn, run reconciliation passes until the Termination contract's closing round (the fragment above)"
+  current: "In this single turn, run reconciliation passes until the Termination contract's closing round (the fragment above)"
+  text:
+  - "In this single turn, run reconciliation passes until the Termination contract's closing round (the fragment above)"
+- id: u-L44  # class: prose (generated, unchanged)
+  section: "## Phase 2 — Bidirectional reconciliation (to a fixed point)"
+  baseline: "A runnable example/command is verified by RUNNING it, not eyeballing (an example that no longer runs is WRONG, not VERIFIED)"
+  current: "A runnable example/command is verified by RUNNING it, not eyeballing (an example that no longer runs is WRONG, not VERIFIED)"
+  text:
+  - "A runnable example/command is verified by RUNNING it, not eyeballing (an example that no longer runs is WRONG, not VERIFIED)"
+- id: u-L45  # class: prose (generated, unchanged)
+  section: "## Phase 2 — Bidirectional reconciliation (to a fixed point)"
+  baseline: "A column name is not its values — read the values"
+  current: "A column name is not its values — read the values"
+  text:
+  - "A column name is not its values — read the values"
+- id: u-L46  # class: prose (generated, unchanged)
+  section: "## Phase 2 — Bidirectional reconciliation (to a fixed point)"
+  baseline: "The doc's own wording is never evidence for itself"
+  current: "The doc's own wording is never evidence for itself"
+  text:
+  - "The doc's own wording is never evidence for itself"
+- id: u-L49  # class: prose (generated, unchanged)
+  section: "## Phase 2 — Bidirectional reconciliation (to a fixed point)"
+  baseline: "Doc → live source (EXTERNAL claims): a claim about a 3rd-party API / SDK / endpoint, pricing, a rate limit, a library version, or an ISO/RFC standard is NOT verifiable against local code — a `fabrik-researcher` seat (web, no shell) — a unit of its own, the workflow slice's `agent` — re-verifies it LIVE (`WebSearch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` → official-docs `WebFetch` for library detail; a standard/RFC → fetch the primary doc and quote the clause)"
+  current: "Doc → live source (EXTERNAL claims): a claim about a 3rd-party API / SDK / endpoint, pricing, a rate limit, a library version, or an ISO/RFC standard is NOT verifiable against local code — a `fabrik-researcher` seat (web, no shell) — a unit of its own, the workflow slice's `agent` — re-verifies it LIVE (`WebSearch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` → official-docs `WebFetch` for library detail; a standard/RFC → fetch the primary doc and quote the clause)"
+  text:
+  - "Doc → live source (EXTERNAL claims): a claim about a 3rd-party API / SDK / endpoint, pricing, a rate limit, a library version, or an ISO/RFC standard is NOT verifiable against local code — a `fabrik-researcher` seat (web, no shell) — a unit of its own, the workflow slice's `agent` — re-verifies it LIVE (`WebSearch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` → official-docs `WebFetch` for library detail; a standard/RFC → fetch the primary doc and quote the clause)"
+  pins:
+  - tests/test_docs_review_queue_pass.py::test_external_claims_go_to_the_web_seat
+- id: u-L52  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "Classify every claim with one of:"
+  current: "Classify every claim with one of:"
+  text:
+  - "Classify every claim with one of:"
+- id: u-L53  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "| Verdict | Meaning | Action |"
+  current: "| Verdict | Meaning | Action |"
+  text:
+  - "| Verdict | Meaning | Action |"
+- id: u-L54  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "|---|---|---|"
+  current: "|---|---|---|"
+  text:
+  - "|---|---|---|"
+- id: u-L55  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "| VERIFIED | True now — cite `path:line` proof | None |"
+  current: "| VERIFIED | True now — cite `path:line` proof | None |"
+  text:
+  - "| VERIFIED | True now — cite `path:line` proof | None |"
+- id: u-L56  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "| STALE | Was true, code moved/changed | Fix to reality, cite new `path:line` |"
+  current: "| STALE | Was true, code moved/changed | Fix to reality, cite new `path:line` |"
+  text:
+  - "| STALE | Was true, code moved/changed | Fix to reality, cite new `path:line` |"
+- id: u-L57  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "| WRONG | Never true or inverted | Fix to reality, cite `path:line` |"
+  current: "| WRONG | Never true or inverted | Fix to reality, cite `path:line` |"
+  text:
+  - "| WRONG | Never true or inverted | Fix to reality, cite `path:line` |"
+- id: u-L58  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "| DEAD | Documented but not actually used — audit by real usage, not mere code-match | Delete, don't polish |"
+  current: "| DEAD | Documented but not actually used — audit by real usage, not mere code-match | Delete, don't polish |"
+  text:
+  - "| DEAD | Documented but not actually used — audit by real usage, not mere code-match | Delete, don't polish |"
+- id: u-L59  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "| UNVERIFIABLE | Can't be checked mechanically | State why; list as residual |"
+  current: "| UNVERIFIABLE | Can't be checked mechanically | State why; list as residual |"
+  text:
+  - "| UNVERIFIABLE | Can't be checked mechanically | State why; list as residual |"
+- id: u-L60  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "| INFERENCE | A `fabrik-researcher` return: no source line states the external claim, but what the seat read implies it | Not VERIFIED: rewrite the claim to what a source line states and re-verify it, since a live-checkable claim is VERIFIED-or-WRONG |"
+  current: "| INFERENCE | A `fabrik-researcher` return: no source line states the external claim, but what the seat read implies it | Not VERIFIED: rewrite the claim to what a source line states and re-verify it, since a live-checkable claim is VERIFIED-or-WRONG |"
+  text:
+  - "| INFERENCE | A `fabrik-researcher` return: no source line states the external claim, but what the seat read implies it | Not VERIFIED: rewrite the claim to what a source line states and re-verify it, since a live-checkable claim is VERIFIED-or-WRONG |"
+  pins:
+  - tests/test_docs_review_queue_pass.py::test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated
+- id: u-L62  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "A seat's return cites every `path:line` with a short fragment of that line, unique in its file, in a code span — path:line — `<fragment>` (for `path:a-b`, a fragment of line a; never a blank, rule or fence line; the fragment carries no `|`, no backtick and no ledger counter such as `confirmed:`) — and a fix is re-anchored by the fragment, never by the number: an earlier fix that adds or removes a line moves every later number in the file, and only the fragment finds its line again"
+  current: "A seat's return cites every `path:line` with a short fragment of that line, unique in its file, in a code span — path:line — `<fragment>` (for `path:a-b`, a fragment of line a; never a blank, rule or fence line; the fragment carries no `|`, no backtick and no ledger counter such as `confirmed:`) — and a fix is re-anchored by the fragment, never by the number: an earlier fix that adds or removes a line moves every later number in the file, and only the fragment finds its line again"
+  text:
+  - "A seat's return cites every `path:line` with a short fragment of that line, unique in its file, in a code span — path:line — `<fragment>` (for `path:a-b`, a fragment of line a; never a blank, rule or fence line; the fragment carries no `|`, no backtick and no ledger counter such as `confirmed:`) — and a fix is re-anchored by the fragment, never by the number: an earlier fix that adds or removes a line moves every later number in the file, and only the fragment finds its line again"
+- id: u-L63  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "Every reconciler brief carries this form"
+  current: "Every reconciler brief carries this form"
+  text:
+  - "Every reconciler brief carries this form"
+- id: u-L64  # class: prose (generated, unchanged)
+  section: "### Verdict taxonomy"
+  baseline: "Pass Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`: graders parse the first two, and a quote written into a doc goes stale with the code"
+  current: "Pass Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`: graders parse the first two, and a quote written into a doc goes stale with the code"
+  text:
+  - "Pass Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`: graders parse the first two, and a quote written into a doc goes stale with the code"
+- id: u-L68  # class: prose (generated, unchanged)
+  section: "### Parallelism — the DEFAULT for a multi-doc scope"
+  baseline: "Every seat brief, and the orchestrator's own doc edits, apply the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE"
+  current: "Every seat brief, and the orchestrator's own doc edits, apply the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE"
+  text:
+  - "Every seat brief, and the orchestrator's own doc edits, apply the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE"
+  pins:
+  - tests/test_docs_review_queue_pass.py::test_seat_briefs_and_the_orchestrator_apply_the_probe_catalogue
+- id: u-L78  # class: prose (generated, unchanged)
+  section: "### Parallelism — the DEFAULT for a multi-doc scope"
+  baseline: "The Pass Ledger is the fragment's (its counters and md5 pair — the discrepancies you raise are its `found:`, the ones you executed and that held its `confirmed:`, the doc edits its `edits:`); a ledger ending on a non-zero `confirmed:` row is an unfinished reconciliation — run the next pass"
+  current: "The Pass Ledger is the fragment's (its counters and md5 pair — the discrepancies you raise are its `found:`, the ones you executed and that held its `confirmed:`, the doc edits its `edits:`); a ledger ending on a non-zero `confirmed:` row is an unfinished reconciliation — run the next pass"
+  text:
+  - "The Pass Ledger is the fragment's (its counters and md5 pair — the discrepancies you raise are its `found:`, the ones you executed and that held its `confirmed:`, the doc edits its `edits:`); a ledger ending on a non-zero `confirmed:` row is an unfinished reconciliation — run the next pass"
+- id: u-L88  # class: prose (generated, unchanged)
+  section: "## Phase 3 — Fix per pass, in one batch, routed to the right doc"
+  baseline: "Bump `Last Updated:` dates where present"
+  current: "Bump `Last Updated:` dates where present"
+  text:
+  - "Bump `Last Updated:` dates where present"
+- id: u-L92  # class: prose (generated, unchanged)
+  section: "## Phase 4 — Gate + embedded proof"
+  baseline: "Claim ledger — the full claim → verdict → `path:line` table (or a representative subset if >100 claims, with totals)"
+  current: "Claim ledger — the full claim → verdict → `path:line` table (or a representative subset if >100 claims, with totals)"
+  text:
+  - "Claim ledger — the full claim → verdict → `path:line` table (or a representative subset if >100 claims, with totals)"
+- id: u-L93  # class: prose (generated, unchanged)
+  section: "## Phase 4 — Gate + embedded proof"
+  baseline: "Gate output — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red none of whose findings the change under review caused (a finding naming a reviewed doc or a file the change touched, the reference doc of a module it added, or an index its added files feed — `PLANS.md`, `INDEX.md` — is in-surface) is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting's grammar), and its findings are listed as residuals"
+  current: "Gate output — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red none of whose findings the change under review caused (a finding naming a reviewed doc or a file the change touched, the reference doc of a module it added, or an index its added files feed — `PLANS.md`, `INDEX.md` — is in-surface) is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting's grammar), and its findings are listed as residuals"
+  text:
+  - "Gate output — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red none of whose findings the change under review caused (a finding naming a reviewed doc or a file the change touched, the reference doc of a module it added, or an index its added files feed — `PLANS.md`, `INDEX.md` — is in-surface) is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting's grammar), and its findings are listed as residuals"
+  pins:
+  - tests/test_docs_review_queue_pass.py::test_an_out_of_surface_red_gate_is_declared_not_blocking
+- id: u-L94  # class: prose (generated, unchanged)
+  section: "## Phase 4 — Gate + embedded proof"
+  baseline: "Self-audit — total claims, counts per verdict (VERIFIED / STALE-fixed / WRONG-fixed / DEAD-removed / UNVERIFIABLE), and the line-coverage reconciliation showing zero skipped lines"
+  current: "Self-audit — total claims, counts per verdict (VERIFIED / STALE-fixed / WRONG-fixed / DEAD-removed / UNVERIFIABLE), and the line-coverage reconciliation showing zero skipped lines"
+  text:
+  - "Self-audit — total claims, counts per verdict (VERIFIED / STALE-fixed / WRONG-fixed / DEAD-removed / UNVERIFIABLE), and the line-coverage reconciliation showing zero skipped lines"
+  pins:
+  - tests/test_docs_review_queue_pass.py::test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated
+vanished:
+  L7: {rule: [dr-resweep-same-docs]}
+  L8: {rule: [dr-done-blocked-close]}
+  L9: {rule: [dr-name-the-run-you-close]}
+  L16: {rule: [dr-pool-off]}
+  L17: {rule: [dr-pool-off]}
+  L18: {rule: [dr-pool-off]}
+  L19: narrative
+  L20: {rule: [dr-synced-lock-list]}
+  L22: {rule: [dr-never-rewrite-synced]}
+  L23: {rule: [dr-synced-binding-context]}
+  L24: {rule: [dr-hub-synced-in-denominator]}
+  L25: {rule: [dr-synced-in-diff-is-finding]}
+  L26: {rule: [dr-seeded-not-enforced]}
+  L27: {rule: [dr-synced-in-diff-is-finding]}
+  L28: {rule: [dr-synced-in-diff-is-finding]}
+  L29: {rule: [dr-hub-synced-in-denominator]}
+  L30: {rule: [dr-hub-reconcile-harder]}
+  L31: {rule: [dr-target-arguments-diff]}
+  L32: {rule: [dr-target-arguments-diff]}
+  L33: {rule: [dr-scope-and-rules]}
+  L34: {rule: [dr-scope-and-rules]}
+  L37: {rule: [dr-claim-ledger-rows]}
+  L38: {rule: [dr-non-prose-line-claim]}
+  L39: {rule: [dr-non-prose-line-claim]}
+  L42: {rule: [dr-stale-until-proven-both-directions]}
+  L43: {rule: [dr-doc-to-code-open]}
+  L47: {rule: [dr-code-to-doc]}
+  L48: {rule: [dr-code-to-doc]}
+  L50: {rule: [dr-external-verified-or-wrong]}
+  L61: {rule: [dr-needs-raw-fetch-row]}
+  L65: {rule: [dr-drift-classes]}
+  L67: {rule: [dr-seat-per-doc-parallel]}
+  L69: {rule: [dr-round1-units-floor]}
+  L70: {rule: [dr-verify-subagents-sample]}
+  L71: {rule: [dr-verify-subagents-sample]}
+  L72: {rule: [dr-each-pass-shows-verified]}
+  L73: {rule: [dr-doc-reconcile-loop]}
+  L74: {rule: [dr-loop-ends-closing-round]}
+  L75: {rule: [dr-empty-pass-no-count]}
+  L76: {rule: [dr-run-next-pass-unprompted]}
+  L77: {rule: [dr-run-next-pass-unprompted]}
+  L80: {rule: [dr-whole-loop-one-invocation]}
+  L81: {rule: [dr-straight-into-next-pass]}
+  L82: {rule: [dr-straight-into-next-pass]}
+  L83: {rule: [dr-return-control-once]}
+  L85: {rule: [dr-discovery-then-batch]}
+  L86: {rule: [dr-route-to-doc-type]}
+  L87: {rule: [dr-dead-retirement-row]}
+  L90: {rule: [dr-run-doc-sync-gate]}
+  L91: {rule: [dr-final-message-proof]}
+  L95: {rule: [dr-no-converged-without-proof]}
+  L97: {rule: [dr-no-zero-discrepancies-promise]}
+  L98: {rule: [dr-convergence-is-closing-round]}
