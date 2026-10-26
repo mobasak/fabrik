@@ -1,6 +1,6 @@
 command: fabrik-flows
 baseline_sentences: fabrik-flows.baseline.txt
-baseline_sha256: '2f4dfef8c9704421ce770b73049146784c8f37e3bd1f0c7f0d938bef65bf67b3'
+baseline_sha256: 2f4dfef8c9704421ce770b73049146784c8f37e3bd1f0c7f0d938bef65bf67b3
 entries:
 - id: u-L7
   file: render
@@ -8,6 +8,12 @@ entries:
   current: 'HARD GATES:'
   text:
   - 'HARD GATES:'
+- id: u-L9
+  file: render
+  baseline: No converged spec → stop and route back
+  current: No converged spec → stop and route back
+  text:
+  - No converged spec → stop and route back
 - id: u-L10
   file: render
   baseline: Every scaffolded type runs this — no skip list. The *journey kind* varies by `project.yaml::type`; the discipline never does
@@ -20,6 +26,13 @@ entries:
   current: 'No contract or UI design against a `DRAFT`. `docs/flows.md` must reach `FROZEN` (the closing round of its Termination contract — `confirmed: 0`, md5 unchanged), then pass `/fabrik-flows-review`, before `/fabrik-data-contract` or `/fabrik-ui-design` consumes it'
   text:
   - 'No contract or UI design against a `DRAFT`. `docs/flows.md` must reach `FROZEN` (the closing round of its Termination contract — `confirmed: 0`, md5 unchanged), then pass `/fabrik-flows-review`, before `/fabrik-data-contract` or `/fabrik-ui-design` consumes it'
+- id: u-L14
+  file: render
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  baseline: Operate on the current project (cwd) — `$ARGUMENTS`, if given, is the spec path
+  current: Operate on the current project (cwd) — `$ARGUMENTS`, if given, is the spec path
+  text:
+  - Operate on the current project (cwd) — `$ARGUMENTS`, if given, is the spec path
 - id: u-L15
   file: render
   section: '## Phase 0 — Establish scope, journey kind, and mode'
@@ -27,6 +40,13 @@ entries:
   current: 'State:'
   text:
   - 'State:'
+- id: u-L16
+  file: render
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  baseline: 'Journey kind from `project.yaml::type` (the live registry is `scaffold.py::SCAFFOLD_TYPES`):'
+  current: 'Journey kind from `project.yaml::type` (the live registry is `scaffold.py::SCAFFOLD_TYPES`):'
+  text:
+  - 'Journey kind from `project.yaml::type` (the live registry is `scaffold.py::SCAFFOLD_TYPES`):'
 - id: u-L17
   file: render
   section: '## Phase 0 — Establish scope, journey kind, and mode'
@@ -34,6 +54,34 @@ entries:
   current: 'User journeys — `saas-skeleton`, `chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`, `static-site`: personas moving through screens and states'
   text:
   - 'User journeys — `saas-skeleton`, `chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`, `static-site`: personas moving through screens and states'
+- id: u-L18
+  file: render
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  baseline: 'Consumer journeys — `python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`: the CALLER is the persona — onboard/obtain credentials → authenticate → happy path → error path → rate-limit/quota path → deprecation/versioning path'
+  current: 'Consumer journeys — `python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`: the CALLER is the persona — onboard/obtain credentials → authenticate → happy path → error path → rate-limit/quota path → deprecation/versioning path'
+  text:
+  - 'Consumer journeys — `python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`: the CALLER is the persona — onboard/obtain credentials → authenticate → happy path → error path → rate-limit/quota path → deprecation/versioning path'
+- id: u-L19
+  file: render
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  baseline: This is the denominator `/fabrik-service-test` certifies against
+  current: This is the denominator `/fabrik-service-test` certifies against
+  text:
+  - This is the denominator `/fabrik-service-test` certifies against
+- id: u-L20
+  file: render
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  baseline: 'Reader journeys — `docusaurus`: find the answer from the landing page, search, land mid-site from a search engine, follow a cross-reference — the denominator `/fabrik-user-test` certifies for doc sites'
+  current: 'Reader journeys — `docusaurus`: find the answer from the landing page, search, land mid-site from a search engine, follow a cross-reference — the denominator `/fabrik-user-test` certifies for doc sites'
+  text:
+  - 'Reader journeys — `docusaurus`: find the answer from the landing page, search, land mid-site from a search engine, follow a cross-reference — the denominator `/fabrik-user-test` certifies for doc sites'
+- id: u-L22
+  file: render
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  baseline: '`wordpress` runs no fabrik command (out of fabrik, archived 2026-08-07) — not a skip, an absence'
+  current: '`wordpress` runs no fabrik command (out of fabrik, archived 2026-08-07) — not a skip, an absence'
+  text:
+  - '`wordpress` runs no fabrik command (out of fabrik, archived 2026-08-07) — not a skip, an absence'
 - id: u-L24
   file: render
   section: '## Phase 0 — Establish scope, journey kind, and mode'
@@ -41,6 +89,97 @@ entries:
   current: State which packs were read
   text:
   - State which packs were read
+- id: u-L25
+  file: render
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  baseline: 'Mode: new (spec-driven) · backfill (walk the SHIPPED product''s real journeys into the contract, grandfathering gaps with a `⚠` note) · fresh (no spec yet → minimal stub, say so)'
+  current: 'Mode: new (spec-driven) · backfill (walk the SHIPPED product''s real journeys into the contract, grandfathering gaps with a `⚠` note) · fresh (no spec yet → minimal stub, say so)'
+  text:
+  - 'Mode: new (spec-driven) · backfill (walk the SHIPPED product''s real journeys into the contract, grandfathering gaps with a `⚠` note) · fresh (no spec yet → minimal stub, say so)'
+- id: u-L26
+  file: render
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  baseline: Absence of a flows contract in an already-shipped project is not a defect — this stage binds work entering the design pipeline, and `/fabrik-catchup` must not queue it retroactively
+  current: Absence of a flows contract in an already-shipped project is not a defect — this stage binds work entering the design pipeline, and `/fabrik-catchup` must not queue it retroactively
+  text:
+  - Absence of a flows contract in an already-shipped project is not a defect — this stage binds work entering the design pipeline, and `/fabrik-catchup` must not queue it retroactively
+- id: u-L37
+  file: render
+  section: '## Phase 2 — Personas, including every SECOND ACTOR'
+  baseline: 'Headless: distinct consumer classes (first-time integrator, production caller at rate limit, operator debugging a 4xx) are distinct personas'
+  current: 'Headless: distinct consumer classes (first-time integrator, production caller at rate limit, operator debugging a 4xx) are distinct personas'
+  text:
+  - 'Headless: distinct consumer classes (first-time integrator, production caller at rate limit, operator debugging a 4xx) are distinct personas'
+- id: u-L40
+  file: render
+  section: '## Phase 3 — Map the journeys'
+  baseline: YOU own the journey judgment, the [PRIMARY PATH] call and every edit — the seats ground, they do not author
+  current: YOU own the journey judgment, the [PRIMARY PATH] call and every edit — the seats ground, they do not author
+  text:
+  - YOU own the journey judgment, the [PRIMARY PATH] call and every edit — the seats ground, they do not author
+- id: u-L42
+  file: render
+  section: '## Phase 3 — Map the journeys'
+  baseline: 'For each persona, map Entry Point → Actions → Feedback → Exit, with:'
+  current: 'For each persona, map Entry Point → Actions → Feedback → Exit, with:'
+  text:
+  - 'For each persona, map Entry Point → Actions → Feedback → Exit, with:'
+- id: u-L43
+  file: render
+  section: '## Phase 3 — Map the journeys'
+  baseline: Decision points where the system or the persona picks a path
+  current: Decision points where the system or the persona picks a path
+  text:
+  - Decision points where the system or the persona picks a path
+- id: u-L44
+  file: render
+  section: '## Phase 3 — Map the journeys'
+  baseline: Edge cases + error scenarios with the explicit system response (never "handle errors")
+  current: Edge cases + error scenarios with the explicit system response (never "handle errors")
+  text:
+  - Edge cases + error scenarios with the explicit system response (never "handle errors")
+- id: u-L45
+  file: render
+  section: '## Phase 3 — Map the journeys'
+  baseline: 'Boundary conditions: token/link expiry, missing data, permissions, rate limits, quota'
+  current: 'Boundary conditions: token/link expiry, missing data, permissions, rate limits, quota'
+  text:
+  - 'Boundary conditions: token/link expiry, missing data, permissions, rate limits, quota'
+- id: u-L48
+  file: render
+  section: '## Phase 3 — Map the journeys'
+  baseline: 'Contract inputs: a journey step implying an entity, field, enum, or state transition → record it in the contract-inputs list (Phase 5)'
+  current: 'Contract inputs: a journey step implying an entity, field, enum, or state transition → record it in the contract-inputs list (Phase 5)'
+  text:
+  - 'Contract inputs: a journey step implying an entity, field, enum, or state transition → record it in the contract-inputs list (Phase 5)'
+- id: u-L49
+  file: render
+  section: '## Phase 3 — Map the journeys'
+  baseline: The journey is the evidence; `/fabrik-data-contract` freezes it
+  current: The journey is the evidence; `/fabrik-data-contract` freezes it
+  text:
+  - The journey is the evidence; `/fabrik-data-contract` freezes it
+- id: u-L50
+  file: render
+  section: '## Phase 3 — Map the journeys'
+  baseline: 'Shape implications: a journey introducing a backing-service interaction (search, storage, admin auth) → flag it for the spec''s `shape:` block'
+  current: 'Shape implications: a journey introducing a backing-service interaction (search, storage, admin auth) → flag it for the spec''s `shape:` block'
+  text:
+  - 'Shape implications: a journey introducing a backing-service interaction (search, storage, admin auth) → flag it for the spec''s `shape:` block'
+- id: u-L53
+  file: render
+  section: '## Phase 4 — Alignment before documentation'
+  baseline: 'Seek explicit alignment on the load-bearing calls before writing the artifact — surfacing assumptions is cheap, fixing frozen artifacts is expensive: information hierarchy · placement/affordances · feedback and state signalling · how the journeys integrate (auth ↔ billing ↔ the core loop) · the i18n answers'
+  current: 'Seek explicit alignment on the load-bearing calls before writing the artifact — surfacing assumptions is cheap, fixing frozen artifacts is expensive: information hierarchy · placement/affordances · feedback and state signalling · how the journeys integrate (auth ↔ billing ↔ the core loop) · the i18n answers'
+  text:
+  - 'Seek explicit alignment on the load-bearing calls before writing the artifact — surfacing assumptions is cheap, fixing frozen artifacts is expensive: information hierarchy · placement/affordances · feedback and state signalling · how the journeys integrate (auth ↔ billing ↔ the core loop) · the i18n answers'
+- id: u-L54
+  file: render
+  section: '## Phase 4 — Alignment before documentation'
+  baseline: 'Flag enriched states (loading/empty/error/permission-denied/success/partial/disabled) selectively: only where a persona would behave differently — or a developer would assume wrong — if the state went undocumented'
+  current: 'Flag enriched states (loading/empty/error/permission-denied/success/partial/disabled) selectively: only where a persona would behave differently — or a developer would assume wrong — if the state went undocumented'
+  text:
+  - 'Flag enriched states (loading/empty/error/permission-denied/success/partial/disabled) selectively: only where a persona would behave differently — or a developer would assume wrong — if the state went undocumented'
 - id: u-L56
   file: render
   section: '## Phase 5 — Document (the artifact)'
@@ -48,6 +187,13 @@ entries:
   current: Write `docs/flows.md`
   text:
   - Write `docs/flows.md`
+- id: u-L57
+  file: render
+  section: '## Phase 5 — Document (the artifact)'
+  baseline: 'Per flow (target ≤30 lines, hard split at 50): flow name (short imperative) · persona · the Success Criterion it serves · exactly one `[PRIMARY PATH]` marker on the 80%+ step sequence (label only — a certification DEPTH input, never the denominator: the gauntlets resolve their denominator from a live registry and demote every doc to a cross-check) · decision points · edge/error paths · resilience + async-gap states · Microcopy Hot-Spots naming the OUTCOME the copy must communicate, never the literal string · i18n notes where applicable'
+  current: 'Per flow (target ≤30 lines, hard split at 50): flow name (short imperative) · persona · the Success Criterion it serves · exactly one `[PRIMARY PATH]` marker on the 80%+ step sequence (label only — a certification DEPTH input, never the denominator: the gauntlets resolve their denominator from a live registry and demote every doc to a cross-check) · decision points · edge/error paths · resilience + async-gap states · Microcopy Hot-Spots naming the OUTCOME the copy must communicate, never the literal string · i18n notes where applicable'
+  text:
+  - 'Per flow (target ≤30 lines, hard split at 50): flow name (short imperative) · persona · the Success Criterion it serves · exactly one `[PRIMARY PATH]` marker on the 80%+ step sequence (label only — a certification DEPTH input, never the denominator: the gauntlets resolve their denominator from a live registry and demote every doc to a cross-check) · decision points · edge/error paths · resilience + async-gap states · Microcopy Hot-Spots naming the OUTCOME the copy must communicate, never the literal string · i18n notes where applicable'
 - id: u-L58
   file: render
   section: '## Phase 5 — Document (the artifact)'
@@ -55,6 +201,34 @@ entries:
   current: Mermaid sequence diagrams only for genuinely multi-party logic
   text:
   - Mermaid sequence diagrams only for genuinely multi-party logic
+- id: u-L59
+  file: render
+  section: '## Phase 5 — Document (the artifact)'
+  baseline: 'Spec-wide (target ≤200 lines, soft cap 400): header (`Status:` / `Version:` / `Date:` / `Type:` / `Journey kinds:`) · one Personas section · one Flow Index (flow → Success Criterion) · one Contract inputs section (the entities/fields/states the journeys surfaced — `/fabrik-data-contract`''s evidence list) · (conditional) i18n Decisions · the flows in encounter order'
+  current: 'Spec-wide (target ≤200 lines, soft cap 400): header (`Status:` / `Version:` / `Date:` / `Type:` / `Journey kinds:`) · one Personas section · one Flow Index (flow → Success Criterion) · one Contract inputs section (the entities/fields/states the journeys surfaced — `/fabrik-data-contract`''s evidence list) · (conditional) i18n Decisions · the flows in encounter order'
+  text:
+  - 'Spec-wide (target ≤200 lines, soft cap 400): header (`Status:` / `Version:` / `Date:` / `Type:` / `Journey kinds:`) · one Personas section · one Flow Index (flow → Success Criterion) · one Contract inputs section (the entities/fields/states the journeys surfaced — `/fabrik-data-contract`''s evidence list) · (conditional) i18n Decisions · the flows in encounter order'
+- id: u-L62
+  file: render
+  section: '## Phase 5 — Document (the artifact)'
+  baseline: 'Length discipline: a flow over 30 lines gets a one-line justification; near 50, split it; the file near 400, propose splitting the feature'
+  current: 'Length discipline: a flow over 30 lines gets a one-line justification; near 50, split it; the file near 400, propose splitting the feature'
+  text:
+  - 'Length discipline: a flow over 30 lines gets a one-line justification; near 50, split it; the file near 400, propose splitting the feature'
+- id: u-L65
+  file: render
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  baseline: 'Walk the gate; resolve gaps in conversation, never hand off with known gaps: every Success Criterion traced to ≥1 flow · every persona''s journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING flow has its RECEIVING persona''s journey · every async boundary has its gap state · exactly one `[PRIMARY PATH]` per flow · resilience per external call · contract inputs recorded (never trimmed) · i18n decisions when applicable · hard exclusions honored · length within targets · life-cycle arc coverage (UI-bearing types): the `/fabrik-user-test` Phase-1b arc set — *first-day · habitual · paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user · recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap is surfaced'
+  current: 'Walk the gate; resolve gaps in conversation, never hand off with known gaps: every Success Criterion traced to ≥1 flow · every persona''s journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING flow has its RECEIVING persona''s journey · every async boundary has its gap state · exactly one `[PRIMARY PATH]` per flow · resilience per external call · contract inputs recorded (never trimmed) · i18n decisions when applicable · hard exclusions honored · length within targets · life-cycle arc coverage (UI-bearing types): the `/fabrik-user-test` Phase-1b arc set — *first-day · habitual · paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user · recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap is surfaced'
+  text:
+  - 'Walk the gate; resolve gaps in conversation, never hand off with known gaps: every Success Criterion traced to ≥1 flow · every persona''s journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING flow has its RECEIVING persona''s journey · every async boundary has its gap state · exactly one `[PRIMARY PATH]` per flow · resilience per external call · contract inputs recorded (never trimmed) · i18n decisions when applicable · hard exclusions honored · length within targets · life-cycle arc coverage (UI-bearing types): the `/fabrik-user-test` Phase-1b arc set — *first-day · habitual · paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user · recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap is surfaced'
+- id: u-L67
+  file: render
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  baseline: 'Then converge: re-walk the whole artifact; fix; repeat until the Termination contract''s closing round — `confirmed: 0` (md5 the file before/after the closing pass — identical hashes are the proof)'
+  current: 'Then converge: re-walk the whole artifact; fix; repeat until the Termination contract''s closing round — `confirmed: 0` (md5 the file before/after the closing pass — identical hashes are the proof)'
+  text:
+  - 'Then converge: re-walk the whole artifact; fix; repeat until the Termination contract''s closing round — `confirmed: 0` (md5 the file before/after the closing pass — identical hashes are the proof)'
 - id: u-L68
   file: render
   section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
@@ -62,6 +236,34 @@ entries:
   current: 'Set `Status: FROZEN`, bump `Version`'
   text:
   - 'Set `Status: FROZEN`, bump `Version`'
+- id: u-L69
+  file: render
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  baseline: The freeze is a Status flip — mint its `docs/DECISIONS.md` row in the same change (CLAUDE.md § the decision ledger); a re-freeze bump N→N+1 is a NEW row, never an edit to the old one
+  current: The freeze is a Status flip — mint its `docs/DECISIONS.md` row in the same change (CLAUDE.md § the decision ledger); a re-freeze bump N→N+1 is a NEW row, never an edit to the old one
+  text:
+  - The freeze is a Status flip — mint its `docs/DECISIONS.md` row in the same change (CLAUDE.md § the decision ledger); a re-freeze bump N→N+1 is a NEW row, never an edit to the old one
+- id: u-L70
+  file: render
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  baseline: 'Classify at mint — a flows freeze is normally reversible-by-re-freeze, so the plain row suffices unless the operator rules otherwise — and stage the row WITH the artifact in the commit below: same-change means same COMMIT, not same run'
+  current: 'Classify at mint — a flows freeze is normally reversible-by-re-freeze, so the plain row suffices unless the operator rules otherwise — and stage the row WITH the artifact in the commit below: same-change means same COMMIT, not same run'
+  text:
+  - 'Classify at mint — a flows freeze is normally reversible-by-re-freeze, so the plain row suffices unless the operator rules otherwise — and stage the row WITH the artifact in the commit below: same-change means same COMMIT, not same run'
+- id: u-L71
+  file: render
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  baseline: Present the frozen contract + the flow index to the user — the freeze stands unless they redirect
+  current: Present the frozen contract + the flow index to the user — the freeze stands unless they redirect
+  text:
+  - Present the frozen contract + the flow index to the user — the freeze stands unless they redirect
+- id: u-L72
+  file: render
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  baseline: '`FROZEN` is not `attested`: handing the contract to `/fabrik-data-contract`, `/fabrik-ui-design`, or a planner before `/fabrik-flows-review` has run is skipping a required gate, not saving a step (§ Next)'
+  current: '`FROZEN` is not `attested`: handing the contract to `/fabrik-data-contract`, `/fabrik-ui-design`, or a planner before `/fabrik-flows-review` has run is skipping a required gate, not saving a step (§ Next)'
+  text:
+  - '`FROZEN` is not `attested`: handing the contract to `/fabrik-data-contract`, `/fabrik-ui-design`, or a planner before `/fabrik-flows-review` has run is skipping a required gate, not saving a step (§ Next)'
 - id: u-L73
   file: render
   section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
@@ -76,481 +278,356 @@ entries:
   current: Downstream consumers (`/fabrik-data-contract`, `/fabrik-ui-design`, the certification gauntlets) read the frozen version only.*
   text:
   - Downstream consumers (`/fabrik-data-contract`, `/fabrik-ui-design`, the certification gauntlets) read the frozen version only.*
-# class: prose
-# clauses: not carried — the 'single source of truth' gloss and the 'sits before the data contract on purpose' aside
-- id: fl-intro
-  baseline: 'Produce (or backfill) this project''s journey contract — one frozen file, `docs/flows.md`, the single source of truth for who moves through the product and how: every persona''s complete journey (entry → actions → feedback → exit), the decision points, the edge/error paths, what the user sees when an external call is slow or down, and exactly one `[PRIMARY PATH]` per flow'
-  current: 'Produce (or backfill) the journey contract `docs/flows.md`: every persona''s complete journey (entry → actions → feedback → exit), decision points, edge/error paths, what the user sees when an external call is slow or down, and exactly one `[PRIMARY PATH]` per flow'
-  text:
-  - every persona's complete journey (entry → actions → feedback → exit)
-  - and exactly one `[PRIMARY PATH]` per flow
-# class: ban
-# clauses: not carried — the invitations worked example (L5) and the two live defect-class anecdotes
-- id: fl-contract-input
-  baseline: 'Why journeys precede the contract (the ordering law): a data contract frozen before any journey thinking becomes a scope ceiling — downstream stages cut features "for want of fields" instead of bumping the contract'
-  current: A journey implying an entity, field, or state the contract will need is recorded as CONTRACT INPUT — never trimmed to fit
-  text:
-  - A journey implying an entity, field, or state the contract will need is recorded as CONTRACT INPUT — never trimmed to fit
-# class: prose
-- id: fl-gate-converged-spec
-  baseline: A CONVERGED spec first. Input is the `/fabrik-spec` design doc after its `/fabrik-spec-review` approval
-  text:
-  - A CONVERGED spec first (the `/fabrik-spec` design doc after `/fabrik-spec-review` approval)
-  - None → stop and route back
-# class: prose
-- id: fl-self-convergence
-  baseline: This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT author-blind pass; the split mirrors `/fabrik-spec` → `/fabrik-spec-review`
-  text:
-  - This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT author-blind pass
-# class: prose
-- id: fl-args
-  section: '## Phase 0 — Establish scope, journey kind, and mode'
-  baseline: Operate on the current project (cwd) — `$ARGUMENTS`, if given, is the spec path
-  current: Operate on the current project (cwd); `$ARGUMENTS`, if given, is the spec path
-  text:
-  - '`$ARGUMENTS`, if given, is the spec path'
-# class: prose
-- id: fl-journey-kind
-  section: '## Phase 0 — Establish scope, journey kind, and mode'
-  baseline: 'Journey kind from `project.yaml::type` (the live registry is `scaffold.py::SCAFFOLD_TYPES`):'
-  current: 'Journey kind from `project.yaml::type` (registry: `scaffold.py::SCAFFOLD_TYPES`):'
-  text:
-  - 'Journey kind from `project.yaml::type` (registry: `scaffold.py::SCAFFOLD_TYPES`)'
-# class: prose
-# clauses: all carried
-- id: fl-consumer-reader
-  section: '## Phase 0 — Establish scope, journey kind, and mode'
-  baseline: 'Consumer journeys — `python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`: the CALLER is the persona — onboard/obtain credentials → authenticate → happy path → error path → rate-limit/quota path → deprecation/versioning path'
-  text:
-  - '`python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`: the CALLER is the persona'
-  - onboard/obtain credentials → authenticate → happy path → error path → rate-limit/quota path → deprecation/versioning path. This is the denominator `/fabrik-service-test` certifies against
-  - '`docusaurus`: find the answer from the landing page, search, land mid-site from a search engine, follow a cross-reference — the denominator `/fabrik-user-test` certifies for doc sites'
-# class: prose
-# clauses: all carried (the list of two-faced examples is rendered in the reworded phrase)
-- id: fl-two-faced
-  section: '## Phase 0 — Establish scope, journey kind, and mode'
-  baseline: Two-faced types (`chrome-extension`, `office-extension` — hosted taskpane + fleet backend, D-039 — `mobile-app`, `desktop-app`) map BOTH the client-side journeys AND any backend-served ones (popup + dashboard; screens + API-driven notifications)
-  current: Two-faced types (`chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`) (hosted taskpane + fleet backend, D-039) map BOTH the client-side journeys AND any backend-served ones (popup + dashboard; screens + API-driven notifications)
-  text:
-  - (hosted taskpane + fleet backend, D-039) map BOTH the client-side journeys AND any backend-served ones (popup + dashboard; screens + API-driven notifications)
-# class: prose
-- id: fl-wordpress
-  section: '## Phase 0 — Establish scope, journey kind, and mode'
-  baseline: '`wordpress` runs no fabrik command (out of fabrik, archived 2026-08-07) — not a skip, an absence'
-  current: '`wordpress` runs no fabrik command (out of fabrik, archived 2026-08-07) — not a skip, an absence'
-  text:
-  - '`wordpress` runs no fabrik command (out of fabrik, archived 2026-08-07) — not a skip, an absence'
-# class: prose
-# clauses: not carried — spec 'goal, chosen approach, workflow' gloss
-- id: fl-inputs
-  section: '## Phase 0 — Establish scope, journey kind, and mode'
-  baseline: 'Inputs (read them, name them): the CONVERGED spec (goal, chosen approach, workflow) · `project.yaml::type` · the scaffold''s UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`; multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types)'
-  text:
-  - '**Inputs (read them, name them):**'
-  - the scaffold's UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`), any domain pack the work touches (auth/signup `core/35-security-auth.md`, payments `core/85-payments-billing.md`, multi-tenant `saas/95-multi-tenant-saas.md`)
-  - '`design-system-template.md` § States (Enriched) plus the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity). State which packs were read'
-# class: prose
-- id: fl-mode
-  section: '## Phase 0 — Establish scope, journey kind, and mode'
-  baseline: 'Mode: new (spec-driven) · backfill (walk the SHIPPED product''s real journeys into the contract, grandfathering gaps with a `⚠` note) · fresh (no spec yet → minimal stub, say so)'
-  current: 'Mode: new (spec-driven) · backfill (walk the SHIPPED product''s real journeys into the contract, grandfathering gaps with a `⚠` note) · fresh (no spec → minimal stub, say so)'
-  text:
-  - backfill (walk the SHIPPED product's real journeys into the contract, grandfathering gaps with a `⚠` note)
-  - '**fresh** (no spec → minimal stub, say so)'
-# class: ban
-# clauses: not carried — 'this stage binds work entering the design pipeline' reason
-- id: fl-no-retro-queue
-  section: '## Phase 0 — Establish scope, journey kind, and mode'
-  baseline: Absence of a flows contract in an already-shipped project is not a defect — this stage binds work entering the design pipeline, and `/fabrik-catchup` must not queue it retroactively
-  current: A shipped project without a flows contract is not a defect; `/fabrik-catchup` must not queue it retroactively
-  text:
-  - A shipped project without a flows contract is **not a defect**; `/fabrik-catchup` must not queue it retroactively
-# class: prose
-# clauses: not carried — 'feature-scale specs often bury criteria in prose'
-- id: fl-success-criteria
-  section: '## Phase 1 — Success Criteria (the tracing spine)'
-  baseline: Every flow will trace to ≥1 Success Criterion
-  text:
-  - 'Every flow traces to ≥1 **Success Criterion**: quote the spec''s list (the `(Planned)` rows of an EARLY `/fabrik-features` pass JOIN it — every planned feature is served by ≥1 flow, or the gap is surfaced)'
-  - '**extract the criteria and write 5–12 one-line testable criteria back as a `## Success Criteria` section** — the one sanctioned spec edit, noted in its changelog line'
-# class: ban
-- id: fl-criterion-finding
-  section: '## Phase 1 — Success Criteria (the tracing spine)'
-  baseline: A criterion with no covering journey, or a journey serving no criterion, is a finding — surfaced, never dropped
-  current: A criterion with no journey, or a journey serving none, is a finding — surfaced, never dropped
-  text:
-  - A criterion with no journey, or a journey serving none, is a finding — surfaced, never dropped
-# class: prose
-# clauses: not carried — 'mandatory first content section, operator law 2026-08-29' provenance
-- id: fl-personas-denominator
-  section: '## Phase 2 — Personas, including every SECOND ACTOR'
-  baseline: 'The spec''s `## Personas` section is this phase''s DENOMINATOR (specs carry it as a mandatory first content section, operator law 2026-08-29): every persona it enumerates is WALKED here or declared OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice'
-  current: 'The spec''s `## Personas` section is the DENOMINATOR: walk every persona it lists or declare it OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice'
-  text:
-  - walk every persona it lists or declare it OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice
-# class: prose
-# clauses: not carried — the nine-steps-to-first-file anecdote
-- id: fl-step-budget
-  section: '## Phase 2 — Personas, including every SECOND ACTOR'
-  baseline: 'And the primary persona''s flow carries the spec''s frozen STEP BUDGET: count the primary path''s steps as you map it; over budget is a FINDING against whichever contract is wrong — that collision is the point (a budget nobody re-counts is how nine steps to the first file sat invisible for a week)'
-  current: 'The primary flow carries the spec''s frozen STEP BUDGET: count the primary path''s steps as you map it; over budget is a FINDING against whichever contract is wrong. Then hunt the personas specs forget: for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too — it starts in a different context (no session, a different tenant, an email client, a webhook consumer), where unbuilt surface hides'
-  text:
-  - 'The primary flow carries the spec''s frozen STEP BUDGET: count the primary path''s steps as you map it; over budget is a FINDING against whichever contract is wrong'
-# class: prose
-# class: prose
-- id: fl-receiver-persona
-  section: '## Phase 2 — Personas, including every SECOND ACTOR'
-  baseline: 'Then hunt the personas specs forget: for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too. The receiving persona starts in a different context (no session, a different tenant, an email client, a webhook consumer) — that entry point is exactly where unbuilt surface hides'
-  current: 'The primary flow carries the spec''s frozen STEP BUDGET: count the primary path''s steps as you map it; over budget is a FINDING against whichever contract is wrong. Then hunt the personas specs forget: for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too — it starts in a different context (no session, a different tenant, an email client, a webhook consumer), where unbuilt surface hides'
-  text:
-  - 'Then hunt the personas specs forget: **for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too** — it starts in a different context (no session, a different tenant, an email client, a webhook consumer), where unbuilt surface hides'
-- id: fl-headless-personas
-  section: '## Phase 2 — Personas, including every SECOND ACTOR'
-  baseline: 'Headless: distinct consumer classes (first-time integrator, production caller at rate limit, operator debugging a 4xx) are distinct personas'
-  current: 'Headless: distinct consumer classes (first-time integrator, production caller at rate limit, operator debugging a 4xx) are distinct personas'
-  text:
-  - 'Headless: distinct consumer classes (first-time integrator, production caller at rate limit, operator debugging a 4xx) are distinct personas'
-# class: prose
-# clauses: not carried — 'so sibling sessions subtract them' reason
-- id: fl-seats
-  section: '## Phase 3 — Map the journeys'
-  baseline: Parallelism — UNCONDITIONAL, every run. Dispatch one native `general-purpose` seat per persona (or per journey), all in a single message to walk that persona's path through the spec, the code and any existing flows and return its entry → actions → feedback → exit with the gaps it hit; the persona count is the PARTITION and `dispatch_headroom.py --units <N> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a persona walk is a judgement, no Haiku mechanical seat; the Opus authoritative seat re-walks the highest-risk persona)
-  text:
-  - Dispatch **one native `general-purpose` seat per persona (or per journey), all in a single message**; each walks its path through the spec, code and existing flows and returns its entry → actions → feedback → exit with the gaps it hit
-  - '`dispatch_headroom.py --units <N> --mechanical 0` prints the seats, stamped BEFORE dispatch with `python3 scripts/command_run.py dispatch --seats <n>` (D-191: no Haiku seat; the Opus authoritative seat re-walks the highest-risk persona)'
-  - YOU own the journey judgment, the [PRIMARY PATH] call and every edit; seats ground, they do not author
-# class: ban
-# clauses: not carried — the 1-seat-found-0 / 3-seats-found-0/5/0 measurement anecdote
-- id: fl-never-solo
-  section: '## Phase 3 — Map the journeys'
-  baseline: 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
-  current: 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (D-186)'
-  text:
-  - '**Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (D-186)'
-# class: prose
-- id: fl-per-persona
-  section: '## Phase 3 — Map the journeys'
-  baseline: 'For each persona, map Entry Point → Actions → Feedback → Exit, with:'
-  text:
-  - Per persona map **Entry Point → Actions → Feedback → Exit**, adding
-  - '**Decision points** where the system or the persona picks a path, and **edge/error cases** with the explicit system response (never "handle errors"); **boundaries:** token/link expiry, missing data, permissions, rate limits, quota'
-# class: prose
-# clauses: not carried — the '(payment, search, upload, notification, model API)' examples
-- id: fl-resilience
-  section: '## Phase 3 — Map the journeys'
-  baseline: 'Resilience (the persona''s view): for each action calling an external service (payment, search, upload, notification, model API), what the persona sees when it is slow (loading state + timeout threshold) and when it is down (graceful fallback + alternative)'
-  current: 'Resilience (the persona''s view): for each action calling an external service, what the persona sees when it is slow (loading state + timeout threshold) and down (graceful fallback + alternative)'
-  text:
-  - '**Resilience (the persona''s view):** for each action calling an external service, what the persona sees when it is slow (loading state + timeout threshold) and down (graceful fallback + alternative)'
-# class: prose
-# clauses: not carried — 'job → callback' example and the paid-customer defect anecdote
-- id: fl-async-gap
-  section: '## Phase 3 — Map the journeys'
-  baseline: 'Async boundaries (the gap state): every external round-trip that completes OUT OF BAND (checkout → webhook, send → delivery, job → callback) names what the persona sees IN THE GAP between the two legs — the un-walked gap state is a live defect class (a paid customer re-offered the plan picker)'
-  current: 'Async boundaries: every external round-trip that completes OUT OF BAND (checkout → webhook, send → delivery) names what the persona sees IN THE GAP between the two legs'
-  text:
-  - every external round-trip that completes OUT OF BAND (checkout → webhook, send → delivery) names what the persona sees IN THE GAP between the two legs
-# class: prose
-- id: fl-contract-inputs-shape
-  section: '## Phase 3 — Map the journeys'
-  baseline: 'Contract inputs: a journey step implying an entity, field, enum, or state transition → record it in the contract-inputs list (Phase 5)'
-  current: 'Contract inputs: a step implying an entity, field, enum or state transition goes in the Phase 5 list (the journey is the evidence; `/fabrik-data-contract` freezes it); a new backing-service interaction is flagged for the spec''s `shape:` block'
-  text:
-  - a step implying an entity, field, enum or state transition goes in the Phase 5 list (the journey is the evidence; `/fabrik-data-contract` freezes it); a new backing-service interaction is flagged for the spec's `shape:` block
-# class: prose
-# clauses: not carried — '(form data? breadcrumbs?)'
-- id: fl-i18n
-  section: '## Phase 3 — Map the journeys'
-  baseline: 'i18n (when the project declares i18n): selector placement · URL strategy · persistence · mid-flow switch survival (form data? breadcrumbs?) · locale-sensitive elements per flow — one line each, only where a developer would default wrong'
-  current: 'i18n (when declared): selector placement · URL strategy · persistence · mid-flow switch survival · locale-sensitive elements per flow — one line each, only where a developer would default wrong'
-  text:
-  - selector placement · URL strategy · persistence · mid-flow switch survival · locale-sensitive elements per flow — one line each, only where a developer would default wrong
-# class: prose
-# clauses: not carried — 'surfacing assumptions is cheap, fixing frozen artifacts is expensive' reason
-- id: fl-alignment
-  section: '## Phase 4 — Alignment before documentation'
-  baseline: 'Seek explicit alignment on the load-bearing calls before writing the artifact — surfacing assumptions is cheap, fixing frozen artifacts is expensive: information hierarchy · placement/affordances · feedback and state signalling · how the journeys integrate (auth ↔ billing ↔ the core loop) · the i18n answers'
-  text:
-  - Get explicit alignment on the load-bearing calls before writing (information hierarchy · placement/affordances · feedback and state signalling, how auth ↔ billing ↔ core loop integrate, i18n)
-  - 'Flag enriched states (loading/empty/error/permission-denied/success/partial/disabled) selectively: only where a persona would behave differently — or a developer would assume wrong — if the state went undocumented'
-# class: prose
-- id: fl-per-flow
-  section: '## Phase 5 — Document (the artifact)'
-  baseline: 'Per flow (target ≤30 lines, hard split at 50): flow name (short imperative) · persona · the Success Criterion it serves · exactly one `[PRIMARY PATH]` marker on the 80%+ step sequence (label only — a certification DEPTH input, never the denominator: the gauntlets resolve their denominator from a live registry and demote every doc to a cross-check) · decision points · edge/error paths · resilience + async-gap states · Microcopy Hot-Spots naming the OUTCOME the copy must communicate, never the literal string · i18n notes where applicable'
-  current: 'Per flow (target ≤30 lines, hard split at 50): short imperative name · persona · the Success Criterion served · exactly one `[PRIMARY PATH]` marker on the 80%+ step sequence (label only — a certification DEPTH input, never the denominator: the gauntlets resolve their denominator from a live registry and demote every doc to a cross-check) · decision points · edge/error paths · resilience + async-gap states · Microcopy Hot-Spots naming the OUTCOME the copy must communicate, never the literal string · i18n notes where applicable'
-  text:
-  - 'Per flow (target ≤30 lines, hard split at 50): short imperative name · persona · the Success Criterion served'
-  - 'exactly **one `[PRIMARY PATH]`** marker on the 80%+ step sequence (label only — a certification DEPTH input, never the denominator: the gauntlets resolve their denominator from a live registry and demote every doc to a cross-check)'
-  - '**Microcopy Hot-Spots** naming the OUTCOME the copy must communicate, never the literal string'
-# class: prose
-- id: fl-spec-wide
-  section: '## Phase 5 — Document (the artifact)'
-  baseline: 'Spec-wide (target ≤200 lines, soft cap 400): header (`Status:` / `Version:` / `Date:` / `Type:` / `Journey kinds:`) · one Personas section · one Flow Index (flow → Success Criterion) · one Contract inputs section (the entities/fields/states the journeys surfaced — `/fabrik-data-contract`''s evidence list) · (conditional) i18n Decisions · the flows in encounter order'
-  current: 'Spec-wide (target ≤200 lines, soft cap 400): header (`Status:` / `Version:` / `Date:` / `Type:` / `Journey kinds:`) · one Personas section · one Flow Index (flow → Success Criterion) · one Contract inputs section (the entities/fields/states the journeys surfaced — `/fabrik-data-contract`''s evidence list) · (conditional) i18n Decisions · flows in encounter order'
-  text:
-  - 'Spec-wide (target ≤200 lines, soft cap 400): header (`Status:` / `Version:` / `Date:` / `Type:` / `Journey kinds:`)'
-  - 'one **Personas** section · one **Flow Index** (flow → Success Criterion) · one **Contract inputs** section (the entities/fields/states the journeys surfaced — `/fabrik-data-contract`''s evidence list)'
-# class: ban
-# clauses: not carried — '(the journey narratives)' gloss; the 'four false CRITICALs in one transdoc review' anecdote
-- id: fl-hard-exclusions
-  section: '## Phase 5 — Document (the artifact)'
-  baseline: 'Hard exclusions — these govern FLOW BODIES (the journey narratives), not lifecycle metadata: no file paths · no component names · no implementation detail (libraries, endpoints, DB tables) · no literal microcopy · no test names'
-  text:
-  - Hard exclusions govern FLOW BODIES, not lifecycle metadata
-  - no file paths · no component names · no implementation detail (libraries, endpoints, DB tables) · no literal microcopy · no test names
-  - 'The **header, R-notes, Contract inputs, and the re-freeze close-out''s Downstream impact table are EXEMPT**: their entire job is naming entities, fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out mandates; a reviewer reading the exclusions against those sections is misapplying the law'
-  - A flow over 30 lines gets a one-line justification; near 50, split it; the file near 400, propose splitting the feature
-# class: grammar
-# clauses: not carried — 'Say it in the artifact or every reader re-invents it' and the mis-fired-checker anecdote
-- id: fl-primary-path-rule
-  section: '## Phase 5 — Document (the artifact)'
-  baseline: '`[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every reader re-invents it: a naive grep conflates the two and mis-reports the per-flow count, which is a defect under the "exactly one" gate above and has already mis-fired in a checker, mid-run, and in a review'
-  current: '`[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.*'
-  text:
-  - a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted
-# class: ban
-- id: fl-gate-no-known-gaps
-  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
-  baseline: 'Walk the gate; resolve gaps in conversation, never hand off with known gaps: every Success Criterion traced to ≥1 flow · every persona''s journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING flow has its RECEIVING persona''s journey · every async boundary has its gap state · exactly one `[PRIMARY PATH]` per flow · resilience per external call · contract inputs recorded (never trimmed) · i18n decisions when applicable · hard exclusions honored · length within targets · life-cycle arc coverage (UI-bearing types): the `/fabrik-user-test` Phase-1b arc set — *first-day · habitual · paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user · recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap is surfaced'
-  current: 'Walk the gate and resolve gaps in conversation, never hand off with known gaps: every Success Criterion traced to ≥1 flow · every persona''s journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING flow has its RECEIVING persona · every async boundary has its gap state · exactly one `[PRIMARY PATH]` per flow · resilience per external call · contract inputs recorded (never trimmed) · i18n decisions when applicable · hard exclusions honored · length within targets · life-cycle arcs (UI-bearing types): the `/fabrik-user-test` Phase-1b set — *first-day · habitual · paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user · recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap is surfaced'
-  text:
-  - Walk the gate and resolve gaps in conversation, never hand off with known gaps
-# class: prose
-- id: fl-gate-items
-  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
-  baseline: 'Walk the gate; resolve gaps in conversation, never hand off with known gaps: every Success Criterion traced to ≥1 flow · every persona''s journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING flow has its RECEIVING persona''s journey · every async boundary has its gap state · exactly one `[PRIMARY PATH]` per flow · resilience per external call · contract inputs recorded (never trimmed) · i18n decisions when applicable · hard exclusions honored · length within targets · life-cycle arc coverage (UI-bearing types): the `/fabrik-user-test` Phase-1b arc set — *first-day · habitual · paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user · recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap is surfaced'
-  current: 'Walk the gate and resolve gaps in conversation, never hand off with known gaps: every Success Criterion traced to ≥1 flow · every persona''s journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING flow has its RECEIVING persona · every async boundary has its gap state · exactly one `[PRIMARY PATH]` per flow · resilience per external call · contract inputs recorded (never trimmed) · i18n decisions when applicable · hard exclusions honored · length within targets · life-cycle arcs (UI-bearing types): the `/fabrik-user-test` Phase-1b set — *first-day · habitual · paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user · recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap is surfaced'
-  text:
-  - every persona's journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING flow has its RECEIVING persona
-  - contract inputs recorded (never trimmed) · i18n decisions when applicable
-  - '**life-cycle arcs (UI-bearing types):** the `/fabrik-user-test` Phase-1b set — *first-day · habitual · paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user · recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap is surfaced'
-# class: grammar
-# clauses: not carried — 'identical hashes are the proof' folded in
-- id: fl-converge
-  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
-  baseline: 'Then converge: re-walk the whole artifact; fix; repeat until the Termination contract''s closing round — `confirmed: 0` (md5 the file before/after the closing pass — identical hashes are the proof)'
-  current: 'Then converge: re-walk the whole artifact; fix; repeat until the Termination contract''s closing round — `confirmed: 0`, file md5 identical before and after'
-  text:
-  - 're-walk the whole artifact; fix; repeat until the Termination contract''s closing round — `confirmed: 0`, file md5 identical before and after'
-# class: ban
-- id: fl-freeze-row
-  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
-  baseline: The freeze is a Status flip — mint its `docs/DECISIONS.md` row in the same change (CLAUDE.md § the decision ledger); a re-freeze bump N→N+1 is a NEW row, never an edit to the old one
-  text:
-  - '**The freeze is a Status flip: mint its `docs/DECISIONS.md` row in the same change** (CLAUDE.md § the decision ledger); a re-freeze bump N→N+1 is a NEW row, never an edit to the old one'
-  - 'Classify at mint: a flows freeze is normally reversible-by-re-freeze, so the plain row suffices unless the operator rules otherwise; stage it WITH the artifact in the commit below — same change means same COMMIT, not same run'
-# class: prose
-- id: fl-present-freeze
-  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
-  baseline: Present the frozen contract + the flow index to the user — the freeze stands unless they redirect
-  current: Present the frozen contract + flow index to the user; the freeze stands unless they redirect
-  text:
-  - '**Present the frozen contract + flow index to the user**; the freeze stands unless they redirect'
-# class: ban
-- id: fl-frozen-not-attested
-  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
-  baseline: '`FROZEN` is not `attested`: handing the contract to `/fabrik-data-contract`, `/fabrik-ui-design`, or a planner before `/fabrik-flows-review` has run is skipping a required gate, not saving a step (§ Next)'
-  current: '`FROZEN` is not `attested`: handing it to `/fabrik-data-contract`, `/fabrik-ui-design`, or a planner before `/fabrik-flows-review` has run is skipping a required gate, not saving a step (§ Next)'
-  text:
-  - '**`FROZEN` is not `attested`:** handing it to `/fabrik-data-contract`, `/fabrik-ui-design`, or a planner before `/fabrik-flows-review` has run is skipping a required gate, not saving a step (§ Next)'
-# class: ban
-# clauses: not carried — 'warns in the lean run' (the pin on it is deleted with this commit); Stop-hook causes 2 and 3; 'parked WIP is the only work that can be silently destroyed'; the 2026-08-28 trade-intelligence provenance
-- id: fl-commit
+- id: u-L75
+  file: render
   section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
   baseline: Do not commit unless the user says so this turn (`git add` is fine)
+  current: Do not commit unless the user says so this turn (`git add` is fine)
   text:
-  - Do not commit unless the user says so this turn (`git add` is fine); superseded where it conflicts with CLAUDE.md § EXIT
-  - '**Commit** the artifact at its first write, `DRAFT` included, with its `INDEX.md` and `docs/README.md` rows in the same commit'
-  - an untracked `docs/` file reds every full (Tier-2) gate run in that checkout, a sibling's included
-  - 'Committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that; the user''s word is needed for the APPROVAL and anything beyond this artifact''s paths'
-# class: prose
-# clauses: not carried — the transdoc 2026-08-22 v5-column anecdote
-- id: fl-refreeze-why
-  section: '## Re-freeze close-out (runs ONLY on a version bump N→N+1 of a FROZEN artifact)'
+  - Do not commit unless the user says so this turn (`git add` is fine)
+- id: u-L77
+  file: render
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  baseline: 'COMMIT the artifact at its first write, `DRAFT` included, with its `INDEX.md` and `docs/README.md` rows in the same commit — an untracked `docs/` file reds every full (Tier-2) gate run in that checkout, a sibling''s included, and warns in the lean run (`check_doc_index.py`: "live doc not in INDEX.md … (untracked — the run that creates a doc owes its INDEX row)") — and on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+  current: 'COMMIT the artifact at its first write, `DRAFT` included, with its `INDEX.md` and `docs/README.md` rows in the same commit — an untracked `docs/` file reds every full (Tier-2) gate run in that checkout, a sibling''s included, and warns in the lean run (`check_doc_index.py`: "live doc not in INDEX.md … (untracked — the run that creates a doc owes its INDEX row)") — and on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+  text:
+  - 'COMMIT the artifact at its first write, `DRAFT` included, with its `INDEX.md` and `docs/README.md` rows in the same commit — an untracked `docs/` file reds every full (Tier-2) gate run in that checkout, a sibling''s included, and warns in the lean run (`check_doc_index.py`: "live doc not in INDEX.md … (untracked — the run that creates a doc owes its INDEX row)") — and on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+- id: u-L80
+  file: render
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   baseline: 'The frozen 2-contract chain (`flows.md` → `data-contract.md` → `ui-design.md` [→ `design-system.md`]) has seams nothing else owns: your bump leaves every downstream consumer frozen against a version that no longer exists'
-  current: 'A bump leaves every downstream consumer (`flows.md` → `data-contract.md` → `ui-design.md` [→ `design-system.md`]) frozen against a dead version; `check_frozen_chain.py` catches the stale PIN, but only this run holds the diff, so only this run can say what the re-freeze must cover:'
+  current: 'The frozen 2-contract chain (`flows.md` → `data-contract.md` → `ui-design.md` [→ `design-system.md`]) has seams nothing else owns: your bump leaves every downstream consumer frozen against a version that no longer exists'
   text:
-  - A bump leaves every downstream consumer
-  - '`check_frozen_chain.py` catches the stale PIN, but only this run holds the diff, so only this run can say what the re-freeze must cover'
-# class: prose
-- id: fl-refreeze-diff
-  section: '## Re-freeze close-out (runs ONLY on a version bump N→N+1 of a FROZEN artifact)'
+  - 'The frozen 2-contract chain (`flows.md` → `data-contract.md` → `ui-design.md` [→ `design-system.md`]) has seams nothing else owns: your bump leaves every downstream consumer frozen against a version that no longer exists'
+- id: u-L81
+  file: render
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
+  baseline: 'The synced gate (`check_frozen_chain.py`) catches the stale PIN mechanically — but only THIS run holds the diff that names what changed, so only this run can say what the re-freeze must cover (transdoc 2026-08-22: a v5 column with a GUI-field name reached no screen; the pin gate alone would have hidden it):'
+  current: 'The synced gate (`check_frozen_chain.py`) catches the stale PIN mechanically — but only THIS run holds the diff that names what changed, so only this run can say what the re-freeze must cover (transdoc 2026-08-22: a v5 column with a GUI-field name reached no screen; the pin gate alone would have hidden it):'
+  text:
+  - 'The synced gate (`check_frozen_chain.py`) catches the stale PIN mechanically — but only THIS run holds the diff that names what changed, so only this run can say what the re-freeze must cover (transdoc 2026-08-22: a v5 column with a GUI-field name reached no screen; the pin gate alone would have hidden it):'
+- id: u-L82
+  file: render
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   baseline: Diff the artifact against its pre-run version (`git diff HEAD -- <artifact>` before committing, or HEAD~1 after) and extract the changed entity/column/enum/section names
-  current: Diff the artifact against its pre-run version (`git diff HEAD -- <artifact>`, or HEAD~1 after committing) and extract the changed entity/column/enum/section names
+  current: Diff the artifact against its pre-run version (`git diff HEAD -- <artifact>` before committing, or HEAD~1 after) and extract the changed entity/column/enum/section names
   text:
-  - '**Diff the artifact against its pre-run version** (`git diff HEAD -- <artifact>`, or HEAD~1 after committing) and extract the changed entity/column/enum/section names'
-# class: ban
-- id: fl-refreeze-impact
-  section: '## Re-freeze close-out (runs ONLY on a version bump N→N+1 of a FROZEN artifact)'
+  - Diff the artifact against its pre-run version (`git diff HEAD -- <artifact>` before committing, or HEAD~1 after) and extract the changed entity/column/enum/section names
+- id: u-L83
+  file: render
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   baseline: 'Grep each DOWNSTREAM frozen consumer for those names and emit a Downstream impact table in the closing report: `changed name → consumer → citing section(s) → verdict (cites it / silent)`'
+  current: 'Grep each DOWNSTREAM frozen consumer for those names and emit a Downstream impact table in the closing report: `changed name → consumer → citing section(s) → verdict (cites it / silent)`'
   text:
-  - 'emit a **Downstream impact** table in the closing report: `changed name → consumer → citing section(s) → verdict (cites it / silent)`'
+  - 'Grep each DOWNSTREAM frozen consumer for those names and emit a Downstream impact table in the closing report: `changed name → consumer → citing section(s) → verdict (cites it / silent)`'
+- id: u-L84
+  file: render
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
+  baseline: Zero hits is a stated result, never an omitted one
+  current: Zero hits is a stated result, never an omitted one
+  text:
   - Zero hits is a stated result, never an omitted one
-# class: prose
-# clauses: not carried — 'The gate's WARN will nag until that re-freeze lands' (L86)
-- id: fl-refreeze-next
-  section: '## Re-freeze close-out (runs ONLY on a version bump N→N+1 of a FROZEN artifact)'
+- id: u-L85
+  file: render
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   baseline: 'The NEXT line becomes the owed re-freeze when impact is non-empty: name the consumer''s owning command WITH the impact list as its arguments (e.g. `NEXT: /fabrik-ui-design — re-freeze v9→v10: projects.domain needs a §5.3 control; §5.11 ''unbuildable'' passages now stale`) — never the first-run pipeline chain line'
-  current: 'The NEXT line becomes the owed re-freeze when impact is non-empty: the consumer''s owning command WITH the impact list as arguments (e.g. `NEXT: /fabrik-ui-design — re-freeze v9→v10: projects.domain needs a §5.3 control; §5.11 ''unbuildable'' passages now stale`), never the first-run pipeline chain line'
+  current: 'The NEXT line becomes the owed re-freeze when impact is non-empty: name the consumer''s owning command WITH the impact list as its arguments (e.g. `NEXT: /fabrik-ui-design — re-freeze v9→v10: projects.domain needs a §5.3 control; §5.11 ''unbuildable'' passages now stale`) — never the first-run pipeline chain line'
   text:
-  - '**The NEXT line becomes the owed re-freeze when impact is non-empty**: the consumer''s owning command WITH the impact list as arguments'
-  - '(e.g. `NEXT: /fabrik-ui-design — re-freeze v9→v10: projects.domain needs a §5.3 control; §5.11 ''unbuildable'' passages now stale`), never the first-run pipeline chain line'
-# class: prose
-# clauses: not carried — 'cannot catch its own blind spots', 'mirrors /fabrik-spec -> /fabrik-spec-review' reasons
-- id: fl-next-review
+  - 'The NEXT line becomes the owed re-freeze when impact is non-empty: name the consumer''s owning command WITH the impact list as its arguments (e.g. `NEXT: /fabrik-ui-design — re-freeze v9→v10: projects.domain needs a §5.3 control; §5.11 ''unbuildable'' passages now stale`) — never the first-run pipeline chain line'
+- id: u-L89
+  file: render
   section: '## Next — run `/fabrik-flows-review` (the independent pass, before any consumer)'
   baseline: 'Before `/fabrik-data-contract`, `/fabrik-ui-design`, or any planner consumes it, run `/fabrik-flows-review` on it — the independent, author-blind pass that re-traces every Success Criterion, re-derives the SECOND-ACTOR and life-cycle-arc coverage, and converges to its own closing round (`confirmed: 0`, md5 unchanged)'
-  current: 'Before `/fabrik-data-contract`, `/fabrik-ui-design`, or any planner consumes it, run `/fabrik-flows-review` — the independent, author-blind pass that re-traces every Success Criterion, re-derives SECOND-ACTOR and life-cycle-arc coverage, and converges to its own closing round (`confirmed: 0`, md5 unchanged)'
+  current: 'Before `/fabrik-data-contract`, `/fabrik-ui-design`, or any planner consumes it, run `/fabrik-flows-review` on it — the independent, author-blind pass that re-traces every Success Criterion, re-derives the SECOND-ACTOR and life-cycle-arc coverage, and converges to its own closing round (`confirmed: 0`, md5 unchanged)'
   text:
-  - 'Before `/fabrik-data-contract`, `/fabrik-ui-design`, or any planner consumes it, run **`/fabrik-flows-review`** — the independent, author-blind pass that re-traces every Success Criterion, re-derives SECOND-ACTOR and life-cycle-arc coverage, and converges to its own closing round (`confirmed: 0`, md5 unchanged)'
-# class: ban
-- id: fl-next-no-consumer
+  - 'Before `/fabrik-data-contract`, `/fabrik-ui-design`, or any planner consumes it, run `/fabrik-flows-review` on it — the independent, author-blind pass that re-traces every Success Criterion, re-derives the SECOND-ACTOR and life-cycle-arc coverage, and converges to its own closing round (`confirmed: 0`, md5 unchanged)'
+- id: u-L92
+  file: render
   section: '## Next — run `/fabrik-flows-review` (the independent pass, before any consumer)'
-  baseline: Do NOT let a consumer freeze against a contract the review has not attested — a `FROZEN` status is the author's word; the review is what makes it independent
-  current: Do NOT let a consumer freeze against a contract the review has not attested; if the review surfaces something it cannot reconcile, it routes back here; resolve that before the contract is consumed
+  baseline: If the review surfaces something it cannot reconcile, it routes back here; resolve that before the contract is consumed
+  current: If the review surfaces something it cannot reconcile, it routes back here; resolve that before the contract is consumed
   text:
-  - '**Do NOT let a consumer freeze against a contract the review has not attested**; if the review surfaces something it cannot reconcile, it routes back here; resolve that before the contract is consumed'
+  - If the review surfaces something it cannot reconcile, it routes back here; resolve that before the contract is consumed
+- id: fl-intro
+  class: prose
+  baseline: 'Produce (or backfill) this project''s journey contract — one frozen file, `docs/flows.md`, the single source of truth for who moves through the product and how: every persona''s complete journey (entry → actions → feedback → exit), the decision points, the edge/error paths, what the user sees when an external call is slow or down, and exactly one `[PRIMARY PATH]` per flow'
+  text:
+  - 'Produce (or backfill) this project''s journey contract: one frozen file `docs/flows.md`, single source of truth for who moves through the product — every persona''s complete journey (entry → actions → feedback → exit), decision points, edge/error paths, and exactly one `[PRIMARY PATH]` per flow'
+- id: fl-self-convergence
+  class: prose
+  baseline: This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT author-blind pass
+  text:
+  - This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT author-blind pass
+- id: fl-epic
+  class: prose
+  baseline: 'THIS command owns that discipline at every scale — an epic''s journeys are frozen here too, from the spec `/fabrik-spec <epic file>` produced — and it sits before the data contract on purpose:'
+  clauses:
+    1: narrative
+    3: narrative
+  text:
+  - Epic journeys are frozen here too, from the spec `/fabrik-spec <epic file>` produced
+- id: fl-ordering
+  class: prose
+  baseline: 'Why journeys precede the contract (the ordering law): a data contract frozen before any journey thinking becomes a scope ceiling — downstream stages cut features "for want of fields" instead of bumping the contract'
+  clauses:
+    2: narrative
+  text:
+  - 'Why journeys precede the contract (the ordering law): a data contract frozen before any journey thinking becomes a scope ceiling'
+- id: fl-contract-input
+  class: ban
+  baseline: A journey implying an entity, field, or state the contract will need is recorded as CONTRACT INPUT — never trimmed to fit
+  text:
+  - A journey implying an entity, field, or state the contract will need is recorded as CONTRACT INPUT — never trimmed to fit
+- id: fl-spec-first
+  class: prose
+  baseline: A CONVERGED spec first. Input is the `/fabrik-spec` design doc after its `/fabrik-spec-review` approval
+  text:
+  - 'A CONVERGED spec first: the `/fabrik-spec` design doc after its `/fabrik-spec-review` approval'
+- id: fl-two-faced
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  class: prose
+  baseline: Two-faced types (`chrome-extension`, `office-extension` — hosted taskpane + fleet backend, D-039 — `mobile-app`, `desktop-app`) map BOTH the client-side journeys AND any backend-served ones (popup + dashboard; screens + API-driven notifications)
+  text:
+  - Two-faced types (`chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`; hosted taskpane + fleet backend, D-039) map BOTH the client-side journeys AND any backend-served ones
+- id: fl-inputs
+  section: '## Phase 0 — Establish scope, journey kind, and mode'
+  class: prose
+  baseline: 'Inputs (read them, name them): the CONVERGED spec (goal, chosen approach, workflow) · `project.yaml::type` · the scaffold''s UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`; multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types)'
+  text:
+  - 'Inputs (read them, name them): the CONVERGED spec · `project.yaml::type` · the scaffold''s UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`; multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types)'
+- id: fl-sc-trace
+  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  class: prose
+  baseline: Every flow will trace to ≥1 Success Criterion
+  text:
+  - Every flow traces to ≥1 Success Criterion
+- id: fl-sc-list
+  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  class: prose
+  baseline: If the converged spec carries an explicit list, quote it
+  text:
+  - quote the converged spec's explicit list
+- id: fl-sc-planned
+  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  class: prose
+  baseline: If the EARLY `/fabrik-features` pass ran, its `(Planned)` rows JOIN the tracing spine — every planned feature is served by ≥1 flow, or the gap is surfaced
+  text:
+  - the `(Planned)` rows of an EARLY `/fabrik-features` pass JOIN it — every planned feature is served by ≥1 flow, or the gap is surfaced
+- id: fl-sc-extract
+  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  class: prose
+  baseline: If it does not (feature-scale specs often bury criteria in prose), extract the criteria from the spec and write them back to the spec as a short `## Success Criteria` section (5–12 one-line, testable outcomes — this is the one sanctioned spec edit; note it in the spec's changelog line)
+  text:
+  - With none (feature-scale specs often bury criteria in prose), extract the criteria and write 5–12 one-line testable criteria back to the spec as a `## Success Criteria` section — the one sanctioned spec edit, noted in its changelog line
+- id: fl-criterion-finding
+  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  class: ban
+  baseline: A criterion with no covering journey, or a journey serving no criterion, is a finding — surfaced, never dropped
+  text:
+  - A criterion with no journey, or a journey serving none, is a finding — surfaced, never dropped
+- id: fl-personas-denominator
+  section: '## Phase 2 — Personas, including every SECOND ACTOR'
+  class: prose
+  baseline: 'The spec''s `## Personas` section is this phase''s DENOMINATOR (specs carry it as a mandatory first content section, operator law 2026-08-29): every persona it enumerates is WALKED here or declared OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice'
+  text:
+  - 'The spec''s `## Personas` section is this phase''s DENOMINATOR (specs carry it; operator law 2026-08-29): walk every persona it lists or declare it OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice'
+- id: fl-step-budget
+  section: '## Phase 2 — Personas, including every SECOND ACTOR'
+  class: prose
+  baseline: 'And the primary persona''s flow carries the spec''s frozen STEP BUDGET: count the primary path''s steps as you map it; over budget is a FINDING against whichever contract is wrong — that collision is the point (a budget nobody re-counts is how nine steps to the first file sat invisible for a week)'
+  clauses:
+    3: narrative
+  text:
+  - 'The primary flow carries the spec''s frozen STEP BUDGET: count the primary path''s steps as you map it; over budget is a FINDING against whichever contract is wrong'
+- id: fl-receiver-persona
+  section: '## Phase 2 — Personas, including every SECOND ACTOR'
+  class: ban
+  baseline: 'Then hunt the personas specs forget: for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too. The receiving persona starts in a different context (no session, a different tenant, an email client, a webhook consumer) — that entry point is exactly where unbuilt surface hides'
+  text:
+  - 'Then hunt the personas specs forget: for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too'
+  - The receiving persona starts in a different context (no session, a different tenant, an email client) — that entry point is exactly where unbuilt surface hides
+- id: fl-seats
+  section: '## Phase 3 — Map the journeys'
+  class: prose
+  baseline: Parallelism — UNCONDITIONAL, every run. Dispatch one native `general-purpose` seat per persona (or per journey), all in a single message to walk that persona's path through the spec, the code and any existing flows and return its entry → actions → feedback → exit with the gaps it hit; the persona count is the PARTITION and `dispatch_headroom.py --units <N> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a persona walk is a judgement, no Haiku mechanical seat; the Opus authoritative seat re-walks the highest-risk persona)
+  text:
+  - Parallelism — UNCONDITIONAL, every run. Dispatch one native `general-purpose` seat per persona (or per journey), all in a single message; each walks its path and returns its entry → actions → feedback → exit with the gaps it hit; the persona count is the PARTITION and `dispatch_headroom.py --units <N> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a persona walk is a judgement, no Haiku mechanical seat; the Opus authoritative seat re-walks the highest-risk persona)
+- id: fl-never-solo
+  section: '## Phase 3 — Map the journeys'
+  class: ban
+  baseline: 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
+  clauses:
+    2: narrative
+  text:
+  - 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it'
+- id: fl-resilience
+  section: '## Phase 3 — Map the journeys'
+  class: prose
+  baseline: 'Resilience (the persona''s view): for each action calling an external service (payment, search, upload, notification, model API), what the persona sees when it is slow (loading state + timeout threshold) and when it is down (graceful fallback + alternative)'
+  text:
+  - 'Resilience (the persona''s view): for each action calling an external service, what the persona sees when it is slow (loading state + timeout threshold) and when it is down (graceful fallback + alternative)'
+- id: fl-async-gap
+  section: '## Phase 3 — Map the journeys'
+  class: prose
+  baseline: 'Async boundaries (the gap state): every external round-trip that completes OUT OF BAND (checkout → webhook, send → delivery, job → callback) names what the persona sees IN THE GAP between the two legs — the un-walked gap state is a live defect class (a paid customer re-offered the plan picker)'
+  clauses:
+    2: narrative
+  text:
+  - 'Async boundaries: every external round-trip that completes OUT OF BAND (checkout → webhook, send → delivery) names what the persona sees IN THE GAP between the two legs'
+- id: fl-i18n
+  section: '## Phase 3 — Map the journeys'
+  class: ban
+  baseline: 'i18n (when the project declares i18n): selector placement · URL strategy · persistence · mid-flow switch survival (form data? breadcrumbs?) · locale-sensitive elements per flow — one line each, only where a developer would default wrong'
+  text:
+  - 'i18n (when the project declares i18n): selector placement · URL strategy · persistence · mid-flow switch survival · locale-sensitive elements per flow — one line each, only where a developer would default wrong'
+- id: fl-hard-exclusions
+  section: '## Phase 5 — Document (the artifact)'
+  class: prose
+  baseline: 'Hard exclusions — these govern FLOW BODIES (the journey narratives), not lifecycle metadata: no file paths · no component names · no implementation detail (libraries, endpoints, DB tables) · no literal microcopy · no test names'
+  text:
+  - 'Hard exclusions — these govern FLOW BODIES, not lifecycle metadata: no file paths · no component names · no implementation detail (libraries, endpoints, DB tables) · no literal microcopy · no test names'
+- id: fl-exempt
+  section: '## Phase 5 — Document (the artifact)'
+  class: prose
+  baseline: 'The header, R-notes, Contract inputs, and the re-freeze close-out''s Downstream impact table are lifecycle metadata and EXEMPT — their entire job is naming entities, fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out mandates; a reviewer reading the exclusions against those sections is misapplying the law (live case: four false CRITICALs in one transdoc review)'
+  clauses:
+    2: narrative
+    3: narrative
+  text:
+  - The header, R-notes, Contract inputs, and the re-freeze close-out's Downstream impact table are lifecycle metadata and EXEMPT
+- id: fl-primary-path-rule
+  section: '## Phase 5 — Document (the artifact)'
+  class: prose
+  baseline: '`[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every reader re-invents it: a naive grep conflates the two and mis-reports the per-flow count, which is a defect under the "exactly one" gate above and has already mis-fired in a checker, mid-run, and in a review'
+  text:
+  - '`[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every reader re-invents it'
+- id: fl-commit-exit
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  class: prose
+  baseline: '⚠️ Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed'
+  text:
+  - 'Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3)'
+- id: fl-commit
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  class: ban
+  baseline: 'COMMIT the artifact at its first write, `DRAFT` included, with its `INDEX.md` and `docs/README.md` rows in the same commit — an untracked `docs/` file reds every full (Tier-2) gate run in that checkout, a sibling''s included, and warns in the lean run (`check_doc_index.py`: "live doc not in INDEX.md … (untracked — the run that creates a doc owes its INDEX row)") — and on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+  text:
+  - 'COMMIT the artifact at its first write, `DRAFT` included, with its `INDEX.md` and `docs/README.md` rows in the same commit — an untracked `docs/` file reds every full (Tier-2) gate run in that checkout, a sibling''s included, and warns in the lean run (`check_doc_index.py`: "live doc not in INDEX.md … (untracked — the run that creates a doc owes its INDEX row)") — and on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+- id: fl-approval
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  class: prose
+  baseline: What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28)
+  text:
+  - What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (2026-08-28)
+- id: fl-refreeze-only-you
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
+  class: ban
+  baseline: The gate's WARN will nag until that re-freeze lands; the impact list is the part only you know
+  clauses:
+    1: narrative
+  text:
+  - The impact list is the part only you know
+- id: fl-no-consumer
+  section: '## Next — run `/fabrik-flows-review` (the independent pass, before any consumer)'
+  class: prose
+  baseline: Do NOT let a consumer freeze against a contract the review has not attested — a `FROZEN` status is the author's word; the review is what makes it independent
+  clauses:
+    2: narrative
+    3: narrative
+  text:
+  - Do NOT let a consumer freeze against a contract the review has not attested
 vanished:
   L1:
-    rule: [fl-intro]
+    rule:
+    - fl-intro
   L2:
-    rule: [fl-intro]
+    rule:
+    - fl-epic
+  L3:
+    duplicate-of: u-L89
   L4:
-    rule: [fl-contract-input]
+    rule:
+    - fl-ordering
   L5: narrative
   L6:
-    rule: [fl-contract-input]
+    rule:
+    - fl-contract-input
   L8:
-    rule: [fl-gate-converged-spec]
-  L9:
-    rule: [fl-gate-converged-spec]
+    rule:
+    - fl-spec-first
   L12:
-    rule: [fl-self-convergence]
-  L14:
-    rule: [fl-args]
-  L16:
-    rule: [fl-journey-kind]
-  L18:
-    rule: [fl-consumer-reader]
-  L19:
-    rule: [fl-consumer-reader]
-  L20:
-    rule: [fl-consumer-reader]
+    rule:
+    - fl-self-convergence
   L21:
-    rule: [fl-two-faced]
-  L22:
-    rule: [fl-wordpress]
+    rule:
+    - fl-two-faced
   L23:
-    rule: [fl-inputs]
-  L25:
-    rule: [fl-mode]
-  L26:
-    rule: [fl-no-retro-queue]
-  L27:
-    rule: [fl-success-criteria]
+    rule:
+    - fl-inputs
+  L27: narrative
   L28:
-    rule: [fl-success-criteria]
+    rule:
+    - fl-sc-trace
   L29:
-    rule: [fl-success-criteria]
+    rule:
+    - fl-sc-list
   L30:
-    rule: [fl-success-criteria]
+    rule:
+    - fl-sc-planned
   L31:
-    rule: [fl-success-criteria]
+    rule:
+    - fl-sc-extract
   L32:
-    rule: [fl-criterion-finding]
+    rule:
+    - fl-criterion-finding
   L34:
-    rule: [fl-personas-denominator]
+    rule:
+    - fl-personas-denominator
   L35:
-    rule: [fl-step-budget]
+    rule:
+    - fl-step-budget
   L36:
-    rule: [fl-receiver-persona]
-  L37:
-    rule: [fl-headless-personas]
+    rule:
+    - fl-receiver-persona
   L39:
-    rule: [fl-seats]
-  L40:
-    rule: [fl-seats]
+    rule:
+    - fl-seats
   L41:
-    rule: [fl-never-solo]
-  L42:
-    rule: [fl-per-persona]
-  L43:
-    rule: [fl-per-persona]
-  L44:
-    rule: [fl-per-persona]
-  L45:
-    rule: [fl-per-persona]
+    rule:
+    - fl-never-solo
   L46:
-    rule: [fl-resilience]
+    rule:
+    - fl-resilience
   L47:
-    rule: [fl-async-gap]
-  L48:
-    rule: [fl-contract-inputs-shape]
-  L49:
-    rule: [fl-contract-inputs-shape]
-  L50:
-    rule: [fl-contract-inputs-shape]
+    rule:
+    - fl-async-gap
   L51:
-    rule: [fl-i18n]
-  L53:
-    rule: [fl-alignment]
-  L54:
-    rule: [fl-alignment]
-  L57:
-    rule: [fl-per-flow]
-  L59:
-    rule: [fl-spec-wide]
+    rule:
+    - fl-i18n
   L60:
-    rule: [fl-hard-exclusions]
+    rule:
+    - fl-hard-exclusions
   L61:
-    rule: [fl-hard-exclusions]
-  L62:
-    rule: [fl-hard-exclusions]
+    rule:
+    - fl-exempt
   L63:
-    rule: [fl-primary-path-rule]
-  L65:
-    rule: [fl-gate-no-known-gaps]
+    rule:
+    - fl-primary-path-rule
   L66: narrative
-  L67:
-    rule: [fl-converge]
-  L69:
-    rule: [fl-freeze-row]
-  L70:
-    rule: [fl-freeze-row]
-  L71:
-    rule: [fl-present-freeze]
-  L72:
-    rule: [fl-frozen-not-attested]
-  L75:
-    rule: [fl-commit]
   L76:
-    rule: [fl-commit]
+    rule:
+    - fl-commit-exit
   L77:
-    rule: [fl-commit]
+    rule:
+    - fl-commit
   L78:
-    rule: [fl-commit]
-  L79:
-    rule: [fl-refreeze-why]
-  L80:
-    rule: [fl-refreeze-why]
-  L81:
-    rule: [fl-refreeze-why]
-  L82:
-    rule: [fl-refreeze-diff]
-  L83:
-    rule: [fl-refreeze-impact]
-  L84:
-    rule: [fl-refreeze-impact]
-  L85:
-    rule: [fl-refreeze-next]
-  L86: narrative
-  L88:
-    rule: [fl-next-review]
-  L89:
-    rule: [fl-next-review]
-  L90:
-    rule: [fl-next-review]
+    rule:
+    - fl-approval
+  L86:
+    rule:
+    - fl-refreeze-only-you
+  L88: narrative
+  L90: narrative
   L91:
-    rule: [fl-next-no-consumer]
-  L92:
-    rule: [fl-next-no-consumer]
+    rule:
+    - fl-no-consumer
