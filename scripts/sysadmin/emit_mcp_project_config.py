@@ -366,9 +366,8 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
             " tracks it run `git rm --cached .mcp.json`; the file carries credentials)"
         )
     target = repo / ".mcp.json"
-    if (
-        target.is_symlink()
-    ):  # git answers for the link's name; a write follows it into whatever it names
+    # git answers for the link's name; a write follows it into whatever it names
+    if target.is_symlink():
         return "SKIP (`.mcp.json` is a symlink — never written through it; make it a plain file)"
     servers = derive_servers(repo, defs)
     if servers is None:
