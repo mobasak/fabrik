@@ -260,7 +260,7 @@ entries:
 - id: r-L2
   baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
   text:
-  - '> POOL OFF — D-181 (operator, 2026-09-07). Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable); the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control. Run every fan-out this command names NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you, and skip every flywheel back-fill'
+  - '> POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182). Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable); the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control. Run every fan-out this command names NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you, and skip every flywheel back-fill (a native seat records nothing)'
 - id: r-L5
   baseline: 'Dispatch step (D-191): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition'
   text:
@@ -272,7 +272,7 @@ entries:
 - id: r-L8
   baseline: Run it from ANY repo — there is no mode to pick and no hand-off. `scripts/rivals_run.py` is fleet-synced, so every project already has it, and it resolves the engine local-first, then the hub's single vendored copy
   text:
-  - Run it from ANY repo — there is no mode to pick and no hand-off. `scripts/rivals_run.py` is fleet-synced and resolves the engine local-first, then the hub's copy
+  - Run it from ANY repo — there is no mode to pick and no hand-off. `scripts/rivals_run.py` is fleet-synced, so every project already has it, and it resolves the engine local-first, then the hub's single vendored copy
 - id: r-L9
   baseline: The search keys reach every project through the driver's OWN vendored key autoload — the real env, then the nearest `.env` walking up from the repo, then the fleet file `~/.config/fabrik/subagents.env` — with no module to import
   text:
@@ -282,11 +282,11 @@ entries:
 - id: r-L13
   baseline: That was built on a misreading of the cross-repo hard stop, which governs *"create/edit/commit files in a repo OTHER than the one you were launched in"* — writes, not reads
   text:
-  - 'The cross-repo hard stop, which governs *"create/edit/commit files in a repo OTHER than the one you were launched in"*, governs writes, not reads: importing the hub''s vendored engine and writing only into your own tree breaks nothing, and the two-hop version turned a one-rival scan into a cross-repo errand'
+  - 'The earlier two-repo version was built on a misreading of the cross-repo hard stop, which governs *"create/edit/commit files in a repo OTHER than the one you were launched in"*, governs writes, not reads: importing the hub''s vendored engine and writing only into your own tree breaks nothing, and the two-hop version turned a one-rival scan into a cross-repo errand'
 - id: r-L14
   baseline: Importing the hub's vendored engine and writing only into your own tree breaks nothing, and the two-hop version turned a one-rival scan into a cross-repo errand
   text:
-  - 'The cross-repo hard stop, which governs *"create/edit/commit files in a repo OTHER than the one you were launched in"*, governs writes, not reads: importing the hub''s vendored engine and writing only into your own tree breaks nothing, and the two-hop version turned a one-rival scan into a cross-repo errand'
+  - 'The earlier two-repo version was built on a misreading of the cross-repo hard stop, which governs *"create/edit/commit files in a repo OTHER than the one you were launched in"*, governs writes, not reads: importing the hub''s vendored engine and writing only into your own tree breaks nothing, and the two-hop version turned a one-rival scan into a cross-repo errand'
 - id: r-L17
   baseline: ⚠️ Distinct from the dossier-text convergence loop below (`## ⚠️ Termination contract — READ FIRST`), which converges the WRITTEN dossier to an md5-verified no-op with its own Pass Ledger
   text:
@@ -294,7 +294,7 @@ entries:
 - id: r-L18
   baseline: This one governs the discovery/mining rounds — whether the set of rivals is complete
   text:
-  - This one governs the discovery/mining rounds — whether the set of rivals is complete; do not apply the Pass-Ledger format to these rounds
+  - 'This one governs the discovery/mining rounds — whether the set of rivals is complete; two loops, two mechanisms: do not apply the Pass-Ledger format to these rounds (youtube, 2026-08-27, lost real time to the two sections sharing a header)'
 - id: r-L20
   baseline: 'The run is done when ALL of these hold — this is a LOOP, not a single shot:'
   text:
@@ -302,12 +302,11 @@ entries:
 - id: r-L21
   baseline: Discovery is DRY — a fresh `--rediscover` round surfaces no new competitor AND no new MATCH/BEAT item
   text:
-  - Discovery is DRY — a fresh `--rediscover` round surfaces no new competitor AND no new MATCH/BEAT item
-  - 'Discovery is DRY — a fresh `--rediscover` round surfaces no new competitor AND no new MATCH/BEAT item, twice in a row: unknown-size discovery never terminates honestly on a fixed round count, and the tail is where the non-obvious rival lives'
+  - 'Discovery is DRY — a fresh `--rediscover` round surfaces no new competitor AND no new MATCH/BEAT item, two consecutive dry rounds, not one: unknown-size discovery never terminates honestly on a fixed round count, and the tail is where the non-obvious rival lives'
 - id: r-L22
   baseline: 'Two consecutive dry rounds, not one: unknown-size discovery never terminates honestly on a fixed round count, and the tail is where the non-obvious rival lives'
   text:
-  - 'Discovery is DRY — a fresh `--rediscover` round surfaces no new competitor AND no new MATCH/BEAT item, twice in a row: unknown-size discovery never terminates honestly on a fixed round count, and the tail is where the non-obvious rival lives'
+  - 'Discovery is DRY — a fresh `--rediscover` round surfaces no new competitor AND no new MATCH/BEAT item, two consecutive dry rounds, not one: unknown-size discovery never terminates honestly on a fixed round count, and the tail is where the non-obvious rival lives'
 - id: r-L23
   baseline: ⚠️ Only a `--rediscover` round can be dry — without the flag the engine skips discovery entirely, so a plain re-run returns zero new rivals no matter how much of the market is unexplored (Phase 2)
   text:
@@ -380,12 +379,12 @@ entries:
 - id: r-L67
   baseline: 'The ENGINE call stays as it is — that module is vendored from fabrik-lib and is not ours to change — but this command''s own convergence rounds fan out: one native `fabrik-reviewer` seat per RIVAL plus the Opus authoritative seat to audit that rival''s dossier section against its cited sources, all dispatched in a single message; the rival count is the PARTITION and `dispatch_headroom.py --units <rivals> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a citation audit is a judgement, no Haiku mechanical seat)'
   text:
-  - 'The ENGINE call stays as it is — that module is vendored from fabrik-lib and is not ours to change — but this command''s own convergence rounds fan out: one native `fabrik-reviewer` seat per RIVAL plus the Opus authoritative seat to audit that rival''s dossier section against its cited sources, all dispatched in a single message; the rival count is the PARTITION and `dispatch_headroom.py --units <rivals> --mechanical 0` prints the seats (D-191 — a citation audit is a judgement, no Haiku mechanical seat)'
+  - 'The ENGINE call stays as it is — that module is vendored from fabrik-lib and is not ours to change — but this command''s own convergence rounds fan out: one native `fabrik-reviewer` seat per RIVAL plus the Opus authoritative seat to audit that rival''s dossier section against its cited sources, all dispatched in a single message; the rival count is the PARTITION and `dispatch_headroom.py --units <rivals> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a citation audit is a judgement, no Haiku mechanical seat)'
   - 'Dispatch step (D-191): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition'
 - id: r-L68
   baseline: ⚠️ Every convergence round MUST pass `--rediscover`, or the loop is vacuous. The engine discovers ONCE per `job_id` (the orchestrator guards on a persisted `discovery_done` flag — find the live guard with `grep -n "if not discovery_done" libs/competitor_intel/orchestrator.py`), and the driver derives `job_id` deterministically from the market — so a plain re-run cannot surface a new rival by construction, and condition 1 above would auto-satisfy at round 2. That is not a dry market; it is the question never being asked
   text:
-  - '⚠️ Every convergence round MUST pass `--rediscover`, or the loop is vacuous. The engine discovers ONCE per `job_id` (`discovery_done`; `grep -n "if not discovery_done" libs/competitor_intel/orchestrator.py`), and the driver derives `job_id` deterministically from the market — so a plain re-run cannot surface a new rival by construction, and condition 1 above would auto-satisfy at round 2: it is the question never being asked'
+  - '⚠️ Every convergence round MUST pass `--rediscover`, or the loop is vacuous. The engine discovers ONCE per `job_id` (the orchestrator guards on a persisted `discovery_done` flag — find the live guard with `grep -n "if not discovery_done" libs/competitor_intel/orchestrator.py`), and the driver derives `job_id` deterministically from the market — so a plain re-run cannot surface a new rival by construction, and condition 1 above would auto-satisfy at round 2: it is the question never being asked'
 - id: r-L69
   baseline: '`--rediscover` re-arms the discovery leg while re-billing no mined review, and re-unions the rivals already found (the engine REPLACES the competitor list rather than merging it, so without the union a thinner round silently drops rivals)'
   text:
@@ -413,9 +412,7 @@ entries:
 - id: r-L82
   baseline: '⚠️ `--out` must be on the FIRST invocation of the final round. Without it the driver renders to STDOUT and writes NOTHING — so a no-flag round run to "read it first" produces no artifact and has to be run again in full (youtube, 2026-08-27: ~9 wasted minutes)'
   text:
-  - '⚠️ `--out` must be on the FIRST invocation of the final round. Without it the driver renders to STDOUT and writes NOTHING:'
-  clauses:
-    2: narrative
+  - '⚠️ `--out` must be on the FIRST invocation of the final round. Without it the driver renders to STDOUT and writes NOTHING — so a no-flag round run to "read it first" produces no artifact and has to be run again in full (youtube, 2026-08-27: ~9 wasted minutes)'
 - id: r-L85
   baseline: '`--out <slug>` writes BOTH `<slug>.json` and `<slug>.md` (the flag''s own help says exactly this; the writes are the `with_suffix` pair in `rivals_run.py` — grep, don''t trust a line number) — pass the path WITHOUT an extension'
   text:
@@ -423,7 +420,7 @@ entries:
 - id: r-L87
   baseline: Write `docs/reference/rivals/<market>.md` from `rivals_run.py::render_dossier_md(dossier.to_dict())` — not from `dossier.to_markdown()`
   text:
-  - Write `docs/reference/rivals/<market>.md` from `rivals_run.py::render_dossier_md(dossier.to_dict())`, not from `dossier.to_markdown()`, which raises `AttributeError` on plain dicts (`m.universal`, `b.weight` — it needs the live TYPED `Dossier`) while the driver writes the JSON payload BEFORE rendering, because the money is already spent and a formatting bug must never destroy a paid run
+  - 'Write `docs/reference/rivals/<market>.md` from `rivals_run.py::render_dossier_md(dossier.to_dict())`, not from `dossier.to_markdown()`; the reason is a SHAPE mismatch, not a quality gap (corrected 2026-08-27): it raises `AttributeError` on plain dicts (`m.universal`, `b.weight` — it needs the live TYPED `Dossier`) while the driver writes the JSON payload BEFORE rendering, because the money is already spent and a formatting bug must never destroy a paid run'
 - id: r-L90
   baseline: Re-rendering an old run from disk needs the same path
   text:
@@ -431,11 +428,12 @@ entries:
 - id: r-L92
   baseline: Do not repeat the retired claim
   text:
-  - 'The earlier justification — that `to_markdown()` emitted only 404 bytes — was measured against the PRE-`e818249` engine and is now FALSE: upstream rebuilt it, and it emits all six sections (COMPETITORS · FEATURE MATRIX · MATCH · BEAT · PRICING · WHITE SPACE). Do not repeat the retired claim that `to_markdown()` emits only 404 bytes.'
+  - 'The earlier justification — that `to_markdown()` emitted only 404 bytes — was measured against the PRE-`e818249` engine and is now FALSE: upstream rebuilt it, and it emits all six sections (COMPETITORS · FEATURE MATRIX · MATCH · BEAT · PRICING · WHITE SPACE) with its own render-safety suite.'
+  - Do not repeat the retired claim that `to_markdown()` emits only 404 bytes.
 - id: r-L93
   baseline: Add a header carrying the scan DATE (the driver stamps `scanned_at`; a dossier with no date reads as current forever, and competitive intel is perishable — rival pricing, features and review sentiment all move), the run's `job_id`, the model, the spend, `partial`/`truncated`, whether it ran `--free-legs-only`, and the Pass Ledger
   text:
-  - Add a header carrying the scan DATE (the driver stamps `scanned_at`), the run's `job_id`, the model, the spend, `partial`/`truncated`, whether it ran `--free-legs-only`, and the Pass Ledger
+  - Add a header carrying the scan DATE (the driver stamps `scanned_at`; a dossier with no date reads as current forever, and competitive intel is perishable — rival pricing, features and review sentiment all move), the run's `job_id`, the model, the spend, `partial`/`truncated`, whether it ran `--free-legs-only`, and the Pass Ledger
 - id: r-L95
   baseline: 'Never let an unconfirmed rival read as a real one. The engine sets `verified` per competitor; on that same run 5 of 12 were `verified: False` ("No page text retrieved")'
   text:
@@ -475,7 +473,7 @@ entries:
 - id: r-L112
   baseline: 'Never present an unconfirmed rival as a real one. `verified: False` renders `❓` and is named in the callout — carry that through; a fabricated competitor reaching a spec starts here'
   text:
-  - 'Never present an unconfirmed rival as a real one. `verified: False` renders `❓` — carry that through'
+  - 'Never present an unconfirmed rival as a real one. `verified: False` renders `❓` and is named in the callout — carry that through'
   clauses:
     3: narrative
 - id: r-L113
