@@ -667,3 +667,102 @@ def test_a_root_that_cannot_be_written_is_skipped_as_an_error_not_unreadable(tmp
     finally:
         (repo / ".mcp.json").chmod(0o644)
     assert lines == ["some-api: SKIP (error: PermissionError)"], lines
+
+
+_STUB_PSYCOPG = """
+import os
+
+
+class _Conn:
+    def close(self):
+        pass
+
+
+def connect(dsn, connect_timeout=None):
+    with open("/proc/self/cmdline", "rb") as f:
+        argv = f.read()
+    with open(os.environ["STUB_PSYCOPG_LOG"], "ab") as f:
+        f.write(argv + b"\\n")
+    if dsn != os.environ["STUB_PSYCOPG_DSN"]:
+        raise RuntimeError("refused")
+    return _Conn()
+"""
+
+
+def test_the_uri_probe_hands_the_child_the_uri_and_never_its_argv(tmp_path, monkeypatch):
+    """W-d095d60b: a resolved DATABASE_URL carries a password, and a child's argv is readable by every local user in
+    `ps` and /proc/<pid>/cmdline. The REAL probe child runs here, against a stub psycopg that records its own
+    cmdline: it must receive the exact URI (a non-ASCII password included) and its argv must not carry it."""
+    (tmp_path / "stub" / "psycopg").mkdir(parents=True)
+    (tmp_path / "stub" / "psycopg" / "__init__.py").write_text(_STUB_PSYCOPG)
+    log = tmp_path / "cmdline.log"
+    uri = "postgresql://owner:s3cretPWé@db.example:5432/app"
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "stub"))
+    monkeypatch.setenv("STUB_PSYCOPG_LOG", str(log))
+    monkeypatch.setenv("STUB_PSYCOPG_DSN", uri)
+    assert emitter._uri_connects(uri) is True
+    assert emitter._uri_connects(uri.replace("s3cret", "wrong")) is False
+    seen = log.read_bytes()
+    assert seen.count(b"\n") == 2, seen  # both probes reached the stub's connect
+    assert b"s3cretPW" not in seen and b"wrong" not in seen, seen
+
+
+def _cli_rc(root: Path, defs: Path) -> int:
+    """The script run as a PROCESS, so its `__main__` wiring is what is graded."""
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--root", str(root), "--defs", str(defs)],
+        capture_output=True,
+        timeout=60,
+    )
+    return r.returncode
+
+
+def test_the_script_exits_1_when_a_repo_or_a_copy_fails_and_0_on_a_ruled_skip(tmp_path, defs_file):
+    """W-d095d60b: the script exits 1 when a verdict is `_failed` (an exception, a worktree copy left unwritten,
+    git unable to answer) and 0 on a clean run or a ruled SKIP (an unknown type is a policy verdict)."""
+    make_repo(tmp_path, "typo-type", "no-such-type")
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    assert _cli_rc(tmp_path, defs_file) == 0
+    assert "typo-type: SKIP" in run(tmp_path, defs_file, check=True)
+
+    (repo / ".mcp.json").write_text("{}\n")
+    (repo / ".mcp.json").chmod(0o444)
+    try:
+        assert _cli_rc(tmp_path, defs_file) == 1
+    finally:
+        (repo / ".mcp.json").chmod(0o644)
+
+    assert _cli_rc(tmp_path, defs_file) == 0
+    copy = repo / ".claude" / "worktrees" / "w" / ".mcp.json"
+    copy.parent.mkdir(parents=True)
+    copy.write_text("{}\n")
+    copy.chmod(0o444)
+    try:
+        assert _cli_rc(tmp_path, defs_file) == 1
+    finally:
+        copy.chmod(0o644)
+
+
+@pytest.mark.parametrize(
+    ("verdict", "failed"),
+    [
+        ("OK", False),
+        ("CREATE (+1 worktree copy)", False),
+        ("SKIP", False),
+        (
+            "SKIP (untyped repo whose `.mcp.json` git does not ignore — add the .gitignore line, untrack it, or type the repo)",
+            False,
+        ),
+        ("SKIP (error: PermissionError)", True),
+        (
+            "SKIP (untyped repo, and git could not say whether `.mcp.json` is ignored — never written)",
+            True,
+        ),
+        ("OK (1 unreadable)", True),
+        ("UPDATE (+2 worktree copies, 1 unwritable)", True),
+    ],
+)
+def test_failed_reads_the_verdict_only(verdict, failed):
+    """W-d095d60b: which verdicts fail the run. A repo NAME holding the error text never does (main passes the
+    verdict, not the printed line)."""
+    assert emitter._failed(verdict) is failed

@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
-  "owner": "infra",
+  "note": "split into W-d095d60b and W-f7772267",
+  "owner": "infra-3",
   "priority": 3,
   "score_reason": "pre-existing defects outside W-b29a4f40; (e) passes a secret on argv — split it out and raise it",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "needs-split"
   ],

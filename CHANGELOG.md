@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
+
+- `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a
+  settings path, so the first live batch's children could only read and plan (a fix round ended with a plan and no
+  commit). Clones now go under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`, `~` expanded), and a
+  relative root, or one under a `.claude` or `.claude-*` directory (symlinks resolved, case ignored), is refused
+  before spending; a live Haiku smoke wrote, edited and pushed. The default
+  `--timeout` rises from 3600 to 10800 s, since a re-ledger round runs past an hour and a timed-out run pushes nothing
+  (W-174b8543, W-15bb59ea).
+
+### Fixed — MCP emitter no longer puts DATABASE_URL on a command line, and exits 1 when a repo fails (2026-10-26)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::_uri_connects` handed the resolved `DATABASE_URL` (password included) to its psycopg probe child as `argv[1]`. Any local user could read it in `ps` and `/proc/<pid>/cmdline` while the probe ran, which is every emission for a repo whose ruled set includes postgres-pro and whose `.env` has a URL. The URI now goes over stdin, and the child decodes it as UTF-8.
+- The script exited 0 even when a repo's emission failed. It now exits 1 when any verdict is `_failed`:
+  - an exception (`SKIP (error: …)`)
+  - a worktree copy left unread or unwritten (`N unreadable`, `N unwritable`)
+  - git unable to say whether `.mcp.json` is ignored, which is where a mistyped `--repo` lands
+- A ruled SKIP, such as an unknown repo type or an untyped repo git does not ignore, still exits 0. A run over `/opt` on 2026-10-26 (43 repos) had no failing verdict (W-d095d60b, split from W-cd40f947).
+- Graders in `tests/test_emit_mcp_project_config.py`:
+  - `::test_the_uri_probe_hands_the_child_the_uri_and_never_its_argv` runs the real probe child against a stub psycopg that records its own cmdline.
+  - `::test_the_script_exits_1_when_a_repo_or_a_copy_fails_and_0_on_a_ruled_skip` runs the script as a process.
+  - `::test_failed_reads_the_verdict_only` covers which verdicts fail.
+  - Each went red on its mutant in a throwaway worktree: the probe back on argv, `__main__` ignoring the exit code, `_failed` blind to copy failures.
+
 ### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
 
 - W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In
@@ -26,6 +50,10 @@ All notable changes to this project will be documented in this file.
   an unreadable `project.yaml` is an unknown type, a warning, never a crash.
 - Live: 8/8 account `.claude.json` files and 44/44 /opt git repos carry `rea`; rn-kit-sandbox, image-generation and
   fabrik-dr-store got their first `.mcp.json`.
+### Fixed — a vanished `rule:`/`duplicate-of:` label must be carried by the entries it names (D-1258) (2026-10-26)
+
+- `commands/command_rules.py`: a vanished baseline line labelled onto entries is now proven — by a lintable named entry whose baseline is that line, or else by the D-1236 lints A, B and D over the named entries' pooled phrases and sections — and each failure is a LOSS `baseline L<n> vanished as rule [ids] — lint <X>`; until now any live id passed. Graders in `tests/test_command_rules.py` (two old pins that accepted an unrelated rule label now expect the LOSS); `docs/reference/command-corpus-check.md` states the rule. W-34d76a7a.
+
 ### Added — the `provenance` clause label in the rule ledgers (D-1255, D-1256) (2026-10-26)
 
 - `commands/command_rules.py`: a clause labelled `provenance` is measured by lint B without its parentheticals of ids alone (D-row, W-item, ISO date, SHA, `§` pointer); the label is refused on a ban clause and on a clause with no such parenthetical, and `summary()` prints the provenance count. See the **Ledger lints** bullet of `docs/reference/command-corpus-check.md` (W-0c38115e).
@@ -41,7 +69,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added — the API-key write lane: disposable writers on the prepaid keys (2026-10-26)
 
-`scripts/api_write.py run` takes a cloud-dispatch brief (`--slug` + `--task-file` [+ `--base`, `--gate`], or a `--batch` of `{"slug", "task_file", "base", "gates"}`) and runs it with `claude -p --safe-mode --restricted --permission-mode dontAsk` on an API key with Read, Edit, Write, Glob and Grep only, plus `Bash(<gate>)` per exact gate string (D-1251; a glob over a command's options was shown to admit `--basetemp`, `--output` and `-F`). The runner owns git: it checks out `claude/<slug>` at `origin/<base>` in a plain local clone of the main checkout under `<state>/api-write/<run>/`, and after a clean exit refuses a clone whose `.git/config` changed, commits the edits as one trailered commit with hooks and fsmonitor off, refuses a diff holding a key, and pushes the explicit refspec to the captured URL (never forced). Every outcome after the start row settles in `api-credit.jsonl` under the same $200-per-key cap (`lane: write`); the clone is deleted. `--jobs` runs a batch in parallel and `--pick` spreads it across the keys; an existing `origin` branch or a missing base refuses before spending, and a timeout kills the child's whole process group. `api_credit.py` gains `main_checkout()`, `reserve()` and a pre-flight that takes the lane's argv and tool set; its behaviour is unchanged. Docs: `docs/workstation/api-credit.md` § The write lane (D-1247, W-174b8543).
+`scripts/api_write.py run` takes a cloud-dispatch brief (`--slug` + `--task-file` [+ `--base`, `--gate`], or a `--batch` of `{"slug", "task_file", "base", "gates"}`) and runs it with `claude -p --safe-mode --restricted --permission-mode dontAsk` on an API key with Read, Edit, Write, Glob and Grep only, plus `Bash(<gate>)` per exact gate string (D-1251; a glob over a command's options was shown to admit `--basetemp`, `--output` and `-F`). The runner owns git: it checks out `claude/<slug>` at `origin/<base>` in a plain local clone of the main checkout under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`, see the Fixed entry above), and after a clean exit refuses a clone whose `.git/config` changed, commits the edits as one trailered commit with hooks and fsmonitor off, refuses a diff holding a key, and pushes the explicit refspec to the captured URL (never forced). Every outcome after the start row settles in `api-credit.jsonl` under the same $200-per-key cap (`lane: write`); the clone is deleted. `--jobs` runs a batch in parallel and `--pick` spreads it across the keys; an existing `origin` branch or a missing base refuses before spending, and a timeout kills the child's whole process group. `api_credit.py` gains `main_checkout()`, `reserve()` and a pre-flight that takes the lane's argv and tool set; its behaviour is unchanged. Docs: `docs/workstation/api-credit.md` § The write lane (D-1247, W-174b8543).
 
 ### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
 
