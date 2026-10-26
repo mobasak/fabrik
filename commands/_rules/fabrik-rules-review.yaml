@@ -114,18 +114,25 @@ entries:
   # class: ban
   file: render
   baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable) ¦ Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing) ¦ Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182) ¦ Canonical: `62-using-subagents.md` § Dispatch policy'
-  current: '> ⚠️ POOL OFF — D-181. Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED: run every fan-out NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher`), skip flywheel back-fills, and never write `NO-POOL:` for it (`62-using-subagents.md` § Dispatch policy)'
+  current: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07; mechanism revised by D-182). Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable): run every fan-out NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose) — same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
   text:
-  - skip flywheel back-fills, and never write `NO-POOL:` for it
-  - run every fan-out NATIVELY with Claude Task subagents
+  - Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED
+  - run every fan-out NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose) — same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)
+- id: r-pool-off-2
+  # class: ban
+  file: render
+  baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable) ¦ Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing) ¦ Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182) ¦ Canonical: `62-using-subagents.md` § Dispatch policy'
+  current: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  text:
+  - 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
 - id: r-readonly
   # class: ban
   file: render
   baseline: 'READ-ONLY — do NOT modify code, config, docs, or the rules; produce an audit only. And do NOT stop after one pass: iterate the audit until it converges (Phase 4) — the Termination contract''s closing round (a closing pass by the round-1 seats over their own slices that CONFIRMS zero new gaps, the gap list''s md5 unchanged) is the only proof the audit is complete'
-  current: READ-ONLY — do NOT modify code, config, docs, or the rules; produce an audit only. The Termination contract's closing round (Phase 4) is the only proof it is complete
+  current: READ-ONLY — do NOT modify code, config, docs, or the rules; produce an audit only. The Termination contract's closing round (Phase 4) is the only proof the audit is complete
   text:
   - READ-ONLY — do NOT modify code, config, docs, or the rules; produce an audit only
-  - The Termination contract's closing round (Phase 4) is the only proof it is complete
+  - The Termination contract's closing round (Phase 4) is the only proof the audit is complete
 - id: r-context-never-stops
   # class: prose
   file: render
@@ -137,27 +144,30 @@ entries:
   # class: prose
   file: render
   baseline: 'Where this sits vs `/fabrik-review`: every `/fabrik-review` already injects the rules floor into its finders (`scripts/review_rubric.py --changed <paths>`) — that covers the CHANGED DIFF ¦ This command is the whole-surface posture audit: every requirement of every applicable pack against the whole project, invoked deliberately (pre-release, post-adoption of a new pack, or when compliance drift is suspected) — not per-commit'
-  current: '`/fabrik-review` covers the CHANGED DIFF; this is the whole-surface posture audit of every applicable pack, invoked deliberately (pre-release, after adopting a pack, on suspected drift)'
+  current: 'Every `/fabrik-review` already injects the rules floor into its finders (`scripts/review_rubric.py --changed <paths>`) — that covers the CHANGED DIFF; this is the whole-surface posture audit: every requirement of every applicable pack against the whole project, invoked deliberately (pre-release, after adopting a pack, on suspected drift) — not per-commit'
   text:
-  - this is the whole-surface posture audit of every applicable pack, invoked deliberately
+  - Every `/fabrik-review` already injects the rules floor into its finders (`scripts/review_rubric.py --changed <paths>`) — that covers the CHANGED DIFF
+  - 'this is the whole-surface posture audit: every requirement of every applicable pack against the whole project, invoked deliberately'
+  - not per-commit
 - id: r-project-mode
   # class: ban
   file: render
   section: '### Two modes — detect which repo you are in (`git rev-parse --show-toplevel`)'
   baseline: 'PROJECT mode (any `/opt/<project>` with a `project.yaml`): audit THIS project''s code against its synced packs ¦ The packs are a read-only synced copy here (gate: `check_synced_unmodified.py`) — never edit them locally; a defect IN a pack (contradiction, false-positive, dead glob) discovered mid-audit is recorded as a finding and filed upstream via `/fabrik-upstream`, never fixed in place'
-  current: 'PROJECT mode (any `/opt/<project>` with a `project.yaml`): audit THIS project against its synced packs, a read-only synced copy (gate: `check_synced_unmodified.py`) — never edit them locally; a defect IN a pack is a finding filed upstream via `/fabrik-upstream`'
+  current: 'PROJECT mode (any `/opt/<project>` with a `project.yaml`): audit THIS project against its synced packs, a read-only synced copy (gate: `check_synced_unmodified.py`) — never edit them locally; a defect IN a pack (contradiction, false-positive, dead glob) discovered mid-audit is recorded as a finding and filed upstream via `/fabrik-upstream`, never fixed in place'
   text:
   - audit THIS project against its synced packs
-  - never edit them locally; a defect IN a pack is a finding filed upstream via `/fabrik-upstream`
+  - never edit them locally; a defect IN a pack (contradiction, false-positive, dead glob) discovered mid-audit is recorded as a finding and filed upstream via `/fabrik-upstream`, never fixed in place
 - id: r-hub-mode
   # class: prose
   file: render
   section: '### Two modes — detect which repo you are in (`git rev-parse --show-toplevel`)'
   baseline: 'HUB mode (`/opt/fabrik`): the packs THEMSELVES are the audited surface — there is no `project.yaml` here (the hub is the platform, not a scaffold type), so Phase 0''s stack/spec steps are N/A and the audit runs the blast-radius checklist below across the pack corpus (optionally scoped by `$ARGUMENTS`) ¦ Review packs harder than product code — widest blast radius in the system (every pack + every enforcement check → every project on the next sync):'
-  current: 'HUB mode (`/opt/fabrik`): the packs THEMSELVES are the audited surface; run this blast-radius checklist across the corpus (scoped by `$ARGUMENTS`), harder than product code, since every pack reaches every project on the next sync:'
+  current: 'HUB mode (`/opt/fabrik`): the packs THEMSELVES are the audited surface — there is no `project.yaml` here; run this blast-radius checklist across the corpus (optionally scoped by `$ARGUMENTS`), harder than product code — widest blast radius in the system (every pack + every enforcement check → every project on the next sync):'
   text:
-  - the packs THEMSELVES are the audited surface
-  - run this blast-radius checklist across the corpus (scoped by `$ARGUMENTS`)
+  - the packs THEMSELVES are the audited surface — there is no `project.yaml` here
+  - run this blast-radius checklist across the corpus (optionally scoped by `$ARGUMENTS`)
+  - widest blast radius in the system (every pack + every enforcement check → every project on the next sync)
 - id: r-hub-contradiction
   # class: prose
   file: render
@@ -189,36 +199,44 @@ entries:
   file: render
   baseline: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply: the hub''s own ledger + ADR record accepted deviations too)'
   text:
-  - in HUB mode steps 1–2 are N/A, steps 3–4 apply
+  - 'in HUB mode steps 1–2 are N/A, steps 3–4 apply: the hub''s own ledger + ADR record accepted deviations too'
 - id: r-stack
   # class: prose
   file: render
-  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply)'
+  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply: the hub''s own ledger + ADR record accepted deviations too)'
   baseline: Establish the real stack. Read `project.yaml::type`, then CONFIRM by grep (`package.json` vs `requirements.txt`/`pyproject.toml`, lockfiles) + the real entrypoint ¦ Labels lie; the code is truth
-  current: 'Establish the real stack: read `project.yaml::type`, CONFIRM by grep (`package.json` vs `requirements.txt`/`pyproject.toml`, lockfiles) + the real entrypoint; the code is truth'
+  current: 'Establish the real stack: read `project.yaml::type`, CONFIRM by grep (`package.json` vs `requirements.txt`/`pyproject.toml`, lockfiles) + the real entrypoint; Labels lie; the code is truth'
   text:
-  - CONFIRM by grep (`package.json` vs `requirements.txt`/`pyproject.toml`, lockfiles) + the real entrypoint; the code is truth
+  - CONFIRM by grep (`package.json` vs `requirements.txt`/`pyproject.toml`, lockfiles) + the real entrypoint; Labels lie; the code is truth
 - id: r-shape-flags
   # class: prose
   file: render
-  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply)'
+  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply: the hub''s own ledger + ADR record accepted deviations too)'
   baseline: Read the spec shape flags in `specs/services/<id>.yaml` (the live registry is `spec_loader.py::Shape` — e.g. `is_public` / `is_admin_dashboard` / `has_bearer_api` / `needs_database` / `needs_cache` / `has_persistent_data` / `has_search_feature` / `exposes_metrics`) ¦ These decide which features are INTENTIONALLY on/off — a feature that's off because its flag is false is spec-consistent, not a gap
-  current: 'Read the spec shape flags in `specs/services/<id>.yaml` (registry: `spec_loader.py::Shape`): a feature off because its flag is false is spec-consistent, not a gap'
+  current: 'Read the spec shape flags in `specs/services/<id>.yaml` (registry: `spec_loader.py::Shape` — e.g. `is_public` / `is_admin_dashboard` / `has_bearer_api` / `needs_database` / `needs_cache` / `has_persistent_data` / `has_search_feature` / `exposes_metrics`); these decide which features are INTENTIONALLY on/off — a feature off because its flag is false is spec-consistent, not a gap'
   text:
-  - a feature off because its flag is false is spec-consistent, not a gap
-  - 'registry: `spec_loader.py::Shape`'
+  - 'registry: `spec_loader.py::Shape` — e.g. `is_public` / `is_admin_dashboard` / `has_bearer_api` / `needs_database` / `needs_cache` / `has_persistent_data` / `has_search_feature` / `exposes_metrics`'
+  - these decide which features are INTENTIONALLY on/off — a feature off because its flag is false is spec-consistent, not a gap
 - id: r-adr-deviations
   # class: prose
   file: render
-  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply)'
+  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply: the hub''s own ledger + ADR record accepted deviations too)'
   baseline: 'Read the project''s ADR / architecture-decisions doc FIRST (e.g. `docs/reference/architecture-decisions.md`) AND grep `docs/DECISIONS.md` — the fleet-wide decision ledger (D-000) is the canonical decisions store, and a deviation accepted by a ledger row is exactly as deliberate as an ADR-accepted one ¦ The packs assume a particular stack (language, framework, DB, migration tool, id scheme); wherever the ADR or a ledger row records this project deliberately differs, that mismatch is an accepted deliberate decision, NOT a gap — and the same holds for ANY deviation either accepts (stack-shaped or not: a decided no-audit-log, no-`/metrics`, single-tenant)'
-  current: 'Read the project''s ADR doc FIRST (e.g. `docs/reference/architecture-decisions.md`) AND grep `docs/DECISIONS.md`: a deviation accepted by a ledger row is as deliberate as an ADR-accepted one, stack-shaped or not (a decided no-audit-log, no-`/metrics`, single-tenant)'
+  current: Read the project's ADR doc FIRST (e.g. `docs/reference/architecture-decisions.md`) AND grep `docs/DECISIONS.md` — the fleet-wide decision ledger (D-000) is the canonical decisions store, and a deviation accepted by a ledger row is exactly as deliberate as an ADR-accepted one
   text:
-  - a deviation accepted by a ledger row is as deliberate as an ADR-accepted one
+  - the fleet-wide decision ledger (D-000) is the canonical decisions store, and a deviation accepted by a ledger row is exactly as deliberate as an ADR-accepted one
+- id: r-adr-deviations-2
+  # class: prose
+  file: render
+  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply: the hub''s own ledger + ADR record accepted deviations too)'
+  baseline: 'Read the project''s ADR / architecture-decisions doc FIRST (e.g. `docs/reference/architecture-decisions.md`) AND grep `docs/DECISIONS.md` — the fleet-wide decision ledger (D-000) is the canonical decisions store, and a deviation accepted by a ledger row is exactly as deliberate as an ADR-accepted one ¦ The packs assume a particular stack (language, framework, DB, migration tool, id scheme); wherever the ADR or a ledger row records this project deliberately differs, that mismatch is an accepted deliberate decision, NOT a gap — and the same holds for ANY deviation either accepts (stack-shaped or not: a decided no-audit-log, no-`/metrics`, single-tenant)'
+  current: 'The packs assume a particular stack (language, framework, DB, migration tool, id scheme); wherever the ADR or a ledger row records this project deliberately differs, that mismatch is an accepted deliberate decision, NOT a gap — and the same holds for ANY deviation either accepts (stack-shaped or not: a decided no-audit-log, no-`/metrics`, single-tenant)'
+  text:
+  - The packs assume a particular stack (language, framework, DB, migration tool, id scheme); wherever the ADR or a ledger row records this project deliberately differs, that mismatch is an accepted deliberate decision, NOT a gap
 - id: r-capture-deviations
   # class: prose
   file: render
-  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply)'
+  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply: the hub''s own ledger + ADR record accepted deviations too)'
   baseline: Capture the accepted-deviation list before auditing anything
   current: Capture the accepted-deviation list before auditing anything
   text:
@@ -226,12 +244,20 @@ entries:
 - id: r-arguments-scope
   # class: prose
   file: render
-  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply)'
+  section: '## Phase 0 — Ground truth (never trust labels; PROJECT mode — in HUB mode steps 1–2 are N/A, steps 3–4 apply: the hub''s own ledger + ADR record accepted deviations too)'
   baseline: 'If an argument was given, scope the audit to it: `$ARGUMENTS` (a specific pack or rules subdir) ¦ Otherwise audit all applicable packs'
   current: 'If an argument was given, scope the audit to it: `$ARGUMENTS` (a pack or rules subdir); otherwise audit all applicable packs'
   text:
   - 'scope the audit to it: `$ARGUMENTS` (a pack or rules subdir); otherwise audit all applicable packs'
 - id: r-which-packs
+  # class: prose
+  file: render
+  section: '## Phase 1 — Which packs apply'
+  baseline: List `.windsurf/rules/**/*.md` (core + any subdir packs matching this scaffold) ¦ For each, read its frontmatter `globs:` and any "Per-Scaffold Applicability / Observability Matrix" to decide if it applies to THIS scaffold + stack ¦ SKIP non-applicable packs (e.g. mobile / chrome / docusaurus / file-api / gpu-workers / rag / payments / email) unless the code actually uses them ¦ STATE which you skipped and why
+  current: Read each `.windsurf/rules/**/*.md` pack's frontmatter `globs:` and any "Per-Scaffold Applicability / Observability Matrix" to decide if it applies to THIS scaffold + stack
+  text:
+  - any "Per-Scaffold Applicability / Observability Matrix" to decide if it applies to THIS scaffold + stack
+- id: r-which-packs-2
   # class: prose
   file: render
   section: '## Phase 1 — Which packs apply'
@@ -244,27 +270,36 @@ entries:
   file: render
   section: '## Phase 2 — Audit each applicable pack (parallel native fan-out)'
   baseline: 'The packs are independent, so this step MUST fan out — sized, stamped and closed at THIS point (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <packs>` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, Phase 4''s `round --seats <n>` closes; the recipe in § Subagents below is the same one) — one native `fabrik-reviewer` seat (Sonnet) per applicable pack, in parallel; Opus for any pack whose subject is authoritative/high-risk (auth, schema, migrations, secrets, concurrency) ¦ The pool form is kept below for re-enable (D-181):'
-  current: The packs are independent, so this step MUST fan out — sized and stamped at THIS point (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <packs>` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, Phase 4's `round --seats <n>` closes) — one native `fabrik-reviewer` seat (Sonnet) per applicable pack, in parallel; Opus for any pack whose subject is authoritative/high-risk (auth, schema, migrations, secrets, concurrency)
+  current: The packs are independent, so this step MUST fan out — sized, stamped and closed at THIS point (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <packs>` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, Phase 4's `round --seats <n>` closes; the recipe in § Subagents below is the same one) — one native `fabrik-reviewer` seat (Sonnet) per applicable pack, in parallel; Opus for any pack whose subject is authoritative/high-risk (auth, schema, migrations, secrets, concurrency)
   text:
   - this step MUST fan out
   - '`python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out'
+  - the recipe in § Subagents below is the same one
   - one native `fabrik-reviewer` seat (Sonnet) per applicable pack, in parallel; Opus for any pack whose subject is authoritative/high-risk (auth, schema, migrations, secrets, concurrency)
+- id: r-fanout-2
+  # class: prose
+  file: render
+  section: '## Phase 2 — Audit each applicable pack (parallel native fan-out)'
+  baseline: 'The packs are independent, so this step MUST fan out — sized, stamped and closed at THIS point (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <packs>` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, Phase 4''s `round --seats <n>` closes; the recipe in § Subagents below is the same one) — one native `fabrik-reviewer` seat (Sonnet) per applicable pack, in parallel; Opus for any pack whose subject is authoritative/high-risk (auth, schema, migrations, secrets, concurrency) ¦ The pool form is kept below for re-enable (D-181):'
+  current: 'The pool form is kept below for re-enable (D-181):'
+  text:
+  - 'The pool form is kept below for re-enable (D-181):'
 - id: r-finder-inputs
   # class: prose
   file: render
   section: '## Phase 2 — Audit each applicable pack (parallel native fan-out)'
   baseline: 'Division of labor — read_only units cannot touch the filesystem, so build their prompts accordingly: each unit''s prompt inlines its pack''s text + the Phase-0 ground truth + the RELEVANT CODE EXCERPTS you (the orchestrator) select for that pack''s subject (grep-driven — config files, the entrypoint, the modules the pack governs) ¦ Give each finder ONLY its pack + the Phase-0 ground truth (stack, spec flags, accepted deviations) + its selected excerpts — nothing else, so its verdicts are grounded, not guessed'
-  current: 'Give each finder ONLY its pack + the Phase-0 ground truth + the RELEVANT CODE EXCERPTS you select for that pack''s subject (grep-driven). Secrets carve-out: never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt —, `secrets/`, key files) into any seat''s excerpts; redact an unavoidable config excerpt first'
+  current: 'Give each finder ONLY its pack + the Phase-0 ground truth (stack, spec flags, accepted deviations) + the RELEVANT CODE EXCERPTS you select for that pack''s subject (grep-driven — config files, the entrypoint, the modules the pack governs) — nothing else, so its verdicts are grounded, not guessed. Secrets carve-out (mirrors `/fabrik-repo-review`): never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt, it carries names only — `secrets/`, key files) into a POOL unit''s excerpts — a pack whose audit needs those files gets the NATIVE finder, and an unavoidable config excerpt is redacted first; secret contents never go to pool APIs'
   text:
-  - Give each finder ONLY its pack + the Phase-0 ground truth + the RELEVANT CODE EXCERPTS you select for that pack's subject
+  - Give each finder ONLY its pack + the Phase-0 ground truth (stack, spec flags, accepted deviations) + the RELEVANT CODE EXCERPTS you select for that pack's subject (grep-driven — config files, the entrypoint, the modules the pack governs) — nothing else, so its verdicts are grounded, not guessed
 - id: r-secrets-carveout
   # class: ban
   file: render
   section: '## Phase 2 — Audit each applicable pack (parallel native fan-out)'
   baseline: 'Secrets carve-out (mirrors `/fabrik-repo-review`): never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt, it carries names only — `secrets/`, key files) into a POOL unit''s excerpts — a pack whose audit needs those files gets the NATIVE finder, and an unavoidable config excerpt is redacted first; secret contents never go to pool APIs. The unit then:'
-  current: 'Give each finder ONLY its pack + the Phase-0 ground truth + the RELEVANT CODE EXCERPTS you select for that pack''s subject (grep-driven). Secrets carve-out: never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt —, `secrets/`, key files) into any seat''s excerpts; redact an unavoidable config excerpt first'
+  current: 'Give each finder ONLY its pack + the Phase-0 ground truth (stack, spec flags, accepted deviations) + the RELEVANT CODE EXCERPTS you select for that pack''s subject (grep-driven — config files, the entrypoint, the modules the pack governs) — nothing else, so its verdicts are grounded, not guessed. Secrets carve-out (mirrors `/fabrik-repo-review`): never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt, it carries names only — `secrets/`, key files) into a POOL unit''s excerpts — a pack whose audit needs those files gets the NATIVE finder, and an unavoidable config excerpt is redacted first; secret contents never go to pool APIs'
   text:
-  - never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt —, `secrets/`, key files) into any seat's excerpts; redact an unavoidable config excerpt first
+  - never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt, it carries names only — `secrets/`, key files) into a POOL unit's excerpts — a pack whose audit needs those files gets the NATIVE finder, and an unavoidable config excerpt is redacted first; secret contents never go to pool APIs
 - id: r-finder-judges
   # class: prose
   file: render
@@ -279,17 +314,17 @@ entries:
   file: render
   section: '## Phase 2 — Audit each applicable pack (parallel native fan-out)'
   baseline: ❌ GAP — applicable + not met ¦ Note (a) spec-consistency (e.g. no `/metrics` because `exposes_metrics:false` → not a gap), (b) severity, (c) where it's already tracked (the project's resilience/backlog/plan docs, e.g. `RESILIENCE.md`, `STRATEGIC_BACKLOG.md`, `docs/development/plans/*`)
-  current: ❌ GAP — applicable + not met, with spec-consistency, severity, and where it is already tracked (`RESILIENCE.md`, `STRATEGIC_BACKLOG.md`, `docs/development/plans/*`)
+  current: ❌ GAP — applicable + not met, with spec-consistency (e.g. no `/metrics` because `exposes_metrics:false` → not a gap), severity, and where it is already tracked (`RESILIENCE.md`, `STRATEGIC_BACKLOG.md`, `docs/development/plans/*`).
   text:
-  - ❌ GAP — applicable + not met, with spec-consistency, severity, and where it is already tracked
+  - ❌ GAP — applicable + not met, with spec-consistency (e.g. no `/metrics` because `exposes_metrics:false` → not a gap), severity, and where it is already tracked
 - id: r-hub-finder
   # class: prose
   file: render
   section: '## Phase 2 — Audit each applicable pack (parallel native fan-out)'
   baseline: 'HUB mode: the per-pack unit''s requirement list IS the blast-radius checklist from the mode section (contradiction with sibling packs, backward-compatibility, false-positive risk on mandated patterns, glob reach) — judged against the pack''s own text + the sibling packs you inline + `python scripts/select_rules.py` output, since there is no project code to audit'
-  current: 'HUB mode: the per-pack requirement list IS the blast-radius checklist, judged against the pack''s text + the sibling packs you inline + `python scripts/select_rules.py` output'
+  current: 'HUB mode: the per-pack requirement list IS the blast-radius checklist (contradiction with sibling packs, backward-compatibility, false-positive risk on mandated patterns, glob reach), judged against the pack''s text + the sibling packs you inline + `python scripts/select_rules.py` output'
   text:
-  - the per-pack requirement list IS the blast-radius checklist
+  - the per-pack requirement list IS the blast-radius checklist (contradiction with sibling packs, backward-compatibility, false-positive risk on mandated patterns, glob reach)
 - id: r-merge-dedupe
   # class: prose
   file: render
@@ -312,24 +347,24 @@ entries:
   file: render
   section: '## Phase 3 — Merge + refute (kill false gaps)'
   baseline: 'Then adversarially try to REFUTE every ❌ GAP before it reaches the table: is it actually ADR-accepted (cite the ADR line) or spec-consistent-off (cite the shape flag)? ¦ If so, reclassify it as 🟡 DEVIATION ¦ Only gaps that survive this refutation are real'
-  current: 'Then try to REFUTE every ❌ GAP: ADR-accepted (cite the ADR line) or spec-consistent-off (cite the shape flag) reclassifies it as 🟡 DEVIATION; only survivors are real'
+  current: 'Then adversarially try to REFUTE every ❌ GAP before it reaches the table: ADR-accepted (cite the ADR line) or spec-consistent-off (cite the shape flag) reclassifies it as 🟡 DEVIATION; only gaps that survive this refutation are real.'
   text:
-  - try to REFUTE every ❌ GAP
-  - reclassifies it as 🟡 DEVIATION; only survivors are real
+  - adversarially try to REFUTE every ❌ GAP before it reaches the table
+  - reclassifies it as 🟡 DEVIATION; only gaps that survive this refutation are real
 - id: r-compliant-spotcheck
   # class: prose
   file: render
   section: '## Phase 3 — Merge + refute (kill false gaps)'
   baseline: Equally, do not let a finder's ✅ COMPLIANT stand without a `path:line` you spot-checked
-  current: No ✅ COMPLIANT stands without a `path:line` you spot-checked
+  current: Equally, do not let a finder's ✅ COMPLIANT stand without a `path:line` you spot-checked.
   text:
-  - No ✅ COMPLIANT stands without a `path:line` you spot-checked
+  - do not let a finder's ✅ COMPLIANT stand without a `path:line` you spot-checked
 - id: r-no-single-pass
   # class: behavioural
   file: render
   section: '## Phase 4 — Iterate to the closing round, then output'
   baseline: 'Do not stop after one pass. Re-run the fan-out + merge/refute (Phases 2–3) until a full pass is the Termination contract''s closing round: the round-1 seats, over their own slices, CONFIRMING no NEW gap and reclassifies none — `confirmed: 0`, the gap list''s md5 unchanged'
-  current: 'Do not stop after one pass. Re-run Phases 2–3 until a pass is the Termination contract''s closing round: the round-1 seats, over their own slices, CONFIRMING no NEW gap and reclassifying none — `confirmed: 0`, the gap list''s md5 unchanged'
+  current: 'Do not stop after one pass. Re-run the fan-out + merge/refute (Phases 2–3) until a full pass is the Termination contract''s closing round: the round-1 seats, over their own slices, CONFIRMING no NEW gap and reclassifying none — `confirmed: 0`, the gap list''s md5 unchanged.'
   text:
   - Do not stop after one pass
 - id: r-closing-round
@@ -337,17 +372,19 @@ entries:
   file: render
   section: '## Phase 4 — Iterate to the closing round, then output'
   baseline: 'Do not stop after one pass. Re-run the fan-out + merge/refute (Phases 2–3) until a full pass is the Termination contract''s closing round: the round-1 seats, over their own slices, CONFIRMING no NEW gap and reclassifies none — `confirmed: 0`, the gap list''s md5 unchanged'
-  current: 'Do not stop after one pass. Re-run Phases 2–3 until a pass is the Termination contract''s closing round: the round-1 seats, over their own slices, CONFIRMING no NEW gap and reclassifying none — `confirmed: 0`, the gap list''s md5 unchanged'
+  current: 'Do not stop after one pass. Re-run the fan-out + merge/refute (Phases 2–3) until a full pass is the Termination contract''s closing round: the round-1 seats, over their own slices, CONFIRMING no NEW gap and reclassifying none — `confirmed: 0`, the gap list''s md5 unchanged.'
   text:
+  - Re-run the fan-out + merge/refute (Phases 2–3) until a full pass is the Termination contract's closing round
   - 'the round-1 seats, over their own slices, CONFIRMING no NEW gap and reclassifying none — `confirmed: 0`, the gap list''s md5 unchanged'
 - id: r-changed-list-not-last
   # class: prose
   file: render
   section: '## Phase 4 — Iterate to the closing round, then output'
   baseline: The pass in which the list *changed* is never the last; run one more, and if anything is added, removed, or reclassified, keep going ¦ A single pass, or "I think I caught them all," is not convergence — the stable (identical-to-prior) pass is
-  current: A pass that changed the list is never the last; only the identical-to-prior pass is convergence
+  current: A pass that changed the list is never the last; A single pass, or "I think I caught them all," is not convergence — only the identical-to-prior pass is.
   text:
-  - A pass that changed the list is never the last; only the identical-to-prior pass is convergence
+  - A pass that changed the list is never the last
+  - A single pass, or "I think I caught them all," is not convergence — only the identical-to-prior pass is
 - id: r-converges-not-fixes
   # class: prose
   file: render
@@ -361,18 +398,27 @@ entries:
   file: render
   section: '## Phase 4 — Iterate to the closing round, then output'
   baseline: 'Record each pass in the run record: `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>` — where `--findings` is raw recall and `--confirmed <n>` counts gaps that HELD (NEW or RECLASSIFIED this pass, executed against `path:line`); never the standing gap-table size: a standing gap re-listed by a later pass is CITED, not counted (D-206), so the closing pass honestly records `--confirmed 0` and the TERMINAL verdict is reachable while real gaps stand — the round ledger is what proves the stable pass, and it is this command''s persisted trace: the audit itself is deliberately chat-only (the GAP table lands in the final response for the operator to fold into a plan; a READ-ONLY command writes no artifact), so a run whose rounds are unrecorded has no evidence it converged'
-  current: 'Record each pass: `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>` — `--findings` is raw recall; `--confirmed <n>` counts gaps that HELD (NEW or RECLASSIFIED this pass, executed against `path:line`), never the standing gap-table size: a re-listed standing gap is CITED, not counted (D-206), so the closing pass records `--confirmed 0`'
+  current: 'Record each pass: `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>` — `--findings` is raw recall; `--confirmed <n>` counts gaps that HELD (NEW or RECLASSIFIED this pass, executed against `path:line`), never the standing gap-table size: a re-listed standing gap is CITED, not counted (D-206), so the closing pass honestly records `--confirmed 0` and the TERMINAL verdict is reachable while real gaps stand'
   text:
   - '`python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>`'
   - 'never the standing gap-table size: a re-listed standing gap is CITED, not counted (D-206)'
+  - so the closing pass honestly records `--confirmed 0` and the TERMINAL verdict is reachable while real gaps stand
+- id: r-record-round-2
+  # class: grammar
+  file: render
+  section: '## Phase 4 — Iterate to the closing round, then output'
+  baseline: 'Record each pass in the run record: `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>` — where `--findings` is raw recall and `--confirmed <n>` counts gaps that HELD (NEW or RECLASSIFIED this pass, executed against `path:line`); never the standing gap-table size: a standing gap re-listed by a later pass is CITED, not counted (D-206), so the closing pass honestly records `--confirmed 0` and the TERMINAL verdict is reachable while real gaps stand — the round ledger is what proves the stable pass, and it is this command''s persisted trace: the audit itself is deliberately chat-only (the GAP table lands in the final response for the operator to fold into a plan; a READ-ONLY command writes no artifact), so a run whose rounds are unrecorded has no evidence it converged'
+  current: 'The round ledger is this command''s persisted trace: the audit itself is deliberately chat-only (the GAP table lands in the final response; a READ-ONLY command writes no artifact), so a run whose rounds are unrecorded has no evidence it converged'
+  text:
+  - a READ-ONLY command writes no artifact), so a run whose rounds are unrecorded has no evidence it converged
 - id: r-run-next-pass-unprompted
   # class: prose
   file: render
   section: '## Phase 4 — Iterate to the closing round, then output'
   baseline: 'Run that next pass UNPROMPTED — the moment a pass adds/removes/reclassifies anything you owe it, automatically. Never wait to be asked *"did the audit stabilize?"*; the obligation is yours and predates any challenge — reframing your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge ¦ Three thoughts that each mean run the next pass now: *"I already audited that pack,"* *"only one item moved,"* *"it''s obviously stable."* Only the identical-to-prior pass is convergence'
-  current: Run the next pass UNPROMPTED the moment a pass adds, removes or reclassifies anything — never wait to be asked whether the audit stabilized
+  current: Run the next pass UNPROMPTED the moment a pass adds, removes or reclassifies anything — never wait to be asked *"did the audit stabilize?"*; the obligation is yours and predates any challenge — reframing your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge.
   text:
-  - never wait to be asked whether the audit stabilized
+  - never wait to be asked *"did the audit stabilize?"*; the obligation is yours and predates any challenge — reframing your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge
 - id: r-denial-thoughts
   # class: prose
   file: render
@@ -386,9 +432,9 @@ entries:
   file: render
   section: '## Phase 4 — Iterate to the closing round, then output'
   baseline: A short "Deliberate deviations (not gaps)" list (each with its ADR/spec citation)
-  current: A "Deliberate deviations (not gaps)" list with ADR/spec citations
+  current: A "Deliberate deviations (not gaps)" list (each with its ADR/spec citation).
   text:
-  - '"Deliberate deviations (not gaps)" list with ADR/spec citations'
+  - '"Deliberate deviations (not gaps)" list (each with its ADR/spec citation)'
 - id: r-out-compliant
   # class: prose
   file: render
@@ -402,17 +448,18 @@ entries:
   file: render
   section: '## Phase 4 — Iterate to the closing round, then output'
   baseline: 'Pack-defect findings (PROJECT mode): anything wrong with a PACK itself → a `/fabrik-upstream` proposal, never a local edit'
-  current: 'Pack-defect findings (PROJECT mode): a `/fabrik-upstream` proposal, never a local edit'
+  current: 'Pack-defect findings (PROJECT mode): anything wrong with a PACK itself → a `/fabrik-upstream` proposal, never a local edit'
   text:
-  - a `/fabrik-upstream` proposal, never a local edit
+  - anything wrong with a PACK itself → a `/fabrik-upstream` proposal, never a local edit
 - id: r-out-honesty
   # class: prose
   file: render
   section: '## Phase 4 — Iterate to the closing round, then output'
   baseline: 'Honesty rules: don''t claim full compliance without embedded proof; don''t invent gaps; mark volatile/uncertain items as such; new/unverifiable behavior gets a residual-risk note'
-  current: 'Honesty rules: no full-compliance claim without embedded proof; don''t invent gaps; mark uncertain items; new/unverifiable behavior gets a residual-risk note'
+  current: 'Honesty rules: no full-compliance claim without embedded proof; don''t invent gaps; mark volatile/uncertain items as such; new/unverifiable behavior gets a residual-risk note.'
   text:
   - no full-compliance claim without embedded proof; don't invent gaps
+  - mark volatile/uncertain items as such
   - new/unverifiable behavior gets a residual-risk note
 - id: r-out-close
   # class: ban
@@ -447,16 +494,16 @@ vanished:
   L29: {rule: [r-shape-flags]}
   L30: {rule: [r-shape-flags]}
   L31: {rule: [r-adr-deviations]}
-  L32: {rule: [r-adr-deviations]}
+  L32: {rule: [r-adr-deviations, r-adr-deviations-2]}
   L33: {rule: [r-capture-deviations]}
   L34: {rule: [r-arguments-scope]}
   L35: {rule: [r-arguments-scope]}
-  L37: {rule: [r-which-packs]}
+  L37: {rule: [r-which-packs, r-which-packs-2]}
   L38: {rule: [r-which-packs]}
   L39: {rule: [r-which-packs]}
   L40: {rule: [r-which-packs]}
   L43: {rule: [r-fanout]}
-  L44: {rule: [r-fanout]}
+  L44: {rule: [r-fanout-2]}
   L45: {rule: [r-finder-inputs]}
   L46: {rule: [r-secrets-carveout]}
   L47: {rule: [r-finder-judges]}
@@ -475,7 +522,7 @@ vanished:
   L66: {rule: [r-changed-list-not-last]}
   L67: {rule: [r-changed-list-not-last]}
   L68: {rule: [r-converges-not-fixes]}
-  L69: {rule: [r-record-round]}
+  L69: {rule: [r-record-round, r-record-round-2]}
   L70: {rule: [r-run-next-pass-unprompted]}
   L71: {rule: [r-run-next-pass-unprompted, r-denial-thoughts]}
   L74: {rule: [r-out-deviations]}
