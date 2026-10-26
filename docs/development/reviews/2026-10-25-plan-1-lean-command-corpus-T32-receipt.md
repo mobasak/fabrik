@@ -153,3 +153,30 @@ COUNTS: 553 entries read / 187 reworded / 0 weaker (pass-2 findings above either
 
 - `tests/test_command_rules.py -rP`: `LEDGER fabrik-vision.yaml: 553 entries · classes {'ban': 107, 'prose': 446} · vanished {'duplicate-of': 25, 'narrative': 15, 'rule': 187}`; zero LOSS lines for it. `test_the_live_corpus_has_no_loss` is red only on the `_shared/*.yaml` LOSS lines (T01d's unit, ordered ignored).
 - Reader-test run (38 files, 2242 tests): start commit `origin/claude/lean-t32-fix` 25 failed; end 39 failed. The 14 new reds are all `--check` exit-code asserts that the `_shared` LOSS (exit 4) trips: 11 in `test_assemble_dispatch_step.py`, `test_command_measure.py::test_check_exit_order_loss_then_ceiling_then_drift`, `test_command_rules.py::test_the_live_corpus_has_no_loss`, `test_vision_reads_work_stores.py::test_assemble_commands_check_renders_cleanly_in_an_empty_home`. None touches this ticket's text; they clear when T01d lands. The other 25 are the box-only start set.
+
+## Fix round 2 (hub audit) — `claude/lean-t32-rl-fixc`
+
+Task `lean-t32-rl-fixc`, on `claude/lean-t32-rl`. The two hub audits (Sonnet 15 findings, Haiku 16) overlapped into 31 distinct items; I checked each against the before-text.
+
+**Findings: 31 confirmed, 0 refuted.** Restored in source and ledger:
+- The three `markdown` fences (Project Snapshot, NEW and EXISTING Vision Summary) and the `bash` lock-header fence, word for word from the baseline. The EXISTING fence, with its Compliance Report example rows and `Open Questions` / `Out of Scope` lines, is back as a fence instead of bullets.
+- Phase 5 Acceptance (both modes, NEW adds, EXISTING adds) in full, including both rivals-gate outcomes, `Silence ≠ confirmation` at N-1, Phase 4 and Acceptance.
+- Constraint 19 trigger and non-trigger examples. The wrong `narrative` labels on them (L318/L319), and on L56, L60, L598, L47-L49 and L340, are replaced by `rule` carriers; L45 and L39 are now carried by restored text instead of a false `duplicate-of`.
+- `Role`, `Agreed outputs, NEW`, `Core principles` (goal, Planning SLOW, Execution FAST), the `$10/month`/2-weeks rule, the CI/CD sentence, `Produces a fresh Vision Summary`, the Phase 2 auto-load list, Path A numbering and Path B lead-in, 12F rationale (L94/L96), the responsive owner-exception examples, the L144 `302` clause, `politely accepting it`, `left in place`, `BEFORE any live research`, and `Blindly accept research`.
+- Added by the fresh passes below: `features total` bands, `Enhance ≠ silent fork`, the two-env `Binds` qualifier, `vision-level` mandates, the filter examples (`Stripe`, `Pinecone`, OpenAI SDK), `Owner says NEW/EXISTING`, the `fabrik audit-registrars` auto-load purpose, and the acting-set bullets for `repo-first` and EXISTING research files. The pre-flight paragraph is again outside the lifecycle list, and the persisted-lock sentence is out of the Acting set.
+
+**Not restored byte for byte.** 15 fence lines lack their `**` markers (Target host, Background processing, Other locked choices, Notifications, the Watchdog `accept-defaults` lines, `Domain structure`, the `wordpress` line, `#19`, the `i18n missing` row). The loader normalises emphasis inside a fenced block differently from a phrase, so a carrier cannot hold a clause split by a bold marker (D-1240 coverage). I stripped only those lines. This is a loader limitation to report upstream.
+
+**Own-text words:** baseline 13442 → re-ledger 12229 (91.0%) → now 13202 (98.2%).
+
+**Per-file floor table (own text over 50%):**
+
+| file | baseline | now | share | why it cannot go lower |
+|---|---|---|---|---|
+| `fabrik-vision.md` | 13442 | 13202 | 98.2% | the audits showed the re-ledger's 91% cut rules; the restored text is fences, tables, ban clauses and Acceptance conditions that D-1236/D-1240 require verbatim or at 100% of anchors |
+
+**Gates:** `tests/test_command_rules.py -rP`: `LEDGER fabrik-vision.yaml: 581 entries`, zero LOSS lines for this ledger (the one failing test is `_shared/*.yaml` LOSS, another unit's). `assemble_commands.py --check`: exit 4, only MISSING-install drift and `_shared` LOSS. Master's `command_rules.py`, `tests/test_command_rules.py` and `docs/reference/command-corpus-check.md` were used for the gates and left out of the commits.
+
+**Self-audit by fresh readers:** seven fresh subagents ran, one per pass, each given only the baseline, the rewrite and the ledger. Findings per pass: 5, 3, 9 (stale carriers), 12, 4, 1 and then none. Every finding was fixed and the gates re-run before the next pass. The first pass also caught that the persisted-lock sentence had been moved into the Acting set.
+
+COUNTS: entries read 581 / reworded 187 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 — fresh pass 7 of 7, VERDICT: CLEAN.
