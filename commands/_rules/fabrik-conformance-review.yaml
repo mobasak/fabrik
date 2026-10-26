@@ -167,35 +167,35 @@ entries:
 - id: intro-epic
   file: render
   baseline: ONE epic (the argument names its spec) is this same sweep scoped to that epic's spec↔plan pair, with `/fabrik-review` on the diffs it finds wanting — the corpus has no separate per-epic validator
-  current: ONE epic (the argument names its spec) is this same sweep scoped to that epic's spec↔plan pair
+  current: ONE epic (the argument names its spec) is this same sweep scoped to that epic's spec↔plan pair, with `/fabrik-review` on the diffs it finds wanting — the corpus has no separate per-epic validator
   text:
   - ONE epic (the argument names its spec) is this same sweep scoped to that epic's spec↔plan pair
 # class: ban; reworded from baseline L10,11
 - id: layout-ban
   file: render
   baseline: '⚠️ Do not hardcode the layout. Measured across five live projects 2026-08-23: specs sit at `docs/superpowers/specs/**` in 4 of 5 (one had none at all); plans at `docs/development/plans/**` in all 5 but in TWO shapes — flat `YYYY-MM-DD-plan-N-<slug>.md` and dated plan-SET directories (a same-stem spine + `T##<slug>.md` tickets, which are ONE artifact, not N); `PLANS.md` exists in only 1 of 5, so pairing must never depend on it; archived plans under `docs/archive/**` exist in some projects and not others; and only 9 of 22 specs carried a parseable `Status:` line'
-  current: 'Do not hardcode the layout: glob first, then pair, and record what you found, including "this project has no specs"'
+  current: 'Do not hardcode the layout: glob first, then pair'
   text:
-  - 'Do not hardcode the layout: glob first, then pair, and record what you found, including "this project has no specs"'
+  - 'Do not hardcode the layout: glob first, then pair'
 # class: prose; reworded from baseline L12,13
 - id: enumerate
   file: render
   baseline: Enumerate every spec and every plan (active + archived + epics if present)
-  current: Enumerate every spec and plan (active + archived + epics); a plan-set directory is ONE row
+  current: Enumerate every spec and every plan (active + archived + epics if present)
   text:
-  - Enumerate every spec and plan (active + archived + epics); a plan-set directory is ONE row
+  - Enumerate every spec and every plan (active + archived + epics if present)
 # class: prose; reworded from baseline L14,16
 - id: pair
   file: render
   baseline: Pair spec ↔ plan by explicit reference first (a plan naming its spec, a spec naming its plan), then by slug/date proximity
-  current: Pair spec ↔ plan by explicit reference first, then by slug/date proximity
+  current: Pair spec ↔ plan by explicit reference first (a plan naming its spec, a spec naming its plan), then by slug/date proximity
   text:
-  - Pair spec ↔ plan by explicit reference first, then by slug/date proximity
+  - Pair spec ↔ plan by explicit reference first (a plan naming its spec, a spec naming its plan), then by slug/date proximity
 # class: prose; reworded from baseline L14,16
 - id: pair-2
   file: render
   baseline: Pair spec ↔ plan by explicit reference first (a plan naming its spec, a spec naming its plan), then by slug/date proximity
-  current: A plan with no spec gets its OWN row
+  current: A plan with no spec gets its OWN row, and is not second-class
   text:
   - A plan with no spec gets its OWN row
 # class: prose; reworded from baseline L17; # clauses: An era excluded silently is indistinguishable from one that was missed (reason)
@@ -223,37 +223,37 @@ entries:
 - id: surface
   file: render
   baseline: a `Surface:` line — `git rev-parse HEAD` + a hash of the enumerated inventory
-  current: a `Surface:` line — `git rev-parse HEAD` + a hash of the enumerated inventory; the inventory IS the surface, and re-running against an unchanged one is a re-adjudication, not a fresh sweep
+  current: a `Surface:` line — `git rev-parse HEAD` + a hash of the enumerated inventory; this surface is not a diff, so there is no `git diff | md5sum` to take; the inventory IS the surface, and re-running against an unchanged one is a re-adjudication, not a fresh sweep
   text:
   - a **`Surface:` line** — `git rev-parse HEAD` + a hash of the enumerated inventory
 # class: grammar; reworded from baseline L21,22
 - id: surface-2
   file: render
   baseline: a `Surface:` line — `git rev-parse HEAD` + a hash of the enumerated inventory
-  current: a `Surface:` line — `git rev-parse HEAD` + a hash of the enumerated inventory; the inventory IS the surface, and re-running against an unchanged one is a re-adjudication, not a fresh sweep
+  current: a `Surface:` line — `git rev-parse HEAD` + a hash of the enumerated inventory; this surface is not a diff, so there is no `git diff | md5sum` to take; the inventory IS the surface, and re-running against an unchanged one is a re-adjudication, not a fresh sweep
   text:
   - the inventory IS the surface, and re-running against an unchanged one is a re-adjudication, not a fresh sweep
 # class: grammar; reworded from baseline L24; # clauses: the quoted gate message "no per-phase verdict" dropped
 - id: per-phase
   file: render
   baseline: a `## Per-phase verdicts` section — one `### Phase <n> — <title>` heading per PHASE of this command, its outcome written under it once that phase has run; `check_convergence.py` fails a ledger whose Status or text claims a finished review and that has no heading of two or more `#` starting `Phase` or `Step` ("no per-phase verdict")
-  current: a `## Per-phase verdicts` section — one `### Phase <n> — <title>` heading per PHASE of this command, its outcome written under it once that phase has run; `check_convergence.py` fails a ledger whose Status or text claims a finished review and that has no heading of two or more `#` starting `Phase` or `Step`
+  current: a `## Per-phase verdicts` section — one `### Phase <n> — <title>` heading per PHASE of this command, its outcome written under it once that phase has run; `check_convergence.py` fails a ledger whose Status or text claims a finished review and that has no heading of two or more `#` starting `Phase` or `Step` ("no per-phase verdict")
   text:
   - a **`## Per-phase verdicts` section** — one `### Phase <n> — <title>` heading per PHASE of this command, its outcome written under it once that phase has run
 # class: grammar; reworded from baseline L24
 - id: per-phase-2
   file: render
   baseline: a `## Per-phase verdicts` section — one `### Phase <n> — <title>` heading per PHASE of this command, its outcome written under it once that phase has run; `check_convergence.py` fails a ledger whose Status or text claims a finished review and that has no heading of two or more `#` starting `Phase` or `Step` ("no per-phase verdict")
-  current: a `## Per-phase verdicts` section — one `### Phase <n> — <title>` heading per PHASE of this command, its outcome written under it once that phase has run; `check_convergence.py` fails a ledger whose Status or text claims a finished review and that has no heading of two or more `#` starting `Phase` or `Step`
+  current: a `## Per-phase verdicts` section — one `### Phase <n> — <title>` heading per PHASE of this command, its outcome written under it once that phase has run; `check_convergence.py` fails a ledger whose Status or text claims a finished review and that has no heading of two or more `#` starting `Phase` or `Step` ("no per-phase verdict")
   text:
   - fails a ledger whose Status or text claims a finished review
 # class: grammar; reworded from baseline L27,28
 - id: parses
   file: render
   baseline: ⚠️ `check_review_coverage.py` PARSES this file
-  current: '`check_review_coverage.py` PARSES the checklist, so a checklist that invents its own class list fails the gate:'
+  current: '`check_review_coverage.py` PARSES this file, so a checklist that invents its own class list fails the gate:'
   text:
-  - '`check_review_coverage.py` PARSES the checklist, so a checklist that invents its own class list fails the gate'
+  - '`check_review_coverage.py` PARSES this file, so a checklist that invents its own class list fails the gate:'
 # class: behavioural; reworded from baseline L29,30,31; # clauses: the rubric globs by path, so it arms correctly either way (reason)
 - id: rubric
   file: render
@@ -265,9 +265,9 @@ entries:
 - id: rubric-2
   file: render
   baseline: 'Run `python scripts/review_rubric.py --changed <paths>` and record BOTH: the invocation on a prose `Rubric:` line in INLINE backticks, and the OUTPUT pasted verbatim in a fence. The gate (`check_review_coverage.py`''s `RUBRIC_RUN`) reads the pasted output''s generated header (its `# REVIEW RUBRIC` line, which names the script that printed it), fenced or not, and fails the review with "no pasted review_rubric.py OUTPUT" without it; the invocation line is what lets a reader re-run it'
-  current: Without the pasted output the gate fails the review with "no pasted review_rubric.py OUTPUT"; the classes derive from the rubric, never from memory
+  current: The gate (`check_review_coverage.py`'s `RUBRIC_RUN`) reads the pasted output's generated header (its `# REVIEW RUBRIC` line, which names the script that printed it), fenced or not, and fails the review with "no pasted review_rubric.py OUTPUT" without it; the classes derive from the rubric, never from memory
   text:
-  - Without the pasted output the gate fails the review with "no pasted review_rubric.py OUTPUT"
+  - The gate (`check_review_coverage.py`'s `RUBRIC_RUN`) reads the pasted output's generated header (its `# REVIEW RUBRIC` line, which names the script that printed it), fenced or not, and fails the review with "no pasted review_rubric.py OUTPUT" without it; the classes derive from the rubric, never from memory
 # class: behavioural; reworded from baseline L29,30,31
 - id: rubric-3
   file: render
@@ -307,7 +307,7 @@ entries:
 - id: brief-paths
   file: render
   baseline: 'Each verifier gets ONE brief (every path in it — the seat''s scratch dir, an archive when one is used — a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:'
-  current: 'Each gets ONE brief (every path in it a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:'
+  current: 'Each verifier gets ONE brief (every path in it — the seat''s scratch dir, an archive when one is used — a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:'
   text:
   - a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report
   pins:
@@ -316,28 +316,28 @@ entries:
 - id: brief-paths-2
   file: render
   baseline: 'Each verifier gets ONE brief (every path in it — the seat''s scratch dir, an archive when one is used — a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:'
-  current: 'Each gets ONE brief (every path in it a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:'
+  current: 'Each verifier gets ONE brief (every path in it — the seat''s scratch dir, an archive when one is used — a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:'
   text:
-  - Each gets ONE brief
+  - 'Each verifier gets ONE brief (every path in it — the seat''s scratch dir, an archive when one is used — a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:'
 # class: prose; reworded from baseline L40,41
 - id: ground
   file: render
   baseline: Read the spec's success criteria and the plan's behavior contracts — those, not prose
-  current: 'Ground each success criterion and behavior contract in the live tree TODAY: open the file, confirm the symbol / table / column / route / job exists and does what was promised; follow migration renumbering through status notes rather than declaring a renamed migration missing'
+  current: 'Read the spec''s success criteria and the plan''s behavior contracts — those, not prose — and ground each in the live tree TODAY: open the file, confirm the symbol / table / column / route / job actually exists and does what was promised; follow migration renumbering through status notes rather than declaring a renamed migration missing'
   text:
-  - Ground each success criterion and behavior contract in the live tree TODAY
+  - 'Read the spec''s success criteria and the plan''s behavior contracts — those, not prose — and ground each in the live tree TODAY: open the file, confirm the symbol / table / column / route / job actually exists and does what was promised; follow migration renumbering through status notes rather than declaring a renamed migration missing'
 # class: prose; reworded from baseline L42
 - id: migration
   file: render
   baseline: Follow migration renumbering through status notes rather than declaring a renamed migration missing
-  current: 'Ground each success criterion and behavior contract in the live tree TODAY: open the file, confirm the symbol / table / column / route / job exists and does what was promised; follow migration renumbering through status notes rather than declaring a renamed migration missing'
+  current: 'Read the spec''s success criteria and the plan''s behavior contracts — those, not prose — and ground each in the live tree TODAY: open the file, confirm the symbol / table / column / route / job actually exists and does what was promised; follow migration renumbering through status notes rather than declaring a renamed migration missing'
   text:
   - follow migration renumbering through status notes rather than declaring a renamed migration missing
 # class: ban; reworded from baseline L45; # clauses: a hardcoded name ignores the throwaway target and silently hits the shared one (reason); the fixture-deletes-rows example dropped
 - id: spot-run-ban
   file: render
   baseline: Before the run, print the database or service target the suite's seeder, provisioner or fixtures actually resolve and stop unless it is the throwaway one — a hardcoded name ignores the throwaway target and silently hits the shared one — and call a run read-only only after reading its shared fixtures for writes (a fixture that deletes rows makes every test using it a write)
-  current: Before the run, print the database or service target the suite's seeder, provisioner or fixtures actually resolve and stop unless it is the throwaway one, and call a run read-only only after reading its shared fixtures for writes
+  current: Before the run, print the database or service target the suite's seeder, provisioner or fixtures actually resolve and stop unless it is the throwaway one — a hardcoded name ignores the throwaway target and silently hits the shared one — and call a run read-only only after reading its shared fixtures for writes (a fixture that deletes rows makes every test using it a write)
   text:
   - print the database or service target the suite's seeder, provisioner or fixtures actually resolve and stop unless it is the throwaway one
   pins:
@@ -346,7 +346,7 @@ entries:
 - id: spot-run-ban-2
   file: render
   baseline: Before the run, print the database or service target the suite's seeder, provisioner or fixtures actually resolve and stop unless it is the throwaway one — a hardcoded name ignores the throwaway target and silently hits the shared one — and call a run read-only only after reading its shared fixtures for writes (a fixture that deletes rows makes every test using it a write)
-  current: Before the run, print the database or service target the suite's seeder, provisioner or fixtures actually resolve and stop unless it is the throwaway one, and call a run read-only only after reading its shared fixtures for writes
+  current: Before the run, print the database or service target the suite's seeder, provisioner or fixtures actually resolve and stop unless it is the throwaway one — a hardcoded name ignores the throwaway target and silently hits the shared one — and call a run read-only only after reading its shared fixtures for writes (a fixture that deletes rows makes every test using it a write)
   text:
   - call a run read-only only after reading its shared fixtures for writes
 # class: prose; reworded from baseline L46,47
@@ -360,14 +360,14 @@ entries:
 - id: report
   file: render
   baseline: 'Report contract: verdict · gaps as `path:line` · supersessions · evidence including test tails · hard word cap'
-  current: 'Report: verdict · gaps as `path:line` · supersessions · evidence including test tails · hard word cap; prose without anchors verifies nothing'
+  current: 'Report: verdict · gaps as `path:line` · supersessions · evidence including test tails · hard word cap'
   text:
-  - 'Report: verdict · gaps as `path:line` · supersessions · evidence including test tails · hard word cap; prose without anchors verifies nothing'
+  - 'Report: verdict · gaps as `path:line` · supersessions · evidence including test tails · hard word cap'
 # class: prose; reworded from baseline L53,54,55; # clauses: worked-example anecdote dropped (narrative)
 - id: refute
   file: render
   baseline: Refute or downgrade every claim with evidence. In the worked example one verifier's verdict was overturned by the coder's own verbatim earlier output
-  current: 'Refute or downgrade every claim with evidence; distrust a CONFORMS most, because it ends inspection: re-check it against the four discriminators'
+  current: 'Refute or downgrade every claim with evidence; distrust a CONFORMS most, because it ends inspection: re-check it against the four discriminators below before accepting it'
   text:
   - 'Refute or downgrade every claim with evidence; distrust a CONFORMS most, because it ends inspection: re-check it against the four discriminators'
 # class: prose; reworded from baseline L56
@@ -381,9 +381,9 @@ entries:
 - id: discr-trivially-green
   file: render
   baseline: Trivially-green test — a test that injects a shape the real callee can never emit, so it passes while proving nothing
-  current: Trivially-green test — it injects a shape the real callee can never emit; read what the production caller produces before trusting a green
+  current: Trivially-green test — it injects a shape the real callee can never emit; read what the production caller produces before trusting any green
   text:
-  - Trivially-green test — it injects a shape the real callee can never emit; read what the production caller produces before trusting a green
+  - Trivially-green test — it injects a shape the real callee can never emit; read what the production caller produces before trusting any green
 # class: prose; reworded from baseline L71,72; # clauses: examples (table nothing reads, column permanently NULL, flag nothing branches on) dropped
 - id: discr-inert
   file: render
@@ -402,9 +402,9 @@ entries:
 - id: discr-refreeze
   file: render
   baseline: Spec-refreeze debt — a deliberate deviation that was never written back into the spec
-  current: Spec-refreeze debt — a deliberate deviation never written back into the spec; the DANGEROUS one, because a future reader "fixing" the code back to the spec reintroduces the very bug the deviation avoided
+  current: Spec-refreeze debt — a deliberate deviation never written back into the spec; treat this as the DANGEROUS one, because a future reader "fixing" the code back to the spec reintroduces the very bug the deviation avoided
   text:
-  - a deliberate deviation never written back into the spec; the DANGEROUS one, because a future reader "fixing" the code back to the spec reintroduces the very bug the deviation avoided
+  - Spec-refreeze debt — a deliberate deviation never written back into the spec; treat this as the DANGEROUS one, because a future reader "fixing" the code back to the spec reintroduces the very bug the deviation avoided
 # class: ban; reworded from baseline L81,82; # clauses: almost never a one-line edit (reason)
 - id: no-fix
   file: render
@@ -416,21 +416,21 @@ entries:
 - id: route
   file: render
   baseline: 'Route each cluster to its owning command — `/fabrik-execute-plan` for a converged plan never run · `/fabrik-spec` to re-freeze deviation debt · `/fabrik-review` for a code defect the sweep surfaced · the deploy triad for an operational red · a SUPERSEDED row is a discovered retirement/adoption: it mints its `docs/DECISIONS.md` row staged in the commit that lands this run''s conformance ledger doc, classified at mint (a discovered retirement is normally a plain row; ONE-WAY — § Binding block — if the successor is already load-bearing) (the SAME-change law; the dispatching session appends — never the verifier)'
-  current: Route each cluster to its owning command — `/fabrik-execute-plan` for a converged plan never run · `/fabrik-spec` to re-freeze deviation debt · `/fabrik-review` for a code defect · the deploy triad for an operational red
+  current: Route each cluster to its owning command — `/fabrik-execute-plan` for a converged plan never run · `/fabrik-spec` to re-freeze deviation debt · `/fabrik-review` for a code defect the sweep surfaced · the deploy triad for an operational red
   text:
   - Route each cluster to its owning command
 # class: prose; reworded from baseline L86,87
 - id: route-2
   file: render
   baseline: 'Route each cluster to its owning command — `/fabrik-execute-plan` for a converged plan never run · `/fabrik-spec` to re-freeze deviation debt · `/fabrik-review` for a code defect the sweep surfaced · the deploy triad for an operational red · a SUPERSEDED row is a discovered retirement/adoption: it mints its `docs/DECISIONS.md` row staged in the commit that lands this run''s conformance ledger doc, classified at mint (a discovered retirement is normally a plain row; ONE-WAY — § Binding block — if the successor is already load-bearing) (the SAME-change law; the dispatching session appends — never the verifier)'
-  current: A SUPERSEDED row mints its `docs/DECISIONS.md` row staged in the commit that lands this run's ledger doc (the SAME-change law; a plain row; ONE-WAY — § Binding block — if the successor is already load-bearing); the dispatching session appends, never the verifier
+  current: 'A SUPERSEDED row is a discovered retirement/adoption: it mints its `docs/DECISIONS.md` row staged in the commit that lands this run''s ledger doc, classified at mint (a discovered retirement is normally a plain row; ONE-WAY — § Binding block — if the successor is already load-bearing) (the SAME-change law); the dispatching session appends, never the verifier'
   text:
   - mints its `docs/DECISIONS.md` row staged in the commit that lands this run's ledger doc
 # class: prose; reworded from baseline L86,87
 - id: route-3
   file: render
   baseline: 'Route each cluster to its owning command — `/fabrik-execute-plan` for a converged plan never run · `/fabrik-spec` to re-freeze deviation debt · `/fabrik-review` for a code defect the sweep surfaced · the deploy triad for an operational red · a SUPERSEDED row is a discovered retirement/adoption: it mints its `docs/DECISIONS.md` row staged in the commit that lands this run''s conformance ledger doc, classified at mint (a discovered retirement is normally a plain row; ONE-WAY — § Binding block — if the successor is already load-bearing) (the SAME-change law; the dispatching session appends — never the verifier)'
-  current: A SUPERSEDED row mints its `docs/DECISIONS.md` row staged in the commit that lands this run's ledger doc (the SAME-change law; a plain row; ONE-WAY — § Binding block — if the successor is already load-bearing); the dispatching session appends, never the verifier
+  current: 'A SUPERSEDED row is a discovered retirement/adoption: it mints its `docs/DECISIONS.md` row staged in the commit that lands this run''s ledger doc, classified at mint (a discovered retirement is normally a plain row; ONE-WAY — § Binding block — if the successor is already load-bearing) (the SAME-change law); the dispatching session appends, never the verifier'
   text:
   - the dispatching session appends, never the verifier
 # class: prose; reworded from baseline L86,87
@@ -444,14 +444,14 @@ entries:
 - id: termination
   file: render
   baseline: 'Same termination contract as every other review command, on a non-diff surface: BOTH a quiet round AND a fully adjudicated checklist'
-  current: 'Same termination contract as every review command: BOTH a quiet round AND a fully adjudicated checklist'
+  current: 'Same termination contract as every review command, on a non-diff surface: BOTH a quiet round AND a fully adjudicated checklist'
   text:
   - BOTH a quiet round AND a fully adjudicated checklist
 # class: prose; reworded from baseline L91,92,93; # clauses: like the certification gauntlets; --changed derivation note; one pass is a first pass, never the run
 - id: rounds
   file: render
   baseline: Round shape is discovery-until-dry, like the certification gauntlets — not the diff loop's wide→scoped→wide, because there is no diff to derive `--changed` from (PHASE 0 passes it the enumerated paths instead)
-  current: Round shape is discovery-until-dry, not the diff loop's wide→scoped→wide
+  current: Round shape is discovery-until-dry, not the diff loop's wide→scoped→wide, because there is no diff to derive `--changed` from (PHASE 0 passes it the enumerated paths instead)
   text:
   - Round shape is discovery-until-dry, not the diff loop's wide→scoped→wide
   pins:
@@ -460,28 +460,28 @@ entries:
 - id: rounds-2
   file: render
   baseline: Round shape is discovery-until-dry, like the certification gauntlets — not the diff loop's wide→scoped→wide, because there is no diff to derive `--changed` from (PHASE 0 passes it the enumerated paths instead)
-  current: 'Round 1 verifies every inventory row; later rounds re-hunt the CLASSES across rows that already passed — inside the inventory: an instance found outside it is recorded and routed by PHASE 3''s table to its owning command (a work item or a mail), never counted toward this run''s convergence'
+  current: 'Round 1 verifies every inventory row; later rounds re-hunt the CLASSES: an adjudication that downgraded a verifier''s CONFORMS is evidence that class was under-hunted, so re-sweep it across rows that already passed — inside the inventory: an instance found outside it is recorded and routed by PHASE 3''s table to its owning command (a work item or a mail), never counted toward this run''s convergence'
   text:
   - Round 1 verifies every inventory row
 # class: prose; reworded from baseline L91,92,93
 - id: rounds-3
   file: render
   baseline: Round shape is discovery-until-dry, like the certification gauntlets — not the diff loop's wide→scoped→wide, because there is no diff to derive `--changed` from (PHASE 0 passes it the enumerated paths instead)
-  current: 'Round 1 verifies every inventory row; later rounds re-hunt the CLASSES across rows that already passed — inside the inventory: an instance found outside it is recorded and routed by PHASE 3''s table to its owning command (a work item or a mail), never counted toward this run''s convergence'
+  current: 'Round 1 verifies every inventory row; later rounds re-hunt the CLASSES: an adjudication that downgraded a verifier''s CONFORMS is evidence that class was under-hunted, so re-sweep it across rows that already passed — inside the inventory: an instance found outside it is recorded and routed by PHASE 3''s table to its owning command (a work item or a mail), never counted toward this run''s convergence'
   text:
   - an instance found outside it is recorded and routed by PHASE 3's table to its owning command (a work item or a mail), never counted toward this run's convergence
 # class: prose; reworded from baseline L95; # clauses: host-only
 - id: done
   file: render
   baseline: 'DONE requires all of: the Termination contract''s exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate adjudicated, every Checklist row adjudicated, the Pass Ledger in the fragment''s grammar with `method: re-derivation` on the closing row — and, host-only, every Inventory row terminal (no `PENDING`)'
-  current: 'DONE requires all of: the Termination contract''s exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate and Checklist row adjudicated, the Pass Ledger in the fragment''s grammar with `method: re-derivation` on the closing row — and, host-only, every Inventory row terminal (no `PENDING`)'
+  current: 'DONE requires all of: the Termination contract''s exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate adjudicated, every Checklist row adjudicated, the Pass Ledger in the fragment''s grammar with `method: re-derivation` on the closing row — and, host-only, every Inventory row terminal (no `PENDING`)'
   text:
-  - 'the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate and Checklist row adjudicated, the Pass Ledger in the fragment''s grammar with `method: re-derivation` on the closing row'
+  - 'DONE requires all of: the Termination contract''s exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate adjudicated, every Checklist row adjudicated, the Pass Ledger in the fragment''s grammar with `method: re-derivation` on the closing row — and, host-only, every Inventory row terminal (no `PENDING`)'
 # class: prose; reworded from baseline L95
 - id: done-2
   file: render
   baseline: 'DONE requires all of: the Termination contract''s exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate adjudicated, every Checklist row adjudicated, the Pass Ledger in the fragment''s grammar with `method: re-derivation` on the closing row — and, host-only, every Inventory row terminal (no `PENDING`)'
-  current: 'DONE requires all of: the Termination contract''s exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate and Checklist row adjudicated, the Pass Ledger in the fragment''s grammar with `method: re-derivation` on the closing row — and, host-only, every Inventory row terminal (no `PENDING`)'
+  current: 'DONE requires all of: the Termination contract''s exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate adjudicated, every Checklist row adjudicated, the Pass Ledger in the fragment''s grammar with `method: re-derivation` on the closing row — and, host-only, every Inventory row terminal (no `PENDING`)'
   text:
   - every Inventory row terminal
 # class: prose; reworded from baseline L103,104
@@ -495,44 +495,76 @@ entries:
 - id: bootstrap-2
   file: render
   baseline: 'The Evidence bootstrap (first-run trap, reported live): the convergence gate reds a ledger that lacks an embedded `final_gate` `"status": "success"` fenced block — but the gate cannot go green until that block exists'
-  current: 'So: (1) finish the ledger, (2) embed the block with the EXPECTED green shape, (3) run `python scripts/final_gate.py --check --json`, (4) correct the embedded numbers to the verbatim output and re-run once; the fixpoint (embed == fresh run) is the evidence-true state'
+  current: 'So: (1) finish the ledger, (2) embed the fenced gate block with the EXPECTED green shape, (3) run `python scripts/final_gate.py --check --json`, (4) correct the embedded numbers to the verbatim output and re-run once; the fixpoint (embed == fresh run) is the evidence-true state'
   text:
   - the fixpoint (embed == fresh run) is the evidence-true state
 # class: grammar; reworded from baseline L105
 - id: routed-token
   file: render
   baseline: A routed finding's terminal token is `ROUTED(n)` — first-class in the checklist vocabulary alongside CLEAN/FIXED/REFUTED; never write "FIXED via routing"
-  current: A routed finding's terminal token is `ROUTED(n)`, first-class beside CLEAN/FIXED/REFUTED; never write "FIXED via routing"
+  current: A routed finding's terminal token is `ROUTED(n)`, first-class in the checklist vocabulary alongside CLEAN/FIXED/REFUTED; never write "FIXED via routing"
   text:
-  - is **`ROUTED(n)`**, first-class beside CLEAN/FIXED/REFUTED; never write "FIXED via routing"
+  - A routed finding's terminal token is `ROUTED(n)`, first-class in the checklist vocabulary alongside CLEAN/FIXED/REFUTED; never write "FIXED via routing"
 # class: prose; reworded from baseline L109
 - id: out-reply
   file: render
   baseline: 'Then, in the reply: the verdict distribution across the five values; every non-CONFORMS row with its `path:line` gaps; the cluster lists — enumerated from PHASE 3''s own list, never a literal restated here (counts drift) — each naming the command it was routed to; and an explicit RESIDUAL list — eras deliberately excluded with their successor named, rows that could not be proven today and why, and any spec-refreeze debt the operator must decide on rather than an agent'
-  current: 'In the reply: the verdict distribution; every non-CONFORMS row with its `path:line` gaps; the cluster lists, enumerated from PHASE 3''s own list, never a literal restated here — each naming the command it was routed to; and a RESIDUAL list — eras excluded with their successor named, rows not provable today, and spec-refreeze debt the operator must decide'
+  current: 'In the reply: the verdict distribution across the five values; every non-CONFORMS row with its `path:line` gaps; the cluster lists, enumerated from PHASE 3''s own list, never a literal restated here — each naming the command it was routed to; and an explicit RESIDUAL list — eras deliberately excluded with their successor named, rows that could not be proven today and why, and any spec-refreeze debt the operator must decide on rather than an agent'
   text:
   - every non-CONFORMS row with its `path:line` gaps
 # class: prose; reworded from baseline L109
 - id: out-reply-2
   file: render
   baseline: 'Then, in the reply: the verdict distribution across the five values; every non-CONFORMS row with its `path:line` gaps; the cluster lists — enumerated from PHASE 3''s own list, never a literal restated here (counts drift) — each naming the command it was routed to; and an explicit RESIDUAL list — eras deliberately excluded with their successor named, rows that could not be proven today and why, and any spec-refreeze debt the operator must decide on rather than an agent'
-  current: 'In the reply: the verdict distribution; every non-CONFORMS row with its `path:line` gaps; the cluster lists, enumerated from PHASE 3''s own list, never a literal restated here — each naming the command it was routed to; and a RESIDUAL list — eras excluded with their successor named, rows not provable today, and spec-refreeze debt the operator must decide'
+  current: 'In the reply: the verdict distribution across the five values; every non-CONFORMS row with its `path:line` gaps; the cluster lists, enumerated from PHASE 3''s own list, never a literal restated here — each naming the command it was routed to; and an explicit RESIDUAL list — eras deliberately excluded with their successor named, rows that could not be proven today and why, and any spec-refreeze debt the operator must decide on rather than an agent'
   text:
   - enumerated from PHASE 3's own list, never a literal restated here
 # class: prose; reworded from baseline L110
 - id: out-scale
   file: render
   baseline: 'Scale effort to blast radius: exhaustive on money / auth / data-integrity artifacts, proportionate on low-risk ones — and log anything you deliberately skip'
-  current: 'Scale effort to blast radius: exhaustive on money / auth / data-integrity artifacts, proportionate on low-risk ones — and log anything you skip'
+  current: 'Scale effort to blast radius: exhaustive on money / auth / data-integrity artifacts, proportionate on low-risk ones — and log anything you deliberately skip'
   text:
   - exhaustive on money / auth / data-integrity artifacts, proportionate on low-risk ones
 # class: prose; reworded from baseline L111
 - id: out-unsure
   file: render
   baseline: When unsure whether a row conforms, surface it as PARTIAL; a wrong CONFORMS is the one verdict that ends inspection
-  current: When unsure, surface a row as PARTIAL; a wrong CONFORMS ends inspection
+  current: When unsure whether a row conforms, surface it as PARTIAL; a wrong CONFORMS is the one verdict that ends inspection
   text:
-  - When unsure, surface a row as PARTIAL; a wrong CONFORMS ends inspection
+  - When unsure whether a row conforms, surface it as PARTIAL; a wrong CONFORMS is the one verdict that ends inspection
+# class: ban; restored in fix round 1
+- id: one-pass
+  file: render
+  section: '## PHASE 4 — CONVERGE (the loop — you are here after EVERY pass, not once)'
+  baseline: 'One pass over the inventory is a first pass, never the run'
+  current: 'One pass over the inventory is a first pass, never the run'
+  text:
+  - 'One pass over the inventory is a first pass, never the run'
+# class: ban; restored in fix round 1
+- id: fresh-runs
+  file: render
+  section: '## PHASE 4 — CONVERGE (the loop — you are here after EVERY pass, not once)'
+  baseline: 'Every verdict evidence-anchored with FRESH runs. A green from last week is not evidence — re-run it or mark the row PARTIAL and say why'
+  current: 'Every verdict evidence-anchored with FRESH runs: a green from last week is not evidence — re-run it or mark the row PARTIAL and say why'
+  text:
+  - 'Every verdict evidence-anchored with FRESH runs: a green from last week is not evidence — re-run it or mark the row PARTIAL and say why'
+# class: prose; restored in fix round 1
+- id: supersession-named
+  file: render
+  section: '## PHASE 4 — CONVERGE (the loop — you are here after EVERY pass, not once)'
+  baseline: 'Supersessions name their successor'
+  current: 'Supersessions name their successor'
+  text:
+  - 'Supersessions name their successor'
+# class: prose; restored in fix round 1
+- id: close-order
+  file: render
+  section: '## PHASE 4 — CONVERGE (the loop — you are here after EVERY pass, not once)'
+  baseline: 'Ledger committed. Cluster summary routed to owning commands. `final_gate` green. Then report'
+  current: 'Commit the ledger, route the cluster summary, `final_gate` green; then report'
+  text:
+  - 'Commit the ledger, route the cluster summary, `final_gate` green; then report'
 vanished:
   L2:
     rule: [intro-reopen]
@@ -648,7 +680,7 @@ vanished:
   L89:
     rule: [termination]
   L90:
-    rule: [termination]
+    rule: [one-pass]
   L91:
     rule: [rounds]
   L92:
@@ -657,12 +689,18 @@ vanished:
     rule: [rounds]
   L95:
     rule: [done]
-  L96: narrative
-  L97: narrative
-  L99: narrative
-  L100: narrative
-  L101: narrative
-  L102: narrative
+  L96:
+    rule: [fresh-runs]
+  L97:
+    rule: [supersession-named]
+  L99:
+    rule: [close-order]
+  L100:
+    rule: [close-order]
+  L101:
+    rule: [close-order]
+  L102:
+    rule: [close-order]
   L103:
     rule: [bootstrap]
   L104:
