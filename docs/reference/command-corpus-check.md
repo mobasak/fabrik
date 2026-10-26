@@ -343,7 +343,7 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   (letters-only whole words of 4+ letters in any script, cut to 5, each counted once) — per phrase, never pooled; a
   clause with no stem and no anchor needs its own words, whole and in order, in one phrase; the two constants change only by a
   D-row — or the clause is named in `clauses: {<n>: narrative | provenance | duplicate-of: <id>}`. At load a key must be
-  within the clause count, a `duplicate-of` id must be another live entry whose `text` covers the clause, a
+  an ASCII clause number within the clause count, named once (`1:` and `"1":` are one clause), a `duplicate-of` id must be another live entry whose `text` covers the clause, a
   `provenance` clause must hold a parenthetical of ids alone, and a
   clause holding a ban word takes no label at all (D-1238 point 1); a `vanished:` baseline line holding a ban word
   is never `narrative` either. **C** — in class `prose` only (the carriers D-1236 lets be reworded; a
@@ -356,8 +356,8 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   kept; in classes `grammar` and `behavioural` every other clause not labelled `narrative` or `duplicate-of` stands
   verbatim too; `prose` may reword. `pins:` is a non-empty list of non-empty strings (the retired pin test node
   ids; no node is resolved). An id or date parenthetical is history (D-1238), and D-1255 gives it one label:
-  `provenance` drops from B's measure every aside of the clause (a parenthetical not glued to a word, so never a
-  call's `f(…)`) whose whole content is id tokens — `D-<n>`,
+  `provenance` drops from B's measure every aside of the clause (a parenthetical not glued to a word, `)` or `]`,
+  so never a call's `f(…)`) whose whole content is id tokens — `D-<n>`,
   `W-<hex>`, an ISO date, a SHA of 7 to 64 lowercase hex holding both a letter and a digit (a bare number stays an
   anchor), a `§` pointer to a section number or ONE word — and the separators space `,` `;` `/` `·`, read outside
   code spans; the rest of the clause still owes its carrier, a clause left with no word owes none

@@ -970,6 +970,8 @@ def test_provenance_labels_are_refused_on_a_ban_clause_or_a_clause_without_ids(t
     _one(_losses(t), "holds a ban word")  # D-1238 point 1: a ban clause takes no label, provenance included
     _ledger(t, [{**plain, "baseline": "Run the probe on a copy; stop at the pin (D-9)", "clauses": {2: "provenance", "2": "narrative"}}])
     _one(_losses(t), "`clauses` is not")  # `2:` and `"2":` name one clause: never two labels for it
+    _ledger(t, [{**plain, "baseline": "Run the probe on a copy; stop at the pin (D-9)", "clauses": {"2": "provenance", "1٠": "narrative"}}])
+    _one(_losses(t), "`clauses` is not")  # a non-ASCII digit key is no clause number
     _ledger(t, [{**plain, "baseline": "Run the probe on a copy; stop at the pin (D-9)", "clauses": {2: "provenance"}}])
     assert [x for x in _losses(t) if "malformed" in x] == []
     assert cr.summary(t["rules"])[0].endswith("· provenance 1")

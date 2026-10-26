@@ -442,7 +442,7 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         if "clauses" in e:
             cl = e["clauses"]
             ok = isinstance(cl, dict) and bool(cl) and all(
-                re.fullmatch(r"[1-9]\d*", str(k))
+                re.fullmatch(r"[1-9][0-9]*", str(k))  # ASCII: `int()` reads `1٠` as 10, `str()` keeps it apart
                 and (v in ("narrative", "provenance") or (isinstance(v, dict) and set(v) == {"duplicate-of"} and isinstance(v["duplicate-of"], str)))
                 for k, v in cl.items()
             ) and len({str(k) for k in cl}) == len(cl)  # `1:` and `"1":` name one clause: never two labels for it
