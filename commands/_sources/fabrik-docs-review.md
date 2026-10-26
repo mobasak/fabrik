@@ -1,11 +1,7 @@
 ---
-description: Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point — bidirectional doc↔code reconciliation (parallel reconcilers) → route each doc to its type → doc-sync gate, with cited evidence. TRIGGER — EN: "review all the docs", "are the docs still accurate"; TR: "tüm dokümanları gözden geçir", "dokümanlar kodla uyumlu mu" — fires for the MULTI-doc reconciliation sweep. SKIP: one doc's deep single-file converge (→ /fabrik-doc-converge). Stage: utility.
+description: Converge the in-scope docs (the branch diff by default, or a given path/doc/range) to a fixed point — bidirectional doc↔code reconciliation → route each doc to its type → doc-sync gate. TRIGGER — EN: "review all the docs", "are the docs still accurate"; TR: "tüm dokümanları gözden geçir", "dokümanlar kodla uyumlu mu" — fires for the MULTI-doc reconciliation sweep. SKIP: one doc's deep single-file converge (→ /fabrik-doc-converge). Stage: utility.
 argument-hint: "[path, doc, or git range — omit to reconcile docs against the working-tree/branch diff]"
 ---
-
-DOCS UPDATE CONVERGENCE
-
-Converge the documentation to a fixed point — do not stop after one pass.
 
 {{include:grounding-artifact}}
 {{include:term-edit}}
@@ -39,22 +35,16 @@ you close** — a bare close would end the CALLER when this command runs nested 
 `check_synced_unmodified.py`). Get the list **mechanically; never hand-copy it**
 (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project's own lock):
 
-> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
 ```bash
-# The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are
-# SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay
-# normal reconciliation targets.
 python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
-# Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/**
-#         docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · …
 ```
 
 *(In the HUB, or from anywhere on this box, the canonical list is
 `python /opt/fabrik/scripts/fabrik_synced_manifest.py --review-readonly`.)*
 
-- **Never reconcile/rewrite a synced doc inside a project** — the next sync overwrites it, and editing it is a
-  Tier-1 violation. Its claims are still **binding context** for the project docs you ARE reconciling — read it
+- **Never reconcile/rewrite a synced doc inside a project** — the next sync overwrites it, and editing it is a Tier-1 violation. Its claims are still **binding context** for the project docs you ARE reconciling — read it
   and cite it, but it stays OUTSIDE Phase 1's claim-ledger denominator: the zero-skipped-lines count covers only
   the docs you are reconciling. (On the HUB, where synced docs ARE reconciled, they are in-denominator.)
 - **A synced doc in the diff is ITSELF the finding:** revert + propose upstream in `/opt/fabrik`.
@@ -91,7 +81,7 @@ real source, and check BOTH directions:
   **pricing**, a rate limit, a library **version**, or an ISO/RFC **standard** is NOT verifiable against local code — a `fabrik-researcher` seat (web, no shell) — a unit of its own, the workflow slice's `agent` — re-verifies it **LIVE** (`WebSearch` →
   `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` → official-docs `WebFetch` for library detail;
   a standard/RFC → fetch the primary doc and quote the clause).
-  A live-checkable external claim is **VERIFIED-or-WRONG**, never parked as UNVERIFIABLE — a stale price / dead endpoint / wrong version in a doc is exactly the drift this catches.
+  A live-checkable external claim is **VERIFIED-or-WRONG**, never parked as UNVERIFIABLE.
 
 ### Verdict taxonomy
 
@@ -128,8 +118,7 @@ are NOT proof — a claim isn't verified until it's grounded in a `path:line` yo
 **The loop ends ONLY at the Termination contract's closing round** (the fragment above: the closing pass, the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged). A pass that finds nothing must still enumerate its coverage (what you actually read); an empty pass with no evidence does not count.
 
 **Run that next pass UNPROMPTED — the moment a pass makes any doc edit you owe it, automatically.** Never wait
-to be asked *"did you reconcile to the closing round?"*; the obligation is yours and predates any challenge — reframing
-your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge. Three thoughts that
+to be asked *"did you reconcile to the closing round?"*; the obligation is yours and predates any challenge. Three thoughts that
 each mean **run the next pass now**: *"the docs were already in sync,"* *"the fix was trivial,"* *"it's
 obviously clean."* Only the closing round is convergence.
 
@@ -140,7 +129,7 @@ Pass 1 — reconcilers: <doc types> | found: 4, new: 4, confirmed: 4, fixed: 4, 
 Pass 2 — sonnet×1 (round-1 owner) · the same seats over their own fixed docs | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | → CONVERGED (the closing round, md5 stable)
 ```
 
-**⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes.** **Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred. When a pass makes any doc edit, do not stop, do not print "Pass 1 done" and hand back, do not wait for the caller to re-invoke `/fabrik-docs-review`. Go straight into the next reconciliation pass in the SAME turn and keep chaining until the closing round. **You return control EXACTLY ONCE: at the closing
+**⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes.** **Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred. When a pass makes any doc edit, do not stop, do not print "Pass 1 done" and hand back, do not wait for the caller to re-invoke `/fabrik-docs-review`. **You return control EXACTLY ONCE: at the closing
 round.** (Invoked as the final step of `/fabrik-execute-plan`, the whole loop completes before the run finishes.) Ending the turn with an unresolved discrepancy so the operator has to re-invoke is THE failure this kills — run the next pass instead.
 
 ## Phase 3 — Fix per pass, in one batch, routed to the right doc
@@ -166,7 +155,7 @@ without that embedded proof + the gate green (or its out-of-surface red embedded
 ## Convergence & residuals
 
 Do not promise "zero discrepancies" as a claim — iterate to a fixed point, then explicitly list any residual risks the tooling can't catch (hard-to-verify prose, screenshots/diagrams, external-facing copy, examples that need a live service to run).
-Convergence = the Termination contract's closing round (the round-1 seats confirming their own docs at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."
+Convergence = the Termination contract's closing round (the round-1 seats confirming their own docs at `confirmed: 0`, md5 unchanged).
 
 
 {{include:subagents-core}}
