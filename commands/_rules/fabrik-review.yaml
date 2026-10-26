@@ -445,3 +445,67 @@ entries:
   current: "Its TERMINAL verdict — every known class clean, `--confirmed 0` — is the machine-readable form of the EXIT above, and its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of re-sweeping"
   text:
   - "Its TERMINAL verdict"
+- id: rq-recorded-measured-carries-routed-out-of-round-defect-1
+  section: "## Phase 2 — EXECUTE every candidate and every refutation (you, never a seat)"
+  baseline: "`RECORDED — measured (<why>)` — executed and shown TRUE but not a defect this round fixes: a prevalence figure, or a real defect outside the round's bounded hop or past the scope-growth stop, its named destination in the reason (`term-coverage` D4)"
+  current: "`RECORDED — measured (<why>)` — executed and shown TRUE but not a defect this round fixes: a prevalence figure, or a real defect outside the round's bounded hop or past the scope-growth stop, its named destination in the reason (`term-coverage` D4)"
+  text:
+  - "executed and shown TRUE but not a defect this round fixes: a prevalence figure, or a real defect outside the round's bounded hop or past the scope-growth stop, its named destination in the reason (`term-coverage` D4)"
+  forbidden:
+  - "making no code or doc claim"
+  pins:
+  - "tests/test_review_command_text_defects.py::test_recorded_measured_carries_a_routed_out_of_round_defect"
+- id: rq-recorded-measured-carries-routed-out-of-round-defect-2
+  section: "## Phase 2 — EXECUTE every candidate and every refutation (you, never a seat)"
+  baseline: "It never enters `unexecuted:`"
+  current: "It never enters `unexecuted:`"
+  text:
+  - "It never enters `unexecuted:`"
+- id: rq-recorded-measured-carries-routed-out-of-round-defect-3
+  section: "## Phase 3 — Prove & fix (depth) — every survivor terminates FIXED, REFUTED or RECORDED"
+  baseline: "There is no \"noted / probably fine / to-watch / deferred\" state, and the user does NOT accept an unfixed CONFIRMED finding — a candidate you reproduced is FIXED in the round that confirmed it, or it is `RECORDED — by design` with its owning row named, or — outside the round's bounded hop — `RECORDED — measured` with its destination"
+  current: "There is no \"noted / probably fine / to-watch / deferred\" state, and the user does NOT accept an unfixed CONFIRMED finding — a candidate you reproduced is FIXED in the round that confirmed it, or it is `RECORDED — by design` with its owning row named, or — outside the round's bounded hop — `RECORDED — measured` with its destination"
+  text:
+  - "or it is `RECORDED — by design` with its owning row named, or — outside the round's bounded hop — `RECORDED — measured` with its destination"
+- id: rq-decision-row-after-code-with-id-reserved-before-close
+  section: "## Phase 3 — Prove & fix (depth) — every survivor terminates FIXED, REFUTED or RECORDED"
+  baseline: "A deliberate design decision that resolves it (e.g. choosing fail-open with a logged warning) counts as FIXED only if you actually made the change and recorded why — and that disposition is decision-shaped: mint its `docs/DECISIONS.md` row in the same change as the fix, classified at mint, its id reserved (`decisions.py --reserve-id`) before the close and the row committed after the code (close-chain's private-index step) — a deliberate fail-open on a guard is the row that most needs a TRIPWIRE (ONE-WAY § Binding block when the guard protects shared or production data) (CLAUDE.md § the decision ledger; a mechanical bug-fix stays row-less — the carve-out class)"
+  current: "A deliberate design decision that resolves it (e.g. choosing fail-open with a logged warning) counts as FIXED only if you actually made the change and recorded why — and that disposition is decision-shaped: mint its `docs/DECISIONS.md` row in the same change as the fix, classified at mint, its id reserved (`decisions.py --reserve-id`) before the close and the row committed after the code (close-chain's private-index step) — a deliberate fail-open on a guard is the row that most needs a TRIPWIRE (ONE-WAY § Binding block when the guard protects shared or production data) (CLAUDE.md § the decision ledger; a mechanical bug-fix stays row-less — the carve-out class)"
+  text:
+  - "mint its `docs/DECISIONS.md` row in the same change as the fix, classified at mint, its id reserved (`decisions.py --reserve-id`) before the close and the row committed after the code (close-chain's private-index step) —"
+  forbidden:
+  - "staged in the fix commit"
+  pins:
+  - "tests/test_review_command_text_defects.py::test_the_decision_row_lands_after_the_code_with_its_id_reserved_before_the_close"
+- id: rq-synced-path-matching-its-lock-entry-is-a-sync-write
+  section: "### ⚠️ Synced files — CONTEXT, never a TARGET (settle this BEFORE dispatching finders)"
+  baseline: "A synced path whose md5 equals its entry in the project's `.fabrik/synced.lock` is a sync's own write, not an edit: never revert it, and review only the repo's own files against it; with no lock, the rule above applies"
+  current: "A synced path whose md5 equals its entry in the project's `.fabrik/synced.lock` is a sync's own write, not an edit: never revert it, and review only the repo's own files against it; with no lock, the rule above applies"
+  text:
+  - "A synced path whose md5 equals its entry in the project's `.fabrik/synced.lock` is a sync's own write, not an edit: never revert it, and review only the repo's own files against it; with no lock, the rule above applies"
+  pins:
+  - "tests/test_review_command_text_defects.py::test_a_synced_path_matching_its_lock_entry_is_a_sync_write_never_reverted"
+- id: rq-gate-scope-sentence-states-the-ruff-scope-1
+  section: "## Reporting"
+  baseline: "⚠️ Concurrent lanes: when the repo gate reds on ANOTHER lane's work, do NOT stamp `IN-PROGRESS` on a loop that actually closed. `final_gate` takes no surface argument and scopes each check its own way (CLAUDE.md § Completion Contract 2); its ruff leg lints only staged changes and unpushed commits, so code pushed before the review is linted by running ruff on its paths by hand"
+  current: "⚠️ Concurrent lanes: when the repo gate reds on ANOTHER lane's work, do NOT stamp `IN-PROGRESS` on a loop that actually closed. `final_gate` takes no surface argument and scopes each check its own way (CLAUDE.md § Completion Contract 2); its ruff leg lints only staged changes and unpushed commits, so code pushed before the review is linted by running ruff on its paths by hand"
+  text:
+  - "`final_gate` takes no surface argument and scopes each check its own way (CLAUDE.md § Completion Contract 2); its ruff leg lints only staged changes and unpushed commits, so code pushed before the review is linted by running ruff on its paths by hand"
+  forbidden:
+  - "every other check reads whole directories"
+  pins:
+  - "tests/test_review_command_text_defects.py::test_the_gate_scope_sentence_states_the_ruff_scope_and_points_at_the_reference"
+- id: rq-gate-scope-sentence-states-the-ruff-scope-2
+  section: "## Reporting"
+  baseline: "On a shared tree a check that reads beyond your change can red on another lane's work, and a converged surface-scoped review could not honestly embed a success block through no property of the surface reviewed (wef1, `01M1KVAZGNJAXXSB4XFMKPQG0Z` — that repo accumulated four records stuck IN-PROGRESS for this reason, which then read as abandoned loops to `check_review_coverage`)"
+  current: "On a shared tree a check that reads beyond your change can red on another lane's work, and a converged surface-scoped review could not honestly embed a success block through no property of the surface reviewed (wef1, `01M1KVAZGNJAXXSB4XFMKPQG0Z` — that repo accumulated four records stuck IN-PROGRESS for this reason, which then read as abandoned loops to `check_review_coverage`)"
+  text:
+  - "On a shared tree a check that reads beyond your change can red on another lane's work, and"
+- id: rq-execute-plan-run-seats-its-per-round-opus-floor
+  section: "## Phase 1 — Independent finders (recall)"
+  baseline: "Worker: while the pool is OFF (D-181) every seat is NATIVE `fabrik-reviewer`, and the surface is PARTITIONED into DISJOINT slices by FILE (D-207) — TWO cheap finders per slice — one Sonnet and one Haiku `fabrik-reviewer`, each reading the WHOLE slice, their candidates UNIONED (never voted) — and NO Opus finder (a run `/fabrik-execute-plan` dispatches still seats its per-round Opus floor: `opus=1`, `models: [\"sonnet\", \"haiku\", \"opus\"]` on the riskiest slice; pilot D-344, 2026-09-22, superseding D-207's Opus-on-the-risky-slice mix for the review family: a single review recalls ~30% of real defects and two runs of one model barely overlap, so a second cheap reader buys more recall than a bigger one; Opus and Fable earn their price EXECUTING and adjudicating, which the orchestrator does in Phase 2)"
+  current: "Worker: while the pool is OFF (D-181) every seat is NATIVE `fabrik-reviewer`, and the surface is PARTITIONED into DISJOINT slices by FILE (D-207) — TWO cheap finders per slice — one Sonnet and one Haiku `fabrik-reviewer`, each reading the WHOLE slice, their candidates UNIONED (never voted) — and NO Opus finder (a run `/fabrik-execute-plan` dispatches still seats its per-round Opus floor: `opus=1`, `models: [\"sonnet\", \"haiku\", \"opus\"]` on the riskiest slice; pilot D-344, 2026-09-22, superseding D-207's Opus-on-the-risky-slice mix for the review family: a single review recalls ~30% of real defects and two runs of one model barely overlap, so a second cheap reader buys more recall than a bigger one; Opus and Fable earn their price EXECUTING and adjudicating, which the orchestrator does in Phase 2)"
+  text:
+  - "a run `/fabrik-execute-plan` dispatches still seats its per-round Opus floor"
+  pins:
+  - "tests/test_plan_review_queue_pass.py::test_the_opus_floor_and_the_half_blocked_split_are_stated"

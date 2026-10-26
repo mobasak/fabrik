@@ -57,8 +57,6 @@ def test_the_opus_floor_and_the_half_blocked_split_are_stated() -> None:
         "SPLIT the plan: the phases BEFORE the first blocked one keep the plan's name, converge and execute; that phase and every later one move to a new `DRAFT` plan"
         in plan
     )
-    review = " ".join((ROOT / "commands" / "_sources" / "fabrik-review.md").read_text().split())
-    assert "a run `/fabrik-execute-plan` dispatches still seats its per-round Opus floor" in review
 
 
 def test_a_seat_never_executes_a_script_that_acts_outside_its_scratch() -> None:
