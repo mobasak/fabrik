@@ -1354,6 +1354,24 @@ def _lane_continues(sid: str | None, cwd: str) -> bool:
         return False
 
 
+def _api_key_continues(stamp: Path) -> bool:
+    """W-effb7141: True when quota_stop.py does not hold this session at this stamp because it runs
+    on an Anthropic API key (`api_key_exempt` — a quota tier only, never the battery hold). Loaded
+    from quota_stop.py beside this hook by file path, like `_lane_continues`; any load or call
+    error is False, which keeps the wall's yield — today's behaviour."""
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_quota_stop_api_key", Path(__file__).resolve().parent / "quota_stop.py"
+        )
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.api_key_exempt(stamp) is True
+    except Exception:
+        return False
+
+
 def _urgent_checkpoint(
     root: Path,
     sid: str | None,
@@ -5018,6 +5036,10 @@ def main(argv: list[str]) -> int:
                 # merge owner, or the owner of an open P0) is not parked, so it takes the NORMAL
                 # path below — gate and causes as outside the tier — never the wall's yield
                 lane_free = urgent and _lane_continues(sid, str(root))
+                # W-effb7141: an API-key session is not held by either quota tier, so it takes the
+                # NORMAL path too — its causes stay armed while it keeps editing (battery holds)
+                if not lane_free and _api_key_continues(_state / "fleet-exhausted"):
+                    lane_free = True
                 if lane_free:
                     urgent = False
                 if not urgent and not lane_free:
