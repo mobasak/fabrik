@@ -223,8 +223,8 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 1. Every digital product carries the Ocoron name.
 2. Sub-brands do NOT get their own logos. They use: Ocoron wordmark + product name set in IBM Plex Sans 500.
 3. Don't create a sub-brand until the product has paying users or is in active B2B presales. Until then, it's just "Ocoron."
-4. Physical product brands (Atelier Rebul) are completely separate — no Ocoron branding on physical goods.
-5. Ocoron's legal entity is **Ocoron Dış Ticaret Limited Şirketi**. That name appears on invoices, contracts and legal pages (the terms of service and the privacy policy, which names the KVKK data controller); every other product surface and all marketing use "Ocoron" only.
+4. Standalone brands are completely separate: they never carry the Ocoron name or branding, and rules 1-3 do not apply to them. They are Atelier Rebul (physical goods) and Kalite Pusulası (the quality-systems consultancy). Kalite Pusulası's site names Ocoron Dış Ticaret Limited Şirketi only as the KVKK data controller on its legal page.
+5. Ocoron's legal entity is **Ocoron Dış Ticaret Limited Şirketi**. That name appears on invoices, contracts and legal pages (the terms of service and the privacy policy, which names the KVKK data controller); every other product surface and all marketing use "Ocoron" only, except a standalone brand's, which use its own name (rule 4).
 6. Internally, sub-products can be referred to by their short name ("Fabrik"). Externally, always "Ocoron Fabrik."
 
 #### Brand Map
@@ -235,7 +235,7 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 | SaaS products | **Ocoron [TBD]** | Named when product reaches presale |
 | B2B system design services | **Ocoron** (no sub-brand) | Yes — the company does the work |
 | Candle manufacturing | **Atelier Rebul** | Independent brand, never co-branded |
-| Quality-systems consultancy (kalitepusulasi.com) | **Kalite Pusulası** — an Ocoron brand; how it fits naming rules 1-3 awaits the brand owner's ruling | Yes |
+| Quality-systems consultancy (kalitepusulasi.com) | **Kalite Pusulası** | Independent brand, never co-branded; the legal entity appears only as the KVKK data controller on its legal page |
 | Ocoron Dış Ticaret Limited Şirketi | Legal entity name | Invoices, contracts and legal pages only |
 
 #### Co-Branding Rules
