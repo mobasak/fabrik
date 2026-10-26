@@ -210,7 +210,9 @@ session anywhere on the box — the home folder, an untyped repo — sees it, an
 git repo: an untyped one gets the universal set, and image-generation is no longer excluded by name. Every repo,
 typed, untyped or hub, is written only when `git check-ignore` says its `.mcp.json` is ignored (the file inlines
 credentials). A tracked copy is never ignored, skip-worktree included, so such a repo is skipped and
-`check_mcp_scope` warns on it until the file is untracked (W-c0d9cea5). A session sees it once its
+`check_mcp_scope` warns on it until the file is untracked. Each linked worktree's copy is asked from its own
+worktree, a symlinked `.mcp.json` is never written through, and git never answers from an enclosing repo
+(W-c0d9cea5). A session sees it once its
 repo's `.mcp.json` is re-emitted (or the user-level sync has run) and the window is new.
 
 **What it can reach:** it runs as this OS user with the session's permissions — it can read any file the
