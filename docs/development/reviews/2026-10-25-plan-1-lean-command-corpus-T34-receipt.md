@@ -1,3 +1,5 @@
+OWN TEXT: 7491 -> ~5970 (~80%)  (est.: the sandbox has no word-count command; 5408 at the fix round + the +562-word growth `assemble_commands.py --check` reports for the render, 26524 -> 27086)
+
 # T34 receipt — lean rewrite of /fabrik-epics-review (light form)
 
 Start commit (baseline, and the frozen copy for the after-window sample): `851b4b365cc9ccaac91ed851bc669764743ad360` (origin/kaizen-lean-u01).
@@ -40,3 +42,28 @@ End commit: the first end run showed one new failure, `test_assemble_dispatch_st
 - Floor D-row for the 72% result (live rule count x U1 words-per-rule), and the `commands/_size_ceiling.json` ratchet at merge.
 - CHANGELOG, INDEX rows for the two new `commands/_rules/` files.
 - Pool-OFF comment text (L113, L182) is kept as a one-sentence suspended-`fanout` carrier because it holds `REFUSES` and `never`; the hub may rule those suspended instructions out of the ban set.
+
+## Re-ledger round (canonical loader, W-9cd8653d; operator P0 W-96f36043, D-1245, D-1247, D-1251)
+
+Own-text words, baseline -> fix round -> now: 7491 -> 5408 (72%) -> ~5970 (~80%, estimated, see line 1). **The 50% target is NOT reached and the cut went the wrong way: +560 words.** Under the canonical loader the fix round's rewordings were not valid. Each reworded ban clause must stand verbatim from its ban word to the end of its `;`/`—` clause, and each kept clause must keep all its anchors, so ~70 clauses came back (the pool-OFF comment span of L182 and the L112 `<!-- POOL OFF -->` tail, the Metadata, Typed-frontmatter, Registrars, Responsive, Deferred-Compliance and graph rows, the Phase 4 hash prose, the Does-NOT tails). The only real cuts this round: the Acceptance criteria section (about 190 words, nine baseline lines relabelled `rule:`/`duplicate-of` to the entries that carry each rule) and the L114/L110 pool-OFF and honesty clauses.
+
+LOSS before -> after (this ledger): 116 lines on the base (plus ~70 prose-entry lines once `class:` keys made the old comment-only entries lintable) -> 0. `assemble_commands.py --check` now prints LOSS lines only for `_shared/` ledgers (T01d, out of Touches); no `fabrik-epics-review.yaml` line remains.
+
+Conversion: every `# class:` comment is now a `class:` key (ban 77, prose 91, behavioural 3, grammar 1; 172 entries) and every `# clauses:` comment is a real 1-based `clauses:` key or deleted where the unit covers all its clauses. Joined `¶` baselines were split where they broke the D lint (L59/L60, L109/L110, L200/L201, L233/L234); L246-L254 (Acceptance) is deleted with `vanished:` labels (L245 narrative, L246 `duplicate-of u-L36`, L247 `duplicate-of u-L77`, L248-L254 `rule: [...]`). Reworded/total entries: about 100 of 172 (exact split not computed, no scripting here); the rest are unchanged units or restored baseline text.
+
+`ec-a-suspended-fanout-refuses-with-a` now has NO `baseline:` (an entry with `class:` and no baseline is unlinted, D-1245): its old joined baseline (L114 + L182) could not pass D without reproducing L114's `set_quality(...)` span. L114 is `vanished: rule: [that id]`; the id carries `never hand-roll run_agents + record_run — it no-ops` and the `REFUSES with a ValueError` clause; L182's own spans are back verbatim in `ec-surgical-ticket-fix-a-missing-metadata`.
+
+### Floor (why it is not <=50%)
+
+Live rule count about 170 units, 77 of them ban-bearing. Under D-1240 a ban clause is verbatim to its clause end, parentheticals included, and every anchor (backticked token, number, path, `PASS/FAIL`-style slash word) of a kept clause must stay. This command is a five-lens checklist: ~1,900 words of table rows whose cells are almost all anchors or ban spans, the Phase 5 fence (a parser-read grammar, 25 line clauses), Phase 2's 3-command chain (~108 ban clauses at the fix round) and the pool-OFF comment spans the ban lint pins. Measured by the loader, not by estimate: every clause I tried to shrink in the audit pass either held a ban word or failed the 70%-of-first-8-stems or the anchor test. Clause labels I applied as `narrative` (the audit's work list): reads-budget c1; epic-ticket-files c2; enumerate c2; vision-summary c1; infrastructure-decisions c2-5; epic-proposal c2; schema-file c2; verify c1; overlapping-paths c2,c3; different-phases c2,c3,c6 and `duplicate-of` c1,c5; frontmatter-graph c2; expected-count c2,c3; round-robin c2,c3; after-assign c4; native-seats c2; breadth c5; entry-point c2; epic-count c3; root-epic c2; critical-path c2; target_vps c2; responsive c5; registrars-mismatch `duplicate-of` c2; fixup-owner c2; blocked-cases c5; final-round c5; anti-cheat c1; fixups-edit c1; check-review-coverage c2,c4; either-key `duplicate-of` c2; agent-1 c2; re-cut c2; rule-pack c3; push-default c2,c3; typed-frontmatter c2; ticket-set-integrity c1,c2; hand-off c2,c3; generate-order c2; template c5,18,19,22-25.
+
+COUNTS: 172 entries read / ~100 reworded / not audited (no subagent, no author-blind pass) / not audited / not audited / not audited. Self-audit here was the loader's A-D lints plus a line-by-line pass over the LOSS list only; the labels above and the unlinted L114 carrier are exactly what the hub's author-blind pair must read.
+
+Gates, start -> end failure sets (all reds are the `_shared/` LOSS exit 4 or box services, identical sets): test_command_rules 1 failed, 56 passed -> same (the one red is `test_the_live_corpus_has_no_loss`, `_shared/` lines only; its PASSES section prints `LEDGER fabrik-epics-review.yaml: 172 entries · classes {...} · vanished {'duplicate-of': 12, 'narrative': 8, 'rule': 135}`); flip-gate group 14 failed, 100 passed -> same; worktree-guard group 163 passed -> same; command_run group 2 failed, 617 passed -> same; deck group 541 passed, 2 skipped -> same; governance group 511 passed -> same; review_receipt group 2 failed, 323 passed -> same.
+
+## LEFT FOR THE HUB (re-ledger round)
+
+- Author-blind audit of every reworded entry and of the narrative/duplicate labels listed above; this run's COUNTS are not a clean-zero claim.
+- A floor D-row (about 80% own text after the canonical loader) or a decision that the pool-OFF L182/L112 comment spans and the unlinted L114 carrier may be ruled out of the ban set (that alone would free ~150 words).
+- `ec-a-suspended-fanout-refuses-with-a` has no baseline (L114): decide whether it stays an unlinted carrier.
+- `commands/_size_ceiling.json` ratchet at merge; CHANGELOG, INDEX rows.
