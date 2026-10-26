@@ -121,7 +121,12 @@ def run_root() -> Path:
     clone can read and plan but change nothing (the first live runs, W-174b8543). A relative or `~` value would land
     under whatever directory the run was launched from, so `~` is expanded and anything still relative is refused."""
     raw = (os.environ.get("API_WRITE_RUN_ROOT") or "").strip()
-    given = Path(raw).expanduser() if raw else Path.home() / ".cache" / "fabrik" / "api-write"
+    try:
+        given = Path(raw).expanduser() if raw else Path.home() / ".cache" / "fabrik" / "api-write"
+    except RuntimeError:  # `~name` for a user with no home entry
+        raise ac.RefusalError(
+            2, f"API_WRITE_RUN_ROOT={raw!r}: cannot expand ~ — nothing started"
+        ) from None
     if not given.is_absolute():
         raise ac.RefusalError(
             2, f"API_WRITE_RUN_ROOT={raw!r} is not an absolute path — nothing started"

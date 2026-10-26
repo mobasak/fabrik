@@ -485,13 +485,16 @@ def test_a_run_root_under_a_claude_dir_refuses_before_anything(box: dict, under:
     assert _rows(box) == [] and _calls(box) == []
 
 
-@pytest.mark.parametrize("raw", ["~/plain-api-write", "rel/x", " "])
+@pytest.mark.parametrize("raw", ["~/plain-api-write", "rel/x", " ", "~nosuchuser-zz9/x"])
 def test_a_relative_run_root_is_refused_or_expanded(box: dict, raw: str) -> None:
     """A relative value would land under the launch directory; `~` is expanded, the rest refused before any spend."""
     home = box["tmp"] / "home"
     box["env"] = {**box["env"], "API_WRITE_RUN_ROOT": raw, "HOME": str(home)}
     p = _run(box, "--key", "can", "--slug", "t7", "--task-file", str(_brief(box, "t7")))
-    if raw.startswith("~"):
+    if raw.startswith("~nosuchuser"):  # an unknown user: a clean refusal, never a traceback
+        assert p.returncode == 2 and "cannot expand ~" in p.stderr and "Traceback" not in p.stderr
+        assert _calls(box) == []
+    elif raw.startswith("~"):
         assert p.returncode == 0
         assert Path(_runs(box)[0]["cwd"]).is_relative_to(home / "plain-api-write")
     elif raw.strip():
