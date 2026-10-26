@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rea is in every account's user-level MCP set and every git repo (W-b29a4f40, D-1252, 2026-10-26)
+- `claude_rotate.py --sync-mcp/--sync-shared` (and its aro-wake twin) takes `rea` from the catalog (`USER_CATALOG_SERVERS`
+  over `scripts/sysadmin/mcp_defs.json`) whatever the source roster holds, and writes every account dir and `~/.claude.json`
+  (through a symlink; an absent one is left absent; a broken link is a SKIP). A catalog entry that is missing, has nothing
+  to launch or carries a `${VAR}` refuses the sync at rc 2 before any write. The `active` pointer and the `backups` park
+  root are no longer synced as accounts, so a healthy sync exits 0; `--new-dir backups` is refused.
+- `emit_mcp_project_config.py` serves every git repo: an untyped one gets the universal set when `git check-ignore` says
+  its `.mcp.json` is ignored; an unknown or unreadable `type:` stays a visible SKIP; image-generation is no longer excluded.
+  `check_mcp_scope.py` reads the same ownership predicate (`emitter_owns`) and skips non-git directories.
+- Live: 8/8 account `.claude.json` files and 44/44 /opt git repos carry `rea`; rn-kit-sandbox, image-generation and
+  fabrik-dr-store got their first `.mcp.json`.
+
 ### Changed — every repo's sessions get the REA reverse-engineering tools (W-7e29c9b9, 2026-10-26)
 
 - `scripts/sysadmin/emit_mcp_project_config.py`: `rea` joins the universal set (D-1239, superseding D-1199's
