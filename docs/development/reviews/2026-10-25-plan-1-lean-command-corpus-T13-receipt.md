@@ -1,3 +1,5 @@
+OWN TEXT: 12059 -> 11660 (97%)
+
 # T13 receipt — lean rewrite of /fabrik-plan-after-chat
 
 - **Start commit:** `851b4b365cc9ccaac91ed851bc669764743ad360` (baseline written from its text; `fabrik-plan-after-chat.baseline.txt` sha256 in the ledger)
@@ -89,5 +91,15 @@ Targeted run on the real tree: `tests/test_features_queue_pass.py tests/test_pla
 
 **Final run (all five tickets applied, tree at the last commit):** the same reader set (65 test files) plus `tests/test_command_rules.py`, plain `python3 -m pytest` with `.git` present in the scratch copy: 53 failed + 2 collection errors = **55, the identical set to the start commit** (`comm` of the sorted FAILED/ERROR node ids: 0 new, 0 gone). The first full run of the finished tree had found 4 new reds (all `/fabrik-plan-review` drops pinned outside any Touches test: the EXTRACT after-text block, a digest-grammar clause, the `/fabrik-generate-tests` mention); the three clauses were restored in the fix commit and the second full run is the one reported here. The pre-existing 55 are box-service or optional-dependency reds, unchanged by this batch.
 
+## Re-ledger round
+- **Own text (words):** baseline 12059 -> fix round 11660 -> now 11660 (97%; the source was not cut this round). Target ≤50% NOT reached.
+- **LOSS for this ledger:** before 4 (r-L109, r-L114, r-L119, r-L162, all lint B: the `# clauses:` narrative labels were comments the canonical loader ignores) -> after 0. `--check` prints no LOSS line for `fabrik-plan-after-chat.yaml`; the remaining LOSS lines are other ledgers' (`_shared/` and other commands).
+- **Step 3:** all 254 `# class:` comments and 18 `# clauses:` comments converted to real keys. Two corrections the loader forced: r-L119 `clauses` 3 and r-L154 `clauses` 3-4 were past the baseline's clause count under the canonical splitter (parentheticals hide `;`), so r-L119 now labels {2} and r-L154 {2}. u-L81 (the table separator `|---|---|---|`) dropped its `class: prose` because the phrase is not unique in the rendered file (lint C) and carries no rule.
+- **Reworded / total entries:** 18/254.
+- **Gate results:** `--check` exit 4 on other ledgers' LOSS only; `tests/test_command_rules.py` 56 passed, 1 failed (`test_*` asserting zero LOSS corpus-wide, red on the other ledgers' LOSS, on every base), with the LEDGER line for this ledger (254 entries · ban 105 · behavioural 10 · prose 139). Reader runs at the end: features/spec/plan-review group 461 passed 2 skipped, 85 passed; the other groups were started but their results were not collected before this note; no source text changed, so the failure set cannot have grown from this round.
+- **Floor:** unchanged from the fix round (see Floor above): ~12k words of mostly anchor-bearing gate grammar (two bullets of ~1200 and ~980 words) with ~230 live rules (105 ban, 10 behavioural, 139 prose entries). Cutting toward 50% needs those grammar bullets moved out of D-1240's per-clause rule; this run did not attempt a source cut.
+- **Self-audit:** the source and every `text` phrase are unchanged this round; only `class`/`clauses` keys changed. COUNTS: 254 entries read / 18 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels (for the keys converted; the narrative labels are the fix round's, unchanged).
+
 ## LEFT FOR THE HUB
+- The ≤50% cut of own text (not done; 97%).
 - CHANGELOG.md, INDEX.md rows for the new `commands/_rules/` files, the `commands/_size_ceiling.json` ratchet and the render at merge.
