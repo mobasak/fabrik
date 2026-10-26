@@ -521,7 +521,7 @@ def _has_run(hay: list[str], needle: list[str]) -> bool:
 def _ban_hits(s: str) -> list[re.Match]:
     """The ban words of ``_deemph(s)`` outside code spans (an identifier like `never-route` bans nothing);
     the match positions index ``_deemph(s)``, since a masked span keeps its length."""
-    return list(_BAN.finditer(re.sub(r"`[^`]*`", lambda m: "x" * len(m.group(0)), _deemph(s))))
+    return list(_BAN.finditer(_mask_code(_deemph(s))))
 
 
 def _is_ban(baseline: object) -> bool:
@@ -538,31 +538,42 @@ def entry_class(e: dict) -> str:
     return "ban" if _is_ban(e.get("baseline")) else "prose"
 
 
+_CODE = re.compile(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)", re.S)  # CommonMark: a run closes only on a run of its length
+
+
+def _mask_code(s: str) -> str:
+    """``s`` with every code span overwritten by `x` (same length, so positions hold): what the clause split,
+    the ban words and the ban span read; a lone backtick is literal text, never an opener."""
+    return _CODE.sub(lambda m: "x" * len(m.group(0)), s)
+
+
+def _depths(masked: str) -> list[int]:
+    """The parenthesis depth at each character of a code-masked string; all zero when the parentheses do not
+    balance, so a stray `(` never swallows the rest of the text."""
+    if masked.count("(") != masked.count(")"):
+        return [0] * len(masked)
+    out, d = [], 0
+    for ch in masked:
+        d = max(0, d + (ch == "(") - (ch == ")"))
+        out.append(d)
+    return out
+
+
 def _clauses(baseline: str) -> list[str]:
-    """Split at `;`, a spaced `—` `–` `--` or an unspaced `—`; never inside a code span (a run of N backticks
-    closed by a run of N) or a parenthetical, so a `(…; …)` aside stays inside its clause (D-1240)."""
-    out, cur, i, depth, fence = [], "", 0, 0, 0
-    while i < len(baseline):
-        if baseline[i] == "`":
-            run = len(baseline[i:]) - len(baseline[i:].lstrip("`"))
-            if not fence:
-                fence = run if baseline.find("`" * run, i + run) >= 0 else 0
-            elif run == fence:
-                fence = 0
-            cur += baseline[i : i + run]
-            i += run
+    """Split at `;`, a spaced `—` `–` `--` or an unspaced `—`; never inside a code span or a balanced
+    parenthetical, so a `(…; …)` aside stays inside its clause (D-1240)."""
+    masked = _mask_code(baseline)
+    depth = _depths(masked)
+    out, last, i = [], 0, 0
+    while i < len(masked):
+        ch = masked[i]
+        sep = 1 if ch in ";—" else next((len(s) for s in (" — ", " – ", " -- ") if masked.startswith(s, i)), 0)
+        if sep and not depth[i]:
+            out.append(baseline[last:i])
+            last = i = i + sep
             continue
-        ch = baseline[i]
-        if not fence:
-            depth += (ch == "(") - (ch == ")" and depth > 0)
-            sep = 1 if ch in ";—" else next((len(s) for s in (" — ", " – ", " -- ") if baseline.startswith(s, i)), 0)
-            if not depth and sep:
-                out.append(cur)
-                cur, i = "", i + sep
-                continue
-        cur += ch
         i += 1
-    out.append(cur)
+    out.append(baseline[last:])
     return [c.strip() for c in out if c.strip()]
 
 
@@ -577,7 +588,7 @@ def _baseline_clauses(baseline: str) -> list[str]:
 # ── D-1240: the two readings the loader applies, one function each, changed only by a D-row ──
 # order matters: a path or file name is tried before a number, so `0/5/0` is one anchor, never `0` + `/5/0`
 _ANCHOR = re.compile(r"`[^`]+`|[\w.-]*/[\w./-]+|\b[\w-]+\.(?:py|md|json|jsonl|sh|ya?ml|js|ts|toml)\b|(?<![\w.])\d[\d.,]*\b")
-_STEM = re.compile(r"[a-z]{4,}")
+_STEM = re.compile(r"(?<!\w)[^\W\d_]{4,}(?!\w)")  # a letters-only word (any script), never a run inside a token
 STEM_RECALL = 0.7  # D-1240: the share of a clause's content stems one phrase must hold
 STEM_CAP = 8  # D-1240: only the clause's first 8 content stems count
 
@@ -613,6 +624,8 @@ def _covered(clause: str, phrases: list[str]) -> bool:
     per-phrase rule bound it, the anchors stop a stub, and the author-blind audit pair reads old against new."""
     want = _stems(clause)[:STEM_CAP]
     anchors = _anchors(clause)
+    if not want and not anchors:  # nothing to measure ("Do it now"): the clause's own words, whole, in one phrase
+        return any(_has_run(_words(ph), _words(clause)) for ph in phrases)
     for ph in phrases:
         # as written OR de-emphasised: a code anchor (`_X_ROW`) keeps its underscores, a ban word (_never_) drops them
         forms = (normalise(ph).lower(), normalise(_deemph(ph)).lower())
@@ -626,11 +639,16 @@ def _covered(clause: str, phrases: list[str]) -> bool:
 
 def _ban_span(clause: str, m: re.Match) -> str:
     """D-1240: a ban clause is verbatim from its ban word to the end of its `;`/`—` clause or the sentence
-    end, whichever comes first; a `,` or `(` does not end it (``clause`` is already one `;`/`—` clause)."""
+    end, whichever comes first; a `,` or `(` does not end it (``clause`` is already one `;`/`—` clause). A
+    sentence ends where `units()` splits prose (``_BOUNDARY``, never after ``_ABBREV``) or at the clause end,
+    and never inside code or a balanced parenthetical."""
     rest = clause[m.start() :]
-    masked = re.sub(r"`[^`]*`", lambda c: "x" * len(c.group(0)), rest)  # a `.` inside code ends nothing
-    end = re.search(r"[.!?](?=\s|$)", masked)
-    return rest[: end.start()] if end else rest
+    masked = _mask_code(rest)
+    depth = _depths(masked)
+    for b in _BOUNDARY.finditer(rest):  # on the text, since the next sentence may open with code; the mask says where code is
+        if masked[b.start()] == rest[b.start()] and not depth[b.start()] and not _ABBREV.search(rest[: b.start() + 1]):
+            return rest[: b.start()]
+    return rest.rstrip(" .!?")
 
 
 def _check_clauses(e: dict, ids: dict[str, dict]) -> None:
@@ -657,7 +675,8 @@ def _check_clauses(e: dict, ids: dict[str, dict]) -> None:
 def _paras(scope: str) -> list[str]:
     """Blank-line paragraphs, with every fence marker line a break of its own: an odd backtick run must not flip
     code parity for the prose beside it."""
-    return re.split(r"\n\s*\n|^\s*(?:```|~~~).*$", scope, flags=re.M)
+    # a marker line is the run plus an info string and nothing else: "```code``` Never push" is prose
+    return re.split(r"\n\s*\n|^[ \t]*(?:`{3,}|~{3,})[^`~\n]*$", scope, flags=re.M)
 
 
 def _verbatim(span: str, paras: list[str]) -> bool:
@@ -695,9 +714,8 @@ def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
     cls = entry_class(e)
     # C binds the carriers D-1236 lets be reworded (prose); a ban/grammar/behavioural pin is held by A, B and D
     for ph in phrases if cls == "prose" else []:
-        if cur is not None and normalise(ph) == cur:
-            continue
-        if len(normalise(ph).split()) < 6:
+        whole_unit = cur is not None and normalise(ph) == cur  # exempt from the minimum only, never uniqueness
+        if not whole_unit and len([w for w in normalise(ph).split() if re.search(r"\w", w)]) < 6:
             out.append(("C", f"text phrase under 6 words — {ph[:80]}"))
         elif (n := sum(len(re.findall(_whole(normalise(ph)), p)) for p in file_paras)) != 1:
             out.append(("C", f"text phrase appears {n}x in its file, need exactly once — {ph[:80]}"))
@@ -714,8 +732,14 @@ def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
             need = [m.group(0).lower()] + nxt
             if not any(_has_run(w, need) for w in pw):
                 out.append(("A", f"clause {n}: ban word {m.group(0)!r} (with the word after it) is in no text phrase"))
-        if bans and not _verbatim(_ban_span(dc, bans[0]), live):
-            out.append(("D", f"clause {n}: not verbatim in the live text from its ban word — {_ban_span(dc, bans[0])[:80]}"))
+        reach = -1  # each ban word's span, unless an earlier ban word's span already holds it
+        for m in bans:
+            if m.start() < reach:
+                continue
+            span = _ban_span(dc, m)
+            reach = m.start() + len(span)
+            if not _verbatim(span, live):
+                out.append(("D", f"clause {n}: not verbatim in the live text from its ban word — {span[:80]}"))
         if str(n) in labels:
             continue
         if not _covered(clause, phrases):
@@ -753,7 +777,7 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
     for n in vanished(baseline, own):
         if f"L{n}" not in labels:
             loss.append(f"LOSS {name}: baseline L{n} vanished, unclassified — {baseline[n - 1][:120]}")
-        elif labels[f"L{n}"] == "narrative" and _is_ban(baseline[n - 1]):  # D-1238 point 1, the line-level label
+        elif labels[f"L{n}"] == "narrative" and _is_ban(baseline[n - 1].split(" ¦ ", 1)[-1]):  # D-1238 point 1; the unit, never its heading key
             loss.append(f"LOSS {name}: baseline L{n} holds a ban word and cannot vanish as narrative — {baseline[n - 1][:120]}")
     positions: dict[str, int] = {}
     for e in ledger["_ids"].values():

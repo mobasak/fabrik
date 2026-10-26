@@ -306,7 +306,7 @@ Two classes of citation rot were fixed alongside it and should not be reintroduc
 at `commands/_rules/_shared/<name>.yaml`. Each ledger carries a sha-pinned baseline of its own text,
 split into heading-keyed units. `losses()` asserts every ledger against a render, and a LOSS is one
 of: a failed `text`, `ordered` or `forbidden` carrier; a baseline unit that vanished unclassified;
-a malformed ledger; or a ledger lint (below). `enforced:` is a load-time lint: the named test's own asserts must show a
+a malformed ledger; a vanished baseline line holding a ban word labelled `narrative`; or a ledger lint (below). `enforced:` is a load-time lint: the named test's own asserts must show a
 refusal, and a call that runs something (a subprocess or runner callee, never `print()` or a
 logger) must name the script the entry's `text` carrier names. `losses()` never raises.
 
@@ -334,21 +334,25 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   `_x_` emphasis ignored (`not`, `stays` and `refusing` are none). An entry's `class:` is
   `ban | grammar | behavioural | prose`; absent, a baseline holding a ban word is `ban`, else `prose`, and
   `summary()` prints the class counts. A class only ADDS: a clause holding a ban word binds in every class. The
-  baseline splits into clauses at `;`, a spaced `—` `–` `--` or an unspaced `—`, never inside a code span or a
-  parenthetical; a fenced unit splits at its lines only. **A** — every (ban word, next word in the same clause)
+  baseline splits into clauses at `;`, a spaced `—` `–` `--` or an unspaced `—`, never inside a code span (a
+  backtick run closed by a run of its length; a lone backtick is literal) or a balanced parenthetical; a fenced unit
+  splits at its lines only. **A** — every (ban word, next word in the same clause)
   pair is in a `text` phrase, the same ban word the baseline uses. **B** — each clause is covered by ONE `text`
   phrase (`_covered`, D-1240): the phrase holds every anchor of the clause (backticked tokens, numbers, paths,
   file names, ban words) and at least `STEM_RECALL` (0.7) of the clause's first `STEM_CAP` (8) content stems
-  (letters-only words of 4+ letters, cut to 5) — per phrase, never pooled; the two constants change only by a
+  (letters-only whole words of 4+ letters in any script, cut to 5, each counted once) — per phrase, never pooled; a
+  clause with no stem and no anchor needs its own words, whole and in order, in one phrase; the two constants change only by a
   D-row — or the clause is named in `clauses: {<n>: narrative | duplicate-of: <id>}`. At load a key must be
   within the clause count, a `duplicate-of` id must be another live entry whose `text` covers the clause, and a
   clause holding a ban word takes no label at all (D-1238 point 1); a `vanished:` baseline line holding a ban word
   is never `narrative` either. **C** — in class `prose` only (the carriers D-1236 lets be reworded; a
-  ban, grammar or behavioural pin is held by A, B and D), a `text` phrase is ≥6 whitespace words and appears exactly once, as a
-  whole, in the entry's FILE (a phrase equal to the whole `current` unit is exempt: `_check` proves that unit
-  live). **D** — a clause holding a ban word stands verbatim in the LIVE section from its ban word to the end of
-  its clause or sentence, whichever comes first (`_ban_span`, D-1240: a `,` or `(` ends nothing), whitespace,
-  emphasis and case normalised; in classes `grammar` and `behavioural` every other unlabelled clause stands
+  ban, grammar or behavioural pin is held by A, B and D), a `text` phrase is ≥6 whitespace words holding a letter or digit and appears exactly once, as a
+  whole, in the entry's FILE (a phrase equal to the whole `current` unit is exempt from the minimum only: `_check`
+  proves that unit live). **D** — a clause holding a ban word stands verbatim in the LIVE section from its ban word to the end of
+  its clause or sentence, whichever comes first (`_ban_span`, D-1240: a `,` or `(` ends nothing; a sentence ends
+  where `units()` splits prose, never after `e.g.`/`i.e.`/`etc.` or inside code or a parenthetical), each ban word's
+  span checked unless an earlier one already holds it, with whitespace, emphasis and case normalised and punctuation
+  kept; in classes `grammar` and `behavioural` every other unlabelled clause stands
   verbatim too; `prose` may reword. `pins:` is a non-empty list of non-empty strings (the retired pin test node
   ids; no node is resolved). An id or date parenthetical is history: label its clause `narrative`, never
   exempt it in the loader (D-1238). COBRA: the cheapest pass is a stub carrier, then a reworded clause — A/B read

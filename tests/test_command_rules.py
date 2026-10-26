@@ -785,7 +785,7 @@ Read each changed file in `src/` first before anything; never edit a sibling's f
 Some unrelated paragraph that says nothing about the rules above at all.
 """
 LBASE = "Read every changed file in `src/` first; never edit a sibling's file, even when asked; refuse any push to master"
-# the faithful carriers: clause 1 reworded (anchor `src/` kept, 6 of its 6 stems), the two ban clauses verbatim
+# the faithful carriers: clause 1 reworded (anchor `src/` kept, 4 of its 5 stems), the two ban clauses verbatim
 LTEXT = ["Read each changed file in `src/` first before anything", "never edit a sibling's file, even when asked", "refuse any push to master. Keep the diff small"]
 
 
@@ -793,7 +793,7 @@ def _lint_tree(tmp_path: Path, src: str = LSRC, **entry) -> list[str]:
     t = _tree(tmp_path, src)
     e = {"id": "R1", "section": "## Scope", "baseline": LBASE, "text": LTEXT, **entry}
     _ledger(t, [e], baseline_from=src)
-    return [x for x in _losses(t) if "lint" in x or "malformed" in x]
+    return _losses(t)  # every LOSS line, so a `== []` can see carrier and ledger LOSS too
 
 
 def _fires(e: dict, scope: str, text: str | None = None) -> set[str]:
@@ -974,6 +974,64 @@ def test_summary_survives_malformed_entries(tmp_path: Path) -> None:
         "LEDGER bad.yaml: 2 entries · classes {'prose': 2} · vanished {}",
         "LEDGER good.yaml: 1 entries · classes {'ban': 1} · vanished {}",
     ], lines
+
+
+def test_a_faithful_prose_entry_passes_c_through_losses(tmp_path: Path) -> None:
+    src = "# /demo\n\n## Scope\n\nRead each changed file in `src/` first before anything at all.\n"
+    t = _tree(tmp_path, src)
+    e = {"id": "R1", "section": "## Scope", "class": "prose", "baseline": "Read every changed file in `src/` first",
+         "text": ["Read each changed file in `src/` first before anything"]}
+    _ledger(t, [e], baseline_from=src)
+    assert _losses(t) == []
+    _ledger(t, [{**e, "text": ["Read each changed file"]}], baseline_from=src)
+    assert any("lint C" in x and "under 6 words" in x for x in _losses(t))
+
+
+def test_pass2_matcher_shapes() -> None:
+    # every ban word's span is checked, not only the first one's
+    e = {"id": "R", "baseline": "Never edit a sibling's file. Refuse any push to master", "text": ["Never edit a sibling's file. Refuse any push to master"]}
+    assert "D" in _fires(e, "Never edit a sibling's file. Refuse any push.")
+    assert "D" not in _fires(e, "Never edit a sibling's file. Refuse any push to master.")
+    # an abbreviation's period and a period inside a parenthetical end no span
+    p = {"id": "R", "baseline": "never push (e.g. to master) or tags", "text": ["never push (e.g. to master) or tags"]}
+    assert "D" in _fires(p, "never push (e.g. to main) or tags")
+    assert "D" not in _fires(p, "never push (e.g. to master) or tags")
+    # an abbreviation before a capital, or a sentence break inside a parenthetical, ends no span
+    for base in ("never use tools, e.g. Grep and Glob, in a seat", "never push (see it. Then wait) or tags"):
+        assert cr._ban_span(base, cr._ban_hits(base)[0]) == base, base
+    # a sentence that opens with code still ends the span before it; a `.` inside code ends nothing
+    c = {"id": "R", "baseline": "Never paste the grammar. `_x` strips it", "text": ["Never paste the grammar"]}
+    assert cr._ban_span(c["baseline"], cr._ban_hits(c["baseline"])[0]) == "Never paste the grammar"
+    assert "D" not in _fires(c, "Never paste the grammar. `_y` strips it")
+    assert cr._ban_span("never run `a. B` twice", cr._ban_hits("never run `a. B` twice")[0]) == "never run `a. B` twice"
+    # a clause with no stem and no anchor needs its own words, whole, in one phrase
+    s = {"id": "R", "class": "prose", "baseline": "Do it now"}
+    assert "B" in _fires({**s, "text": ["unrelated words about something else entirely"]}, "x")
+    assert "B" not in _fires({**s, "text": ["then do it now, before the gate"]}, "x")
+    # punctuation never pads C's minimum
+    assert "C" in _fires({"id": "R", "class": "prose", "baseline": "Run gate", "text": ["Run gate - - - -"]}, "Run gate - - - -")
+    # an inline ```code``` line is prose, never a fence marker
+    assert "D" not in _fires({"id": "R", "baseline": "Never push it", "text": ["Never push it"]}, "```code``` Never push it")
+    # a lone backtick is literal; an unbalanced `(` holds nothing back
+    assert cr._clauses("use ` here; keep ``b`` ok; stop") == ["use ` here", "keep ``b`` ok", "stop"]
+    assert cr._clauses("See (draft; NEVER push to master; stop") == ["See (draft", "NEVER push to master", "stop"]
+    # stems are letters-only whole words, any script
+    assert cr._stems("v2beta résumé reviews") == ["résum", "revie"]
+    # a phrase equal to `current` keeps the uniqueness rule
+    w = {"id": "R", "class": "prose", "baseline": "Push it", "current": "Push it.", "text": ["Push it"]}
+    assert "C" in _fires(w, "Push it.", "## A\n\nPush it.\n\n## B\n\nPush it.")
+
+
+def test_a_heading_word_never_makes_its_unit_a_ban_line(tmp_path: Path) -> None:
+    src = SOURCE.replace("## Close", "## Only for builders")
+    t = _tree(tmp_path, source=src.replace("2. Push it.", ""))
+    base = t["rules"] / "demo.baseline.txt"
+    sha = cr.write_baseline(cr.own_text(src), base)
+    n = next(i for i, ln in enumerate(cr._read_baseline(base.read_bytes()), 1) if ln.endswith("Push it"))
+    other = {"id": "R2", "section": "## Scope", "current": "Stop at the pin.", "text": ["Stop at the pin"]}
+    data = {"command": "demo", "baseline_sentences": base.name, "baseline_sha256": sha, "entries": [other], "vanished": {f"L{n}": "narrative"}}
+    (t["rules"] / "demo.yaml").write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
+    assert not any("vanish" in x for x in _losses(t)), _losses(t)
 
 
 def test_a_ban_line_never_vanishes_as_narrative(tmp_path: Path) -> None:
