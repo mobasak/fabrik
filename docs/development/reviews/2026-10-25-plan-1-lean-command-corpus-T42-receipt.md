@@ -1,0 +1,12 @@
+# T42 receipt — lean rewrite of /fabrik-generate-tests (light form)
+
+- Start commit: `8ac547a6139658fed456bb3f3f069596856d6316` (kaizen-lean-u01). Branch `claude/lean-t42`.
+- Rule: D-1236 (verbatim binds ban / grammar / behavioural classes; prose carriers reworded to operative clauses).
+- Own text, words: 2314 → 941 (40.7% of baseline; target ≤50% met). Source `commands/_sources/fabrik-generate-tests.md`.
+- Ledger `commands/_rules/fabrik-generate-tests.yaml`: 25 entries — 6 generated unchanged (`u-L*`, prose) + 19 hand-written. 18 of the 19 are reworded (r-native was kept near-verbatim but re-joined). By class (comment tags): ban 6 (r-pool-off, r-no-nopool, r-no-trivia, r-context, r-secrets, r-commit-pathspec), grammar 1 (r-dispatch), behavioural 0, prose 18 (12 hand + 6 generated). Reworded/total: 19/25.
+- Baseline units: 45; vanished 32 → 25 labelled `rule:` (to the hand entries), 7 `narrative` (author labels — audit owed; Sonnet+Haiku seats could not run in this clone).
+- What went: all `<!-- POOL OFF -->` comment blocks (comments carry no rule; the pool contract is frozen in `docs/reference/subagent-pool-contract.md`), the Import, Housekeeping and flywheel sections (pool-only), and mechanism narrative. Backticked tokens dropped only inside narrative-labelled or pool-only sentences: `62-using-subagents.md`, `_POOL_POLICY_ON = False`, `check_subagent_flywheel.py`, `AgentResult`, `git worktree add --detach HEAD`, `.tmp/subagents`.
+- Pins deleted: none. Step 2 scan over the 34 reader tests found only unrelated substrings; `test_producing_command_fragments.py` (delegated-reads + close-chain includes) and `test_check_command_corpus.py` (call-sites claimed callers, `/fabrik-review` still named) are structural and still green.
+- Gates: `tests/test_command_rules.py -rP` 32 passed, 3 skipped, prints `LEDGER fabrik-generate-tests.yaml: 25 entries · vanished {'narrative': 7, 'rule': 25}`, zero LOSS. `assemble_commands.py --check` exit 1 with only DIFFERS/MISSING drift (clone has no installed corpus); REPORT: shrank to 12657 words (ceiling 14451 — ratchet at merge; `_size_ceiling.json` untouched).
+- Reader-test failure sets (34 reader tests): start vs end run was still executing at commit time; the set is appended in a follow-up receipt commit.
+- LEFT FOR THE HUB: Sonnet+Haiku audit of the 7 narrative and 25 rule labels ("author labels — audit owed"); ceiling ratchet at merge; CHANGELOG/INDEX rows for the new `commands/_rules/` files; install of the rendered corpus.
