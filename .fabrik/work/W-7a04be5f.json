@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T17:19:41.631435Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-7a04be5f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5WJK6E2FC8KK320JEYHWDSB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: infra-3-provenance-label"
+}
