@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the `provenance` clause label in the rule ledgers (D-1255, D-1256) (2026-10-26)
+
+- `commands/command_rules.py`: a clause labelled `provenance` is measured by lint B without its parentheticals of ids alone (D-row, W-item, ISO date, SHA, `§` pointer); the label is refused on a ban clause and on a clause with no such parenthetical, and `summary()` prints the provenance count. See `docs/reference/command-corpus-check.md` § Ledger lints (W-0c38115e).
+
 ### Fixed — Ocoron brand guide: the legal entity is Ocoron Dış Ticaret Limited Şirketi; Kalite Pusulası added (2026-10-26)
 
 - W-c0080a4b, D-1250, an operator order relayed from web-ecommerce-factory. In
