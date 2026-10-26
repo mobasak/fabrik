@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T11:00:26.993035Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-bcd93b39",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after W-effb7141 merges: ANTHROPIC_API_KEY=<key> CLAUDE_CONFIG_DIR=<api-* dir> claude, approve the key, run /status, record which credential is active",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "after-w-effb7141"
+  ],
+  "title": "Probe why an interactive window launched on the sarp/can API key reported \"Credit balance too low\" (the same keys work headless via api_credit.py): launch one interactive claude on that api-* config dir and read /status for the active credential"
+}

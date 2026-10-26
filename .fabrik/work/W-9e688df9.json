@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T09:15:48.934355Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-9e688df9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make log read the events endpoint the way settle does (fetch_run_events) and print the raw lines; add a test that log never shells out to /schedule",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "cloud-dispatch"
+  ],
+  "title": "cloud_dispatch.py log returns no events from a hub session: it goes through a headless /schedule get_run_log, which answered 'Remote triggers unavailable: essential-traffic-only' for cse_01JXHDM65DEJD6fBSYEJe9TF on 2026-10-25 (account can), while settle read the same run's events directly over GET /v1/code/sessions/<cse>/events with the access token"
+}

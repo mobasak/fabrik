@@ -3,10 +3,7 @@ description: Converge ONE project doc to the verifiable truth of the codebase �
 argument-hint: "<doc path or name, e.g. docs/SERVICES.md or SERVICES — one doc per run>"
 ---
 
-Converge the named project doc into a **claim-free, code-grounded contract**: everything the doc
-asserts is verifiable in the tree/infra, and everything the code obligates the doc to say is present.
-One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the
-single-doc deep converge).
+Converge the named project doc into a **claim-free, code-grounded contract**: everything the doc asserts is verifiable in the tree/infra, and everything the code obligates the doc to say is present. One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the single-doc deep converge).
 
 {{include:run-record}}
 {{include:orient}}
@@ -16,14 +13,7 @@ single-doc deep converge).
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope + pick the contract
 
-Operate on the current project (cwd). Resolve `$ARGUMENTS` to ONE doc and its row in the
-**Convergence Contract table** below. No row → STOP and say so (FEATURES → `/fabrik-features` ·
-data-contract → `/fabrik-data-contract` · ui-design/design-system → `/fabrik-ui-design`;
-CHANGELOG/LESSONS_LEARNT/AFCL are append-only ledgers — history is never "converged against code" —
-and PORTS.md is a per-allocation registry whose reconcile home is `/fabrik-docs-review`; none of these
-has a row, by design). Read the doc, its seeding template under
-`templates/scaffold/docs/` (the canonical SHAPE — restructure drift back toward it), and the
-project's `project.yaml::type` + spec `shape:` (they decide which sections apply).
+Operate on the current project (cwd). Resolve `$ARGUMENTS` to ONE doc and its row in the **Convergence Contract table** below. No row → STOP and say so (FEATURES → `/fabrik-features` · data-contract → `/fabrik-data-contract` · ui-design/design-system → `/fabrik-ui-design`; CHANGELOG/LESSONS_LEARNT/AFCL are append-only ledgers — history is never "converged against code" — and PORTS.md is a per-allocation registry whose reconcile home is `/fabrik-docs-review`; none of these has a row, by design). Read the doc, its seeding template under `templates/scaffold/docs/` (the canonical SHAPE — restructure drift back toward it), and the project's `project.yaml::type` + spec `shape:` (they decide which sections apply).
 
 ## The Convergence Contract table (per-doc ground truth + completeness rule)
 
@@ -45,57 +35,27 @@ project's `project.yaml::type` + spec `shape:` (they decide which sections apply
 
 ## Phase 1 — Discover ground truth (the doc is the CLAIM, never the source)
 
-Sweep the contract row's ground-truth column from the CODE/infra outward. Enumerate what you READ
-(files × surfaces), not what you remember — a capability/var/job/service found in the tree but
-absent from your sweep notes is the miss this phase exists to prevent. For rows with executable
-truth (QUICKSTART steps, OPERATIONS read-only commands, route signatures), RUN it — output beats
-inspection.
+Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent. For rows with executable truth (QUICKSTART steps, OPERATIONS read-only commands, route signatures), RUN it — output beats inspection.
 
 ## Phase 2 — Reconcile bidirectionally
 
 - **Code → doc:** everything the sweep found that the contract obligates gets its row/block/section.
-- **Doc → code:** every existing claim opens to something real TODAY (a path that looks right is not
-  grounding — open it). Dead claims are deleted with the removal stated; half-true claims are
-  corrected to what is true.
-- **Shape discipline:** keep the seeding template's structure (it is consumer-contract-hardened);
-  respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never
-  copy; the Doc Sync Matrix rows bind). A path in another `/opt` repo is written as a backticked
-  plain path, never a markdown link — GitHub resolves a link's leading `/` against this repo's root.
-  A `\|` inside a table cell is cell content (GFM), so a table-shape check splits on unescaped pipes
-  only — and a bare pipe inside a backtick span still splits the row, so it is escaped too. Seat
-  briefs carry these two rules and the by-design check below.
-- **Code defects:** before a schema, missing-table or missing-feature finding is raised, grep
-  `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it, quoting the row; a ruling
-  that does not cover the finding leaves it standing; a CODE defect the converge uncovers is filed
-  to its owner (a mail to the code's owning session, or a backlog row), never patched inside a doc
-  converge; the doc states what the code does today and names the filed id.
-- **Ripples:** a fix here may obligate a sibling doc (Doc Sync Matrix). A KEYED ripple lands as the
-  MINIMAL MECHANICAL EDIT in this run's own commit — the SAME-change law; a mechanical row/link edit
-  is not a second convergence, so the one-doc guardrail is untouched (and it is OUTSIDE the
-   convergence counters: `edits:` and the md5 track the ARTIFACT only — a sibling-doc ripple never
-   re-opens the loop). Only a ripple that would itself
-  need a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the
-  staleness stated in the commit body — never silently. (The only doc→doc rule `check_doc_sync` carries is
-  added/removed/renamed-file → INDEX.md — an edit-in-place ripple fires nothing, so this law is honour-bound
-  here; that is why the commit-body statement is mandatory.)
+- **Doc → code:** every existing claim opens to something real TODAY (a path that looks right is not grounding — open it). Delete dead claims with the removal stated; correct half-true claims.
+- **Shape discipline:** keep the seeding template's structure (it is consumer-contract-hardened); respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never copy; the Doc Sync Matrix rows bind). A path in another `/opt` repo is written as a backticked plain path, never a markdown link — GitHub resolves a link's leading `/` against this repo's root. A `\|` inside a table cell is cell content (GFM), so a table-shape check splits on unescaped pipes only — and a bare pipe inside a backtick span still splits the row, so it is escaped too. Seat briefs carry these two rules and the by-design check below.
+- **Code defects:** before a schema, missing-table or missing-feature finding is raised, grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it, quoting the row; a ruling that does not cover the finding leaves it standing; a CODE defect the converge uncovers is filed to its owner (a mail to the code's owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id.
+- **Ripples:** a fix here may obligate a sibling doc (Doc Sync Matrix). A KEYED ripple lands as the MINIMAL MECHANICAL EDIT in this run's own commit — the SAME-change law; a mechanical row/link edit is not a second convergence, so the one-doc guardrail is untouched (and it is OUTSIDE the convergence counters: `edits:` and the md5 track the ARTIFACT only — a sibling-doc ripple never re-opens the loop). Only a ripple that would itself need a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the staleness stated in the commit body — never silently. (The only doc→doc rule `check_doc_sync` carries is added/removed/renamed-file → INDEX.md — an edit-in-place ripple fires nothing, so this law is honour-bound here; that is why the commit-body statement is mandatory.)
 
 ## Phase 3 — Converge (LOOP to a no-op)
 
-Repeated passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached: each pass re-runs a fresh Phase-1 sweep against the CURRENT tree, re-opens every NEW
-claim plus a STATED sample of old ones (the pass ledger carries the fraction — re-opened k of N;
-the CLOSING pass re-opens every claim any edit touched, plus the full contract clause), re-checks the contract row's "complete when" clause end to end,
-and bumps `Last Updated:` only at the final flip. List what you re-read each pass.
+Repeat passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged: each pass re-runs a fresh Phase-1 sweep against the CURRENT tree, re-opens every NEW claim plus a STATED sample of old ones (the pass ledger carries re-opened k of N; the CLOSING pass re-opens every claim any edit touched plus the full contract clause), re-checks the row's "complete when" clause end to end, lists what it re-read each pass, and bumps `Last Updated:` only at the final flip.
 
 ## Guardrails — never
 
 - Trust the doc as its own inventory — the contract row's ground-truth column is the denominator.
 - Write a claim you didn't open a file (or run a command) to ground — memory is not discovery.
 - Converge two docs in one run — ripples go through the Matrix or become named follow-ups.
-- "Fix" the seeded template's structure locally — shape defects go upstream to
-  `templates/scaffold/docs/` (they're Fabrik-maintained), content lives here.
-- Declare converged on the pass that edited — the loop ends only at the Termination contract's closing round
-  (`confirmed: 0`, md5-verified).
-
+- "Fix" the seeded template's structure locally — shape defects go upstream to `templates/scaffold/docs/` (they're Fabrik-maintained), content lives here.
+- Declare converged on the pass that edited — the loop ends only at the Termination contract's closing round (`confirmed: 0`, md5-verified).
 
 {{include:subagents-core}}
 

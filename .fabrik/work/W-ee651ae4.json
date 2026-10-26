@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T12:39:03.668544Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ee651ae4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5W3EPMNJ167X5Z8XZ1F0WR0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "URGENT (operator): fix the Ocoron brand guide's legal entity name."
+}
