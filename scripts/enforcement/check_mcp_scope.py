@@ -70,8 +70,8 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
     checked = 0
     for repo in sorted(p for p in root.iterdir() if p.is_dir()):
         mcp_json = repo / ".mcp.json"
-        if not mcp_json.is_file() or repo.name in em.CONDEMNED:
-            continue  # a condemned repo is excluded BY NAME, whatever its project.yaml still says
+        if not mcp_json.is_file() or repo.name in em.CONDEMNED or not (repo / ".git").exists():
+            continue  # excluded BY NAME, or no repo at all — the emitter sweeps git repos only (_candidate_repos)
         present = _present(mcp_json)
         if present is None:
             failures.append({"repo": repo.name, "extra": [], "reason": "unreadable .mcp.json"})
@@ -79,14 +79,15 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
         ruled = em.ruled_server_names(repo, defs)
         checked += 1
         fix = f"python3 {hub / EMITTER_REL} --repo {repo}"
-        if not em.emitter_owns(
-            repo
-        ):  # the emitter would SKIP it, so re-emitting cannot clear a failure
+        # False: the emitter would SKIP it, so re-emitting cannot clear a failure — a warning. None (git cannot say
+        # whether the file is ignored) is graded like an owned repo: an unknown answer never demotes a failure.
+        if em.emitter_owns(repo) is False:
             warnings.append(
                 {
                     "repo": repo.name,
                     "present": sorted(present),
-                    "reason": "untyped and its .mcp.json is not gitignored — the emitter does not own it",
+                    "reason": "untyped and its .mcp.json is not ignored by git (no rule, a `!` negation, or tracked)"
+                    " — the emitter does not own it",
                     "fix": "add `.mcp.json` to its .gitignore (or type the repo), then " + fix,
                 }
             )

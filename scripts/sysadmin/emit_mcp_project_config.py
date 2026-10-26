@@ -105,7 +105,8 @@ HUB_FULL_ROSTER = HUB_CLASS - HUB_REPOS
 CONDEMNED: set[str] = set()
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
 
-_TYPE_RE = re.compile(r"^type:\s*([A-Za-z0-9_-]+)\s*(?:#.*)?$", re.M)
+# a trailing comment only after whitespace, as YAML reads it (`saas-skeleton#web` is one value); [ \t] never spans lines
+_TYPE_RE = re.compile(r"^type:[ \t]*([A-Za-z0-9_-]+)(?:[ \t]+#.*)?[ \t]*$", re.M)
 _DBURL_RE = re.compile(r"^DATABASE_URL=(.+)$", re.M)
 
 
@@ -314,10 +315,10 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
     return out
 
 
-def _gitignores_mcp_config(repo: Path) -> bool:
-    """True when git itself says `<repo>/.mcp.json` is ignored — `git check-ignore` reads every rule git honours
-    (a glob, a later `!` negation) and answers no for a TRACKED file, which would carry the keys into a commit.
-    Fails closed: a missing git, a non-repo or a timeout is False."""
+def mcp_config_ignored(repo: Path) -> bool | None:
+    """Whether git itself ignores `<repo>/.mcp.json`: True (exit 0), False (exit 1 — no rule matches, a later `!`
+    negation, or the file is TRACKED and would carry the keys into a commit), or None when git cannot answer (git
+    missing, not a repo, a safe.directory refusal, a timeout). `git check-ignore` reads every rule git honours."""
     try:
         r = subprocess.run(
             ["git", "-C", str(repo), "check-ignore", "-q", ".mcp.json"],
@@ -325,23 +326,27 @@ def _gitignores_mcp_config(repo: Path) -> bool:
             timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
-        return False
-    return r.returncode == 0
+        return None
+    return {0: True, 1: False}.get(r.returncode)
 
 
-def emitter_owns(repo: Path) -> bool:
-    """Whether the emitter writes this repo's `.mcp.json`: hub-class, typed, or untyped with the file
-    gitignored. `check_mcp_scope` reads the same predicate, so it never fails a file re-emission cannot clear."""
-    return repo.name in HUB_CLASS or _repo_type(repo) is not None or _gitignores_mcp_config(repo)
+def emitter_owns(repo: Path) -> bool | None:
+    """Whether the emitter writes this repo's `.mcp.json`: hub-class or typed (True), or untyped with the file
+    ignored by git — `mcp_config_ignored`'s answer, None when git cannot say. The emitter writes only on True;
+    `check_mcp_scope` warns on False (re-emitting cannot clear it) and still grades on None."""
+    if repo.name in HUB_CLASS or _repo_type(repo) is not None:
+        return True
+    return mcp_config_ignored(repo)
 
 
 def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
-    if not emitter_owns(repo):
+    owns = emitter_owns(repo)
+    if owns is None:
+        return "SKIP (untyped repo, and git could not say whether `.mcp.json` is ignored — never written)"
+    if not owns:
         # an untyped repo is no governed project: its .gitignore is not ours, and the emitted file inlines
         # filled credentials (exa, brave-search, firecrawl keys; a DATABASE_URL) — never written untracked-unignored
-        return (
-            "SKIP (untyped repo without the `.mcp.json` .gitignore line — add it, or type the repo)"
-        )
+        return "SKIP (untyped repo whose `.mcp.json` git does not ignore — add the .gitignore line, untrack it, or type the repo)"
     servers = derive_servers(repo, defs)
     if servers is None:
         return "SKIP"

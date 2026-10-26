@@ -38,6 +38,15 @@ DEFS = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_git(tmp_path, monkeypatch):
+    """The ownership predicate asks git: the box's global or system excludes must not decide these tests."""
+    empty = tmp_path / "empty.gitconfig"
+    empty.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+
 @pytest.fixture(scope="module")
 def check():
     spec = importlib.util.spec_from_file_location("check_mcp_scope", SRC)
@@ -92,15 +101,31 @@ def test_an_unknown_type_and_the_own_agent_hub_class_repo_only_warn(check, tmp_p
     (owned / ".mcp.json").write_text(
         json.dumps({"mcpServers": {s: DEFS[s] for s in ("rea", "maestro")}})
     )
-    repo(tmp_path, "vendor-clone", None, ["session-recall", "maestro"])  # no gitignore line
+    vendor = repo(
+        tmp_path, "vendor-clone", None, ["session-recall", "maestro"]
+    )  # no gitignore line
+    (vendor / ".git").rmdir()
+    subprocess.run(["git", "init", "-q", str(vendor)], check=True)
+    # a repo git cannot answer for (here a bare `.git` dir) FAILS: an unknown answer never demotes to a warning
+    repo(tmp_path, "unanswerable", None, ["session-recall", "maestro"])
+    # a directory that is no git repo is not graded, as the emitter never sweeps it
+    plain = repo(tmp_path, "plain-dir", None, ["session-recall", "maestro"])
+    (plain / ".git").rmdir()
     # fabrik-lib keeps the FULL roster, maestro included (operator ruling 2026-10-07) — no warning
     lib = repo(tmp_path, "fabrik-lib", None, ["session-recall", "maestro", "playwright"])
     rep = check.audit(tmp_path, HUB, DEFS)
-    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [("untyped", ["maestro"])]
+    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [
+        ("unanswerable", ["maestro"]),
+        ("untyped", ["maestro"]),
+    ]
     assert sorted(w["repo"] for w in rep["warnings"]) == ["mystery", "vendor-clone"]
-    assert "gitignore" in next(w for w in rep["warnings"] if w["repo"] == "vendor-clone")["reason"]
+    assert (
+        "not ignored by git"
+        in next(w for w in rep["warnings"] if w["repo"] == "vendor-clone")["reason"]
+    )
     (owned / ".mcp.json").unlink()
-    (tmp_path / "vendor-clone" / ".mcp.json").unlink()
+    (vendor / ".mcp.json").unlink()
+    (tmp_path / "unanswerable" / ".mcp.json").unlink()
     # a server outside the roster in an own-agent repo warns (its agent writes the file), never fails
     (lib / ".mcp.json").write_text(
         json.dumps(

@@ -55,6 +55,15 @@ UNIVERSAL = {
 U5_NO_DB = UNIVERSAL - {"postgres-pro"}  # absent-until-configured (no connecting DATABASE_URL)
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_git(tmp_path, monkeypatch):
+    """The gitignore guard asks git: the box's global or system excludes must not decide these tests."""
+    empty = tmp_path / "empty.gitconfig"
+    empty.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+
 @pytest.fixture()
 def defs_file(tmp_path: Path) -> Path:
     defs = {
@@ -185,7 +194,13 @@ def test_untyped_gitless_and_unguarded_repos(tmp_path, defs_file, capsys):
     run(tmp_path, defs_file)
     assert servers_of(guarded) == U5_NO_DB
     assert not (unguarded / ".mcp.json").exists(), "no gitignore line, no secrets file"
-    assert "vendor-clone: SKIP (untyped repo without" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "vendor-clone: SKIP (untyped repo whose `.mcp.json` git does not ignore" in out
+    # a `.git` git cannot read: no answer, never written, and the line says so
+    unanswerable = make_repo(tmp_path, "unanswerable", None)
+    run(tmp_path, defs_file)
+    assert not (unanswerable / ".mcp.json").exists()
+    assert "unanswerable: SKIP (untyped repo, and git could not say" in capsys.readouterr().out
     assert not (gitless / ".mcp.json").exists()
     assert servers_of(formerly_condemned) == U5_NO_DB
     assert not (lib / ".mcp.json").exists(), "fabrik-lib's own agent lands its file"
@@ -247,6 +262,11 @@ def test_untyped_repo_gets_the_universal_set_and_an_unknown_type_stays_unruled(t
         "an unreadable type line is not untyped"
     )
     assert "playwright" in emitter.ruled_server_names(commented, defs), "a trailing comment is read"
+    # YAML reads `#` as a comment only after whitespace, and an empty `type:` is no type the roster knows
+    for name, line in (("glued", "type: saas-skeleton#web"), ("empty", "type:")):
+        r = make_repo(tmp_path, name, None)
+        (r / "project.yaml").write_text(f"name: {name}\n{line}\nother: x\n")
+        assert emitter.ruled_server_names(r, defs) is None, line
 
 
 def test_claim_validator_never_emitted(tmp_path, defs_file):

@@ -945,6 +945,34 @@ def test_sync_writes_through_a_symlinked_home_file(tmp_path, monkeypatch):
     assert json.loads(real.read_text())["mcpServers"]["rea"] == REA
 
 
+@pytest.mark.parametrize("shape", ["loop", "dangling"])
+def test_a_broken_home_symlink_is_reported_never_crashed_or_hidden(
+    tmp_path, monkeypatch, capsys, shape
+):
+    """A looping ~/.claude.json link makes resolve() raise; a dangling one points at nothing. Either way the
+    account dirs are synced and the home file is a SKIP at rc 1 — never a traceback, never a silent rc 0."""
+    fleet, _cdir, home = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    link = home / ".claude.json"
+    link.unlink()
+    link.symlink_to(link if shape == "loop" else tmp_path / "nowhere.json")
+    capsys.readouterr()
+
+    assert cr.main(["--sync-mcp", "--from", "seo"]) == 1
+
+    assert "SKIP" in capsys.readouterr().err
+    assert json.loads((fleet / "seo" / ".claude.json").read_text())["mcpServers"]["rea"] == REA
+
+
+def test_a_blank_command_does_not_hide_a_launchable_url(tmp_path, monkeypatch, _catalog):
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    entry = {"type": "http", "command": "  ", "url": "http://127.0.0.1:9/mcp"}
+    _catalog.write_text(json.dumps({"mcpServers": {"rea": entry}}))
+    assert cr.main(["--sync-mcp", "--from", "seo"]) == 0
+    assert json.loads((fleet / "seo" / ".claude.json").read_text())["mcpServers"]["rea"] == entry
+
+
 def test_new_dir_refuses_the_park_root_name(tmp_path, monkeypatch, capsys):
     """`backups` is the park root the sync skips: an account by that name would never be synced."""
     fleet, *_ = _canonical(tmp_path, monkeypatch)

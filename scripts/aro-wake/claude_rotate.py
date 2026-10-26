@@ -2216,8 +2216,10 @@ def _catalog_overlay() -> tuple[dict | None, str]:
     out: dict = {}
     for name in USER_CATALOG_SERVERS:
         entry = servers.get(name)
-        launch = entry.get("command") or entry.get("url") if isinstance(entry, dict) else None
-        if not isinstance(launch, str) or not launch.strip():
+        fields = (entry.get("command"), entry.get("url")) if isinstance(entry, dict) else ()
+        if not any(
+            isinstance(v, str) and v.strip() for v in fields
+        ):  # stdio needs a command, http a url
             return None, f"the MCP catalog {MCP_DEFS_PATH} has no launchable {name!r} entry"
         if "${" in json.dumps(entry):
             return None, (
@@ -2313,10 +2315,17 @@ def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
         print(f"  {d.name}: {len(roster)} MCP servers{extra}")
     # ~/.claude.json is what a process WITHOUT CLAUDE_CONFIG_DIR reads: it carries the same roster. An absent one is
     # left absent (a bare file would read as an un-onboarded config); a symlink is written through to its target.
-    home = USER_CLAUDE_JSON.resolve()
+    try:
+        home = USER_CLAUDE_JSON.resolve()  # a symlink loop raises RuntimeError on 3.12
+    except (OSError, RuntimeError) as e:
+        sys.stderr.write(f"  SKIP {USER_CLAUDE_JSON}: cannot resolve ({e})\n")
+        return 1
     try:
         home_roster = json.loads(home.read_text()).get("mcpServers")
     except FileNotFoundError:
+        if USER_CLAUDE_JSON.is_symlink():  # a DANGLING link is a broken config, never "absent"
+            sys.stderr.write(f"  SKIP {USER_CLAUDE_JSON}: a symlink to the missing {home}\n")
+            return 1
         return 1 if failures else 0
     except (OSError, ValueError, AttributeError):
         home_roster = None
