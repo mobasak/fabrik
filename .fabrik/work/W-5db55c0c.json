@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "two /fabrik-review-scoped feedback rows ask for code: work.py sync's class-8 message, and the Stop hook reading a numbered findings list as an operator menu"
 }

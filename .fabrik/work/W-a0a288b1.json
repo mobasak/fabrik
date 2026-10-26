@@ -3,7 +3,7 @@
   "created": "2026-10-23T04:02:03.150556Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "daa3bb664c70253399c161707c67496f4dbf2934",
   "id": "W-a0a288b1",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "one sentence in a box-local doc; the gate reads green already",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],

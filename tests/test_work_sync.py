@@ -276,7 +276,7 @@ def test_status_lists_each_drift_class_by_its_own_fixture_paths(tmp_path):
     assert _drift_lines(out, 4) == [f"DRIFT 4 (blocking)  {class4_plan}"]
     assert _drift_lines(out, 6) == [f"DRIFT 6 (blocking)  .fabrik/work/{class6_item}.json"]
     assert _drift_lines(out, 7) == ["DRIFT 7 (advisory)  docs/STRATEGIC_BACKLOG.md"]
-    assert _drift_lines(out, 8) == [f"DRIFT 8 (advisory)  {class8_plan}"]
+    assert _drift_lines(out, 8) == [f"DRIFT 8 (advisory)  {class8_plan}{_class8_reason('WEIRD')}"]
 
     for cls in range(1, 9):
         for clean in (clean_spec, clean_plan):
@@ -313,7 +313,81 @@ def test_plan_status_normalisation_only_flags_the_unrecognised_value(tmp_path):
 
     out = _ok(["status"], env, repo)
     lines = _drift_lines(out, 8)
-    assert lines == [f"DRIFT 8 (advisory)  {weird}"]
+    assert lines == [f"DRIFT 8 (advisory)  {weird}{_class8_reason('WEIRD')}"]
+
+
+def _class8_reason(shown: str | None, raw: bool = False) -> str:
+    """The reason a class-8 line carries — written out here, never imported, so a reworded
+    message is a red test rather than a silently matching one (mail 01M5B996F3)."""
+    if shown is None:
+        value = "missing (no Status: line in its first 4000 characters)"
+    else:
+        value = shown if raw else f"'{shown}'"
+    return (
+        f"  — Status {value} is none of DRAFT, IN-PROGRESS, CONVERGED, EXECUTED, BLOCKED; "
+        "a finished plan reads EXECUTED, and check_convergence then wants it to cite its "
+        "whole-plan review under docs/development/reviews/ with a quiet Pass row (confirmed: 0); "
+        "a superseded or abandoned plan moves to plans/archived/"
+    )
+
+
+def test_class_8_line_names_the_status_and_the_rule(tmp_path):
+    """A class-8 line names the value it read, the vocabulary and check_convergence's EXECUTED
+    precondition — the reader no longer hunts work-tracking.md for why the plan drifted — and
+    `sync --check` prints the same line `status` does."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    plan = _plan_dir(repo, "2026-09-24-plan-e-superseded", "SUPERSEDED (2026-10-05, D-1)")
+    want = [f"DRIFT 8 (advisory)  {plan}{_class8_reason('SUPERSEDED (2026-10-05, D-1)')}"]
+    assert _drift_lines(_ok(["status"], env, repo), 8) == want
+    assert _drift_lines(_ok(["sync", "--check"], env, repo), 8) == want
+
+
+def test_class_8_line_shows_the_whole_value_printable_and_names_an_unreadable_file(tmp_path):
+    """Round 1 of the review: a multi-word value printed only its first word (`'IN'`), a control
+    byte reached stdout, and a plan that cannot be read was called `missing`."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    spaced = _plan_dir(repo, "2026-09-24-plan-h-spaced", "IN\tPROGRESS")
+    coloured = _plan_dir(repo, "2026-09-24-plan-i-coloured", "\x1b[31mRED")
+    name = "2026-09-24-plan-j-dir"
+    (repo / "docs" / "development" / "plans" / f"{name}.md").mkdir(parents=True)
+    lines = sorted(_drift_lines(_ok(["status"], env, repo), 8))
+    assert lines == sorted(
+        [
+            f"DRIFT 8 (advisory)  {spaced}{_class8_reason('IN PROGRESS')}",
+            f"DRIFT 8 (advisory)  {coloured}"
+            + _class8_reason("unreadable (Status: ?[31mRED)", raw=True),
+            f"DRIFT 8 (advisory)  docs/development/plans/{name}.md"
+            + _class8_reason("unreadable (the file cannot be read)", raw=True),
+        ]
+    )
+
+
+def test_class_8_line_without_a_status_line(tmp_path):
+    """No header, and a header the parser's 4000-character window never reaches, both read
+    `missing … in its first 4000 characters`; a header it cannot parse reads `unreadable`."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    late = "2026-09-24-plan-k-late-status"
+    d_late = repo / "docs" / "development" / "plans" / late
+    d_late.mkdir(parents=True)
+    (d_late / f"{late}.md").write_text(f"# {late}\n\n" + "x" * 4100 + "\nStatus: DRAFT\n", "utf-8")
+    name = "2026-09-24-plan-f-no-status"
+    d = repo / "docs" / "development" / "plans" / name
+    d.mkdir(parents=True)
+    (d / f"{name}.md").write_text(f"# {name}\n\nOwner: infra\n", encoding="utf-8")
+    rel = f"docs/development/plans/{name}/{name}.md"
+    unreadable = _plan_dir(repo, "2026-09-24-plan-g-parenthesised", "(SUPERSEDED)")
+    out = _ok(["status"], env, repo)
+    assert sorted(_drift_lines(out, 8)) == sorted(
+        [
+            f"DRIFT 8 (advisory)  {rel}{_class8_reason(None)}",
+            f"DRIFT 8 (advisory)  docs/development/plans/{late}/{late}.md{_class8_reason(None)}",
+            f"DRIFT 8 (advisory)  {unreadable}"
+            + _class8_reason("unreadable (Status: (SUPERSEDED))", raw=True),
+        ]
+    )
 
 
 def test_status_reads_the_ticket_board_for_its_progress_line(tmp_path):
