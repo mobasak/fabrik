@@ -25,7 +25,7 @@ plan's new CONVERGED flip while its cited spec is not CONVERGED — under the jo
 the panel's approval commit (below), never the plan alone, which fails the gate after the loop.
 ⚠️ **Escape hatch:** if the converging plan outgrows the spec's own `Size: small` estimate (D-169's rule:
 more than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` line from
-the spec and send it to `/fabrik-spec-review` first.
+the spec and send it to `/fabrik-spec-review` first — the joint loop does not continue past that point.
 
 Once the joint loop's closing round is quiet (both documents still `DRAFT`, flipped in the approval commit),
 this run ends at the design-approval gate, which the panel below answers in the operator's place. Its brief carries the ask↔spec comparison table, built from the spec's
@@ -34,7 +34,8 @@ this loop never re-runs that step and never fabricates rows), kept in the plan's
 On approval the panel's row is this `Size: small` spec's approval row — the duty `fabrik-plan-after-chat.md:55`
 hands to `/fabrik-spec-review` for full-size work — and the brief's `NEXT:` names `/fabrik-execute-plan <plan>`;
 **this loop never invokes `/fabrik-execute-plan` itself.** On a split, end the turn with this block,
-written as plain lines, not inside a code fence.
+written as plain lines, not inside a code fence; the operator's answer, in a LATER turn, is minted by that
+turn's session, and changes re-open the loop.
 
 ```
 DECISION NEEDED (ground: gate)
@@ -46,7 +47,8 @@ DECISION NEEDED (ground: gate)
 ```
  A spec with no `Size: small` line
 keeps today's behaviour unchanged: no joint loop, no gate, full autonomy.
-**Only a `Size: small` spec's gate owes the two steps below**.
+**Only a `Size: small` spec's gate owes the two steps below** — a plan review without that gate dispatches no
+critiques.
 
 {{include:design-critique}}
 
@@ -155,7 +157,7 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
    digest never names, or a quote you cannot find, is a FINDING: the author selected against packs
    that were never open. `check_rule_grounding.py` grades the countable subset at the flip. Check the digest's grammar too
    (`grounding-rules`: columns `Quote` (or `Verbatim`) then `Source`, a Source `path:line` alone in its
-   cell). The checker matches a quote
+   cell) — a table the checker cannot read leaves its quotes ungraded. The checker matches a quote
    against the whole cited file, so each spot-check also confirms the cited `:line` holds the quote.
 
 **Why this command specifically.** `/fabrik-plan-after-chat` says it itself: *"12-Factor (all twelve) —
@@ -249,7 +251,8 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
 - **Behavior Contract per phase (test coverage)** — every phase that adds user-observable behavior carries a
   **Behavior Contract**: a test per distinct behavior / acceptance criterion (risk-ordered, TDD for the risky
   ones), per `.windsurf/rules/core/45-testing-strategy.md` + `/fabrik-plan-after-chat` Phase 2. A phase that ships
-  behavior with no test-per-behavior is under-specified. A plan light on test coverage must NOT converge. A
+  behavior with no test-per-behavior is under-specified — flag it and add the contract (the emitted plan can note
+  the cheap **pool** authors these via `/fabrik-generate-tests`). A plan light on test coverage must NOT converge. A
   step or ticket that edits an existing test by substituting a value (an expected literal, an input, a threshold)
   names, in its own Scope (a monolith step: in the step itself) and never as a Behavior Contract row, the guard that
   test exercised and the test that

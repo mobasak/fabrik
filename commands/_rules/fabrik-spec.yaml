@@ -900,7 +900,7 @@ entries:
   pins:
   - tests/test_spec_queue_pass.py::test_the_draft_and_the_judge_brief_run_the_citation_checker
 - id: u-L236
-  # class: prose
+  # class: behavioural
   file: render
   section: '## Phase 5 — Write the spec, self-review, user gate'
   baseline: Fix all before proceeding
@@ -1218,7 +1218,7 @@ entries:
   pins:
   - tests/test_spec_plan_lane_text.py::test_fabrik_spec_carries_its_recurring_feedback_rules
 - id: r-L65
-  # class: prose
+  # class: behavioural
   section: '### 1a — External facts: BLOCKING live-research gate'
   baseline: An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or installed third-party package's behaviour stays an external claim under this gate
   text:
@@ -1472,7 +1472,7 @@ entries:
   - 'External literature is owed only where a design STEP would change if the fact were false (hub ruling D-153: *"citations are not needed if I manually rule"*'
   - 'the ≥2-URL APPROACH floor is unchanged: a spec whose every behaviour is ruled still grounds HOW it is built)'
 - id: r-L163
-  # class: grammar
+  # class: behavioural
   # clauses: {4: narrative}
   section: '### 1c — Best-practice / approach: BLOCKING live-research gate'
   baseline: 'Each research seat''s brief names the search and fetch arms with this session''s verdict on each — every `<server>: <verdict>` line and every `MCP-HEALTH:` line the ORIENT `mcp_health.py` run printed, and every arm a seat of an earlier wave reported failing: a `DEAD`, `TIMEOUT` or `UNAUTHORIZED` server is down; a `CONNECTED` one with no `key check` line, or one whose key check reads `unverified`, is reachable but its key is unknown; and an arm with no verdict (a `SKIPPED` entry, the built-in `WebSearch` and `WebFetch`, and every server when the repo has no `.mcp.json`) is unknown'
@@ -1703,7 +1703,7 @@ entries:
   pins:
   - tests/test_spec_queue_pass.py::test_the_draft_and_the_judge_brief_run_the_citation_checker
 - id: r-L234
-  # class: prose
+  # class: behavioural
   section: '## Phase 5 — Write the spec, self-review, user gate'
   baseline: So write a cite into `<repo>` repo-relative, open a cite into another repo, which stays absolute, by hand (a finding on it is the cut tail, not the cite), and still open each cite a design step rests on
   text:

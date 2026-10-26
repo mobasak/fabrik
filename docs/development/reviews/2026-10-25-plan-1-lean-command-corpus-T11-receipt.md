@@ -3,7 +3,7 @@
 - **Start commit:** `851b4b365cc9ccaac91ed851bc669764743ad360` (baseline written from its text; `fabrik-spec.baseline.txt` sha256 in the ledger)
 - **Own-text words:** 9182 → 7642 (83% of baseline; target ≤50%). **Floor named below.**
 - **Ledger entries:** 232 total = 129 generated-unchanged (`u-L<n>`, `generate_unchanged`) + 103 reworded (`r-L<n>`, hand-covered). Reworded / total = 103/232.
-- **By class (D-1236 tag, set at baseline):** unchanged {'ban': 45, 'prose': 71, 'behavioural': 13} · reworded {'prose': 59, 'behavioural': 8, 'ban': 35, 'grammar': 1}. The tag is a `# class:` YAML comment (the loader on this base has no `class` key).
+- **By class (D-1236 tag, set at baseline):** unchanged {'ban': 45, 'prose': 70, 'behavioural': 14} · reworded {'prose': 57, 'behavioural': 11, 'ban': 35}. The tag is a `# class:` YAML comment (the loader on this base has no `class` key).
 - **Vanished baseline lines:** 126 = 103 `rule:` (covered by a reworded entry) + 23 `narrative` (every clause labelled narrative). 123 clauses inside the `rule:` lines are labelled narrative, recorded per entry as a `# clauses:` comment.
 - **Labels:** author labels — audit owed (the Sonnet + Haiku classification seats cannot run in this clone).
 - **Coverage rule applied by hand (D-1240):** per clause (split at `;`/`—`, outside code spans) ONE `text` phrase holds 100% of the clause's anchors (backticked tokens, numbers, paths, ban words) and ≥70% of its first 8 content-word stems; a clause holding never/must/only/refus* is verbatim from that word to the end of its clause and is never labelled narrative; the carrier holds the same ban token; every phrase is ≥6 normalised words and unique in the file. Checked by a scratch script (not committed; `commands/command_rules.py` was not edited).
@@ -45,7 +45,7 @@ Measured on the start-commit text (units of `command_rules.units`, clauses split
 | r-L52 | prose | 2 | 1:P1 2:N |
 | r-L53 | prose | 1 | 1:P1 |
 | r-L64 | ban | 1 | 1:P1 |
-| r-L65 | prose | 2 | 1:P1 2:P2 |
+| r-L65 | behavioural | 2 | 1:P1 2:P2 |
 | r-L76 | ban | 3 | 1:P1 2:P2 3:P3 |
 | r-L77 | prose | 2 | 1:P1 2:P2 |
 | r-L78 | prose | 2 | 1:P1 2:P2 |
@@ -79,7 +79,7 @@ Measured on the start-commit text (units of `command_rules.units`, clauses split
 | r-L157 | ban | 4 | 1:P1 2:P2 3:P3 4:N |
 | r-L158 | ban | 2 | 1:P1 2:N |
 | r-L159 | prose | 2 | 1:P1 2:P2 |
-| r-L163 | grammar | 4 | 1:P1 2:P2 3:P3 4:N |
+| r-L163 | behavioural | 4 | 1:P1 2:P2 3:P3 4:N |
 | r-L165 | ban | 4 | 1:P1 2:N 3:N 4:N |
 | r-L170 | prose | 3 | 1:N 2:P1 3:N |
 | r-L171 | prose | 2 | 1:N 2:P1 |
@@ -107,7 +107,7 @@ Measured on the start-commit text (units of `command_rules.units`, clauses split
 | r-L229 | prose | 5 | 1:P1 2:P2 3:P3 4:P4 5:N |
 | r-L230 | ban | 2 | 1:P1 2:N |
 | r-L231 | behavioural | 7 | 1:P1 2:N 3:P2 4:P3 5:P4 6:P5 7:P6 |
-| r-L234 | prose | 1 | 1:P1 |
+| r-L234 | behavioural | 1 | 1:P1 |
 | r-L235 | behavioural | 4 | 1:P1 2:N 3:P2 4:N |
 | r-L238 | ban | 3 | 1:P1 2:P2 3:P3 |
 | r-L241 | ban | 2 | 1:P1 2:P2 |

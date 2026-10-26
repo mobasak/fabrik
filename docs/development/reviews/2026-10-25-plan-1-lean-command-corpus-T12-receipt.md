@@ -1,15 +1,15 @@
 # T12 receipt — lean rewrite of /fabrik-plan-review
 
 - **Start commit:** `851b4b365cc9ccaac91ed851bc669764743ad360` (baseline written from its text; `fabrik-plan-review.baseline.txt` sha256 in the ledger)
-- **Own-text words:** 7347 → 6584 (90% of baseline; target ≤50%). **Floor named below.**
-- **Ledger entries:** 168 total = 127 generated-unchanged (`u-L<n>`, `generate_unchanged`) + 41 reworded (`r-L<n>`, hand-covered). Reworded / total = 41/168.
-- **By class (D-1236 tag, set at baseline):** unchanged {'ban': 61, 'prose': 55, 'behavioural': 11} · reworded {'prose': 23, 'behavioural': 4, 'ban': 14}. The tag is a `# class:` YAML comment (the loader on this base has no `class` key).
-- **Vanished baseline lines:** 50 = 41 `rule:` (covered by a reworded entry) + 9 `narrative` (every clause labelled narrative). 54 clauses inside the `rule:` lines are labelled narrative, recorded per entry as a `# clauses:` comment.
+- **Own-text words:** 7347 → 6652 (91% of baseline; target ≤50%). **Floor named below.**
+- **Ledger entries:** 168 total = 132 generated-unchanged (`u-L<n>`, `generate_unchanged`) + 36 reworded (`r-L<n>`, hand-covered). Reworded / total = 36/168.
+- **By class (D-1236 tag, set at baseline):** unchanged {'ban': 63, 'prose': 57, 'behavioural': 12} · reworded {'prose': 21, 'ban': 12, 'behavioural': 3}. The tag is a `# class:` YAML comment (the loader on this base has no `class` key).
+- **Vanished baseline lines:** 45 = 36 `rule:` (covered by a reworded entry) + 9 `narrative` (every clause labelled narrative). 49 clauses inside the `rule:` lines are labelled narrative, recorded per entry as a `# clauses:` comment.
 - **Labels:** author labels — audit owed (the Sonnet + Haiku classification seats cannot run in this clone).
 - **Coverage rule applied by hand (D-1240):** per clause (split at `;`/`—`, outside code spans) ONE `text` phrase holds 100% of the clause's anchors (backticked tokens, numbers, paths, ban words) and ≥70% of its first 8 content-word stems; a clause holding never/must/only/refus* is verbatim from that word to the end of its clause and is never labelled narrative; the carrier holds the same ban token; every phrase is ≥6 normalised words and unique in the file. Checked by a scratch script (not committed; `commands/command_rules.py` was not edited).
 
 ## Floor
-Measured on the start-commit text (clauses split at `;`/`—` outside code spans): of 7347 words, 1160 sit in ban-clause tails kept verbatim by D-1240, 806 in the heads of those clauses, 3039 in non-ban clauses with backticked tokens, numbers or paths (all anchors must survive) and 2044 in clauses with neither. The pass dropped what is explanatory or anecdotal (54 clauses and 9 whole lines labelled narrative: measured-incidence stories, live-defect anecdotes, rationale tails, the pool-off history and its inline comments) and nothing else; the remaining text is the seat/ledger/round mechanics (the partition and `Workflow` call, the pass-ledger and receipt grammar, the set-wide gates), each clause an anchor-bearing instruction. Result 90% of baseline, not 50%. Reaching 50% needs those mechanics moved into a fragment or re-expressed without their commands, which the per-clause coverage rule of D-1240 does not allow inside this unit; a floor D-row is owed.
+Measured on the start-commit text (clauses split at `;`/`—` outside code spans): of 7347 words, 1160 sit in ban-clause tails kept verbatim by D-1240, 806 in the heads of those clauses, 3039 in non-ban clauses with backticked tokens, numbers or paths (all anchors must survive) and 2044 in clauses with neither. The pass dropped what is explanatory or anecdotal (49 clauses and 9 whole lines labelled narrative: measured-incidence stories, live-defect anecdotes, rationale tails, the pool-off history and its inline comments) and nothing else; the remaining text is the seat/ledger/round mechanics (the partition and `Workflow` call, the pass-ledger and receipt grammar, the set-wide gates), each clause an anchor-bearing instruction. Result 91% of baseline, not 50%. Reaching 50% needs those mechanics moved into a fragment or re-expressed without their commands, which the per-clause coverage rule of D-1240 does not allow inside this unit; a floor D-row is owed. Three drops from the first pass were restored after the full reader-set run (Touches misses, outside this ticket's test files and never edited): the `[Flip preconditions …]` block and everything up to `{{include:design-critique}}` (byte-pinned by `ac.EXTRACT`'s after-text, `test_assemble_dispatch_step::test_every_extract_after_text_round_trips_against_its_source`), the digest-grammar clause (`tests/enforcement/test_rule_grounding.py`) and the `/fabrik-generate-tests` mention (`check_command_corpus.py` caller claim of `fabrik-generate-tests.md`).
 
 ## Reworded entries — clause count and how each clause is covered
 
@@ -18,9 +18,6 @@ Measured on the start-commit text (clauses split at `;`/`—` outside code spans
 | r-L1 | prose | 4 | 1:P1 2:N 3:N 4:N |
 | r-L2 | prose | 3 | 1:P1 2:P2 3:P3 |
 | r-L5 | prose | 2 | 1:P1 2:N |
-| r-L10 | behavioural | 2 | 1:P1 2:N |
-| r-L13 | ban | 5 | 1:P1 2:P2 3:P3 4:P4 5:N |
-| r-L16 | ban | 2 | 1:P1 2:N |
 | r-L27 | ban | 2 | 1:P1 2:N |
 | r-L28 | ban | 7 | 1:P1 2:P2 3:P3 4:P4 5:P5 6:N 7:P6 |
 | r-L30 | prose | 2 | 1:P1 2:N |
@@ -37,13 +34,11 @@ Measured on the start-commit text (clauses split at `;`/`—` outside code spans
 | r-L52 | behavioural | 3 | 1:P1 2:P2 3:N |
 | r-L57 | behavioural | 4 | 1:P1 2:N 3:N 4:P2 |
 | r-L61 | prose | 2 | 1:P1 2:N |
-| r-L62 | prose | 2 | 1:P1 2:N |
 | r-L75 | ban | 4 | 1:P1 2:P2 3:P3 4:N |
 | r-L79 | prose | 2 | 1:P1 2:N |
 | r-L84 | ban | 2 | 1:P1 2:P2 |
 | r-L95 | prose | 2 | 1:P1 2:N |
 | r-L100 | prose | 2 | 1:P1 2:N |
-| r-L103 | prose | 3 | 1:P1 2:P2 3:N |
 | r-L119 | prose | 3 | 1:P1 2:N 3:P2 |
 | r-L121 | ban | 9 | 1:P1 2:P2 3:P3 4:P4 5:P5 6:N 7:N 8:P6 9:P7 |
 | r-L141 | ban | 2 | 1:P1 2:N |
@@ -75,9 +70,6 @@ Measured on the start-commit text (clauses split at `;`/`—` outside code spans
 - L1.3: mechanism revised by D-182
 - L1.4: the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` 
 - L5.2: do not stop after one pass
-- L10.2: the joint loop does not continue past that point
-- L13.5: the operator's answer, in a LATER turn, is minted by that turn's session, and changes re-open the loop
-- L16.2: a plan review without that gate dispatches no critiques
 - L27.2: author-blindness is the point of this command
 - L28.6: so the precondition command above is the guarantee YOU own
 - L30.2: the summary is what a convergence artifact can EMBED as proof
@@ -99,7 +91,6 @@ Measured on the start-commit text (clauses split at `;`/`—` outside code spans
 - L57.2: coarser, same and finer for a lookup
 - L57.3: every install layout the repo's docs teach for a path rule
 - L61.2: YOUR audit owns whether the quotes are load-bearing rather than decorative
-- L62.2: a table the checker cannot read leaves its quotes ungraded
 - L67.1: A checklist can still be filled without real hunting
 - L67.2: it raises a floor, it does not guarantee a ceiling
 - L75.4: a dead or hallucinated citation is a defect
@@ -109,7 +100,6 @@ Measured on the start-commit text (clauses split at `;`/`—` outside code spans
 - L94.1: Plan review is the last point where a dropped requirement costs a paragraph instead of a rebuild
 - L95.2: there is no mechanical check for it and this row does not pretend otherwise
 - L100.2: its absence is the #1 cause of a plan that stalls mid-execution to ask the user
-- L103.3: flag it and add the contract (the emitted plan can note the cheap pool authors these via `/fabrik-generate-tests`)
 - L119.2: a deferred question inside a ticket stalls the dispatched coder exactly like one inside a monolith phase
 - L121.6: the pool is OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search
 - L121.7: recipe in § Subagents -->)

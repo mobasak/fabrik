@@ -44,6 +44,13 @@ entries:
   current: '⚠️ Flip order is fixed: `check_stage_artifacts.py::_check_plan_spec_freshness` refuses a plan''s new CONVERGED flip while its cited spec is not CONVERGED — under the joint loop both flip together in the panel''s approval commit (below), never the plan alone, which fails the gate after the loop'
   text:
   - '⚠️ Flip order is fixed: `check_stage_artifacts.py::_check_plan_spec_freshness` refuses a plan''s new CONVERGED flip while its cited spec is not CONVERGED — under the joint loop both flip together in the panel''s approval commit (below), never the plan alone, which fails the gate after the loop'
+- id: u-L10
+  # class: behavioural
+  file: render
+  baseline: '⚠️ Escape hatch: if the converging plan outgrows the spec''s own `Size: small` estimate (D-169''s rule: more than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` line from the spec and send it to `/fabrik-spec-review` first — the joint loop does not continue past that point'
+  current: '⚠️ Escape hatch: if the converging plan outgrows the spec''s own `Size: small` estimate (D-169''s rule: more than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` line from the spec and send it to `/fabrik-spec-review` first — the joint loop does not continue past that point'
+  text:
+  - '⚠️ Escape hatch: if the converging plan outgrows the spec''s own `Size: small` estimate (D-169''s rule: more than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` line from the spec and send it to `/fabrik-spec-review` first — the joint loop does not continue past that point'
 - id: u-L11
   # class: behavioural
   file: render
@@ -58,6 +65,13 @@ entries:
   current: Its brief carries the ask↔spec comparison table, built from the spec's own `## Intake Inventory` section (the A0a enumeration `/fabrik-spec` already wrote when it authored this spec — this loop never re-runs that step and never fabricates rows), kept in the plan's review receipt, not in chat
   text:
   - Its brief carries the ask↔spec comparison table, built from the spec's own `## Intake Inventory` section (the A0a enumeration `/fabrik-spec` already wrote when it authored this spec — this loop never re-runs that step and never fabricates rows), kept in the plan's review receipt, not in chat
+- id: u-L13
+  # class: ban
+  file: render
+  baseline: 'On approval the panel''s row is this `Size: small` spec''s approval row — the duty `fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review` for full-size work — and the brief''s `NEXT:` names `/fabrik-execute-plan <plan>`; this loop never invokes `/fabrik-execute-plan` itself. On a split, end the turn with this block, written as plain lines, not inside a code fence; the operator''s answer, in a LATER turn, is minted by that turn''s session, and changes re-open the loop'
+  current: 'On approval the panel''s row is this `Size: small` spec''s approval row — the duty `fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review` for full-size work — and the brief''s `NEXT:` names `/fabrik-execute-plan <plan>`; this loop never invokes `/fabrik-execute-plan` itself. On a split, end the turn with this block, written as plain lines, not inside a code fence; the operator''s answer, in a LATER turn, is minted by that turn''s session, and changes re-open the loop'
+  text:
+  - 'On approval the panel''s row is this `Size: small` spec''s approval row — the duty `fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review` for full-size work — and the brief''s `NEXT:` names `/fabrik-execute-plan <plan>`; this loop never invokes `/fabrik-execute-plan` itself. On a split, end the turn with this block, written as plain lines, not inside a code fence; the operator''s answer, in a LATER turn, is minted by that turn''s session, and changes re-open the loop'
 - id: u-L15
   # class: behavioural
   file: render
@@ -65,6 +79,13 @@ entries:
   current: 'A spec with no `Size: small` line keeps today''s behaviour unchanged: no joint loop, no gate, full autonomy'
   text:
   - 'A spec with no `Size: small` line keeps today''s behaviour unchanged: no joint loop, no gate, full autonomy'
+- id: u-L16
+  # class: ban
+  file: render
+  baseline: 'Only a `Size: small` spec''s gate owes the two steps below — a plan review without that gate dispatches no critiques'
+  current: 'Only a `Size: small` spec''s gate owes the two steps below — a plan review without that gate dispatches no critiques'
+  text:
+  - 'Only a `Size: small` spec''s gate owes the two steps below — a plan review without that gate dispatches no critiques'
 - id: u-L18
   # class: prose
   file: render
@@ -268,6 +289,14 @@ entries:
   current: 'A MATCHED pack the digest never names, or a quote you cannot find, is a FINDING: the author selected against packs that were never open'
   text:
   - 'A MATCHED pack the digest never names, or a quote you cannot find, is a FINDING: the author selected against packs that were never open'
+- id: u-L62
+  # class: prose
+  file: render
+  section: '## Phase 1 — Grounding passes (adversarial, to a fixed point)'
+  baseline: 'Check the digest''s grammar too (`grounding-rules`: columns `Quote` (or `Verbatim`) then `Source`, a Source `path:line` alone in its cell) — a table the checker cannot read leaves its quotes ungraded'
+  current: 'Check the digest''s grammar too (`grounding-rules`: columns `Quote` (or `Verbatim`) then `Source`, a Source `path:line` alone in its cell) — a table the checker cannot read leaves its quotes ungraded'
+  text:
+  - 'Check the digest''s grammar too (`grounding-rules`: columns `Quote` (or `Verbatim`) then `Source`, a Source `path:line` alone in its cell) — a table the checker cannot read leaves its quotes ungraded'
 - id: u-L63
   # class: prose
   file: render
@@ -524,6 +553,14 @@ entries:
   current: Any unmet, unprovisioned prerequisite must be a named BLOCKING unknown, never a runtime discovery
   text:
   - Any unmet, unprovisioned prerequisite must be a named BLOCKING unknown, never a runtime discovery
+- id: u-L103
+  # class: prose
+  file: render
+  section: '## Phase 1 — Grounding passes (adversarial, to a fixed point)'
+  baseline: 'Behavior Contract per phase (test coverage) — every phase that adds user-observable behavior carries a Behavior Contract: a test per distinct behavior / acceptance criterion (risk-ordered, TDD for the risky ones), per `.windsurf/rules/core/45-testing-strategy.md` + `/fabrik-plan-after-chat` Phase 2. A phase that ships behavior with no test-per-behavior is under-specified — flag it and add the contract (the emitted plan can note the cheap pool authors these via `/fabrik-generate-tests`)'
+  current: 'Behavior Contract per phase (test coverage) — every phase that adds user-observable behavior carries a Behavior Contract: a test per distinct behavior / acceptance criterion (risk-ordered, TDD for the risky ones), per `.windsurf/rules/core/45-testing-strategy.md` + `/fabrik-plan-after-chat` Phase 2. A phase that ships behavior with no test-per-behavior is under-specified — flag it and add the contract (the emitted plan can note the cheap pool authors these via `/fabrik-generate-tests`)'
+  text:
+  - 'Behavior Contract per phase (test coverage) — every phase that adds user-observable behavior carries a Behavior Contract: a test per distinct behavior / acceptance criterion (risk-ordered, TDD for the risky ones), per `.windsurf/rules/core/45-testing-strategy.md` + `/fabrik-plan-after-chat` Phase 2. A phase that ships behavior with no test-per-behavior is under-specified — flag it and add the contract (the emitted plan can note the cheap pool authors these via `/fabrik-generate-tests`)'
 - id: u-L104
   # class: ban
   file: render
@@ -1040,27 +1077,6 @@ entries:
   baseline: Converge this plan to a fixed point — do not stop after one pass
   text:
   - Converge this plan to a fixed point
-- id: r-L10
-  # class: behavioural
-  # clauses: {2: narrative}
-  baseline: '⚠️ Escape hatch: if the converging plan outgrows the spec''s own `Size: small` estimate (D-169''s rule: more than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` line from the spec and send it to `/fabrik-spec-review` first — the joint loop does not continue past that point'
-  text:
-  - '⚠️ Escape hatch: if the converging plan outgrows the spec''s own `Size: small` estimate (D-169''s rule: more than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` line from the spec and send it to `/fabrik-spec-review` first'
-- id: r-L13
-  # class: ban
-  # clauses: {5: narrative}
-  baseline: 'On approval the panel''s row is this `Size: small` spec''s approval row — the duty `fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review` for full-size work — and the brief''s `NEXT:` names `/fabrik-execute-plan <plan>`; this loop never invokes `/fabrik-execute-plan` itself. On a split, end the turn with this block, written as plain lines, not inside a code fence; the operator''s answer, in a LATER turn, is minted by that turn''s session, and changes re-open the loop'
-  text:
-  - 'On approval the panel''s row is this `Size: small` spec''s approval row'
-  - the duty `fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review` for full-size work
-  - and the brief's `NEXT:` names `/fabrik-execute-plan <plan>`
-  - this loop never invokes `/fabrik-execute-plan` itself. On a split, end the turn with this block, written as plain lines, not inside a code fence
-- id: r-L16
-  # class: ban
-  # clauses: {2: narrative}
-  baseline: 'Only a `Size: small` spec''s gate owes the two steps below — a plan review without that gate dispatches no critiques'
-  text:
-  - 'Only a `Size: small` spec''s gate owes the two steps below'
 - id: r-L27
   # class: ban
   # clauses: {2: narrative}
@@ -1185,13 +1201,6 @@ entries:
   baseline: '`check_rule_grounding.py` grades the countable subset at the flip; YOUR audit owns whether the quotes are load-bearing rather than decorative'
   text:
   - '`check_rule_grounding.py` grades the countable subset at the flip'
-- id: r-L62
-  # class: prose
-  # clauses: {2: narrative}
-  section: '## Phase 1 — Grounding passes (adversarial, to a fixed point)'
-  baseline: 'Check the digest''s grammar too (`grounding-rules`: columns `Quote` (or `Verbatim`) then `Source`, a Source `path:line` alone in its cell) — a table the checker cannot read leaves its quotes ungraded'
-  text:
-  - 'Check the digest''s grammar too (`grounding-rules`: columns `Quote` (or `Verbatim`) then `Source`, a Source `path:line` alone in its cell)'
 - id: r-L75
   # class: ban
   # clauses: {4: narrative}
@@ -1228,14 +1237,6 @@ entries:
   baseline: 'Grep the plan for build/compile/deploy commands and confirm each has this grounding. A *system toolchain* (JDK + Android SDK, `EXPO_TOKEN`/Expo login, a macOS host for iOS) is declared by no manifest — its absence is the #1 cause of a plan that stalls mid-execution to ask the user'
   text:
   - Grep the plan for build/compile/deploy commands and confirm each has this grounding. A *system toolchain* (JDK + Android SDK, `EXPO_TOKEN`/Expo login, a macOS host for iOS) is declared by no manifest
-- id: r-L103
-  # class: prose
-  # clauses: {3: narrative}
-  section: '## Phase 1 — Grounding passes (adversarial, to a fixed point)'
-  baseline: 'Behavior Contract per phase (test coverage) — every phase that adds user-observable behavior carries a Behavior Contract: a test per distinct behavior / acceptance criterion (risk-ordered, TDD for the risky ones), per `.windsurf/rules/core/45-testing-strategy.md` + `/fabrik-plan-after-chat` Phase 2. A phase that ships behavior with no test-per-behavior is under-specified — flag it and add the contract (the emitted plan can note the cheap pool authors these via `/fabrik-generate-tests`)'
-  text:
-  - Behavior Contract per phase (test coverage)
-  - 'every phase that adds user-observable behavior carries a Behavior Contract: a test per distinct behavior / acceptance criterion (risk-ordered, TDD for the risky ones), per `.windsurf/rules/core/45-testing-strategy.md` + `/fabrik-plan-after-chat` Phase 2. A phase that ships behavior with no test-per-behavior is under-specified'
 - id: r-L119
   # class: prose
   # clauses: {2: narrative}
@@ -1330,9 +1331,6 @@ vanished:
   L1: {rule: [r-L1]}
   L2: {rule: [r-L2]}
   L5: {rule: [r-L5]}
-  L10: {rule: [r-L10]}
-  L13: {rule: [r-L13]}
-  L16: {rule: [r-L16]}
   L27: {rule: [r-L27]}
   L28: {rule: [r-L28]}
   L30: {rule: [r-L30]}
@@ -1352,7 +1350,6 @@ vanished:
   L52: {rule: [r-L52]}
   L57: {rule: [r-L57]}
   L61: {rule: [r-L61]}
-  L62: {rule: [r-L62]}
   L67: narrative
   L75: {rule: [r-L75]}
   L79: {rule: [r-L79]}
@@ -1361,7 +1358,6 @@ vanished:
   L94: narrative
   L95: {rule: [r-L95]}
   L100: {rule: [r-L100]}
-  L103: {rule: [r-L103]}
   L119: {rule: [r-L119]}
   L121: {rule: [r-L121]}
   L141: {rule: [r-L141]}
