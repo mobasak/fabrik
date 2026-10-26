@@ -1,0 +1,26 @@
+{
+  "block_digest": "2370f2955074bb8438278f0a0f98355b48585ecc26ef0199583e851e4f2f7224",
+  "blocked_by": [],
+  "created": "2026-10-26T17:03:52.880960Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-8d2815a8",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "520374573faa76a21d8efb841dcff1ff020062804eaabc5390fdfc736fa17f57"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Should the lean rewrite keep every rule (and accept that most commands shrink only 5–30%), or may it retire rules that a panel judges unneeded, in exchange for real cuts?",
+  "status": "awaiting-operator",
+  "title": "Should the lean rewrite keep every rule (and accept that most commands shrink only 5–30%), or may it retire rules that a panel judges unneeded, in exchange for real cuts?"
+}

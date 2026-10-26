@@ -38,6 +38,15 @@ DEFS = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_git(tmp_path, monkeypatch):
+    """The ownership predicate asks git: the box's global or system excludes must not decide these tests."""
+    empty = tmp_path / "empty.gitconfig"
+    empty.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+
 @pytest.fixture(scope="module")
 def check():
     spec = importlib.util.spec_from_file_location("check_mcp_scope", SRC)
@@ -78,13 +87,50 @@ def test_a_headless_repo_carrying_a_browser_server_fails(check, tmp_path):
     assert rep["failures"][0]["extra"] == ["playwright"]
 
 
-def test_an_unruled_repo_and_the_own_agent_hub_class_repo_only_warn(check, tmp_path):
-    repo(tmp_path, "mystery", None, ["session-recall", "maestro"])  # no project.yaml
+def test_an_unknown_type_and_the_own_agent_hub_class_repo_only_warn(check, tmp_path):
+    repo(
+        tmp_path, "mystery", "sass-skeleton", ["session-recall", "maestro"]
+    )  # a type the roster lacks
+    # an UNTYPED repo the emitter owns (its .gitignore keeps .mcp.json out of git) is ruled since D-1246 (the
+    # universal set): a server outside it FAILS; one the emitter would refuse to write only warns, since
+    # re-emitting cannot clear it
+    owned = tmp_path / "untyped"
+    owned.mkdir()
+    subprocess.run(["git", "init", "-q", str(owned)], check=True)
+    (owned / ".gitignore").write_text(".mcp.json\n")
+    (owned / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {s: DEFS[s] for s in ("rea", "maestro")}})
+    )
+    vendor = repo(
+        tmp_path, "vendor-clone", None, ["session-recall", "maestro"]
+    )  # no gitignore line
+    (vendor / ".git").rmdir()
+    subprocess.run(["git", "init", "-q", str(vendor)], check=True)
+    # a repo git cannot answer for (here a bare `.git` dir) FAILS: an unknown answer never demotes to a warning
+    repo(tmp_path, "unanswerable", None, ["session-recall", "maestro"])
+    # an UNTYPED directory that is no git repo is not graded, as the emitter never sweeps it
+    plain = repo(tmp_path, "plain-dir", None, ["session-recall", "maestro"])
+    (plain / ".git").rmdir()
+    # …but a TYPED one is a ruled project wherever it sits: graded (the liveness canary's fixture shape)
+    typed = repo(tmp_path, "typed-no-git", "python-api", ["session-recall", "maestro"])
+    (typed / ".git").rmdir()
     # fabrik-lib keeps the FULL roster, maestro included (operator ruling 2026-10-07) — no warning
     lib = repo(tmp_path, "fabrik-lib", None, ["session-recall", "maestro", "playwright"])
     rep = check.audit(tmp_path, HUB, DEFS)
-    assert rep["failures"] == []
-    assert sorted(w["repo"] for w in rep["warnings"]) == ["mystery"]
+    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [
+        ("typed-no-git", ["maestro"]),
+        ("unanswerable", ["maestro"]),
+        ("untyped", ["maestro"]),
+    ]
+    assert sorted(w["repo"] for w in rep["warnings"]) == ["mystery", "vendor-clone"]
+    assert (
+        "not ignored by git"
+        in next(w for w in rep["warnings"] if w["repo"] == "vendor-clone")["reason"]
+    )
+    (owned / ".mcp.json").unlink()
+    (vendor / ".mcp.json").unlink()
+    (tmp_path / "unanswerable" / ".mcp.json").unlink()
+    (typed / ".mcp.json").unlink()
     # a server outside the roster in an own-agent repo warns (its agent writes the file), never fails
     (lib / ".mcp.json").write_text(
         json.dumps(
@@ -129,10 +175,38 @@ def test_projects_skip_without_the_hub_marker(tmp_path):
     assert r.returncode == 0 and "hub-only" in r.stdout
 
 
-def test_a_condemned_repo_is_skipped_by_name_even_with_a_valid_type(check, tmp_path):
+def test_the_hub_without_a_git_dir_is_still_graded(check, tmp_path):
+    """Hub-class names are ruled by name, never by type: a hub dir with no `.git` (and no project.yaml) carrying a
+    heavy server still FAILS — the untyped-non-git skip never reaches it."""
+    hub = repo(tmp_path, "fabrik", None, ["session-recall", "maestro"])
+    (hub / ".git").rmdir()
+    rep = check.audit(tmp_path, HUB, DEFS)
+    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [("fabrik", ["maestro"])]
+
+
+def test_an_unreadable_project_yaml_warns_never_crashes(check, tmp_path):
+    """A project.yaml the gate cannot read (mode 000) is an unknown type — a warning — never a traceback that
+    takes the whole gate down; with or without a `.git`."""
+    for name in ("unreadable-repo", "unreadable-dir"):
+        d = repo(tmp_path, name, "python-api", ["session-recall", "maestro"])
+        if name == "unreadable-dir":
+            (d / ".git").rmdir()
+        (d / "project.yaml").chmod(0)
+    try:
+        rep = check.audit(tmp_path, HUB, DEFS)
+    finally:
+        for name in ("unreadable-repo", "unreadable-dir"):
+            (tmp_path / name / "project.yaml").chmod(0o644)
+    assert rep["failures"] == []
+    assert sorted(w["repo"] for w in rep["warnings"]) == ["unreadable-dir", "unreadable-repo"]
+
+
+def test_image_generation_is_graded_like_any_repo_of_its_type(check, tmp_path):
+    """D-1246 emptied CONDEMNED: image-generation now carries an emitted .mcp.json, graded as python-api."""
     repo(tmp_path, "image-generation", "python-api", ["session-recall", "maestro"])
     rep = check.audit(tmp_path, HUB, DEFS)
-    assert rep["failures"] == [] and rep["warnings"] == [] and rep["checked"] == 0
+    assert rep["checked"] == 1
+    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [("image-generation", ["maestro"])]
 
 
 def test_a_credential_abort_in_the_emitter_is_a_structured_fail(

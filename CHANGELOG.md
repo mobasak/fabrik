@@ -13,6 +13,23 @@ All notable changes to this project will be documented in this file.
   Pusulası's site may name Ocoron Dış Ticaret Limited Şirketi only as the KVKK data controller on its legal page;
   its invoices and contracts still name the entity. The Brand Map row no longer says it awaits a ruling.
 
+### Changed — rea is in every account's user-level MCP set and every git repo (W-b29a4f40, D-1252, 2026-10-26)
+- `claude_rotate.py --sync-mcp/--sync-shared` (and its aro-wake twin) takes `rea` from the catalog (`USER_CATALOG_SERVERS`
+  over `scripts/sysadmin/mcp_defs.json`) whatever the source roster holds, and writes every account dir and `~/.claude.json`
+  (through a symlink; an absent one is left absent; a broken link is a SKIP). A catalog entry that is missing, has nothing
+  to launch or carries a `${VAR}` refuses the sync at rc 2 before any write. The `active` pointer and the `backups` park
+  root are no longer synced as accounts, so a healthy sync exits 0; `--new-dir backups` is refused.
+- `emit_mcp_project_config.py` serves every git repo: an untyped one gets the universal set when `git check-ignore` says
+  its `.mcp.json` is ignored; an unknown or unreadable `type:` stays a visible SKIP; image-generation is no longer excluded.
+  `check_mcp_scope.py` reads the same ownership predicate (`emitter_owns`) and skips only a directory that is untyped,
+  not hub-class and outside git (a typed or hub directory is graded wherever it sits — the liveness canary's fixture);
+  an unreadable `project.yaml` is an unknown type, a warning, never a crash.
+- Live: 8/8 account `.claude.json` files and 44/44 /opt git repos carry `rea`; rn-kit-sandbox, image-generation and
+  fabrik-dr-store got their first `.mcp.json`.
+### Added — the `provenance` clause label in the rule ledgers (D-1255, D-1256) (2026-10-26)
+
+- `commands/command_rules.py`: a clause labelled `provenance` is measured by lint B without its parentheticals of ids alone (D-row, W-item, ISO date, SHA, `§` pointer); the label is refused on a ban clause and on a clause with no such parenthetical, and `summary()` prints the provenance count. See the **Ledger lints** bullet of `docs/reference/command-corpus-check.md` (W-0c38115e).
+
 ### Fixed — Ocoron brand guide: the legal entity is Ocoron Dış Ticaret Limited Şirketi; Kalite Pusulası added (2026-10-26)
 
 - W-c0080a4b, D-1250, an operator order relayed from web-ecommerce-factory. In
@@ -21,6 +38,10 @@ All notable changes to this project will be documented in this file.
   the privacy policy, which names the KVKK data controller. The Brand Map gains Kalite Pusulası (kalitepusulasi.com) as
   an Ocoron brand; how it fits naming rules 1-3 waits on the brand owner. `mobile-app/89-mobile-launch-checklist.md`
   now says "a Turkish LLC in a Teknokent zone", replacing "a Turkish Teknokent LLC".
+
+### Added — the API-key write lane: disposable writers on the prepaid keys (2026-10-26)
+
+`scripts/api_write.py run` takes a cloud-dispatch brief (`--slug` + `--task-file` [+ `--base`, `--gate`], or a `--batch` of `{"slug", "task_file", "base", "gates"}`) and runs it with `claude -p --safe-mode --restricted --permission-mode dontAsk` on an API key with Read, Edit, Write, Glob and Grep only, plus `Bash(<gate>)` per exact gate string (D-1251; a glob over a command's options was shown to admit `--basetemp`, `--output` and `-F`). The runner owns git: it checks out `claude/<slug>` at `origin/<base>` in a plain local clone of the main checkout under `<state>/api-write/<run>/`, and after a clean exit refuses a clone whose `.git/config` changed, commits the edits as one trailered commit with hooks and fsmonitor off, refuses a diff holding a key, and pushes the explicit refspec to the captured URL (never forced). Every outcome after the start row settles in `api-credit.jsonl` under the same $200-per-key cap (`lane: write`); the clone is deleted. `--jobs` runs a batch in parallel and `--pick` spreads it across the keys; an existing `origin` branch or a missing base refuses before spending, and a timeout kills the child's whole process group. `api_credit.py` gains `main_checkout()`, `reserve()` and a pre-flight that takes the lane's argv and tool set; its behaviour is unchanged. Docs: `docs/workstation/api-credit.md` § The write lane (D-1247, W-174b8543).
 
 ### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
 

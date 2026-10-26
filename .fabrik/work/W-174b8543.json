@@ -3,7 +3,7 @@
   "created": "2026-10-26T12:15:38.838768Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "9331ef1c8b0710b8067401312f61f360a7c2a382",
   "id": "W-174b8543",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-2",
   "priority": 0,
   "score_reason": "URGENT operator order D-1247; infra beat (credit tooling, author of api_credit.py lineage and W-effb7141); LOW: one runner mode + test",
-  "status": "open",
+  "status": "done",
   "title": "URGENT (operator 2026-10-26: 'why arent we utilizing the api and cloud credits as like they are disposable agents?'): an API-key WRITE lane — headless claude -p on an API key in a throwaway worktree, write tools, cloud-brief format, pushes claude/<slug>; parallel batches across the 3 keys (D-1247)"
 }

@@ -8,14 +8,17 @@ in /opt/fabrik spawned a Maestro JVM and two browser servers that the per-type r
 D-015) never granted the hub; the JVMs outlived their sessions by days and, after a hibernate
 resume, 48 of them held ~11 GB of swap and no window could reconnect. A hand-added or stale
 server survives silently because `.mcp.json` is gitignored and nothing reads it back against the
-roster. This check does: for every repo the emitter rules (the hub and every repo with a
-`project.yaml::type` the roster knows) the servers PRESENT in `<repo>/.mcp.json` must be a subset
+roster. This check does: for every repo the emitter rules (the hub, every repo with a
+`project.yaml::type` the roster knows, and since D-1246 every UNTYPED repo whose `.mcp.json` git ignores — the
+universal set; `emit_mcp_project_config.emitter_owns` is the predicate) the
+servers PRESENT in `<repo>/.mcp.json` must be a subset
 of `emit_mcp_project_config.ruled_server_names(repo)`. A server the ruling allows but the file
 omits is legal (postgres-pro is absent until its URL connects); a server the ruling does not
 allow is the defect, named with the command that fixes it (re-run the emitter — never a hand edit).
 
-A repo that carries a `.mcp.json` the emitter does NOT own (no `project.yaml` and not hub-class,
-or hub-class landed by its own agent such as fabrik-lib) is reported as a WARNING with the same
+A repo that carries a `.mcp.json` the emitter does NOT rule or own (a `type:` the roster does not know, an
+untyped repo whose `.mcp.json` git does not ignore, or hub-class landed by its own agent such as fabrik-lib)
+is reported as a WARNING with the same
 command, never a failure: the hub's gate cannot red on a file another repo's agent writes.
 
 Cobra: the cheapest way to satisfy this gate without the outcome is to add the unwanted server to
@@ -68,7 +71,13 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
     for repo in sorted(p for p in root.iterdir() if p.is_dir()):
         mcp_json = repo / ".mcp.json"
         if not mcp_json.is_file() or repo.name in em.CONDEMNED:
-            continue  # a condemned repo is excluded BY NAME, whatever its project.yaml still says
+            continue  # excluded BY NAME
+        if (
+            repo.name not in em.HUB_CLASS
+            and em._repo_type(repo) is None
+            and not (repo / ".git").exists()
+        ):
+            continue  # untyped, not hub-class, no repo: nothing the emitter rules; a TYPED or hub dir is graded anywhere
         present = _present(mcp_json)
         if present is None:
             failures.append({"repo": repo.name, "extra": [], "reason": "unreadable .mcp.json"})
@@ -76,12 +85,25 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
         ruled = em.ruled_server_names(repo, defs)
         checked += 1
         fix = f"python3 {hub / EMITTER_REL} --repo {repo}"
+        # False: the emitter would SKIP it, so re-emitting cannot clear a failure — a warning. None (git cannot say
+        # whether the file is ignored) is graded like an owned repo: an unknown answer never demotes a failure.
+        if em.emitter_owns(repo) is False:
+            warnings.append(
+                {
+                    "repo": repo.name,
+                    "present": sorted(present),
+                    "reason": "untyped and its .mcp.json is not ignored by git (no rule, a `!` negation, or tracked)"
+                    " — the emitter does not own it",
+                    "fix": "add `.mcp.json` to its .gitignore (or type the repo), then " + fix,
+                }
+            )
+            continue
         if ruled is None:
             warnings.append(
                 {
                     "repo": repo.name,
                     "present": sorted(present),
-                    "reason": "no ruling (no project.yaml::type the roster knows, not hub-class)",
+                    "reason": "no ruling (a project.yaml::type the roster does not know)",
                     "fix": fix,
                 }
             )

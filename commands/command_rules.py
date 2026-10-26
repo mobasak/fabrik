@@ -442,12 +442,12 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         if "clauses" in e:
             cl = e["clauses"]
             ok = isinstance(cl, dict) and bool(cl) and all(
-                re.fullmatch(r"[1-9]\d*", str(k))
-                and (v == "narrative" or (isinstance(v, dict) and set(v) == {"duplicate-of"} and isinstance(v["duplicate-of"], str)))
+                re.fullmatch(r"[1-9][0-9]*", str(k))  # ASCII: `int()` reads `1٠` as 10, `str()` keeps it apart
+                and (v in ("narrative", "provenance") or (isinstance(v, dict) and set(v) == {"duplicate-of"} and isinstance(v["duplicate-of"], str)))
                 for k, v in cl.items()
-            )
+            ) and len({str(k) for k in cl}) == len(cl)  # `1:` and `"1":` name one clause: never two labels for it
             if not ok:
-                raise LedgerError(f"entry {e['id']}: `clauses` is not {{<n>: narrative | duplicate-of: id}}")
+                raise LedgerError(f"entry {e['id']}: `clauses` is not {{<n>: narrative | provenance | duplicate-of: id}}")
         for c in ("file", "section", "baseline", "current", "enforced"):
             if c in e and not isinstance(e[c], str):
                 raise LedgerError(f"entry {e['id']}: `{c}` is not a string")
@@ -647,6 +647,24 @@ def _covered(clause: str, phrases: list[str]) -> bool:
     return False
 
 
+# D-1255: one id token — a D-row, a W-item, an ISO date, a SHA of 7-64 hex holding a letter AND a digit (so neither a
+# hex-letter word like `defaced` nor a bare number like `1234567`, which stays an anchor, is a SHA), or a `§`
+# pointer to a section number or ONE word (a heading of more words is words); ASCII digits only
+_ID = r"(?:D-[0-9]+|W-[0-9a-f]+|[0-9]{4}-[0-9]{2}-[0-9]{2}|(?=[0-9]*[a-f])(?=[a-f]*[0-9])[0-9a-f]{7,64}|§ ?(?:[0-9]+(?:\.[0-9]+)*|[^\W\d_]+))"
+_PROVENANCE = re.compile(rf"(?<![\w)\]])\( *{_ID}(?:[ ,;/·]+{_ID})* *\)")  # an aside, never a call's `f(…)`
+
+
+def _strip_provenance(clause: str) -> str:
+    """``clause`` without its parentheticals of ids alone (D-1255, the `provenance` label): what such a clause
+    still owes a carrier. Read on the code-masked text, so a `(D-1)` inside a code span is code, never provenance.
+    COBRA (D-253): the cheapest abuse is labelling an operative id `provenance`; the id-only regex leaves every
+    other word in the clause, whose stems and anchors B still measures, and a ban clause takes no label at all."""
+    spans = [m.span() for m in _PROVENANCE.finditer(_mask_code(clause))]
+    for a, b in reversed(spans):
+        clause = clause[:a] + clause[b:]
+    return clause
+
+
 def _ban_span(clause: str, m: re.Match) -> str:
     """D-1240: a ban clause is verbatim from its ban word to the end of its `;`/`—` clause or the sentence
     end, whichever comes first; a `,` or `(` does not end it (``clause`` is already one `;`/`—` clause). The
@@ -670,9 +688,12 @@ def _check_clauses(e: dict, ids: dict[str, dict]) -> None:
         n = int(k)
         if n > len(parts):
             raise LedgerError(f"entry {e['id']}: `clauses` key {n} is past the baseline's {len(parts)} clause(s)")
-        if _is_ban(parts[n - 1]):  # D-1238 point 1: a ban-bearing clause is never narrative or a duplicate
+        if _is_ban(parts[n - 1]):  # D-1238 point 1: a ban-bearing clause is never narrative, provenance or a duplicate
             raise LedgerError(f"entry {e['id']}: clause {n} holds a ban word and cannot be labelled")
-        if v != "narrative":
+        if v == "provenance":
+            if _strip_provenance(parts[n - 1]) == parts[n - 1]:
+                raise LedgerError(f"entry {e['id']}: clause {n} holds no parenthetical of ids alone and cannot be provenance")
+        elif v != "narrative":
             tgt = ids.get(v["duplicate-of"])
             if tgt is None or tgt is e:
                 raise LedgerError(f"entry {e['id']}: clause {n} is a duplicate-of unknown id {v['duplicate-of']!r}")
@@ -703,7 +724,8 @@ def _lintable(e: dict) -> bool:
 def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
     """D-1236 lints on one entry (``scope`` the live text under its section, ``text`` its whole file):
     ``(lint, message)`` pairs. A: every (ban word, next word) pair of a ban-bearing clause is in a text phrase.
-    B: each clause is covered by one text phrase (``_covered``, D-1240) or labelled in `clauses:`.
+    B: each clause is covered by one text phrase (``_covered``, D-1240) or labelled in `clauses:`; a
+    `provenance` clause is measured without its parentheticals of ids alone (D-1255).
     C (class prose only, the carriers D-1236 lets be reworded): a text phrase is >=6 whitespace words and
     appears once as a whole in its FILE (a phrase equal to the whole `current` unit is exempt: `_check` proves
     that unit live). D: a ban-bearing clause stands
@@ -727,7 +749,7 @@ def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
             out.append(("C", f"text phrase under 6 words — {ph[:80]}"))
         elif (n := sum(len(re.findall(_whole(normalise(ph.replace(_FENCE_JOIN, " "))), p)) for p in file_paras)) != 1:
             out.append(("C", f"text phrase appears {n}x in its file, need exactly once — {ph[:80]}"))
-    labels = {str(k) for k in (e.get("clauses") or {})}
+    labels = {str(k): v for k, v in (e.get("clauses") or {}).items()}
     pw = [_words(p) for p in phrases]
     live = [normalise(_deemph(p)).casefold() for p in _paras(scope)]
     for n, clause in enumerate(_baseline_clauses(e["baseline"]), 1):
@@ -748,9 +770,10 @@ def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
             reach = m.start() + len(span)
             if not _verbatim(span, live):
                 out.append(("D", f"clause {n}: not verbatim in the live text from its ban word — {span[:80]}"))
-        if str(n) in labels:
+        if str(n) in labels and labels[str(n)] != "provenance":
             continue
-        if not _covered(clause, phrases):
+        owed = _strip_provenance(clause) if str(n) in labels else clause  # D-1255: its id-only asides owe nothing
+        if not _covered(owed, phrases):  # a wordless remainder is covered (`_covered`)
             out.append(("B", f"baseline clause {n} is covered by no text phrase and is not classified — {clause[:80]}"))
         elif cls in ("grammar", "behavioural") and not bans and not _verbatim(dc, live):
             out.append(("D", f"class {cls}: clause {n} is not verbatim in the live text — {clause[:80]}"))
@@ -873,8 +896,8 @@ def losses(render_dir: Path, root: Path, src_dir: Path, rules: Path | None = Non
 
 
 def summary(rules: Path | None = None) -> list[str]:
-    """One line per ledger — entry count and the vanished-label split — never raising (kaizen's
-    ledger-size trigger and the classifier seats read it)."""
+    """One line per ledger — entry count, the class and vanished-label splits and the `provenance` clause count —
+    never raising (kaizen's ledger-size trigger, the classifier seats and the audit pair read it)."""
     lines = []
     try:
         paths = ledgers(rules)
@@ -891,7 +914,12 @@ def summary(rules: Path | None = None) -> list[str]:
                 for v in (van.values() if isinstance(van, dict) else [])
             )
             cls = Counter(entry_class(x) for x in entries if isinstance(x, dict)) if isinstance(entries, list) else {}
-            lines.append(f"LEDGER {path.name}: {n} entries · classes {dict(sorted(cls.items()))} · vanished {dict(sorted(split.items()))}")
+            prov = sum(  # D-1255: every receipt prints the provenance count; the audit pair reads each one
+                list(cl.values()).count("provenance")
+                for x in (entries if isinstance(entries, list) else [])
+                if isinstance(x, dict) and isinstance(cl := x.get("clauses"), dict)
+            )
+            lines.append(f"LEDGER {path.name}: {n} entries · classes {dict(sorted(cls.items()))} · vanished {dict(sorted(split.items()))} · provenance {prov}")
         except Exception as exc:  # noqa: BLE001 — a report line, never a crash
             lines.append(f"LEDGER {path.name}: unreadable — {type(exc).__name__}")
     return lines

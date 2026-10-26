@@ -342,8 +342,9 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   file names, ban words) and at least `STEM_RECALL` (0.7) of the clause's first `STEM_CAP` (8) content stems
   (letters-only whole words of 4+ letters in any script, cut to 5, each counted once) — per phrase, never pooled; a
   clause with no stem and no anchor needs its own words, whole and in order, in one phrase; the two constants change only by a
-  D-row — or the clause is named in `clauses: {<n>: narrative | duplicate-of: <id>}`. At load a key must be
-  within the clause count, a `duplicate-of` id must be another live entry whose `text` covers the clause, and a
+  D-row — or the clause is named in `clauses: {<n>: narrative | provenance | duplicate-of: <id>}`. At load a key must be
+  an ASCII clause number within the clause count, named once (`1:` and `"1":` are one clause), a `duplicate-of` id must be another live entry whose `text` covers the clause, a
+  `provenance` clause must hold a parenthetical of ids alone, and a
   clause holding a ban word takes no label at all (D-1238 point 1); a `vanished:` baseline line holding a ban word
   is never `narrative` either. **C** — in class `prose` only (the carriers D-1236 lets be reworded; a
   ban, grammar or behavioural pin is held by A, B and D), a `text` phrase is ≥6 whitespace words holding a letter or digit and appears exactly once, as a
@@ -352,20 +353,26 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   its clause or sentence, whichever comes first (`_ban_span`, D-1240: a `,` or `(` ends nothing; the sentence is the
   one `units()` cuts, by the same `_split_prose`, and a parenthetical opened after the ban word runs to its close), each ban word's
   span checked unless an earlier one already holds it, with whitespace, emphasis and case normalised and punctuation
-  kept; in classes `grammar` and `behavioural` every other unlabelled clause stands
+  kept; in classes `grammar` and `behavioural` every other clause not labelled `narrative` or `duplicate-of` stands
   verbatim too; `prose` may reword. `pins:` is a non-empty list of non-empty strings (the retired pin test node
-  ids; no node is resolved). An id or date parenthetical is history: label its clause `narrative`, never
-  exempt it in the loader (D-1238). COBRA: the cheapest pass is a stub carrier, then a reworded clause — A/B read
+  ids; no node is resolved). An id or date parenthetical is history (D-1238), and D-1255 gives it one label:
+  `provenance` drops from B's measure every aside of the clause (a parenthetical not glued to a word, `)` or `]`,
+  so never a call's `f(…)`) whose whole content is id tokens — `D-<n>`,
+  `W-<hex>`, an ISO date, a SHA of 7 to 64 lowercase hex holding both a letter and a digit (a bare number stays an
+  anchor), a `§` pointer to a section number or ONE word — and the separators space `,` `;` `/` `·`, read outside
+  code spans; the rest of the clause still owes its carrier, a clause left with no word owes none
+  (`_strip_provenance`), and in classes `grammar` and `behavioural` lint D still reads the whole clause, its ids
+  included. `summary()` prints the provenance count, and D-1255 has the author-blind audit pair read every one. COBRA: the cheapest pass is a stub carrier, then a reworded clause — A/B read
   the immutable baseline, C/D the live file, the anchors stop a stub and the per-phrase stem cap stops padding;
   what is left is a `duplicate-of` label to an entry that genuinely carries the clause, or a baseline with no ban
-  word left unclassified, which is the decision's own scope. The `class:` tag is set at baseline and changed
-  only by a D-row (by review: the loader holds no history).
+  word left unclassified, which is the decision's own scope. The `class:` tag and a `provenance` label are set at
+  baseline and changed only by a D-row (by review: the loader holds no history).
 - **Light form** (step 9): `generate_unchanged(baseline_path, new_own_text)` returns one `text`
   entry per baseline prose or table unit that survives unchanged, `section`-pinned unless an
   `{{include:…}}` precedes it in its section (the render splices the fragment there, so that unit is
   matched over the whole file). Over every live command its ledgers pass with no LOSS.
 - `tests/test_command_rules.py` renders the corpus itself, asserts no LOSS and prints one
-  `LEDGER <file>: <n> entries · classes {…} · vanished {…}` line per ledger (`command_rules.summary()`, which never
+  `LEDGER <file>: <n> entries · classes {…} · vanished {…} · provenance <n>` line per ledger (`command_rules.summary()`, which never
   raises).
 
 **The size ceiling (L1)** — `commands/command_measure.py`, ceilings in `commands/_size_ceiling.json`.

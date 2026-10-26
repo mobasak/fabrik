@@ -930,6 +930,53 @@ def test_clauses_labels_are_validated(tmp_path: Path) -> None:
     _one(_losses(t), "needs a `baseline`")
 
 
+def test_a_provenance_clause_owes_its_id_parentheticals_nothing(tmp_path: Path) -> None:
+    # D-1255: a parenthetical of ids alone leaves the clause's anchors; the rest of the clause is still measured
+    base = "Keep the receipt beside the review file (D-1240, W-96f36043, 2026-10-26)"
+    text = ["Keep the receipt beside the review file"]
+    e = {"id": "R", "class": "prose", "baseline": base, "text": text}
+    assert "B" in _fires(e, text[0])  # unlabelled: the ids are anchors no carrier holds
+    assert "B" not in _fires({**e, "clauses": {1: "provenance"}}, text[0])
+    assert "B" in _fires({**e, "clauses": {1: "provenance"}, "text": ["Keep the file"]}, "Keep the file")  # the words still owe
+    # a clause that is nothing but such a parenthetical owes no carrier at all
+    alone = {"id": "R", "class": "prose", "baseline": "Keep the receipt beside the review file; (D-1240 / 3607c5d23 · §4.2)", "text": text}
+    assert "B" not in _fires({**alone, "clauses": {2: "provenance"}}, text[0])
+    # the id tokens, one by one; a hex-letter word is no SHA and a § heading of two words is words
+    for ids in ("D-1", "W-0c38115e", "2026-10-26", "0c70b53", "§ Behavior", "§2", "D-181/D-182", "D-9; D-10"):
+        assert cr._strip_provenance(f"do it ({ids})") == "do it ", ids
+    for words in ("D-181, mechanism revised", "operator, 2026-09-07", "defaced", "1234567", "D-٣", "§ Binding field block", "see D-9", "D-9 says so", "`D-9`"):
+        assert cr._strip_provenance(f"do it ({words})") == f"do it ({words})", words
+    assert cr._strip_provenance("run `x (D-1)` now") == "run `x (D-1)` now"  # inside a code span: code, never provenance
+    assert cr._strip_provenance("set_version(2026-10-26)") == "set_version(2026-10-26)"  # a call's argument (a fenced line)
+    assert cr._strip_provenance("ship it (D-1) (0c70b53)") == "ship it  "  # each aside stripped
+    sha256 = "0c70b5366" + "a" * 55
+    assert cr._strip_provenance(f"do it ({sha256})") == "do it " and cr._strip_provenance(f"do it ({sha256}b)") != "do it "
+    # an operative number in an aside stays an anchor the carrier owes
+    num = {"id": "R", "class": "prose", "baseline": "Cap the upload size (1048576)", "text": ["Cap the upload size"], "clauses": {1: "provenance"}}
+    assert "B" in _fires(num, "Cap the upload size")
+    # in classes grammar and behavioural lint D still reads the whole clause, its ids included (D-1256)
+    g = {**e, "class": "grammar", "clauses": {1: "provenance"}}
+    assert "B" not in _fires(g, base) and "D" in _fires(g, text[0]) and "D" not in _fires(g, base)
+
+
+def test_provenance_labels_are_refused_on_a_ban_clause_or_a_clause_without_ids(tmp_path: Path) -> None:
+    t = _tree(tmp_path)
+    plain = {**ENTRY, "baseline": "Run the probe on a copy; stop at the pin", "current": "Run the probe on a copy.", "text": ["Run the probe on a copy"]}
+    _ledger(t, [{**plain, "clauses": {2: "provenance"}}])
+    _one(_losses(t), "no parenthetical of ids alone")
+    _ledger(t, [{**plain, "baseline": "Run the probe on a copy; stop at the pin (see D-9)", "clauses": {2: "provenance"}}])
+    _one(_losses(t), "no parenthetical of ids alone")  # a word beside the id is no provenance
+    _ledger(t, [{**ENTRY, "baseline": "Never stage a sibling's file (D-9)", "clauses": {1: "provenance"}}])
+    _one(_losses(t), "holds a ban word")  # D-1238 point 1: a ban clause takes no label, provenance included
+    _ledger(t, [{**plain, "baseline": "Run the probe on a copy; stop at the pin (D-9)", "clauses": {2: "provenance", "2": "narrative"}}])
+    _one(_losses(t), "`clauses` is not")  # `2:` and `"2":` name one clause: never two labels for it
+    _ledger(t, [{**plain, "baseline": "Run the probe on a copy; stop at the pin (D-9)", "clauses": {"2": "provenance", "1٠": "narrative"}}])
+    _one(_losses(t), "`clauses` is not")  # a non-ASCII digit key is no clause number
+    _ledger(t, [{**plain, "baseline": "Run the probe on a copy; stop at the pin (D-9)", "clauses": {2: "provenance"}}])
+    assert [x for x in _losses(t) if "malformed" in x] == []
+    assert cr.summary(t["rules"])[0].endswith("· provenance 1")
+
+
 def test_clause_split() -> None:
     assert cr._clauses("Run it first -- then post") == ["Run it first", "then post"]
     assert cr._clauses("Run it first – then post") == ["Run it first", "then post"]
@@ -963,7 +1010,7 @@ def test_class_validated_and_counted_in_the_summary(tmp_path: Path) -> None:
     stop = {**ENTRY, "id": "R2", "baseline": "Stop at the pin", "current": "Stop at the pin", "text": ["Stop at the pin"]}
     _ledger(t, [{**ENTRY, "class": "grammar"}, stop])
     line = cr.summary(t["rules"])[0]
-    assert line == "LEDGER demo.yaml: 2 entries · classes {'grammar': 1, 'prose': 1} · vanished {}", line
+    assert line == "LEDGER demo.yaml: 2 entries · classes {'grammar': 1, 'prose': 1} · vanished {} · provenance 0", line
 
 
 def test_summary_survives_malformed_entries(tmp_path: Path) -> None:
@@ -973,8 +1020,8 @@ def test_summary_survives_malformed_entries(tmp_path: Path) -> None:
     (rules / "good.yaml").write_text("entries: [{id: R1, baseline: NEVER x, text: [x]}]\n", encoding="utf-8")
     lines = cr.summary(rules)
     assert lines == [
-        "LEDGER bad.yaml: 2 entries · classes {'prose': 2} · vanished {}",
-        "LEDGER good.yaml: 1 entries · classes {'ban': 1} · vanished {}",
+        "LEDGER bad.yaml: 2 entries · classes {'prose': 2} · vanished {} · provenance 0",
+        "LEDGER good.yaml: 1 entries · classes {'ban': 1} · vanished {} · provenance 0",
     ], lines
 
 

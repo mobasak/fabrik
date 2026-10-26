@@ -100,10 +100,13 @@ HUB_CLASS = HUB_REPOS | {"fabrik-lib"}  # derivation; only HUB_REPOS is in the d
 # projects and fabrik-lib" need maestro — it vendors and tests the mobile modules); HUB_EXCLUDE
 # applies to HUB_REPOS alone.
 HUB_FULL_ROSTER = HUB_CLASS - HUB_REPOS
-CONDEMNED = {"image-generation"}  # D-023 ARCHIVE pending with fleet — excluded BY NAME
+# Repos excluded BY NAME whatever their project.yaml says. Empty since D-1246 ("rea must be available to system
+# wide for all repos"), which supersedes D-023/D-025's MCP exclusion of image-generation; check_mcp_scope reads it.
+CONDEMNED: set[str] = set()
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
 
-_TYPE_RE = re.compile(r"^type:\s*(\S+)\s*$", re.M)
+# a trailing comment only after whitespace, as YAML reads it (`saas-skeleton#web` is one value); [ \t] never spans lines
+_TYPE_RE = re.compile(r"^type:[ \t]*([A-Za-z0-9_-]+)(?:[ \t]+#.*)?[ \t]*$", re.M)
 _DBURL_RE = re.compile(r"^DATABASE_URL=(.+)$", re.M)
 
 
@@ -212,11 +215,23 @@ def _load_defs(defs_arg: str | None) -> dict[str, dict]:
 
 
 def _repo_type(repo: Path) -> str | None:
+    """The `type:` value, a trailing `# comment` allowed; None only when the repo has NO type (no project.yaml,
+    or no `type:` line). A `type:` line the grammar cannot read returns it raw, so it rules as an unknown type
+    (a visible SKIP), never as untyped."""
     py = repo / "project.yaml"
     if not py.is_file():
         return None
-    m = _TYPE_RE.search(py.read_text(encoding="utf-8", errors="replace"))
-    return m.group(1) if m else None
+    try:
+        text = py.read_text(encoding="utf-8", errors="replace")
+    except (
+        OSError
+    ) as e:  # a project.yaml that exists but cannot be read is an unknown type, never untyped
+        return f"(unreadable: {e.strerror or type(e).__name__})"
+    m = _TYPE_RE.search(text)
+    if m:
+        return m.group(1)
+    raw = re.search(r"^type:(.*)$", text, re.M)
+    return f"(unreadable: {raw.group(1).strip()[:40]})" if raw else None
 
 
 def _database_url(repo: Path) -> str | None:
@@ -264,7 +279,8 @@ def _uri_connects(uri: str) -> bool | None:
 
 def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
     """The NAMES a repo's ruling allows, in emission order, or None for a repo the ruling does
-    not know (no `project.yaml::type`, or a type outside TYPE_SETS). No probe runs here — this is
+    not know (a `project.yaml::type` outside TYPE_SETS — a typo stays a visible SKIP). A repo with NO
+    type (no project.yaml, or no `type:` line) gets the universal set (D-1246). No probe runs here — this is
     the roster side of the contract, shared with `scripts/enforcement/check_mcp_scope.py`, which
     grades every emitted `.mcp.json` as a SUBSET of it (an entry absent-until-configured, such as
     postgres-pro without a connecting URL, is a legal omission; an extra server is not)."""
@@ -274,9 +290,9 @@ def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
         wanted = [s for s in defs if s not in NEVER_EMIT and s not in drop]
     else:
         rtype = _repo_type(repo)
-        if rtype is None or rtype not in TYPE_SETS:
+        if rtype is not None and rtype not in TYPE_SETS:
             return None
-        wanted = list(UNIVERSAL) + TYPE_SETS[rtype] + OVERLAYS.get(name, [])
+        wanted = list(UNIVERSAL) + TYPE_SETS.get(rtype or "", []) + OVERLAYS.get(name, [])
     return [s for s in dict.fromkeys(wanted) if s not in NEVER_EMIT and s in defs]
 
 
@@ -304,7 +320,38 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
     return out
 
 
+def mcp_config_ignored(repo: Path) -> bool | None:
+    """Whether git itself ignores `<repo>/.mcp.json`: True (exit 0), False (exit 1 — no rule matches, a later `!`
+    negation, or the file is TRACKED and would carry the keys into a commit), or None when git cannot answer (git
+    missing, not a repo, a safe.directory refusal, a timeout). `git check-ignore` reads every rule git honours."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(repo), "check-ignore", "-q", ".mcp.json"],
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {0: True, 1: False}.get(r.returncode)
+
+
+def emitter_owns(repo: Path) -> bool | None:
+    """Whether the emitter writes this repo's `.mcp.json`: hub-class or typed (True), or untyped with the file
+    ignored by git — `mcp_config_ignored`'s answer, None when git cannot say. The emitter writes only on True;
+    `check_mcp_scope` warns on False (re-emitting cannot clear it) and still grades on None."""
+    if repo.name in HUB_CLASS or _repo_type(repo) is not None:
+        return True
+    return mcp_config_ignored(repo)
+
+
 def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
+    owns = emitter_owns(repo)
+    if owns is None:
+        return "SKIP (untyped repo, and git could not say whether `.mcp.json` is ignored — never written)"
+    if not owns:
+        # an untyped repo is no governed project: its .gitignore is not ours, and the emitted file inlines
+        # filled credentials (exa, brave-search, firecrawl keys; a DATABASE_URL) — never written untracked-unignored
+        return "SKIP (untyped repo whose `.mcp.json` git does not ignore — add the .gitignore line, untrack it, or type the repo)"
     servers = derive_servers(repo, defs)
     if servers is None:
         return "SKIP"
@@ -363,9 +410,7 @@ def _candidate_repos(root: Path) -> list[Path]:
     for d in sorted(root.iterdir()):
         if not d.is_dir() or d.name in CONDEMNED or d.name in (HUB_CLASS - HUB_REPOS):
             continue  # fabrik-lib is hub-class for derivation (--repo) but its own agent lands the file
-        if not (d / ".git").exists():
-            continue
-        if d.name in HUB_REPOS or (d / "project.yaml").is_file():
+        if (d / ".git").exists():  # every git repo, typed or not (D-1246)
             out.append(d)
     return out
 

@@ -20,7 +20,7 @@
   "score_reason": "LOW: a rare edge in the mail digest count (dot-named files); effort low, infra-2's hook",
   "status": "open",
   "tags": [
-    "waits-quota"
+    "waits-rotation"
   ],
   "title": "mail_notify.py: _summaries' glob (line 134) still renders a dot-named .md as a digest row while the header total skips dot-names as mail.py list does, so a foreign dot-file (an editor swap file) shows as the top row but not in the count — no fabrik writer makes one (mail.py temp files are .<id>.tmp, mail.py:482) (W-25f6b2a3 review pass 3, recorded after the scope-growth stop)"
 }
