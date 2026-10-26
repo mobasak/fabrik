@@ -35,6 +35,13 @@ hand on a key; `scripts/api_credit.py` children run `--safe-mode` and never run 
 
 `docs/workstation/cloud-dispatch.md`'s billing bullet now follows the operator's claude.ai usage page (the credit is a separate pool, applied first; usage credits are overage, off), each account's `credit.expires` in `.fabrik/cloud-routines.json` moves to 2026-11-05, and the walled-account probe on can is recorded (W-b00d9d72, D-1232).
 
+### Added — the canonical D-1236 ledger lints, read per D-1238 and D-1240 (2026-10-26)
+
+- `commands/command_rules.py` gains an optional per-entry `class:` and `clauses:`, and four lints that run in the
+  command check, each a LOSS line naming the ledger, the entry and the lint. The rules are in
+  `docs/reference/command-corpus-check.md` § Rule ledger and size ceiling. The one canonical loader for the lean
+  program (W-9cd8653d, D-1245).
+
 ### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
 
 - `commands/command_measure.py` measured a named path whenever the file existed on disk, so the main checkout's
