@@ -650,6 +650,22 @@ def test_the_units_wire_the_alert_and_verify():
         and c.func.value.id == "subprocess"
     ]
     assert len(direct) == 1, "every subprocess call goes through _run, which carries the timeout"
+    (inner,) = direct
+    assert [ast.unparse(k.value) for k in inner.keywords if k.arg == "timeout"] == ["timeout"], (
+        "_run hands its own timeout parameter to subprocess"
+    )
+    # given those call sites, `check`'s worst case, spelled out here independently of the constant: both shows and the
+    # pause between, the poll window plus the sleep that can start before its deadline, one journal read, and four
+    # sends (the report's two plus a crash mail's two) — dropping a term from CHECK_BUDGET_S fails here
+    worst = (
+        sa.SHOW_TRIES * sa.SHOW_TIMEOUT_S
+        + sa.RETRY_S
+        + sa.POLL_S
+        + sa.POLL_SLEEP_S
+        + sa.JOURNAL_TIMEOUT_S
+        + 4 * sa.SEND_TIMEOUT_S
+    )
+    assert worst <= sa.CHECK_BUDGET_S
 
     alert = _sections("session-archive-alert.service")
     assert not any(v.startswith("OnFailure=") for vs in alert.values() for v in vs), "no alert loop"
