@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probe catalogue: the pins-only-copy bullet bars `-o pythonpath` and closes its legal `-o` set (2026-10-26)
+
+`commands/_fragments/review-probe-catalogue.md` § Seat isolation: `-o pythonpath` joins the barred keys ("collected or imported"), `-c`/`--rootdir` name a file or tree "other than the staged tree's own", the legal `-o` set is "a key that changes neither, such as `timeout`" instead of an open "and the like", and the base-copy SCRATCH clause is reworded; `-o confcutdir` is not listed because this pytest treats it as an unknown option (the `--confcutdir` flag stays barred). `tests/test_seat_recipe_readable.py` re-pinned (W-47d58d2c).
+
 ### Changed — cloud dispatch: a cloud run draws the account's weekly plan and is refused at its wall (2026-10-26)
 
 `docs/workstation/cloud-dispatch.md`'s billing bullet now records that cloud runs spend the account's weekly plan usage and are refused at its wall (16 lean runs, `usage_limit_reached` / `seven_day` `rejected`), so the $250 credit is not capacity on top of the plan, and the intro, `--pick`, the credit guard and `--allow-plan-usage` point at it; the credit's own drawdown stays open (D-1237, W-b00d9d72; follow-up W-87078932).
