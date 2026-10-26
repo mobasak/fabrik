@@ -235,7 +235,7 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 | SaaS products | **Ocoron [TBD]** | Named when product reaches presale |
 | B2B system design services | **Ocoron** (no sub-brand) | Yes — the company does the work |
 | Candle manufacturing | **Atelier Rebul** | Independent brand, never co-branded |
-| Quality-systems consultancy (kalitepusulasi.com) | **Kalite Pusulası** — an Ocoron brand; how it fits naming rules 1-3 awaits the brand owner's ruling, so do not rename or co-brand it until then | Yes |
+| Quality-systems consultancy (kalitepusulasi.com) | **Kalite Pusulası** — an Ocoron brand; how it fits naming rules 1-3 awaits the brand owner's ruling | Yes |
 | Ocoron Dış Ticaret Limited Şirketi | Legal entity name | Invoices, contracts and legal pages only |
 
 #### Co-Branding Rules
