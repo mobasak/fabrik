@@ -4,13 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-25)
+### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
 
-`.claude/hooks/quota_stop.py` (the fleet wall and the urgent-90 lane) and
-`scripts/sysadmin/quota_posture_hook.py` (the RED band) now let a session through when its env
-carries `ANTHROPIC_API_KEY` and no `CLAUDE_CODE_OAUTH_TOKEN`: it draws no plan quota, and a
-builder launched on API credit is the only capacity left at the wall. Each hook prints a stderr
-note naming the exemption. The battery hold (D-898) still holds it. W-effb7141.
+A session whose env carries `ANTHROPIC_API_KEY` and none of the credentials that could replace it
+(a plan OAuth token, `ANTHROPIC_AUTH_TOKEN`, a Bedrock/Vertex/Foundry switch) draws no plan quota,
+so the hold no longer binds it while the fleet-exhausted stamp plainly reads `walled` or
+`urgent-90`: `.claude/hooks/quota_stop.py` turns its deny into an allow (a stderr note in the
+verbose transcript), `scripts/sysadmin/quota_posture_hook.py` skips its RED deny and AMBER notice
+and replaces the prompt line's CHECKPOINT clause with one naming the exemption, and
+`.claude/hooks/final_gate_stop.py` keeps the session's Stop causes armed instead of yielding. The
+battery hold (D-898) and any unknown stamp still hold it. Today this serves a window launched by
+hand on a key; `scripts/api_credit.py` children run `--safe-mode` and never run hooks. W-effb7141.
 
 ### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
 

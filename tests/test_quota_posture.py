@@ -1626,10 +1626,7 @@ def test_red_does_not_hold_an_api_key_session(tmp_path):
     assert json.loads(p.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
-
-@pytest.mark.parametrize(
-    "line2,free", [("urgent-90", True), ("battery", False), ("bogus", False)]
-)
+@pytest.mark.parametrize("line2,free", [("urgent-90", True), ("battery", False), ("bogus", False)])
 def test_the_prompt_line_tells_an_api_key_session_it_is_not_held(tmp_path, line2, free):
     """An obedient builder parks on the prompt line's CHECKPOINT clause, so a session the hold
     does not bind is told so instead — never at the battery hold or an unknown tier."""
@@ -1643,3 +1640,72 @@ def test_the_prompt_line_tells_an_api_key_session_it_is_not_held(tmp_path, line2
         assert "CHECKPOINT" not in out, out
     plan = _hook(ups, state=state).stdout
     assert "Anthropic API key" not in plan
+
+
+def _load_by_path(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_QS = Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "quota_stop.py"
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"ANTHROPIC_API_KEY": "k"},
+        {"ANTHROPIC_API_KEY": "k", "CLAUDE_CODE_OAUTH_TOKEN": "t"},
+        {"ANTHROPIC_API_KEY": "k", "ANTHROPIC_AUTH_TOKEN": "t"},
+        {"ANTHROPIC_API_KEY": "k", "CLAUDE_CODE_USE_BEDROCK": "1"},
+        {"ANTHROPIC_API_KEY": " "},
+        {},
+    ],
+)
+def test_the_posture_copy_agrees_with_quota_stop_on_every_stamp_shape(tmp_path, monkeypatch, env):
+    """The posture hook COPIES quota_stop.py's predicate and tier rule (it imports nothing from the
+    project hooks): both must answer alike on every stamp a hold can stand on, or a session is
+    exempt in one hook and held in the other."""
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    qs, qp = _load_by_path("_qs_parity", _QS), _load_by_path("_qp_parity", HOOK)
+    assert qs._OTHER_AUTH == qp._OTHER_AUTH
+    assert qs._api_key_session() == qp._api_key_session()
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    stamp = state / "fleet-exhausted"
+    for body in (
+        "1\nwalled\n",
+        "1\nurgent-90\n",
+        "1\nbattery\n",
+        "1\n",
+        "1\nbogus\n",
+        "1\r\nwalled\r\n",
+    ):
+        stamp.write_text(body, encoding="utf-8")
+        assert qp._api_key_free() == qs.api_key_exempt(stamp), (env, body)
+    stamp.unlink()
+    stamp.mkdir()
+    assert qp._api_key_free() is False and qs.api_key_exempt(stamp) is False
+
+
+def test_amber_says_nothing_to_an_api_key_session_and_green_adds_no_clause(tmp_path):
+    """AMBER's "start nothing heavy" is plan-quota advice, so a key session is not told it; at
+    GREEN with no stamp no hold can bind, so the prompt line carries no exemption clause."""
+    state = tmp_path / "state"
+    _posture(state, band="AMBER", successor=None)
+    call = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "session_id": "s-amb",
+        "tool_input": {"command": "ls"},
+    }
+    key = {"ANTHROPIC_API_KEY": "sk-ant-api03-x"}
+    assert _hook(call, state=state, extra_env=key).stdout.strip() == ""
+    assert "additionalContext" in _hook(dict(call, session_id="s-amb2"), state=state).stdout
+    green = tmp_path / "green"
+    _posture(green, band="GREEN")
+    ups = {"hook_event_name": "UserPromptSubmit"}
+    assert "Anthropic API key" not in _hook(ups, state=green, extra_env=key).stdout

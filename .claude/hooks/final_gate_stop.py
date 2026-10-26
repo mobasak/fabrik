@@ -1358,7 +1358,10 @@ def _api_key_continues(stamp: Path) -> bool:
     """W-effb7141: True when quota_stop.py does not hold this session at this stamp because it runs
     on an Anthropic API key (`api_key_exempt` — a quota tier only, never the battery hold). Loaded
     from quota_stop.py beside this hook by file path, like `_lane_continues`; any load or call
-    error is False, which keeps the wall's yield — today's behaviour."""
+    error is False, which keeps the wall's yield — today's behaviour. The env is read first, so a
+    plan session never pays the module load."""
+    if not (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+        return False
     try:
         spec = importlib.util.spec_from_file_location(
             "_quota_stop_api_key", Path(__file__).resolve().parent / "quota_stop.py"

@@ -268,6 +268,15 @@ def _live_tier() -> str | None:
     return _stamp_tier(stamp)
 
 
+# COPIED from `.claude/hooks/quota_stop.py::_OTHER_AUTH` (W-effb7141); a grader holds the two equal
+_OTHER_AUTH = (
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
+)
+
 _API_KEY_CLAUSE = (
     " · this session runs on an Anthropic API key — the plan-quota band and hold do not bind it"
     " (W-effb7141)"
@@ -276,11 +285,11 @@ _API_KEY_CLAUSE = (
 
 def _api_key_session() -> bool:
     """COPIED from `.claude/hooks/quota_stop.py::_api_key_session` (its docstring carries the
-    reason, the routes that stay held, the cobra and the mirror): an Anthropic API key with no plan
-    OAuth token in the env this hook inherits from claude (W-effb7141)."""
-    return bool((os.environ.get("ANTHROPIC_API_KEY") or "").strip()) and not (
-        os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or ""
-    ).strip()
+    reason, the routes that stay held, the cobra and the mirror): an Anthropic API key and none
+    of `_OTHER_AUTH` in the env this hook inherits from claude (W-effb7141)."""
+    return bool((os.environ.get("ANTHROPIC_API_KEY") or "").strip()) and not any(
+        (os.environ.get(name) or "").strip() for name in _OTHER_AUTH
+    )
 
 
 def _api_key_free() -> bool:
@@ -1151,7 +1160,8 @@ def main(argv: list[str] | None = None) -> int:
             print(_unavailable(reason))
         else:
             band, is_fable = _band_for_session(posture, payload.get("transcript_path"))
-            free = _api_key_free()
+            # the clause only where a hold could bind — a stamp stands or the band is not GREEN
+            free = _api_key_free() and (_live_tier() is not None or band != "GREEN")
             print(
                 _format_line(
                     posture,

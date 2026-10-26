@@ -242,8 +242,16 @@ def _isolated_print_mode(tmp_path, _private_monkeypatch):
 def _no_api_key_session(_private_monkeypatch):
     """The quota hooks exempt a session on an Anthropic API key (W-effb7141), so a suite run from
     such a session would see every hold lifted and every hold grader go falsely red. One autouse
-    pin: both auth variables removed; a test that wants an API-key session sets them after this."""
-    for name in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"):
+    pin: the key and every credential the hooks weigh beside it (`quota_stop.py::_OTHER_AUTH`)
+    removed; a test that wants an API-key session sets them after this."""
+    for name in (
+        "ANTHROPIC_API_KEY",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+    ):
         _private_monkeypatch.delenv(name, raising=False)
 
 

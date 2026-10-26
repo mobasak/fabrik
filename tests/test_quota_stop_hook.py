@@ -1907,16 +1907,33 @@ def test_an_api_key_session_is_not_held_by_the_wall_or_the_lane(tmp_path, tier):
     "extra",
     [
         {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-x"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "ANTHROPIC_AUTH_TOKEN": "bearer"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_USE_BEDROCK": "1"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_USE_VERTEX": "1"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_USE_FOUNDRY": "0"},
         {"ANTHROPIC_API_KEY": "  "},
         {},
     ],
-    ids=["oauth-token-beside-the-key", "blank-key", "no-key"],
+    ids=[
+        "oauth-token-beside-the-key",
+        "auth-token-beside-the-key",
+        "bedrock",
+        "vertex",
+        "foundry-any-value",
+        "blank-key",
+        "no-key",
+    ],
 )
 def test_a_plan_session_is_still_held_at_the_wall(tmp_path, extra):
+    """On a PLAIN quota tier — the one stamp an API-key session passes — so each case grades the
+    env predicate alone, never the tier rule."""
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text("1\nwalled\n")
     r = _run(
         tmp_path,
         {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
-        stamp=True,
+        stamp=False,
         tick_fresh=True,
         extra_env=extra,
     )
