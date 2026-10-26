@@ -1,4 +1,158 @@
 shared: commands/_fragments/grounding-rules.md
 baseline_sentences: grounding-rules.baseline.txt
 baseline_sha256: "0930d1b24e2e5e97109a513dc0a8f60212743a6facea53118876cfb93bd5b498"
-entries: []
+entries:
+- id: gr-heading
+  # class: grammar
+  # clauses: L1.1, L1.2
+  file: commands/_fragments/grounding-rules.md
+  baseline: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  current: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  text:
+  - "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+- id: gr-before-the-first-selection
+  # class: prose
+  # clauses: L2.1
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "Before the first architecture, tool, or dependency selection:"
+  current: "Before the first architecture, tool, or dependency selection:"
+  text:
+  - "Before the first architecture, tool, or dependency selection:"
+- id: gr-census-and-must-read-full-set
+  # class: prose
+  # clauses: L3.1
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "Run `python scripts/select_rules.py` at the PROJECT root for the ACTIVE census"
+  current: "Run `python scripts/select_rules.py` at the PROJECT root for the ACTIVE census"
+  text:
+  - "Run `python scripts/select_rules.py` at the PROJECT root for the ACTIVE census"
+- id: gr-must-read-full-set-is-computed
+  # class: ban
+  # clauses: L4.1
+  # kept-test literals inside this carrier (tests never edited here): test_check_vendored_drift, test_rules_match
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "The MUST-READ-FULL set is COMPUTED, not everything: the FLOOR packs + every pack `python scripts/review_rubric.py --changed <the surfaces this artifact will touch>` MATCHES, plus the always-AVAILABLE packs named in `agents-fabrik.md` § MANDATORY (they never self-mark ACTIVE"
+  current: "The MUST-READ-FULL set is COMPUTED, not everything: the FLOOR packs + every pack `python scripts/review_rubric.py --changed <the surfaces this artifact will touch>` MATCHES, plus the always-AVAILABLE packs named in `agents-fabrik.md` § MANDATORY (they never self-mark ACTIVE)"
+  text:
+  - "The MUST-READ-FULL set is COMPUTED, not everything: the FLOOR packs + every pack `python scripts/review_rubric.py --changed <the surfaces this artifact will touch>` MATCHES, plus the always-AVAILABLE packs named in `agents-fabrik.md` § MANDATORY (they never self-mark ACTIVE)"
+- id: gr-fresh-full-reads
+  # class: prose
+  # clauses: L5.1, L5.3
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "Fresh full reads of exactly that set — a 26-pack duty where 3 are relevant teaches skimming, and skimming generalizes (operator ruling 2026-08-30); remaining ACTIVE/AVAILABLE packs are judgment reads"
+  current: "Fresh full reads of exactly that set; remaining ACTIVE/AVAILABLE packs are judgment reads"
+  text:
+  - "Fresh full reads of exactly that set; remaining ACTIVE/AVAILABLE packs are judgment reads"
+- id: gr-emit-the-constraints-digest
+  # class: ban
+  # clauses: L6.1, L6.2
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "Emit the CONSTRAINTS DIGEST as a checkpoint artifact — a table, one row per MUST / BAN / anti-pattern relevant to this scope, every row carrying a VERBATIM quote from the pack + `file:line`: you cannot quote a line from a pack you did not open, which is the whole proof"
+  current: "Emit the CONSTRAINTS DIGEST as a checkpoint artifact — a table, one row per MUST / BAN / anti-pattern relevant to this scope, every row carrying a VERBATIM quote from the pack + `file:line`: you cannot quote a line from a pack you did not open, which is the whole proof"
+  text:
+  - "Emit the CONSTRAINTS DIGEST as a checkpoint artifact"
+  - "a table, one row per MUST / BAN / anti-pattern relevant to this scope, every row carrying a VERBATIM quote from the pack + `file:line`: you cannot quote a line from a pack you did not open, which is the whole proof"
+- id: gr-digest-column-headers
+  # class: behavioural
+  # clauses: L7.1, L7.2
+  # kept-test literals inside this carrier (tests never edited here): test_rule_grounding
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "Head the columns `Quote` (or `Verbatim`) and `Source` (a repo-relative `path:line` alone in its cell); without those headers the checker treats a leading `#` column as a row label and reads the column just before `Source` as the quote (the column after it when `Source` comes first, the first other column when no `Source` is named), and the column after the quote as the source when `Source` is not named"
+  current: "Head the columns `Quote` (or `Verbatim`) and `Source` (a repo-relative `path:line` alone in its cell); without those headers the checker treats a leading `#` column as a row label and reads the column just before `Source` as the quote (the column after it when `Source` comes first, the first other column when no `Source` is named), and the column after the quote as the source when `Source` is not named"
+  text:
+  - "Head the columns `Quote` (or `Verbatim`) and `Source` (a repo-relative `path:line` alone in its cell)"
+  - "without those headers the checker treats a leading `#` column as a row label and reads the column just before `Source` as the quote (the column after it when `Source` comes first, the first other column when no `Source` is named), and the column after the quote as the source when `Source` is not named"
+- id: gr-digest-heading-and-table-header
+  # class: behavioural
+  # clauses: L8.1
+  # kept-test literals inside this carrier (tests never edited here): test_rule_grounding
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "Put it under a `## Constraints Digest` heading, and give the table its `| Quote | Source |` header and `|---|---|` separator, because the checker takes the first two table lines as those"
+  current: "Put it under a `## Constraints Digest` heading, and give the table its `| Quote | Source |` header and `|---|---|` separator, because the checker takes the first two table lines as those"
+  text:
+  - "Put it under a `## Constraints Digest` heading, and give the table its `| Quote | Source |` header and `|---|---|` separator, because the checker takes the first two table lines as those"
+- id: gr-digest-row-shape
+  # class: behavioural
+  # clauses: L9.1
+  # kept-test literals inside this carrier (tests never edited here): test_rule_grounding
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "Each row then reads ``| <the pack's words> | `.windsurf/rules/<pack>.md:<line>` |``, with more columns after it if you like"
+  current: "Each row then reads ``| <the pack's words> | `.windsurf/rules/<pack>.md:<line>` |``, with more columns after it if you like"
+  text:
+  - "Each row then reads ``| <the pack's words> | `.windsurf/rules/<pack>.md:<line>` |``, with more columns after it if you like"
+- id: gr-quote-matching
+  # class: behavioural
+  # clauses: L10.1
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "The quote is matched as one case-exact substring of the whole cited file, with whitespace collapsed and backticks and `*` dropped"
+  current: "The quote is matched as one case-exact substring of the whole cited file, with whitespace collapsed and backticks and `*` dropped"
+  text:
+  - "The quote is matched as one case-exact substring of the whole cited file, with whitespace collapsed and backticks and `*` dropped"
+- id: gr-no-elision-and-pipe-escape
+  # class: behavioural
+  # clauses: L11.1
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "So no `…` elision, and a literal `|` in it is written `\\|`"
+  current: "So no `…` elision, and a literal `|` in it is written `\\|`"
+  text:
+  - "So no `…` elision, and a literal `|` in it is written `\\|`"
+- id: gr-checker-grades-the-countable-subset
+  # class: ban
+  # clauses: L12.1, L12.2, L12.3
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "`scripts/enforcement/check_rule_grounding.py` grades the countable subset on CONVERGED plans (quote-integrity + MATCHED-pack completeness, advisory); reading QUALITY stays with `/fabrik-plan-review`'s audit — the check never claims otherwise"
+  current: "`scripts/enforcement/check_rule_grounding.py` grades the countable subset on CONVERGED plans (quote-integrity + MATCHED-pack completeness, advisory); reading QUALITY stays with `/fabrik-plan-review`'s audit — the check never claims otherwise"
+  text:
+  - "`scripts/enforcement/check_rule_grounding.py` grades the countable subset on CONVERGED plans (quote-integrity + MATCHED-pack completeness, advisory); reading QUALITY stays with `/fabrik-plan-review`'s audit — the check never claims otherwise"
+- id: gr-subsequent-selection-cites-a-row
+  # class: prose
+  # clauses: L13.1
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "Every subsequent selection cites a digest row or states `unconstrained`"
+  current: "Every subsequent selection cites a digest row or states `unconstrained`"
+  text:
+  - "Every subsequent selection cites a digest row or states `unconstrained`"
+- id: gr-colliding-recommendation-is-dead
+  # class: ban
+  # clauses: L14.1, L14.2
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "A recommendation that collides with a digest row is DEAD at intake — external best-practice citations never outrank a row"
+  current: "A recommendation that collides with a digest row is DEAD at intake — external best-practice citations never outrank a row"
+  text:
+  - "A recommendation that collides with a digest row is DEAD at intake — external best-practice citations never outrank a row"
+- id: gr-incomplete-digest-blocks-exit
+  # class: prose
+  # clauses: L15.1
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "A digest missing a rule a MUST-READ pack contains is an INCOMPLETE-DIGEST finding and blocks the exit"
+  current: "A digest missing a rule a MUST-READ pack contains is an INCOMPLETE-DIGEST finding and blocks the exit"
+  text:
+  - "A digest missing a rule a MUST-READ pack contains is an INCOMPLETE-DIGEST finding and blocks the exit"
+- id: gr-self-assertion-never-counts
+  # class: ban
+  # clauses: L16.1
+  file: commands/_fragments/grounding-rules.md
+  section: "## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)"
+  baseline: "Self-assertion of \"I read the packs\" never counts as grounding"
+  current: "Self-assertion of \"I read the packs\" never counts as grounding"
+  text:
+  - "Self-assertion of \"I read the packs\" never counts as grounding"
+vanished:
+  L4:  # clauses: 1 gr-must-read-full-set-is-computed, 2 narrative
+    rule: [gr-must-read-full-set-is-computed]
+  L5:  # clauses: 1 gr-fresh-full-reads, 2 narrative, 3 gr-fresh-full-reads
+    rule: [gr-fresh-full-reads]

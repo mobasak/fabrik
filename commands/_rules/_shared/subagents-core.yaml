@@ -2,17 +2,88 @@ shared: commands/_fragments/subagents-core.md
 baseline_sentences: subagents-core.baseline.txt
 baseline_sha256: "60e5ebc03b84ea526b67fd516c55f832c63126040b26a9aa4494f19f573e1407"
 entries:
-- id: sc-by-file-two-finders-per-slice
-  # class: ban
-  # clauses: L8.7, L8.11
+- id: sc-heading
+  # class: grammar
+  # clauses: L1.1, L1.2
+  file: commands/_fragments/subagents-core.md
+  baseline: "## Subagents — {{HEADLINE}}"
+  current: "## Subagents — {{HEADLINE}}"
+  text:
+  - "## Subagents — {{HEADLINE}}"
+- id: sc-pool-off-ruling
+  # class: prose
+  # clauses: L2.1, L2.2, L2.4
   file: commands/_fragments/subagents-core.md
   section: "## Subagents — {{HEADLINE}}"
-  baseline: "`/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands), at most ONE extra Haiku class seat for a judgement-shaped inventory class the close-out hygiene script cannot express and only when the brief names it, and you — the orchestrator, Opus or Fable whichever the quota allows, and whichever newer model replaces them (D-334, D-456) — orchestrating and EXECUTING every refutation and every confirmed reproduction, never a finder — the union of the slices IS the full pass, every file in exactly one slice and read by that slice's two finders — unless `dispatch_headroom.py` printed a `TRIMMED partition` line (a quota, box or concurrency cap below the slice count): then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read"
-  current: "By FILE, `/fabrik-review` and `/fabrik-repo-review` (D-207, on the operator's ruling D-203): two cheap finders per slice — one Sonnet and one Haiku, each over the whole slice, candidates unioned, never voted — and no Opus finder (pilot D-344, 2026-09-22, superseding D-207's Opus-on-the-risky mix; the risky units — concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets — are the slice's named hunt priority, and Opus/Fable execute in the orchestrator; `/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands), at most ONE extra Haiku class seat for a judgement-shaped inventory class the close-out hygiene script cannot express and only when the brief names it, and you — the orchestrator, Opus or Fable whichever the quota allows, and whichever newer model replaces them (D-334, D-456) — orchestrating and EXECUTING every refutation and every confirmed reproduction, never a finder — the union of the slices IS the full pass, every file in exactly one slice and read by that slice's two finders — unless `dispatch_headroom.py` printed a `TRIMMED partition` line (a quota, box or concurrency cap below the slice count): then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read"
+  baseline: "⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control, and intel monitors `fabrik_analytics.subagent_runs` for any dispatch after it landed)"
+  current: "⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter pool is OFF by operator ruling (D-181, D-182): the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control, and intel monitors `fabrik_analytics.subagent_runs` for any dispatch after it landed"
   text:
-  - "since round 1 is not complete until every slice is read"
-  - "`/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands"
-  - "then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read."
+  - "⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter pool is OFF by operator ruling (D-181, D-182): the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control, and intel monitors `fabrik_analytics.subagent_runs` for any dispatch after it landed"
+- id: sc-fan-outs-run-native
+  # class: prose
+  # clauses: L3.1, L3.2
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Until the operator re-enables it, this command's every fan-out runs NATIVE — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose) with the SAME unit split, the SAME author-blind/independence rule (`62` § Role separation) and the SAME decide/refute/merge you own"
+  current: "Until the operator re-enables it, every fan-out runs NATIVE — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose) with the SAME unit split, author-blind/independence rule (`62` § Role separation) and decide/refute/merge you own"
+  text:
+  - "Until the operator re-enables it, every fan-out runs NATIVE — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose) with the SAME unit split, author-blind/independence rule (`62` § Role separation) and decide/refute/merge you own"
+- id: sc-skip-pool-steps
+  # class: prose
+  # clauses: L4.1, L4.2
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Skip every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` step named anywhere in this command — a native seat has no `AgentResult`, records nothing, and owes no score"
+  current: "Skip every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` step named anywhere in this command — a native seat has no `AgentResult`, records nothing, owes no score"
+  text:
+  - "Skip every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` step named anywhere in this command — a native seat has no `AgentResult`, records nothing, owes no score"
+- id: sc-never-write-no-pool
+  # class: ban
+  # clauses: L5.1
+  # kept-test literals inside this carrier (tests never edited here): test_check_subagent_flywheel, test_gate_check_canaries
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Never write `NO-POOL:` for it: `scripts/enforcement/check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)"
+  current: "Never write `NO-POOL:` for it: `scripts/enforcement/check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)"
+  text:
+  - "Never write `NO-POOL:` for it: `scripts/enforcement/check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)"
+- id: sc-size-to-the-surface-two-shapes
+  # class: ban
+  # clauses: L6.1, L7.3
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Size the native fan-out to the SURFACE, never to a fixed small number, and the sizing has TWO shapes ; in two shapes"
+  current: "Size the native fan-out to the SURFACE, never to a fixed small number, and the sizing has TWO shapes"
+  text:
+  - "Size the native fan-out to the SURFACE, never to a fixed small number, and the sizing has TWO shapes"
+- id: sc-partitioned-loops-disjoint-slices
+  # class: prose
+  # clauses: L7.1, L7.2
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "The PARTITIONED review loops cut the surface into DISJOINT slices — the union of the slices IS the full pass, no file or section in two slices"
+  current: "The PARTITIONED review loops cut the surface into DISJOINT slices — the union of the slices IS the full pass, no file or section in two slices — in two shapes"
+  text:
+  - "The PARTITIONED review loops cut the surface into DISJOINT slices — the union of the slices IS the full pass, no file or section in two slices — in two shapes"
+- id: sc-by-file-two-finders-per-slice
+  # class: ban
+  # clauses: L8.1, L8.2, L8.3, L8.4, L8.5, L8.6, L8.7, L8.8, L8.9, L8.10, L8.11, L23.3
+  # kept-test literals inside this carrier (tests never edited here): test_dispatch_headroom
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "By FILE, `/fabrik-review` and `/fabrik-repo-review` (D-207, on the operator's ruling D-203): two cheap finders per slice ; one Sonnet and one Haiku, each over the whole slice, candidates unioned, never voted ; and no Opus finder (pilot D-344, 2026-09-22, superseding D-207's Opus-on-the-risky mix ; the risky units ; concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets ; are the slice's named hunt priority, and Opus/Fable execute in the orchestrator ; `/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands), at most ONE extra Haiku class seat for a judgement-shaped inventory class the close-out hygiene script cannot express and only when the brief names it, and you ; the orchestrator, Opus or Fable whichever the quota allows, and whichever newer model replaces them (D-334, D-456) ; orchestrating and EXECUTING every refutation and every confirmed reproduction, never a finder ; the union of the slices IS the full pass, every file in exactly one slice and read by that slice's two finders ; unless `dispatch_headroom.py` printed a `TRIMMED partition` line (a quota, box or concurrency cap below the slice count): then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read ; Opus or Fable, whichever the quota allows, and whichever newer model replaces them (D-334, D-456)"
+  current: "By FILE, `/fabrik-review` and `/fabrik-repo-review` (D-207, ruling D-203): two cheap finders per slice — one Sonnet and one Haiku, each over the whole slice, candidates unioned, never voted — and no Opus finder (D-344, 2026-09-22, superseding D-207's Opus-on-the-risky mix; the risky units — concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets — are the slice's named hunt priority, and Opus/Fable execute in the orchestrator; `/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands), at most ONE extra Haiku class seat for a judgement-shaped inventory class the close-out hygiene script cannot express and only when the brief names it, and you — the orchestrator, Opus or Fable whichever the quota allows, and whichever newer model replaces them (D-334, D-456) — orchestrating and EXECUTING every refutation and every confirmed reproduction, never a finder — the union of the slices IS the full pass, every file in exactly one slice and read by that slice's two finders — unless `dispatch_headroom.py` printed a `TRIMMED partition` line (a quota, box or concurrency cap below the slice count): then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read"
+  text:
+  - "By FILE, `/fabrik-review` and `/fabrik-repo-review` (D-207, ruling D-203): two cheap finders per slice"
+  - "one Sonnet and one Haiku, each over the whole slice, candidates unioned, never voted"
+  - "and no Opus finder (D-344, 2026-09-22, superseding D-207's Opus-on-the-risky mix; the risky units"
+  - "concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets"
+  - "are the slice's named hunt priority, and Opus/Fable execute in the orchestrator"
+  - "`/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands), at most ONE extra Haiku class seat for a judgement-shaped inventory class the close-out hygiene script cannot express and only when the brief names it, and you"
+  - "the orchestrator, Opus or Fable whichever the quota allows, and whichever newer model replaces them (D-334, D-456)"
+  - "orchestrating and EXECUTING every refutation and every confirmed reproduction, never a finder"
+  - "the union of the slices IS the full pass, every file in exactly one slice and read by that slice's two finders"
+  - "unless `dispatch_headroom.py` printed a `TRIMMED partition` line (a quota, box or concurrency cap below the slice count): then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read"
 - id: sc-fix-between-waves-in-the-next-pin
   # class: prose
   # clauses: L9.1
@@ -21,31 +92,260 @@ entries:
   baseline: "A fix the lead makes between waves is in the next wave's pin, as every fix is in the pin cut after it"
   current: "A fix the lead makes between waves is in the next wave's pin, as every fix is in the pin cut after it"
   text:
-  - "A fix the lead makes between waves is in the next wave's pin, as every fix is in the pin cut after it."
+  - "A fix the lead makes between waves is in the next wave's pin, as every fix is in the pin cut after it"
+- id: sc-by-section-opus-sonnet
+  # class: ban
+  # clauses: L10.1, L10.2, L10.3
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "By SECTION, the `term-edit` family's `/fabrik-spec-review` and `/fabrik-plan-review` (D-212, D-218): Opus on the rule/grammar sections, Sonnet on the rest, `fabrik-researcher` seats only for the external facts the artifact cites, NO Haiku seat (the hygiene script is the class sweep), budgeted as `--slices opus=N,sonnet=N` — the shape their own Floor line states; the delta-round rule below binds them too"
+  current: "By SECTION, the `term-edit` family's `/fabrik-spec-review` and `/fabrik-plan-review` (D-212, D-218): Opus on the rule/grammar sections, Sonnet on the rest, `fabrik-researcher` seats only for the external facts the artifact cites, NO Haiku seat (the hygiene script is the class sweep), budgeted as `--slices opus=N,sonnet=N` — the shape their own Floor line states; the delta-round rule below binds them too"
+  text:
+  - "By SECTION, the `term-edit` family's `/fabrik-spec-review` and `/fabrik-plan-review` (D-212, D-218): Opus on the rule/grammar sections, Sonnet on the rest, `fabrik-researcher` seats only for the external facts the artifact cites, NO Haiku seat (the hygiene script is the class sweep), budgeted as `--slices opus=N,sonnet=N`"
+  - "the shape their own Floor line states"
+  - "the delta-round rule below binds them too"
+- id: sc-delta-rounds-and-the-closing-pass
+  # class: behavioural
+  # clauses: L11.1, L11.2, L11.3, L11.4, L11.5, L11.6, L11.7
+  # kept-test literals inside this carrier (tests never edited here): test_assemble_dispatch_step, test_review_exit_contract
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Round 1 is the only full pass and every later round is a DELTA over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`) plus any sibling commit on the surface, same partition and the same persisting class ledger, sized by the SLICES under the fragments' D5 — one seat per slice whose ledger holds an open claim, the round-1 `--slices`/`--units` union as the ceiling (D-335 superseding D-229); the closing pass is the round-1 seats re-verifying their OWN slices and CONFIRMING zero code or doc defects — never a fresh whole-artifact reader (D-206, D-335). Under a partition the three-seat floor stands down (satisfied by construction) — the budget and the stamp never do"
+  current: "Round 1 is the only full pass and every later round is a DELTA over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`) plus any sibling commit on the surface, same partition and persisting class ledger, sized by the SLICES under the fragments' D5 — one seat per slice whose ledger holds an open claim, the round-1 `--slices`/`--units` union as the ceiling (D-335 superseding D-229); the closing pass is the round-1 seats re-verifying their OWN slices and CONFIRMING zero code or doc defects — never a fresh whole-artifact reader (D-206, D-335). Under a partition the three-seat floor stands down (satisfied by construction) — the budget and the stamp never do"
+  text:
+  - "Round 1 is the only full pass and every later round is a DELTA over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT"
+  - "what a delta round may COUNT is the fragments' bounded-hop rule"
+  - "`term-edit`/`term-coverage`) plus any sibling commit on the surface, same partition and persisting class ledger, sized by the SLICES under the fragments' D5"
+  - "one seat per slice whose ledger holds an open claim, the round-1 `--slices`/`--units` union as the ceiling (D-335 superseding D-229)"
+  - "the closing pass is the round-1 seats re-verifying their OWN slices and CONFIRMING zero code or doc defects"
+  - "never a fresh whole-artifact reader (D-206, D-335). Under a partition the three-seat floor stands down (satisfied by construction)"
+  - "the budget and the stamp never do"
+- id: sc-units-sized-surface
+  # class: ban
+  # clauses: L12.1, L12.2, L12.3, L12.4, L12.5, L12.6, L12.7
+  # kept-test literals inside this carrier (tests never edited here): test_assemble_dispatch_step
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Every OTHER command is UNITS-sized: partition the surface into INDEPENDENT units (failure class · file · screen · doc · pack · journey · fact · behaviour) — the units are the PARTITION and the box is the CEILING — with per independent unit one Sonnet breadth seat, plus one Haiku mechanical seat per grep-able class the surface has (the units-sized mix for a review, docs-review, sweep or audit surface; none on a judgement surface — a grounding or adjudication unit has no grep-able angle, `--mechanical 0`; a command whose floor names a kind states it there), plus the Opus authoritative seat(s) (one per risky unit, at least one), all dispatched in a single message so they run in parallel — a 3-unit surface with a mechanical angle on an idle box is 7 seats (4 with `--mechanical 0`), never a token 1–2"
+  current: "Every OTHER command is UNITS-sized: partition the surface into INDEPENDENT units (failure class · file · screen · doc · pack · journey · fact · behaviour) — the units are the PARTITION and the box is the CEILING — with per independent unit one Sonnet breadth seat, plus one Haiku mechanical seat per grep-able class the surface has (the units-sized mix for a review, docs-review, sweep or audit surface; none on a judgement surface — a grounding or adjudication unit has no grep-able angle, `--mechanical 0`; a command whose floor names a kind states it there), plus the Opus authoritative seat(s) (one per risky unit, at least one), all dispatched in a single message — a 3-unit surface with a mechanical angle on an idle box is 7 seats (4 with `--mechanical 0`), never a token 1–2"
+  text:
+  - "Every OTHER command is UNITS-sized: partition the surface into INDEPENDENT units (failure class · file · screen · doc · pack · journey · fact · behaviour)"
+  - "the units are the PARTITION and the box is the CEILING"
+  - "with per independent unit one Sonnet breadth seat, plus one Haiku mechanical seat per grep-able class the surface has (the units-sized mix for a review, docs-review, sweep or audit surface; none on a judgement surface"
+  - "a grounding or adjudication unit has no grep-able angle, `--mechanical 0`"
+  - "a command whose floor names a kind states it there), plus the Opus authoritative seat(s) (one per risky unit, at least one), all dispatched in a single message"
+  - "a 3-unit surface with a mechanical angle on an idle box is 7 seats (4 with `--mechanical 0`), never a token 1–2"
+- id: sc-mechanical-angle-is-global
+  # class: prose
+  # clauses: L13.1, L13.2
+  # kept-test literals inside this carrier (tests never edited here): test_assemble_dispatch_step
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "The mechanical angle is grep-shaped, so it is GLOBAL: `--mechanical <M>` is the number of grep-able classes the surface HAS; trimmed below one per unit, each Haiku seat sweeps ONE class across every unit"
+  current: "The mechanical angle is grep-shaped, so it is GLOBAL: `--mechanical <M>` is the number of grep-able classes the surface HAS; trimmed below one per unit, each Haiku seat sweeps ONE class across every unit"
+  text:
+  - "The mechanical angle is grep-shaped, so it is GLOBAL: `--mechanical <M>` is the number of grep-able classes the surface HAS; trimmed below one per unit, each Haiku seat sweeps ONE class across every unit"
+- id: sc-cap-is-independence-of-the-surface
+  # class: prose
+  # clauses: L14.1
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "The CAP is independence OF THE SURFACE, not of the reader: partition so no unit's ground truth is another's, and a unit you cannot brief distinctly is not a seat"
+  current: "The CAP is independence OF THE SURFACE, not of the reader: partition so no unit's ground truth is another's, and a unit you cannot brief distinctly is not a seat"
+  text:
+  - "The CAP is independence OF THE SURFACE, not of the reader: partition so no unit's ground truth is another's, and a unit you cannot brief distinctly is not a seat"
+- id: sc-never-solo-the-floor-is-three-seats
+  # class: ban
+  # clauses: L15.1, L15.2
+  # kept-test literals inside this carrier (tests never edited here): test_check_review_hygiene
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "⚠️ On a units-sized surface: NEVER solo, never two — the FLOOR is three seats. A surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it: measured, not assumed (1 seat found 0"
+  current: "⚠️ On a units-sized surface: NEVER solo, never two — the FLOOR is three seats. A surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it: measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0)"
+  text:
+  - "⚠️ On a units-sized surface: NEVER solo, never two — the FLOOR is three seats. A surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it: measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0)"
+- id: sc-floor-three-are-one-unit
+  # class: prose
+  # clauses: L16.1, L16.2
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Those three are the same technique `/fabrik-review-scoped` § floor measures — duplicate briefs buy sampling variance, not coverage, so they are budgeted as ONE unit"
+  current: "Those three are the same technique `/fabrik-review-scoped` § floor measures — duplicate briefs buy sampling variance, not coverage, so they are budgeted as ONE unit"
+  text:
+  - "Those three are the same technique `/fabrik-review-scoped` § floor measures — duplicate briefs buy sampling variance, not coverage, so they are budgeted as ONE unit"
+- id: sc-the-dispatch-step
+  # class: behavioural
+  # clauses: L17.1, L17.2
+  # kept-test literals inside this carrier (tests never edited here): test_flows_review_queue_pass, test_mail_routing, test_review_exit_contract, test_vps_script_drift
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "THE DISPATCH STEP (D-191, binding on every fan-out): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and the mix it prints, all in ONE message (when the COST line says TRIMMED, the trimmed mix — never the per-unit sentence), each seat a distinct unit × angle brief with its model token (`model: \"sonnet\"|\"haiku\"|\"opus\"`)"
+  current: "THE DISPATCH STEP (D-191, binding on every fan-out): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and the mix it prints, all in ONE message (when the COST line says TRIMMED, the trimmed mix — never the per-unit sentence), each seat a distinct unit × angle brief with its model token (`model: \"sonnet\"|\"haiku\"|\"opus\"`)"
+  text:
+  - "THE DISPATCH STEP (D-191, binding on every fan-out): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and the mix it prints, all in ONE message (when the COST line says TRIMMED, the trimmed mix"
+  - "never the per-unit sentence), each seat a distinct unit × angle brief with its model token (`model: \"sonnet\"|\"haiku\"|\"opus\"`)"
 - id: sc-review-shaped-fan-out-workflow
   # class: ban
-  # clauses: L18.3
+  # clauses: L18.1, L18.2, L18.3, L18.4, L18.5, L18.6, L18.7, L18.8, L18.9, L18.10, L18.11
+  # kept-test literals inside this carrier (tests never edited here): test_hub_write_root, test_mail_routing, test_quota_stop_hook, test_review_loop_workflow
   file: commands/_fragments/subagents-core.md
   section: "## Subagents — {{HEADLINE}}"
-  baseline: "runs, outside the hub (D-961: the hub never calls it), as ONE `Workflow` call on the review-loop script instead of the `Agent` message (chunk 6b"
+  baseline: "A review-shaped units fan-out — finders over an artifact whose every candidate needs a verdict — runs, outside the hub (D-961: the hub never calls it), as ONE `Workflow` call on the review-loop script instead of the `Agent` message (chunk 6b; `<repo root>/.claude/workflows/fabrik-review-loop.js` — `<repo root>` is the session's own checkout — `git rev-parse --show-toplevel` from its working directory, so in a worktree the worktree, never the main checkout; contract `/opt/fabrik/docs/reference/review-loop-workflow.md` (hub-only, so cited hub-absolute — a hub branch that edits it reads its own checkout's copy); when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`): each unit a slice `{name, files, scope: \"<the unit>\", models: [\"sonnet\", \"haiku\"]}` (`[\"sonnet\"]` where the mix gives it no Haiku seat), the Opus authoritative seat(s) the third finder of the risky unit(s), one refuter per unit EXECUTING every candidate; the stamp is the `SEATS:` plus one refuter per unit; read each pass with `scripts/review_loop_ledger.py read`, and every later pass carries only the units whose ledger holds an open claim, on the round-1 seats that raised them, their `ledger` from `review_loop_ledger.py next`"
   current: "A review-shaped units fan-out — finders over an artifact whose every candidate needs a verdict — runs, outside the hub (D-961: the hub never calls it), as ONE `Workflow` call on the review-loop script instead of the `Agent` message (chunk 6b; `<repo root>/.claude/workflows/fabrik-review-loop.js` — `<repo root>` is the session's own checkout — `git rev-parse --show-toplevel` from its working directory, so in a worktree the worktree, never the main checkout; contract `/opt/fabrik/docs/reference/review-loop-workflow.md` (hub-only, so cited hub-absolute — a hub branch that edits it reads its own checkout's copy); when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`): each unit a slice `{name, files, scope: \"<the unit>\", models: [\"sonnet\", \"haiku\"]}` (`[\"sonnet\"]` where the mix gives it no Haiku seat), the Opus authoritative seat(s) the third finder of the risky unit(s), one refuter per unit EXECUTING every candidate; the stamp is the `SEATS:` plus one refuter per unit; read each pass with `scripts/review_loop_ledger.py read`, and every later pass carries only the units whose ledger holds an open claim, on the round-1 seats that raised them, their `ledger` from `review_loop_ledger.py next`"
   text:
-  - "runs, outside the hub (D-961: the hub never calls it), as ONE `Workflow` call"
-- id: sc-d8-seat-folder-and-scratch-homes
-  # class: ban
-  # clauses: L29.1, L29.2, L29.3, L29.5, L29.6, L29.7, L29.9
+  - "A review-shaped units fan-out — finders over an artifact whose every candidate needs a verdict"
+  - "runs, outside the hub (D-961: the hub never calls it), as ONE `Workflow` call on the review-loop script instead of the `Agent` message (chunk 6b; `<repo root>/.claude/workflows/fabrik-review-loop.js`"
+  - "`<repo root>` is the session's own checkout"
+  - "`git rev-parse --show-toplevel` from its working directory, so in a worktree the worktree, never the main checkout"
+  - "contract `/opt/fabrik/docs/reference/review-loop-workflow.md` (hub-only, so cited hub-absolute"
+  - "a hub branch that edits it reads its own checkout's copy)"
+  - "when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`): each unit a slice `{name, files, scope: \"<the unit>\", models: [\"sonnet\", \"haiku\"]}` (`[\"sonnet\"]` where the mix gives it no Haiku seat), the Opus authoritative seat(s) the third finder of the risky unit(s), one refuter per unit EXECUTING every candidate"
+  - "the stamp is the `SEATS:` plus one refuter per unit"
+  - "read each pass with `scripts/review_loop_ledger.py read`, and every later pass carries only the units whose ledger holds an open claim, on the round-1 seats that raised them, their `ledger` from `review_loop_ledger.py next`"
+- id: sc-grounding-fan-out-stays-on-the-agent-tool
+  # class: prose
+  # clauses: L19.1
   file: commands/_fragments/subagents-core.md
   section: "## Subagents — {{HEADLINE}}"
-  baseline: "The scratch dir a brief names is a SEAT FOLDER under the run's disposable folder — `<run scratch>/seat-<n>/`, `<run scratch>` being the path this run's `start` printed as `RUN-SCRATCH:` (kept as `run_scratch` in the run record; `docs/reference/command-run-protocol.md` § A run's disposable folder) — never the session scratchpad root, which no run owns and nothing removes. The folder goes when the run is consumed, so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists); a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead and the brief says so; the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`, `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins; a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears; and a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the pinned SHA, or a `clone --shared --no-checkout`"
+  baseline: "A grounding, authoring or adjudication fan-out stays on the `Agent` tool"
+  current: "A grounding, authoring or adjudication fan-out stays on the `Agent` tool"
+  text:
+  - "A grounding, authoring or adjudication fan-out stays on the `Agent` tool"
+- id: sc-partitioned-loop-passes-slice-counts
+  # class: behavioural
+  # clauses: L20.1, L20.2, L20.3, L20.4, L20.5, L20.6, L26.4
+  # kept-test literals inside this carrier (tests never edited here): test_assemble_dispatch_step, test_mail_routing, test_review_exit_contract, test_vps_script_drift
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "A PARTITIONED review loop passes its own slice counts instead ; `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices sonnet=N,haiku=N` (D-344 ; plus `opus=1` where `/fabrik-execute-plan`'s per-round Opus floor applies ; a section partition passes `opus=N,sonnet=N` only ; no Haiku seat, D-218), run however small the partition: `SEATS:` is then Σ slices with NO floor padding, and a floor-sized units fan-out (1 unit = 3 seats = the floor) needs no script at all ; stamp its three seats and go ; or, under a partition, by the SLICE count"
+  current: "A PARTITIONED review loop passes its own slice counts instead — `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices sonnet=N,haiku=N` (D-344; plus `opus=1` where `/fabrik-execute-plan`'s per-round Opus floor applies; a section partition passes `opus=N,sonnet=N` only — no Haiku seat, D-218), run however small the partition: `SEATS:` is then Σ slices with NO floor padding, and a floor-sized units fan-out (1 unit = 3 seats = the floor) needs no script at all — stamp its three seats and go"
+  text:
+  - "A PARTITIONED review loop passes its own slice counts instead — `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices sonnet=N,haiku=N` (D-344"
+  - "plus `opus=1` where `/fabrik-execute-plan`'s per-round Opus floor applies"
+  - "a section partition passes `opus=N,sonnet=N` only"
+  - "no Haiku seat, D-218), run however small the partition: `SEATS:` is then Σ slices with NO floor padding, and a floor-sized units fan-out (1 unit = 3 seats = the floor) needs no script at all"
+  - "stamp its three seats and go"
+- id: sc-seat-count-is-a-min-of-caps
+  # class: ban
+  # clauses: L21.1, L21.2, L21.3, L21.4
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "The number it prints is min(units × angles + the Opus seat(s) · the CLI cap of 20 · box capacity — every seat's tools load the box, `--heavy` for pytest/build/render seats — minus seats live in sibling sessions · quota headroom), trimmed for maximum unit coverage when a cap binds (Haiku, then the extra Opus seats, then Sonnet); the floor never overrides a hard cap (D-189)"
+  current: "The number it prints is min(units × angles + the Opus seat(s) · the CLI cap of 20 · box capacity — every seat's tools load the box, `--heavy` for pytest/build/render seats — minus seats live in sibling sessions · quota headroom), trimmed for maximum unit coverage when a cap binds (Haiku, then the extra Opus seats, then Sonnet); the floor never overrides a hard cap (D-189)"
+  text:
+  - "The number it prints is min(units × angles + the Opus seat(s) · the CLI cap of 20 · box capacity"
+  - "every seat's tools load the box, `--heavy` for pytest/build/render seats"
+  - "minus seats live in sibling sessions · quota headroom), trimmed for maximum unit coverage when a cap binds (Haiku, then the extra Opus seats, then Sonnet)"
+  - "the floor never overrides a hard cap (D-189)"
+- id: sc-record-the-dispatch-before-sending
+  # class: behavioural
+  # clauses: L22.1, L22.2, L22.3, L22.4, L22.5, L22.6, L22.7, L22.8
+  # kept-test literals inside this carrier (tests never edited here): test_assemble_dispatch_step, test_check_command_corpus
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Record the dispatch BEFORE you send it: `python3 scripts/command_run.py dispatch --seats <n>` — that stamp is what sibling sessions subtract for 25 minutes (a vendored copy answering `invalid choice: 'dispatch'` is STALE, not exempt — § Close-out feedback has the class and what to do about it) — accumulated across the messages of one round, released by that round's `round` (a `round --seats` written at the round's close reserved nothing while the seats ran — a PARTIAL close (`round --seats <n>` with n below the stamp, the dispatcher-mode shape where several tickets stamp into one round) releases only what closed and keeps the remainder on the ORIGINAL stamp's clock); then close the round with `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` — the tripwire on D-186 is blind without it (a per-wave RESERVATION close in a command that batches waves carries `--seats` and `--findings` only; the class ledger closes at the pass's final round, and a round without `--classes-swept` never reads terminal)"
+  current: "Record the dispatch BEFORE you send it: `python3 scripts/command_run.py dispatch --seats <n>` — that stamp is what sibling sessions subtract for 25 minutes (a vendored copy answering `invalid choice: 'dispatch'` is STALE, not exempt — § Close-out feedback has the class and what to do about it) — accumulated across the messages of one round, released by that round's `round` (a `round --seats` written at the round's close reserved nothing while the seats ran — a PARTIAL close (`round --seats <n>` with n below the stamp, the dispatcher-mode shape where several tickets stamp into one round) releases only what closed and keeps the remainder on the ORIGINAL stamp's clock); then close the round with `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` — the tripwire on D-186 is blind without it (a per-wave RESERVATION close in a command that batches waves carries `--seats` and `--findings` only; the class ledger closes at the pass's final round, and a round without `--classes-swept` never reads terminal)"
+  text:
+  - "Record the dispatch BEFORE you send it: `python3 scripts/command_run.py dispatch --seats <n>`"
+  - "that stamp is what sibling sessions subtract for 25 minutes (a vendored copy answering `invalid choice: 'dispatch'` is STALE, not exempt"
+  - "§ Close-out feedback has the class and what to do about it)"
+  - "accumulated across the messages of one round, released by that round's `round` (a `round --seats` written at the round's close reserved nothing while the seats ran"
+  - "a PARTIAL close (`round --seats <n>` with n below the stamp, the dispatcher-mode shape where several tickets stamp into one round) releases only what closed and keeps the remainder on the ORIGINAL stamp's clock)"
+  - "then close the round with `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …`"
+  - "the tripwire on D-186 is blind without it (a per-wave RESERVATION close in a command that batches waves carries `--seats` and `--findings` only"
+  - "the class ledger closes at the pass's final round, and a round without `--classes-swept` never reads terminal)"
+- id: sc-model-by-role
+  # class: ban
+  # clauses: L23.1, L23.2, L23.4, L23.5
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Model by ROLE, and the MECHANISM is the one-token per-dispatch override `Agent(subagent_type=…, model=\"opus\"|\"sonnet\"|\"haiku\"|\"fable\")` — the agent definitions default to Sonnet or inherit, so a role without the token is Sonnet: the orchestrator — Opus or Fable, whichever the quota allows, and whichever newer model replaces them (D-334, D-456) — orchestrates/adjudicates (a Fable orchestrator draws METERED usage credits, not subscription quota; a dispatched Fable seat that refuses falls back to Opus by name, recorded), Opus is the authoritative pass (`model: \"opus\"`), Sonnet is breadth, Haiku is every unit's mechanical seat (grep-able classes, format, inventory)"
+  current: "Model by ROLE, and the MECHANISM is the one-token per-dispatch override `Agent(subagent_type=…, model=\"opus\"|\"sonnet\"|\"haiku\"|\"fable\")` — the agent definitions default to Sonnet or inherit, so a role without the token is Sonnet: the orchestrator — Opus or Fable, whichever the quota allows, and whichever newer model replaces them (D-334, D-456) — orchestrates/adjudicates (a Fable orchestrator draws METERED usage credits, not subscription quota; a dispatched Fable seat that refuses falls back to Opus by name, recorded), Opus is the authoritative pass (`model: \"opus\"`), Sonnet is breadth, Haiku is every unit's mechanical seat (grep-able classes, format, inventory)"
+  text:
+  - "Model by ROLE, and the MECHANISM is the one-token per-dispatch override `Agent(subagent_type=…, model=\"opus\"|\"sonnet\"|\"haiku\"|\"fable\")`"
+  - "the agent definitions default to Sonnet or inherit, so a role without the token is Sonnet: the orchestrator"
+  - "Opus or Fable, whichever the quota allows, and whichever newer model replaces them (D-334, D-456)"
+  - "orchestrates/adjudicates (a Fable orchestrator draws METERED usage credits, not subscription quota"
+  - "a dispatched Fable seat that refuses falls back to Opus by name, recorded), Opus is the authoritative pass (`model: \"opus\"`), Sonnet is breadth, Haiku is every unit's mechanical seat (grep-able classes, format, inventory)"
+- id: sc-price-per-seat
+  # class: prose
+  # clauses: L24.1, L24.2, L24.3
+  # kept-test literals inside this carrier (tests never edited here): test_command_improve_drive
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Price (D-190): haiku 1× · sonnet 2× · opus 5× · fable 10× — cost = Σ seats × multiplier, the script prints it; breadth on Opus is a 2.5× overspend"
+  current: "Price (D-190): haiku 1× · sonnet 2× · opus 5× · fable 10× — cost = Σ seats × multiplier, the script prints it; breadth on Opus is a 2.5× overspend"
+  text:
+  - "Price (D-190): haiku 1× · sonnet 2× · opus 5× · fable 10× — cost = Σ seats × multiplier, the script prints it; breadth on Opus is a 2.5× overspend"
+- id: sc-dispatch-together-keep-working
+  # class: prose
+  # clauses: L25.1, L25.2
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Dispatch them together and keep working while they run — blocking on one seat is where the wall-clock goes (D-186)"
+  current: "Dispatch them together and keep working while they run — blocking on one seat is where the wall-clock goes (D-186)"
+  text:
+  - "Dispatch them together and keep working while they run — blocking on one seat is where the wall-clock goes (D-186)"
+- id: sc-unit-count-scales-itself
+  # class: behavioural
+  # clauses: L26.1, L26.2, L26.3, L26.5, L26.6, L26.7
+  # kept-test literals inside this carrier (tests never edited here): test_assemble_dispatch_step
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "The unit count is what the SURFACE HAS, so the rule scales itself and is not a quota to spend: a one-file diff yields one or two units (3–5 seats; a judgement surface pads to the floor of three), not eight, and only the authoritative seat is Opus — the cost is bounded by the UNIT count — or, under a partition, by the SLICE count — never by how idle the box looks.{{FLOOR}}{{EXTRA_LIVE}} The pool contract is kept below in comments and frozen in `docs/reference/subagent-pool-contract.md` (D-343); re-enabling is an operator ruling first, then a restore from that file — never a quiet uncomment"
+  current: "The unit count is what the SURFACE HAS, so the rule scales itself and is not a quota to spend: a one-file diff yields one or two units (3–5 seats; a judgement surface pads to the floor of three), not eight, and only the authoritative seat is Opus — the cost is bounded by the UNIT count — or, under a partition, by the SLICE count — never by how idle the box looks.{{FLOOR}}{{EXTRA_LIVE}} The pool contract is kept below in comments and frozen in `docs/reference/subagent-pool-contract.md` (D-343); re-enabling is an operator ruling first, then a restore from that file — never a quiet uncomment"
+  text:
+  - "The unit count is what the SURFACE HAS, so the rule scales itself and is not a quota to spend: a one-file diff yields one or two units (3–5 seats"
+  - "a judgement surface pads to the floor of three), not eight, and only the authoritative seat is Opus"
+  - "the cost is bounded by the UNIT count"
+  - "or, under a partition, by the SLICE count"
+  - "never by how idle the box looks.{{FLOOR}}{{EXTRA_LIVE}} The pool contract is kept below in comments and frozen in `docs/reference/subagent-pool-contract.md` (D-343)"
+  - "re-enabling is an operator ruling first, then a restore from that file — never a quiet uncomment"
+- id: sc-d8-git-verb-prohibition
+  # class: ban
+  # clauses: L27.1, L27.2, L27.3, L27.4, L27.5
+  # kept-test literals inside this carrier (tests never edited here): test_agent_definitions, test_review_loop_workflow
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Every seat's brief carries the git-verb prohibition (D8): a seat runs NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write); every probe on a copy (2026-09-11: a reviewer seat's `git stash --keep-index` swept three sessions' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)"
+  current: "Every seat's brief carries the git-verb prohibition (D8): a seat runs NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write); every probe on a copy (2026-09-11: a seat's `git stash --keep-index` swept three sessions' uncommitted work — recovered by the lead, by content from the stash, never a pop)"
+  text:
+  - "Every seat's brief carries the git-verb prohibition (D8): a seat runs NO git command that mutates state in the shared tree"
+  - "no stash, checkout, reset, restore, apply, commit, clean"
+  - "read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write)"
+  - "every probe on a copy (2026-09-11: a seat's `git stash --keep-index` swept three sessions' uncommitted work"
+  - "recovered by the lead, by content from the stash, never a pop)"
+- id: sc-d8-write-scope-of-a-seat
+  # class: ban
+  # clauses: L28.1, L28.2, L28.3, L28.4
+  # kept-test literals inside this carrier (tests never edited here): test_review_loop_workflow
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Nor does a finder, refuter or other read-only seat write anywhere else (a writer seat writes only the paths its brief names): it creates, modifies or deletes nothing outside the scratch dir its brief names — not `$HOME`, not the live checkout (the read-only git above excepted), not `/tmp` outside that dir — and a probe that needs a home-relative or installed-corpus path sets those variables INSIDE the program, never in front of the command, before anything calls `tempfile`: `import os,site; os.environ[\"PYTHONUSERBASE\"]=site.getuserbase()` first, so a child process keeps the `--user` packages, then `HOME` and `TMPDIR` to directories under that dir, created first (`tempfile` falls back to `/tmp` when `TMPDIR` does not exist), plus the module's path constants (01M4DE0R2H: a seat's rmtree under the home directory deleted every session's skills; a `Workflow` seat gets this as `SEAT_ISOLATION` in `.claude/workflows/fabrik-review-loop.js`)"
+  current: "Nor does a finder, refuter or other read-only seat write anywhere else (a writer seat writes only the paths its brief names): it creates, modifies or deletes nothing outside the scratch dir its brief names — not `$HOME`, not the live checkout (the read-only git above excepted), not `/tmp` outside that dir — and a probe that needs a home-relative or installed-corpus path sets those variables INSIDE the program, never in front of the command, before anything calls `tempfile`: `import os,site; os.environ[\"PYTHONUSERBASE\"]=site.getuserbase()` first, so a child process keeps the `--user` packages, then `HOME` and `TMPDIR` to directories under that dir, created first (`tempfile` falls back to `/tmp` when `TMPDIR` does not exist), plus the module's path constants (01M4DE0R2H: a seat's rmtree under the home directory deleted every session's skills; a `Workflow` seat gets this as `SEAT_ISOLATION` in `.claude/workflows/fabrik-review-loop.js`)"
+  text:
+  - "Nor does a finder, refuter or other read-only seat write anywhere else (a writer seat writes only the paths its brief names): it creates, modifies or deletes nothing outside the scratch dir its brief names"
+  - "not `$HOME`, not the live checkout (the read-only git above excepted), not `/tmp` outside that dir"
+  - "and a probe that needs a home-relative or installed-corpus path sets those variables INSIDE the program, never in front of the command, before anything calls `tempfile`: `import os,site; os.environ[\"PYTHONUSERBASE\"]=site.getuserbase()` first, so a child process keeps the `--user` packages, then `HOME` and `TMPDIR` to directories under that dir, created first (`tempfile` falls back to `/tmp` when `TMPDIR` does not exist), plus the module's path constants (01M4DE0R2H: a seat's rmtree under the home directory deleted every session's skills"
+  - "a `Workflow` seat gets this as `SEAT_ISOLATION` in `.claude/workflows/fabrik-review-loop.js`)"
+- id: sc-d8-seat-folder-and-scratch-homes
+  # class: ban
+  # clauses: L29.1, L29.2, L29.3, L29.4, L29.5, L29.6, L29.7, L29.8, L29.9, L29.10, L29.11, L39.4
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "The scratch dir a brief names is a SEAT FOLDER under the run's disposable folder ; `<run scratch>/seat-<n>/`, `<run scratch>` being the path this run's `start` printed as `RUN-SCRATCH:` (kept as `run_scratch` in the run record ; `docs/reference/command-run-protocol.md` § A run's disposable folder) ; never the session scratchpad root, which no run owns and nothing removes. The folder goes when the run is consumed, so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists) ; a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead and the brief says so ; the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`, `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins ; a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears ; and a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says ; an archive of the pinned SHA, or a `clone --shared --no-checkout` ; never a copy of the live checkout, whose `.claude/`, `.venv` and `node_modules` filled 73 GB of session scratch by 2026-10-14 (`round` names a seat folder over 2 GB ; D5) ; the pins dir sits where the D8 paragraph puts it)"
   current: "The scratch dir a brief names is a SEAT FOLDER under the run's disposable folder — `<run scratch>/seat-<n>/`, `<run scratch>` being the path this run's `start` printed as `RUN-SCRATCH:` (kept as `run_scratch` in the run record; `docs/reference/command-run-protocol.md` § A run's disposable folder) — never the session scratchpad root, which no run owns and nothing removes. The folder goes when the run is consumed, so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists); a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead and the brief says so; the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`, `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins; a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears; and a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the pinned SHA, or a `clone --shared --no-checkout` — never a copy of the live checkout, whose `.claude/`, `.venv` and `node_modules` filled 73 GB of session scratch by 2026-10-14 (`round` names a seat folder over 2 GB — D5)"
   text:
-  - "a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears;"
-  - "for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists);"
-  - "so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists);"
-  - "The scratch dir a brief names is a SEAT FOLDER under the run's disposable folder — `<run scratch>/seat-<n>/`, `<run scratch>` being the path this run's `start` printed as `RUN-SCRATCH:` (kept as `run_scratch` in the run record; `docs/reference/command-run-protocol.md` § A run's disposable folder) — never the session scratchpad root, which no run owns and nothing removes."
+  - "The scratch dir a brief names is a SEAT FOLDER under the run's disposable folder"
+  - "`<run scratch>/seat-<n>/`, `<run scratch>` being the path this run's `start` printed as `RUN-SCRATCH:` (kept as `run_scratch` in the run record"
+  - "`docs/reference/command-run-protocol.md` § A run's disposable folder)"
+  - "never the session scratchpad root, which no run owns and nothing removes. The folder goes when the run is consumed, so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists)"
   - "a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead and the brief says so"
-  - "the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`, `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins;"
-  - "a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the pinned SHA, or a `clone --shared --no-checkout` — never a copy of the live checkout"
+  - "the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`, `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins"
+  - "a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears"
+  - "and a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says"
+  - "an archive of the pinned SHA, or a `clone --shared --no-checkout`"
+  - "never a copy of the live checkout, whose `.claude/`, `.venv` and `node_modules` filled 73 GB of session scratch by 2026-10-14 (`round` names a seat folder over 2 GB — D5)"
 - id: sc-d8-absolute-paths-in-briefs
   # class: ban
   # clauses: L30.1
@@ -54,45 +354,108 @@ entries:
   baseline: "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never one relative to a checkout or a placeholder the seat expands (the review-loop workflow's per-file `<repo-relative path>` under its absolute `pins_dir` excepted), because a seat that cannot resolve a path rebuilds the pin itself"
   current: "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never one relative to a checkout or a placeholder the seat expands (the review-loop workflow's per-file `<repo-relative path>` under its absolute `pins_dir` excepted), because a seat that cannot resolve a path rebuilds the pin itself"
   text:
-  - "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never one relative to a checkout or a placeholder the seat expands"
+  - "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never one relative to a checkout or a placeholder the seat expands (the review-loop workflow's per-file `<repo-relative path>` under its absolute `pins_dir` excepted), because a seat that cannot resolve a path rebuilds the pin itself"
 - id: sc-d8-never-execute-an-unread-or-destructive-script
   # class: ban
   # clauses: L31.1
+  # kept-test literals inside this carrier (tests never edited here): test_bounded_hop_new_output, test_review_loop_workflow
   file: commands/_fragments/subagents-core.md
   section: "## Subagents — {{HEADLINE}}"
   baseline: "A seat reads a script before it EXECUTES it, its `--help` included, and never executes one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, whatever binary does it, even when its brief asks it to confirm what that script does: it cites the lines and returns that claim `unverified` (read-only by rule), and the same rule rides in `/opt/fabrik/commands/_agents/fabrik-reviewer.md`'s house rules (2026-10-14: four plan-review seats ran `scripts/proof_run.py`, which has no argument parsing, and destroyed a live fixture)"
   current: "A seat reads a script before it EXECUTES it, its `--help` included, and never executes one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, whatever binary does it, even when its brief asks it to confirm what that script does: it cites the lines and returns that claim `unverified` (read-only by rule), and the same rule rides in `/opt/fabrik/commands/_agents/fabrik-reviewer.md`'s house rules (2026-10-14: four plan-review seats ran `scripts/proof_run.py`, which has no argument parsing, and destroyed a live fixture)"
   text:
-  - "A seat reads a script before it EXECUTES it, its `--help` included, and never executes one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, whatever binary does it, even when its brief asks it to confirm what that script does: it cites the lines and returns that claim `unverified` (read-only by rule)"
+  - "A seat reads a script before it EXECUTES it, its `--help` included, and never executes one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, whatever binary does it, even when its brief asks it to confirm what that script does: it cites the lines and returns that claim `unverified` (read-only by rule), and the same rule rides in `/opt/fabrik/commands/_agents/fabrik-reviewer.md`'s house rules (2026-10-14: four plan-review seats ran `scripts/proof_run.py`, which has no argument parsing, and destroyed a live fixture)"
 - id: sc-d8-one-plain-command-per-bash-call
   # class: ban
-  # clauses: L32.4, L32.12
+  # clauses: L32.1, L32.2, L32.3, L32.4, L32.5, L32.6, L32.7, L32.8, L32.9, L32.10, L32.11, L32.12
+  # kept-test literals inside this carrier (tests never edited here): test_governance_template_split, test_review_loop_workflow
   file: commands/_fragments/subagents-core.md
   section: "## Subagents — {{HEADLINE}}"
-  baseline: "a tool that roots itself at the working directory (`scripts/docs_updater.py`'s `PROJECT_ROOT = Path.cwd()`) runs only from a python program that `os.chdir`s into the seat's copy before it imports or runs the tool, since an absolute argument does not move that root and a `cd` in its own call does not persist; never `pkill`, `killall` or kill by pattern; a command whose output may be large (`git show`, `git diff`, `git log -p`, a broad search) redirects into a file under its scratch dir, because a large stdout is saved by the harness under `$HOME`, where a seat may not read; a linked worktree's isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout (W-165e533c — seats lost about a third of their time box to that refusal), and for a seat with a shell, a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard's shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries"
+  baseline: "Every seat also runs one plain command per Bash call, whatever the command — no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything written or run (the shell returns to the live checkout before every call); a tool that roots itself at the working directory (`scripts/docs_updater.py`'s `PROJECT_ROOT = Path.cwd()`) runs only from a python program that `os.chdir`s into the seat's copy before it imports or runs the tool, since an absolute argument does not move that root and a `cd` in its own call does not persist; never `pkill`, `killall` or kill by pattern; a command whose output may be large (`git show`, `git diff`, `git log -p`, a broad search) redirects into a file under its scratch dir, because a large stdout is saved by the harness under `$HOME`, where a seat may not read; a linked worktree's isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout (W-165e533c — seats lost about a third of their time box to that refusal), and for a seat with a shell, a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard's shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries"
   current: "Every seat also runs one plain command per Bash call, whatever the command — no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything written or run (the shell returns to the live checkout before every call); a tool that roots itself at the working directory (`scripts/docs_updater.py`'s `PROJECT_ROOT = Path.cwd()`) runs only from a python program that `os.chdir`s into the seat's copy before it imports or runs the tool, since an absolute argument does not move that root and a `cd` in its own call does not persist; never `pkill`, `killall` or kill by pattern; a command whose output may be large (`git show`, `git diff`, `git log -p`, a broad search) redirects into a file under its scratch dir, because a large stdout is saved by the harness under `$HOME`, where a seat may not read; a linked worktree's isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout (W-165e533c — seats lost about a third of their time box to that refusal), and for a seat with a shell, a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard's shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries"
   text:
-  - "a tool that roots itself at the working directory (`scripts/docs_updater.py`'s `PROJECT_ROOT = Path.cwd()`) runs only from a python program that `os.chdir`s into the seat's copy before it imports or runs the tool, since an absolute argument does not move that root and a `cd` in its own call does not persist;"
-  - "say in MACHINERY which command was refused how many times of how many tries"
+  - "Every seat also runs one plain command per Bash call, whatever the command"
+  - "no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command"
+  - "literal paths, and absolute paths for anything written or run (the shell returns to the live checkout before every call)"
+  - "a tool that roots itself at the working directory (`scripts/docs_updater.py`'s `PROJECT_ROOT = Path.cwd()`) runs only from a python program that `os.chdir`s into the seat's copy before it imports or runs the tool, since an absolute argument does not move that root and a `cd` in its own call does not persist"
+  - "never `pkill`, `killall` or kill by pattern"
+  - "a command whose output may be large (`git show`, `git diff`, `git log -p`, a broad search) redirects into a file under its scratch dir, because a large stdout is saved by the harness under `$HOME`, where a seat may not read"
+  - "a linked worktree's isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout (W-165e533c"
+  - "seats lost about a third of their time box to that refusal), and for a seat with a shell, a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard's shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged"
+  - "a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged"
+  - "refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination"
+  - "and say in MACHINERY which command was refused how many times of how many tries"
 - id: sc-d8-a-refused-act-is-never-disguised
   # class: ban
   # clauses: L33.1
+  # kept-test literals inside this carrier (tests never edited here): test_review_loop_workflow
   file: commands/_fragments/subagents-core.md
   section: "## Subagents — {{HEADLINE}}"
   baseline: "A command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY"
   current: "A command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY"
   text:
-  - "A command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY."
-- id: sc-pin-afresh-per-pass
+  - "A command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY"
+- id: sc-d8-package-manager-verbs-are-banned
   # class: prose
-  # clauses: L39.3, L39.4
+  # clauses: L34.1, L34.2
   file: commands/_fragments/subagents-core.md
   section: "## Subagents — {{HEADLINE}}"
-  baseline: "and from the repo root: record `git rev-parse HEAD`, before any edit, as the pass's base SHA, then run `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir per pass> <the repo-relative files>` (add `--base <base sha>` when seats need the unmodified tree; the pins dir sits where the D8 paragraph puts it)"
+  baseline: "The same brief bans every package-manager verb — `uv run`, `uv sync`, `uv add`, `uv lock`, `pip install`, `uv pip install`: `uv run` syncs the environment by default and a linked worktree's `.venv` is normally a symlink to the shared one, so one seat's sync changes every agent's interpreter (trade-intelligence 2026-09-30: `uv run pytest` upgraded 37 packages and reddened mypy for three agents)"
+  current: "The same brief bans every package-manager verb — `uv run`, `uv sync`, `uv add`, `uv lock`, `pip install`, `uv pip install`: `uv run` syncs the environment by default and a linked worktree's `.venv` is normally a symlink to the shared one, so one seat's sync changes every agent's interpreter (trade-intelligence 2026-09-30: `uv run pytest` upgraded 37 packages)"
+  text:
+  - "The same brief bans every package-manager verb"
+  - "`uv run`, `uv sync`, `uv add`, `uv lock`, `pip install`, `uv pip install`: `uv run` syncs the environment by default and a linked worktree's `.venv` is normally a symlink to the shared one, so one seat's sync changes every agent's interpreter (trade-intelligence 2026-09-30: `uv run pytest` upgraded 37 packages)"
+- id: sc-d8-python-invocation
+  # class: prose
+  # clauses: L35.1, L35.2, L35.3
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "A seat runs Python as `.venv/bin/python …` (`python3 …` where there is no `.venv`) — `-m pytest`, `scripts/final_gate.py --check` (bare, the gate rewrites and stages files) — which for a seat overrides every rule-pack instruction to go through `uv` (`10-python`, `45-testing-strategy`, `50-code-review`)"
+  current: "A seat runs Python as `.venv/bin/python …` (`python3 …` where there is no `.venv`) — `-m pytest`, `scripts/final_gate.py --check` (bare, the gate rewrites and stages files) — which for a seat overrides every rule-pack instruction to go through `uv` (`10-python`, `45-testing-strategy`, `50-code-review`)"
+  text:
+  - "A seat runs Python as `.venv/bin/python …` (`python3 …` where there is no `.venv`) — `-m pytest`, `scripts/final_gate.py --check` (bare, the gate rewrites and stages files) — which for a seat overrides every rule-pack instruction to go through `uv` (`10-python`, `45-testing-strategy`, `50-code-review`)"
+- id: sc-pin-the-subject-before-dispatch
+  # class: ban
+  # clauses: L36.1, L36.2, L36.3
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "⚠️ PIN the subject before you dispatch, or the pass is not reproducible. A read-only finder cannot pin what it reads, and the dispatching session keeps editing — the two obligations are in tension by construction (\"converge in THIS invocation\" keeps the author editing; \"the author's own re-read never counts\" requires a concurrent independent reader)"
+  current: "⚠️ PIN the subject before you dispatch, or the pass is not reproducible. A read-only finder cannot pin what it reads, and the dispatching session keeps editing — the two obligations are in tension by construction (\"converge in THIS invocation\" keeps the author editing; \"the author's own re-read never counts\" requires a concurrent independent reader)"
+  text:
+  - "⚠️ PIN the subject before you dispatch, or the pass is not reproducible. A read-only finder cannot pin what it reads, and the dispatching session keeps editing"
+  - "the two obligations are in tension by construction (\"converge in THIS invocation\" keeps the author editing"
+  - "\"the author's own re-read never counts\" requires a concurrent independent reader)"
+- id: sc-pin-incidents-a-moving-subject
+  # class: prose
+  # clauses: L37.1, L37.2
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Measured twice in two days: a finder watched its subject's md5 change mid-review and had to reclassify four findings as *superseded by the edit* (`01M1KN0H6JRPXVFKH911425K2Y`), and an author-blind reviewer watched a spine go 320 → 514 → 552 lines and a ticket split underneath it — briefed on 8 tickets, it graded 9 (`01M1KYMG27FMEQXA89A2A4B2ZD`)"
+  current: "Measured twice in two days: a finder watched its subject's md5 change mid-review and had to reclassify four findings as *superseded by the edit* (`01M1KN0H6JRPXVFKH911425K2Y`), and an author-blind reviewer watched a spine go 320 → 514 → 552 lines and a ticket split underneath it — briefed on 8 tickets, it graded 9 (`01M1KYMG27FMEQXA89A2A4B2ZD`)"
+  text:
+  - "Measured twice in two days: a finder watched its subject's md5 change mid-review and had to reclassify four findings as *superseded by the edit* (`01M1KN0H6JRPXVFKH911425K2Y`), and an author-blind reviewer watched a spine go 320 → 514 → 552 lines and a ticket split underneath it"
+  - "briefed on 8 tickets, it graded 9 (`01M1KYMG27FMEQXA89A2A4B2ZD`)"
+- id: sc-pin-both-survived-only-because-the-finder-said-so
+  # class: ban
+  # clauses: L38.1
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Both survived only because the finder SAID so"
+  current: "Both survived only because the finder SAID so"
+  text:
+  - "Both survived only because the finder SAID so"
+- id: sc-pin-afresh-per-pass
+  # class: prose
+  # clauses: L39.1, L39.2, L39.3
+  # kept-test literals inside this carrier (tests never edited here): test_hub_write_root, test_mail_routing, test_review_loop_workflow
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "So, afresh for every pass — its files are that pass's surface, which at a delta or closing pass includes every file the previous round's fix touched — and from the repo root: record `git rev-parse HEAD`, before any edit, as the pass's base SHA, then run `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir per pass> <the repo-relative files>` (add `--base <base sha>` when seats need the unmodified tree"
   current: "So, afresh for every pass — its files are that pass's surface, which at a delta or closing pass includes every file the previous round's fix touched — and from the repo root: record `git rev-parse HEAD`, before any edit, as the pass's base SHA, then run `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir per pass> <the repo-relative files>` (add `--base <base sha>` when seats need the unmodified tree; the pins dir sits where the D8 paragraph puts it)"
   text:
-  - "--pins-dir <a NEW dir per pass>"
-  - "the pins dir sits where the D8 paragraph puts it"
+  - "So, afresh for every pass — its files are that pass's surface, which at a delta or closing pass includes every file the previous round's fix touched"
+  - "and from the repo root: record `git rev-parse HEAD`, before any edit, as the pass's base SHA, then run `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir per pass> <the repo-relative files>` (add `--base <base sha>` when seats need the unmodified tree"
+  - "the pins dir sits where the D8 paragraph puts it)"
 - id: sc-pin-writes-read-only-copies-and-a-manifest
   # class: prose
   # clauses: L40.1
@@ -101,4 +464,101 @@ entries:
   baseline: "It writes a read-only copy of each named file and nothing else, with `MANIFEST.md5`, `MANIFEST.pins.md5` and `MANIFEST.json` beside them, names any file pinned from the working tree rather than HEAD on a `DIRTY` line, and prints the Workflow args fragment (`pins_dir`, `pin_manifest`, `digest`, `pins_digest`, and `base_pin_dir` with `--base`): pass it, outside the hub (D-961), into the `fabrik-review-loop.js` args as printed, and its `digest` is the digest the brief carries"
   current: "It writes a read-only copy of each named file and nothing else, with `MANIFEST.md5`, `MANIFEST.pins.md5` and `MANIFEST.json` beside them, names any file pinned from the working tree rather than HEAD on a `DIRTY` line, and prints the Workflow args fragment (`pins_dir`, `pin_manifest`, `digest`, `pins_digest`, and `base_pin_dir` with `--base`): pass it, outside the hub (D-961), into the `fabrik-review-loop.js` args as printed, and its `digest` is the digest the brief carries"
   text:
-  - "pass it, outside the hub (D-961), into the `fabrik-review-loop.js` args"
+  - "It writes a read-only copy of each named file and nothing else, with `MANIFEST.md5`, `MANIFEST.pins.md5` and `MANIFEST.json` beside them, names any file pinned from the working tree rather than HEAD on a `DIRTY` line, and prints the Workflow args fragment (`pins_dir`, `pin_manifest`, `digest`, `pins_digest`, and `base_pin_dir` with `--base`): pass it, outside the hub (D-961), into the `fabrik-review-loop.js` args as printed, and its `digest` is the digest the brief carries"
+- id: sc-pin-a-refused-file-is-not-a-slice-file
+  # class: ban
+  # clauses: L41.1
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "A file `pin` refuses is not a slice file (the refusal names why): review it through its callers in the slice"
+  current: "A file `pin` refuses is not a slice file (the refusal names why): review it through its callers in the slice"
+  text:
+  - "A file `pin` refuses is not a slice file (the refusal names why): review it through its callers in the slice"
+- id: sc-pin-manifest-hashes-bytes
+  # class: prose
+  # clauses: L42.1
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "The manifest hashes bytes, so it stays valid when the surface is committed mid-review and covers an untracked file like a tracked one"
+  current: "The manifest hashes bytes, so it stays valid when the surface is committed mid-review and covers an untracked file like a tracked one"
+  text:
+  - "The manifest hashes bytes, so it stays valid when the surface is committed mid-review and covers an untracked file like a tracked one"
+- id: sc-pin-brief-finders-on-the-copies
+  # class: prose
+  # clauses: L43.1, L43.2
+  # kept-test literals inside this carrier (tests never edited here): test_review_loop_workflow
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Brief finders on the COPIES and the manifest, and require each to state the per-file hash it actually read (in its notes under the workflow, whose schema has no hash field); a seat with no Bash (`fabrik-researcher`) cannot hash, so carry the pin's line count beside its md5 and the seat states whether the count it read matches (read in offset pages: one read stops at 2000 lines): a finder whose hash is not the manifest's read other bytes, and is re-dispatched, not judged"
+  current: "Brief finders on the COPIES and the manifest, and require each to state the per-file hash it actually read (in its notes under the workflow, whose schema has no hash field); a seat with no Bash (`fabrik-researcher`) cannot hash, so carry the pin's line count beside its md5 and the seat states whether the count it read matches (read in offset pages: one read stops at 2000 lines): a finder whose hash is not the manifest's read other bytes, and is re-dispatched, not judged"
+  text:
+  - "Brief finders on the COPIES and the manifest, and require each to state the per-file hash it actually read (in its notes under the workflow, whose schema has no hash field)"
+  - "a seat with no Bash (`fabrik-researcher`) cannot hash, so carry the pin's line count beside its md5 and the seat states whether the count it read matches (read in offset pages: one read stops at 2000 lines): a finder whose hash is not the manifest's read other bytes, and is re-dispatched, not judged"
+- id: sc-pin-do-not-edit-while-seats-are-out
+  # class: prose
+  # clauses: L44.1
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "While seats are out you do not edit the pinned files"
+  current: "While seats are out you do not edit the pinned files"
+  text:
+  - "While seats are out you do not edit the pinned files"
+- id: sc-pin-read-the-pass-before-adjudicating
+  # class: ban
+  # clauses: L45.1
+  # kept-test literals inside this carrier (tests never edited here): test_hub_write_root, test_mail_routing
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Before you adjudicate, read the pass with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir>` (a `PIN MOVED` voids the pass) or, outside the workflow, run `md5sum -c --quiet <pins_dir>/MANIFEST.md5` from the repo root for the live files (it checks those ONLY) and `md5sum -c --quiet <pins_dir>/MANIFEST.pins.md5` from any cwd for the copies (a FAILED copy voids the pass): a `LIVE MOVED` or a FAILED live line means the live subject moved at or after the pin, so every candidate is re-verified against the current tree before it is fixed or refuted"
+  current: "Before you adjudicate, read the pass with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir>` (a `PIN MOVED` voids the pass) or, outside the workflow, run `md5sum -c --quiet <pins_dir>/MANIFEST.md5` from the repo root for the live files (it checks those ONLY) and `md5sum -c --quiet <pins_dir>/MANIFEST.pins.md5` from any cwd for the copies (a FAILED copy voids the pass): a `LIVE MOVED` or a FAILED live line means the live subject moved at or after the pin, so every candidate is re-verified against the current tree before it is fixed or refuted"
+  text:
+  - "Before you adjudicate, read the pass with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir>` (a `PIN MOVED` voids the pass) or, outside the workflow, run `md5sum -c --quiet <pins_dir>/MANIFEST.md5` from the repo root for the live files (it checks those ONLY) and `md5sum -c --quiet <pins_dir>/MANIFEST.pins.md5` from any cwd for the copies (a FAILED copy voids the pass): a `LIVE MOVED` or a FAILED live line means the live subject moved at or after the pin, so every candidate is re-verified against the current tree before it is fixed or refuted"
+- id: sc-pin-unpinned-finding-is-dismissible
+  # class: prose
+  # clauses: L46.1
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "A finding against an unpinned subject is dismissible as stale, which is the same as not having run the pass"
+  current: "A finding against an unpinned subject is dismissible as stale, which is the same as not having run the pass"
+  text:
+  - "A finding against an unpinned subject is dismissible as stale, which is the same as not having run the pass"
+- id: sc-pin-record-digest-and-base-sha
+  # class: prose
+  # clauses: L47.1
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "Record the digest, the `pins_digest` and the base SHA in the pass-ledger row"
+  current: "Record the digest, the `pins_digest` and the base SHA in the pass-ledger row"
+  text:
+  - "Record the digest, the `pins_digest` and the base SHA in the pass-ledger row"
+- id: sc-line-numbers-pin-a-commit-sha
+  # class: prose
+  # clauses: L48.1, L48.2
+  # kept-test literals inside this carrier (tests never edited here): test_review_exit_contract
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "A brief that names LINE NUMBERS pins a commit SHA beside them — a live file's lines move under a concurrent editor (01M206NBV)"
+  current: "A brief that names LINE NUMBERS pins a commit SHA beside them — a live file's lines move under a concurrent editor (01M206NBV)"
+  text:
+  - "A brief that names LINE NUMBERS pins a commit SHA beside them — a live file's lines move under a concurrent editor (01M206NBV)"
+vanished:
+  L2:  # clauses: 1 sc-pool-off-ruling, 2 sc-pool-off-ruling, 3 narrative, 4 sc-pool-off-ruling
+    rule: [sc-pool-off-ruling]
+  L3:  # clauses: 1 sc-fan-outs-run-native, 2 sc-fan-outs-run-native
+    rule: [sc-fan-outs-run-native]
+  L4:  # clauses: 1 sc-skip-pool-steps, 2 sc-skip-pool-steps
+    rule: [sc-skip-pool-steps]
+  L8:  # clauses: 1 sc-by-file-two-finders-per-slice, 2 sc-by-file-two-finders-per-slice, 3 sc-by-file-two-finders-per-slice, 4 sc-by-file-two-finders-per-slice, 5 sc-by-file-two-finders-per-slice, 6 sc-by-file-two-finders-per-slice, 7 sc-by-file-two-finders-per-slice, 8 sc-by-file-two-finders-per-slice, 9 sc-by-file-two-finders-per-slice, 10 sc-by-file-two-finders-per-slice, 11 sc-by-file-two-finders-per-slice
+    rule: [sc-by-file-two-finders-per-slice]
+  L11:  # clauses: 1 sc-delta-rounds-and-the-closing-pass, 2 sc-delta-rounds-and-the-closing-pass, 3 sc-delta-rounds-and-the-closing-pass, 4 sc-delta-rounds-and-the-closing-pass, 5 sc-delta-rounds-and-the-closing-pass, 6 sc-delta-rounds-and-the-closing-pass, 7 sc-delta-rounds-and-the-closing-pass
+    rule: [sc-delta-rounds-and-the-closing-pass]
+  L12:  # clauses: 1 sc-units-sized-surface, 2 sc-units-sized-surface, 3 sc-units-sized-surface, 4 sc-units-sized-surface, 5 sc-units-sized-surface, 6 sc-units-sized-surface, 7 sc-units-sized-surface
+    rule: [sc-units-sized-surface]
+  L13:  # clauses: 1 sc-mechanical-angle-is-global, 2 sc-mechanical-angle-is-global, 3 duplicate-of sc-units-sized-surface
+    rule: [sc-mechanical-angle-is-global, sc-units-sized-surface]
+  L15:  # clauses: 1 sc-never-solo-the-floor-is-three-seats, 2 sc-never-solo-the-floor-is-three-seats, 3 narrative
+    rule: [sc-never-solo-the-floor-is-three-seats]
+  L27:  # clauses: 1 sc-d8-git-verb-prohibition, 2 sc-d8-git-verb-prohibition, 3 sc-d8-git-verb-prohibition, 4 sc-d8-git-verb-prohibition, 5 sc-d8-git-verb-prohibition
+    rule: [sc-d8-git-verb-prohibition]
+  L34:  # clauses: 1 sc-d8-package-manager-verbs-are-banned, 2 sc-d8-package-manager-verbs-are-banned
+    rule: [sc-d8-package-manager-verbs-are-banned]

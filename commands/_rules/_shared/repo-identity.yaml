@@ -1,4 +1,64 @@
 shared: commands/_fragments/repo-identity.md
 baseline_sentences: repo-identity.baseline.txt
 baseline_sha256: "89a2945ee3233c424e8341d9d60fd43bb799e20909583d4ba9f8048cd5a4ded8"
-entries: []
+entries:
+- id: ri-heading
+  # class: grammar
+  # clauses: L1.1, L1.2
+  file: commands/_fragments/repo-identity.md
+  baseline: "## Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation"
+  current: "## Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation"
+  text:
+  - "## Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation"
+- id: ri-top-abort-if-empty
+  # class: prose
+  # clauses: L2.1, L2.2, L2.3
+  # kept-test literals inside this carrier (tests never edited here): test_quota_stop_hook
+  file: commands/_fragments/repo-identity.md
+  section: "## Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation"
+  baseline: "`TOP=$(git rev-parse --show-toplevel)` — abort if empty (`[ -n \"$TOP\" ] || stop`): `git -C \"\"` is a documented no-op that silently runs in the CURRENT directory — the exact unpinned behavior this guard exists to replace"
+  current: "`TOP=$(git rev-parse --show-toplevel)` — abort if empty (`[ -n \"$TOP\" ] || stop`): `git -C \"\"` is a documented no-op that silently runs in the CURRENT directory — the exact unpinned behavior this guard exists to replace"
+  text:
+  - "`TOP=$(git rev-parse --show-toplevel)` — abort if empty (`[ -n \"$TOP\" ] || stop`): `git -C \"\"` is a documented no-op that silently runs in the CURRENT directory — the exact unpinned behavior this guard exists to replace"
+- id: ri-worktree-test-normalized-paths
+  # class: prose
+  # clauses: L3.1, L3.2
+  file: commands/_fragments/repo-identity.md
+  section: "## Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation"
+  baseline: "Worktree test needs NORMALIZED paths (raw `--git-dir` vs `--git-common-dir` false-positives in every subdirectory): `GITDIR=$(git rev-parse --path-format=absolute --git-dir)` and `COMMON=$(git rev-parse --path-format=absolute --git-common-dir)`; linked worktree ⇔ `GITDIR ≠ COMMON`"
+  current: "Worktree test needs NORMALIZED paths (raw `--git-dir` vs `--git-common-dir` false-positives in every subdirectory): `GITDIR=$(git rev-parse --path-format=absolute --git-dir)` and `COMMON=$(git rev-parse --path-format=absolute --git-common-dir)`; linked worktree ⇔ `GITDIR ≠ COMMON`"
+  text:
+  - "Worktree test needs NORMALIZED paths (raw `--git-dir` vs `--git-common-dir` false-positives in every subdirectory): `GITDIR=$(git rev-parse --path-format=absolute --git-dir)` and `COMMON=$(git rev-parse --path-format=absolute --git-common-dir)`; linked worktree ⇔ `GITDIR ≠ COMMON`"
+- id: ri-linked-worktree-identity-is-main
+  # class: ban
+  # clauses: L4.1, L4.2, L4.3, L4.4
+  file: commands/_fragments/repo-identity.md
+  section: "## Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation"
+  baseline: "In a linked worktree your repo IDENTITY is the MAIN checkout, derived as `MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')` (the first porcelain record is always the main worktree; `$COMMON` itself is a `.git` DIRECTORY, never a checkout) — a worktree of `/opt/fabrik` IS the hub; a worktree of a project IS that project"
+  current: "In a linked worktree your repo IDENTITY is the MAIN checkout, derived as `MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')` (the first porcelain record is always the main worktree; `$COMMON` itself is a `.git` DIRECTORY, never a checkout) — a worktree of `/opt/fabrik` IS the hub; a worktree of a project IS that project"
+  text:
+  - "In a linked worktree your repo IDENTITY is the MAIN checkout, derived as `MAIN=$(git worktree list --porcelain | sed -n '1s/^worktree //p')` (the first porcelain record is always the main worktree"
+  - "`$COMMON` itself is a `.git` DIRECTORY, never a checkout)"
+  - "a worktree of `/opt/fabrik` IS the hub"
+  - "a worktree of a project IS that project"
+- id: ri-submodule-own-repo
+  # class: ban
+  # clauses: L5.1, L5.2, L5.3, L5.4
+  file: commands/_fragments/repo-identity.md
+  section: "## Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation"
+  baseline: "Submodule: `git rev-parse --show-superproject-working-tree` printing a path means you are in a SUBMODULE — its identity is the submodule's OWN repo (`$TOP`); the superproject is a DIFFERENT repo — never edit upward into it (the cross-repo HARD STOP)"
+  current: "Submodule: `git rev-parse --show-superproject-working-tree` printing a path means you are in a SUBMODULE — its identity is its OWN repo (`$TOP`); the superproject is a DIFFERENT repo — never edit upward into it (the cross-repo HARD STOP)"
+  text:
+  - "Submodule: `git rev-parse --show-superproject-working-tree` printing a path means you are in a SUBMODULE — its identity is its OWN repo (`$TOP`); the superproject is a DIFFERENT repo — never edit upward into it (the cross-repo HARD STOP)"
+- id: ri-pin-every-git-mutation
+  # class: ban
+  # clauses: L6.1, L6.2, L6.3
+  file: commands/_fragments/repo-identity.md
+  section: "## Repo identity — resolve WHERE you are before any repo-dependent decision or git mutation"
+  baseline: "Pin every git mutation — `git -C \"$TOP\" …` (or `git -C \"$MAIN\"` when acting on the main checkout) — never rely on the shell's cwd surviving between commands"
+  current: "Pin every git mutation — `git -C \"$TOP\" …` (or `git -C \"$MAIN\"` when acting on the main checkout) — never rely on the shell's cwd surviving between commands"
+  text:
+  - "Pin every git mutation — `git -C \"$TOP\" …` (or `git -C \"$MAIN\"` when acting on the main checkout) — never rely on the shell's cwd surviving between commands"
+vanished:
+  L5:  # clauses: 1 ri-submodule-own-repo, 2 ri-submodule-own-repo, 3 ri-submodule-own-repo, 4 ri-submodule-own-repo
+    rule: [ri-submodule-own-repo]

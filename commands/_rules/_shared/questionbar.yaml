@@ -1,4 +1,48 @@
 shared: commands/_fragments/questionbar.md
 baseline_sentences: questionbar.baseline.txt
 baseline_sha256: "3e2e9fd6f6a3591e4ece886d8ef440a6e88f2f341d0dc30a62ffe6eb7fe5660e"
-entries: []
+entries:
+- id: qb-heading
+  # class: grammar
+  # clauses: L1.1, L1.2
+  file: commands/_fragments/questionbar.md
+  baseline: "## ⚠️ Question bar — decide, don't drip"
+  current: "## ⚠️ Question bar — decide, don't drip"
+  text:
+  - "## ⚠️ Question bar — decide, don't drip"
+- id: qb-ask-only-when-both
+  # class: ban
+  # clauses: L2.1
+  file: commands/_fragments/questionbar.md
+  section: "## ⚠️ Question bar — decide, don't drip"
+  baseline: "Ask the user ONLY when a question clears BOTH: (1) the answer materially changes {{CHANGES_WHAT}}, AND (2) you cannot resolve it from {{RESOLVE_FROM}}"
+  current: "Ask the user ONLY when a question clears BOTH: (1) the answer materially changes {{CHANGES_WHAT}}, AND (2) you cannot resolve it from {{RESOLVE_FROM}}"
+  text:
+  - "Ask the user ONLY when a question clears BOTH: (1) the answer materially changes {{CHANGES_WHAT}}, AND (2) you cannot resolve it from {{RESOLVE_FROM}}"
+- id: qb-otherwise-decide
+  # class: prose
+  # clauses: L3.1, L3.2
+  file: commands/_fragments/questionbar.md
+  section: "## ⚠️ Question bar — decide, don't drip"
+  baseline: "Otherwise decide it, apply the house rules (when they genuinely under-determine it, prefer the most-reversible option — the manifesto's Invariant-3 default applied to small calls), and note it in one line the user can override"
+  current: "Otherwise decide it, apply the house rules (when they genuinely under-determine it, prefer the most-reversible option — the manifesto's Invariant-3 default applied to small calls), and note it in one line the user can override"
+  text:
+  - "Otherwise decide it, apply the house rules (when they genuinely under-determine it, prefer the most-reversible option — the manifesto's Invariant-3 default applied to small calls), and note it in one line the user can override"
+- id: qb-never-interrupt-for
+  # class: ban
+  # clauses: L4.1
+  file: commands/_fragments/questionbar.md
+  section: "## ⚠️ Question bar — decide, don't drip"
+  baseline: "Never interrupt for {{NEVER_FOR}}"
+  current: "Never interrupt for {{NEVER_FOR}}"
+  text:
+  - "Never interrupt for {{NEVER_FOR}}"
+- id: qb-do-raise
+  # class: prose
+  # clauses: L5.1
+  file: commands/_fragments/questionbar.md
+  section: "## ⚠️ Question bar — decide, don't drip"
+  baseline: "Do raise: {{DO_RAISE}}"
+  current: "Do raise: {{DO_RAISE}}"
+  text:
+  - "Do raise: {{DO_RAISE}}"

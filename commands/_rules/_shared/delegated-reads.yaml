@@ -4,9 +4,37 @@ baseline_sha256: "c7e7818be3458527b0239c5fcc4bb5de4275d3b5cd11d24e18225b3e18e6ed
 entries:
 - id: dr-large-reads-go-to-seats
   # class: ban
-  # clauses: L1.5
+  # clauses: L1.1, L1.2, L1.3, L1.4, L1.5
   file: commands/_fragments/delegated-reads.md
-  baseline: "a question with several parts is numbered in the brief, which tells the seat to answer the parts in order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, and a part the return never reaches is asked again, never read as empty"
+  baseline: "Large reads go to seats (D-363, § 4.9 finding 4). A read the lead would make of more than ~30 k tokens (~120 KB — a long spec or plan, the ACTIVE rules packs together, `agents-fabrik.md`, a fabrik-lib module tree, a prior transcript) goes to ONE seat per source — `Explore` for the repo, `fabrik-researcher` for the web — briefed with the QUESTION the read must answer, never \"summarise this\", and returning at most ~2 k tokens with every claim anchored `path:line`; a question with several parts is numbered in the brief, which tells the seat to answer the parts in order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, and a part the return never reaches is asked again, never read as empty"
   current: "Large reads go to seats (D-363, § 4.9 finding 4). A read the lead would make of more than ~30 k tokens (~120 KB — a long spec or plan, the ACTIVE rules packs together, `agents-fabrik.md`, a fabrik-lib module tree, a prior transcript) goes to ONE seat per source — `Explore` for the repo, `fabrik-researcher` for the web — briefed with the QUESTION the read must answer, never \"summarise this\", and returning at most ~2 k tokens with every claim anchored `path:line`; a question with several parts is numbered in the brief, which tells the seat to answer the parts in order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, and a part the return never reaches is asked again, never read as empty"
   text:
-  - "a question with several parts is numbered in the brief, which tells the seat to answer the parts in order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, and a part the return never reaches is asked again, never read as empty."
+  - "Large reads go to seats (D-363, § 4.9 finding 4). A read the lead would make of more than ~30 k tokens (~120 KB"
+  - "a long spec or plan, the ACTIVE rules packs together, `agents-fabrik.md`, a fabrik-lib module tree, a prior transcript) goes to ONE seat per source"
+  - "`Explore` for the repo, `fabrik-researcher` for the web"
+  - "briefed with the QUESTION the read must answer, never \"summarise this\", and returning at most ~2 k tokens with every claim anchored `path:line`"
+  - "a question with several parts is numbered in the brief, which tells the seat to answer the parts in order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, and a part the return never reaches is asked again, never read as empty"
+- id: dr-haiku-threshold
+  # class: prose
+  # clauses: L2.1
+  file: commands/_fragments/delegated-reads.md
+  baseline: "A Haiku seat pays from ~10 k tokens"
+  current: "A Haiku seat pays from ~10 k tokens"
+  text:
+  - "A Haiku seat pays from ~10 k tokens"
+- id: dr-lead-rereads-and-executes
+  # class: ban
+  # clauses: L3.1
+  file: commands/_fragments/delegated-reads.md
+  baseline: "The lead re-reads only the anchored lines it will cite, and EXECUTES every claim it writes into the artifact: a summary is navigation, never evidence"
+  current: "The lead re-reads only the anchored lines it will cite, and EXECUTES every claim it writes into the artifact: a summary is navigation, never evidence"
+  text:
+  - "The lead re-reads only the anchored lines it will cite, and EXECUTES every claim it writes into the artifact: a summary is navigation, never evidence"
+- id: dr-cobra-anchors
+  # class: ban
+  # clauses: L4.1, L4.2
+  file: commands/_fragments/delegated-reads.md
+  baseline: "Cobra: the cheapest way to satisfy this is a summary with no anchors — a claim without its `path:line` is re-read by the lead, never cited"
+  current: "Cobra: the cheapest way to satisfy this is a summary with no anchors — a claim without its `path:line` is re-read by the lead, never cited"
+  text:
+  - "Cobra: the cheapest way to satisfy this is a summary with no anchors — a claim without its `path:line` is re-read by the lead, never cited"

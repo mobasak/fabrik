@@ -1,4 +1,166 @@
 shared: commands/_fragments/grounding-artifact.md
 baseline_sentences: grounding-artifact.baseline.txt
 baseline_sha256: "95e45e1792aa5d43eaf4f0144f69a8004d3329365481d06ee2f92f28af6af106"
-entries: []
+entries:
+- id: ga-heading
+  # class: grammar
+  # clauses: L1.1, L1.2
+  file: commands/_fragments/grounding-artifact.md
+  baseline: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  current: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  text:
+  - "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+- id: ga-existing-code-defect-class
+  # class: prose
+  # clauses: L2.1, L2.2
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "This command almost always runs against a project with existing code, a live DB, and real callers — so the dominant defect is a {{SUBJECT}} that reads well but the actual codebase / schema contradicts: {{EXAMPLES}}"
+  current: "This command almost always runs against a project with existing code, a live DB, and real callers — so the dominant defect is a {{SUBJECT}} that reads well but the actual codebase / schema contradicts: {{EXAMPLES}}"
+  text:
+  - "This command almost always runs against a project with existing code, a live DB, and real callers — so the dominant defect is a {{SUBJECT}} that reads well but the actual codebase / schema contradicts: {{EXAMPLES}}"
+- id: ga-no-subject-is-validated-until-grounded
+  # class: prose
+  # clauses: L3.1, L3.2
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "No {{SUBJECT}} is validated until it is grounded in what exists TODAY — not its own wording, not a label, not memory:"
+  current: "No {{SUBJECT}} is validated until it is grounded in what exists TODAY — not its own wording, not a label, not memory:"
+  text:
+  - "No {{SUBJECT}} is validated until it is grounded in what exists TODAY — not its own wording, not a label, not memory:"
+- id: ga-open-the-real-file
+  # class: prose
+  # clauses: L4.1, L4.2
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "Open the real file at every cited `path:line` and confirm the symbol / signature / behavior is actually there — re-read it THIS run (a plausible-looking path is not proof)"
+  current: "Open the real file at every cited `path:line` and confirm the symbol / signature / behavior is there — re-read it THIS run (a plausible-looking path is not proof)"
+  text:
+  - "Open the real file at every cited `path:line` and confirm the symbol / signature / behavior is there — re-read it THIS run (a plausible-looking path is not proof)"
+- id: ga-read-the-real-schema
+  # class: prose
+  # clauses: L5.1, L5.2
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "Read the real schema (migration / model / `\\d <table>`) for every table, column, enum, index, or FK named — the name is not its type, and \"should exist\" is not \"exists\""
+  current: "Read the real schema (migration / model / `\\d <table>`) for every table, column, enum, index, or FK named — the name is not its type, and \"should exist\" is not \"exists\""
+  text:
+  - "Read the real schema (migration / model / `\\d <table>`) for every table, column, enum, index, or FK named — the name is not its type, and \"should exist\" is not \"exists\""
+- id: ga-trace-the-touching-points
+  # class: ban
+  # clauses: L6.1, L6.2, L6.3
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "Trace the touching points — the callers, callees, siblings, configs, and migrations each {{SUBJECT}} wires into — and confirm it agrees with them, not only with itself"
+  current: "Trace the touching points — the callers, callees, siblings, configs, and migrations each {{SUBJECT}} wires into — and confirm it agrees with them, not only with itself"
+  text:
+  - "Trace the touching points — the callers, callees, siblings, configs, and migrations each {{SUBJECT}} wires into — and confirm it agrees with them, not only with itself"
+- id: ga-negative-claim-control-flow-exits
+  # class: ban
+  # clauses: L7.1, L7.2, L7.3
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "A negative claim about a FUNCTION'S BEHAVIOUR (\"never returns X\", \"always raises\") is proven by enumerating its CONTROL-FLOW exits — `grep -n 'return\\|raise'` over the whole `def` — never by the branches the artifact happens to cite (live escape: \"route() never returns run_on_obat\" survived three converged passes citing 3 of 4 return sites"
+  current: "A negative claim about a FUNCTION'S BEHAVIOUR (\"never returns X\", \"always raises\") is proven by enumerating its CONTROL-FLOW exits — `grep -n 'return\\|raise'` over the whole `def` — never by the branches the artifact happens to cite (live escape: \"route() never returns run_on_obat\" survived three converged passes citing 3 of 4 return sites)"
+  text:
+  - "A negative claim about a FUNCTION'S BEHAVIOUR (\"never returns X\", \"always raises\") is proven by enumerating its CONTROL-FLOW exits"
+  - "`grep -n 'return\\|raise'` over the whole `def`"
+  - "never by the branches the artifact happens to cite (live escape: \"route() never returns run_on_obat\" survived three converged passes citing 3 of 4 return sites)"
+- id: ga-universal-claim-needs-enumeration
+  # class: ban
+  # clauses: L8.1, L8.2, L8.3
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "A UNIVERSAL or NEGATIVE claim (\"the only\", \"no other\", \"all N\", \"never\", \"the sole\") needs the ENUMERATION that proves it — the command + the count (`grep -c … → 7`), never an example citation. A `path:line` proves the example exists; it can never prove \"only\""
+  current: "A UNIVERSAL or NEGATIVE claim (\"the only\", \"no other\", \"all N\", \"never\", \"the sole\") needs the ENUMERATION that proves it — the command + the count (`grep -c … → 7`), never an example citation. A `path:line` proves the example exists; it can never prove \"only\""
+  text:
+  - "A UNIVERSAL or NEGATIVE claim (\"the only\", \"no other\", \"all N\", \"never\", \"the sole\") needs the ENUMERATION that proves it"
+  - "the command + the count (`grep -c … → 7`), never an example citation. A `path:line` proves the example exists; it can never prove \"only\""
+- id: ga-only-claim-needs-the-one-grep-example
+  # class: ban
+  # clauses: L9.1, L9.2
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "(trade-intelligence 2026-08-29: \"the only beats are X and Y\" sat in an Evidence table through TWO converged passes; there were seven, all findable by one grep the evidence never ran.)"
+  current: "(trade-intelligence 2026-08-29: \"the only beats are X and Y\" sat in an Evidence table through TWO converged passes; there were seven, all findable by one grep the evidence never ran.)"
+  text:
+  - "(trade-intelligence 2026-08-29: \"the only beats are X and Y\" sat in an Evidence table through TWO converged passes; there were seven, all findable by one grep the evidence never ran.)"
+- id: ga-verify-the-asserted-layer
+  # class: prose
+  # clauses: L10.1
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "⚠️ Verify against the layer the claim is ASSERTED AGAINST, not the layer that is convenient to open. Two independent instances in one day, different surfaces, one shape: a claim about a WRITTEN artifact grounded on the dict BUILD site while a `pop` before the write removed the key (`01M1KN0H6JRPXVFKH911425K2Y`), and a claim about a TOOL's behaviour grounded on the MODULE it calls"
+  current: "⚠️ Verify against the layer the claim is ASSERTED AGAINST, not the layer that is convenient to open (a WRITTEN artifact grounded on the dict BUILD site while a `pop` before the write removed the key, `01M1KN0H6JRPXVFKH911425K2Y`; a TOOL's behaviour grounded on the MODULE it calls)"
+  text:
+  - "⚠️ Verify against the layer the claim is ASSERTED AGAINST, not the layer that is convenient to open (a WRITTEN artifact grounded on the dict BUILD site while a `pop` before the write removed the key, `01M1KN0H6JRPXVFKH911425K2Y`"
+  - "a TOOL's behaviour grounded on the MODULE it calls)"
+- id: ga-name-the-layer-then-open-that-one
+  # class: prose
+  # clauses: L12.1
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "Name the layer your claim binds to, then open THAT one"
+  current: "Name the layer your claim binds to, then open THAT one"
+  text:
+  - "Name the layer your claim binds to, then open THAT one"
+- id: ga-inherited-constraint-is-a-claim
+  # class: ban
+  # clauses: L13.1
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "A constraint INHERITED from the brief, the session, or a prior report is a CLAIM to re-verify, never a datum"
+  current: "A constraint INHERITED from the brief, the session, or a prior report is a CLAIM to re-verify, never a datum"
+  text:
+  - "A constraint INHERITED from the brief, the session, or a prior report is a CLAIM to re-verify, never a datum"
+- id: ga-never-adjudicate-from-truncated-pipe
+  # class: ban
+  # clauses: L15.1, L15.2
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "Never adjudicate from a truncated pipe. `| head`-cut output is a SAMPLE presented as a total — count first (`wc -l`), then read"
+  current: "Never adjudicate from a truncated pipe. `| head`-cut output is a SAMPLE presented as a total — count first (`wc -l`), then read"
+  text:
+  - "Never adjudicate from a truncated pipe. `| head`-cut output is a SAMPLE presented as a total — count first (`wc -l`), then read"
+- id: ga-unvalidated-blocks-the-exit
+  # class: prose
+  # clauses: L16.1
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "Any {{SUBJECT}} you cannot tie to a freshly-read `path:line` or schema object is UNVALIDATED and blocks the exit: fix it, or record it as a named BLOCKING unknown"
+  current: "Any {{SUBJECT}} you cannot tie to a freshly-read `path:line` or schema object is UNVALIDATED and blocks the exit: fix it, or record it as a named BLOCKING unknown"
+  text:
+  - "Any {{SUBJECT}} you cannot tie to a freshly-read `path:line` or schema object is UNVALIDATED and blocks the exit: fix it, or record it as a named BLOCKING unknown"
+- id: ga-self-assertion-never-counts
+  # class: ban
+  # clauses: L17.1
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "Self-assertion never counts as grounding"
+  current: "Self-assertion never counts as grounding"
+  text:
+  - "Self-assertion never counts as grounding"
+- id: ga-gate-exists-because-never-opened
+  # class: ban
+  # clauses: L18.1
+  file: commands/_fragments/grounding-artifact.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — most runs review a project that ALREADY has code)"
+  baseline: "(This gate exists because a real run converged a spec asserting \"reuse `api/auth.py` internal-token\" that was never opened"
+  current: "(This gate exists because a real run converged a spec asserting \"reuse `api/auth.py` internal-token\" that was never opened.)"
+  text:
+  - "(This gate exists because a real run converged a spec asserting \"reuse `api/auth.py` internal-token\" that was never opened.)"
+vanished:
+  L4:  # clauses: 1 ga-open-the-real-file, 2 ga-open-the-real-file
+    rule: [ga-open-the-real-file]
+  L7:  # clauses: 1 ga-negative-claim-control-flow-exits, 2 ga-negative-claim-control-flow-exits, 3 ga-negative-claim-control-flow-exits, 4 narrative
+    rule: [ga-negative-claim-control-flow-exits]
+  L10:  # clauses: 1 ga-verify-the-asserted-layer, 2 narrative
+    rule: [ga-verify-the-asserted-layer]
+  L11: narrative  # clauses: 1 narrative
+  L13:  # clauses: 1 ga-inherited-constraint-is-a-claim, 2 narrative
+    rule: [ga-inherited-constraint-is-a-claim]
+  L14: narrative  # clauses: 1 narrative, 2 narrative
+  L15:  # clauses: 1 ga-never-adjudicate-from-truncated-pipe, 2 ga-never-adjudicate-from-truncated-pipe, 3 narrative
+    rule: [ga-never-adjudicate-from-truncated-pipe]
+  L18:  # clauses: 1 ga-gate-exists-because-never-opened, 2 narrative
+    rule: [ga-gate-exists-because-never-opened]

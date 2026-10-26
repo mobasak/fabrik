@@ -1,4 +1,92 @@
 shared: commands/_fragments/grounding-code.md
 baseline_sentences: grounding-code.baseline.txt
 baseline_sha256: "877580fe99c89762f49750d12d20c00e39d1d77df6492c7950770bf1fef73d3a"
-entries: []
+entries:
+- id: gc-heading
+  # class: grammar
+  # clauses: L1.1, L1.2
+  file: commands/_fragments/grounding-code.md
+  baseline: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  current: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  text:
+  - "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+- id: gc-finding-is-a-claim-about-live-code
+  # class: prose
+  # clauses: L2.1, L2.2, L2.3
+  file: commands/_fragments/grounding-code.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  baseline: "You are reviewing {{SCOPE}} with existing code, a live DB, and real callers — so every finding (and every \"this is correct\" you imply by NOT flagging) is a claim about that codebase, and it is not validated until it is grounded in what exists TODAY — not comments, not a label, not memory:"
+  current: "You are reviewing {{SCOPE}} with existing code, a live DB, and real callers — so every finding (and every \"this is correct\" you imply by NOT flagging) is a claim about that codebase, and it is not validated until it is grounded in what exists TODAY — not comments, not a label, not memory:"
+  text:
+  - "You are reviewing {{SCOPE}} with existing code, a live DB, and real callers"
+  - "so every finding (and every \"this is correct\" you imply by NOT flagging) is a claim about that codebase, and it is not validated until it is grounded in what exists TODAY"
+  - "not comments, not a label, not memory:"
+- id: gc-open-the-real-file
+  # class: prose
+  # clauses: L3.1, L3.2
+  file: commands/_fragments/grounding-code.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  baseline: "Open the real file at every `path:line` you cite and confirm the symbol / signature / behavior is actually there — including the callers and callees the code touches (defects hide in the touching points you didn't open)"
+  current: "Open the real file at every `path:line` you cite and confirm the symbol / signature / behavior is actually there — including the callers and callees the code touches (defects hide in the touching points you didn't open)"
+  text:
+  - "Open the real file at every `path:line` you cite and confirm the symbol / signature / behavior is actually there — including the callers and callees the code touches (defects hide in the touching points you didn't open)"
+- id: gc-read-the-real-schema
+  # class: prose
+  # clauses: L4.1, L4.2
+  file: commands/_fragments/grounding-code.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  baseline: "Read the real schema (migration / model / `\\d <table>`) for every table, column, enum, index, or FK the code reads or writes — the name is not its type, and a wrong-type assumption is a real bug"
+  current: "Read the real schema (migration / model / `\\d <table>`) for every table, column, enum, index, or FK the code reads or writes — the name is not its type, and a wrong-type assumption is a real bug"
+  text:
+  - "Read the real schema (migration / model / `\\d <table>`) for every table, column, enum, index, or FK the code reads or writes — the name is not its type, and a wrong-type assumption is a real bug"
+- id: gc-cite-the-emit-site
+  # class: ban
+  # clauses: L5.1, L5.2, L5.3
+  file: commands/_fragments/grounding-code.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  baseline: "⚠️ Cite the EMIT site, not the BUILD site. A claim about a WRITTEN artifact — a file the code emits, a row it inserts, a payload it returns — must cite where that shape is DECIDED: the write/emit call, or the last mutation before it"
+  current: "⚠️ Cite the EMIT site, not the BUILD site. A claim about a WRITTEN artifact — a file the code emits, a row it inserts, a payload it returns — must cite where that shape is DECIDED: the write/emit call, or the last mutation before it"
+  text:
+  - "⚠️ Cite the EMIT site, not the BUILD site. A claim about a WRITTEN artifact"
+  - "a file the code emits, a row it inserts, a payload it returns"
+  - "must cite where that shape is DECIDED: the write/emit call, or the last mutation before it"
+- id: gc-a-build-site-window-is-a-true-citation-of-a-false-meaning
+  # class: prose
+  # clauses: L6.1
+  file: commands/_fragments/grounding-code.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  baseline: "A `path:line` window on the dict construction can be a TRUE citation of a FALSE meaning, and it reads as thorough because something real was checked"
+  current: "A `path:line` window on the dict construction can be a TRUE citation of a FALSE meaning"
+  text:
+  - "A `path:line` window on the dict construction can be a TRUE citation of a FALSE meaning"
+- id: gc-a-build-site-read-above-a-pop-is-the-class
+  # class: prose
+  # clauses: L8.1
+  file: commands/_fragments/grounding-code.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  baseline: "A build-site read that stops above a `pop`/`del`/filter/`exclude_unset` is the class. Ask not \"is the symbol at this line?\" but \"is this the shape that reaches disk / the wire / the caller?\""
+  current: "A build-site read that stops above a `pop`/`del`/filter/`exclude_unset` is the class. Ask not \"is the symbol at this line?\" but \"is this the shape that reaches disk / the wire / the caller?\""
+  text:
+  - "A build-site read that stops above a `pop`/`del`/filter/`exclude_unset` is the class. Ask not \"is the symbol at this line?\" but \"is this the shape that reaches disk / the wire / the caller?\""
+- id: gc-reproduce-before-you-report
+  # class: prose
+  # clauses: L9.1, L9.2
+  file: commands/_fragments/grounding-code.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  baseline: "Reproduce before you report — a finding you cannot tie to a concrete failing path through the *actual* code (inputs → wrong output) is UNVALIDATED: prove it against the real code, or drop it (no theatre)"
+  current: "Reproduce before you report — a finding you cannot tie to a concrete failing path through the *actual* code (inputs → wrong output) is UNVALIDATED: prove it against the real code, or drop it (no theatre)"
+  text:
+  - "Reproduce before you report — a finding you cannot tie to a concrete failing path through the *actual* code (inputs → wrong output) is UNVALIDATED: prove it against the real code, or drop it (no theatre)"
+- id: gc-the-mirror-also-binds
+  # class: ban
+  # clauses: L10.1, L10.2
+  file: commands/_fragments/grounding-code.md
+  section: "## ⚠️ Codebase-grounding gate (BINDING — a finding is a claim about the LIVE code)"
+  baseline: "The mirror also binds: an item you *cannot* disprove is NOT \"probably fine\" — every in-scope finding terminates FIXED or REFUTED (proof required), never silently passed"
+  current: "The mirror also binds: an item you *cannot* disprove is NOT \"probably fine\" — every in-scope finding terminates FIXED or REFUTED (proof required), never silently passed"
+  text:
+  - "The mirror also binds: an item you *cannot* disprove is NOT \"probably fine\" — every in-scope finding terminates FIXED or REFUTED (proof required), never silently passed"
+vanished:
+  L6:  # clauses: 1 gc-a-build-site-window-is-a-true-citation-of-a-false-meaning
+    rule: [gc-a-build-site-window-is-a-true-citation-of-a-false-meaning]
+  L7: narrative  # clauses: 1 narrative, 2 narrative, 3 narrative

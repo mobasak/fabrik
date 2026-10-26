@@ -1,4 +1,175 @@
 shared: commands/_fragments/chat-intake.md
 baseline_sentences: chat-intake.baseline.txt
 baseline_sha256: "005911b4172db18ae2b84ec5b3a2abe6f7167932b07049cf80090d512f2b59e0"
-entries: []
+entries:
+- id: ci-heading
+  # class: grammar
+  # clauses: L1.1, L1.2
+  file: commands/_fragments/chat-intake.md
+  baseline: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  current: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  text:
+  - "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+- id: ci-run-invoked-on-a-conversation
+  # class: prose
+  # clauses: L2.1
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "This run was invoked ON a conversation"
+  current: "This run was invoked ON a conversation"
+  text:
+  - "This run was invoked ON a conversation"
+- id: ci-surfaced-items-are-the-denominator
+  # class: prose
+  # clauses: L3.1, L3.2, L3.3
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "That conversation surfaced items — issues found, goals stated, features requested, constraints named, exclusions declared — and every one of them is part of this run's denominator, exactly as a route inventory is a gauntlet's"
+  current: "That conversation surfaced items — issues found, goals stated, features requested, constraints named, exclusions declared — and every one is part of this run's denominator, exactly as a route inventory is a gauntlet's"
+  text:
+  - "That conversation surfaced items — issues found, goals stated, features requested, constraints named, exclusions declared — and every one is part of this run's denominator, exactly as a route inventory is a gauntlet's"
+- id: ci-first-act-enumerate-before-design
+  # class: prose
+  # clauses: L5.1, L5.2
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "First act after the run record — enumerate, before you design:"
+  current: "First act after the run record — enumerate, before you design:"
+  text:
+  - "First act after the run record — enumerate, before you design:"
+- id: ci-reread-the-whole-conversation
+  # class: prose
+  # clauses: L6.1, L6.2, L6.3
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "Re-read the conversation — the WHOLE session, not your memory of it (post-compact, use `session-recall` to recover what the summary dropped; if the operator referenced an earlier discussion, `search_chats` for it)"
+  current: "Re-read the conversation — the WHOLE session, not your memory of it (post-compact, use `session-recall` to recover what the summary dropped; if the operator referenced an earlier discussion, `search_chats` for it)"
+  text:
+  - "Re-read the conversation — the WHOLE session, not your memory of it (post-compact, use `session-recall` to recover what the summary dropped; if the operator referenced an earlier discussion, `search_chats` for it)"
+- id: ci-extract-every-distinct-item
+  # class: prose
+  # clauses: L7.1
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "Extract every distinct item the operator stated or the session surfaced: each issue/finding, each goal, each requested feature, each constraint, each explicit exclusion"
+  current: "Extract every distinct item the operator stated or the session surfaced: each issue/finding, goal, requested feature, constraint, explicit exclusion"
+  text:
+  - "Extract every distinct item the operator stated or the session surfaced: each issue/finding, goal, requested feature, constraint, explicit exclusion"
+- id: ci-number-items-anchored-to-quotes
+  # class: prose
+  # clauses: L8.1, L8.2
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "Number them `I1…In`, each anchored to the operator's own words — a short verbatim quote per item, so the mapping is checkable against the transcript rather than against your paraphrase"
+  current: "Number them `I1…In`, each anchored to the operator's own words — a short verbatim quote per item, so the mapping is checkable against the transcript"
+  text:
+  - "Number them `I1…In`, each anchored to the operator's own words — a short verbatim quote per item, so the mapping is checkable against the transcript"
+- id: ci-artifact-carries-the-inventory-heading
+  # class: grammar
+  # clauses: L9.1, L9.2
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "The artifact carries `## Intake Inventory` — one row per item:"
+  current: "The artifact carries `## Intake Inventory` — one row per item:"
+  text:
+  - "The artifact carries `## Intake Inventory` — one row per item:"
+- id: ci-inventory-table-header
+  # class: grammar
+  # clauses: L10.1
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "| I# | Item (anchored) | Disposition | Where |"
+  current: "| I# | Item (anchored) | Disposition | Where |"
+  text:
+  - "| I# | Item (anchored) | Disposition | Where |"
+- id: ci-inventory-table-separator
+  # class: grammar
+  # clauses: L11.1
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "|---|---|---|---|"
+  current: "|---|---|---|---|"
+  text:
+  - "|---|---|---|---|"
+- id: ci-disposition-is-exactly-in-out-or-ask
+  # class: prose
+  # clauses: L12.1, L12.2
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "Disposition is EXACTLY one of: IN (the section of this artifact that covers it) · OUT-OF-SCOPE (the one-line why + a NAMED destination that now exists: a backlog row you wrote, a separate spec you named, a mail you sent — \"later\" with no destination is a silent drop wearing a label) · ASK (it joins the batched question set, per the question bar)"
+  current: "Disposition is EXACTLY one of: IN (the section of this artifact that covers it) · OUT-OF-SCOPE (the one-line why + a NAMED destination that now exists: a backlog row you wrote, a separate spec you named, a mail you sent — \"later\" with no destination is a silent drop wearing a label) · ASK (it joins the batched question set, per the question bar)"
+  text:
+  - "Disposition is EXACTLY one of: IN (the section of this artifact that covers it) · OUT-OF-SCOPE (the one-line why + a NAMED destination that now exists: a backlog row you wrote, a separate spec you named, a mail you sent"
+  - "\"later\" with no destination is a silent drop wearing a label) · ASK (it joins the batched question set, per the question bar)"
+- id: ci-ask-has-a-bar-derive-first
+  # class: prose
+  # clauses: L13.1, L13.2, L13.3
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "⚠️ ASK has a bar, and it is the project's own frozen artifacts. Before ANY item may be ASK, DERIVE its disposition from the goal record — `docs/DECISIONS.md` (the decision ledger: a prior ruling or rejected option decides an item outright), `docs/FEATURES.md`, the rivals dossier, `docs/flows.md`, the spec chain, the Locked Decisions — and cite the row that decides it"
+  current: "⚠️ ASK has a bar, and it is the project's own frozen artifacts. Before ANY item may be ASK, DERIVE its disposition from the goal record — `docs/DECISIONS.md` (the decision ledger: a prior ruling or rejected option decides an item outright), `docs/FEATURES.md`, the rivals dossier, `docs/flows.md`, the spec chain, the Locked Decisions — and cite the row that decides it"
+  text:
+  - "⚠️ ASK has a bar, and it is the project's own frozen artifacts. Before ANY item may be ASK, DERIVE its disposition from the goal record"
+  - "`docs/DECISIONS.md` (the decision ledger: a prior ruling or rejected option decides an item outright), `docs/FEATURES.md`, the rivals dossier, `docs/flows.md`, the spec chain, the Locked Decisions"
+  - "and cite the row that decides it"
+- id: ci-derivable-items-are-never-asked
+  # class: ban
+  # clauses: L14.1, L14.2, L14.3, L15.2
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "An item those artifacts answer is IN or OUT-OF-SCOPE by derivation, never a question ; ASK is legal only when they genuinely under-determine it, and even then it arrives as a RECOMMENDED disposition with the derivation shown ; a bare option menu handed to the operator is the question-bar violation this bar exists to kill ; yours\" for six items, the hub re-asked the operator the same menu, the operator refused (\"don't you know our rules, commands, goals?\")"
+  current: "An item those artifacts answer is IN or OUT-OF-SCOPE by derivation, never a question; ASK is legal only when they genuinely under-determine it, and even then it arrives as a RECOMMENDED disposition with the derivation shown — a bare option menu handed to the operator is the question-bar violation this bar exists to kill (a run ended on \"successor spec or explicit cuts — yours\" for six items, the hub re-asked the operator the same menu, the operator refused (\"don't you know our rules, commands, goals?\"))"
+  text:
+  - "An item those artifacts answer is IN or OUT-OF-SCOPE by derivation, never a question"
+  - "ASK is legal only when they genuinely under-determine it, and even then it arrives as a RECOMMENDED disposition with the derivation shown"
+  - "a bare option menu handed to the operator is the question-bar violation this bar exists to kill (a run ended on \"successor spec or explicit cuts"
+  - "yours\" for six items, the hub re-asked the operator the same menu, the operator refused (\"don't you know our rules, commands, goals?\"))"
+- id: ci-zero-silent-drops
+  # class: prose
+  # clauses: L17.1, L17.2
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "Zero silent drops. An item you noticed but left off the table is THE defect — worse than a wrong disposition, because a wrong disposition can be argued and a missing row cannot be seen"
+  current: "Zero silent drops. An item you noticed but left off the table is THE defect — worse than a wrong disposition, because a wrong disposition can be argued and a missing row cannot be seen"
+  text:
+  - "Zero silent drops. An item you noticed but left off the table is THE defect — worse than a wrong disposition, because a wrong disposition can be argued and a missing row cannot be seen"
+- id: ci-undeclared-out-of-scope-is-the-defect
+  # class: prose
+  # clauses: L18.1, L18.2
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "OUT-OF-SCOPE is legitimate and often right; UNDECLARED out-of-scope is what turns the operator into your coverage checker"
+  current: "OUT-OF-SCOPE is legitimate and often right; UNDECLARED out-of-scope is what turns the operator into your coverage checker"
+  text:
+  - "OUT-OF-SCOPE is legitimate and often right; UNDECLARED out-of-scope is what turns the operator into your coverage checker"
+- id: ci-say-the-split-when-you-finish
+  # class: grammar
+  # clauses: L19.1, L19.2, L19.3
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "Say the split when you finish. The close-out states the fraction in one line — `Intake: N items — X IN, Y OUT-OF-SCOPE (each named above), Z ASK` — so the operator sees the subsetting instead of discovering it"
+  current: "Say the split when you finish. The close-out states the fraction in one line — `Intake: N items — X IN, Y OUT-OF-SCOPE (each named above), Z ASK` — so the operator sees the subsetting instead of discovering it"
+  text:
+  - "Say the split when you finish. The close-out states the fraction in one line — `Intake: N items — X IN, Y OUT-OF-SCOPE (each named above), Z ASK` — so the operator sees the subsetting instead of discovering it"
+- id: ci-no-intake-line-hides-the-denominator
+  # class: prose
+  # clauses: L20.1
+  file: commands/_fragments/chat-intake.md
+  section: "## ⚠️ Intake Inventory — the conversation IS a denominator (build it before you design anything)"
+  baseline: "A run that ends without this line has hidden its denominator"
+  current: "A run that ends without this line has hidden its denominator"
+  text:
+  - "A run that ends without this line has hidden its denominator"
+vanished:
+  L3:  # clauses: 1 ci-surfaced-items-are-the-denominator, 2 ci-surfaced-items-are-the-denominator, 3 ci-surfaced-items-are-the-denominator
+    rule: [ci-surfaced-items-are-the-denominator]
+  L4: narrative  # clauses: 1 narrative
+  L7:  # clauses: 1 ci-extract-every-distinct-item
+    rule: [ci-extract-every-distinct-item]
+  L8:  # clauses: 1 ci-number-items-anchored-to-quotes, 2 ci-number-items-anchored-to-quotes
+    rule: [ci-number-items-anchored-to-quotes]
+  L14:  # clauses: 1 ci-derivable-items-are-never-asked, 2 ci-derivable-items-are-never-asked, 3 ci-derivable-items-are-never-asked
+    rule: [ci-derivable-items-are-never-asked]
+  L15:  # clauses: 1 narrative, 2 ci-derivable-items-are-never-asked, 3 narrative
+    rule: [ci-derivable-items-are-never-asked]
+  L16: narrative  # clauses: 1 narrative

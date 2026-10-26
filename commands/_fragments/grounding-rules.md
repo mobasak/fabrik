@@ -1,13 +1,11 @@
-<!-- rule-grounding-gate v2 · a RENDER INPUT, not a leaf doc: assemble_commands.py substitutes this block into every source that carries the `include:grounding-rules` directive — fabrik-spec.md, fabrik-plan-after-chat.md, fabrik-vision.md, fabrik-epics.md, fabrik-epics-review.md today (grep the directive, never a count). No hand-inlined twin exists (the only copies are inside docs/orchestrator/_retired/ tombstones, never rendered); editing this file makes every consumer's rendered command stale until the next render from the main master checkout — `assemble_commands.py --check` reports them as DIFFERS from what this tree renders. Server-side paste copies do not exist (operator-confirmed 2026-08-30) -->
+<!-- rule-grounding-gate v2 · a RENDER INPUT, not a leaf doc: assemble_commands.py substitutes this block into every source that carries the `include:grounding-rules` directive (grep the directive, never a count); editing it makes every consumer's rendered command stale until the next render from the main master checkout — `assemble_commands.py --check` reports them as DIFFERS from what this tree renders. -->
 ## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)
 Before the first architecture, tool, or dependency selection:
 - Run `python scripts/select_rules.py` at the PROJECT root for the ACTIVE census. **The MUST-READ-FULL
   set is COMPUTED, not everything:** the FLOOR packs + every pack
   `python scripts/review_rubric.py --changed <the surfaces this artifact will touch>` MATCHES, plus
-  the always-AVAILABLE packs named in `agents-fabrik.md` § MANDATORY (they never self-mark ACTIVE —
-  e.g. `core/ocoron-design-system.md`). **Fresh full reads of exactly that set** — a 26-pack duty
-  where 3 are relevant teaches skimming, and skimming generalizes (operator ruling 2026-08-30);
-  remaining ACTIVE/AVAILABLE packs are judgment reads.
+  the always-AVAILABLE packs named in `agents-fabrik.md` § MANDATORY (they never self-mark ACTIVE).
+  **Fresh full reads of exactly that set**; remaining ACTIVE/AVAILABLE packs are judgment reads.
 - Emit the **CONSTRAINTS DIGEST** as a checkpoint artifact — a table, one row per MUST / BAN /
   anti-pattern relevant to this scope, **every row carrying a VERBATIM quote from the pack +
   `file:line`**: you cannot quote a line from a pack you did not open, which is the whole proof.
