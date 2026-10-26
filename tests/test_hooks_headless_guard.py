@@ -121,12 +121,17 @@ _DECLARED_SPAWNERS = (
     "scripts/api_credit.py",  # D-1196's prepaid API-credit runs, `claude -p --safe-mode` on a key (W-894f994f, W-230abfd5)
 )
 
-# Spawners whose env EXTENDS a declared spawner's env builder instead of `os.environ` directly — the
-# builder already passed the grader above, and re-spreading `**os.environ` here would bring back the
-# variables it strips (api_credit.child_env drops every other credential). Each still declares the
-# flag in the dict it passes as env=.
+# Spawners whose env extends a declared spawner's env builder, not `os.environ` (re-spreading it would
+# bring back the credentials the builder strips), so the source-shape grader above cannot read them. Each
+# names the test that grades the env its `claude -p` child actually RECEIVES — a static read of the source
+# passed nine behaviour-breaking mutants (a dropped env=, a later override, a re-spread) in review.
 _DELEGATED_SPAWNERS = (
-    ("scripts/api_write.py", "ac.child_env("),  # D-1247's API-key write lane (W-174b8543)
+    # D-1247's API-key write lane (W-174b8543)
+    (
+        "scripts/api_write.py",
+        "tests/test_api_write.py",
+        "test_the_child_has_file_tools_only_and_gates_are_exact",
+    ),
 )
 
 # Known `claude -p` spawners that have NOT adopted it — recorded here so the discovery test can
@@ -134,7 +139,7 @@ _DELEGATED_SPAWNERS = (
 # docs/STRATEGIC_BACKLOG.md. Both are the same file, byte-identical twins.
 _UNADOPTED_SPAWNERS = (
     "scripts/sysadmin/claude_rotate.py",  # the keepalive ping; twin of the next
-    "scripts/aro-wake/claude_rotate.py",  # byte-identical to the above (md5 f68c15a1…)
+    "scripts/aro-wake/claude_rotate.py",  # byte-identical to the above (md5 f917aa6d…)
     "scripts/sysadmin/bot.py",
     "scripts/aro-wake/main.py",
 )
@@ -204,27 +209,24 @@ def test_every_declared_spawner_actually_sets_the_flag() -> None:
         assert passes_env, f"{rel}: builds an env dict but never passes env= to a spawn"
 
 
-def test_every_delegated_spawner_extends_a_declared_builder_and_sets_the_flag() -> None:
-    """A delegated spawner builds its env from a declared spawner's builder AND declares the flag in
-    the dict it passes as env= — the delegate alone is not trusted to keep it."""
+def test_every_delegated_spawner_names_a_test_of_its_childs_env() -> None:
+    """Each delegated spawner's grading test exists and asserts the flag the child RECEIVED — the
+    behaviour lives there; this keeps the pointer from going stale."""
     import ast
 
     root = Path(__file__).resolve().parents[1]
-    assert "scripts/api_credit.py" in _DECLARED_SPAWNERS
-    for rel, builder in _DELEGATED_SPAWNERS:
-        tree = ast.parse((root / rel).read_text(encoding="utf-8"))
-        dicts = [
-            ast.unparse(n)
-            for n in ast.walk(tree)
-            if isinstance(n, ast.Dict) and "'FABRIK_HEADLESS': '1'" in ast.unparse(n)
-        ]
-        assert any(builder in d for d in dicts), (
-            f"{rel}: no env dict both extends {builder}…) and sets FABRIK_HEADLESS"
+    for rel, test_file, test_name in _DELEGATED_SPAWNERS:
+        assert (root / rel).is_file(), f"{rel} is gone — drop its _DELEGATED_SPAWNERS row"
+        tree = ast.parse((root / test_file).read_text(encoding="utf-8"))
+        fn = next(
+            (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == test_name),
+            None,
         )
-        assert any(
-            isinstance(n, ast.Call) and any(k.arg == "env" for k in n.keywords)
-            for n in ast.walk(tree)
-        ), f"{rel}: builds an env dict but never passes env= to a spawn"
+        assert fn is not None, f"{test_file}::{test_name} (the grader of {rel}'s child env) is gone"
+        asserts = [ast.unparse(n) for n in ast.walk(fn) if isinstance(n, ast.Assert)]
+        assert any("'headless'" in a and "'1'" in a for a in asserts), (
+            f"{test_file}::{test_name} no longer asserts the child received FABRIK_HEADLESS=1"
+        )
 
 
 def test_no_undeclared_headless_spawner_appears() -> None:
@@ -236,7 +238,7 @@ def test_no_undeclared_headless_spawner_appears() -> None:
     listed as known-unadopted rather than silently tolerated."""
     root = Path(__file__).resolve().parents[1]
     found = _files_that_build_a_claude_p_argv(root)
-    known = set(_DECLARED_SPAWNERS) | {r for r, _ in _DELEGATED_SPAWNERS} | set(_UNADOPTED_SPAWNERS)
+    known = set(_DECLARED_SPAWNERS) | {d[0] for d in _DELEGATED_SPAWNERS} | set(_UNADOPTED_SPAWNERS)
     surprises = found - known
     assert not surprises, (
         f"a `claude -p` spawner appeared that neither declares FABRIK_HEADLESS nor is filed as "

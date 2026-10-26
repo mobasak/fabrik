@@ -37,7 +37,8 @@ with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
                         "has_git": os.path.lexists(".git"), "ceiling": os.environ.get("GIT_CEILING_DIRECTORIES"),
                         "toplevel": subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True,
                                                    text=True).stdout.strip(),
-                        "key": os.environ.get("ANTHROPIC_API_KEY", ""), "prompt": prompt}}) + "\\n")
+                        "key": os.environ.get("ANTHROPIC_API_KEY", ""),
+                        "headless": os.environ.get("FABRIK_HEADLESS"), "prompt": prompt}}) + "\\n")
 if "stream-json" in sys.argv:
     sys.stdout.write(open(os.environ["FAKE_PREFLIGHT"], encoding="utf-8").read())
     sys.exit(1)
@@ -234,7 +235,10 @@ def test_a_run_edits_in_a_clone_and_the_runner_commits_and_pushes_its_branch(box
 
 def test_the_child_has_file_tools_only_and_gates_are_exact(box: dict) -> None:
     """Behaviour 2: no gates → no Bash at all; gates → Bash(<gate>) per exact string, no wildcard; dontAsk,
-    --restricted, no bypass; the child env drops GIT_* and the SSH agent."""
+    --restricted, no bypass; the child env drops GIT_* and the SSH agent, strips a credential the runner's own env
+    carries, and says FABRIK_HEADLESS=1 even when the runner's env says 0 (the headless guard's delegated
+    spawner, tests/test_hooks_headless_guard.py, is graded HERE, on the env the spawn actually received)."""
+    box["env"] = {**box["env"], "FABRIK_HEADLESS": "0", "ANTHROPIC_FOO_PROBE": "leak"}
     assert (
         _run(box, "--key", "can", "--slug", "t2", "--task-file", str(_brief(box, "t2"))).returncode
         == 0
@@ -244,7 +248,8 @@ def test_the_child_has_file_tools_only_and_gates_are_exact(box: dict) -> None:
     assert not any(a.startswith("Bash") for a in argv) and "bypassPermissions" not in argv
     assert argv[argv.index("--permission-mode") + 1] == "dontAsk" and "--restricted" in argv
     names = _runs(box)[0]["env_names"]
-    assert "SSH_AUTH_SOCK" not in names
+    assert "SSH_AUTH_SOCK" not in names and "ANTHROPIC_FOO_PROBE" not in names
+    assert _runs(box)[0]["headless"] == "1"
     assert [n for n in names if n.startswith("GIT_")] == ["GIT_CEILING_DIRECTORIES"]
     assert _runs(box)[0]["ceiling"] == str(Path(_runs(box)[0]["cwd"]).parent)
     _preflight(Path(box["env"]["FAKE_PREFLIGHT"]), FILE_TOOLS + ["Bash"])
