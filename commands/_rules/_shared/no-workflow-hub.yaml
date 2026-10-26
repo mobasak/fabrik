@@ -28,6 +28,8 @@ entries:
   text:
   - A workflow, permission or approval question never goes to the operator.
   class: ban
+  pins:
+  - tests/test_review_queue_pass.py::test_every_workflow_command_carries_the_no_workflow_in_the_hub_note
 - id: banner-every-workflow-command-carries-the-no-4
   file: commands/_fragments/no-workflow-hub.md
   baseline: Outside the hub this command's text stands as written
@@ -35,6 +37,8 @@ entries:
   text:
   - Outside the hub this command's text stands as written.
   class: prose
+  pins:
+  - tests/test_review_queue_pass.py::test_every_workflow_command_carries_the_no_workflow_in_the_hub_note
 vanished:
   L1:
     rule:
