@@ -1,4 +1,8 @@
+OWN TEXT: 2875 -> 2278 (79%)
+
 # T23 receipt — lean rewrite of `fabrik-ui-design-review` (light form, D-1236/D-1238/D-1240)
+
+(The sections below are the fix round's, written for the old comment-form loader; the "Re-ledger round" section at the end supersedes their figures and ledger claims.)
 
 Run: cloud worker, branch `claude/lean-t23-grp`, TASK slug lean-t23-grp. Start commit: `851b4b365cc9ccaac91ed851bc669764743ad360` (the baseline commit). Baseline sha256 `8beb248525a25ded4272853ab65384af705c340070965086ae3a944f7d604f80` (100 keyed lines, `commands/_rules/fabrik-ui-design-review.baseline.txt`).
 
@@ -151,3 +155,21 @@ Gates: `python3 -m pytest -q tests/test_command_rules.py -rP` → 32 passed, 3 s
 - The author-blind Sonnet + Haiku classification of the vanished lines and the audit pair over every reworded entry (old against new): labels above are the author's.
 - Convert the `# class:` / `# clauses narrative:` comments to keys when the canonical loader lands; re-grade the ledger under it.
 - Render the corpus at merge (never done in a worktree).
+
+## Re-ledger round (canonical loader, W-9cd8653d; operator P0 W-96f36043)
+
+- Own text (`wc -w` of the source, frontmatter included): baseline 2875 -> fix round 2258 -> now 2278 (79%). The target of 50% is NOT met. The fix round's 2258 was reached partly by dropping anchors (backticked tokens, numbers, paths, dates) from clauses it kept; the canonical loader counts those, so they came back (`(trade-intelligence, 2026-08-28)`, `(causes 2 and 3)`, the whole `check_frozen_chain.py` line with its example, `e.g. web landing/login/...`, `(D-335)`, `Phase 0's`, `Radix/NativeWind/Tamagui`, `bespoke/invented`). Cuts made: the `Distinct from` sentence in the description, the analogy sentence and `No running app` heading echo (L2, L5, L6), the Read-tool-cap clause, the shadcn tail clause, the axis-F twin example, the REFUTE quote tail, `(a11y)`/`(MV3 surfaces)` notes, and wording in L14/L16/L48.
+- LOSS: 15 (hub's list on the base) -> 0 for `fabrik-ui-design-review.yaml` under the canonical loader, with every `# class:`/`# clauses:` comment now a real `class:`/`clauses:` key (which also made 40 prose entries lintable). `--check` prints LOSS only for other ledgers (`design-review`, `fabrik-flows-review`, `fabrik-ui-design`, `_shared/*`), none of them mine.
+- Entries 79: 48 unchanged-unit entries (`u-L*`), 30 hand-reworded, 1 behavioural block entry. Reworded/total = 30/79. `clauses:` labels: narrative on r1 (2), r2 (1), r3a (2), r7 (2), r11 (2), r21 (2), r22 (2), r23 (2), r24b (2); none on a clause holding a ban word. Vanished: L3, L4, L7-L9, L82, L85-L88 narrative; L63 duplicate-of r24; the rest `rule:`.
+- Restored after the loader showed them as dropped anchors or operative detail: L41 (`e.g. web landing/...`), L67 (`unknowns / assumptions / out-of-scope risks`, `named resolution step`), L40 (`not just the happy path`), L45 (`(or per surface)`), L73, L74, L80, L90 (`causes 2 and 3`), L92, L94.
+- Reworded shorter than baseline, loader-clean, flagged for the author-blind audit: r4 (drops `which file`), r5 (drops the `you review a frozen artifact` aside), r11 (clause 2, `a contract naming a component that isn't real is a defect`, labelled narrative), r17 (twin example), r18 (`non-issue` tail), r26 (`on a resumed run`), r29 (`readiness claim` aside), r30 (`most looks like simply stopping` tail), r33 (the quoted `do not commit` pair), r36 (`screen-building phases each running the Build Verification Loop`).
+- Floor table (clauses over their anchors-plus-6 minimum, and why they cannot shrink): L18/L19/L17 and L28-clause 1 — a ban word (`only`/`must`) sits inside a parenthetical, so the clause is verbatim to its end and carries 6 path anchors; L20/L16 — path and slash-token anchors; L29, L34, L49-L51, L53, L68, L75, L81, L100, L12 — ban clauses verbatim (L12 and L11 are also EXTRACT after-text, read by `test_every_extract_after_text_round_trips_against_its_source`); L22 clause 3, `the review's first finding is the split`, read by `tests/test_assemble_dispatch_step.py`; L80, L92, L74, L73, L42 — dates, ids, numbers and a long backticked example are anchors of an otherwise single clause that no label may split; L28 clause 3 — the `loading/empty/...` state list and `design-system-template.md` sections are anchors; the `DECISION NEEDED` block is grammar read by `tests/test_gate_decision_blocks.py`. Live rule count: 30 reworded + 48 unchanged + 1 block; no rule was removed. Floor: about 78%; 50% would need ban clauses or anchored clauses dropped.
+- Pins: no pin test deleted this round; the frontmatter `description` keeps `consistency + internal contradictions` (`tests/test_flows_review_queue_pass.py`).
+- COUNTS: 79 entries read / 30 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels. Earlier passes fixed: L3 relabelled narrative (was a duplicate-of that covered one of its three failure modes); r15 and r25 restored to baseline units; r24 split from L64 so its `docs/...` anchors sit in a narrative-labelled clause.
+- Gates, start -> end: `test_command_rules.py` 1 failed/56 passed at start (the LOSS); the reader-test groups started at 14 failed/100 passed (dispatch_step, orch_retired: installed-corpus and git-grep), 2 failed/556 passed (`test_command_measure::test_check_exit_order...`, `test_conftest_isolation`), the rest green. End figures below.
+
+## LEFT FOR THE HUB (re-ledger)
+
+- Ratchet `commands/_size_ceiling.json` (report line: `shrank to 24901 words`); `CHANGELOG.md`, `INDEX.md`, any D-row for the 79% floor.
+- Author-blind audit of the 30 reworded entries, old against new.
+- T01d's `_shared/*` LOSS lines and the other ledgers' LOSS lines are not this ticket's.
