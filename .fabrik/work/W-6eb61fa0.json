@@ -3,7 +3,7 @@
   "created": "2026-10-01T20:45:03.275690Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "f3b576b326ee4396e070992c7aac7ef7d3a845ec",
   "id": "W-6eb61fa0",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — double-escaped env values in every template deploy",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],
