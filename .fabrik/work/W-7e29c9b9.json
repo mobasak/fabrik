@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T11:04:50.774754Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-7e29c9b9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1239",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "edit the roster rea row + the emitter grant so every repo gets rea; re-emit all repos; prove one project session sees mcp__rea__*",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "URGENT: operator order (D-1239) — rea for every repo; infra beat (MCP roster/emitter); LOW: roster row + emitter grant + re-emit",
+  "status": "open",
+  "title": "URGENT (operator 2026-10-26: 'enable rea for all repos wide asap!!!'): grant the rea MCP to every /opt repo and re-emit .mcp.json fleet-wide (D-1239)"
+}
