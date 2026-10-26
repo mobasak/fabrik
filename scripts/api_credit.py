@@ -152,6 +152,11 @@ def env_file() -> Path:
     override = os.environ.get("API_CREDIT_ENV_FILE")
     if override:
         return Path(override)
+    return main_checkout() / ".env"
+
+
+def main_checkout() -> Path:
+    """The main checkout this script's repository shares its git directory with (a linked worktree's main tree)."""
     here = Path(__file__).resolve().parent
     # An ambient GIT_DIR/GIT_COMMON_DIR would point rev-parse at another repository's .env.
     git_env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
@@ -169,7 +174,7 @@ def env_file() -> Path:
         raise RefusalError(
             2, "cannot locate the main checkout (git rev-parse failed); set API_CREDIT_ENV_FILE"
         )
-    return Path(out.stdout.strip()).parent / ".env"
+    return Path(out.stdout.strip()).parent
 
 
 def read_keys(path: Path) -> dict[str, str]:
@@ -431,8 +436,8 @@ def _zero(x: object) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and x == 0
 
 
-def preflight_verdict(stdout: str) -> str | None:
-    """None when the keyless stream proves no credential answered and the tools are exactly TOOLS; else the reason."""
+def preflight_verdict(stdout: str, tools_csv: str = TOOLS) -> str | None:
+    """None when the keyless stream proves no credential answered and the tools are exactly ``tools_csv``; else why."""
     events = []
     for line in stdout.splitlines():
         try:
@@ -445,7 +450,7 @@ def preflight_verdict(stdout: str) -> str | None:
     results = [e for e in events if e.get("type") == "result"]
     if not inits or not results:
         return "no init or no result event"
-    want = sorted(TOOLS.split(","))
+    want = sorted(tools_csv.split(","))
     for e in inits:
         tools = e.get("tools")
         if not isinstance(tools, list) or sorted(map(str, tools)) != want:
@@ -460,8 +465,17 @@ def preflight_verdict(stdout: str) -> str | None:
     return None
 
 
-def preflight(model: str, add_dirs: list[str], base: Path) -> None:
-    """Run the real argv once with no key on its own empty config dir; refuse (exit 2) unless the stream passes."""
+def preflight(
+    model: str,
+    add_dirs: list[str],
+    base: Path,
+    argv: list[str] | None = None,
+    tools_csv: str = TOOLS,
+) -> None:
+    """Run the real argv once with no key on its own empty config dir; refuse (exit 2) unless the stream passes.
+
+    ``argv`` is the run's own argv built at the pre-flight budget and one turn (default: this lane's ``build_argv``),
+    and ``tools_csv`` the tool set it must report — the write lane (``api_write.py``) passes its own."""
     raw = os.environ.get("API_CREDIT_PREFLIGHT_TIMEOUT") or str(PREFLIGHT_TIMEOUT_S)
     try:
         timeout = float(raw)
@@ -478,7 +492,9 @@ def preflight(model: str, add_dirs: list[str], base: Path) -> None:
         config = Path(tempfile.mkdtemp(prefix="preflight-", dir=base / "preflight"))
         env = child_env("", config)
         del env["ANTHROPIC_API_KEY"]
-        argv = build_argv(model, PREFLIGHT_BUDGET_USD, 1, add_dirs)
+        argv = (
+            list(argv) if argv is not None else build_argv(model, PREFLIGHT_BUDGET_USD, 1, add_dirs)
+        )
         i = argv.index("--output-format")
         argv[i + 1 : i + 2] = ["stream-json", "--verbose"]
         p = subprocess.run(
@@ -502,7 +518,7 @@ def preflight(model: str, add_dirs: list[str], base: Path) -> None:
     finally:
         if config is not None:
             shutil.rmtree(config, ignore_errors=True)
-    reason = preflight_verdict(p.stdout)
+    reason = preflight_verdict(p.stdout, tools_csv)
     if reason is not None:
         raise RefusalError(2, f"the keyless pre-flight refused the run: {reason} — nothing started")
 
@@ -561,37 +577,18 @@ def cmd_run(a: argparse.Namespace) -> int:
     preflight(a.model, add_dirs, base)
     requested = a.budget if a.budget is not None else DEFAULT_BUDGET_USD
     run = uuid.uuid4().hex
-    with open_ledger() as txn:
-        validate(txn)
-        t = tally(txn.rows)
-        names = [k for k in sorted(KEY_ENV) if keys.get(k)] if a.pick else [a.key]
-        if not names or not keys.get(names[0]):
-            missing = "every credit key is" if a.pick else f"{KEY_ENV[a.key]} is"
-            raise RefusalError(2, f"{missing} missing or empty in the key file")
-        best = max(
-            names, key=lambda k: (t[k]["available_usd"], -names.index(k))
-        )  # the most room among the keys present; ties by name
-        budget = clamp(t[best]["available_usd"], a.model, requested)
-        if budget < MIN_BUDGET_USD:
-            which = "every key" if a.pick else f"key {best}"
-            raise RefusalError(
-                3,
-                f"{which} is at its cap (available ${t[best]['available_usd']:.2f}; a run needs "
-                f"${MIN_BUDGET_USD:.2f} plus the ${CALL_CEILING_USD[a.model]:.2f} {a.model} call reserve) — nothing started",
-            )
-        txn.append(
-            {
-                "kind": "start",
-                "run": run,
-                "key": best,
-                "model": a.model,
-                "budget": budget,
-                "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
-                "out": str(a.out),
-                "timeout": a.timeout,
-                **_now(),
-            }
-        )
+    best, budget = reserve(
+        keys,
+        None if a.pick else a.key,
+        a.model,
+        requested,
+        run,
+        {
+            "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+            "out": str(a.out),
+            "timeout": a.timeout,
+        },
+    )
     settle: dict = {"kind": "settle", "run": run, "key": best, "cost": None, "source": "run"}
     config_dir = None
     try:
@@ -661,6 +658,44 @@ def cmd_run(a: argparse.Namespace) -> int:
         f"{'ERROR ' + str(settle['subtype']) if is_error else 'ok'} → {a.out}"
     )
     return 1 if is_error else 0
+
+
+def reserve(
+    keys: dict[str, str], key: str | None, model: str, requested: float, run: str, fields: dict
+) -> tuple[str, float]:
+    """Pick the key (``key``, or with ``None`` the one with the most room) and append the run's start row, in ONE
+    flocked transaction with the spend it was computed from; ``fields`` ride on the row. Exit 2 on a missing key,
+    exit 3 when the clamped budget falls below ``MIN_BUDGET_USD``."""
+    with open_ledger() as txn:
+        validate(txn)
+        t = tally(txn.rows)
+        names = [k for k in sorted(KEY_ENV) if keys.get(k)] if key is None else [key]
+        if not names or not keys.get(names[0]):
+            missing = "every credit key is" if key is None else f"{KEY_ENV[key]} is"
+            raise RefusalError(2, f"{missing} missing or empty in the key file")
+        best = max(
+            names, key=lambda k: (t[k]["available_usd"], -names.index(k))
+        )  # the most room among the keys present; ties by name
+        budget = clamp(t[best]["available_usd"], model, requested)
+        if budget < MIN_BUDGET_USD:
+            which = "every key" if key is None else f"key {best}"
+            raise RefusalError(
+                3,
+                f"{which} is at its cap (available ${t[best]['available_usd']:.2f}; a run needs "
+                f"${MIN_BUDGET_USD:.2f} plus the ${CALL_CEILING_USD[model]:.2f} {model} call reserve) — nothing started",
+            )
+        txn.append(
+            {
+                "kind": "start",
+                "run": run,
+                "key": best,
+                "model": model,
+                "budget": budget,
+                **fields,
+                **_now(),
+            }
+        )
+    return best, budget
 
 
 def _write_out(out: Path, text: str) -> bool:

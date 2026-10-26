@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the API-key write lane: disposable writers on the prepaid keys (2026-10-26)
+
+`scripts/api_write.py run` takes a cloud-dispatch brief (`--slug` + `--task-file`, or a `--batch` of `{"slug", "task_file"}`) and runs it with `claude -p --safe-mode`, write tools and `bypassPermissions` on an API key, in a `git clone --shared` of the main checkout under `~/.claude/state/api-write/<run>/` whose `pre-push` hook allows only `refs/heads/claude/<slug>`; the runner then pushes that branch (never forced), settles the cost in `api-credit.jsonl` under the same $200-per-key cap (`lane: write`) and deletes the clone. `--jobs` runs a batch in parallel and `--pick` spreads it across the keys; an existing `origin` branch refuses before spending unless `--force-new`, and a timeout kills the child's whole process group. `api_credit.py` gains `main_checkout()`, `reserve()` and a pre-flight that takes the lane's argv and tool set; its behaviour is unchanged. Docs: `docs/workstation/api-credit.md` § The write lane (D-1247, W-174b8543).
+
 ### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
 
 A session whose env carries `ANTHROPIC_API_KEY` and none of the credentials that could replace it
