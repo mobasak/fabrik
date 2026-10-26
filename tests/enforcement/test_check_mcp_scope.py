@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -286,6 +287,9 @@ def test_the_hermetic_fixture_blinds_git_to_the_users_global_ignore(check, tmp_p
     `$XDG_CONFIG_HOME/git/ignore`, else `$HOME/.config/git/ignore`. A box whose global ignore lists `.mcp.json` would
     make a repo with no rule read as ignored, and decide these tests. The fixture points `XDG_CONFIG_HOME` at an empty
     dir, so a HOME carrying that file changes nothing."""
+    # the fixture's own state, so a runner that exports XDG_CONFIG_HOME cannot hide its loss (review pass 1, F1)
+    xdg = Path(os.environ.get("XDG_CONFIG_HOME", ""))
+    assert xdg.is_relative_to(tmp_path) and xdg.is_dir() and not any(xdg.iterdir()), xdg
     home = tmp_path / "home"
     (home / ".config" / "git").mkdir(parents=True)
     (home / ".config" / "git" / "ignore").write_text(".mcp.json\n")
