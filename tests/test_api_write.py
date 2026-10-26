@@ -304,6 +304,7 @@ def test_the_childs_git_does_not_climb_into_an_enclosing_repository(box: dict) -
     outer = box["tmp"] / "outer"
     _git("init", "-q", str(outer))
     box["env"]["ROTATE_STATE_DIR"] = str(outer / "state")
+    box["env"]["API_WRITE_RUN_ROOT"] = str(outer / "state" / "api-write")
     assert (
         _run(
             box, "--key", "can", "--slug", "t4c", "--task-file", str(_brief(box, "t4c"))
@@ -459,14 +460,53 @@ def test_batch_and_slug_together_or_an_inline_task_refuse(box: dict) -> None:
 
 
 @pytest.mark.parametrize(
-    "under", [".claude/state/api-write", ".claude-fleet/can/api-write", "repo/.claude/x"]
+    "under",
+    [
+        ".claude/state/api-write",
+        ".claude-fleet/can/api-write",
+        "repo/.claude/x",
+        ".Claude/x",
+        "link/api-write",
+    ],
 )
 def test_a_run_root_under_a_claude_dir_refuses_before_anything(box: dict, under: str) -> None:
     """Claude Code denies every Write/Edit under ~/.claude as a settings path, so a child cloned there reads and
-    plans but changes nothing (the first live runs, W-174b8543): refused before any spend."""
-    box["env"] = {**box["env"], "API_WRITE_RUN_ROOT": str(box["tmp"] / under)}
+    plans but changes nothing (the first live runs, W-174b8543): refused before any spend — before the key file is
+    even read (it is missing here, so a later refusal would name it instead). `link` is a symlink into .claude."""
+    (box["tmp"] / ".claude" / "state").mkdir(parents=True)
+    (box["tmp"] / "link").symlink_to(box["tmp"] / ".claude" / "state")
+    box["env"] = {
+        **box["env"],
+        "API_WRITE_RUN_ROOT": str(box["tmp"] / under),
+        "API_CREDIT_ENV_FILE": str(box["tmp"] / "missing.env"),
+    }
     p = _run(box, "--key", "can", "--slug", "t9", "--task-file", str(_brief(box, "t9")))
-    assert p.returncode == 2 and ".claude" in p.stderr and _rows(box) == [] and _calls(box) == []
+    assert p.returncode == 2 and "sits under a .claude directory" in p.stderr
+    assert _rows(box) == [] and _calls(box) == []
+
+
+@pytest.mark.parametrize("raw", ["~/plain-api-write", "rel/x", " "])
+def test_a_relative_run_root_is_refused_or_expanded(box: dict, raw: str) -> None:
+    """A relative value would land under the launch directory; `~` is expanded, the rest refused before any spend."""
+    home = box["tmp"] / "home"
+    box["env"] = {**box["env"], "API_WRITE_RUN_ROOT": raw, "HOME": str(home)}
+    p = _run(box, "--key", "can", "--slug", "t7", "--task-file", str(_brief(box, "t7")))
+    if raw.startswith("~"):
+        assert p.returncode == 0
+        assert Path(_runs(box)[0]["cwd"]).is_relative_to(home / "plain-api-write")
+    elif raw.strip():
+        assert p.returncode == 2 and "is not an absolute path" in p.stderr and _calls(box) == []
+    else:  # blank means unset: the default root
+        assert p.returncode == 0
+        assert Path(_runs(box)[0]["cwd"]).is_relative_to(home / ".cache" / "fabrik" / "api-write")
+
+
+def test_the_default_timeout_outlasts_a_long_round() -> None:
+    """A timed-out run pushes nothing, and a re-ledger round runs past an hour (W-15bb59ea)."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import api_write
+
+    assert api_write.DEFAULT_TIMEOUT_S == 10800
 
 
 def test_the_default_run_root_is_the_users_cache_not_claude_state(box: dict) -> None:

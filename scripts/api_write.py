@@ -116,13 +116,18 @@ def git(*args: str, check: bool = True) -> subprocess.CompletedProcess:
 
 
 def run_root() -> Path:
-    """Where the throwaway clones go. Never under a `.claude*` directory: Claude Code denies every Write and Edit
-    there as a settings path, so a child in such a clone can read and plan but change nothing (the first live runs,
-    W-174b8543)."""
-    root = Path(
-        os.environ.get("API_WRITE_RUN_ROOT") or Path.home() / ".cache" / "fabrik" / "api-write"
-    ).resolve()
-    if any(part.startswith(".claude") for part in root.parts):
+    """Where the throwaway clones go: an absolute path never under a `.claude` or `.claude-*` directory (symlinks
+    resolved, case ignored). Claude Code denies every Write and Edit there as a settings path, so a child in such a
+    clone can read and plan but change nothing (the first live runs, W-174b8543). A relative or `~` value would land
+    under whatever directory the run was launched from, so `~` is expanded and anything still relative is refused."""
+    raw = (os.environ.get("API_WRITE_RUN_ROOT") or "").strip()
+    given = Path(raw).expanduser() if raw else Path.home() / ".cache" / "fabrik" / "api-write"
+    if not given.is_absolute():
+        raise ac.RefusalError(
+            2, f"API_WRITE_RUN_ROOT={raw!r} is not an absolute path — nothing started"
+        )
+    root = given.resolve()
+    if any(p.lower() == ".claude" or p.lower().startswith(".claude-") for p in root.parts):
         raise ac.RefusalError(
             2,
             f"run root {root} sits under a .claude directory, where the child cannot write — nothing started",

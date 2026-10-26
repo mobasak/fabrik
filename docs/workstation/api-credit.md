@@ -148,9 +148,11 @@ Bash and `bypassPermissions`, then with a Bash allow-list — D-1248, D-1249). T
   any file). A gate is an exact command with no shell syntax; anything else is refused before spending.
 - **The runner owns git, and the child has no repository.** Before spending it refuses when `origin` already has
   `claude/<slug>` (unless `--force-new`) or has no `<base>`, clones the main checkout under `<run root>/<run>/`
-  (`API_WRITE_RUN_ROOT`, default `~/.cache/fabrik/api-write`; a root under any `.claude*` directory is refused before
-  spending, because Claude Code denies every Write and Edit under `~/.claude` as a settings path — the first live runs,
-  cloned under `~/.claude/state`, could only read and plan) with the git dir OUTSIDE the work tree
+  (`API_WRITE_RUN_ROOT`, default `~/.cache/fabrik/api-write`, `~` expanded; a relative root, or one under a `.claude`
+  or `.claude-*` directory once symlinks resolve, is refused before spending, because Claude Code denies every Write
+  and Edit under `~/.claude` as a settings path — the first live runs, cloned under `~/.claude/state`, could only read
+  and plan; for the same reason the child can never edit the repo's own tracked `.claude/` files inside the clone, so
+  a brief that must change them is not a write-lane job) with the git dir OUTSIDE the work tree
   (`gitdir/`, beyond `--restricted`'s reach; the work tree's `.git` pointer file is deleted), points `origin` at the
   main checkout's `origin` URL, fetches, and checks out `claude/<slug>` at `origin/<base>`. No worktree of the main
   checkout is made and its refs and index are only read; its objects are hardlinked into `gitdir/` (a full copy would
