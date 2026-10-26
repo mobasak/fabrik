@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added — the nightly chat backup alerts when it fails (W-36687f76, 2026-10-24)
+### Added — the nightly chat backup alerts when it fails (W-36687f76, D-1265, 2026-10-27)
 `session-archive.service` failed silently: no `OnFailure=` existed, its `-` steps (sampler, pruner, rotation mail) fail
 with nothing logged, and the archiver exits 0 on a partial night. New `scripts/sysadmin/session_archive_alert.py` mails
 infra (ack required) and the coordinator (ack no): `failed`, run once by the new `session-archive-alert.service` after the
