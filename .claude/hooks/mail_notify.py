@@ -131,7 +131,8 @@ def _map_marker(fm: dict) -> str:
 def _summaries(inbox: Path, cap: int = _FLOOD_CAP) -> list[str]:
     if not inbox.is_dir():
         return []
-    files = sorted(inbox.glob("*.md"))  # dot-prefixed .tmp orphans excluded
+    # pathlib's glob matches a dot-name, so skip it here as the header total and mail.py list do
+    files = sorted(f for f in inbox.glob("*.md") if not f.name.startswith("."))
     valid: list[tuple[dict, str]] = []
     scanned = 0
     for f in files:

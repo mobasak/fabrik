@@ -130,6 +130,18 @@ def test_summary_forged_from_with_controls_neutralized(tmp_path):
     assert "ev\x1bil/../x" not in line  # invalid from -> not rendered as a field
 
 
+def test_summary_skips_dot_named_files_as_the_header_count_does(tmp_path):
+    # pathlib's glob("*.md") matches a dot-name; the header total and mail.py list skip one, so the
+    # digest must too — an editor swap file is neither a row nor part of the "+N more" count
+    inbox = tmp_path / "inbox"
+    for i in range(4):
+        _write_msg(inbox, f"01MSG{i:02d}")
+    (inbox / ".01MSG00.md.swp.md").write_text((inbox / "01MSG00.md").read_text())
+    lines = hook._summaries(inbox, cap=1)
+    assert len([x for x in lines if x.startswith("[untrusted")]) == 1
+    assert lines[-1].startswith("+3 more")
+
+
 def test_summary_skips_malformed(tmp_path):
     inbox = tmp_path / "inbox"
     inbox.mkdir(parents=True)

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the mail digest no longer lists a dot-named inbox file the header count skips (2026-10-26)
+
+- `.claude/hooks/mail_notify.py::_summaries` built its rows and its "+N more" count from `inbox.glob("*.md")`, which
+  in Python matches a dot-name, while the header total and `mail.py list` skip one; an editor swap file showed as the
+  top row and inflated "+N more". The digest now skips dot-names too; `tests/test_mail_notify.py` pins it (W-f3039837).
+
 ### Fixed — Ocoron brand guide: the legal entity is Ocoron Dış Ticaret Limited Şirketi; Kalite Pusulası added (2026-10-26)
 
 - W-c0080a4b, D-1250, an operator order relayed from web-ecommerce-factory. In
