@@ -137,9 +137,6 @@ def _hook(payload: dict, *, state: Path, runs: Path | None = None, extra_env=Non
     tick.write_text("tick: ok\n")
     env["QUOTA_STOP_TICK_LOG"] = str(tick)
     env.pop("QUOTA_STOP_TICK_STALE_S", None)
-    # hermetic: an API-key session is exempt from the band's hold (W-effb7141)
-    env.pop("ANTHROPIC_API_KEY", None)
-    env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
     if runs is not None:
         env["COMMAND_RUN_DIR"] = str(runs)
     env.update(extra_env or {})
@@ -1627,3 +1624,22 @@ def test_red_does_not_hold_an_api_key_session(tmp_path):
         extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_OAUTH_TOKEN": "t"},
     )
     assert json.loads(p.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+
+@pytest.mark.parametrize(
+    "line2,free", [("urgent-90", True), ("battery", False), ("bogus", False)]
+)
+def test_the_prompt_line_tells_an_api_key_session_it_is_not_held(tmp_path, line2, free):
+    """An obedient builder parks on the prompt line's CHECKPOINT clause, so a session the hold
+    does not bind is told so instead — never at the battery hold or an unknown tier."""
+    state = tmp_path / "state"
+    _posture(state, band="RED", successor=None)
+    (state / "fleet-exhausted").write_text(f"1\n{line2}\n", encoding="utf-8")
+    ups = {"hook_event_name": "UserPromptSubmit"}
+    out = _hook(ups, state=state, extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"}).stdout
+    assert ("Anthropic API key" in out) is free, out
+    if free:
+        assert "CHECKPOINT" not in out, out
+    plan = _hook(ups, state=state).stdout
+    assert "Anthropic API key" not in plan

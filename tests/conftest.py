@@ -239,6 +239,15 @@ def _isolated_print_mode(tmp_path, _private_monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_api_key_session(_private_monkeypatch):
+    """The quota hooks exempt a session on an Anthropic API key (W-effb7141), so a suite run from
+    such a session would see every hold lifted and every hold grader go falsely red. One autouse
+    pin: both auth variables removed; a test that wants an API-key session sets them after this."""
+    for name in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"):
+        _private_monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _isolated_kaizen_events_dir(tmp_path, _private_monkeypatch):
     """Five tests built their own `dict(os.environ, …)` without `KAIZEN_EVENTS_DIR`, so a suite
     run wrote fabricated round/run events into the operator's REAL per-session events log under
