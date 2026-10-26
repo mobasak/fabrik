@@ -620,10 +620,15 @@ def test_the_units_wire_the_alert_and_verify():
     # night), less the timer's random delay and its accuracy window (systemd.timer: AccuracySec= defaults to 1min,
     # RandomizedDelaySec= to 0) — e.g. 00:15:59 one night, 00:00 the next
     timer = _sections("session-archive.timer")["[Timer]"]
+    assert [v for v in timer if v.startswith("OnCalendar=")] == ["OnCalendar=daily"], (
+        "the 23 h gap assumes one start a day"
+    )
 
     def _timer_s(key: str, default: str) -> float:
         vals = [v.split("=", 1)[1] for v in timer if v.startswith(f"{key}=")]
-        return _seconds(vals[-1] if vals else default)
+        return _seconds(
+            (vals[-1] if vals else "") or default
+        )  # an empty assignment resets to the default
 
     shortest_gap = 23 * 3600 - _timer_s("RandomizedDelaySec", "0") - _timer_s("AccuracySec", "1min")
     assert interval_s < shortest_gap, (
