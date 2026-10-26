@@ -10,7 +10,7 @@ entries:
     This is a LOOP that runs until no issues remain to raise AND every class is proven hunted — two conditions, BOTH required, neither sufficient alone
   text:
   - |-
-    The loop runs until no issues remain to raise AND every class is proven hunted — two conditions, BOTH required, neither sufficient alone
+    The loop runs until no issues remain to raise AND every class is proven hunted — two conditions, BOTH required, neither sufficient alone: the exit needs BOTH
 - id: tc-u11-prior-surface-comparable
   class: prose
   file: commands/_fragments/term-coverage.md
@@ -39,21 +39,18 @@ entries:
     Persist (one exception, the ⚠️ below: `/fabrik-review` over work whose fixes are COMMITTED during the review writes a DRAFT now, its `--init` given `--out` into the run's `SCRATCH:` folder (the session scratchpad when `start` printed none), and the receipt only after the last fix commit; every other review and command creates the receipt NOW): create `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` NOW, with the `Surface:` hash line and the Coverage Checklist skeleton — in `/fabrik-review` (the one diff surface below), `python scripts/review_receipt.py --init --changed <paths> --scope <slug>` writes it, with `--range <base>..HEAD` for committed work (without it a committed surface exits empty): obligation 2's rubric pasted, one Hunt row per changed path, the standing rows, the ledger, `## Per-phase verdicts` and Gate sections
   text:
   - |-
-    Persist (one exception, the ⚠️ below: `/fabrik-review` over work whose fixes are COMMITTED during the review (the `/fabrik-task` after-commit form) writes a DRAFT before Pass 1, its `--init` given `--out` into the run's `SCRATCH:` folder (the session scratchpad when `start` printed none), and the receipt only after the last fix commit; every other review and command creates the receipt NOW): create `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` NOW, with the `Surface:` hash line and the Coverage Checklist skeleton — in `/fabrik-review` (the one diff surface below), `python scripts/review_receipt.py --init --changed <paths> --scope <slug>` writes it, with `--range <base>..HEAD` for committed work (without it a committed surface exits empty): obligation 2's rubric pasted, one Hunt row per changed path, the standing rows, the ledger, `## Per-phase verdicts` and Gate sections
+    Persist (one exception, the ⚠️ below: `/fabrik-review` over work whose fixes are COMMITTED during the review writes a DRAFT now, its `--init` given `--out` into the run's `SCRATCH:` folder (the session scratchpad when `start` printed none), and the receipt only after the last fix commit; every other review and command creates the receipt NOW): create `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` NOW, with the `Surface:` hash line and the Coverage Checklist skeleton — in `/fabrik-review` (the one diff surface below), `python scripts/review_receipt.py --init --changed <paths> --scope <slug>` writes it, with `--range <base>..HEAD` for committed work (without it a committed surface exits empty): obligation 2's rubric pasted, one Hunt row per changed path, the standing rows, the ledger, `## Per-phase verdicts` and Gate sections
   pins:
   - tests/test_review_queue_pass.py::test_obligation_three_names_the_committed_fix_form_where_it_starts
 - id: tc-u16-form-makes-later
   class: ban
-  clauses:
-    2:
-      duplicate-of: tc-u14-persist-exception-below
   file: commands/_fragments/term-coverage.md
   section: '## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)'
   baseline: |-
     ⚠️ One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review (the `/fabrik-task` after-commit form): every fix commit moves the range tip, so the receipt is made ONCE, after the last fix commit. Before Pass 1 that form writes the same generated skeleton as a DRAFT instead — `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <SCRATCH>/<scope>-receipt-draft.md` (the run's `SCRATCH:` folder; the session scratchpad when `start` printed none, its path named in the Pass-1 row) — and keeps the checklist, Pass Ledger and `## Residual` rows in it as the passes go; at the close — after the last fix commit and a `final_gate.py --check --json` run that forced none — `review_receipt.py --init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last fix commit>` writes the receipt under `docs/development/reviews/` once, its rows carried from the draft, and a class row the late rubric adds that the draft lacked is a hunt still owed, never carried `CLEAN`; then the close ORDER of `/fabrik-review` § Reporting runs on it
   text:
   - |-
-    ⚠️ One form makes it later — its DRAFT is `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <SCRATCH>/<scope>-receipt-draft.md` (the run's `SCRATCH:` folder; the session scratchpad when `start` printed none, its path named in the Pass-1 row), which keeps the checklist, Pass Ledger and `## Residual` rows; at the close — after the last fix commit and a `final_gate.py --check --json` run that forced none — `review_receipt.py --init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last fix commit>` writes the receipt under `docs/development/reviews/` once, its rows carried from the draft, and a class row the late rubric adds that the draft lacked is a hunt still owed, never carried `CLEAN`; then the close ORDER of `/fabrik-review` § Reporting runs on it
+    ⚠️ One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review (the `/fabrik-task` after-commit form): every fix commit moves the range tip, so the receipt is made ONCE, after the last fix commit. Before Pass 1 that form writes the same generated skeleton as a DRAFT instead — `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <SCRATCH>/<scope>-receipt-draft.md` (the run's `SCRATCH:` folder; the session scratchpad when `start` printed none, its path named in the Pass-1 row) — and keeps the checklist, Pass Ledger and `## Residual` rows in it as the passes go; at the close — after the last fix commit and a `final_gate.py --check --json` run that forced none — `review_receipt.py --init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last fix commit>` writes the receipt under `docs/development/reviews/` once, its rows carried from the draft, and a class row the late rubric adds that the draft lacked is a hunt still owed, never carried `CLEAN`; then the close ORDER of `/fabrik-review` § Reporting runs on it
   pins:
   - tests/test_review_queue_pass.py::test_a_review_whose_fixes_are_committed_makes_its_receipt_once
   - tests/test_review_queue_pass.py::test_obligation_three_names_the_committed_fix_form_where_it_starts
@@ -163,15 +160,13 @@ entries:
   - tests/test_review_scoped_queue_pass.py::test_a_probed_count_is_never_replaced_by_a_seats_re_derivation
 - id: tc-u35-cobra-d-253
   class: ban
-  clauses:
-    2: narrative
   file: commands/_fragments/term-coverage.md
   section: '## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)'
   baseline: |-
     ⚠️ COBRA (D-253): the cheap way to satisfy this without doing it is to write corrections carrying no checkable claims at all, so the obligation is discharged EQUALLY by DELETING an unverifiable claim — the cheap path and the compliant path are the same one, and `denominator-honesty` already forbids a count without its population, so vagueness buys nothing either; (2) THE PRE-PIN SWEEP IS A COMMAND — `python3 scripts/enforcement/check_review_hygiene.py --surface <pin> --claim <term>` lists every line of the pinned surface where a rewritten claim's literal term occurs (case- and wrap-tolerant; a directory surface walks only its `.md` and `.py` files); a mirror outside the pin or in other words is not in that list, so also grep the repo for the term and two rewordings of the claim, and read each site before the pin and APPEND `· mirrors: <n> read` to that row's `method:` cell after its re-derivation text (a `claim` row pasted into the receipt is dispositioned `RECORDED — measured (<n> mirrors read)`, never FIXED); (3) TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE — when two consecutive delta rounds confirm only defects inside the previous round's hunks, or one SITE — the smallest enclosing unit: a sentence, bullet item or table row, or a function or top-level statement — yields an own-fix defect in two consecutive delta rounds, whatever else those rounds found (each such finding row cites `site: <a quotable anchor>`), the next edit rewrites the affected paragraph or function from the probe's output in ONE batch instead of a third patch, first asking whether the yielding site, or a branch or clause in it, can be deleted outright (a deletion is that rewrite), since a deletion ends the residue and a re-cut restarts it, and the row's method cell APPENDS `; class rewrite — <site or paragraph> (rounds k, k+1)`; when that residue is itself a sentence that RESTATES, COUNTS or PARTITIONS what another artifact owns, the rewrite is a DELETION — the sentence goes, replaced by at most a pointer to where the fact is re-derivable (each pointer OPENED before the pin and the fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim; a sentence left in place with a citation appended is not a deletion, and is the cheapest way to look compliant while the restatement goes on drifting; a function under review that picks ONE item from a list by heuristic (a first match, a reason line taken from a log) takes this rule's ONE-batch rewrite at the first delta round in which its site yields an own-fix defect, recast, when it is not deleted, as the whole list filtered by a noise rule probed against the list's live population like any matcher above, with a single pick taken from the filtered list where its callers need one, and its row's method cell appends `; class rewrite — <site> (round k)`; a second yield at that site without the rewrite is already the foundation error the next clause names for a third residue pass; a third residue pass without a rewrite is the non-convergence breaker's foundation error, named in the `## BLOCKED` question, while the rewrite counts as one more fix attempt on each claim it answers, so a claim that survives it is paused under the per-finding BLOCKED escalation once its own count reaches three consecutive attempts, and looping continues; the scope-growth stop below takes over from the FIRST round at which it applies — the first whose `round` prints `SCOPE GROWTH —` or `SCOPE GROWTH (in-lane)`, never `SCOPE GROWTH UNCOMPUTABLE`, and for a command `round` never prints it for, rule (3) governs throughout: a rewrite triggered in or before that round is still owed before the CLOSING round and is the one own-fix item the backlog exit does not take — a rewrite emits new text, new text is in-hunk, and the closing round must read `md5(start) == md5(end)`; any later yield, at a new site or a rewritten one, goes to the stop's exit
   text:
   - |-
-    COBRA (D-253): the cheap way to satisfy this without doing it is to write corrections carrying no checkable claims, so DELETING an unverifiable claim discharges the obligation EQUALLY; (2) THE PRE-PIN SWEEP IS A COMMAND — `python3 scripts/enforcement/check_review_hygiene.py --surface <pin> --claim <term>` lists every line of the pinned surface where a rewritten claim's literal term occurs (case- and wrap-tolerant; a directory surface walks only its `.md` and `.py` files); a mirror outside the pin or in other words is not in that list, so also grep the repo for the term and two rewordings of the claim, and read each site before the pin and APPEND `· mirrors: <n> read` to that row's `method:` cell after its re-derivation text (a `claim` row pasted into the receipt is dispositioned `RECORDED — measured (<n> mirrors read)`, never FIXED); (3) TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE — when two consecutive delta rounds confirm only defects inside the previous round's hunks, or one SITE — the smallest enclosing unit: a sentence, bullet item or table row, or a function or top-level statement — yields an own-fix defect in two consecutive delta rounds, whatever else those rounds found (each such finding row cites `site: <a quotable anchor>`), the next edit rewrites the affected paragraph or function from the probe's output in ONE batch instead of a third patch, first asking whether the yielding site, or a branch or clause in it, can be deleted outright (a deletion is that rewrite), since a deletion ends the residue and a re-cut restarts it, and the row's method cell APPENDS `; class rewrite — <site or paragraph> (rounds k, k+1)`; when that residue is itself a sentence that RESTATES, COUNTS or PARTITIONS what another artifact owns, the rewrite is a DELETION — the sentence goes, replaced by at most a pointer to where the fact is re-derivable (each pointer OPENED before the pin and the fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim; a sentence left in place with a citation appended is not a deletion; a function under review that picks ONE item from a list by heuristic takes this rule's ONE-batch rewrite at the first delta round in which its site yields an own-fix defect, recast, when it is not deleted, as the whole list filtered by a noise rule probed against the list's live population like any matcher above, with a single pick taken from the filtered list where its callers need one, and its row's method cell appends `; class rewrite — <site> (round k)`; a second yield at that site without the rewrite is already the foundation error the next clause names for a third residue pass; a third residue pass without a rewrite is the non-convergence breaker's foundation error, named in the `## BLOCKED` question, while the rewrite counts as one more fix attempt on each claim it answers, so a claim that survives it is paused under the per-finding BLOCKED escalation once its own count reaches three consecutive attempts, and looping continues; the scope-growth stop below takes over from the FIRST round at which it applies — the first whose `round` prints `SCOPE GROWTH —` or `SCOPE GROWTH (in-lane)`, never `SCOPE GROWTH UNCOMPUTABLE`, and for a command `round` never prints it for, rule (3) governs throughout: a rewrite triggered in or before that round is still owed before the CLOSING round and is the one own-fix item the backlog exit does not take — a rewrite emits new text, new text is in-hunk, and the closing round must read `md5(start) == md5(end)`; any later yield, at a new site or a rewritten one, goes to the stop's exit
+    COBRA (D-253): the cheap way to satisfy this without doing it is to write corrections carrying no checkable claims at all, so the obligation is discharged EQUALLY by DELETING an unverifiable claim — the cheap path and the compliant path are the same one, and `denominator-honesty` already forbids a count without its population, so vagueness buys nothing either; (2) THE PRE-PIN SWEEP IS A COMMAND — `python3 scripts/enforcement/check_review_hygiene.py --surface <pin> --claim <term>` lists every line of the pinned surface where a rewritten claim's literal term occurs (case- and wrap-tolerant; a directory surface walks only its `.md` and `.py` files); a mirror outside the pin or in other words is not in that list, so also grep the repo for the term and two rewordings of the claim, and read each site before the pin and APPEND `· mirrors: <n> read` to that row's `method:` cell after its re-derivation text (a `claim` row pasted into the receipt is dispositioned `RECORDED — measured (<n> mirrors read)`, never FIXED); (3) TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE — when two consecutive delta rounds confirm only defects inside the previous round's hunks, or one SITE — the smallest enclosing unit: a sentence, bullet item or table row, or a function or top-level statement — yields an own-fix defect in two consecutive delta rounds, whatever else those rounds found (each such finding row cites `site: <a quotable anchor>`), the next edit rewrites the affected paragraph or function from the probe's output in ONE batch instead of a third patch, first asking whether the yielding site, or a branch or clause in it, can be deleted outright (a deletion is that rewrite), since a deletion ends the residue and a re-cut restarts it, and the row's method cell APPENDS `; class rewrite — <site or paragraph> (rounds k, k+1)`; when that residue is itself a sentence that RESTATES, COUNTS or PARTITIONS what another artifact owns, the rewrite is a DELETION — the sentence goes, replaced by at most a pointer to where the fact is re-derivable (each pointer OPENED before the pin and the fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim; a sentence left in place with a citation appended is not a deletion, and is the cheapest way to look compliant while the restatement goes on drifting; a function under review that picks ONE item from a list by heuristic (a first match, a reason line taken from a log) takes this rule's ONE-batch rewrite at the first delta round in which its site yields an own-fix defect, recast, when it is not deleted, as the whole list filtered by a noise rule probed against the list's live population like any matcher above, with a single pick taken from the filtered list where its callers need one, and its row's method cell appends `; class rewrite — <site> (round k)`; a second yield at that site without the rewrite is already the foundation error the next clause names for a third residue pass; a third residue pass without a rewrite is the non-convergence breaker's foundation error, named in the `## BLOCKED` question, while the rewrite counts as one more fix attempt on each claim it answers, so a claim that survives it is paused under the per-finding BLOCKED escalation once its own count reaches three consecutive attempts, and looping continues; the scope-growth stop below takes over from the FIRST round at which it applies — the first whose `round` prints `SCOPE GROWTH —` or `SCOPE GROWTH (in-lane)`, never `SCOPE GROWTH UNCOMPUTABLE`, and for a command `round` never prints it for, rule (3) governs throughout: a rewrite triggered in or before that round is still owed before the CLOSING round and is the one own-fix item the backlog exit does not take — a rewrite emits new text, new text is in-hunk, and the closing round must read `md5(start) == md5(end)`; any later yield, at a new site or a rewritten one, goes to the stop's exit
   forbidden:
   - a heuristic that SELECTS
   pins:
@@ -222,6 +217,15 @@ entries:
   text:
   - |-
     Mechanical gates are green (`final_gate`) — do not spend finder passes re-discovering what a gate catches
+- id: tc-u66-forged-evidence
+  class: prose
+  file: commands/_fragments/term-coverage.md
+  section: '## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)'
+  baseline: |-
+    Forged evidence is worse than an honest non-quiet exit, because the gates machine-read these rows
+  text:
+  - |-
+    Forged evidence is worse than an honest non-quiet exit, because the gates machine-read these rows
 - id: tc-u68-accuracy-run-s
   class: ban
   file: commands/_fragments/term-coverage.md
@@ -238,7 +242,7 @@ entries:
     and a pass that would overrun the budget `start` declares (D-335, built in D-339) closes with `handoff`, its failing slices and their claims named in the ledger
   text:
   - |-
-    a pass that would overrun it closes with `handoff`, its failing slices and their claims named in the ledger, never runs on
+    once `command_run.py start` declares the budget (D-335, built in D-339), a pass that would overrun it closes with `handoff`, its failing slices and their claims named in the ledger, never runs on
 - id: tc-u70-slice-handed-capped
   class: ban
   file: commands/_fragments/term-coverage.md
@@ -258,15 +262,13 @@ entries:
   - tests/test_review_queue_pass.py::test_a_scope_growth_remainder_round_restates_every_slice
 - id: tc-u80-stop-scope-outstanding
   class: ban
-  clauses:
-    2: narrative
   file: commands/_fragments/term-coverage.md
   section: '## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)'
   baseline: |-
     ⚠️ The stop is on SCOPE, never on an outstanding defect. The superseded EQUALITY bar made "the surface is quiet" a theorem — `own-fix == confirmed` meant zero original-surface defects by construction
   text:
   - |-
-    The stop is on SCOPE, never on an outstanding defect. The superseded EQUALITY bar made "the surface is quiet" a theorem
+    The stop is on SCOPE, never on an outstanding defect. The superseded EQUALITY bar made "the surface is quiet" a theorem — `own-fix == confirmed` meant zero original-surface defects by construction
 - id: tc-u82-stop-suspends-new
   class: ban
   clauses:
@@ -292,16 +294,13 @@ entries:
     COBRA (D-253): the cheapest dodge is to hold residue findings back so qualifying rounds never fall together
 - id: tc-u88-own-fix-evidenced
   class: ban
-  clauses:
-    1: narrative
-    2: narrative
   file: commands/_fragments/term-coverage.md
   section: '## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)'
   baseline: |-
     The MIRROR dodge is to over-classify — calling an original-surface defect own-fix both trips the stop sooner and buys it the backlog exit — so own-fix is EVIDENCED, never asserted: each finding's row cites the round whose fix hunk contains the line (`own-fix: round k`), checkable against that round's md5 pair
   text:
   - |-
-    Own-fix is EVIDENCED, never asserted: each finding's row cites the round whose fix hunk contains the line (`own-fix: round k`), checkable against that round's md5 pair
+    The MIRROR dodge is to over-classify — calling an original-surface defect own-fix both trips the stop sooner and buys it the backlog exit — so own-fix is EVIDENCED, never asserted: each finding's row cites the round whose fix hunk contains the line (`own-fix: round k`), checkable against that round's md5 pair
 - id: tc-u90-stall-breaker-cannot
   class: prose
   clauses:
@@ -332,7 +331,7 @@ vanished:
   L52: {rule: [tc-u52-unchecked-rows]}
   L59: {rule: [tc-u59-mechanical-gates-green]}
   L64: narrative
-  L66: narrative
+  L66: {rule: [tc-u66-forged-evidence]}
   L70: {rule: [tc-u70-slice-handed-capped, tc-u70-pass-overrun-budget, tc-u68-accuracy-run-s]}
   L80: {rule: [tc-u80-stop-scope-outstanding]}
   L81: narrative

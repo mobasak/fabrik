@@ -230,3 +230,25 @@ Cause of the 75 LOSS lines: the 92 entries' `baseline:` fields had lost their `;
 - **Failure sets** (reader-test run, spine § Global Constraints, 7 of the 8 commands; the 8th names `tests/test_term_coverage_round_zero.py`, deleted by T03a, so it errors on a missing file at the start commit and now): start = end: group 1 13 failed (`test_assemble_dispatch_step.py`, the installed-tree and orphan tests), group 2 1 (`test_assemble_orch_retired.py`, no git repo in the clone), group 3 2 (`test_command_measure.py::test_check_exit_order_loss_then_ceiling_then_drift`, `test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box`), groups 4, 5, 6, 7 green. `tests/test_command_rules.py` fails only on other units' ledgers. The set did not grow.
 - **Self-audit**: no subagent could be dispatched in this run, so the pass below is the author's own line-by-line read of the baseline file, the rewrite and the ledger, **not a fresh subagent**; the hub's author-blind audit pair covers it. It fixed, before the zero count: the inserted parenthetical in u14 (a ban-span break); u16 clause 2 (a duplicate label whose target lacked `Pass 1`); u24 clause 2 (a ban word inside a parenthetical I had first compressed); u26 clause 2 (lost anchor `git diff HEAD`); u35 clause 1 (5 of 8 stems); u50 (tail inside a ban span; L50 now survives exactly, so its label is gone); u36 (the narrative label moves from clause 10 to 9 under the canonical split); u70 (split into the HANDED OFF entry and the budget pointer, so no duplicate label needs an anchor the target lacks); L19 (restored, not labelled); L89 (relabelled narrative).
 COUNTS: 30 entries read / 23 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels (own pass, not a fresh subagent)
+
+## Fix round 2 (hub audit)
+Findings checked against the baseline lines (`term-coverage.baseline.txt`). 7 confirmed, 0 refuted; each fixed in `term-coverage.md` and its ledger entry.
+
+| finding | verdict | fix |
+|---|---|---|
+| A1.1 / H1 `tc-u35-cobra-d-253`: `denominator-honesty` ban, "cheap path and the compliant path", "cheapest way to look compliant", "(a first match, a reason line taken from a log)" | confirmed (baseline: "`denominator-honesty` already forbids a count without its population") | the three spans restored verbatim; the `clauses: 2: narrative` label removed |
+| A1.2 / H4 `tc-u16-form-makes-later`: `/fabrik-review`, `/fabrik-task`, "made ONCE, after the last fix commit", "as the passes go" | confirmed | the baseline's opening sentence and the "in it as the passes go" tail restored |
+| A1.3 `tc-u16` `duplicate-of` label | confirmed (the `--lane --range … --out` command is in no other entry) | label removed; the clause is carried by the entry's own text |
+| A1.4 `tc-u14`: "now" became "before Pass 1" | confirmed (reworded timing, and the moved `/fabrik-task` parenthetical) | baseline wording "writes a DRAFT now" restored, parenthetical back in u16 |
+| A1.5 `tc-u88-own-fix-evidenced`: MIRROR dodge labelled narrative | confirmed (it names a forbidden over-classification) | the sentence restored verbatim, labels removed |
+| H2 `tc-u80`: `own-fix == confirmed` dropped, capital "So" after the dash | confirmed | the anchor clause restored; the dash and "So" now read as two sentences |
+| H3 `L66` "Forged evidence is worse than an honest non-quiet exit" | confirmed (a preference the agent follows) | new entry `tc-u66-forged-evidence`; L66 is `rule` |
+
+Master loader (D-1258) LOSS on `_shared/term-coverage.yaml`: L5 ("The exit needs BOTH:") is now carried by `tc-u02`, whose sentence ends "the exit needs BOTH"; L70 clause 3 is carried by `tc-u70-pass-overrun-budget`, whose text is now the full budget sentence with `start` and D-335/D-339. `tests/test_command_rules.py -rP` prints no term-coverage LOSS line (LEDGER `31 entries`, vanished rule 23 / duplicate-of 1 / narrative 3); the 717 remaining LOSS items belong to the T01d `_shared` ledgers.
+
+Own-text words (`wc`/`own_text` could not be run here, so the last two figures are the 5673 count plus the words added, about +160, an estimate): baseline 6109 -> re-ledger 5673 -> now about 5835 (about 95.5%). The 50% target is still not met; the floor table above stands, and every word added this round restores an anchor, a ban object or an instruction line.
+
+Gates: the reader-test group `test_review_command_text_defects`, `test_review_loop_workflow`, `test_review_queue_pass`, `test_review_receipt`, `test_review_scoped_queue_pass`, `test_run_scratch_brief_wording` passes (exit 0). `assemble_commands.py --check` exits 4 with only DIFFERS/MISSING drift and `_shared` LOSS lines of other units.
+
+Self-audit: no subagent can be dispatched in this run, so no fresh pass ran; the hub's author-blind audit pair covers it. I re-read the seven restored spans against the baseline line by line; that is the author's own re-check, not a fresh pass.
+COUNTS: entries read 31 / reworded 22 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 (own re-check; 0 fresh passes ran)
