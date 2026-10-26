@@ -99,13 +99,14 @@ entries:
   current: 'Existing-project (retrofit) runs carry two more sections — extract both:'
   text:
   - 'Existing-project (retrofit) runs carry two more sections — extract both:'
-- id: u-L18
+- id: r-L18
   file: render
   section: '## Phase 0 — Consume the confirmed Vision Summary'
+  class: prose
   baseline: Locked Decisions — technology choices that cannot change (auth, database, frontend, current shape block, plus whatever the Vision's own `[etc.]` bullet adds — read what actually arrived, the section is extensible)
-  current: Locked Decisions — technology choices that cannot change (auth, database, frontend, current shape block, plus whatever the Vision's own `[etc.]` bullet adds — read what actually arrived, the section is extensible)
+  current: Locked Decisions — technology choices that cannot change (auth, database, frontend, current shape block, plus whatever the Vision's `[etc.]` bullet adds)
   text:
-  - Locked Decisions — technology choices that cannot change (auth, database, frontend, current shape block, plus whatever the Vision's own `[etc.]` bullet adds — read what actually arrived, the section is extensible)
+  - Locked Decisions — technology choices that cannot change (auth, database, frontend, current shape block, plus whatever the Vision's `[etc.]` bullet adds)
 - id: u-L20
   file: render
   section: '## Phase 0 — Consume the confirmed Vision Summary'
@@ -225,13 +226,6 @@ entries:
   current: ≤2 epics usually means the vision belongs in a single `/fabrik-spec` run instead — unless a legitimate 2-epic split was forced by 2+ oversized features, which is not a mis-split
   text:
   - ≤2 epics usually means the vision belongs in a single `/fabrik-spec` run instead — unless a legitimate 2-epic split was forced by 2+ oversized features, which is not a mis-split
-- id: u-L47
-  file: render
-  section: '### 1b. Apply boundary rules'
-  baseline: Every feature from the inventory maps to EXACTLY one epic — no feature in two epics, none orphaned
-  current: Every feature from the inventory maps to EXACTLY one epic — no feature in two epics, none orphaned
-  text:
-  - Every feature from the inventory maps to EXACTLY one epic — no feature in two epics, none orphaned
 - id: u-L48
   file: render
   section: '### 1b. Apply boundary rules'
@@ -652,13 +646,6 @@ entries:
   current: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
   text:
   - 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
-- id: u-L136
-  file: render
-  section: '## Phase 2 — Draft Infrastructure Decisions'
-  baseline: 'Canonical: `62-using-subagents.md` § Dispatch policy'
-  current: 'Canonical: `62-using-subagents.md` § Dispatch policy'
-  text:
-  - 'Canonical: `62-using-subagents.md` § Dispatch policy'
 - id: u-L139
   file: render
   section: '## Phase 3 — Pre-checkpoint self-audit (fresh eyes, before you present)'
@@ -827,13 +814,15 @@ entries:
   current: 'Iterate until confirmed: feature moved between epics → update both entries, re-check dependencies and coverage; epic added/removed → re-validate coverage; execution order changed → update the graph; Infrastructure Decisions adjusted → update the document'
   text:
   - 'Iterate until confirmed: feature moved between epics → update both entries, re-check dependencies and coverage; epic added/removed → re-validate coverage; execution order changed → update the graph; Infrastructure Decisions adjusted → update the document'
-- id: u-L175
+- id: r-L175
   file: render
   section: '## Phase 4 — Checkpoint: present, then confirm'
+  class: prose
+  clauses: {3: narrative}
   baseline: 'On confirmation, state: `"Epic proposal and Infrastructure Decisions confirmed. Writing epic files now."` — and continue directly into Phase 5 in this SAME run; there is no hand-off to a second command'
-  current: 'On confirmation, state: `"Epic proposal and Infrastructure Decisions confirmed. Writing epic files now."` — and continue directly into Phase 5 in this SAME run; there is no hand-off to a second command'
+  current: 'On confirmation, state: `"Epic proposal and Infrastructure Decisions confirmed. Writing epic files now."` — and continue directly into Phase 5 in this SAME run'
   text:
-  - 'On confirmation, state: `"Epic proposal and Infrastructure Decisions confirmed. Writing epic files now."` — and continue directly into Phase 5 in this SAME run; there is no hand-off to a second command'
+  - 'On confirmation, state: `"Epic proposal and Infrastructure Decisions confirmed. Writing epic files now."` — and continue directly into Phase 5 in this SAME run'
 - id: u-L179
   file: render
   section: '## Phase 5 — Adjudicate cross-field consistency, then persist Infrastructure Decisions'
@@ -841,13 +830,15 @@ entries:
   current: 5a
   text:
   - 5a
-- id: u-L182
+- id: r-L182
   file: render
   section: '## Phase 5 — Adjudicate cross-field consistency, then persist Infrastructure Decisions'
+  class: prose
+  clauses: {2: narrative}
   baseline: 'Before dispatching: YOU open `PORTS.md` and `ls` every rule-pack path named in the proposal, and inline those findings into each unit''s task — a fact you didn''t inline is a fact it will hallucinate'
-  current: 'Before dispatching: YOU open `PORTS.md` and `ls` every rule-pack path named in the proposal, and inline those findings into each unit''s task — a fact you didn''t inline is a fact it will hallucinate'
+  current: 'Before dispatching: YOU open `PORTS.md` and `ls` every rule-pack path named in the proposal, and inline those findings into each unit''s task'
   text:
-  - 'Before dispatching: YOU open `PORTS.md` and `ls` every rule-pack path named in the proposal, and inline those findings into each unit''s task — a fact you didn''t inline is a fact it will hallucinate'
+  - 'Before dispatching: YOU open `PORTS.md` and `ls` every rule-pack path named in the proposal, and inline those findings into each unit''s task'
 - id: u-L183
   file: render
   section: '## Phase 5 — Adjudicate cross-field consistency, then persist Infrastructure Decisions'
@@ -967,13 +958,14 @@ entries:
   current: 'Ticket Title: `Epic N — [Name]`'
   text:
   - 'Ticket Title: `Epic N — [Name]`'
-- id: u-L205
+- id: r-L205
   file: render
   section: '## Phase 6 — Write the epic ticket files'
+  class: prose
   baseline: 'Ticket frontmatter (REQUIRED, per `EPIC-ARTIFACT-SCHEMA.md`) — one data model read by `scripts/epic_order.py` (integrity + phased ordering) and, once assigned, by whichever agent claims the epic:'
-  current: 'Ticket frontmatter (REQUIRED, per `EPIC-ARTIFACT-SCHEMA.md`) — one data model read by `scripts/epic_order.py` (integrity + phased ordering) and, once assigned, by whichever agent claims the epic:'
+  current: 'Ticket frontmatter (REQUIRED, per `EPIC-ARTIFACT-SCHEMA.md`) — one data model read by `scripts/epic_order.py` (integrity + phased ordering):'
   text:
-  - 'Ticket frontmatter (REQUIRED, per `EPIC-ARTIFACT-SCHEMA.md`) — one data model read by `scripts/epic_order.py` (integrity + phased ordering) and, once assigned, by whichever agent claims the epic:'
+  - 'Ticket frontmatter (REQUIRED, per `EPIC-ARTIFACT-SCHEMA.md`) — one data model read by `scripts/epic_order.py` (integrity + phased ordering):'
 - id: u-L207
   file: render
   section: '## Phase 6 — Write the epic ticket files'
@@ -1192,171 +1184,158 @@ entries:
   text:
   - Never write outside the two allowlisted trees (`docs/development/epics/` for tickets, `docs/superpowers/specs/` for the proposal + Infrastructure Decisions)
 - id: r-L1
-  # class: prose
+  class: prose
   baseline: 'Turn a confirmed multi-epic Vision Summary into the epic set a fleet of agents can build concurrently: independent boundaries, a dependency graph, a phased execution order, one shared Infrastructure Decisions document, and — once the owner confirms the split — one self-sufficient ticket FILE per epic on disk'
   text:
   - Turn a confirmed multi-epic Vision Summary into independent epics, a dependency graph, a phased execution order, one shared Infrastructure Decisions document and, once the owner confirms the split, one self-sufficient ticket FILE per epic
   - The owner's ONE checkpoint, right after the boundaries are drafted, is this command's own Phase gate — confirm once, and the command carries straight on into writing the files in the same run
 - id: r-L3
-  # class: ban
-  # clauses: {3: narrative}
+  class: ban
+  clauses: {3: narrative}
   baseline: 'Concurrency is the point: epics that fall in the same phase of `scripts/epic_order.py --json`''s phased order run AT THE SAME TIME, one per named agent — never one epic at a time — and the `owner:` field this command writes empty into each ticket is what a later `/fabrik-epics-review`''s Step 1.5 (`scripts/epic_order.py --assign`) fills, per named agent, to make that assignment real'
   text:
   - 'Concurrency is the point: epics in the same phase of `scripts/epic_order.py --json`''s phased order run AT THE SAME TIME, one per named agent — never one epic at a time'
 - id: r-L19
-  # class: prose
+  class: prose
   baseline: 'Inherited into Infrastructure Decisions VERBATIM in Phase 2: auth → § Auth Strategy, database → § Database Strategy, frontend + shape → § Shared Shape Decisions (there is no § Frontend or § Billing section — billing lands in § External Services)'
   text:
   - 'Inherited into Infrastructure Decisions VERBATIM in Phase 2: auth → § Auth Strategy, database → § Database Strategy, frontend + shape → § Shared Shape Decisions; billing lands in § External Services'
 - id: r-L26
-  # class: ban
-  # clauses: {2: narrative}
+  class: ban
+  clauses: {2: narrative}
   baseline: '`docs/operations/fabrik-lifecycle.md` covers only lifecycle stages 3–4 (deploy/runtime behaviour + data safety); it carries no stage model of its own'
   text:
   - '`docs/operations/fabrik-lifecycle.md` covers only lifecycle stages 3–4 (deploy/runtime behaviour + data safety)'
 - id: r-L30
-  # class: prose
+  class: prose
   baseline: '`agents-fabrik.md` § Infrastructure Services (backing services available) and § Planning Constraints (all of them still apply, per epic)'
   text:
   - '`agents-fabrik.md` § Infrastructure Services and § Planning Constraints (all of them still apply, per epic)'
 - id: r-L33
-  # class: prose
-  # clauses: {2: narrative}
+  class: prose
   baseline: A scaffold type with no matching file on disk (e.g. `docusaurus`, `static-site`) is a best-effort no-op read — the universal-category audit in Phase 1h still runs regardless
   text:
-  - A scaffold type with no matching file (e.g. `docusaurus`, `static-site`) is a no-op read — Phase 1h still runs
+  - A scaffold type with no matching file (e.g. `docusaurus`, `static-site`) is a no-op read — the universal-category audit in Phase 1h still runs
 - id: r-L36
-  # class: prose
+  class: prose
   baseline: 'The CURRENT-value live reads: `src/fabrik/spec_loader.py::WatchdogConfig` (watchdog caps), `templates/<type>/defaults.yaml` (the `kind:` contract)'
   text:
   - 'The live reads: `src/fabrik/spec_loader.py::WatchdogConfig` (watchdog caps), `templates/<type>/defaults.yaml` (the `kind:` contract)'
-- id: r-L39
-  # class: ban
-  # clauses: {1: narrative}
-  baseline: A port's availability comes from `PORTS.md`, a vendored module's API/caps from that module's own `README.md`, watchdog defaults from `spec_loader.py::WatchdogConfig`, a `kind:` contract from `templates/<type>/defaults.yaml`, a domain pack's coverage heading from the pack file itself (stop and report if the heading moved — never improvise a substitute)
-  text:
-  - A domain pack's coverage heading comes from the pack file itself (stop and report if the heading moved — never improvise a substitute)
 - id: r-L44
-  # class: ban
+  class: ban
   baseline: '⚠️ Epic-count band — a SIGNAL, never a cap (D-107). `3–7 epics is typical. ≥10 → re-examine the boundaries; you are almost certainly splitting by LAYER, not by DOMAIN.` That re-examination is a prompt to look again, not an instruction to force-merge: the operator''s own range is E = 3–20, so a 14- or a 20-epic decomposition is re-examined for layer-slicing and, if the boundaries genuinely are domain-shaped at that size, it PROCEEDS at that count — it is never re-cut to ≤7 by reflex'
   text:
   - Never force-merge a decomposition to fit a count. The 3–7 band and the ≥10 re-examination are a SIGNAL; a 14- or 20-epic decomposition that survives re-examination for layer-slicing PROCEEDS at that count
   - '⚠️ Epic-count band — a SIGNAL, never a cap (D-107). `3–7 epics is typical. ≥10 → re-examine the boundaries; you are almost certainly splitting by LAYER, not by DOMAIN.` The operator''s own range is E = 3–20: a 14- or 20-epic decomposition whose boundaries are domain-shaped PROCEEDS at that count, never re-cut to ≤7 by reflex'
 - id: r-L45
-  # class: prose
+  class: prose
   baseline: State the band verdict at the Checkpoint either way (`within typical range` / `re-examined at N, boundaries hold because …` / `re-examined at N, re-cut because …`)
   text:
   - State the band verdict at the Checkpoint (`within typical range` / `re-examined at N, boundaries hold because …` / `re-examined at N, re-cut because …`)
 - id: r-L49
-  # class: ban
+  class: ban
   baseline: 'Fewer than 5 merges into an adjacent epic UNLESS: (a) it''s a Retrofit epic (small retrofits are permitted); or (b) it is a real domain, not a residue — it earns this only if folding it into EVERY adjacent epic would break that epic''s domain coherence or push it past 15 (deliberately qualitative — boundaries are drawn by domain, not by a feature count you can game by re-slicing); or (c) a scaffold-specific overlay mandates a small dedicated epic (e.g. a mobile-app store-submission epic)'
   text:
   - 'Fewer than 5 merges into an adjacent epic UNLESS: (a) it''s a Retrofit epic; or (b) it is a real domain, not a residue — it earns this only if folding it into EVERY adjacent epic would break that epic''s domain coherence or push it past 15 (deliberately qualitative — boundaries are drawn by domain, not by a feature count you can game by re-slicing); or (c) a scaffold-specific overlay mandates a small dedicated epic (e.g. a mobile-app store-submission epic)'
 - id: r-L54
-  # class: prose
+  class: prose
   baseline: 'Heuristics: a foundation-gap retrofit (i18n, auth hardening) usually runs BEFORE any delta epic that would otherwise inherit the violation; a retrofit on an isolated subsystem can run PARALLEL with delta features that don''t touch it'
   text:
   - A foundation-gap retrofit (i18n, auth hardening) usually runs BEFORE any delta epic that would inherit the violation; one on an isolated subsystem can run PARALLEL
 - id: r-L57
-  # class: prose
+  class: prose
   baseline: Epic B depends on Epic A when B needs a DB table A creates, calls an endpoint A implements, uses an auth system A configures, or consumes any shared service/infrastructure component (background processor, job queue, storage client, notification client, shared middleware, any API module) that A scaffolds — regardless of the draft execution order
   text:
   - Epic B depends on Epic A when B needs a DB table A creates, calls an endpoint A implements, uses an auth system A configures, or consumes any shared service/infrastructure component that A scaffolds — regardless of the draft execution order
 - id: r-L64
-  # class: prose
+  class: prose
   baseline: Any overlap → FAIL
   text:
   - 'Any overlap → FAIL: re-cut the boundaries so the paths are disjoint (preferred — an overlap usually means the boundary was drawn by layer) or reclassify to sequential'
 - id: r-L66
-  # class: prose
+  class: prose
   baseline: FAIL means either re-cut the boundaries so the paths are disjoint (preferred — an overlap usually means the boundary was drawn by layer) or reclassify to sequential
   text:
   - 'Any overlap → FAIL: re-cut the boundaries so the paths are disjoint (preferred — an overlap usually means the boundary was drawn by layer) or reclassify to sequential'
 - id: r-L68
-  # class: prose
+  class: prose
   baseline: 3/3 MIGRATIONS — at most ONE epic in a parallel set may own `alembic/versions/**` or `db/schema.sql`
   text:
   - '[Epic N] parallel gate 3/3 — MIGRATIONS: PASS — this epic owns no migrations; Epic 1 is the sole migration owner in this parallel set.'
   - 3/3 MIGRATIONS — at most ONE epic in a parallel set may own `alembic/versions/**` or `db/schema.sql`, because two concurrent Alembic heads wedge the deploy
 - id: r-L69
-  # class: prose
-  # clauses: {2: narrative}
+  class: prose
+  clauses: {2: narrative}
   baseline: Two concurrent Alembic heads race the version table and wedge the deploy — a 12-Factor XII violation invisible in any single diff
   text:
   - 3/3 MIGRATIONS — at most ONE epic in a parallel set may own `alembic/versions/**` or `db/schema.sql`, because two concurrent Alembic heads wedge the deploy
 - id: r-L82
-  # class: prose
+  class: prose
   baseline: Multiple heavy- processing features group into one Worker Pipeline epic rather than scattering
   text:
   - Multiple heavy- processing features group into one Worker Pipeline epic
 - id: r-L86
-  # class: ban
+  class: ban
   baseline: 'Run the ladder here ONLY for a capability the Verdict table doesn''t cover, and say which — the table is always present, so its absence means the Vision run didn''t complete its gate: stop and say so'
   text:
   - 'Run the ladder here ONLY for a capability the Verdict table doesn''t cover, and say which; the table is always present, so its absence means the Vision run didn''t complete its gate: stop and say so'
 - id: r-L87
-  # class: ban
+  class: ban
   baseline: 'Otherwise check `fabrik-lib/README.md` and state `"fabrik-lib checked — [module used / no match]."` Research escape-hatch (the one research leg in this command): a capability with no fabrik-lib module AND a new external fact the Vision never grounded (a third-party endpoint, SDK, rate limit, price) may not be guessed'
   text:
   - 'Otherwise check `fabrik-lib/README.md` and state `"fabrik-lib checked — [module used / no match]."` Research escape-hatch: a capability with no fabrik-lib module AND a new external fact the Vision never grounded (a third-party endpoint, SDK, rate limit, price) may not be guessed'
-- id: r-L102
-  # class: grammar
-  baseline: '| 4 | Workers | If pipeline/async work | `core/75-workers-jobs.md` (+ vendor the queue/pause-state primitives — resolve the current module from the fabrik-lib index) |'
-  text:
-  - '| 4 | Workers | If pipeline/async work | `core/75-workers-jobs.md` (+ vendor the queue/pause-state primitives) |'
-  - '- [Universal category #9. Any epic calling a paid LLM/metered API vendors the cost-ledger module (resolve from the fabrik-lib index — copy, never import at runtime). Writes flow to the shared cost_ledger table on postgres-main; caps live in the spec''s watchdog block; over-cap routes to rule-only escalation per core/cost-budget.md.]'
-- id: r-L103
-  # class: grammar
-  baseline: '| 5 | External integrations | Any upstream API use | `core/58-resilience.md` (+ vendor the circuit-breaker and upstream rate-limit/quota primitives — resolve from the fabrik-lib index) |'
-  text:
-  - '| 5 | External integrations | Any upstream API use | `core/58-resilience.md` (+ vendor the circuit-breaker and upstream rate-limit/quota primitives) |'
-  - fabrik-lib modules are resolved from `/opt/fabrik-lib/README.md` § Modules, never from a name written here
-- id: r-L107
-  # class: grammar
-  baseline: '| 9 | Cost guardrails | Any LLM/paid-API use | `core/cost-budget.md` (+ vendor the cost-ledger module — resolve from the fabrik-lib index) |'
-  text:
-  - '| 9 | Cost guardrails | Any LLM/paid-API use | `core/cost-budget.md` (+ vendor the cost-ledger module) |'
-  - fabrik-lib modules are resolved from `/opt/fabrik-lib/README.md` § Modules, never from a name written here
 - id: r-L114
-  # class: prose
-  # clauses: {3: narrative}
+  class: prose
+  clauses: {3: narrative}
   baseline: Optional consistency fanout — the 14 verdicts are single-agent judgment, but the mechanical citation audit underneath them (does each cited path exist and say what the verdict claims?) MAY fan out — see the Subagents section at the end of this command for the recipe; if you dispatch it, you run it as native seats — they record nothing (the pool is OFF, D-181/D-182)
   text:
   - Optional consistency fanout — the 14 verdicts are single-agent judgment, but the mechanical citation audit underneath them (does each cited path exist and say what the verdict claims?) MAY fan out to native seats per § Subagents
   - Never dispatch the decomposition judgment itself to a subagent — only the optional Phase 1h read-only citation check may fan out to native seats (the pool is OFF, D-181/D-182 — nothing records)
 - id: r-L133
-  # class: prose
-  # clauses: {2: narrative, 3: narrative, 4: narrative}
+  class: prose
+  clauses: {2: narrative}
   baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
   text:
   - Never dispatch the decomposition judgment itself to a subagent — only the optional Phase 1h read-only citation check may fan out to native seats (the pool is OFF, D-181/D-182 — nothing records)
 - id: r-L134
-  # class: prose
+  class: prose
   baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
   text:
   - '> ⚠️ POOL OFF — D-181. Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
 - id: r-L137
-  # class: ban
-  # clauses: {9: narrative, 12: narrative, 14: narrative, 15: narrative, 19: narrative, 35: narrative, 48: narrative, 49: narrative, 52: narrative, 54: narrative, 58: narrative}
+  class: ban
   baseline: '# Infrastructure Decisions — Shared Across All Epics ⏎ [These decisions are made ONCE. Each epic inherits them. Do NOT re-decide per epic; do NOT copy into epic files.] ⏎  ⏎ ## Database Strategy ⏎ - [which DB holds what, shared schemas, per-epic schemas — postgres-main (default) / Supabase (legacy, migration-only) / both] ⏎  ⏎ ## Auth Strategy ⏎ - [carried from the Vision Summary — Technology Decisions (new) or Locked Decisions (existing, verbatim); a project with no prior auth at all treats it as new and defaults to fabrik-lib/fastapi-user-auth Pattern A] ⏎ - **Universal category #12 — Security.** Sensitive ops (auth events, billing mutations, admin actions, GDPR flows, watchdog Tier B/C actions) write to the hash-chained audit log per `core/app-audit-log.md` (vendor the module — resolve it from the fabrik-lib index). Missing audit-log integration fails acceptance. ⏎  ⏎ ## Email Strategy ⏎ - [Transactional: Resend (default). Marketing: Resend Broadcasts → Listmonk+SES at scale. Separate streams on separate subdomains — mail.<domain> vs news.<domain>] ⏎  ⏎ ## Background Processing ⏎ - [which epics need async workers, what operations, file-worker epic or backend slice — PG job queue per core/75-workers-jobs.md, never inline >10s processing] ⏎  ⏎ ## Embedding Model (if RAG/search features exist) ⏎ - [ONE model for the whole pipeline — ingest and query. See core/65-rag-search.md § Embedding Models for the current roster.] ⏎  ⏎ ## Self-Healing Ladder (if shape.kind ∈ {service, worker}) ⏎ - [Universal category #6. Each epic''s docs/RESILIENCE.md carries one row per failure class from core/self-healing.md § The escalation ladder — OOM, queue backlog, upstream rate-limit, upstream timeout, signup flood, DB pool exhaustion, sustained 5xx burst, stuck row locks, code-level regression. Primitives resolved from the fabrik-lib index, never a hard-coded name, plus Watchdog Tier A/B actions.] ⏎ - [N/A only for kind: static — static-site and docusaurus. chrome-extension/mobile-app/desktop-app are kind: service per templates/<type>/defaults.yaml: their companion backend keeps the ladder.] ⏎  ⏎ ## Watchdog Wiring (ON by default — opt-OUT per spec; there is no shape.kind test in the resolver) ⏎ - [Universal category #7. The watchdog registrar fires at `fabrik apply` when `spec.watchdog.enabled` resolves truthy — which it does by default because the resolver reads `watchdog_cfg.get("enabled", True)` on the raw spec dict: no `watchdog:` block at all still means ON. Opt-out is `watchdog: { enabled: false }` in the spec, honored by both resolver and dispatch. Per-spec caps (daily_budget_usd, per_incident_budget_usd, daily_invocations_cap, deadman_timeout_seconds, auto_tier_b, propose_fix_prs) belong in the spec''s watchdog block, not in epic tickets — read the current defaults from spec_loader.py::WatchdogConfig, never copy cap values into a ticket.] ⏎  ⏎ ## Observability Defaults (always) ⏎ - [Universal category #8, per core/55-observability.md § Per-Scaffold Observability Matrix: structured logs (structlog / pino — never print/console.log), /health with real dep checks (SELECT 1, PING — never a static 200), /metrics only when shape.exposes_metrics: true, GlitchTip DSN injected by the registrar at apply time, Gatus registered when shape.is_public: true AND spec.domain is set.] ⏎ - [Per-epic tickets pick the row matching their scaffold and inherit it — they do not re-derive the matrix.] ⏎  ⏎ ## Cost Guardrails (any LLM / paid-API use) ⏎ - [Universal category #9. Any epic calling a paid LLM/metered API vendors the cost-ledger module (resolve from the fabrik-lib index — copy, never import at runtime). Writes flow to the shared cost_ledger table on postgres-main; caps live in the spec''s watchdog block; over-cap routes to rule-only escalation per core/cost-budget.md.] ⏎ - [N/A when no paid-API call exists in the epic — a free-tier API does not trigger this category.] ⏎  ⏎ ## Backing Services ⏎ - [carried from Vision Summary — not re-derived] ⏎  ⏎ ## External Services ⏎ - [carried from Vision Summary — not re-derived] ⏎ - **Universal category #5.** Each entry above needs a matching row in the consuming epic''s `docs/RESILIENCE.md` per `core/58-resilience.md § Per-Project Contract` (timeout, retry, circuit-breaker, fallback, error classifier) — missing rows fail acceptance. ⏎  ⏎ ## Domain Structure ⏎ - [URL routing, subdomains, path-based routing] ⏎  ⏎ ## Shared Environment Variables ⏎ - [env vars multiple epics need, defined once; which epics need which API keys] ⏎  ⏎ ## Shared Shape Decisions ⏎ - [which registrars each epic activates]'
   text:
   - '# Infrastructure Decisions — Shared Across All Epics'
   - '[These decisions are made ONCE. Each epic inherits them. Do NOT re-decide per epic; do NOT copy into epic files.]'
   - 'Inherited into Infrastructure Decisions VERBATIM in Phase 2: auth → § Auth Strategy, database → § Database Strategy, frontend + shape → § Shared Shape Decisions; billing lands in § External Services'
   - '- [which DB holds what, shared and per-epic schemas — postgres-main (default) / Supabase (legacy, migration-only) / both]'
+  - 'Universal category #5. Each entry needs a matching row in the consuming epic''s `docs/RESILIENCE.md` per `core/58-resilience.md § Per-Project Contract` — missing rows fail acceptance.'
+  - '## Database Strategy'
+  - '## Auth Strategy'
+  - 'Universal category #12 — Security. Sensitive ops (auth events, billing mutations, admin actions, GDPR flows, watchdog Tier B/C actions) write to the hash-chained audit log per `core/app-audit-log.md`. Missing audit-log integration fails acceptance.'
+  - '## Email Strategy'
+  - '## Background Processing'
+  - '## Observability Defaults (always)'
+  - '## Backing Services'
+  - '## External Services'
+  - '[carried from Vision Summary — not re-derived]'
+  - '## Domain Structure'
+  - '## Shared Environment Variables'
+  - '## Shared Shape Decisions'
   - '- [from the Vision Summary — Technology Decisions (new) or Locked Decisions (existing, verbatim); no prior auth ⇒ new, default fabrik-lib/fastapi-user-auth Pattern A]'
   - New decisions are made only for components the existing project didn't have — new auth defaults to `fabrik-lib/fastapi-user-auth` Pattern A, never Supabase
   - Sensitive ops (auth events, billing mutations, admin actions, GDPR flows, watchdog Tier B/C actions) write to the hash-chained audit log per `core/app-audit-log.md`. Missing audit-log integration fails acceptance.
   - '- [Transactional: Resend (default). Marketing: Resend Broadcasts → Listmonk+SES at scale. Separate streams on separate subdomains — mail.<domain> vs news.<domain>]'
   - Scan for async/background work (transcription, PDF generation, image processing, AI inference, imports, batch jobs, scheduled jobs, webhook pipelines)
-  - '- [which epics need async workers — PG job queue per core/75-workers-jobs.md, never inline >10s processing]'
+  - '- [which epics need async workers, what operations — PG job queue per core/75-workers-jobs.md, never inline >10s processing]'
   - '## Embedding Model (if RAG/search features exist)'
   - '- [ONE model for the whole pipeline — ingest and query; see core/65-rag-search.md § Embedding Models]'
   - '## Self-Healing Ladder (if shape.kind ∈ {service, worker})'
-  - '- [Universal category #6. Each epic''s docs/RESILIENCE.md carries one row per failure class from core/self-healing.md § The escalation ladder — OOM, queue backlog, upstream rate-limit, upstream timeout, signup flood, DB pool exhaustion, sustained 5xx burst, stuck row locks, code-level regression. Primitives resolved from the fabrik-lib index, never a hard-coded name, plus Watchdog Tier A/B actions.]'
+  - '- [Universal category #6. Each epic''s docs/RESILIENCE.md carries one row per failure class from core/self-healing.md § The escalation ladder. Primitives resolved from the fabrik-lib index, never a hard-coded name, plus Watchdog Tier A/B actions.]'
   - '- [N/A only for kind: static — static-site and docusaurus. chrome-extension/mobile-app/desktop-app are kind: service per templates/<type>/defaults.yaml: their companion backend keeps the ladder.]'
   - '## Watchdog Wiring (ON by default — opt-OUT per spec; there is no shape.kind test in the resolver)'
-  - '- [Universal category #7. The watchdog registrar fires at `fabrik apply` when `spec.watchdog.enabled` resolves truthy — which it does by default because the resolver reads `watchdog_cfg.get("enabled", True)` on the raw spec dict: no `watchdog:` block at all still means ON. Opt-out is `watchdog: { enabled: false }` in the spec, honored by both resolver and dispatch. Per-spec caps (daily_budget_usd, per_incident_budget_usd, daily_invocations_cap, deadman_timeout_seconds, auto_tier_b, propose_fix_prs) belong in the spec''s watchdog block, not in epic tickets — read the current defaults from spec_loader.py::WatchdogConfig, never copy cap values into a ticket.]'
+  - '- [Universal category #7. The watchdog registrar fires at `fabrik apply` when `spec.watchdog.enabled` resolves truthy — by default, because the resolver reads `watchdog_cfg.get("enabled", True)` on the raw spec dict: no `watchdog:` block still means ON. Opt-out is `watchdog: { enabled: false }`, honored by both resolver and dispatch. Per-spec caps belong in the spec''s watchdog block, not in epic tickets — read the current defaults from spec_loader.py::WatchdogConfig, never copy cap values into a ticket.]'
   - '- [Universal category #8, per core/55-observability.md § Per-Scaffold Observability Matrix: structured logs (structlog / pino — never print/console.log), /health with real dep checks (SELECT 1, PING — never a static 200), /metrics only when shape.exposes_metrics: true, GlitchTip DSN injected by the registrar at apply time, Gatus registered when shape.is_public: true AND spec.domain is set.]'
   - '- [Per-epic tickets pick the row matching their scaffold and inherit it — they do not re-derive the matrix.]'
   - '## Cost Guardrails (any LLM / paid-API use)'
@@ -1367,35 +1346,35 @@ entries:
   - '- [env vars multiple epics need, defined once; which epics need which API keys]'
   - '- [which registrars each epic activates]'
 - id: r-L141
-  # class: prose
+  class: prose
   baseline: 'Report the result inline at the top of the Checkpoint: `Self-audit: coverage ✓ · parallel gates ✓ · categories ✓ · field/graph ✓ · no cycles ✓ · [N] edits forced`'
   text:
   - 'Report the result at the top of the Checkpoint: `Self-audit: coverage ✓ · parallel gates ✓ · categories ✓ · field/graph ✓ · no cycles ✓ · [N] edits forced`'
 - id: r-L142
-  # class: prose
+  class: prose
   baseline: Coverage round-trip — walk every item in the Full Feature Inventory and point to the exactly- one epic that owns it; walk every epic and confirm nothing is duplicated or orphaned
   text:
   - Coverage round-trip — walk every inventory item to its exactly-one epic and every epic for duplicates or orphans
   - Full Feature Inventory (numbered, complexity-classified — every item must land in exactly one epic)
 - id: r-L143
-  # class: prose
+  class: prose
   baseline: Parallel-gate completeness — every `Parallel with:` epic has all three PASS verdict lines actually on record from 1c; a missing line sends you back to 1c, not to presentation
   text:
   - '[Epic N] parallel gate 1/3 — ARTIFACTS: PASS — consumes only [artifacts] from [Epic X], which completes before this epic starts.'
   - Parallel-gate completeness — every `Parallel with:` epic has all three PASS verdict lines on record from 1c; a missing line sends you back to 1c
 - id: r-L144
-  # class: prose
+  class: prose
   baseline: Category closure — all 14 categories have a 1h verdict, every `COVERED by Epic X` names a real epic, every `ABSORBED` names a section actually drafted in Phase 2, every `N/A` cites its trigger-not-met reason
   text:
   - Category closure — all 14 categories have a 1h verdict; every `COVERED by Epic X` names a real epic, every `ABSORBED` a section drafted in Phase 2, every `N/A` its trigger-not-met reason
 - id: r-L146
-  # class: prose
-  # clauses: {4: narrative}
+  class: prose
+  clauses: {4: narrative}
   baseline: No circular dependencies — walk the `Depends on:` graph and confirm it is a DAG; a cycle here is not a cosmetic defect, it is `scripts/epic_order.py`'s `phased_order()` unable to terminate — the phasing every agent's dispatch depends on has no victim to blame but this decomposition
   text:
-  - No circular dependencies — walk the `Depends on:` graph and confirm it is a DAG; a cycle leaves `scripts/epic_order.py`'s `phased_order()` unable to terminate
+  - No circular dependencies — walk the `Depends on:` graph and confirm it is a DAG; a cycle here leaves `scripts/epic_order.py`'s `phased_order()` unable to terminate
 - id: r-L153
-  # class: prose
+  class: prose
   baseline: 'Epic list — one compact entry per epic (full expansion happens in Phase 6), all 23 fields in five groups — dropping this to a subset is exactly how fields get silently lost downstream: (1) 9 epic-shape fields — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) 6 inheritance-metadata fields — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) Universal categories (1 field); (4) 3 conditional fields — Abuse Detection, Email, FINANCIALS (the project-wide Infrastructure Decisions value or `N/A` per trigger); (5) 4 cross-epic-contract fields — Target host, Consumes, Produces, Owned paths'
   text:
   - '[file globs THIS epic writes, carried verbatim — a file outside this list in the diff is a scope violation, not a bonus]'
@@ -1403,79 +1382,75 @@ entries:
   - 'Epic list — one compact entry per epic, all 23 fields in five groups — dropping this to a subset is exactly how fields get silently lost downstream: (1) 9 epic-shape fields — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) 6 inheritance-metadata fields — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) Universal categories (1 field); (4) 3 conditional fields — Abuse Detection, Email, FINANCIALS (the project-wide Infrastructure Decisions value or `N/A` per trigger); (5) 4 cross-epic-contract fields — Target host, Consumes, Produces, Owned paths'
   - 'The arithmetic must close: 15 + 3 + 5 = 23. Phase 6''s Metadata block consumes 15 of these (the 6 inheritance-metadata + Scaffold + Port + Target host + Rule Packs + HAS_USER_GUIDE + Universal categories + the 3 conditionals); Consumes, Produces and Owned paths feed Phase 6''s `### Dependencies` (3); the remaining 5 (Scope, Features, Depends on, Parallel with, Delivers) become other sections in the ticket (Summary, Scope > In, Dependencies, Dependencies, Success Criteria respectively)'
 - id: r-L155
-  # class: prose
-  # clauses: {2: narrative}
+  class: prose
+  clauses: {2: narrative}
   baseline: Every field has exactly one destination — a field with none is a field that gets silently dropped at the boundary
   text:
   - Every field has exactly one destination
 - id: r-L156
-  # class: ban
-  # clauses: {2: narrative, 11: narrative, 26: narrative}
+  class: ban
   baseline: 'Epic [N]: [Name] ⏎ Scope: [1-2 sentences] ⏎ Features: [numbers from Feature Inventory] ⏎ Scaffold: [type — ground from `agents-fabrik.md` § Scaffold Types / `scaffold.py::SCAFFOLD_TYPES`, never a remembered count] ⏎ Depends on: [Epic X, Epic Y] or [none — root epic] ⏎ Parallel with: [Epic Z] or [sequential] — write the sentence "two separate agent teams could execute Epic X and Epic Y with zero mid-epic coordination, because they share no [artifacts]"; if you cannot write it, they are not parallel. ⏎ Port: [assigned] ⏎ Target host: [vps1 (hub, default) / vps2 / vps3 — from Technology Decisions → Target host; a spoke-targeted service reaches shared infra over the mesh (10.99.0.1), never Docker DNS] ⏎ Delivers: [what the owner can see/use after this epic ships] ⏎ Consumes: [artifacts this epic needs from prior epics — tables, endpoints, env vars, middleware] or [none — root epic] ⏎ Produces: [artifacts LATER epics consume — table names, endpoint paths, env var names; Delivers is owner-visible value, this is the machine contract] ⏎ Owned paths: [file globs this epic WRITES — the concurrency contract: two epics may only be Parallel with each other if their Owned paths are disjoint and at most one owns migrations. `none` is never acceptable — every epic writes something] ⏎ Rule Packs: [IDs from .windsurf/rules/] ⏎ HAS_USER_GUIDE: [true/false] ⏎ Shape: [kind + every boolean flag on the CURRENT `src/fabrik/spec_loader.py::Shape` model, read live — never a remembered list or count, it drifts — plus watchdog.enabled] ⏎ Concurrency: [the mechanism — e.g. the adaptive worker pool and/or a pause-state gate per core/75-workers-jobs.md, or none — from category 4 coverage] ⏎ i18n: [en+tr | en-only | N/A — mandatory when the GUI trigger fires; a scaffold outside I18N_ENABLED_TYPES (saas-skeleton, static-site, desktop-app, mobile-app, docusaurus) MUST carry an explicit vendor-the-i18n-kit step (templates/i18n-kit/ → scripts/) or its Success Criteria will cite a script the project never ships] ⏎ Responsive: [375px–2560px mandatory / N/A — feature-triggered by the GUI surface, not the scaffold type; carve-outs: chrome-extension popup (fixed 400px), mobile-app (native UI), desktop-app (electron window sizing)] ⏎ Dark+Light: [mandatory / N/A — same trigger as Responsive] ⏎ Registrars: [which of the 10 fire: 7 flag-driven (postgres, redis, gatus, backrest, authelia, meilisearch, prometheus — gatus/authelia/prometheus ALSO need spec.domain) + grafana (always) + glitchtip (shape.kind) + watchdog; any registrar, grafana included, can be force-disabled by infra: {<name>: false}] ⏎ Universal categories: [comma-separated numbers 1–14 this epic owns] ⏎ Abuse Detection: [required (SaaS w/ free-tier signup) / N/A] ⏎ Email: [transactional / marketing / two-stream / none / N/A] ⏎ FINANCIALS: [required (SaaS pre-launch) / N/A]'
   text:
-  - 'Ticket Title: `Epic N — [Name]`'
-  - Full Feature Inventory (numbered, complexity-classified — every item must land in exactly one epic)
-  - A scaffold type with no matching file (e.g. `docusaurus`, `static-site`) is a no-op read — Phase 1h still runs
+  - 'Epic [N]: [Name]'
+  - 'Scope: [1-2 sentences]'
+  - 'Features: [numbers from Feature Inventory]'
   - 'Scaffold: [type — ground from `agents-fabrik.md` § Scaffold Types / `scaffold.py::SCAFFOLD_TYPES`, never a remembered count]'
   - 'Depends on: [Epic X, Epic Y] or [none — root epic]'
   - 'Parallel with: [Epic Z] or [sequential] — write the sentence "two separate agent teams could execute Epic X and Epic Y with zero mid-epic coordination, because they share no [artifacts]"; if you cannot write it, they are not parallel.'
-  - 'Target host: [vps1 (hub, default) / vps2 / vps3 — a spoke-targeted service reaches shared infra over the mesh (10.99.0.1), never Docker DNS]'
-  - 'Epic list — one compact entry per epic, all 23 fields in five groups — dropping this to a subset is exactly how fields get silently lost downstream: (1) 9 epic-shape fields — Scope, Features, Scaffold, Depends on, Parallel with, Port, Delivers, Rule Packs, HAS_USER_GUIDE; (2) 6 inheritance-metadata fields — Shape, Concurrency, i18n, Responsive, Dark+Light, Registrars; (3) Universal categories (1 field); (4) 3 conditional fields — Abuse Detection, Email, FINANCIALS (the project-wide Infrastructure Decisions value or `N/A` per trigger); (5) 4 cross-epic-contract fields — Target host, Consumes, Produces, Owned paths'
+  - 'Port: [assigned]'
+  - 'Target host: [vps1 (hub, default) / vps2 / vps3 — from Technology Decisions; a spoke-targeted service reaches shared infra over the mesh (10.99.0.1), never Docker DNS]'
   - 'Delivers: [what the owner can see/use after this epic ships]'
-  - 'Consumes: [artifacts this epic needs from prior epics — tables, endpoints, env vars, middleware] or [none — root epic]'
-  - 'Produces: [artifacts LATER epics consume — table names, endpoint paths, env var names; Delivers is owner-visible value, this is the machine contract]'
-  - Never write an epic file without the full typed frontmatter, and never let `depends_on` / `parallel_with` / `owned_paths` diverge from the `### Dependencies` prose
+  - 'Consumes: [artifacts this epic needs from prior epics] or [none — root epic]'
+  - 'Produces: [artifacts LATER epics consume — table names, endpoint paths, env var names]'
   - 'Owned paths: [file globs this epic WRITES — two epics may only be Parallel with each other if their Owned paths are disjoint and at most one owns migrations. `none` is never acceptable — every epic writes something]'
-  - Write each file as you go — do not batch; a partial run then still leaves every completed epic durable on disk
-  - 'The domain rule pack per scaffold type the Vision names — read by path, because these four packs are `activation: manual` with no frontmatter `globs:`, so `select_rules.py` never surfaces them on its own: `.windsurf/rules/saas/00-domain-saas.md` · `.windsurf/rules/mobile-app/00-domain-mobile-app.md` · `.windsurf/rules/desktop-app/00-domain-desktop-app.md` · `.windsurf/rules/chrome-ext/00-domain-chrome-ext.md`'
+  - 'Rule Packs: [IDs from .windsurf/rules/]'
+  - 'HAS_USER_GUIDE: [true/false]'
   - 'Shape: [kind + every boolean flag on the CURRENT `src/fabrik/spec_loader.py::Shape` model, read live — never a remembered list or count, it drifts — plus watchdog.enabled]'
   - 'Concurrency: [the mechanism — e.g. the adaptive worker pool and/or a pause-state gate per core/75-workers-jobs.md, or none — from category 4 coverage]'
-  - 4. [Audit logging captures key events] — N/A only for a Retrofit touching no mutation surfaces.
   - 'Responsive: [375px–2560px mandatory / N/A — feature-triggered by the GUI surface, not the scaffold type; carve-outs: chrome-extension popup (fixed 400px), mobile-app (native UI), desktop-app (electron window sizing)]'
   - 'i18n: [en+tr | en-only | N/A — mandatory when the GUI trigger fires; a scaffold outside I18N_ENABLED_TYPES (saas-skeleton, static-site, desktop-app, mobile-app, docusaurus) MUST carry an explicit vendor-the-i18n-kit step (templates/i18n-kit/ → scripts/) or its Success Criteria will cite a script the project never ships]'
   - 'Dark+Light: [mandatory / N/A — same trigger as Responsive]'
   - 'Registrars: [which of the 10 fire: 7 flag-driven (postgres, redis, gatus, backrest, authelia, meilisearch, prometheus — gatus/authelia/prometheus ALSO need spec.domain) + grafana (always) + glitchtip (shape.kind) + watchdog; any registrar, grafana included, can be force-disabled by infra: {<name>: false}]'
-  - '- Registrars: [which of the 10 fire — 7 flag-driven (gatus/authelia/prometheus also need spec.domain) + grafana (always) + glitchtip (shape.kind) + watchdog (opt-OUT); any registrar, grafana included, can be force-disabled by infra: {<name>: false}]'
+  - '- Registrars: [which of the 10 fire — 7 flag-driven (gatus/authelia/prometheus also need spec.domain) + grafana + glitchtip + watchdog]'
   - '`Registrars:` ↔ `Shape:` consistency, including the `spec.domain` carve-outs for gatus / authelia / prometheus and the `infra: {<name>: false}` force-disable'
   - 'Universal categories: [comma-separated numbers 1–14 this epic owns]'
   - 'Abuse Detection: [required (SaaS w/ free-tier signup) / N/A]'
   - '- Email: [transactional / marketing / two-stream / none / N/A]'
   - 'FINANCIALS: [required (SaaS pre-launch) / N/A]'
 - id: r-L176
-  # class: prose
+  class: prose
   baseline: 'Persist the proposal to disk the moment the owner confirms, before Phase 5 starts writing tickets: write the compact proposal + dependency graph to `docs/superpowers/specs/YYYY-MM-DD-<project>-epic- proposal.md` (free naming inside the allowlisted `specs/` tree, matched by `check_doc_sprawl.py`)'
   text:
-  - 'Persist the proposal to disk the moment the owner confirms, before Phase 5 starts writing tickets: write the compact proposal + dependency graph to `docs/superpowers/specs/YYYY-MM-DD-<project>-epic- proposal.md` (free naming inside the allowlisted `specs/` tree, matched by `check_doc_sprawl.py`), so a later `/fabrik-epics-review` run or a resumed session re-reads this file instead of re-running this command'
+  - 'Persist the proposal to disk the moment the owner confirms, before Phase 5 starts writing tickets: write the compact proposal + dependency graph to `docs/superpowers/specs/YYYY-MM-DD-<project>-epic- proposal.md` (free naming inside the allowlisted `specs/` tree, matched by `check_doc_sprawl.py`)'
 - id: r-L180
-  # class: ban
-  # clauses: {4: narrative}
+  class: ban
+  clauses: {4: narrative}
   baseline: 'Dispatch one grounded review unit per epic — you supply the facts, the units supply the verdicts; no boundary is drawn here. Dispatch each unit `mode="read_only"`, never `mode="write"`: a write-mode unit gets a `git worktree` at HEAD, and in a project `PORTS.md` and `.windsurf/` are gitignored — a write-mode grounder would see NEITHER, report "pack does not resolve" for every epic, and fall back to memory on ports'
   text:
   - 'Dispatch one grounded review unit per epic — you supply the facts, the units supply the verdicts; no boundary is drawn here. Dispatch each unit `mode="read_only"`, never `mode="write"`: a write-mode unit gets a `git worktree` at HEAD, and in a project `PORTS.md` and `.windsurf/` are gitignored'
 - id: r-L181
-  # class: ban
+  class: ban
   baseline: '`read_only` sets `tools_enabled=False`, so each unit answers only from what YOU inlined into its `task` text — which is exactly right here, and the only shape that works'
   text:
   - '`read_only` sets `tools_enabled=False`, so each unit answers only from what YOU inlined into its `task` text — exactly right here, and the only shape that works'
 - id: r-L191
-  # class: prose
-  # clauses: {1: narrative, 3: narrative, 4: narrative}
+  class: prose
+  clauses: {3: narrative, 4: narrative}
   baseline: 'Two native layers on this adjudication (the pool is OFF, D-181): one Sonnet `fabrik-reviewer` seat per epic gives breadth — sized, stamped and closed at THIS point: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> --mechanical 0` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, `python3 scripts/command_run.py round --seats <n> --findings <n> …` at the round''s close (the recipe in § Subagents below is the same one); the native Opus pass is the one that catches a subtle `Owned paths:` overlap a cheap reviewer would rubber-stamp.<!-- POOL OFF (D-181): back-fill every pool run with `set_quality(r.agent_id, score, project="mega-expand", task_type="review", model=r.model)`; passing `project=` is what records the flywheel row -->'
   text:
-  - 'One Sonnet `fabrik-reviewer` seat per epic gives breadth, sized, stamped and closed at THIS point per § Subagents below: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> --mechanical 0` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, `python3 scripts/command_run.py round --seats <n> --findings <n> …` at the round''s close'
+  - 'Two native layers (the pool is OFF, D-181): one Sonnet `fabrik-reviewer` seat per epic gives breadth, sized, stamped and closed at THIS point per § Subagents below: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> --mechanical 0` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, `python3 scripts/command_run.py round --seats <n> --findings <n> …` at the round''s close'
 - id: r-L200
-  # class: ban
+  class: ban
   baseline: Announce the mode and the files it touches; re-run the cross-epic validation before handing back — a repaired ticket has never been validated
   text:
   - Announce the mode and files; re-run the cross-epic validation before handing back — a repaired ticket has never been validated
 - id: r-L208
-  # class: prose
+  class: prose
   baseline: '`status: 0|1|2` (TODO/in-progress/done) is the epic''s own status field, flipped by whichever agent owns it — `0` on write here, `1` on start, `2` on merge'
   text:
   - '`status: 0|1|2` (TODO/in-progress/done) is flipped by whichever agent owns the epic — `0` on write here, `1` on start, `2` on merge'
 - id: r-L210
-  # class: ban
-  # clauses: {26: narrative, 72: narrative, 73: narrative}
+  class: ban
   baseline: '## Epic N — [Name] ⏎  ⏎ ### Summary ⏎ [3-5 sentences. What this epic delivers — expanded from the compact proposal, never invented.] ⏎  ⏎ ### Scope ⏎ **In:** ⏎ - **[Feature ID]** [Feature name] — [what''s included in THIS epic] ⏎  ⏎ **Out:** ⏎ - [Feature or sub-feature] — handled by Epic [N] ⏎ - (Single-epic or non-overlapping case: `- none — single-epic proposal` / `- none — no overlap with other epics`. Never fabricate a "handled by Epic [N]" entry when N doesn''t exist.) ⏎  ⏎ ### Success Criteria ⏎ [5-8 for delta-feature; 3-5 for Retrofit. MUST include at least one deploy/gate-level AND one feature/compliance-level criterion. Criterion #1 is where every epic proves the 4-stage lifecycle — scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`) — per `docs/operations/fabrik-lifecycle.md` (stages 3–4 only; the 4-stage model itself is this command''s own assertion, not that doc''s):] ⏎ 1. Deploy/gate-level — delta-feature: `fabrik apply` succeeds (register); health endpoint returns 200 (verify). — Retrofit (no new deploy unit, so no Stage-1/Stage-3 of its own — **state this exception inline on the ticket**): `python scripts/final_gate.py --json` returns `"status":"success"` (the FULL Tier-2 gate — `--lean` is Tier-1, never an acceptance gate) for the modified scope, AND the rule pack''s compliance check moves Partial/Violates → Compliant. ⏎ 2. Feature/compliance-level — delta-feature: [the `Delivers:` value from the compact entry, restated as an end-to-end user flow]. — Retrofit: [the specific behaviour the rule pack now makes observable]. ⏎ 3. [Resilience — what happens when a dependency is down] — N/A only for a Retrofit touching no external-call sites. ⏎ 4. [Audit logging captures key events] — N/A only for a Retrofit touching no mutation surfaces. ⏎ ... ⏎  ⏎ ### Out of Scope (Epic Level) ⏎ - [Exclusion] — handled by Epic [N] ⏎ - [Vision-level exclusion, from the Vision''s Out of Scope] — not in this product ⏎ - (Single-epic / non-overlapping: `- none — single-epic proposal`.) ⏎  ⏎ ### Dependencies ⏎ - **Consumes from prior epics:** [specific artifacts, carried verbatim from the Consumes analysis — expand into concrete names, never re-derive] or [none — root epic] ⏎ - **Produces for later epics:** [specific artifacts this epic creates that others need, carried verbatim from the Produces analysis] ⏎ - **Depends on:** [Epic X (hard), Epic Y (soft)] or [none — root epic] ⏎ - **Parallel with:** [Epic X] or [none] ⏎ - **Owned paths:** [file globs THIS epic writes, carried verbatim — the concurrency contract; a file outside this list in the diff is a scope violation, not a bonus] ⏎  ⏎ ### Metadata ⏎ - Scaffold: [one of the scaffoldable types, carried verbatim — ground the registry from `agents-fabrik.md` § Scaffold Types / `scaffold.py::SCAFFOLD_TYPES`, never a remembered count; website epics route to a separate ecommerce factory, never this pipeline] ⏎ - Port: [value] ⏎ - target_vps: [vps1 (hub, default) / vps2 / vps3, carried verbatim — a spoke-targeted service reaches shared infra over the mesh, never Docker DNS] ⏎ - Shape: [kind + every boolean flag on the CURRENT `src/fabrik/spec_loader.py::Shape` model, carried verbatim — read it live, never a remembered list or count; has_bearer_api fires no registrar of its own] ⏎ - Concurrency: [mechanism] ⏎ - i18n: [mechanism or N/A] ⏎ - Responsive: [carried verbatim — mandatory for saas-skeleton / docusaurus front / mobile-app / desktop-app AND for python-api/node-api/file-api when is_admin_dashboard or is_public-with-HTML; chrome-extension popup is a fixed-400px carve-out] ⏎ - Dark+Light: [carried verbatim — same trigger as Responsive] ⏎ - Rule Packs: [IDs] ⏎ - HAS_USER_GUIDE: [true/false] ⏎ - Registrars: [which of the 10 fire — 7 flag-driven (gatus/authelia/prometheus also need spec.domain) + grafana (always) + glitchtip (shape.kind) + watchdog (opt-OUT); any registrar, grafana included, can be force-disabled by infra: {<name>: false}] ⏎ - Universal categories: [comma-separated numbers 1–14, copied verbatim from Phase 1h] ⏎ - Abuse Detection: [required — SaaS w/ free-tier signup / N/A] ⏎ - Email: [transactional / marketing / two-stream / none / N/A] ⏎ - FINANCIALS: [required — SaaS pre-launch / N/A] ⏎  ⏎ ### Infrastructure ⏎ Inherited from the Infrastructure Decisions spec at `docs/superpowers/specs/YYYY-MM-DD-<project>-infrastructure-decisions.md` — cite the real path, never duplicate the content here. ⏎  ⏎ ### Execution Order ⏎ [From the Dependency Graph — where this epic sits in the execution sequence.] ⏎  ⏎ ### Entry Point ⏎ `Entry point: /fabrik-spec <this file>` — dispatching this epic means running `/fabrik-spec ⏎ docs/development/epics/YYYY-MM-DD-epic-N-<slug>.md`, which seeds its intake from this file''s Scope, ⏎ Success Criteria and full Metadata block, inherits the Vision''s `## fabrik-lib Verdict` and `## ⏎ Rejected Alternatives` verbatim (never re-runs the ladder), and treats this file''s Out of Scope as OUT ⏎ rows. The Infrastructure Decisions spec cited above provides the shared infra context for that run.'
   text:
   - '### Out of Scope (Epic Level)'
@@ -1493,9 +1468,8 @@ entries:
   - '[5-8 for delta-feature; 3-5 for Retrofit. MUST include at least one deploy/gate-level AND one feature/compliance-level criterion. Criterion #1 is where every epic proves the 4-stage lifecycle — scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`) — per `docs/operations/fabrik-lifecycle.md` (stages 3–4 only; the 4-stage model itself is this command''s own assertion, not that doc''s):]'
   - 'The 4-stage model — scaffold → implement → register (`fabrik apply`) → verify (`fabrik verify`) — is asserted by this command itself: a delta-feature epic must pass all four, checked in Phase 6''s Success Criteria template'
   - '`docs/operations/fabrik-lifecycle.md` covers only lifecycle stages 3–4 (deploy/runtime behaviour + data safety)'
-  - '1. Deploy/gate-level — delta-feature: `fabrik apply` succeeds (register); health endpoint returns 200 (verify). — Retrofit ('
+  - '1. Deploy/gate-level — delta-feature: `fabrik apply` succeeds (register); health endpoint returns 200 (verify). — Retrofit (no Stage-1/Stage-3 of its own — state this exception inline on the ticket): `python scripts/final_gate.py --json` returns `"status":"success"` (the FULL Tier-2 gate — `--lean` is Tier-1, never an acceptance gate) for the modified scope, AND the rule pack''s compliance check moves Partial/Violates → Compliant.'
   - 'Retrofit exception: a Retrofit on an already-deployed service creates no new deploy unit, so it has no Stage-1/Stage-3 of its own — its Stage-3 equivalent is the gate (`final_gate.py --json` green) + the compliance-row flip'
-  - '): `python scripts/final_gate.py --json` returns `"status":"success"` (the FULL Tier-2 gate — `--lean` is Tier-1, never an acceptance gate) for the modified scope, AND the rule pack''s compliance check moves Partial/Violates → Compliant.'
   - '2. Feature/compliance-level — delta-feature: [the `Delivers:` value from the compact entry, restated as an end-to-end user flow]. — Retrofit: [the specific behaviour the rule pack now makes observable].'
   - 3. [Resilience — what happens when a dependency is down] — N/A only for a Retrofit touching no external-call sites.
   - 4. [Audit logging captures key events] — N/A only for a Retrofit touching no mutation surfaces.
@@ -1509,11 +1483,13 @@ entries:
   - '[file globs THIS epic writes, carried verbatim — a file outside this list in the diff is a scope violation, not a bonus]'
   - 'owned_paths: [...] # the concurrency contract, verbatim'
   - Success Criteria and full Metadata block, inherits the Vision's `## fabrik-lib Verdict` and `##
-  - '- Scaffold: [one of the scaffoldable types, carried verbatim — website epics route to a separate ecommerce factory, never this pipeline]'
-  - 'Scaffold: [type — ground from `agents-fabrik.md` § Scaffold Types / `scaffold.py::SCAFFOLD_TYPES`, never a remembered count]'
+  - '- Scaffold: [one of the scaffoldable types, carried verbatim — ground from `agents-fabrik.md` § Scaffold Types / `scaffold.py::SCAFFOLD_TYPES`, never a remembered count; website epics route to a separate ecommerce factory, never this pipeline]'
+  - '- i18n: [mechanism or N/A]'
+  - '- Rule Packs: [IDs]'
+  - '- HAS_USER_GUIDE: [true/false]'
   - Never quote a remembered value where a live read exists — port availability, module API/cap defaults, watchdog caps, the `kind:` contract
   - '- target_vps: [vps1 (hub, default) / vps2 / vps3, carried verbatim — a spoke-targeted service reaches shared infra over the mesh, never Docker DNS]'
-  - 'Target host: [vps1 (hub, default) / vps2 / vps3 — a spoke-targeted service reaches shared infra over the mesh (10.99.0.1), never Docker DNS]'
+  - 'Target host: [vps1 (hub, default) / vps2 / vps3 — from Technology Decisions; a spoke-targeted service reaches shared infra over the mesh (10.99.0.1), never Docker DNS]'
   - 'Shape: [kind + every boolean flag on the CURRENT `src/fabrik/spec_loader.py::Shape` model, read live — never a remembered list or count, it drifts — plus watchdog.enabled]'
   - '- Shape: [kind + every boolean flag on the CURRENT `src/fabrik/spec_loader.py::Shape` model, carried verbatim — read it live, never a remembered list or count; has_bearer_api fires no registrar of its own]'
   - 'Concurrency: [the mechanism — e.g. the adaptive worker pool and/or a pause-state gate per core/75-workers-jobs.md, or none — from category 4 coverage]'
@@ -1522,7 +1498,7 @@ entries:
   - '- Responsive: [carried verbatim — mandatory for saas-skeleton / docusaurus front / mobile-app / desktop-app AND for python-api/node-api/file-api when is_admin_dashboard or is_public-with-HTML; chrome-extension popup is a fixed-400px carve-out]'
   - 'Responsive: [375px–2560px mandatory / N/A — feature-triggered by the GUI surface, not the scaffold type; carve-outs: chrome-extension popup (fixed 400px), mobile-app (native UI), desktop-app (electron window sizing)]'
   - 'Dark+Light: [mandatory / N/A — same trigger as Responsive]'
-  - '- Registrars: [which of the 10 fire — 7 flag-driven (gatus/authelia/prometheus also need spec.domain) + grafana (always) + glitchtip (shape.kind) + watchdog (opt-OUT); any registrar, grafana included, can be force-disabled by infra: {<name>: false}]'
+  - '- Registrars: [which of the 10 fire — 7 flag-driven (gatus/authelia/prometheus also need spec.domain) + grafana + glitchtip + watchdog]'
   - '`Registrars:` ↔ `Shape:` consistency, including the `spec.domain` carve-outs for gatus / authelia / prometheus and the `infra: {<name>: false}` force-disable'
   - '- Universal categories: [comma-separated numbers 1–14, copied verbatim from Phase 1h]'
   - 'Abuse Detection: [required (SaaS w/ free-tier signup) / N/A]'
@@ -1538,72 +1514,77 @@ entries:
   - Rejected Alternatives` verbatim (never re-runs the ladder), and treats this file's Out of Scope as OUT
   - rows. The Infrastructure Decisions spec cited above provides the shared infra context for that run.
 - id: r-L219
-  # class: prose
+  class: prose
   baseline: If any check forces an edit, fix it now (it's your own output), re-check that item, then route
   text:
   - If any check forces an edit, fix it now, re-check that item, then route
 - id: r-L221
-  # class: prose
+  class: prose
   baseline: Every confirmed epic has exactly one file, numbers are contiguous `1..N`, the count matches — no missing, no excess, no orphan
   text:
   - Every confirmed epic has exactly one file, numbers contiguous `1..N` — no missing, no excess, no orphan
 - id: r-L222
-  # class: ban
+  class: ban
   baseline: Frontmatter completeness — every file opens with the full typed block (`kind`/`title`/ `status`/`epic_n`/`slug`/`depends_on`/`parallel_with`/`owned_paths`/`owner`/`scaffold`/`port`/ `target_vps`); the Infrastructure Decisions spec sits under `docs/superpowers/specs/`, never under `docs/development/epics/` (a spec in the ticket tree reads as an orphan ticket)
   text:
   - Frontmatter completeness — every file opens with the full typed block (`kind`/`title`/`status`/`epic_n`/`slug`/`depends_on`/`parallel_with`/`owned_paths`/`owner`/`scaffold`/`port`/`target_vps`); the Infrastructure Decisions spec sits under `docs/superpowers/specs/`, never under `docs/development/epics/` (a spec in the ticket tree reads as an orphan ticket)
 - id: r-L224
-  # class: prose
+  class: prose
   baseline: 'Title + flavour + floor — every Title is `Epic N — [Name]` or `Epic N — Retrofit: [area]`, carried verbatim from Phase 1; Success Criteria meet the per-flavour floor'
   text:
-  - 'Title + flavour + floor — every Title is `Epic N — [Name]` or `Epic N — Retrofit: [area]`; Success Criteria meet the per-flavour floor'
+  - 'Title + flavour + floor — every Title is `Epic N — [Name]` or `Epic N — Retrofit: [area]`, carried verbatim from Phase 1; Success Criteria meet the per-flavour floor'
   - 'status: COVERED by Epic <X> | ABSORBED in Step 2 § <name> | N/A — <reason>'
   - Both flavours produce identical structure; the `Retrofit:` prefix carries from Phase 1b into the Title and Summary verbatim
 - id: r-L231
-  # class: prose
+  class: prose
   baseline: '"Parallel with a note to be careful" is not a thing'
   text:
   - Never "parallel with a note to be careful."
 - id: r-L239
-  # class: ban
-  # clauses: {3: narrative}
+  class: ban
+  clauses: {3: narrative}
   baseline: Never force-merge a decomposition to fit a count. The 3–7 band and the ≥10 re-examination are a SIGNAL; a 14- or 20-epic decomposition that survives re-examination for layer-slicing PROCEEDS at that count (E = 3–20, D-107) — re-cutting a genuinely domain-shaped split down to ≤7 by reflex is the defect this guardrail exists to name
   text:
   - Never force-merge a decomposition to fit a count. The 3–7 band and the ≥10 re-examination are a SIGNAL; a 14- or 20-epic decomposition that survives re-examination for layer-slicing PROCEEDS at that count
   - '⚠️ Epic-count band — a SIGNAL, never a cap (D-107). `3–7 epics is typical. ≥10 → re-examine the boundaries; you are almost certainly splitting by LAYER, not by DOMAIN.` The operator''s own range is E = 3–20: a 14- or 20-epic decomposition whose boundaries are domain-shaped PROCEEDS at that count, never re-cut to ≤7 by reflex'
 - id: r-L245
-  # class: ban
+  class: ban
   baseline: Never emit Success Criteria below the per-flavour floor — when both the resilience and audit-logging criteria are genuinely N/A, add an area-specific one to reach 3 rather than leaving it for the next check to invent
   text:
   - Never emit Success Criteria below the per-flavour floor — when both the resilience and audit-logging criteria are genuinely N/A, add an area-specific one to reach 3
 - id: r-L246
-  # class: ban
-  # clauses: {6: narrative}
+  class: ban
+  clauses: {3: narrative}
   baseline: 'Never use a Title other than `Epic N — [Name]` / `Epic N — Retrofit: [area]` — the `Retrofit:` prefix is the sole flavour carrier a dispatching agent string-parses; `Epic 4 — i18n Retrofit` silently reads as delta-feature'
   text:
   - 'Never use a Title other than `Epic N — [Name]` / `Epic N — Retrofit: [area]` — the `Retrofit:` prefix is the sole flavour carrier a dispatching agent string-parses'
   - 'Ticket Title: `Epic N — [Name]`'
-  - 'Title + flavour + floor — every Title is `Epic N — [Name]` or `Epic N — Retrofit: [area]`; Success Criteria meet the per-flavour floor'
+  - 'Title + flavour + floor — every Title is `Epic N — [Name]` or `Epic N — Retrofit: [area]`, carried verbatim from Phase 1; Success Criteria meet the per-flavour floor'
   - 'Universal categories: [comma-separated numbers 1–14 this epic owns]'
 - id: r-L248
-  # class: ban
+  class: ban
   baseline: Never decide implementation details — API routes, DB schema columns, component names — inside this command
   text:
   - Never decide implementation details — API routes, DB schema columns, component names — inside this command; Those are the owning epic's `/fabrik-spec` run's job once dispatched
 - id: r-L249
-  # class: prose
+  class: prose
   baseline: Those are the owning epic's `/fabrik-spec` run's job once dispatched
   text:
   - Never decide implementation details — API routes, DB schema columns, component names — inside this command; Those are the owning epic's `/fabrik-spec` run's job once dispatched
 vanished:
   L1: {rule: [r-L1]}
+  L18: {rule: [r-L18]}
+  L47: {duplicate-of: u-L232}
+  L136: narrative
+  L175: {rule: [r-L175]}
+  L182: {rule: [r-L182]}
+  L205: {rule: [r-L205]}
   L3: {rule: [r-L3]}
   L19: {rule: [r-L19]}
   L26: {rule: [r-L26]}
   L30: {rule: [r-L30]}
   L33: {rule: [r-L33]}
   L36: {rule: [r-L36]}
-  L39: {rule: [r-L39]}
   L44: {rule: [r-L44]}
   L45: {rule: [r-L45]}
   L49: {rule: [r-L49]}
@@ -1619,9 +1600,6 @@ vanished:
   L84: narrative
   L86: {rule: [r-L86]}
   L87: {rule: [r-L87]}
-  L102: {rule: [r-L102]}
-  L103: {rule: [r-L103]}
-  L107: {rule: [r-L107]}
   L114: {rule: [r-L114]}
   L133: {rule: [r-L133]}
   L134: {rule: [r-L134]}
@@ -1636,7 +1614,7 @@ vanished:
   L155: {rule: [r-L155]}
   L156: {rule: [r-L156]}
   L176: {rule: [r-L176]}
-  L177: {duplicate-of: r-L176}
+  L177: narrative
   L180: {rule: [r-L180]}
   L181: {rule: [r-L181]}
   L188: narrative
@@ -1654,5 +1632,5 @@ vanished:
   L246: {rule: [r-L246]}
   L248: {rule: [r-L248]}
   L249: {rule: [r-L249]}
-  L251: narrative
+  L251: {duplicate-of: u-L189}
   L254: narrative
