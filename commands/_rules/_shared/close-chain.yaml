@@ -5,9 +5,9 @@ entries:
 - id: cc2-four-calls
   file: commands/_fragments/close-chain.md
   baseline: The close is four calls, its inputs written first (D-363) — the default shape, and this command's own close text wins wherever it names something else (a different order, a `blocked` or `handoff` exit, an operator gate, a pause before execution, a nested run whose caller closes, a ledger row committed separately)
-  current: The close is four calls, its inputs written first (D-363) — the default shape, and this command's own close text wins wherever it names something else (a `blocked` or `handoff` exit)
+  current: The close is four calls, its inputs written first (D-363) — the default shape, and this command's own close text wins wherever it names something else (a different order, a `blocked` or `handoff` exit, an operator gate, a pause before execution, a nested run whose caller closes, a ledger row committed separately)
   text:
-  - The close is four calls, its inputs written first (D-363) — the default shape, and this command's own close text wins wherever it names something else (a `blocked` or `handoff` exit)
+  - The close is four calls, its inputs written first (D-363) — the default shape, and this command's own close text wins wherever it names something else (a different order, a `blocked` or `handoff` exit, an operator gate, a pause before execution, a nested run whose caller closes, a ledger row committed separately)
   class: prose
 - id: cc2-before-seven-line
   file: commands/_fragments/close-chain.md
@@ -31,9 +31,9 @@ entries:
 - id: cc-is-printed-by-its-producing-command
   file: commands/_fragments/close-chain.md
   baseline: 'A measured figure an input states (a test total, a constant''s size, a row count) is printed by its producing command, over the population the input names, when the input is written and copied from that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool''s own total")'
-  current: 'A measured figure an input states (a test total, a constant''s size) is printed by its producing command, over the population the input names, copied from that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool''s own total")'
+  current: 'A measured figure an input states (a test total, a constant''s size) is printed by its producing command, over the population the input names, when the input is written and copied from that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool''s own total")'
   text:
-  - 'A measured figure an input states (a test total, a constant''s size) is printed by its producing command, over the population the input names, copied from that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool''s own total")'
+  - 'A measured figure an input states (a test total, a constant''s size) is printed by its producing command, over the population the input names, when the input is written and copied from that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool''s own total")'
   class: ban
   pins:
   - tests/test_producing_command_fragments.py::test_a_figure_in_a_close_input_is_printed_by_its_producer_not_recalled
@@ -74,9 +74,6 @@ entries:
   pins:
   - tests/test_producing_command_fragments.py::test_the_close_chain_gates_before_it_pushes
 vanished:
-  L1:
-    rule:
-    - cc2-four-calls
   L4:
     rule:
     - cc-is-printed-by-its-producing-command
