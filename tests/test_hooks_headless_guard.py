@@ -210,25 +210,12 @@ def test_every_declared_spawner_actually_sets_the_flag() -> None:
 
 
 def test_every_delegated_spawner_names_a_test_of_its_childs_env() -> None:
-    """Each delegated spawner's grading test exists once and asserts, as a top-level statement of its
-    body, `<…>["headless"] == "1"` — the behaviour lives there; this keeps the pointer from going stale
-    (a rename, a deletion, a weakened or unreachable assert, a later same-name def shadowing it).
-
-    Model boundary: drift, not sabotage. A skip/xfail marker on that test or a fake `claude` that logs a
-    constant is a deliberate test edit, caught by that edit's own review like any test's."""
+    """Each delegated spawner's row names a grading test that exists, once, at module level — a pointer
+    check only (a rename, a deletion, a same-name def shadowing it). What that test asserts is graded by
+    running it and by the review of any edit to it, as for every test: a static read of its asserts was
+    tried and each tightening opened new escapes (an early return, the wrong record, a reversed compare),
+    so it was deleted (W-174b8543 review rounds 2-3)."""
     import ast
-
-    def flag_assert(s: ast.stmt) -> bool:
-        if not (isinstance(s, ast.Assert) and isinstance(s.test, ast.Compare)):
-            return False
-        t = s.test
-        return (
-            isinstance(t.left, ast.Subscript)
-            and isinstance(t.left.slice, ast.Constant)
-            and t.left.slice.value == "headless"
-            and [type(o) for o in t.ops] == [ast.Eq]
-            and [getattr(c, "value", None) for c in t.comparators] == ["1"]
-        )
 
     root = Path(__file__).resolve().parents[1]
     for rel, test_file, test_name in _DELEGATED_SPAWNERS:
@@ -237,9 +224,6 @@ def test_every_delegated_spawner_names_a_test_of_its_childs_env() -> None:
         fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == test_name]
         assert len(fns) == 1, (
             f"{test_file}::{test_name} (the grader of {rel}'s child env) is defined {len(fns)} times"
-        )
-        assert any(flag_assert(s) for s in fns[0].body), (
-            f"{test_file}::{test_name} no longer asserts the child received FABRIK_HEADLESS=1"
         )
 
 
