@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -52,6 +53,15 @@ UNIVERSAL = {
     "rea",
 }
 U5_NO_DB = UNIVERSAL - {"postgres-pro"}  # absent-until-configured (no connecting DATABASE_URL)
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_git(tmp_path, monkeypatch):
+    """The gitignore guard asks git: the box's global or system excludes must not decide these tests."""
+    empty = tmp_path / "empty.gitconfig"
+    empty.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
 
 
 @pytest.fixture()
@@ -170,16 +180,93 @@ def test_check_mode_never_writes(tmp_path, defs_file):
     assert not (r / ".mcp.json").exists()
 
 
-def test_untyped_gitless_and_condemned_skipped(tmp_path, defs_file):
-    untyped = make_repo(tmp_path, "no-yaml", None)
+def test_untyped_gitless_and_unguarded_repos(tmp_path, defs_file, capsys):
+    """D-1246 ("rea must be available to system wide for all repos"): an untyped git repo gets the universal
+    set — but only when its .gitignore keeps `.mcp.json` out of git, since the file carries filled credentials;
+    image-generation is no longer excluded by name; a non-git dir and fabrik-lib are still skipped."""
+    guarded = git_repo(tmp_path, "no-yaml", "node_modules/\n.mcp.json\n")
+    unguarded = git_repo(tmp_path, "vendor-clone", "node_modules/\n")
     gitless = tmp_path / "not-a-repo"
     gitless.mkdir()
     (gitless / "project.yaml").write_text("name: not-a-repo\ntype: python-api\n")
-    condemned = make_repo(tmp_path, "image-generation", "python-api")
+    formerly_condemned = make_repo(tmp_path, "image-generation", "python-api")
+    lib = make_repo(tmp_path, "fabrik-lib", None)
     run(tmp_path, defs_file)
-    assert not (untyped / ".mcp.json").exists()
+    assert servers_of(guarded) == U5_NO_DB
+    assert not (unguarded / ".mcp.json").exists(), "no gitignore line, no secrets file"
+    out = capsys.readouterr().out
+    assert "vendor-clone: SKIP (untyped repo whose `.mcp.json` git does not ignore" in out
+    # a `.git` git cannot read: no answer, never written, and the line says so
+    unanswerable = make_repo(tmp_path, "unanswerable", None)
+    run(tmp_path, defs_file)
+    assert not (unanswerable / ".mcp.json").exists()
+    assert "unanswerable: SKIP (untyped repo, and git could not say" in capsys.readouterr().out
     assert not (gitless / ".mcp.json").exists()
-    assert not (condemned / ".mcp.json").exists(), "condemned repo must be skipped BY NAME"
+    assert servers_of(formerly_condemned) == U5_NO_DB
+    assert not (lib / ".mcp.json").exists(), "fabrik-lib's own agent lands its file"
+
+
+def git_repo(root: Path, name: str, gitignore: str | None) -> Path:
+    """A REAL git repo (the guard asks `git check-ignore`), untyped, with an optional .gitignore."""
+    d = root / name
+    d.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    if gitignore is not None:
+        (d / ".gitignore").write_text(gitignore)
+    return d
+
+
+@pytest.mark.parametrize(
+    "gitignore, emitted",
+    [
+        ("x\n.mcp.json\n", True),
+        ("x\n/.mcp.json\n", True),
+        ("*.json\n", True),  # any rule git honours counts
+        ("x\n# .mcp.json\n", False),
+        ("x\n.mcp.json.bak\n", False),
+        (".mcp.json\n!.mcp.json\n", False),  # a later negation un-ignores it
+        (None, False),
+    ],
+    ids=["plain", "rooted", "glob", "comment", "other-file", "negated", "no-gitignore"],
+)
+def test_the_gitignore_guard_asks_git(tmp_path, defs_file, gitignore, emitted):
+    repo = git_repo(tmp_path, "untyped", gitignore)
+    run(tmp_path, defs_file)
+    assert (repo / ".mcp.json").exists() is emitted
+
+
+def test_the_gitignore_guard_refuses_a_tracked_file(tmp_path, defs_file):
+    """A tracked .mcp.json is not ignored whatever .gitignore says: inlined keys would be committed."""
+    repo = git_repo(tmp_path, "untyped", "x\n")
+    (repo / ".mcp.json").write_text('{"mcpServers": {}}\n')
+    subprocess.run(["git", "-C", str(repo), "add", "-f", ".mcp.json"], check=True)
+    (repo / ".gitignore").write_text(".mcp.json\n")
+    run(tmp_path, defs_file)
+    assert (repo / ".mcp.json").read_text() == '{"mcpServers": {}}\n', "never overwritten"
+
+
+def test_untyped_repo_gets_the_universal_set_and_an_unknown_type_stays_unruled(tmp_path):
+    defs = {n: {"command": n} for n in ALL_SERVERS}
+    untyped = make_repo(tmp_path, "rn-kit-sandbox", None)
+    no_type_line = make_repo(tmp_path, "half", None)
+    (no_type_line / "project.yaml").write_text("name: half\n")
+    typo = make_repo(tmp_path, "typo-saas", "sass-skeleton")
+    unparsed = make_repo(tmp_path, "quoted", None)
+    (unparsed / "project.yaml").write_text('name: quoted\ntype: "python api"\n')
+    commented = make_repo(tmp_path, "commented", None)
+    (commented / "project.yaml").write_text("name: commented\ntype: saas-skeleton  # web\n")
+    assert set(emitter.ruled_server_names(untyped, defs)) == UNIVERSAL
+    assert set(emitter.ruled_server_names(no_type_line, defs)) == UNIVERSAL
+    assert emitter.ruled_server_names(typo, defs) is None, "a typo stays a visible SKIP"
+    assert emitter.ruled_server_names(unparsed, defs) is None, (
+        "an unreadable type line is not untyped"
+    )
+    assert "playwright" in emitter.ruled_server_names(commented, defs), "a trailing comment is read"
+    # YAML reads `#` as a comment only after whitespace, and an empty `type:` is no type the roster knows
+    for name, line in (("glued", "type: saas-skeleton#web"), ("empty", "type:")):
+        r = make_repo(tmp_path, name, None)
+        (r / "project.yaml").write_text(f"name: {name}\n{line}\nother: x\n")
+        assert emitter.ruled_server_names(r, defs) is None, line
 
 
 def test_claim_validator_never_emitted(tmp_path, defs_file):
@@ -210,14 +297,16 @@ def test_write_set_containment(tmp_path, defs_file):
     assert after - before == {Path("some-api/.mcp.json")}
 
 
-def test_malformed_yaml_skipped_run_continues(tmp_path, defs_file, capsys):
+def test_malformed_yaml_reads_as_untyped_and_the_run_continues(tmp_path, defs_file, capsys):
+    """A project.yaml with no `type:` line is untyped (D-1246): with no gitignore line it is skipped, said by
+    name, and the rest of the run still emits."""
     bad = make_repo(tmp_path, "broken", None)
     (bad / "project.yaml").write_text("::: not yaml :::\n")
     good = make_repo(tmp_path, "good-api", "python-api")
     run(tmp_path, defs_file)
     assert not (bad / ".mcp.json").exists()
     assert (good / ".mcp.json").exists(), "one bad repo must not strand the rest"
-    assert "broken" in capsys.readouterr().out
+    assert "broken: SKIP" in capsys.readouterr().out
 
 
 def test_scaffold_helper_emits_mcp_config(tmp_path, monkeypatch):
