@@ -160,8 +160,8 @@ brief. Each is step: execute it, or name in brief why shape lacks it.
   docstring; count cites command (with its range — brief hands seat that exact command); code snippet in prose is
   checkable claim; evidence block in report or receipt pastes artifact's section whole; unverified hand-derived
   enumeration is deleted.
-- A site round re-opened, bullet wrong two rounds running, or mechanism fix added, is rewritten whole, never patched
-  again.
+- A site round re-opened, bullet wrong two rounds running, or a mechanism the fix added and a round broke, is rewritten
+  whole, never patched again.
 
 ## Seat isolation
 
@@ -224,10 +224,11 @@ brief. Each is step: execute it, or name in brief why shape lacks it.
   (its `base_sha` HEAD's commit; repo with no commit has no base copy, and `--base` is refused there), `<c>^` for a fix
   pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the commit before the fix when it spans
   several. The brief's `base_sha` is then one pin records, and gives `<pins_dir>.base` as recipe's
-  `${args.base_pin_dir}`; each seat copies that tree in place of archive steps of `PIN_IMPORT` and `PYTEST_PINS`. A base
-  copy is whole commit (some 120 MB in hub) beside pins dir in durable `SCRATCH:` folder, which `start` keeps 14 days:
-  once pass is adjudicated, lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`), since every
-  pass pins afresh and delta brief reads previous `pins_dir`, never its base copy.
+  `${args.base_pin_dir}`; each seat copies that tree in place of archive steps of `PIN_IMPORT` and `PYTEST_PINS`. Where
+  the including command puts pins there, a base copy is whole commit (some 120 MB in hub) beside pins dir in durable
+  `SCRATCH:` folder, which `start` keeps 14 days: once pass is adjudicated, lead removes it (`chmod -R u+w
+  <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins afresh and delta brief
+  reads previous `pins_dir`, never its base copy.
 - A delta brief also names the previous pass's `base_sha` (for the working-tree pin `/fabrik-review-scoped` step 5
   takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it,
   and null in a repo with no commit; for any other pin the brief names the commit itself, since one taken `--base`
@@ -238,12 +239,15 @@ brief. Each is step: execute it, or name in brief why shape lacks it.
   difference is round's fix alone, naming any other hunk or path, which leaves every reader it touches `unverified`
   (each `Only in` line is named and classed from `git diff --name-status <previous base_sha> <this base_sha>` for what
   fix committed and `git status --short --untracked-files=all --ignored -- <path>` for what it did not, `change.diff`
-  carries no entry for removed path; any path pinned in only one pass is another path; a directory line covers every
-  listed path under it; a fix's own path's readers are the tests the `tests/` grep above finds and, for a document, the
-  citers the heading-or-term grep below finds, and an importer outside `tests/` is named and left `unverified`); seat
-  then runs each reader once on each pin by `PIN_IMPORT`/`PYTEST_PINS` recipe with that pin's `base_sha`; reader pre-pin
-  section keeps lead's ("one that writes a live store") takes § Loop bookkeeping's `unverified` route; reader that fails
-  on previous pin is no evidence of break, `RECORDED` with its destination.
+  carries no entry for removed path; a path the fix added, modified, removed or renamed is the fix's own, and its
+  readers run on both pins, a removal or rename whose old path this pass's `base_sha` still holds leaving those readers
+  `unverified`; a seat greps a heading or term another section cites over each pin's tree, where its citers live; any
+  path pinned in only one pass is another path; a directory line covers every listed path under it; a fix's own path's
+  readers are the tests the `tests/` grep above finds and, for a document, the citers the heading-or-term grep below
+  finds, and an importer outside `tests/` is named and left `unverified`); seat then runs each reader once on each pin
+  by `PIN_IMPORT`/`PYTEST_PINS` recipe with that pin's `base_sha`; reader pre-pin section keeps lead's ("one that writes
+  a live store") takes § Loop bookkeeping's `unverified` route; reader that fails on previous pin is no evidence of
+  break, `RECORDED` with its destination.
 - No `uv`/`pip`, no live API key outside suite's fixtures, every writing verb outside scratch named and forbidden; one
   grep form; large output goes to seat's scratch first; adjudication authority (CLAUDE.md, packs) is read at pin; brief
   names which shell guard seat is under (the worktree guard reads word `git` inside `-c` program or heredoc as git call)
@@ -289,10 +293,10 @@ brief. Each is step: execute it, or name in brief why shape lacks it.
   embeds its ledger text and states what seat must report (a count, a verdict, an output), never the value the lead
   expects; closing-pass brief has every seat list each slice file it read; delta brief lists exact mutant ids executed,
   reads unified diff, and checks ROUTED claims for routing only; one-hop edit found mid-fix is named in next brief;
-  guard fix adds goes into every brief from then on; stale pre-existing text in edited file is RECORDED with
-  destination; never counted; slice ledger is round 1's claim count at zero confirmed. A measurement or proof brief
-  hands seat names, up front, bound that limits it (a peak capped by very limit being sized), so seat attacks it as
-  bounded, never as unbounded.
+  guard fix adds goes into every brief from then on; stale pre-existing text in edited file is RECORDED with a
+  destination (term-coverage D4), or fixed in the same hunk and named; never counted; slice ledger is round 1's claim
+  count at zero confirmed. A measurement or proof brief hands seat names, up front, bound that limits it (a peak capped
+  by very limit being sized), so seat attacks it as bounded, never as unbounded.
 - Lint or format findings are compared against HEAD, against committed diff, under every claimed toolchain version,
   before reported or refuted; tests re-run after last lint fix; refutation that later commit lands is checked against
   completion gate; read callee before confirming wrong-method finding; refuter that needs forbidden surface marks it
