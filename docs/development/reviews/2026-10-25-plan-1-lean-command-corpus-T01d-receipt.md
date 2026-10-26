@@ -81,3 +81,49 @@ Start (attempt 1 head, separate worktree): 61 failed + 1 collection error, 2840 
 5. The ceiling ratchet at merge (`assemble_commands.py --ratchet`, never by hand); `INDEX.md`/`CHANGELOG.md` rows for the new lints and this receipt.
 6. The § Seat isolation pointer lever (≈ −1,600 words, needs a D-row).
 7. Paraphrase pass over the catalogue's long anchor-free bullets (≈ −800 words) once the audit pair has read the first pass.
+
+## Fix round v3 (cloud worker, branch `claude/lean-t01d-v3`, base `claude/lean-t01d-v2`)
+
+**Loader swap (first commit, "not T01d work").** `commands/command_rules.py`, `tests/test_command_rules.py` and `docs/reference/command-corpus-check.md` taken from `origin/infra-3-d1236-lints` (cf90e45; `git log origin/master --grep=W-9cd8653d` printed no merge). Never edited afterwards; the hub drops them from this branch's diff at merge.
+
+**LOSS 72 → 0.** Reproduced first (72 lines: A 10, B 33, D 22, labels 7). Clearing the 7 "malformed" entries then exposed 21 further lines the loader had been masking behind them (researcher 22, reviewer 16, close-chain 6, gui and no-workflow-hub); all cleared. `python3 commands/assemble_commands.py --check` now prints no `LOSS` line (exit 1, MISSING drift only: this clone has no installed corpus). `pytest tests/test_command_rules.py`: 50 passed, 3 skipped.
+
+**How.** Every ban clause is restored verbatim from its ban word to the end of its `;`/`—`/sentence clause in the live file (and in the entry's `current`/`text`); uncovered clauses are covered by ONE phrase; no ban-bearing clause or line is labelled `narrative`/`duplicate-of`; baseline lines L44/L56 (close-feedback), L5 (orient), L4/L13 (run-record), L26 (researcher) now have real carriers (`cf-65`, `cf-64`, `or-hub-absolute`, `rr-protects-only-if-opened`, `rr-only-witness`, `rsr-L26-measured-in-one-run`). Where a clause's rewording had dropped a rule, the rule is back; `class` and `clauses` were already real keys in v2 (no comments to convert).
+
+### Words (`wc -w`): start 8ac547a61 → v2 → v3
+| file | start | v2 | v3 |
+|---|---|---|---|
+| close-chain.md | 461 | 336 | 462 |
+| close-feedback.md | 2352 | 1523 | 2085 |
+| run-record.md | 646 | 491 | 560 |
+| orient.md | 345 | 196 | 345 |
+| no-workflow-hub.md | 148 | 111 | 120 |
+| fabrik-researcher.md | 2650 | 2115 | 2435 |
+| fabrik-reviewer.md | 2059 | 1858 | 1984 |
+| fabrik-gui.md | 611 | 451 | 530 |
+| review-probe-catalogue.md | 6870 | 6864 | 6864 |
+
+The canonical loader makes most of v2's cut a lost rule: close-chain and orient return to their start size. The honest v3 saving is what the rewrite can shed once every ban clause and anchor is kept (the hub should measure it with `wc -w` on the merged tree).
+
+### Reworded / total entries per ledger (reworded = no text phrase and no `current` equals the baseline, whitespace-normalised)
+close-chain 2/9 · close-feedback 19/70 (63 at first count + 7 new carriers) · fabrik-gui 9/19 · fabrik-researcher 11/76 · fabrik-reviewer 13/39 · no-workflow-hub 2/4 · orient 0/9 · review-probe-catalogue 0/68 (untouched) · run-record 6/24. (Counts taken before the last two carrier additions; the ledgers hold the live numbers.)
+
+### Self-audit (three author-blind passes by fresh subagents, baseline vs rewrite vs ledger, line by line)
+- Pass 1 found and I fixed: one invented ban (reviewer "never execute the surface under review itself…"), the dropped git-stash incident clause, `wf-refuter`'s `unverified` rewrite, 5 lost rules behind wrong `vanished` pointers (close-feedback L24/L27/L29/L33/L34/L49), cc2-four-calls' override list, cc2-before-seven-line, an input's "first", orient surface-paths/cobra/"read and cited", banner "or unit's", run-record "fifth cause".
+- Pass 2 found and I fixed: cf-11's wrong L10 carrier, L17 mislabelled narrative (new `cf-71`), L13 (new `rr-only-witness`), `wf-structured`'s check definition, cf-36's "will not accept either".
+- Pass 3 found and I fixed: L20 (`cf-72`), L71 (`cf-73`), cf-35's consequence, the BLOCKED clause of `runrec-both-hold…`, gui L21 (`gui-design-review-complement`).
+- `COUNTS: entries read 239 / reworded ~70 / weaker 12 (pass 3, before its fixes) / lost 3 / invented 0 / wrong vanished labels 4` — NOT zeros: pass 3's report is the last full pass, and I fixed its lost items and the four wrong pointers afterwards without a fourth pass. Remaining known, history-only or low items (each dropped text holds no ban word): close-feedback L38 (error string and `01M14V7KH4`), L41 `invalid choice`, L56/L58 rhetoric, cf-16 clause 3; researcher L25 tail, L26 WebFetch half and its id, L34 "in both directions" and `01M1KMS2…`, L22 clause 2 rationale (`$HOME/.claude*` stays in L8), L8 "and the page is lost"; gui L7 "console, network, perf, DOM", L16 "(or arm a Monitor)"; no-workflow-hub round-1/delta/wave enumeration; run-record L7 numbers, L8 `CLAUDE_AGENT`, L21–L22 rationale. The hub's author-blind audit decides whether any must come back.
+
+### The three tests outside "edits no test" (v2 deletions, kept)
+- `tests/test_command_improve_queue_pass.py`: removes a close-chain presence pin; its phrase spans `cc2-recheck-after-pass` (now carries the examples verbatim) and `cc-briefs…`, and the test is listed under `cc2-recheck-after-pass` `pins:` → kept.
+- `tests/test_producing_command_fragments.py`: removes the two `cc-then-1` reason pins; both clauses are live again in `cc-then-1` (clause 7 no longer labelled narrative), test listed under its `pins:` → kept.
+- `tests/test_review_queue_pass.py`: removes the banner phrase pins and the `cc-briefs` sentence pin; every phrase is a live carrier (`banner-*` entries; `-3` and `-4` now list the test under `pins:`, `cc-briefs…` lists its own) → kept. Nothing restored.
+
+### Reader tests (94 test files that reference fragments/agents/rules/assemble/command_rules, clone environment as root, no services)
+Start commit (v2, separate worktree): 143 FAILED/ERROR lines. End (final tree, v3): 143, `comm -13` of the two sets empty — no node new. (The clone lacks box services, so the reds pre-exist.)
+
+### LEFT FOR THE HUB
+1. The author-blind audit of record (last pass above was not zero; see the remaining list).
+2. Measure the real v3 saving on the merged tree; consider a D-row if the ban-verbatim reading (cf-63/64, rr-only-witness restore ~150 words of history around one ban word) is judged too costly: the loader gives no way to label such a clause.
+3. A decision on `cf-32`'s `class: grammar` (forces its clause verbatim) and `cf-55`/orient fenced units (comment text restored to satisfy grammar).
+4. Re-run `--ratchet` and the ceiling at merge; INDEX/CHANGELOG rows.
