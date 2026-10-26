@@ -3144,6 +3144,76 @@ _MENU_CUE_RE = re.compile(
     r"|\bwhich (?:one|option|way|path|of (?:the|these))\b",
     re.I,
 )
+# A NUMBERED list's cue is read AFTER the list (mail 01M5B996F3): a `?` or choice word inside an
+# item is that item's own text — a findings list reported while seats are out read as a menu.
+# Measured over the 54 texts the hook had blocked as D2: 21 stop firing (findings, step and status
+# lists), both real menus whose ITEMS ask still fire. The list keeps its in-item cue when its
+# items mostly ask, say `Option`, or carry a strong hand-off phrase (`your call` is not one: it
+# re-fires status lists, "4. Deployment, which is your call."). Lettered `(a)` lists keep the old
+# rule — none was a false fire. COBRA (D-253): a menu now passes as a 2-item list with one asking
+# item, or with `your call` inside a minority of its items; the tests pin both as known misses.
+_LIST_ITEM_RE = re.compile(r"[ \t]*(?:\d{1,3}[.)]|\(\d{1,3}\))[ \t]+\S")
+_LIST_BULLET_RE = re.compile(r"[ \t]*[-*•][ \t]+\S")
+_ITEM_ASKS_RE = re.compile(r"\?(?=[\s)\]\"'*_]|$)")  # a question's `?`, never a URL's
+_ITEM_OPTION_RE = re.compile(r"\b[Oo]ption\b")
+_STRONG_HANDOFF_RE = re.compile(
+    r"\bwhich (?:one|option|way|path|of (?:the|these))\b|\bup to you\b|\byou decide\b|\bpick one\b",
+    re.I,
+)
+
+
+def _list_end(text: str, ls: int) -> int:
+    """Offset just past the numbered list whose first item line starts at ``ls``: its item lines,
+    their indented continuation and bullet lines, and a blank line only when another item follows."""
+    pos, n, first = ls, len(text), True
+    while pos < n:
+        le = text.find("\n", pos)
+        le = n if le == -1 else le
+        line = text[pos:le].rstrip("\r")
+        if (
+            first
+            or _LIST_ITEM_RE.match(line)
+            or _LIST_BULLET_RE.match(line)
+            or (line[:1] in (" ", "\t") and line.strip())
+        ):
+            first = False
+            pos = le + 1
+            continue
+        if not line.strip():
+            nxt = text.find("\n", le + 1)
+            if _LIST_ITEM_RE.match(text[le + 1 : n if nxt == -1 else nxt]):
+                pos = le + 1
+                continue
+        break
+    return min(pos, n)
+
+
+def _menu_cue_start(text: str, start: int) -> int:
+    """Where D2 looks for the hand-off cue of the menu matched at ``start``: past the list when it
+    is a multi-line NUMBERED list whose items do not themselves hand off, else ``start``."""
+    ls = text.rfind("\n", 0, start) + 1
+    if not _LIST_ITEM_RE.match(text, ls) or text[ls:start].strip():
+        return start
+    first_end = text.find("\n", ls)
+    end = _list_end(text, ls)
+    if first_end == -1 or end <= first_end + 1:
+        return start  # one line: an inline `1. … 2. …?` keeps its cue
+    items: list[list[str]] = []
+    for line in text[ls:end].splitlines():
+        if _LIST_ITEM_RE.match(line):
+            items.append([line])
+        elif items:
+            items[-1].append(line)
+    asking = sum(1 for it in items if _ITEM_ASKS_RE.search("\n".join(it)))
+    if (
+        asking * 2 > len(items)
+        or _ITEM_OPTION_RE.search(text, ls, end)
+        or _STRONG_HANDOFF_RE.search(text, start)
+    ):
+        return start
+    return end
+
+
 # D3 — an offer to act (subsumes `_PERMISSION_RE`, which blocked ONLY mid-run; spec § C1 "the one
 # behaviour that moves").
 _OFFER_RE = re.compile(
@@ -3742,7 +3812,7 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
         # The hand-off cue: a question or choice word from the menu on, or the menu sitting on
         # the NEXT: line itself — alternatives offered as the successor ARE the operator's pick.
         on_next = _NEXT_LINE_RE.match(text, text.rfind("\n", 0, m.start()) + 1) is not None
-        if on_next or _MENU_CUE_RE.search(text, m.start()):
+        if on_next or _MENU_CUE_RE.search(text, _menu_cue_start(text, m.start())):
             return "D2", " ".join(m.group(0).split())[:200]
     for m in _OFFER_RE.finditer(text, tail):
         if _defer_skip(text, m.start(), fences):
