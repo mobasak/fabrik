@@ -1,0 +1,22 @@
+shared: commands/_fragments/term-edit.md
+baseline_sentences: term-edit.baseline.txt
+baseline_sha256: 8ec31b32f73df68acb55640c3ea189693340736c216074ba80750e48ea820640
+entries:
+- id: te-pin-never-touched-while-seats-run
+  file: commands/_fragments/term-edit.md
+  section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
+  baseline: (2) PIN the {{ARTIFACT}} once PER ROUND — `cp` it to scratch, put its md5 in every brief (that hash is the round's `md5(start)`), and never touch the pin while its seats run (the seats read the pin; you edit the working tree once every seat has returned and you have read the pass)
+  current: (2) PIN the {{ARTIFACT}} once PER ROUND — `cp` it to scratch, put its md5 in every brief (that hash is the round's `md5(start)`), and never touch the pin while its seats run (the seats read the pin; you edit the working tree once every seat has returned and you have read the pass)
+  text:
+  - never touch the pin while its seats run (the seats read the pin; you edit the working tree once every seat has returned and you have read the pass)
+  forbidden:
+  - (the seats read the pin; you edit the working tree)
+  # class: prose
+- id: te-probe-never-replaced-by-seat-rederivation
+  file: commands/_fragments/term-edit.md
+  section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
+  baseline: 'Three rules bind the probe: (1) ANY CLAIM WITH A CHECKABLE REFERENT IS A SCRIPT, NOT PROSE — and that includes every claim YOUR OWN FIX introduces. A claim about what a verb, a window or a reach-back does, AND every count, enumeration, line anchor, step reference, mutant prediction (a mutant its grader is said to kill) or negative, is executed at round 1, or before the pin that first carries it, as a probe script pinned beside the {{ARTIFACT}} (`<scratchpad>/<review>/probes/<claim>.sh`, its output pasted under the claim), re-run and re-cited when the claim or what it measures changes (a fix that changes what a quoted advisory counts, such as a plan''s Touches), and never replaced by a seat''s own re-derivation: a seat that re-derives the claim, as this fragment''s RE-DERIVE rule asks, and gets a different answer raises the difference as a candidate'
+  current: 'Three rules bind the probe: (1) ANY CLAIM WITH A CHECKABLE REFERENT IS A SCRIPT, NOT PROSE — and that includes every claim YOUR OWN FIX introduces. A claim about what a verb, a window or a reach-back does, AND every count, enumeration, line anchor, step reference, mutant prediction (a mutant its grader is said to kill) or negative, is executed at round 1, or before the pin that first carries it, as a probe script pinned beside the {{ARTIFACT}} (`<scratchpad>/<review>/probes/<claim>.sh`, its output pasted under the claim), re-run and re-cited when the claim or what it measures changes (a fix that changes what a quoted advisory counts, such as a plan''s Touches), and never replaced by a seat''s own re-derivation: a seat that re-derives the claim, as this fragment''s RE-DERIVE rule asks, and gets a different answer raises the difference as a candidate'
+  text:
+  - 'never replaced by a seat''s own re-derivation: a seat that re-derives the claim, as this fragment''s RE-DERIVE rule asks, and gets a different answer raises the difference as a candidate.'
+  # class: prose

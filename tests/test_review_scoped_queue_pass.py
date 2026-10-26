@@ -261,10 +261,6 @@ def test_term_edit_pin_clause_does_not_license_a_mid_window_edit() -> None:
     files' in 14 of its 17 includers. Panel split (Opus parity, Fable reword); the repo's own rule against copying
     a fragment's rule into another settles it as a reword that states WHEN."""
     te = _norm(ROOT / "commands" / "_fragments" / "term-edit.md")
-    assert (
-        "never touch the pin while its seats run (the seats read the pin; you edit the working tree once every seat"
-        " has returned and you have read the pass)" in te
-    )
     assert "(the seats read the pin; you edit the working tree)" not in te
 
 
@@ -631,10 +627,6 @@ def test_a_probed_count_is_never_replaced_by_a_seats_re_derivation() -> None:
     assert (
         "never replaced by a finder's own re-derivation: a finder that re-derives the claim, as the closing pass does,"
         " and gets a different answer raises the difference as a candidate." in cov
-    )
-    assert (
-        "never replaced by a seat's own re-derivation: a seat that re-derives the claim, as this fragment's RE-DERIVE"
-        " rule asks, and gets a different answer raises the difference as a candidate." in edit
     )
     for text in (cov, edit):
         assert (
