@@ -1,3 +1,5 @@
+OWN TEXT: 1348 -> ~1206 (~89%) — `commands/_sources/design-review.md`; the figure is hand arithmetic over the edits (no word-count run is permitted in this lane), not a `command_rules.own_text` measurement
+
 # T29 receipt — lean rewrite of `design-review` (light form, D-1236/D-1238/D-1240)
 
 Run: cloud worker, branch `claude/lean-t23-grp`, TASK slug lean-t23-grp. Start commit: `18cc448 (T28 commit; this source is untouched by T23-T28, baseline text identical to 851b4b3)` (the baseline commit). Baseline sha256 `21e0043c50f853460370b92752fda59fc00384efeb497a0117177121560295b2` (39 keyed lines, `commands/_rules/design-review.baseline.txt`).
@@ -54,4 +56,25 @@ Gates: `python3 -m pytest -q tests/test_command_rules.py -rP` → 32 passed, 3 s
 - The author-blind Sonnet + Haiku classification of the vanished lines and the audit pair over every reworded entry (old against new): labels above are the author's.
 - Convert the `# class:` / `# clauses narrative:` comments to keys when the canonical loader lands; re-grade the ledger under it.
 - Render the corpus at merge (never done in a worktree).
+## Re-ledger round (master's canonical loader, W-9cd8653d; API-key write lane)
+
+- Own-text words: baseline 1348 → fix round 1262 → now ~1206 (~89%; hand-estimated, see line 1). **Target ≤50% not met; floor below.**
+- LOSS for `design-review.yaml`: before 2 (r3 clause 4, r4 clause 1) → after 0 (`--check` prints no `design-review.yaml` LOSS line; the only LOSS lines left are `_shared/*` and other commands' ledgers, T01d's and other tickets').
+- Every `# class:` comment is now a `class:` key (ban 13, behavioural 2, grammar 4, prose 13); the four git-fence labels moved prose → grammar (they are 1–2-word parser fences, under the 6-word prose minimum). `# clauses narrative:` comments on the `vanished:` rows are gone: the narrative clauses are now `clauses: {2: narrative}` on `u-L21`.
+- Reworded/total entries: 7/32 (`u-L19`, `u-L21`, `design-review-r1`, `design-review-r3`, `design-review-r4`, plus `u-L28` deleted whole as narrative → `vanished: L28`, and the persona lines L6/L7 stay narrative). Entries restored to baseline wording to satisfy D-1240: r3's `(screens are independent — … `fabrik-gui`)` aside and r4's `(When run inside `/fabrik-ui-design`'s …)` aside (a ban clause's anchors and 70% of its first 8 stems must sit in one phrase; the clause runs from the aside through `keep going`), r1's `(mechanism revised by D-182)` and `<!-- POOL OFF -->` anchors, L19's `visual/UX/a11y judgement` stems.
+- Cuts this round: persona sentence (L6/L7, narrative), L28 rationale sentence (narrative, no ban word), `this review is a LOOP, not a one-shot;` (narrative, `u-L21` clause 2), the axe/contrast/token-lint parenthetical, the L19 rationale tail past its first 8 stems.
+- Vanished map now: L1, L18, L19, L20 (identical text, harmless), L21, L26 → rule ids; L6, L7, L28 → narrative.
+- Pins: the one pin test was already deleted last round; `pins:` on `u-L29`/`u-L30` still names it. No test file edited this round.
+
+Floor (why the cut stops near 89%): of the ~1206 words, ~210 are frontmatter (`allowed-tools` MCP list ~110 + `description`/TRIGGER ~100, ledgered by no unit and read by `test_skill_router_hook.py`/trigger tests); ~70 are the three `!`-fenced git blocks and their labels; the D-191 dispatch step (~110) and the `report and nothing else` sentence are read by behavioural tests; 13 `ban` entries (~560 words) hold a ban word in nearly every clause, and D-1240 keeps a ban clause verbatim to the end of its `;`/`—` clause with parentheticals inside it, and a baseline clause's first-8 stems and every anchor must sit in ONE phrase. Live ban/grammar/behavioural rules ≈ 21 (`u-L3 L5 L17 L20–L25 L29 L30 L35 L38 r3 r4` and the fences). The kept prose clauses (`u-L2/L4/L16/L19/L27/L31–L34/L36/L37/L39`) are already at anchors + ≥6 of their first 8 stems except the ones a test pins. Cutting to 50% needs rules removed on purpose (a `retired:` row + D-row) — out of scope.
+
+COUNTS: 32 entries read / 7 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels (self-audit by hand against the files; earlier pass found and fixed: r3 clause 4 anchors, r4 clause 1 anchors, r1 clause 2 stems, L19 clause 2 stems, L20 over-cut, vanished rows for L19–L21).
+
+Gates (this lane): `tests/test_command_rules.py` → 56 passed / 1 failed, the failure being `test_generate_unchanged_ledgers_pass_on_the_live_corpus`'s assertion on other ledgers' LOSS lines (`LEDGER design-review.yaml` line printed, zero LOSS for it); `--check` → no `design-review.yaml` LOSS, DRIFT only `DIFFERS`; reader-test runs: 376 / 510 / 460 / 319 passed; red sets, all environmental or other ledgers: `test_command_measure.py::test_check_exit_order_loss_then_ceiling_then_drift` and `test_conftest_isolation.py::…merge_check_on_a_drifted_box` (no `origin/master` in the clone), and 14 in the dispatch-step/orch-retired group (`git ls-files` in a non-git clone, `_shared` LOSS). A start-of-run failure SET was not captured separately (the first background run overlapped my first edits); none of the red tests reads text this ticket cut.
+
+## LEFT FOR THE HUB (re-ledger round)
+
+- Author-blind audit pair over the 5 reworded entries; confirm `u-L28` as narrative and the `u-L21` clause-2 narrative label.
+- Floor D-row for `/design-review` (~89%); ceiling ratchet at merge; `pins:` on `u-L29`/`u-L30` names a deleted test.
+
 - Floor note specific to this command: the `allowed-tools` frontmatter line (a ~110-word MCP tool list) and the three `!`-fenced git blocks are unledgered runtime wiring and count in the words.
