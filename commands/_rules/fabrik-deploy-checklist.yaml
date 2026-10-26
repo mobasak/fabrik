@@ -152,6 +152,13 @@ entries:
   current: 'One function per corpus row, named by its corpus id (`l1_identity_sha`, `l2_routes`, `l2_state_companies`, `l3_postgres`, … — lowercase: the hub''s ruff N802 refuses capitalised function names), returning the `health-probe` comparison row shape — `{system, status, detail, expected, actual, match, compare_error}` — with `system` = the corpus id'
   text:
   - 'One function per corpus row, named by its corpus id (`l1_identity_sha`, `l2_routes`, `l2_state_companies`, `l3_postgres`, … — lowercase: the hub''s ruff N802 refuses capitalised function names), returning the `health-probe` comparison row shape — `{system, status, detail, expected, actual, match, compare_error}` — with `system` = the corpus id'
+- id: u-L62
+  file: render
+  section: '## Phase 2 — Emit the contract `[anywhere]`'
+  baseline: '`expected` is DERIVED at run time where Phase 1 derived it (snapshot values are a cache of a derivation; ship the derivation); a row that can only snapshot is marked `mode: snapshot` in `detail` — the legal *degraded* form, reported as such, never silently'
+  current: '`expected` is DERIVED at run time where Phase 1 derived it (snapshot values are a cache of a derivation; ship the derivation); a row that can only snapshot is marked `mode: snapshot` in `detail` — the legal *degraded* form, reported as such, never silently'
+  text:
+  - '`expected` is DERIVED at run time where Phase 1 derived it (snapshot values are a cache of a derivation; ship the derivation); a row that can only snapshot is marked `mode: snapshot` in `detail` — the legal *degraded* form, reported as such, never silently'
 - id: u-L63
   file: render
   section: '## Phase 2 — Emit the contract `[anywhere]`'
@@ -229,6 +236,13 @@ entries:
   current: 'A row that cannot be made to fail is REWRITTEN, or marked `UNVERIFIABLE (cannot be seen red: <why>)`'
   text:
   - 'A row that cannot be made to fail is REWRITTEN, or marked `UNVERIFIABLE (cannot be seen red: <why>)`'
+- id: u-L86
+  file: render
+  section: '## Phase 5 — SEE EVERY ROW RED `[anywhere]`'
+  baseline: 'A test added for the contract runs in the gate''s pytest leg (the whole suite, one process) before freeze — where that leg is off (the gate prints `pytest (NOT RUN)`), run `python -m pytest tests/ -q` yourself and paste its tail: the first row that needs the vendored probe loads the project''s `.env` into `os.environ`, and that state reaches every later test in the process'
+  current: 'A test added for the contract runs in the gate''s pytest leg (the whole suite, one process) before freeze — where that leg is off (the gate prints `pytest (NOT RUN)`), run `python -m pytest tests/ -q` yourself and paste its tail: the first row that needs the vendored probe loads the project''s `.env` into `os.environ`, and that state reaches every later test in the process'
+  text:
+  - 'A test added for the contract runs in the gate''s pytest leg (the whole suite, one process) before freeze — where that leg is off (the gate prints `pytest (NOT RUN)`), run `python -m pytest tests/ -q` yourself and paste its tail: the first row that needs the vendored probe loads the project''s `.env` into `os.environ`, and that state reaches every later test in the process'
 - id: u-L87
   file: render
   section: '## Phase 5 — SEE EVERY ROW RED `[anywhere]`'
@@ -243,6 +257,13 @@ entries:
   current: A contract with no red table is DRAFT whatever its header says
   text:
   - A contract with no red table is DRAFT whatever its header says
+- id: u-L90
+  file: render
+  section: '## Phase 6 — Freeze + wire the truth `[anywhere]`'
+  baseline: The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row in the SAME change (classify at mint; a contract freeze is normally reversible-by-re-freeze)
+  current: The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row in the SAME change (classify at mint; a contract freeze is normally reversible-by-re-freeze)
+  text:
+  - The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row in the SAME change (classify at mint; a contract freeze is normally reversible-by-re-freeze)
 - id: u-L94
   file: render
   section: '## Phase 6 — Freeze + wire the truth `[anywhere]`'
@@ -406,16 +427,11 @@ entries:
   class: prose
   text:
   - 'Author this project''s deployment-verification contract: the artifact that lets a deploy be certified against what was BUILT, not liveness alone'
-- id: r-7
-  baseline: This command is where the project declares it, as executable rows
-  class: prose
-  text:
-  - 'Where this runs: project-side, in the project''s own repo — every phase is `[anywhere]`. The contract derives from CODE + SPEC + DEV; PROD is never read by this command (deriving a declaration from the deployed state launders drift into documentation)'
 - id: r-8
   baseline: 'You are at step 1 of the chain below — previous: end-to-end certification (`/fabrik-user-test` · `/fabrik-service-test`, green on the build you are about to freeze) · next: `/fabrik-release`'
   class: prose
   text:
-  - 'Step 1 of the chain below — previous: end-to-end certification (`/fabrik-user-test` · `/fabrik-service-test`, green on the build to freeze) · next: `/fabrik-release`'
+  - 'You are at step 1 of the chain below — previous: end-to-end certification (`/fabrik-user-test` · `/fabrik-service-test`, green on the build to freeze) · next: `/fabrik-release`'
 - id: r-9
   baseline: 'HARD GATE: no `/fabrik-release` READY verdict and no `DEPLOY CONFIRMED` against a contract that is still `DRAFT`. A contract-less or unfrozen project reaches `UNVERIFIED` at verify time — a terminal verdict that is not success — and `UNVERIFIED` is the signal to run this command'
   class: prose
@@ -493,7 +509,7 @@ entries:
   class: ban
   text:
   - A denominator is DERIVED wherever derivable; where it must be declared it is CROSS-CHECKED against a derived proxy
-  - The prose next to it is never the sole basis
+  - Each source below is authoritative; the prose next to it is never the sole basis
 - id: r-30
   section: '## Phase 1 — Derive the denominators `[anywhere]`'
   baseline: '| routes | the app''s OWN published table: `/openapi.json` from the started app (a `TestClient(app)` context runs the lifespan; or the running DEV server), then subtract the framework''s paths (`/`, `/docs`, `/redoc`, `/openapi.json`, `/docs/oauth2-redirect`) and state BOTH counts (`total / application`). ⚠️ A flat read of `app.routes` UNDER-COUNTS: routers included via `include_router` sit nested under router objects whose own `.routes` must be walked — measured on a real project, flat `app.routes` gave 3 application routes while `/openapi.json` gave 27 paths. ⚠️ Never a `grep include_router`: a composed `v1_router` carries its prefix on the parent (`prefix="/internal/v1"`), and the grep returns nothing | `FEATURES.md` prose · a flat `app.routes` read | `UNVERIFIABLE (no introspection: <why>)` |'
@@ -511,7 +527,7 @@ entries:
   baseline: '| state baseline | DEV minus the declared exclusion set — row counts, reference data, translations, filestore counts measured in DEV; exclusions from `docs/DECISIONS.md` (fixture companies, test users, history the ruling excludes) | PROD (see the hazard rule) | a missing exclusion ruling is the one thing to RAISE (§ Question bar) |'
   class: prose
   text:
-  - '| state baseline | DEV minus the declared exclusion set — row counts, reference data, filestore counts measured in DEV; exclusions from `docs/DECISIONS.md` (fixture companies, test users) | PROD | a missing exclusion ruling is the one thing to RAISE |'
+  - '| state baseline | DEV minus the declared exclusion set — row counts, reference data, translations, filestore counts measured in DEV; exclusions from `docs/DECISIONS.md` (fixture companies, test users, history the ruling excludes) | PROD | a missing exclusion ruling is the one thing to RAISE |'
 - id: r-40
   section: '## Phase 1 — Derive the denominators `[anywhere]`'
   baseline: 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
@@ -603,12 +619,6 @@ entries:
   class: prose
   text:
   - 'A liveness row (Layer 3/4 reachability, no declared value) returns the three-key `{system, status, detail}` shape and NONE of the comparison keys — the vendored CLI treats a row carrying ANY of `expected`/`actual`/`match` as a comparison row (`_COMPARISON_KEYS`, a disjunction on purpose), so a liveness row emitted with `match: None` would FAIL the contract'
-- id: r-62
-  section: '## Phase 2 — Emit the contract `[anywhere]`'
-  baseline: '`expected` is DERIVED at run time where Phase 1 derived it (snapshot values are a cache of a derivation; ship the derivation); a row that can only snapshot is marked `mode: snapshot` in `detail` — the legal *degraded* form, reported as such, never silently'
-  class: ban
-  text:
-  - '`expected` is DERIVED at run time where Phase 1 derived it (snapshot values are a cache of a derivation); a row that can only snapshot is marked `mode: snapshot` in `detail` — the legal *degraded* form, reported as such, never silently'
 - id: r-65
   section: '## Phase 2 — Emit the contract `[anywhere]`'
   baseline: 'A `--rows-from` merge checks the leg files before it counts them (`_rows_for` calls `check_leg_rows`): a leg file could otherwise reach CONFIRMED through which row ids appear, how many times each appears, which comparison keys a row carries, and what its `match` holds — so every contract row appears exactly once, with the three comparison keys all or none, a tri-state `match` and a known status, or the merge exits 64. A contract frozen before the template had `check_leg_rows` merges its legs unchecked until a re-freeze copies the template''s check in'
@@ -668,18 +678,6 @@ entries:
   class: prose
   text:
   - 'For each row CLASS, break DEV deliberately and re-run: drop a table''s rows for a state row · rename an env key for the env row · stop the scheduler for the jobs row · remove a route for the routes row · detach a service for the services row'
-- id: r-86
-  section: '## Phase 5 — SEE EVERY ROW RED `[anywhere]`'
-  baseline: 'A test added for the contract runs in the gate''s pytest leg (the whole suite, one process) before freeze — where that leg is off (the gate prints `pytest (NOT RUN)`), run `python -m pytest tests/ -q` yourself and paste its tail: the first row that needs the vendored probe loads the project''s `.env` into `os.environ`, and that state reaches every later test in the process'
-  class: prose
-  text:
-  - 'A test added for the contract runs in the gate''s pytest leg before freeze — where that leg is off (the gate prints `pytest (NOT RUN)`), run `python -m pytest tests/ -q` yourself and paste its tail: the first row that needs the vendored probe loads the project''s `.env` into `os.environ`'
-- id: r-90
-  section: '## Phase 6 — Freeze + wire the truth `[anywhere]`'
-  baseline: The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row in the SAME change (classify at mint; a contract freeze is normally reversible-by-re-freeze)
-  class: prose
-  text:
-  - The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row in the SAME change
 - id: r-91
   section: '## Phase 6 — Freeze + wire the truth `[anywhere]`'
   baseline: 'Set the header: `Status: FROZEN · Version: v<N> · Date`, freeze rule verbatim (a header that still carries a trailing `· Mode: …` from an earlier freeze parses, and the re-freeze drops it)'
@@ -725,9 +723,7 @@ vanished:
     rule:
     - r-5
   L6: narrative
-  L7:
-    rule:
-    - r-7
+  L7: narrative
   L8:
     rule:
     - r-8
@@ -819,9 +815,6 @@ vanished:
   L61:
     rule:
     - r-61
-  L62:
-    rule:
-    - r-62
   L65:
     rule:
     - r-65
@@ -849,12 +842,6 @@ vanished:
   L82:
     rule:
     - r-82
-  L86:
-    rule:
-    - r-86
-  L90:
-    rule:
-    - r-90
   L91:
     rule:
     - r-91

@@ -21,3 +21,13 @@ Two author-blind audits (Sonnet 75 findings over both commands, Haiku 95, overla
 - **New entries:** split-off sentences of reworded units (`<id>-x<k>`). No invented rule.
 - **Gates:** `pytest tests/test_command_rules.py` 32 passed / 3 skipped, zero LOSS (`LEDGER fabrik-deploy-verify.yaml: 112 entries · vanished {narrative 3, rule 104}`); `assemble_commands.py --check` exit 1, only `DIFFERS`/`MISSING` drift, no LOSS. `test_deploy_verify_verdict.py` still cannot import (`httpx` absent in the clone), as before.
 - **Words (own text):** baseline 4583 → first cut 3162 → after fix 3928.
+
+## Re-ledger round (cloud worker `lean-t22-t37-grp-rl-run`, canonical loader, D-1236/D-1238/D-1240/D-1245)
+
+- **Loader:** swapped in as its own first commit (commands/command_rules.py, tests/test_command_rules.py, docs/reference/command-corpus-check.md; never edited after).
+- **Own text, words:** baseline 4583 → fix round 3928 → now 4322 (94% of baseline).
+- **LOSS (own ledger):** 65 → 0 (`assemble_commands.py --check` prints none for this ledger; the remaining LOSS lines are the `_shared/*.yaml` ledgers, T01d's).
+- **Ledger:** 128 entries (64 generated unchanged `u-L<n>`, 64 reworded `r-<n>`); classes and `clauses:` keys are real keys. Reworded/total = 64/128.
+- **Floor (why not ≤50%):** the loader covers a clause only when ONE phrase holds all its anchors (backticked tokens, numbers, paths) and ≥70% of its first 8 content stems, and a ban-word clause stays verbatim to the end of its `;`/`—` clause or sentence. Measured on the baseline: T370. A grammatical rewrite cannot go below the clause-by-clause minimum (further stopword/tail removal measured at ~85–94%); only a word-bag text reaches the mechanical floor, which this worker did not ship because it would read as noise to the agent. Clauses over their minimum are those whose ban span or anchors sit inside parentheticals/recipes (the Phase-6 stage/run recipes, the VERDICT line, the termination-contract sentence, the `must`/`only`/`never` clauses), which D-1240 holds verbatim; the removable rest (narrative: 760-companies, 'many specs', the 0/5/0 measurement, example lists) was labelled `narrative` and deleted.
+- **Self-audit:** one author-blind Sonnet pass over baseline, rewrite and ledger found T371 findings; all fixed (restored dropped clauses, relabelled L7). COUNTS: T372.
+- **LEFT FOR THE HUB:** `_size_ceiling.json` ratchet, CHANGELOG/INDEX, the author-blind pair, the floor D-row, shared-file LOSS (T01d).

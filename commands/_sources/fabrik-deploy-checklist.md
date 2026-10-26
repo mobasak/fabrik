@@ -7,7 +7,7 @@ argument-hint: "[optional: a subsystem to scope the rows — omit to derive the 
 
 Author this project's deployment-verification contract: the artifact that lets a deploy be certified against what was BUILT, not liveness alone.
 
-Step 1 of the chain below — previous: end-to-end certification (`/fabrik-user-test` · `/fabrik-service-test`, green on the build to freeze) · next: `/fabrik-release`.
+You are at step 1 of the chain below — previous: end-to-end certification (`/fabrik-user-test` · `/fabrik-service-test`, green on the build to freeze) · next: `/fabrik-release`.
 
 {{include:deploy-chain}}
 
@@ -39,7 +39,7 @@ Store types (`mobile-app`, `chrome-extension`, `office-extension`, `desktop-app`
 
 ## Phase 1 — Derive the denominators `[anywhere]`
 
-A denominator is DERIVED wherever derivable; where it must be declared it is CROSS-CHECKED against a derived proxy. The prose next to it is never the sole basis.
+A denominator is DERIVED wherever derivable; where it must be declared it is CROSS-CHECKED against a derived proxy. Each source below is authoritative; the prose next to it is never the sole basis.
 
 | denominator | derive from (authoritative) | never from | when underivable |
 |---|---|---|---|
@@ -48,7 +48,7 @@ A denominator is DERIVED wherever derivable; where it must be declared it is CRO
 | env keys | `os.getenv(...)`/`os.environ[...]` names over `src/` (every key, de-duplicated) | `.env.example` alone | — |
 | scheduled jobs | the live scheduler: `ir_cron` rows for a Tryton stack, Beat/APScheduler registrations for a scaffolded API, `crontab -l` for a host job | `RESILIENCE.md` §7 | `UNVERIFIABLE (scheduler not introspectable from here: <why>)` |
 | schema head | the type's OWN mechanism: `alembic heads` for a scaffolded API; module state (`ir_module`) for trytond; a migrations dir count for node | `db/schema.sql`, a doc | `UNVERIFIABLE (no migration tool: <why>)` — never a guess |
-| state baseline | DEV minus the declared exclusion set — row counts, reference data, filestore counts measured in DEV; exclusions from `docs/DECISIONS.md` (fixture companies, test users) | PROD | a missing exclusion ruling is the one thing to RAISE |
+| state baseline | DEV minus the declared exclusion set — row counts, reference data, translations, filestore counts measured in DEV; exclusions from `docs/DECISIONS.md` (fixture companies, test users, history the ruling excludes) | PROD | a missing exclusion ruling is the one thing to RAISE |
 | features | not derivable — `FEATURES.md` is prose | — | cross-checked in Phase 3, never trusted alone |
 
 Record every derivation as the COMMAND that produced it and its COUNT (`routes: 23 via app.routes` · `services: 4 + 1 sidecar` · `env keys: 32 distinct over 49 sites`). A count without its command is a claim.
@@ -66,7 +66,7 @@ Write `scripts/verify_prod_parity.py` to the seeded template's shape:
 - Comparators by ONE test, never by an example list — "does this number change when a user does their job?" No → compare EXACTLY. Yes → a floor (`comparator=lambda e, a: a >= e`) after the first deploy. Derived stores that mirror a row set take the SAME comparator as the rows they mirror and switch together. The first-deploy freeze may be exact everywhere; the contract names which rows switch to floors at the next bump, and coupled rows name each other.
 - Declare the container leg's service when it is not the app: `CONTAINER_LEG_SERVICE = "<compose service>"` beside `SITES`, the container that can reach the database and the internal network; the runner reads this from `--header` rather than assuming (a DB-free bridge's leg runs in `trytond`). That container must carry a Python interpreter AND the comparator's runtime deps (`httpx` at module level, `python-dotenv` for the `.env` load) — read the leg service's Dockerfile before siting a row there. A Node image has no `python` at all — `node-api` and `file-api` ship one (`Dockerfile.node`), so does `docusaurus` (its `Dockerfile.j2`); those projects site their DB/redis rows on the hub or host leg, or declare a Python sidecar as the leg — never the app container, where every row would read UNVERIFIABLE at the first verify run. `saas-skeleton` and `static-site` pair a Node frontend with a Python backend service (`scaffold.py::_scaffold_saas_backend`) — there the backend IS the leg; declare it.
 - One function per corpus row, named by its corpus id (`l1_identity_sha`, `l2_routes`, `l2_state_companies`, `l3_postgres`, … — lowercase: the hub's ruff N802 refuses capitalised function names), returning the `health-probe` comparison row shape — `{system, status, detail, expected, actual, match, compare_error}` — with `system` = the corpus id. A liveness row (Layer 3/4 reachability, no declared value) returns the three-key `{system, status, detail}` shape and NONE of the comparison keys — the vendored CLI treats a row carrying ANY of `expected`/`actual`/`match` as a comparison row (`_COMPARISON_KEYS`, a disjunction on purpose), so a liveness row emitted with `match: None` would FAIL the contract.
-- `expected` is DERIVED at run time where Phase 1 derived it (snapshot values are a cache of a derivation); a row that can only snapshot is marked `mode: snapshot` in `detail` — the legal *degraded* form, reported as such, never silently.
+- `expected` is DERIVED at run time where Phase 1 derived it (snapshot values are a cache of a derivation; ship the derivation); a row that can only snapshot is marked `mode: snapshot` in `detail` — the legal *degraded* form, reported as such, never silently.
 - `UNVERIFIABLE (<why>)` rows are emitted, never dropped — they count in the denominator so shrinkage is visible. The store-type and static-type packs ship `UNVERIFIABLE` by default; a wrong check that silently passes is worse than a stated gap.
 - A `--rows-from` merge checks the leg files before it counts them (`_rows_for` calls `check_leg_rows`): every contract row appears exactly once, with the three comparison keys all or none, a tri-state `match` and a known status, or the merge exits 64. A contract frozen before the template had `check_leg_rows` merges its legs unchecked until a re-freeze copies the check in.
 - The exclusion set is data in the script (a list with the ruling's `D-NNN` beside it), applied to the DEV baseline.
@@ -89,12 +89,12 @@ Run repeated passes until the Termination contract's closing round — `confirme
 2. Run the probes in a copy that carries the gitignored files the contract reads (`libs/` and `.env` — a fresh worktree lacks them; the copy isolates the code only — DEV itself is shared, so break and restore it as below), and run the unmutated copy first as the control: a red the control also shows proves nothing.
 3. For each row CLASS, break DEV deliberately and re-run: drop a table's rows for a state row · rename an env key for the env row · stop the scheduler for the jobs row · remove a route for the routes row · detach a service for the services row. Each targeted row must report `match: False` (or, for a raising comparator, `match: None` with `compare_error` set — that is fail-closed, not green). Restore DEV after each.
 4. A row that cannot be made to fail is REWRITTEN, or marked `UNVERIFIABLE (cannot be seen red: <why>)`.
-5. A test added for the contract runs in the gate's pytest leg before freeze — where that leg is off (the gate prints `pytest (NOT RUN)`), run `python -m pytest tests/ -q` yourself and paste its tail: the first row that needs the vendored probe loads the project's `.env` into `os.environ`.
+5. A test added for the contract runs in the gate's pytest leg (the whole suite, one process) before freeze — where that leg is off (the gate prints `pytest (NOT RUN)`), run `python -m pytest tests/ -q` yourself and paste its tail: the first row that needs the vendored probe loads the project's `.env` into `os.environ`, and that state reaches every later test in the process.
 6. Paste the red table into the report: `row · how DEV was broken · result`. A contract with no red table is DRAFT whatever its header says.
 
 ## Phase 6 — Freeze + wire the truth `[anywhere]`
 
-- The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row in the SAME change.
+- The freeze (and every re-freeze bump) is a Status flip — mint its `docs/DECISIONS.md` row in the SAME change (classify at mint; a contract freeze is normally reversible-by-re-freeze).
 - Set the header: `Status: FROZEN · Version: v<N> · Date`, freeze rule verbatim (a trailing `· Mode: …` from an earlier freeze parses; the re-freeze drops it). This header write is a post-convergence action, exempt from the no-op rule.
 - Refresh the fleet-AI sections of `docs/DEPLOYMENT.md` and `docs/OPERATIONS.md` (D-065) — the services/jobs/env/dependency inventory Phase 1 derived. Touch ONLY the sentinel-marked fleet-AI sections the template seeds; the project's own runbook prose is theirs. If the sections are absent (a project scaffolded before 2026-09-02 — the templates only reach new scaffolds), ADD them first, verbatim from `templates/scaffold/docs/DEPLOYMENT_TEMPLATE.md` § *Fleet-AI interface — what to deploy* and `OPERATIONS_TEMPLATE.md` § *5b. Fleet-AI interface — what runs*, then fill the cells.
 - ⚠️ HAZARD — derive these from CODE + SPEC + DEV, never from PROD. *"prod has 0 companies, therefore document 0 companies"* is self-consistent and still wrong. The docs declare what SHOULD be true; the verify run reports what IS; the gap between them is the product.

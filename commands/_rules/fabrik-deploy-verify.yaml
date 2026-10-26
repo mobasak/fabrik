@@ -8,12 +8,6 @@ entries:
   current: 'This command verifies only: no `fabrik apply`, no `fabrik destroy`, no registrar re-run, no file mutation at all — the verdict table is PRINTED (no report file; the run record is the durable trace)'
   text:
   - 'This command verifies only: no `fabrik apply`, no `fabrik destroy`, no registrar re-run, no file mutation at all — the verdict table is PRINTED (no report file; the run record is the durable trace)'
-- id: u-L6
-  file: render
-  baseline: 'You are at step 6 of the chain below — previous: `/fabrik-deploy` (VPS) or the operator''s store submission · next: none, terminal (a FAIL''s route is the next action)'
-  current: 'You are at step 6 of the chain below — previous: `/fabrik-deploy` (VPS) or the operator''s store submission · next: none, terminal (a FAIL''s route is the next action)'
-  text:
-  - 'You are at step 6 of the chain below — previous: `/fabrik-deploy` (VPS) or the operator''s store submission · next: none, terminal (a FAIL''s route is the next action)'
 - id: u-L13
   file: render
   section: '## ⚠️ Termination contract'
@@ -105,13 +99,6 @@ entries:
   current: 'Before trusting a spoke target''s DNS PASS, run the control probe first: `dig +short <random-nonsense-string>.<target_vps>.ocoron.com`'
   text:
   - 'Before trusting a spoke target''s DNS PASS, run the control probe first: `dig +short <random-nonsense-string>.<target_vps>.ocoron.com`'
-- id: u-L45
-  file: render
-  section: '## Phase 1 — DNS: live, not merely cataloged `[anywhere]`'
-  baseline: '`vps1` (hub, no wildcard) keeps the existing behavior unchanged: a real NXDOMAIN there still discriminates on its own at the DNS layer'
-  current: '`vps1` (hub, no wildcard) keeps the existing behavior unchanged: a real NXDOMAIN there still discriminates on its own at the DNS layer'
-  text:
-  - '`vps1` (hub, no wildcard) keeps the existing behavior unchanged: a real NXDOMAIN there still discriminates on its own at the DNS layer'
 - id: u-L48
   file: render
   section: '## Phase 1b — Identity: the deployed build IS the tested build `[hub-side]`'
@@ -287,13 +274,6 @@ entries:
   current: '| always | `grafana` (deploy annotation) | not project-verifiable — informational only |'
   text:
   - '| always | `grafana` (deploy annotation) | not project-verifiable — informational only |'
-- id: u-L87
-  file: render
-  section: '## Phase 3 — Registrar obligations: the spec''s `shape:` truth, deployed `[hub-side]` (`.env` rows) / `[anywhere]` (probe rows — see column)'
-  baseline: '| auto-discovered | `promtail/loki` | not project-verifiable from a domain/env probe (infra-side log shipping) — informational only |'
-  current: '| auto-discovered | `promtail/loki` | not project-verifiable from a domain/env probe (infra-side log shipping) — informational only |'
-  text:
-  - '| auto-discovered | `promtail/loki` | not project-verifiable from a domain/env probe (infra-side log shipping) — informational only |'
 - id: u-L88
   file: render
   section: '## Phase 3 — Registrar obligations: the spec''s `shape:` truth, deployed `[hub-side]` (`.env` rows) / `[anywhere]` (probe rows — see column)'
@@ -434,13 +414,6 @@ entries:
   current: A header without `sites` runs every leg as above
   text:
   - A header without `sites` runs every leg as above
-- id: u-L125
-  file: render
-  section: '## Phase 6 — Parity (contract-driven, BLOCKING) `[anywhere]`'
-  baseline: 'A leg you CANNOT reach (no SSH, the container not running) is never skipped: emit its rows as UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>" > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg'
-  current: 'A leg you CANNOT reach (no SSH, the container not running) is never skipped: emit its rows as UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>" > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg'
-  text:
-  - 'A leg you CANNOT reach (no SSH, the container not running) is never skipped: emit its rows as UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>" > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg'
 - id: u-L126
   file: render
   section: '## Phase 6 — Parity (contract-driven, BLOCKING) `[anywhere]`'
@@ -514,6 +487,11 @@ entries:
   class: prose
   text:
   - 'It certifies against what was BUILT, not liveness alone: the project''s parity contract — `scripts/verify_prod_parity.py`, authored and FROZEN by `/fabrik-deploy-checklist` — is executed in Phase 6. Without a FROZEN contract the verdict is `UNVERIFIED`: terminal, not success, and the signal to run the authoring command'
+- id: r-6
+  baseline: 'You are at step 6 of the chain below — previous: `/fabrik-deploy` (VPS) or the operator''s store submission · next: none, terminal (a FAIL''s route is the next action)'
+  class: prose
+  text:
+  - 'You are at step 6 of the chain below — previous: `/fabrik-deploy` or the operator''s store submission · next: none, terminal'
 - id: r-7
   baseline: 'Where this runs: hub-side, from `/opt/fabrik` — the hub carries fleet SSH creds (deploy is trigger-not-execute; `agents-fabrik-core.md` § Deploy)'
   class: prose
@@ -523,8 +501,8 @@ entries:
   baseline: A project itself cannot reach its own deployed VPS this way — this command is the hub-side exception to the local-Docker-bridge-namespace warning `/opt/fabrik/commands/_sources/fabrik-catchup.md` § the local-`fabrik`-bridge probe documents for project-side probes (the WSL box's local `fabrik` bridge is a different network from the fleet's and would silently probe the wrong thing), not a violation of it
   class: prose
   text:
-  - 'Where this runs: hub-side, from `/opt/fabrik` (the hub carries fleet SSH creds; deploy is trigger-not-execute, `agents-fabrik-core.md` § Deploy). A project cannot reach its own VPS this way; this command is the hub-side exception to the local-Docker-bridge-namespace warning `/opt/fabrik/commands/_sources/fabrik-catchup.md` documents for project-side probes (the WSL box''s local `fabrik` bridge is a different network from the fleet''s), not a violation of it'
-  - A project cannot reach its own VPS this way; this command is the hub-side exception to the local-Docker-bridge-namespace warning `/opt/fabrik/commands/_sources/fabrik-catchup.md` documents for project-side probes (the WSL box's local `fabrik` bridge is a different network from the fleet's), not a violation of it
+  - 'Where this runs: hub-side, from `/opt/fabrik` (the hub carries fleet SSH creds; deploy is trigger-not-execute, `agents-fabrik-core.md` § Deploy). A project cannot reach its own VPS this way; this command is the hub-side exception to the local-Docker-bridge-namespace warning `/opt/fabrik/commands/_sources/fabrik-catchup.md` § the local-`fabrik`-bridge probe documents for project-side probes (the WSL box''s local `fabrik` bridge is a different network from the fleet''s), not a violation of it'
+  - A project cannot reach its own VPS this way; this command is the hub-side exception to the local-Docker-bridge-namespace warning `/opt/fabrik/commands/_sources/fabrik-catchup.md` § the local-`fabrik`-bridge probe documents for project-side probes (the WSL box's local `fabrik` bridge is a different network from the fleet's), not a violation of it
 - id: r-9
   baseline: Each phase below is labeled `[anywhere]` (a public DNS/HTTPS probe any box can run) or `[hub-side]` (needs the fleet SSH path — `ssh <target_vps> ...` or a hub-container `exec`)
   class: prose
@@ -644,6 +622,12 @@ entries:
   class: prose
   text:
   - 'If that ALSO resolves, the target''s own resolution carries no deploy signal — do not stop at DNS; the discriminating evidence moves to Phase 2''s HTTPS layer (a deployed service answers its own 2xx/redirect/auth challenge; an undeployed name gets Traefik''s default 404), Record this explicitly in the verdict row: `wildcard DNS — resolution non-evidentiary, discriminating at HTTPS layer`, and let Phase 2''s HTTPS result — not Phase 1''s DNS result — carry the PASS/FAIL for spoke targets'
+- id: r-45
+  section: '## Phase 1 — DNS: live, not merely cataloged `[anywhere]`'
+  baseline: '`vps1` (hub, no wildcard) keeps the existing behavior unchanged: a real NXDOMAIN there still discriminates on its own at the DNS layer'
+  class: prose
+  text:
+  - '`vps1` keeps the existing behavior unchanged: a real NXDOMAIN there still discriminates on its own at the DNS layer'
 - id: r-47
   section: '## Phase 1b — Identity: the deployed build IS the tested build `[hub-side]`'
   baseline: 'Layer 1 of the contract corpus — nothing below it means anything if it fails: everything verified later is true of *something*; only this phase proves it is true of *this build*'
@@ -710,7 +694,7 @@ entries:
   baseline: '| `is_admin_dashboard: true` + `domain` set | `authelia` | hitting the admin route unauthenticated returns a redirect/401 to the Authelia forward-auth flow, never a bare 200 |'
   class: ban
   text:
-  - '| `is_admin_dashboard: true` + `domain` set | `authelia` | the admin route unauthenticated returns a redirect/401 to the Authelia flow, never a bare 200 |'
+  - '| `is_admin_dashboard: true` + `domain` set | `authelia` | the admin route unauthenticated returns a redirect/401 to the Authelia forward-auth flow, never a bare 200 |'
 - id: r-83
   section: '## Phase 3 — Registrar obligations: the spec''s `shape:` truth, deployed `[hub-side]` (`.env` rows) / `[anywhere]` (probe rows — see column)'
   baseline: '| `watchdog.enabled` (default true, kind/shape-driven — `.windsurf/rules/core/60-watchdog.md`) | `watchdog` | remote `.env` `WATCHDOG_DB_URL_RO` present (+ `WATCHDOG_DB_URL_RW` when `needs_database`), OR the sidecar container `fabrik/watchdog:<project_id>` running on the target VPS |'
@@ -723,6 +707,13 @@ entries:
   class: prose
   text:
   - '| auto-discovered | `traefik` | implied by Phase 1 DNS + Phase 2 HTTPS succeeding — do not re-probe separately |'
+- id: r-87
+  section: '## Phase 3 — Registrar obligations: the spec''s `shape:` truth, deployed `[hub-side]` (`.env` rows) / `[anywhere]` (probe rows — see column)'
+  baseline: '| auto-discovered | `promtail/loki` | not project-verifiable from a domain/env probe (infra-side log shipping) — informational only |'
+  class: ban
+  text:
+  - '| auto-discovered | `promtail/loki` | not project-verifiable from a domain/env probe — informational only |'
+  - '| always | `grafana` (deploy annotation) | not project-verifiable — informational only |'
 - id: r-89
   section: '## Phase 3 — Registrar obligations: the spec''s `shape:` truth, deployed `[hub-side]` (`.env` rows) / `[anywhere]` (probe rows — see column)'
   baseline: A flag `true` with no corresponding remote-`.env` var or live probe response is a FAIL — route it as a registrar re-apply ask to the operator (`fabrik apply` re-runs registrars; name the exact flag and spec path, never run it yourself)
@@ -764,7 +755,7 @@ entries:
   baseline: 'Pull a bounded recent window of THIS service''s container logs from the TARGET VPS over the fleet SSH path (`ssh <target_vps> docker logs --since <window> <container>`) — never local Docker: the WSL box''s local `fabrik` bridge is a different network from the fleet''s `fabrik` network, and a local scan would silently hit the wrong container (or none) — the false-clean trap `/opt/fabrik/commands/_sources/fabrik-catchup.md` § the local-`fabrik`-bridge probe documents for project-side probes'
   class: ban
   text:
-  - 'Pull a bounded recent window of THIS service''s container logs from the TARGET VPS over the fleet SSH path (`ssh <target_vps> docker logs --since <window> <container>`) — never local Docker: the WSL box''s local `fabrik` bridge is a different network from the fleet''s `fabrik` network, and a local scan would silently hit the wrong container (or none) — the false-clean trap `/opt/fabrik/commands/_sources/fabrik-catchup.md` documents'
+  - 'Pull a bounded recent window of THIS service''s container logs from the TARGET VPS over the fleet SSH path (`ssh <target_vps> docker logs --since <window> <container>`) — never local Docker: the WSL box''s local `fabrik` bridge is a different network from the fleet''s `fabrik` network, and a local scan would silently hit the wrong container (or none) — the false-clean trap `/opt/fabrik/commands/_sources/fabrik-catchup.md` § the local-`fabrik`-bridge probe documents'
 - id: r-99
   section: '## Phase 5 — Bounded log scan `[hub-side]`'
   baseline: Zero hits in the window = PASS
@@ -808,6 +799,12 @@ entries:
   class: ban
   text:
   - 'A stub older than that rule reads only its own clone (`grep -q _comparator_root scripts/verify_prod_parity.py` fails for it), so stage and run it in a private clone layout instead, as ONE command line (the `$d` lives only in that shell): `d=$(ssh <vps> mktemp -d) && ssh <vps> "mkdir -p $d/scripts $d/libs" && scp scripts/verify_prod_parity.py <vps>:$d/scripts/ && scp -r libs/health_probe <vps>:$d/libs/ && ssh <vps> "cd /opt/<project> && PARITY_FILESTORE_PATH=<mount> python3 $d/scripts/verify_prod_parity.py --json --site host" > <run>/host.json; ssh <vps> "rm -rf $d"`'
+- id: r-125
+  section: '## Phase 6 — Parity (contract-driven, BLOCKING) `[anywhere]`'
+  baseline: 'A leg you CANNOT reach (no SSH, the container not running) is never skipped: emit its rows as UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>" > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg'
+  class: ban
+  text:
+  - 'A leg you CANNOT reach is never skipped: emit its rows as UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>" > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg'
 - id: r-127
   section: '## Phase 6 — Parity (contract-driven, BLOCKING) `[anywhere]`'
   baseline: 'Merge: `scripts/verify_prod_parity.py --verdict --rows-from <run>/hub.json <run>/container.json <run>/host.json` and copy its two lines verbatim into the Output block — the verdict algebra is EXECUTED by that script (`verdict()`: rows carrying ANY comparison key are parity rows — the vendored `_COMPARISON_KEYS` disjunction; `match True` = numerator; `False` = denies CONFIRMED; `None` on a parity row = ATTEMPTED-BUT-UNRESOLVED = fail closed, exit 2; a row with none of the keys is a liveness row outside the denominator; `not obligated` — a `shape:` flag — is the only thing that removes a row; exit 1 (a DOWN) outranks 2 outranks 0 and never upgrades a verdict)'
@@ -854,6 +851,9 @@ vanished:
   L5:
     rule:
     - r-5
+  L6:
+    rule:
+    - r-6
   L7:
     rule:
     - r-7
@@ -920,6 +920,9 @@ vanished:
   L44:
     rule:
     - r-44
+  L45:
+    rule:
+    - r-45
   L47:
     rule:
     - r-47
@@ -959,6 +962,9 @@ vanished:
   L86:
     rule:
     - r-86
+  L87:
+    rule:
+    - r-87
   L89:
     rule:
     - r-89
@@ -1001,6 +1007,9 @@ vanished:
   L121:
     rule:
     - r-121
+  L125:
+    rule:
+    - r-125
   L127:
     rule:
     - r-127
