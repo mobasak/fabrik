@@ -319,39 +319,39 @@ entries:
   class: prose
   text:
   - Detect the mode and state which one you took and why
-  - Mode A — spec-driven. A `/fabrik-spec` design doc is `$ARGUMENTS`, linked, or in scope (`docs/superpowers/specs/…`); the entities/fields come from the design — the normal `spec → contract → plan` path
+  - Mode A — spec-driven (new work). A `/fabrik-spec` design doc is `$ARGUMENTS`, linked, or in scope (`docs/superpowers/specs/…`); the entities/fields come from the design — the normal `spec → contract → plan` path
 - id: r-8
   section: '## Phase 0 — Establish MODE + scope'
   baseline: The entities/fields come from the design — the normal `spec → contract → plan` path
   class: prose
   text:
-  - Mode A — spec-driven. A `/fabrik-spec` design doc is `$ARGUMENTS`, linked, or in scope (`docs/superpowers/specs/…`); the entities/fields come from the design — the normal `spec → contract → plan` path
+  - Mode A — spec-driven (new work). A `/fabrik-spec` design doc is `$ARGUMENTS`, linked, or in scope (`docs/superpowers/specs/…`); the entities/fields come from the design — the normal `spec → contract → plan` path
 - id: r-9
   section: '## Phase 0 — Establish MODE + scope'
   baseline: Mode B — reverse-generate (existing-project backfill). No spec, but a real `db/schema.sql` (or ORM models / migrations) already exists
   class: prose
   text:
   - Detect the mode and state which one you took and why
-  - Mode B — reverse-generate. No spec, but `db/schema.sql` (or ORM models/migrations) exists; the contract is reverse-engineered from what exists; existing standard violations are grandfathered (flagged advisory, never auto-migrated). This is how the ~35 existing projects get a contract — run this command in each
+  - Mode B — reverse-generate (existing-project backfill). No spec, but a real `db/schema.sql` (or ORM models/migrations) already exists; the contract is reverse-engineered from what exists; existing standard violations are grandfathered (flagged advisory, never auto-migrated). This is how the ~35 existing projects get a contract — run this command in each
 - id: r-10
   section: '## Phase 0 — Establish MODE + scope'
   baseline: The contract is reverse-engineered from what already exists, and existing standard-violations are grandfathered (flagged advisory, never auto-migrated)
   class: ban
   text:
-  - Mode B — reverse-generate. No spec, but `db/schema.sql` (or ORM models/migrations) exists; the contract is reverse-engineered from what exists; existing standard violations are grandfathered (flagged advisory, never auto-migrated)
+  - Mode B — reverse-generate (existing-project backfill). No spec, but a real `db/schema.sql` (or ORM models/migrations) already exists; the contract is reverse-engineered from what exists; existing standard violations are grandfathered (flagged advisory, never auto-migrated)
 - id: r-12
   section: '## Phase 0 — Establish MODE + scope'
   baseline: Mode C — fresh (no design, no schema). Neither exists → fill the seeded stub minimally (house rules + empty entity scaffold) so the project has the frozen skeleton to grow into
   class: prose
   text:
   - Detect the mode and state which one you took and why
-  - Mode C — fresh. Neither exists; fill the seeded stub minimally (house rules + empty entity scaffold)
+  - Mode C — fresh (no design, no schema). Neither exists; fill the seeded stub minimally (house rules + empty entity scaffold) so the project has the frozen skeleton to grow into
 - id: r-14
   section: '## Phase 0 — Establish MODE + scope'
   baseline: 'BOTH a new spec AND a real existing schema (an incremental feature on an established project) = Mode A (the spec is the source) *with* full Mode-B reconciliation against the schema: declare `Mode A` and note the reconciliation, so the frozen header (`Mode: A|B|C`) and the Phase-5 hand-off stay unambiguous while still doing both jobs'
   class: prose
   text:
-  - 'BOTH a new spec AND a real existing schema (an incremental feature on an established project) = Mode A (the spec is the source) with full Mode-B reconciliation against the schema: declare `Mode A` and note the reconciliation, so the frozen header (`Mode: A|B|C`) and the Phase-5 hand-off stay unambiguous'
+  - 'BOTH a new spec AND a real existing schema (an incremental feature on an established project) = Mode A (the spec is the source) with full Mode-B reconciliation against the schema: declare `Mode A` and note the reconciliation, so the frozen header (`Mode: A|B|C`) and the Phase-5 hand-off stay unambiguous while still doing both jobs'
 - id: r-15
   section: '## Phase 0 — Establish MODE + scope'
   baseline: Operate on the current project (cwd) — `$ARGUMENTS`, if given, is the spec path; to backfill a specific project, run the command from inside it
@@ -363,19 +363,19 @@ entries:
   baseline: 'Locate and name the concrete sources you will reconcile: the spec (Mode A); `db/schema.sql`, `db/migrations/`, `**/models.py`/`entities.py`, Pydantic request models, and the frontend form/validation code (Zod schemas, form components) (Mode B)'
   class: prose
   text:
-  - 'Locate and name the sources you will reconcile: the spec (Mode A); `db/schema.sql`, `db/migrations/`, `**/models.py`/`entities.py`, Pydantic request models, and the frontend form/validation code (Zod schemas, form components) (Mode B)'
+  - 'Locate and name the concrete sources you will reconcile: the spec (Mode A); `db/schema.sql`, `db/migrations/`, `**/models.py`/`entities.py`, Pydantic request models, and the frontend form/validation code (Zod schemas, form components) (Mode B)'
 - id: r-19
   section: '## Phase 0 — Establish MODE + scope'
   baseline: A DRAFT stub is meant to be edited through — its existence is NOT a STOP (the explicit exception to CLAUDE.md's "file exists = STOP" — that rule guards against clobbering *real* content, and a placeholder stub has none)
   class: prose
   text:
-  - A DRAFT stub is meant to be edited through — its existence is NOT a STOP (the explicit exception to CLAUDE.md's "file exists = STOP")
+  - A DRAFT stub is meant to be edited through — its existence is NOT a STOP (the explicit exception to CLAUDE.md's "file exists = STOP" — that rule guards against clobbering *real* content, and a placeholder stub has none)
 - id: r-21
   section: '## Phase 0 — Establish MODE + scope'
   baseline: Only if the file is already `FROZEN` do you STOP and ask; on the user's confirmation, proceed as a re-freeze — bump `Version` (a zero-delta re-freeze, below, excepted), never a silent overwrite
   class: ban
   text:
-  - Only if the file is already `FROZEN` do you STOP and ask; on confirmation proceed as a re-freeze, bumping `Version` (a zero-delta re-freeze, below, excepted), never a silent overwrite
+  - Only if the file is already `FROZEN` do you STOP and ask; on the user's confirmation, proceed as a re-freeze, bumping `Version` (a zero-delta re-freeze, below, excepted), never a silent overwrite
 - id: r-22
   section: '## Phase 0 — Establish MODE + scope'
   baseline: 'An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row naming the spec''s path that records the panel''s `→ both-approve` or the operator''s approving answer (a DRAFT or CONVERGED-flip row is not one) — and its § Contract deltas (the section a `Profile: delta` spec carries; a spec without one still stops) names the change: cite that row and the spec in the re-freeze''s D-row and proceed'
@@ -403,7 +403,7 @@ entries:
   baseline: 'Design → fields (Mode A): from the spec, enumerate every entity and every user-facing field the design implies (what the user types, sees, filters, or the API accepts)'
   class: prose
   text:
-  - 'Design → fields (Mode A): enumerate every entity and every user-facing field the design implies (what the user types, sees, filters, or the API accepts)'
+  - 'Design → fields (Mode A): from the spec, enumerate every entity and every user-facing field the design implies (what the user types, sees, filters, or the API accepts)'
 - id: r-30
   section: '## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)'
   baseline: Ground external field standards live only if the design introduces one (repo-first `grep docs/`, `docs/reference/`; then `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` / `mcp__firecrawl__firecrawl_search`) — e.g. a country code (ISO 3166), a currency (ISO 4217), a phone format (E.164)
@@ -427,13 +427,13 @@ entries:
   baseline: 'When enumerating a live Postgres, the enumeration is bounded two ways and must be un-bounded explicitly (youtube 01M17T8Z — the documented method would have shipped a FROZEN contract silently missing 7 of 79 real entities, 3 of them carrying a live production bug): (1) enumerate ALL non-system schemas via `information_schema.schemata` first — never assume `public`; (2) cross-check the table + FK counts via `pg_class`/`pg_constraint` directly (privilege-agnostic) — `information_schema` respects SELECT privilege and silently hides every table the connecting role has no GRANT on (`pg_class.relacl IS NULL` ⇒ invisible), so its count is "visible to this role in N", never "exists"'
   class: ban
   text:
-  - 'When enumerating a live Postgres, the enumeration is bounded two ways and must be un-bounded explicitly (youtube 01M17T8Z — the documented method would have shipped a FROZEN contract silently missing 7 of 79 real entities, 3 of them carrying a live production bug): (1) enumerate ALL non-system schemas via `information_schema.schemata` first — never assume `public`; (2) cross-check table + FK counts via `pg_class`/`pg_constraint` directly (privilege-agnostic), because `information_schema` respects SELECT privilege and silently hides every table the role has no GRANT on (`pg_class.relacl IS NULL`), so its count is "visible to this role in N", never "exists"; a count mismatch is itself a finding — it names tables the app''s own role cannot touch'
+  - 'When enumerating a live Postgres, the enumeration is bounded two ways and must be un-bounded explicitly (youtube 01M17T8Z — the documented method would have shipped a FROZEN contract silently missing 7 of 79 real entities, 3 of them carrying a live production bug): (1) enumerate ALL non-system schemas via `information_schema.schemata` first — never assume `public`; (2) cross-check table + FK counts via `pg_class`/`pg_constraint` directly (privilege-agnostic), because `information_schema` respects SELECT privilege and silently hides every table the connecting role has no GRANT on (`pg_class.relacl IS NULL` ⇒ invisible), so its count is "visible to this role in N", never "exists"; a count mismatch is itself a finding — it names tables the app''s own role cannot touch'
 - id: r-35
   section: '## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)'
   baseline: 'A count mismatch between the two sources is itself a finding: it names tables the app''s own role cannot touch'
   class: prose
   text:
-  - 'When enumerating a live Postgres, the enumeration is bounded two ways and must be un-bounded explicitly (youtube 01M17T8Z — the documented method would have shipped a FROZEN contract silently missing 7 of 79 real entities, 3 of them carrying a live production bug): (1) enumerate ALL non-system schemas via `information_schema.schemata` first — never assume `public`; (2) cross-check table + FK counts via `pg_class`/`pg_constraint` directly (privilege-agnostic), because `information_schema` respects SELECT privilege and silently hides every table the role has no GRANT on (`pg_class.relacl IS NULL`), so its count is "visible to this role in N", never "exists"; a count mismatch is itself a finding — it names tables the app''s own role cannot touch'
+  - 'When enumerating a live Postgres, the enumeration is bounded two ways and must be un-bounded explicitly (youtube 01M17T8Z — the documented method would have shipped a FROZEN contract silently missing 7 of 79 real entities, 3 of them carrying a live production bug): (1) enumerate ALL non-system schemas via `information_schema.schemata` first — never assume `public`; (2) cross-check table + FK counts via `pg_class`/`pg_constraint` directly (privilege-agnostic), because `information_schema` respects SELECT privilege and silently hides every table the connecting role has no GRANT on (`pg_class.relacl IS NULL` ⇒ invisible), so its count is "visible to this role in N", never "exists"; a count mismatch is itself a finding — it names tables the app''s own role cannot touch'
 - id: r-38
   section: '## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)'
   baseline: 'Flag every mismatch: a form field with no column, a column no form writes, a GUI label and a DB name that disagree (`emailAddress` vs `email`), a type the form sends that the column can''t hold'
@@ -453,7 +453,7 @@ entries:
   baseline: Parallelism — UNCONDITIONAL, every run. Dispatch one INDEPENDENT native `general-purpose` seat per surface (schema · API/request models · frontend forms) or per entity — the surface count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191), all in ONE message (recipe in § Subagents below), each briefed to READ the repo itself; then merge + REFUTE any mapping you can disprove by quoting the contradicting `path:line` before recording it
   class: prose
   text:
-  - Parallelism — UNCONDITIONAL, every run. Dispatch one INDEPENDENT native `general-purpose` seat per surface (schema · API/request models · frontend forms) or per entity, in ONE message, each briefed to READ the repo itself (recipe in § Subagents below). the surface count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats; stamp them BEFORE dispatch with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them (D-191)
+  - Parallelism — UNCONDITIONAL, every run. Dispatch one INDEPENDENT native `general-purpose` seat per surface (schema · API/request models · frontend forms) or per entity, all in ONE message, each briefed to READ the repo itself (recipe in § Subagents below). The surface count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats; stamp them BEFORE dispatch with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them (D-191)
   - Merge, then REFUTE any mapping you can disprove by quoting the contradicting `path:line` before recording it
 - id: r-41
   section: '## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)'
@@ -476,13 +476,14 @@ entries:
   baseline: Keep it lean — do NOT re-introduce event/analytics tracking, a *per-field* retention/lawful-basis apparatus, or distribution machinery (out of scope; the retention section below is project-level and light)
   class: prose
   text:
-  - Keep it lean — do NOT re-introduce event/analytics tracking, a *per-field* retention/lawful-basis apparatus, or distribution machinery
+  - Keep it lean — do NOT re-introduce event/analytics tracking, a *per-field* retention/lawful-basis apparatus, or distribution machinery (out of scope; the retention section below is project-level and light)
 - id: r-47
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: 'Per section:'
   class: prose
   text:
   - 'Fill/rewrite its sections, in order: house rules · entities · GUI↔DB reconciliation notes · enum registry · retention · FREEZE CHECKLIST'
+  - 'section below is project-level and light). Per section:'
 - id: r-51
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: 'Backfill reality (Mode B): an old schema often *lacks* an implied field or *renames* it (`imported_at`, `changed_at`) — omission then wrongly reads as "present + standard," so you MUST annotate the entity with a `⚠ audit:` note (e.g. `⚠ audit: no updated_at`)'
@@ -516,20 +517,21 @@ entries:
   class: prose
   text:
   - 'GUI ↔ DB reconciliation notes — an explicit numbered section (`R1`, `R2`, …) for every Phase-1 mismatch that doesn''t fit one row: a form field with no column, a jsonb-folded field (write it `column.jsonkey`), a dropdown whose values aren''t valid for its column''s enum, two tables the UI conflates, a stale client type'
+  - A GUI field folded into a jsonb key is written `column.jsonkey`
 - id: r-63
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: 'Enum registry — the template''s `Enum | Backing | Allowed values` table: one row per enum (bare name in `Enum`; in `Backing` one of the template legend''s six tokens `native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`, whole-cell `token`, `token (note)` or `a / b` — `check_data_contract_legend.py` WARNs on any other cell; values in `Allowed values`)'
   class: prose
   text:
   - 'Fill/rewrite its sections, in order: house rules · entities · GUI↔DB reconciliation notes · enum registry · retention · FREEZE CHECKLIST'
-  - Enum registry — the template's `Enum | Backing | Allowed values` table, one row per enum (bare name in `Enum`; values in `Allowed values`); `Backing` is one of `native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`, whole-cell `token`, `token (note)` or `a / b` (`check_data_contract_legend.py` WARNs on any other cell)
+  - Enum registry — the template's `Enum | Backing | Allowed values` table, one row per enum (bare name in `Enum`; values in `Allowed values`); in `Backing` one of the template legend's six tokens `native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`, whole-cell `token`, `token (note)` or `a / b` (`check_data_contract_legend.py` WARNs on any other cell)
 - id: r-64
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: In the per-entity `type` column an enum field is written `enum:<x>` (native PG enum) or `chk:<x>` (CHECK-constraint-backed) — real schemas encode most enums as CHECK, so register both
   class: prose
   text:
-  - In the `type` column an enum is `enum:<x>` (native) or `chk:<x>` (CHECK-backed) — real schemas encode most enums as CHECK, so register both. An enum-typed field's values MUST come only from here
-  - In the `type` column an enum is `enum:<x>` (native) or `chk:<x>` (CHECK-backed) — real schemas encode most enums as CHECK, so register both
+  - In the per-entity `type` column an enum field is written `enum:<x>` (native PG enum) or `chk:<x>` (CHECK-constraint-backed) — real schemas encode most enums as CHECK, so register both. An enum-typed field's values MUST come only from here
+  - In the per-entity `type` column an enum field is written `enum:<x>` (native PG enum) or `chk:<x>` (CHECK-constraint-backed) — real schemas encode most enums as CHECK, so register both
 - id: r-65
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: An enum-typed field's values MUST come only from here — this is what stops agents inventing status variants
@@ -540,10 +542,10 @@ entries:
   - An enum-typed field's values MUST come only from here
 - id: r-66
   section: '## Phase 2 — Emit the contract (the frozen shape)'
-  baseline: 'Retention & lawful basis (project-level, LIGHT — not per field): a short table for any `personal`/ `sensitive` data: category → lawful basis → retention → cross-border?'
+  baseline: 'Retention & lawful basis (project-level, LIGHT — not per field): a short table for any `personal`/ `sensitive` data: category → lawful basis → retention → cross-border? — Enough to be KVKK-defensible for Turkish clients without turning the field dictionary into a compliance dossier'
   class: prose
   text:
-  - 'Retention & lawful basis (project-level, LIGHT — not per field): a short table for any `personal`/`sensitive` data: category → lawful basis → retention → cross-border?'
+  - 'Retention & lawful basis (project-level, LIGHT — not per field): a short table for any `personal`/`sensitive` data: category → lawful basis → retention → cross-border? Enough to be KVKK-defensible for Turkish clients without turning the field dictionary into a compliance dossier'
 - id: r-68
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: Freeze checklist — keep the template's `## FREEZE CHECKLIST` section; every box is a Phase-3 self-audit item, and all must be ticked before you flip to `FROZEN`
@@ -555,7 +557,7 @@ entries:
   baseline: 'Run repeated reconciliation passes until the Termination contract''s closing round — `confirmed: 0`, md5 unchanged — is reached'
   class: prose
   text:
-  - 'Run reconciliation passes until the Termination contract''s closing round — `confirmed: 0`, md5 unchanged'
+  - 'Run repeated reconciliation passes until the Termination contract''s closing round — `confirmed: 0`, md5 unchanged — is reached'
   - They must reach the frozen file, not evaporate at emit
 - id: r-71
   section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
@@ -570,13 +572,13 @@ entries:
   baseline: A run paused before that round (the Termination contract's no-seat pause) carries its rows so far in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the resumed run copies them into the entry, or into the closing report when the contract has no ledger section
   class: prose
   text:
-  - A run paused before that round (the Termination contract's no-seat pause) carries its rows in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the resumed run copies them into the entry, or into the closing report when the contract has no ledger section
+  - A run paused before that round (the Termination contract's no-seat pause) carries its rows so far in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the resumed run copies them into the entry, or into the closing report when the contract has no ledger section
 - id: r-75
   baseline: Coverage — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to a DB column; every real DB column appears; nothing a downstream agent would otherwise have to invent is missing
   class: prose
   text:
   - Completeness — every field has type + req + PII class; every enum registered; the retention table covers every `personal`/`sensitive` category
-  - Coverage — every spec/schema entity is present; every GUI field maps to a DB column; every real DB column appears; nothing a downstream agent would have to invent is missing
+  - Coverage — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to a DB column; every real DB column appears; nothing a downstream agent would otherwise have to invent is missing
   - Scope = every entity, every GUI/form field, every API request field, and every DB column the project has or the design implies
   - Treat every field as unproven until read from the real source — a column name is not its type or constraints; OPEN the file and read them
 - id: r-76
@@ -602,7 +604,7 @@ entries:
   baseline: Unbuilt files — in any mode, the contract cites a file its spec has not built yet on a physical line of its own (a bullet or table row with nothing else to check) that carries the exact lowercase marker of the doc-links gate — `_iter_refs` in `scripts/enforcement/check_doc_links.py` — which is the phrase `does not exist`; that gate skips the WHOLE line, so no built file shares it and the wrapped paragraph is never the marker's home
   class: ban
   text:
-  - Unbuilt files — in any mode, a file the spec has not built yet is cited on a physical line of its own (a bullet or table row with nothing else to check) carrying the exact lowercase phrase `does not exist` (`_iter_refs` in `scripts/enforcement/check_doc_links.py`); that gate skips the WHOLE line, so no built file shares it and the wrapped paragraph is never the marker's home
+  - Unbuilt files — in any mode, a file the spec has not built yet is cited on a physical line of its own (a bullet or table row with nothing else to check) carrying the exact lowercase marker of the doc-links gate — `_iter_refs` in `scripts/enforcement/check_doc_links.py` — which is the phrase `does not exist`; that gate skips the WHOLE line, so no built file shares it and the wrapped paragraph is never the marker's home
   pins:
   - tests/test_data_contract_recurring_rules.py::test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker
 - id: r-83
@@ -660,7 +662,7 @@ entries:
   baseline: 'Mode B/C (backfill): stop at `FROZEN` and report the reconciliation summary — the mismatches found, the grandfathered violations flagged, and the fields now pinned'
   class: prose
   text:
-  - 'Mode B/C (backfill): stop at `FROZEN` and report the mismatches found, the grandfathered violations flagged and the fields now pinned'
+  - 'Mode B/C (backfill): stop at `FROZEN` and report the reconciliation summary — the mismatches found, the grandfathered violations flagged and the fields now pinned'
 - id: r-99
   section: '## Phase 5 — Hand off'
   baseline: The project owner decides whether any flagged violation graduates into a planned migration
@@ -672,21 +674,19 @@ entries:
   baseline: 'Freeze on a pass whose *reconciliation* made edits — the closing round (`confirmed: 0`, md5-verified) is the ONLY thing that earns `FROZEN`'
   class: ban
   text:
-  - 'Freeze on a pass whose *reconciliation* made edits — the closing round (`confirmed: 0`, md5-verified) is the ONLY thing that earns `FROZEN` (the Phase-4 `Status → FROZEN` header flip and the version''s Pass Ledger entry are the exempt post-convergence writes, not reconciliation edits)'
+  - 'Freeze on a pass whose *reconciliation* made edits — the closing round (`confirmed: 0`, md5-verified) is the ONLY thing that earns `FROZEN` (the Phase-4 `Status → FROZEN` header flip and the version''s Pass Ledger entry are the exempt post-convergence writes, not reconciliation edits — see the Termination contract + Phase 4)'
 - id: r-102
   section: '## Guardrails — never'
   baseline: (The Phase-4 `Status → FROZEN` header flip and the version's Pass Ledger entry are the exempt post-convergence writes, not reconciliation edits — see the Termination contract + Phase 4.)
   class: prose
   text:
-  - 'Freeze on a pass whose *reconciliation* made edits — the closing round (`confirmed: 0`, md5-verified) is the ONLY thing that earns `FROZEN` (the Phase-4 `Status → FROZEN` header flip and the version''s Pass Ledger entry are the exempt post-convergence writes, not reconciliation edits)'
+  - 'Freeze on a pass whose *reconciliation* made edits — the closing round (`confirmed: 0`, md5-verified) is the ONLY thing that earns `FROZEN` (the Phase-4 `Status → FROZEN` header flip and the version''s Pass Ledger entry are the exempt post-convergence writes, not reconciliation edits — see the Termination contract + Phase 4)'
 - id: r-105
   section: '## Guardrails — never'
   baseline: Re-introduce the dropped scope (event/analytics tracking plan, per-field lawful-basis/cross-border apparatus, fleet-distribution/drift-CI tooling) — this artifact is the field dictionary, nothing more
   class: prose
-  clauses:
-    2: narrative
   text:
-  - Re-introduce the dropped scope (event/analytics tracking plan, per-field lawful-basis/cross-border apparatus, fleet-distribution/drift-CI tooling)
+  - Re-introduce the dropped scope (event/analytics tracking plan, per-field lawful-basis/cross-border apparatus, fleet-distribution/drift-CI tooling) — this artifact is the field dictionary, nothing more
 - id: r-106
   baseline: Route `docs/data-contract.md` through the gitignored synced-docs path — it is a committed, project-owned file
   class: prose
@@ -820,7 +820,9 @@ vanished:
   L66:
     rule:
     - r-66
-  L67: narrative
+  L67:
+    rule:
+    - r-66
   L68:
     rule:
     - r-68
