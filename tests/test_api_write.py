@@ -34,6 +34,7 @@ import json, os, subprocess, sys, time
 prompt = sys.stdin.read()
 with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps({{"argv": sys.argv[1:], "cwd": os.getcwd(), "env_names": sorted(os.environ),
+                        "has_git": os.path.lexists(".git"),
                         "key": os.environ.get("ANTHROPIC_API_KEY", ""), "prompt": prompt}}) + "\\n")
 if "stream-json" in sys.argv:
     sys.stdout.write(open(os.environ["FAKE_PREFLIGHT"], encoding="utf-8").read())
@@ -45,9 +46,18 @@ time.sleep(float(os.environ.get("FAKE_SLEEP", "0")))
 action = os.environ.get("FAKE_ACTION", "edit")
 if action != "none":
     open("made.txt", "w").write(os.environ.get("FAKE_CONTENT", "work\\n"))
-if action == "tamper-config":
+if action == "tamper-config":  # a .git of its own in the work tree, config included
+    os.makedirs(".git", exist_ok=True)
     with open(".git/config", "a") as f:
         f.write("[core]\\n\\tfsmonitor = touch " + os.environ["FAKE_PWNED"] + "\\n")
+if action == "nested-git":  # a .git pointer file deeper in the tree, aimed at another repository
+    os.makedirs("sub", exist_ok=True)
+    open("sub/.git", "w").write("gitdir: " + os.environ["FAKE_PWNED"] + "\\n")
+if action == "tamper-gitdir":  # what only gate code could do: rewrite the run's own git dir config
+    with open("../gitdir/config", "a") as f:
+        f.write("[core]\\n\\tfsmonitor = touch " + os.environ["FAKE_PWNED"] + "\\n")
+if action == "binary-key":  # a key inside a file git treats as binary
+    open("blob.bin", "wb").write(b"\\x00\\x01" + os.environ["FAKE_KEY"].encode() + b"\\x00")
 is_error = action == "error"
 sys.stdout.write(json.dumps({{"type": "result", "subtype": "error_during_execution" if is_error else "success",
                               "is_error": is_error, "result": "done\\nSUBJECT: add made.txt",
@@ -264,24 +274,42 @@ def test_a_gate_with_shell_syntax_or_a_glob_is_refused(box: dict, gate: str) -> 
     assert p.returncode == 2 and _rows(box) == [] and _calls(box) == []
 
 
-def test_a_tampered_clone_config_is_never_trusted(box: dict) -> None:
-    """Behaviour 3: a child that rewrote .git/config (fsmonitor here) gets no git run by the runner: no commit, no
-    push, the injected command never executes."""
-    box["env"]["FAKE_ACTION"] = "tamper-config"
+@pytest.mark.parametrize(
+    ("action", "where"), [("tamper-config", ".git"), ("nested-git", "sub/.git")]
+)
+def test_a_git_entry_the_child_leaves_is_never_trusted(box: dict, action: str, where: str) -> None:
+    """Behaviour 3: the child starts with no .git in its work tree (the git dir sits outside it); a .git it creates
+    anywhere — a config with fsmonitor, or a pointer file aimed elsewhere — gets no commit, no push, and the injected
+    command never runs."""
+    box["env"]["FAKE_ACTION"] = action
     p = _run(box, "--key", "can", "--slug", "t4", "--task-file", str(_brief(box, "t4")))
-    assert p.returncode == 1 and ".git/config changed" in p.stdout
+    assert _runs(box)[0]["has_git"] is False
+    assert p.returncode == 1 and f"left a git entry at {where}" in p.stdout
     assert not _origin(box, "refs/heads/claude/t4") and not Path(box["env"]["FAKE_PWNED"]).exists()
 
 
-def test_a_key_in_the_diff_refuses_the_push(box: dict) -> None:
-    """Behaviour 4: the runner scans the commit for the key values and the sk-ant- pattern before pushing."""
-    box["env"]["FAKE_CONTENT"] = KEYS["ozgurbasak"] + "\n"
-    p = _run(box, "--key", "can", "--slug", "t5", "--task-file", str(_brief(box, "t5")))
-    assert (
-        p.returncode == 1
-        and "holds a key value" in p.stdout
-        and not _origin(box, "refs/heads/claude/t5")
+def test_a_changed_git_dir_config_is_never_trusted(box: dict) -> None:
+    """Behaviour 3b: a changed config in the run's own git dir (only gate code could write it) refuses before any
+    runner git, so its injected command never runs."""
+    box["env"]["FAKE_ACTION"] = "tamper-gitdir"
+    p = _run(box, "--key", "can", "--slug", "t4b", "--task-file", str(_brief(box, "t4b")))
+    assert p.returncode == 1 and "git config changed" in p.stdout
+    assert not _origin(box, "refs/heads/claude/t4b") and not Path(box["env"]["FAKE_PWNED"]).exists()
+
+
+@pytest.mark.parametrize("action", ["edit", "binary-key"])
+def test_a_key_in_the_diff_refuses_the_push(box: dict, action: str) -> None:
+    """Behaviour 4: the runner scans the commit for the key values and the sk-ant- pattern before pushing — a text
+    file, and a file git treats as binary."""
+    box["env"].update(
+        FAKE_ACTION=action,
+        # binary-key: only the binary file holds a key, so a text-only scan would pass it
+        FAKE_CONTENT=KEYS["ozgurbasak"] + "\n" if action == "edit" else "no key here\n",
+        FAKE_KEY=KEYS["sarp"],
     )
+    p = _run(box, "--key", "can", "--slug", "t5", "--task-file", str(_brief(box, "t5")))
+    assert p.returncode == 1 and "holds a key value" in p.stdout
+    assert not _origin(box, "refs/heads/claude/t5")
 
 
 def test_an_existing_remote_branch_or_a_missing_base_refuses_before_spending(box: dict) -> None:

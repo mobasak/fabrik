@@ -146,17 +146,22 @@ Bash and `bypassPermissions`, then with a Bash allow-list — D-1248, D-1249). T
   glob over a command's options admits the options, and the review that built this found three that reach outside the
   clone (pytest's `--basetemp` deletes the directory it names, git's `--output` writes any path, `git commit -F` reads
   any file). A gate is an exact command with no shell syntax; anything else is refused before spending.
-- **The runner owns git.** Before spending it refuses when `origin` already has `claude/<slug>` (unless
-  `--force-new`) or has no `<base>`, makes a plain local clone of the main checkout under `<state>/api-write/<run>/`
-  (`<state>` is `~/.claude/state` unless `ROTATE_STATE_DIR` says otherwise; no worktree, no alternates, so the main
-  checkout is only read), points its `origin` at the main checkout's `origin` URL, fetches, and checks out
-  `claude/<slug>` at `origin/<base>`. The prompt is prefixed with a runner note saying so, and telling the child to skip
-  the brief's BASE line, git, fetch, pip and push and to end with `SUBJECT: <commit subject>`.
-- **After the child exits**, on a clean exit only: the runner refuses to run git in a clone whose `.git/config` changed,
-  commits every edit as ONE commit (the child's `SUBJECT:` line, `Agent-*` trailers naming the run and key) with hooks
-  and fsmonitor forced off, refuses the push when the diff holds one of the three keys or an `sk-ant-` string, and
-  pushes `claude/<slug>` to the URL it captured (an explicit refspec, never forced). A child error, a timeout or a
-  refusal pushes nothing.
+- **The runner owns git, and the child has no repository.** Before spending it refuses when `origin` already has
+  `claude/<slug>` (unless `--force-new`) or has no `<base>`, clones the main checkout under `<state>/api-write/<run>/`
+  (`<state>` is `~/.claude/state` unless `ROTATE_STATE_DIR` says otherwise) with the git dir OUTSIDE the work tree
+  (`gitdir/`, beyond `--restricted`'s reach; the work tree's `.git` pointer file is deleted), points `origin` at the
+  main checkout's `origin` URL, fetches, and checks out `claude/<slug>` at `origin/<base>`. No worktree of the main
+  checkout is made and its refs and index are only read; its objects are hardlinked into `gitdir/` (a full copy would be 1.7 GB
+  per job), and git adds objects, never rewrites one. Every runner git call names `--git-dir` and `--work-tree`, so
+  nothing written in the work tree picks the repository or its config — the review that built this found a child-written
+  `.git/commondir` redirecting config past a digest of `.git/config`. The prompt is prefixed with a runner note saying
+  so, and telling the child to skip the brief's BASE line, git, fetch, pip and push and to end with `SUBJECT: <commit
+  subject>`.
+- **After the child exits**, on a clean exit only: the runner refuses when the git dir's config changed or the child
+  left any `.git` entry in the work tree, commits every edit as ONE commit (the child's `SUBJECT:` line, `Agent-*`
+  trailers naming the run and key) with hooks and fsmonitor forced off, scans that commit's diff — binary files
+  included, no diff drivers — for one of the three keys or an `sk-ant-` string, and pushes that same commit to
+  `claude/<slug>` at the URL it captured (never forced). A child error, a timeout or a refusal pushes nothing.
 - **Money.** The run reserves its budget in the same `api-credit.jsonl` through `api_credit.reserve` (one $200 cap per
   key across both lanes; the start row carries `lane: write` and the slug), runs after the same keyless pre-flight
   (which must report this child's tool set), and every outcome after the start row writes a settle row. The child runs
@@ -165,15 +170,16 @@ Bash and `bypassPermissions`, then with a Bash allow-list — D-1248, D-1249). T
   checkout's `.venv/bin` first on PATH when it exists, so a gate's `python3 -m pytest` has the hub's dependencies
   without a pip install (an editable install from a hub clone would repoint the shared install box-wide).
 
-On a normal exit the scrubbed result goes to `<out-dir>/<slug>.md` (printed on stdout when that file cannot be
-written); a timeout writes none. `--jobs` (default 3) runs a batch in parallel; with `--pick` each job reserves the key
-with the most room at its own start, so three jobs spread over the three keys. One run is one commit, so a multi-ticket
-brief is split into one entry per ticket.
+Once the child has exited, with success or an error, the scrubbed result goes to `<out-dir>/<slug>.md` (printed on
+stdout when that file cannot be written); a timeout writes none. `--jobs` (default 3) runs a batch in parallel; with
+`--pick` each job reserves the key with the most room at its own start, so three jobs spread over the three keys. One
+run is one commit, so a multi-ticket brief is split into one entry per ticket.
 
 **What remains** (D-253): the cheapest abuse left is a gate, which runs code the child wrote (a test file, a rendered
-source) as this user, outside every fence above — so gates come from the brief's author, never from the child, and a
-job with no gates runs no code at all. Next, anything the child writes inside the clone ships to `claude/<slug>` (the
-secret scan knows only the three keys and the `sk-ant-` pattern), which is why the branch is reviewed before any merge.
+source) as this user, outside every fence above (the git dir and the hardlinked objects included) — so gates come
+from the brief's author, never from the child, and a job with no gates runs no code at all. Next, anything the child
+writes inside the work tree ships to `claude/<slug>` (the secret scan knows only the three keys and the `sk-ant-`
+pattern), which is why the branch is reviewed before any merge.
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts

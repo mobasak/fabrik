@@ -19,20 +19,25 @@ child is ``claude -p --safe-mode --restricted --permission-mode dontAsk`` with O
 ``--restricted`` confines them to the clone and leaves writes to git and settings files to a person, which dontAsk
 denies — plus, when the job names gates, ``Bash(<gate>)`` for each gate string matched EXACTLY (no wildcard, so no
 option a glob would admit: pytest's ``--basetemp`` deletes the directory it names, git's ``--output`` writes any path,
-``git commit -F`` reads any file). The child has no git: the runner fetches ``origin`` and checks out ``claude/<slug>``
-at ``origin/<base>`` before it starts, and after it exits refuses to touch the clone with git if ``.git/config``
-changed, commits the edits as one commit with ``core.hooksPath`` and ``core.fsmonitor`` forced off, refuses the push
-when the diff holds a key value or an ``sk-ant-`` string, and pushes ``claude/<slug>`` to the URL it captured from the
-main checkout (an explicit refspec, never forced). The clone is a plain local clone of the main checkout under
-``<state>/api-write/<run>/`` (no worktree, no alternates — the main checkout's refs, index and objects are only
-read), removed after the run. The child's env drops ``GIT_*`` and the SSH agent and puts the main checkout's venv
-first on PATH when it exists.
+``git commit -F`` reads any file). The child has no git and no repository: the runner clones the main checkout under
+``<state>/api-write/<run>/`` with the git dir OUTSIDE the work tree (``gitdir/``, beyond the child's reach; the work
+tree's ``.git`` pointer is deleted), fetches ``origin`` and checks out ``claude/<slug>`` at ``origin/<base>`` before
+the child starts. Every runner git call names ``--git-dir``/``--work-tree`` with ``core.hooksPath`` and
+``core.fsmonitor`` forced off, so nothing written in the work tree picks the repository or its config (a review found
+a ``.git/commondir`` the child writes redirecting config past a digest of ``.git/config``). After a clean exit the
+runner refuses when the git dir's config changed or the child left any ``.git`` entry in the work tree, commits the
+edits as one commit, scans that commit's diff (binary files included, no diff drivers) for a key value or an
+``sk-ant-`` string, and pushes that same commit to ``claude/<slug>`` at the URL it captured from the main checkout
+(never forced). No worktree of the main checkout is made and its refs and index are only read; its objects are
+hardlinked into the git dir (git adds objects, never rewrites one), and the run directory is removed after the run.
+The child's env drops ``GIT_*`` and the SSH agent and puts the main checkout's venv first on PATH when it exists.
 
 Cobra line (D-253): the cheapest abuse left is a GATE — a gate runs code the child wrote (a test file, a rendered
-source), as this user, outside every fence above; so a gate is named by the brief's author, never by the child, and
-a job with no gates runs no code at all. The next cheapest is the commit itself: anything the child writes inside the
-clone ships to ``claude/<slug>`` (the secret scan catches the three keys and the ``sk-ant-`` pattern only), which is
-why the branch is reviewed before any merge.
+source), as this user, outside every fence above (it can reach the git dir, the hardlinked objects and the rest of the
+box); so a gate is named by the brief's author, never by the child, and a job with no gates runs no code at all. The
+next cheapest is the commit itself: anything the child writes inside the work tree ships to ``claude/<slug>`` (the
+secret scan catches the three keys and the ``sk-ant-`` pattern only), which is why the branch is reviewed before any
+merge.
 """
 
 from __future__ import annotations
@@ -162,23 +167,52 @@ def origin_url(main: Path) -> str:
     return url
 
 
-def make_clone(main: Path, url: str, run_dir: Path, slug: str, base: str) -> tuple[Path, str]:
-    """A plain local clone of the main checkout, origin pointed at ``url`` and fetched, on claude/<slug> at
-    origin/<base>; returns the clone and the base commit."""
-    clone = run_dir / "clone"
-    git("clone", "--quiet", "--no-checkout", str(main), str(clone))
-    git("-C", str(clone), "remote", "set-url", "origin", url)
-    git("-C", str(clone), "fetch", "--quiet", "--prune", "origin")
+def repo(gitdir: Path, clone: Path) -> tuple[str, ...]:
+    """Every runner git call names the git dir and work tree explicitly, with hooks and fsmonitor off: nothing the
+    child can write (it has no ``.git`` of its own) chooses which repository or config git reads."""
+    return ("--git-dir", str(gitdir), "--work-tree", str(clone), *SAFE_GIT)
+
+
+def make_clone(main: Path, url: str, run_dir: Path, slug: str, base: str) -> tuple[Path, Path, str]:
+    """A local clone of the main checkout whose git dir sits OUTSIDE the work tree (``<run>/gitdir``, beyond the
+    child's ``--restricted`` reach), origin pointed at ``url`` and fetched, on claude/<slug> at origin/<base>, with the
+    work tree's ``.git`` pointer file removed. Returns the work tree, the git dir and the base commit. The objects are
+    hardlinked from the main checkout (a 1.7 GB copy per job otherwise); git only adds objects, never rewrites one,
+    and the child cannot reach the git dir."""
+    clone, gitdir = run_dir / "clone", run_dir / "gitdir"
+    git(
+        "clone",
+        "--quiet",
+        "--no-checkout",
+        "--separate-git-dir",
+        str(gitdir),
+        str(main),
+        str(clone),
+    )
+    g = repo(gitdir, clone)
+    git(*g, "remote", "set-url", "origin", url)
+    git(*g, "fetch", "--quiet", "--prune", "origin")
     ref = f"refs/remotes/origin/{base}"
-    p = git("-C", str(clone), "rev-parse", "--verify", "-q", ref + "^{commit}", check=False)
+    p = git(*g, "rev-parse", "--verify", "-q", ref + "^{commit}", check=False)
     if p.returncode != 0:
         raise ac.RefusalError(2, f"origin has no branch {base!r} to start claude/{slug} from")
-    git("-C", str(clone), *SAFE_GIT, "checkout", "--quiet", "-B", f"claude/{slug}", ref)
-    return clone, p.stdout.strip()
+    git(*g, "checkout", "--quiet", "-B", f"claude/{slug}", ref)
+    (clone / ".git").unlink()
+    return clone, gitdir, p.stdout.strip()
 
 
-def config_digest(clone: Path) -> str:
-    return hashlib.sha256((clone / ".git" / "config").read_bytes()).hexdigest()
+def config_digest(gitdir: Path) -> str:
+    return hashlib.sha256((gitdir / "config").read_bytes()).hexdigest()
+
+
+def stray_git(clone: Path) -> str | None:
+    """The first ``.git`` entry the child left anywhere in the work tree (a file or directory of that name would let
+    git read another repository's config or objects), or None."""
+    for top, dirs, files in os.walk(clone, followlinks=False):
+        for name in dirs + files:
+            if name == ".git":
+                return str((Path(top) / name).relative_to(clone))
+    return None
 
 
 def remote_has(url: str, slug: str) -> bool:
@@ -221,6 +255,7 @@ def subject_of(result: str, slug: str) -> str:
 
 def commit_and_push(
     clone: Path,
+    gitdir: Path,
     url: str,
     slug: str,
     base_sha: str,
@@ -232,12 +267,12 @@ def commit_and_push(
     """Commit the child's edits and push claude/<slug>: (sha, None), (None, None) when nothing changed, or (None,
     why) when the runner refused — reported, never raised, since the run is already paid for."""
     try:
-        if config_digest(clone) != digest:
-            return (
-                None,
-                "the clone's .git/config changed during the run — not committed, not pushed",
-            )
-        g = ("-C", str(clone), *SAFE_GIT)
+        if config_digest(gitdir) != digest:
+            return None, "the run's git config changed during the run — not committed, not pushed"
+        stray = stray_git(clone)
+        if stray is not None:
+            return None, f"the child left a git entry at {stray} — not committed, not pushed"
+        g = repo(gitdir, clone)
         git(*g, "add", "-A")
         if not git(*g, "status", "--porcelain").stdout.strip():
             return None, None
@@ -254,14 +289,15 @@ def commit_and_push(
             "-m",
             msg,
         )
-        diff = git(*g, "diff", base_sha, "HEAD").stdout
+        sha = git(*g, "rev-parse", "HEAD").stdout.strip()
+        # Binary files too (--text), with no driver the attributes could select: the scanned object is the pushed one.
+        diff = git(*g, "diff", "--text", "--no-textconv", "--no-ext-diff", base_sha, sha).stdout
         if ac.scrub(diff, keys) != diff:
             return None, "the commit holds a key value or an sk-ant- string — not pushed"
-        ref = f"refs/heads/claude/{slug}"
-        p = git(*g, "push", "--quiet", url, f"{ref}:{ref}", check=False)
+        p = git(*g, "push", "--quiet", url, f"{sha}:refs/heads/claude/{slug}", check=False)
         if p.returncode != 0:
             return None, f"push of claude/{slug} refused (never forced): {p.stderr.strip()[-300:]}"
-        return git(*g, "rev-parse", ref).stdout.strip(), None
+        return sha, None
     except (ac.RefusalError, OSError) as e:
         return None, f"commit/push failed: {e}"
 
@@ -280,8 +316,8 @@ def one(job: dict, a: argparse.Namespace, keys: dict[str, str], main: Path, url:
             raise ac.RefusalError(
                 2, f"origin already has claude/{slug} (pass --force-new to run anyway)"
             )
-        clone, base_sha = make_clone(main, url, run_dir, slug, base)
-        digest = config_digest(clone)
+        clone, gitdir, base_sha = make_clone(main, url, run_dir, slug, base)
+        digest = config_digest(gitdir)
         for d in ("cwd", "preflight"):
             (run_dir / d).mkdir()
         ac.preflight(
@@ -343,7 +379,7 @@ def one(job: dict, a: argparse.Namespace, keys: dict[str, str], main: Path, url:
                 f"Agent-Task: {slug}\nAgent-Context: API-key write lane run {run} on key {best} (D-1247)"
             )
             report["pushed"], push_error = commit_and_push(
-                clone, url, slug, base_sha, digest, subject_of(text, slug), trailer, keys
+                clone, gitdir, url, slug, base_sha, digest, subject_of(text, slug), trailer, keys
             )
             if push_error:
                 report["error"] = push_error
@@ -363,7 +399,9 @@ def one(job: dict, a: argparse.Namespace, keys: dict[str, str], main: Path, url:
                 **ac._now(),
             )
             report["error"] = (
-                f"failed after the start row ({type(e).__name__}); stays provisioned; not pushed"
+                f"failed after the run settled ({type(e).__name__}); its cost is in the ledger"
+                if settled
+                else f"failed after the start row ({type(e).__name__}); stays provisioned; not pushed"
             )
             if not isinstance(e, Exception):
                 raise
