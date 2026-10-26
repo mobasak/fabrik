@@ -17,3 +17,24 @@ Two author-blind audits (Sonnet 18 findings, Haiku 17) checked against the basel
 - **Refuted:** none. Audit 2 #16 (`Operate on`) and #15 (`consumer-contract-hardened`) were low but cheap, so restored rather than argued.
 - **Own words** (`command_rules.own_text`): baseline 1661 → first cut 1437 → after fix 1599 (96%). The restored text is rules, not narrative; the cut that remains is the duplicated framing and the ledger-only asides.
 - Gates: `tests/test_command_rules.py` 32 passed, 3 skipped; `assemble_commands.py --check` zero LOSS lines (only MISSING/DIFFERS/REPORT drift). Ledger now 46 entries.
+
+## Re-ledger round
+
+Re-ledgered under the canonical loader (`_lint`, `_covered`, `_ban_span`, `_clauses`) on branch `claude/lean-t20-rl`.
+
+- **Own-text words** (`command_rules.own_text`): baseline 1661 -> fix round 1599 (96%) -> now 1559 (94%). The 50% goal is not reachable here; see the receipt table.
+- **LOSS (this ledger)**: 21 before -> 0 after (`assemble_commands.py --check | grep LOSS | grep -v _shared`). Reproduced at the start commit first.
+- **Entries**: 43 total = 27 generated-unchanged (`generate_unchanged`, `class:` now a real key) + 15 reworded (`r-L<n>`) + 1 forbidden pin. Reworded/total: 15/43. 15 `vanished:` lines, each `rule:` to the entry that carries it (the `L40` narrative label is gone: L40 is unchanged and verbatim again).
+- `COUNTS: entries read 43 / reworded 15 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0`
+- **What earlier passes fixed**: the fix round wrote its entries for the old loader. Here: every `# class:` / `# clauses:` comment became a real key; ban clauses went back verbatim from the ban word to the end of their clause (Phase 0 `No row` sentence, DEPLOYMENT `a hub-side CLI`, OPERATIONS `the read-only ones`, BUSINESS_MODEL `and the set changes`, Phase 2 `ARTIFACT only — a sibling-doc ripple never re-opens the loop)`, the `(The only doc->doc rule ...)` aside, Phase 1 `RUN it`); split entries `r-L36`/`r-L36b` and `r-L42`/`r-L43b` became one unit per baseline line, so the entry's own `text` covers all its clauses; lines that were reworded for 1-2 words (L1, L5, L7, L15-L19, L45) went back to baseline wording, so they are unchanged units and need no `vanished:` label; the `vanished:` label on L40 (a ban line, never narrative) is gone.
+- **Cut this round** (narrative / restated, none holds a ban word): intro `depth over breadth (...)` clause (L2 c2, narrative; routing stays in the description and Phase 0); `GitHub resolves a link's leading / ...` rationale (L33 c2, narrative); `a capability/var/job/service found ... exists to prevent` (L26 c2, narrative); `(01M1V443)` history id; `(an uncited drop is a miss, not a decision)` restates `WITH the drop cited`; `(it is consumer-contract-hardened)`; `(they're Fabrik-maintained)`; `(the bidirectional contract)`; the RESILIENCE parenthetical list that cell 2 already carries.
+- **Tests**: `tests/test_command_rules.py` 53 passed, 3 skipped, 1 failed (`test_the_live_corpus_has_no_loss`, `_shared/review-probe-catalogue.yaml` LOSS lines only: another unit) at start and end; `test_assemble_dispatch_step.py` + `test_features_queue_pass.py` + `test_producing_command_fragments.py` 12 failed / 81 passed at start and end (identical set, installed-tree checks the clone lacks). No test file edited.
+
+| Clause still over its minimum | Why it cannot shrink |
+|---|---|
+| L6 `No row ... by design)`, L11 SERVICES row, L14 OPERATIONS row, L16 DEPLOYMENT row, L21 `never hand-kept`, L22 BUSINESS_MODEL `never Stripe ... and the set changes)`, L27 `only commands ... RUN it`, L34 `only`, L38/L39/L40 ripple sentences, L49 | A ban clause is verbatim from its ban word to its clause end; when the ban word sits inside a parenthesis or a table cell the clause runs to the row end or the closing parenthesis, so the whole tail stays. 861 of the 1540 baseline unit words are in ban-bearing lines. |
+| Front matter (104 words), headings (55) | Not a ledger unit; the description is the routing trigger. |
+| Rows L13, L15, L17-L20, L23 | Each clause is a per-doc completeness rule, not narrative; the only words past the anchors and first 8 stems are the claim itself. Cutting them would keep a carrier and drop the rule. |
+| L29, L30, L35, L37, L45-L47 | Short single rules with no narrative left; each is already near its anchors plus stems. |
+
+- **LEFT FOR THE HUB**: ratchet `commands/_size_ceiling.json` (report: 22928 vs ceiling 23721) at merge; CHANGELOG/INDEX rows; an audit-pair read of the 15 reworded entries (old vs new); decide whether the 50% target applies to a command whose table and ban clauses are a rule floor of ~1020 words, or whether a ban clause's verbatim span should stop at the parenthesis it opens.
