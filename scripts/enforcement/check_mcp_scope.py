@@ -81,47 +81,65 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
         ):
             continue  # untyped, not hub-class, no repo: nothing the emitter rules; a TYPED or hub dir is graded anywhere
         present = _present(mcp_json)
-        if present is None:
-            failures.append({"repo": repo.name, "extra": [], "reason": "unreadable .mcp.json"})
-            continue
-        ruled = em.ruled_server_names(repo, defs)
-        checked += 1
+        graded = repo.name in em.HUB_CLASS or em._repo_type(repo) is not None
         fix = f"python3 {hub / EMITTER_REL} --repo {repo}"
+        # the emitter never writes through a symlink, so a re-emit alone clears nothing
+        if mcp_json.is_symlink():
+            fix = "make `.mcp.json` a plain file, then " + fix
         # False: the emitter would SKIP it, so re-emitting cannot clear a failure — a warning. None (git cannot say
         # whether the file is ignored) is graded like an owned repo: an unknown answer never demotes a failure. A
         # hub-class or typed repo was always graded before it was asked (D-1252), so after the warning it still is:
         # a server outside its ruling stays a failure, never demoted to this warning (W-c0d9cea5 review).
+        unowned = None
         if em.emitter_owns(repo) is False:
             # the emitter skips this repo, so a re-emit clears nothing until git ignores the file: every row says so
             fix = (
                 "make .gitignore ignore `.mcp.json`, with no later `!.mcp.json`, and if git tracks it run"
                 " `git rm --cached .mcp.json`, then " + fix
             )
-            warnings.append(
-                {
-                    "repo": repo.name,
-                    "present": sorted(present),
-                    "reason": "its .mcp.json is not ignored by git (no rule, a `!` negation, or tracked) — the emitter"
-                    " does not own it, and a tracked copy may still hold credentials",
-                    "fix": fix,
-                }
-            )
-            if repo.name not in em.HUB_CLASS and em._repo_type(repo) is None:
+            unowned = {
+                "repo": repo.name,
+                "present": sorted(present or ()),
+                "reason": "its .mcp.json is not ignored by git (no rule, a `!` negation, or tracked) — the emitter"
+                " does not own it, and a tracked copy may still hold credentials",
+                "fix": fix,
+            }
+            warnings.append(unowned)
+            if not graded:
+                if present is None:  # W-f7772267 (i): not the hub's file to fix, readable or not
+                    unowned["reason"] += "; and unreadable .mcp.json"
+                else:
+                    checked += 1
                 continue
-        # the emitter never writes through a symlink, so a re-emit alone clears nothing
-        if mcp_json.is_symlink():
-            fix = "make `.mcp.json` a plain file, then " + fix
-        if ruled is None:
-            warnings.append(
-                {
-                    "repo": repo.name,
-                    "present": sorted(present),
-                    "reason": "no ruling (a project.yaml::type the roster does not know)",
-                    "fix": fix,
-                }
-            )
+        ruled = em.ruled_server_names(repo, defs)
+        own_agent = repo.name in em.HUB_CLASS and repo.name not in em.HUB_REPOS
+        if present is None and ruled is not None and not own_agent:
+            failures.append({"repo": repo.name, "extra": [], "reason": "unreadable .mcp.json"})
             continue
-        extra = sorted(present - set(ruled))
+        # one warning per repo, naming every cause (W-f7772267 (h)); an unreadable file only warns where a readable one
+        # could only warn — no ruling, or an own-agent hub-class file whose extras warn below (W-f7772267 (i))
+        causes = []
+        if present is None:
+            causes.append("unreadable .mcp.json")
+        else:
+            checked += 1
+        if ruled is None:
+            causes.append("no ruling (a project.yaml::type the roster does not know)")
+        if causes:
+            if unowned is not None:
+                unowned["reason"] += "; and " + "; and ".join(causes)
+            else:
+                warnings.append(
+                    {
+                        "repo": repo.name,
+                        "present": sorted(present or ()),
+                        "reason": "; and ".join(causes),
+                        "fix": fix,
+                    }
+                )
+            continue
+        # both are set here: each None case continued above
+        extra = sorted((present or set()) - set(ruled or ()))
         if not extra:
             continue
         row = {"repo": repo.name, "extra": extra, "fix": fix}
@@ -167,9 +185,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(rep, indent=1))
     for w in rep["warnings"]:
         extra = w.get("extra") or w.get("present") or []
-        print(
-            f"check_mcp_scope: WARN {w['repo']}: {w['reason']} — carries {', '.join(extra)} — {w['fix']}"
-        )
+        carries = f" — carries {', '.join(extra)}" if extra else ""
+        print(f"check_mcp_scope: WARN {w['repo']}: {w['reason']}{carries} — {w['fix']}")
     for f in rep["failures"]:
         print(
             f"check_mcp_scope: FAIL {f['repo']}: .mcp.json carries {', '.join(f['extra'])} outside its "
@@ -180,8 +197,8 @@ def main(argv: list[str] | None = None) -> int:
     if rep["failures"]:
         return 1
     print(
-        f"check_mcp_scope: OK — {rep['checked']} .mcp.json file(s) under {root} are subsets of their "
-        f"ruling ({len(rep['warnings'])} unruled, warned)"
+        f"check_mcp_scope: OK — {rep['checked']} .mcp.json file(s) read under {root}, none failing its "
+        f"ruling ({len({w['repo'] for w in rep['warnings']})} repo(s) warned)"
     )
     return 0
 
