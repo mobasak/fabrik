@@ -1577,12 +1577,24 @@ def _prune_scratch(root: Path, keep: set[Path], now: float | None = None) -> lis
     dirs. Any doubt skips the dir. Returns NOTE lines."""
     now = time.time() if now is None else now
     notes: list[str] = []
-    if not root.is_dir():
-        return notes
-    for sid_dir in sorted(root.iterdir()):
-        if sid_dir.is_symlink() or not sid_dir.is_dir():
+    # a dir that cannot be listed (another account's tree, a permission-mangled dir, a sibling prune
+    # that removed it mid-walk) is a NOTE, never a raise: `start` prunes every checkout now, and a
+    # raise here cost the run its own scratch (W-128df814 review A-sonnet-1)
+    try:
+        if not root.is_dir():
+            return notes
+        sid_dirs = sorted(root.iterdir())
+    except OSError as exc:
+        return [f"scratch root {root} not pruned ({exc})"]
+    for sid_dir in sid_dirs:
+        try:
+            if sid_dir.is_symlink() or not sid_dir.is_dir():
+                continue
+            runs = sorted(sid_dir.iterdir())
+        except OSError as exc:
+            notes.append(f"scratch {sid_dir} not pruned ({exc})")
             continue
-        for run in sorted(sid_dir.iterdir()):
+        for run in runs:
             try:
                 if run.is_symlink() or not run.is_dir() or run.resolve() in keep:
                     continue

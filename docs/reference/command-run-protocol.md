@@ -152,7 +152,9 @@ A quiet round is not TERMINAL either when every seat it closed was dispatched be
 confirmed defects was RECORDED (W-128df814): none of those seats can have read that round's fix, so it prints
 `⛔ NOT TERMINAL — every seat this round closed was dispatched before round <k> RECORDED its <C> confirmed defect(s)`.
 The stamp keeps its seats as `batches` (`[dispatch time, n]`, one per `dispatch --seats n` with n > 0;
-`--seats 0` adds none, and a stamp written before batches existed counts as one batch at its `ts`); a round
+`--seats 0` adds none, and a stamp whose batches do not add up to its seats — one written before batches existed,
+or a hand-edited or malformed one — counts as one batch at its `ts`; a batch time that is not a number is unknown,
+and a round touching it reads unknown, never stale); a round
 consumes them oldest first — all on a full close, `k` on a partial `--seats k` — and records `dispatched_at`, the time
 of the newest batch it consumed, while the remainder keeps the rest. Oldest-first is pessimistic: when the fresh seat
 returned before a stale one, its close reads stale once and the next reads fresh. A round that closes no stamped seat

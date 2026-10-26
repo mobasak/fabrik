@@ -121,6 +121,27 @@ def test_the_stale_check_boundary_and_its_fail_open_inputs() -> None:
     assert cr._stale_seat_round([{"confirmed": 4}, {"confirmed": 0, "dispatched_at": 1.0}]) is None
 
 
+def test_batch_helpers_fall_back_and_fail_open() -> None:
+    """Behaviours 6-7's helpers: batches that do not add up to the stamp's seats (legacy, hand-edited,
+    malformed) are ONE batch at the stamp's `ts`; a close is attributed oldest first and capped at
+    what is stamped; a batch whose time is unknown makes the answer unknown (never stale)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("command_run_batches_ut", SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    stamp = {"ts": 50.0, "seats": 3, "batches": [[10.0, 1], [20.0, 2]]}
+    assert cr._stamp_batches(stamp, 3) == [[10.0, 1], [20.0, 2]]
+    assert cr._stamp_batches({**stamp, "batches": [[10.0, 1]]}, 3) == [[50.0, 3]]  # mis-summed
+    assert cr._stamp_batches({**stamp, "batches": [[10.0, True]]}, 1) == [[50.0, 1]]  # malformed
+    assert cr._stamp_batches({"ts": 50.0}, 2) == [[50.0, 2]]  # legacy, no key
+    assert cr._consume_batches([[10.0, 1], [20.0, 2]], 1) == (10.0, [[20.0, 2]])
+    assert cr._consume_batches([[10.0, 1], [20.0, 2]], 2) == (20.0, [[20.0, 1]])
+    assert cr._consume_batches([[10.0, 1], [20.0, 2]], 9) == (20.0, [])  # above the stamp
+    assert cr._consume_batches([[None, 1], [20.0, 1]], 2) == (None, [])  # unknown time
+    assert cr._stamp_batches({"ts": "x", "batches": "y"}, 1) == [[None, 1]]
+
+
 def test_a_second_stale_wave_round_is_not_terminal(run_dir: Path) -> None:
     """Behaviour 5 — the anchor is the NEWEST confirming round, never round N-1 alone: a quiet
     stale round between them does not launder the next one."""

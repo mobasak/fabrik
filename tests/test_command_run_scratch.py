@@ -86,7 +86,8 @@ def no_seam(monkeypatch):
 
 
 def test_start_scratch_lands_in_the_main_checkout(tmp_path: Path, no_seam) -> None:
-    """Behaviour 1: the root is <main checkout>/.tmp/runs, and the dir is keyed by session and command."""
+    """Behaviour 1: a run started in the main checkout is rooted at <main checkout>/.tmp/runs (the
+    checkout it runs in), and the dir is keyed by session and command."""
     repo = _repo(tmp_path, gitignore=".tmp/\n")
     path, notes = cr._make_scratch(
         str(repo), "abc", "fabrik-task", "2026-10-14T01:46:01+0300", None
@@ -186,6 +187,60 @@ def test_start_prunes_stale_scratch_in_every_worktree(tmp_path: Path, no_seam, m
     assert path is not None and path.is_relative_to(repo / ".tmp" / "runs"), (path, notes)
     assert not stale.exists(), notes
     assert keep.exists(), "a dir a record names is never pruned"
+
+    # the other direction: a start INSIDE the worktree prunes the main checkout's stale runs
+    main_stale = repo / ".tmp" / "runs" / "old" / "fabrik-task-c"
+    main_stale.mkdir(parents=True)
+    (main_stale / "f.md").write_text("x", encoding="utf-8")
+    _age(main_stale, 20)
+    path, notes = cr._make_scratch(str(wt), "me", "fabrik-task", "k2", None)
+    assert path is not None and path.is_relative_to(wt / ".tmp" / "runs"), (path, notes)
+    assert not main_stale.exists(), notes
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores chmod(0) — nothing would be unreadable")
+def test_an_unreadable_sibling_checkout_never_costs_the_run_its_scratch(
+    tmp_path: Path, no_seam
+) -> None:
+    """W-128df814 review (A-sonnet-1): a sibling checkout's run dir that cannot be listed (another
+    account's tree, a permission-mangled dir, a sibling prune racing this one) raised out of
+    `_prune_scratch`, and `start`'s guard then dropped SCRATCH for the whole run. The prune of the
+    other checkout fails into a NOTE; this run keeps its scratch dir."""
+    repo = _repo(tmp_path)
+    wt = tmp_path / "wt"
+    assert _git(repo, "worktree", "add", "-q", "--detach", str(wt)).returncode == 0
+    locked = wt / ".tmp" / "runs" / "sidx"
+    (locked / "run1").mkdir(parents=True)
+    locked.chmod(0)
+    try:
+        path, notes = cr._make_scratch(str(repo), "me", "fabrik-task", "k", None)
+    finally:
+        locked.chmod(0o755)
+    assert path is not None and path.is_dir(), notes
+    assert any("sidx" in n for n in notes), notes
+
+
+def test_the_cross_checkout_prune_never_follows_a_symlinked_tmp(tmp_path: Path, no_seam) -> None:
+    """W-128df814 review: another checkout's `.tmp` (or `.tmp/runs`) that is a symlink points outside
+    that tree — the prune never goes through it, and a non-repo path lists no checkouts."""
+    repo = _repo(tmp_path)
+    wt = tmp_path / "wt"
+    assert _git(repo, "worktree", "add", "-q", "--detach", str(wt)).returncode == 0
+    elsewhere = tmp_path / "elsewhere"
+    stale = elsewhere / "runs" / "old" / "fabrik-task-a"
+    stale.mkdir(parents=True)
+    (stale / "f.md").write_text("x", encoding="utf-8")
+    _age(stale, 20)
+    (wt / ".tmp").symlink_to(elsewhere, target_is_directory=True)
+    path, notes = cr._make_scratch(str(repo), "me", "fabrik-task", "k", None)
+    assert path is not None, notes
+    assert stale.exists(), "a stale dir reached through a symlinked .tmp is never pruned"
+    (wt / ".tmp").unlink()
+    (wt / ".tmp").mkdir()
+    (wt / ".tmp" / "runs").symlink_to(elsewhere / "runs", target_is_directory=True)
+    cr._make_scratch(str(repo), "me", "fabrik-task", "k2", None)
+    assert stale.exists(), "nor through a symlinked .tmp/runs"
+    assert cr._other_checkouts(tmp_path / "not-a-repo-dir") == []
 
 
 def test_a_vanished_seed_scratch_is_named(tmp_path: Path, no_seam) -> None:
