@@ -1709,3 +1709,7 @@ def test_amber_says_nothing_to_an_api_key_session_and_green_adds_no_clause(tmp_p
     _posture(green, band="GREEN")
     ups = {"hook_event_name": "UserPromptSubmit"}
     assert "Anthropic API key" not in _hook(ups, state=green, extra_env=key).stdout
+    # the band arm on its own: no stamp, a non-GREEN band — a hold could bind, so the clause shows
+    red = tmp_path / "red"
+    _posture(red, band="RED", successor=None)
+    assert "Anthropic API key" in _hook(ups, state=red, extra_env=key).stdout
