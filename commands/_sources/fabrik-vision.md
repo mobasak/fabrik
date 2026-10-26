@@ -25,7 +25,7 @@ Reads budget (the hollow-citation discipline). Every backticked path in this com
 Acting set:
 - `agents-fabrik.md` — the orientation file, read FIRST (§ Planning Constraints = Phase 3's constraint-verification inputs).
 - The operator's research / interview input — the raw vision.
-- NEW mode Path A discovers it CUMULATIVELY across `docs/preplans/*.md` · `docs/development/plans/00-research.md` · `docs/development/plans/YYYY-MM-DD-*.md` (read every match FULLY — Phase 2 states the precedence order when they CONFLICT); Path B interviews instead.
+- NEW mode Path A discovers it CUMULATIVELY across `docs/preplans/*.md` · `docs/development/plans/00-research.md` · `docs/development/plans/YYYY-MM-DD-*.md` (read every match FULLY — Phase 2 states the precedence order when they CONFLICT); Path B interviews instead. EXISTING mode's optional research files in `docs/development/plans/` are consumed the same way.
 - A market-facing vision — either mode, either path — also reads `docs/reference/rivals/<market>.md` (the rivals dossier — Phase 2's market-facing gate, not scoped to one path); an internal tool or a non-market-facing Retrofit delta is exempt.
 - The rest of Phase 2's "auto-loaded, both modes" set, consumed by Phase 1/Phase 3: `docs/operations/fabrik-lifecycle.md` · `docs/reference/technology-stack-decision-guide.md` (binding on every tech choice) · `docs/reference/prebuilt-app-containers.md` · `docs/BUSINESS_MODEL.md` § Project Portfolio · `PORTS.md` (port allocation) · `scripts/service_catalog.json` — the owned external-services inventory (Phase 3's § Already OWNED + the owned-first order; secret-free).
 - `docs/infrastructure/vps-complete-inventory.md` — the canonical fleet inventory when the `agents-fabrik.md` summary is ambiguous on host placement.

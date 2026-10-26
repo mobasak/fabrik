@@ -3991,6 +3991,12 @@
   "class": "prose"
   "text":
   - "The repo-first leg, BEFORE any live research: `grep docs/` · `docs/reference/` · `AFCL.md` · `docs/LESSONS_LEARNT.md`"
+- "id": "v-L23"
+  "file": "render"
+  "baseline": "EXISTING mode's optional research files in `docs/development/plans/` are consumed the same way"
+  "class": "prose"
+  "text":
+  - "EXISTING mode's optional research files in `docs/development/plans/` are consumed the same way"
 "vanished":
   "L2":
     "rule":
@@ -4004,8 +4010,6 @@
   "L20":
     "rule":
     - "v-L20"
-  "L23":
-    "duplicate-of": "v-L195"
   "L24":
     "rule":
     - "v-L24"
