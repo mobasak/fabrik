@@ -4,8 +4,9 @@ confirmed [4, 0, 0]: a wave round for a round-1 Haiku seat printed TERMINAL befo
 re-verified).
 
 The stamp keeps its seats as dispatch batches and a partial close is attributed OLDEST batch first, so
-a stale seat closing alone reads stale even when a fresh one went out after it. Every test drives
-`command_run.py` by subprocess through the `COMMAND_RUN_DIR` seam — no live state, no checkout.
+a stale seat closing alone reads stale even when a fresh one went out after it. The behaviour tests
+drive `command_run.py` by subprocess through the `COMMAND_RUN_DIR` seam (no live state, no checkout);
+two unit tests load the module by file location to grade the pure helpers' edges directly.
 """
 
 from __future__ import annotations
