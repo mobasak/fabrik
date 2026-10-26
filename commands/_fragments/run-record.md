@@ -10,7 +10,7 @@ python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \
   --terminal "<this command's own terminal condition, in your words>"
 ```
 
-Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run is. `--surface` is what makes the run's ledger row ANALYSABLE — a 40-file plan set and a 3-file diff are different runs of the same command; name it at `start` (the close accepts `--surface` too if you learn it late). The agent (`CLAUDE_AGENT`) and the active account are captured for you. Where the outcome rests on an act this run does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close.
+Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run actually is rather than where it started. `--surface` is what makes the run's ledger row ANALYSABLE — a 40-file plan set and a 3-file diff are different runs of the same command; name it at `start` (the close accepts `--surface` too if you learn it late). The agent (`CLAUDE_AGENT`) and the active account are captured for you. Where the outcome rests on an act this run does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close.
 
 Close it EXACTLY ONE of these ways — never by simply stopping (a third, ``handoff --resume <a file with a `## RESUME` block>``, only where this command's own text names that close):.
 

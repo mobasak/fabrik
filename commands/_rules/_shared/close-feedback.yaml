@@ -284,10 +284,10 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'Do NOT drop the verdict: close with `--evidence` so the record does not stay `running`, state your `FEEDBACK:` line in the response (it is owed to the reader, not to the parser), and file the stale-copy fact upstream so the vendored script gets re-synced'
-  current: 'Do NOT drop verdict: close with `--evidence` so record does not stay `running`, state your `FEEDBACK:` line in response, and file stale-copy fact upstream'
+  current: 'Do NOT drop the verdict: close with `--evidence` so the record does not stay `running`, state your `FEEDBACK:` line in the response (it is owed to the reader, not to the parser), and file the stale-copy fact upstream so the vendored script gets re-synced'
   text:
-  - 'Do NOT drop verdict: close with `--evidence` so record does not stay `running`, state your `FEEDBACK:` line in response, and file stale-copy fact upstream'
-  class: prose
+  - 'Do NOT drop the verdict: close with `--evidence` so the record does not stay `running`, state your `FEEDBACK:` line in the response (it is owed to the reader, not to the parser), and file the stale-copy fact upstream so the vendored script gets re-synced'
+  class: grammar
 - id: cat-L40
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'

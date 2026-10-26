@@ -584,10 +584,12 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Return format'
   baseline: When the dispatching brief specifies its own output format, the caller's format wins — this line is the default for briefs that specify none, not a contradiction to fight (a live dispatch lost a turn flagging exactly that conflict)
-  current: When dispatching brief specifies its own output format, caller's format wins — this line is default for briefs that specify none, not contradiction to fight
+  current: When the dispatching brief specifies its own output format, the caller's format wins — this line is the default for briefs that specify none
   text:
-  - When dispatching brief specifies its own output format, caller's format wins — this line is default for briefs that specify none, not contradiction to fight
-  class: prose
+  - When the dispatching brief specifies its own output format, the caller's format wins
+  class: grammar
+  clauses:
+    2: narrative
 - id: agent-rsr-no-version-specific-figure-on-a-docs
   file: commands/_agents/fabrik-researcher.md
   forbidden:

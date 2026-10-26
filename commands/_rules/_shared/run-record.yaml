@@ -34,10 +34,10 @@ entries:
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
   baseline: Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run actually is rather than where it started
-  current: Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run is
+  current: Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run actually is rather than where it started
   text:
-  - Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run is
-  class: prose
+  - Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run actually is rather than where it started
+  class: grammar
 - id: rr-act-handoff
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'

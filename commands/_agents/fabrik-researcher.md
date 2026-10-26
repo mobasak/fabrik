@@ -42,4 +42,4 @@ The git-verb prohibition (spec D8) binds your Bash-less reads and any future too
 
 ## Return format
 
-Return only the verdict(s): `<claim> → VERIFIED|INFERENCE|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE · <the grounded fact> · <URL> · <date>`. One line per claim. No prose padding — your caller merges/refutes your findings, so give it clean, sourced verdicts. When dispatching brief specifies its own output format, caller's format wins — this line is default for briefs that specify none, not contradiction to fight.
+Return only the verdict(s): `<claim> → VERIFIED|INFERENCE|STALE|WRONG|DEAD|NEEDS-RAW-FETCH|UNVERIFIABLE · <the grounded fact> · <URL> · <date>`. One line per claim. No prose padding — your caller merges/refutes your findings, so give it clean, sourced verdicts. When the dispatching brief specifies its own output format, the caller's format wins — this line is the default for briefs that specify none.
