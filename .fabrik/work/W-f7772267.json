@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-26T18:07:46.888863Z",
   "creator": "infra-3",
+  "effort": "low",
   "evidence": "",
   "id": "W-f7772267",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "batch with other P3 fill-ins; each one gets a red-first grader",
   "note": "",
-  "owner": "",
+  "owner": "infra-3",
   "priority": 3,
+  "score_reason": "pre-existing edge-shape fill-ins (a)-(g)",
   "status": "open",
   "title": "Six low fill-ins split from W-cd40f947: (a) claude_rotate._fleet_dirs() counts the backups folder as an account; (b) _fill_credentials raises AttributeError on a wrong-shape roster; (c) a typed repo without the gitignore line or with a tracked .mcp.json still gets written; (d) emitter --check reports a worktree copy it did not write; (f) hermetic-git test fixtures do not neutralise git's XDG global-ignore fallback; (g) an unreadable project.yaml gives a bare SKIP and exit 0 (found by the W-d095d60b review)"
 }
