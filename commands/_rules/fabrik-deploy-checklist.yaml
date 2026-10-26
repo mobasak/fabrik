@@ -416,7 +416,7 @@ entries:
   class: prose
   text:
   - 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
-  - '> POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182, provider credentials stay provisioned): every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  - '> POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182, provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control): every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
 - id: r-2
   baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
   class: prose
@@ -486,10 +486,8 @@ entries:
   section: '## Phase 0 — Establish MODE + scope `[anywhere]`'
   baseline: 'If `scripts/verify_prod_parity.py` is absent (every project scaffolded before 2026-09-02 — the stub is seeded by the scaffolder''s `SCRIPT_FILES` at scaffold time and is deliberately never synced: the contract is project-OWNED and committed, and a synced copy would be gitignored and overwritten on every sync): copy `/opt/fabrik/templates/scaffold/scripts/verify_prod_parity.py` into THIS repo''s `scripts/` (a read of the hub, a write in your own tree), commit it with this run, and carry on — it is the same DRAFT stub the scaffolder would have seeded'
   class: ban
-  clauses:
-    2: narrative
   text:
-  - 'If `scripts/verify_prod_parity.py` is absent (every project scaffolded before 2026-09-02 — the stub is seeded by the scaffolder''s `SCRIPT_FILES` at scaffold time and is deliberately never synced: the contract is project-OWNED and committed, and a synced copy would be gitignored and overwritten on every sync): copy `/opt/fabrik/templates/scaffold/scripts/verify_prod_parity.py` into THIS repo''s `scripts/` (a read of the hub, a write in your own tree), commit it with this run, and carry on'
+  - 'If `scripts/verify_prod_parity.py` is absent (every project scaffolded before 2026-09-02 — the stub is seeded by the scaffolder''s `SCRIPT_FILES` at scaffold time and is deliberately never synced: the contract is project-OWNED and committed, and a synced copy would be gitignored and overwritten on every sync): copy `/opt/fabrik/templates/scaffold/scripts/verify_prod_parity.py` into THIS repo''s `scripts/` (a read of the hub, a write in your own tree), commit it with this run, and carry on — it is the same DRAFT stub the scaffolder would have seeded'
 - id: r-23
   section: '## Phase 0 — Establish MODE + scope `[anywhere]`'
   baseline: 'A DRAFT stub is meant to be edited through — its existence is NOT a STOP. Only a `Status: FROZEN` header is a STOP: say so, and on the operator''s word proceed as a re-freeze — bump `Version`, never a silent overwrite'
@@ -515,7 +513,7 @@ entries:
   baseline: '| routes | the app''s OWN published table: `/openapi.json` from the started app (a `TestClient(app)` context runs the lifespan; or the running DEV server), then subtract the framework''s paths (`/`, `/docs`, `/redoc`, `/openapi.json`, `/docs/oauth2-redirect`) and state BOTH counts (`total / application`). ⚠️ A flat read of `app.routes` UNDER-COUNTS: routers included via `include_router` sit nested under router objects whose own `.routes` must be walked — measured on a real project, flat `app.routes` gave 3 application routes while `/openapi.json` gave 27 paths. ⚠️ Never a `grep include_router`: a composed `v1_router` carries its prefix on the parent (`prefix="/internal/v1"`), and the grep returns nothing | `FEATURES.md` prose · a flat `app.routes` read | `UNVERIFIABLE (no introspection: <why>)` |'
   class: ban
   text:
-  - '| routes | `/openapi.json` from the started app (a `TestClient(app)` context, or the running DEV server), minus the framework''s paths (`/`, `/docs`, `/redoc`, `/openapi.json`, `/docs/oauth2-redirect`); state BOTH counts (`total / application`). A flat read of `app.routes` UNDER-COUNTS: routers included via `include_router` sit nested under router objects whose own `.routes` must be walked — measured: flat `app.routes` gave 3 application routes while `/openapi.json` gave 27 paths. ⚠️ Never a `grep include_router`: a composed `v1_router` carries its prefix on the parent (`prefix="/internal/v1"`), and the grep returns nothing | `FEATURES.md` prose · a flat `app.routes` read | `UNVERIFIABLE (no introspection: <why>)` |'
+  - '| routes | the app''s OWN published table: `/openapi.json` from the started app (a `TestClient(app)` context runs the lifespan; or the running DEV server), minus the framework''s paths (`/`, `/docs`, `/redoc`, `/openapi.json`, `/docs/oauth2-redirect`); state BOTH counts (`total / application`). A flat read of `app.routes` UNDER-COUNTS: routers included via `include_router` sit nested under router objects whose own `.routes` must be walked — measured: flat `app.routes` gave 3 application routes while `/openapi.json` gave 27 paths. ⚠️ Never a `grep include_router`: a composed `v1_router` carries its prefix on the parent (`prefix="/internal/v1"`), and the grep returns nothing | `FEATURES.md` prose · a flat `app.routes` read | `UNVERIFIABLE (no introspection: <why>)` |'
 - id: r-31
   baseline: '| services | `yaml.safe_load(compose)["services"]` ∪ the registrar-injected sidecars the `shape:` flags imply (a `watchdog` container appears in no compose file). ⚠️ Never an indentation regex — it counts `volumes:`/`networks:` keys as services (measured: 6 for 4) | compose read by eye | — (always derivable) |'
   class: ban
@@ -527,15 +525,13 @@ entries:
   baseline: '| state baseline | DEV minus the declared exclusion set — row counts, reference data, translations, filestore counts measured in DEV; exclusions from `docs/DECISIONS.md` (fixture companies, test users, history the ruling excludes) | PROD (see the hazard rule) | a missing exclusion ruling is the one thing to RAISE (§ Question bar) |'
   class: prose
   text:
-  - '| state baseline | DEV minus the declared exclusion set — row counts, reference data, translations, filestore counts measured in DEV; exclusions from `docs/DECISIONS.md` (fixture companies, test users, history the ruling excludes) | PROD | a missing exclusion ruling is the one thing to RAISE |'
+  - '| state baseline | DEV minus the declared exclusion set — row counts, reference data, translations, filestore counts measured in DEV; exclusions from `docs/DECISIONS.md` (fixture companies, test users, history the ruling excludes) | PROD (see the hazard rule) | a missing exclusion ruling is the one thing to RAISE (§ Question bar) |'
 - id: r-40
   section: '## Phase 1 — Derive the denominators `[anywhere]`'
   baseline: 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
   class: ban
-  clauses:
-    2: narrative
   text:
-  - 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it'
+  - 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
 - id: r-41
   section: '## Phase 1 — Derive the denominators `[anywhere]`'
   baseline: The the exclusion-set judgement and every DEV measurement stay native — they read the project's own environment
@@ -588,10 +584,8 @@ entries:
   section: '## Phase 2 — Emit the contract `[anywhere]`'
   baseline: 'Derived stores that mirror a row set take the SAME comparator as the rows they mirror and switch together — a file-backed attachment store grows on the same event as its attachment rows, a search index on the same event as its documents (tryton-crm''s first freeze floored attachments and compared the filestore exactly: red on the first real upload — the example list read naturally at deploy time and was wrong a day later)'
   class: prose
-  clauses:
-    2: narrative
   text:
-  - Derived stores that mirror a row set take the SAME comparator as the rows they mirror and switch together
+  - 'Derived stores that mirror a row set take the SAME comparator as the rows they mirror and switch together — a file-backed attachment store grows on the same event as its attachment rows, a search index on the same event as its documents (tryton-crm''s first freeze floored attachments and compared the filestore exactly: red on the first real upload — the example list read naturally at deploy time and was wrong a day later)'
 - id: r-54
   section: '## Phase 2 — Emit the contract `[anywhere]`'
   baseline: The first-deploy freeze may be exact everywhere (it certifies the migration); the contract names which rows switch to floors at the next bump, and coupled rows name each other
@@ -618,13 +612,13 @@ entries:
   baseline: '⚠️ A liveness row (Layer 3/4 reachability, no declared value) returns the three-key `{system, status, detail}` shape and NONE of the comparison keys — the vendored CLI treats a row carrying ANY of `expected`/`actual`/`match` as a comparison row (`_COMPARISON_KEYS`, a disjunction on purpose), so a liveness row emitted with `match: None` would FAIL the contract as attempted-unresolved'
   class: prose
   text:
-  - 'A liveness row (Layer 3/4 reachability, no declared value) returns the three-key `{system, status, detail}` shape and NONE of the comparison keys — the vendored CLI treats a row carrying ANY of `expected`/`actual`/`match` as a comparison row (`_COMPARISON_KEYS`, a disjunction on purpose), so a liveness row emitted with `match: None` would FAIL the contract'
+  - 'A liveness row (Layer 3/4 reachability, no declared value) returns the three-key `{system, status, detail}` shape and NONE of the comparison keys — the vendored CLI treats a row carrying ANY of `expected`/`actual`/`match` as a comparison row (`_COMPARISON_KEYS`, a disjunction on purpose), so a liveness row emitted with `match: None` would FAIL the contract as attempted-unresolved'
 - id: r-65
   section: '## Phase 2 — Emit the contract `[anywhere]`'
   baseline: 'A `--rows-from` merge checks the leg files before it counts them (`_rows_for` calls `check_leg_rows`): a leg file could otherwise reach CONFIRMED through which row ids appear, how many times each appears, which comparison keys a row carries, and what its `match` holds — so every contract row appears exactly once, with the three comparison keys all or none, a tri-state `match` and a known status, or the merge exits 64. A contract frozen before the template had `check_leg_rows` merges its legs unchecked until a re-freeze copies the template''s check in'
   class: prose
   text:
-  - 'A `--rows-from` merge checks the leg files before it counts them (`_rows_for` calls `check_leg_rows`): every contract row appears exactly once, with the three comparison keys all or none, a tri-state `match` and a known status, or the merge exits 64. A contract frozen before the template had `check_leg_rows` merges its legs unchecked until a re-freeze copies the check in'
+  - 'A `--rows-from` merge checks the leg files before it counts them (`_rows_for` calls `check_leg_rows`): a leg file could otherwise reach CONFIRMED through which row ids appear, how many times each appears, which comparison keys a row carries, and what its `match` holds — so every contract row appears exactly once, with the three comparison keys all or none, a tri-state `match` and a known status, or the merge exits 64. A contract frozen before the template had `check_leg_rows` merges its legs unchecked until a re-freeze copies the check in'
 - id: r-67
   section: '## Phase 2 — Emit the contract `[anywhere]`'
   baseline: The exclusion set is data in the script (a list with the ruling's `D-NNN` beside it), applied to the DEV baseline, so the runner and a reader see what was excluded and why
@@ -648,10 +642,8 @@ entries:
   section: '## Phase 3 — Features cross-check `[anywhere]`'
   baseline: 'Do not assume a vocabulary and do not stop at the first table: measured on a real project, the FIRST table''s header was `Feature | Description | Module` with no status cell, a literal-word grep returned 0, and the shipped rows (37, `✅ Shipped`) lived in a LATER table'
   class: prose
-  clauses:
-    1: narrative
   text:
-  - Do not assume a vocabulary and do not stop at the first table
+  - 'Do not assume a vocabulary and do not stop at the first table: measured on a real project, the FIRST table''s header was `Feature | Description | Module` with no status cell, a literal-word grep returned 0, and the shipped rows (37, `✅ Shipped`) lived in a LATER table'
 - id: r-73
   section: '## Phase 3 — Features cross-check `[anywhere]`'
   baseline: A route with no feature row, or a feature row with no route, is a FINDING in the report and a row in the contract (`l2_features_crosscheck`, expected 0 unmatched) — that is what makes an under-declared inventory detectable rather than a smaller denominator
@@ -688,10 +680,8 @@ entries:
   section: '## Phase 6 — Freeze + wire the truth `[anywhere]`'
   baseline: This header write is a post-convergence action, exempt from the no-op rule — measured on the body, not the flip
   class: prose
-  clauses:
-    2: narrative
   text:
-  - This header write is a post-convergence action, exempt from the no-op rule
+  - This header write is a post-convergence action, exempt from the no-op rule — measured on the body, not the flip
 - id: r-93
   section: '## Phase 6 — Freeze + wire the truth `[anywhere]`'
   baseline: Refresh the fleet-AI sections of `docs/DEPLOYMENT.md` and `docs/OPERATIONS.md` (D-065) — the services/jobs/env/dependency inventory Phase 1 derived IS the content those sections owe
@@ -704,7 +694,7 @@ entries:
   class: ban
   text:
   - ⚠️ HAZARD — derive these from CODE + SPEC + DEV, never from PROD
-  - ⚠️ HAZARD — derive these from CODE + SPEC + DEV, never from PROD. *"prod has 0 companies, therefore document 0 companies"* is self-consistent and still wrong
+  - ⚠️ HAZARD — derive these from CODE + SPEC + DEV, never from PROD. *"prod has 0 companies, therefore document 0 companies"* makes an empty-database certification self-consistent and still wrong
 - id: r-104
   section: '## Phase 7 — Hand off `[anywhere]`'
   baseline: A run that could derive only the identity rows (little code yet) still freezes — few rows is a true contract; say which layers await code so the next re-freeze knows where to look

@@ -519,7 +519,7 @@ entries:
   baseline: A checklist item without a fresh-this-run command output is not a verdict, it is a guess (`n/a (not obligated)` is the one exception — it cites the spec flag that voids the obligation instead of a command output)
   class: prose
   text:
-  - An item without a fresh-this-run command output is a guess; `n/a (not obligated)` cites the spec flag instead
+  - An item without a fresh-this-run command output is not a verdict, it is a guess; `n/a (not obligated)` cites the spec flag instead
 - id: r-15
   section: '## ⚠️ Termination contract'
   baseline: If >3 items FAIL on the same root cause (e.g. the whole VPS is unreachable), stop early and report that cause rather than exhausting the checklist against a dead host — every unreached item then carries `NOT-RUN (<the shared root cause>)` in the verdict table, so the early stop stays fillable and honest
@@ -543,7 +543,7 @@ entries:
   baseline: '⚠️ The pipeline docs currently route store surfaces here post-submit; until a store analogue exists that routing is aspirational, and this guard is what keeps it honest at the point of use rather than discovering it mid-run (backlog: *Store-terminal adjudication*, blocked on the first real store release to ground what the analogue must probe)'
   class: ban
   text:
-  - 'The pipeline docs currently route store surfaces here post-submit; until a store analogue exists that routing is aspirational (backlog: *Store-terminal adjudication*, blocked on the first real store release to ground what the analogue must probe)'
+  - 'The pipeline docs currently route store surfaces here post-submit; until a store analogue exists that routing is aspirational, and this guard is what keeps it honest at the point of use rather than discovering it mid-run (backlog: *Store-terminal adjudication*, blocked on the first real store release to ground what the analogue must probe)'
 - id: r-22
   section: '## Phase 0 — Resolve the target'
   baseline: 'Read `specs/services/<id>.yaml` (or the path/id argument if given): `domain`, `target_vps` (default `vps1`), and every `shape:` flag — this is the obligation list Phase 3 checks against'
@@ -614,20 +614,20 @@ entries:
   baseline: 'If that ALSO resolves, the target''s own resolution carries no deploy signal — do not stop at DNS; the discriminating evidence moves to the HTTPS layer (Phase 2): a genuinely deployed service answers its own 2xx/redirect/auth challenge, while an undeployed-but-wildcard-resolved name gets Traefik''s default backend (typically a 404)'
   class: prose
   text:
-  - 'If that ALSO resolves, the target''s own resolution carries no deploy signal — do not stop at DNS; the discriminating evidence moves to Phase 2''s HTTPS layer (a deployed service answers its own 2xx/redirect/auth challenge; an undeployed name gets Traefik''s default 404), Record this explicitly in the verdict row: `wildcard DNS — resolution non-evidentiary, discriminating at HTTPS layer`, and let Phase 2''s HTTPS result — not Phase 1''s DNS result — carry the PASS/FAIL for spoke targets'
+  - 'If that ALSO resolves, the target''s own resolution carries no deploy signal — do not stop at DNS; the discriminating evidence moves to Phase 2''s HTTPS layer (a deployed service answers its own 2xx/redirect/auth challenge; an undeployed-but-wildcard-resolved name gets Traefik''s default backend (typically a 404)), Record this explicitly in the verdict row: `wildcard DNS — resolution non-evidentiary, discriminating at HTTPS layer`, and let Phase 2''s HTTPS result — not Phase 1''s DNS result — carry the PASS/FAIL for spoke targets'
   - 'Context is never a reason to stop: the harness auto-compacts and the run continues'
 - id: r-44
   section: '## Phase 1 — DNS: live, not merely cataloged `[anywhere]`'
   baseline: 'Record this explicitly in the verdict row: `wildcard DNS — resolution non-evidentiary, discriminating at HTTPS layer`, and let Phase 2''s HTTPS result — not Phase 1''s DNS result — carry the PASS/FAIL for spoke targets'
   class: prose
   text:
-  - 'If that ALSO resolves, the target''s own resolution carries no deploy signal — do not stop at DNS; the discriminating evidence moves to Phase 2''s HTTPS layer (a deployed service answers its own 2xx/redirect/auth challenge; an undeployed name gets Traefik''s default 404), Record this explicitly in the verdict row: `wildcard DNS — resolution non-evidentiary, discriminating at HTTPS layer`, and let Phase 2''s HTTPS result — not Phase 1''s DNS result — carry the PASS/FAIL for spoke targets'
+  - 'If that ALSO resolves, the target''s own resolution carries no deploy signal — do not stop at DNS; the discriminating evidence moves to Phase 2''s HTTPS layer (a deployed service answers its own 2xx/redirect/auth challenge; an undeployed-but-wildcard-resolved name gets Traefik''s default backend (typically a 404)), Record this explicitly in the verdict row: `wildcard DNS — resolution non-evidentiary, discriminating at HTTPS layer`, and let Phase 2''s HTTPS result — not Phase 1''s DNS result — carry the PASS/FAIL for spoke targets'
 - id: r-45
   section: '## Phase 1 — DNS: live, not merely cataloged `[anywhere]`'
   baseline: '`vps1` (hub, no wildcard) keeps the existing behavior unchanged: a real NXDOMAIN there still discriminates on its own at the DNS layer'
   class: prose
   text:
-  - '`vps1` keeps the existing behavior unchanged: a real NXDOMAIN there still discriminates on its own at the DNS layer'
+  - '`vps1` (hub, no wildcard) keeps the existing behavior unchanged: a real NXDOMAIN there still discriminates on its own at the DNS layer'
 - id: r-47
   section: '## Phase 1b — Identity: the deployed build IS the tested build `[hub-side]`'
   baseline: 'Layer 1 of the contract corpus — nothing below it means anything if it fails: everything verified later is true of *something*; only this phase proves it is true of *this build*'
@@ -725,7 +725,7 @@ entries:
   baseline: A flag that is honestly `false` and correspondingly absent is not checked (nothing was obligated)
   class: prose
   text:
-  - A flag `true` with no corresponding remote-`.env` var or live probe response is a FAIL, routed as a registrar re-apply ask to the operator (`fabrik apply` re-runs registrars; name the exact flag and spec path, never run it yourself). A flag honestly `false` and absent is not checked
+  - A flag `true` with no corresponding remote-`.env` var or live probe response is a FAIL, routed as a registrar re-apply ask to the operator (`fabrik apply` re-runs registrars; name the exact flag and spec path, never run it yourself). A flag that is honestly `false` and correspondingly absent is not checked (nothing was obligated)
 - id: r-92
   section: '## Phase 4 — Gatus probe `[anywhere]`'
   baseline: 'If `is_public: true` and `domain` is set, the spec obligates a Gatus endpoint (per §11)'
@@ -792,7 +792,7 @@ entries:
   baseline: 'A comparison row also needs the comparator BESIDE the script, where the stub reads it (D-744), fresh and writable by nobody else (the stub refuses a group- or other-writable copy): `ssh <vps> "rm -rf /tmp/health_probe" && scp -r libs/health_probe <vps>:/tmp/health_probe && ssh <vps> "chmod -R go-w /tmp/health_probe"`'
   class: ban
   text:
-  - 'A comparison row also needs the comparator BESIDE the script (D-744), fresh and writable by nobody else (the stub refuses a group- or other-writable copy): `ssh <vps> "rm -rf /tmp/health_probe" && scp -r libs/health_probe <vps>:/tmp/health_probe && ssh <vps> "chmod -R go-w /tmp/health_probe"`'
+  - 'A comparison row also needs the comparator BESIDE the script, where the stub reads it (D-744), fresh and writable by nobody else (the stub refuses a group- or other-writable copy): `ssh <vps> "rm -rf /tmp/health_probe" && scp -r libs/health_probe <vps>:/tmp/health_probe && ssh <vps> "chmod -R go-w /tmp/health_probe"`'
 - id: r-121
   section: '## Phase 6 — Parity (contract-driven, BLOCKING) `[anywhere]`'
   baseline: 'A stub older than that rule reads only its own clone — `grep -q _comparator_root scripts/verify_prod_parity.py` fails for it — so stage and run it in a private clone layout instead, as ONE command line (the `$d` it sets lives only in that shell): `d=$(ssh <vps> mktemp -d) && ssh <vps> "mkdir -p $d/scripts $d/libs" && scp scripts/verify_prod_parity.py <vps>:$d/scripts/ && scp -r libs/health_probe <vps>:$d/libs/ && ssh <vps> "cd /opt/<project> && PARITY_FILESTORE_PATH=<mount> python3 $d/scripts/verify_prod_parity.py --json --site host" > <run>/host.json; ssh <vps> "rm -rf $d"`'
@@ -804,7 +804,7 @@ entries:
   baseline: 'A leg you CANNOT reach (no SSH, the container not running) is never skipped: emit its rows as UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>" > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg'
   class: ban
   text:
-  - 'A leg you CANNOT reach is never skipped: emit its rows as UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>" > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg'
+  - 'A leg you CANNOT reach (no SSH, the container not running) is never skipped: emit its rows as UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>" > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg'
 - id: r-127
   section: '## Phase 6 — Parity (contract-driven, BLOCKING) `[anywhere]`'
   baseline: 'Merge: `scripts/verify_prod_parity.py --verdict --rows-from <run>/hub.json <run>/container.json <run>/host.json` and copy its two lines verbatim into the Output block — the verdict algebra is EXECUTED by that script (`verdict()`: rows carrying ANY comparison key are parity rows — the vendored `_COMPARISON_KEYS` disjunction; `match True` = numerator; `False` = denies CONFIRMED; `None` on a parity row = ATTEMPTED-BUT-UNRESOLVED = fail closed, exit 2; a row with none of the keys is a liveness row outside the denominator; `not obligated` — a `shape:` flag — is the only thing that removes a row; exit 1 (a DOWN) outranks 2 outranks 0 and never upgrades a verdict)'
