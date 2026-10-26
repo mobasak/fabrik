@@ -15,6 +15,65 @@ All notable changes to this project will be documented in this file.
 - Nine shared-file ledgers and baselines under `commands/_rules/_shared/` were taken at unit 01's start commit (63d148626): the review probe catalogue, the no-workflow banner, run-record, orient, close-chain, close-feedback and the three seat definitions. They are T01a of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/`, W-96f36043.
 - The pins `tests/test_review_queue_pass.py` and `tests/test_review_scoped_queue_pass.py` held on those files, in test functions that read them alone, moved into the ledgers as `text`, `forbidden` and `ordered` carriers. Every assert in a test function that also reads another file stays (D-1231). The shared files are unchanged.
 - Review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01a-review.md` (5 passes, 4 → 3 → 5 → 3 → 0 confirmed).
+### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
+
+- W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In
+  `.windsurf/rules/core/ocoron-design-system.md`, Kalite Pusulası's brand never carries the Ocoron name. Naming rule 4 now
+  covers standalone brands (Atelier Rebul and Kalite Pusulası): their product surfaces and marketing carry no Ocoron
+  branding, and rules 1-3 do not apply to them. Rule 5 and the Branded House line make the same exception. Kalite
+  Pusulası's site may name Ocoron Dış Ticaret Limited Şirketi only as the KVKK data controller on its legal page;
+  its invoices and contracts still name the entity. The Brand Map row no longer says it awaits a ruling.
+
+### Fixed — Ocoron brand guide: the legal entity is Ocoron Dış Ticaret Limited Şirketi; Kalite Pusulası added (2026-10-26)
+
+- W-c0080a4b, D-1250, an operator order relayed from web-ecommerce-factory. In
+  `.windsurf/rules/core/ocoron-design-system.md`, rule 5 and the Brand Map named "Teknokent LLC"; both now name
+  "Ocoron Dış Ticaret Limited Şirketi". Rule 5 now says that name also goes on the legal pages: the terms of service and
+  the privacy policy, which names the KVKK data controller. The Brand Map gains Kalite Pusulası (kalitepusulasi.com) as
+  an Ocoron brand; how it fits naming rules 1-3 waits on the brand owner. `mobile-app/89-mobile-launch-checklist.md`
+  now says "a Turkish LLC in a Teknokent zone", replacing "a Turkish Teknokent LLC".
+
+### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
+
+A session whose env carries `ANTHROPIC_API_KEY` and none of the credentials that could replace it
+(a plan OAuth token, `ANTHROPIC_AUTH_TOKEN`, a Bedrock/Vertex/Foundry switch) draws no plan quota,
+so the hold no longer binds it while the fleet-exhausted stamp plainly reads `walled` or
+`urgent-90`: `.claude/hooks/quota_stop.py` turns its deny into an allow (a stderr note in the
+verbose transcript), `scripts/sysadmin/quota_posture_hook.py` skips its RED deny and AMBER notice
+and replaces the prompt line's CHECKPOINT clause with one naming the exemption, and
+`.claude/hooks/final_gate_stop.py` keeps the session's Stop causes armed instead of yielding. The
+battery hold (D-898) and any unknown stamp still hold it. Today this serves a window launched by
+hand on a key; `scripts/api_credit.py` children run `--safe-mode` and never run hooks. W-effb7141.
+
+### Changed — every repo's sessions get the REA reverse-engineering tools (W-7e29c9b9, 2026-10-26)
+
+- `scripts/sysadmin/emit_mcp_project_config.py`: `rea` joins the universal set (D-1239, superseding D-1199's
+  hub-class-only grant), so every /opt repo's emitted `.mcp.json` carries it. The emitter now also refreshes
+  each linked worktree's EXISTING copy (`<repo>/.claude/worktrees/*/.mcp.json`), which `.worktreeinclude`
+  copies only at creation — none of the 214 real worktree copies had `rea` (it skips a symlinked file or
+  worktree directory: `/opt/fabrik/.claude/worktrees/fabrik-lib` points at fabrik-lib itself, and a copy it
+  cannot read is reported without blocking the rest). Re-emitted: 255 of 255 distinct files carry it
+  (41 repo roots, 214 worktree copies). `docs/workstation/mcp-roster.md` (row with the measured ~235 MB per window,
+  universal table, § REA), the quota dashboard's label and `INDEX.md` updated.
+
+### Changed — review probe catalogue: a seat's pytest run takes an allow-list of arguments, not a deny-list (2026-10-26)
+
+`commands/_fragments/review-probe-catalogue.md` § Seat isolation, bullet "A pins-only copy is not a test tree": a seat passes pytest only paths and node ids inside the staged tree, `-q`/`-v`, `-s`, `-x`, `-r<chars>`, `--tb`, `-p no:cacheprovider`, `--co` (never a result) and, in a mutant run, one `--deselect` per environment-bound test by its full node id (it matches by prefix); it sets no environment variable beyond those the recipe, term-coverage rule (4) and § Seat isolation name (a conftest may read one to skip tests, as the hub's reads `FABRIK_MERGE_CHECK`), passes no `@file` argument file, and writes no pytest config or conftest beyond the pins, their reverts and mutants and the recipe's `__file__` print. The old deny-list missed `-o pythonpath`, `-o filterwarnings`/`xfail_strict`, `--config-file`, `-p no:warnings`, `--runxfail`, `--import-mode` and `PYTHONPATH`, each shown to change the verdict or the imports on pytest 9.0.2; `-o timeout` is now barred too (the config's own timeout is the hang guard), and `--ignore` of a conftest is gone from the examples because it does not drop the conftest. The base-copy removal now reads "wherever it sits". `tests/test_seat_recipe_readable.py` re-pinned (W-47d58d2c).
+
+### Changed — cloud dispatch: a cloud run draws the account's weekly plan and is refused at its wall (2026-10-26)
+
+`docs/workstation/cloud-dispatch.md`'s billing bullet now records that cloud runs spend the account's weekly plan usage and are refused at its wall (16 lean runs, `usage_limit_reached` / `seven_day` `rejected`), so the $250 credit is not capacity on top of the plan, and the intro, `--pick`, the credit guard and `--allow-plan-usage` point at it; the credit's own drawdown stays open (D-1237, W-b00d9d72; follow-up W-87078932).
+
+### Changed — cloud dispatch: the $250 credit is spent before plan usage; expiry 2026-11-05 (2026-10-25)
+
+`docs/workstation/cloud-dispatch.md`'s billing bullet now follows the operator's claude.ai usage page (the credit is a separate pool, applied first; usage credits are overage, off), each account's `credit.expires` in `.fabrik/cloud-routines.json` moves to 2026-11-05, and the walled-account probe on can is recorded (W-b00d9d72, D-1232).
+
+### Added — the canonical D-1236 ledger lints, read per D-1238 and D-1240 (2026-10-26)
+
+- `commands/command_rules.py` gains an optional per-entry `class:` and `clauses:`, and four lints that run in the
+  command check, each a LOSS line naming the ledger, the entry and the lint. The rules are in
+  `docs/reference/command-corpus-check.md` § Rule ledger and size ceiling. The one canonical loader for the lean
+  program (W-9cd8653d, D-1245).
 
 ### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
 

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T11:48:07.351036Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0f2b83a5",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "follow-up from W-7e29c9b9's review; LOW/LOW fill-in",
+  "status": "open",
+  "title": "emit_mcp_project_config.py names a repo by its --repo path's own name: a --repo given as a symlink loses its OVERLAYS row and hub-class status — use repo.resolve().name (found by the W-7e29c9b9 review, pass 4; pre-existing)"
+}

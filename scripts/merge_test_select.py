@@ -66,7 +66,8 @@ _ADDRESS = re.compile(r"\bat 0x[0-9a-fA-F]+\b")
 # and a path component `tempfile` names with its default prefix (`/tmpk3j9_2xq`: "tmp" + 8 of
 # [a-z0-9_]); only as a path component, since an identifier like `tmp_results` is the failure's
 # own, and a custom-prefix name is left alone (that rule merged two different failures)
-_TMPNAME = re.compile(r"(?<=/)tmp[a-z0-9_]{8}(?![\w-])")
+# (a relative one, `tmpk3j9_2xq/out`, is a component only when a `/` follows it)
+_TMPNAME = re.compile(r"(?<=/)tmp[a-z0-9_]{8}(?![\w-])|(?<![\w./-])tmp[a-z0-9_]{8}(?=/)")
 # a record line naming no id: the leg refused without a verdict, so the base-alone run measures nothing
 _LEG_MARK = "#leg-failed"
 # The recording plugin: one JSON line per failed report (a collection error's id is the file).
@@ -121,7 +122,7 @@ def import_patterns(path: str) -> set[str]:
         rf"(?<![\w.]){pkg}\.{name}(?![\w])",
         # inside parentheses anything up to the `)` (names, line breaks, comments); without them
         # one logical line: names, commas, blanks and backslash continuations, never a next statement
-        rf"\bfrom\s+{pkg}\s+import\s*(?:\([^)]*?|(?:[ \t\w,]|\\\n)*?)(?<![\w.]){name}(?![\w])",
+        rf"\bfrom\s+{pkg}\s+import\s*(?:\((?:[^)#]|#[^\n]*)*?|(?:[ \t\w,]|\\\r?\n)*?)(?<![\w.]){name}(?![\w])",
     }
 
 

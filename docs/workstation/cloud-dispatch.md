@@ -3,7 +3,8 @@
 Box-local subsystem (`scripts/cloud_dispatch.py`, registry `.fabrik/cloud-routines.json`), built
 2026-10-14 on the operator's ask to use each account's $250 cloud-session credit (D-857). A local
 subagent — the Agent tool, even with `isolation: "remote"` — runs on this box on the dispatching
-account's subscription; the credit pays only for sessions on Anthropic's cloud. The only scriptable
+account's subscription; the credit applies only to sessions on Anthropic's cloud, and those still draw
+the account's weekly plan usage (§ What the worker cannot do, and what it costs). The only scriptable
 way to start one is to fire a claude.ai **routine**, so every fleet account carries one,
 `fabrik-cloud-worker`, and this script fires it. The three prepaid API credits are spent by a separate script,
 [api-credit.md](api-credit.md) (D-1196).
@@ -119,14 +120,17 @@ within a day), then the **fewest ledger dispatches in the last 7 days**, then th
 (the LOWEST under `--allow-plan-usage`: plan spend goes to the coolest account). A status row that
 is a cached reading older than 6 h does not qualify its account, and when no account qualifies the
 dispatch is REFUSED (exit 3, `no_account` — pass `--account`), never guessed. The weekly reading
-comes from `claude_rotate.py --status --json` — a live probe; `list --no-status` skips it.
+comes from `claude_rotate.py --status --json` — a live probe; `list --no-status` skips it. Ranking the
+highest weekly % first sends runs toward Anthropic's weekly wall, where they are refused (the billing
+bullet below); W-87078932 is filed to reverse it.
 
 ## The credit guard
 
 Operator rulings 2026-10-14: *"we should not consume our account's quota"* · *"each has 250$
 credits. when credits consumed, it must be paused"* · *"weekly usage is different than cloud 250$
 credits"*. The guard counts DOLLARS against each account's declared credit; the weekly plan reading
-is only an advisory.
+is only an advisory, though a run on an account at its weekly wall is refused by Anthropic (the
+billing bullet under § What the worker cannot do, and what it costs).
 
 - **Cost per run.** `settle --slug <s>` (run by `wait` on success; `settle --all` by every
   `dispatch` first) reads the run's raw events — `GET /v1/code/sessions/<cse>/events` (newest
@@ -165,7 +169,9 @@ is only an advisory.
 - **Refusals** (exit 7): `dispatch`/`--pick` refuse a paused account and any account within 6 h of
   00:00 UTC on its `credit.expires` date (Anthropic's day, never this box's).
   `--allow-plan-usage` bypasses both, tags the row `plan_usage: true`, picks the coolest weekly
-  reading and prints that it spends plan quota — the one sanctioned way to do so.
+  reading and prints that it spends plan quota. It skips the guard's refusals for that fire only;
+  every cloud run draws plan quota either way (the billing bullet under § What the worker cannot do,
+  and what it costs).
 - `list` prints per account `credit: spent · left · N unsettled · expires (in d) · PAUSED since
   (reason)` and the ledger path it summed.
 
@@ -195,28 +201,35 @@ the local `gh` token — `/web-setup` is hidden headless; drive it through a pty
   setup script is web-only configuration).
 - The repo's own hooks load in the clone: the hub's Stop hook ran inside a probe worker and offered
   it infra's work queue (it refused correctly, and the run ended); the rules forbid claims anyway.
-- Billing is UNRESOLVED, and the sections above assume the side the evidence leans against. The
-  registry's `credit_note` says the $250 promotional credit is "spent before plan usage".
-  Anthropic's docs say a cloud session "counts toward your plan's usage limits"
-  (code.claude.com/docs/en/claude-code-on-the-web), that scheduled tasks "draw down subscription
-  usage the same way interactive sessions do", and they name usage credits as metered overage
-  past the plan limit (code.claude.com/docs/en/routines § Usage and limits; both pages fetched
-  whole 2026-10-25). Neither page mentions a promotional credit. Measured for W-b00d9d72:
-  - Three of the five fires (can and ozgurbasak on 10-14, ob on 10-24, none of them the box's
-    active account at the fire in the rotation ledger) opened a 5-hour plan window. Each reset came
-    at fire + 4.91–5.01 h; every reset here is a whole multiple of 10 minutes.
-  - mob's window was already open (its reset came at fire + 0.5 h). ob's 10-14 fire landed in a
-    window that had reset at 17:00 while ob was the active account.
-  - Each run has one reading, taken after it, with no before/after pair. can, ozgurbasak and ob
-    (10-24) read 5-hour utilization 0 (two decimals) after runs costing $0.33–$0.57.
-  - Every run's `rate_limit_info` reads `overageStatus: rejected`: `org_level_disabled` on can,
-    ozgurbasak and mob, and `out_of_credits` on ob from its first run on.
-
-  If the docs hold, every run spends plan quota, none spends the credit while overage is off, and
-  the dollar guard counts a list-price estimate of the plan draw. The web balance read before and
-  after a known run, with no other cloud run on that account between, settles it, provided the
-  run is large enough to move the displayed balance. The balance is visible only at
-  claude.ai/settings/usage (no endpoint exposes it), and `calibrate` records it.
+- Billing — **a cloud run draws the account's WEEKLY PLAN usage and is refused at that plan's
+  wall; the $250 cloud-session credit is not capacity on top of the plan** (measured 2026-10-26,
+  D-row in `docs/DECISIONS.md`). Of the lean runs fired 2026-10-25 ~12:20 UTC, 16 never pushed a
+  branch, and every one ended on `api_error: usage_limit_reached` (HTTP 429) with
+  `rate_limit_info` `rateLimitType: seven_day`, `status: rejected`. The worker's own result
+  reads "You've hit your weekly limit · resets Oct 27, 3am (UTC)" (lean-t11-grp,
+  cse_01KwPpiyhgbFDA8goSFgYR6N). 9 were refused before their first turn ($0, no output), and 7
+  hit the wall partway and lost their work unpushed ($0.52–$2.30 each). So a drain is sized by
+  the accounts' weekly headroom (`list` prints it), and a run on the account a hub session is
+  using draws the same weekly plan that session draws.
+  - The usage page the operator read on 2026-10-25 (one account, not recorded which) lists
+    **Cloud session credits** ("Applies automatically to cloud sessions. After it's used or
+    expires, your plan's regular usage applies." $250 of $250 left, expiring Nov 5 10:59 GMT+3)
+    apart from **Usage credits** ($0, off: metered overage past the plan limit, monthly spend
+    limit $40). The runs above contradict reading that as a separate pool that keeps cloud
+    runs going past a walled plan. Anthropic's docs say a cloud session "counts toward your
+    plan's usage limits" (code.claude.com/docs/en/claude-code-on-the-web), and that scheduled
+    tasks "draw down subscription usage the same way interactive sessions do"
+    (code.claude.com/docs/en/routines § Usage and limits, both fetched 2026-10-25), which agrees
+    with the runs.
+  - Still open: whether a run ALSO draws the credit's dollar balance. The page read "$250 of $250
+    left" while every account had settled $0.33–$0.90 of runs. Either the page rounds or lags,
+    or the credit is not drawn at all. The dollar guard counts a list-price estimate either way.
+    Reading can's balance after its $0.37 probe (cse_01JXHDM65DEJD6fBSYEJe9TF, 2026-10-25)
+    settles it if the page shows cents; otherwise a run large enough to move the display does.
+    The balance is visible only at claude.ai/settings/usage, and `calibrate` records it.
+  - Every run reads `overageStatus: rejected` (`org_level_disabled`, and `out_of_credits` on ob
+    from its first run on), the usage-credits pool being off. The fleet's 99% wall is this box's
+    `caps.json`: a probe on can at seven_day 0.98 read `allowed_warning` and ran.
 
 ## Related scripts
 

@@ -690,3 +690,27 @@ def test_an_arm_only_block_after_a_failed_sidecar_records_the_arm_once(armable) 
         assert [e.get("outcome") for e in unarmed] == ["blocked"], unarmed
     finally:
         armable.side.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize(
+    "line2,oauth,blocked",
+    [
+        ("walled", "", True),
+        ("urgent-90", "", True),
+        ("battery", "", False),
+        ("walled", "sk-ant-oat01-x", False),
+    ],
+)
+def test_an_api_key_session_keeps_its_stop_causes_at_a_quota_tier(
+    held_project, monkeypatch, line2, oauth, blocked
+):
+    """W-effb7141: the quota hold does not bind an API-key session, so the session keeps editing —
+    and its definition-of-done causes stay armed (the NORMAL path), never the wall's yield. The
+    battery hold binds it, so there the yield stands."""
+    project, state = held_project
+    (state / "fleet-exhausted").write_text(f"0\n{line2}\n")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
+    if oauth:  # a plan login beside the key: held, so the wall's yield stands
+        monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", oauth)
+    out = _run_stop(project, state, f"s_key_{line2}_{bool(oauth)}", "A,B")
+    assert (out != "") is blocked, out
