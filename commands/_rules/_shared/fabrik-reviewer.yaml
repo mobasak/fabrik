@@ -5,12 +5,10 @@ entries:
 - id: sha-pin
   file: commands/_agents/fabrik-reviewer.md
   baseline: ⚠️ A brief that names a COMMIT is read at that commit, not on the live tree. Several sessions edit this tree concurrently; a finder that re-imports the surface from its live path scores a MOVING target — P21-A (2026-09-05) got two verdicts for one probe minutes apart because the file changed under it
-  current: ⚠️ A brief that names a COMMIT is read at that commit, not on the live tree. Several sessions edit this tree concurrently; a finder that re-imports the surface from its live path scores a MOVING target — P21-A (2026-09-05) got two verdicts for one probe minutes apart
+  current: ⚠️ A brief that names a COMMIT is read at that commit, not on the live tree. Several sessions edit this tree concurrently; a finder that re-imports the surface from its live path scores a MOVING target — P21-A (2026-09-05) got two verdicts for one probe minutes apart because the file changed under it
   text:
-  - ⚠️ A brief that names a COMMIT is read at that commit, not on the live tree. Several sessions edit this tree concurrently; a finder that re-imports the surface from its live path scores a MOVING target — P21-A (2026-09-05) got two verdicts for one probe minutes apart
+  - ⚠️ A brief that names a COMMIT is read at that commit, not on the live tree. Several sessions edit this tree concurrently; a finder that re-imports the surface from its live path scores a MOVING target — P21-A (2026-09-05) got two verdicts for one probe minutes apart because the file changed under it
   class: prose
-  clauses:
-    3: narrative
 - id: sha-pin-copy
   file: commands/_agents/fabrik-reviewer.md
   current: 'First act of a SHA-pinned brief: `git show <sha>:<path> > <scratch>/<file>` — always redirected, one file per call, as is any command whose output may be large (`git diff`, `git log -p`, a broad search), because a large stdout is saved by the harness under `$HOME`, where you may not read — and probe THAT copy; say so in the report'
@@ -84,9 +82,9 @@ entries:
   file: commands/_agents/fabrik-reviewer.md
   section: '## Method'
   baseline: 'A brief that names a materialised tree (a pinned copy) or a commit is read THAT way — the SHA-pinned rule above, with `git -C <repo>` when the repo is not your cwd — but never a `git -C` into the shared main checkout from a linked worktree, which the guard refuses: read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree instead (01M1VQZJ8)'
-  current: 'A brief that names a materialised tree (a pinned copy) or a commit is read THAT way — the SHA-pinned rule above, with `git -C <repo>` when the repo is not your cwd — never a `git -C` into the shared main checkout from a linked worktree, which the guard refuses: read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree instead (01M1VQZJ8)'
+  current: 'A brief that names a materialised tree (a pinned copy) or a commit is read THAT way — the SHA-pinned rule above, with `git -C <repo>` when the repo is not your cwd — but never a `git -C` into the shared main checkout from a linked worktree, which the guard refuses: read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree instead (01M1VQZJ8)'
   text:
-  - 'A brief that names a materialised tree (a pinned copy) or a commit is read THAT way — the SHA-pinned rule above, with `git -C <repo>` when the repo is not your cwd — never a `git -C` into the shared main checkout from a linked worktree, which the guard refuses: read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree instead (01M1VQZJ8)'
+  - 'A brief that names a materialised tree (a pinned copy) or a commit is read THAT way — the SHA-pinned rule above, with `git -C <repo>` when the repo is not your cwd — but never a `git -C` into the shared main checkout from a linked worktree, which the guard refuses: read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree instead (01M1VQZJ8)'
   class: ban
 - id: method-whole-function
   file: commands/_agents/fabrik-reviewer.md
@@ -165,9 +163,9 @@ entries:
   file: commands/_agents/fabrik-reviewer.md
   section: '## Hard limits'
   baseline: 'The git-verb prohibition (spec D8, the sentence every finder brief carries): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
-  current: 'The git-verb prohibition (spec D8, the sentence every finder brief carries): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean — read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above) — every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work, recovered by content from the stash, never a pop)'
+  current: 'The git-verb prohibition (spec D8, the sentence every finder brief carries): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean — read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above) — every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
   text:
-  - 'The git-verb prohibition (spec D8, the sentence every finder brief carries): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean — read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above) — every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work, recovered by content from the stash, never a pop)'
+  - 'The git-verb prohibition (spec D8, the sentence every finder brief carries): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean — read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above) — every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
   class: ban
 - id: limits-ground
   file: commands/_agents/fabrik-reviewer.md

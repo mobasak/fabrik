@@ -22,9 +22,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'First the decision line: did this run MAKE or RECEIVE a decision (an operator ruling, an approval/Status flip, a retirement/adoption, an architecture/scope choice, "built X at Y", a rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — a chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, the manifesto''s Phase-0 triage; a ONE-WAY row grows the § Binding field block, per CLAUDE.md § the decision ledger) — or state `no decisions this run`'
-  current: 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md § decision ledger) — or state `no decisions this run`'
+  current: 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md § the decision ledger) — or state `no decisions this run`'
   text:
-  - 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md § decision ledger) — or state `no decisions this run`'
+  - 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md § the decision ledger) — or state `no decisions this run`'
   class: ban
 - id: cf-7
   file: commands/_fragments/close-feedback.md
@@ -120,12 +120,10 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict
-  current: Write verdict
+  current: The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict
   text:
-  - Write verdict
+  - The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict
   class: prose
-  clauses:
-    1: narrative
 - id: cf-18
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -260,9 +258,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'The close REFUSES without it, and without the four fields — and the TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be classified into a token and discarded, which is why five operator asks produced zero visible reports; write the verdict as a report to a human, because it now reaches one) — — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
-  current: 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be discarded, which is why five operator asks produced zero visible reports; write verdict as report to human, because it now reaches one) — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
+  current: 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be classified into a token and discarded, which is why five operator asks produced zero visible reports; write verdict as report to human, because it now reaches one) — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
   text:
-  - 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be discarded, which is why five operator asks produced zero visible reports; write verdict as report to human, because it now reaches one) — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
+  - 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be classified into a token and discarded, which is why five operator asks produced zero visible reports; write verdict as report to human, because it now reaches one) — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
   class: ban
 - id: cf-31
   file: commands/_fragments/close-feedback.md
@@ -350,12 +348,10 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '### File it when this run hit any of these'
   baseline: an enforcement check that fired on a legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects, and the false positive is the more corrosive
-  current: an enforcement check that fired on legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects
+  current: an enforcement check that fired on legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects, and the false positive is the more corrosive
   text:
-  - an enforcement check that fired on legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects
+  - an enforcement check that fired on legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects, and the false positive is the more corrosive
   class: prose
-  clauses:
-    2: narrative
 - id: cf-42
   file: commands/_fragments/close-feedback.md
   section: '### File it when this run hit any of these'
@@ -531,8 +527,33 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'This is not ceremony bolted onto the exit: it is the only moment you still hold the context to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands)'
+  current: 'This is not ceremony bolted onto the exit: it is the only moment you still hold the context to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands)'
   text:
   - 'This is not ceremony bolted onto the exit: it is the only moment you still hold the context to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands)'
+  class: ban
+- id: cf-L8
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon: `change: lean: the rubric block is loaded in full and never cited — cut it to the matched rows`'
+  current: '`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon: `change: lean: the rubric block is loaded in full and never cited — cut it to the matched rows`'
+  text:
+  - '`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon: `change: lean: the rubric block is loaded in full and never cited — cut it to the matched rows`'
+  class: ban
+- id: cat-L50
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: a rule pack that contradicted another pack, or that never activated where it was needed
+  current: a rule pack that contradicted another pack, or that never activated where it was needed
+  text:
+  - a rule pack that contradicted another pack, or that never activated where it was needed
+  class: prose
+- id: cf-L73
+  file: commands/_fragments/close-feedback.md
+  section: '### A subagent''s finding is YOURS to file'
+  baseline: 'So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under review) come to you, and you file them under the routing above'
+  current: 'So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under review) come to you, and you file them under the routing above'
+  text:
+  - 'So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under review) come to you, and you file them under the routing above'
   class: ban
 vanished:
   L3:

@@ -131,12 +131,10 @@ entries:
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
   baseline: 'Absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`) — and report ITS verdict; "the gate does not exist here" reads like a finding and functions like a skip (fabrik-lib 2026-09-02/03: two CONVERGED flips on self-enforcement, 10 grammar defects and 2 BLOCKING spec defects found the moment the hub copies ran — 01M1G8NX, 01M1K28X)'
-  current: 'Absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`) — and report ITS verdict; "the gate does not exist here" reads like a finding and functions like a skip'
+  current: 'Absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`) — and report ITS verdict; "the gate does not exist here" reads like a finding and functions like a skip (fabrik-lib 2026-09-02/03: two CONVERGED flips on self-enforcement, 10 grammar defects and 2 BLOCKING spec defects found the moment the hub copies ran — 01M1G8NX, 01M1K28X)'
   text:
-  - 'Absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`) — and report ITS verdict; "the gate does not exist here" reads like a finding and functions like a skip'
+  - 'Absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`) — and report ITS verdict; "the gate does not exist here" reads like a finding and functions like a skip (fabrik-lib 2026-09-02/03: two CONVERGED flips on self-enforcement, 10 grammar defects and 2 BLOCKING spec defects found the moment the hub copies ran — 01M1G8NX, 01M1K28X)'
   class: ban
-  clauses:
-    4: narrative
 - id: runrec-run-record-yields-to-a-prior
   file: commands/_fragments/run-record.md
   baseline: '## Run record — open it as this command''s FIRST act'
@@ -171,6 +169,38 @@ entries:
   forbidden:
   - nothing else halts a run
   class: prose
+- id: rr-L7
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: '`--surface` is what makes the run''s ledger row ANALYSABLE — a 40-file plan set and a 3-file diff are different runs of the same command; name it at `start` (the close accepts `--surface` too if you learn it late)'
+  current: '`--surface` is what makes the run''s ledger row ANALYSABLE — a 40-file plan set and a 3-file diff are different runs of the same command; name it at `start` (the close accepts `--surface` too if you learn it late)'
+  text:
+  - '`--surface` is what makes the run''s ledger row ANALYSABLE — a 40-file plan set and a 3-file diff are different runs of the same command; name it at `start` (the close accepts `--surface` too if you learn it late)'
+  class: prose
+- id: rr-L8
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: The agent (`CLAUDE_AGENT`) and the active account are captured for you
+  current: The agent (`CLAUDE_AGENT`) and the active account are captured for you
+  text:
+  - The agent (`CLAUDE_AGENT`) and the active account are captured for you
+  class: prose
+- id: rr-L11
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: '`python3 scripts/command_run.py done --command {{COMMAND}} --evidence "<what proves the terminal condition was met>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` — the evidence is the point; "finished" is not evidence'
+  current: '`python3 scripts/command_run.py done --command {{COMMAND}} --evidence "<what proves the terminal condition was met>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` — the evidence is the point; "finished" is not evidence'
+  text:
+  - '`python3 scripts/command_run.py done --command {{COMMAND}} --evidence "<what proves the terminal condition was met>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"` — the evidence is the point; "finished" is not evidence'
+  class: ban
+- id: rr-L21
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally — enforcement freezes there at vendor date
+  current: Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally — enforcement freezes there at vendor date
+  text:
+  - Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally — enforcement freezes there at vendor date
+  class: ban
 vanished:
   L17:
     rule:

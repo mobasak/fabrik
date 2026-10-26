@@ -2,7 +2,7 @@
 
 Read the lines that match the change's SHAPE — never all of them, § Seat isolation excepted: it applies whole in every
 brief that runs tests or imports pinned code — before every pin, the first and each delta, and while writing every
-brief. Each is step, not a check box: execute it, or name in brief why shape lacks it.
+brief. Each is a step, not a check box: execute it, or name in the brief why the shape does not have it.
 
 ## Before the first pin, and again before each delta pin (the lead executes)
 
@@ -12,14 +12,14 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
   instruction as caller would, and hand each seat that same command to run under § Seat isolation; one that writes live
   store, sends, commits, deploys or reaches host stays lead's, who runs it on a scratch target (a throwaway database,
   repo, host or account), every such command and SQL block of a runbook included, or, when no scratch target exists,
-  names it in brief as not run, with why and the owner who can run it; only a read that changes nothing (no write, lock,
-  quota spend or triggered job) runs against its real host; probe each exception rewritten docstring says function still
-  raises.
+  names it in the brief as not run, with why and the owner who can run it; only a read that changes nothing (no write,
+  lock, quota spend or triggered job) runs against its real host; probe each exception rewritten docstring says function
+  still raises.
 - A line another tool injects or renders, changed or with rendering change alters, is read back whole through that
   tool's output after the edit and before each delta pin, under an invocation that emits it: a pack line in
   `review_rubric.py --changed <a path its globs hit>`, fragment edit's consumers rendered to a temp dir, a template's
   emitted file, never in its source alone; line change leaves emitted by no invocation (a pack line with no mandate
-  keyword, a section under a conditional heading) is named in brief as dropped.
+  keyword, a section under a conditional heading) is named in the brief as dropped.
 - Trace entry path: the first caller reaching fixed function; enumerate every call shape through new branch and every
   input path of a shared reader; trace each rationale sentence's mechanism to the code through every branch it
   summarises (refusals and fallbacks, not only the happy path), and execute every "X only when Y" claim the fix adds.
@@ -39,9 +39,9 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
   (4): "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it"), written as
   a literal before/after (an ordering claim names its mutant); re-run every prior mutant and reproducing probe after
   each fix (a seat re-running a delta brief's mutant ids too) against every test file change touched or added, collected
-  again after fix with no selection that leaves test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond
-  term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids are for a seat's other test
-  runs); probe each new grader with its mutant.
+  again after fix with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`)
+  beyond term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids are for a seat's
+  other test runs); probe each new grader with its mutant.
 - Run repo's structural source graders, every touched test file whole, every gate the changed sentence will meet and the
   completion gate on the pinned files; feed sample row through every grader that parses the artifact; synced hook
   change: fleet copies' md5 checked.
@@ -67,7 +67,7 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
   by the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading
   `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each project's
   `.fabrik/synced.lock` by `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the file named in the
-  brief; every outbound sink production-reaching test touches; every actor touching RLS table; placeholder resolution
+  brief; every outbound sink production-reaching test can touch; every actor touching RLS table; placeholder resolution
   per consumer; repo-wide service lists and absence statements; every reader of changed predicate's verdict (a notice,
   message or wall line that reads the same hold), and of each field a fix writes, named before the closing round.
 - Parsers: the producer's real output contract first, then parsing model before tokens; lossy cases (duplicate keys,
@@ -78,12 +78,12 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
   under its UTS-46 mapping, a numeric or shortened IPv4 host, whitespace and control characters, `@` in userinfo, a `#`
   or `?` before `@`, a malformed port, an unclosed `[`, no scheme), comment and brace shapes for config, the real
   interpreter (dash) and parent commit as oracles; generated file is parsed by its generator's format; skip check reuses
-  consumer's parser; hand-written reader whose input is source in language other than its own (TypeScript read by
-  Python, SQL, a Dockerfile) with no real parser at hand, starts from strict grammar that REFUSES any line matching none
-  of its named forms, none a catch-all, its refusal executed before every pin on a line of that language's own syntax
-  that no named form admits, and run by the lead over the live files the reader will read, each refusal there classed a
-  grammar gap or a true out-of-grammar line; seats attack what grammar wrongly accepts; tokenizer is built only where
-  the brief names the construct no line form can hold.
+  consumer's own parser; hand-written reader whose input is source in language other than its own (TypeScript read by
+  Python, SQL, a Dockerfile) with no real parser of that language at hand, starts from a strict grammar that REFUSES any
+  line matching none of its named forms, none a catch-all, its refusal executed before every pin on a line of that
+  language's own syntax that no named form admits, and run by the lead over the live files the reader will read, each
+  refusal there classed a grammar gap or a true out-of-grammar line; seats attack what grammar wrongly accepts;
+  tokenizer is built only where the brief names the construct no line form can hold.
 - Guards and rules: the guard's equivalence class (must fold, must not), what a replaced guard covered that its
   replacement does not, every exception subclass a new catch admits, false negatives classed plausible vs contrived,
   whether each matcher shortcut is covered by the general path, every rule an overriding sentence overrides (and every
@@ -94,13 +94,13 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
   fixture scopes run before autouse pin; env-leak fix where `delenv` on absent key records nothing; change that writes
   outside its state dir: every isolation seam its callers' tests use (`COMMAND_RUN_DIR`, `HOME` or `TMPDIR` override),
   each shown to land under its own root by listing the live checkout after the suite.
-- Failure paths: what fix does when its fallback fails; configuration-failure path; fail-soft mail or report path fed
-  malformed stored data; shell chain whose failing step must fail the chain (a gate line gates the commit, never only
-  prints); dry-run and write path diffed field by field; validator's direct-call path.
-- Surfaces: every connection guarded module opens; every field new serializer emits; argparse edges of flag;
+- Failure paths: what fix does when its own fallback fails; configuration-failure path; fail-soft mail or report path
+  fed malformed stored data; shell chain whose failing step must fail the chain (a gate line gates the commit, never
+  only prints); dry-run and write path diffed field by field; validator's direct-call path.
+- Surfaces: every connection guarded module opens; every field new serializer emits; argparse edges of new flag;
   machine-parsed section markers; literal pipe inside table cell; moved reference and which sentence branch reaches it;
-  each mechanism claim at every lane or version; `git check-ignore` on bare directory; defects split between hook and
-  its generator; changed compose overlay read through its merged render (`docker compose -f <base> -f <overlay>
+  each mechanism claim at every lane or version it names; `git check-ignore` on bare directory; defects split between
+  hook and its generator; changed compose overlay read through its merged render (`docker compose -f <base> -f <overlay>
   config`), where precedence and port exposure show; page-type or reader move: base and head are built and each page's
   visible text and heading outline (h1-h3 counts) are diffed independently of any identity diff the change ships, and
   the preview server runs on each language root, since dist diff cannot see dev- or preview-only settings.
@@ -124,7 +124,7 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
   working file, where a sibling's uncommitted edit reads as drift; brief names source's own regression test for file at
   that SHA, run with its import path pointed at copy (or says the source has none) and whether that test assumes a
   co-located hub tree, so a standalone run of it is a known false red; they re-run that command and that test first,
-  then spend on what byte identity cannot show: vendored copy's own header, every importer of it, and every name it
+  then spend on what byte identity cannot show: the vendored copy's own header, every importer of it, and every name it
   reads from each module vendored beside it (its `from … import` names and each `module.attr` use), each shown present
   in that module's copy.
 
@@ -133,20 +133,20 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent (an
   absence assertion over never-written state is vacuous); grader EXECUTES executable subject, through real production
   adapter and consumer's entry point (the command's output, as the gate passes files by name), never reads it; premise
-  guard asserts at call site, not constants; grader of fixed prose or of deterministic message asserts whole sentence,
-  bullet or message it pins by equality (`==` against all of it, every line of message, never `in`, a prefix, a suffix
-  or a regex over part of it), so an added clause or a leaked value fails it, and a grader of that text's position, of
-  its absence or of a property across its examples sits beside that equality grader, never in place of it; grader of
-  MOVED text (a sentence, clause, bullet or row), added in edit that moves it, also fails when text sits at its old
-  position; test-quality seat checks docstring claims against the scan; a fix recipe handed to a coder names one input
-  it must leave unchanged and the test that holds it; grader of `path:N-M` cite asserts its first line AND its last line
-  still hold the text the cite backs.
+  guard asserts at call site, not on constants; grader of fixed prose or of deterministic message asserts whole
+  sentence, bullet or message it pins by equality (`==` against all of it, every line of message, never `in`, a prefix,
+  a suffix or a regex over part of it), so an added clause or a leaked value fails it, and a grader of that text's
+  position, of its absence or of a property across its examples sits beside that equality grader, never in place of it;
+  grader of MOVED text (a sentence, clause, bullet or row), added in edit that moves it, also fails when text sits at
+  its old position; test-quality seat checks docstring claims against the scan; a fix recipe handed to a coder names one
+  input it must leave unchanged and the test that holds it; grader of `path:N-M` cite asserts its first line AND its
+  last line still hold the text the cite backs.
 - Each parser-output shape owes its own red; config or regex grader is graded by running tool on mutated inputs; red
-  branch of procedure step is executed as well as green; boundary fix tests both sides with exact message; numeric bound
-  is derived in its comment and graded at both edges, with determining input varied first; pin exact stdout line count
-  reads; lock-order fix ships executed concurrency probe.
+  branch of new procedure step is executed as well as green; boundary fix tests both sides with exact message; numeric
+  bound is derived in its comment and graded at both edges, with determining input varied first; pin the exact stdout
+  line a count reads; lock-order fix ships executed concurrency probe.
 - Mutants: one per new comparison or constant AND one against every existing assertion whose input changed, each
-  anchored on a token the formatter cannot rewrap, mutated line shown changed before green is trusted, survivors
+  anchored on a token the formatter cannot rewrap, the mutated line shown changed before a green is trusted, survivors
   reported only once shown to change observable behaviour (an output, return value, exit code, raised exception or
   written state diffed against the unmutated copy), and an equivalent mutant is struck with that diff quoted, never a
   test gap; counter or guard is gutted in same round to show it can fail; regression test fails when caller is reverted;
@@ -166,8 +166,8 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
 
 ## Prose and docs fixes
 
-- Read fragment's scope sentences; rule already in fragment is quoted in its words and pointed at; ported rule is
-  re-derived against this command's machinery; parser rule is stated positively, not as terminator list; scoped
+- Read fragment's scope sentences; rule already in fragment is quoted in its own words and pointed at; ported rule is
+  re-derived against this command's machinery; parser rule is stated positively, not as a terminator list; scoped
   exception beats new section note; tool claims are written from source (a sentence describing record format or a code
   string quotes emit site's keys or the string verbatim), then checked against live corpus and tool's real output
   variants, and each stream and input channel the sentence names (stdout or stderr; argv, stdin or a flag) is executed
@@ -181,21 +181,21 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
 - Sweep: a corrected claim or quote across every file change touched (test docstrings included), whitespace- and
   wrap-normalised, each quote a fix writes re-read against its source verbatim before the pin; each sentence fix writes
   that restates rule already stated elsewhere, found at its source by that restated rule's terms and two rewordings of
-  them and then held to `/fabrik-review-scoped` step 3's rule; fix that narrows, widens or splits rule's subject is held
-  to `/fabrik-review`'s "does the new form still hold EVERY shape the form it replaces held", with "the shapes
-  enumerated from the OLD form before the fix is drafted, never from the new one": here each case no new clause covers,
-  two now cover or only the new wording reaches, listed with where it now lands or, with its reason, that it is dropped
-  on purpose, where your command records the fix (`/fabrik-review`'s Pass Ledger `method:` cell,
-  `/fabrik-review-scoped`'s report); every doc line, docstring, comment and `Raises` section stating outcome fix changes
-  (when function raises or deletes, a module that no longer exists), found by grepping its verb and each removed name
-  across WHOLE file, not only its hunks, in the round the fix lands (a `Raises` section phrased by its rule, never an
-  enumeration that the next fix outdates), and every comment and docstring of a function whose behaviour a fix changes
-  re-read whole, since a paraphrase names neither the verb nor a removed name; every statement of changed number or
-  count in whole file; same-subject lines in pack, doc summary rows and artifact generators; residue words of flipped
-  decision; cross-pack citation's terms against section it cites; `path:line` cite merge or edit shifted, remapped by
-  CONTENT in one script over every doc that cites file (find symbol the prose names, compare it with target line), never
-  renumbered by hand, and the remap runs after each round's fix, before the next pin, over every anchor a brief or
-  mutant list carries.
+  them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; fix that narrows, widens or
+  splits rule's subject is held to `/fabrik-review`'s "does the new form still hold EVERY shape the form it replaces
+  held", with "the shapes enumerated from the OLD form before the fix is drafted, never from the new one": here each
+  case no new clause covers, two now cover or only the new wording reaches, listed with where it now lands or, with its
+  reason, that it is dropped on purpose, where your command records the fix (`/fabrik-review`'s Pass Ledger `method:`
+  cell, `/fabrik-review-scoped`'s report); every doc line, docstring, comment and `Raises` section stating outcome fix
+  changes (when function raises or deletes, a module that no longer exists), found by grepping its verb and each removed
+  name across WHOLE file, not only its hunks, in the round the fix lands (a `Raises` section phrased by its rule, never
+  an enumeration that the next fix outdates), and every comment and docstring of a function whose behaviour a fix
+  changes re-read whole, since a paraphrase names neither the verb nor a removed name; every statement of changed number
+  or count in whole file; same-subject lines in pack, doc summary rows and artifact generators that restate it; residue
+  words of flipped decision; cross-pack citation's terms against section it cites; `path:line` cite merge or edit
+  shifted, remapped by CONTENT in one script over every doc that cites file (find symbol the prose names, compare it
+  with target line), never renumbered by hand, and the remap runs after each round's fix, before the next pin, over
+  every anchor a brief or mutant list carries.
 - Claims: every factual sentence of edited paragraph re-derived, every newly rendered table cell included, and a
   corrected fact stated at original claim's scope; every clause on count-fixed line, and every reworded README claim,
   checked against code lines it names, and sentence (a comment, a docstring, a doc line) describing matcher, regex or
@@ -225,103 +225,105 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
   `.invalid` only for an import-failing variable). A brief lead writes itself tells each seat to read and follow
   `PIN_IMPORT`, and `PYTEST_PINS` when it runs pytest, in `.claude/workflows/fabrik-review-loop.js`, and gives values
   that recipe's `${args.base_sha}` and `${args.pins_dir}` stand for (and `${args.base_pin_dir}` when lead wrote a base
-  copy) and seat's folder as `SCRATCH`; seat derives `ROOTS` as recipe says, plus roots this section's next sentence has
-  brief add, and brief carries no import or pytest recipe of lead's own (a pins dir on `sys.path` alone, or pytest's
-  `--rootdir` at copy, imports live package). The recipe names its roots by what the tests import, so the brief extends
-  it to every top-level path the tests import, read or run (a test that renders `templates/`, reads `.windsurf/` or runs
-  `scripts/` by subprocess is a false red without it) and names live repo as checkout `git rev-parse --show-toplevel`
-  prints, never `/opt/fabrik` from a worktree. An editable install's `.pth` entry never outranks a copy placed as
-  `PIN_IMPORT` says; live code still runs instead of pin through `PYTHONPATH` entry (`PIN_IMPORT`), pytest run from live
-  repo (`PYTEST_PINS`) and child process with `env=`, which resolves `.pth` again. The pins line follows real layout,
-  digest pin authority. A SEAT never runs `git worktree add` on the live repo (its metadata lands in the shared `.git`):
-  a seat's red-on-revert overlays the revert on its archive copy by `PYTEST_PINS`, and the lead's red-on-revert and
-  mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a `PYTHONPATH` copy — set its upstream and link
-  `.env` before its first gate. A seat test that reads git history or tracked set (`git ls-files`: neither archive nor
-  pin copy has `.git`) runs in clone seat makes with `git -C <scratch> clone --shared --no-checkout <live checkout>
-  clone`, checks out at `git -C <scratch>/clone checkout -q <the pass's base SHA>` (until then its status reads every
-  file deleted), with its push to `origin` disabled at once (`git -C <scratch>/clone config remote.origin.pushurl
-  /nonexistent.invalid`: `origin` is the live repo, so a push writes its `.git`; no other remote is ever pushed to) and
-  the pins laid over it, committed in clone when test reads HEAD, a diff, the status or the tracked set; that test's
-  red-on-revert overlays revert on clone. Branch, worktree and stash state test creates lands in clone's `.git`; only a
-  test that reads the live checkout's own branches, worktrees or stash runs in the lead's throwaway worktree. Ruff and
-  mypy run from repo root with repo's own config (on copy: ruff `--no-cache --config <repo>/pyproject.toml`, mypy
-  `--config-file` with the same path; ruff writes `.ruff_cache` in its working directory and fails inside read-only pin
-  without `--no-cache`); tests run by exact node id, except mutant run or re-run of one, which takes the test set and
-  selection rule of `One mutant per clause` bullet above; brief over changed code names tests that load each changed
-  module (by import, or by path through a loader or a stub — found by grepping `tests/` for each changed file's stem,
-  its name without `.py`, or `__init__.py`'s package dotted name, and keeping the hits that import or load it) for every
-  seat to run by `PIN_IMPORT`/`PYTEST_PINS` recipe (a test it leaves unrun stays unverified), so a new import that
-  breaks a stubbed loader reds in the pass. A script seat runs is run from its archive copy with every path argument
-  under scratch (a script may treat any argument as a write path), and pin carries changed files' one-hop callees that
-  are repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the
-  repo root). The pin also carries each file a fix's text points at by path, and the brief says the pin holds only the
-  files it lists, so a seat reads any other file, the rest of a changed module's directory included, from the base tree
-  with the pins laid over it (`<pins_dir>.base` when the pin was taken `--base`, else the archive of its `base_sha`),
-  never from the live tree beyond what the seat prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from
-  the live disk and name UNPINNED.
+  copy) and seat's own folder as `SCRATCH`; seat derives `ROOTS` as recipe says, plus roots this section's next sentence
+  has brief add, and brief carries no import or pytest recipe of the lead's own (a pins dir on `sys.path` alone, or
+  pytest's `--rootdir` at a copy, imports the live checkout's installed package). The recipe names its roots by what the
+  tests import, so the brief extends it to every top-level path the tests import, read or run (a test that renders
+  `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red without it) and names live repo as
+  checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree. An editable install's `.pth`
+  entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs instead of pin through `PYTHONPATH`
+  entry (`PIN_IMPORT`), pytest run from live repo (`PYTEST_PINS`) and child process started with its own `env=`, which
+  resolves `.pth` again. The pins line follows real layout, digest pin authority. A SEAT never runs `git worktree add`
+  on the live repo (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive
+  copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree,
+  never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. A seat test that reads git history
+  or tracked set (`git ls-files`: neither the archive nor a pin copy has a `.git`) runs in clone seat makes with `git -C
+  <scratch> clone --shared --no-checkout <live checkout> clone`, checks out at `git -C <scratch>/clone checkout -q <the
+  pass's base SHA>` (until then its status reads every file deleted), with its push to `origin` disabled at once (`git
+  -C <scratch>/clone config remote.origin.pushurl /nonexistent.invalid`: `origin` is the live repo, so a push writes its
+  `.git`; no other remote is ever pushed to) and the pins laid over it, committed in clone when test reads HEAD, a diff,
+  the status or the tracked set; that test's red-on-revert overlays revert on clone. Branch, worktree and stash state
+  test creates lands in clone's own `.git`; only a test that reads the live checkout's own branches, worktrees or stash
+  runs in the lead's throwaway worktree. Ruff and mypy run from repo root with repo's own config (on copy: ruff
+  `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff writes `.ruff_cache` in its
+  working directory and fails inside read-only pin without `--no-cache`); tests run by exact node id, except mutant run
+  or re-run of one, which takes the test set and selection rule of `One mutant per clause` bullet above; brief over
+  changed code names tests that load each changed module (by import, or by path through a loader or a stub — found by
+  grepping `tests/` for each changed file's stem, its name without `.py`, or an `__init__.py`'s package dotted name, and
+  keeping the hits that import or load it) for every seat to run by `PIN_IMPORT`/`PYTEST_PINS` recipe (a test it leaves
+  unrun stays unverified), so a new import that breaks a stubbed loader reds in the pass. A script seat runs is run from
+  its archive copy with every path argument under scratch (a script may treat any argument as a write path), and pin
+  carries changed files' one-hop callees that are repo files (`review_loop_ledger.py pin` refuses the whole list when
+  one path is missing, a symlink or outside the repo root). The pin also carries each file a fix's text points at by
+  path, and the brief says the pin holds only the files it lists, so a seat reads any other file, the rest of a changed
+  module's directory included, from the base tree with the pins laid over it (`<pins_dir>.base` when the pin was taken
+  `--base`, else the archive of its `base_sha`), never from the live tree beyond what the seat prompt's recipes
+  (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and name UNPINNED.
 - A pins-only copy is not a test tree: it holds the pins and nothing else; no package, no pytest config, no conftest,
-  none of files conftest loads by path (the hub's `tests/conftest.py` loads `tests/memguard.py`; its root `conftest.py`
-  mutes live alerting and imports this tree's `src`). A seat runs a Python test only through pytest, and only on a tree
-  this section stages, with the pins laid over it — the archive the recipe builds (the whole test tree, the root
-  conftest, the pytest config and every root the tests import, read or run, never a subset that leaves one out), the
-  lead's base copy, or, for a test that reads git history or the tracked set, the clone above — never on the pins dir, a
-  copy of it or any hand-assembled tree, and never with a conftest or the pytest config dropped, skipped or pointed
-  elsewhere by any flag, option or environment variable (`--noconftest`, `--confcutdir`, `--ignore` of a conftest, `-p
-  no:` on a conftest's plugin, `PYTEST_ADDOPTS`, `-c` or `--rootdir` naming any other file or tree, or `-o` on
-  `addopts`, `testpaths`, `python_files` or another key that changes what is collected; `-o timeout=…` and the like stay
-  legal); a test it cannot run that way is unverified, never run another way. A seat that runs pytest or imports pinned
-  code needs unmodified tree, so its brief's pin takes `--base` (`/opt/fabrik/commands/_fragments/subagents-core.md`'s
-  PIN paragraph), on each pass by shape that pass's surface has (a surface committed since previous pass is pinned
-  `--from`): `HEAD` for working-tree pin (its `base_sha` HEAD's commit; repo with no commit has no base copy, and
-  `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`),
-  and the commit before the fix when it spans several. The brief's `base_sha` is then one pin records, and gives
-  `<pins_dir>.base` as recipe's `${args.base_pin_dir}`; each seat copies that tree in place of archive steps of
-  `PIN_IMPORT` and `PYTEST_PINS`. Where the including command puts pins there, a base copy is whole commit (some 120 MB
-  in hub) beside pins dir in durable `SCRATCH:` folder, which `start` keeps 14 days: once pass is adjudicated, lead
-  removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass
-  pins afresh and delta brief reads previous `pins_dir`, never its base copy.
+  none of the files a conftest loads by path (the hub's `tests/conftest.py` loads `tests/memguard.py`; its root
+  `conftest.py` mutes live alerting and imports this tree's `src`). A seat runs a Python test only through pytest, and
+  only on a tree this section stages, with the pins laid over it — the archive the recipe builds (the whole test tree,
+  the root conftest, the pytest config and every root the tests import, read or run, never a subset that leaves one
+  out), the lead's base copy, or, for a test that reads git history or the tracked set, the clone above — never on the
+  pins dir, a copy of it or any hand-assembled tree, and never with a conftest or the pytest config dropped, skipped or
+  pointed elsewhere by any flag, option or environment variable (`--noconftest`, `--confcutdir`, `--ignore` of a
+  conftest, `-p no:` on a conftest's plugin, `PYTEST_ADDOPTS`, `-c` or `--rootdir` naming any other file or tree, or
+  `-o` on `addopts`, `testpaths`, `python_files` or another key that changes what is collected; `-o timeout=…` and the
+  like stay legal); a test it cannot run that way is unverified, never run another way. A seat that runs pytest or
+  imports pinned code needs unmodified tree, so its brief's pin takes `--base`
+  (`/opt/fabrik/commands/_fragments/subagents-core.md`'s PIN paragraph), on each pass by shape that pass's surface has
+  (a surface committed since previous pass is pinned `--from`, as the bullet above says): `HEAD` for working-tree pin
+  (its basis is `HEAD` and its `base_sha` HEAD's commit either way; a repo with no commit has no base copy, and `--base`
+  is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the
+  commit before the fix when it spans several. The brief's `base_sha` is then one pin records, and gives
+  `<pins_dir>.base` as recipe's `${args.base_pin_dir}`; each seat copies that tree in place of archive steps of both
+  `PIN_IMPORT` and `PYTEST_PINS`. A base copy is whole commit (some 120 MB in hub) beside pins dir — in durable
+  `SCRATCH:` folder, which `start` keeps 14 days, where the including command puts pins there: once pass is adjudicated,
+  lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every
+  pass pins afresh and delta brief reads previous `pins_dir`, never its base copy.
 - A delta brief also names the previous pass's `base_sha` (for the working-tree pin `/fabrik-review-scoped` step 5
   takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, never verified, since no md5 manifest covers it,
   and null in a repo with no commit; for any other pin the brief names the commit itself, since one taken `--base`
   records that commit (else its `--from` ref) and one written before `base_sha` was recorded has none) and pins_dir, for
   the bounded hop's reader run (a reader passing on the previous round's pin and failing on it with only the fix hunks
-  applied). The lead first diffs two pins' files (`diff -r -x change.diff -x 'MANIFEST*' <previous pins_dir> <this
-  pins_dir>`) and two `base_sha`s (`git diff --name-only <previous base_sha> <this base_sha>`), and states in brief that
-  difference is round's fix alone, committed or not, naming any other hunk or path, which leaves every reader it touches
-  `unverified` (each `Only in` line, a path one pin holds and the other does not, is named too, and classed from `git
-  diff --name-status <previous base_sha> <this base_sha>` for what fix committed and `git status --short
-  --untracked-files=all --ignored -- <path>` for what it did not (a fix can be both), since a removed path cannot be
-  pinned and `change.diff` carries no entry for removed path; a path the fix added, modified, removed or renamed is the
-  fix's own, and its readers run on both pins, a removal or rename whose old path this pass's `base_sha` still holds
-  leaving those readers `unverified`; a seat greps a heading or term another section cites over each pin's tree, where
-  its citers live; any path pinned in only one pass is another path; a directory line covers every listed path under it;
-  a fix's own path's readers are the tests the `tests/` grep above finds and, for a document, the citers the
-  heading-or-term grep below finds, and an importer outside `tests/` is named and left `unverified`); seat then runs
-  each reader once on each pin by `PIN_IMPORT`/`PYTEST_PINS` recipe with that pin's `base_sha`; reader pre-pin section
-  keeps lead's ("one that writes live store, sends, commits, deploys or reaches host") takes § Loop bookkeeping's
-  `unverified` route; reader that fails on previous pin is no evidence of break, `RECORDED` with its destination.
-- No `uv`/`pip`, no live API key outside suite's fixtures, every writing verb outside scratch named and forbidden; one
-  grep form; large output goes to seat's scratch first; adjudication authority (CLAUDE.md, packs) is read at pin; brief
-  names which shell guard seat is under (the worktree guard reads word `git` inside `-c` program or heredoc as git call,
-  so seat writes such probe to a file) and hands readers ready probe harness file, never promising a tool the seat does
-  not have (the Write tool); a claim only the home directory can settle is recorded up front for the lead. A scratch
-  repo seat makes (the `git init` in pin, clone above) is checked before its first git write: `git -C <it> rev-parse
-  --show-toplevel` prints its own path (an init that failed under hub's `.tmp/` leaves later git calls on live repo). A
-  test or probe that runs git runs with `GIT_CONFIG_GLOBAL` at empty file, `GIT_CONFIG_NOSYSTEM=1`, and `HOME` and
-  `XDG_CONFIG_HOME` at empty folders under its scratch, with `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`
-  and `GIT_COMMITTER_EMAIL` set when it commits, since empty config holds no identity (an older git ignores
-  `GIT_CONFIG_GLOBAL` and reads `$HOME/.gitconfig`), and a test that a hook stays silent first shows that hook fire on a
-  positive control.
+  applied). The lead first diffs the two pins' files (`diff -r -x change.diff -x 'MANIFEST*' <previous pins_dir> <this
+  pins_dir>`) and the two `base_sha`s (`git diff --name-only <previous base_sha> <this base_sha>`), and states in the
+  brief that the difference is the round's fix alone, committed or not, naming any other hunk or path, which leaves
+  every reader it touches `unverified` (each `Only in` line, a path one pin holds and the other does not, is named too,
+  and classed from `git diff --name-status <previous base_sha> <this base_sha>` for what the fix committed and `git
+  status --short --untracked-files=all --ignored -- <path>` for what it did not (a fix can be both), since a removed
+  path cannot be pinned and `change.diff` carries no entry for it: a path the fix added, modified, removed or renamed is
+  the fix's own, and its readers run on both pins, a removal or rename whose old path this pass's `base_sha` still holds
+  leaving those readers `unverified`; any other path pinned in only one pass is another path; a directory line covers
+  every listed path under it; a fix's own path's readers are the tests the `tests/` grep above finds and, for a
+  document, the citers the heading-or-term grep below finds, and an importer outside `tests/` is named and left
+  `unverified`); the seat then runs each reader once on each pin by the `PIN_IMPORT`/`PYTEST_PINS` recipe with that
+  pin's own `base_sha`, and greps a heading or term another section cites over each pin's tree, where its citers live; a
+  reader the pre-pin section keeps the lead's ("one that writes a live store, sends, commits, deploys or reaches a
+  host") takes § Loop bookkeeping's `unverified` route; and a reader that fails on the previous pin is no evidence of a
+  break, and is `RECORDED` with its destination.
+- No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
+  forbidden; one grep form; large output goes to seat's scratch first; adjudication authority (CLAUDE.md, packs) is read
+  at pin; brief names which shell guard seat is under (the worktree guard reads word `git` inside `-c` program or
+  heredoc as git call, so seat writes such probe to a file) and hands readers ready probe harness file, never promising
+  a tool the seat does not have (the Write tool); a claim only the home directory can settle is recorded up front for
+  the lead. A scratch repo seat makes (the `git init` in pin, clone above) is checked before its first git write: `git
+  -C <it> rev-parse --show-toplevel` prints its own path (an init that failed under hub's `.tmp/` leaves every later git
+  call on live repo). A test or probe that runs git runs with `GIT_CONFIG_GLOBAL` at empty file,
+  `GIT_CONFIG_NOSYSTEM=1`, and `HOME` and `XDG_CONFIG_HOME` at empty folders under its scratch, with `GIT_AUTHOR_NAME`,
+  `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL` set when it commits, since empty config holds no
+  identity (an older git ignores `GIT_CONFIG_GLOBAL` and reads `$HOME/.gitconfig`), and a test that a hook stays silent
+  first shows that hook fire on a positive control.
 - Every file grader reads is pinned, uncommitted module under test included; "nothing changed for readers" claim is
-  proven on pinned input; test that needs database (the suite skips or fails it without database variable; no `.env`
-  copied, `.invalid` dummy serves imports only) runs with the variable the suite reads (`TEST_DATABASE_URL`, an isolated
-  `DATABASE_URL`) in place of that dummy, and a seat probe that must connect uses the same variable; both connect over
-  form lead proved by one connect before pin (a unix-socket DSN where TCP `localhost` fails password auth), the variable
-  and form named in brief, and where only a password form connects the lead runs that test or probe itself and quotes
-  its result, never writing the password into a brief, so no seat skips the test, re-implements it or probes auth;
-  concurrent sibling run on shared DB is known false red; seen-red on DB-writing script names its sandbox; ledger row
-  whose fix landed in file outside pin (a CHANGELOG or ledger hunk) has that file pinned next pass, so seat never reads
-  the base copy.
+  proven on pinned input; test that needs database (the suite skips or fails it without a database variable: no `.env`
+  is copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads (`TEST_DATABASE_URL`,
+  an isolated `DATABASE_URL`) in place of that dummy, and a seat probe that must connect uses the same variable; both
+  connect over form lead proved by one connect before pin (a unix-socket DSN where TCP `localhost` fails password auth),
+  the variable and form named in brief, and where only a password form connects the lead runs that test or probe itself
+  and quotes its result, never writing the password into a brief, so no seat skips the test, re-implements it or probes
+  auth; concurrent sibling run on shared DB is known false red; seen-red on DB-writing script names its sandbox; ledger
+  row whose fix landed in file outside pin (a CHANGELOG or ledger hunk) has that file pinned next pass, so seat never
+  reads the base copy.
 - Overlay and pin currency: the brief lists every pinned path, dot-dirs (`.fabrik/`) included; a seat copies each file
   to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never `cp -r <pin> <dest>` onto a
   directory that exists; `pin` writes pin and its `<pins_dir>.base` tree read-only, files and directories, so a seat
@@ -352,8 +354,8 @@ brief. Each is step, not a check box: execute it, or name in brief why shape lac
   values, globbed paths) and its model boundary; stale pre-existing text in edited file is RECORDED with a destination
   (term-coverage D4), or fixed in the same hunk and named; never counted; slice ledger is round 1's claim count even at
   zero confirmed. A measurement or proof brief hands seat names, up front, bound that limits it (a peak capped by very
-  limit being sized, a re-vendor's byte identity read at HEAD because neither copy's header nor its vendoring commit's
-  trailer records a SHA), so seat attacks it as bounded, never as unbounded.
+  limit being sized, a re-vendor's byte identity read at HEAD because neither the copy's header nor its vendoring
+  commit's trailer records a SHA), so seat attacks it as bounded, never as unbounded.
 - Lint or format findings are compared against HEAD, against committed diff, under every claimed toolchain version,
   before reported or refuted; tests re-run after last lint fix; refutation that later commit lands is checked against
   completion gate; read callee before confirming wrong-method finding; refuter that needs forbidden surface marks it

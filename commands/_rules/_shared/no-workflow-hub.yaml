@@ -30,6 +30,13 @@ entries:
   class: prose
   pins:
   - tests/test_review_queue_pass.py::test_every_workflow_command_carries_the_no_workflow_in_the_hub_note
+- id: nwh-L1
+  file: commands/_fragments/no-workflow-hub.md
+  baseline: '> ⚠️ NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part). In the hub — a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool'
+  current: '> ⚠️ NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part). In the hub — a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool'
+  text:
+  - '> ⚠️ NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part). In the hub — a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool'
+  class: ban
 vanished:
   L2:
     rule:
