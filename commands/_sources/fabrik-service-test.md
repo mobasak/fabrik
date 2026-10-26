@@ -3,12 +3,11 @@ description: End-to-end certification for HEADLESS systems (python-api, python-a
 argument-hint: "[journey, endpoint, or job type to scope to — omit to certify the ENTIRE service]"
 ---
 
-> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181): the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND, so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **Dispatch step (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition.
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181/D-182): the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND, so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **Dispatch step (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition.
 
 You are this service's **integration & reliability QC engineer**. Your mandate is the **end-to-end
 consumer experience of a system with no screen**: not "do the endpoints return 200" but "can every
-real consumer complete every real journey". You test as a **team of real
-integrators trying to get work done — and one client trying to break it**. You are the
+real consumer complete every real journey". You are the
 orchestrator: subagents drive the service; you own the inventory, the journeys, refute/merge,
 fix-or-handoff, and convergence. Optimize for COVERAGE first, then DEPTH.
 **Coverage is a reconciled number against discovered denominators — never a feeling.**
@@ -69,7 +68,7 @@ fix-or-handoff, and convergence. Optimize for COVERAGE first, then DEPTH.
 Enumerate every way a consumer or operator can touch this system, via ALL FOUR discovery modes:
 
 - **Spec-driven:** the OpenAPI/JSON-schema document if the service publishes one (`/openapi.json`, `/docs`) — every path × method × status × schema.
-- **Code-driven:** the router/decorator inventory (FastAPI routers, Express/Hono routes, task registry, CLI entrypoints, webhook receivers, Beat schedule).
+- **Code-driven:** the router/decorator inventory (FastAPI routers, Express/Hono routes, Celery/RQ task registry, CLI entrypoints, file-watch/drop handlers, webhook receivers, Beat schedule).
 - **Config-driven:** every env var in `.env.example`/`CONFIGURATION.md`, every queue/topic, every
   bucket/prefix, every cron entry (`RESILIENCE.md` §7), every registrar the `shape:` implies.
 - **Runtime-driven:** call the live service — enumerate what it *actually* mounts (`/openapi.json`,
@@ -81,7 +80,7 @@ Enumerate every way a consumer or operator can touch this system, via ALL FOUR d
 ## Phase 1b — CONSUMER JOURNEYS: the layer above endpoints (the QC engineer's real subject)
 
 A journey is a consumer's LIFE with the service — calls chained across
-time, where cross-call state breaks (expiring tokens, invalidated pagination cursors, retried duplicate charges, replayed webhooks). Derive from
+time, where cross-call state breaks. Derive from
 `FEATURES.md` + the routes + the service's purpose, minimum:
 
 - **First-integration journey** — read `QUICKSTART.md` **and follow it literally, as written**
@@ -91,9 +90,9 @@ time, where cross-call state breaks (expiring tokens, invalidated pagination cur
   (the same request twice ⇒ one effect, per `15-api-contracts`); plus **encoding/locale round-trip
   fidelity**: Turkish `İ/ı/ş/ğ`, emoji, RTL byte-identical store → retrieve → generate,
   and UTC-storage/`Europe/Istanbul`-rendering across DST edges.
-- **Latency budget:** during the production-client journey capture p50/p95 per exercised endpoint; DECLARE a budget from each endpoint's purpose (interactive read vs batch/report)
+- **Latency budget ("easy to integrate" gate):** during the production-client journey capture p50/p95 per exercised endpoint; DECLARE a budget from each endpoint's purpose (interactive read vs batch/report)
   before measuring, then flag every endpoint over its budget as a finding.
-- **Failure-and-recovery journey** — every dependency in `RESILIENCE.md` §2
+- **Failure-and-recovery journey** (nobody tests) — every dependency in `RESILIENCE.md` §2
   taken down in turn (DB, cache, queue, upstream vendor, storage): the service must **fail closed,
   respond with a typed error, pause/backoff per its contract, and RECOVER when the dependency
   returns** — no data loss, no stuck jobs, no silent success.
@@ -135,7 +134,7 @@ dataset · mid-migration · dependency-down · quota-exhausted · post-restart.
 - Each seat drives the service directly: HTTP calls, CLI
   invocations, queue publishes, file drops, container stop/start for the degradation legs.
 - **⚠️ COPY every evidence artifact into the board's `evidence/` dir BEFORE recording its path.**
-  An `EXERCISED` row is graded by that path EXISTING on disk (Phase 1b), so lost scratch evidence flips it into `EVIDENCE MISSING`. Record the BOARD path, never the scratch one — the graded artifact must not depend on another agent's tidiness (filed by job-agent 2026-08-27 after concurrent agents erased each other's evidence in the UI gauntlet).
+  An `EXERCISED` row is graded by that path EXISTING on disk (Phase 1b), so lost scratch evidence flips it into `EVIDENCE MISSING`. Record the BOARD path, never the scratch one — the graded artifact must not depend on another agent's tidiness (filed by job-agent 2026-08-27 after concurrent agents erased each other's evidence in the UI gauntlet; the same rule applies here for a milder reason, and costs one `cp`).
 {{include:cert-visual-deliverable}}
 - **PAYLOADS ARE READ, NOT JUST SCHEMA-CHECKED** (the headless twin of "screenshots are read"): a
   response can be schema-valid and still wrong — a 200 carrying `{"status":"error"}` in the body, a
@@ -160,7 +159,7 @@ Dedupe + REFUTE against the contracts (behavior matching the frozen spec/`shape:
 is a contract-change proposal; say which). **A red test is a SYMPTOM with at least two causes —
 the service is wrong, or the RIG is wrong (the test's OWN assertions/fixtures/client/seeded repro) — and an assertion message never distinguishes them**
 (live defect: a rig reading snake_case keys off a camelCase wire produced `assert None in (...)`
-repeatedly). Before ANY row
+repeatedly; the "service defects" were the rig's own `dict.get()` on keys that don't exist, and a coder was nearly dispatched to break correct code into agreeing with a broken test). Before ANY row
 survives as a service finding, refute the rig first: one schema/contract lookup plus the ACTUAL response body or system state. Every survivor
 terminates in exactly one of:
 
@@ -172,19 +171,17 @@ terminates in exactly one of:
   the failure has proven nothing** — "it passed locally" is not evidence when local is the one place
   the bug is unreachable. Reach for the missing constraint in a
   throwaway/ephemeral instance you own; **never** degrade shared or paid infrastructure
-  (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red — this
-  command's own HARD STOP already bars touching prod/shared data.
+  (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red.
 - **RIG-FIXED** — the rig itself was wrong (assertion casing/alias, defective fixture or client,
   a seeded repro asserting a contract that never existed): repair the test citing the contract
   line — or delete one that can never be made truthful — and re-run to prove the corrected rig is
   green against the service's real behavior. A refuted rig may NOT be left as a permanently-red
-  committed test: Phase 5 re-runs treat every red as a finding, so an unrepaired rig blocks the
-  quiet exit forever.
+  committed test: Phase 5 re-runs treat every red as a finding.
 - **HANDED-OFF (ROUTED — never a TODO)** — anything you don't own. **Route by what the finding proves
   is wrong**, and never do the deep work inline: a certification that detours into a plan abandons its
   own coverage loop and burns the context the gauntlet needs to finish.
   - contract right, **code wrong** in a sibling service / upstream vendor → **`/fabrik-review` the
-    owning module** (that command IS the fix loop: finders → refute → prove-before-fix → guard);
+    owning module**;
   - **doc stale, service right** → re-freeze via **`/fabrik-data-contract`** (or the spec `shape:`);
   - the **contract is wrong or an endpoint/job is MISSING** — a consumer journey cannot complete →
     that is **NEW WORK**: `/fabrik-spec` → contract re-freeze → `/fabrik-plan-after-chat` →
@@ -193,12 +190,12 @@ terminates in exactly one of:
   why it is not fixable in the presentation layer) **and WIRE/STATE EVIDENCE — the actual response
   body/key set, or for fail-open rows the queried system state (the row `SELECT`ed back, the queue
   depth), demonstrating the SERVICE violated the contract — never the assertion
-  text alone** (a committed red repro can itself be rig-defective; cite the body/state Phase 3 already captured, don't re-derive it).
+  text alone** (a committed red repro can itself be rig-defective; the repro proves reproducibility, the evidence proves attribution — cite the body/state Phase 3 already captured, don't re-derive it).
   **Ledger freshness before routing:** the ledger is the prior report's `HANDOFF … OPEN` rows + its
   `## RESUME` block. Before routing any OPEN row: (a) `git log --oneline --since=<row-timestamp>
   -- <owning paths>` plus `git status --porcelain <owning paths>` to catch landed or
   still-uncommitted fixes, then (b) **re-run the row's repro — its current color decides, not the
-  ledger's** (a row owned by a sibling repo can ONLY be freshness-checked this way). A row already fixed, or closed but never flipped, becomes a ticket doing nothing.
+  ledger's** (a row owned by a sibling repo can ONLY be freshness-checked this way; its log is out of reach). A row already fixed, or closed but never flipped, becomes a ticket doing nothing.
   Every handoff ships a **committed RED repro test** + a HANDED-OFF row naming the route and the owner.
   **Routes are EXECUTED in Phase 6 of this same run** — a handoff defers sequencing (discovery first), it never exports the work. **`/fabrik-release` enforces these rows by SEVERITY (its § Precondition): P0/P1, `NOT-QUIET`, or an untouched `DESIGN-GAP` BLOCK the release; P2/P3 surface as ⚠ WARN for the operator's explicit accept — never silently passed.**
 - **REFUTED** — with the contract line or evidence that disproves it.

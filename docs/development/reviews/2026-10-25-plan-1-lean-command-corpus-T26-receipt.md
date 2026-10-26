@@ -1,3 +1,5 @@
+OWN TEXT: 3741 -> 3205 (85.7%)
+
 # T26 receipt — lean rewrite of /fabrik-service-test (light form, D-1240 re-run)
 
 Branch `claude/lean-t26`, base `origin/kaizen-lean-u01` = start commit `851b4b365cc9ccaac91ed851bc669764743ad360` (baseline commit and frozen copy).
@@ -87,3 +89,22 @@ None. The step-2 scan over the 36 reader tests found three literal hits: `{{incl
 - Convert the `# class:` / `# clauses` comments to keys when the canonical loader lands.
 - The Sonnet + Haiku audit of the 35 vanished labels and the 18 narrative-labelled clauses; the author-blind old-vs-new read of the 31 reworded entries.
 - A floor D-row if the hub accepts the 73-86% floor: live rule count is 258 clauses (45 ban), words-per-rule about 12.4.
+
+## Re-ledger round (canonical loader, W-9cd8653d)
+
+- **Own text (whitespace words):** baseline 3741 -> fix round 3203 -> now 3205 (85.7%). The 50% target is NOT met; the floor is named below.
+- **LOSS for this ledger:** before 13 -> after 0 (`assemble_commands.py --check` prints no `fabrik-service-test.yaml` LOSS). The `_shared/` LOSS lines (T01d) remain and make `tests/test_command_rules.py` fail on every base; they are not this ticket's.
+- **Reworded/total entries:** 32 reworded `st-*` of 102 entries (70 unchanged `u-*`). Classes: ban 37, grammar 4, prose 61; vanished: rule 34, duplicate-of 2, narrative 2.
+- **Converted:** every `# class:` comment is a `class:` key and every `# clauses` comment a real `clauses:` key, recounted against the loader's splitter. Earlier labels were wrong (st-L29 labelled clause 4 of 3, st-L49 labelled clauses 1 and 4, st-L96 and st-L98 labelled clauses that do not exist); corrected or removed.
+- **Ban clauses restored word for word (D-1240):** L71 (whole sentence incl. the "same rule applies here" tail; now unchanged), L82 (parenthetical from `never distinguishes them`), L96 (`never the assertion text alone (...)` parenthetical), L98 (`ONLY be freshness-checked this way; its log is out of reach`). L14/L14b merged into one entry; L23 clause 2 (stray fragment) labelled narrative.
+- **Anchors restored for the newly linted prose entries:** `D-182` (L1), `Celery/RQ` and `file-watch/drop` (L39), the "easy to integrate" gate stems (L49), `(nobody tests)` (L50).
+- **Cuts this round (net about 0 words after the restorations):** L8 persona sentence (vanished: narrative); L88 clause 3 "this command's own HARD STOP already bars..." (clauses 3: narrative, restates u-L27); L90 tail "so an unrepaired rig blocks the quiet exit forever"; L93 parenthetical; L44 example list; L49 clause 3 anecdote (clauses 3: narrative).
+- **Floor and why:** 45 clauses hold a ban word and run verbatim from the ban word to the end of the sentence or `;`/`—` clause, and most of those units are one long sentence, so everything after the first ban word is pinned (L51, L52, L64, L113, L114, the L60 table row, and L32 `only one is a defect (job-agent, 2026-08-28: ...)`, whose parenthetical stays verbatim and cannot be labelled narrative). The other clauses keep every backticked token, number and path plus 70% of their first 8 stems. About 2,700 words (73%) is the loader's floor for this command; this branch sits at 85.7%. Front matter (about 120 words) is untouched.
+- **COUNTS: 102 entries read / 32 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels.** Passes 1-2 fixed the clause-count errors, the missing anchors and the four ban-tail restorations above; pass 3 found nothing. Judgement calls owed to the hub audit: L8, L88 clause 3, L49 clause 3 and L29 clause 3, all labelled `narrative`.
+- **Tests:** at the start: `test_command_rules` 1 failed (the `_shared/` LOSS), enforcement gate 111 passed, assemble gate 14 failed 220 passed, command gate 2 failed 608 passed, domain-pack gate 495 passed 2 skipped, decision-blocks gate 500 passed (review gate 304 passed). The end run is in the summary.
+
+### LEFT FOR THE HUB
+
+- `commands/_size_ceiling.json` ratchet at merge, `CHANGELOG.md`, `INDEX.md`, any floor D-row.
+- The `_shared/` LOSS (T01d) that fails `tests/test_command_rules.py`.
+- The author-blind audit of the 32 reworded entries and the four `narrative` judgement calls.
