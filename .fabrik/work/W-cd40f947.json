@@ -15,7 +15,7 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-3",
   "priority": 3,
   "score_reason": "pre-existing defects outside W-b29a4f40; (e) passes a secret on argv — split it out and raise it",
   "status": "open",
