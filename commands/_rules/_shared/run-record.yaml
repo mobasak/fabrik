@@ -36,12 +36,10 @@ entries:
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
   baseline: Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too — and a BLOCKED run is exactly when the machinery friction is worth reporting, so the verdict is required here too
-  current: Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too; the verdict is required here too
+  current: Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too — and a BLOCKED run is exactly when the machinery friction is worth reporting, so the verdict is required here too
   text:
-  - Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too
+  - Both hold in every command, even where its text calls other stops the only ones, and every stop that text names holds too — and a BLOCKED run is exactly when the machinery friction is worth reporting, so the verdict is required here too
   class: prose
-  clauses:
-    2: narrative
   pins:
   - tests/test_plan_after_chat_queue_pass.py::test_the_close_list_names_the_wall_and_the_pause_as_stops
 - id: runrec-no-nothing-else-is-a-legitimate-halt

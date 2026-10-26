@@ -138,9 +138,17 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'This fragment is canonical: `command_run.py`''s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md` FINAL OUTPUT blocks each hold a hand-kept twin, all four now keyed to match'
-  current: 'This fragment is canonical: `command_run.py`''s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md` FINAL OUTPUT blocks are hand-kept twins; `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` grades the drift, so read it after rewording the grammar line'
+  current: 'This fragment is canonical: `command_run.py`''s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md` FINAL OUTPUT blocks are hand-kept twins'
   text:
-  - 'This fragment is canonical: `command_run.py`''s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md` FINAL OUTPUT blocks are hand-kept twins; `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` grades the drift, so read it after rewording the grammar line'
+  - 'This fragment is canonical: `command_run.py`''s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md` FINAL OUTPUT blocks are hand-kept twins'
+  class: prose
+- id: cf-72
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'They cannot be single-sourced — `command_run.py` is fleet-synced to ~46 repos that have no `commands/_fragments/` — so the drift is GRADED instead: `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` reads this file and fails if the constant falls behind it'
+  current: 'They cannot be single-sourced — `command_run.py` is fleet-synced to ~46 repos that have no `commands/_fragments/` — so the drift is GRADED instead: `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` reads this file and fails if the constant falls behind it, so read it after rewording the grammar line'
+  text:
+  - 'They cannot be single-sourced — `command_run.py` is fleet-synced to ~46 repos that have no `commands/_fragments/` — so the drift is GRADED instead: `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` reads this file and fails if the constant falls behind it, so read it after rewording the grammar line'
   class: prose
 - id: cf-19
   file: commands/_fragments/close-feedback.md
@@ -314,9 +322,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'Say the two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; and a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so the convergence verdict lives in your prose and the `--findings 0` rule still binds it'
-  current: 'Say the two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so size down and name the gap; a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so the convergence verdict lives in your prose and the `--findings 0` rule still binds it'
+  current: 'Say the two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so the convergence verdict lives in your prose and the `--findings 0` rule still binds it'
   text:
-  - 'Say the two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so size down and name the gap; a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so the convergence verdict lives in your prose and the `--findings 0` rule still binds it'
+  - 'Say the two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so the convergence verdict lives in your prose and the `--findings 0` rule still binds it'
   class: ban
 - id: cf-36
   file: commands/_fragments/close-feedback.md
@@ -473,6 +481,14 @@ entries:
   text:
   - 'So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under review) come to you, and you file them under the routing above'
   class: prose
+- id: cf-73
+  file: commands/_fragments/close-feedback.md
+  section: '### A subagent''s finding is YOURS to file'
+  baseline: A `fabrik-reviewer` that notices a false-positive check, a `fabrik-researcher` that hits a dead reference, a pool finder that trips over a contradictory rule — each surfaces it in its return value and then ceases to exist
+  current: A `fabrik-reviewer` that notices a false-positive check, a `fabrik-researcher` that hits a dead reference, a pool finder that trips over a contradictory rule — each surfaces it in its return value and then ceases to exist
+  text:
+  - A `fabrik-reviewer` that notices a false-positive check, a `fabrik-researcher` that hits a dead reference, a pool finder that trips over a contradictory rule — each surfaces it in its return value and then ceases to exist
+  class: prose
 - id: cf-60
   file: commands/_fragments/close-feedback.md
   section: '### A subagent''s finding is YOURS to file'
@@ -561,6 +577,7 @@ vanished:
   L20:
     rule:
     - cf-18
+    - cf-72
   L21:
     rule:
     - cf-18
@@ -654,6 +671,7 @@ vanished:
   L71:
     rule:
     - cf-59
+    - cf-73
   L72:
     rule:
     - cf-59

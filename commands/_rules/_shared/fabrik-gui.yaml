@@ -136,9 +136,17 @@ entries:
   file: commands/_agents/fabrik-gui.md
   section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
   baseline: Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system for anything the contract doesn't spell out
-  current: Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system where the contract is silent; `/design-review` critiques rendered-UI aesthetics
+  current: Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system for anything the contract doesn't spell out
   text:
-  - Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system where the contract is silent
+  - Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system for anything the contract doesn't spell out
+  class: prose
+- id: gui-design-review-complement
+  file: commands/_agents/fabrik-gui.md
+  section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
+  baseline: For rendered-UI aesthetic critique, the `/design-review` agent is the complement
+  current: For rendered-UI aesthetic critique, the `/design-review` agent is the complement
+  text:
+  - For rendered-UI aesthetic critique, the `/design-review` agent is the complement
   class: prose
 - id: gui-report
   file: commands/_agents/fabrik-gui.md
@@ -195,3 +203,4 @@ vanished:
   L21:
     rule:
     - gui-defer
+    - gui-design-review-complement
