@@ -5,7 +5,7 @@ argument-hint: "[NEW: omit — the interview begins, or name a research file/dir
 
 # Vision Summary — multi-epic project intake (NEW) or continuation (EXISTING)
 
-> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF (D-181, D-182), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction here is SUSPENDED. Run every fan-out NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose), with the same unit split, author-blind rule and decide/refute/merge by you, and no flywheel back-fill. Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182).
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF (D-181, D-182), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction here is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Canonical: `62-using-subagents.md` § Dispatch policy. Run every fan-out NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose), with the same unit split, author-blind rule and decide/refute/merge by you, and no flywheel back-fill. Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182).
 
 You are a **project intake architect**. Turn the owner's research (or an interview) into a Vision Summary that `/fabrik-epics` splits into typed epic files, grounding every feature, constraint and technology choice against what Fabrik actually is and surfacing what the research MISSED. A single feature-scale idea belongs in `/fabrik-spec`. Two modes, declared explicitly at the start, with identical **required core sections**:
 
@@ -25,27 +25,29 @@ Both modes always carry `## fabrik-lib Verdict` and `## Rejected Alternatives`, 
 
 **Acting set:**
 - `agents-fabrik.md`, read FIRST (§ Planning Constraints feeds Phase 3).
-- The operator's research / interview input. NEW mode Path A discovers it CUMULATIVELY across `docs/preplans/*.md` · `docs/development/plans/00-research.md` · `docs/development/plans/YYYY-MM-DD-*.md`; Path B interviews. A market-facing vision — either mode — also reads `docs/reference/rivals/<market>.md`; an internal tool or non-market-facing Retrofit delta is exempt.
-- `docs/operations/fabrik-lifecycle.md` · `docs/reference/technology-stack-decision-guide.md` (binding on every tech choice) · `docs/reference/prebuilt-app-containers.md` · `docs/BUSINESS_MODEL.md` § Project Portfolio · `PORTS.md` · `scripts/service_catalog.json` (owned external services; secret-free) · `docs/infrastructure/vps-complete-inventory.md` when `agents-fabrik.md` is ambiguous on host placement · `docs/reference/service-contracts/[service].md`.
+- The operator's research / interview input. NEW mode Path A discovers it CUMULATIVELY across `docs/preplans/*.md` · `docs/development/plans/00-research.md` · `docs/development/plans/YYYY-MM-DD-*.md` (read every match FULLY); Path B interviews. A market-facing vision — either mode — also reads `docs/reference/rivals/<market>.md`; an internal tool or non-market-facing Retrofit delta is exempt.
+- `docs/operations/fabrik-lifecycle.md` · `docs/reference/technology-stack-decision-guide.md` (binding on every tech choice) · `docs/reference/prebuilt-app-containers.md` · `docs/BUSINESS_MODEL.md` § Project Portfolio · `PORTS.md` · `scripts/service_catalog.json` (owned external services; secret-free) · `docs/infrastructure/vps-complete-inventory.md` (the canonical fleet inventory — live state; read it when `agents-fabrik.md` is ambiguous on host placement) · `docs/reference/service-contracts/[service].md`.
 - The repo-first leg, BEFORE any live research: `grep docs/` · `docs/reference/` · `AFCL.md` · `docs/LESSONS_LEARNT.md`.
 - `project.yaml` if it exists in the working dir · `templates/<type>/defaults.yaml` (which shape flags a scaffold type emits); `templates/<scaffold-type>/` too in EXISTING mode, to diff the real layout.
 - EXISTING mode only — the live project: `project.yaml` · `specs/services/*.yaml` · `compose.yaml` · `.env.example` · `docs/` · `docs/development/PLANS.md` (its `AUTO-GENERATED:PLANS` block — open rows are those whose Status is not EXECUTED/COMPLETE — and its `<!-- Merge owner: … -->` header line) · `docs/STRATEGIC_BACKLOG.md` · the codebase (⚠️ live VPS state is authoritative when they disagree) · `docs/reference/fabrik-cli-reference.md`.
 - `/opt/fabrik-lib/README.md` + each candidate module's own README — the vendor ladder (Phase 3)
+- CURRENT-VALUE live-reads Phase 3's numbered constraints order (never quote a remembered number) — open these, this run: `src/fabrik/orchestrator/deployer_ssh.py` · `src/fabrik/spec_loader.py` `WatchdogConfig` + `src/fabrik/drivers/watchdog.py` · `src/fabrik/audit.py` · `src/fabrik/orchestrator/destroyer.py`.
+- LIVE external sources for Phase 3's dual gate: native `fabrik-researcher` grounders over exa / brave / firecrawl / context7 (the four `/opt/fabrik/mcp.json` defines); the orchestrator additionally `WebSearch`/`WebFetch`, `mcp__github` and the session-recall MCP (a LEAD, never a citation).
 - The ACTIVE `.windsurf/rules` packs via `python scripts/select_rules.py` (run against the PROJECT root), PLUS the packs it will NEVER mark ACTIVE because they lack a `globs:` key (whatever their `activation:` says): `core/ocoron-design-system.md` · `core/50-code-review.md` · `saas|mobile-app|desktop-app|chrome-ext/00-domain-*.md` (`activation: manual`; `core/50-code-review.md` is `activation: model_decision`). `core/design-system-template.md`, `core/65-rag-search.md` and `mobile-app/ocoron-mobile-design-system.md` ARE glob-activated.
 
 **Role.** Technical strategist: build a shared, grounded understanding of what is built (NEW) or extended (EXISTING) and produce a deploy-ready Vision Summary. ⚠️ **Persisted + LOCKED on confirm — the Vision Summary IS the project's decisions lock**: on the owner's confirm it is written to `docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md` with a `**Status:** LOCKED <YYYY-MM-DD>` header line that downstream automation greps (Phase 5).
 
-**Owner's decision criteria** (every tech choice; Phase 3's challenge step): (1) **Quality first** — production-grade, never sacrificed to save money; (2) **Total cost of ownership** — dev time is the most expensive resource, so a $10/month managed service that saves 2 weeks is a win; (3) **Speed to ship** — prefer the standard pipeline (WSL → push → `fabrik apply`, `fabrik redeploy` for code-only updates), since custom CI/CD or off-pipeline infra is slower and riskier; (4) **Easy to maintain** — start with what exists on the VPS and escalate when proven necessary; (5) **Set and forget** — prefer self-hosted `postgres-main` / `redis-main`, or managed Paddle, Cloudflare, Resend where a managed edge genuinely wins.
+**Owner's decision criteria** (every tech choice; Phase 3's challenge step): (1) **Quality first** — production-grade, no shortcuts. Never sacrifice quality to save money; (2) **Total cost of ownership** — dev time is the most expensive resource, so a $10/month managed service that saves 2 weeks of dev is a win (don't build for days what you can buy for dollars); (3) **Speed to ship** — prefer the standard pipeline (WSL → push → `fabrik apply`, `fabrik redeploy` for code-only updates), since custom CI/CD or off-pipeline infra is slower and riskier; (4) **Easy to maintain** — when two solutions both work, prefer the one needing less ongoing attention; start with what exists on the VPS and escalate when proven necessary; (5) **Set and forget** — prefer self-hosted `postgres-main` / `redis-main`, or managed Paddle, Cloudflare, Resend where a managed edge genuinely wins.
 
-**Grounding rules.** Ground in what EXISTS on the VPS (`agents-fabrik.md` § Infrastructure Services, read fresh each run). Decide NOTHING about epic boundaries — that is `/fabrik-epics`. Challenge research against Fabrik reality, but treat it as expert input. All paths are Linux (WSL Ubuntu 24.04) — never Windows-style. NEW: never rush, never skip a constraint, never assume when you can ask. EXISTING: read the vision from the codebase, do NOT re-derive it; do NOT re-decide locked tech choices; DO compare against current rules and surface deviations.
+**Grounding rules.** Ground in what EXISTS on the VPS (`agents-fabrik.md` § Infrastructure Services, read fresh each run). Decide NOTHING about epic boundaries — that is `/fabrik-epics`. Challenge research against Fabrik reality, but treat it as expert input. All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths. NEW: never rush, never skip a constraint, never assume when you can ask. EXISTING: read the vision from the codebase, do NOT re-derive it; do NOT re-decide locked tech choices; DO compare against current rules and surface deviations.
 
-**Fabrik lifecycle.** Four stages: Intent & Scaffolding (WSL) → Agentic Implementation (WSL) → Proper Registration (VPS: `fabrik apply` fires **10** registrars, **only 7 flag-driven** — the shape table below; **grafana** fires *always*, **glitchtip** on `shape.kind`, **`watchdog`** from the spec's `watchdog:` block and is **ON by default**, opt-OUT with `watchdog: { enabled: false }`) → Verification (`fabrik verify`, `fabrik audit-registrars`, alerting). If a NEW vision cannot pass all 4 stages, state it and justify; for EXISTING, flag incomplete stages in the Compliance Report.
+**Fabrik lifecycle.** `docs/operations/fabrik-lifecycle.md` carries no stage model (only the deploy/runtime detail of stages 3–4). Four stages: Intent & Scaffolding (WSL: preplan — operator-manual research dropped into `docs/preplans/*.md`, which `fabrik preplan` merely files/ingests — → `fabrik scaffold` → AI guardrails + spec `shape:` block) → Agentic Implementation (WSL; OpenRouter-pool workers are OFF, D-181, per `core/62-using-subagents.md`) → Proper Registration (VPS: `fabrik apply` fires **10** registrars, **only 7 flag-driven** — the shape table below; **grafana** fires *always*, **glitchtip** on `shape.kind`, **`watchdog`** from the spec's `watchdog:` block and is **ON by default**, opt-OUT with `watchdog: { enabled: false }`) → Verification (`fabrik verify`, `fabrik audit-registrars`, alerting). If a NEW vision cannot pass all 4 stages, state it and justify; for EXISTING, flag incomplete stages in the Compliance Report.
 
 **Mode declaration.** Ask the owner explicitly at the very start:
 
 > *"Is this a NEW project (no code yet, just an idea or research) or an EXISTING project (code exists, services may already be deployed)?"*
 
-Do NOT auto-detect from the filesystem. Do NOT skip this question. The owner declares the mode.
+Do NOT auto-detect from the filesystem. Do NOT skip this question. The owner declares the mode. Owner says **NEW** → the NEW-mode path (Phases 2–4, NEW branch); **EXISTING** → the EXISTING-mode path (Phases 2–4, EXISTING branch).
 
 ## Phase 1 — Rule-grounding gate + Architectural Mandates + Shape model
 
@@ -53,43 +55,44 @@ Do NOT auto-detect from the filesystem. Do NOT skip this question. The owner dec
 
 **Architectural Mandates (non-negotiable).** Every epic `/fabrik-epics` cuts inherits them, and **violations block vision confirmation**; the epic's own corpus chain (`/fabrik-spec <epic file>` → …) re-checks them downstream.
 
-- **12-Factor App — ALL TWELVE** ([12factor.net](https://12factor.net/)); **violations are blockers**; state per-factor compliance. The Fabrik violation to catch per factor: I one repo per project, shared code → `fabrik-lib` (which **vendors**, a deliberate deviation); II **never assume `curl` / ImageMagick exist in the image** (PDF/browser work → Gotenberg / Browserless); III `os.getenv("KEY", "default")`, zero secrets in code, no `config/production.yml` env groups; IV `DATABASE_URL` / `REDIS_URL` are config — WSL-dev ↔ `postgres-main:5432` is an **env change, never a code change**; V the **git SHA is the release ID**, **never hot-patch a running container**; VI stateless, sessions → `redis-main`, **both** file-based **and sticky** sessions violate; VII Traefik routes, so compose declares **no host `ports:`**; VIII **never daemonize or write a PID file**; IX `fabrik-lib/job-queue` must **requeue on SIGTERM** and **every job must be idempotent**; X WSL dev and VPS both run **PostgreSQL + Redis** — **no SQLite locally**, no in-memory Redis stand-in; XI `structlog` → stdout, **never write or rotate a logfile**; XII Alembic migrations run against the **deployed release/env**, never from a laptop against prod.
-- **Concurrency** — every service handles multiple simultaneous requests; never single-threaded blocking.
-- **i18n** — every scaffold with a user/admin GUI surface supports en + tr from day one, validated by `validate_i18n.py` (under that project's `scripts/`); the trigger is the GUI SURFACE, not the scaffold type, and includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output. ⚠️ The scaffolder ships `validate_i18n.py` only to `saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus` (`I18N_ENABLED_TYPES` in `src/fabrik/scaffold.py`); a **`python-api` / `python-api-gpu` / `node-api` / `file-api` / `file-worker` / `chrome-extension`** epic that trips the trigger must carry an explicit step to **vendor the kit** (`templates/i18n-kit/` → `scripts/`).
-- **Responsive** — every web GUI surface (same trigger) is responsive from 375px to 2560px (RWD1–RWD10, `docs/reference/mobile-responsive-testing-guide.md`; carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI), desktop-app (window sizing)); a desktop-bound SaaS surface needs an OWNER DECISION recorded as `Responsive: desktop-first (owner-approved exception — <why>)` with a floor still stated (e.g. usable ≥1024px) — never a silent skip, and never for public marketing/landing surfaces, which stay fully responsive.
+- **12-Factor App — ALL TWELVE** ([12factor.net](https://12factor.net/)); **violations are blockers**; state per-factor compliance. The Fabrik violation to catch per factor: I one repo per project (multiple apps sharing the same code is a violation), shared code → `fabrik-lib` (which **vendors**, a deliberate deviation); II *Never relies on implicit existence of system-wide packages.* — **never assume `curl` / ImageMagick exist in the image** (shelling out to a system tool ⇒ vendor the tool; PDF/browser work → Gotenberg / Browserless); III `os.getenv("KEY", "default")`, zero secrets in code, no `config/production.yml` env groups; IV `DATABASE_URL` / `REDIS_URL` are config — WSL-dev ↔ `postgres-main:5432` is an **env change, never a code change**; V the **git SHA is the release ID** (impossible to change code at runtime), **never hot-patch a running container**; VI stateless, sessions → `redis-main`, sticky sessions are a violation of twelve-factor and should never be used or relied upon; **both** file-based **and sticky** sessions violate; VII Traefik routes, so compose declares **no host `ports:`**; VIII **never daemonize or write a PID file**; IX `fabrik-lib/job-queue` must **requeue on SIGTERM** and **every job must be idempotent**; X WSL dev and VPS both run **PostgreSQL + Redis** — **no SQLite locally**, no in-memory Redis stand-in; XI `structlog` → stdout; *Never concerns itself with routing or storage… should not attempt to write to or manage logfiles.* — **never write or rotate a logfile**; XII Alembic migrations run against the **deployed release/env**, never from a laptop against prod.
+- **Concurrency** — every service handles multiple simultaneous requests; Never single-threaded blocking.
+- **i18n** — every scaffold with a user/admin GUI surface supports multi-language from day one (en + tr minimum), validated by `validate_i18n.py` (under that project's `scripts/`; 3-level: structural, back-translation, native-speaker critique); adding a language = adding a locale file, zero code changes; the trigger is the GUI SURFACE, not the scaffold type, and includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output. ⚠️ The scaffolder ships `validate_i18n.py` only to `saas-skeleton`, `static-site`, `desktop-app`, `mobile-app`, `docusaurus` (`I18N_ENABLED_TYPES` in `src/fabrik/scaffold.py`); a **`python-api` / `python-api-gpu` / `node-api` / `file-api` / `file-worker` / `chrome-extension`** epic that trips the trigger must carry an explicit step to **vendor the kit** (`templates/i18n-kit/` → `scripts/`).
+- **Responsive** — every web GUI surface (same trigger) is responsive from 375px to 2560px (RWD1–RWD10) **by default** (`docs/reference/mobile-responsive-testing-guide.md`; carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI), desktop-app (window sizing)); a desktop-bound SaaS surface needs an OWNER DECISION recorded in the vision/decisions artifact as `Responsive: desktop-first (owner-approved exception — <why>)` with a floor still stated (e.g. usable ≥1024px) — never a silent skip, and never for public marketing/landing surfaces, which stay fully responsive.
 - **Dark + light mode** — both mandatory for every GUI surface: OS preference detected, manual toggle, persisted.
-- **Resilience** — every external call has timeout + retry with backoff + circuit-breaker + graceful fallback; `/health` tests ALL real deps (`.windsurf/rules/core/58-resilience.md`).
-- **Abuse detection** — every SaaS with a free tier gates registration (IP rate limit, disposable email block, progressive unlock; `.windsurf/rules/saas/87-abuse-detection.md`), and **email two-stream** — transactional and marketing on separate streams/subdomains (`.windsurf/rules/core/86-email-templates.md`).
+- **Resilience** — every external call has timeout + retry with backoff + circuit-breaker + graceful fallback; `/health` tests ALL real deps (`.windsurf/rules/core/58-resilience.md`); each project gets a `docs/RESILIENCE.md` template at scaffold time, filled when external deps are added.
+- **Abuse detection** — every SaaS with a free tier gates registration (IP rate limit, disposable email block, progressive unlock; `.windsurf/rules/saas/87-abuse-detection.md`), and **email two-stream** — transactional and marketing email MUST be on separate streams/subdomains (`.windsurf/rules/core/86-email-templates.md`).
+- **Observability** — every backend service exposes `/health` for Gatus and `/metrics` for Prometheus; static artifacts (static-site, docusaurus) have no app process exposing them — Gatus probes them externally for liveness instead.
 - **Shape contract** — every Fabrik-deployed service has a `specs/services/<id>.yaml` whose `shape:` block declares which registrars fire; code MUST match shape. Client-only artifacts (chrome-extension, mobile-app, desktop-app binaries) have no Fabrik spec — only their backends do.
-- **Fleet topology** — vps1 (LA, hub) + vps2/vps3 (Coventry UK, spokes) on WireGuard (`10.99.0.0/24`); shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is **hub-only**, reached from spokes via `10.99.0.1:<port>`. Every spec declares **`target_vps:`** (`vps1` | `vps2` | `vps3`; default `vps1`; `Spec.target_vps` in `src/fabrik/spec_loader.py`, regex `^vps[1-9][0-9]?$`), resolved `--target-vps` CLI flag > `.fabrik/state/<id>.json::target_vps` > spec field > `vps1`: hub for shared-infra-coupled services, spokes for tenant-isolated, EU-proximate or spillover workloads.
+- **Fleet topology** — the fleet is **3 permanent hosts**: vps1 (LA, hub) + vps2/vps3 (Coventry UK, spokes) on WireGuard (`10.99.0.0/24`); shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is **hub-only**, reached from spokes via `10.99.0.1:<port>`. Every spec declares **`target_vps:`** (`vps1` | `vps2` | `vps3`; default `vps1`; `Spec.target_vps` in `src/fabrik/spec_loader.py`, regex `^vps[1-9][0-9]?$`), resolved `--target-vps` CLI flag > `.fabrik/state/<id>.json::target_vps` > spec field > `vps1` (see `30-ops.md` § Multi-host targeting); hub vs spoke is a Vision-level choice — hub for shared-infra-coupled services, spokes for tenant-isolated, EU-proximate or spillover workloads. See `docs/infrastructure/vps-complete-inventory.md` for live state; live example: `specs/services/spoke-canary.yaml`.
 
 **Shape model (8 canonical flags).** ⚠️ **Reference only — the Vision Summary does NOT emit a `shape:` block.** `/fabrik-epics` proposes shape per epic; the Summary names services and their registrar needs inside Technology Decisions.
 
-| Flag | Fires |
-| --- | --- |
-| `is_public` | **Gatus** probe (⚠️ needs `spec.domain`; `infrastructure.py::resolve_applicability`) |
-| `is_admin_dashboard` | **Authelia** forward-auth (⚠️ needs `spec.domain`) |
-| `has_bearer_api` | **No registrar of its own**: inside Authelia (needs `is_admin_dashboard: true` **+** `spec.domain`) it installs the `^/api/` bypass; `shape.bearer_bypass_prefix` narrows it; without an admin dashboard it fires **nothing** (`saas-skeleton` ships `is_admin_dashboard: false` + `has_bearer_api: true`, so no bypass), and it never fires gzip |
-| `has_persistent_data` | Backrest backup plan |
-| `needs_database` | Postgres registrar creates DB + user on `postgres-main` |
-| `has_search_feature` | Meilisearch index |
-| `needs_cache` | Redis registrar allocates index, injects `REDIS_URL` |
-| `exposes_metrics` | **Prometheus** target (⚠️ needs `spec.domain`, or silently NO job) |
+| Flag | True when | Fires |
+| --- | --- | --- |
+| `is_public` | Anonymous traffic hits it (marketing site, landing, public API) | **Gatus** probe (⚠️ needs `spec.domain`; `infrastructure.py::resolve_applicability`) |
+| `is_admin_dashboard` | UI behind auth for owner/staff | **Authelia** forward-auth (⚠️ needs `spec.domain`) |
+| `has_bearer_api` | M2M/token-auth API endpoints | **No registrar of its own**: inside Authelia (needs `is_admin_dashboard: true` **+** `spec.domain`) it installs the `^/api/` bypass; `shape.bearer_bypass_prefix` narrows it; without an admin dashboard it fires **nothing** (`saas-skeleton` ships `is_admin_dashboard: false` + `has_bearer_api: true`, so no bypass), and it never fires gzip |
+| `has_persistent_data` | Writes durable state (DB rows, uploaded files, vector store) | Backrest backup plan |
+| `needs_database` | Reads/writes PostgreSQL | Postgres registrar creates DB + user on `postgres-main` |
+| `has_search_feature` | Full-text or semantic search | Meilisearch index |
+| `needs_cache` | Redis for sessions, queues, rate-limit, cache | Redis registrar allocates index, injects `REDIS_URL` |
+| `exposes_metrics` | App serves `/metrics` (Prometheus format) | **Prometheus** target (⚠️ needs `spec.domain`, or silently NO job) |
 
-Plus `kind:` (`service` / `worker` / `static`; legacy `WORDPRESS`) driving template selection and gates (`kind: service|worker|wordpress` gates GlitchTip; `static` skips it): file-worker → `worker`; static-site/docusaurus → `static`; every other scaffold type → `service`. **WordPress is not built here**: website needs — static company/marketing/blog sites, the Vendure-backed store — belong to `/opt/web-ecommerce-factory` and are out-of-scope for this vision.
+Plus `kind:` (`service` / `worker` / `static`; legacy `WORDPRESS`) driving template selection and gates (`kind: service|worker|wordpress` gates GlitchTip; `static` skips it): file-worker → `worker`; static-site/docusaurus → `static`; python-api / python-api-gpu / node-api / saas-skeleton / file-api / chrome-extension / mobile-app / desktop-app → `service`. **WordPress is not built here**: website needs — static company/marketing/blog sites, the Vendure-backed store — belong to `/opt/web-ecommerce-factory` and are out-of-scope for this vision.
 
 ## Phase 2 — Input Contract + discovery (rivals pre-step for market-facing visions)
 
 ### NEW mode — context orientation, then two entry paths
 
-**Context orientation (before either path).** Also read `agents-fabrik.md` § `Infrastructure Services — Running on VPS` · § `Development Environment` · § `Fabrik Microservices` · § `Scaffold Types`, then run **all 7 MANDATORY ORCHESTRATOR PRE-FLIGHT checks** (`agents-fabrik.md`: Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib) and **all 12 `agents-fabrik.md` § Planning Constraints** — 7 overlap Phase 3's 20 constraint checks; only **5** are absent from it (Prebuilt containers, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts).
+**Context orientation (before either path).** Also read `agents-fabrik.md` § `Infrastructure Services — Running on VPS` · § `Development Environment` · § `Fabrik Microservices` · § `Scaffold Types`, then run **all 7 MANDATORY ORCHESTRATOR PRE-FLIGHT checks** (`agents-fabrik.md`: Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib) and **all 12 `agents-fabrik.md` § Planning Constraints** — 7 of the 12 overlap Phase 3's checks (Solo-dev · x86_64 · Budget · Existing services · Port conflicts · SSH+Compose · No Alpine); only **5** are absent from it (Prebuilt containers, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts). **Apply both** — the 12 here at orientation time, Phase 3's 20 at vision-verification time.
 
-**Market-facing gate (both entry paths, and an EXISTING-mode delta that adds a market-facing capability).** A product with real external competitors/users checks `docs/reference/rivals/<market>.md`, written by `/fabrik-rivals` (`/opt/fabrik/commands/_sources/fabrik-rivals.md`), never by this command. **If the vision (or delta) is market-facing and no dossier exists: STOP HERE and name `/fabrik-rivals <market>` as the pre-step** — do not draft a market-facing vision blind to the competitive evidence. Internal tools and a Retrofit delta with no market-facing surface skip the gate. **An EXISTING-mode delta that ADDS a market-facing capability (billing, a public surface) to an otherwise-internal project trips this gate exactly like a NEW-mode vision** — the exemption is about the CAPABILITY being added, never about the mode.
+**Market-facing gate (both entry paths, and an EXISTING-mode delta that adds a market-facing capability).** A product with real external competitors/users checks `docs/reference/rivals/<market>.md` before anything else, whichever entry path or mode you're on, written by `/fabrik-rivals` (`/opt/fabrik/commands/_sources/fabrik-rivals.md`), never by this command. **If the vision (or delta) is market-facing and no dossier exists: STOP HERE and name `/fabrik-rivals <market>` as the pre-step** — do not draft a market-facing vision blind to the competitive evidence. Internal tools and a Retrofit delta with no market-facing surface skip the gate. **An EXISTING-mode delta that ADDS a market-facing capability (billing, a public surface) to an otherwise-internal project trips this gate exactly like a NEW-mode vision** — the exemption is about the CAPABILITY being added, never about the mode.
 - **If the dossier exists**, its **MATCH** rows seed the Full Feature Inventory as CANDIDATES — still subject to Phase 3's reality-challenges, never auto-included, **each citing the dossier row it came from**; its **BEAT** rows seed Value Streams, **each citing its dossier row**; its pricing wedge lands in Technology Decisions and its white-space findings in Out of Scope, each cited — never treated as market-sizing, which the dossier explicitly is not.
 
-**Path A — Research exists (cumulative; treat it as EXPERT INPUT):** read the path the user names, `docs/preplans/*.md`, `docs/development/plans/00-research.md` and scan `docs/development/plans/*.md` for `YYYY-MM-DD-*.md` files — read EVERY match; fall through to Path B only if all are empty. If files conflict, flag the conflict — do not silently resolve. The market-facing gate runs in parallel with discovery; halt the WHOLE run only if it applies and finds no dossier. A stale preplan must never suppress fresh research the owner just dropped in. Do not second-guess well-reasoned conclusions; do challenge conclusions that conflict with Fabrik's infrastructure or constraints.
+**Path A — Research exists (cumulative; treat it as EXPERT INPUT):** read the path the user names, `docs/preplans/*.md` and `docs/development/plans/00-research.md` (each read fully), and scan `docs/development/plans/*.md` for `YYYY-MM-DD-*.md` files — read EVERY match FULLY; fall through to Path B only if all are empty. If files conflict, flag the conflict — do not silently resolve. The market-facing gate runs in parallel with discovery; halt the WHOLE run only if it applies and finds no dossier. A stale preplan must never suppress fresh research the owner just dropped in. Do not second-guess well-reasoned conclusions; do challenge conclusions that conflict with Fabrik's infrastructure or constraints.
 
-**Path B — Just an idea (structured interview):** ask what the product is and what problem it solves; who uses it (name the user types); the main features (walk through what a user does); how it makes or saves money; the constraints already known. Synthesize the answers into the structure research would produce (vision, personas, features, constraints, tech choices), then continue to Phase 3 identically. If an area is complex, suggest pausing to research it and drop the results in `docs/development/plans/`.
+**Path B — Just an idea (structured interview):** guide the owner to think through features, personas, constraints; ask what the product is and what problem it solves; who uses it (name the user types); the main features (walk through what a user does); how it makes or saves money; the constraints already known. Synthesize the answers into the structure research would produce (vision, personas, features, constraints, tech choices), then continue to Phase 3 identically. If an area is complex, suggest pausing to research it and drop the results in `docs/development/plans/`.
 
 ### EXISTING mode — required inputs
 
@@ -97,9 +100,9 @@ The project folder path (e.g., `/opt/youtube`) and the owner's description of wh
 
 **Reads from the project itself:** `project.yaml` · `specs/services/*.yaml` · `compose.yaml` / `Dockerfile` · `.env.example` · `src/` · database schema · `docs/` (incl. `docs/development/PLANS.md` open rows + the `<!-- Merge owner: … -->` header, and `docs/STRATEGIC_BACKLOG.md` — both when present) · `.windsurf/rules/`.
 
-**⚠ Project files may be pre-rules, missing, or stale.** Treat them as *evidence*, not ground truth; every divergence becomes a Compliance Report row (Phase 3): a missing `project.yaml` → infer the scaffold type from `compose.yaml` + `src/`; a spec without `shape:`, or flags contradicting the code → trust the code, and the wrong shape is a gap → Retrofit epic; `compose.yaml` violating `core/30-ops.md` (Alpine, `ports:`, no `container_name`, no `deploy.resources.limits.memory`, `localhost` in env, wrong Traefik entrypoint) → a gap per violation; an out-of-sync `.env.example` → live VPS state is authoritative (`ssh root@<target_vps> "cat /opt/<name>/.env"`); schema drifted from migrations → the live DB (`docker exec postgres-main psql -d <db> -c '\d'`) is authoritative; absent `.windsurf/rules/` → propose `fabrik fix /opt/<project> --type <scaffold-type>`.
+**⚠ Project files may be pre-rules, missing, or stale.** Treat them as *evidence*, not ground truth; every divergence becomes a Compliance Report row (Phase 3): a missing `project.yaml` → infer the scaffold type from `compose.yaml` + `src/`; a spec without `shape:`, or flags contradicting the code → trust the code, and the wrong shape is a gap → Retrofit epic; `compose.yaml` violating `core/30-ops.md` (Alpine, `ports:`, no `container_name`, no `deploy.resources.limits.memory`, `localhost` in env, wrong Traefik entrypoint) → a gap per violation; a missing, out-of-sync or secret-exposing `.env.example` → live VPS state is authoritative (derive the SSH target from `specs/services/<id>.yaml::target_vps`, default `vps1`: `ssh root@<target_vps> "cat /opt/<name>/.env"`); `docs/` with pre-rules conventions, dead links, or files outside the current allowlist → a doc-hygiene gap; schema drifted from migrations → the live DB (`docker exec postgres-main psql -d <db> -c '\d'`) is authoritative; absent `.windsurf/rules/` → propose `fabrik fix /opt/<project> --type <scaffold-type>`.
 
-**Rule pack index** (consulted for rule-pack judgment; select via `python scripts/select_rules.py`, which is NOT exhaustive — open each pack the work touches): language `core/10-python.md`, `core/12-node.md`, `core/20-typescript.md` · `core/15-api-contracts.md` · `core/25-data-postgres.md` · `core/30-ops.md` (compose, Traefik, base images) · `core/35-security-auth.md` · `core/40-documentation.md` · `core/42-docusaurus.md` · `core/45-testing-strategy.md` (no-mock-DB rule) · `core/50-code-review.md` · `core/55-observability.md` · `core/58-resilience.md` · `core/60-watchdog.md` · `core/65-rag-search.md`, `core/66-rag-chunking.md` · `core/67-file-api.md` · `core/75-workers-jobs.md`, `core/76-gpu-workers.md` · `core/85-payments-billing.md` · `core/86-email-templates.md` · `core/90-bootstrap-scripts.md` (`bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh`) · `core/app-audit-log.md` · `core/cost-budget.md` · `core/self-healing.md` · `saas/60-saas-ui.md`, `saas/95-multi-tenant-saas.md`, `saas/87-abuse-detection.md`, `saas/88-saas-launch-checklist.md` · `chrome-ext/70-chrome-ext.md` · `desktop-app/72-desktop.md` · `mobile-app/80-mobile.md`, `81-mobile-billing.md`, `89-mobile-launch-checklist.md` · brand design systems `core/*-design-system.md`, `mobile-app/*-design-system.md`.
+**Rule pack index** (consulted for rule-pack judgment; select via `python scripts/select_rules.py`; this index is NOT exhaustive — see § B for the packs it omits): language `core/10-python.md`, `core/12-node.md`, `core/20-typescript.md` · `core/15-api-contracts.md` · `core/25-data-postgres.md` · `core/30-ops.md` (compose, Traefik, base images) · `core/35-security-auth.md` · `core/40-documentation.md` · `core/42-docusaurus.md` · `core/45-testing-strategy.md` (no-mock-DB rule) · `core/50-code-review.md` · `core/55-observability.md` · `core/58-resilience.md` · `core/60-watchdog.md` · `core/65-rag-search.md`, `core/66-rag-chunking.md` · `core/67-file-api.md` · `core/75-workers-jobs.md`, `core/76-gpu-workers.md` · `core/85-payments-billing.md` · `core/86-email-templates.md` · `core/90-bootstrap-scripts.md` (`bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh`) · `core/app-audit-log.md` · `core/cost-budget.md` · `core/self-healing.md` · `saas/60-saas-ui.md`, `saas/95-multi-tenant-saas.md`, `saas/87-abuse-detection.md`, `saas/88-saas-launch-checklist.md` · `chrome-ext/70-chrome-ext.md` · `desktop-app/72-desktop.md` · `mobile-app/80-mobile.md`, `81-mobile-billing.md`, `89-mobile-launch-checklist.md` · brand design systems `core/*-design-system.md`, `mobile-app/*-design-system.md`.
 
 ## Phase 3 — Analyze and ground (BLOCKING — the dual live-research gate)
 
@@ -109,13 +112,13 @@ Every checkpoint below (N-1, E-1, E-2) is governed by the question bar near the 
 
 ### NEW mode — N-analysis (execute in order; later steps consume earlier ones)
 
-**Extract** from the input: vision (what/for whom/why), personas, a numbered feature inventory (including Phase 2's MATCH candidates), constraints, tech choices, revenue/value model. **Identify gaps** → Open Questions (missing personas, revenue model, features, auth decision: `fabrik-lib/fastapi-user-auth` Pattern A / Authelia / custom?).
+**Extract** from the input: vision (what/for whom/why), all personas (named/implied), a numbered feature inventory of all features (including Phase 2's MATCH candidates), all constraints, all tech choices (made/implied), revenue/value model. **Identify gaps** → Open Questions (missing personas, revenue model, features, auth decision: `fabrik-lib/fastapi-user-auth` Pattern A / Authelia / custom?).
 
 **Challenge research against Fabrik reality and the owner's decision criteria** with these 6 checks:
 - **Expensive where free exists?** Is a VPS service already solving it (Apprise, Gotenberg, MeiliSearch, Backrest, n8n)?
 - **Complex where simple exists?** K8s/service mesh/custom auth → SSH+Docker Compose + Authelia; Fabrik uses `fabrik apply`, not Helm.
 - **Build where consume exists?** Check prebuilt containers, Fabrik microservices (site-provisioner is the only one live), VPS services, `/opt/fabrik-lib/` modules.
-- **Already OWNED? (mechanical, not judgment)** — read `scripts/service_catalog.json`; a `status=active` provider covering the capability is **preferred** (`cost=free|freemium` first), researching NEW providers only if nothing owned fits. ⚠️ An owned hit is a **LEAD for wiring, not a liveness guarantee** — any fact you STATE about it needs live grounding below. ⚠️ The catalog is metadata-only — never read `secrets/all-envs.env` at planning time.
+- **Already OWNED? (mechanical, not judgment)** — read `scripts/service_catalog.json`; a `status=active` provider covering the capability is **preferred** (`cost=free|freemium` first; `used_by` shows which projects already wired it), researching NEW providers only if nothing owned fits. ⚠️ An owned hit is a **LEAD for wiring, not a liveness guarantee** — any fact you STATE about it needs live grounding below. ⚠️ The catalog is metadata-only — never read `secrets/all-envs.env` at planning time.
 - **High-maintenance where set-and-forget exists?** Prefer auto-heal/auto-backup/auto-monitor via Prometheus/Gatus/Backrest.
 - **Incompatible with Fabrik infra, or duplicate functionality?** Port conflicts (`PORTS.md`), Alpine, `localhost` assumptions (use `postgres-main:5432`), x86_64, 12-Factor violations; overlap with `docs/BUSINESS_MODEL.md` § Portfolio or `agents-fabrik.md` § Microservices.
 
@@ -126,22 +129,22 @@ If the research direction is fundamentally wrong for Fabrik (e.g., AWS serverles
 **Context window check:** research files nearing context limits → flag the risk of dropped details and recommend splitting per domain. **API contract check:** a vision assuming endpoints outside a microservice's `docs/reference/service-contracts/[service].md` → Open Question. **Research sufficiency:** a critical area THIN (auth, data model, pricing) → recommend pause-and-research, results into `docs/development/plans/`, re-run. Do NOT proceed on a thin foundation.
 
 **Constraint verification** (20 checks — state each as `all clear` / `conflict (<details>)` / `unknown (<question>)`):
-1. **x86_64 VPS** — all containers amd64. 2. **Budget** — paid dependencies with monthly cost. 3. **Existing services** used. 4. **Duplicate check** against existing projects. 5. **Port conflicts** (`PORTS.md`). 6. **SSH+Docker Compose** — deployable via `fabrik apply`? 7. **No Alpine** — Debian `-slim` on the registry's `debian_codename` only (`30-ops.md`, `.windsurf/rules/versions.yaml`). 8. **12-Factor compliance.** 9. **Solo dev capacity** — achievable by one person + AI agents?
+1. **x86_64 VPS** — all containers amd64. 2. **Budget** — paid dependencies with estimated monthly cost. 3. **Existing services** used. 4. **Duplicate check** against existing projects. 5. **Port conflicts** (`PORTS.md`). 6. **SSH+Docker Compose** — every component deployable via `fabrik apply`? 7. **No Alpine** — Debian `-slim` on the registry's `debian_codename` only (`30-ops.md`, `.windsurf/rules/versions.yaml`). 8. **12-Factor compliance.** 9. **Solo dev capacity** — achievable by one person + AI agents?
 10. **Observability** — every **`kind: service` / `worker`** exposes `/health` (testing ALL real deps) and `/metrics`? ⚠️ Exposing `/metrics` **obliges** `shape.exposes_metrics: true` **+** a `spec.domain`, or `fabrik apply` silently skips the Prometheus registrar. **`kind: static`**: N/A (the compose healthcheck stays mandatory).
-11. **Vector DB ban** — Pinecone/Qdrant/Weaviate/Milvus = reject; pgvector on `postgres-main` only (`65-rag-search.md`). 12. **Email streams** — transactional + marketing separate.
+11. **Vector DB ban** — Pinecone/Qdrant/Weaviate/Milvus = reject; pgvector on `postgres-main` only (`65-rag-search.md`). 12. **Email streams** — if product sends email, transactional + marketing on separate streams/subdomains (MUST).
 13. **Compose invariants** — every service declares `container_name: <name>`, `deploy.resources.limits.memory`, `platform: linux/amd64`, no `ports:`, and joins the **`fabrik`** network; ⚠️ Self-enforce these in the project's own gate — do not rely on `fabrik apply` to catch a violation (read `src/fabrik/orchestrator/deployer_ssh.py` for the current enforcement surface, never quote a remembered one).
 14. **Billing routing** — TR domestic SaaS → **iyzico**; international → **Paddle Billing v2** (MoR); mobile digital goods → **RevenueCat + IAP**. **Stripe is NOT available to the TR-resident LLC.** PayTR is WooCommerce-only.
-15. **LLM gateway**, scoped by domain: **(a) RAG / search / embeddings pipeline** (`65-rag-search.md`, glob-activated on `**/rag/**`, `**/embeddings/**`, `**/search/**`, `**/vector/**`, `**/retrieval/**`) and **(b) Node/TS code** (`12-node.md`, glob `**/*.ts`/`**/*.js`): **OpenRouter** only — never import a vendor SDK, and no direct vendor APIs in the pipeline; **(c) every other AI category**: the cheapest gateway per model, direct-API valid when the model is on neither a live gateway nor OpenRouter (e.g. `qwen-mt-turbo` via DashScope) — ⚠️ **Kilo CLI is RETIRED** (2026-07-19, `docs/workstation/vscode-configuration.md:21`). Never wire a general-purpose vendor SDK (`openai`, `@anthropic-ai/sdk`) as the LLM path. No LLM call: N/A.
-16. **i18n en+tr from day 1** on every GUI surface. 17. **Target host** — every service declares `target_vps:` (absent → `vps1`).
+15. **LLM gateway**, scoped by domain: **(a) RAG / search / embeddings pipeline** (`65-rag-search.md`, glob-activated on `**/rag/**`, `**/embeddings/**`, `**/search/**`, `**/vector/**`, `**/retrieval/**`) and **(b) Node/TS code** (`12-node.md`, glob `**/*.ts`/`**/*.js`): **OpenRouter** only — never import a vendor SDK; (a) requires the OpenRouter API for embeddings and all pipeline LLM calls, with no direct vendor APIs in that pipeline; **(c) every other AI category**: the cheapest gateway per model, direct-API valid when the model is on neither a live gateway nor OpenRouter (e.g. `qwen-mt-turbo` via DashScope) — ⚠️ **Kilo CLI is RETIRED** (2026-07-19, `docs/workstation/vscode-configuration.md:21`). Never wire a general-purpose vendor SDK (`openai`, `@anthropic-ai/sdk`) as the LLM path. No LLM call: N/A.
+16. **i18n en+tr from day 1** on every GUI surface. Adding a language = locale file only, zero code changes (Phase 1's i18n mandate). 17. **Target host** — every service declares `target_vps:` (absent → `vps1`).
 18. **KVKK / GDPR data residency** — user PII or file blobs: PII on self-hosted `postgres-main`, blobs in `fabrik-lib/storage` (Backblaze B2); host the storing service on an EU-proximate spoke and/or a B2 EU-region bucket; file erasure events use the `file_erasure_audit` hash-chained table with 3-year retention; telemetry opt-in only.
-19. **Watchdog sidecar (when needed)** — any service calling paid LLM APIs in **any unattended loop, scheduled job, or user-triggered flow that can re-fire without human approval** declares the watchdog sidecar explicitly (`60-watchdog.md`) **AND a `cost-budget` cap**. ⚠️ The watchdog is **opt-OUT on the `fabrik apply` path** (the resolver gets the RAW spec dict, where `enabled` defaults to `true`), so EVERY spec without `watchdog: { enabled: false }` gets the sidecar with caps it never chose. ⚠️ **Never inherit or zero the caps by accident: declare them deliberately** — accept, raise, or opt out — reading the defaults from `WatchdogConfig` (`src/fabrik/spec_loader.py`) and the driver's raw-dict reads (`src/fabrik/drivers/watchdog.py`), what `audit-registrars` reports from `src/fabrik/audit.py`, and what each `destroy` path tears down from `src/fabrik/orchestrator/destroyer.py`. Triggers: agentic loop with self-retry, cron job calling an LLM, webhook re-invoking on retry; non-trigger: one LLM call per human button-press with no auto-retry or agentic recursion. State the chosen caps in the vision.
+19. **Watchdog sidecar (when needed)** — any service calling paid LLM APIs in **any unattended loop, scheduled job, or user-triggered flow that can re-fire without human approval** declares the watchdog sidecar explicitly (`60-watchdog.md`) **AND a `cost-budget` cap**. ⚠️ The watchdog is **opt-OUT on the `fabrik apply` path** (the resolver gets the RAW spec dict, where `enabled` defaults to `true`), so EVERY spec without `watchdog: { enabled: false }` gets the sidecar with caps it never chose. ⚠️ **Never inherit or zero the caps by accident: declare them deliberately** — accept, raise, or opt out — reading the defaults from `WatchdogConfig` (`src/fabrik/spec_loader.py`) and the driver's raw-dict reads (`src/fabrik/drivers/watchdog.py`), what `audit-registrars` reports from `src/fabrik/audit.py`, and what each `destroy` path tears down from `src/fabrik/orchestrator/destroyer.py`. Triggers: agentic loop with self-retry, cron job calling an LLM, webhook re-invoking on retry, user chat with reasoning steps; non-trigger: one LLM call per human button-press with no auto-retry or agentic recursion. State the chosen caps in the vision.
 20. **Node ESM / Python version floors** — Node greenfield `"type": "module"` + `engines.node ">=22.0.0"` (24 LTS preferred); Python `python:<current-stable>-slim-<debian_codename>` (codename from `.windsurf/rules/versions.yaml`).
 
-**Multi-scaffold check.** A vision spanning several scaffold types → list which features map to which scaffold (a strong multi-epic signal). **If scaffolds share no data, no auth, no deploy coupling** → candidates for **separate `fabrik scaffold` projects**, not epics; ask "These components seem independent. Separate projects or epics within one project?" A WordPress site routes to `/opt/web-ecommerce-factory`.
+**Multi-scaffold check.** A vision spanning several scaffold types → list which features map to which scaffold (a strong multi-epic signal). **If scaffolds share no data, no auth, no deploy coupling** → candidates for **separate `fabrik scaffold` projects**, not epics; ask "These components seem independent. Separate projects or epics within one project?" A WordPress site routes to `/opt/web-ecommerce-factory`; retain only the non-website scaffolds here.
 
 **DUAL LIVE-RESEARCH GATE — external facts + approach (⛔ BLOCKING).** Do NOT draft the Vision Summary (Phase 4) until all three sub-steps below pass — the first two are ⛔ BLOCKING; the third (the fabrik-lib ladder) must be completed but does not block on an external unknown.
 
-**1 — External facts (BLOCKING).** ⚡ **Dispatch the grounders in PARALLEL** — one native `fabrik-researcher` seat per external dependency, then add **≥1 native `fabrik-researcher` on Opus** as the authoritative citation-verify pass;<!-- POOL OFF (D-181): via `fanout("research", units, repo="/opt/<project>", project="mega-trigger", mode="read_only", web_tools=["web_search","web_search_brave","web_scrape","docs_lookup"], mcp_servers=["exa","brave-search","firecrawl","context7"], mcp_config="/opt/fabrik/mcp.json")`; back-fill each pool run with `set_quality(r.agent_id, score, project="mega-trigger", task_type="research", model=r.model)` --> you keep the synthesis — the grounders return facts, you decide the vision. For **every** external dependency — API / SDK, vendor, **pricing, rate limits**, library/framework version, protocol/standard — ground it to **CURRENT truth**, never from training memory:
+**1 — External facts (BLOCKING).** ⚡ **Dispatch the grounders in PARALLEL** — one native `fabrik-researcher` seat per external dependency, then add **≥1 native `fabrik-researcher` on Opus** as the authoritative citation-verify pass;<!-- POOL OFF (D-181): via `fanout("research", units, repo="/opt/<project>", project="mega-trigger", mode="read_only", web_tools=["web_search","web_search_brave","web_scrape","docs_lookup"], mcp_servers=["exa","brave-search","firecrawl","context7"], mcp_config="/opt/fabrik/mcp.json")`; back-fill each pool run with `set_quality(r.agent_id, score, project="mega-trigger", task_type="research", model=r.model)` where `score` is your 0-to-5 verdict on that grounder (0 = the citation didn't hold; 5 = it confirmed the fact) --> you keep the synthesis — the grounders return facts, you decide the vision. For **every** external dependency — API / SDK, vendor, **pricing, rate limits**, library/framework version, protocol/standard — ground it to **CURRENT truth**, never from training memory:
 - Order: **owned-first** (`scripts/service_catalog.json`; a hit is a LEAD) → **repo-first** (`grep docs/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → **own-history** (session-recall; a hit is a LEAD, not a citation — pricing/limits/endpoints go stale, so re-ground live) → then **LIVE**: `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` / `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (scrape with `proxy: "basic"`) → `mcp__context7` (library docs) → `mcp__github` (a dependency's source / latest release).
 - Capture the **real** endpoint / auth model / limits / **pricing**, and **cite the source URL + the date you fetched it** in the External Services section.
 - **Freshness:** the fetch must happen in THIS run. An external claim with no fresh cited source is a **defect**.
@@ -182,10 +185,25 @@ Ask: "Do these features capture your full vision? Anything missing or wrong?" + 
 
 ```markdown
 ## Project Snapshot: [Project Name]
-### Deployed State — Scaffold type · Port · Shape (registrar flags) · Status (deployed via fabrik apply / local dev only / partially deployed)
-### Locked Technology Decisions (cannot change) — Auth (Pattern A / B / custom) · Database (postgres-main / Supabase legacy / both — tables) · Frontend · Target host (`specs/services/<id>.yaml::target_vps`) · Billing · Background processing · Search · Other locked choices (anything with production data or live users)
-### Existing Features (working — do not re-plan) — numbered, each with status shipped / partially built / scaffolded
-### Existing Infrastructure — VPS services · External services · Monitoring (Gatus / GlitchTip / Prometheus)
+
+### Deployed State
+- Scaffold type: [X]  ·  Port: [Y]  ·  Shape: [registrar flags]
+- Status: [deployed on VPS via fabrik apply / local dev only / partially deployed]
+
+### Locked Technology Decisions (cannot change)
+- **Auth:** [what's implemented — Pattern A / Pattern B / custom]
+- **Database:** [postgres-main / Supabase (legacy — plan migration) / both — what tables exist]
+- **Frontend:** [Next.js + React + Tailwind / Jinja + Bootstrap / etc.]
+- **Target host:** [`vps1` (hub) / `vps2` / `vps3` — read `specs/services/<id>.yaml::target_vps`]
+- **Billing:** [Paddle / iyzico / RevenueCat / none — if wired, it's locked]
+- **Background processing:** [Celery / PG job queue / none]  ·  **Search:** [MeiliSearch / pgvector / none]
+- **Other locked choices:** [any framework/library/pattern with production data or live users]
+
+### Existing Features (working — do not re-plan)
+1. [Feature] — [status: shipped / partially built / scaffolded]
+
+### Existing Infrastructure
+- [VPS services used] · [External services] · [Monitoring: Gatus / GlitchTip / Prometheus]
 ```
 
 #### Checkpoint E-1: "Is this snapshot accurate? Anything missing or wrong?"
@@ -234,7 +252,7 @@ Wait for owner decisions. **STOP GENERATION HERE.** These decisions shape which 
 
 ## Phase 4 — Draft, present, and confirm the Vision Summary
 
-Assemble the Vision Summary from Phases 1–3 + the owner's checkpoint answers (illustrative examples: `docs/archive/2026-06-18-traycer-mega-epic-vision-summary-examples.md`).
+Assemble the Vision Summary from Phases 1–3 + the owner's checkpoint answers (historical filled-in examples — read-once illustrative anchors, never pasted verbatim: `docs/archive/2026-06-18-traycer-mega-epic-vision-summary-examples.md`).
 
 ### NEW mode — exact structure (target ≤5,000 tokens, hard cap 8,000)
 
@@ -248,30 +266,65 @@ Assemble the Vision Summary from Phases 1–3 + the owner's checkpoint answers (
 - **[Name]** — [who they are, what they need]
 
 ## Value Streams
-[How this product generates value. A surviving BEAT problem-to-solve from the rivals dossier is here too, citing the dossier row — a BEAT candidate with no citation is not grounded.]
+[How this product generates value — revenue, cost savings, productivity. Any BEAT problem-to-solve from
+the rivals dossier (Phase 2) that survived Phase 3's reality-challenges is here too, citing the dossier
+row it came from — a BEAT candidate with no citation is not grounded.]
 - [Stream 1]
 
 ## Full Feature Inventory
-[Every feature, numbered — the COMPLETE scope, nothing silently dropped. A surviving MATCH candidate is here too, citing the dossier row — a MATCH candidate with no citation is not grounded.]
+[Every feature the vision describes, numbered. This is the COMPLETE scope. Nothing silently dropped.
+Any MATCH candidate from the rivals dossier (Phase 2) that survived Phase 3's reality-challenges is here
+too, citing the dossier row it came from — a MATCH candidate with no citation is not grounded.]
 1. [Feature name] — [one-line description] (small/medium/large) [— dossier: <row>, if a MATCH candidate]
 
 ## Backing Services (from VPS)
-[Existing VPS services this vision will use — grounded in the actual VPS inventory]
+[Which existing VPS services this vision will use — grounded in agents-fabrik.md]
 - postgres-main:5432 — [what for]
 - redis-main:6379 — [what for]
 
 ## External Services
-[Third-party dependencies outside the VPS, each live-grounded per Phase 3 — a memory-based claim is a defect. No entry ships without a cited source + fetch date.]
+[Third-party dependencies outside the VPS. Each MUST be live-grounded per Phase 3 — a memory-based
+claim is a defect. No entry ships without a cited source + fetch date.]
 - [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] · **source:** [URL] (fetched YYYY-MM-DD)
 
 ## Technology Decisions
-[Every major choice RESOLVED, not deferred — /fabrik-epics does NOT re-decide them. Fill ONLY relevant bullets. A dossier pricing-wedge finding behind a positioning-adjacent choice cites the wedge row.]
-- **Auth:** [`fabrik-lib/fastapi-user-auth` Pattern A (user-facing, DEFAULT) + Authelia (admin) / Authelia only / custom — which and why; Supabase Auth is legacy/migration-only per `agents-fabrik.md § Supabase`] · **Database:** [postgres-main (DEFAULT) / Supabase (legacy — plan migration)] · **Search:** [MeiliSearch / pgvector / none]
-- **Billing:** [Paddle (international MoR) / iyzico (Turkish domestic) / RevenueCat + IAP (mobile digital goods) / none — pricing model; Stripe is NOT available to a TR entity] · **File storage:** [`fabrik-lib/storage` (Backblaze B2, DEFAULT) / none]
-- **Email (transactional):** [Resend (default) / Postmark for critical auth mail] · **Email (marketing):** [Resend Broadcasts / Listmonk + SES / none — MUST be a separate stream] · **Notifications (internal/ops):** [Apprise / direct API / none]
-- **RAG pipeline:** [none / search-only / search + classification / full intelligence — the corpus and user needs; `.windsurf/rules/core/65-rag-search.md § Epic Decomposition`] · **Background processing:** [file-worker needed? what runs async] · **Consumed microservices:** [site-provisioner for DNS / none]
-- **Watchdog sidecar + cost-budget:** [**accept-defaults** (state the values accepted, read from `WatchdogConfig`) / **raise** (state `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out** (`watchdog: {enabled: false}` — no paid AI APIs) — ⚠️ `cost-budget.md:28` makes the **cost CAP** mandatory for any project running the watchdog or calling paid AI APIs, and the sidecar is **on by default** on the `fabrik apply` path, so the live question is the cap]
-- **Domain structure** · **Scaffold types:** [valid: python-api, python-api-gpu, node-api, saas-skeleton, file-api, file-worker, docusaurus, chrome-extension, mobile-app, desktop-app, static-site. **wordpress is NOT a valid type here.**] · **Target host (per service, `target_vps:`):** [`vps1` (hub, default) / `vps2` or `vps3`] · **Documentation site:** [SaaS: vendor `/opt/fabrik-lib/docs-site/`; else N/A]
+[Every major technology choice RESOLVED — not deferred. /fabrik-epics reads these and does NOT
+re-decide them. Fill ONLY bullets relevant to this vision — omit N/A bullets entirely. Any pricing-wedge
+finding from the rivals dossier (Phase 2) that shapes a positioning-adjacent choice below cites the
+dossier's wedge row.]
+- **Auth:** [`fabrik-lib/fastapi-user-auth` Pattern A (user-facing, DEFAULT — the app issues its own JWTs)
+  + Authelia (admin) / Authelia only / custom — state which and why. Supabase Auth is legacy/migration-only
+  per `agents-fabrik.md § Supabase` — pick it only for a project already on it.]
+- **Database:** [postgres-main (DEFAULT) / Supabase (legacy — plan migration) — state which holds what]
+- **Search:** [MeiliSearch / pgvector / none]
+- **Billing:** [Paddle (international MoR) / iyzico (Turkish domestic) / RevenueCat + IAP (mobile digital
+  goods — Paddle does NOT apply in-app) / none — state pricing model. Stripe is NOT available to a TR entity.]
+- **File storage:** [`fabrik-lib/storage` (Backblaze B2 backend, DEFAULT) / none — state what's stored.
+  Supabase Storage is legacy/migration-only.]
+- **Notifications (internal/ops):** [Apprise (already deployed) / direct API / none]
+- **Email (transactional):** [Resend (default, 3k/mo free) / escalate to Postmark for critical auth mail —
+  state what triggers emails]
+- **Email (marketing):** [Resend Broadcasts (start) / Listmonk + SES (at scale) / none — MUST be a
+  separate stream from transactional]
+- **RAG pipeline:** [none / search-only (embeddings + retriever) / search + classification / full
+  intelligence (+ generator + summarizer) — state what corpus is being searched and what users need from
+  it. See `.windsurf/rules/core/65-rag-search.md § Epic Decomposition` for the component guide.]
+- **Background processing:** [file-worker needed? state what runs async: transcription, PDF gen, AI
+  inference, batch imports, scheduled jobs / none]
+- **Consumed microservices:** [site-provisioner for DNS / none — image-broker is retired/not deployed]
+- **Watchdog sidecar + cost-budget:** [**accept-defaults** (state the values you are accepting — read them
+  from `WatchdogConfig`) / **raise** (state the per-project `daily_budget_usd` + `daily_invocations_cap`
+  per `cost-budget.md`) / **opt-out** (`watchdog: {enabled: false}` — no paid AI APIs / no cost-sensitive
+  ops) — ⚠️ `cost-budget.md:28` makes the **cost CAP** mandatory for any project that runs the watchdog (or
+  calls paid AI APIs); it does **not** mandate the watchdog itself — and on the `fabrik apply` path the
+  sidecar is **on by default** regardless, so the live question is the cap, not the sidecar. Without a cap
+  a feedback loop (the sidecar diagnosing the sidecar) could empty the budget overnight]
+- **Domain structure:** [subdomains needed, e.g., api.X, app.X, admin.X]
+- **Scaffold types:** [list all scaffold types this vision needs. Valid: python-api, python-api-gpu,
+  node-api, saas-skeleton, file-api, file-worker, docusaurus, chrome-extension, mobile-app, desktop-app,
+  static-site. **wordpress is NOT a valid type here.**]
+- **Target host (per service, `target_vps:`):** [`vps1` (hub, default) / `vps2` or `vps3` (spoke)]
+- **Documentation site:** [SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/`. Non-SaaS: N/A]
 
 ## fabrik-lib Verdict
 [One row per capability. "Didn't check fabrik-lib" is a defect.]
@@ -283,15 +336,18 @@ Assemble the Vision Summary from Phases 1–3 + the owner's checkpoint answers (
 | [the novel core] | build | nothing fits because [why] | 🆕 fabrik-lib candidate: `name · purpose · why ≥2 types · interface` |
 
 ## Rejected Alternatives
-[Considered and NOT picked, and why — without this, /fabrik-epics re-litigates the decision.]
+[What was considered and NOT picked, and why. Without this, /fabrik-epics re-litigates the same decision.]
 - [Option] — rejected: [violates hard constraint X / higher TCO / more maintenance / duplicates project Y]
 
 ## Constraints
-[The 20 checks, each all clear / conflict / unknown.]
+[20-constraint verification. Each states its status: all clear / conflict / unknown.]
 - x86_64: all clear
+- Budget: [status]
 
 ## Out of Scope (Vision Level)
-[What is explicitly NOT being built, even if adjacent — "Everything else" is not acceptable. A dossier white-space finding deliberately NOT chased belongs here, citing the white-space row — never silently omitted.]
+[What is explicitly NOT being built — even if adjacent. "Everything else" is not acceptable. A white-space
+finding from the rivals dossier (Phase 2) that this vision deliberately does NOT chase belongs here,
+citing the dossier's white-space row — never silently omitted.]
 - [Exclusion 1]
 
 ## Open Questions
@@ -304,20 +360,116 @@ Assemble the Vision Summary from Phases 1–3 + the owner's checkpoint answers (
 - Reasoning: [why this classification]
 ```
 
-### EXISTING mode — a superset (target ≤6,000 tokens, hard cap 10,000)
+### EXISTING mode — a superset (target ≤6,000 tokens, hard cap 10,000 — extras add length)
 
-Identical **required sections**, so `/fabrik-epics` consumes both modes identically; the H1 is `# Vision Summary: [Project Name] — [New Capability]` (title stays `Vision Summary`, not "Continuation Summary"). Differences from NEW:
-- **Product Vision** — what the project IS (1-2 sentences) + what we're ADDING (2-3 sentences); **Personas** — existing ones touching the feature + NEW ones. **Full Feature Inventory** — ONLY the NEW features (do NOT list existing features), then fix-now retrofits as `R1. [Retrofit: add i18n] — [description] (medium)`; **Backing / External Services** — only what the NEW features use, each external one live-grounded with a cited source + date.
-- **Technology Decisions** — ONLY NEW components, in two blocks: **Inherited (locked — do NOT re-decide):** Auth · Database · Frontend · Billing (if exists); **New decisions (per current ruleset):** one line per component plus `Deploy target: VPS via fabrik apply / SSH + Docker Compose`. Watchdog sidecar + cost-budget: state ONE of **accept-defaults** (a delta inherits them silently; state the values read from `WatchdogConfig`) / **raise** / **opt-out** — "enable? yes/no" cannot express the accept-vs-raise distinction constraint **#19** requires.
-- **Locked Decisions** (EXISTING-only) — what CANNOT change and why; `/fabrik-epics` MUST inherit them verbatim. New services get their own shape blocks; existing ones are not modified. Lines: `Auth: [X] — locked because [users exist / tokens issued / migration too risky]` · `Database: [X] — locked because [data exists]` · `Frontend: [X] — locked because [deployed, users using it]` · `Shape block (current): [existing registrars]`.
-- **Compliance Report** (EXISTING-only) — the compliance detection after owner decisions; `/fabrik-epics` emits one Retrofit epic per Fix-now row alongside the delta-feature epics:
+Identical **required sections**, so `/fabrik-epics` consumes both modes identically. The H1 differs
+(`# Vision Summary: [Project Name] — [New Capability]`), and there are two EXISTING-only sections
+`/fabrik-epics` additionally consumes (`Locked Decisions` → inherited verbatim; `Compliance Report` → one
+Retrofit epic per `fix-now` row). Artifact title is `Vision Summary` — not "Continuation Summary".
+
+```markdown
+# Vision Summary: [Project Name] — [New Capability]
+
+## Product Vision
+[What this project IS (1-2 sentences from snapshot) + what we're ADDING (2-3 sentences).]
+
+## Personas
+[Existing personas that interact with the new feature + any NEW personas]
+
+## Value Streams
+[How the new capability generates value. If the delta is market-facing and the rivals gate ran, any BEAT
+problem-to-solve that survived Phase 3 is here too, citing the dossier row.]
+
+## Full Feature Inventory
+[ONLY the NEW features being added. Do NOT list existing features. Numbered, complexity-classified. If the
+delta is market-facing and the rivals gate ran, any MATCH candidate that survived Phase 3 is here too,
+citing the dossier row it came from.]
+1. [New feature] — [description] (small/medium/large)
+
+[Fix-now retrofits (from Compliance Report):]
+R1. [Retrofit: add i18n] — [description] (medium)
+
+## Backing Services (from VPS)
+[Which existing VPS services the NEW features will use]
+
+## External Services
+[Any NEW third-party dependencies. Each MUST be live-grounded — no entry without a cited source + date.]
+- [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] · **source:** [URL] (fetched YYYY-MM-DD)
+
+## Technology Decisions
+[ONLY decisions for NEW components.]
+
+**Inherited (locked — do NOT re-decide):**
+- Auth: [inherited] · Database: [inherited] · Frontend: [inherited] · Billing: [inherited, if exists]
+
+**New decisions (per current ruleset):**
+- [New component]: [decision per rule pack]
+- RAG pipeline: [none / search-only (embeddings + retriever) / search + classification / full
+  intelligence (+ generator + summarizer) — see `.windsurf/rules/core/65-rag-search.md § Epic
+  Decomposition` for the component guide]
+- Email (transactional/marketing): [as NEW mode]
+- Background processing: [file-worker needed?]
+- Scaffold types: [any NEW scaffold types]
+- Watchdog sidecar + cost-budget: [**accept-defaults** (state the values you are accepting — read them
+  from `WatchdogConfig`; a delta inherits them silently) / **raise** (state the per-project
+  `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out**
+  (`watchdog: {enabled: false}`)] — ⚠️ state one of the three; "enable? yes/no" cannot express the
+  accept-vs-raise distinction constraint **#19** requires.
+- Target host (per new service): [`vps1` / `vps2` / `vps3`]
+- Deploy target: VPS via fabrik apply / SSH + Docker Compose (confirmed — same as existing services)
+- Domain structure: [any NEW subdomains]
+
+## Locked Decisions (Existing-mode extra section)
+[Explicit list of what CANNOT change and why. /fabrik-epics MUST inherit these. New services get their
+own shape blocks; existing ones are not modified.]
+- Auth: [X] — locked because [users exist / tokens issued / migration too risky]
+- Database: [X] — locked because [data exists]
+- Frontend: [X] — locked because [deployed, users using it]
+- Shape block (current): [existing registrars — what `fabrik apply` already activates]
+
+## Compliance Report (Existing-mode extra section)
+[From the compliance detection step, after owner decisions. /fabrik-epics emits one Retrofit epic per
+Fix-now item, alongside the delta-feature epics.]
 
 | Gap | Source | Owner decision | Epic action |
 |---|---|---|---|
 | i18n missing | The Phase 1 i18n mandate; the pack carrying the code-time rules for this scaffold — `saas/60-saas-ui.md` § i18n · `mobile-app/80-mobile.md` (the validator gate) · `chrome-ext/70-chrome-ext.md` § i18n · `core/42-docusaurus.md` § Internationalization. There is **no** `core/i18n` pack | Fix-now | Retrofit epic |
+| No responsive design | `saas/60-saas-ui.md` | Fix-later | Deferred (no epic now) |
+| No abuse detection | `saas/87-abuse-detection.md` | Fix-now | Retrofit epic |
 | psycopg2 used | `core/25-data-postgres.md` | Accept-as-legacy | No action |
+| Shape drift: prometheus | `fabrik audit-registrars` | Fix-now | Retrofit epic |
 
-- **fabrik-lib Verdict** — one row per NEW capability; resolve modules from `/opt/fabrik-lib/README.md`, never from a hard-coded name. **Rejected Alternatives** — Locked Decisions are NOT alternatives. **Constraints** — the 20 checks scoped to the delta. **Out of Scope** — what we are NOT changing in the existing codebase, specifically. **Scale Assessment** — `New feature count: [N] ([X] small, [Y] medium, [Z] large)` · `Retrofit count: [N] (from Compliance Report fix-now items)` · `Epic-count signal` · `Reasoning`.
+## fabrik-lib Verdict
+[One row per NEW capability the delta needs. "Didn't check fabrik-lib" is a defect. Resolve modules from
+the index (`/opt/fabrik-lib/README.md`), never from a hard-coded name.]
+
+| Capability | Verdict | Module + one-line why | Upstream note |
+|---|---|---|---|
+| [new capability] | vendor / vendor+enhance / build | [module — why] | [`UPSTREAM_FEEDBACK.md` if core-enhanced] |
+
+## Rejected Alternatives
+[What was considered and NOT picked. Locked Decisions are NOT alternatives — they are inherited.]
+- [Option] — rejected: [violates hard constraint X / higher TCO / more maintenance / duplicates project Y]
+
+## Constraints
+[Same format as NEW-mode — 20 checks, scoped to the delta]
+- x86_64: all clear
+
+## Out of Scope (Vision Level)
+[What we are NOT changing in the existing codebase — be specific. If the delta is market-facing and the
+rivals gate ran, a white-space finding this delta deliberately does NOT chase belongs here, citing the
+dossier's white-space row.]
+- Existing [X] feature — not being modified
+
+## Open Questions
+[Unresolved items]
+
+## Scale Assessment
+- New feature count: [N] ([X] small, [Y] medium, [Z] large)
+- Retrofit count: [N] (from Compliance Report fix-now items)
+- Epic-count signal: [single epic / ~N epics — informational]
+- Reasoning: [why this classification]
+```
 
 ### Present and iterate (both modes)
 
@@ -337,15 +489,15 @@ Present the COMPLETE Vision Summary — the only user-facing output of this phas
 $EDITOR docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md
 ```
 
-DISK is the source of truth. **Next: `/fabrik-epics`** — from the persisted file OR the conversation, it **CUTS** the confirmed decomposition into typed epic files (one epic even in the single-epic case; the count is never forced to more than the vision needs); `/fabrik-epics-review` then proves the cut set's integrity and assigns owners. Optionally converge the Summary first with `/fabrik-workflow-review <persisted vision path> vision-summary` (rubric: `docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md`) — never mandatory. Then, per epic window, `/fabrik-spec docs/development/epics/<its epic>.md` runs the corpus chain (`/fabrik-spec-review` → `/fabrik-plan-after-chat` → `/fabrik-plan-review` → `/fabrik-execute-plan`) — agent 1 in the main checkout, agents 2..N each in their own worktree.
+DISK is the source of truth. **Next: `/fabrik-epics`** — from the persisted file OR the conversation, it **CUTS** the confirmed decomposition into typed epic files (one epic even in the single-epic case; the count is never forced to more than the vision needs); `/fabrik-epics-review` then proves the cut set's integrity and assigns owners before any epic starts its own corpus chain. Optionally converge the Summary first with `/fabrik-workflow-review <persisted vision path> vision-summary` (rubric: `docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md`) — never mandatory. Then, per epic window, `/fabrik-spec docs/development/epics/<its epic>.md` runs the corpus chain (`/fabrik-spec-review` → `/fabrik-plan-after-chat` → `/fabrik-plan-review` → `/fabrik-execute-plan`) — agent 1 in the main checkout, agents 2..N each in their own worktree.
 
 **Token budget.** NEW: ≤5,000 target / ≤8,000 hard cap. EXISTING: ≤6,000 target / ≤10,000 hard cap.
 
 **Required sections** (both modes): the NEW-mode template's sections; **EXISTING adds:** `Locked Decisions` + `Compliance Report`.
 
-**Acceptance — both modes:** mode declared at Phase 0, never auto-detected; ALL features (EXISTING: retrofits + new features) in the Inventory — no silent drops; Technology Decisions complete, no "TBD"; **the external-facts gate (BLOCKING) satisfied**, **the approach gate (BLOCKING) satisfied**, **the fabrik-lib ladder satisfied** (every `build` justified and `🆕 fabrik-lib candidate`-checked); **the rivals gate honored** — a market-facing vision (or EXISTING delta adding a market-facing capability) has either a dossier consumed with cited MATCH/BEAT/wedge/white-space rows, or the run stopped and named `/fabrik-rivals <market>` (a run that silently skipped the gate does NOT pass); all 20 constraints verified, no silent unknowns; Rejected Alternatives recorded with reasons; Scale Assessment present with classification; the Summary within its token budget; Open Questions captures ALL unresolved items, zero at confirmation; **grounding dispatched across parallel native seats** — one `fabrik-researcher` per independent fact, ≥1 on Opus; **the pre-confirmation self-audit ran** and was stated at the top of the presentation; **no Guardrails prohibition tripped**; the owner explicitly confirms.
+**Acceptance — both modes:** mode declared at Phase 0, never auto-detected, with the input consumed per declared mode and path; personas named explicitly (not just "users") and value streams stated; Backing Services grounded in the actual VPS inventory; External Services identified with cost tier; ALL features (EXISTING: retrofits + new features) in the Inventory — no silent drops; Technology Decisions complete, no "TBD"; **the external-facts gate (BLOCKING) satisfied**, **the approach gate (BLOCKING) satisfied**, **the fabrik-lib ladder satisfied** (every `build` justified and `🆕 fabrik-lib candidate`-checked); **the rivals gate honored** — a market-facing vision (or EXISTING delta adding a market-facing capability) has either a dossier consumed with cited MATCH/BEAT/wedge/white-space rows, or the run stopped and named `/fabrik-rivals <market>` (a run that silently skipped the gate does NOT pass); all 20 constraints verified, no silent unknowns; Rejected Alternatives recorded with reasons; Scale Assessment present with classification; the Summary within its token budget; Open Questions captures ALL unresolved items, zero at confirmation; **grounding dispatched across parallel native seats** — one `fabrik-researcher` per independent fact, ≥1 on Opus; **the pre-confirmation self-audit ran** and was stated at the top of the presentation; **no Guardrails prohibition tripped**; the owner explicitly confirms.
 
-**Acceptance — NEW adds:** conflicts between research files flagged in Open Questions, not silently resolved; multi-scaffold visions identified and website components routed to `/opt/web-ecommerce-factory`; one analysis checkpoint before the draft, one confirmation after. **EXISTING adds:** state read from actual files; Project Snapshot confirmed (E-1); Compliance Detection run in all three sub-steps (A mechanical, B rule-pack, C owner decision at E-2); Locked Decisions with explicit reasons; lifecycle gaps detected and pre-flight completed; the capability scoped as a delta, not re-planning existing features; relevant domain rule packs loaded; integration points identified.
+**Acceptance — NEW adds:** conflicts between research files flagged in Open Questions, not silently resolved; multi-scaffold visions identified and website components routed to `/opt/web-ecommerce-factory`; one analysis checkpoint before the draft, one confirmation after. **EXISTING adds:** state read from actual files; Project Snapshot confirmed (E-1); Compliance Report maps each gap to owner decision + epic action; Compliance Detection run in all three sub-steps (A mechanical, B rule-pack, C owner decision at E-2); Locked Decisions with explicit reasons; lifecycle gaps detected and pre-flight completed; the capability scoped as a delta, not re-planning existing features; relevant domain rule packs loaded; integration points identified.
 
 **Does NOT.** Split the vision into epics, decide scaffold types or shape blocks per epic, or produce per-epic infrastructure decisions — all `/fabrik-epics`. Create files or tickets — orientation only. Blindly accept research. Plan refactoring of existing code. **EXISTING-specific:** does NOT re-derive the vision (reads it from the project), re-decide locked tech choices (inherits them), or auto-fix compliance gaps (the owner decides per gap; auto-fix happens later as Retrofit epics).
 

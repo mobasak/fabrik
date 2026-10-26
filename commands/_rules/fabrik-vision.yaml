@@ -510,7 +510,7 @@ entries:
     file: render
     section: "# Vision Summary — multi-epic project intake (NEW) or continuation (EXISTING)"
     baseline: "> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)"
-    current: "> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF (D-181, D-182), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction here is SUSPENDED"
+    current: "> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF (D-181, D-182), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction here is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)"
     text:
       - "> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF"
   # class: prose
@@ -606,7 +606,7 @@ entries:
     file: render
     section: "## Phase 0 — Reads budget, orientation, and mode declaration"
     baseline: "NEW mode Path A discovers it CUMULATIVELY across `docs/preplans/*.md` · `docs/development/plans/00-research.md` · `docs/development/plans/YYYY-MM-DD-*.md` (read every match FULLY — Phase 2 states the precedence order when they CONFLICT); Path B interviews instead"
-    current: "NEW mode Path A discovers it CUMULATIVELY across `docs/preplans/*.md` · `docs/development/plans/00-research.md` · `docs/development/plans/YYYY-MM-DD-*.md`; Path B interviews"
+    current: "NEW mode Path A discovers it CUMULATIVELY across `docs/preplans/*.md` · `docs/development/plans/00-research.md` · `docs/development/plans/YYYY-MM-DD-*.md` (read every match FULLY); Path B interviews"
     text:
       - "NEW mode Path A discovers it CUMULATIVELY across `docs/preplans/*.md` · `docs/development/plans/00-research.md` ·"
   # class: prose
@@ -622,7 +622,7 @@ entries:
     file: render
     section: "## Phase 0 — Reads budget, orientation, and mode declaration"
     baseline: "`docs/infrastructure/vps-complete-inventory.md` — the canonical fleet inventory when the `agents-fabrik.md` summary is ambiguous on host placement"
-    current: "`docs/operations/fabrik-lifecycle.md` · `docs/reference/technology-stack-decision-guide.md` (binding on every tech choice) · `docs/reference/prebuilt-app-containers.md` · `docs/BUSINESS_MODEL.md` § Project Portfolio · `PORTS.md` · `scripts/service_catalog.json` (owned external services; secret-free) · `docs/infrastructure/vps-complete-inventory.md` when `agents-fabrik.md` is ambiguous on host placement · `docs/reference/service-contracts/[service].md`"
+    current: "`docs/operations/fabrik-lifecycle.md` · `docs/reference/technology-stack-decision-guide.md` (binding on every tech choice) · `docs/reference/prebuilt-app-containers.md` · `docs/BUSINESS_MODEL.md` § Project Portfolio · `PORTS.md` · `scripts/service_catalog.json` (owned external services; secret-free) · `docs/infrastructure/vps-complete-inventory.md` (the canonical fleet inventory — live state; read it when `agents-fabrik.md` is ambiguous on host placement) · `docs/reference/service-contracts/[service].md`"
     text:
       - "`docs/operations/fabrik-lifecycle.md` · `docs/reference/technology-stack-decision-guide.md` (binding on every tech choice) · `docs/reference/prebuilt-app-containers.md` · `docs/BUSINESS_MODEL.md` § Project Portfolio · `PORTS.md`"
   # class: prose
@@ -694,7 +694,7 @@ entries:
     file: render
     section: "## Phase 5 — Persist, hand off, and route to `/fabrik-epics`"
     baseline: "Next: `/fabrik-epics`. After the owner confirms and the Vision Summary persists, `/fabrik-epics` is the stated successor — from the persisted file OR the conversation, it CUTS the confirmed decomposition into typed epic files (one epic even in the single-epic case; the count is never forced to more than the vision needs)"
-    current: "Next: `/fabrik-epics` — from the persisted file OR the conversation, it CUTS the confirmed decomposition into typed epic files (one epic even in the single-epic case; the count is never forced to more than the vision needs); `/fabrik-epics-review` then proves the cut set's integrity and assigns owners"
+    current: "Next: `/fabrik-epics` — from the persisted file OR the conversation, it CUTS the confirmed decomposition into typed epic files (one epic even in the single-epic case; the count is never forced to more than the vision needs); `/fabrik-epics-review` then proves the cut set's integrity and assigns owners before any epic starts its own corpus chain"
     text:
       - "— from the persisted file OR the conversation, it CUTS the confirmed decomposition into typed epic files (one epic even in the single-epic case; the count is never forced to more than the vision"
       - "never forced to more than the vision needs)"
@@ -719,10 +719,10 @@ entries:
     file: render
     section: "## Phase 0 — Reads budget, orientation, and mode declaration"
     baseline: "Total cost of ownership — dev time is the most expensive resource"
-    current: "Owner's decision criteria (every tech choice; Phase 3's challenge step): (1) Quality first — production-grade, never sacrificed to save money; (2) Total cost of ownership — dev time is the most expensive resource, so a $10/month managed service that saves 2 weeks is a win; (3) Speed to ship — prefer the standard pipeline (WSL → push → `fabrik apply`, `fabrik redeploy` for code-only updates), since custom CI/CD or off-pipeline infra is slower and riskier; (4) Easy to maintain — start with what exists on the VPS and escalate when proven necessary; (5) Set and forget — prefer self-hosted `postgres-main` / `redis-main`, or managed Paddle, Cloudflare, Resend where a managed edge genuinely wins"
+    current: "Never sacrifice quality to save money; (2) Total cost of ownership — dev time is the most expensive resource, so a $10/month managed service that saves 2 weeks of dev is a win (don't build for days what you can buy for dollars); (3) Speed to ship — prefer the standard pipeline (WSL → push → `fabrik apply`, `fabrik redeploy` for code-only updates), since custom CI/CD or off-pipeline infra is slower and riskier; (4) Easy to maintain — when two solutions both work, prefer the one needing less ongoing attention; start with what exists on the VPS and escalate when proven necessary; (5) Set and forget — prefer self-hosted `postgres-main` / `redis-main`, or managed Paddle, Cloudflare, Resend where a managed edge genuinely wins"
     text:
       - "Total cost of ownership — dev time is the most expensive"
-      - "never sacrificed to save money"
+      - "Never sacrifice quality to save money"
   # class: prose
   - id: r-L64
     file: render
@@ -744,16 +744,15 @@ entries:
     file: render
     section: "## Phase 0 — Reads budget, orientation, and mode declaration"
     baseline: "All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths"
-    current: "All paths are Linux (WSL Ubuntu 24.04) — never Windows-style"
+    current: "All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths"
     text:
-      - "All paths are Linux (WSL Ubuntu 24.04) — never"
-      - "never Windows-style"
+      - "All paths are Linux (WSL Ubuntu 24.04) — never generate Windows-style paths"
   # class: prose
   - id: r-L69
     file: render
     section: "## Phase 0 — Reads budget, orientation, and mode declaration"
     baseline: "Proper Registration (VPS) — `fabrik apply` fires 10 registrars"
-    current: "Fabrik lifecycle. Four stages: Intent & Scaffolding (WSL) → Agentic Implementation (WSL) → Proper Registration (VPS: `fabrik apply` fires 10 registrars, only 7 flag-driven — the shape table below; grafana fires *always*, glitchtip on `shape.kind`, `watchdog` from the spec's `watchdog:` block and is ON by default, opt-OUT with `watchdog: { enabled: false }`) → Verification (`fabrik verify`, `fabrik audit-registrars`, alerting)"
+    current: "Four stages: Intent & Scaffolding (WSL: preplan — operator-manual research dropped into `docs/preplans/*.md`, which `fabrik preplan` merely files/ingests — → `fabrik scaffold` → AI guardrails + spec `shape:` block) → Agentic Implementation (WSL; OpenRouter-pool workers are OFF, D-181, per `core/62-using-subagents.md`) → Proper Registration (VPS: `fabrik apply` fires 10 registrars, only 7 flag-driven — the shape table below; grafana fires *always*, glitchtip on `shape.kind`, `watchdog` from the spec's `watchdog:` block and is ON by default, opt-OUT with `watchdog: { enabled: false }`) → Verification (`fabrik verify`, `fabrik audit-registrars`, alerting)"
     text:
       - "from the spec's `watchdog:` block and is ON by"
   # class: prose
@@ -790,23 +789,23 @@ entries:
   - id: r-L94
     file: render
     baseline: "| XII | Admin processes | One-off tasks run against the same release + config; admin code ships with the app. | Alembic migrations live in the repo and run against the deployed release/env — never from a laptop against prod. |"
-    current: "The Fabrik violation to catch per factor: I one repo per project, shared code → `fabrik-lib` (which vendors, a deliberate deviation); II never assume `curl` / ImageMagick exist in the image (PDF/browser work → Gotenberg / Browserless); III `os.getenv(\"KEY\", \"default\")`, zero secrets in code, no `config/production.yml` env groups; IV `DATABASE_URL` / `REDIS_URL` are config — WSL-dev ↔ `postgres-main:5432` is an env change, never a code change; V the git SHA is the release ID, never hot-patch a running container; VI stateless, sessions → `redis-main`, both file-based and sticky sessions violate; VII Traefik routes, so compose declares no host `ports:`; VIII never daemonize or write a PID file; IX `fabrik-lib/job-queue` must requeue on SIGTERM and every job must be idempotent; X WSL dev and VPS both run PostgreSQL + Redis — no SQLite locally, no in-memory Redis stand-in; XI `structlog` → stdout, never write or rotate a logfile; XII Alembic migrations run against the deployed release/env, never from a laptop against prod"
+    current: "The Fabrik violation to catch per factor: I one repo per project (multiple apps sharing the same code is a violation), shared code → `fabrik-lib` (which vendors, a deliberate deviation); II *Never relies on implicit existence of system-wide packages.* — never assume `curl` / ImageMagick exist in the image (shelling out to a system tool ⇒ vendor the tool; PDF/browser work → Gotenberg / Browserless); III `os.getenv(\"KEY\", \"default\")`, zero secrets in code, no `config/production.yml` env groups; IV `DATABASE_URL` / `REDIS_URL` are config — WSL-dev ↔ `postgres-main:5432` is an env change, never a code change; V the git SHA is the release ID (impossible to change code at runtime), never hot-patch a running container; VI stateless, sessions → `redis-main`, sticky sessions are a violation of twelve-factor and should never be used or relied upon; both file-based and sticky sessions violate; VII Traefik routes, so compose declares no host `ports:`; VIII never daemonize or write a PID file; IX `fabrik-lib/job-queue` must requeue on SIGTERM and every job must be idempotent; X WSL dev and VPS both run PostgreSQL + Redis — no SQLite locally, no in-memory Redis stand-in; XI `structlog` → stdout; *Never concerns itself with routing or storage… should not attempt to write to or manage logfiles.* — never write or rotate a logfile; XII Alembic migrations run against the deployed release/env, never from a laptop against prod"
     text:
       - "`fabrik-lib/job-queue` must requeue on SIGTERM and every job must be"
-      - "never assume `curl` / ImageMagick exist in the image (PDF/browser work → Gotenberg / Browserless)"
+      - "never assume `curl` / ImageMagick exist in the image (shelling out to a system tool ⇒ vendor the tool; PDF/browser work → Gotenberg / Browserless)"
   # class: ban
   - id: r-L106
     file: render
     baseline: "Concurrency — every service handles multiple simultaneous requests"
-    current: "Concurrency — every service handles multiple simultaneous requests; never single-threaded blocking"
+    current: "Concurrency — every service handles multiple simultaneous requests; Never single-threaded blocking"
     text:
       - "Concurrency — every service handles multiple simultaneous"
-      - "never single-threaded blocking"
+      - "Never single-threaded blocking"
   # class: prose
   - id: r-L108
     file: render
     baseline: "i18n — every scaffold with a user/admin GUI surface (the rule-area applicability matrix in Phase 3 is mode-agnostic and binding here too — feature-trigger, NOT scaffold-type-gated; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) supports multi-language from day one (en + tr minimum)"
-    current: "i18n — every scaffold with a user/admin GUI surface supports en + tr from day one, validated by `validate_i18n.py` (under that project's `scripts/`); the trigger is the GUI SURFACE, not the scaffold type, and includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output"
+    current: "i18n — every scaffold with a user/admin GUI surface supports multi-language from day one (en + tr minimum), validated by `validate_i18n.py` (under that project's `scripts/`; 3-level: structural, back-translation, native-speaker critique); adding a language = adding a locale file, zero code changes; the trigger is the GUI SURFACE, not the scaffold type, and includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output"
     text:
       - "includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML"
   # class: prose
@@ -820,7 +819,7 @@ entries:
   - id: r-L113
     file: render
     baseline: "Carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI, not web breakpoints), desktop-app (electron window sizing)"
-    current: "Responsive — every web GUI surface (same trigger) is responsive from 375px to 2560px (RWD1–RWD10, `docs/reference/mobile-responsive-testing-guide.md`; carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI), desktop-app (window sizing)); a desktop-bound SaaS surface needs an OWNER DECISION recorded as `Responsive: desktop-first (owner-approved exception — <why>)` with a floor still stated (e.g. usable ≥1024px) — never a silent skip, and never for public marketing/landing surfaces, which stay fully responsive"
+    current: "Responsive — every web GUI surface (same trigger) is responsive from 375px to 2560px (RWD1–RWD10) by default (`docs/reference/mobile-responsive-testing-guide.md`; carve-outs: chrome-extension (400px fixed popup/sidepanel), mobile-app (native UI), desktop-app (window sizing)); a desktop-bound SaaS surface needs an OWNER DECISION recorded in the vision/decisions artifact as `Responsive: desktop-first (owner-approved exception — <why>)` with a floor still stated (e.g. usable ≥1024px) — never a silent skip, and never for public marketing/landing surfaces, which stay fully responsive"
     text:
       - "as `Responsive: desktop-first (owner-approved exception — <why>)` with a floor still stated (e.g. usable ≥1024px) — never a silent skip, and never for public marketing/landing surfaces, which stay fully responsive"
   # class: prose
@@ -834,14 +833,14 @@ entries:
   - id: r-L119
     file: render
     baseline: "Resilience — every external call has timeout + retry with backoff + circuit-breaker + graceful fallback"
-    current: "Resilience — every external call has timeout + retry with backoff + circuit-breaker + graceful fallback; `/health` tests ALL real deps (`.windsurf/rules/core/58-resilience.md`)"
+    current: "Resilience — every external call has timeout + retry with backoff + circuit-breaker + graceful fallback; `/health` tests ALL real deps (`.windsurf/rules/core/58-resilience.md`); each project gets a `docs/RESILIENCE.md` template at scaffold time, filled when external deps are added"
     text:
       - "Resilience — every external call has timeout + retry with backoff + circuit-breaker + graceful"
   # class: prose
   - id: r-L123
     file: render
     baseline: "Abuse detection — every SaaS with a free tier must implement registration gating (IP rate limit, disposable email block, progressive unlock)"
-    current: "Abuse detection — every SaaS with a free tier gates registration (IP rate limit, disposable email block, progressive unlock; `.windsurf/rules/saas/87-abuse-detection.md`), and email two-stream — transactional and marketing on separate streams/subdomains (`.windsurf/rules/core/86-email-templates.md`)"
+    current: "Abuse detection — every SaaS with a free tier gates registration (IP rate limit, disposable email block, progressive unlock; `.windsurf/rules/saas/87-abuse-detection.md`), and email two-stream — transactional and marketing email MUST be on separate streams/subdomains (`.windsurf/rules/core/86-email-templates.md`)"
     text:
       - "Abuse detection — every SaaS with a free tier"
   # class: prose
@@ -871,14 +870,14 @@ entries:
   - id: r-L131
     file: render
     baseline: "Shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is hub-only; spoke services reach them via the mesh IP `10.99.0.1:<port>`"
-    current: "Fleet topology — vps1 (LA, hub) + vps2/vps3 (Coventry UK, spokes) on WireGuard (`10.99.0.0/24`); shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is hub-only, reached from spokes via `10.99.0.1:<port>`"
+    current: "Fleet topology — the fleet is 3 permanent hosts: vps1 (LA, hub) + vps2/vps3 (Coventry UK, spokes) on WireGuard (`10.99.0.0/24`); shared infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is hub-only, reached from spokes via `10.99.0.1:<port>`"
     text:
       - "infra (postgres-main, redis-main, glitchtip-web, authelia, loki, meilisearch) is"
   # class: prose
   - id: r-L133
     file: render
     baseline: "Every spec declares `target_vps:` (`vps1` | `vps2` | `vps3`; default = `vps1`) per the `Spec.target_vps` field in `src/fabrik/spec_loader.py` (regex `^vps[1-9][0-9]?$`)"
-    current: "Every spec declares `target_vps:` (`vps1` | `vps2` | `vps3`; default `vps1`; `Spec.target_vps` in `src/fabrik/spec_loader.py`, regex `^vps[1-9][0-9]?$`), resolved `--target-vps` CLI flag > `.fabrik/state/<id>.json::target_vps` > spec field > `vps1`: hub for shared-infra-coupled services, spokes for tenant-isolated, EU-proximate or spillover workloads"
+    current: "Every spec declares `target_vps:` (`vps1` | `vps2` | `vps3`; default `vps1`; `Spec.target_vps` in `src/fabrik/spec_loader.py`, regex `^vps[1-9][0-9]?$`), resolved `--target-vps` CLI flag > `.fabrik/state/<id>.json::target_vps` > spec field > `vps1` (see `30-ops.md` § Multi-host targeting); hub vs spoke is a Vision-level choice — hub for shared-infra-coupled services, spokes for tenant-isolated, EU-proximate or spillover workloads"
     text:
       - "Every spec declares `target_vps:` (`vps1` | `vps2` | `vps3`; default"
   # class: prose
@@ -892,63 +891,63 @@ entries:
   - id: r-L142
     file: render
     baseline: "| `is_public` | Anonymous traffic hits it (marketing site, landing, public API) | Gatus uptime probe (⚠️ requires `spec.domain` too) — `infrastructure.py::resolve_applicability` |"
-    current: "| `is_public` | Gatus probe (⚠️ needs `spec.domain`; `infrastructure.py::resolve_applicability`) |"
+    current: "| `is_public` | Anonymous traffic hits it (marketing site, landing, public API) | Gatus probe (⚠️ needs `spec.domain`; `infrastructure.py::resolve_applicability`) |"
     text:
-      - "| `is_public` | Gatus probe (⚠️ needs `spec.domain`; `infrastructure.py::resolve_applicability`) |"
+      - "| `is_public` | Anonymous traffic hits it (marketing site, landing, public API) | **Gatus** probe (⚠️ needs `spec.domain`; `infrastructure.py::resolve_applicability`) |"
   # class: grammar
   - id: r-L143
     file: render
     baseline: "| `is_admin_dashboard` | UI behind auth for owner/staff | Authelia forward-auth middleware (⚠️ requires `spec.domain` too) |"
-    current: "| `is_admin_dashboard` | Authelia forward-auth (⚠️ needs `spec.domain`) |"
+    current: "| `is_admin_dashboard` | UI behind auth for owner/staff | Authelia forward-auth (⚠️ needs `spec.domain`) |"
     text:
-      - "| `is_admin_dashboard` | Authelia forward-auth (⚠️ needs `spec.domain`) |"
+      - "| `is_admin_dashboard` | UI behind auth for owner/staff | **Authelia** forward-auth (⚠️ needs `spec.domain`) |"
   # class: grammar
   - id: r-L144
     file: render
     baseline: "| `has_bearer_api` | M2M/token-auth API endpoints | No registrar of its own. Takes effect *inside* the Authelia registrar (requires `is_admin_dashboard: true` + `spec.domain`), installing the `^/api/` bypass so M2M callers skip 2FA (narrow it with `shape.bearer_bypass_prefix`). ⚠️ On a spec WITHOUT an admin dashboard it fires nothing: `saas-skeleton` ships `is_admin_dashboard: false` + `has_bearer_api: true`, so no bypass is installed (and nothing 302s — there is no Authelia rule at all). It does NOT fire gzip; gzip is a scaffold-emitted Traefik label, not a registrar. |"
-    current: "| `has_bearer_api` | No registrar of its own: inside Authelia (needs `is_admin_dashboard: true` + `spec.domain`) it installs the `^/api/` bypass; `shape.bearer_bypass_prefix` narrows it; without an admin dashboard it fires nothing (`saas-skeleton` ships `is_admin_dashboard: false` + `has_bearer_api: true`, so no bypass), and it never fires gzip |"
+    current: "| `has_bearer_api` | M2M/token-auth API endpoints | No registrar of its own: inside Authelia (needs `is_admin_dashboard: true` + `spec.domain`) it installs the `^/api/` bypass; `shape.bearer_bypass_prefix` narrows it; without an admin dashboard it fires nothing (`saas-skeleton` ships `is_admin_dashboard: false` + `has_bearer_api: true`, so no bypass), and it never fires gzip |"
     text:
-      - "ships `is_admin_dashboard: false` + `has_bearer_api: true`, so no"
+      - "| `has_bearer_api` | M2M/token-auth API endpoints | **No registrar of its own**: inside Authelia (needs `is_admin_dashboard: true` **+** `spec.domain`) it installs the `^/api/` bypass; `shape.bearer_bypass_prefix` narrows it; without an admin dashboard it fires **nothing** (`saas-skeleton` ships `is_admin_dashboard: false` + `has_bearer_api: true`, so no bypass), and it never fires gzip |"
   # class: grammar
   - id: r-L145
     file: render
     baseline: "| `has_persistent_data` | Writes durable state (DB rows, uploaded files, vector store) | Backrest backup plan |"
-    current: "| `has_persistent_data` | Backrest backup plan |"
+    current: "| `has_persistent_data` | Writes durable state (DB rows, uploaded files, vector store) | Backrest backup plan |"
     text:
-      - "| `has_persistent_data` | Backrest backup plan |"
+      - "| `has_persistent_data` | Writes durable state (DB rows, uploaded files, vector store) | Backrest backup plan |"
   # class: grammar
   - id: r-L146
     file: render
     baseline: "| `needs_database` | Reads/writes PostgreSQL | Postgres registrar creates DB + user on `postgres-main` |"
-    current: "| `needs_database` | Postgres registrar creates DB + user on `postgres-main` |"
+    current: "| `needs_database` | Reads/writes PostgreSQL | Postgres registrar creates DB + user on `postgres-main` |"
     text:
-      - "| Postgres registrar creates DB + user on `postgres-main` |"
+      - "| `needs_database` | Reads/writes PostgreSQL | Postgres registrar creates DB + user on `postgres-main` |"
   # class: grammar
   - id: r-L147
     file: render
     baseline: "| `has_search_feature` | Full-text or semantic search | Meilisearch index |"
-    current: "| `has_search_feature` | Meilisearch index |"
+    current: "| `has_search_feature` | Full-text or semantic search | Meilisearch index |"
     text:
-      - "| `has_search_feature` | Meilisearch index |"
+      - "| `has_search_feature` | Full-text or semantic search | Meilisearch index |"
   # class: grammar
   - id: r-L148
     file: render
     baseline: "| `needs_cache` | Redis for sessions, queues, rate-limit, cache | Redis registrar allocates index, injects `REDIS_URL` |"
-    current: "| `needs_cache` | Redis registrar allocates index, injects `REDIS_URL` |"
+    current: "| `needs_cache` | Redis for sessions, queues, rate-limit, cache | Redis registrar allocates index, injects `REDIS_URL` |"
     text:
-      - "| Redis registrar allocates index, injects `REDIS_URL` |"
+      - "| `needs_cache` | Redis for sessions, queues, rate-limit, cache | Redis registrar allocates index, injects `REDIS_URL` |"
   # class: grammar
   - id: r-L149
     file: render
     baseline: "| `exposes_metrics` | App serves `/metrics` (Prometheus format) | Prometheus scrape target (⚠️ requires `spec.domain` too — a domainless worker with this flag gets NO Prometheus job, silently) |"
-    current: "| `exposes_metrics` | Prometheus target (⚠️ needs `spec.domain`, or silently NO job) |"
+    current: "| `exposes_metrics` | App serves `/metrics` (Prometheus format) | Prometheus target (⚠️ needs `spec.domain`, or silently NO job) |"
     text:
-      - "| `exposes_metrics` | Prometheus target (⚠️ needs `spec.domain`, or silently NO job) |"
+      - "| `exposes_metrics` | App serves `/metrics` (Prometheus format) | **Prometheus** target (⚠️ needs `spec.domain`, or silently NO job) |"
   # class: prose
   - id: r-L150
     file: render
     baseline: "Plus `kind:` (`service` / `worker` / `static`; a legacy 4th member, `WORDPRESS`, is kept for the legacy deploy path) — drives template selection and applicability gates (e.g., `kind: service|worker|wordpress` gates GlitchTip; `static` skips it)"
-    current: "Plus `kind:` (`service` / `worker` / `static`; legacy `WORDPRESS`) driving template selection and gates (`kind: service|worker|wordpress` gates GlitchTip; `static` skips it): file-worker → `worker`; static-site/docusaurus → `static`; every other scaffold type → `service`"
+    current: "Plus `kind:` (`service` / `worker` / `static`; legacy `WORDPRESS`) driving template selection and gates (`kind: service|worker|wordpress` gates GlitchTip; `static` skips it): file-worker → `worker`; static-site/docusaurus → `static`; python-api / python-api-gpu / node-api / saas-skeleton / file-api / chrome-extension / mobile-app / desktop-app → `service`"
     text:
       - "Plus `kind:` (`service` / `worker` / `static`;"
   # class: prose
@@ -963,7 +962,7 @@ entries:
     file: render
     section: "### NEW mode — context orientation, then two entry paths"
     baseline: "All 7 MANDATORY ORCHESTRATOR PRE-FLIGHT checks (`agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT): Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib"
-    current: "Context orientation (before either path). Also read `agents-fabrik.md` § `Infrastructure Services — Running on VPS` · § `Development Environment` · § `Fabrik Microservices` · § `Scaffold Types`, then run all 7 MANDATORY ORCHESTRATOR PRE-FLIGHT checks (`agents-fabrik.md`: Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib) and all 12 `agents-fabrik.md` § Planning Constraints — 7 overlap Phase 3's 20 constraint checks; only 5 are absent from it (Prebuilt containers, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts)"
+    current: "Context orientation (before either path). Also read `agents-fabrik.md` § `Infrastructure Services — Running on VPS` · § `Development Environment` · § `Fabrik Microservices` · § `Scaffold Types`, then run all 7 MANDATORY ORCHESTRATOR PRE-FLIGHT checks (`agents-fabrik.md`: Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib) and all 12 `agents-fabrik.md` § Planning Constraints — 7 of the 12 overlap Phase 3's checks (Solo-dev · x86_64 · Budget · Existing services · Port conflicts · SSH+Compose · No Alpine); only 5 are absent from it (Prebuilt containers, Module dependencies, DNS via site-provisioner, Scaffold immutability, State conflicts)"
     text:
       - "Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge,"
   # class: ban
@@ -971,7 +970,7 @@ entries:
     file: render
     section: "### NEW mode — context orientation, then two entry paths"
     baseline: "That file is written by `/fabrik-rivals` (`/opt/fabrik/commands/_sources/fabrik-rivals.md`), never by this command"
-    current: "Market-facing gate (both entry paths, and an EXISTING-mode delta that adds a market-facing capability). A product with real external competitors/users checks `docs/reference/rivals/<market>.md`, written by `/fabrik-rivals` (`/opt/fabrik/commands/_sources/fabrik-rivals.md`), never by this command"
+    current: "Market-facing gate (both entry paths, and an EXISTING-mode delta that adds a market-facing capability). A product with real external competitors/users checks `docs/reference/rivals/<market>.md` before anything else, whichever entry path or mode you're on, written by `/fabrik-rivals` (`/opt/fabrik/commands/_sources/fabrik-rivals.md`), never by this command"
     text:
       - "written by `/fabrik-rivals` (`/opt/fabrik/commands/_sources/fabrik-rivals.md`), never by this command"
   # class: ban
@@ -1013,7 +1012,7 @@ entries:
     file: render
     section: "### NEW mode — context orientation, then two entry paths"
     baseline: "User names a path → read it"
-    current: "Path A — Research exists (cumulative; treat it as EXPERT INPUT): read the path the user names, `docs/preplans/*.md`, `docs/development/plans/00-research.md` and scan `docs/development/plans/*.md` for `YYYY-MM-DD-*.md` files — read EVERY match; fall through to Path B only if all are empty"
+    current: "Path A — Research exists (cumulative; treat it as EXPERT INPUT): read the path the user names, `docs/preplans/*.md` and `docs/development/plans/00-research.md` (each read fully), and scan `docs/development/plans/*.md` for `YYYY-MM-DD-*.md` files — read EVERY match FULLY; fall through to Path B only if all are empty"
     text:
       - "Path A — Research exists (cumulative; treat it as EXPERT INPUT): read the path"
   # class: ban
@@ -1055,7 +1054,7 @@ entries:
     file: render
     section: "### NEW mode — context orientation, then two entry paths"
     baseline: "Path B — Just an idea (no files — conduct a structured interview):"
-    current: "Path B — Just an idea (structured interview): ask what the product is and what problem it solves; who uses it (name the user types); the main features (walk through what a user does); how it makes or saves money; the constraints already known"
+    current: "Path B — Just an idea (structured interview): guide the owner to think through features, personas, constraints; ask what the product is and what problem it solves; who uses it (name the user types); the main features (walk through what a user does); how it makes or saves money; the constraints already known"
     text:
       - "Path B — Just an idea"
   # class: prose
@@ -1103,7 +1102,7 @@ entries:
     file: render
     section: "### EXISTING mode — required inputs"
     baseline: "Database schema may have drifted from migrations → treat the live DB (`docker exec postgres-main psql -d <db> -c '\\d'`) as authoritative"
-    current: "⚠ Project files may be pre-rules, missing, or stale. Treat them as *evidence*, not ground truth; every divergence becomes a Compliance Report row (Phase 3): a missing `project.yaml` → infer the scaffold type from `compose.yaml` + `src/`; a spec without `shape:`, or flags contradicting the code → trust the code, and the wrong shape is a gap → Retrofit epic; `compose.yaml` violating `core/30-ops.md` (Alpine, `ports:`, no `container_name`, no `deploy.resources.limits.memory`, `localhost` in env, wrong Traefik entrypoint) → a gap per violation; an out-of-sync `.env.example` → live VPS state is authoritative (`ssh root@<target_vps> \"cat /opt/<name>/.env\"`); schema drifted from migrations → the live DB (`docker exec postgres-main psql -d <db> -c '\\d'`) is authoritative; absent `.windsurf/rules/` → propose `fabrik fix /opt/<project> --type <scaffold-type>`"
+    current: "⚠ Project files may be pre-rules, missing, or stale. Treat them as *evidence*, not ground truth; every divergence becomes a Compliance Report row (Phase 3): a missing `project.yaml` → infer the scaffold type from `compose.yaml` + `src/`; a spec without `shape:`, or flags contradicting the code → trust the code, and the wrong shape is a gap → Retrofit epic; `compose.yaml` violating `core/30-ops.md` (Alpine, `ports:`, no `container_name`, no `deploy.resources.limits.memory`, `localhost` in env, wrong Traefik entrypoint) → a gap per violation; a missing, out-of-sync or secret-exposing `.env.example` → live VPS state is authoritative (derive the SSH target from `specs/services/<id>.yaml::target_vps`, default `vps1`: `ssh root@<target_vps> \"cat /opt/<name>/.env\"`); `docs/` with pre-rules conventions, dead links, or files outside the current allowlist → a doc-hygiene gap; schema drifted from migrations → the live DB (`docker exec postgres-main psql -d <db> -c '\\d'`) is authoritative; absent `.windsurf/rules/` → propose `fabrik fix /opt/<project> --type <scaffold-type>`"
     text:
       - "the live DB (`docker exec postgres-main psql -d <db> -c '\\d'`)"
   # class: prose
@@ -1119,7 +1118,7 @@ entries:
     file: render
     section: "### EXISTING mode — required inputs"
     baseline: "Rule pack index (consulted for rule-pack judgment):"
-    current: "Rule pack index (consulted for rule-pack judgment; select via `python scripts/select_rules.py`, which is NOT exhaustive — open each pack the work touches): language `core/10-python.md`, `core/12-node.md`, `core/20-typescript.md` · `core/15-api-contracts.md` · `core/25-data-postgres.md` · `core/30-ops.md` (compose, Traefik, base images) · `core/35-security-auth.md` · `core/40-documentation.md` · `core/42-docusaurus.md` · `core/45-testing-strategy.md` (no-mock-DB rule) · `core/50-code-review.md` · `core/55-observability.md` · `core/58-resilience.md` · `core/60-watchdog.md` · `core/65-rag-search.md`, `core/66-rag-chunking.md` · `core/67-file-api.md` · `core/75-workers-jobs.md`, `core/76-gpu-workers.md` · `core/85-payments-billing.md` · `core/86-email-templates.md` · `core/90-bootstrap-scripts.md` (`bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh`) · `core/app-audit-log.md` · `core/cost-budget.md` · `core/self-healing.md` · `saas/60-saas-ui.md`, `saas/95-multi-tenant-saas.md`, `saas/87-abuse-detection.md`, `saas/88-saas-launch-checklist.md` · `chrome-ext/70-chrome-ext.md` · `desktop-app/72-desktop.md` · `mobile-app/80-mobile.md`, `81-mobile-billing.md`, `89-mobile-launch-checklist.md` · brand design systems `core/*-design-system.md`, `mobile-app/*-design-system.md`"
+    current: "Rule pack index (consulted for rule-pack judgment; select via `python scripts/select_rules.py`; this index is NOT exhaustive — see § B for the packs it omits): language `core/10-python.md`, `core/12-node.md`, `core/20-typescript.md` · `core/15-api-contracts.md` · `core/25-data-postgres.md` · `core/30-ops.md` (compose, Traefik, base images) · `core/35-security-auth.md` · `core/40-documentation.md` · `core/42-docusaurus.md` · `core/45-testing-strategy.md` (no-mock-DB rule) · `core/50-code-review.md` · `core/55-observability.md` · `core/58-resilience.md` · `core/60-watchdog.md` · `core/65-rag-search.md`, `core/66-rag-chunking.md` · `core/67-file-api.md` · `core/75-workers-jobs.md`, `core/76-gpu-workers.md` · `core/85-payments-billing.md` · `core/86-email-templates.md` · `core/90-bootstrap-scripts.md` (`bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh`) · `core/app-audit-log.md` · `core/cost-budget.md` · `core/self-healing.md` · `saas/60-saas-ui.md`, `saas/95-multi-tenant-saas.md`, `saas/87-abuse-detection.md`, `saas/88-saas-launch-checklist.md` · `chrome-ext/70-chrome-ext.md` · `desktop-app/72-desktop.md` · `mobile-app/80-mobile.md`, `81-mobile-billing.md`, `89-mobile-launch-checklist.md` · brand design systems `core/*-design-system.md`, `mobile-app/*-design-system.md`"
     text:
       - "Rule pack index (consulted for rule-pack"
   # class: prose
@@ -1143,9 +1142,9 @@ entries:
     file: render
     section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
     baseline: "Extract from input (research or interview synthesis): product vision (what/for whom/why), all personas (named/implied), all features (numbered inventory — including any MATCH candidates from Phase 2's market-facing gate), all constraints, all tech choices (made/implied), revenue/value model"
-    current: "Extract from the input: vision (what/for whom/why), personas, a numbered feature inventory (including Phase 2's MATCH candidates), constraints, tech choices, revenue/value model"
+    current: "Extract from the input: vision (what/for whom/why), all personas (named/implied), a numbered feature inventory of all features (including Phase 2's MATCH candidates), all constraints, all tech choices (made/implied), revenue/value model"
     text:
-      - "Extract from the input: vision (what/for whom/why), personas, a numbered feature inventory (including Phase"
+      - "Extract from the input: vision (what/for whom/why), all personas (named/implied), a numbered feature inventory of all features"
   # class: prose
   - id: r-L251
     file: render
@@ -1191,7 +1190,7 @@ entries:
     file: render
     section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
     baseline: "(mechanical, not judgment) — read `scripts/service_catalog.json`"
-    current: "(mechanical, not judgment) — read `scripts/service_catalog.json`; a `status=active` provider covering the capability is preferred (`cost=free|freemium` first), researching NEW providers only if nothing owned fits"
+    current: "(mechanical, not judgment) — read `scripts/service_catalog.json`; a `status=active` provider covering the capability is preferred (`cost=free|freemium` first; `used_by` shows which projects already wired it), researching NEW providers only if nothing owned fits"
     text:
       - "NEW providers only if nothing owned fits"
   # class: prose
@@ -1287,9 +1286,9 @@ entries:
     file: render
     section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
     baseline: "Budget — state any paid service dependencies with estimated monthly cost"
-    current: "2. Budget — paid dependencies with monthly cost"
+    current: "2. Budget — paid dependencies with estimated monthly cost"
     text:
-      - "2. Budget — paid dependencies with monthly cost"
+      - "2. Budget — paid dependencies with estimated monthly cost"
   # class: prose
   - id: r-L286
     file: render
@@ -1319,9 +1318,9 @@ entries:
     file: render
     section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
     baseline: "SSH+Docker Compose deployment — every component deployable via `fabrik apply`?"
-    current: "6. SSH+Docker Compose — deployable via `fabrik apply`?"
+    current: "6. SSH+Docker Compose — every component deployable via `fabrik apply`?"
     text:
-      - "6. SSH+Docker Compose — deployable via `fabrik apply`?"
+      - "6. SSH+Docker Compose — every component deployable via `fabrik apply`?"
   # class: prose
   - id: r-L290
     file: render
@@ -1359,9 +1358,9 @@ entries:
     file: render
     section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
     baseline: "Email streams — if product sends email, transactional + marketing on separate streams/subdomains"
-    current: "12. Email streams — transactional + marketing separate"
+    current: "12. Email streams — if product sends email, transactional + marketing on separate streams/subdomains (MUST)"
     text:
-      - "12. Email streams — transactional + marketing separate"
+      - "Email streams — if product sends email, transactional + marketing on separate streams/subdomains (MUST)"
   # class: ban
   - id: r-L298
     file: render
@@ -1391,10 +1390,10 @@ entries:
     file: render
     section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
     baseline: "(b) Node/TS code (`12-node.md`, glob `**/*.ts`/`**/*.js`): OpenRouter only — never import a vendor SDK"
-    current: "LLM gateway, scoped by domain: (a) RAG / search / embeddings pipeline (`65-rag-search.md`, glob-activated on `**/rag/**`, `**/embeddings/**`, `**/search/**`, `**/vector/**`, `**/retrieval/**`) and (b) Node/TS code (`12-node.md`, glob `**/*.ts`/`**/*.js`): OpenRouter only — never import a vendor SDK, and no direct vendor APIs in the pipeline; (c) every other AI category: the cheapest gateway per model, direct-API valid when the model is on neither a live gateway nor OpenRouter (e.g. `qwen-mt-turbo` via DashScope) — ⚠️ Kilo CLI is RETIRED (2026-07-19, `docs/workstation/vscode-configuration.md:21`)"
+    current: "LLM gateway, scoped by domain: (a) RAG / search / embeddings pipeline (`65-rag-search.md`, glob-activated on `**/rag/**`, `**/embeddings/**`, `**/search/**`, `**/vector/**`, `**/retrieval/**`) and (b) Node/TS code (`12-node.md`, glob `**/*.ts`/`**/*.js`): OpenRouter only — never import a vendor SDK; (a) requires the OpenRouter API for embeddings and all pipeline LLM calls, with no direct vendor APIs in that pipeline; (c) every other AI category: the cheapest gateway per model, direct-API valid when the model is on neither a live gateway nor OpenRouter (e.g. `qwen-mt-turbo` via DashScope) — ⚠️ Kilo CLI is RETIRED (2026-07-19, `docs/workstation/vscode-configuration.md:21`)"
     text:
       - "nor OpenRouter (e.g. `qwen-mt-turbo` via DashScope) — ⚠️ Kilo CLI is RETIRED (2026-07-19,"
-      - "never import a vendor SDK, and no direct vendor APIs in the pipeline"
+      - "never import a vendor SDK; (a) requires the OpenRouter API for embeddings and all pipeline LLM calls, with no direct vendor APIs in that pipeline"
   # class: prose
   - id: r-L309
     file: render
@@ -1440,7 +1439,7 @@ entries:
     file: render
     section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
     baseline: "Concrete non-triggers: one LLM call per human button-press with no auto-retry and no agentic recursion"
-    current: "Triggers: agentic loop with self-retry, cron job calling an LLM, webhook re-invoking on retry; non-trigger: one LLM call per human button-press with no auto-retry or agentic recursion"
+    current: "Triggers: agentic loop with self-retry, cron job calling an LLM, webhook re-invoking on retry, user chat with reasoning steps; non-trigger: one LLM call per human button-press with no auto-retry or agentic recursion"
     text:
       - "one LLM call per human button-press with no auto-retry"
   # class: prose
@@ -1480,7 +1479,7 @@ entries:
     file: render
     section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
     baseline: "Separate projects or epics within one project?\" If the vision includes a WordPress site, route the website side to `/opt/web-ecommerce-factory`; retain only the non-website scaffolds here"
-    current: "Separate projects or epics within one project?\" A WordPress site routes to `/opt/web-ecommerce-factory`"
+    current: "Separate projects or epics within one project?\" A WordPress site routes to `/opt/web-ecommerce-factory`; retain only the non-website scaffolds here"
     text:
       - "Separate projects or epics within one project?\""
   # class: prose
@@ -1488,9 +1487,9 @@ entries:
     file: render
     section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
     baseline: "You keep the synthesis — the grounders return facts, you decide the vision"
-    current: "1 — External facts (BLOCKING). ⚡ Dispatch the grounders in PARALLEL — one native `fabrik-researcher` seat per external dependency, then add ≥1 native `fabrik-researcher` on Opus as the authoritative citation-verify pass;<!-- POOL OFF (D-181): via `fanout(\"research\", units, repo=\"/opt/<project>\", project=\"mega-trigger\", mode=\"read_only\", web_tools=[\"web_search\",\"web_search_brave\",\"web_scrape\",\"docs_lookup\"], mcp_servers=[\"exa\",\"brave-search\",\"firecrawl\",\"context7\"], mcp_config=\"/opt/fabrik/mcp.json\")`; back-fill each pool run with `set_quality(r.agent_id, score, project=\"mega-trigger\", task_type=\"research\", model=r.model)` --> you keep the synthesis — the grounders return facts, you decide the vision"
+    current: "1 — External facts (BLOCKING). ⚡ Dispatch the grounders in PARALLEL — one native `fabrik-researcher` seat per external dependency, then add ≥1 native `fabrik-researcher` on Opus as the authoritative citation-verify pass;<!-- POOL OFF (D-181): via `fanout(\"research\", units, repo=\"/opt/<project>\", project=\"mega-trigger\", mode=\"read_only\", web_tools=[\"web_search\",\"web_search_brave\",\"web_scrape\",\"docs_lookup\"], mcp_servers=[\"exa\",\"brave-search\",\"firecrawl\",\"context7\"], mcp_config=\"/opt/fabrik/mcp.json\")`; back-fill each pool run with `set_quality(r.agent_id, score, project=\"mega-trigger\", task_type=\"research\", model=r.model)` where `score` is your 0-to-5 verdict on that grounder (0 = the citation didn't hold; 5 = it confirmed the fact) --> you keep the synthesis — the grounders return facts, you decide the vision"
     text:
-      - "then add ≥1 native `fabrik-researcher` on Opus as the authoritative citation-verify pass;<!-- POOL OFF (D-181): via `fanout(\"research\", units, repo=\"/opt/<project>\", project=\"mega-trigger\", mode=\"read_only\", web_tools=[\"web_search\",\"web_search_brave\",\"web_scrape\",\"docs_lookup\"], mcp_servers=[\"exa\",\"brave-search\",\"firecrawl\",\"context7\"], mcp_config=\"/opt/fabrik/mcp.json\")`; back-fill each pool run with `set_quality(r.agent_id, score, project=\"mega-trigger\", task_type=\"research\", model=r.model)` -->"
+      - "then add ≥1 native `fabrik-researcher` on Opus as the authoritative citation-verify pass;"
   # class: ban
   - id: r-L331
     file: render
@@ -1938,7 +1937,7 @@ entries:
     file: render
     section: "## Phase 4 — Draft, present, and confirm the Vision Summary"
     baseline: "Assemble the Vision Summary from Phases 1–3 + owner's checkpoint answers"
-    current: "Assemble the Vision Summary from Phases 1–3 + the owner's checkpoint answers (illustrative examples: `docs/archive/2026-06-18-traycer-mega-epic-vision-summary-examples.md`)"
+    current: "Assemble the Vision Summary from Phases 1–3 + the owner's checkpoint answers (historical filled-in examples — read-once illustrative anchors, never pasted verbatim: `docs/archive/2026-06-18-traycer-mega-epic-vision-summary-examples.md`)"
     text:
       - "Assemble the Vision Summary from Phases 1–3 +"
   # class: grammar
@@ -1951,19 +1950,20 @@ entries:
   # class: prose
   - id: r-L522
     file: render
-    section: "### EXISTING mode — a superset (target ≤6,000 tokens, hard cap 10,000)"
+    section: "### EXISTING mode — a superset (target ≤6,000 tokens, hard cap 10,000 — extras add length)"
     baseline: "Identical required sections, so `/fabrik-epics` consumes both modes identically"
-    current: "Identical required sections, so `/fabrik-epics` consumes both modes identically; the H1 is `# Vision Summary: [Project Name] — [New Capability]` (title stays `Vision Summary`, not \"Continuation Summary\")"
+    current: "Identical required sections, so `/fabrik-epics` consumes both modes identically"
     text:
       - "Identical required sections, so `/fabrik-epics` consumes both modes"
   # class: prose
   - id: r-L525
     file: render
-    section: "### EXISTING mode — a superset (target ≤6,000 tokens, hard cap 10,000)"
+    section: "### EXISTING mode — a superset (target ≤6,000 tokens, hard cap 10,000 — extras add length)"
     baseline: "# Vision Summary: [Project Name] — [New Capability] ⏎  ⏎ ## Product Vision ⏎ [What this project IS (1-2 sentences from snapshot) + what we're ADDING (2-3 sentences).] ⏎  ⏎ ## Personas ⏎ [Existing personas that interact with the new feature + any NEW personas] ⏎  ⏎ ## Value Streams ⏎ [How the new capability generates value. If the delta is market-facing and the rivals gate ran, any BEAT ⏎ problem-to-solve that survived Phase 3 is here too, citing the dossier row.] ⏎  ⏎ ## Full Feature Inventory ⏎ [ONLY the NEW features being added. Do NOT list existing features. Numbered, complexity-classified. If the ⏎ delta is market-facing and the rivals gate ran, any MATCH candidate that survived Phase 3 is here too, ⏎ citing the dossier row it came from.] ⏎ 1. [New feature] — [description] (small/medium/large) ⏎  ⏎ [Fix-now retrofits (from Compliance Report):] ⏎ R1. [Retrofit: add i18n] — [description] (medium) ⏎  ⏎ ## Backing Services (from VPS) ⏎ [Which existing VPS services the NEW features will use] ⏎  ⏎ ## External Services ⏎ [Any NEW third-party dependencies. Each MUST be live-grounded — no entry without a cited source + date.] ⏎ - [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] · **source:** [URL] (fetched YYYY-MM-DD) ⏎  ⏎ ## Technology Decisions ⏎ [ONLY decisions for NEW components.] ⏎  ⏎ **Inherited (locked — do NOT re-decide):** ⏎ - Auth: [inherited] · Database: [inherited] · Frontend: [inherited] · Billing: [inherited, if exists] ⏎  ⏎ **New decisions (per current ruleset):** ⏎ - [New component]: [decision per rule pack] ⏎ - RAG pipeline: [none / search-only (embeddings + retriever) / search + classification / full ⏎ intelligence (+ generator + summarizer) — see `.windsurf/rules/core/65-rag-search.md § Epic ⏎ Decomposition` for the component guide] ⏎ - Email (transactional/marketing): [as NEW mode] ⏎ - Background processing: [file-worker needed?] ⏎ - Scaffold types: [any NEW scaffold types] ⏎ - Watchdog sidecar + cost-budget: [**accept-defaults** (state the values you are accepting — read them ⏎ from `WatchdogConfig`; a delta inherits them silently) / **raise** (state the per-project ⏎ `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out** ⏎ (`watchdog: {enabled: false}`)] — ⚠️ state one of the three; \"enable? yes/no\" cannot express the ⏎ accept-vs-raise distinction constraint **#19** requires. ⏎ - Target host (per new service): [`vps1` / `vps2` / `vps3`] ⏎ - Deploy target: VPS via fabrik apply / SSH + Docker Compose (confirmed — same as existing services) ⏎ - Domain structure: [any NEW subdomains] ⏎  ⏎ ## Locked Decisions (Existing-mode extra section) ⏎ [Explicit list of what CANNOT change and why. /fabrik-epics MUST inherit these. New services get their ⏎ own shape blocks; existing ones are not modified.] ⏎ - Auth: [X] — locked because [users exist / tokens issued / migration too risky] ⏎ - Database: [X] — locked because [data exists] ⏎ - Frontend: [X] — locked because [deployed, users using it] ⏎ - Shape block (current): [existing registrars — what `fabrik apply` already activates] ⏎  ⏎ ## Compliance Report (Existing-mode extra section) ⏎ [From the compliance detection step, after owner decisions. /fabrik-epics emits one Retrofit epic per ⏎ Fix-now item, alongside the delta-feature epics.] ⏎  ⏎ | Gap | Source | Owner decision | Epic action | ⏎ |---|---|---|---| ⏎ | i18n missing | The Phase 1 i18n mandate; the pack carrying the code-time rules for this scaffold — `saas/60-saas-ui.md` § i18n · `mobile-app/80-mobile.md` (the validator gate) · `chrome-ext/70-chrome-ext.md` § i18n · `core/42-docusaurus.md` § Internationalization. There is **no** `core/i18n` pack | Fix-now | Retrofit epic | ⏎ | No responsive design | `saas/60-saas-ui.md` | Fix-later | Deferred (no epic now) | ⏎ | No abuse detection | `saas/87-abuse-detection.md` | Fix-now | Retrofit epic | ⏎ | psycopg2 used | `core/25-data-postgres.md` | Accept-as-legacy | No action | ⏎ | Shape drift: prometheus | `fabrik audit-registrars` | Fix-now | Retrofit epic | ⏎  ⏎ ## fabrik-lib Verdict ⏎ [One row per NEW capability the delta needs. \"Didn't check fabrik-lib\" is a defect. Resolve modules from ⏎ the index (`/opt/fabrik-lib/README.md`), never from a hard-coded name.] ⏎  ⏎ | Capability | Verdict | Module + one-line why | Upstream note | ⏎ |---|---|---|---| ⏎ | [new capability] | vendor / vendor+enhance / build | [module — why] | [`UPSTREAM_FEEDBACK.md` if core-enhanced] | ⏎  ⏎ ## Rejected Alternatives ⏎ [What was considered and NOT picked. Locked Decisions are NOT alternatives — they are inherited.] ⏎ - [Option] — rejected: [violates hard constraint X / higher TCO / more maintenance / duplicates project Y] ⏎  ⏎ ## Constraints ⏎ [Same format as NEW-mode — 20 checks, scoped to the delta] ⏎ - x86_64: all clear ⏎  ⏎ ## Out of Scope (Vision Level) ⏎ [What we are NOT changing in the existing codebase — be specific. If the delta is market-facing and the ⏎ rivals gate ran, a white-space finding this delta deliberately does NOT chase belongs here, citing the ⏎ dossier's white-space row.] ⏎ - Existing [X] feature — not being modified ⏎  ⏎ ## Open Questions ⏎ [Unresolved items] ⏎  ⏎ ## Scale Assessment ⏎ - New feature count: [N] ([X] small, [Y] medium, [Z] large) ⏎ - Retrofit count: [N] (from Compliance Report fix-now items) ⏎ - Epic-count signal: [single epic / ~N epics — informational] ⏎ - Reasoning: [why this classification]"
-    current: "Locked Decisions (EXISTING-only) — what CANNOT change and why; `/fabrik-epics` MUST inherit them verbatim"
     text:
-      - "Locked Decisions (EXISTING-only) — what CANNOT change and why; `/fabrik-epics` MUST inherit them verbatim"
+      - "## Locked Decisions (Existing-mode extra section)"
+      - "- Auth: [X] — locked because [users exist / tokens issued / migration too risky]"
+      - "## Compliance Report (Existing-mode extra section)"
   # class: prose
   - id: r-L527
     file: render
@@ -2035,7 +2035,7 @@ entries:
     file: render
     section: "## Phase 5 — Persist, hand off, and route to `/fabrik-epics`"
     baseline: "Acceptance — both modes:"
-    current: "Acceptance — both modes: mode declared at Phase 0, never auto-detected; ALL features (EXISTING: retrofits + new features) in the Inventory — no silent drops; Technology Decisions complete, no \"TBD\"; the external-facts gate (BLOCKING) satisfied, the approach gate (BLOCKING) satisfied, the fabrik-lib ladder satisfied (every `build` justified and `🆕 fabrik-lib candidate`-checked); the rivals gate honored — a market-facing vision (or EXISTING delta adding a market-facing capability) has either a dossier consumed with cited MATCH/BEAT/wedge/white-space rows, or the run stopped and named `/fabrik-rivals <market>` (a run that silently skipped the gate does NOT pass); all 20 constraints verified, no silent unknowns; Rejected Alternatives recorded with reasons; Scale Assessment present with classification; the Summary within its token budget; Open Questions captures ALL unresolved items, zero at confirmation; grounding dispatched across parallel native seats — one `fabrik-researcher` per independent fact, ≥1 on Opus; the pre-confirmation self-audit ran and was stated at the top of the presentation; no Guardrails prohibition tripped; the owner explicitly confirms"
+    current: "Acceptance — both modes: mode declared at Phase 0, never auto-detected, with the input consumed per declared mode and path; personas named explicitly (not just \"users\") and value streams stated; Backing Services grounded in the actual VPS inventory; External Services identified with cost tier; ALL features (EXISTING: retrofits + new features) in the Inventory — no silent drops; Technology Decisions complete, no \"TBD\"; the external-facts gate (BLOCKING) satisfied, the approach gate (BLOCKING) satisfied, the fabrik-lib ladder satisfied (every `build` justified and `🆕 fabrik-lib candidate`-checked); the rivals gate honored — a market-facing vision (or EXISTING delta adding a market-facing capability) has either a dossier consumed with cited MATCH/BEAT/wedge/white-space rows, or the run stopped and named `/fabrik-rivals <market>` (a run that silently skipped the gate does NOT pass); all 20 constraints verified, no silent unknowns; Rejected Alternatives recorded with reasons; Scale Assessment present with classification; the Summary within its token budget; Open Questions captures ALL unresolved items, zero at confirmation; grounding dispatched across parallel native seats — one `fabrik-researcher` per independent fact, ≥1 on Opus; the pre-confirmation self-audit ran and was stated at the top of the presentation; no Guardrails prohibition tripped; the owner explicitly confirms"
     text:
       - "dossier consumed with cited MATCH/BEAT/wedge/white-space rows, or the run stopped and named `/fabrik-rivals <market>`"
       - "never auto-detected"
@@ -2052,7 +2052,7 @@ entries:
     file: render
     section: "## Phase 5 — Persist, hand off, and route to `/fabrik-epics`"
     baseline: "Relevant domain rule packs loaded"
-    current: "EXISTING adds: state read from actual files; Project Snapshot confirmed (E-1); Compliance Detection run in all three sub-steps (A mechanical, B rule-pack, C owner decision at E-2); Locked Decisions with explicit reasons; lifecycle gaps detected and pre-flight completed; the capability scoped as a delta, not re-planning existing features; relevant domain rule packs loaded; integration points identified"
+    current: "EXISTING adds: state read from actual files; Project Snapshot confirmed (E-1); Compliance Report maps each gap to owner decision + epic action; Compliance Detection run in all three sub-steps (A mechanical, B rule-pack, C owner decision at E-2); Locked Decisions with explicit reasons; lifecycle gaps detected and pre-flight completed; the capability scoped as a delta, not re-planning existing features; relevant domain rule packs loaded; integration points identified"
     text:
       - "in all three sub-steps (A mechanical, B rule-pack, C owner decision at"
   # class: prose
@@ -2071,10 +2071,330 @@ entries:
     current: "Never draft a market-facing vision with no rivals dossier — name `/fabrik-rivals <market>` and wait"
     text:
       - "Never draft a market-facing vision with no rivals dossier —"
+  - id: r-fix-01
+    file: render
+    section: "# Vision Summary — multi-epic project intake (NEW) or continuation (EXISTING)"
+    baseline: "Canonical: `62-using-subagents.md` § Dispatch policy"
+    text:
+      - "Canonical: `62-using-subagents.md` § Dispatch policy"
+  # class: prose
+  - id: r-fix-02
+    file: render
+    section: "# Vision Summary — multi-epic project intake (NEW) or continuation (EXISTING)"
+    baseline: "> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)"
+    text:
+      - "(left in place, or in `<!-- POOL OFF -->` comments, for re-enable)"
+  # class: prose
+  - id: r-fix-03
+    file: render
+    section: "## Phase 0 — Reads budget, orientation, and mode declaration"
+    baseline: "The CURRENT-VALUE live-reads Phase 3's numbered constraints explicitly order (never quote a remembered number): `src/fabrik/orchestrator/deployer_ssh.py` (the compose enforcement surface) · `src/fabrik/spec_loader.py` `WatchdogConfig` + `src/fabrik/drivers/watchdog.py` · `src/fabrik/audit.py` · `src/fabrik/orchestrator/destroyer.py`"
+    text:
+      - "CURRENT-VALUE live-reads Phase 3's numbered constraints order (never quote a remembered number) — open these, this run"
+  # class: prose
+  - id: r-fix-04
+    file: render
+    section: "## Phase 0 — Reads budget, orientation, and mode declaration"
+    baseline: "LIVE external sources for Phase 3's dual gate — native `fabrik-researcher` grounders over exa / brave / firecrawl / context7 (the four `/opt/fabrik/mcp.json` defines); the orchestrator additionally: `WebSearch`/`WebFetch`, `mcp__github` (a dep's real source / latest release), and the session-recall MCP (own history — a LEAD, never a citation)"
+    text:
+      - "(the four `/opt/fabrik/mcp.json` defines)"
+  # class: prose
+  - id: r-fix-05
+    file: render
+    section: "## Phase 0 — Reads budget, orientation, and mode declaration"
+    baseline: "Don't build for days what you can buy for dollars"
+    text:
+      - "don't build for days what you can buy for dollars"
+  # class: prose
+  - id: r-fix-06
+    file: render
+    section: "## Phase 0 — Reads budget, orientation, and mode declaration"
+    baseline: "Easy to maintain — when two solutions both work, prefer the one needing less ongoing attention"
+    text:
+      - "when two solutions both work, prefer the one needing less ongoing attention"
+  # class: prose
+  - id: r-fix-07
+    file: render
+    section: "## Phase 0 — Reads budget, orientation, and mode declaration"
+    baseline: "Fabrik lifecycle (mental model) — `docs/operations/fabrik-lifecycle.md` carries no stage model; it covers only the deploy/runtime detail of stages 3–4 below"
+    text:
+      - "carries no stage model"
+  # class: prose
+  - id: r-fix-08
+    file: render
+    section: "## Phase 0 — Reads budget, orientation, and mode declaration"
+    baseline: "Intent & Scaffolding (WSL) — preplan (operator-manual deep research dropped into `docs/preplans/*.md`; `fabrik preplan` merely files/ingests the artifact) → `fabrik scaffold` → AI guardrails + spec `shape:` block"
+    text:
+      - "which `fabrik preplan` merely files/ingests"
+  # class: prose
+  - id: r-fix-09
+    file: render
+    section: "## Phase 0 — Reads budget, orientation, and mode declaration"
+    baseline: "Agentic Implementation (WSL) — tickets dispatched to agents (Claude Code Max-OAuth agents + the OpenRouter-pool workers are OFF, D-181, per `core/62-using-subagents.md`)"
+    text:
+      - "per `core/62-using-subagents.md`"
+  # class: prose
+  - id: r-fix-10
+    file: render
+    section: "## Phase 0 — Reads budget, orientation, and mode declaration"
+    baseline: "Owner says NEW → the NEW-mode path (Phases 2–4 below, NEW branch)"
+    text:
+      - "Owner says **NEW** → the NEW-mode path (Phases 2–4, NEW branch)"
+  # class: prose
+  - id: r-fix-11
+    file: render
+    section: "## Phase 0 — Reads budget, orientation, and mode declaration"
+    baseline: "Owner says EXISTING → the EXISTING-mode path (Phases 2–4 below, EXISTING branch)"
+    text:
+      - "**EXISTING** → the EXISTING-mode path (Phases 2–4, EXISTING branch)"
+  # class: prose
+  - id: r-fix-12
+    file: render
+    baseline: "| I | Codebase | One codebase per app, many deploys. *\"Multiple apps sharing the same code is a violation.\"* | One repo per project; shared code → `fabrik-lib`. Deliberate, stated deviation: 12F prescribes including shared code *\"through the dependency manager\"*; Fabrik vendors (copies) it for self-contained builds. Each app still owns its codebase, so the intent holds. |"
+    text:
+      - "multiple apps sharing the same code is a violation"
+  # class: prose
+  - id: r-fix-13
+    file: render
+    baseline: "| II | Dependencies | *\"Never relies on implicit existence of system-wide packages.\"* Shelling out to a system tool ⇒ vendor the tool. | Declare every dep. Never assume `curl` / ImageMagick exist in the image. PDF/browser work → Gotenberg / Browserless backing services, not a system binary. |"
+    text:
+      - "Never relies on implicit existence of system-wide packages."
+  # class: prose
+  - id: r-fix-14
+    file: render
+    baseline: "| V | Build, release, run | Strict separation; releases immutable with a unique release ID. *\"Impossible to make changes to the code at runtime.\"* | `fabrik apply`/`redeploy` build then deploy; the git SHA is the release ID. Never hot-patch a running container. |"
+    text:
+      - "impossible to change code at runtime"
+  # class: prose
+  - id: r-fix-15
+    file: render
+    baseline: "| VI | Processes | Stateless + share-nothing. *\"Sticky sessions are a violation of twelve-factor and should never be used or relied upon.\"* Session state → Memcached or Redis. | Sessions/cache → `redis-main`. Both file-based and sticky sessions are violations. |"
+    text:
+      - "should never be used or relied upon"
+  # class: prose
+  - id: r-fix-16
+    file: render
+    baseline: "| XI | Logs | Unbuffered to `stdout`. *\"Never concerns itself with routing or storage… should not attempt to write to or manage logfiles.\"* | `structlog` → stdout. Never write or rotate a logfile. Promtail → Loki is the *environment* doing the routing. |"
+    text:
+      - "Never concerns itself with routing or storage… should not attempt to write to or manage logfiles."
+  # class: prose
+  - id: r-fix-17
+    file: render
+    baseline: "Adding a language = adding a locale file, zero code changes"
+    text:
+      - "adding a language = adding a locale file, zero code changes"
+  # class: prose
+  - id: r-fix-18
+    file: render
+    baseline: "Translation validated via `validate_i18n.py` (under that project's `scripts/`) (3-level: structural, back-translation, native-speaker critique)"
+    text:
+      - "3-level: structural, back-translation, native-speaker critique"
+  # class: prose
+  - id: r-fix-19
+    file: render
+    baseline: "i18n — every scaffold with a user/admin GUI surface (the rule-area applicability matrix in Phase 3 is mode-agnostic and binding here too — feature-trigger, NOT scaffold-type-gated; includes python-api/node-api/file-api with `shape.is_admin_dashboard: true` OR `shape.is_public: true` + HTML output) supports multi-language from day one (en + tr minimum)"
+    text:
+      - "en + tr minimum"
+  # class: prose
+  - id: r-fix-20
+    file: render
+    baseline: "Each project gets `docs/RESILIENCE.md` template at scaffold time — filled when external deps are added"
+    text:
+      - "each project gets a `docs/RESILIENCE.md` template at scaffold time, filled when external deps are added"
+  # class: prose
+  - id: r-fix-21
+    file: render
+    baseline: "Static artifacts (static-site, docusaurus) have no app process exposing these endpoints — Gatus probes them externally for liveness instead"
+    text:
+      - "Gatus probes them externally for liveness instead"
+  # class: prose
+  - id: r-fix-22
+    file: render
+    baseline: "Observability — every backend service exposes `/health` for Gatus and `/metrics` for Prometheus"
+    text:
+      - "`/health` for Gatus and `/metrics` for Prometheus"
+  # class: prose
+  - id: r-fix-23
+    file: render
+    baseline: "Fleet topology (multi-host) — the fleet is 3 permanent hosts: vps1 (LA, hub) + vps2 (Coventry UK, spoke) + vps3 (Coventry UK, spoke), connected by a WireGuard mesh (`10.99.0.0/24`)"
+    text:
+      - "the fleet is 3 permanent hosts"
+  # class: prose
+  - id: r-fix-24
+    file: render
+    baseline: "Hub vs spoke is a Vision-level choice: hub for shared-infra-coupled services; spokes for tenant-isolated, lower-latency-to-EU, or capacity-spillover workloads"
+    text:
+      - "hub vs spoke is a Vision-level choice"
+  # class: prose
+  - id: r-fix-25
+    file: render
+    baseline: "Resolution order: `--target-vps` CLI flag > `.fabrik/state/<id>.json::target_vps` > spec `target_vps:` field > `vps1` default (see `30-ops.md` § Multi-host targeting)"
+    text:
+      - "(see `30-ops.md` § Multi-host targeting)"
+  # class: prose
+  - id: r-fix-26
+    file: render
+    baseline: "See `docs/infrastructure/vps-complete-inventory.md` for live state"
+    text:
+      - "See `docs/infrastructure/vps-complete-inventory.md` for live state"
+  # class: prose
+  - id: r-fix-27
+    file: render
+    baseline: "Live example: `specs/services/spoke-canary.yaml`"
+    text:
+      - "live example: `specs/services/spoke-canary.yaml`"
+  # class: prose
+  - id: r-fix-28
+    file: render
+    baseline: "| Flag | True when | Fires |"
+    text:
+      - "| Flag | True when | Fires |"
+  # class: prose
+  - id: r-fix-29
+    file: render
+    section: "### NEW mode — context orientation, then two entry paths"
+    baseline: "All 12 `agents-fabrik.md` § Planning Constraints. A separate list from Phase 3's 20 checks, and they OVERLAP heavily — 7 of the 12 are also Phase-3 checks: Solo-dev · x86_64 · Budget · Existing services · Port conflicts · SSH+Compose · No Alpine"
+    text:
+      - "Solo-dev · x86_64 · Budget · Existing services · Port conflicts · SSH+Compose · No Alpine"
+  # class: prose
+  - id: r-fix-30
+    file: render
+    section: "### NEW mode — context orientation, then two entry paths"
+    baseline: "Apply both — the 12 here at orientation time, Phase 3's 20 at vision-verification time"
+    text:
+      - "Apply both — the 12 here at orientation time, Phase 3's 20 at vision-verification time"
+  # class: prose
+  - id: r-fix-31
+    file: render
+    section: "### NEW mode — context orientation, then two entry paths"
+    baseline: "Market-facing gate (applies to BOTH entry paths below, and to an EXISTING-mode delta that adds a market-facing capability — Phase 3's E-analysis). A market-facing vision — a product with real external competitors/users, not an internal tool, not a Retrofit delta with no market-facing surface — checks `docs/reference/rivals/<market>.md` before anything else, whichever entry path or mode you're on"
+    text:
+      - "before anything else, whichever entry path or mode you're on"
+  # class: prose
+  - id: r-fix-32
+    file: render
+    section: "### NEW mode — context orientation, then two entry paths"
+    baseline: "`docs/preplans/*.md` → read fully"
+    text:
+      - "`docs/preplans/*.md` and `docs/development/plans/00-research.md` (each read fully)"
+  # class: prose
+  - id: r-fix-33
+    file: render
+    section: "### NEW mode — context orientation, then two entry paths"
+    baseline: "`docs/development/plans/00-research.md` → read fully"
+    text:
+      - "each read fully"
+  # class: prose
+  - id: r-fix-34
+    file: render
+    section: "### NEW mode — context orientation, then two entry paths"
+    baseline: "Guide the owner to think through features, personas, constraints"
+    text:
+      - "guide the owner to think through features, personas, constraints"
+  # class: prose
+  - id: r-fix-35
+    file: render
+    section: "### EXISTING mode — required inputs"
+    baseline: "`docs/` may contain pre-rules conventions, dead links, or files outside the current allowlist → flag as doc-hygiene gap"
+    text:
+      - "a doc-hygiene gap"
+  # class: prose
+  - id: r-fix-36
+    file: render
+    section: "### EXISTING mode — required inputs"
+    baseline: "`.env.example` may be missing, out of sync with `.env` on VPS, or expose secrets → flag and treat the live VPS state as authoritative for current behavior"
+    text:
+      - "a missing, out-of-sync or secret-exposing `.env.example`"
+  # class: prose
+  - id: r-fix-37
+    file: render
+    section: "### EXISTING mode — required inputs"
+    baseline: "Derive the SSH target from `specs/services/<id>.yaml::target_vps` (default `vps1`): `ssh root@<target_vps> \"cat /opt/<name>/.env\"`"
+    text:
+      - "derive the SSH target from `specs/services/<id>.yaml::target_vps`, default `vps1`"
+  # class: prose
+  - id: r-fix-38
+    file: render
+    section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
+    baseline: "`used_by` shows which projects already wired it"
+    text:
+      - "`used_by` shows which projects already wired it"
+  # class: prose
+  - id: r-fix-39
+    file: render
+    section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
+    baseline: "Extract from input (research or interview synthesis): product vision (what/for whom/why), all personas (named/implied), all features (numbered inventory — including any MATCH candidates from Phase 2's market-facing gate), all constraints, all tech choices (made/implied), revenue/value model"
+    text:
+      - "all personas (named/implied)"
+  # class: prose
+  - id: r-fix-40
+    file: render
+    section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
+    baseline: "1 — External facts (BLOCKING). ⚡ Dispatch the grounders in PARALLEL — one native `fabrik-researcher` seat per external dependency (the pool is OFF, D-181), then add ≥1 native `fabrik-researcher` on Opus as the authoritative citation-verify pass;<!-- POOL OFF (D-181): via `fanout(\"research\", units, repo=\"/opt/<project>\", project=\"mega-trigger\", mode=\"read_only\", web_tools=[\"web_search\",\"web_search_brave\",\"web_scrape\",\"docs_lookup\"], mcp_servers=[\"exa\",\"brave-search\",\"firecrawl\",\"context7\"], mcp_config=\"/opt/fabrik/mcp.json\")`; back-fill each pool run with `set_quality(r.agent_id, score, project=\"mega-trigger\", task_type=\"research\", model=r.model)` --> where `score` is your 0-to-5 verdict on that grounder (0 = the citation didn't hold; 5 = it confirmed the fact)"
+    text:
+      - "your 0-to-5 verdict on that grounder (0 = the citation didn't hold; 5 = it confirmed the fact)"
+  # class: prose
+  - id: r-fix-41
+    file: render
+    section: "### NEW mode — N-analysis (execute in order; later steps consume earlier ones)"
+    baseline: "Separate projects or epics within one project?\" If the vision includes a WordPress site, route the website side to `/opt/web-ecommerce-factory`; retain only the non-website scaffolds here"
+    text:
+      - "retain only the non-website scaffolds here"
+  # class: prose
+  - id: r-fix-42
+    file: render
+    section: "## Phase 4 — Draft, present, and confirm the Vision Summary"
+    baseline: "Historical filled-in examples (read-once illustrative anchors, never pasted verbatim) are archived at `docs/archive/2026-06-18-traycer-mega-epic-vision-summary-examples.md`"
+    text:
+      - "read-once illustrative anchors, never pasted verbatim"
+  # class: prose
+  - id: r-fix-43
+    file: render
+    section: "## Phase 5 — Persist, hand off, and route to `/fabrik-epics`"
+    baseline: "External services identified with cost tier"
+    text:
+      - "External Services identified with cost tier"
+  # class: prose
+  - id: r-fix-44
+    file: render
+    section: "## Phase 5 — Persist, hand off, and route to `/fabrik-epics`"
+    baseline: "Personas named explicitly — not just \"users.\" Value streams stated — not just \"it's useful.\""
+    text:
+      - "personas named explicitly (not just \"users\")"
+  # class: prose
+  - id: r-fix-45
+    file: render
+    section: "## Phase 5 — Persist, hand off, and route to `/fabrik-epics`"
+    baseline: "Backing services grounded in actual VPS inventory"
+    text:
+      - "Backing Services grounded in the actual VPS inventory"
+  # class: prose
+  - id: r-fix-46
+    file: render
+    section: "## Phase 5 — Persist, hand off, and route to `/fabrik-epics`"
+    baseline: "Input consumed per declared mode and path"
+    text:
+      - "input consumed per declared mode and path"
+  # class: prose
+  - id: r-fix-47
+    file: render
+    section: "## Phase 5 — Persist, hand off, and route to `/fabrik-epics`"
+    baseline: "Compliance Report maps each gap to owner decision + epic action"
+    text:
+      - "Compliance Report maps each gap to owner decision + epic action"
+  # class: prose
+  - id: r-fix-48
+    file: render
+    section: "## Phase 5 — Persist, hand off, and route to `/fabrik-epics`"
+    baseline: "`/fabrik-epics-review` then proves the cut epic set's integrity and assigns owners before any epic starts its own corpus chain"
+    text:
+      - "before any epic starts its own corpus chain"
+  # class: prose
+
 vanished:
-  L2: {rule: [r-L2]}
+  L2: {rule: [r-L2, r-fix-02]}
   L3: {rule: [r-L3]}
-  L5: narrative
+  L5: {rule: [r-fix-01]}
   L7: {rule: [r-L7]}
   L8: {rule: [r-L8]}
   L9: {rule: [r-L9]}
@@ -2093,12 +2413,12 @@ vanished:
   L26: {rule: [r-L25]}
   L27: {rule: [r-L25]}
   L29: {rule: [r-L29]}
-  L30: {rule: [r-L30]}
+  L30: {rule: [r-L30, r-fix-03]}
   L31: {rule: [r-L31]}
   L33: {rule: [r-L33]}
   L34: {rule: [r-L33]}
   L35: {rule: [r-L33]}
-  L36: {rule: [r-L36]}
+  L36: {rule: [r-L36, r-fix-04]}
   L37: {rule: [r-L37]}
   L38: {rule: [r-L38]}
   L39: {rule: [r-L38]}
@@ -2119,21 +2439,21 @@ vanished:
   L54: {rule: [r-L52]}
   L55: {rule: [r-L52]}
   L56: {rule: [r-L52]}
-  L57: narrative
+  L57: {rule: [r-fix-05]}
   L58: {rule: [r-L52]}
   L59: {rule: [r-L52]}
   L60: {rule: [r-L52]}
-  L61: {rule: [r-L52]}
+  L61: {rule: [r-L52, r-fix-06]}
   L62: {rule: [r-L52]}
   L63: {rule: [r-L52]}
   L64: {rule: [r-L64]}
   L66: {rule: [r-L66]}
   L67: {rule: [r-L67]}
-  L68: narrative
+  L68: {rule: [r-fix-07]}
   L69: {rule: [r-L69]}
-  L70: narrative
+  L70: {rule: [r-fix-08]}
   L71: narrative
-  L72: {rule: [r-L69]}
+  L72: {rule: [r-L69, r-fix-09]}
   L73: {rule: [r-L69]}
   L74: {rule: [r-L69]}
   L75: {rule: [r-L69]}
@@ -2141,8 +2461,8 @@ vanished:
   L77: {rule: [r-L77]}
   L78: {rule: [r-L77]}
   L80: {rule: [r-L80]}
-  L81: narrative
-  L82: narrative
+  L81: {rule: [r-fix-10]}
+  L82: {rule: [r-fix-11]}
   L87: {rule: [r-L87]}
   L88: {rule: [r-L87]}
   L89: {rule: [r-L87]}
@@ -2150,23 +2470,23 @@ vanished:
   L91: {rule: [r-L90]}
   L92: narrative
   L93: narrative
-  L94: {rule: [r-L94]}
-  L95: {rule: [r-L94]}
+  L94: {rule: [r-L94, r-fix-12]}
+  L95: {rule: [r-L94, r-fix-13]}
   L96: {rule: [r-L94]}
   L97: {rule: [r-L94]}
-  L98: {rule: [r-L94]}
-  L99: {rule: [r-L94]}
+  L98: {rule: [r-L94, r-fix-14]}
+  L99: {rule: [r-L94, r-fix-15]}
   L100: {rule: [r-L94]}
   L101: {rule: [r-L94]}
   L102: {rule: [r-L94]}
   L103: {rule: [r-L94]}
-  L104: {rule: [r-L94]}
+  L104: {rule: [r-L94, r-fix-16]}
   L105: {rule: [r-L94]}
   L106: {rule: [r-L106]}
   L107: {rule: [r-L106]}
-  L108: {rule: [r-L108]}
-  L109: {rule: [r-L108]}
-  L110: {rule: [r-L108]}
+  L108: {rule: [r-L108, r-fix-19]}
+  L109: {rule: [r-L108, r-fix-18]}
+  L110: {rule: [r-L108, r-fix-17]}
   L111: {rule: [r-L111]}
   L112: {rule: [r-L111]}
   L113: {rule: [r-L113]}
@@ -2178,24 +2498,24 @@ vanished:
   L119: {rule: [r-L119]}
   L120: {rule: [r-L119]}
   L121: {rule: [r-L119]}
-  L122: {rule: [r-L119]}
+  L122: {rule: [r-L119, r-fix-20]}
   L123: {rule: [r-L123]}
   L124: {rule: [r-L123]}
   L125: {rule: [r-L123]}
   L126: {rule: [r-L123]}
   L128: {rule: [r-L128]}
-  L129: {rule: [r-L129]}
-  L130: {rule: [r-L130]}
-  L131: {rule: [r-L131]}
+  L129: {rule: [r-L129, r-fix-22]}
+  L130: {rule: [r-L130, r-fix-21]}
+  L131: {rule: [r-L131, r-fix-23]}
   L132: {rule: [r-L131]}
   L133: {rule: [r-L133]}
-  L134: {rule: [r-L133]}
-  L135: {rule: [r-L133]}
-  L136: narrative
-  L137: narrative
+  L134: {rule: [r-L133, r-fix-25]}
+  L135: {rule: [r-L133, r-fix-24]}
+  L136: {rule: [r-fix-26]}
+  L137: {rule: [r-fix-27]}
   L138: {rule: [r-L138]}
   L139: {rule: [r-L138]}
-  L140: narrative
+  L140: {rule: [r-fix-28]}
   L141: narrative
   L142: {rule: [r-L142]}
   L143: {rule: [r-L143]}
@@ -2214,10 +2534,10 @@ vanished:
   L158: {rule: [r-L157]}
   L159: {rule: [r-L157]}
   L160: {rule: [r-L157]}
-  L161: {rule: [r-L157]}
+  L161: {rule: [r-L157, r-fix-29]}
   L162: {rule: [r-L157]}
-  L163: {rule: [r-L157]}
-  L164: {rule: [r-L164]}
+  L163: {rule: [r-L157, r-fix-30]}
+  L164: {rule: [r-L164, r-fix-31]}
   L165: {rule: [r-L164]}
   L166: {rule: [r-L166]}
   L167: {rule: [r-L167]}
@@ -2225,8 +2545,8 @@ vanished:
   L169: {rule: [r-L169]}
   L170: {rule: [r-L170]}
   L171: {rule: [r-L170]}
-  L172: {rule: [r-L170]}
-  L173: {rule: [r-L170]}
+  L172: {rule: [r-L170, r-fix-32]}
+  L173: {rule: [r-L170, r-fix-33]}
   L174: {rule: [r-L170]}
   L175: {rule: [r-L175]}
   L176: {rule: [r-L170]}
@@ -2241,7 +2561,7 @@ vanished:
   L185: {rule: [r-L181]}
   L186: {rule: [r-L181]}
   L187: {rule: [r-L181]}
-  L188: narrative
+  L188: {rule: [r-fix-34]}
   L189: {rule: [r-L189]}
   L190: {rule: [r-L190]}
   L191: {rule: [r-L190]}
@@ -2257,9 +2577,9 @@ vanished:
   L202: {rule: [r-L199]}
   L203: {rule: [r-L199]}
   L204: {rule: [r-L199]}
-  L205: {rule: [r-L199]}
-  L206: {rule: [r-L199]}
-  L207: {rule: [r-L199]}
+  L205: {rule: [r-L199, r-fix-36]}
+  L206: {rule: [r-L199, r-fix-37]}
+  L207: {rule: [r-L199, r-fix-35]}
   L208: {rule: [r-L199]}
   L209: {rule: [r-L199]}
   L210: {rule: [r-L199]}
@@ -2298,7 +2618,7 @@ vanished:
   L244: {rule: [r-L244]}
   L245: {rule: [r-L245]}
   L246: {rule: [r-L245]}
-  L250: {rule: [r-L250]}
+  L250: {rule: [r-L250, r-fix-39]}
   L251: {rule: [r-L251]}
   L252: {rule: [r-L252]}
   L253: {rule: [r-L253]}
@@ -2308,7 +2628,7 @@ vanished:
   L258: {rule: [r-L258]}
   L259: {rule: [r-L258]}
   L260: {rule: [r-L260]}
-  L261: narrative
+  L261: {rule: [r-fix-38]}
   L263: {rule: [r-L263]}
   L264: {rule: [r-L264]}
   L265: {rule: [r-L264]}
@@ -2368,8 +2688,8 @@ vanished:
   L324: {rule: [r-L323]}
   L325: {rule: [r-L325]}
   L326: {rule: [r-L326]}
-  L327: {rule: [r-L326]}
-  L329: {rule: [r-L329]}
+  L327: {rule: [r-L326, r-fix-41]}
+  L329: {rule: [r-L329, r-fix-40]}
   L330: {rule: [r-L329]}
   L331: {rule: [r-L331]}
   L332: {rule: [r-L36]}
@@ -2522,7 +2842,7 @@ vanished:
   L514: {rule: [r-L510]}
   L515: {rule: [r-L510]}
   L517: {rule: [r-L517]}
-  L518: narrative
+  L518: {rule: [r-fix-42]}
   L520: {rule: [r-L520]}
   L521: narrative
   L522: {rule: [r-L522]}
@@ -2547,18 +2867,18 @@ vanished:
   L545: {rule: [r-L539]}
   L547: {rule: [r-L547]}
   L551: {rule: [r-L43]}
-  L552: {rule: [r-L43]}
+  L552: {rule: [r-L43, r-fix-48]}
   L553: {rule: [r-L553]}
   L554: {rule: [r-L554]}
   L557: {rule: [r-L557]}
   L558: {rule: [r-L557]}
   L559: {rule: [r-L559]}
   L560: {rule: [r-L559]}
-  L561: {rule: [r-L559]}
+  L561: {rule: [r-L559, r-fix-46]}
   L562: {rule: [r-L559]}
-  L563: {rule: [r-L559]}
-  L564: {rule: [r-L559]}
-  L565: narrative
+  L563: {rule: [r-L559, r-fix-44]}
+  L564: {rule: [r-L559, r-fix-45]}
+  L565: {rule: [r-fix-43]}
   L566: {rule: [r-L559]}
   L567: {rule: [r-L559]}
   L568: {rule: [r-L559]}
@@ -2585,7 +2905,7 @@ vanished:
   L589: {rule: [r-L587]}
   L590: {rule: [r-L587]}
   L591: {rule: [r-L587]}
-  L592: {rule: [r-L587]}
+  L592: {rule: [r-L587, r-fix-47]}
   L593: {rule: [r-L587]}
   L594: {rule: [r-L587]}
   L595: {rule: [r-L587]}
