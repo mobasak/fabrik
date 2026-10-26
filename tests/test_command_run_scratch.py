@@ -219,6 +219,16 @@ def test_an_unreadable_sibling_checkout_never_costs_the_run_its_scratch(
     assert path is not None and path.is_dir(), notes
     assert any("sidx" in n for n in notes), notes
 
+    # the whole other root unlistable, too (round-2 B-sonnet: the root handler had no grader)
+    o_root = wt / ".tmp" / "runs"
+    o_root.chmod(0)
+    try:
+        path, notes = cr._make_scratch(str(repo), "me", "fabrik-task", "k2", None)
+    finally:
+        o_root.chmod(0o755)
+    assert path is not None and path.is_dir(), notes
+    assert any(f"scratch root {o_root} not pruned" in n for n in notes), notes
+
 
 def test_the_cross_checkout_prune_never_follows_a_symlinked_tmp(tmp_path: Path, no_seam) -> None:
     """W-128df814 review: another checkout's `.tmp` (or `.tmp/runs`) that is a symlink points outside
