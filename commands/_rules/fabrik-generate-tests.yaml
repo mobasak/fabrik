@@ -9,6 +9,20 @@ entries:
   current: Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior
   text:
   - Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior
+- id: u-L10
+  file: render
+  section: '## Import — nothing to import while the pool is OFF (D-181)'
+  baseline: The suggest/author seats are native Claude Task subagents; `libs/subagents` is not called
+  current: The suggest/author seats are native Claude Task subagents; `libs/subagents` is not called
+  text:
+  - The suggest/author seats are native Claude Task subagents; `libs/subagents` is not called
+- id: u-L11
+  file: render
+  section: '## Import — nothing to import while the pool is OFF (D-181)'
+  baseline: The vendored-pool import contract is kept below for re-enable
+  current: The vendored-pool import contract is kept below for re-enable
+  text:
+  - The vendored-pool import contract is kept below for re-enable
 - id: u-L13
   file: render
   section: '## The loop — suggest → curate → author → review → apply'
@@ -36,6 +50,13 @@ entries:
   current: 'Emit a curated list: one behavior per line, each a `Given / When / Then`, mapped to the test file it belongs in'
   text:
   - 'Emit a curated list: one behavior per line, each a `Given / When / Then`, mapped to the test file it belongs in'
+- id: u-L23
+  file: render
+  section: '### 2. Curate (YOU — the anti-bloat + anti-gap gate)'
+  baseline: (No flywheel to score while the pool is OFF — D-181.)
+  current: (No flywheel to score while the pool is OFF — D-181.)
+  text:
+  - (No flywheel to score while the pool is OFF — D-181.)
 - id: u-L26
   file: render
   section: '### 3. Commit the code-under-test FIRST (mandatory)'
@@ -85,17 +106,58 @@ entries:
   current: Finally `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill mutants (advisory)
   text:
   - Finally `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill mutants (advisory)
+- id: u-L37
+  file: render
+  section: '### 5. Review test-quality (YOU) → keep the survivors'
+  baseline: (No flywheel back-fill while the pool is OFF — D-181; your test-quality review is the whole verdict.)
+  current: (No flywheel back-fill while the pool is OFF — D-181; your test-quality review is the whole verdict.)
+  text:
+  - (No flywheel back-fill while the pool is OFF — D-181; your test-quality review is the whole verdict.)
+- id: u-L40
+  file: render
+  section: '## Where this auto-fires (3 call sites — the same loop, different trigger)'
+  baseline: '`/fabrik-execute-plan`, per phase (proactive): after the phase CODE is committed + the phase gate is green, BEFORE the phase-boundary `/fabrik-review` — author the tests for the phase''s `## Behavior Contract` behaviors the implementer did NOT already TDD (the risky behaviors stay implementer-TDD''d; native seats fill the rest)'
+  current: '`/fabrik-execute-plan`, per phase (proactive): after the phase CODE is committed + the phase gate is green, BEFORE the phase-boundary `/fabrik-review` — author the tests for the phase''s `## Behavior Contract` behaviors the implementer did NOT already TDD (the risky behaviors stay implementer-TDD''d; native seats fill the rest)'
+  text:
+  - '`/fabrik-execute-plan`, per phase (proactive): after the phase CODE is committed + the phase gate is green, BEFORE the phase-boundary `/fabrik-review` — author the tests for the phase''s `## Behavior Contract` behaviors the implementer did NOT already TDD (the risky behaviors stay implementer-TDD''d; native seats fill the rest)'
+- id: u-L41
+  file: render
+  section: '## Where this auto-fires (3 call sites — the same loop, different trigger)'
+  baseline: '`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it'
+  current: '`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it'
+  text:
+  - '`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it'
+- id: u-L42
+  file: render
+  section: '## Where this auto-fires (3 call sites — the same loop, different trigger)'
+  baseline: 'Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite'
+  current: 'Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite'
+  text:
+  - 'Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite'
+- id: u-L44
+  file: render
+  section: '## Subagents — no flywheel while the pool is OFF (D-181)'
+  baseline: 'A native seat has no `AgentResult`: nothing records, nothing is scored, and `check_subagent_flywheel.py` stands down by the same ruling (D-182) — no `NO-POOL:` is owed'
+  current: 'A native seat has no `AgentResult`: nothing records, nothing is scored, and `check_subagent_flywheel.py` stands down by the same ruling (D-182) — no `NO-POOL:` is owed'
+  text:
+  - 'A native seat has no `AgentResult`: nothing records, nothing is scored, and `check_subagent_flywheel.py` stands down by the same ruling (D-182) — no `NO-POOL:` is owed'
+- id: u-L45
+  file: render
+  section: '## Subagents — no flywheel while the pool is OFF (D-181)'
+  baseline: The pool recording contract is kept below for re-enable
+  current: The pool recording contract is kept below for re-enable
+  text:
+  - The pool recording contract is kept below for re-enable
 - id: r-pool-off
   class: prose
   baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
   text:
-  - 'Pool OFF (D-181, operator, 2026-09-07; mechanism D-182). The OpenRouter subagent pool stays off, though its credentials are provisioned and a `fanout` would still SPEND: this text is the control, so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (kept in the Re-enable rules line below, formerly in `<!-- POOL OFF -->` comments)'
+  - 'Pool OFF (D-181, operator, 2026-09-07; mechanism D-182). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
 - id: r-native
   class: prose
   baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
   text:
-  - 'Run every fan-out this command names NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you; a native seat records nothing, so no flywheel back-fill'
-  - so no flywheel back-fill; `libs/subagents` is not called
+  - 'Run every fan-out this command names NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
 - id: r-no-nopool
   class: ban
   baseline: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
@@ -119,13 +181,13 @@ entries:
   text:
   - The five-step list above renders from `/opt/fabrik/commands/_fragments/test-generation-loop.md`, which `/fabrik-review` renders too — it is the ONE place the shape is defined; edit the fragment, not the copy, or the reviewer's view of this pipeline stops matching it
 - id: r-suggest
-  section: '### 1. Suggest (one seat per module/area)'
+  section: '### 1. Suggest (native — one seat per module/area of the target; diversity of briefs is the whole point)'
   class: ban
   baseline: 'Dispatch one native seat (Sonnet) per module/area of the target, each with a differently-angled brief — the module count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191), never a token 2 (D-186) — to each propose the distinct user-observable behaviors of the target, then union them (a single suggester is the blind spot — different families catch what one misses):'
   text:
   - Dispatch one native Sonnet seat per module/area of the target, each with a differently-angled brief
   - the module count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats, stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them (D-191), never a token 2 (D-186)
-  - to propose the distinct user-observable behaviors of the target, then union them
+  - 'to each propose the distinct user-observable behaviors of the target, then union them (a single suggester is the blind spot — different families catch what one misses):'
 - id: r-curate-own
   section: '### 2. Curate (YOU — the anti-bloat + anti-gap gate)'
   class: prose
@@ -181,35 +243,23 @@ entries:
   text:
   - Then keep each surviving test (the seats wrote them in the tree — delete a rejected one); fix any weak test yourself
 - id: r-site-plan
-  section: '## Where this auto-fires (3 call sites)'
+  section: '## Where this auto-fires (3 call sites — the same loop, different trigger)'
   class: prose
   baseline: '`/fabrik-execute-plan`, per phase (proactive): after the phase CODE is committed + the phase gate is green, BEFORE the phase-boundary `/fabrik-review` — author the tests for the phase''s `## Behavior Contract` behaviors the implementer did NOT already TDD (the risky behaviors stay implementer-TDD''d; native seats fill the rest)'
   text:
   - '`/fabrik-execute-plan`, per phase (proactive): after the phase CODE is committed + the phase gate is green, BEFORE the phase-boundary `/fabrik-review` — author the tests for the phase''s `## Behavior Contract` behaviors the implementer did NOT already TDD (the risky behaviors stay implementer-TDD''d; native seats fill the rest)'
-- id: r-review-verdict
-  class: ban
-  text:
-  - Your test-quality review is the whole verdict
 - id: r-site-review
-  section: '## Where this auto-fires (3 call sites)'
+  section: '## Where this auto-fires (3 call sites — the same loop, different trigger)'
   class: prose
   baseline: '`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it'
   text:
   - '`/fabrik-review` (reactive): when a review finds a behavior with NO test, it invokes this loop for it'
 - id: r-site-standalone
-  section: '## Where this auto-fires (3 call sites)'
+  section: '## Where this auto-fires (3 call sites — the same loop, different trigger)'
   class: prose
   baseline: 'Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite'
   text:
   - 'Standalone (`/fabrik-generate-tests <module>`): backfill an existing untested suite'
-- id: r-pool-rules
-  class: ban
-  text:
-  - '`from libs.subagents import fanout, pick_models, set_quality`; if `fanout` is `None` STOP with the stated fail-mode'
-  - so you never call `record_agent_run` by hand
-  - Score the AUTHOR'S judgment, never a mechanical output-check
-  - '`AUTHOR_PROMPT` MUST activate the project''s `.venv` before `pytest`'
-  - Manual `.tmp/subagents` sweep ONLY when NO sibling agents are running
 vanished:
   L2:
     rule:
@@ -229,69 +279,24 @@ vanished:
   L7:
     rule:
     - r-intro
-  L9: narrative
-  L10:
-    rule:
-    - r-native
-  L11:
-    rule:
-    - r-pool-rules
   L15:
     rule:
     - r-fragment-edit
   L16:
     rule:
     - r-fragment-edit
-  L17: narrative
   L18:
     rule:
     - r-suggest
   L21:
     rule:
     - r-curate-own
-  L23:
-    duplicate-of: r-native
   L25:
     rule:
     - r-commit-first
-  L26:
-    rule:
-    - r-secrets
-  L27:
-    rule:
-    - r-must-commit
-  L28:
-    rule:
-    - r-commit-pathspec
-  L30:
-    rule:
-    - r-author
   L33:
     rule:
     - r-review-fail
   L34:
     rule:
     - r-review-env
-  L35:
-    rule:
-    - r-review-keep
-  L37:
-    rule:
-    - r-review-verdict
-  L38: narrative
-  L39: narrative
-  L40:
-    rule:
-    - r-site-plan
-  L41:
-    rule:
-    - r-site-review
-  L42:
-    rule:
-    - r-site-standalone
-  L43: narrative
-  L44:
-    duplicate-of: r-no-nopool
-  L45:
-    rule:
-    - r-pool-rules
