@@ -10,7 +10,7 @@ entries:
   text:
   - 'Read the lines that match the change''s SHAPE — never all of them, § Seat isolation excepted: it applies whole in every brief that runs tests or imports pinned code — before every pin, the first and each delta, and while writing every brief'
   class: ban
-- id: cat-L4
+- id: cat-rest-execute-each-or-name-in-the-brief-why-th
   file: commands/_fragments/review-probe-catalogue.md
   section: '# Review probe catalogue'
   baseline: 'Each is a step, not a check box: execute it, or name in the brief why the shape does not have it'
@@ -103,7 +103,7 @@ entries:
   class: prose
   pins:
   - tests/test_review_queue_pass.py::test_a_wording_change_seat_runs_the_command_the_sentence_names
-- id: cat-L14
+- id: cat-rest-before-widening-a-matcher-or-heuristic-i
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Before the first pin, and again before each delta pin (the lead executes)'
   baseline: 'Before widening a matcher or heuristic: its fire rate and added-hit precision on the live population, the failure-mode asymmetry, and a written residual (a heuristic finding is fixed by narrowing plus a documented limit); new classifier rules run against real dependency outputs; before a parity claim, whether the mirror can be exact with the dependencies available; before a counted bar or a spend scale changes, drive it over the real series and the unit cost'
@@ -300,7 +300,7 @@ entries:
   - tests/test_review_queue_pass.py::test_a_measured_count_names_what_it_leaves_out
   - tests/test_review_scoped_queue_pass.py::test_a_matcher_sentence_is_executed_over_its_input_space
   - tests/test_review_scoped_queue_pass.py::test_a_channel_sentence_is_executed_on_each_channel
-- id: cat-L35
+- id: cat-rest-a-site-a-round-re-opened-a-bullet-wrong
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Prose and docs fixes'
   baseline: A site a round re-opened, a bullet wrong two rounds running, or a mechanism the fix added and a round broke, is rewritten or deleted whole, never patched again
@@ -540,7 +540,7 @@ entries:
   class: ban
   pins:
   - tests/test_review_scoped_queue_pass.py::test_a_delta_brief_carries_the_bounded_hops_reader_run_inputs
-- id: cat-L57
+- id: cat-rest-no-uv-pip-no-live-api-key-outside-the-su
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Seat isolation'
   baseline: No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word `git` inside a `-c` program or heredoc as a git call, so the seat writes such a probe to a file) and hands readers a ready probe harness file, never promising a tool the seat does not have (the Write tool); a claim only the home directory can settle is recorded up front for the lead
@@ -676,11 +676,23 @@ entries:
   text:
   - 'Route-up and close: a fix that adds file re-applies step 1''s count; critical finding on published contract routes up at once; artifacts review itself created go to follow-up loop; RECORDED residue whose surface is another beat''s is mailed at close; shared-ledger hunks land before closing pass; completion gate runs before terminal round is recorded; under operator directive forbidding subagents, close''s `--evidence` declares waiver'
   class: prose
+- id: cat-a-fix-outside-the-pin-is-absent
+  file: commands/_fragments/review-probe-catalogue.md
+  section: '# Review probe catalogue'
+  forbidden:
+  - or the brief names it
+  class: prose
+- id: cat-an-injected-line-is-read-back-absent
+  file: commands/_fragments/review-probe-catalogue.md
+  section: '# Review probe catalogue'
+  forbidden:
+  - render a fragment edit's consumers to a temp dir and read each
+  class: prose
 vanished:
   L2: narrative
   L4:
     rule:
-    - cat-L4
+    - cat-rest-execute-each-or-name-in-the-brief-why-th
   L6:
     rule:
     - cat-a-delta-brief-carries-the-bounded
@@ -707,7 +719,7 @@ vanished:
     - cat-a-wording-change-seat-runs-the-2
   L14:
     rule:
-    - cat-L14
+    - cat-rest-before-widening-a-matcher-or-heuristic-i
   L15:
     rule:
     - cat-rest-grep-the-docs-and-ledgers-for-a-by-desig
@@ -758,7 +770,7 @@ vanished:
     - cat-a-matcher-sentence-is-executed-over
   L35:
     rule:
-    - cat-L35
+    - cat-rest-a-site-a-round-re-opened-a-bullet-wrong
   L37:
     rule:
     - cat-a-brief-names-the-fix-by
@@ -809,7 +821,7 @@ vanished:
     - cat-a-delta-brief-carries-the-bounded-3
   L57:
     rule:
-    - cat-L57
+    - cat-rest-no-uv-pip-no-live-api-key-outside-the-su
   L58:
     rule:
     - cat-a-seat-scratch-repo-is-checked
