@@ -28,3 +28,26 @@
 - Floor (why not 50%): the protected windows alone are about 70% of the live text; they are forced by (a) ban spans verbatim to clause end, (b) clauses whose 4-9 backticked/numeric anchors must sit in ONE phrase, (c) history inside ban clauses that D-1238 point 1 forbids labelling narrative. I measured the pure-telegraphic floor (anchors + 6 stems + ban spans, nothing else) at 47-55% of the unit words; reaching it would leave text that no longer reads as instructions, so I stopped at the readable floor.
 - Self-audit: one fresh Sonnet auditor read baseline, rewrite and ledger; its findings (LOST/WEAKER/WRONG-LABEL) were fixed in the rewrite (dropped qualifiers restored) and the ledger regenerated. Residual: see COUNTS in the hub summary; hub author-blind audit still owed.
 - LEFT FOR THE HUB: policy call on D-1238 point 1 / D-1240 (they force history retention and make 50% unreachable for ban-dense commands); ratchet `_size_ceiling.json`; CHANGELOG/INDEX rows.
+
+## Fix round 2 (hub audit)
+
+- Findings checked against the baseline units (`commands/_rules/fabrik-rules-review.baseline.txt`). The two reports overlap; pairs counted once.
+- **Confirmed and fixed (10):**
+  - Lost ban sentence in Phase 4 (Sonnet #1, `cu-L65`): "Do not stop after one pass." restored at the head of Phase 4 and added to the `cu-L65` phrase.
+  - `cu-L68`: "to completeness; it does not fix the gaps" restored verbatim.
+  - `cu-L25` scope (Sonnet #3): the baseline holds it as a separate top-level bullet after the includes (the assembler's grounding-artifact append says so), so it is restored as that bullet and the HUB bullet keeps only "Verify against `python scripts/select_rules.py`" (`cu-L24`).
+  - `cu-L23` (both reports): "actually" and "A perfectly-worded rule in a pack whose glob never matches the offending file is theatre." restored.
+  - `cu-L48`: "For EACH requirement … cites `path:line` from them — and explicitly flags" restored.
+  - `cu-L69`: "in the run record" restored.
+  - `cu-L12`: "project's code against its synced packs" restored.
+  - `cu-L32`: "wherever" and "mismatch" restored.
+  - `cu-L31`: "the project's ADR / architecture-decisions doc" and "ADR-accepted one" restored.
+  - `cu-L1`: "in this command" restored.
+  - Frontmatter: the invented "whole-surface" (Sonnet #8) removed and "a single diff's rules floor" restored (Haiku).
+- **Refuted / no change (2):**
+  - Haiku `cu-L45` "narrative" label: clause 1 is only the lead-in "Division of labor"; "build their prompts accordingly" sits in the text phrase verbatim.
+  - Haiku headings L11, L26, L36, L42, L57, L64 with no entry: headings are carried verbatim, not rule units.
+- Own-text words: baseline 2056 -> re-ledger 1975 -> now about 2045 (estimate, +about 70 restored words; this run had no permitted word counter, so it is not a tool count). Over the 50% floor for the reasons in the re-ledger section.
+- Gates run: `tests/test_command_rules.py` prints zero `LOSS fabrik-rules-review` lines (the remaining LOSS lines are `_shared/*.yaml`); `assemble_commands.py --check` exit 4, LOSS lines all `_shared`; reader-test groups run did not grow the failure set.
+- Self-audit: **no fresh subagent could be dispatched in this run, so the zero-counts pass was NOT a fresh subagent.** Every restored phrase was checked line by line against the baseline unit and the loader passes; the hub's author-blind audit pair covers the fresh pass. Fresh passes run: 0.
+- COUNTS: entries read 70 / reworded 63 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 (own line-by-line pass over the findings, not a fresh pass)

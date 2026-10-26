@@ -7,7 +7,7 @@ entries:
   class: prose
   text:
   - seat records nothing). Never write `NO-POOL:`
-  - '2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control). Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED (left in place, or in `<!-- POOL OFF -->`'
+  - '2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control). Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->`'
 - id: cu-L2
   baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
   class: prose
@@ -66,7 +66,7 @@ entries:
   baseline: 'PROJECT mode (any `/opt/<project>` with a `project.yaml`): audit THIS project''s code against its synced packs'
   class: prose
   text:
-  - 'mode (any `/opt/<project>` with a `project.yaml`): audit THIS'
+  - 'mode (any `/opt/<project>` with a `project.yaml`): audit THIS project''s code against its synced packs.'
 - id: cu-L13
   baseline: 'The packs are a read-only synced copy here (gate: `check_synced_unmodified.py`) — never edit them locally; a defect IN a pack (contradiction, false-positive, dead glob) discovered mid-audit is recorded as a finding and filed upstream via `/fabrik-upstream`, never fixed in place'
   class: ban
@@ -116,18 +116,17 @@ entries:
   baseline: Does the rule's `globs:` actually fire where the violation is written? A perfectly-worded rule in a pack whose glob never matches the offending file is theatre
   class: ban
   text:
-  - rule's `globs:` fire where the violation is written? A glob that never matches the offending file is theatre.
+  - rule's `globs:` actually fire where the violation is written? A perfectly-worded rule in a pack whose glob never matches the offending file is theatre.
 - id: cu-L24
   baseline: Verify against `python scripts/select_rules.py`
   class: prose
   text:
-  - is theatre. Verify via `python scripts/select_rules.py`
+  - is theatre. Verify against `python scripts/select_rules.py`
 - id: cu-L25
   baseline: Verify globs via `python scripts/select_rules.py` — a plausible-looking glob is not proof it matches
   class: prose
   text:
-  - is theatre. Verify via `python scripts/select_rules.py`
-  - a plausible-looking glob is not proof
+  - 'Verify globs via `python scripts/select_rules.py` — a plausible-looking glob is not proof it matches.'
 - id: cu-L27
   baseline: Establish the real stack. Read `project.yaml::type`, then CONFIRM by grep (`package.json` vs `requirements.txt`/`pyproject.toml`, lockfiles) + the real entrypoint
   class: prose
@@ -154,14 +153,14 @@ entries:
   baseline: Read the project's ADR / architecture-decisions doc FIRST (e.g. `docs/reference/architecture-decisions.md`) AND grep `docs/DECISIONS.md` — the fleet-wide decision ledger (D-000) is the canonical decisions store, and a deviation accepted by a ledger row is exactly as deliberate as an ADR-accepted one
   class: prose
   text:
-  - FIRST (e.g. `docs/reference/architecture-decisions.md`) AND grep `docs/DECISIONS.md`
-  - fleet-wide decision ledger (D-000) is the canonical decisions store,
+  - the project's ADR / architecture-decisions doc FIRST (e.g. `docs/reference/architecture-decisions.md`) AND grep `docs/DECISIONS.md`
+  - fleet-wide decision ledger (D-000) is the canonical decisions store, and a deviation accepted by a ledger row is exactly as deliberate as an ADR-accepted one
 - id: cu-L32
   baseline: 'The packs assume a particular stack (language, framework, DB, migration tool, id scheme); wherever the ADR or a ledger row records this project deliberately differs, that mismatch is an accepted deliberate decision, NOT a gap — and the same holds for ANY deviation either accepts (stack-shaped or not: a decided no-audit-log, no-`/metrics`, single-tenant)'
   class: prose
   text:
   - packs assume a particular stack (language, framework,
-  - records this project deliberately differs, that
+  - wherever the ADR or a ledger row records this project deliberately differs, that mismatch is an accepted deliberate decision, NOT a gap — and the same holds for ANY
   - 'deviation either accepts (stack-shaped or not: a decided no-audit-log, no-`/metrics`,'
 - id: cu-L33
   baseline: Capture the accepted-deviation list before auditing anything
@@ -240,7 +239,7 @@ entries:
   baseline: For EACH requirement, judges it against the inlined excerpts and cites `path:line` from them — and explicitly flags any requirement its excerpts cannot decide (`UNVERIFIABLE-FROM-EXCERPTS`) instead of guessing
   class: prose
   text:
-  - each requirement against the inlined excerpts, citing `path:line`;
+  - judges it against the inlined excerpts and cites `path:line` from them — and explicitly flags any requirement its excerpts cannot decide (`UNVERIFIABLE-FROM-EXCERPTS`)
   - requirement its excerpts cannot decide (`UNVERIFIABLE-FROM-EXCERPTS`)
 - id: cu-L49
   baseline: YOU verify every flagged item AND every cited `path:line` yourself with real tools in Phase 3 — exhaustively, not a sample; a finder verdict on code it never saw is not evidence, and a fabricated citation survives exactly as long as nobody opens it
@@ -326,7 +325,7 @@ entries:
   baseline: 'Do not stop after one pass. Re-run the fan-out + merge/refute (Phases 2–3) until a full pass is the Termination contract''s closing round: the round-1 seats, over their own slices, CONFIRMING no NEW gap and reclassifies none — `confirmed: 0`, the gap list''s md5 unchanged'
   class: prose
   text:
-  - 'merge/refute (Phases 2–3) until a full pass is the Termination contract''s closing round: the round-1'
+  - '**Do not stop after one pass.** Re-run the fan-out + merge/refute (Phases 2–3) until a full pass is the Termination contract''s closing round: the round-1'
   - '`confirmed: 0`, the gap list''s md5 unchanged.'
 - id: cu-L66
   baseline: The pass in which the list *changed* is never the last; run one more, and if anything is added, removed, or reclassified, keep going
@@ -344,13 +343,13 @@ entries:
   baseline: This converges the AUDIT to completeness; it does not fix the gaps (fixing is a separate, user-authorized step)
   class: prose
   text:
-  - pass is. This converges the AUDIT;
+  - pass is. This converges the AUDIT to completeness; it does not fix the gaps
   - (fixing is a separate, user-authorized step)
 - id: cu-L69
   baseline: 'Record each pass in the run record: `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>` — where `--findings` is raw recall and `--confirmed <n>` counts gaps that HELD (NEW or RECLASSIFIED this pass, executed against `path:line`); never the standing gap-table size: a standing gap re-listed by a later pass is CITED, not counted (D-206), so the closing pass honestly records `--confirmed 0` and the TERMINAL verdict is reachable while real gaps stand — the round ledger is what proves the stable pass, and it is this command''s persisted trace: the audit itself is deliberately chat-only (the GAP table lands in the final response for the operator to fold into a plan; a READ-ONLY command writes no artifact), so a run whose rounds are unrecorded has no evidence it converged'
   class: ban
   text:
-  - '`python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>`'
+  - 'Record each pass in the run record: `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>`'
   - '`--findings` is raw recall and `--confirmed <n>` counts gaps that HELD (NEW or RECLASSIFIED this pass, executed against `path:line`),'
   - 'never the standing gap-table size: a standing gap re-listed by a later pass is CITED, not counted (D-206), so the closing pass honestly records `--confirmed 0` and the TERMINAL verdict is reachable while real gaps stand;'
   - 'proves the stable pass, and it is this command''s persisted trace: the audit itself is deliberately chat-only (the GAP table lands in the final response for the operator to fold into a plan; a READ-ONLY command writes no artifact), so a run whose rounds are unrecorded has no evidence it converged'
