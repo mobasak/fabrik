@@ -135,6 +135,13 @@ entries:
   text:
   - '`none` is a valid verdict; silence is not'
   class: prose
+- id: rr-only-witness
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: You are the only witness to how the machinery behaved this run, and an unfiled finding dies with the session
+  text:
+  - You are the only witness to how the machinery behaved this run, and an unfiled finding dies with the session
+  class: ban
 - id: rr-blocked
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
@@ -219,7 +226,7 @@ vanished:
     - rr-feedback-required
   L13:
     rule:
-    - rr-none-valid
+    - rr-only-witness
   L17:
     rule:
     - runrec-both-hold-in-every-command-even

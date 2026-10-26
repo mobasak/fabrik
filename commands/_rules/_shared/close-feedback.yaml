@@ -69,13 +69,10 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: The one axis with no per-run key is axis 5, continuous improvement — it is read ACROSS runs, which is why seven keys serve eight axes
-  current: One axis per close — the report groups the queue by it, and a second key after a comma is not read
+  current: The one axis with no per-run key is axis 5, continuous improvement — it is read ACROSS runs, which is why seven keys serve eight axes
   text:
-  - One axis per close — the report groups the queue by it, and a second key after a comma is not read
+  - The one axis with no per-run key is axis 5, continuous improvement — it is read ACROSS runs, which is why seven keys serve eight axes
   class: prose
-  clauses:
-    1: narrative
-    2: narrative
 - id: cf-12
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -129,6 +126,14 @@ entries:
   class: ban
   clauses:
     2: narrative
+- id: cf-71
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict
+  current: The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict
+  text:
+  - The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict
+  class: prose
 - id: cf-18
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -317,12 +322,10 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: '"none" is a valid verdict ONLY with its surfaces named — a BARE "none" is now REFUSED by the parser (D-036, the operator''s 5th ask made mechanical). Write `none — surfaces exercised: <what your run actually touched of the machinery>`; silence and a bare "none" are byte-identical to the reader, and the close will not accept either'
-  current: '"none" is valid ONLY with its surfaces named — a BARE "none" is now REFUSED by the parser (D-036, the operator''s 5th ask made mechanical). Write `none — surfaces exercised: <what your run actually touched of the machinery>`'
+  current: '"none" is valid ONLY with its surfaces named — a BARE "none" is now REFUSED by the parser (D-036, the operator''s 5th ask made mechanical). Write `none — surfaces exercised: <what your run actually touched of the machinery>`; silence and a bare "none" are byte-identical to the reader, and the close will not accept either'
   text:
-  - '"none" is valid ONLY with its surfaces named — a BARE "none" is now REFUSED by the parser (D-036, the operator''s 5th ask made mechanical). Write `none — surfaces exercised: <what your run actually touched of the machinery>`'
+  - '"none" is valid ONLY with its surfaces named — a BARE "none" is now REFUSED by the parser (D-036, the operator''s 5th ask made mechanical). Write `none — surfaces exercised: <what your run actually touched of the machinery>`; silence and a bare "none" are byte-identical to the reader, and the close will not accept either'
   class: ban
-  clauses:
-    3: narrative
 - id: cf-37
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -546,7 +549,9 @@ vanished:
   L16:
     rule:
     - cf-17
-  L17: narrative
+  L17:
+    rule:
+    - cf-71
   L18:
     rule:
     - cf-14
