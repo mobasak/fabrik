@@ -13,9 +13,9 @@ entries:
   file: commands/_agents/fabrik-gui.md
   section: '## Your toolset'
   baseline: 'Read-only git (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
-  current: 'Read-only git (spec D8) (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept uncommitted work, recovered by content, never a pop)'
+  current: 'Read-only git (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work, recovered by content from the stash, never a pop)'
   text:
-  - 'Read-only git (spec D8) (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept uncommitted work, recovered by content, never a pop)'
+  - 'Read-only git (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work, recovered by content from the stash, never a pop)'
   class: ban
 - id: gui-playwright
   file: commands/_agents/fabrik-gui.md
@@ -37,9 +37,9 @@ entries:
   file: commands/_agents/fabrik-gui.md
   section: '## Your toolset'
   baseline: 'Build + gate: `Read`/`Grep`/`Glob`/`Edit`/`Write`/`Bash` — edit the real component source and run the CI gate (`@axe-core/playwright` → `violations == []`, `toHaveScreenshot`, the design-token lint, `size-limit` for extensions)'
-  current: 'Build + gate: `Read`/`Grep`/`Glob`/`Edit`/`Write`/`Bash` — edit the real component source and run the CI gate (`@axe-core/playwright` → `violations == []`, `toHaveScreenshot`, `size-limit` for extensions)'
+  current: 'Build + gate: `Read`/`Grep`/`Glob`/`Edit`/`Write`/`Bash` — edit the real component source and run the CI gate (`@axe-core/playwright` → `violations == []`, `toHaveScreenshot`, the design-token lint, `size-limit` for extensions)'
   text:
-  - 'Build + gate: `Read`/`Grep`/`Glob`/`Edit`/`Write`/`Bash` — edit the real component source and run the CI gate (`@axe-core/playwright` → `violations == []`, `toHaveScreenshot`, `size-limit` for extensions)'
+  - 'Build + gate: `Read`/`Grep`/`Glob`/`Edit`/`Write`/`Bash` — edit the real component source and run the CI gate (`@axe-core/playwright` → `violations == []`, `toHaveScreenshot`, the design-token lint, `size-limit` for extensions)'
   class: prose
 - id: gui-frontend-design
   file: commands/_agents/fabrik-gui.md
@@ -61,9 +61,9 @@ entries:
   file: commands/_agents/fabrik-gui.md
   section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
   baseline: You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background (or arm a Monitor) and then end your turn to "wait for the result," you will stall until your budget is exhausted and return no verdict — the single most common way this agent fails
-  current: You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background (or arm a Monitor) and end your turn to "wait for the result," you will stall
+  current: You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background (or arm a Monitor) and then end your turn to "wait for the result," you will stall and return no verdict
   text:
-  - You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background (or arm a Monitor) and end your turn to "wait for the result," you will stall
+  - You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background (or arm a Monitor) and then end your turn to "wait for the result," you will stall and return no verdict
   class: prose
   clauses:
     2: narrative
