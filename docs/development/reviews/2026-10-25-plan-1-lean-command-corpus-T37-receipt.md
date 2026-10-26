@@ -43,3 +43,10 @@ Two author-blind hub audits (Sonnet, Haiku; overlapping) refuted the round-1 zer
 - **Gates:** `pytest tests/test_command_rules.py -rP` — no LOSS line for this ledger (the one failing test reports `_shared/*.yaml` LOSS only, another unit's). `assemble_commands.py --check` not re-run in this environment.
 - **Fresh self-audit:** 2 fresh subagent passes (never the author). Pass 1 found 6 WEAKER items across both commands (checklist r-52, r-91, r-2; verify r-12, r-22, r-37), all restored. Pass 2 (new subagent) found nothing.
 - **Last fresh pass:** `COUNTS: entries read 234 / reworded 95 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0` (both commands combined; 2 fresh passes ran).
+
+## Nits round (hub)
+
+- **verify r-15:** restored `in the verdict table` in source and in the ledger entry's `text`.
+- **verify L4:** repointed the vanished label from r-4 to r-5 (the content survives in r-5's `text`).
+- **verify r-3:** untouched (the `0 of its 760 companies` narrative label was refuted).
+- **Own-text words:** +4 (`in the verdict table`). The zero-counts self-audit was not a fresh subagent (none could be dispatched); the hub's author-blind audit pair covers it.

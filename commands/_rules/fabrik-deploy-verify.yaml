@@ -525,7 +525,7 @@ entries:
   baseline: If >3 items FAIL on the same root cause (e.g. the whole VPS is unreachable), stop early and report that cause rather than exhausting the checklist against a dead host — every unreached item then carries `NOT-RUN (<the shared root cause>)` in the verdict table, so the early stop stays fillable and honest
   class: prose
   text:
-  - If >3 items FAIL on the same root cause (e.g. the VPS is unreachable), stop early and report that cause rather than exhausting the checklist against a dead host — every unreached item then carries `NOT-RUN (<the shared root cause>)`
+  - If >3 items FAIL on the same root cause (e.g. the VPS is unreachable), stop early and report that cause rather than exhausting the checklist against a dead host — every unreached item then carries `NOT-RUN (<the shared root cause>)` in the verdict table
 - id: r-18
   section: '## Phase 0 — Resolve the target'
   baseline: If the target's `project.yaml::type` is a STORE surface — `mobile-app`, `chrome-extension`, `desktop-app` — there is no spec, no `domain` and no `target_vps` to read, and a run that pushes on will fail at step 1 looking like a missing file rather than an inapplicable command
@@ -847,7 +847,7 @@ vanished:
     - r-3
   L4:
     rule:
-    - r-4
+    - r-5
   L5:
     rule:
     - r-5

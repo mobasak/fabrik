@@ -555,7 +555,7 @@ entries:
   baseline: Every row declares its SITE — `@site("container")` for rows that need the database, redis or the internal network (they run INSIDE the app container on the VPS), `@site("host")` for `docker ps` / volume rows (the VPS host), nothing for the public surface (`hub`, the default)
   class: prose
   text:
-  - Every row declares its SITE — `@site("container")` for rows that need the database, redis or the internal network, `@site("host")` for `docker ps` / volume rows, nothing for the public surface (`hub`, the default)
+  - Every row declares its SITE — `@site("container")` for rows that need the database, redis or the internal network (they run INSIDE the app container on the VPS), `@site("host")` for `docker ps` / volume rows, nothing for the public surface (`hub`, the default)
 - id: r-49
   section: '## Phase 2 — Emit the contract `[anywhere]`'
   baseline: 'No self-referential row: a row whose `expected` and `actual` come from the same source (the contract''s own header, a constant compared to itself) cannot be seen red and inflates the numerator — the only rows allowed to compare a constant to itself are the `not obligated` markers, and only because `NOT_OBLIGATED` removes them from the denominator'
@@ -598,7 +598,7 @@ entries:
   class: prose
   text:
   - 'Declare the container leg''s service when it is not the app: `CONTAINER_LEG_SERVICE = "<compose service>"` beside `SITES`, the container that can reach the database and the internal network; the runner reads this from `--header` rather than assuming (a DB-free bridge''s leg runs in `trytond`)'
-  - Every row declares its SITE — `@site("container")` for rows that need the database, redis or the internal network, `@site("host")` for `docker ps` / volume rows, nothing for the public surface (`hub`, the default)
+  - Every row declares its SITE — `@site("container")` for rows that need the database, redis or the internal network (they run INSIDE the app container on the VPS), `@site("host")` for `docker ps` / volume rows, nothing for the public surface (`hub`, the default)
 - id: r-56
   section: '## Phase 2 — Emit the contract `[anywhere]`'
   baseline: 'A DB-free bridge in front of a stateful backend (tryton-crm: the FastAPI app has no psycopg by design; the leg runs in `trytond`) is a common shape, and the runner reads this from `--header` rather than assuming'
