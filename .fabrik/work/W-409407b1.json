@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "D-836 run scratch is unwritable from a linked-worktree session (Write tool refused) — seats fall back to the session scratchpad"
 }
