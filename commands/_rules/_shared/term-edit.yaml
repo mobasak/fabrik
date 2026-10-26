@@ -9,7 +9,7 @@ entries:
   current: This is a LOOP, not a one-shot
   text:
   - This is a LOOP, not a one-shot
-  # class: prose
+  class: prose
 - id: te-b03-ends-act-only-closing
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -17,7 +17,7 @@ entries:
   current: 'It ends — and you may {{DONE_ACT}} — only when the CLOSING round CONFIRMED zero defects, confirmed by EXECUTION (a pinned read quoted beside the sentence, a count re-derived from its primary source, a `path:line` resolved at the pinned SHA, a gate line run, a URL status probed by the orchestrator), with nothing left unexecuted (`confirmed: 0, fixed: 0, unexecuted: 0`) and the md5 unchanged (D-206, D-212)'
   text:
   - 'It ends — and you may {{DONE_ACT}} — only when the CLOSING round CONFIRMED zero defects, confirmed by EXECUTION (a pinned read quoted beside the sentence, a count re-derived from its primary source, a `path:line` resolved at the pinned SHA, a gate line run, a URL status probed by the orchestrator), with nothing left unexecuted (`confirmed: 0, fixed: 0, unexecuted: 0`) and the md5 unchanged (D-206, D-212)'
-  # class: ban
+  class: ban
 - id: te-closing-round-zero-defects-present-same-seat-per-slice
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -27,7 +27,7 @@ entries:
   - 'THE CLOSING ROUND, wherever this contract names it: the pass in which the round-1 seats re-executed every claim of their OWN slice ledgers and confirmed zero code or doc defects present — the same seat per slice, never a fresh whole-artifact reader, because that reader is how the loop degenerates from round two on — *one seat re-reads the whole artifact, the brief becomes "find anything", fixes are written from recall so they seed the next round* (D-335, D-911; `docs/reference/command-loop-performance.md` § 4.7, The root cause) — or, for a solo self-convergence loop (the one sanctioned exception of `62-using-subagents.md` § Role separation — its definition and its example, `/fabrik-ui-design`, live THERE and are never restated here), a second full fresh read of its own by the re-derivation method, its independence deferred to the paired review command that follows it'
   pins:
   - tests/test_review_command_text_defects.py::test_the_closing_pass_confirms_zero_defects_present_not_claims_executed_true
-  # class: ban
+  class: ban
 - id: te-b05-fixes-open-new-gaps
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -35,18 +35,17 @@ entries:
   current: Fixes open new gaps, so the round in which you edited the {{ARTIFACT}} is NEVER the last round — it MUST be followed by another round
   text:
   - Fixes open new gaps, so the round in which you edited the {{ARTIFACT}} is NEVER the last round — it MUST be followed by another round
-  # class: ban
+  class: ban
 - id: te-trimmed-partition-unread-slices-swept-before-delta
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
   baseline: 'The pass SHAPE: round 1 is the ONLY full pass of a seat-carrying loop, and a solo loop''s closing read is its second — round 1 reads the WHOLE {{ARTIFACT}}, cut into DISJOINT slices: by SECTION for the spec and plan reviews (Opus on the rule/grammar sections, Sonnet on the rest — one seat each for a small artifact, more slices when `dispatch_headroom.py --slices opus=N,sonnet=N` sizes them; `fabrik-researcher` seats only for the external facts the artifact cites, counted inside `opus=`/`sonnet=` by their model token; no Haiku seat — D-207, D-212, D-218); every other consumer by its own INDEPENDENT units (independence of the surface — no unit''s ground truth is another''s, D-208), in the mix the `⚠️ Floor` line of its `## Subagents` section states where it has one (a Sonnet seat per unit, a Haiku mechanical seat per grep-able class, the Opus authoritative seat) and the D-208 three-seat floor otherwise — a minimum, never the count; under a partition the three-seat floor stands down, satisfied by construction (D-208, D-218); no slice''s text read by two seats, and the union IS the pass — unless `dispatch_headroom.py` printed a `TRIMMED partition` line: then the union is NOT the full pass, the ledger names the unread slices and further full-pass waves over those slices alone run before any delta pass; every later pass is the round-1 seats re-verifying their OWN slices — the fix hunks in the slice plus one hop (the sections whose cross-reference tokens (`I#`, `D#`, `G#`, `T##`, a `§` heading, a `path:line`) cite the edited section, plus any sibling commit on the {{ARTIFACT}} since the last pass) — never a fresh whole-artifact reader (a pass that edited nothing — a quiet round 1, or a pass whose confirmed defect was routed to a backlog row — leaves an EMPTY fix diff: the next pass is the owning seats re-deriving the load-bearing claims their ledgers name — counts, enumerations, anchors and executable rules — a bounded re-derivation, never a second full read except the solo loop''s own) — SIZED BY THE SLICES (D5, D-335 superseding D-229): every later pass dispatches one seat per slice whose ledger holds an open claim — a failing claim, a claim the fix introduced, or any claim not yet RE-EXECUTED in a later pass (the two-pass minimum overrides this test, so a quiet round 1''s claims are all open to its closing pass) — on the seat that owned that slice in round 1 (the same model, or Sonnet/Haiku where the slice is not risky); a slice with no open claim is not re-dispatched yet is still restated at its last `<verified>/<claims>` in that pass''s `round --slices` (D-335), and a refuted or recorded candidate opens nothing; `dispatch_headroom.py --slices` (or `--units`) sizes round 1 and the union of the round-1 seats is the ceiling of every later pass (the floor of D-208 binds round 1 only)'
-  current: 'The pass SHAPE: round 1 is the ONLY full pass of a seat-carrying loop, and a solo loop''s closing read is its second — round 1 reads the WHOLE {{ARTIFACT}}, cut into DISJOINT slices: by SECTION for the spec and plan reviews (Opus on the rule/grammar sections, Sonnet on the rest — one seat each for a small artifact, more slices when `dispatch_headroom.py --slices opus=N,sonnet=N` sizes them; `fabrik-researcher` seats only for the external facts the artifact cites, counted inside `opus=`/`sonnet=` by their model token; no Haiku seat); every other consumer by its own INDEPENDENT units (independence of the surface — no unit''s ground truth is another''s, D-208), in the mix the `⚠️ Floor` line of its `## Subagents` section states where it has one (a Sonnet seat per unit, a Haiku mechanical seat per grep-able class, the Opus authoritative seat) and the D-208 three-seat floor otherwise — a minimum, never the count; under a partition the three-seat floor stands down (D-208, D-218); no slice''s text read by two seats, and the union IS the pass — unless `dispatch_headroom.py` printed a `TRIMMED partition` line: then the union is NOT the full pass, the ledger names the unread slices and further full-pass waves over those slices alone run before any delta pass; every later pass is the round-1 seats re-verifying their OWN slices — the fix hunks in the slice plus one hop (sections citing the edited section by `I#`, `D#`, `G#`, `T##`, a `§` heading or a `path:line`, plus any sibling commit since the last pass) — never a fresh whole-artifact reader (a pass that edited nothing leaves an EMPTY fix diff: the next pass is the owning seats re-deriving the load-bearing claims their ledgers name — counts, enumerations, anchors and executable rules — a bounded re-derivation, never a second full read except the solo loop''s own) — SIZED BY THE SLICES (D5, D-335 superseding D-229): every later pass dispatches one seat per slice whose ledger holds an open claim — a failing claim, a claim the fix introduced, or any claim not yet RE-EXECUTED in a later pass (the two-pass minimum overrides this test) — on the seat that owned that slice in round 1 (the same model, or Sonnet/Haiku where the slice is not risky); a slice with no open claim is not re-dispatched yet is still restated at its last `<verified>/<claims>` in that pass''s `round --slices` (D-335), and a refuted or recorded candidate opens nothing; `dispatch_headroom.py --slices` (or `--units`) sizes round 1 and the union of the round-1 seats is the ceiling of every later pass (the floor of D-208 binds round 1 only)'
+  current: 'The pass SHAPE: round 1 is the ONLY full pass of a seat-carrying loop, and a solo loop''s closing read is its second — round 1 reads the WHOLE {{ARTIFACT}}, cut into DISJOINT slices: by SECTION for the spec and plan reviews (Opus on the rule/grammar sections, Sonnet on the rest — one seat each for a small artifact, more slices when `dispatch_headroom.py --slices opus=N,sonnet=N` sizes them; `fabrik-researcher` seats only for the external facts the artifact cites, counted inside `opus=`/`sonnet=` by their model token; no Haiku seat — D-207, D-212, D-218); every other consumer by its own INDEPENDENT units (independence of the surface — no unit''s ground truth is another''s, D-208), in the mix the `⚠️ Floor` line of its `## Subagents` section states where it has one (a Sonnet seat per unit, a Haiku mechanical seat per grep-able class, the Opus authoritative seat) and the D-208 three-seat floor otherwise — a minimum, never the count; under a partition the three-seat floor stands down (D-208, D-218); no slice''s text read by two seats, and the union IS the pass — unless `dispatch_headroom.py` printed a `TRIMMED partition` line: then the union is NOT the full pass, the ledger names the unread slices and further full-pass waves over those slices alone run before any delta pass; every later pass is the round-1 seats re-verifying their OWN slices — the fix hunks in the slice plus one hop (the sections whose cross-reference tokens (`I#`, `D#`, `G#`, `T##`, a `§` heading, a `path:line`) cite the edited section, plus any sibling commit on the {{ARTIFACT}} since the last pass) — never a fresh whole-artifact reader (a pass that edited nothing — a quiet round 1, or a pass whose confirmed defect was routed to a backlog row — leaves an EMPTY fix diff: the next pass is the owning seats re-deriving the load-bearing claims their ledgers name — counts, enumerations, anchors and executable rules — a bounded re-derivation, never a second full read except the solo loop''s own) — SIZED BY THE SLICES (D5, D-335 superseding D-229): every later pass dispatches one seat per slice whose ledger holds an open claim — a failing claim, a claim the fix introduced, or any claim not yet RE-EXECUTED in a later pass (the two-pass minimum overrides this test, so a quiet round 1''s claims are all open to its closing pass) — on the seat that owned that slice in round 1 (the same model, or Sonnet/Haiku where the slice is not risky); a slice with no open claim is not re-dispatched yet is still restated at its last `<verified>/<claims>` in that pass''s `round --slices` (D-335), and a refuted or recorded candidate opens nothing; `dispatch_headroom.py --slices` (or `--units`) sizes round 1 and the union of the round-1 seats is the ceiling of every later pass (the floor of D-208 binds round 1 only)'
   text:
-  - 'The pass SHAPE: round 1 is the ONLY full pass of a seat-carrying loop, and a solo loop''s closing read is its second — round 1 reads the WHOLE {{ARTIFACT}}, cut into DISJOINT slices: by SECTION for the spec and plan reviews (Opus on the rule/grammar sections, Sonnet on the rest — one seat each for a small artifact, more slices when `dispatch_headroom.py --slices opus=N,sonnet=N` sizes them; `fabrik-researcher` seats only for the external facts the artifact cites, counted inside `opus=`/`sonnet=` by their model token; no Haiku seat); every other consumer by its own INDEPENDENT units (independence of the surface — no unit''s ground truth is another''s, D-208), in the mix the `⚠️ Floor` line of its `## Subagents` section states where it has one (a Sonnet seat per unit, a Haiku mechanical seat per grep-able class, the Opus authoritative seat) and the D-208 three-seat floor otherwise — a minimum, never the count; under a partition the three-seat floor stands down (D-208, D-218); no slice''s text read by two seats, and the union IS the pass — unless `dispatch_headroom.py` printed a `TRIMMED partition` line: then the union is NOT the full pass, the ledger names the unread slices and further full-pass waves over those slices alone run before any delta pass; every later pass is the round-1 seats re-verifying their OWN slices — the fix hunks in the slice plus one hop (sections citing the edited section by `I#`, `D#`, `G#`, `T##`, a `§` heading or a `path:line`, plus any sibling commit since the last pass) — never a fresh whole-artifact reader (a pass that edited nothing leaves an EMPTY fix diff: the next pass is the owning seats re-deriving the load-bearing claims their ledgers name — counts, enumerations, anchors and executable rules — a bounded re-derivation, never a second full read except the solo loop''s own) — SIZED BY THE SLICES (D5, D-335 superseding D-229): every later pass dispatches one seat per slice whose ledger holds an open claim — a failing claim, a claim the fix introduced, or any claim not yet RE-EXECUTED in a later pass (the two-pass minimum overrides this test) — on the seat that owned that slice in round 1 (the same model, or Sonnet/Haiku where the slice is not risky); a slice with no open claim is not re-dispatched yet is still restated at its last `<verified>/<claims>` in that pass''s `round --slices` (D-335), and a refuted or recorded candidate opens nothing; `dispatch_headroom.py --slices` (or `--units`) sizes round 1 and the union of the round-1 seats is the ceiling of every later pass (the floor of D-208 binds round 1 only)'
+  - 'The pass SHAPE: round 1 is the ONLY full pass of a seat-carrying loop, and a solo loop''s closing read is its second — round 1 reads the WHOLE {{ARTIFACT}}, cut into DISJOINT slices: by SECTION for the spec and plan reviews (Opus on the rule/grammar sections, Sonnet on the rest — one seat each for a small artifact, more slices when `dispatch_headroom.py --slices opus=N,sonnet=N` sizes them; `fabrik-researcher` seats only for the external facts the artifact cites, counted inside `opus=`/`sonnet=` by their model token; no Haiku seat — D-207, D-212, D-218); every other consumer by its own INDEPENDENT units (independence of the surface — no unit''s ground truth is another''s, D-208), in the mix the `⚠️ Floor` line of its `## Subagents` section states where it has one (a Sonnet seat per unit, a Haiku mechanical seat per grep-able class, the Opus authoritative seat) and the D-208 three-seat floor otherwise — a minimum, never the count; under a partition the three-seat floor stands down (D-208, D-218); no slice''s text read by two seats, and the union IS the pass — unless `dispatch_headroom.py` printed a `TRIMMED partition` line: then the union is NOT the full pass, the ledger names the unread slices and further full-pass waves over those slices alone run before any delta pass; every later pass is the round-1 seats re-verifying their OWN slices — the fix hunks in the slice plus one hop (the sections whose cross-reference tokens (`I#`, `D#`, `G#`, `T##`, a `§` heading, a `path:line`) cite the edited section, plus any sibling commit on the {{ARTIFACT}} since the last pass) — never a fresh whole-artifact reader (a pass that edited nothing — a quiet round 1, or a pass whose confirmed defect was routed to a backlog row — leaves an EMPTY fix diff: the next pass is the owning seats re-deriving the load-bearing claims their ledgers name — counts, enumerations, anchors and executable rules — a bounded re-derivation, never a second full read except the solo loop''s own) — SIZED BY THE SLICES (D5, D-335 superseding D-229): every later pass dispatches one seat per slice whose ledger holds an open claim — a failing claim, a claim the fix introduced, or any claim not yet RE-EXECUTED in a later pass (the two-pass minimum overrides this test, so a quiet round 1''s claims are all open to its closing pass) — on the seat that owned that slice in round 1 (the same model, or Sonnet/Haiku where the slice is not risky); a slice with no open claim is not re-dispatched yet is still restated at its last `<verified>/<claims>` in that pass''s `round --slices` (D-335), and a refuted or recorded candidate opens nothing; `dispatch_headroom.py --slices` (or `--units`) sizes round 1 and the union of the round-1 seats is the ceiling of every later pass (the floor of D-208 binds round 1 only)'
   pins:
   - tests/test_review_command_text_defects.py::test_a_trimmed_round_one_sweeps_its_unread_slices_before_any_delta_pass
-  # class: ban
-  # clauses: {6: narrative, 16: narrative}
+  class: ban
 - id: te-b07-delta-round-count-bounded
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -54,7 +53,7 @@ entries:
   current: 'WHAT A DELTA ROUND MAY COUNT — the bounded hop (D4, D-230): a CONFIRMED defect of a delta round is a defect of a line INSIDE the previous round''s fix hunks, or a live contradiction those hunks created with a sentence of the same section, or the break those hunks created in a reader of what they changed (such as a returned value or type, a key or path form, a field, a signature, a raised exception, an exit code, a printed line, or a heading or term another section cites), shown by that reader passing on the previous round''s pin and failing on that pin with only those hunks applied, whatever line holds the defect; a defect one hop out that the hunks did not create — a caller, a callee, a neighbouring section, a pre-existing claim — is RECORDED with a named destination (a backlog row, a mail, a sibling ticket) and never counted, even when real and executed, so the ledger''s `confirmed:` and the record''s `--confirmed` count the SAME thing'
   text:
   - 'WHAT A DELTA ROUND MAY COUNT — the bounded hop (D4, D-230): a CONFIRMED defect of a delta round is a defect of a line INSIDE the previous round''s fix hunks, or a live contradiction those hunks created with a sentence of the same section, or the break those hunks created in a reader of what they changed (such as a returned value or type, a key or path form, a field, a signature, a raised exception, an exit code, a printed line, or a heading or term another section cites), shown by that reader passing on the previous round''s pin and failing on that pin with only those hunks applied, whatever line holds the defect; a defect one hop out that the hunks did not create — a caller, a callee, a neighbouring section, a pre-existing claim — is RECORDED with a named destination (a backlog row, a mail, a sibling ticket) and never counted, even when real and executed, so the ledger''s `confirmed:` and the record''s `--confirmed` count the SAME thing'
-  # class: ban
+  class: ban
 - id: te-b08-closing-round-s-method
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -62,7 +61,7 @@ entries:
   current: 'The closing round''s Method cell leads with `method: re-derivation` and names the standing-clean classes it did not re-read (`62-using-subagents.md` § Role separation defines non-authoring)'
   text:
   - 'The closing round''s Method cell leads with `method: re-derivation` and names the standing-clean classes it did not re-read (`62-using-subagents.md` § Role separation defines non-authoring)'
-  # class: prose
+  class: prose
 - id: te-b09-dispatched-finder-dies-stream
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -70,7 +69,7 @@ entries:
   current: A dispatched finder that DIES (stream watchdog, API stall, null return) has read NOTHING — its slice stays un-swept until re-dispatched or covered by you, and the round row records dispatched vs returned
   text:
   - A dispatched finder that DIES (stream watchdog, API stall, null return) has read NOTHING — its slice stays un-swept until re-dispatched or covered by you, and the round row records dispatched vs returned
-  # class: prose
+  class: prose
 - id: te-b10-closing-round-re-derivation
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -78,20 +77,20 @@ entries:
   current: ⚠️ THE CLOSING ROUND IS A RE-DERIVATION ROUND — a different METHOD, not just a fresh read, and the ledger must SAY so. RE-DERIVE every factual claim inside the delta — every count, enumeration, and line anchor — from its primary source; do not re-verify citations (those were verified in earlier rounds, and re-running the same method reaches the same blind spots)
   text:
   - ⚠️ THE CLOSING ROUND IS A RE-DERIVATION ROUND — a different METHOD, not just a fresh read, and the ledger must SAY so. RE-DERIVE every factual claim inside the delta — every count, enumeration, and line anchor — from its primary source; do not re-verify citations (those were verified in earlier rounds, and re-running the same method reaches the same blind spots)
-  # class: ban
+  class: ban
 - id: te-closing-round-reexecutes-an-executable-rule
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
   baseline: When the {{ARTIFACT}} carries an EXECUTABLE rule — a verdict algebra, a state machine, a truth table, a comparator — the closing round re-executes it over every case the artifact lists, whether or not a fix touched it, and records the run (obligation (4) below ran it at pass 1 and after each fix that touched it); text-only re-derivation is blind to a rule that is internally consistent and wrong
-  current: When the {{ARTIFACT}} carries an EXECUTABLE rule, the closing round re-executes it over every case the artifact lists, whether or not a fix touched it, and records the run (obligation (4) below ran it at pass 1 and after each fix that touched it); text-only re-derivation is blind to a rule that is internally consistent and wrong
+  current: When the {{ARTIFACT}} carries an EXECUTABLE rule, the closing round re-executes it over every case the artifact lists, whether or not a fix touched it, and records the run (obligation (4) below ran it at pass 1 and after each fix that touched it)
   text:
-  - When the {{ARTIFACT}} carries an EXECUTABLE rule, the closing round re-executes it over every case the artifact lists, whether or not a fix touched it, and records the run (obligation (4) below ran it at pass 1 and after each fix that touched it); text-only re-derivation is blind to a rule that is internally consistent and wrong
+  - When the {{ARTIFACT}} carries an EXECUTABLE rule, the closing round re-executes it over every case the artifact lists, whether or not a fix touched it, and records the run (obligation (4) below ran it at pass 1 and after each fix that touched it)
   pins:
   - tests/test_spec_review_queue_pass.py::test_an_executable_rule_is_run_from_round_one_not_only_at_the_close
   forbidden:
   - the closing round EXECUTES it
-  # class: ban
-  # clauses: {2: {duplicate-of: te-artifact-own-rule-run-as-a-script}}
+  class: ban
+  clauses: {2: {duplicate-of: te-artifact-own-rule-run-as-a-script}, 4: narrative}
 - id: te-b12-classes-invisible-citation-checking
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -99,7 +98,7 @@ entries:
   current: 'Three classes are invisible to citation-checking BY CONSTRUCTION: count-re-derivation (the cite proves the example, never the number), bounded-search-as-total (a `-N`/`head`/`-A` window read as the population), and data-integrity (a constraint the text asserts and the store does not hold)'
   text:
   - 'Three classes are invisible to citation-checking BY CONSTRUCTION: count-re-derivation (the cite proves the example, never the number), bounded-search-as-total (a `-N`/`head`/`-A` window read as the population), and data-integrity (a constraint the text asserts and the store does not hold)'
-  # class: ban
+  class: ban
 - id: te-b13-pass-ledger-carries-method
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -107,8 +106,8 @@ entries:
   current: 'So the Pass Ledger carries a `method` column (cells self-label: `method: citation — <scope>` | `method: re-derivation — <scope>` | `method: gate` — the LABEL leads the cell and is what the graders anchor on; `method: delta re-derivation` matches nothing), the exit requires at least one row naming `method: re-derivation` (D-053 amended), and the graders demand it where they read: `check_convergence.py` REFUSES a plan''s CONVERGED flip without one — and, once a ledger carries a `confirmed:` counter row, a flip whose LAST Pass row does not read `confirmed: 0` (code spans masked, the row''s last token counts) — `check_review_coverage.py` fails a changed review artifact that carries a `## Coverage Checklist` and lacks one, and an artifact neither grader reads keeps the token; the ledger''s `edits:` column and the md5 pair are this contract''s own anti-cheat, read by no grader; the form is machine-checked only where a grader reads it'
   text:
   - 'So the Pass Ledger carries a `method` column (cells self-label: `method: citation — <scope>` | `method: re-derivation — <scope>` | `method: gate` — the LABEL leads the cell and is what the graders anchor on; `method: delta re-derivation` matches nothing), the exit requires at least one row naming `method: re-derivation` (D-053 amended), and the graders demand it where they read: `check_convergence.py` REFUSES a plan''s CONVERGED flip without one — and, once a ledger carries a `confirmed:` counter row, a flip whose LAST Pass row does not read `confirmed: 0` (code spans masked, the row''s last token counts) — `check_review_coverage.py` fails a changed review artifact that carries a `## Coverage Checklist` and lacks one, and an artifact neither grader reads keeps the token; the ledger''s `edits:` column and the md5 pair are this contract''s own anti-cheat, read by no grader; the form is machine-checked only where a grader reads it'
-  # class: ban
-  # clauses: {8: narrative}
+  class: ban
+  clauses: {6: narrative}
 - id: te-b14-convergence-method-method-stability
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -116,7 +115,7 @@ entries:
   current: Convergence under one method is method-stability, not truth
   text:
   - Convergence under one method is method-stability, not truth
-  # class: prose
+  class: prose
 - id: te-b15-minimum-rounds-always-even
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -124,15 +123,15 @@ entries:
   current: Minimum two rounds, ALWAYS — even a quiet round 1 must be confirmed by a closing round (`command_run.py` prints TERMINAL only after ≥2 rounds, D-211); accuracy outranks round-count
   text:
   - Minimum two rounds, ALWAYS — even a quiet round 1 must be confirmed by a closing round (`command_run.py` prints TERMINAL only after ≥2 rounds, D-211); accuracy outranks round-count
-  # class: ban
+  class: ban
 - id: te-b16-anti-cheat-mechanical-vibes
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
   baseline: 'Anti-cheat (mechanical, not vibes): record the `md5sum` of the WORKING-TREE {{ARTIFACT}} at the pin of every round (`md5(start)`) and after its fixes (`md5(end)`) — the pair is taken BEFORE the ledger row is written, so the row never hashes itself — never hash the pin itself, which is frozen by construction; residue fixes are the previous round''s edits and precede its `md5(end)`, so the closing round''s `md5(start)` equals that hash — unless the Pass Ledger lives in the {{ARTIFACT}}: writing the previous row then changes it, so the check is that the pin with that row deleted hashes to that end hash; any other difference is an edit'
-  current: 'Anti-cheat: record the `md5sum` of the WORKING-TREE {{ARTIFACT}} at the pin of every round (`md5(start)`) and after its fixes (`md5(end)`) — the pair is taken BEFORE the ledger row is written, so the row never hashes itself — never hash the pin itself, which is frozen by construction; residue fixes are the previous round''s edits and precede its `md5(end)`, so the closing round''s `md5(start)` equals that hash — unless the Pass Ledger lives in the {{ARTIFACT}}: writing the previous row then changes it, so the check is that the pin with that row deleted hashes to that end hash; any other difference is an edit'
+  current: 'Anti-cheat (mechanical, not vibes): record the `md5sum` of the WORKING-TREE {{ARTIFACT}} at the pin of every round (`md5(start)`) and after its fixes (`md5(end)`) — the pair is taken BEFORE the ledger row is written, so the row never hashes itself — never hash the pin itself, which is frozen by construction; residue fixes are the previous round''s edits and precede its `md5(end)`, so the closing round''s `md5(start)` equals that hash — unless the Pass Ledger lives in the {{ARTIFACT}}: writing the previous row then changes it, so the check is that the pin with that row deleted hashes to that end hash; any other difference is an edit'
   text:
-  - 'Anti-cheat: record the `md5sum` of the WORKING-TREE {{ARTIFACT}} at the pin of every round (`md5(start)`) and after its fixes (`md5(end)`) — the pair is taken BEFORE the ledger row is written, so the row never hashes itself — never hash the pin itself, which is frozen by construction; residue fixes are the previous round''s edits and precede its `md5(end)`, so the closing round''s `md5(start)` equals that hash — unless the Pass Ledger lives in the {{ARTIFACT}}: writing the previous row then changes it, so the check is that the pin with that row deleted hashes to that end hash; any other difference is an edit'
-  # class: ban
+  - 'Anti-cheat (mechanical, not vibes): record the `md5sum` of the WORKING-TREE {{ARTIFACT}} at the pin of every round (`md5(start)`) and after its fixes (`md5(end)`) — the pair is taken BEFORE the ledger row is written, so the row never hashes itself — never hash the pin itself, which is frozen by construction; residue fixes are the previous round''s edits and precede its `md5(end)`, so the closing round''s `md5(start)` equals that hash — unless the Pass Ledger lives in the {{ARTIFACT}}: writing the previous row then changes it, so the check is that the pin with that row deleted hashes to that end hash; any other difference is an edit'
+  class: ban
 - id: te-b17-identical-hash-confirmed-fixed
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -140,7 +139,7 @@ entries:
   current: 'Identical hash AND `confirmed: 0, fixed: 0, unexecuted: 0` on the closing round = the quiet round → {{DONE_WORD}}'
   text:
   - 'Identical hash AND `confirmed: 0, fixed: 0, unexecuted: 0` on the closing round = the quiet round → {{DONE_WORD}}'
-  # class: prose
+  class: prose
 - id: te-b18-different-hash-means-edited
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -148,7 +147,7 @@ entries:
   current: A different hash means you edited → the next round
   text:
   - A different hash means you edited → the next round
-  # class: prose
+  class: prose
 - id: te-b19-quiet-round-asserted-matching
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -156,7 +155,7 @@ entries:
   current: A quiet round asserted without matching hashes does not count.{{EXEMPT_NOTE}}
   text:
   - A quiet round asserted without matching hashes does not count.{{EXEMPT_NOTE}}
-  # class: prose
+  class: prose
 - id: te-residue-orchestrator-fix-residue-is-hygiene-scripts
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -168,7 +167,7 @@ entries:
   - tests/test_plan_review_queue_pass.py::test_a_scripted_fix_replaces_exactly_once
   - tests/test_spec_review_queue_pass.py::test_the_residue_reread_reaches_the_sections_an_edit_touches
   - tests/test_spec_review_queue_pass.py::test_an_executable_rule_is_run_from_round_one_not_only_at_the_close
-  # class: ban
+  class: ban
 - id: te-pin-never-touched-while-seats-run
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -180,7 +179,7 @@ entries:
   - tests/test_review_scoped_queue_pass.py::test_term_edit_pin_clause_does_not_license_a_mid_window_edit
   forbidden:
   - (the seats read the pin; you edit the working tree)
-  # class: ban
+  class: ban
 - id: te-b22-scripts-flip-gates-pin
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -188,7 +187,7 @@ entries:
   current: '(3) SCRIPTS, then the flip gates: at EVERY pin run `python3 scripts/enforcement/check_review_hygiene.py --surface <pin> --phrase "<old wording>"` on the pin (the phrases: at pass 1 the retired wording your brief names, if any; from round 2 the old wording of every sentence the last round edited — with no `--phrase` the run asserts nothing about wording) and `python3 scripts/enforcement/check_citations_resolve.py --changed` in the REAL tree — advisory, and BOUNDED: it grades only the docs git reports as CHANGED under `docs/superpowers/specs/`, `docs/development/plans/`, `docs/development/reviews/` and `docs/reference/` (its `SOURCE_GLOBS`) — a DATED name (a spec, plan or review) only inside its 30-day window (`DEFAULT_SINCE_DAYS`), an undated doc under `docs/reference/` always: `git add` (or `git add -N`) a fresh DRAFT before the first pin — an untracked file is invisible to it — and for an artifact outside those roots, or a dated one older than the window, it examines NOTHING — so grade the pin itself with `python3 scripts/enforcement/check_citations_resolve.py --doc <pin> --root <repo>`, whose `--doc examined 1 file(s): <pin>` line is the proof it was in the examined set (`0 file(s): none` means the path was wrong) and which prints `0 citations found` when the pin cites none; at a scratch `--root` every repo path is missing, so either run grades none of them (`⚠ … NOTHING GRADED` when an examined copy carries path citations), and a `--changed` run there prints `nothing in scope` when no doc matches — always, unless that root is a git checkout in which the copy shows as changed'
   text:
   - '(3) SCRIPTS, then the flip gates: at EVERY pin run `python3 scripts/enforcement/check_review_hygiene.py --surface <pin> --phrase "<old wording>"` on the pin (the phrases: at pass 1 the retired wording your brief names, if any; from round 2 the old wording of every sentence the last round edited — with no `--phrase` the run asserts nothing about wording) and `python3 scripts/enforcement/check_citations_resolve.py --changed` in the REAL tree — advisory, and BOUNDED: it grades only the docs git reports as CHANGED under `docs/superpowers/specs/`, `docs/development/plans/`, `docs/development/reviews/` and `docs/reference/` (its `SOURCE_GLOBS`) — a DATED name (a spec, plan or review) only inside its 30-day window (`DEFAULT_SINCE_DAYS`), an undated doc under `docs/reference/` always: `git add` (or `git add -N`) a fresh DRAFT before the first pin — an untracked file is invisible to it — and for an artifact outside those roots, or a dated one older than the window, it examines NOTHING — so grade the pin itself with `python3 scripts/enforcement/check_citations_resolve.py --doc <pin> --root <repo>`, whose `--doc examined 1 file(s): <pin>` line is the proof it was in the examined set (`0 file(s): none` means the path was wrong) and which prints `0 citations found` when the pin cites none; at a scratch `--root` every repo path is missing, so either run grades none of them (`⚠ … NOTHING GRADED` when an examined copy carries path citations), and a `--changed` run there prints `nothing in scope` when no doc matches — always, unless that root is a git checkout in which the copy shows as changed'
-  # class: ban
+  class: ban
 - id: te-flip-copy-is-a-git-checkout-with-scripts-linked
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -198,7 +197,7 @@ entries:
   - 'Then, where the {{ARTIFACT}} has flip gates in the flip-gate invocation matrix (the `MATRIX` table in `tests/enforcement/test_flip_gate_matrix.py`, documented in `docs/workflows/FINAL_GATE_WORKFLOW.md` — a spec: the `check_spec_convergence` row; a plan SET: the other four; a MONOLITH plan: `check_rule_grounding`, `check_convergence` and `check_plan_quality`, since `check_plan_tickets` refuses a file), run them at pass 1 AND again at the close in the tree each row names (a flipped SCRATCH copy where the row flips one, because a Status-reading gate skips a DRAFT; `check_plan_quality` through its import with both `PLAN_DIR` bindings patched to the flipped copy''s directory — the MATRIX row''s own method; nothing is ever written into the real plans dir, and an unpatched `PLAN_DIR` grades nothing outside it); the working-tree {{ARTIFACT}} is never flipped for a gate; an artifact with no matrix row has its artifact gates named, and their moment, by its own command, not by this contract — never the receipt, hygiene or flywheel checks the shared fragments carry into every command — and a command that names none has its ledger SAY so rather than record a gate that did not run — a gate run COUNTS only when you can show the {{ARTIFACT}} was in the gate''s examined set (a committed-clean scratch copy and `check_plan_quality` outside its cwd-bound `PLAN_DIR` return green over NOTHING, a scratch-root anchor check grades nothing and says so, and a non-dated set directory is REFUSED aloud) — so a flipped scratch copy is a git checkout in which the flip shows as a change, the DRAFT committed and the flip in the working tree or staged (`check_convergence` grades only the plans `git status` lists there), with the repo''s `scripts/` and `.windsurf/` linked in, the MATRIX row''s method (without them `check_rule_grounding` reports the plan UNGRADED and every digest quote QUOTE-NOT-FOUND)'
   pins:
   - tests/test_plan_review_recurring_rules.py::test_the_flip_copy_recipe_is_the_matrix_rows_method
-  # class: ban
+  class: ban
 - id: te-artifact-own-rule-run-as-a-script
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -208,7 +207,7 @@ entries:
   - '(4) THE ARTIFACT''S OWN RULE: when the {{ARTIFACT}} states an executable rule — a verdict algebra, a state machine, a truth table, a comparator — run it as a throwaway script over EVERY case the artifact itself lists (a rule with none has its cases enumerated first), at pass 1 and again before any pin after a fix touched the rule or a case, and record the run beside the pin; a re-read is not execution, and round zero''s input-space probe below covers the FIX''s inputs, never the artifact''s rule — an artifact with no such rule owes nothing here'
   pins:
   - tests/test_spec_review_queue_pass.py::test_an_executable_rule_is_run_from_round_one_not_only_at_the_close
-  # class: ban
+  class: ban
 - id: te-b25-round-zero-orchestrator-s
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -216,7 +215,7 @@ entries:
   current: 'Round zero — the orchestrator''s OWN pre-pin probe (D7, D10 — D-231), before any seat sees a delta: every added line is re-read WHOLE (length, citations, claims) and the CLASS of the fix is swept — the siblings of the shape at every mirror site — because a round whose seats confirm only residue of the previous round''s fix is the signal to sweep the class, not to run another round; the fix''s own INPUT space is enumerated and executed before the pin, so no seat is the first to meet it — for example a matcher or replacer against boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs, and against its live population before it widens or narrows, a parser against every form its grammar admits, a guard against an input that shows the condition, one that does not, and every error path, a guard the fix ADDS run over the fix''s own hunks too, a recursive or fallback helper against cycles, depth and each container type, a trim or window at exactly one record''s length, and any other fix against the input classes its own shape implies, listed before the probe runs; a fix that names an interface (a function, flag, field or verb) cites the callee''s signature and line range read at the pinned SHA, and is re-read against that range before the pin; a fix to a matcher, replacer, predicate or filter, a regex included, and above all one that narrows or widens what it accepts, is drafted and probed against every shape this review has confirmed so far and, where a shape names a field or key, against its renamed variant too, all at once, never one patch per shape; a guard added because one bad input reached a reader is written as the readers'' round-trip (a value is accepted only when every reader parses back what was written), never as a check for that one input; a behavioural claim a fix writes (what code does on an error, a fallback, a refusal) cites the line that implements it (an `except`, `return`, `raise`, `||` fallback or default value) at the pinned SHA, and is re-read against it before the pin'
   text:
   - 'Round zero — the orchestrator''s OWN pre-pin probe (D7, D10 — D-231), before any seat sees a delta: every added line is re-read WHOLE (length, citations, claims) and the CLASS of the fix is swept — the siblings of the shape at every mirror site — because a round whose seats confirm only residue of the previous round''s fix is the signal to sweep the class, not to run another round; the fix''s own INPUT space is enumerated and executed before the pin, so no seat is the first to meet it — for example a matcher or replacer against boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs, and against its live population before it widens or narrows, a parser against every form its grammar admits, a guard against an input that shows the condition, one that does not, and every error path, a guard the fix ADDS run over the fix''s own hunks too, a recursive or fallback helper against cycles, depth and each container type, a trim or window at exactly one record''s length, and any other fix against the input classes its own shape implies, listed before the probe runs; a fix that names an interface (a function, flag, field or verb) cites the callee''s signature and line range read at the pinned SHA, and is re-read against that range before the pin; a fix to a matcher, replacer, predicate or filter, a regex included, and above all one that narrows or widens what it accepts, is drafted and probed against every shape this review has confirmed so far and, where a shape names a field or key, against its renamed variant too, all at once, never one patch per shape; a guard added because one bad input reached a reader is written as the readers'' round-trip (a value is accepted only when every reader parses back what was written), never as a check for that one input; a behavioural claim a fix writes (what code does on an error, a fallback, a refusal) cites the line that implements it (an `except`, `return`, `raise`, `||` fallback or default value) at the pinned SHA, and is re-read against it before the pin'
-  # class: ban
+  class: ban
 - id: te-probe-never-replaced-by-seat-rederivation
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -226,7 +225,7 @@ entries:
   - 'Three rules bind the probe: (1) ANY CLAIM WITH A CHECKABLE REFERENT IS A SCRIPT, NOT PROSE — and that includes every claim YOUR OWN FIX introduces. A claim about what a verb, a window or a reach-back does, AND every count, enumeration, line anchor, step reference, mutant prediction (a mutant its grader is said to kill) or negative, is executed at round 1, or before the pin that first carries it, as a probe script pinned beside the {{ARTIFACT}} (`<scratchpad>/<review>/probes/<claim>.sh`, its output pasted under the claim), re-run and re-cited when the claim or what it measures changes (a fix that changes what a quoted advisory counts, such as a plan''s Touches), and never replaced by a seat''s own re-derivation: a seat that re-derives the claim, as this fragment''s RE-DERIVE rule asks, and gets a different answer raises the difference as a candidate'
   pins:
   - tests/test_review_scoped_queue_pass.py::test_a_probed_count_is_never_replaced_by_a_seats_re_derivation
-  # class: ban
+  class: ban
 - id: te-b27-re-read-execution-proxy
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -234,7 +233,7 @@ entries:
   current: ⚠️ A RE-READ IS NOT EXECUTION — `proxy-never-evidence` says so, and a count is not checked by looking at it again
   text:
   - ⚠️ A RE-READ IS NOT EXECUTION — `proxy-never-evidence` says so, and a count is not checked by looking at it again
-  # class: prose
+  class: prose
 - id: te-presweep-lists-the-literal-term-only
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -245,8 +244,8 @@ entries:
   pins:
   - tests/test_review_command_text_defects.py::test_the_pre_pin_sweep_lists_the_pinned_literal_term_only
   - tests/test_spec_plan_lane_text.py::test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan
-  # class: ban
-  # clauses: {2: narrative, 13: narrative}
+  class: ban
+  clauses: {2: narrative, 11: narrative}
 - id: te-b29-check-reports-clean-verify
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -254,15 +253,16 @@ entries:
   current: When a check reports CLEAN, verify the check CAN fail — plant one known-bad line on the copy and watch it red; a re-derivation script is itself a bounded search whose matcher carries its own denominator
   text:
   - When a check reports CLEAN, verify the check CAN fail — plant one known-bad line on the copy and watch it red; a re-derivation script is itself a bounded search whose matcher carries its own denominator
-  # class: prose
+  class: prose
 - id: te-b30-delta-seat-s-brief
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
   baseline: A delta seat's brief carries the previous seat's REFUTED list verbatim — a refuted candidate re-raised by a fresh seat costs a round for nothing
-  current: A delta seat's brief carries the previous seat's REFUTED list verbatim — a refuted candidate re-raised by a fresh seat costs a round for nothing
+  current: A delta seat's brief carries the previous seat's REFUTED list verbatim
   text:
-  - A delta seat's brief carries the previous seat's REFUTED list verbatim — a refuted candidate re-raised by a fresh seat costs a round for nothing
-  # class: prose
+  - A delta seat's brief carries the previous seat's REFUTED list verbatim
+  class: prose
+  clauses: {2: narrative}
 - id: te-b31-scope-growth-stop-counted
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -270,7 +270,7 @@ entries:
   current: 'Scope-growth stop — COUNTED, like the breaker: every delta round reports how many of its CONFIRMED defects lay inside text THIS REVIEW added in an earlier round — its own fix prose or code — rather than inside the {{ARTIFACT}}''s own surface: `python3 scripts/command_run.py round --confirmed <c> --own-fix <n> …`'
   text:
   - 'Scope-growth stop — COUNTED, like the breaker: every delta round reports how many of its CONFIRMED defects lay inside text THIS REVIEW added in an earlier round — its own fix prose or code — rather than inside the {{ARTIFACT}}''s own surface: `python3 scripts/command_run.py round --confirmed <c> --own-fix <n> …`'
-  # class: prose
+  class: prose
 - id: te-b32-last-rounds-above-thirds
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -278,8 +278,8 @@ entries:
   current: 'TWO OF THE LAST THREE rounds at or above TWO-THIRDS own-fix (`--own-fix * 3 >= --confirmed * 2`, `--confirmed` > 0) is the stop: the {{ARTIFACT}}''s surface is NEAR-quiet and the loop is reviewing its previous fix, which regenerates every time it is corrected'
   text:
   - 'TWO OF THE LAST THREE rounds at or above TWO-THIRDS own-fix (`--own-fix * 3 >= --confirmed * 2`, `--confirmed` > 0) is the stop: the {{ARTIFACT}}''s surface is NEAR-quiet and the loop is reviewing its previous fix, which regenerates every time it is corrected'
-  # class: prose
-  # clauses: {2: narrative}
+  class: prose
+  clauses: {2: narrative}
 - id: te-b33-stop-hunting-route-remaining
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -287,7 +287,7 @@ entries:
   current: STOP HUNTING there — route the remaining own-fix work to a backlog row with a named destination; the close is unchanged (below, D-355)
   text:
   - STOP HUNTING there — route the remaining own-fix work to a backlog row with a named destination; the close is unchanged (below, D-355)
-  # class: prose
+  class: prose
 - id: te-b34-stop-scope-never-outstanding
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -295,7 +295,7 @@ entries:
   current: ⚠️ The stop is on SCOPE, never on an outstanding defect. The superseded EQUALITY bar made "the surface is quiet" a theorem — `own-fix == confirmed` meant zero original-surface defects by construction
   text:
   - ⚠️ The stop is on SCOPE, never on an outstanding defect. The superseded EQUALITY bar made "the surface is quiet" a theorem — `own-fix == confirmed` meant zero original-surface defects by construction
-  # class: ban
+  class: ban
 - id: te-b35-ratio-third-qualifying-round
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -303,7 +303,7 @@ entries:
   current: 'A ratio does not: up to a third of a qualifying round''s confirmed defects can still be on the original surface'
   text:
   - 'A ratio does not: up to a third of a qualifying round''s confirmed defects can still be on the original surface'
-  # class: prose
+  class: prose
 - id: te-b36-stop-suspends-new-hunting
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -311,8 +311,8 @@ entries:
   current: 'So the stop suspends new HUNTING and never the close: every confirmed defect still open at the stop — ANYWHERE in the three-round window, its NON-qualifying round included — is NAMED at the stop and fixed; the remainder rounds re-verify THAT FIXED SET and nothing else, so they terminate — a further own-fix defect one of them raises is `RECORDED — measured` onto the routed backlog row and never re-arms this stop'
   text:
   - 'So the stop suspends new HUNTING and never the close: every confirmed defect still open at the stop — ANYWHERE in the three-round window, its NON-qualifying round included — is NAMED at the stop and fixed; the remainder rounds re-verify THAT FIXED SET and nothing else, so they terminate — a further own-fix defect one of them raises is `RECORDED — measured` onto the routed backlog row and never re-arms this stop'
-  # class: ban
-  # clauses: {3: narrative}
+  class: ban
+  clauses: {3: narrative}
 - id: te-b37-receipt-s-last-row
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -320,7 +320,7 @@ entries:
   current: 'The receipt''s last row must still satisfy D-206 (`confirmed: 0 · fixed: 0 · unexecuted: 0`)'
   text:
   - 'The receipt''s last row must still satisfy D-206 (`confirmed: 0 · fixed: 0 · unexecuted: 0`)'
-  # class: ban
+  class: ban
 - id: te-b38-only-work-genuinely-fix
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -328,7 +328,7 @@ entries:
   current: Only work that is genuinely OWN-FIX takes the backlog exit above
   text:
   - Only work that is genuinely OWN-FIX takes the backlog exit above
-  # class: ban
+  class: ban
 - id: te-b39-delta-round-states-fix
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -336,7 +336,7 @@ entries:
   current: 'Every DELTA round states `--own-fix` (round 1 is the full pass: state `--own-fix 0`); a round that did not state it OCCUPIES its slot in the three-round window and can never be one of the two qualifying rounds — the window never slides past it, so the stop stays computable and round 1''s legitimate omission simply does not qualify'
   text:
   - 'Every DELTA round states `--own-fix` (round 1 is the full pass: state `--own-fix 0`); a round that did not state it OCCUPIES its slot in the three-round window and can never be one of the two qualifying rounds — the window never slides past it, so the stop stays computable and round 1''s legitimate omission simply does not qualify'
-  # class: ban
+  class: ban
 - id: te-b40-making-flag-required-delta
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -344,16 +344,17 @@ entries:
   current: The `command_run.py` advisory computes THIS bar (D-281) and MAY print one of three verdicts, never before the third round and never on a converging loop — read the verdict rather than re-deriving the window, and remember that silence is not a verdict
   text:
   - The `command_run.py` advisory computes THIS bar (D-281) and MAY print one of three verdicts, never before the third round and never on a converging loop — read the verdict rather than re-deriving the window, and remember that silence is not a verdict
-  # class: ban
-  # clauses: {1: narrative}
+  class: ban
+  clauses: {1: narrative}
 - id: te-b41-cobra-d-cheapest-dodge
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
   baseline: '⚠️ COBRA (D-253): the cheapest dodge is to hold residue findings back so qualifying rounds never fall together — which is why the window is TWO OF THREE and not two consecutive — and the cheapest dodge of all is simply to omit the counter, which is why the flag''s enforcement is routed rather than asserted here'
-  current: '⚠️ COBRA (D-253): the cheapest dodge is to hold residue findings back so qualifying rounds never fall together — which is why the window is TWO OF THREE and not two consecutive — and the cheapest dodge of all is simply to omit the counter, which is why the flag''s enforcement is routed rather than asserted here'
+  current: '⚠️ COBRA (D-253): the cheapest dodge is to hold residue findings back so qualifying rounds never fall together — and the cheapest dodge of all is simply to omit the counter, which is why the flag''s enforcement is routed rather than asserted here'
   text:
-  - '⚠️ COBRA (D-253): the cheapest dodge is to hold residue findings back so qualifying rounds never fall together — which is why the window is TWO OF THREE and not two consecutive — and the cheapest dodge of all is simply to omit the counter, which is why the flag''s enforcement is routed rather than asserted here'
-  # class: ban
+  - '⚠️ COBRA (D-253): the cheapest dodge is to hold residue findings back so qualifying rounds never fall together — and the cheapest dodge of all is simply to omit the counter, which is why the flag''s enforcement is routed rather than asserted here'
+  class: ban
+  clauses: {2: narrative}
 - id: te-b42-mirror-dodge-classify-calling
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -361,7 +362,7 @@ entries:
   current: 'The MIRROR dodge is to over-classify — calling an original-surface defect own-fix both trips the stop sooner and buys it the backlog exit — so own-fix is EVIDENCED, never asserted: each finding''s row cites the round whose fix hunk contains the line (`own-fix: round k`), checkable against that round''s md5 pair'
   text:
   - 'The MIRROR dodge is to over-classify — calling an original-surface defect own-fix both trips the stop sooner and buys it the backlog exit — so own-fix is EVIDENCED, never asserted: each finding''s row cites the round whose fix hunk contains the line (`own-fix: round k`), checkable against that round''s md5 pair'
-  # class: ban
+  class: ban
 - id: te-b45-rule-stop-fire-round
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -369,7 +370,7 @@ entries:
   current: 'Rule (3) and this stop can fire in the same round, and the stop takes over from the FIRST round at which it applies — the first whose `round` prints `SCOPE GROWTH —` or `SCOPE GROWTH (in-lane)`, never `SCOPE GROWTH UNCOMPUTABLE`, and for a command `round` never prints it for, rule (3) governs throughout: a rewrite triggered in or before that round is still owed before the CLOSING round and is the one own-fix item the backlog exit does not take — a rewrite emits new text, new text is in-hunk, and the closing round must read `md5(start) == md5(end)`; any later yield, at a new site or a rewritten one, goes to the stop''s exit'
   text:
   - 'Rule (3) and this stop can fire in the same round, and the stop takes over from the FIRST round at which it applies — the first whose `round` prints `SCOPE GROWTH —` or `SCOPE GROWTH (in-lane)`, never `SCOPE GROWTH UNCOMPUTABLE`, and for a command `round` never prints it for, rule (3) governs throughout: a rewrite triggered in or before that round is still owed before the CLOSING round and is the one own-fix item the backlog exit does not take — a rewrite emits new text, new text is in-hunk, and the closing round must read `md5(start) == md5(end)`; any later yield, at a new site or a rewritten one, goes to the stop''s exit'
-  # class: ban
+  class: ban
 - id: te-b46-maintain-numbered-pass-ledger
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -377,7 +378,7 @@ entries:
   current: 'Maintain a numbered Pass Ledger and reproduce it verbatim in your report — each row names what that round actually RE-CHECKED (a verification-only look is labelled `VERIFY`, never numbered as a pass; a `confirmed: 0` row for a round that never ran is a FABRICATED row, worse than an honest unfinished ledger)'
   text:
   - 'Maintain a numbered Pass Ledger and reproduce it verbatim in your report — each row names what that round actually RE-CHECKED (a verification-only look is labelled `VERIFY`, never numbered as a pass; a `confirmed: 0` row for a round that never ran is a FABRICATED row, worse than an honest unfinished ledger)'
-  # class: ban
+  class: ban
 - id: te-b47-only-last-row-reads
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -385,7 +386,7 @@ entries:
   current: 'You are done only when the last row reads `confirmed: 0`, `fixed: 0` and `unexecuted: 0` — the shape both graders read as quiet (`_confirmed_quiet` in `check_review_coverage.py` on a receipt''s LAST row; `QUIET_PASS` in `check_convergence.py` wherever the row sits): a closing round that parked a candidate unexecuted has not executed its verdicts — with `md5(start) == md5(end)` on the closing round'
   text:
   - 'You are done only when the last row reads `confirmed: 0`, `fixed: 0` and `unexecuted: 0` — the shape both graders read as quiet (`_confirmed_quiet` in `check_review_coverage.py` on a receipt''s LAST row; `QUIET_PASS` in `check_convergence.py` wherever the row sits): a closing round that parked a candidate unexecuted has not executed its verdicts — with `md5(start) == md5(end)` on the closing round'
-  # class: ban
+  class: ban
 - id: te-b48-last-row-confirmed-unexecuted
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -393,16 +394,16 @@ entries:
   current: Any last row with `confirmed > 0` or `unexecuted > 0` means you owe the next round — run it UNPROMPTED, inside THIS invocation, the moment it is owed
   text:
   - Any last row with `confirmed > 0` or `unexecuted > 0` means you owe the next round — run it UNPROMPTED, inside THIS invocation, the moment it is owed
-  # class: prose
-  # clauses: {3: narrative}
+  class: prose
+  clauses: {3: narrative}
 - id: te-b49-never-end-turn-non
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
   baseline: 'Never end the turn on a non-zero row for the operator to re-invoke — you return control EXACTLY ONCE: at the quiet closing round. Three thoughts that each mean *run the next round now*: "it was already done," "the edit was trivial," "it''s obviously clean." Verdicts are EXECUTED, never argued (D-206, D-212): a seat PROPOSES a candidate with a concrete failure scenario and the command that would prove it; YOU run it'
-  current: 'Never end the turn on a non-zero row for the operator to re-invoke — you return control EXACTLY ONCE: at the quiet closing round. Three thoughts that each mean *run the next round now*: "it was already done," "the edit was trivial," "it''s obviously clean." Verdicts are EXECUTED, never argued (D-206, D-212): a seat PROPOSES a candidate with a concrete failure scenario and the command that would prove it; YOU run it'
+  current: 'Never end the turn on a non-zero row for the operator to re-invoke — you return control EXACTLY ONCE: at the quiet closing round. Verdicts are EXECUTED, never argued (D-206, D-212): a seat PROPOSES a candidate with a concrete failure scenario and the command that would prove it; YOU run it'
   text:
-  - 'Never end the turn on a non-zero row for the operator to re-invoke — you return control EXACTLY ONCE: at the quiet closing round. Three thoughts that each mean *run the next round now*: "it was already done," "the edit was trivial," "it''s obviously clean." Verdicts are EXECUTED, never argued (D-206, D-212): a seat PROPOSES a candidate with a concrete failure scenario and the command that would prove it; YOU run it'
-  # class: ban
+  - 'Never end the turn on a non-zero row for the operator to re-invoke — you return control EXACTLY ONCE: at the quiet closing round. Verdicts are EXECUTED, never argued (D-206, D-212): a seat PROPOSES a candidate with a concrete failure scenario and the command that would prove it; YOU run it'
+  class: ban
 - id: te-b50-candidate-confirmed-only-executed
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -410,16 +411,15 @@ entries:
   current: A candidate is CONFIRMED only when you executed it and it held; otherwise it is `RECORDED — unexecuted (<why>)` · `RECORDED — by design (D-nnn)` / `(F#, round k)` (the owning row's F-id or its review-loop id, e.g. `A-S1`; only the owner, with a receipt-row owner's round, sits inside the parentheses, the reason after them) · `RECORDED — measured (<why>)` · `RECORDED — hygiene false positive (<why>)`; REFUTED carries the executed disproof (the quoted line, the re-derived count, the status code); a wording nit is `RECORDED — measured (wording; changes no behaviour)`, never edited in a closing round
   text:
   - A candidate is CONFIRMED only when you executed it and it held; otherwise it is `RECORDED — unexecuted (<why>)` · `RECORDED — by design (D-nnn)` / `(F#, round k)` (the owning row's F-id or its review-loop id, e.g. `A-S1`; only the owner, with a receipt-row owner's round, sits inside the parentheses, the reason after them) · `RECORDED — measured (<why>)` · `RECORDED — hygiene false positive (<why>)`; REFUTED carries the executed disproof (the quoted line, the re-derived count, the status code); a wording nit is `RECORDED — measured (wording; changes no behaviour)`, never edited in a closing round
-  # class: ban
+  class: ban
 - id: te-b51-recorded-refuted-rows-never
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
   baseline: 'RECORDED and REFUTED rows never reopen the loop and never count in `confirmed:`; a re-raise of a RECORDED candidate that carries evidence its row does not cover is a NEW candidate and is executed (the RECORDED rows in the ledger replace the retired `Standing:` line — D-219); a `RECORDED — unexecuted` candidate is executed in the NEXT round or its row says why it cannot be (`measured`, `by design`), which is how the closing row reaches `unexecuted: 0`'
-  current: 'RECORDED and REFUTED rows never reopen the loop and never count in `confirmed:`; a re-raise of a RECORDED candidate that carries evidence its row does not cover is a NEW candidate and is executed (the RECORDED rows in the ledger replace the retired `Standing:` line); a `RECORDED — unexecuted` candidate is executed in the NEXT round or its row says why it cannot be (`measured`, `by design`), which is how the closing row reaches `unexecuted: 0`'
+  current: 'RECORDED and REFUTED rows never reopen the loop and never count in `confirmed:`; a re-raise of a RECORDED candidate that carries evidence its row does not cover is a NEW candidate and is executed (the RECORDED rows in the ledger replace the retired `Standing:` line — D-219); a `RECORDED — unexecuted` candidate is executed in the NEXT round or its row says why it cannot be (`measured`, `by design`), which is how the closing row reaches `unexecuted: 0`'
   text:
-  - 'RECORDED and REFUTED rows never reopen the loop and never count in `confirmed:`; a re-raise of a RECORDED candidate that carries evidence its row does not cover is a NEW candidate and is executed (the RECORDED rows in the ledger replace the retired `Standing:` line); a `RECORDED — unexecuted` candidate is executed in the NEXT round or its row says why it cannot be (`measured`, `by design`), which is how the closing row reaches `unexecuted: 0`'
-  # class: ban
-  # clauses: {3: narrative}
+  - 'RECORDED and REFUTED rows never reopen the loop and never count in `confirmed:`; a re-raise of a RECORDED candidate that carries evidence its row does not cover is a NEW candidate and is executed (the RECORDED rows in the ledger replace the retired `Standing:` line — D-219); a `RECORDED — unexecuted` candidate is executed in the NEXT round or its row says why it cannot be (`measured`, `by design`), which is how the closing row reaches `unexecuted: 0`'
+  class: ban
 - id: te-b52-row-carries-counters-cell
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -427,7 +427,7 @@ entries:
   current: 'Each row carries ONE counters cell — the receipt grammar''s five counters in `check_review_coverage.py`''s own order, `found: F, new: N, confirmed: C, fixed: X, unexecuted: U`, plus `edits: E` for the document loops (the receipts have no `edits:`; `unexecuted:` counts the round''s RECORDED — unexecuted rows) — a seats cell naming every seat by model token (`opus×1`, `sonnet×2`, `(round-1 owner)` on the closing pass''s), a method cell, and the md5 pair; stamp every round on the run record with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <n> --classes-swept <every class of the ledger — cite the last full pass for the classes the delta did not touch> --classes-new …`, and call `done` only when it prints TERMINAL AND the closing row reads `unexecuted: 0` with the closing round''s seat named (a solo loop: its own read) — the record carries no `unexecuted` counter and its verdict ignores `--seats`, so TERMINAL is necessary, never sufficient — and `done` closes a NOT-TERMINAL record without complaint, so this prose is the only guard'
   text:
   - 'Each row carries ONE counters cell — the receipt grammar''s five counters in `check_review_coverage.py`''s own order, `found: F, new: N, confirmed: C, fixed: X, unexecuted: U`, plus `edits: E` for the document loops (the receipts have no `edits:`; `unexecuted:` counts the round''s RECORDED — unexecuted rows) — a seats cell naming every seat by model token (`opus×1`, `sonnet×2`, `(round-1 owner)` on the closing pass''s), a method cell, and the md5 pair; stamp every round on the run record with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <n> --classes-swept <every class of the ledger — cite the last full pass for the classes the delta did not touch> --classes-new …`, and call `done` only when it prints TERMINAL AND the closing row reads `unexecuted: 0` with the closing round''s seat named (a solo loop: its own read) — the record carries no `unexecuted` counter and its verdict ignores `--seats`, so TERMINAL is necessary, never sufficient — and `done` closes a NOT-TERMINAL record without complaint, so this prose is the only guard'
-  # class: ban
+  class: ban
 - id: te-b53-stall-circuit-breaker-consecutive
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -435,7 +435,7 @@ entries:
   current: 'Stall circuit-breaker: 3 consecutive delta rounds with non-decreasing and nonzero `confirmed:` counts → STOP with `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error as ONE operator question with a recommended answer — measured non-progress means the defect is upstream of the {{ARTIFACT}}''s text (a design claim, a contract); a candidate that asks for NEW content (a mechanism the design never chose, a section the {{ARTIFACT}} never had) is a plan-time or spec-time item routed as that question or a backlog row, never grammar designed by review — a review edit CORRECTS, it does not extend'
   text:
   - 'Stall circuit-breaker: 3 consecutive delta rounds with non-decreasing and nonzero `confirmed:` counts → STOP with `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error as ONE operator question with a recommended answer — measured non-progress means the defect is upstream of the {{ARTIFACT}}''s text (a design claim, a contract); a candidate that asks for NEW content (a mechanism the design never chose, a section the {{ARTIFACT}} never had) is a plan-time or spec-time item routed as that question or a backlog row, never grammar designed by review — a review edit CORRECTS, it does not extend'
-  # class: ban
+  class: ban
 - id: te-b54-ceiling-rounds-stay-unbounded
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -443,8 +443,8 @@ entries:
   current: 'Not a ceiling: rounds stay unbounded while `confirmed:` falls, a refute-everything round never trips it, and an all-zero `confirmed:` streak is convergence, never a stall; DONE still requires the quiet closing round above'
   text:
   - 'Not a ceiling: rounds stay unbounded while `confirmed:` falls, a refute-everything round never trips it, and an all-zero `confirmed:` streak is convergence, never a stall; DONE still requires the quiet closing round above'
-  # class: ban
-  # clauses: {2: narrative}
+  class: ban
+  clauses: {2: narrative}
 - id: te-b55-probe-duty-pass-probe
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -452,7 +452,7 @@ entries:
   current: 'Probe duty (pass 1: every probe; every later round: every probe inside its delta and every probe whose text cites an edited section): RUN each probe in that scope — a probe is a fenced block whose first line begins `$ ` (illustrative fences without that prefix are exempt) — and compare output verbatim; a later round re-runs its scope because an edit can silently stale a probe that was true at pass 1. A LOAD-BEARING claim (one some step or verdict would change were it false) carrying NO probe is itself a standing finding: "ungrounded claim"'
   text:
   - 'Probe duty (pass 1: every probe; every later round: every probe inside its delta and every probe whose text cites an edited section): RUN each probe in that scope — a probe is a fenced block whose first line begins `$ ` (illustrative fences without that prefix are exempt) — and compare output verbatim; a later round re-runs its scope because an edit can silently stale a probe that was true at pass 1. A LOAD-BEARING claim (one some step or verdict would change were it false) carrying NO probe is itself a standing finding: "ungrounded claim"'
-  # class: prose
+  class: prose
 - id: te-b56-round-ceiling-while-anything
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -460,7 +460,7 @@ entries:
   current: There is NO round ceiling — while anything is still being CONFIRMED or edited, the next round is owed
   text:
   - There is NO round ceiling — while anything is still being CONFIRMED or edited, the next round is owed
-  # class: prose
+  class: prose
 - id: te-b57-non-quiet-stops-exactly
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -468,7 +468,7 @@ entries:
   current: 'The non-quiet stops are exactly TWO — the stall circuit-breaker above and a per-axis BLOCKED escalation (the scope-growth stop above ends the HUNT, never the close): an axis stuck after 3 consecutive reconcile attempts → pause it, surface it to the operator in the report''s `## BLOCKED` section (axis + the 3 attempts), keep converging the rest'
   text:
   - 'The non-quiet stops are exactly TWO — the stall circuit-breaker above and a per-axis BLOCKED escalation (the scope-growth stop above ends the HUNT, never the close): an axis stuck after 3 consecutive reconcile attempts → pause it, surface it to the operator in the report''s `## BLOCKED` section (axis + the 3 attempts), keep converging the rest'
-  # class: ban
+  class: ban
 - id: te-b58-third-state-pauses-rather
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -476,7 +476,7 @@ entries:
   current: 'A THIRD state PAUSES rather than stops — no seat to dispatch: `dispatch_headroom.py` printing `SEATS: 0` names its reason among the lines that follow — a box under the floor frees with time (re-run once a minute), a caller''s error (`slices sum to 0`, a zero concurrency cap) is yours to fix, and the fleet-quota HOLD dispatches nothing (`62` § Dispatch policy): commit the artifact and its ledger, close the record `blocked --feedback …` naming the hold if the turn must end, and at relief (CLAUDE.md § Orient (a) — only an ARMED self-watch is woken; verify it before relying on it) resume on a NEW record (its round counter restarts — two rounds before it prints TERMINAL, the first of them mislabelled a full pass; the artifact''s Pass Ledger keeps the true numbering); a round that cannot carry its seat is never closed by the orchestrator alone (the solo loop''s closing read excepted, as defined above)'
   text:
   - 'A THIRD state PAUSES rather than stops — no seat to dispatch: `dispatch_headroom.py` printing `SEATS: 0` names its reason among the lines that follow — a box under the floor frees with time (re-run once a minute), a caller''s error (`slices sum to 0`, a zero concurrency cap) is yours to fix, and the fleet-quota HOLD dispatches nothing (`62` § Dispatch policy): commit the artifact and its ledger, close the record `blocked --feedback …` naming the hold if the turn must end, and at relief (CLAUDE.md § Orient (a) — only an ARMED self-watch is woken; verify it before relying on it) resume on a NEW record (its round counter restarts — two rounds before it prints TERMINAL, the first of them mislabelled a full pass; the artifact''s Pass Ledger keeps the true numbering); a round that cannot carry its seat is never closed by the orchestrator alone (the solo loop''s closing read excepted, as defined above)'
-  # class: ban
+  class: ban
 - id: te-b59-never-self-exit-accepted
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -484,7 +484,7 @@ entries:
   current: Never self-exit with an "accepted risk"
   text:
   - Never self-exit with an "accepted risk"
-  # class: ban
+  class: ban
 - id: te-b60-context-never-reason-stop
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -492,7 +492,7 @@ entries:
   current: 'Context is never a reason to stop: the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred'
   text:
   - 'Context is never a reason to stop: the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred'
-  # class: ban
+  class: ban
 - id: te-b61-post-compact-sessionstart-hook
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -500,7 +500,7 @@ entries:
   current: Post-compact, the SessionStart hook auto-injects a recent-context recap, and the `session-recall` MCP (`search_chats` / `get_chat`) recovers any detail the summary dropped — use it instead of re-deriving or guessing
   text:
   - Post-compact, the SessionStart hook auto-injects a recent-context recap, and the `session-recall` MCP (`search_chats` / `get_chat`) recovers any detail the summary dropped — use it instead of re-deriving or guessing
-  # class: prose
+  class: prose
 - id: te-b62-pass-seats-axes-re
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -508,7 +508,7 @@ entries:
   current: '| Pass | seats · axes re-checked ({{AXES}}) | counters | method | {{ARTIFACT}} md5 (start → end) |'
   text:
   - '| Pass | seats · axes re-checked ({{AXES}}) | counters | method | {{ARTIFACT}} md5 (start → end) |'
-  # class: grammar
+  class: grammar
 - id: te-b63-unit
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -516,7 +516,7 @@ entries:
   current: '|-----:|---|---|---|---|'
   text:
   - '|-----:|---|---|---|---|'
-  # class: grammar
+  class: grammar
 - id: te-b64-pass-opus-sonnet-round
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -524,7 +524,7 @@ entries:
   current: '| Pass 1 | opus×1 + sonnet×1 (the round-1 slices) · all axes | found: 9, new: 9, confirmed: 6, fixed: 6, unexecuted: 2, edits: 7 | method: citation — full pass (6 confirmed + 2 unexecuted + 1 refuted) | a1b2… → 9f8e… |'
   text:
   - '| Pass 1 | opus×1 + sonnet×1 (the round-1 slices) · all axes | found: 9, new: 9, confirmed: 6, fixed: 6, unexecuted: 2, edits: 7 | method: citation — full pass (6 confirmed + 2 unexecuted + 1 refuted) | a1b2… → 9f8e… |'
-  # class: grammar
+  class: grammar
 - id: te-b65-pass-opus-sonnet-round
   file: commands/_fragments/term-edit.md
   section: '## ⚠️ Termination contract — READ FIRST (the rule agents skip)'
@@ -532,18 +532,19 @@ entries:
   current: '| Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over § 3, § 7 + one hop | found: 3, new: 1, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — delta over § 3, § 7; the 2 candidates parked at pass 1 executed (both refuted), 1 new (refuted); standing clean since pass 1: every other class | 9f8e… → 9f8e… ✓ → {{DONE_WORD}} |'
   text:
   - '| Pass 2 | opus×1 + sonnet×1 (the round-1 slice owners) · delta over § 3, § 7 + one hop | found: 3, new: 1, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — delta over § 3, § 7; the 2 candidates parked at pass 1 executed (both refuted), 1 new (refuted); standing clean since pass 1: every other class | 9f8e… → 9f8e… ✓ → {{DONE_WORD}} |'
-  # class: grammar
+  class: grammar
 vanished:
   L6: {rule: [te-trimmed-partition-unread-slices-swept-before-delta]}
   L11: {rule: [te-closing-round-reexecutes-an-executable-rule]}
   L13: {rule: [te-b13-pass-ledger-carries-method]}
-  L16: {rule: [te-b16-anti-cheat-mechanical-vibes]}
   L28: {rule: [te-presweep-lists-the-literal-term-only]}
+  L30: {rule: [te-b30-delta-seat-s-brief]}
   L32: {rule: [te-b32-last-rounds-above-thirds]}
   L36: {rule: [te-b36-stop-suspends-new-hunting]}
   L40: {rule: [te-b40-making-flag-required-delta]}
+  L41: {rule: [te-b41-cobra-d-cheapest-dodge]}
   L43: narrative
   L44: narrative
   L48: {rule: [te-b48-last-row-confirmed-unexecuted]}
-  L51: {rule: [te-b51-recorded-refuted-rows-never]}
+  L49: {rule: [te-b49-never-end-turn-non]}
   L54: {rule: [te-b54-ceiling-rounds-stay-unbounded]}
