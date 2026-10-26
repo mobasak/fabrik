@@ -1,19 +1,17 @@
 ---
-description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — the surface partitioned into disjoint file slices → independent finders → YOU execute every candidate and refutation → fix with regression guards → LOOP in DELTA rounds until every Coverage-Checklist class is CLEAN/FIXED/REFUTED/RECORDED and the closing pass — the round-1 seats confirming their own slices — returns confirmed:0·fixed:0 (refuted/recorded never count; no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir". SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
+description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch): disjoint file slices → independent finders → YOU execute every candidate and refutation → fix with regression guards → LOOP in DELTA rounds until every Coverage-Checklist class is CLEAN/FIXED/REFUTED/RECORDED and the closing pass (the round-1 seats over their own slices) returns confirmed:0·fixed:0 (refuted/recorded never count; no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir". SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
 argument-hint: "[path, PR number, or git range — omit to review the working-tree/branch diff]"
 ---
 {{include:no-workflow-hub}}
 
 
-Review this implementation as an adversary trying to break it, optimizing for RECALL
-first and then DEPTH.
+Review this implementation as an adversary trying to break it, optimizing for RECALL first and then DEPTH.
 
 {{include:term-coverage}}
 {{include:grounding-code}}
 ## Run record — open it FIRST, keep it current, close it only at the closing pass (`confirmed: 0`, the round-1 seats over their own slices)
 
-This command has **5 phases (0–4)** and exactly one terminal condition, and it has TWO parts that are BOTH required (neither alone is enough — see § Termination): **a closing pass — the round-1 seats over their own slices — that returns **`confirmed: 0 · fixed: 0`** with `unexecuted:` 0 or absent, and every candidate ever raised adjudicated** (a re-raise of an
-already-adjudicated STANDING row is cited in its row, never counted — see § Reporting). Open the record before Phase 0 does anything else:
+This command has 5 phases (0–4) and one terminal condition in TWO parts, both required (see § Termination): a closing pass — the round-1 seats over their own slices — that returns `confirmed: 0 · fixed: 0` with `unexecuted:` 0 or absent, and every candidate ever raised adjudicated (a re-raise of an already-adjudicated STANDING row is cited in its row, never counted — see § Reporting). Open the record before Phase 0 does anything else:
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-review --phases 5 \
@@ -23,23 +21,13 @@ python3 scripts/command_run.py start --command fabrik-review --phases 5 \
 
 {{include:orient}}
 
-A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"` — the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (no code detects a route-up — the record carries it only because the caller writes that surface string); its `done` then reaches back to the previous covered window's close (the `REVIEW_FAMILY` branch of `_close` in `scripts/command_run.py`), which is what covers the pre-`start` edits.
+A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"`, the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (no code detects a route-up — the record carries it only because the caller writes that surface string); its `done` then reaches back to the previous covered window's close (the `REVIEW_FAMILY` branch of `_close` in `scripts/command_run.py`), which covers the pre-`start` edits.
 
 While the record runs, a file you come to cover that was last edited before `start`, outside every earlier covered window, and not named by `--surface` is added with `python3 scripts/command_run.py surface --add <path>`: a running review's window opens at its `start`. The verb widens the TOP record only, so it is refused under a nested non-review `start` (every refusal: `docs/reference/command-run-protocol.md`).
 
-Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and
-**one `round` call per Phase-4 pass** —
-`python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <this pass's RAW candidate count> --confirmed <the candidates you EXECUTED and reproduced> --own-fix <how many of those confirmed defects lie in
-text this review added in an earlier round> --classes-swept <the
-Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pass opened>`.
-The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
-fresh brief is why a review runs 30 rounds instead of 4. A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0). When a round sweeps every known class and
-confirms zero (`--confirmed 0`), `command_run.py` prints the TERMINAL verdict; **only then**
-`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the round-1 seats that re-verified it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"`. A genuinely stuck
-review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"` on one of the three sanctioned cases —
-never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
-which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
-plan. A mismatched name is refused; closing an already-closed run is a warned no-op.
+Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and **one `round` call per Phase-4 pass** — `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <this pass's RAW candidate count> --confirmed <the candidates you EXECUTED and reproduced> --own-fix <how many of those confirmed defects lie in text this review added in an earlier round> --classes-swept <the Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pass opened>`.
+The class ledger persists across rounds: re-sweep it, never re-scope it — a pass that invents a fresh brief is why a review runs 30 rounds instead of 4. A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0).
+When a round sweeps every known class and confirms zero (`--confirmed 0`), `command_run.py` prints the TERMINAL verdict; **only then `done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the round-1 seats that re-verified it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"`**. A genuinely stuck review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"` on one of the three sanctioned cases — never by simply stopping. **Always name the run you close**: a bare close would end whatever is live, which after this review pops back to its CALLER (`/fabrik-execute-plan`). A mismatched name is refused; closing an already-closed run is a warned no-op.
 
 **Open the `RUN:` line (`python3 scripts/command_run.py line`) on every reply until this run closes.**
 
@@ -49,9 +37,7 @@ plan. A mismatched name is refused; closing an already-closed run is a warned no
 
 **Am I in the HUB or a PROJECT?** → `git rev-parse --show-toplevel`.
 
-**PROJECT** (repo root ≠ `/opt/fabrik`) — the centrally-distributed set is **read-only** here (gate:
-`scripts/enforcement/check_synced_unmodified.py`). Get the list **mechanically; never hand-copy it**
-(⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project's own lock):
+**PROJECT** (repo root ≠ `/opt/fabrik`) — the centrally-distributed set is **read-only** here (gate: `scripts/enforcement/check_synced_unmodified.py`). Get the list **mechanically; never hand-copy it** (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project's own lock):
 
 > **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
@@ -64,65 +50,23 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
 #         scripts/enforcement/** (all checks — counts drift, list is computed) · final_gate.py · select_rules.py · review_rubric.py · hooks · reference docs
 ```
 
-- **ARM the finders — run `python scripts/review_rubric.py --changed <the diff's paths>` and INJECT its
-  output into EVERY finder's prompt as the rubric they hunt against (G5/G6: an un-armed reviewer measured
-  ~0–22% defect recall; the injected rubric is the root-cause fix).** The rubric carries two layers:
-  **(1) the mandatory-core floor** — `core/35-security-auth` + `core/25-data-postgres` + `core/30-ops` +
-  all twelve 12-Factor axes — ALWAYS injected regardless of glob and never skippable, so a review is never
-  un-armed on the high-blast-radius rules; **(2)** every pack whose glob matches a changed path (mandate
-  lines only). The whole rubric is computed fresh by the script; nothing is inherited from the doer.
-  Honesty (L1): the injection STEP is maximally enforced (the rubric is always injected); this raises
-  compliance probability — it does **not** make compliance guaranteed. The packs remain BINDING CONTEXT you
-  may read in full for depth — **Context ≠ target.**
-- **NEVER** review their *contents* as a target, raise findings against them, or "fix" one. An agent that
-  helpfully edits a synced file **creates the exact drift the gate exists to catch** — and the next sync
-  overwrites it anyway. Wasted review budget at best, a Tier-1 violation at worst.
-- **A synced file appearing IN THE DIFF is ITSELF a CONFIRMED finding:** *"synced file modified —
-  `git checkout -- <path>`, then propose the change upstream in `/opt/fabrik` (it is correct for ALL projects
-  or it is not correct)."* Do **NOT** silently exclude it — excluding **hides** the violation. A synced
-  path whose md5 equals its entry in the project's `.fabrik/synced.lock` is a sync's own write, not an
-  edit: never revert it, and review only the repo's own files against it; with no lock, the rule above applies.
-- **The `SEEDED_NOT_ENFORCED` set is the exception** (read the live set in `fabrik_synced_manifest.py` —
-  today `PORTS.md` + `docs/DECISIONS.md`; a hand-copied list here goes stale, this one did): projects MAY
-  edit these → review them normally — NEVER `git checkout --` a project's `docs/DECISIONS.md` (its rows
-  are project-owned data the close-out duty mandates; reverting it is data loss). This is
-  exactly why the list is **computed, not written by hand**.
+- **ARM the finders** — run `python scripts/review_rubric.py --changed <the diff's paths>` and INJECT its output into EVERY finder's prompt as the rubric they hunt against (G5/G6: an un-armed reviewer measured ~0–22% defect recall; the injected rubric is the root-cause fix). The rubric carries two layers: **(1) the mandatory-core floor** — `core/35-security-auth` + `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — ALWAYS injected regardless of glob and never skippable, so a review is never un-armed on the high-blast-radius rules; **(2)** every pack whose glob matches a changed path (mandate lines only). The whole rubric is computed fresh by the script; nothing is inherited from the doer. The packs remain BINDING CONTEXT you may read in full for depth — **Context ≠ target.**
+- **NEVER** review their *contents* as a target, raise findings against them, or "fix" one.
+- **A synced file appearing IN THE DIFF is ITSELF a CONFIRMED finding:** *"synced file modified — `git checkout -- <path>`, then propose the change upstream in `/opt/fabrik` (it is correct for ALL projects or it is not correct)."* Do **NOT** silently exclude it. A synced path whose md5 equals its entry in the project's `.fabrik/synced.lock` is a sync's own write, not an edit: never revert it, and review only the repo's own files against it; with no lock, the rule above applies.
+- **The `SEEDED_NOT_ENFORCED` set is the exception** (read the live set in `fabrik_synced_manifest.py` — today `PORTS.md` + `docs/DECISIONS.md` — a hand-copied list here goes stale, this one did): projects MAY edit these → review them normally — NEVER `git checkout --` a project's `docs/DECISIONS.md` (its rows are project-owned data the close-out duty mandates; reverting it is data loss).
 
-**HUB (`/opt/fabrik`)** — these files **ARE the product**, and they carry the **widest blast radius in the
-system**: every rule pack + enforcement check propagates to every project on the next sync. **Review them
-HARDER, not less**, through a fleet lens:
+**HUB (`/opt/fabrik`)** — these files **ARE the product**, with the widest blast radius in the system: every rule pack + enforcement check propagates to every project on the next sync. Review them **HARDER, not less**, through a fleet lens:
 
 - Does this break a project that does **not** have feature X? Is it backward-compatible?
-- Does this rule **contradict another pack**? (a pack that fights another is worse than no pack)
-- Does an enforcement change **false-positive on a legitimate pattern**? (a gate that cries wolf gets
-  `# noqa`'d into uselessness — that is how a check dies)
-- Proven live: review is what caught a **hallucinated Kubernetes section** and a **fleet-breaking SQLite ban**
-  before they reached 39 projects. Excluding these files from review would have shipped both.
+- Does this rule **contradict another pack**?
+- Does an enforcement change **false-positive on a legitimate pattern**?
 
-**Seeded-repro contract:** if invoked with a committed red repro (a `repro: <path>` seed from a
-certification gauntlet or any caller), that failing test is the review's PRIMARY target: it anchors the
-diff scope (the committed repro is IN the diff, pulling the buggy module into scope via callers/callees),
-and **this review MAY NOT exit until that repro is GREEN** — paste its green run output verbatim in the
-review file. Adjudicating every checklist class while the seeded repro stays red is NOT a valid exit.
-**Third exit — REPRO-DEFECTIVE:** a committed red repro is a claim, not proof; it can itself be
-rig-defective (asserting the wrong key casing, a field the contract never promised, a stale selector).
-If this review proves the repro's assertion contradicts the contract — cite the schema/contract line
-PLUS the actual wire/state evidence — the valid exit is to **fix the REPRO** (green against the
-service's real, contract-conforming behavior; paste that green run) and return the row to the caller
-as **REFUTED-RIG**. What is NEVER valid: "fixing" correct code into agreeing with a broken assertion
-to satisfy the green-repro contract.
+**Seeded-repro contract:** if invoked with a committed red repro (a `repro: <path>` seed from a certification gauntlet or any caller), that failing test is the review's PRIMARY target: it anchors the diff scope (the committed repro is IN the diff, pulling the buggy module into scope via callers/callees), and **this review MAY NOT exit until that repro is GREEN** — paste its green run output verbatim in the review file.
+**Third exit — REPRO-DEFECTIVE:** a committed red repro is a claim, not proof; it can itself be rig-defective (asserting the wrong key casing, a field the contract never promised, a stale selector). If this review proves the repro's assertion contradicts the contract — cite the schema/contract line PLUS the actual wire/state evidence — the valid exit is to **fix the REPRO** (green against the service's real, contract-conforming behavior; paste that green run) and return the row to the caller as **REFUTED-RIG**. What is NEVER valid: "fixing" correct code into agreeing with a broken assertion to satisfy the green-repro contract.
 
-If an argument was given, treat it as the review target: `$ARGUMENTS`
-(a path, a PR number, or a git range). Otherwise get the diff under review with
-`git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then
-`git diff HEAD~1`); if there are uncommitted changes or the range is empty, also
-run `git diff HEAD` and include the working tree.
+If an argument was given, treat it as the review target: `$ARGUMENTS` (a path, a PR number, or a git range). Otherwise get the diff under review with `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then `git diff HEAD~1`); if there are uncommitted changes or the range is empty, also run `git diff HEAD` and include the working tree.
 
-⚠️ **A FINDER GIVEN A SHA MUST NOT READ THE LIVE TREE — it is probably dirty, and not with your
-changes.** This hub runs three concurrent sessions plus a daily pipeline, so at any moment the working
-tree carries siblings' uncommitted work. A finder handed `HEAD <sha>` and pointed at the live tree
-silently reviews THEIR half-finished code as if it were the surface under review, and reports findings
-against lines that are in no commit. **When you hand a finder a sha, materialise that sha:**
+⚠️ **A FINDER GIVEN A SHA MUST NOT READ THE LIVE TREE — it is probably dirty, and not with your changes.** **When you hand a finder a sha, materialise that sha:**
 
 ```
 $ git archive -o <scratch_dir>/review-<sha>.tar <sha>
@@ -130,19 +74,9 @@ $ mkdir -p <scratch_dir>/review-<sha>
 $ tar -xf <scratch_dir>/review-<sha>.tar -C <scratch_dir>/review-<sha>
 ```
 
-and brief the finder against that path (`<scratch_dir>` is this run's `RUN-SCRATCH:` folder, the one the Workflow launch below passes as `scratch_dir`). If a finder must read the live tree instead (a working-tree
-review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at — and tell it
-to EXCLUDE the tree's stale copies: `.claude/worktrees/**` holds whole duplicate `src/` + `tests/`
-trees at DIFFERENT line numbers (`.tmp/**` is subagent scratch — logs and job state, no code: cheap to skip, but not the duplicate-tree problem), so an unscoped repo-root grep returns
-anchors that resolve in a worktree and not in HEAD (`/usr/bin/grep -rn --exclude-dir=worktrees
---exclude-dir=.tmp …` — the `worktrees` directory, NOT `.claude`: nearly every `*.py` under `.claude/` is a worktree copy and the rest are the fleet-synced `.claude/hooks/`, so excluding the parent silently drops real code from the count). This is the
-same class as the `Surface:` anchor rule — both are about the finder actually looking at the thing it
-was told to look at.
+and brief the finder against that path (`<scratch_dir>` is this run's `RUN-SCRATCH:` folder, the one the Workflow launch below passes as `scratch_dir`). If a finder must read the live tree instead (a working-tree review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at — and tell it to EXCLUDE the tree's stale copies: `.claude/worktrees/**` holds whole duplicate `src/` + `tests/` trees at DIFFERENT line numbers (`.tmp/**` is subagent scratch — logs and job state, no code: cheap to skip, but not the duplicate-tree problem), so an unscoped repo-root grep returns anchors that resolve in a worktree and not in HEAD (`/usr/bin/grep -rn --exclude-dir=worktrees --exclude-dir=.tmp …` — the `worktrees` directory, NOT `.claude`: nearly every `*.py` under `.claude/` is a worktree copy and the rest are the fleet-synced `.claude/hooks/`, so excluding the parent silently drops real code from the count).
 
-The scope is the full changed
-surface (the diff) PLUS everything it calls or is called by — trace callers and
-callees, and read the whole enclosing function of each hunk (bugs in unchanged lines
-that a change re-exposes are in scope).
+The scope is the full changed surface (the diff) PLUS everything it calls or is called by — trace callers and callees, and read the whole enclosing function of each hunk (bugs in unchanged lines that a change re-exposes are in scope).
 
 ## Phase 1 — Independent finders (recall)
 
@@ -157,169 +91,26 @@ the seat prompt's `PIN_IMPORT`/`PYTEST_PINS`, which that section names and which
 `.claude/workflows/fabrik-review-loop.js` (fleet-synced into every repo; they take the root conftest and the
 pytest config with the roots).
 
-**Run the review-hygiene check on the surface FIRST and fix its hits before the seats go out**
-(D4): `python3 scripts/enforcement/check_review_hygiene.py --surface <a file or dir on the surface>
-[--receipt <a docs/development/reviews/ md>] [--phrase "<a stale phrase>"] [--symbol <a live
-symbol>] [--json]`. The four selector flags are REPEATABLE (`action="append"`); `--json` is a
-`store_true` that emits the whole sweep — hits, files, notes, `ungraded_rows` — for a brief. It is
-ADVISORY and ALWAYS exits 0, so read its OUTPUT, never its status. It reports a path it did not scan
-in TWO shapes, and the distinction is the point: an ABSENT path (a typo'd `--surface`) reads
-*"<path>: no such path — NOT scanned, not in the denominator"*, a path that exists but cannot be read
-*"<path>: unreadable — NOT scanned, not in the denominator"* — either way it is out of the
-denominator, so an unscanned surface never reads clean. Those lines print as `[NOTE] …` in the text
-output ONLY; **under `--json` they ride the `notes` key and nothing is printed**, so a brief that
-passes `--json` must read `notes` or it is blind to both. The summary line (text mode) states how
-many receipt rows it could not grade — `ungraded_rows` in JSON. It owns the grep-shaped classes (template residue,
-fence parity, raw pipes, dual verdicts, changelog quality, dead symbols, stale phrases), so a seat
-is never spent on one; each hit is a CANDIDATE you adjudicate into the ledger as FIXED (a hygiene
-hit fixed at the round's start is a confirmed doc defect of that round and IS counted) or as
-`RECORDED — hygiene false positive (<why>)`. Run it again at the round's close.
+**Run the review-hygiene check on the surface FIRST and fix its hits before the seats go out**: `python3 scripts/enforcement/check_review_hygiene.py --surface <a file or dir on the surface> [--receipt <a docs/development/reviews/ md>] [--phrase "<a stale phrase>"] [--symbol <a live symbol>] [--json]`. The four selector flags are REPEATABLE (`action="append"`); `--json` is a `store_true` that emits the whole sweep — hits, files, notes, `ungraded_rows` — for a brief. It is ADVISORY and ALWAYS exits 0, so read its OUTPUT, never its status. It reports a path it did not scan in TWO shapes, and the distinction is the point: an ABSENT path (a typo'd `--surface`) reads *"<path>: no such path — NOT scanned, not in the denominator"*, a path that exists but cannot be read *"<path>: unreadable — NOT scanned, not in the denominator"* — either way it is out of the denominator, so an unscanned surface never reads clean. Those lines print as `[NOTE] …` in the text output ONLY; under `--json` they ride the `notes` key, so a brief that passes `--json` must read `notes` or it is blind to both. The summary line (text mode) states how many receipt rows it could not grade — `ungraded_rows` in JSON. It owns the grep-shaped classes (template residue, fence parity, raw pipes, dual verdicts, changelog quality, dead symbols, stale phrases), so a seat is never spent on one; each hit is a CANDIDATE you adjudicate into the ledger as FIXED (a hygiene hit fixed at the round's start is a confirmed doc defect of that round and IS counted) or as `RECORDED — hygiene false positive (<why>)`. Run it again at the round's close.
 
-Dispatch independent finder subagents in parallel, **each owning a DISJOINT SLICE of the surface**
-(the partition below) and hunting the 16 failure classes over it. **Every brief carries the pass's PIN — its digest, base SHA and copies (§ Subagents, the PIN paragraph) — and finders read the COPIES**: the orchestrator fixes the tree concurrently, so a finder reading the live file can CONFIRM a defect the fix already removed; a finding against a moved subject is re-verified by the orchestrator against the current tree, never adjudicated from the finder's read. ⚠️ **The digest pins which bytes a seat reads; nothing pins what they MEAN** — a seat with the right file and the right method returns a PLAUSIBLE WRONG VERDICT, not an error, and no exit code, re-read or md5 catches it. So a brief NAMES THE REFERENT of each thing it asks about: for a **quantity**, what it GATES in words, never its value and blast radius alone; for a **pin dir**, its CONTENTS and the commit they were built from; for a **source text the change implements**, that the SOURCE is the pin and any statistic the implementer adds is a NEW claim needing its own grounding; for a **generated script**, every path it touches that only root may write, so its privilege is checked path by path, never at the work-dir token alone. A seat cannot infer a referent from the surface. Worked case, beside the code that owns it: `scripts/enforcement/check_review_coverage.py::_OWN_FIX_ROUNDS_FOR_STOP` and the comment block above it. **Worker: while the pool is OFF (D-181) every seat is NATIVE `fabrik-reviewer`, and the surface is PARTITIONED into DISJOINT slices by FILE (D-207)** — **TWO cheap finders per slice — one Sonnet and one Haiku `fabrik-reviewer`, each reading the WHOLE slice, their candidates UNIONED (never voted) — and NO Opus finder** (a run `/fabrik-execute-plan` dispatches still seats its per-round Opus floor: `opus=1`, `models: ["sonnet", "haiku", "opus"]` on the riskiest slice; pilot D-344, 2026-09-22, superseding D-207's Opus-on-the-risky-slice mix for the review family: a single review recalls ~30% of real defects and two runs of one model barely overlap, so a second cheap reader buys more recall than a bigger one; Opus and Fable earn their price EXECUTING and adjudicating, which the orchestrator does in Phase 2). The risky slices (concurrency and locks, record and file formats, fleet-synced paths — `scripts/enforcement/`, `scripts/command_run.py`, the hooks, `templates/governance/` — auth, schema, migrations, secrets handling) are still named in the brief as the slice's hunt priority. **At most ONE extra Haiku class seat** — only when the brief names a judgement-shaped inventory class the hygiene script cannot express; it sweeps that one class across the whole surface and is the only seat that reads a file outside its slice. The union of the slices IS the full pass and **every file is read by its two finders and nobody else**. The Pass-1 row's Method cell carries the per-seat count as free text — `seats: A-sonnet 3/4 · A-haiku 0/1 · …` (confirmed/raised per seat, read from the workflow ledger's `seats[].confirmed`/`raised` — a candidate both finders raised credits both; the Counters cell stays the aggregate the gate reads; a `confirmed:` or `unexecuted:` outside the counter cell, `Confirmed: 2` included, gets a row whose counters state `confirmed:` refused by `check_review_coverage.py`'s token rule, `_row_refusals` — only an ALL-CAPS prose label on a row with no `confirmed:` counter is exempt, `_label_exempt`) — that count is the pilot's measure; every Pass row's Method cell also names the STOP that ended the pass (`stop: closable` · `stop: confirmed <n>` · `stop: scope-growth advisory`) and the FIX SIZE that answered it (`fix: +<a> -<d> lines for <n> confirmed`, from `git diff --numstat` over the fix; a fix far larger than its findings is itself a stop signal, § 4.9 finding 39); KILL (revert to D-207) if a slice's pair confirms less than the Opus seat did on the same kind of slice over five runs (baseline: 7 of 13, 6 of 14 in the two measured runs). Size it with `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding; run it however small the partition; **a `SEATS: 0` or a refusal is a CLAIM — read its reason line and name what binds — a cap, or your own invocation — before it is a reason to stop**), stamp BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — `<n>` the `SEATS:` `dispatch_headroom.py` just printed plus one refuter per slice (an upper bound: a slice with no candidate starts none), never a planned count — and close the pass with `round --seats` equal to that stamp, which releases it whole (a smaller number keeps the rest reserved), then launch them as ONE `Workflow` call — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", args: {pass: 1, surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices: [{name, files, priority}]}})` (`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing) (`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session scratchpad when `start` printed no line that begins `SCRATCH:`, and so do the briefs and fix lists the lead writes for each pass, so a resumed review has them (the seats' candidates, verdicts, notes and `files_read` are already in the pass files there); only the seats' copies go under `scratch_dir`) — when `dispatch_headroom.py` prints TRIMMED, the slices' `models` together use exactly the per-model seats its COST line funds, and a slice left without a seat is named unread, as that line says (a slice it left with one finder gets its second in the next wave) — (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree) (chunk 5, D-347/D-348; contract: `/opt/fabrik/docs/reference/review-loop-workflow.md`): the script runs the two finders per slice with a schema whose `files_read` lists every file the seat opened, unions their candidates, DIFFS `files_read` against the slice (a gap is logged and the slice is UNVERIFIED until read), prints the two finders' capture-recapture estimate of unseen candidates as advice, runs one fresh Sonnet refuter per slice that EXECUTES every candidate's check and returns the command and output (a refutation without them is `unverified`), and hands you ONE ledger carrying each slice's `closable` flag and its `open` reasons. The seats' reports never enter your transcript; the ledger does. Wait for it with ONE bounded in-turn poll per pass (the run record holds the turn open), then read the pass into a FILE and work from it — `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir> --out <scratch>/pass-<n>.json --box <box_minutes>` — never the escaped task-output copy or your scrollback; it prints every seat's minutes and tokens and flags `OVER BOX` (nothing in the Workflow API times a seat out) and `NO RESULT`. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs and the receipt's Pass row notes `shape: agent-tool`. **YOU are never a finder** — you partition, dispatch and adjudicate, and Phase 2 makes you EXECUTE every candidate; that execution is what replaced D-191's Opus re-read of every file. Nothing records to the flywheel and no `NO-POOL:` is owed (`check_subagent_flywheel.py` stands down by the same ruling, D-182). The pool-breadth contract follows, commented for re-enable:
-<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
-never either/or (per `62-using-subagents.md` § Dispatch policy).** The **pool breadth layer is MANDATORY**:
-dispatch cheap pool finders via **`fanout("review", …, mode="read_only")`** in parallel — it picks the
-**flywheel-ranked** reviewers for the `review` task from the per-task selection table (below); **do not name a
-model** — for differently-biased recall breadth that **auto-records to the flywheel** — **AND, added ON TOP (never instead)**,
-**native `fabrik-reviewer`** (Opus) for the authoritative/high-risk pass (auth / `internal_auth` / migrations /
-schema / secrets / concurrency) + the decide/refute/merge you own. A high-risk surface needs the pool breadth
-*plus* the native pass; going all-native (skipping the pool layer) lands **zero** flywheel rows and
-`check_subagent_flywheel.py` BLOCKS it (exit 1) on a substantial code change, unless the run declares `NO-POOL: <reason>` in an in-cycle commit message or sets `FABRIK_NO_POOL`. (Evidence it earns its cost: cheap pool finders have caught
-real bugs that an Opus-only self-review missed — complementary recall, not redundant.)
--->
-(Satisfied by construction while every seat is native — D-181; it binds again on re-enable.) ⚠️ **Secrets carve-out — the one sanctioned all-native slice (mirror: `/fabrik-execute-plan` D4 + the
-repo-review/rules-review/service-test/ui-design/user-test family):** a diff hunk touching
-secret-material paths (`.env` / `.env.*` **except `.env.example`** — the Doc-Sync-Matrix file every
-env-var change touches, `check_plan_tickets.py`'s own carve-out — `secrets/`, key/cert files) is
-reviewed **NATIVE-ONLY** — a
-`read_only` pool unit inlines the raw hunk into its task text, which ships the literal secret to a
-third-party API. Partition, don't skip (moot while every seat is native — D-181/D-182): the slice's two finders cover the secret-bearing hunks with the secret redacted from both briefs
-(a diff that is ENTIRELY secret-material → all-native, which every diff is while the pool is OFF; no
-`NO-POOL:` waiver is owed — `check_subagent_flywheel.py` stands down by the same ruling, D-182). The two mechanisms:
+Dispatch independent finder subagents in parallel, **each owning a DISJOINT SLICE of the surface** (the partition below) and hunting the 16 failure classes over it. **Every brief carries the pass's PIN — its digest, base SHA and copies (§ Subagents, the PIN paragraph) — and finders read the COPIES**: the orchestrator fixes the tree concurrently, so a finder reading the live file can CONFIRM a defect the fix already removed; a finding against a moved subject is re-verified by the orchestrator against the current tree, never adjudicated from the finder's read. ⚠️ **The digest pins which bytes a seat reads; nothing pins what they MEAN** — a seat with the right file and the right method returns a PLAUSIBLE WRONG VERDICT, not an error. So a brief NAMES THE REFERENT of each thing it asks about: for a **quantity**, what it GATES in words, never its value and blast radius alone; for a **pin dir**, its CONTENTS and the commit they were built from; for a **source text the change implements**, that the SOURCE is the pin and any statistic the implementer adds is a NEW claim needing its own grounding; for a **generated script**, every path it touches that only root may write, so its privilege is checked path by path, never at the work-dir token alone. A seat cannot infer a referent from the surface. 
 
-- **The seats (native `fabrik-reviewer`, `subagent_type: "fabrik-reviewer"`, model by the per-dispatch
-  token `model: "opus"|"sonnet"|"haiku"`):** one per SLICE, as partitioned above. A finder that returns nothing is a FAILED seat (re-dispatch it), never a clean round; a refuter that returns nothing leaves its candidates to Phase 2. The **16 failure classes are the HUNT
-  LIST every seat carries over its own slice**, not the partition — the partition is by FILE, so two
-  seats never read one file's logic and no candidate is claimed twice. (The Coverage Checklist is the
-  ADJUDICATION ledger — one row per changed FILE plus the standing recurrence rows — and its axes
-  overlap by construction: it is never a seat list.)
+**Worker: while the pool is OFF (D-181) every seat is NATIVE `fabrik-reviewer`, and the surface is PARTITIONED into DISJOINT slices by FILE (D-207)** — **TWO cheap finders per slice — one Sonnet and one Haiku `fabrik-reviewer`, each reading the WHOLE slice, their candidates UNIONED (never voted) — and NO Opus finder** (a run `/fabrik-execute-plan` dispatches still seats its per-round Opus floor: `opus=1`, `models: ["sonnet", "haiku", "opus"]` on the riskiest slice; Opus and Fable earn their price EXECUTING and adjudicating, which the orchestrator does in Phase 2). The risky slices (concurrency and locks, record and file formats, fleet-synced paths — `scripts/enforcement/`, `scripts/command_run.py`, the hooks, `templates/governance/` — auth, schema, migrations, secrets handling) are named in the brief as the slice's hunt priority. **At most ONE extra Haiku class seat** — only when the brief names a judgement-shaped inventory class the hygiene script cannot express; it sweeps that one class across the whole surface and is the only seat that reads a file outside its slice. The union of the slices IS the full pass and **every file is read by its two finders and nobody else**. The Pass-1 row's Method cell carries the per-seat count as free text — `seats: A-sonnet 3/4 · A-haiku 0/1 · …` (confirmed/raised per seat, from the workflow ledger's `seats[].confirmed`/`raised`; a candidate both finders raised credits both; the Counters cell stays the aggregate the gate reads — a `confirmed:` or `unexecuted:` outside the counter cell, `Confirmed: 2` included, gets a row whose counters state `confirmed:` refused by `check_review_coverage.py`'s token rule, `_row_refusals` — only an ALL-CAPS prose label on a row with no `confirmed:` counter is exempt, `_label_exempt`); every Pass row's Method cell also names the STOP that ended the pass (`stop: closable` · `stop: confirmed <n>` · `stop: scope-growth advisory`) and the FIX SIZE that answered it (`fix: +<a> -<d> lines for <n> confirmed`, from `git diff --numstat` over the fix; a fix far larger than its findings is itself a stop signal, § 4.9 finding 39). Size it with `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding; run it however small the partition; **a `SEATS: 0` or a refusal is a CLAIM** — read its reason line and name what binds — a cap, or your own invocation — before it is a reason to stop), stamp BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — `<n>` the `SEATS:` `dispatch_headroom.py` just printed plus one refuter per slice (an upper bound: a slice with no candidate starts none), never a planned count — and close the pass with `round --seats` equal to that stamp, which releases it whole (a smaller number keeps the rest reserved), then launch them as ONE `Workflow` call — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", args: {pass: 1, surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices: [{name, files, priority}]}})` (`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing) (`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the run's `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session scratchpad when `start` printed no line that begins `SCRATCH:`, and so do the briefs and fix lists the lead writes for each pass, so a resumed review has them (the seats' candidates, verdicts, notes and `files_read` are already in the pass files there); only the seats' copies go under `scratch_dir`) — when `dispatch_headroom.py` prints TRIMMED, the slices' `models` together use exactly the per-model seats its COST line funds, and a slice left without a seat is named unread, as that line says (a slice it left with one finder gets its second in the next wave) — (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree) (chunk 5, D-347/D-348 — contract: `/opt/fabrik/docs/reference/review-loop-workflow.md`): the script runs the two finders per slice with a schema whose `files_read` lists every file the seat opened, unions their candidates, DIFFS `files_read` against the slice (a gap is logged and the slice is UNVERIFIED until read), runs one fresh Sonnet refuter per slice that EXECUTES every candidate's check and returns the command and output (a refutation without them is `unverified`), and hands you ONE ledger carrying each slice's `closable` flag and its `open` reasons. The seats' reports never enter your transcript; the ledger does. Wait for it with ONE bounded in-turn poll per pass (the run record holds the turn open), then read the pass into a FILE and work from it — `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir> --out <scratch>/pass-<n>.json --box <box_minutes>` — never the escaped task-output copy or your scrollback; it prints every seat's minutes and tokens and flags `OVER BOX` (nothing in the Workflow API times a seat out) and `NO RESULT`. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs and the receipt's Pass row notes `shape: agent-tool`. **YOU are never a finder** — you partition, dispatch and adjudicate, and Phase 2 makes you EXECUTE every candidate. (Satisfied by construction while every seat is native — D-181 — it binds again on re-enable.) ⚠️ **Secrets carve-out — the one sanctioned all-native slice (mirror: `/fabrik-execute-plan` D4 + the repo-review/rules-review/service-test/ui-design/user-test family):** a diff hunk touching secret-material paths (`.env` / `.env.*` **except `.env.example`** — the Doc-Sync-Matrix file every env-var change touches, `check_plan_tickets.py`'s own carve-out — `secrets/`, key/cert files) is reviewed **NATIVE-ONLY**. Partition, don't skip (moot while every seat is native — D-181/D-182): the slice's two finders cover the secret-bearing hunks with the secret redacted from both briefs (a diff that is ENTIRELY secret-material → all-native, which every diff is while the pool is OFF).
+
+- **The seats (native `fabrik-reviewer`, `subagent_type: "fabrik-reviewer"`, model by the per-dispatch token `model: "opus"|"sonnet"|"haiku"`):** one per SLICE, as partitioned above. A finder that returns nothing is a FAILED seat (re-dispatch it), never a clean round; a refuter that returns nothing leaves its candidates to Phase 2. The **16 failure classes are the HUNT LIST every seat carries over its own slice**, not the partition — the partition is by FILE, so two seats never read one file's logic and no candidate is claimed twice. (The Coverage Checklist is the ADJUDICATION ledger — one row per changed FILE plus the standing recurrence rows — and its axes overlap by construction: it is never a seat list.)
 - **Leak check — the lead, before EVERY dispatch and after the pass returns:** a tree baseline (`git diff HEAD | md5sum`, not the PIN digest) plus `git rev-parse HEAD`, `git status --porcelain --ignored` and `git stash list`, each one plain command, each output written to a file under your scratchpad so the comparison is a diff of two files, never your memory; re-take the baseline after your own fix edits. No seat is dispatched until `ls -d` on each brief file and pins dir the briefs name, by the absolute path each brief carries, exits 0 with every path printed — a missing one is a brief defect, fixed first — and a re-pin goes to a NEW dir (`review_loop_ledger.py pin` refuses a non-empty one at rc 2; never `--replace` a dir, or its `.base`, that an earlier pass's seats read). A difference you did not make is a seat leak: restore only a hunk a seat's transcript shows it wrote, name the seat in the receipt, and mail an unattributed change to its likely author — never revert a hunk you cannot attribute, it may be a sibling's. A killed process is invisible to this check; when the surface is a daemon or watcher, add `pgrep -af <its script name>` to the baseline, so a live process that vanished shows in the same diff. The baseline also holds the `md5sum` of the `config` file in the directory `git rev-parse --path-format=absolute --git-common-dir` prints, since a remote or `core.hooksPath` a seat writes there shows in no status; a hook file under that directory's `hooks/` is in neither, so the baseline lists it too.
-- **Every finder brief carries these lessons VERBATIM (D8 — each one cost a round of the D-191
-  review):** pin dirs are created ONCE before the first dispatch and never touched while seats run ·
-  `git init` inside a `git archive` pin (a bare pin fails through `_repo_root()`) · every
-  `command_run.py` probe sets `COMMAND_RUN_DIR`, `COMMAND_RUN_TRANSCRIPT` and `KAIZEN_EVENTS_DIR` (a
-  test without them writes fabricated rounds under the LIVE sid) · every mutation runs on a COPY
-  under the seat's own scratch dir by ABSOLUTE path — the shell returns to the live checkout before every Bash call, so a relative path or a mutation split across calls lands in the live tree (tryton-crm 01M40KBE) · never `pkill`, `killall` or kill by pattern (fabrik-lib 01M3YFX4) · a git write only as `git -C <absolute scratch repo>`, and code under test that runs git gets that cwd (iterative_image_editor 01M41B1S) · a MUTATION-TESTING seat works on a COPY of the surface made FROM the pin dir (so the pin's stated contents and commit are the copy's provenance), never the tree, and runs its battery under an explicit `timeout` its brief names at or above the battery's measured runtime (01M25Y93M); the orchestrator holds its own edits to those files while that seat is live (01M25RZC3). ⚠️ **What a Bash call over its timeout actually does here: it AUTO-BACKGROUNDS, it is not killed** — the harness prints `moved to the background (ID: …)` and keeps writing to the task's output file, so the process runs on and its restore still happens. Observed repeatedly, this session. That matters because the two recoveries are opposite: a backgrounded mutation finishes and restores, a KILLED one leaves the tree mutated — which is why the COPY rule above is the guard that carries the weight, not the timeout. Do not write a brief that assumes a kill (01M25Y93M, adjudicated against fabrik-lib-dev1's filing) ·
-  a mutant counts as dead only as `/opt/fabrik/commands/_fragments/term-coverage.md` rule (4) says, never on an
-  exit code alone ·
-  never bare-grep a tracked path — `git show <sha>:<path> > <scratch>/<file>`, redirected like any large output, because a large stdout is saved by the harness under `$HOME` · a seat that MEASURES by importing code
-  imports the PIN (a `git archive <sha>` extract with the pinned files overlaid),
-  never `sys.path.insert` the live tree, puts the directory that holds the top-level import name (`<extract>/src`
-  for `import fabrik`) at the index of the first entry ending in `site-packages` or `dist-packages` (at the end
-  when there is none), never at index 0, where a package named like a stdlib module shadows the stdlib, runs every
-  probe as `python -P -B` with any PYTHONPATH entries dropped from sys.path (without `-P` the working directory,
-  the live repo, sits ahead of the extract) — `PIN_IMPORT` in `.claude/workflows/fabrik-review-loop.js`
-  is the recipe — and prints the module's `__file__` beside every result (a
-  sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief
-  states the ledger's high-water mark — its last row id and the receipt's sha at dispatch (in the
-  committed-fix form below, the draft's last row id and md5) — never a hand-typed row range · every helper or probe file a seat writes goes in its OWN scratch dir
-  (`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write), never the dispatcher's scratchpad root, and never under a name that
-  collides with an importable package (a seat's `h11.py` there shadowed the real `h11` for every
-  process run from that dir) · Python `time.sleep` in fixture scripts,
-  never a foreground shell sleep · a quote verified against a session transcript filters out the
-  Stop-hook feedback, the skill-invocation payloads and the re-invocation notice (all arrive as
-  `type: user`; a brief's ARGUMENTS text is not the operator's words) and prefilters the raw line by
-  timestamp before parsing (a 793 MB session file parses in under a second that way, ~40 s
-  otherwise) · the Read tool truncates a long file on a token cap with NO marker — read in offset
-  pages and confirm the last line — and cuts one over-long LINE just as silently (this file carries
-  lines of several KB): read such a line whole with `sed -n '<n>p' <file> | fold -w 200`, never
-  conclude from its visible half · print a DENOMINATOR, and the commit (or the pin's md5) it was measured at,
-  beside every count, and the match count beside any grep piped through `cut` · a probe of a served build reads
-  the port the server actually bound, from its own output, or serves the files with no port at all (Playwright
-  `page.route`), never a port the brief assumed ·
-  **HARD TIME BOX 15 minutes** · report `MACHINERY:` last.
-<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
-- **OpenRouter finders (the pool — Claude *and* OpenRouter models via one API):** when `libs/subagents/` is
-  vendored, dispatch through the pool via **`fanout`** — it replaces the hand-rolled `run_agents`+`AgentSpec`
-  boilerplate (family-diverse model pick, parallel-safe, auto-recorded):
-  `fanout("review", units=[<unit code + "find bugs, cite path:line"> …], repo=…, project="review", mode="read_only", system=methodology("review"), max_turns=2, max_cost_usd=0.25, wall_clock_s=600)`. `mode="read_only"` IS the single-shot review finder — it sets `tools_enabled=False`+`allow_ungrounded=True` for you (you attest each unit inlined its code into the task text); use `mode="write"` only if a finder needs real file reads.
-  `fanout`/`pick_models` return the **flywheel-ranked** models for the `review` task (from the per-task
-  selection table below) and **never `anthropic/*`** — Claude via OpenRouter bills per-token and
-  is expensive; for a Claude reviewer use the **native** finder above (subscription). **There is no always-on
-  price cap** — pass `max_cost_per_mtok=` only if you want an explicit budget ceiling for a run. **After you adjudicate each run, back-fill the flywheel:**
-  `set_quality(r.agent_id, <0–5>, project="review", task_type="review", model=r.model)` (⚠️ never `record_run`
-  — it silently no-ops; `fanout` already recorded the row UNSCORED, `set_quality` scores it) so the flywheel
-  learns which model reviews well.
-  **Trust policy — the METHODOLOGY, not a model pin (README):** a review's trust does NOT come from which pool
-  model ran; it comes from **≥1 native Opus finder as the authoritative decider + every pool finding
-  independently refuted before it is acted on** (both hold regardless of roster). `fanout("review", …)` returns
-  the flywheel-ranked, empirically-proven reviewers from the per-task table below — trust *those numbers*, not a
-  frozen name. A never-run `[benchmark]` candidate in the table's tail may appear in a large fan-out: harmless —
-  it adds recall breadth, is scored into the flywheel, and its findings are refuted like any pool finding (no
-  pool finding is authoritative on its own).
-- **NEVER hand-roll a raw `ai-consult` / OpenRouter call for a finder.** The pool *is* ai-consult **plus**
-  worktree containment, caps, and the `fanout`→`set_quality` flywheel — bypassing to ai-consult throws all of that away
-  and `pick_models` learns nothing. Use `fanout`. (And verify any model you name exists — don't invent version
-  strings; the authoritative roster is the per-task selection table, not memory.)
--->
+- **Every finder brief carries these lessons VERBATIM (D8 — each one cost a round of the D-191 review):** pin dirs are created ONCE before the first dispatch and never touched while seats run · `git init` inside a `git archive` pin (a bare pin fails through `_repo_root()`) · every `command_run.py` probe sets `COMMAND_RUN_DIR`, `COMMAND_RUN_TRANSCRIPT` and `KAIZEN_EVENTS_DIR` (a test without them writes fabricated rounds under the LIVE sid) · every mutation runs on a COPY under the seat's own scratch dir by ABSOLUTE path — the shell returns to the live checkout before every Bash call, so a relative path or a mutation split across calls lands in the live tree (tryton-crm 01M40KBE) · never `pkill`, `killall` or kill by pattern (fabrik-lib 01M3YFX4) · a git write only as `git -C <absolute scratch repo>`, and code under test that runs git gets that cwd (iterative_image_editor 01M41B1S) · a MUTATION-TESTING seat works on a COPY of the surface made FROM the pin dir (so the pin's stated contents and commit are the copy's provenance), never the tree, and runs its battery under an explicit `timeout` its brief names at or above the battery's measured runtime (01M25Y93M); the orchestrator holds its own edits to those files while that seat is live (01M25RZC3). ⚠️ **What a Bash call over its timeout actually does here: it AUTO-BACKGROUNDS, it is not killed** — the harness prints `moved to the background (ID: …)` and keeps writing to the task's output file, so the process runs on and its restore still happens. That matters because the two recoveries are opposite: a backgrounded mutation finishes and restores, a KILLED one leaves the tree mutated. Do not write a brief that assumes a kill (01M25Y93M, adjudicated against fabrik-lib-dev1's filing) · a mutant counts as dead only as `/opt/fabrik/commands/_fragments/term-coverage.md` rule (4) says, never on an exit code alone · never bare-grep a tracked path — `git show <sha>:<path> > <scratch>/<file>`, redirected like any large output, because a large stdout is saved by the harness under `$HOME` · a seat that MEASURES by importing code imports the PIN (a `git archive <sha>` extract with the pinned files overlaid), never `sys.path.insert` the live tree, puts the directory that holds the top-level import name (`<extract>/src` for `import fabrik`) at the index of the first entry ending in `site-packages` or `dist-packages` (at the end when there is none), never at index 0, where a package named like a stdlib module shadows the stdlib, runs every probe as `python -P -B` with any PYTHONPATH entries dropped from sys.path (without `-P` the working directory, the live repo, sits ahead of the extract) — `PIN_IMPORT` in `.claude/workflows/fabrik-review-loop.js` is the recipe — and prints the module's `__file__` beside every result (a sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief states the ledger's high-water mark — its last row id and the receipt's sha at dispatch (in the committed-fix form below, the draft's last row id and md5) — never a hand-typed row range · every helper or probe file a seat writes goes in its OWN scratch dir (`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write), never the dispatcher's scratchpad root, and never under a name that collides with an importable package (a seat's `h11.py` there shadowed the real `h11` for every process run from that dir) · Python `time.sleep` in fixture scripts, never a foreground shell sleep · a quote verified against a session transcript filters out the Stop-hook feedback, the skill-invocation payloads and the re-invocation notice (all arrive as `type: user`; a brief's ARGUMENTS text is not the operator's words) and prefilters the raw line by timestamp before parsing (a 793 MB session file parses in under a second that way, ~40 s otherwise) · the Read tool truncates a long file on a token cap with NO marker — read in offset pages and confirm the last line — and cuts one over-long LINE just as silently (this file carries lines of several KB): read such a line whole with `sed -n '<n>p' <file> | fold -w 200`, never conclude from its visible half · print a DENOMINATOR, and the commit (or the pin's md5) it was measured at, beside every count, and the match count beside any grep piped through `cut` · a probe of a served build reads the port the server actually bound, from its own output, or serves the files with no port at all (Playwright `page.route`), never a port the brief assumed · **HARD TIME BOX 15 minutes** · report `MACHINERY:` last.
 
-<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
-**📋 Per-task model selection — READ THE TABLE, don't hardcode.** The roster is NOT pinned in this command. The
-canonical, auto-refreshed, flywheel-ranked table lives at **`/opt/fabrik/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`**
-(one ranked section per task type: `code · docs · plan · research · review · spec`, each row = `shrunk_q ·
-success · avg_cost · n`; `[benchmark]` = never-run candidate). `pick_models`/`fanout` **read this table
-automatically** to select — so "the agent looks in the table" is already true in code. When you need to *see*
-today's ranked reviewers (e.g. to justify a pick or spot a benchmark), read that file or call
-`pick_models("review")`. Any model name or `$X` cap written into prose has FROZEN a snapshot the table has
-since moved past — that drift is exactly the bug this points-at-the-table rule prevents.
--->
+YOU (the dispatching session) remain the refute/merge/decide-clean and prove-and-fix authority — the finders only report. When adjudicating a caller/impact claim ("nothing else calls this", "every consumer handles None"), derive the call-site list with the `serena` MCP (`find_referencing_symbols` — real references, not name collisions) before ruling; `Grep` remains the tool for strings, config and prose the language server doesn't index. (If neither mechanism is available, run genuinely independent passes and do not let a later pass narrow an earlier one.) Cover, across the finders: logic errors, off-by-one, null/empty/None handling, idempotency, effective-dating/ordering, fail-open vs fail-closed, error/edge paths, concurrency & transaction atomicity, resource cleanup, auth/tenant-isolation, precision/timezone/encoding, removed-guard / removed-behavior regressions, cross-file contract breaks (changed signature / return-shape / precondition / new exception), **test quality** (does each test actually prove its claim, or pass trivially?), **12-Factor violations** (its own checklist below — one finder MUST own this class), and plan↔code deviations (verify against the spec's INTENT, since the written spec can itself be wrong). Each finder surfaces every candidate with a concrete, nameable failure scenario — do NOT drop half-believed candidates.
 
-YOU (the dispatching session) remain the refute/merge/decide-clean and
-prove-and-fix authority — the finders only report. When adjudicating a caller/impact claim
-("nothing else calls this", "every consumer handles None"), derive the call-site list with the
-`serena` MCP (`find_referencing_symbols` — real references, not name collisions) before ruling;
-`Grep` remains the tool for strings, config and prose the language server doesn't index. (If neither mechanism is available, run genuinely
-independent passes and do not let a later pass narrow an earlier one.) Cover, across the finders: logic errors, off-by-one,
-null/empty/None handling, idempotency, effective-dating/ordering, fail-open vs
-fail-closed, error/edge paths, concurrency & transaction atomicity, resource cleanup,
-auth/tenant-isolation, precision/timezone/encoding, removed-guard / removed-behavior
-regressions, cross-file contract breaks (changed signature / return-shape /
-precondition / new exception), **test quality** (does each test actually prove its claim,
-or pass trivially?), **12-Factor violations** (its own checklist below — one finder MUST own
-this class), and plan↔code deviations (verify against the spec's INTENT, since
-the written spec can itself be wrong). Each finder surfaces every candidate with a
-concrete, nameable failure scenario — do NOT drop half-believed candidates; that is
-the dominant cause of misses.
+**Test-quality checklist (the finder covering tests applies all of these — a test that ships green while the behavior is broken is a defect):** would the test still PASS if the feature/fix were reverted? (if yes, it proves nothing — it was written after the code and never watched fail); asserting on **mock behavior** / `*-mock` test IDs instead of real behavior; **test-only methods on production classes** (a method only ever called from tests); **over-mocking** that removes a side-effect the test depends on (mock at the wrong level → passes for the wrong reason); **incomplete mocks** (fewer fields than the real API returns → passes in test, fails in integration); mock setup that is >50% of the test; **a wall-clock TIME BOMB** — code calling `datetime.now()`/`time.time()`/`date.today()` while its callers or tests inject a `now` (the test is green only while real time sits inside its fixture's window); **a fixture that IS the code's own constant** — a test whose expected value is read from the very constant whose VALUE is the behaviour under test stays green whatever that constant says, so the finder mutates that constant on a copy under its scratch dir and the test must go red; **a value compared with itself, or a matcher softened until it cannot fail** (a substring where the contract is equality, a regex widened to `.*`) — both pass on the coder's own proofs, so each is mutated the same way. Flag any of these as a test-quality finding. **When a finding hinges on what a 3rd-party library / SDK / API *actually* returns** (an incomplete mock, or a cross-file contract break against an external signature), confirm the real shape with a `WebFetch` of the library's official docs rather than asserting it from memory — the only place this code-vs-code review reaches for an external tool.
 
-**Test-quality checklist (the finder covering tests applies all of these — a test that ships green while
-the behavior is broken is a defect):** would the test still PASS if the feature/fix were reverted? (if yes,
-it proves nothing — it was written after the code and never watched fail); asserting on **mock behavior** /
-`*-mock` test IDs instead of real behavior; **test-only methods on production classes** (a method only ever
-called from tests); **over-mocking** that removes a side-effect the test depends on (mock at the wrong
-level → passes for the wrong reason); **incomplete mocks** (fewer fields than the real API returns → passes
-in test, fails in integration); mock setup that is >50% of the test; **a wall-clock TIME BOMB** — code
-calling `datetime.now()`/`time.time()`/`date.today()` while its callers or tests inject a `now` (the
-test is green only while real time sits inside its fixture's window; live case: a 7-pass converged
-review stamped one clean, red two weeks later); **a fixture that IS the code's own constant** — a test whose
-expected value is read from the very constant whose VALUE is the behaviour under test stays green whatever that
-constant says, so the finder mutates that constant on a copy under its scratch dir and the test must go red;
-**a value compared with itself, or a matcher softened until it cannot fail** (a substring where the contract is
-equality, a regex widened to `.*`) — both pass on the coder's own proofs, so each is mutated the same way.
-Flag any of these as a test-quality finding. **When a finding hinges on what a 3rd-party library / SDK / API *actually* returns** (an incomplete
-mock, or a cross-file contract break against an external signature), confirm the real shape with
-a `WebFetch` of the library's official docs rather than asserting it from memory — the only place this code-vs-code review
-reaches for an external tool.
-
-**12-Factor checklist (one finder OWNS this class — these are GREPPABLE, so there is no excuse for missing them).**
-Every item below is a **CONFIRMED defect** if present, not a style nit. The rule packs
-(`.windsurf/rules/core/{10-python,12-node,25-data-postgres,30-ops,45-testing-strategy,55-observability,75-workers-jobs,76-gpu-workers}.md`)
-carry the full mandates; this is the hunt list:
+**12-Factor checklist (one finder OWNS this class — these are GREPPABLE).** Every item below is a **CONFIRMED defect** if present, not a style nit. The rule packs (`.windsurf/rules/core/{10-python,12-node,25-data-postgres,30-ops,45-testing-strategy,55-observability,75-workers-jobs,76-gpu-workers}.md`) carry the full mandates; this is the hunt list:
 
 | # | Grep for | Why it's a defect |
 |---|---|---|
 | XI | `FileHandler`, `RotatingFileHandler`, `TimedRotatingFileHandler`, loguru file sink, `pino.destination('*.log')`, `winston.transports.File`, `fs.createWriteStream` for logs, any `*.log` write, in-app log rotation | The app must **never write or manage a logfile**. Unbuffered JSON → `stdout`; Docker → Promtail → Loki owns routing/retention. |
-| XI | a service `compose.yaml` with **no `PYTHONUNBUFFERED`** | Python block-buffers stdout to Docker's log driver ⇒ an OOM-killed process **loses its own crash logs**. |
+| XI | a service `compose.yaml` with **no `PYTHONUNBUFFERED`** | Python block-buffers stdout to Docker's log driver ⇒ an OOM-killed process loses its own crash logs. |
 | VIII | `daemon=True`, double-fork, `.pid` file writes, `supervisord`/`pm2` inside the container | Never daemonize / write PID files. **Carve-out:** `tini` as PID 1 and the Adaptive Worker Pool's forked children are *mandatory* Fabrik patterns — **not** violations. Don't false-positive them. |
 | IX | a worker SIGTERM handler that **drops or leaves locked** its in-flight job; a non-idempotent job handler | On SIGTERM a worker must **return the in-flight job to the queue** (reset the row to `pending`); jobs must be reentrant. Dropping it = data loss (or a ~10-min orphan-sweep stall). |
 | VI | Traefik `loadbalancer.sticky.*` label; in-process/file-based sessions | **Sticky sessions are a 12F violation.** Session state → `redis-main` (+ the spec must set `shape.needs_cache: true`, or `fabrik apply` skips the Redis registrar and the deploy is silently broken). |
@@ -332,207 +123,55 @@ carry the full mandates; this is the hunt list:
 
 ## Phase 2 — EXECUTE every candidate and every refutation (you, never a seat)
 
-Dedup near-duplicates. Then, for each remaining candidate, **CONFIRMED means EXECUTED**: you run a
-probe on a pinned copy, a failing test, or a mutation on a copy that the grader turns red (dead as `/opt/fabrik/commands/_fragments/term-coverage.md` rule (4) says) — and for
-a DOC claim, a pinned read of the artifact the doc describes, **quoted beside the sentence**. A
-seat's concrete failure scenario is a claim; your execution is what makes it a defect. Under the workflow (Phase 1) the slice's refuter already ran a command per candidate it reached: RE-RUN the command of every `confirmed` verdict on the pinned copy yourself before a fix (one command each, never a re-derivation), treat `unverified` verdicts, every slice `gap` and every candidate of a slice whose refuter failed or read `NO RESULT` as open candidates you execute before the round is recorded — never a re-dispatch of the pass — and execute the refutations you rely on. A PLAUSIBLE whose ground truth is OUTSIDE the repo (a vendor API, a documented status value) is handed to a `fabrik-researcher` seat, never refuted from memory (01M215G84). **Execute the
-REFUTATION too** — a refutation is proof, not a shrug — and cite the command and its output in the
-candidate's disposition row. This execution is what replaced D-191's Opus re-read of every file, so
-it is not optional and never delegated to a finder.
+Dedup near-duplicates. Then, for each remaining candidate, **CONFIRMED means EXECUTED**: you run a probe on a pinned copy, a failing test, or a mutation on a copy that the grader turns red (dead as `/opt/fabrik/commands/_fragments/term-coverage.md` rule (4) says) — and for a DOC claim, a pinned read of the artifact the doc describes, **quoted beside the sentence**. A seat's concrete failure scenario is a claim; your execution is what makes it a defect. Under the workflow (Phase 1) the slice's refuter already ran a command per candidate it reached: RE-RUN the command of every `confirmed` verdict on the pinned copy yourself before a fix (one command each, never a re-derivation), treat `unverified` verdicts, every slice `gap` and every candidate of a slice whose refuter failed or read `NO RESULT` as open candidates you execute before the round is recorded — never a re-dispatch of the pass — and execute the refutations you rely on. A PLAUSIBLE whose ground truth is OUTSIDE the repo (a vendor API, a documented status value) is handed to a `fabrik-researcher` seat, never refuted from memory (01M215G84). **Execute the REFUTATION too** — a refutation is proof, not a shrug — and cite the command and its output in the candidate's disposition row. This execution is what replaced D-191's Opus re-read of every file, so it is not optional and never delegated to a finder.
 
-⚠️ **A fix that changes a PUBLISH GATE — any condition under which a figure, row or verdict is
-emitted — is re-run against the LIVE data before the round closes, and the output diffed against the
-previous round's pin.** Graders cannot see this class: a grader CONSTRUCTS the rows it needs, so it
-only tests the branch the author already imagined, while the real population carries the case nobody
-did. Measured: a fix converted three render cells from a row-count gate to a value-only gate, every
-grader passed, the targeted property was genuinely closed — and `sum([]) == 0`, so a command with no
-measured rows published a confident `0` instead of an em dash. **4 of 14 rows of the real ledger
-gained a phantom zero**, and the next round's seat found it only by rendering the live ledger and
-diffing. The diff is the evidence; paste it in the round's disposition row.
+⚠️ **A fix that changes a PUBLISH GATE — any condition under which a figure, row or verdict is emitted — is re-run against the LIVE data before the round closes, and the output diffed against the previous round's pin.** Graders cannot see this class: a grader CONSTRUCTS the rows it needs, so it only tests the branch the author already imagined, while the real population carries the case nobody did. Measured: a fix converted three render cells to a value-only gate, every grader passed, the targeted property was genuinely closed — and `sum([]) == 0`, so a command with no measured rows published a confident `0` instead of an em dash. 4 of 14 rows of the real ledger gained a phantom zero, found only by rendering the live ledger and diffing. The diff is the evidence; paste it in the round's disposition row.
 
 Every candidate lands on ONE of these, and only the first counts toward `confirmed:`:
 
-- **CONFIRMED** — executed and reproduced. Fix it in THIS round (Phase 3); a confirmed defect is
-  never carried to the next.
-- **REFUTED** — executed and shown false (quote the type/constant/invariant/guard that makes it
-  impossible, or the exact line that makes it factually wrong, beside the command you ran). Do not
-  refute something merely for needing a "rare but reachable" state (error handler, cold cache,
-  missing optional field, race, falsy-zero, boundary, retry / partial failure, lost regex anchor).
-  A defect the code's own author cannot see is exactly what this step exists to catch, so do not
-  defer to the implementation's apparent intent.
-- **`RECORDED — unexecuted (<why>)`** — a ONE-SEAT candidate you could not reproduce. Parentheses,
-  NEVER a colon: a reason beginning with a number ("3 attempts timed out") would otherwise spell the
-  `unexecuted: 3` counter the ledger gate refuses. It is not dropped — it rides the ledger and the
-  `unexecuted:` counter, and an unexecuted CODE candidate on the closing row blocks the exit.
-- **`RECORDED — by design (<the owning row's first-cell id>, round N[; …])`** or **`(D-nnn)`** —
-  reproduced and kept on purpose. The owning row is a receipt row adjudicated in an EARLIER round N
-  (never the round being closed — otherwise the closing round mints its own licence) or a row of this
-  checkout's `docs/DECISIONS.md`, which takes no round token. That row is the one that decides THIS residual
-  (its text names the subject's file or mechanism), since the gate checks only that the owner exists (a D-id in
-  this checkout's `docs/DECISIONS.md`, a receipt row on another line with an earlier round), so any existing id
-  passes it. The parentheses hold the owner and nothing else — with its
-  `, round N` for a receipt row, several owners `;`-joined — and the reason follows them:
-  `RECORDED — by design (D-432) — <why>`; a reason inside them, `(D-432: <why>)`, is refused as an
-  absent owner.
-- **`RECORDED — measured (<why>)`** — executed and shown TRUE but not a defect this round fixes: a
-  prevalence figure, or a real defect outside the round's bounded hop or past the scope-growth stop,
-  its named destination in the reason (`term-coverage` D4). It never enters `unexecuted:`.
-- **`RECORDED — hygiene false positive (<why>)`** — a hygiene-script hit you adjudicated false; note
-  it in the round's method cell, never in a counter.
+- **CONFIRMED** — executed and reproduced. Fix it in THIS round (Phase 3); a confirmed defect is never carried to the next.
+- **REFUTED** — executed and shown false (quote the type/constant/invariant/guard that makes it impossible, or the exact line that makes it factually wrong, beside the command you ran). Do not refute something merely for needing a "rare but reachable" state (error handler, cold cache, missing optional field, race, falsy-zero, boundary, retry / partial failure, lost regex anchor): a defect the code's own author cannot see is what this step exists to catch.
+- **`RECORDED — unexecuted (<why>)`** — a ONE-SEAT candidate you could not reproduce. Parentheses, NEVER a colon: a reason beginning with a number ("3 attempts timed out") would otherwise spell the `unexecuted: 3` counter the ledger gate refuses. It rides the ledger and the `unexecuted:` counter, and an unexecuted CODE candidate on the closing row blocks the exit.
+- **`RECORDED — by design (<the owning row's first-cell id>, round N[; …])`** or **`(D-nnn)`** — reproduced and kept on purpose. The owning row is a receipt row adjudicated in an EARLIER round N (never the round being closed — otherwise the closing round mints its own licence) or a row of this checkout's `docs/DECISIONS.md`, which takes no round token. That row is the one that decides THIS residual (its text names the subject's file or mechanism), since the gate checks only that the owner exists (a D-id in this checkout's `docs/DECISIONS.md`, a receipt row on another line with an earlier round), so any existing id passes it. The parentheses hold the owner and nothing else — with its `, round N` for a receipt row, several owners `;`-joined — and the reason follows them: `RECORDED — by design (D-432) — <why>`; a reason inside them, `(D-432: <why>)`, is refused as an absent owner.
+- **`RECORDED — measured (<why>)`** — executed and shown TRUE but not a defect this round fixes: a prevalence figure, or a real defect outside the round's bounded hop or past the scope-growth stop, its named destination in the reason (`term-coverage` D4). It never enters `unexecuted:`.
+- **`RECORDED — hygiene false positive (<why>)`** — a hygiene-script hit you adjudicated false; note it in the round's method cell, never in a counter.
 
-None of the RECORDED forms and no REFUTED reopens the loop (D-206). A candidate you kept but could
-not classify is still CONFIRMED — under ambiguity, execute it.
+None of the RECORDED forms and no REFUTED reopens the loop (D-206). A candidate you kept but could not classify is still CONFIRMED — under ambiguity, execute it.
 
 ## Phase 3 — Prove & fix (depth) — every survivor terminates FIXED, REFUTED or RECORDED
 
-Every finding that survived Phase 2 — **CONFIRMED and PLAUSIBLE alike** — must reach one of exactly THREE
-terminal states: FIXED, REFUTED, or one of Phase 2's four `RECORDED — <kind> (…)` forms, which are a
-NARROW, grammar-bound disposition the gate reads, not a bucket. **There is no "noted / probably fine /
-to-watch / deferred" state, and the user does NOT accept an unfixed CONFIRMED finding** — a candidate you
-reproduced is FIXED in the round that confirmed it, or it is `RECORDED — by design` with its owning row named,
-or — outside the round's bounded hop — `RECORDED — measured` with its destination.
+Every finding that survived Phase 2 — **CONFIRMED and PLAUSIBLE alike** — must reach one of exactly THREE terminal states: FIXED, REFUTED, or one of Phase 2's four `RECORDED — <kind> (…)` forms, which are a NARROW, grammar-bound disposition the gate reads, not a bucket. **There is no "noted / probably fine / to-watch / deferred" state, and the user does NOT accept an unfixed CONFIRMED finding** — a candidate you reproduced is FIXED in the round that confirmed it, or it is `RECORDED — by design` with its owning row named, or — outside the round's bounded hop — `RECORDED — measured` with its destination.
 
-- **FIXED** — reproduce it with a runnable test/execution FIRST, fix it, keep the test as a regression guard
-  (verify red→green). A deliberate design decision that resolves it (e.g. choosing fail-open with a logged
-  warning) counts as FIXED **only if you actually made the change and recorded why** — and that disposition
-  is decision-shaped: **mint its `docs/DECISIONS.md` row in the same change as the fix, classified at mint, its id reserved
-  (`decisions.py --reserve-id`) before the close and the row committed after the code (close-chain's private-index step) —
-  a deliberate fail-open on a guard is the row that most needs a TRIPWIRE (ONE-WAY § Binding block when
-  the guard protects shared or production data)** (CLAUDE.md § the
-  decision ledger; a mechanical bug-fix stays row-less — the carve-out class).
-  **This is the ONE ledger rule for the whole phase, and it has TWO entry conditions — either fires it:**
-  the FIX is a design choice (this bullet), or the FINDING is ARCHITECTURAL (§ shape, below). They
-  overlap but neither subsumes the other: an architectural fix can have exactly ONE correct form (no
-  alternatives to reject — say so, the row is still owed because the contract moved), and a purely local
-  implementation choice is a design decision that moves no contract (row owed, not architectural). Mint
-  ONE row either way, and **the DISPATCHING SESSION mints it** — a subagent reports the decision in
-  prose and never touches the ledger (the pen-holder law; `/fabrik-execute-plan` D3 gate-enforces it).
-  - **Two fix forms recur:** two predicates over one input (an arm and its lift, an allow and its deny) become ONE
-    classifier both read, its grader sweeping every input pair; a sanitizing fix is an allowlist of spelled-out
-    characters, never a bracket range, whose members move with the locale and the shell (with bash's
-    `globasciiranges` off, `B` matches `[a-c]` under `en_US.UTF-8`).
-  - **A test that passes because the environment cannot express the failure has proven nothing** —
-    "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser
-    role for an RLS bug, no concurrency for a race, one tenant for an isolation bug). Reach for the
-    missing constraint **in a throwaway/ephemeral instance you own** — a scratch DB, a local container,
-    a disposable account. **NEVER** degrade shared or paid infrastructure to manufacture a red
-    (`postgres-main`/`redis-main` and the VPS fleet are shared; real vendor quota is the operator's
-    money) — if the only way to see the failure is to break something shared, say so in the finding
-    instead. This changes what counts as proof; dispositions below are unchanged.
+- **FIXED** — reproduce it with a runnable test/execution FIRST, fix it, keep the test as a regression guard (verify red→green). A deliberate design decision that resolves it (e.g. choosing fail-open with a logged warning) counts as FIXED **only if you actually made the change and recorded why** — and that disposition is decision-shaped: **mint its `docs/DECISIONS.md` row in the same change as the fix, classified at mint, its id reserved (`decisions.py --reserve-id`) before the close and the row committed after the code (close-chain's private-index step) — a deliberate fail-open on a guard is the row that most needs a TRIPWIRE (ONE-WAY § Binding block when the guard protects shared or production data)** (CLAUDE.md § the decision ledger — a mechanical bug-fix stays row-less — the carve-out class). **This is the ONE ledger rule for the whole phase, and it has TWO entry conditions — either fires it:** the FIX is a design choice (this bullet), or the FINDING is ARCHITECTURAL (§ shape, below). They overlap but neither subsumes the other: an architectural fix can have exactly ONE correct form (no alternatives to reject — say so, the row is still owed because the contract moved), and a purely local implementation choice is a design decision that moves no contract (row owed, not architectural). Mint ONE row either way, and **the DISPATCHING SESSION mints it** — a subagent reports the decision in prose and never touches the ledger (the pen-holder law; `/fabrik-execute-plan` D3 gate-enforces it).
+  - **Two fix forms recur:** two predicates over one input (an arm and its lift, an allow and its deny) become ONE classifier both read, its grader sweeping every input pair; a sanitizing fix is an allowlist of spelled-out characters, never a bracket range, whose members move with the locale and the shell (with bash's `globasciiranges` off, `B` matches `[a-c]` under `en_US.UTF-8`).
+  - **A test that passes because the environment cannot express the failure has proven nothing.** Reach for the missing constraint **in a throwaway/ephemeral instance you own**. **NEVER** degrade shared or paid infrastructure to manufacture a red (`postgres-main`/`redis-main` and the VPS fleet are shared; real vendor quota is the operator's money) — if the only way to see the failure is to break something shared, say so in the finding instead. This changes what counts as proof — dispositions below are unchanged.
 
-- **REFUTED** — you did the work to PROVE it cannot happen: quote the guard / type / invariant that makes it
-  impossible, or the exact line that makes it factually wrong. Promoting a finding to REFUTED requires
-  proof, not a shrug.
+**PLAUSIBLE is not a licence to skip — it is the opposite.** PLAUSIBLE means "reachable but not yet proven," so the burden is on YOU to discharge it. **"I couldn't reproduce it" is NOT a terminal state:** either fix it defensively (the failure is real-if-rare and the guard is cheap — a `None`-check, a `try/except`, a bound) or do the work to REFUTE it. Leaving it un-fixed and un-refuted means the review is **not done**.
 
-**PLAUSIBLE is not a licence to skip — it is the opposite.** PLAUSIBLE means "reachable but not yet proven,"
-so the burden is on YOU to discharge it. **"I couldn't reproduce it" is NOT a terminal state:** either
-fix it defensively (the failure is real-if-rare and the guard is cheap — a `None`-check, a `try/except`, a
-bound) or do the work to REFUTE it. Leaving it un-fixed and un-refuted means the review is **not done**.
-(This is the exact failure this command exists to stop: finders raise PLAUSIBLE findings and the controller
-quietly drops them.)
+**A real finding does not make the obvious fix correct — verify the FIX, not just the finding (`receiving-code-review`).** Before applying any fix — yours, or one a finder *proposed* — check it against THIS codebase: does it break an existing caller or a documented invariant? for a behaviour change a seat proposed, does a probe on a copy show the change still holds the bound it claims to protect? is there a reason the current code is the way it is (legacy/compat/perf)? is the "do it properly" version **YAGNI** (grep for real usage — if nothing calls it, the correct fix may be "delete it," not "build it out")? does the new form still hold EVERY shape the form it replaces held — a selector replaced by an id or a scoped lookup, a guard replaced by a narrower one, a restored test by one covering fewer pages or languages — the shapes enumerated from the OLD form before the fix is drafted, never from the new one, and listed in the fix's Pass Ledger `method:` cell beside its `round-zero probe` note (the probe catalogue's "what a replaced guard covered that its replacement does not"; the discipline `term-coverage` round zero states for a matcher or replacer, probed "against its live population before it widens or narrows", asked here of every replaced form)? A fix the lead hands to a coder subagent to implement is written in the pass's fix list as the invariant it must hold plus those shapes and the reproduction it answers (for a PLAUSIBLE survivor fixed defensively, its failure scenario), never as the patch alone. A **wrong fix to a real finding is itself a defect**, and cheaper finders/implementers propose more of them — treat a finder's suggested fix as an *external reviewer's suggestion to verify*, never an order to transcribe. If the finding is real but its proposed fix is wrong, implement the correct fix (or, when the current behavior is actually right, REFUTE the fix with the reason). **Never apply a fix you can't stand behind just to clear the ledger** — no performative "fixed."
 
-**A real finding does not make the obvious fix correct — verify the FIX, not just the finding
-(`receiving-code-review`).** Before applying any fix — yours, or one a finder *proposed* — check it against
-THIS codebase: does it break an existing caller or a documented invariant? for a behaviour change a seat
-proposed, does a probe on a copy show the change still holds the bound it claims to protect? is there a
-reason the current code is the way it is (legacy/compat/perf)? is the "do it properly" version **YAGNI**
-(grep for real usage — if nothing calls it, the correct fix may be "delete it," not "build it out")? does the
-new form still hold EVERY shape the form it replaces held — a selector replaced by an id or a scoped lookup,
-a guard replaced by a narrower one, a restored test by one covering fewer pages or languages — the shapes
-enumerated from the OLD form before the fix is drafted, never from the new one, and listed in the fix's Pass
-Ledger `method:` cell beside its `round-zero probe` note (the probe catalogue's "what a replaced guard
-covered that its replacement does not"; the discipline `term-coverage` round zero states for a matcher or
-replacer, probed "against its live population before it widens or narrows", asked here of every replaced
-form)? A fix the lead hands to a coder subagent to implement is written in the pass's fix list as the
-invariant it must hold plus those shapes and the reproduction it answers (for a PLAUSIBLE survivor fixed
-defensively, its failure scenario), never as the patch alone. A **wrong fix to a real finding is itself a
-defect**, and cheaper finders/implementers propose more of them — treat a finder's suggested fix as an
-*external reviewer's suggestion to verify*, never an order to transcribe. If the finding is real but its
-proposed fix is wrong, implement the correct fix (or, when the current behavior is actually right, REFUTE the
-fix with the reason). **Never apply a fix you can't stand behind just to clear the ledger** — no performative
-"fixed."
+Classify each on TWO axes. **Severity:** correctness/security vs. style — correctness/security outranks style, but a style finding is still FIXED or REFUTED, never ignored. **Shape — LOCAL vs ARCHITECTURAL**, which decides *how* you fix, **never whether** (both still terminate FIXED or REFUTED; this axis opens no third state):
 
-Classify each on TWO axes. **Severity:** correctness/security vs. style — correctness/security outranks
-style, but a style finding is still FIXED or REFUTED, never ignored. **Shape — LOCAL vs
-ARCHITECTURAL**, which decides *how* you fix, **never whether** (both still terminate FIXED or REFUTED;
-this axis opens no third state):
+- **LOCAL** — the resolution is unambiguous and contained: a missing `None`-check, an unbounded read, a wrong constant, a leaked handle, a rename the callers already expect. **Fix it in-run, autonomously.** This is the common case — do not manufacture ceremony for it.
+- **ARCHITECTURAL** — the finding is real but the CORRECT fix is a design choice with live alternatives, and the choice moves a contract, boundary, data model or auth/isolation posture **that another module or repo depends on**. (A fix whose only contract effect is contained in the function you changed stays LOCAL and row-less — "Changes what a caller can assume" is NOT the trigger, or every tightened validator would mint a row.) Still fix it — and **name the alternatives you rejected, or state that only one form was correct**; this is the second entry condition of the FIXED bullet's ledger rule above, so mint that ONE row (do not mint a second). Picking one silently is how a review smuggles in an architecture decision under a bug-fix commit message. **One row per REVIEW covering its architectural picks** — unless a pick is ONE-WAY, which earns its own row — per-fix rows dilute the ledger that CLAUDE.md makes the first answer to every where-is/did-we-decide question.
+- **When you cannot tell which side a finding sits on, treat it as ARCHITECTURAL and mint the row.** An unnecessary row costs a line — a missing one costs the decision.
 
-- **LOCAL** — the resolution is unambiguous and contained: a missing `None`-check, an unbounded read, a
-  wrong constant, a leaked handle, a rename the callers already expect. **Fix it in-run, autonomously.**
-  This is the common case; do not manufacture ceremony for it. (The axis is LOCAL/ARCHITECTURAL, not
-  "mechanical" — that word already means *done by machinery* fleet-wide: "three mechanical obligations",
-  "mechanical gates are green".)
-- **ARCHITECTURAL** — the finding is real but the CORRECT fix is a design choice with live alternatives,
-  and the choice moves a contract, boundary, data model or auth/isolation posture **that another module
-  or repo depends on**. (A fix whose only contract effect is contained in the function you changed stays
-  LOCAL and row-less — the same carve-out as :269. "Changes what a caller can assume" describes most
-  correctness fixes; it is NOT the trigger, or every tightened validator would mint a row.) Still fix it
-  — and **name the alternatives you rejected, or state that only one form was correct**; this is the
-  second entry condition of the FIXED bullet's ledger rule above, so mint that ONE row (do not mint a
-  second). Picking one silently is how a review smuggles in an architecture decision under a bug-fix
-  commit message. **One row per REVIEW covering its architectural picks** — unless a pick is ONE-WAY,
-  which earns its own row; per-fix rows dilute the ledger that CLAUDE.md makes the first answer to every
-  where-is/did-we-decide question.
-- **When you cannot tell which side a finding sits on, treat it as ARCHITECTURAL and mint the row.**
-  An unnecessary row costs a line; a missing one costs the decision. (The rest of this phase defaults
-  the same way — "PLAUSIBLE is not a licence to skip — it is the opposite".)
+**This axis adds NO new exit.** ⚠️ It is a description of the FIX, never a permit to leave a finding standing, and calling a finding "architectural" changes nothing about whether it terminates. A finding that genuinely cannot be fixed in-run uses the paths that already exist and are already graded — the three sanctioned BLOCKED cases, or `ROUTED(n)` with a named owner when it belongs to another repo — and NOTHING here widens either. **Record the shape in the finding's disposition row** (`FIXED(n) · LOCAL` / `FIXED(n) · ARCHITECTURAL → D-NNN`): one token, the only thing standing between this axis and a silent downgrade to dodge the ledger row. **Scope:** the mandate applies to findings adjudicated from this invocation onward — already-merged fixes from an earlier phase are not retro-minted.
 
-**This axis adds NO new exit.** ⚠️ It is a description of the FIX, never a permit to leave a finding
-standing, and calling a finding "architectural" changes nothing about whether it terminates. A finding
-that genuinely cannot be fixed in-run uses the paths that already exist and are already graded — the
-three sanctioned BLOCKED cases, or `ROUTED(n)` with a named owner when it belongs to another repo — and
-NOTHING here widens either. **Record the shape in the finding's disposition row** (`FIXED(n) · LOCAL` /
-`FIXED(n) · ARCHITECTURAL → D-NNN`): one token, and it makes the classification an artifact a reviewer
-can check rather than an unwitnessed thought — the only thing standing between this axis and a silent
-downgrade to dodge the ledger row. **Scope:** the mandate applies to findings adjudicated from this
-invocation onward — already-merged fixes from an earlier phase are not retro-minted.
-
-Re-run the project gate/test suite after EACH fix (fixes regress); green is necessary, NOT sufficient —
-it does not test logic, so never cite it as proof of correctness.
+Re-run the project gate/test suite after EACH fix (fixes regress); green is necessary, NOT sufficient — it does not test logic, so never cite it as proof of correctness.
 
 ## Phase 4 — Converge (the loop — you are here after EVERY pass, not once)
 
 Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`confirmed`/`fixed`/`unexecuted` counts), then decide:
 
-- **Round 1 is the ONLY full partitioned pass. Every round ≥ 2 is a DELTA round.** Its surface is
-  computed, not judged: `git diff <the last round's commit>..HEAD -- <the review's surface>`, PLUS one
-  hop of callers and callees (the files that reference a symbol the diff changed — `serena`
-  `find_referencing_symbols` where the language server is up, else `/usr/bin/grep -rn '<symbol>'` (the shell `grep` is a gitignore-honouring shim — CLAUDE.md's seventh bounded-search shape) — and the
-  tests that import the changed module) (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), PLUS any sibling commit that landed on the original surface
-  since the last round. The brief lists that file set by path as must-read, with every file the previous pass left as a `gap`. It also names the previous pass's `base_sha` and pins_dir, as the probe catalogue's § Seat isolation says. It carries, too, every environment value an earlier pass's seats set before their probes ran (a state directory, `COMMAND_RUN_DIR`, a `transcripts_dir` source), copied from their `MACHINERY:` notes, so a re-verifying seat does not rediscover it. **Same partition rule** — the same two finders per slice (D-344), the grep classes to the hygiene script (run at the round's start and close) —
-  and the **class ledger PERSISTS**: a delta round sweeps the classes its diff touches and CITES the
-  classes it did not touch as standing-clean from the last full pass, naming them in the receipt. **A
-  round is never a re-scope**: the brief for a delta round is the fixed class ledger applied to the
-  delta surface.
-- **This pass CONFIRMED anything** → fix it in THIS round, then run the next DELTA round (the fixes
-  themselves can introduce defects, and a fix that creates one is confirmed in that delta round). Do
-  not skip this because the change was small or "obviously safe" — that judgment is exactly what the
-  next round exists to check. A pass that confirmed nothing is quiet however many candidates it
-  raised: refuted and `RECORDED` candidates never reopen the loop (D-206).
-- ⚠️ **The closing pass is the round-1 seats re-verifying their OWN slices** (the same two seats per slice — its Sonnet and its Haiku, D-344; never a fresh whole-artifact reader, D-335) — the fix diff is YOUR
-  work, and `62-using-subagents.md` § Role separation binds: the loop-closing pass's finder work runs in a context
-  that did not author the artifact. **A closing pass that dispatched no finder seat may not close**; the hygiene script and
-  your own execution never close a review alone. Under the workflow, pass 2 and the closing pass are NEW `Workflow` invocations with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` in `args`, built from the pass file with `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json --ids <the confirmed ids>` (it prints `{name, ledger}` rows: each `ledger` goes on the `args.slices` entry of the same `name`, which keeps its `files`); with `--args <a scratch copy of the run file>`, added whenever that file exists, it prints each slice whole, so its stdout, plus each `not carried` slice a fix hunk touched, is the next launch's `slices`, and it carries the open claims the `--ids` leave out; read its stderr either way (`/opt/fabrik/docs/reference/review-loop-workflow.md`) — each claim stated as the DEFECT — `DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent (the fix holds, or an earlier refutation still holds — re-run and never cited) · `NEW` a defect the fix introduced (an older run's `STILL_TRUE` / `NOW_FALSE` rows read as `DEFECT_PRESENT` / `DEFECT_ABSENT`, and `review_loop_ledger.py read` flags a seat that reports a defect present but raises no candidate, and two seats that disagree) — never `resumeFromRunId` (a resumed run re-runs the fan-out; `/opt/fabrik/docs/reference/review-loop-workflow.md`). When the fix diff leaves a slice's files untouched, the closing-pass brief says so, naming each file's md5 in both passes' pin manifests, so its seats open those files and re-execute their ledger without re-proving byte identity. A pass whose ledger reads `closable: false` does not close the review, whatever its pass number: ≤ 3 passes is a target, never a cap.
-- **Every Coverage Checklist row is adjudicated** (CLEAN / FIXED / REFUTED / RECORDED), the delta round
-  returned **`confirmed: 0` and `fixed: 0` with `unexecuted:` 0 or absent**, it carried the owning seats,
-  and the mechanical gates are green (run, embedded and flipped in the receipt ORDER § Reporting states) → **EXIT** (the Termination
-  contract's conditions). This is the ONLY thing that ends the review and lets the
-  caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. A finding stuck after 3 fix attempts:
-  BLOCKED-escalate it per the contract and keep looping on the rest.
-- **The only other exit is `## BLOCKED: NON-CONVERGENCE`** after three non-decreasing nonzero delta
-  rounds, naming the suspected foundation error. There is no round cap.
+- **Round 1 is the ONLY full partitioned pass. Every round ≥ 2 is a DELTA round.** Its surface is computed, not judged: `git diff <the last round's commit>..HEAD -- <the review's surface>`, PLUS one hop of callers and callees (the files that reference a symbol the diff changed — `serena` `find_referencing_symbols` where the language server is up, else `/usr/bin/grep -rn '<symbol>'` (the shell `grep` is a gitignore-honouring shim — CLAUDE.md's seventh bounded-search shape) — and the tests that import the changed module) (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), PLUS any sibling commit that landed on the original surface since the last round. The brief lists that file set by path as must-read, with every file the previous pass left as a `gap`. It also names the previous pass's `base_sha` and pins_dir, as the probe catalogue's § Seat isolation says. It carries, too, every environment value an earlier pass's seats set before their probes ran (a state directory, `COMMAND_RUN_DIR`, a `transcripts_dir` source), copied from their `MACHINERY:` notes, so a re-verifying seat does not rediscover it. **Same partition rule** — the same two finders per slice (D-344), the grep classes to the hygiene script (run at the round's start and close) — and the **class ledger PERSISTS**: a delta round sweeps the classes its diff touches and CITES the classes it did not touch as standing-clean from the last full pass, naming them in the receipt. **A round is never a re-scope**: the brief for a delta round is the fixed class ledger applied to the delta surface.
+- **This pass CONFIRMED anything** → fix it in THIS round, then run the next DELTA round (the fixes themselves can introduce defects, and a fix that creates one is confirmed in that delta round). Do not skip this because the change was small or "obviously safe" — that judgment is exactly what the next round exists to check. A pass that confirmed nothing is quiet however many candidates it raised: refuted and `RECORDED` candidates never reopen the loop (D-206).
+- ⚠️ **The closing pass is the round-1 seats re-verifying their OWN slices** (the same two seats per slice — its Sonnet and its Haiku, D-344; never a fresh whole-artifact reader, D-335) — the fix diff is YOUR work, and `62-using-subagents.md` § Role separation binds: the loop-closing pass's finder work runs in a context that did not author the artifact. **A closing pass that dispatched no finder seat may not close**; the hygiene script and your own execution never close a review alone. Under the workflow, pass 2 and the closing pass are NEW `Workflow` invocations with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` in `args`, built from the pass file with `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json --ids <the confirmed ids>` (it prints `{name, ledger}` rows: each `ledger` goes on the `args.slices` entry of the same `name`, which keeps its `files`); with `--args <a scratch copy of the run file>`, added whenever that file exists, it prints each slice whole, so its stdout, plus each `not carried` slice a fix hunk touched, is the next launch's `slices`, and it carries the open claims the `--ids` leave out; read its stderr either way (`/opt/fabrik/docs/reference/review-loop-workflow.md`) — each claim stated as the DEFECT — `DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent (the fix holds, or an earlier refutation still holds — re-run and never cited) · `NEW` a defect the fix introduced (an older run's `STILL_TRUE` / `NOW_FALSE` rows read as `DEFECT_PRESENT` / `DEFECT_ABSENT`, and `review_loop_ledger.py read` flags a seat that reports a defect present but raises no candidate, and two seats that disagree) — never `resumeFromRunId` (a resumed run re-runs the fan-out; `/opt/fabrik/docs/reference/review-loop-workflow.md`). When the fix diff leaves a slice's files untouched, the closing-pass brief says so, naming each file's md5 in both passes' pin manifests, so its seats open those files and re-execute their ledger without re-proving byte identity. A pass whose ledger reads `closable: false` does not close the review, whatever its pass number: ≤ 3 passes is a target, never a cap.
+- **Every Coverage Checklist row is adjudicated** (CLEAN / FIXED / REFUTED / RECORDED), the delta round returned **`confirmed: 0` and `fixed: 0` with `unexecuted:` 0 or absent**, it carried the owning seats, and the mechanical gates are green (run, embedded and flipped in the receipt ORDER § Reporting states) → **EXIT** (the Termination contract's conditions). This is the ONLY thing that ends the review and lets the caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. A finding stuck after 3 fix attempts: BLOCKED-escalate it per the contract and keep looping on the rest.
+- **The only other exit is `## BLOCKED: NON-CONVERGENCE`** after three non-decreasing nonzero delta rounds, naming the suspected foundation error. There is no round cap.
 - **No flywheel rows while the pool is OFF (D-181/D-182)** — every seat is native and records nothing; the exit check is the adjudication ledger (every candidate FIXED or REFUTED with proof), never a score back-fill.
-<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
-- **Every pool row this review dispatched is `set_quality`-scored — a round with unscored pool rows is
-  NOT closed.** The back-fill has the same rank as the refute step, per round, not "at the end":
-  dispatch guarantees the row, so a skipped back-fill leaks 100% of the time (measured 2026-08-12:
-  `done`-status rows sat at 40.9% scored — the single largest flywheel leak, and the scoring moment is
-  exactly when attention leaves the finders for the diff). Adjudicate → `set_quality` → only then the
-  round is closed. Zero pool dispatches this round (native-only for a secrets surface) → nothing owed.
--->
 
-**The round in which you made a fix is NEVER the last look at the classes it touched.** "I fixed what the
-first pass found" is not an exit — those classes return to UNCHECKED until the next delta round re-adjudicates them.
+**The round in which you made a fix is NEVER the last look at the classes it touched.** "I fixed what the first pass found" is not an exit — those classes return to UNCHECKED until the next delta round re-adjudicates them.
 
 **Record the pass before you decide:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw candidates> --confirmed <executed and reproduced> \
 --classes-swept <classes swept CLEAN this pass> --classes-new <classes this pass opened> --slices <name>:<verified>/<claims>,…` (every round-1 slice, every pass; `<claims>` counts the claims in
@@ -545,15 +184,9 @@ re-sweeping. Close the run at that verdict with
 
 ## Behavior Contract test generation — native seats author, you curate (the fix for an untested behavior)
 
-⚠️ **`/fabrik-generate-tests` is CANONICAL for this pipeline — invoke it** (`/fabrik-generate-tests <the
-phase's Behavior Contract | the module>`) rather than hand-running it. The steps below are the SAME BYTES
-it runs — both files render them from one shared fragment (`/opt/fabrik/commands/_fragments/test-generation-loop.md`),
-so they cannot drift out of step with the command that owns them. They are shown here because a reviewer
-mid-loop needs the shape without leaving the page, NOT as a second implementation; the per-step DETAIL
-lives only in `/fabrik-generate-tests`. **Edit the fragment, never either copy.**
+⚠️ **`/fabrik-generate-tests` is CANONICAL for this pipeline — invoke it** (`/fabrik-generate-tests <the phase's Behavior Contract | the module>`) rather than hand-running it. The steps below are the SAME BYTES it runs — both files render them from one shared fragment (`/opt/fabrik/commands/_fragments/test-generation-loop.md`), so they cannot drift out of step with the command that owns them — shown here because a reviewer mid-loop needs the shape without leaving the page, NOT as a second implementation; the per-step DETAIL lives only in `/fabrik-generate-tests`. **Edit the fragment, never either copy.**
 
-When Phase-3's test-quality check finds a **behavior with no test** (or the plan's Behavior Contract has
-uncovered behaviors), generate the missing tests via the loop below (native seats while the pool is OFF, D-181):
+When Phase-3's test-quality check finds a **behavior with no test** (or the plan's Behavior Contract has uncovered behaviors), generate the missing tests via the loop below (native seats while the pool is OFF, D-181):
 
 {{include:test-generation-loop}}
 
@@ -561,8 +194,7 @@ uncovered behaviors), generate the missing tests via the loop below (native seat
 {{include:subagents-core}}
 ## Reporting
 
-After each pass, show exactly what you inspected (files/paths + which failure classes) and what you found;
-a pass that finds nothing must still enumerate that coverage — an empty pass with no evidence doesn't count.
+After each pass, show exactly what you inspected (files/paths + which failure classes) and what you found; a pass that finds nothing must still enumerate that coverage — an empty pass with no evidence doesn't count.
 
 **The artifact carries a `## Per-phase verdicts` section with one `### Phase N — <title>: <verdict>` heading per phase** — `check_convergence.py` keys on a `## Phase`/`## Step` HEADING (its `PHASE` regex), so a per-phase TABLE, however complete, fails the gate.
 
@@ -577,14 +209,12 @@ A `CONVERGED` receipt with nothing embedded is refused by the very gate run that
 
 ⚠️ **A long review's artifact outgrows the Read tool (256 KB) — rotate, never truncate.** When the artifact passes **200 KB**, move the per-round FINDING tables (dispositions, refutations, mirror measurements) older than the last three passes into a sibling `…-review-archive.md` in the same directory and leave one pointer line where they were; the Coverage Checklist, the Pass Ledger, the per-phase verdicts, the Gate and the declared residuals STAY in the head — the exit checks read them there, and a finder's brief points at the head. The archive is not a review artifact: it carries no checklist, and `check_review_coverage.py` skips `*-archive.md`. A long review's receipt otherwise grows until every finder is reduced to `sed`/`grep` over the document whose central rule is that a bounded search is not a read; short reviews never hit it.
 
-⚠️ **Concurrent lanes: when the repo gate reds on ANOTHER lane's work, do NOT stamp `IN-PROGRESS` on a loop that actually closed.** `final_gate` takes no surface argument and scopes each check its own way (CLAUDE.md § Completion Contract 2); its ruff leg lints only staged changes and unpushed commits, so code pushed before the review is linted by running ruff on its paths by hand. On a shared tree a check that reads beyond your change can red on another lane's work, and a converged surface-scoped review could not honestly embed a success block through no property of the surface reviewed (wef1, `01M1KVAZGNJAXXSB4XFMKPQG0Z` — that repo accumulated four records stuck IN-PROGRESS for this reason, which then read as abandoned loops to `check_review_coverage`). Embed the FAILING gate verbatim and declare the attribution beside it, with its denominator, **on ONE line**: `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>` — `<N>` is the failing check's TOTAL findings and must be ≥ 1 (a failing gate with zero findings is a contradiction, and `0 of 0` is refused); the `measured by:` value stays on that line (plain text, a backtick span, or an inline fence; a block fence on the following lines is NOT read as the value, and a hard-wrapped declaration is not a declaration). `check_convergence.py` accepts that pair. A finding that names this review's receipt counts as naming this surface. A non-zero count is YOUR debt, not another lane's — fix it as the close order fixes a red whose findings name this surface or its receipt.
+⚠️ **Concurrent lanes: when the repo gate reds on ANOTHER lane's work, do NOT stamp `IN-PROGRESS` on a loop that actually closed.** `final_gate` takes no surface argument and scopes each check its own way (CLAUDE.md § Completion Contract 2); its ruff leg lints only staged changes and unpushed commits, so code pushed before the review is linted by running ruff on its paths by hand. Embed the FAILING gate verbatim and declare the attribution beside it, with its denominator, **on ONE line**: `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>` — `<N>` is the failing check's TOTAL findings and must be ≥ 1 (a failing gate with zero findings is a contradiction, and `0 of 0` is refused); the `measured by:` value stays on that line (plain text, a backtick span, or an inline fence; a block fence on the following lines is NOT read as the value, and a hard-wrapped declaration is not a declaration). `check_convergence.py` accepts that pair. A finding that names this review's receipt counts as naming this surface. A non-zero count is YOUR debt, not another lane's — fix it as the close order fixes a red whose findings name this surface or its receipt.
 
 ⚠️ **The fence below is THIS PAGE's presentation — the ledger in the RECEIPT is never fenced.**
 `check_review_coverage.py` blanks every fenced block before it grades (`_strip_fences`), so a ledger
 copied WITH its fence is not a ledger at all: the same three rows parse as three when bare and as
-**zero** inside a ```text fence, and a receipt with zero ledger rows grades on nothing. (Same class
-as the `measured by:` rule above, where a block fence on the following lines is not read as the
-value.) Write the rows bare, under the `## Pass Ledger` heading.
+**zero** inside a ```text fence, and a receipt with zero ledger rows grades on nothing. (Same class as the `measured by:` rule above, where a block fence on the following lines is not read as the value.) Write the rows bare, under the `## Pass Ledger` heading.
 Write the closing row's method cell as `method: re-derivation` — `check_review_coverage.py`'s `_REDERIVATION_ROW` passes when a `Pass`/`Round` row has `method` followed by `re-deriv` with at most punctuation (a colon, `**`) between them, so `method: remainder pass — re-derivation` fails the gate.
 
 ```text
@@ -593,54 +223,14 @@ Write the closing row's method cell as `method: re-derivation` — `check_review
 | Pass 3 | sonnet×3 + haiku×3 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
 ```
 
-Note pass 3: the finders raised one FRESH candidate, which you executed and refuted — a raw candidate,
-so it shows in `found:` (a re-raise of an already-adjudicated standing row would instead be CITED and
-not counted, per the term-coverage contract above). It closes the loop anyway, because **`found:` is RAW RECALL — the
-seats' reach — and `confirmed:` is the EXIT COUNTER: the candidates you EXECUTED and reproduced**
-(D-206, superseding D-048's "a fresh candidate counts even when refuted"). This is what reconciles the
-loop with its graders: `check_convergence.py`'s QUIET_PASS and `check_review_coverage.py` both read
-`confirmed: 0` with `fixed: 0` and `unexecuted:` absent or 0 on the FINAL row. Counting refutations made
-honest termination impossible; suppressing them would hide real observations;
-executing and recording them does neither. `new:` stays PROSE on the row — the stopped-learning signal,
-whose VALUE no grader reads as a counter; the value still has to be LETTERS, DIGITS, `_` or `-`
-(a `**bold**` wrapper is tolerated) — `new: 2`, `new: none`; `new: n/a` does NOT qualify — because
-anything else ENDS the counter run there, AS DOES A CELL `|` BETWEEN THE COUNTERS whatever the
-value, which is what every live instance turns out to be — executed: `new: 2 classes` yields
-found 5, confirmed None, fixed 3,
-unexecuted None, and the REFUSAL names `confirmed:`/`unexecuted:`, not the `new:` that caused it.
+Note pass 3: the finders raised one FRESH candidate, which you executed and refuted — a raw candidate, so it shows in `found:`. It closes the loop anyway, because **`found:` is RAW RECALL — the seats' reach — and `confirmed:` is the EXIT COUNTER: the candidates you EXECUTED and reproduced** (D-206, superseding D-048's "a fresh candidate counts even when refuted"). `new:` stays PROSE on the row — the stopped-learning signal, whose VALUE no grader reads as a counter; the value still has to be LETTERS, DIGITS, `_` or `-` (a `**bold**` wrapper is tolerated) — `new: 2`, `new: none`; `new: n/a` does NOT qualify — because anything else ENDS the counter run there, AS DOES A CELL `|` BETWEEN THE COUNTERS whatever the value: `new: 2 classes` yields found 5, confirmed None, fixed 3, unexecuted None, and the REFUSAL names `confirmed:`/`unexecuted:`, not the `new:` that caused it.
 
-You may claim completion **only** when the last row carries `confirmed: 0, fixed: 0` with `unexecuted: 0`
-or absent (`found:` and `fixed:` are also ON the row — the graders refuse a row without that pair), **from a
-closing pass in which the round-1 seats confirmed their own slices**, with every candidate ever raised adjudicated
-(FIXED / REFUTED / RECORDED). A ledger ending on a row that confirmed anything is an unfinished review —
-run the next delta round. A ledger with a single row is only valid if that row is a demonstrably-thorough
-full pass carrying those counters, read by a seat that did not author the surface.
+You may claim completion **only when the last row carries `confirmed: 0, fixed: 0` with `unexecuted: 0` or absent (`found:` and `fixed:` are also ON the row — the graders refuse a row without that pair), from a closing pass in which the round-1 seats confirmed their own slices**, with every candidate ever raised adjudicated (FIXED / REFUTED / RECORDED). A ledger ending on a row that confirmed anything is an unfinished review — run the next delta round. A ledger with a single row is only valid if that row is a demonstrably-thorough full pass carrying those counters, read by a seat that did not author the surface.
 
-**Emit a per-finding disposition ledger — this is what makes a skipped finding impossible to hide.** Every
-candidate raised by any finder across all rounds appears as one row ending in exactly ONE terminal state:
-`FIXED` (cite the commit + the regression test), `REFUTED` (quote the proof and the command you ran), or one
-of the four `RECORDED — <kind> (…)` forms. A finding that appears in no
-row — or sits in a "noted / to-watch / accepted" bucket — **is a skipped finding**, the exact
-failure this command exists to prevent. Count them: `N candidates → N FIXED + N REFUTED + N RECORDED`, and the three must sum.
+**Emit a per-finding disposition ledger — this is what makes a skipped finding impossible to hide.** Every candidate raised by any finder across all rounds appears as one row ending in exactly ONE terminal state: `FIXED` (cite the commit + the regression test), `REFUTED` (quote the proof and the command you ran), or one of the four `RECORDED — <kind> (…)` forms. A finding that appears in no row — or sits in a "noted / to-watch / accepted" bucket — **is a skipped finding**, the exact failure this command exists to prevent. Count them: `N candidates → N FIXED + N REFUTED + N RECORDED`, and the three must sum.
 
-**Every candidate that did not enter `confirmed:` is rowed in the receipt's `## Residual` section**, in that
-same verdict grammar — `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that
-adjudicated it (or a `D-nnn` with no round token) and nothing else inside the parentheses — the reason follows
-them, as Phase 2's `by design` bullet shows; the gate refuses an absent owner, and the messages of
-`check_review_coverage.py::_residual_errors` name every other licence it refuses (it checks a `D-nnn` only
-against a ledger with readable `| D-n |` rows). That section is NOT a parking lot: nothing enters it
-un-executed except a `RECORDED — unexecuted (<why>)` row, which the closing row's `unexecuted:` counter then
-holds open. A second seat's raise, in the same pass, of a defect another candidate of that pass confirmed by
-execution is named in that defect's disposition row and counted under its terminal state, never rowed here; a
-later pass's raise of a defect an earlier pass fixed is a fresh candidate, executed.
-Pre-existing issues this change did not introduce, and findings in code this change does not OWN that you
-EXPLICITLY escalated / upstreamed (name where — e.g. an `UPSTREAM_FEEDBACK.md` entry), are rowed there with
-their reason. An in-scope CONFIRMED finding **never** belongs there — it goes to FIXED.
+**Every candidate that did not enter `confirmed:` is rowed in the receipt's `## Residual` section**, in that same verdict grammar — `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated it (or a `D-nnn` with no round token) and nothing else inside the parentheses — the reason follows them, as Phase 2's `by design` bullet shows; the gate refuses an absent owner, and the messages of `check_review_coverage.py::_residual_errors` name every other licence it refuses (it checks a `D-nnn` only against a ledger with readable `| D-n |` rows). That section is NOT a parking lot: nothing enters it un-executed except a `RECORDED — unexecuted (<why>)` row, which the closing row's `unexecuted:` counter then holds open. A second seat's raise, in the same pass, of a defect another candidate of that pass confirmed by execution is named in that defect's disposition row and counted under its terminal state, never rowed here; a later pass's raise of a defect an earlier pass fixed is a fresh candidate, executed. Pre-existing issues this change did not introduce, and findings in code this change does not OWN that you EXPLICITLY escalated / upstreamed (name where — e.g. an `UPSTREAM_FEEDBACK.md` entry), are rowed there with their reason. An in-scope CONFIRMED finding **never** belongs there — it goes to FIXED.
 
-Do NOT claim convergence on your own say-so: convergence = the closing pass, the round-1 seats over
-their own slices, that **CONFIRMED nothing and changed nothing** (`confirmed: 0`, `fixed: 0`, `unexecuted:` 0 or absent)
-**AND** every candidate ever raised sitting at FIXED, REFUTED or RECORDED in the ledger. "I fixed what I
-found" is not convergence, and neither is a round you read yourself. When unsure whether something is a bug,
-surface it and EXECUTE it — never assume it's fine.
+Do NOT claim convergence on your own say-so: convergence = the closing pass, the round-1 seats over their own slices, that **CONFIRMED nothing and changed nothing** (`confirmed: 0`, `fixed: 0`, `unexecuted:` 0 or absent) **AND** every candidate ever raised sitting at FIXED, REFUTED or RECORDED in the ledger. "I fixed what I found" is not convergence, and neither is a round you read yourself. When unsure whether something is a bug, surface it and EXECUTE it — never assume it's fine.
 
 {{include:close-chain}}
