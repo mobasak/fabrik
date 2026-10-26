@@ -13,17 +13,17 @@ entries:
   file: commands/_agents/fabrik-gui.md
   section: '## Your toolset'
   baseline: 'Read-only git (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
-  current: 'Read-only git (spec D8) (spec D8) — you build files, the orchestrator commits: NO git command that mutates state — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept uncommitted work, recovered by content, never a pop)'
+  current: 'Read-only git (spec D8) (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept uncommitted work, recovered by content, never a pop)'
   text:
-  - 'Read-only git (spec D8) (spec D8) — you build files, the orchestrator commits: NO git command that mutates state — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept uncommitted work, recovered by content, never a pop)'
+  - 'Read-only git (spec D8) (spec D8) — you build files, the orchestrator commits: NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept uncommitted work, recovered by content, never a pop)'
   class: ban
 - id: gui-playwright
   file: commands/_agents/fabrik-gui.md
   section: '## Your toolset'
   baseline: 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, run the frozen flow, screenshot at 375/768/1440; for an extension, load the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`)'
-  current: 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, screenshot at 375/768/1440; for an extension, `goto(''chrome-extension://<id>/…'')`)'
+  current: 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, screenshot at 375/768/1440; for an extension, load the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`)'
   text:
-  - 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, screenshot at 375/768/1440; for an extension, `goto(''chrome-extension://<id>/…'')`)'
+  - 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, screenshot at 375/768/1440; for an extension, load the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`)'
   class: prose
 - id: gui-shadcn
   file: commands/_agents/fabrik-gui.md
@@ -49,14 +49,6 @@ entries:
   text:
   - On a web surface, `frontend-design:frontend-design`'s build and self-critique passes shape what the contract leaves free (a marketing or landing hero's form, the one memorable element — never a spacing, motion or type pattern the template prescribes) inside what it lists — never a screen, component or field it does not list — with the frozen contract and design system as its brief (`core/63-frontend-design.md`)
   class: ban
-- id: gui-see-it
-  file: commands/_agents/fabrik-gui.md
-  section: '## Method (per screen — iterate to a no-op)'
-  baseline: See it — drive the running screen, read the a11y tree, run the frozen flow within its click budget, screenshot every enriched state (loading/empty/error/permission-denied/success/partial/disabled)
-  current: See it — drive the running screen, read the a11y tree, run the frozen flow, screenshot every enriched state (loading/empty/error/permission-denied/success/partial/disabled)
-  text:
-  - See it — drive the running screen, read the a11y tree, run the frozen flow, screenshot every enriched state (loading/empty/error/permission-denied/success/partial/disabled)
-  class: prose
 - id: gui-fix-rerun
   file: commands/_agents/fabrik-gui.md
   section: '## Method (per screen — iterate to a no-op)'
@@ -69,20 +61,12 @@ entries:
   file: commands/_agents/fabrik-gui.md
   section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
   baseline: You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background (or arm a Monitor) and then end your turn to "wait for the result," you will stall until your budget is exhausted and return no verdict — the single most common way this agent fails
-  current: You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background and end your turn to "wait for the result," you will stall
+  current: You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background (or arm a Monitor) and end your turn to "wait for the result," you will stall
   text:
-  - You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background and end your turn to "wait for the result," you will stall
+  - You are a subagent, and background/Monitor notifications do NOT deliver to a subagent. If you start a Playwright/`npx playwright test` run in the background (or arm a Monitor) and end your turn to "wait for the result," you will stall
   class: prose
   clauses:
     2: narrative
-- id: gui-sync-plain
-  file: commands/_agents/fabrik-gui.md
-  section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
-  baseline: 'So: run every test/build as a plain synchronous shell call (`npx playwright test …` with a generous `timeout`) and read its exit output in the same turn'
-  current: 'So: run every test/build as a plain synchronous shell call (`npx playwright test …` with a generous `timeout`) and read its exit output'
-  text:
-  - 'So: run every test/build as a plain synchronous shell call (`npx playwright test …` with a generous `timeout`) and read its exit output'
-  class: prose
 - id: gui-real-exit-output
   file: commands/_agents/fabrik-gui.md
   section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
@@ -95,9 +79,9 @@ entries:
   file: commands/_agents/fabrik-gui.md
   section: '## ⚠️ Run your suites SYNCHRONOUSLY — never background, never wait on a Monitor'
   baseline: Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system for anything the contract doesn't spell out
-  current: Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system for anything
+  current: Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system for anything the contract doesn't spell out
   text:
-  - Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system for anything
+  - Defer to the surface pack (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md`) and the design system for anything the contract doesn't spell out
   class: prose
 - id: gui-design-review-complement
   file: commands/_agents/fabrik-gui.md
@@ -139,15 +123,6 @@ vanished:
   L8:
     rule:
     - gui-build-gate-tools
-  L12:
-    rule:
-    - gui-see-it
   L16:
     rule:
     - gui-sync-run
-  L17:
-    rule:
-    - gui-sync-plain
-  L20:
-    rule:
-    - gui-defer
