@@ -106,3 +106,50 @@ Two author-blind audits (Sonnet 32 findings, Haiku 25) compared the rewrite agai
 - Ledger: 48 `r-fix-NN` carrier entries added (317 entries total); the wrong `narrative` labels (L5, L57, L68, L70, L81, L82, L136, L137, L140, L188, L261, L518, L565 and others) now name a carrier; stale `current` units and text phrases of existing entries were re-pointed to the edited sentences. Ledger reads `vanished {'narrative': 18, 'rule': 507}`.
 - Words (`own_text`): baseline 13,442 → first cut 8,280 → after the fix 9,627 (71.6% of baseline). The restored fences account for most of the difference; the floor in this receipt is therefore 9,627, not 8,280.
 - Gates: `tests/test_command_rules.py` and `tests/test_vision_reads_work_stores.py` 38 passed, 4 skipped; `assemble_commands.py --check`: drift lines are `MISSING` only (no installed corpus on this box), no `DIFFERS`, no LOSS, no ORPHAN.
+
+
+## Re-ledger round (task `lean-t32-rl`, branch `claude/lean-t32-rl`, also pushed as `claude/lean-t32-rl-run`)
+
+Base `origin/claude/lean-t32-fix`; first commit is the loader swap from `origin/infra-3-d1236-lints` (commands/command_rules.py, tests/test_command_rules.py, docs/reference/command-corpus-check.md), not ticket work.
+
+| | |
+|---|---|
+| own-text words (`own_text`) | baseline 13442 → fix round 9627 (71.6%) → now **12229 (91.0%)** |
+| own-ledger LOSS | 312 → **0** (`assemble_commands.py --check` prints LOSS only for `_shared/*.yaml`, T01d's, ignored as ordered) |
+| entries | 553 (ban 107, prose 446); reworded / total 187 / 553 |
+| vanished labels | rule 187 · duplicate-of 25 · narrative 15; 13 clause labels (`clauses:`) |
+
+**The target was not reached, and the size went UP from the fix round. Why:** the fix round's 9627 words passed the old loader only. Under the canonical D-1240 reading 201 clauses of that text missed anchors or under 70% of their first 8 stems (612 stems, 93 anchors, plus ~90 units with no carrier); repairing them lands at ~10.5-11k. I rebuilt the ledger from the full baseline instead of patching the old one, restoring baseline wording wherever a clause is a rule, then re-trimmed. A cut to ≤50% (6721) is not reachable under this reading without relabelling rule clauses narrative/duplicate, which the audit refutes.
+
+**Floor (measured on the ledger, per kept clause: words in the carrier phrase vs the minimum of anchors + 6 of the first 8 stems, or the ban span to clause end):**
+
+| category | kept clauses | words in carrier phrases | minimum (anchors + 6 of first 8 stems / ban span) |
+|---|---|---|---|
+| prose | 561 | 6084 | 3244 |
+| template/snapshot fence line (output grammar) | 165 | 1938 | 956 |
+| ban clause (verbatim to clause end) | 108 | 1585 | 1215 |
+| table row | 127 | 1577 | 992 |
+| anchor-dense clause (>=4 backticked/path/number anchors) | 33 | 846 | 696 |
+| table row (ban clause) | 18 | 410 | 267 |
+| test-pinned enumeration | 13 | 286 | 212 |
+| total | 1025 | 12726 | 7582 |
+
+The telegraphic minimum is 7582 words (56% of baseline) for the 1025 kept clauses before any glue; it needs every clause cut to a fragment ("from day 1", "Pre-flight checks"). I tried an automatic cut to those fragments: it saved 470 words and left sentences broken ("Every OTHER backticked path elsewhere in this — act on…"), so it was discarded. Why clauses cannot shrink: ban spans run to the end of the clause (1585 words in 108 clauses); anchors (paths, tokens, numbers) are 100% required and cluster in lists (846 words in 33 clauses); the Vision Summary / Snapshot templates and tables are output grammar whose every line is a clause (3925 words); the three EXISTING read enumerations are pinned by `tests/test_vision_reads_work_stores.py` (286 words). **Recommendation (floor D-row for the hub):** this command's floor under D-1240 is ~10.3k readable words (~77%), 7.6k only as unreadable fragments; or widen the loader's `clauses:` reading for rationale tails.
+
+### Self-audit
+
+Two author-blind passes (one Opus subagent each, given only baseline, rewrite and ledger). Pass 1: 2 lost, 4 weaker, 0 invented, 11 wrong labels. Fixed: the SPEND clause of L2 and "Same type and version" of factor X restored; the lock header `**Status:** LOCKED` restored in its fence and Phase 0 sentence restored; acceptance criteria for the external-facts gate, input-per-mode, ladder and NEW-adds restored; "Every backticked path … one of two things" restored; the `<!-- POOL OFF -->` suspended instructions restored (no longer labelled narrative); locked-because lines restored; labels L42, L561, L571, L584, v-L13#2, v-L329#4-5, v-L525#49 removed; Phase 2 "Auto-loaded (both modes)" pointer restored. Pass 2: 1 lost (L11, trivial), 6 weaker (minor), 0 invented, 5 wrong labels. Fixed: L46 and L310 (ban word, cannot be duplicate-of) and L211 restored as live text, v-L525#46 label removed, "cite URL + fetch date" restored in L338. Not changed (accepted, for the hub): L11 "Produces a fresh Vision Summary" dropped (implied by L9); L94 rationale sentence dropped; L24 "the rivals dossier" gloss dropped; bold markers stripped in the NEW-template and Snapshot fences (cosmetic, needed so fence carriers match the loader's whole-file normalise); ten ledger phrases for v-L81, v-L176, v-L183, v-L184, v-L212, v-L339, v-L349, v-L410, v-L576, v-L587 point at neighbouring text (short leads such as "Multiple files?"), the content being in the rewrite; L155 duplicate-of v-L25 is partly carried by v-L20.
+
+COUNTS: 553 entries read / 187 reworded / 0 weaker (pass-2 findings above either fixed or accepted as listed) / 0 lost / 0 invented / 0 wrong vanished labels (pass 2 found 5; all fixed; no third pass was run)
+
+### LEFT FOR THE HUB
+
+1. A third author-blind pass over the fixes above, and the floor ruling (D-row) above.
+2. Judgment labels to read first: narrative L38 L40(dup→v-L520) L44 L47 L48 L49 L56 L60 L71 L182 L213 L214 L318 L319 L340 L433; clause narratives in v-L55, v-L90, v-L96, v-L166, v-L167, v-L196, v-L320, v-L342, v-L604, v-L525; duplicate-of lines L23 L28 L39 L41 L45 L155 L158 L371 L502 L535 L562-L565 L572 L579 L583 L589 L591-L594 L596 L598.
+3. Ceiling ratchet, merge-time render, CHANGELOG/INDEX/D-rows (untouched here).
+4. The three loader files were swapped in from infra-3 and never edited.
+
+### Gates
+
+- `tests/test_command_rules.py -rP`: `LEDGER fabrik-vision.yaml: 553 entries · classes {'ban': 107, 'prose': 446} · vanished {'duplicate-of': 25, 'narrative': 15, 'rule': 187}`; zero LOSS lines for it. `test_the_live_corpus_has_no_loss` is red only on the `_shared/*.yaml` LOSS lines (T01d's unit, ordered ignored).
+- Reader-test run (38 files, 2242 tests): start commit `origin/claude/lean-t32-fix` 25 failed; end 39 failed. The 14 new reds are all `--check` exit-code asserts that the `_shared` LOSS (exit 4) trips: 11 in `test_assemble_dispatch_step.py`, `test_command_measure.py::test_check_exit_order_loss_then_ceiling_then_drift`, `test_command_rules.py::test_the_live_corpus_has_no_loss`, `test_vision_reads_work_stores.py::test_assemble_commands_check_renders_cleanly_in_an_empty_home`. None touches this ticket's text; they clear when T01d lands. The other 25 are the box-only start set.
