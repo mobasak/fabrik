@@ -616,8 +616,14 @@ def test_the_units_wire_the_alert_and_verify():
     assert interval_s >= int(burst.split("=", 1)[1]) * (
         len(commands) * start_s + 5 * stop_s + _seconds(restart.split("=", 1)[1])
     )
-    assert interval_s < 24 * 3600, (
-        "a window past a day would refuse the next night's start even when the nightly timer opened it"
+    # two nightly starts can be as close as a day minus the timer's random delay (00:14:59 one night, 00:00 the next)
+    (delay,) = [
+        v
+        for v in _sections("session-archive.timer")["[Timer]"]
+        if v.startswith("RandomizedDelaySec=")
+    ]
+    assert interval_s < 24 * 3600 - _seconds(delay.split("=", 1)[1]), (
+        "a window that outlasts the gap to the next nightly start refuses it even when the nightly timer opened it"
     )
 
     sa = _module("session_archive_alert_budget")
