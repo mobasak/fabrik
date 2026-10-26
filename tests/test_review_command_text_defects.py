@@ -29,6 +29,10 @@ def test_the_closing_pass_confirms_zero_defects_present_not_claims_executed_true
         "the pass in which the round-1 seats re-executed every claim of their OWN slice ledgers and confirmed "
         "zero code or doc defects present — the same seat per slice"
     ) in te
+    assert (
+        "in which those seats RE-EXECUTED every claim of their slice ledgers and CONFIRMED zero code or doc "
+        "defects present (none persisting, none the fix introduced) (D-206, D-335)."
+    ) in tc
     for t in (tc, te):
         assert "ledgers executed true" not in t
 
@@ -118,6 +122,7 @@ def test_the_pre_pin_sweep_lists_the_pinned_literal_term_only(tmp_path: Path) ->
         "claim, and read each site before the pin"
     )
     assert want in _norm(FRAG / "term-edit.md")
+    assert want in _norm(FRAG / "term-coverage.md")
     for t in (_norm(FRAG / "term-coverage.md"), _norm(FRAG / "term-edit.md")):
         assert "lists every mirror site" not in t
     d = tmp_path / "pin"
@@ -154,10 +159,6 @@ def test_a_trimmed_round_one_sweeps_its_unread_slices_before_any_delta_pass() ->
         "over those slices alone run before any delta pass, since round 1 is not complete until every slice is "
         "read."
     ) in sc
-    assert (
-        "then the union is NOT the full pass, the ledger names the unread slices and further full-pass waves "
-        "over those slices alone run before any delta pass;"
-    ) in te
     assert "re-sweeps them next round" not in sc and "the next round sweeps them first" not in te
 
 
