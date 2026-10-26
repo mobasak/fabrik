@@ -9,7 +9,7 @@
   "class": "prose"
   "text":
   - "> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The"
-  - "2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (`<!-- POOL OFF -->`"
+  - "D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)"
 - "id": "v-L3"
   "file": "render"
   "baseline": "Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)"
@@ -67,7 +67,7 @@
   "baseline": "Produces a fresh Vision Summary"
   "class": "prose"
   "text":
-  - "Produces the same Vision Summary shape"
+  - "Produces a fresh Vision Summary. - EXISTING"
 - "id": "v-L12"
   "file": "render"
   "baseline": "EXISTING mode — a running project, code (and maybe live services) already exist"
@@ -256,10 +256,7 @@
   "baseline": "Execution is FAST. NEW: never rush, never skip a constraint, never assume when you can ask"
   "class": "ban"
   "text":
-  - "rush, never skip a constraint, never assume when"
-  - "never rush, never skip a constraint, never assume when you can ask"
-  - "never skip a constraint, never assume when you can ask"
-  - "never assume when you can ask"
+  - "Execution is FAST. NEW: never rush, never skip a constraint, never assume when you can ask"
 - "id": "v-L51"
   "file": "render"
   "baseline": "EXISTING: respect what's built — read the vision from the codebase, do NOT re-derive it; do NOT re-decide locked tech choices; DO compare against current rules and surface deviations"
@@ -292,10 +289,9 @@
   "file": "render"
   "baseline": "Total cost of ownership — dev time is the most expensive resource"
   "class": "prose"
-  "clauses":
-    2: "narrative"
   "text":
-  - "Total cost of ownership. Don't build"
+  - "Total cost of ownership — dev time"
+  - "dev time is the most expensive resource"
 - "id": "v-L57"
   "file": "render"
   "baseline": "Don't build for days what you can buy for dollars"
@@ -307,7 +303,7 @@
   "baseline": "Speed to ship — prefer solutions that deploy through the standard pipeline (WSL → push → `fabrik apply` deploys via SSH+Compose and fires 10 registrars — only 7 are flag-driven; grafana is always-on, glitchtip is kind-driven, and `watchdog` is ON by default (opt-OUT)"
   "class": "ban"
   "clauses":
-    4:
+    !!int "4":
       "duplicate-of": "v-L75"
   "text":
   - "Speed to ship — prefer solutions that"
@@ -499,7 +495,7 @@
   "baseline": "12-Factor App — ALL TWELVE. Every backend service satisfies all 12 factors of [The Twelve-Factor App](https://12factor.net/) — not the four we happen to remember"
   "class": "prose"
   "clauses":
-    3: "narrative"
+    !!int "3": "narrative"
   "text":
   - "12-Factor App — ALL TWELVE. Every backend"
   - "ALL TWELVE. Every backend service satisfies all 12 factors of [The Twelve-Factor App](https://12factor.net/)."
@@ -535,7 +531,7 @@
   "baseline": "| III | Config | Config in env vars. Litmus test: *\"could the codebase be open-sourced at any moment without compromising credentials?\"* Rejects grouped named environments — env vars are granular + orthogonal. | `os.getenv(\"KEY\", \"default\")`; zero secrets in code. ⚠️ No `config/production.yml`-style env group — 12F names that anti-pattern explicitly. |"
   "class": "prose"
   "clauses":
-    4: "narrative"
+    !!int "4": "narrative"
   "text":
   - "| III | Config | Config in env vars. Litmus test: *\"could the codebase be open-sourced at any moment without compromising credentials?\"* Rejects grouped named environments"
   - "env vars are granular + orthogonal. | `os.getenv(\"KEY\", \"default\")`;"
@@ -676,7 +672,7 @@
   "baseline": "Owner-exception path (some SaaS surfaces are genuinely desktop-bound — dense data grids, trading consoles, back-office tooling): the exception is an OWNER DECISION recorded in the vision/decisions artifact as `Responsive: desktop-first (owner-approved exception — <why>)` with a floor still stated (e.g. usable ≥1024px) — never a silent skip, and never for public marketing/landing surfaces, which stay fully responsive"
   "class": "ban"
   "text":
-  - "SaaS surfaces are genuinely desktop-bound): the exception is an OWNER DECISION recorded in the vision/decisions artifact as `Responsive: desktop-first (owner-approved exception — <why>)`"
+  - "Owner-exception path (some SaaS surfaces are genuinely desktop-bound — dense data grids, trading consoles, back-office tooling): the exception is an OWNER DECISION recorded in the vision/decisions artifact as `Responsive: desktop-first (owner-approved exception — <why>)` with a floor still stated (e.g. usable ≥1024px)"
   - "never a silent skip, and never for public marketing/landing surfaces, which stay fully responsive"
 - "id": "v-L117"
   "file": "render"
@@ -973,7 +969,7 @@
   "baseline": "If the vision (or, in EXISTING mode, the delta) is market-facing and no dossier exists at that path: STOP HERE and name `/fabrik-rivals <market>` as the pre-step — do not draft a market-facing vision blind to the competitive evidence; there is nothing to challenge the owner's assumptions with otherwise"
   "class": "prose"
   "clauses":
-    3: "narrative"
+    !!int "3": "narrative"
   "text":
   - "If the vision (or, in EXISTING mode, the delta) is market-facing and no dossier exists at that path: STOP HERE and name `/fabrik-rivals <market>` as the pre-step"
   - "do not draft a market-facing vision blind to the competitive evidence"
@@ -982,7 +978,7 @@
   "baseline": "Internal tools (infra, sysadmin, fabrik-lib candidates) and a Retrofit delta with no market-facing surface skip this gate — there is no \"market\" for a tool nobody buys"
   "class": "prose"
   "clauses":
-    2: "narrative"
+    !!int "2": "narrative"
   "text":
   - "Internal tools (infra, sysadmin, fabrik-lib candidates) and a Retrofit delta with no market-facing surface skip this gate."
 - "id": "v-L168"
@@ -1014,51 +1010,51 @@
   "baseline": "User names a path → read it"
   "class": "prose"
   "text":
-  - "user names → read it; `docs/preplans/*.md` → read"
+  - "User names a path → read it"
 - "id": "v-L172"
   "file": "render"
   "baseline": "`docs/preplans/*.md` → read fully"
   "class": "prose"
   "text":
-  - "`docs/preplans/*.md` → read fully; `docs/development/plans/00-research.md` → read fully;"
+  - "`docs/preplans/*.md` → read fully. 3. `docs/development/plans/00-research.md` → read"
 - "id": "v-L173"
   "file": "render"
   "baseline": "`docs/development/plans/00-research.md` → read fully"
   "class": "prose"
   "text":
-  - "`docs/development/plans/00-research.md` → read fully; scan `docs/development/plans/*.md` for"
+  - "`docs/development/plans/00-research.md` → read fully. 4. Scan `docs/development/plans/*.md`"
 - "id": "v-L174"
   "file": "render"
   "baseline": "Scan `docs/development/plans/*.md` for `YYYY-MM-DD-*.md` files"
   "class": "prose"
   "text":
-  - "fully; scan `docs/development/plans/*.md` for `YYYY-MM-DD-*.md` files"
+  - "4. Scan `docs/development/plans/*.md` for `YYYY-MM-DD-*.md` files"
 - "id": "v-L175"
   "file": "render"
   "baseline": "Read EVERY match across sources 1–4 above; fall through to Path B only if all are empty (a stale preplan must never suppress fresh research the owner just dropped in)"
   "class": "ban"
   "text":
-  - "Read EVERY match across sources 1–4 above;"
+  - "Read EVERY match across sources 1–4 above"
   - "fall through to Path B only if all are empty (a stale preplan must never suppress fresh research the owner just dropped in)"
 - "id": "v-L176"
   "file": "render"
   "baseline": "Multiple files?"
   "class": "prose"
   "text":
-  - "multiple research files' conflicts flagged in"
+  - "Multiple files? Read ALL. If they"
 - "id": "v-L177"
   "file": "render"
   "baseline": "Read ALL"
   "class": "prose"
   "text":
-  - "Read ALL files; if they conflict,"
+  - "Read ALL. If they conflict, flag"
 - "id": "v-L178"
   "file": "render"
   "baseline": "If they conflict, flag the conflict — do not silently resolve"
   "class": "prose"
   "text":
-  - "if they conflict, flag the conflict"
-  - "the conflict — do not silently resolve"
+  - "If they conflict, flag the conflict"
+  - "do not silently resolve. The market-facing"
 - "id": "v-L179"
   "file": "render"
   "baseline": "The market-facing gate above runs in parallel with this discovery, not gated by it — only halt the WHOLE run if that gate applies and finds no dossier"
@@ -1086,13 +1082,13 @@
   "baseline": "No files needed"
   "class": "prose"
   "text":
-  - "files from `docs/development/plans/` or `docs/preplans/`; challenge against Fabrik reality using the six checks above. Idea path: interview the owner — What capability are you adding? Who uses it (existing/new persona)? How does it integrate with what's built? New tables/endpoints/workers needed?"
+  - "no files needed. Interview to build"
 - "id": "v-L184"
   "file": "render"
   "baseline": "Interview to build the vision: \"What is this product?"
   "class": "prose"
   "text":
-  - "Product Vision: what this project IS (1-2 sentences from snapshot) + what we're ADDING (2-3 sentences). Personas: existing personas that interact"
+  - "Interview to build the vision: \"What is this product?"
 - "id": "v-L185"
   "file": "render"
   "baseline": "What problem does it solve?\" / \"Who uses it?"
@@ -1159,7 +1155,7 @@
   "baseline": "Additional auto-loads: `docs/reference/fabrik-cli-reference.md` — needed to interpret `fabrik validate` and `fabrik audit-registrars` output (present/missing/drift/n/a/override/unknown)"
   "class": "prose"
   "clauses":
-    2: "narrative"
+    !!int "2": "narrative"
   "text":
   - "Additional auto-loads: `docs/reference/fabrik-cli-reference.md`"
   "current": "Additional auto-loads: `docs/reference/fabrik-cli-reference.md`"
@@ -1339,8 +1335,7 @@
   "baseline": "| `core/65-rag-search.md`, `core/66-rag-chunking.md` | RAG ingestion, embedding, chunking; MeiliSearch vs pgvector |"
   "class": "prose"
   "text":
-  - "`core/65-rag-search.md`, `core/66-rag-chunking.md` RAG ingestion, embedding, chunking,"
-  - "[MeiliSearch / pgvector / none] - Billing: [Paddle (international"
+  - "`core/65-rag-search.md`, `core/66-rag-chunking.md` RAG ingestion, embedding, chunking, MeiliSearch vs pgvector"
 - "id": "v-L228"
   "file": "render"
   "baseline": "| `core/67-file-api.md` | File-handling discipline — storage backend, presigned URLs, MIME validation, dedup, AV scan |"
@@ -1923,7 +1918,7 @@
   "baseline": "State the chosen caps in the vision; a cap raised without thought is how a runaway-reasoning loop empties the budget overnight"
   "class": "prose"
   "clauses":
-    2: "narrative"
+    !!int "2": "narrative"
   "text":
   - "State the chosen caps in the vision"
 - "id": "v-L321"
@@ -2009,7 +2004,7 @@
   "baseline": "Order: owned-first (`scripts/service_catalog.json` — a hit is a LEAD, its stated facts still need fresh grounding) → repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → own-history (session-recall MCP — a hit is a LEAD, not a citation; a past conversation records what we *concluded then*, and pricing/limits/endpoints go stale — re-ground live before it enters the Vision Summary) → then LIVE: `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` / `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (scrape with `proxy: \"basic\"`) → `mcp__context7` (library docs) → `mcp__github` (read a dependency's actual source / latest release)"
   "class": "prose"
   "text":
-  - "(`scripts/service_catalog.json` — a hit is a LEAD, its stated facts still need fresh grounding) → repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → own-history (session-recall MCP — a hit is a LEAD, not a citation; pricing/limits/endpoints go stale — re-ground live before it enters the Vision Summary) → then LIVE: `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` / `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (scrape with `proxy: \"basic\"`) → `mcp__context7` (library docs) → `mcp__github`"
+  - "owned-first (`scripts/service_catalog.json` — a hit is a LEAD, its stated facts still need fresh grounding) → repo-first, BEFORE any live research (`grep docs/`, `docs/reference/`, `AFCL.md`, `docs/LESSONS_LEARNT.md`) → own-history (session-recall MCP — a hit is a LEAD, not a citation; a past conversation records what we concluded then, and pricing/limits/endpoints go stale — re-ground live before it enters the Vision Summary) → then LIVE: `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` / `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (scrape with `proxy: \"basic\"`) → `mcp__context7` (library docs) → `mcp__github` (read a dependency's actual source / latest release)"
 - "id": "v-L333"
   "file": "render"
   "baseline": "Capture the real endpoint / auth model / limits / pricing, and cite the source URL + the date you fetched it in the Vision Summary's External Services section"
@@ -2066,7 +2061,7 @@
   "baseline": "⚠️ Filter every finding through the Architectural Mandates + the 20 constraints BEFORE it reaches the Vision Summary. The web does not know your constraints — it will confidently recommend Stripe, Pinecone, or a direct OpenAI SDK, all beautifully cited"
   "class": "prose"
   "clauses":
-    2: "narrative"
+    !!int "2": "narrative"
   "text":
   - "Filter every finding through the Architectural Mandates + the 20"
 - "id": "v-L343"
@@ -2415,7 +2410,7 @@
   "baseline": "Pre-flight checks — run all 7 per `agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT: Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib"
   "class": "prose"
   "clauses":
-    2:
+    !!int "2":
       "duplicate-of": "v-L160"
   "text":
   - "PRE-FLIGHT checks (`agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT):"
@@ -2482,20 +2477,20 @@
   "class": "ban"
   "text":
   - "## Project Snapshot: [Project Name]"
-  - "deployed] - Watchdog sidecar + cost-budget: [accept-defaults (state"
+  - "### Deployed State"
   - "- Scaffold type: [X] · Port: [Y] · Shape: [registrar flags]"
   - "- Status: [deployed on VPS via fabrik apply / local dev only / partially deployed]"
-  - "### Locked Technology Decisions (cannot change) - Auth:"
-  - "- Auth: [what's implemented — Pattern A / Pattern B / custom]"
-  - "- Database: [postgres-main / Supabase (legacy — plan migration) / both — what tables exist]"
-  - "- Frontend: [Next.js + React + Tailwind / Jinja + Bootstrap / etc.]"
+  - "### Locked Technology Decisions (cannot change)"
+  - "[what's implemented — Pattern A / Pattern B / custom]"
+  - "[postgres-main / Supabase (legacy — plan migration) / both — what tables exist]"
+  - "[Next.js + React + Tailwind / Jinja + Bootstrap / etc.]"
   - "- Target host: [`vps1` (hub) / `vps2` / `vps3` — read `specs/services/<id>.yaml::target_vps`]"
-  - "- Billing: [Paddle / iyzico / RevenueCat / none — if wired, it's locked]"
+  - "[Paddle / iyzico / RevenueCat / none — if wired, it's locked]"
   - "- Background processing: [Celery / PG job queue / none] · Search: [MeiliSearch / pgvector / none]"
   - "- Other locked choices: [any framework/library/pattern with production data or live users]"
   - "### Existing Features (working — do not re-plan)"
   - "1. [Feature] — [status: shipped / partially built / scaffolded]"
-  - "### Existing Infrastructure - [VPS services used] · [External"
+  - "### Existing Infrastructure"
   - "- [VPS services used] · [External services] · [Monitoring: Gatus / GlitchTip / Prometheus]"
 - "id": "v-L412"
   "file": "render"
@@ -3172,90 +3167,92 @@
   "class": "ban"
   "text":
   - "# Vision Summary: [Product Name]"
-  - "## Product Vision [3-5 sentences. What is"
+  - "## Product Vision"
   - "[3-5 sentences. What is this product? What problem does it solve? For whom? Derived from research — not invented.]"
-  - "## Personas - [Name] — [who they are, what"
-  - "- [Name] — [who they are, what they need]"
-  - "stream from transactional] - RAG pipeline: [none / search-only (embeddings + retriever) / search + classification / full intelligence (+ generator + summarizer) — state what corpus is being searched and what users need from it. See `.windsurf/rules/core/65-rag-search.md § Epic Decomposition` for the component guide.] - Background processing: [file-worker needed? state what runs async: transcription, PDF gen, AI inference, batch imports, scheduled jobs / none] - Consumed microservices: [site-provisioner for DNS / none — image-broker is retired/not deployed] - Watchdog sidecar + cost-budget: [accept-defaults (state the values"
+  - "## Personas"
+  - "— [who they are, what they need]"
+  - "## Value Streams"
   - "[How this product generates value — revenue, cost savings, productivity. Any BEAT problem-to-solve from"
-  - "the rivals dossier (Phase 2) that survived Phase 3's reality-challenges is here too, citing the dossier row it came from — a BEAT"
+  - "the rivals dossier (Phase 2) that survived Phase 3's reality-challenges is here too, citing the dossier"
   - "row it came from — a BEAT candidate with no citation is not grounded.]"
-  - "citation is not grounded.] - [Stream 1]"
-  - "## Full Feature Inventory [Every feature the"
-  - "[Every feature the vision describes, numbered. This is the COMPLETE scope. Nothing silently dropped"
+  - "- [Stream 1]"
+  - "## Full Feature Inventory"
+  - "[Every feature the vision describes, numbered. This is the COMPLETE scope. Nothing silently dropped."
   - "Any MATCH candidate from the rivals dossier (Phase 2) that survived Phase 3's reality-challenges is here"
   - "too, citing the dossier row it came from — a MATCH candidate with no citation is not grounded.]"
   - "1. [Feature name] — [one-line description] (small/medium/large) [— dossier: <row>, if a MATCH candidate]"
-  - "## Backing Services (from VPS) [Which existing"
+  - "## Backing Services (from VPS)"
   - "[Which existing VPS services this vision will use — grounded in agents-fabrik.md]"
-  - "- postgres-main:5432 — [what for] - redis-main:6379 — [what for]"
-  - "postgres-main:5432 — [what for] - redis-main:6379 — [what for]"
-  - "## External Services [Third-party dependencies outside the"
+  - "- postgres-main:5432 — [what for]"
+  - "- redis-main:6379 — [what for]"
+  - "## External Services"
   - "[Third-party dependencies outside the VPS. Each MUST be live-grounded per Phase 3 — a memory-based"
   - "claim is a defect. No entry ships without a cited source + fetch date.]"
-  - "- [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] · source: [URL] (fetched YYYY-MM-DD)"
-  - "## Technology Decisions [Every major technology choice"
+  - "- [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] ·"
+  - "## Technology Decisions"
   - "[Every major technology choice RESOLVED — not deferred. /fabrik-epics reads these and does NOT"
   - "re-decide them. Fill ONLY bullets relevant to this vision — omit N/A bullets entirely. Any pricing-wedge"
   - "finding from the rivals dossier (Phase 2) that shapes a positioning-adjacent choice below cites the"
-  - "dossier's wedge row.] - Auth: [`fabrik-lib/fastapi-user-auth` Pattern"
-  - "- Auth: [`fabrik-lib/fastapi-user-auth` Pattern A (user-facing, DEFAULT — the app issues its own JWTs)"
+  - "dossier's wedge row.]"
+  - "[`fabrik-lib/fastapi-user-auth` Pattern A (user-facing, DEFAULT — the app issues its own JWTs)"
   - "+ Authelia (admin) / Authelia only / custom — state which and why. Supabase Auth is legacy/migration-only"
   - "per `agents-fabrik.md § Supabase` — pick it only for a project already on it.]"
-  - "- Database: [postgres-main (DEFAULT) / Supabase (legacy — plan migration) — state which holds what]"
-  - "- Search: [MeiliSearch / pgvector / none] - Billing: [Paddle"
-  - "- Billing: [Paddle (international MoR) / iyzico (Turkish domestic) / RevenueCat + IAP (mobile digital"
+  - "[postgres-main (DEFAULT) / Supabase (legacy — plan migration) — state which holds what]"
+  - "[MeiliSearch / pgvector / none]"
+  - "[Paddle (international MoR) / iyzico (Turkish domestic) / RevenueCat + IAP (mobile digital"
   - "goods — Paddle does NOT apply in-app) / none — state pricing model. Stripe is NOT available to a TR entity.]"
-  - "- File storage: [`fabrik-lib/storage` (Backblaze B2 backend, DEFAULT) / none — state what's stored."
-  - "Supabase Storage is legacy/migration-only.] - Notifications (internal/ops):"
+  - "[`fabrik-lib/storage` (Backblaze B2 backend, DEFAULT) / none — state what's stored."
+  - "Supabase Storage is legacy/migration-only.]"
   - "- Notifications (internal/ops): [Apprise (already deployed) / direct API / none]"
-  - "- Email (transactional): [Resend (default, 3k/mo free) / escalate to Postmark for critical auth mail —"
-  - "state what triggers emails] - Email (marketing):"
-  - "- Email (marketing): [Resend Broadcasts (start) / Listmonk + SES (at scale) / none — MUST be a"
-  - "separate stream from transactional] - RAG pipeline:"
-  - "- RAG pipeline: [none / search-only (embeddings + retriever) / search + classification / full"
+  - "[Resend (default, 3k/mo free) / escalate to Postmark for critical auth mail —"
+  - "state what triggers emails]"
+  - "[Resend Broadcasts (start) / Listmonk + SES (at scale) / none — MUST be a"
+  - "separate stream from transactional]"
+  - "[none / search-only (embeddings + retriever) / search + classification / full"
   - "intelligence (+ generator + summarizer) — state what corpus is being searched and what users need from"
   - "it. See `.windsurf/rules/core/65-rag-search.md § Epic Decomposition` for the component guide.]"
-  - "- Background processing: [file-worker needed? state what runs async: transcription, PDF gen, AI"
+  - "[file-worker needed? state what runs async: transcription, PDF gen, AI"
   - "inference, batch imports, scheduled jobs / none]"
-  - "- Consumed microservices: [site-provisioner for DNS / none — image-broker is retired/not deployed]"
+  - "[site-provisioner for DNS / none — image-broker is retired/not deployed]"
   - "- Watchdog sidecar + cost-budget: [accept-defaults (state the values you are accepting — read them"
   - "from `WatchdogConfig`) / raise (state the per-project `daily_budget_usd` + `daily_invocations_cap`"
   - "per `cost-budget.md`) / opt-out (`watchdog: {enabled: false}` — no paid AI APIs / no cost-sensitive"
   - "ops) — ⚠️ `cost-budget.md:28` makes the cost CAP mandatory for any project that runs the watchdog (or"
   - "calls paid AI APIs); it does not mandate the watchdog itself — and on the `fabrik apply` path the"
-  - "sidecar is on by default regardless, so the live question is the cap, not the sidecar. Without a cap"
+  - "regardless, so the live question is the cap, not the sidecar. Without a cap"
   - "a feedback loop (the sidecar diagnosing the sidecar) could empty the budget overnight]"
   - "- Domain structure: [subdomains needed, e.g., api.X, app.X, admin.X]"
-  - "- Scaffold types: [list all scaffold types this vision needs. Valid: python-api, python-api-gpu,"
+  - "[list all scaffold types this vision needs. Valid: python-api, python-api-gpu,"
   - "node-api, saas-skeleton, file-api, file-worker, docusaurus, chrome-extension, mobile-app, desktop-app,"
   - "static-site. wordpress is NOT a valid type here.]"
   - "- Target host (per service, `target_vps:`): [`vps1` (hub, default) / `vps2` or `vps3` (spoke)]"
-  - "- Documentation site: [SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/`. Non-SaaS: N/A]"
-  - "`## fabrik-lib Verdict` and `## Rejected Alternatives` — the"
+  - "[SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/`. Non-SaaS: N/A]"
+  - "## fabrik-lib Verdict"
   - "[One row per capability. \"Didn't check fabrik-lib\" is a defect.]"
   - "| Capability | Verdict | Module + one-line why | Upstream note |"
+  - "|---|---|---|---|"
   - "| [end-user auth] | vendor | `fastapi-user-auth` — Pattern A covers it | — |"
   - "| [PDF export] | vendor+enhance | `pdf-extract` — needs one new adapter | `UPSTREAM_FEEDBACK.md` |"
   - "| [the novel core] | build | nothing fits because [why] | \U0001F195 fabrik-lib candidate: `name · purpose · why ≥2 types · interface` |"
-  - "`## Rejected Alternatives` — the output of the"
+  - "## Rejected Alternatives"
   - "[What was considered and NOT picked, and why. Without this, /fabrik-epics re-litigates the same decision.]"
   - "- [Option] — rejected: [violates hard constraint X / higher TCO / more maintenance / duplicates project Y]"
-  - "## Constraints [20-constraint verification. Each states its"
+  - "## Constraints"
   - "[20-constraint verification. Each states its status: all clear / conflict / unknown.]"
-  - "unknown.] - x86_64: all clear - Budget: [status]"
-  - "## Out of Scope (Vision Level) [What"
+  - "- x86_64: all clear"
+  - "- Budget: [status]"
+  - "## Out of Scope (Vision Level)"
   - "[What is explicitly NOT being built — even if adjacent. \"Everything else\" is not acceptable. A white-space"
-  - "finding from the rivals dossier (Phase 2) that shapes"
+  - "finding from the rivals dossier (Phase 2) that this vision deliberately does NOT chase belongs here,"
   - "citing the dossier's white-space row — never silently omitted.]"
-  - "row — never silently omitted.] - [Exclusion 1]"
-  - "## Open Questions [Unresolved items. If none:"
+  - "- [Exclusion 1]"
+  - "## Open Questions"
   - "[Unresolved items. If none: \"None — research was comprehensive.\"]"
-  - "\"None — research was comprehensive.\"] - [Question 1]"
-  - "## Scale Assessment - Feature count: [N] ([X]"
+  - "- [Question 1]"
+  - "## Scale Assessment"
   - "- Feature count: [N] ([X] small, [Y] medium, [Z] large)"
   - "- Epic-count signal: [single epic / ~N epics — informational, /fabrik-epics decides the actual cut]"
-  - "actual cut] - Reasoning: [why this classification]"
+  - "- Reasoning: [why this classification]"
 - "id": "v-L522"
   "file": "render"
   "baseline": "Identical required sections, so `/fabrik-epics` consumes both modes identically"
@@ -3279,88 +3276,87 @@
   "file": "render"
   "baseline": "# Vision Summary: [Project Name] — [New Capability] ⏎  ⏎ ## Product Vision ⏎ [What this project IS (1-2 sentences from snapshot) + what we're ADDING (2-3 sentences).] ⏎  ⏎ ## Personas ⏎ [Existing personas that interact with the new feature + any NEW personas] ⏎  ⏎ ## Value Streams ⏎ [How the new capability generates value. If the delta is market-facing and the rivals gate ran, any BEAT ⏎ problem-to-solve that survived Phase 3 is here too, citing the dossier row.] ⏎  ⏎ ## Full Feature Inventory ⏎ [ONLY the NEW features being added. Do NOT list existing features. Numbered, complexity-classified. If the ⏎ delta is market-facing and the rivals gate ran, any MATCH candidate that survived Phase 3 is here too, ⏎ citing the dossier row it came from.] ⏎ 1. [New feature] — [description] (small/medium/large) ⏎  ⏎ [Fix-now retrofits (from Compliance Report):] ⏎ R1. [Retrofit: add i18n] — [description] (medium) ⏎  ⏎ ## Backing Services (from VPS) ⏎ [Which existing VPS services the NEW features will use] ⏎  ⏎ ## External Services ⏎ [Any NEW third-party dependencies. Each MUST be live-grounded — no entry without a cited source + date.] ⏎ - [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] · **source:** [URL] (fetched YYYY-MM-DD) ⏎  ⏎ ## Technology Decisions ⏎ [ONLY decisions for NEW components.] ⏎  ⏎ **Inherited (locked — do NOT re-decide):** ⏎ - Auth: [inherited] · Database: [inherited] · Frontend: [inherited] · Billing: [inherited, if exists] ⏎  ⏎ **New decisions (per current ruleset):** ⏎ - [New component]: [decision per rule pack] ⏎ - RAG pipeline: [none / search-only (embeddings + retriever) / search + classification / full ⏎ intelligence (+ generator + summarizer) — see `.windsurf/rules/core/65-rag-search.md § Epic ⏎ Decomposition` for the component guide] ⏎ - Email (transactional/marketing): [as NEW mode] ⏎ - Background processing: [file-worker needed?] ⏎ - Scaffold types: [any NEW scaffold types] ⏎ - Watchdog sidecar + cost-budget: [**accept-defaults** (state the values you are accepting — read them ⏎ from `WatchdogConfig`; a delta inherits them silently) / **raise** (state the per-project ⏎ `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out** ⏎ (`watchdog: {enabled: false}`)] — ⚠️ state one of the three; \"enable? yes/no\" cannot express the ⏎ accept-vs-raise distinction constraint **#19** requires. ⏎ - Target host (per new service): [`vps1` / `vps2` / `vps3`] ⏎ - Deploy target: VPS via fabrik apply / SSH + Docker Compose (confirmed — same as existing services) ⏎ - Domain structure: [any NEW subdomains] ⏎  ⏎ ## Locked Decisions (Existing-mode extra section) ⏎ [Explicit list of what CANNOT change and why. /fabrik-epics MUST inherit these. New services get their ⏎ own shape blocks; existing ones are not modified.] ⏎ - Auth: [X] — locked because [users exist / tokens issued / migration too risky] ⏎ - Database: [X] — locked because [data exists] ⏎ - Frontend: [X] — locked because [deployed, users using it] ⏎ - Shape block (current): [existing registrars — what `fabrik apply` already activates] ⏎  ⏎ ## Compliance Report (Existing-mode extra section) ⏎ [From the compliance detection step, after owner decisions. /fabrik-epics emits one Retrofit epic per ⏎ Fix-now item, alongside the delta-feature epics.] ⏎  ⏎ | Gap | Source | Owner decision | Epic action | ⏎ |---|---|---|---| ⏎ | i18n missing | The Phase 1 i18n mandate; the pack carrying the code-time rules for this scaffold — `saas/60-saas-ui.md` § i18n · `mobile-app/80-mobile.md` (the validator gate) · `chrome-ext/70-chrome-ext.md` § i18n · `core/42-docusaurus.md` § Internationalization. There is **no** `core/i18n` pack | Fix-now | Retrofit epic | ⏎ | No responsive design | `saas/60-saas-ui.md` | Fix-later | Deferred (no epic now) | ⏎ | No abuse detection | `saas/87-abuse-detection.md` | Fix-now | Retrofit epic | ⏎ | psycopg2 used | `core/25-data-postgres.md` | Accept-as-legacy | No action | ⏎ | Shape drift: prometheus | `fabrik audit-registrars` | Fix-now | Retrofit epic | ⏎  ⏎ ## fabrik-lib Verdict ⏎ [One row per NEW capability the delta needs. \"Didn't check fabrik-lib\" is a defect. Resolve modules from ⏎ the index (`/opt/fabrik-lib/README.md`), never from a hard-coded name.] ⏎  ⏎ | Capability | Verdict | Module + one-line why | Upstream note | ⏎ |---|---|---|---| ⏎ | [new capability] | vendor / vendor+enhance / build | [module — why] | [`UPSTREAM_FEEDBACK.md` if core-enhanced] | ⏎  ⏎ ## Rejected Alternatives ⏎ [What was considered and NOT picked. Locked Decisions are NOT alternatives — they are inherited.] ⏎ - [Option] — rejected: [violates hard constraint X / higher TCO / more maintenance / duplicates project Y] ⏎  ⏎ ## Constraints ⏎ [Same format as NEW-mode — 20 checks, scoped to the delta] ⏎ - x86_64: all clear ⏎  ⏎ ## Out of Scope (Vision Level) ⏎ [What we are NOT changing in the existing codebase — be specific. If the delta is market-facing and the ⏎ rivals gate ran, a white-space finding this delta deliberately does NOT chase belongs here, citing the ⏎ dossier's white-space row.] ⏎ - Existing [X] feature — not being modified ⏎  ⏎ ## Open Questions ⏎ [Unresolved items] ⏎  ⏎ ## Scale Assessment ⏎ - New feature count: [N] ([X] small, [Y] medium, [Z] large) ⏎ - Retrofit count: [N] (from Compliance Report fix-now items) ⏎ - Epic-count signal: [single epic / ~N epics — informational] ⏎ - Reasoning: [why this classification]"
   "class": "ban"
-  "clauses":
-    55: "narrative"
-    57: "narrative"
   "text":
-  - "(`# Vision Summary: [Project Name] — [New Capability]`),"
-  - "## Product Vision [3-5 sentences. What is"
-  - "(1-2 sentences from snapshot) + what we're ADDING (2-3"
-  - "## Personas - [Name] — [who they are, what"
-  - "existing personas that interact with the"
-  - "## Value Streams [How this product generates"
-  - "value; a surviving BEAT problem-to-solve cites the dossier row when the delta is market-facing and the rivals gate"
-  - "problem-to-solve from the rivals dossier (Phase 2) that survived Phase 3's"
-  - "## Full Feature Inventory [Every feature the"
-  - "ONLY the NEW features being added. Do NOT list existing"
-  - "gate (applies to BOTH entry paths below, and to an EXISTING-mode delta that adds a market-facing capability — Phase 3's E-analysis). A market-facing vision — a product with real external competitors/users, not an internal tool, not a Retrofit delta with no market-facing surface — checks `docs/reference/rivals/<market>.md`"
-  - "dossier row it came from; its"
-  - "1. [Feature name] — [one-line description] (small/medium/large)"
-  - "`Compliance Report` → one Retrofit epic per"
-  - "`R1.` `[Retrofit: add i18n] — [description] (medium)`"
-  - "## Backing Services (from VPS) [Which existing"
-  - "existing VPS services the NEW features will"
-  - "## External Services [Third-party dependencies outside the"
-  - "[any NEW third-party dependencies. Each MUST be live-grounded — no entry without a cited source + date.]"
-  - "- [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] · source: [URL] (fetched YYYY-MM-DD)"
-  - "## Technology Decisions [Every major technology choice"
-  - "[ONLY decisions for NEW components.] Inherited"
-  - "Inherited (locked — do NOT re-decide): Auth"
-  - "Auth · Database · Frontend · Billing (if exists)"
-  - "New decisions (per current ruleset): RAG"
-  - "rule-pack, C owner decision at Checkpoint"
+  - "# Vision Summary: [Project Name] — [New Capability]"
+  - "## Product Vision"
+  - "[What this project IS (1-2 sentences from snapshot) + what we're ADDING (2-3 sentences).]"
+  - "## Personas"
+  - "[Existing personas that interact with the new feature + any NEW personas]"
+  - "## Value Streams"
+  - "[How the new capability generates value. If the delta is market-facing and the rivals gate ran, any BEAT"
+  - "problem-to-solve that survived Phase 3 is here too, citing the dossier row.]"
+  - "## Full Feature Inventory"
+  - "[ONLY the NEW features being added. Do NOT list existing features. Numbered, complexity-classified. If the"
+  - "delta is market-facing and the rivals gate ran, any MATCH candidate that survived Phase 3 is here too,"
+  - "citing the dossier row it came from.]"
+  - "1. [New feature] — [description] (small/medium/large)"
+  - "[Fix-now retrofits (from Compliance Report):]"
+  - "R1. [Retrofit: add i18n] — [description] (medium)"
+  - "## Backing Services (from VPS)"
+  - "[Which existing VPS services the NEW features will use]"
+  - "## External Services"
+  - "[Any NEW third-party dependencies. Each MUST be live-grounded — no entry without a cited source + date.]"
+  - "- [Service] — [what for] · [cost tier + REAL pricing] · [rate limits / auth model] ·"
+  - "## Technology Decisions"
+  - "[ONLY decisions for NEW components.]"
+  - "Inherited (locked — do NOT re-decide):"
+  - "- Auth: [inherited] · Database: [inherited] · Frontend: [inherited] · Billing: [inherited, if exists]"
+  - "New decisions (per current ruleset):"
+  - "- [New component]: [decision per rule pack]"
   - "- RAG pipeline: [none / search-only (embeddings + retriever) / search + classification / full"
-  - "summarizer) — state what corpus is being searched and what users need from it. See `.windsurf/rules/core/65-rag-search.md § Epic"
-  - "Epic Decomposition` for the component guide.]"
-  - "(transactional/marketing) | Inspect email module + ESP config"
-  - "processing: [file-worker needed? state what runs"
-  - "Scaffold types, Target host (per new"
+  - "intelligence (+ generator + summarizer) — see `.windsurf/rules/core/65-rag-search.md § Epic"
+  - "Decomposition` for the component guide]"
+  - "- Email (transactional/marketing): [as NEW mode]"
+  - "- Background processing: [file-worker needed?]"
+  - "- Scaffold types: [any NEW scaffold types]"
   - "- Watchdog sidecar + cost-budget: [accept-defaults (state the values you are accepting — read them"
-  - "from `WatchdogConfig`; a delta inherits them silently) / raise (state the per-project"
-  - "`daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / opt-out (`watchdog: {enabled: false}` —"
-  - "(`watchdog: {enabled: false}`) — ⚠️ state one of the three; \"enable? yes/no\""
-  - "the accept-vs-raise distinction constraint #19 requires"
-  - "Target host (per service, `target_vps:`): [`vps1` (hub, default) / `vps2` or `vps3`"
-  - "fabrik apply / SSH + Docker Compose (confirmed — same"
-  - "Domain structure [any NEW subdomains], and"
-  - "Locked Decisions` (Existing-mode extra section): the"
-  - "what CANNOT change and why — `- Auth: [X] — locked because [users exist / tokens issued / migration too risky]`; `- Database: [X] — locked because [data exists]`; `- Frontend: [X] — locked because [deployed, users using it]`; Shape block (current): the existing registrars `fabrik apply` already activates. /fabrik-epics MUST"
-  - "shape blocks; existing ones are not"
-  - "`- Auth: [X] — locked because [users exist / tokens issued / migration too risky]`;"
-  - "`- Database: [X] — locked because [data exists]`;"
-  - "`- Frontend: [X] — locked because [deployed, users using it]`;"
-  - "block (current): the existing registrars `fabrik apply`"
-  - "Report` (Existing-mode extra section), [From the"
+  - "from `WatchdogConfig`; a delta inherits them silently) /"
+  - "`daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) /"
+  - "(`watchdog: {enabled: false}`)] — ⚠️ state one of the three; \"enable? yes/no\" cannot express the"
+  - "accept-vs-raise distinction constraint #19 requires."
+  - "- Target host (per new service): [`vps1` / `vps2` / `vps3`]"
+  - "- Deploy target: VPS via fabrik apply / SSH + Docker Compose (confirmed — same as existing services)"
+  - "- Domain structure: [any NEW subdomains]"
+  - "## Locked Decisions (Existing-mode extra section)"
+  - "[Explicit list of what CANNOT change and why. /fabrik-epics MUST inherit these. New services get their"
+  - "own shape blocks; existing ones are not modified.]"
+  - "- Auth: [X] — locked because [users exist / tokens issued / migration too risky]"
+  - "- Database: [X] — locked because [data exists]"
+  - "- Frontend: [X] — locked because [deployed, users using it]"
+  - "- Shape block (current): [existing registrars — what `fabrik apply` already activates]"
+  - "## Compliance Report (Existing-mode extra section)"
   - "[From the compliance detection step, after owner decisions. /fabrik-epics emits one Retrofit epic per"
   - "Fix-now item, alongside the delta-feature epics.]"
   - "| Gap | Source | Owner decision | Epic action |"
+  - "|---|---|---|---|"
   - "| i18n missing | The Phase 1 i18n mandate; the pack carrying the code-time rules for this scaffold — `saas/60-saas-ui.md` § i18n · `mobile-app/80-mobile.md` (the validator gate) · `chrome-ext/70-chrome-ext.md` § i18n · `core/42-docusaurus.md` § Internationalization. There is no `core/i18n` pack | Fix-now | Retrofit epic |"
   - "| No responsive design | `saas/60-saas-ui.md` | Fix-later | Deferred (no epic now) |"
+  - "| No abuse detection | `saas/87-abuse-detection.md` | Fix-now | Retrofit epic |"
   - "| psycopg2 used | `core/25-data-postgres.md` | Accept-as-legacy | No action |"
-  - "`## fabrik-lib Verdict` and `## Rejected Alternatives` — the"
-  - "[one row per NEW capability the delta needs. \"Didn't check fabrik-lib\" is a defect. Resolve modules from"
+  - "| Shape drift: prometheus | `fabrik audit-registrars` | Fix-now | Retrofit epic |"
+  - "## fabrik-lib Verdict"
+  - "[One row per NEW capability the delta needs. \"Didn't check fabrik-lib\" is a defect. Resolve modules from"
   - "the index (`/opt/fabrik-lib/README.md`), never from a hard-coded name.]"
   - "| Capability | Verdict | Module + one-line why | Upstream note |"
-  - "ENHANCE — a module covers *most* of it → vendor it and extend at the seams; a change to the module's *core* goes back upstream (`UPSTREAM_FEEDBACK.md` at minimum), or every project ends up with a divergent copy. BUILD"
-  - "`## Rejected Alternatives` — the output of the"
-  - "Locked Decisions are NOT alternatives — they are inherited. Constraints: same format as NEW-mode — 20 checks, scoped to the delta. Out of Scope: what"
+  - "| [new capability] | vendor / vendor+enhance / build | [module — why] | [`UPSTREAM_FEEDBACK.md` if core-enhanced] |"
+  - "## Rejected Alternatives"
+  - "[What was considered and NOT picked. Locked Decisions are NOT alternatives — they are inherited.]"
   - "- [Option] — rejected: [violates hard constraint X / higher TCO / more maintenance / duplicates project Y]"
-  - "## Constraints [20-constraint verification. Each states its"
-  - "same format as NEW-mode — 20 checks, scoped"
-  - "unknown.] - x86_64: all clear - Budget: [status]"
-  - "## Out of Scope (Vision Level) [What"
-  - "delta. Out of Scope: what we are NOT changing in the existing codebase — be specific;"
-  - "white-space finding from the rivals dossier (Phase 2) that this vision deliberately"
-  - "dossier row; its pricing wedge and white-space"
-  - "features being added. Do NOT list existing"
-  - "## Open Questions [Unresolved items. If none:"
-  - "[Unresolved items. If none: \"None — research"
-  - "## Scale Assessment - Feature count: [N] ([X]"
-  - "Feature count: [N] ([X] small, [Y] medium,"
-  - "Retrofit count (from Compliance Report fix-now"
-  - "Epic-count signal: [single epic / ~N epics"
-  - "actual cut] - Reasoning: [why this classification]"
-  - "MUST inherit these"
+  - "## Constraints"
+  - "[Same format as NEW-mode — 20 checks, scoped to the delta]"
+  - "- x86_64: all clear"
+  - "## Out of Scope (Vision Level)"
+  - "[What we are NOT changing in the existing codebase — be specific. If the delta is market-facing and the"
+  - "rivals gate ran, a white-space finding this delta deliberately does NOT chase belongs here, citing the"
+  - "dossier's white-space row.]"
+  - "- Existing [X] feature — not being modified"
+  - "## Open Questions"
+  - "[Unresolved items]"
+  - "## Scale Assessment"
+  - "- New feature count: [N] ([X] small, [Y] medium, [Z] large)"
+  - "- Retrofit count: [N] (from Compliance Report fix-now items)"
+  - "- Epic-count signal: [single epic / ~N epics — informational]"
+  - "- Reasoning: [why this classification]"
 - "id": "v-L527"
   "file": "render"
   "baseline": "Present the COMPLETE Vision Summary — the only user-facing output of this phase"
@@ -3566,79 +3562,77 @@
   "class": "ban"
   "text":
   - "mode declared explicitly at Phase 0"
-  - "never auto-detected; Technology Decisions complete, no"
+  - "never auto-detected"
 - "id": "v-L561"
   "file": "render"
   "baseline": "Input consumed per declared mode and path"
   "class": "prose"
   "text":
-  - "input consumed per declared mode and path;"
+  - "input consumed per declared mode and path"
 - "id": "v-L566"
   "file": "render"
   "baseline": "Technology Decisions complete — every major NEW choice resolved"
   "class": "prose"
   "text":
-  - "Technology Decisions complete, no \"TBD\" allowed;"
-  - "[Every major technology choice RESOLVED — not"
+  - "Technology Decisions complete — every major NEW"
+  - "every major NEW choice resolved, no"
 - "id": "v-L567"
   "file": "render"
   "baseline": "No \"TBD\" allowed"
   "class": "prose"
   "text":
-  - "no \"TBD\" allowed; input consumed per"
+  - "no \"TBD\" allowed; the external-facts gate"
 - "id": "v-L568"
   "file": "render"
   "baseline": "The external-facts gate (BLOCKING) satisfied — every external dependency live-grounded this run, with the real endpoint / limits / pricing and a cited source URL + fetch date"
   "class": "prose"
   "text":
   - "the external-facts gate (BLOCKING) satisfied — every"
-  - "every external dependency live-grounded this run, with the real endpoint / limits / pricing and a cited source URL + fetch date;"
+  - "every external dependency live-grounded this run, with the real endpoint / limits / pricing and a cited source URL + fetch date"
 - "id": "v-L569"
   "file": "render"
   "baseline": "Any dep not grounded is a named BLOCKING unknown with a resolution step"
   "class": "prose"
   "text":
-  - "BLOCKING unknown with an explicit resolution step"
+  - "any dep not grounded is a named BLOCKING unknown with a resolution step"
 - "id": "v-L570"
   "file": "render"
   "baseline": "The approach gate (BLOCKING) satisfied — the approach is backed by cited current best-practice, and every finding was filtered through the Architectural Mandates + the 20 constraints"
   "class": "prose"
   "text":
-  - "gate for the delta — run BOTH blocking steps above (external facts + approach),"
-  - "approach question). For the core of the vision, research the current best-practice / leanest / lowest-maintenance / pro-grade way the field actually does this now, and cite source + date. ⚠️ Filter every finding through the Architectural Mandates + the 20"
+  - "the approach gate (BLOCKING) satisfied — the"
+  - "the approach is backed by cited current best-practice, and every finding was filtered through the Architectural Mandates + the 20 constraints"
 - "id": "v-L571"
   "file": "render"
   "baseline": "The fabrik-lib ladder satisfied — run per capability and the Verdict table is complete; every `build` is justified and `\U0001F195 fabrik-lib candidate`-checked"
   "class": "prose"
   "text":
-  - "the fabrik-lib ladder satisfied — run per"
-  - "Verdict table is complete, one row"
-  - "`build` justified and `\U0001F195 fabrik-lib candidate`-checked; and"
+  - "the fabrik-lib ladder satisfied — run per capability, Verdict table complete, every `build` justified and `\U0001F195 fabrik-lib candidate`-checked"
 - "id": "v-L573"
   "file": "render"
   "baseline": "A run that silently skipped the gate does NOT pass"
   "class": "prose"
   "text":
-  - "that silently skipped the rivals gate does"
+  - "a run that silently skipped the rivals gate does NOT pass"
 - "id": "v-L574"
   "file": "render"
   "baseline": "Rejected Alternatives recorded with reasons"
   "class": "prose"
   "text":
-  - "with cited current best-practice and record the Rejected Alternatives"
+  - "Rejected Alternatives recorded with reasons; all"
 - "id": "v-L575"
   "file": "render"
   "baseline": "All 20 constraints verified — no silent unknowns"
   "class": "prose"
   "text":
-  - "[20-constraint verification. Each states its status:"
-  - "silent unknown), and no cited best-practice"
+  - "all 20 constraints verified — no silent"
+  - "no silent unknowns; Scale Assessment present"
 - "id": "v-L576"
   "file": "render"
   "baseline": "Scale Assessment present with classification"
   "class": "prose"
   "text":
-  - "Present: (1) Features extracted with complexity classification, (2) Gaps, (3) Conflicts with Fabrik, (4) Opportunities, (5) Scale"
+  - "Scale Assessment present with classification; the"
 - "id": "v-L577"
   "file": "render"
   "baseline": "Vision Summary within token budget"
@@ -3650,14 +3644,14 @@
   "baseline": "Open Questions captures ALL unresolved items; zero remain at confirmation"
   "class": "prose"
   "text":
-  - "Open Questions captures ALL unresolved items,"
-  - "zero remaining at confirmation; the pre-confirmation"
+  - "Open Questions captures ALL unresolved items"
+  - "zero remain at confirmation; grounding dispatched"
 - "id": "v-L580"
   "file": "render"
   "baseline": "Pre-confirmation self-audit ran and its result was stated at the top of the presentation"
   "class": "prose"
   "text":
-  - "pre-confirmation self-audit ran and its result was stated at the top of the presentation;"
+  - "pre-confirmation self-audit ran and its result was stated at the top of the presentation"
 - "id": "v-L581"
   "file": "render"
   "baseline": "No Guardrails prohibition tripped (below)"
@@ -3675,16 +3669,16 @@
   "baseline": "Acceptance — NEW adds: research (if present) improved: gaps, conflicts, opportunities surfaced; multiple research files' conflicts flagged in Open Questions, not silently resolved"
   "class": "prose"
   "text":
-  - "Acceptance — NEW adds: research (if present)"
-  - "NEW adds: research (if present) improved: gaps, conflicts, opportunities surfaced;"
-  - "multiple research files' conflicts flagged in Open Questions, not silently resolved;"
+  - "Acceptance Criteria (Phase 5) with fresh"
+  - "NEW adds: research (if present) improved: gaps, conflicts, opportunities surfaced"
+  - "multiple research files' conflicts flagged in Open Questions, not silently resolved"
 - "id": "v-L585"
   "file": "render"
   "baseline": "Multi-scaffold visions identified; website components routed to `/opt/web-ecommerce-factory` and excluded"
   "class": "prose"
   "text":
-  - "vision spanning multiple scaffold types (e.g.,"
-  - "components seem independent. Separate projects or epics within one project?\" If the vision includes a WordPress site, route the website side to `/opt/web-ecommerce-factory`;"
+  - "multi-scaffold visions identified; website components routed"
+  - "website components routed to `/opt/web-ecommerce-factory` and excluded"
 - "id": "v-L586"
   "file": "render"
   "baseline": "One analysis checkpoint before draft, one confirmation after"
@@ -3696,14 +3690,14 @@
   "baseline": "Acceptance — EXISTING adds: project state read from actual files"
   "class": "prose"
   "text":
-  - "Acceptance — NEW adds: research (if present)"
-  - "Read existing project state — not from memory, from files"
+  - "Acceptance Criteria (Phase 5) with fresh"
+  - "EXISTING adds: project state read from actual files"
 - "id": "v-L588"
   "file": "render"
   "baseline": "Project Snapshot confirmed (Checkpoint E-1)"
   "class": "prose"
   "text":
-  - "Project Snapshot confirmed (Checkpoint E-1) and"
+  - "Project Snapshot confirmed (Checkpoint E-1); lifecycle"
 - "id": "v-L590"
   "file": "render"
   "baseline": "Compliance Detection executed in all three sub-steps (A mechanical, B rule-pack, C owner decision at Checkpoint E-2)"
@@ -3755,7 +3749,7 @@
   "baseline": "Never draft a market-facing vision with no rivals dossier — Phase 2's pre-step exists exactly to stop this; name `/fabrik-rivals <market>` and wait"
   "class": "ban"
   "clauses":
-    2: "narrative"
+    !!int "2": "narrative"
   "text":
   - "Never draft a market-facing vision with no rivals dossier"
   - "dossier — name `/fabrik-rivals <market>` and wait"
@@ -3837,6 +3831,157 @@
   "class": "ban"
   "text":
   - "Never persist outside the allowlisted `specs/` tree, and DISK stays source-of-truth"
+- "id": "v-L39"
+  "file": "render"
+  "baseline": "Build a shared, grounded understanding of what's being built (NEW) or extended (EXISTING), and produce a deploy-ready Vision Summary that grounds all downstream epic + ticket work in Fabrik's actual infrastructure"
+  "class": "prose"
+  "text":
+  - "Build a shared, grounded understanding of what's being built (NEW) or extended (EXISTING), and produce a deploy-ready Vision Summary that grounds all downstream epic + ticket work in Fabrik's actual infrastructure"
+- "id": "v-L45"
+  "file": "render"
+  "baseline": "NEW: WHAT we're building (full feature inventory, nothing vague), WHO it's for (named personas, not \"users\"), WHY it matters (value streams), HOW BIG it is (epic-count signal for `/fabrik-epics`), WHICH SERVICES (every major tech choice resolved — grounded in `agents-fabrik.md` § Infrastructure Services + `docs/reference/technology-stack-decision-guide.md`), WHAT EXISTS to leverage, WHAT DOESN'T FIT, WHAT'S MISSING"
+  "class": "prose"
+  "text":
+  - "NEW: WHAT we're building (full feature inventory, nothing vague), WHO it's for (named personas, not \"users\"), WHY it matters (value streams), HOW BIG it is (epic-count signal for `/fabrik-epics`), WHICH SERVICES (every major tech choice resolved — grounded in `agents-fabrik.md` § Infrastructure Services + `docs/reference/technology-stack-decision-guide.md`), WHAT EXISTS to leverage, WHAT DOESN'T FIT, WHAT'S MISSING"
+- "id": "v-L47"
+  "file": "render"
+  "baseline": "Core principles. The goal is shared understanding, not a document"
+  "class": "prose"
+  "text":
+  - "Core principles. The goal is shared understanding, not a document"
+- "id": "v-L48"
+  "file": "render"
+  "baseline": "Questions are investments in correctness; surfacing assumptions early is cheap, fixing wrong epics is expensive"
+  "class": "prose"
+  "text":
+  - "Questions are investments in correctness; surfacing"
+  - "surfacing assumptions early is cheap, fixing wrong epics is expensive"
+- "id": "v-L49"
+  "file": "render"
+  "baseline": "Planning is SLOW"
+  "class": "prose"
+  "text":
+  - "Planning is SLOW. Execution is FAST."
+- "id": "v-L56"
+  "file": "render"
+  "baseline": "A $10/month managed service that saves 2 weeks of dev is a win"
+  "class": "prose"
+  "text":
+  - "A $10/month managed service that saves 2 weeks of dev is a win"
+- "id": "v-L60"
+  "file": "render"
+  "baseline": "Custom CI/CD or off-pipeline infra = slower and riskier"
+  "class": "prose"
+  "text":
+  - "Custom CI/CD or off-pipeline infra = slower and riskier"
+- "id": "v-L318"
+  "file": "render"
+  "baseline": "Concrete trigger examples: agentic loop with self-retry, cron job that calls an LLM, webhook that re-invokes on retry, user chat with reasoning steps"
+  "class": "prose"
+  "text":
+  - "Concrete trigger examples: agentic loop with self-retry, cron job that calls an LLM, webhook that re-invokes on retry, user chat with reasoning steps"
+- "id": "v-L319"
+  "file": "render"
+  "baseline": "Concrete non-triggers: one LLM call per human button-press with no auto-retry and no agentic recursion"
+  "class": "prose"
+  "text":
+  - "Concrete non-triggers: one LLM call per human button-press with no auto-retry and no agentic recursion"
+- "id": "v-L564"
+  "file": "render"
+  "baseline": "Backing services grounded in actual VPS inventory"
+  "class": "prose"
+  "text":
+  - "backing services grounded in actual VPS inventory"
+- "id": "v-L565"
+  "file": "render"
+  "baseline": "External services identified with cost tier"
+  "class": "prose"
+  "text":
+  - "external services identified with cost tier"
+- "id": "v-L572"
+  "file": "render"
+  "baseline": "The rivals gate honored — a market-facing vision (or an EXISTING-mode delta that adds a market-facing capability) has either a rivals dossier consumed with cited MATCH/BEAT/wedge/white-space rows, or the run stopped and named `/fabrik-rivals <market>` as the pre-step"
+  "class": "prose"
+  "text":
+  - "the rivals gate honored — a market-facing"
+  - "a market-facing vision (or an EXISTING-mode delta that adds a market-facing capability) has either a rivals dossier consumed with cited MATCH/BEAT/wedge/white-space rows, or the run stopped and named `/fabrik-rivals <market>` as the pre-step"
+- "id": "v-L579"
+  "file": "render"
+  "baseline": "Grounding dispatched across parallel native seats — one `fabrik-researcher` per independent fact, of which ≥1 on Opus (the pool is OFF, D-181/D-182 — every seat is native, nothing records)"
+  "class": "prose"
+  "text":
+  - "grounding dispatched across parallel native seats"
+  - "one `fabrik-researcher` per independent fact, of which ≥1 on Opus (the pool is OFF, D-181/D-182 — every seat is native, nothing records)"
+- "id": "v-L583"
+  "file": "render"
+  "baseline": "Silence ≠ confirmation"
+  "class": "prose"
+  "text":
+  - "owner explicitly says \"restart\". Silence ≠ confirmation"
+- "id": "v-L589"
+  "file": "render"
+  "baseline": "Lifecycle gaps detected; pre-flight checks completed"
+  "class": "prose"
+  "text":
+  - "lifecycle gaps detected; pre-flight checks completed;"
+  - "pre-flight checks completed; Compliance Detection executed"
+- "id": "v-L591"
+  "file": "render"
+  "baseline": "Locked Decisions produced with explicit reasons"
+  "class": "prose"
+  "text":
+  - "Locked Decisions produced with explicit reasons"
+- "id": "v-L592"
+  "file": "render"
+  "baseline": "Compliance Report maps each gap to owner decision + epic action"
+  "class": "prose"
+  "text":
+  - "Compliance Report maps each gap to owner decision + epic action"
+- "id": "v-L594"
+  "file": "render"
+  "baseline": "Relevant domain rule packs loaded"
+  "class": "prose"
+  "text":
+  - "relevant domain rule packs loaded; integration"
+- "id": "v-L598"
+  "file": "render"
+  "baseline": "Blindly accept research — challenges against Fabrik reality, budget, maintainability"
+  "class": "prose"
+  "text":
+  - "Blindly accept research — challenges against Fabrik"
+  - "challenges against Fabrik reality, budget, maintainability"
+- "id": "v-L562"
+  "file": "render"
+  "baseline": "ALL features (or retrofits + new features in EXISTING) present in Feature Inventory — no silent drops"
+  "class": "prose"
+  "text":
+  - "ALL features (or retrofits + new features in EXISTING) present in Feature Inventory"
+  - "no silent drops; personas named explicitly"
+- "id": "v-L593"
+  "file": "render"
+  "baseline": "New capability scoped as delta — not re-planning existing features"
+  "class": "prose"
+  "text":
+  - "new capability scoped as delta — not"
+  - "not re-planning existing features; relevant domain"
+- "id": "v-L563"
+  "file": "render"
+  "baseline": "Personas named explicitly — not just \"users.\" Value streams stated — not just \"it's useful.\""
+  "class": "prose"
+  "text":
+  - "personas named explicitly — not just \"users\"; value streams stated — not just \"it's useful\""
+- "id": "v-L340"
+  "file": "render"
+  "baseline": "Grounding the FACTS is not grounding the APPROACH"
+  "class": "prose"
+  "text":
+  - "Grounding the FACTS is not grounding the APPROACH"
+- "id": "v-L182"
+  "file": "render"
+  "baseline": "Owner describes the idea in conversation"
+  "class": "prose"
+  "text":
+  - "owner describes the idea in conversation"
 "vanished":
   "L2":
     "rule":
@@ -3844,9 +3989,6 @@
   "L7":
     "rule":
     - "v-L7"
-  "L11":
-    "rule":
-    - "v-L11"
   "L17":
     "rule":
     - "v-L17"
@@ -3861,8 +4003,6 @@
   "L28":
     "duplicate-of": "v-L332"
   "L38": "narrative"
-  "L39":
-    "duplicate-of": "v-L7"
   "L40":
     "duplicate-of": "v-L520"
   "L41":
@@ -3872,27 +4012,23 @@
     - "v-L43"
   "L44": "narrative"
   "L45":
-    "duplicate-of": "v-L520"
+    "rule":
+    - "v-L45"
   "L46":
     "rule":
     - "v-L46"
-  "L47": "narrative"
-  "L48": "narrative"
-  "L49": "narrative"
+  "L47":
+    "rule":
+    - "v-L47"
   "L50":
     "rule":
     - "v-L50"
-  "L55":
-    "rule":
-    - "v-L55"
-  "L56": "narrative"
   "L58":
     "rule":
     - "v-L58"
   "L59":
     "rule":
     - "v-L59"
-  "L60": "narrative"
   "L64":
     "rule":
     - "v-L64"
@@ -3994,7 +4130,9 @@
   "L181":
     "rule":
     - "v-L181"
-  "L182": "narrative"
+  "L182":
+    "rule":
+    - "v-L182"
   "L183":
     "rule":
     - "v-L183"
@@ -4174,8 +4312,6 @@
   "L301":
     "rule":
     - "v-L301"
-  "L318": "narrative"
-  "L319": "narrative"
   "L320":
     "rule":
     - "v-L320"
@@ -4362,13 +4498,17 @@
     "rule":
     - "v-L561"
   "L562":
-    "duplicate-of": "v-L520"
+    "rule":
+    - "v-L562"
   "L563":
-    "duplicate-of": "v-L542"
+    "rule":
+    - "v-L563"
   "L564":
-    "duplicate-of": "v-L520"
+    "rule":
+    - "v-L564"
   "L565":
-    "duplicate-of": "v-L520"
+    "rule":
+    - "v-L565"
   "L566":
     "rule":
     - "v-L566"
@@ -4388,7 +4528,8 @@
     "rule":
     - "v-L571"
   "L572":
-    "duplicate-of": "v-L166"
+    "rule":
+    - "v-L572"
   "L573":
     "rule":
     - "v-L573"
@@ -4408,7 +4549,8 @@
     "rule":
     - "v-L578"
   "L579":
-    "duplicate-of": "v-L613"
+    "rule":
+    - "v-L579"
   "L580":
     "rule":
     - "v-L580"
@@ -4418,8 +4560,6 @@
   "L582":
     "rule":
     - "v-L582"
-  "L583":
-    "duplicate-of": "v-L248"
   "L584":
     "rule":
     - "v-L584"
@@ -4436,25 +4576,28 @@
     "rule":
     - "v-L588"
   "L589":
-    "duplicate-of": "v-L389"
+    "rule":
+    - "v-L589"
   "L590":
     "rule":
     - "v-L590"
   "L591":
-    "duplicate-of": "v-L525"
+    "rule":
+    - "v-L591"
   "L592":
-    "duplicate-of": "v-L525"
+    "rule":
+    - "v-L592"
   "L593":
-    "duplicate-of": "v-L525"
+    "rule":
+    - "v-L593"
   "L594":
-    "duplicate-of": "v-L501"
+    "rule":
+    - "v-L594"
   "L595":
     "rule":
     - "v-L595"
   "L596":
     "duplicate-of": "v-L614"
-  "L598":
-    "duplicate-of": "v-L66"
   "L604":
     "rule":
     - "v-L604"
