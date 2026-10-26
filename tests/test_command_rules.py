@@ -232,9 +232,11 @@ def test_classification_and_baseline_losses(tmp_path: Path) -> None:
     _one(lost, "vanished, unclassified")
     assert "Run the probe on a copy" in lost[0]
     line = next(i for i, k in enumerate(cr.keys(cr.own_text(SOURCE)), 1) if "Run the probe" in k)
-    for good in ("narrative", {"rule": ["R1"]}, {"duplicate-of": "R1"}):
-        _ledger(t, [ENTRY], vanished={f"L{line}": good})
-        assert _losses(t) == [], good
+    _ledger(t, [ENTRY], vanished={f"L{line}": "narrative"})
+    assert _losses(t) == []
+    for unrelated in ({"rule": ["R1"]}, {"duplicate-of": "R1"}):  # W-34d76a7a: R1 carries another rule
+        _ledger(t, [ENTRY], vanished={f"L{line}": unrelated})
+        assert any("vanished as" in x and "lint B" in x for x in _losses(t)), unrelated
     retired = [{"decision": "D-0001", "entry": {"id": "R9", "text": ["x"]}}]
     for bad in ("unchanged", {"rule": ["R7"]}, {"rule": []}, {"duplicate-of": "R7"}, {"rule": ["R9"]}):
         _ledger(t, [ENTRY], vanished={f"L{line}": bad}, retired=retired)
@@ -1120,9 +1122,10 @@ def test_a_ban_line_never_vanishes_as_narrative(tmp_path: Path) -> None:
     data = {"command": "demo", "baseline_sentences": base.name, "baseline_sha256": sha, "entries": [other], "vanished": {f"L{n}": "narrative"}}
     (t["rules"] / "demo.yaml").write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
     _one(_losses(t), "holds a ban word and cannot vanish as narrative")
-    data["vanished"] = {f"L{n}": {"rule": ["R2"]}}  # classified to a rule instead: the label raises nothing
+    data["vanished"] = {f"L{n}": {"rule": ["R2"]}}  # classified to a rule instead: R2 must carry it (W-34d76a7a)
     (t["rules"] / "demo.yaml").write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
-    assert not any("vanish" in x for x in _losses(t))
+    lost = _losses(t)
+    assert not any("cannot vanish as narrative" in x for x in lost) and any("vanished as rule" in x for x in lost), lost
 
 
 def test_a_fence_marker_does_not_flip_code_parity_for_the_prose_beside_it() -> None:
@@ -1154,3 +1157,82 @@ def test_a_lint_loss_exits_the_corpus_check_with_4(tmp_path: Path, monkeypatch, 
         ac.check()
     out = capsys.readouterr().out
     assert exc.value.code == 4 and "lint A" in out, out
+
+
+# ── W-34d76a7a: a vanished `rule:`/`duplicate-of:` label is proven, never merely pointed ─────────
+def _gone(old: str, new: str, entries: list[dict], key_part: str, label: object, tmp: Path) -> list[str]:
+    """The LOSS lines when the ``old`` source's unit holding ``key_part`` vanished into ``new`` under ``label``."""
+    t = _tree(tmp, source=new, render=new)
+    n = next(i for i, k in enumerate(cr.keys(cr.own_text(old)), 1) if key_part in k)
+    assert n in cr.vanished(cr.keys(cr.own_text(old)), cr.own_text(new)), "the fixture's line must vanish"
+    _ledger(t, entries, baseline_from=old, vanished={f"L{n}": label})
+    return _losses(t)
+
+
+def _vanished_lines(lost: list[str]) -> list[str]:
+    return [x for x in lost if "vanished as" in x]
+
+
+def test_a_vanished_rule_label_must_be_covered(tmp_path: Path) -> None:
+    old = SOURCE.replace("Run the probe on a copy.", "Run the probe on a copy; record the verdict.")
+    new = SOURCE.replace("Run the probe on a copy. ", "").replace("Stop at the pin.", "Stop at the pin. Then run the probe on a copy.\n\nWe record the verdict here.")
+    probe = {"id": "P", "section": "## Scope", "text": ["run the probe on a copy"]}
+    verdict = {"id": "V", "section": "## Scope", "text": ["We record the verdict here"]}
+    # the cheap path: a real id that carries another rule
+    for label, says in (({"rule": ["R1"]}, "vanished as rule ['R1'] — lint B"), ({"duplicate-of": "R1"}, "vanished as duplicate-of R1 — lint B")):
+        lost = _vanished_lines(_gone(old, new, [ENTRY], "Run the probe", label, tmp_path / f"r1-{len(str(label))}"))
+        assert len(lost) == 2 and all(says in x for x in lost), lost  # both clauses of the line, each named by its label
+    # covered clause by clause across two named entries: nothing
+    assert _gone(old, new, [ENTRY, probe, verdict], "Run the probe", {"rule": ["P", "V"]}, tmp_path / "pv") == []
+    # one entry carries only one clause: the other clause is the LOSS
+    lost = _vanished_lines(_gone(old, new, [ENTRY, probe, verdict], "Run the probe", {"rule": ["P"]}, tmp_path / "p"))
+    assert len(lost) == 1 and "record the verdict" in lost[0], lost
+    # never one clause from two phrases: per phrase, as `_covered`
+    halves = {"id": "H", "section": "## Scope", "text": ["run the probe", "on a copy", "We record the verdict here"]}
+    lost = _vanished_lines(_gone(old, new, [ENTRY, halves], "Run the probe", {"rule": ["H"]}, tmp_path / "h"))
+    assert len(lost) == 1 and "Run the probe on a copy" in lost[0], lost
+    # a named entry whose section is missing: its own LOSS, never a second one for the line
+    absent = {"id": "X", "section": "## Absent", "text": ["run the probe on a copy"]}
+    lost = _gone(old, new, [ENTRY, absent, verdict], "Run the probe", {"rule": ["X", "V"]}, tmp_path / "x")
+    assert len(lost) == 1 and "section '## Absent' missing" in lost[0], lost
+
+
+def test_a_vanished_line_with_its_own_entry_is_linted_once(tmp_path: Path) -> None:
+    new = SOURCE.replace("Run the probe on a copy. ", "Always probe the change on a copy before you trust it. ")
+    own = {"id": "O", "section": "## Scope", "class": "prose", "baseline": "Run the probe on a copy",
+           "text": ["probe the change on a copy before you trust it"]}
+    assert _gone(SOURCE, new, [ENTRY, own], "Run the probe", {"rule": ["O"]}, tmp_path / "ok") == []
+    # its own entry is the proof: an uncovered line prints once, from the entry's lint, never again for the label
+    weak = {**own, "text": ["the change on a copy before you trust it"]}  # live, but holds no "probe"
+    for spelling in ("Run the probe on a copy", "Run the _probe_ on a copy", "Run the **probe** on a copy"):
+        lost = _gone(SOURCE, new, [ENTRY, {**weak, "baseline": spelling}], "Run the probe", {"rule": ["O"]}, tmp_path / f"w{len(spelling)}{spelling[8]}")
+        assert len(lost) == 1 and "O: lint B" in lost[0] and not _vanished_lines(lost), (spelling, lost)
+    # an equal-baseline entry the lints never read (no class, no clauses, no ban word) earns no pass
+    legacy = {k: v for k, v in weak.items() if k != "class"}
+    lost = _gone(SOURCE, new, [ENTRY, legacy], "Run the probe", {"rule": ["O"]}, tmp_path / "legacy")
+    assert len(lost) == 1 and "vanished as rule ['O'] — lint B" in lost[0], lost
+
+
+def test_a_vanished_ban_line_keeps_its_span_verbatim(tmp_path: Path) -> None:
+    merged = SOURCE.replace("Never stage a sibling's file.", "Never stage a sibling's file or a stranger's.")
+    carrier = {"id": "M", "section": "## Scope", "text": ["Never stage a sibling's file or a stranger's"]}
+    assert _gone(SOURCE, merged, [carrier], "Never stage", {"rule": ["M"]}, tmp_path / "ok") == []
+    reworded = SOURCE.replace("Never stage a sibling's file.", "Stage no sibling's file, never.")
+    loose = {"id": "M", "section": "## Scope", "text": ["Stage no sibling's file, never"]}
+    lost = _vanished_lines(_gone(SOURCE, reworded, [loose], "Never stage", {"rule": ["M"]}, tmp_path / "rw"))
+    assert any("lint D" in x for x in lost) and any("lint A" in x for x in lost), lost
+    # the span never reads across two named sections
+    # every named section is read: the carrier may be the SECOND named entry, in another section
+    across = SOURCE.replace(" Never stage a sibling's file.", "").replace("2. Push it.", "2. Push it. Never stage a sibling's file or a stranger's.")
+    pin = {"id": "F", "section": "## Scope", "text": ["Stop at the pin"]}
+    close = {"id": "C", "section": "## Close", "text": ["Never stage a sibling's file or a stranger's"]}
+    for order in (["F", "C"], ["C", "F"]):  # the carrier last, then first: no named section is ever skipped
+        assert _gone(SOURCE, across, [pin, close], "Never stage", {"rule": order}, tmp_path / f"across-{order[0]}") == []
+    # the first section ENDS on "never" and the next STARTS on its object: each section stays its own paragraph
+    # (every `_scope` body starts and ends with a newline, so the blank-line join is defensive, never the only guard)
+    split = SOURCE.replace(" Never stage a sibling's file.", "").replace("Stop at the pin.", "Stop at the pin. Keep going and never")
+    split = split.replace("## Close\n\n", "## Close\n\nstage a sibling's file today.\n\n")
+    tail = {"id": "T", "section": "## Scope", "text": ["Keep going and never"]}
+    head = {"id": "S", "section": "## Close", "text": ["stage a sibling's file today"]}
+    lost = _vanished_lines(_gone(SOURCE, split, [tail, head], "Never stage", {"rule": ["T", "S"]}, tmp_path / "split"))
+    assert any("lint D" in x for x in lost), lost

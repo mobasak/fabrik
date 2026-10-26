@@ -1,6 +1,16 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A census that re-implements a check must read every field the check reads (2026-10-26)
+
+- **What happened:** W-34d76a7a's MEASURE counted vanished `rule:` labels with a hand-written script that pooled the
+  named entries' phrases but never read the matching entry's `clauses:` labels. It reported 11 of 185 lines newly lost
+  on kaizen's latest cut; both design critiques replayed the real `_lint` and found 0 — every label named the line's
+  own lintable entry, whose labels excuse exactly those story clauses (D-1258).
+- **Rule:** measure a proposed check by running the module's own functions on the real corpus (here `losses()` over a
+  real render, base vs new), never a re-implementation; a re-implementation is a second reading and drifts on the
+  first field it forgets.
+
 ## A measure built in a worktree must not read the disk (2026-10-25)
 
 - **What happened:** slice C's size measure (D-1226) counted a path when the file existed. Its baseline was built in a

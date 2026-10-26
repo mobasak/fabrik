@@ -26,6 +26,10 @@ All notable changes to this project will be documented in this file.
   an unreadable `project.yaml` is an unknown type, a warning, never a crash.
 - Live: 8/8 account `.claude.json` files and 44/44 /opt git repos carry `rea`; rn-kit-sandbox, image-generation and
   fabrik-dr-store got their first `.mcp.json`.
+### Fixed — a vanished `rule:`/`duplicate-of:` label must be carried by the entries it names (D-1258) (2026-10-26)
+
+- `commands/command_rules.py`: a vanished baseline line labelled onto entries is now proven — by a lintable named entry whose baseline is that line, or else by the D-1236 lints A, B and D over the named entries' pooled phrases and sections — and each failure is a LOSS `baseline L<n> vanished as rule [ids] — lint <X>`; until now any live id passed. Graders in `tests/test_command_rules.py` (two old pins that accepted an unrelated rule label now expect the LOSS); `docs/reference/command-corpus-check.md` states the rule. W-34d76a7a.
+
 ### Added — the `provenance` clause label in the rule ledgers (D-1255, D-1256) (2026-10-26)
 
 - `commands/command_rules.py`: a clause labelled `provenance` is measured by lint B without its parentheticals of ids alone (D-row, W-item, ISO date, SHA, `§` pointer); the label is refused on a ban clause and on a clause with no such parenthetical, and `summary()` prints the provenance count. See the **Ledger lints** bullet of `docs/reference/command-corpus-check.md` (W-0c38115e).
