@@ -108,13 +108,17 @@ def test_an_unknown_type_and_the_own_agent_hub_class_repo_only_warn(check, tmp_p
     subprocess.run(["git", "init", "-q", str(vendor)], check=True)
     # a repo git cannot answer for (here a bare `.git` dir) FAILS: an unknown answer never demotes to a warning
     repo(tmp_path, "unanswerable", None, ["session-recall", "maestro"])
-    # a directory that is no git repo is not graded, as the emitter never sweeps it
+    # an UNTYPED directory that is no git repo is not graded, as the emitter never sweeps it
     plain = repo(tmp_path, "plain-dir", None, ["session-recall", "maestro"])
     (plain / ".git").rmdir()
+    # …but a TYPED one is a ruled project wherever it sits: graded (the liveness canary's fixture shape)
+    typed = repo(tmp_path, "typed-no-git", "python-api", ["session-recall", "maestro"])
+    (typed / ".git").rmdir()
     # fabrik-lib keeps the FULL roster, maestro included (operator ruling 2026-10-07) — no warning
     lib = repo(tmp_path, "fabrik-lib", None, ["session-recall", "maestro", "playwright"])
     rep = check.audit(tmp_path, HUB, DEFS)
     assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [
+        ("typed-no-git", ["maestro"]),
         ("unanswerable", ["maestro"]),
         ("untyped", ["maestro"]),
     ]
@@ -126,6 +130,7 @@ def test_an_unknown_type_and_the_own_agent_hub_class_repo_only_warn(check, tmp_p
     (owned / ".mcp.json").unlink()
     (vendor / ".mcp.json").unlink()
     (tmp_path / "unanswerable" / ".mcp.json").unlink()
+    (typed / ".mcp.json").unlink()
     # a server outside the roster in an own-agent repo warns (its agent writes the file), never fails
     (lib / ".mcp.json").write_text(
         json.dumps(

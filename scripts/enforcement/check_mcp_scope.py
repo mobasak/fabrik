@@ -70,8 +70,10 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
     checked = 0
     for repo in sorted(p for p in root.iterdir() if p.is_dir()):
         mcp_json = repo / ".mcp.json"
-        if not mcp_json.is_file() or repo.name in em.CONDEMNED or not (repo / ".git").exists():
-            continue  # excluded BY NAME, or no repo at all — the emitter sweeps git repos only (_candidate_repos)
+        if not mcp_json.is_file() or repo.name in em.CONDEMNED:
+            continue  # excluded BY NAME
+        if not (repo / ".git").exists() and em._repo_type(repo) is None:
+            continue  # untyped AND no repo: nothing the emitter sweeps (_candidate_repos); a TYPED dir is ruled anywhere
         present = _present(mcp_json)
         if present is None:
             failures.append({"repo": repo.name, "extra": [], "reason": "unreadable .mcp.json"})
