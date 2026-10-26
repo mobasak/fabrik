@@ -538,61 +538,45 @@ entries:
   - Do not promise "zero discrepancies" as a claim — iterate to a fixed point, then explicitly list any residual risks the tooling can't catch (hard-to-verify prose, screenshots/diagrams, external-facing copy, examples that need a live service to run)
 - id: dr-pool-off-fragment
   class: ban
+  baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable) ¦ Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
   text:
-  - The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182
-  - this command's every fan-out runs NATIVE — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose) with the SAME unit split
+  - '⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  - 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
 - id: dr-lock-list
-  section: '## Phase 0 — Establish scope'
-  class: prose
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  class: grammar
   baseline: '# The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are ⏎ # SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay ⏎ # normal reconciliation targets. ⏎ python3 -c "import json;print(''\n''.join(sorted(json.load(open(''.fabrik/synced.lock'')))))" | grep -vxF -e ''PORTS.md'' -e ''docs/DECISIONS.md'' ⏎ # Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/** ⏎ # docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · …'
-  clauses:
-    1: narrative
-    2: narrative
-    3: narrative
-    5: narrative
-    6: narrative
   text:
+  - '# The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are'
+  - '# SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay'
+  - '# normal reconciliation targets.'
   - python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
+  - '# Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/**'
+  - '```bash # The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are # SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay # normal reconciliation targets. python3 -c "import json;print(''\n''.join(sorted(json.load(open(''.fabrik/synced.lock'')))))" | grep -vxF -e ''PORTS.md'' -e ''docs/DECISIONS.md'' # Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/** # docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · … ```'
 - id: dr-live-or-wrong
   class: ban
   baseline: A live-checkable external claim is VERIFIED-or-WRONG, never parked as UNVERIFIABLE — a stale price / dead endpoint / wrong version in a doc is exactly the drift this catches
-  clauses:
-    2: narrative
   text:
-  - A live-checkable external claim is VERIFIED-or-WRONG, never parked as UNVERIFIABLE
+  - A live-checkable external claim is VERIFIED-or-WRONG, never parked as UNVERIFIABLE — a stale price / dead endpoint / wrong version in a doc is exactly the drift this catches
 - id: dr-unprompted
   class: ban
   baseline: Run that next pass UNPROMPTED — the moment a pass makes any doc edit you owe it, automatically. Never wait to be asked *"did you reconcile to the closing round?"*; the obligation is yours and predates any challenge — reframing your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge
-  clauses:
-    4: narrative
   text:
-  - Run that next pass UNPROMPTED — the moment a pass makes any doc edit you owe it, automatically. Never wait to be asked *"did you reconcile to the closing round?"*; the obligation is yours and predates any challenge
+  - Run that next pass UNPROMPTED — the moment a pass makes any doc edit you owe it, automatically. Never wait to be asked *"did you reconcile to the closing round?"*; the obligation is yours and predates any challenge — reframing your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge
 - id: dr-convergence-def
   class: prose
   baseline: 'Convergence = the Termination contract''s closing round (the round-1 seats confirming their own docs at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."'
-  clauses:
-    2: narrative
   text:
-  - 'Convergence = the Termination contract''s closing round (the round-1 seats confirming their own docs at `confirmed: 0`, md5 unchanged)'
+  - 'Convergence = the Termination contract''s closing round (the round-1 seats confirming their own docs at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."'
+- id: dr-converge-opening
+  class: ban
+  baseline: Converge the documentation to a fixed point — do not stop after one pass
+  text:
+  - Converge the documentation to a fixed point — do not stop after one pass
+- id: dr-keep-chaining
+  class: prose
+  baseline: Go straight into the next reconciliation pass in the SAME turn and keep chaining until the closing round
+  text:
+  - Go **straight into the next reconciliation pass** in the SAME turn and keep chaining until the closing round
 vanished:
   L1: narrative
-  L2:
-    duplicate-of: u-L74
-  L16:
-    duplicate-of: dr-pool-off-fragment
-  L17:
-    duplicate-of: dr-pool-off-fragment
-  L20:
-    rule:
-    - dr-lock-list
-  L50:
-    rule:
-    - dr-live-or-wrong
-  L76:
-    rule:
-    - dr-unprompted
-  L82:
-    duplicate-of: u-L80
-  L98:
-    rule:
-    - dr-convergence-def
