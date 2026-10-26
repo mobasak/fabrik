@@ -8,8 +8,9 @@ All notable changes to this project will be documented in this file.
 
 - `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a
   settings path, so the first live batch's children could only read and plan (a fix round ended with a plan and no
-  commit). Clones now go under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`), and a root under any
-  `.claude*` directory is refused before spending; a live Haiku smoke wrote, edited and pushed. The default
+  commit). Clones now go under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`, `~` expanded), and a
+  relative root, or one under a `.claude` or `.claude-*` directory (symlinks resolved, case ignored), is refused
+  before spending; a live Haiku smoke wrote, edited and pushed. The default
   `--timeout` rises from 3600 to 10800 s, since a re-ledger round runs past an hour and a timed-out run pushes nothing
   (W-174b8543, W-15bb59ea).
 

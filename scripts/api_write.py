@@ -20,9 +20,9 @@ child is ``claude -p --safe-mode --restricted --permission-mode dontAsk`` with O
 denies — plus, when the job names gates, ``Bash(<gate>)`` for each gate string matched EXACTLY (no wildcard, so no
 option a glob would admit: pytest's ``--basetemp`` deletes the directory it names, git's ``--output`` writes any path,
 ``git commit -F`` reads any file). The child has no git and no repository: the runner clones the main checkout under
-``<run root>/<run>/`` (``API_WRITE_RUN_ROOT``, default ``~/.cache/fabrik/api-write``; a root with a ``.claude*``
-path component is refused, because Claude Code denies every Write/Edit under ``~/.claude`` as a settings path and the
-child would only plan) with the git dir OUTSIDE the work tree (``gitdir/``, beyond the child's reach; the work
+``<run root>/<run>/`` (``API_WRITE_RUN_ROOT``, default ``~/.cache/fabrik/api-write``; ``run_root()`` refuses a
+relative root and one under a ``.claude`` or ``.claude-*`` directory, because Claude Code denies every Write/Edit
+under ``~/.claude`` as a settings path and the child would only plan) with the git dir OUTSIDE the work tree (``gitdir/``, beyond the child's reach; the work
 tree's ``.git`` pointer is deleted), fetches ``origin`` and checks out ``claude/<slug>`` at ``origin/<base>`` before
 the child starts. Every runner git call that acts on the clone names ``--git-dir``/``--work-tree`` with
 ``core.hooksPath`` and ``core.fsmonitor`` forced off, so nothing written in the work tree picks the repository or its
