@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T17:34:53.012361Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c1fc2925",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q3E57CY5X3WDBQ0WXPHQB9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "ADVISORY (data loss) — fabrik-lib rag classifier: default model retired 2026-10-09; a failed classify run DELETES existing tags and reports success"
+}
