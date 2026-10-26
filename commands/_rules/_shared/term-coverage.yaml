@@ -22,8 +22,6 @@ entries:
     A prior `Surface:` that is not a comparable hash — a PATH (`Surface: plan set docs/…/`, which a `/fabrik-execute-plan` integration receipt writes), a commit RANGE (`a..b`), or a prose description — CANNOT match, by construction
 - id: tc-u12-let-degrade-silently
   class: prose
-  clauses:
-    2: narrative
   file: commands/_fragments/term-coverage.md
   section: '## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)'
   baseline: |-
@@ -31,6 +29,8 @@ entries:
   text:
   - |-
     Do not let that degrade silently into "no prior report": say in the report that the anchor did not match and WHY, then run the full WIDE pass 1
+  - |-
+    The distinction is load-bearing because the two paths differ in rigour — a match routes you into verification-and-delta and lets you INHERIT the prior checklist's rows, and inheriting a `CLEAN` row that was wrong is exactly how a defect survives a review that ran
 - id: tc-u14-persist-exception-below
   class: ban
   file: commands/_fragments/term-coverage.md
@@ -71,7 +71,7 @@ entries:
     Every other form — a working-tree review, a mixed surface, a review whose fixes stay uncommitted until a later commit (`/fabrik-execute-plan`'s whole-plan receipt), and every other command this fragment renders into — creates it NOW
   text:
   - |-
-    Every other form — a working-tree review, a mixed surface, a review whose fixes stay uncommitted (`/fabrik-execute-plan`'s whole-plan receipt) — creates it NOW
+    Every other form — a working-tree review, a mixed surface, a review whose fixes stay uncommitted until a later commit (`/fabrik-execute-plan`'s whole-plan receipt), and every other command this fragment renders into — creates it NOW
 - id: tc-u21-coverage-checklist-row
   class: prose
   file: commands/_fragments/term-coverage.md
@@ -208,15 +208,13 @@ entries:
     or `REFUTED(n, proof)`; no `UNCHECKED` rows
 - id: tc-u59-mechanical-gates-green
   class: prose
-  clauses:
-    2: narrative
   file: commands/_fragments/term-coverage.md
   section: '## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)'
   baseline: |-
     Mechanical gates are green (`final_gate`) — lint/type/test classes are the gates' job; do not spend finder passes re-discovering what a gate catches
   text:
   - |-
-    Mechanical gates are green (`final_gate`) — do not spend finder passes re-discovering what a gate catches
+    Mechanical gates are green (`final_gate`) — lint/type/test classes are the gates' job; do not spend finder passes re-discovering what a gate catches
 - id: tc-u66-forged-evidence
   class: prose
   file: commands/_fragments/term-coverage.md
