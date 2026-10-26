@@ -387,7 +387,7 @@ other value is drift class 8. Both readers prefer the calling repo's own
 repo's copy is missing or fails to import, so the drift report is never silently empty because a
 sibling script drifted.
 
-Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path>`):
+Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path>`, class 8 with its reason after the path):
 
 | # | Class | Always |
 |---|---|---|
@@ -398,7 +398,7 @@ Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path
 | 5 | An item file that doesn't parse, or a status outside the vocabulary | blocking\* |
 | 6 | A `done` item within the last 14 days whose evidence SHA doesn't exist or doesn't name it (or its `resolved_by` root); or a closed marker over 14 days old whose item is still open in the base branch (never merged) | blocking\* |
 | 7 | The backlog block is stale (`render` would change it) | advisory |
-| 8 | A plan `Status:` value outside the normalised set | advisory |
+| 8 | A plan `Status:` value outside the normalised set — its line goes on to name the value it read (the whole line, printable, at most 60 characters; `unreadable (…)` when the parser cannot read the header or the file, `missing (no Status: line in its first 4000 characters)` when the parser's window holds none), the five statuses, what check_convergence wants of an EXECUTED plan (its whole-plan review under `docs/development/reviews/` cited, with a quiet Pass row), and the archive as a superseded plan's remedy | advisory |
 
 Classes 2, 3 and 8 read the live plans only: a plan under `plans/archived/` is settled history.
 

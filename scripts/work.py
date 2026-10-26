@@ -172,7 +172,8 @@ _PLAN_STATUS_ALIASES = {
     "WAITING": "BLOCKED",
     "STALLED": "BLOCKED",
 }
-_PLAN_STATUSES = frozenset({"DRAFT", "IN-PROGRESS", "CONVERGED", "EXECUTED", "BLOCKED"})
+_PLAN_STATUS_ORDER = ("DRAFT", "IN-PROGRESS", "CONVERGED", "EXECUTED", "BLOCKED")  # lifecycle order
+_PLAN_STATUSES = frozenset(_PLAN_STATUS_ORDER)
 DECISIONS_PY = Path("/opt/fabrik/scripts/decisions.py")  # hub-only, by absolute path
 WHOAMI_PY = Path(__file__).with_name("whoami_agent.py")
 DOCS_UPDATER_PY = Path(__file__).with_name("docs_updater.py")  # T03: migrate-backlog / render
@@ -4474,10 +4475,51 @@ def cmd_status(repo: Path, args: argparse.Namespace) -> int:
             print(f"PLAN             {_rel(repo, spine)}  tickets {done}/{len(states)} done")
     report = _drift_report(repo)
     for cls in range(1, 9):
-        label = "blocking" if cls in BLOCKING_CLASSES else "advisory"
         for rel in report[cls]:
-            print(f"DRIFT {cls} ({label})  {rel}")
+            print(_drift_line(repo, cls, rel))
     return 0
+
+
+def _drift_line(repo: Path, cls: int, rel: str) -> str:
+    """One `DRIFT <n> (blocking|advisory)  <path>` line. Class 8 adds why: the value read, the
+    vocabulary, and the EXECUTED precondition a finished plan meets in check_convergence (the
+    reason a plan ends up outside the vocabulary — mail 01M5B996F3); `_drift_report`'s entries
+    stay bare paths, so the readings' counts and final_gate's blocking regex read them unchanged."""
+    label = "blocking" if cls in BLOCKING_CLASSES else "advisory"
+    line = f"DRIFT {cls} ({label})  {rel}"
+    if cls != 8:
+        return line
+    try:
+        text: str | None = (repo / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        text = None
+    if text is None:
+        shown = "unreadable (the file cannot be read)"
+    elif _status_value(repo, text):
+        shown = f"'{_shown(_status_line_raw(repo, text))}'"
+    elif header := _STATUS_HEADER_RE.search(text[:4000]):  # the parser's own window
+        shown = f"unreadable ({_shown(header.group(0).strip())})"
+    else:
+        shown = "missing (no Status: line in its first 4000 characters)"
+    return (
+        f"{line}  — Status {shown} is none of {', '.join(_PLAN_STATUS_ORDER)}; "
+        "a finished plan reads EXECUTED, and check_convergence then wants it to cite its "
+        "whole-plan review under docs/development/reviews/ with a quiet Pass row (confirmed: 0); "
+        "a superseded or abandoned plan moves to plans/archived/"
+    )
+
+
+# The Python twin of `_PLAN_STATUS_GIT_PATTERN`'s header shape, for `_drift_line`'s wording only.
+_STATUS_HEADER_RE = re.compile(r"^[ \t]*(?:[-*>][ \t]+)?\*{0,2}Status\*{0,2}[ \t]*:.*$", re.M)
+
+
+def _shown(raw: str) -> str:
+    """A Status value as one printable line of at most 60 characters: control bytes (an ESC from a
+    pasted colour code) would reach every reader of the DRIFT line, final_gate's included."""
+    clean = "".join(
+        ch if ch.isprintable() else " " if ch.isspace() else "?" for ch in raw.strip()
+    )
+    return clean if len(clean) <= 60 else clean[:59] + "…"
 
 
 def cmd_sync(repo: Path, args: argparse.Namespace) -> int:
@@ -4489,9 +4531,8 @@ def cmd_sync(repo: Path, args: argparse.Namespace) -> int:
         return 0
     report = _drift_report(repo)
     for cls in range(1, 9):
-        label = "blocking" if cls in BLOCKING_CLASSES else "advisory"
         for rel in report[cls]:
-            print(f"DRIFT {cls} ({label})  {rel}")
+            print(_drift_line(repo, cls, rel))
     blocking_active = _sync_blocking_active(repo)
     _append_reading(
         repo,
