@@ -28,10 +28,45 @@ def test_the_docs_review_floor_seat_can_run_the_commands_the_text_orders() -> No
     assert "verified by RUNNING it" in _norm()
 
 
+def test_external_claims_go_to_the_web_seat() -> None:
+    """The researcher keeps the live external re-verification it alone can do, as its own workflow slice."""
+    assert (
+        "a `fabrik-researcher` seat (web, no shell) — a unit of its own, the workflow slice's `agent`"
+        in _norm()
+    )
+
+
+def test_an_out_of_surface_red_gate_is_declared_not_blocking() -> None:
+    """Rows 1791335151, 1791193035, 1790986690, 1790725631, 1790295897: docs_updater --check is repo-wide."""
+    text = _norm()
+    assert "a red none of whose findings the change under review caused" in text
+    assert "the doc-sync gate green, or red only out-of-surface and declared" in text
+    # every sentence that states the terminal or the convergence bar allows the declared red
+    assert (
+        "md5 unchanged) with the doc-sync gate green, or red only out-of-surface and declared"
+        in text
+    )
+    assert (
+        "+ the gate green (or its out-of-surface red embedded with the `GATE-SCOPE` line)" in text
+    )
+
+
+def test_seat_briefs_and_the_orchestrator_apply_the_probe_catalogue() -> None:
+    """Rows 1791418037, 1791009623: the catalogue binds the seats' briefs and the orchestrator's own doc edits."""
+    p2 = _norm()[_norm().index("### Parallelism") :]
+    assert (
+        "Every seat brief, and the orchestrator's own doc edits, apply the lines of "
+        "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE"
+        in p2
+    )
+
+
 def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() -> None:
-    """W-21b629ed (intel mail 01M5AQ4754, D-1056): every verdict the fabrik-researcher agent names, in its Return line and
-    in Method step 4's list, has a row in the docs review's verdict table, so a new agent verdict with no row fails here.
-    The pinned prose of those rows moved to the ledger (commands/_rules/fabrik-docs-review.yaml)."""
+    """W-21b629ed (intel mail 01M5AQ4754, D-1056): the fabrik-researcher agent returns INFERENCE and NEEDS-RAW-FETCH,
+    which the docs review's verdict table had no row for. Each now has one, and every verdict the agent names, in its
+    Return line and in Method step 4's list, has a row, so a new agent verdict with no table row fails here. Both
+    resolve into the other rows (a live-checkable claim is VERIFIED-or-WRONG), so neither has a self-audit count, and
+    only the orchestrator curls."""
     src = _norm()
     table = src[src.index("### Verdict taxonomy") : src.index("A seat's return cites")]
     rows = set(re.findall(r"\| \*\*([A-Za-z0-9_-]+)\*\* \|", table))
@@ -44,3 +79,20 @@ def test_the_verdict_table_says_how_each_researcher_only_verdict_is_treated() ->
     listed = {name for lead in leads for name in re.findall(r"`([A-Za-z0-9_-]+)`", lead)}
     assert listed == returned, sorted(listed ^ returned)
     assert returned <= rows, sorted(returned - rows)
+    assert "rewrite the claim to what a source line states and re-verify it" in table
+    assert "The orchestrator curls the named URL and section (a seat never curls)" in table
+    assert (
+        "the orchestrator re-dispatches a `fabrik-researcher` seat for other live sources and classifies the claim by"
+        " what they say, by the rows above, a source that seat cannot read either counting as none;"
+        in table
+    )
+    assert (
+        "only when none of them states or contradicts it, or they conflict with no single primary source to settle"
+        " it (two primary surfaces that disagree settle nothing), is it UNVERIFIABLE, naming what a human should check"
+        " and, for a conflict, every source on each side" in table
+    )
+    assert "/ DEAD-removed / UNVERIFIABLE)" in src
+    assert (
+        "when they conflict, the primary source decides (the vendor's own docs, the standard itself);"
+        in table
+    )

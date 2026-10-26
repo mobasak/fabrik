@@ -10,3 +10,12 @@
 - Reader-test run (31 files: tests naming the stem + corpus-glob tests): failure SET at start commit = 18 FAILED, at end = the same 18, no growth (diff empty). Pre-existing reds come from the clone lacking box services (missing `harbor`, `httpx`, fleet modules). `tests/test_command_rules.py`: 32 passed, 3 skipped, LEDGER line for fabrik-docs-review, zero LOSS. `assemble_commands.py --check`: exit 1, only `DIFFERS`/`MISSING` drift lines.
 - LEFT FOR THE HUB: size-ceiling ratchet (`commands/_size_ceiling.json`, reports "shrank to 29520 words, ceiling 31111"), CHANGELOG/INDEX rows, the Sonnet+Haiku audit of the vanished labels and of the 40 reworded entries (old against new), a floor D-row if the 75% figure stands.
 - Commit 654bcf7 carried its Agent-* trailers in a separate paragraph; this follow-up commit carries them in the final trailer block.
+
+## Fix round 1 (lean-t16-fix)
+
+- Findings: Audit 1 (40) + Audit 2 (38), overlapping; the union checked against the baseline text. **Confirmed: all 40 distinct findings** (each cut unit dropped a ban clause, anchor, number, ordering, fence line or grammar token; Audit 2 #38 too: the three pin tests and the phrase asserts were deleted). **Refuted: none.** Audit 2's "invented rule" count: 0 on both sides.
+- Fix: every flagged clause restored to the baseline wording. Since the first cut's every difference from the baseline fell on a flagged clause, the source is now baseline text apart from markdown bold markers; no unflagged narrative was left to keep cut. The `(parallel reconcilers)` / `by default` description words, the `--feedback "<what you filed, to whom | none — surfaces exercised>"` close grammar, the POOL OFF block (D-181/D-182, `NO-POOL:`, `check_subagent_flywheel.py`, `_POOL_POLICY_ON`, `<!-- POOL OFF -->`, `62-using-subagents.md` § Dispatch policy), the lock-command comment fence (`Covers:` list, live-set pointer) and all 14 weakened clauses are verbatim again.
+- Ledger `commands/_rules/fabrik-docs-review.yaml`: the 40 hand-written reworded entries are gone; 85 generated unchanged entries, `vanished: {}` (no unit left unlabelled, none relabelled narrative). L19 was mislabelled narrative: now a verbatim unit.
+- Tests: the T16 edit to `tests/test_docs_review_queue_pass.py` reverted (5 passed); the retired `pins:` are gone with it.
+- Words (`own_text`): baseline 2786 -> first cut 2102 -> after fix 2786 (the cut is entirely undone: every cut was a rule).
+- Gates: `tests/test_command_rules.py` 32 passed, 3 skipped, zero LOSS; `assemble_commands.py --check` exit per the run below.
