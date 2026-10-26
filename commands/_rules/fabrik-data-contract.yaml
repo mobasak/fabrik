@@ -102,7 +102,7 @@ entries:
   section: '## Phase 0 — Establish MODE + scope'
   baseline: 'Mode A — spec-driven (new work). A `/fabrik-spec` design doc is `$ARGUMENTS`, linked, or in scope (`docs/superpowers/specs/…`) The entities/fields come from the design — the normal `spec → contract → plan` path BOTH a new spec AND a real existing schema (an incremental feature on an established project) = Mode A (the spec is the source) *with* full Mode-B reconciliation against the schema: declare `Mode A` and note the reconciliation, so the frozen header (`Mode: A|B|C`) and the Phase-5 hand-off stay unambiguous while still doing both jobs Operate on the current project (cwd) — `$ARGUMENTS`, if given, is the spec path; to backfill a specific project, run the command from inside it'
   text:
-  - A `/fabrik-spec` design doc is given or in scope
+  - A `/fabrik-spec` design doc is `$ARGUMENTS`, linked, or in scope
   - declare `Mode A` and note it
   - '`$ARGUMENTS`, if given, is the spec path'
 # class: prose
@@ -110,21 +110,23 @@ entries:
   section: '## Phase 0 — Establish MODE + scope'
   baseline: Mode B — reverse-generate (existing-project backfill). No spec, but a real `db/schema.sql` (or ORM models / migrations) already exists The contract is reverse-engineered from what already exists, and existing standard-violations are grandfathered (flagged advisory, never auto-migrated) This is how the ~35 existing projects get a contract — run this command in each
   text:
-  - existing standard violations are **grandfathered** (flagged, never auto-migrated)
+  - existing standard violations are **grandfathered** (flagged advisory, never auto-migrated)
   - No spec, but `db/schema.sql` (or ORM models/migrations) exists
+  - 'Run this command in each project to backfill'
 # class: prose
 - id: p0-mode-c
   section: '## Phase 0 — Establish MODE + scope'
   baseline: Mode C — fresh (no design, no schema). Neither exists → fill the seeded stub minimally (house rules + empty entity scaffold) so the project has the frozen skeleton to grow into
   text:
   - Neither exists; fill the seeded stub minimally
+  - 'fill the seeded stub minimally (house rules + empty entity scaffold)'
 # class: prose
 - id: p0-scope
   section: '## Phase 0 — Establish MODE + scope'
   baseline: 'Scope = every entity, every GUI/form field, every API request field, and every DB column the project has or the design implies Locate and name the concrete sources you will reconcile: the spec (Mode A); `db/schema.sql`, `db/migrations/`, `**/models.py`/`entities.py`, Pydantic request models, and the frontend form/validation code (Zod schemas, form components) (Mode B)'
   text:
-  - Scope = every entity, GUI/form field, API request field and DB column
-  - '`db/migrations/`, `**/models.py`, Pydantic request models, frontend form/Zod code'
+  - Scope = every entity, every GUI/form field, every API request field, and every DB column the project has or the design implies
+  - '`db/migrations/`, `**/models.py`/`entities.py`, Pydantic request models, and the frontend form/validation code (Zod schemas, form components) (Mode B)'
 # class: prose
 - id: p0-draft-stub
   section: '## Phase 0 — Establish MODE + scope'
@@ -132,6 +134,7 @@ entries:
   text:
   - edit through it — a DRAFT stub's existence is NOT a STOP
   - the scaffolder seeds a DRAFT stub `docs/data-contract.md`
+  - 'Modes A/B rewrite its body from the design/schema; Mode C fills it'
 # class: ban
 - id: p0-frozen-stop
   section: '## Phase 0 — Establish MODE + scope'
@@ -146,7 +149,7 @@ entries:
   text:
   - An approved spec is that confirmation (D-730)
   - '`→ both-approve` or the operator''s approving answer (a DRAFT or CONVERGED-flip row is not one)'
-  - 'Anything else still stops: no approval row, or any change the deltas do not name'
+  - 'Anything else still stops: no approval row, or any field, column, type, validation, PII, reference or enum change the deltas do not name'
   - A `Version` that moved since the spec renumbers only when the spec says so
   pins:
   - tests/test_data_contract_recurring_rules.py::test_an_approved_spec_naming_the_delta_is_the_refreeze_confirmation
@@ -172,21 +175,24 @@ entries:
   text:
   - Ground an external field standard live only if the design introduces one
   - Cite URL + date; never invent a validation rule from memory
+  - 'the `fabrik-citation-verifier` MCP does not apply here'
 # class: prose
 - id: p1-reality
   section: '## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)'
   baseline: 'Reality → fields (Mode B / reconcile always): parse the live sources at `path:line` — `CREATE TABLE`s in `db/schema.sql`, ORM models, Pydantic request models, and the frontend form/Zod fields — and record the actual GUI field name and DB column name for each When enumerating a live Postgres, the enumeration is bounded two ways and must be un-bounded explicitly (youtube 01M17T8Z — the documented method would have shipped a FROZEN contract silently missing 7 of 79 real entities, 3 of them carrying a live production bug): (1) enumerate ALL non-system schemas via `information_schema.schemata` first — never assume `public`; (2) cross-check the table + FK counts via `pg_class`/`pg_constraint` directly (privilege-agnostic) — `information_schema` respects SELECT privilege and silently hides every table the connecting role has no GRANT on (`pg_class.relacl IS NULL` ⇒ invisible), so its count is "visible to this role in N", never "exists" A count mismatch between the two sources is itself a finding: it names tables the app''s own role cannot touch If the project has no request-validation layer (common for older APIs that pass `req.body` straight to the DB — no Pydantic/Zod body schemas), say so explicitly and collapse the triangle to GUI ↔ DB (validation is DB-constraint-only); do not invent a validation layer that isn''t there — flag its absence as a reconciliation note'
   text:
-  - enumerate ALL non-system schemas via `information_schema.schemata`, never assume `public`
+  - enumerate ALL non-system schemas via `information_schema.schemata` first — never assume `public`
   - cross-check table + FK counts via `pg_class`/`pg_constraint` directly
   - a count mismatch is itself a finding
   - '**GUI ↔ DB (validation is DB-constraint-only)**'
+  - 'so its count is "visible to this role in N", never "exists"'
+  - 'do not invent a validation layer that isn''t there — flag its absence as a reconciliation note'
 # class: prose
 - id: p1-reconcile
   section: '## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)'
   baseline: 'Reconcile GUI ↔ DB: every GUI field must map to exactly one DB column Flag every mismatch: a form field with no column, a column no form writes, a GUI label and a DB name that disagree (`emailAddress` vs `email`), a type the form sends that the column can''t hold These mismatches are the whole reason the contract exists — surface them, don''t paper over them'
   text:
-  - every GUI field maps to exactly one DB column
+  - every GUI field must map to exactly one DB column
   - never paper over one
 # class: prose
 - id: p1-parallel
@@ -194,9 +200,9 @@ entries:
   baseline: Parallelism — UNCONDITIONAL, every run. Dispatch one INDEPENDENT native `general-purpose` seat per surface (schema · API/request models · frontend forms) or per entity — the surface count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191), all in ONE message (recipe in § Subagents below), each briefed to READ the repo itself; then merge + REFUTE any mapping you can disprove by quoting the contradicting `path:line` before recording it Enumerate what you actually read — an empty inventory with no evidence does not count
   text:
   - Dispatch one INDEPENDENT native `general-purpose` seat per surface
-  - stamp them BEFORE dispatch with `python3 scripts/command_run.py dispatch --seats <n>` (D-191)
+  - stamp them BEFORE dispatch with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them (D-191)
   - '**REFUTE** any mapping you can disprove by quoting the contradicting `path:line` before recording it'
-  - An empty inventory with no evidence does not count
+  - an empty inventory with no evidence does not count
 # class: ban
 - id: p1-never-solo
   section: '## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)'
@@ -218,13 +224,13 @@ entries:
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: Keep it lean — do NOT re-introduce event/analytics tracking, a *per-field* retention/lawful-basis apparatus, or distribution machinery (out of scope; the retention section below is project-level and light)
   text:
-  - no event/analytics tracking
+  - do NOT re-introduce event/analytics tracking, a *per-field* retention/lawful-basis apparatus, or distribution machinery
 # class: prose
 - id: p2-house
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: 'Per section: House rules header (every field inherits these; never repeated per row): IDs = UUIDv7, app-generated (never sequential ints; DB-side `uuidv7()`/`pg_uuidv7` where the PG version allows, else app-side) · `snake_case`, tables plural, FKs `<entity>_id` · timestamps = `timestamptz`, UTC · money = `amount_minor BIGINT` + `currency CHAR(3)` (ISO 4217), never float, exponent is per-currency'
   text:
-  - IDs = **UUIDv7, app-generated** (never sequential ints)
+  - IDs = **UUIDv7, app-generated** (never sequential ints;
   - money = **`amount_minor BIGINT` + `currency CHAR(3)` (ISO 4217)**, never float
 # class: prose
 - id: p2-audit
@@ -233,7 +239,9 @@ entries:
   text:
   - listed **once** in the header
   - 'you MUST annotate the entity `⚠ audit: <what>`'
-  - A deviation **every** table shares is stated ONCE in the house-rules "Fleet-wide grandfather" line
+  - a deviation **every** table shares is stated ONCE in the house-rules "Fleet-wide grandfather" line
+  - 'per-entity tables show only entity-specific fields'
+  - 'never repeat it in each of 20 tables'
 # class: prose
 - id: p2-recon
   section: '## Phase 2 — Emit the contract (the frozen shape)'
@@ -248,7 +256,7 @@ entries:
   baseline: 'Per-entity table — one block per entity, with its `(depends on: …)` build-order note: 9); an operator/actor audit identifier (`changed_by`, `reviewed_by`, set from the app user) is `personal`'
   text:
   - 'one block per entity with its `(depends on: …)` build-order note'
-  - an actor audit identifier (`changed_by`, `reviewed_by`) is `personal`
+  - an operator/actor audit identifier (`changed_by`, `reviewed_by`, set from the app user) is `personal`
 # class: prose
 - id: p2-validation-regex
   section: '## Phase 2 — Emit the contract (the frozen shape)'
@@ -256,7 +264,7 @@ entries:
   text:
   - is the regex itself in backticks
   - with one value it must accept and one it must refuse
-  - a field no guard enforces gets a reconciliation note naming the missing guard
+  - a field no guard enforces yet gets a reconciliation note naming the missing guard
   pins:
   - tests/test_data_contract_recurring_rules.py::test_a_checkable_validation_cell_is_a_probed_regex
 # class: prose
@@ -278,7 +286,7 @@ entries:
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: Freeze checklist — keep the template's `## FREEZE CHECKLIST` section; every box is a Phase-3 self-audit item, and all must be ticked before you flip to `FROZEN`
   text:
-  - every box is a Phase-3 self-audit item, all ticked before `FROZEN`
+  - every box is a Phase-3 self-audit item, and all must be ticked before you flip to `FROZEN`
 # class: prose
 - id: p3-run
   section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
@@ -315,7 +323,7 @@ entries:
   baseline: 'Standards — house rules applied to new fields Grandfather existing violations (integer PK, missing `updated_at`, float money, non-standard enum) — flag, do not migrate (a migration is a separate, planned change) Placement follows Phase 2: a violation shared by every entity is stated ONCE in the house-rules "Fleet-wide grandfather" line, never per row; only an entity-specific deviation gets a per-row `⚠ non-standard: <what>` note'
   text:
   - existing violations **grandfathered — flag, do not migrate**
-  - 'entity-specific deviation a per-row `⚠ non-standard: <what>`'
+  - 'only an **entity-specific** deviation gets a per-row `⚠ non-standard: <what>` note'
 # class: prose
 - id: p3-unbuilt
   section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
@@ -324,6 +332,7 @@ entries:
   - carrying the exact lowercase phrase `does not exist`
   - '`_iter_refs` in `scripts/enforcement/check_doc_links.py`'
   - that gate skips the WHOLE line, so no built file shares it
+  - 'the wrapped paragraph is never the marker''s home'
   pins:
   - tests/test_data_contract_recurring_rules.py::test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker
 # class: prose
@@ -357,6 +366,7 @@ entries:
   - committing a `DRAFT`/`FROZEN` file is not approving it
   - Only the APPROVAL and anything beyond this artifact's own paths need the user's word
   - '`docs/data-contract.md` is a **committed, project-owned** file'
+  - 'is superseded where it conflicts with CLAUDE.md § EXIT'
 # class: prose
 - id: p4-gate-coupling
   section: '## Phase 4 — Freeze + wire the truth'
@@ -369,6 +379,7 @@ entries:
   baseline: 'Mode A: the contract is frozen → `/fabrik-plan-after-chat` inherits it as the field-naming truth (its phases build against `docs/data-contract.md`; no phase invents a field)'
   text:
   - '**`/fabrik-plan-after-chat`** inherits it as the field-naming truth'
+  - 'its phases build against `docs/data-contract.md`; no phase invents a field'
 # class: prose
 - id: p5-mode-bc
   section: '## Phase 5 — Hand off'
@@ -381,7 +392,7 @@ entries:
   section: '## Guardrails — never'
   baseline: 'Freeze on a pass whose *reconciliation* made edits — the closing round (`confirmed: 0`, md5-verified) is the ONLY thing that earns `FROZEN` (The Phase-4 `Status → FROZEN` header flip and the version''s Pass Ledger entry are the exempt post-convergence writes, not reconciliation edits — see the Termination contract + Phase 4.)'
   text:
-  - Freeze on a pass whose *reconciliation* made edits — only the closing round earns `FROZEN`
+  - 'Freeze on a pass whose *reconciliation* made edits — the closing round (`confirmed: 0`, md5-verified) is the ONLY thing that earns `FROZEN`'
 # class: ban
 - id: g-auto-migrate
   section: '## Guardrails — never'
@@ -411,29 +422,31 @@ entries:
 - id: rf-heading
   baseline: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   text:
-  - Re-freeze close-out (runs ONLY on a version bump N→N+1 of an already-FROZEN artifact)
+  - Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)
 # class: prose
 - id: rf-why
-  section: '## Re-freeze close-out (runs ONLY on a version bump N→N+1 of an already-FROZEN artifact)'
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   baseline: 'The frozen 2-contract chain (`flows.md` → `data-contract.md` → `ui-design.md` [→ `design-system.md`]) has seams nothing else owns: your bump leaves every downstream consumer frozen against a version that no longer exists The synced gate (`check_frozen_chain.py`) catches the stale PIN mechanically — but only THIS run holds the diff that names what changed, so only this run can say what the re-freeze must cover (transdoc 2026-08-22: a v5 column with a GUI-field name reached no screen; the pin gate alone would have hidden it):'
   text:
-  - only this run holds the diff
+  - The frozen 2-contract chain (`flows.md` → `data-contract.md` → `ui-design.md` [→ `design-system.md`]) has seams nothing else owns
+  - The synced gate (`check_frozen_chain.py`) catches the stale PIN mechanically
+  - only THIS run holds the diff that names what changed
 # class: prose
 - id: rf-diff
-  section: '## Re-freeze close-out (runs ONLY on a version bump N→N+1 of an already-FROZEN artifact)'
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   baseline: Diff the artifact against its pre-run version (`git diff HEAD -- <artifact>` before committing, or HEAD~1 after) and extract the changed entity/column/enum/section names
   text:
   - '**Diff the artifact against its pre-run version** (`git diff HEAD -- <artifact>` before committing, or HEAD~1 after)'
 # class: prose
 - id: rf-grep
-  section: '## Re-freeze close-out (runs ONLY on a version bump N→N+1 of an already-FROZEN artifact)'
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   baseline: 'Grep each DOWNSTREAM frozen consumer for those names and emit a Downstream impact table in the closing report: `changed name → consumer → citing section(s) → verdict (cites it / silent)` Zero hits is a stated result, never an omitted one'
   text:
   - 'emit a **Downstream impact** table in the closing report: `changed name → consumer → citing section(s) → verdict (cites it / silent)`'
   - Zero hits is a stated result, never an omitted one
 # class: prose
 - id: rf-next
-  section: '## Re-freeze close-out (runs ONLY on a version bump N→N+1 of an already-FROZEN artifact)'
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   baseline: 'The NEXT line becomes the owed re-freeze when impact is non-empty: name the consumer''s owning command WITH the impact list as its arguments (e.g. `NEXT: /fabrik-ui-design — re-freeze v9→v10: projects.domain needs a §5.3 control; §5.11 ''unbuildable'' passages now stale`) — never the first-run pipeline chain line The gate''s WARN will nag until that re-freeze lands; the impact list is the part only you know'
   text:
   - name the consumer's owning command WITH the impact list as its arguments
@@ -447,7 +460,7 @@ vanished:
   L8: {rule: [p0-mode-a]}
   L9: {rule: [p0-mode-b]}
   L10: {rule: [p0-mode-b]}
-  L11: narrative
+  L11: {rule: [p0-mode-b]}
   L12: {rule: [p0-mode-c]}
   L13: {rule: [p0-state-mode]}
   L14: {rule: [p0-mode-a]}
@@ -467,7 +480,7 @@ vanished:
   L29: {rule: [p1-design]}
   L30: {rule: [p1-design]}
   L31: {rule: [p1-design]}
-  L32: narrative
+  L32: {rule: [p1-design]}
   L33: {rule: [p1-reality]}
   L34: {rule: [p1-reality]}
   L35: {rule: [p1-reality]}
