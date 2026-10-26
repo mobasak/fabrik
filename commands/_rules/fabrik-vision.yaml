@@ -145,7 +145,7 @@
   "text":
   - "A market-facing vision — either mode, either"
   - "either mode, either path — also reads"
-  - "reads `docs/reference/rivals/<market>.md` (Phase 2's market-facing gate);"
+  - "also reads `docs/reference/rivals/<market>.md` (the rivals dossier — Phase 2's market-facing gate, not scoped to one path)"
   - "an internal tool or a non-market-facing Retrofit delta is exempt"
 - "id": "v-L25"
   "file": "render"
@@ -244,7 +244,7 @@
   "baseline": "Epic files come later, from `/fabrik-epics`"
   "class": "prose"
   "text":
-  - "`/fabrik-epics` is the stated successor — from the persisted file OR the conversation, it CUTS the confirmed decomposition into typed epic files"
+  - "Epic files come later, from `/fabrik-epics`"
 - "id": "v-L46"
   "file": "render"
   "baseline": "EXISTING: WHAT EXISTS (project snapshot), WHAT'S LOCKED (decisions that cannot change — data exists, users paying, APIs live), WHERE IT DEVIATES from current scaffold standards/rule packs (and per-gap fix-now/fix-later/accept-as-legacy), WHAT TO BUILD NEXT (delta only, not re-planning), WHICH SERVICES the delta needs (per current ruleset, inheriting locked decisions)"
@@ -535,7 +535,7 @@
   "text":
   - "| III | Config | Config in env vars. Litmus test: *\"could the codebase be open-sourced at any moment without compromising credentials?\"* Rejects grouped named environments"
   - "env vars are granular + orthogonal. | `os.getenv(\"KEY\", \"default\")`;"
-  - "zero secrets in code. ⚠️ No `config/production.yml`-style env group."
+  - "zero secrets in code. ⚠️ No `config/production.yml`-style env group — 12F names that anti-pattern explicitly."
 - "id": "v-L97"
   "file": "render"
   "baseline": "| IV | Backing services | Attached resources, swappable by config alone — *\"no distinction between local and third party services.\"* | `DATABASE_URL` / `REDIS_URL` are config: WSL-dev ↔ `postgres-main:5432` is an env change, never a code change. |"
@@ -1154,11 +1154,9 @@
   "file": "render"
   "baseline": "Additional auto-loads: `docs/reference/fabrik-cli-reference.md` — needed to interpret `fabrik validate` and `fabrik audit-registrars` output (present/missing/drift/n/a/override/unknown)"
   "class": "prose"
-  "clauses":
-    !!int "2": "narrative"
   "text":
-  - "Additional auto-loads: `docs/reference/fabrik-cli-reference.md`"
-  "current": "Additional auto-loads: `docs/reference/fabrik-cli-reference.md`"
+  - "Additional auto-loads: `docs/reference/fabrik-cli-reference.md` — needed to interpret"
+  - "needed to interpret `fabrik validate` and `fabrik audit-registrars` output (present/missing/drift/n/a/override/unknown)"
 - "id": "v-L197"
   "file": "render"
   "baseline": "Reads from the project itself: `project.yaml` (scaffold type, ports, shape flags) · `specs/services/*.yaml` (deployed services, shape blocks, registrars) · `compose.yaml` / `Dockerfile` (infrastructure, base images, services) · `.env.example` (environment variables, external service dependencies) · `src/` or `app/` (codebase structure, modules, API routes) · database schema (migrations or models) · `docs/` (existing architecture docs, preplans, FINANCIALS.md — incl"
@@ -1263,7 +1261,7 @@
   "baseline": "| `core/10-python.md`, `core/12-node.md`, `core/20-typescript.md` | Language-level conventions, project layout |"
   "class": "prose"
   "text":
-  - "`core/10-python.md`, `core/12-node.md`, `core/20-typescript.md` language conventions, layout;"
+  - "`core/10-python.md`, `core/12-node.md`, `core/20-typescript.md` language-level conventions, project layout"
 - "id": "v-L216"
   "file": "render"
   "baseline": "| `core/15-api-contracts.md` | API request/response contracts, error shapes |"
@@ -3982,6 +3980,18 @@
   "class": "prose"
   "text":
   - "owner describes the idea in conversation"
+- "id": "v-L40"
+  "file": "render"
+  "baseline": "Output. NEW mode → Vision Summary (exact structure, Phase 4)"
+  "class": "prose"
+  "text":
+  - "Output. NEW mode → Vision Summary (exact structure, Phase 4)"
+- "id": "v-L41"
+  "file": "render"
+  "baseline": "EXISTING mode → same shape + `## Locked Decisions` + `## Compliance Report` (so `/fabrik-epics` consumes both modes identically; the extras drive Retrofit epic emission there)"
+  "class": "prose"
+  "text":
+  - "EXISTING mode → same shape + `## Locked Decisions` + `## Compliance Report` (so `/fabrik-epics` consumes both modes identically; the extras drive Retrofit epic emission there)"
 "vanished":
   "L2":
     "rule":
@@ -4004,7 +4014,8 @@
     "duplicate-of": "v-L332"
   "L38": "narrative"
   "L40":
-    "duplicate-of": "v-L520"
+    "rule":
+    - "v-L40"
   "L41":
     "duplicate-of": "v-L13"
   "L43":
