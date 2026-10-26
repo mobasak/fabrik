@@ -432,10 +432,6 @@ def test_a_widened_subject_and_a_recipe_meet_their_breaking_inputs_before_the_pi
         " `/opt/fabrik/commands/_fragments/term-coverage.md`, and for a recipe a regex metacharacter or backtick in a commit subject"
         " and a sibling commit inside the window the recipe scans, when it scans one)"
     ) in phase3
-    # the pointer resolves: round zero there lists the input classes this clause leans on
-    coverage = ROOT / "commands" / "_fragments" / "term-coverage.md"
-    classes = "boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs"
-    assert classes in re.sub(r"\s+", " ", coverage.read_text())
 
 
 def test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers() -> None:

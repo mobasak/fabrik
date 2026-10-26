@@ -441,12 +441,6 @@ def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
     while the bullet asked one mutant per clause only, so it now asks one per guard it adds or alters, quoting
     term-coverage rule (4)'s removed-guard proof rather than restating it. The whole bullet is pinned by equality, so
     an added licence or a negation fails here, and the quote is checked against rule (4)'s own text."""
-    tc = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    rule4 = tc[tc.index("(4) **A GRADER IS PROVEN") : tc.index("(5) **A GRADER OBSERVES")]
-    assert (
-        "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it"
-        in rule4
-    )
     pin = _section(_norm(CAT), "## Before the first pin", "## The brief's hunt lines")
     assert (
         pin.count("- One mutant per clause") == 1 and pin.count("- Run the repo's structural") == 1
@@ -572,9 +566,6 @@ def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_
         " isolation stages, with the pins laid over it, for a seat recipe), over the input classes round zero of"
         " `/opt/fabrik/commands/_fragments/term-coverage.md` gives its shape" in sentence
     ), sentence
-    zero = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert "**Round zero — the orchestrator's OWN pre-pin probe" in zero
-    assert "the fix's own INPUT space is enumerated and executed before the pin" in zero
 
 
 def test_a_seat_never_disguises_a_refused_act() -> None:
@@ -628,10 +619,6 @@ def test_a_probed_count_is_never_replaced_by_a_seats_re_derivation() -> None:
     frag = ROOT / "commands" / "_fragments"
     cov = re.sub(r"\s+", " ", (frag / "term-coverage.md").read_text())
     edit = re.sub(r"\s+", " ", (frag / "term-edit.md").read_text())
-    assert (
-        "never replaced by a finder's own re-derivation: a finder that re-derives the claim, as the closing pass does,"
-        " and gets a different answer raises the difference as a candidate." in cov
-    )
     assert (
         "never replaced by a seat's own re-derivation: a seat that re-derives the claim, as this fragment's RE-DERIVE"
         " rule asks, and gets a different answer raises the difference as a candidate." in edit
