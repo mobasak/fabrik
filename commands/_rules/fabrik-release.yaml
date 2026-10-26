@@ -32,12 +32,6 @@ entries:
   current: '`.env.example` complete vs the code''s `os.getenv` calls; `docs/DEPLOYMENT.md` current'
   text:
   - '`.env.example` complete vs the code''s `os.getenv` calls; `docs/DEPLOYMENT.md` current'
-- id: u-L57
-  file: render
-  baseline: Continue with steps 2-5
-  current: Continue with steps 2-5
-  text:
-  - Continue with steps 2-5
 - id: u-L75
   file: render
   baseline: Include the printed plan in the report
@@ -74,30 +68,25 @@ entries:
   current: 'You are done when EVERY checklist item has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
   text:
   - 'You are done when EVERY checklist item has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
-- id: rel-no-evidence-no-pass
-  file: render
-  baseline: A checklist item without evidence is not PASS
-  current: An item without evidence is not PASS
-  text:
-  - An item without evidence is not PASS
 - id: rel-ending-at-handoff-is-success
   file: render
   baseline: You never perform the Gate-2 action yourself; ending at the handoff IS success, not an incomplete run
-  current: 'You are done when EVERY checklist item has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
+  current: You never perform the Gate-2 action yourself; ending at the handoff IS success, not an incomplete run
   text:
-  - 'You are done when EVERY checklist item has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
+  - You never perform the Gate-2 action yourself
+  - ending at the handoff IS success, not an incomplete run
 - id: rel-context-never-a-reason
   file: render
   baseline: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
   current: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going. If >3 items are BLOCKED on the same root cause, stop early and report it'
   text:
-  - 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going. If >3 items are BLOCKED on the same root cause, stop early and report it'
+  - 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
 - id: rel-blocked-same-root-cause
   file: render
   baseline: If >3 items are BLOCKED on the same root cause, stop early and report that cause
   current: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going. If >3 items are BLOCKED on the same root cause, stop early and report it'
   text:
-  - 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going. If >3 items are BLOCKED on the same root cause, stop early and report it'
+  - If >3 items are BLOCKED on the same root cause, stop early and report it
 - id: rel-cert-precondition-lead
   file: render
   baseline: 'No file matching `docs/development/reviews/*-{user,service}-test-*.md` for this project is itself BLOCKED (run the gauntlet first — every scaffold type owes one: UI-bearing types a user-test, headless types a service-test, CLAUDE.md § Pipeline item 2) — a `reviews/` directory holding other review types is not a certification report'
@@ -109,9 +98,9 @@ entries:
 - id: rel-read-newest-handoff
   file: render
   baseline: Otherwise read the newest one
-  current: ''
+  current: Otherwise read the newest one
   text:
-  - not a certification report. Read the newest.
+  - Otherwise read the newest one
 - id: rel-open-p0-p1-blocked
   file: render
   baseline: 'An open P0/P1 row (or any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator) is a BLOCKED release — report it as `BLOCKED: certification handoff open — <finding> → <route>` and stop'
@@ -127,18 +116,17 @@ entries:
 - id: rel-severity-binds-on-honour
   file: render
   baseline: 'Grader honesty: the HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded (`check_review_coverage.py`); the severity-tiered blocking HERE is read by no check — it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep'
-  current: The HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour
+  current: The HANDOFF grammar and NOT-QUIET↔RESUME pairing are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows carry the exact grammar
   text:
-  - The HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour
+  - The HANDOFF grammar and NOT-QUIET↔RESUME pairing are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows carry the exact grammar
 - id: rel-waiver-is-a-received-decision
   file: render
   baseline: 'The operator may waive a specific row explicitly this turn; you may never waive one — and a waiver granted is a RECEIVED decision: mint its `docs/DECISIONS.md` row and COMMIT AND PUSH it now, its own commit, BEFORE `release_cut.py` runs (Phase 0''s own precondition demands `@{u}..HEAD` empty — an unpushed waiver commit would block the release on its own mandated act) — the cut''s hardcoded `-- CHANGELOG.md` pathspec would strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted risk must outlive this chat'
   current: ''
   text:
   - The operator may waive a specific row explicitly this turn; you may never waive one
-  - 'mint its `docs/DECISIONS.md` row
-
-    and COMMIT AND PUSH it now, its own commit, BEFORE `release_cut.py` runs'
+  - 'A waiver granted is a RECEIVED decision: mint its `docs/DECISIONS.md` row and COMMIT AND PUSH it now, its own commit, BEFORE `release_cut.py` runs (Phase 0 demands `@{u}..HEAD` empty)'
+  - the cut's hardcoded `-- CHANGELOG.md` pathspec would strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted risk must outlive this chat
 - id: rel-surface-map
   file: render
   baseline: 'Map: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (office add-ins ship a manifest + hosted taskpane: the store checklist plus the VPS preconditions for the hosted half) · `desktop-app` → DESKTOP · `wordpress` → out of scope here: WordPress is out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
@@ -154,15 +142,9 @@ entries:
 - id: rel-unmapped-type-inferred
   file: render
   baseline: A REGISTERED type this map omits → INFER the surface from its artifacts and SAY SO (never fall through silently — the registry outgrows hand-maintained maps, proven twice)
-  current: 'A REGISTERED type this map omits: INFER the surface from its artifacts and SAY SO (never fall through silently — the registry outgrows hand-maintained maps)'
+  current: 'A REGISTERED type this map omits: INFER the surface from its artifacts and SAY SO (never fall through silently — the registry outgrows hand-maintained maps, proven twice)'
   text:
-  - 'A REGISTERED type this map omits: INFER the surface from its artifacts and SAY SO (never fall through silently — the registry outgrows hand-maintained maps)'
-- id: rel-argument-overrides
-  file: render
-  baseline: An argument overrides
-  current: ''
-  text:
-  - INFER the surface from its artifacts and SAY SO (never fall through silently — the registry outgrows hand-maintained maps). An argument overrides.
+  - 'A REGISTERED type this map omits: INFER the surface from its artifacts and SAY SO (never fall through silently — the registry outgrows hand-maintained maps, proven twice)'
 - id: rel-universal-preconditions-real-commands
   file: render
   baseline: 'Universal preconditions (all surfaces, verify with real commands, not memory):'
@@ -180,51 +162,65 @@ entries:
   baseline: 'Working tree clean for this project''s scope; work committed AND pushed (`git status --short`, `git log @{u}..HEAD` empty — upstream-relative, never a hardcoded `origin/master`: the fleet splits across `master`/`main`/fork-convention branches and the hardcoded form errors on half of it; no upstream configured at all — the fleet has no-remote repos, D-026 — → `git log HEAD --not --remotes` (THIS branch only; `--branches` would catch a sibling session''s parked branches on a shared tree) AND — only when `git remote` is actually EMPTY — state in the report that nothing is off-box-protected AND treat the precondition as UNSATISFIABLE: a no-remote repo cannot meet the push law (the fallback returns the whole history — that is the true answer, not "the probe ran"), so the release is BLOCKED unless the operator waives it this turn — the waiver row then commits LOCALLY (the PUSH half of the waiver clause is likewise impossible there, and `release_cut.py` runs with `--no-push`)'
   current: ''
   text:
-  - '`git log @{u}..HEAD` empty (never a hardcoded `origin/master`)'
-  - "With no upstream use `git log HEAD --not --remotes` (THIS branch only; `--branches` would catch a sibling session's parked branches) AND — only when `git remote` is actually EMPTY (no-remote repos exist, D-026) — state that\n     nothing is off-box-protected"
-  - "BLOCKED unless the operator waives it this turn; the waiver row\n     then commits LOCALLY and `release_cut.py` runs with `--no-push`"
+  - Tree clean for this project's scope
+  - work committed AND pushed (`git status --short`, `git log @{u}..HEAD` empty)
+  - 'upstream-relative, never a hardcoded `origin/master`: the fleet splits across `master`/`main`/fork-convention branches and the hardcoded form errors on half of it'
+  - With no upstream configured use `git log HEAD --not --remotes` (THIS branch only; `--branches` would catch a sibling session's parked branches on a shared tree)
+  - only when `git remote` is actually EMPTY
+  - state in the report that nothing is off-box-protected, treating the precondition as UNSATISFIABLE, so BLOCKED unless the operator waives it this turn
+  - the waiver row then commits LOCALLY (the PUSH half is impossible there) and `release_cut.py` runs with `--no-push`
+  clauses:
+    5: narrative
 - id: rel-remoted-repo-lacking-tracking-ref
   file: render
   baseline: A remoted repo whose branch merely lacks a tracking ref just lists its genuinely-unpushed commits, no such statement
-  current: A remoted repo merely lacking a tracking ref just lists its genuinely-unpushed commits, no such statement
+  current: A remoted repo whose branch merely lacks a tracking ref just lists its genuinely-unpushed commits, no such statement
   text:
-  - A remoted repo merely lacking a tracking ref just lists its genuinely-unpushed commits, no such statement
+  - A remoted repo whose branch merely lacks a tracking ref just lists its genuinely-unpushed commits, no such statement
 - id: rel-upatream-fatal-not-nothing-unpushed
   file: render
   baseline: Reading the `@{u}` fatal as "nothing unpushed" is the fail-open this clause kills) — the VPS pulls from the remote, and a store zip must be reproducible from a SHA
-  current: The `@{u}` fatal is never "nothing unpushed" — the VPS pulls from the remote, and a store zip must be reproducible from a SHA
+  current: Reading the `@{u}` fatal as "nothing unpushed" is the fail-open — the VPS pulls from the remote, and a store zip must be reproducible from a SHA
   text:
-  - The `@{u}` fatal is never "nothing unpushed" — the VPS pulls from the remote, and a store zip must be reproducible from a SHA
+  - Reading the `@{u}` fatal as "nothing unpushed" is the fail-open
+  - the VPS pulls from the remote, and a store zip must be reproducible from a SHA
 - id: rel-docs-truth-dated
   file: render
   baseline: 'Docs truth is dated, not assumed: every registry-obligated key doc for this type (`FEATURES.md` always; `SERVICES`/`RESILIENCE`/`CONFIGURATION`/`DEPLOYMENT` for deployed types) has its last commit no older than the last feature-bearing code commit (`git log -1 --format=%ci -- <doc>` vs `-- src/ app/ web/ lib/ scripts/` — the same code-path set `fleet_doc_audit.py` probes), AND `python scripts/docs_updater.py --check` is green this run'
-  current: 'Docs truth is dated, not assumed: every registry-obligated key doc for this type (`FEATURES.md` always; `SERVICES`/`RESILIENCE`/ `CONFIGURATION`/`DEPLOYMENT` for deployed types) has its last commit no older than the last feature-bearing code commit (`git log -1 --format=%ci -- <doc>` vs `-- src/ app/ web/ lib/ scripts/`, the same code-path set `fleet_doc_audit.py` probes), AND `python scripts/docs_updater.py --check` is green this run'
+  current: 'Docs truth is dated, not assumed: every registry-obligated key doc for this type (`FEATURES.md` always; `SERVICES`/`RESILIENCE`/`CONFIGURATION`/`DEPLOYMENT` for deployed types) has its last commit no older than the last feature-bearing code commit (`git log -1 --format=%ci -- <doc>` vs `-- src/ app/ web/ lib/ scripts/`, the path set `fleet_doc_audit.py` probes), AND `python scripts/docs_updater.py --check` is green this run'
   text:
-  - 'Docs truth is dated, not assumed: every registry-obligated key doc for this type (`FEATURES.md` always; `SERVICES`/`RESILIENCE`/ `CONFIGURATION`/`DEPLOYMENT` for deployed types) has its last commit no older than the last feature-bearing code commit (`git log -1 --format=%ci -- <doc>` vs `-- src/ app/ web/ lib/ scripts/`, the same code-path set `fleet_doc_audit.py` probes), AND `python scripts/docs_updater.py --check` is green this run'
+  - 'Docs truth is dated, not assumed: every registry-obligated key doc for this type (`FEATURES.md` always; `SERVICES`/`RESILIENCE`/`CONFIGURATION`/`DEPLOYMENT` for deployed types) has its last commit no older than the last feature-bearing code commit (`git log -1 --format=%ci -- <doc>` vs `-- src/ app/ web/ lib/ scripts/`, the path set `fleet_doc_audit.py` probes), AND `python scripts/docs_updater.py --check` is green this run'
 - id: rel-docs-updater-measures-header
   file: render
   baseline: 'The two measure different things: the git check compares each key doc''s last commit with the last code commit; `docs_updater.py --check` reads the `**Last Updated:**` header of only the docs in its `MANUAL_DOCS` list (of these key docs, `CONFIGURATION.md`) and reports one older than 90 days — so they can disagree (a doc edited without bumping its header; an untouched doc past 90 days while the code is quiet)'
-  current: The git check compares each key doc's last commit with the last code commit; `docs_updater.py --check` reads the `**Last Updated:**` header of only the docs in its `MANUAL_DOCS` list (of these key docs, `CONFIGURATION.md`) and reports one older than 90 days, so the two can disagree
+  current: 'The two measure different things: the git check compares each key doc''s last commit; `docs_updater.py --check` reads the `**Last Updated:**` header of only the docs in its `MANUAL_DOCS` list (of these key docs, `CONFIGURATION.md`) and reports one older than 90 days'
   text:
-  - The git check compares each key doc's last commit with the last code commit; `docs_updater.py --check` reads the `**Last Updated:**` header of only the docs in its `MANUAL_DOCS` list (of these key docs, `CONFIGURATION.md`) and reports one older than 90 days, so the two can disagree
+  - 'The two measure different things: the git check compares each key doc''s last commit; `docs_updater.py --check` reads the `**Last Updated:**` header of only the docs in its `MANUAL_DOCS` list (of these key docs, `CONFIGURATION.md`) and reports one older than 90 days'
+  clauses:
+    3: narrative
 - id: rel-docs-tiebreak
   file: render
   baseline: 'When the git check finds a doc older than the code but the code commits since touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and that doc''s BLOCKED below lifts; otherwise it stands'
-  current: 'When later code commits touched nothing the doc describes, print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  current: ''
   text:
-  - 'When later code commits touched nothing the doc describes, print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  - 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts'
+  - 'Otherwise it stands: a doc older than the code it describes is BLOCKED: docs behind code'
 - id: rel-stale-header-no-date-bump
   file: render
   baseline: A stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone
-  current: 'When later code commits touched nothing the doc describes, print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  current: 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
   text:
-  - 'When later code commits touched nothing the doc describes, print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  - a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone
 - id: rel-docs-behind-code-blocked
   file: render
   baseline: 'A key doc older than the code it describes = BLOCKED: docs behind code — run the doc''s converge command first: `/fabrik-features` for `FEATURES.md`, `/fabrik-doc-converge <doc>` for SERVICES/RESILIENCE/CONFIGURATION/DEPLOYMENT (or `/fabrik-docs-review` for a whole-tree pass) — touch-on-change proved presence during development; the release gate demands dated truth'
-  current: 'When the git check finds a doc older than the code and the tiebreak does not apply, it stands: BLOCKED: docs behind code — run the doc''s converge command first: `/fabrik-features` for `FEATURES.md`, `/fabrik-doc-converge <doc>` for the rest (or `/fabrik-docs-review` for a whole-tree pass)'
+  current: ''
   text:
-  - 'When the git check finds a doc older than the code and the tiebreak does not apply, it stands: BLOCKED: docs behind code — run the doc''s converge command first: `/fabrik-features` for `FEATURES.md`, `/fabrik-doc-converge <doc>` for the rest (or `/fabrik-docs-review` for a whole-tree pass)'
+  - 'a doc older than the code it describes is BLOCKED: docs behind code'
+  - 'run the doc''s converge command first**: `/fabrik-features` for `FEATURES.md`, `/fabrik-doc-converge <doc>` for SERVICES/RESILIENCE/CONFIGURATION/DEPLOYMENT (or `/fabrik-docs-review` for a whole-tree pass)'
+  clauses:
+    3: narrative
+    4: narrative
 - id: rel-question-bar
   file: render
   baseline: 'Question bar: resolve everything from the repo/rules/docs first; ask the operator only for a genuine product decision (e.g. staged-rollout percentage)'
@@ -255,24 +251,34 @@ entries:
   current: A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
   text:
   - A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
+- id: rel-parity-honour-bound
+  file: render
+  baseline: 'Mirrors the certification-handoff precondition above: same grammar, same honour-bound binding — no executable check grades this header today (a deliberate, recorded deferral in `docs/STRATEGIC_BACKLOG.md`)'
+  current: ''
+  text:
+  - 'Mirrors the certification-handoff precondition above: same grammar, same honour-bound binding'
+  clauses:
+    2: narrative
 - id: rel-shape-honest
   file: render
   baseline: 'Spec/shape honest: read `specs/services/<id>.yaml` `shape:` and verify each flag against the code (DB call ⇒ `needs_database`, `/metrics` ⇒ `exposes_metrics`, …) — a lying shape is a silently broken deploy'
-  current: Read `specs/services/<id>.yaml` `shape:` and verify each flag against the code (DB call ⇒ `needs_database`, `/metrics` ⇒ `exposes_metrics`, …)
+  current: 'Spec/shape honest: read `specs/services/<id>.yaml` `shape:` and verify each flag against the code (DB call ⇒ `needs_database`, `/metrics` ⇒ `exposes_metrics`, …)'
   text:
-  - Read `specs/services/<id>.yaml` `shape:` and verify each flag against the code
+  - 'Spec/shape honest: read `specs/services/<id>.yaml` `shape:` and verify each flag against the code (DB call ⇒ `needs_database`, `/metrics` ⇒ `exposes_metrics`, …)'
+  clauses:
+    2: narrative
 - id: rel-compose-sane
   file: render
   baseline: 'Compose sane (if the project carries one): every service has `deploy.resources.limits.memory`; no host `ports:`; `fabrik` network; no `localhost` DB/Redis (`postgres-main:5432` / `redis-main:6379`)'
-  current: 'Compose (if present): every service has `deploy.resources.limits.memory`; no host `ports:`; `fabrik` network; no `localhost` DB/Redis (`postgres-main:5432` / `redis-main:6379`)'
+  current: 'Compose sane (if present): every service has `deploy.resources.limits.memory`; no host `ports:`; `fabrik` network; no `localhost` DB/Redis (`postgres-main:5432` / `redis-main:6379`)'
   text:
-  - every service has `deploy.resources.limits.memory`; no host `ports:`; `fabrik` network; no `localhost` DB/Redis (`postgres-main:5432` / `redis-main:6379`)
+  - 'Compose sane (if present): every service has `deploy.resources.limits.memory`; no host `ports:`; `fabrik` network; no `localhost` DB/Redis (`postgres-main:5432` / `redis-main:6379`)'
 - id: rel-vps-handoff
   file: render
   baseline: 'Gate-2 handoff: print — *"Release-ready at `<SHA>`'
-  current: ''
+  current: 'Gate-2 handoff: print *"Release-ready at `<SHA>`'
   text:
-  - "**Gate-2 handoff:** print *\"Release-ready at `<SHA>`. Operator: dispatch `/fabrik-deploy-plan` (the deploy triad), or run\n   `fabrik apply` directly (the manual path), from `/opt/fabrik`"
+  - 'Gate-2 handoff: print *"Release-ready at `<SHA>`'
 - id: rel-vps-handoff-no-self-deploy
   file: render
   baseline: 'Operator: dispatch `/fabrik-deploy-plan` (the deploy triad) — or run `fabrik apply` directly (the manual path) — from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
@@ -282,9 +288,9 @@ entries:
 - id: rel-mobile-ring
   file: render
   baseline: 'Decide the ring from the rules: store/team → EAS Build (`eas.json` profiles `development|preview| production`, cloud build — never assume a local Android SDK); sideload/solo → local `expo prebuild` + `./gradlew assembleRelease`'
-  current: 'Decide the ring from the rules: store/team → EAS Build (`eas.json` profiles `development|preview|production`, cloud build, never assume a local Android SDK); sideload/solo → local `expo prebuild` + `./gradlew assembleRelease`'
+  current: 'Decide the ring from the rules: store/team → EAS Build (`eas.json` profiles `development|preview| production`, cloud build, never assume a local Android SDK); sideload/solo → local `expo prebuild` + `./gradlew assembleRelease`'
   text:
-  - 'Decide the ring from the rules: store/team → EAS Build (`eas.json` profiles `development|preview|production`, cloud build, never assume a local Android SDK); sideload/solo → local `expo prebuild` + `./gradlew assembleRelease`'
+  - 'Decide the ring from the rules: store/team → EAS Build (`eas.json` profiles `development|preview| production`, cloud build, never assume a local Android SDK); sideload/solo → local `expo prebuild` + `./gradlew assembleRelease`'
 - id: rel-mobile-checklist
   file: render
   baseline: Run `.windsurf/rules/mobile-app/89-mobile-launch-checklist.md` — every gate → PASS-with-evidence/BLOCKED
@@ -294,13 +300,13 @@ entries:
 - id: rel-mobile-ota-policy
   file: render
   baseline: 'Version + OTA policy: native change ⇒ store build; JS-only fix ⇒ OTA (EAS Update) per `mobile-app/00-domain-mobile-app.md` § 8 "Distribution, Updates & API Versioning"'
-  current: Native change ⇒ store build; JS-only fix ⇒ OTA (EAS Update) per `mobile-app/00-domain-mobile-app.md` § 8. Verify the version bump and changelog
+  current: 'Version + OTA policy: native change ⇒ store build; JS-only fix ⇒ OTA (EAS Update) per `mobile-app/00-domain-mobile-app.md` § 8 "Distribution, Updates & API Versioning"'
   text:
-  - Native change ⇒ store build; JS-only fix ⇒ OTA (EAS Update) per `mobile-app/00-domain-mobile-app.md` § 8
+  - 'Version + OTA policy: native change ⇒ store build; JS-only fix ⇒ OTA (EAS Update) per `mobile-app/00-domain-mobile-app.md` § 8 "Distribution, Updates & API Versioning"'
 - id: rel-mobile-version-bump
   file: render
   baseline: Verify the version bump and changelog
-  current: Native change ⇒ store build; JS-only fix ⇒ OTA (EAS Update) per `mobile-app/00-domain-mobile-app.md` § 8. Verify the version bump and changelog
+  current: Verify the version bump and changelog
   text:
   - Verify the version bump and changelog
 - id: rel-mobile-build-background
@@ -318,27 +324,29 @@ entries:
 - id: rel-extension-ring-first
   file: render
   baseline: 'Decide the DISTRIBUTION RING first, exactly as the MOBILE path does — steps 2-5 below apply ONLY to the listable ring. `chrome-extension` covers both, and the unlistable case is not exotic: automation, scraping, internal enterprise tooling, and anything shipping remote code all hit it permanently, not temporarily'
-  current: Decide and state the DISTRIBUTION RING first, exactly as the MOBILE path does, with its evidence; steps 2-5 apply ONLY to the listable ring. `chrome-extension` covers both, and the unlistable case is not exotic
+  current: ''
   text:
-  - Decide and state the DISTRIBUTION RING first, exactly as the MOBILE path does, with its evidence; steps 2-5 apply ONLY to the listable ring. `chrome-extension` covers both, and the unlistable case is not exotic
+  - Decide and state the DISTRIBUTION RING first, exactly as the MOBILE path does, with its evidence
+  - steps 2-5 apply ONLY to the listable ring. `chrome-extension` covers both
 - id: rel-extension-listable
   file: render
   baseline: LISTABLE (Chrome Web Store) — the extension's behaviour is within Web Store policy
-  current: 'LISTABLE (Chrome Web Store): within Web Store policy'
+  current: 'LISTABLE (Chrome Web Store): the extension''s behaviour is within Web Store policy'
   text:
-  - 'LISTABLE (Chrome Web Store): within Web Store policy'
+  - 'LISTABLE (Chrome Web Store): the extension''s behaviour is within Web Store policy'
 - id: rel-extension-unlistable
   file: render
   baseline: UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, or enterprise force-install) — the listing is not "not yet done", it is permanently unavailable
-  current: 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): SKIP steps 2-5 entirely (they fabricate answers for a submission that will never happen)'
+  current: 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): the listing is permanently unavailable'
   text:
-  - 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): SKIP steps 2-5 entirely (they fabricate answers for a submission that will never happen)'
+  - 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): the listing is permanently unavailable'
 - id: rel-extension-unlistable-skip
   file: render
   baseline: SKIP steps 2-5 entirely. Doing them anyway fabricates four privacy-practices answers, a listing-asset check, and a "$5 fee, review takes days-to-weeks" hand-off for a submission that will never happen — and step 3's own rule ("never invent a data practice") is violated by the step that compels inventing the artifact those practices describe (job-agent, 2026-08-28, on a LinkedIn-automation extension)
-  current: 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): SKIP steps 2-5 entirely (they fabricate answers for a submission that will never happen)'
+  current: ''
   text:
-  - 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): SKIP steps 2-5 entirely (they fabricate answers for a submission that will never happen)'
+  - SKIP steps 2-5 entirely. Doing them anyway fabricates four answers for a submission that will never happen
+  - step 3's own rule ("never invent a data practice") is violated by the step that compels inventing the artifact those practices describe (job-agent, 2026-08-28, on a LinkedIn-automation extension)
 - id: rel-extension-unlistable-record-why
   file: render
   baseline: 'Instead: record WHY it is unlistable in `docs/DEPLOYMENT.md § distribution` citing the policy it conflicts with, ship the versioned zip + a load-unpacked / force-install install note, and hand Gate 2 that — never a Dashboard submission'
@@ -360,10 +368,10 @@ entries:
 - id: rel-extension-privacy-answers
   file: render
   baseline: 'Draft the four privacy-practices answers (single purpose, per-permission justifications, data-use certification, privacy-policy URL) into `docs/DEPLOYMENT.md § store listing` — checklist § 4. Never invent a data practice: derive each from the code you can cite'
-  current: ''
+  current: 'Draft the four privacy-practices answers (single purpose, per-permission justifications, data-use certification, privacy-policy URL) into `docs/DEPLOYMENT.md § store listing` — checklist § 4. Never invent a data practice: derive each from the code you can cite'
   text:
   - Draft the four privacy-practices answers (single purpose, per-permission justifications, data-use certification, privacy-policy URL) into `docs/DEPLOYMENT.md § store listing`
-  - "Never invent a data practice: derive each from the code\n   you can cite"
+  - 'checklist § 4. Never invent a data practice: derive each from the code you can cite'
 - id: rel-extension-full-checklist
   file: render
   baseline: Run the full `89-extension-launch-checklist.md` — every gate → PASS-with-evidence/BLOCKED
@@ -393,39 +401,46 @@ entries:
   baseline: 'When every checklist item is PASS, cut the release version — this is what puts real versions next to the repo on GitHub:'
   current: When every checklist item is PASS, cut the release version; a BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict
   text:
-  - When every checklist item is PASS, cut the release version; a BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict
+  - When every checklist item is PASS, cut the release version
+  clauses:
+    2: narrative
 - id: rel-cut-blocked-no-cut
   file: render
   baseline: A BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict
   current: When every checklist item is PASS, cut the release version; a BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict
   text:
-  - When every checklist item is PASS, cut the release version; a BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict
+  - a BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict
 - id: rel-cut-dry-run
   file: render
   baseline: '`python scripts/release_cut.py --dry-run` — show the plan (current tag → next semver, derived from the `[Unreleased]` entry types: any `BREAKING` marker (uppercase — prose "breaking" doesn''t count) → major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow version)'
-  current: '`python scripts/release_cut.py --dry-run` shows the plan (current tag → next semver from the `[Unreleased]` entry types (any uppercase `BREAKING` marker → major · any Added → minor · else patch); it refuses an empty `[Unreleased]` (never cut a hollow version)'
+  current: '`python scripts/release_cut.py --dry-run` shows the plan (current tag → next semver from the `[Unreleased]` entry types: any uppercase `BREAKING` marker → major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow version)'
   text:
-  - '`python scripts/release_cut.py --dry-run` shows the plan (current tag → next semver from the `[Unreleased]` entry types (any uppercase `BREAKING` marker → major · any Added → minor · else patch); it refuses an empty `[Unreleased]` (never cut a hollow version)'
+  - '`python scripts/release_cut.py --dry-run`'
+  - 'shows the plan (current tag → next semver from the `[Unreleased]` entry types: any uppercase `BREAKING` marker → major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow version)'
 - id: rel-cut-execute
   file: render
   baseline: '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — the script''s bare `git push` dies without an upstream and its TAG push hardcodes `origin`, either way mid-cut, stranding a local tag on a graduated CHANGELOG) — graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag, creates the GitHub Release with the graduated entries as notes (`gh` missing is non-fatal: tag-only cut)'
-  current: ''
+  current: '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo or a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`) graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and creates the GitHub Release with the graduated entries as notes (`gh` missing: tag-only cut)'
   text:
-  - "`python scripts/release_cut.py --execute` graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and\n   creates the GitHub Release with the graduated entries as notes (`gh` missing: tag-only cut)"
-  - "With no upstream\n   tracking ref add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists: its bare `git push` dies\n   without an upstream and its tag push hardcodes `origin`"
+  - '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo or a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`)'
+  - 'graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and creates the GitHub Release with the graduated entries as notes (`gh` missing: tag-only cut)'
 - id: rel-cut-decision-row
   file: render
   baseline: 'The cut is decision-shaped — "built X at vY" — mint its `docs/DECISIONS.md` row and commit AND push it IMMEDIATELY AFTER the cut, before anything else — `release_cut.py --execute` has ALREADY pushed branch+tag by the time it returns, so the row rides its OWN push (it lands after the `vX.Y.Z` tag; acceptable — the ledger is master-tracked, not tag-tracked; on the waived no-remote path the cut ran `--no-push` and this row likewise COMMITS LOCALLY, no push exists to ride) (classify at mint: the cut is reversible-by-new-tag; the DEPLOY that follows is Gate 2''s decision, not yours to row)'
   current: ''
   text:
-  - "Mint the cut's `docs/DECISIONS.md` row\n   and commit AND push it IMMEDIATELY AFTER the cut, before anything else, in its own commit** (classify at mint: the cut is reversible-by-new-tag; the DEPLOY that follows is Gate 2's decision, not yours to row)"
-  - On the no-remote path the row commits LOCALLY
+  - Mint the cut's `docs/DECISIONS.md` row and commit AND push it IMMEDIATELY AFTER the cut, before anything else
+  - Gate 2's decision, not yours to row). `release_cut.py --execute` ALREADY pushed branch+tag by the time it returns, so the row rides its OWN push (after the `vX.Y.Z` tag); on the no-remote path the cut ran `--no-push` and the row COMMITS LOCALLY
+  clauses:
+    1: narrative
+    2: narrative
 - id: rel-cut-stages-only-changelog
   file: render
   baseline: 'Adjacent-commit, not same-commit, is deliberate here: `release_cut.py`''s commit stages ONLY `CHANGELOG.md` by hardcoded pathspec — writing the row first would silently strand it'
-  current: 'Mint the cut''s `docs/DECISIONS.md` row and commit AND push it IMMEDIATELY AFTER the cut, before anything else, in its own commit (classify at mint: the cut is reversible-by-new-tag; the DEPLOY that follows is Gate 2''s decision, not yours to row): `release_cut.py` stages ONLY `CHANGELOG.md` by hardcoded pathspec, so a row written first is stranded'
+  current: 'Adjacent-commit, not same-commit, is deliberate: `release_cut.py` stages ONLY `CHANGELOG.md` by hardcoded pathspec, so writing the row first would silently strand it'
   text:
-  - 'Mint the cut''s `docs/DECISIONS.md` row and commit AND push it IMMEDIATELY AFTER the cut, before anything else, in its own commit (classify at mint: the cut is reversible-by-new-tag; the DEPLOY that follows is Gate 2''s decision, not yours to row): `release_cut.py` stages ONLY `CHANGELOG.md` by hardcoded pathspec, so a row written first is stranded'
+  - 'Adjacent-commit, not same-commit, is deliberate: `release_cut.py` stages ONLY `CHANGELOG.md` by hardcoded pathspec'
+  - writing the row first would silently strand it
 - id: rel-cut-one-identity
   file: render
   baseline: 'Surfaces with an artifact-embedded version reconcile, never fork: extension (`manifest.json` version) and mobile (app version / EAS) pass it explicitly — `--execute --version <that version>` — so the tag, the Release, and the store artifact carry ONE identity; the checklist''s own "version bumped" item is the source'
@@ -444,6 +459,8 @@ entries:
   current: 'Deploy stays Gate 2 (the tag names what the operator''s `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
   text:
   - 'Deploy stays Gate 2 (the tag names what the operator''s `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
+  clauses:
+    1: narrative
 vanished:
   L1:
     rule:
@@ -452,8 +469,7 @@ vanished:
     rule:
     - rel-termination-verdicts
   L5:
-    rule:
-    - rel-no-evidence-no-pass
+    duplicate-of: rel-termination-verdicts
   L6:
     rule:
     - rel-ending-at-handoff-is-success
@@ -538,7 +554,7 @@ vanished:
     - rel-parity-stale-version-warn
   L41:
     rule:
-    - rel-parity-stale-version-warn
+    - rel-parity-honour-bound
   L42:
     rule:
     - rel-shape-honest
@@ -639,3 +655,5 @@ vanished:
   L81:
     rule:
     - rel-deploy-stays-gate-2
+  L57:
+    duplicate-of: rel-extension-ring-first
