@@ -303,10 +303,8 @@ entries:
 - id: r-4
   baseline: 'HARD GATE: no plan and no implementation build against a contract that is still `DRAFT`. The contract must reach `FROZEN` (the closing round of its Termination contract — `confirmed: 0`, md5 unchanged) before `/fabrik-plan-after-chat` consumes it — a plan built on a half-agreed field list is the exact drift this command exists to prevent'
   class: ban
-  clauses:
-    2: narrative
   text:
-  - 'HARD GATE: no plan and no implementation build against a contract that is still `DRAFT`. The contract must reach `FROZEN` (the closing round of its Termination contract — `confirmed: 0`, md5 unchanged) before `/fabrik-plan-after-chat` consumes it'
+  - 'HARD GATE: no plan and no implementation build against a contract that is still `DRAFT`. The contract must reach `FROZEN` (the closing round of its Termination contract — `confirmed: 0`, md5 unchanged) before `/fabrik-plan-after-chat` consumes it — a plan built on a half-agreed field list is the exact drift this command exists to prevent'
 - id: r-6
   section: '## Phase 0 — Establish MODE + scope'
   baseline: 'Detect the mode and state which one you took and why:'
@@ -381,7 +379,7 @@ entries:
   baseline: 'An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row naming the spec''s path that records the panel''s `→ both-approve` or the operator''s approving answer (a DRAFT or CONVERGED-flip row is not one) — and its § Contract deltas (the section a `Profile: delta` spec carries; a spec without one still stops) names the change: cite that row and the spec in the re-freeze''s D-row and proceed'
   class: prose
   text:
-  - 'An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds a row naming the spec''s path that records the panel''s `→ both-approve` or the operator''s approving answer (a DRAFT or CONVERGED-flip row is not one) and its § Contract deltas (the section a `Profile: delta` spec carries; a spec without one still stops) names the change: cite the row and the spec in the re-freeze''s D-row and proceed'
+  - 'An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row naming the spec''s path that records the panel''s `→ both-approve` or the operator''s approving answer (a DRAFT or CONVERGED-flip row is not one) and its § Contract deltas (the section a `Profile: delta` spec carries; a spec without one still stops) names the change: cite the row and the spec in the re-freeze''s D-row and proceed'
   pins:
   - tests/test_data_contract_recurring_rules.py::test_an_approved_spec_naming_the_delta_is_the_refreeze_confirmation
 - id: r-25
@@ -466,7 +464,7 @@ entries:
   baseline: Write `docs/data-contract.md` to exactly the shape of the seeded template — the stub was scaffolded from `templates/scaffold/docs/data-contract-template.md`, which is the canonical shape (plus an existing Pass Ledger section, which is kept — Phase 3)
   class: prose
   text:
-  - Write `docs/data-contract.md` to exactly the shape of the seeded template, `templates/scaffold/docs/data-contract-template.md`, which is the canonical shape (plus an existing Pass Ledger section, which is kept — Phase 3)
+  - Write `docs/data-contract.md` to exactly the shape of the seeded template — the stub was scaffolded from `templates/scaffold/docs/data-contract-template.md`, which is the canonical shape (plus an existing Pass Ledger section, which is kept — Phase 3)
   pins:
   - tests/test_data_contract_recurring_rules.py::test_the_version_entry_is_an_exempt_post_convergence_write_and_phase_2_keeps_the_section
 - id: r-46
@@ -498,10 +496,8 @@ entries:
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: These are the highest-value findings — they must reach the frozen file, not evaporate at emit
   class: ban
-  clauses:
-    1: narrative
   text:
-  - They must reach the frozen file, not evaporate at emit
+  - These are the highest-value findings — they must reach the frozen file, not evaporate at emit
 - id: r-55
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: 'Per-entity table — one block per entity, with its `(depends on: …)` build-order note:'
@@ -534,10 +530,8 @@ entries:
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: An enum-typed field's values MUST come only from here — this is what stops agents inventing status variants
   class: ban
-  clauses:
-    2: narrative
   text:
-  - An enum-typed field's values MUST come only from here
+  - An enum-typed field's values MUST come only from here — this is what stops agents inventing status variants
 - id: r-66
   section: '## Phase 2 — Emit the contract (the frozen shape)'
   baseline: 'Retention & lawful basis (project-level, LIGHT — not per field): a short table for any `personal`/ `sensitive` data: category → lawful basis → retention → cross-border? — Enough to be KVKK-defensible for Turkish clients without turning the field dictionary into a compliance dossier'
@@ -556,7 +550,7 @@ entries:
   class: prose
   text:
   - 'Run repeated reconciliation passes until the Termination contract''s closing round — `confirmed: 0`, md5 unchanged — is reached'
-  - They must reach the frozen file, not evaporate at emit
+  - These are the highest-value findings — they must reach the frozen file, not evaporate at emit
 - id: r-71
   section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
   baseline: The Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; a bumping re-freeze adds its own dated version entry there after that closing round, so its absence is never a finding in any round of the run
@@ -689,7 +683,7 @@ entries:
   baseline: Route `docs/data-contract.md` through the gitignored synced-docs path — it is a committed, project-owned file
   class: prose
   text:
-  - Route `docs/data-contract.md` through the gitignored synced-docs path
+  - Route `docs/data-contract.md` through the gitignored synced-docs path — it is a committed, project-owned file
   - '`docs/data-contract.md` is a committed, project-owned file (not a gitignored synced doc) — the plan and every agent reference it by that path'
 - id: r-112
   section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
