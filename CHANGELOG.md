@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — every repo's sessions get the REA reverse-engineering tools (W-7e29c9b9, 2026-10-26)
+
+- `scripts/sysadmin/emit_mcp_project_config.py`: `rea` joins the universal set (D-1239, superseding D-1199's
+  hub-class-only grant), so every /opt repo's emitted `.mcp.json` carries it. The emitter now also refreshes
+  each linked worktree's EXISTING copy (`<repo>/.claude/worktrees/*/.mcp.json`), which `.worktreeinclude`
+  copies only at creation — none of the 214 real worktree copies had `rea` (it skips a symlinked file or
+  worktree directory: `/opt/fabrik/.claude/worktrees/fabrik-lib` points at fabrik-lib itself, and a copy it
+  cannot read is reported without blocking the rest). Re-emitted: 255 of 255 distinct files carry it
+  (41 repo roots, 214 worktree copies). `docs/workstation/mcp-roster.md` (row with the measured ~235 MB per window,
+  universal table, § REA), the quota dashboard's label and `INDEX.md` updated.
+
 ### Changed — cloud dispatch: a cloud run draws the account's weekly plan and is refused at its wall (2026-10-26)
 
 `docs/workstation/cloud-dispatch.md`'s billing bullet now records that cloud runs spend the account's weekly plan usage and are refused at its wall (16 lean runs, `usage_limit_reached` / `seven_day` `rejected`), so the $250 credit is not capacity on top of the plan, and the intro, `--pick`, the credit guard and `--allow-plan-usage` point at it; the credit's own drawdown stays open (D-1237, W-b00d9d72; follow-up W-87078932).

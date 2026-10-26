@@ -39,8 +39,18 @@ ALL_SERVERS = [
     "fabrik-citation-verifier",
     "grafana",
     "fabrik-scrape",
+    "rea",
 ]
-UNIVERSAL = {"session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena", "fabrik-scrape"}
+UNIVERSAL = {
+    "session-recall",
+    "exa",
+    "brave-search",
+    "firecrawl",
+    "postgres-pro",
+    "serena",
+    "fabrik-scrape",
+    "rea",
+}
 U5_NO_DB = UNIVERSAL - {"postgres-pro"}  # absent-until-configured (no connecting DATABASE_URL)
 
 
@@ -448,13 +458,100 @@ def test_rea_is_an_absolute_local_stdio_launch_never_a_package_runner():
     assert entry["env"] == {}, "REA takes no credential"
 
 
-def test_rea_reaches_the_hub_class_and_no_project_type(tmp_path):
-    """The roster row (D-1199, W-eff97ae7): REA is a hub-class server — the hub and fabrik-lib —
-    and no scaffold type carries it; a project gains it by an overlay row (roster first), never by
-    hand."""
+def test_rea_reaches_every_repo_the_emitter_serves(tmp_path):
+    """D-1239 (operator 2026-10-26: "enable rea for all repos wide asap!!!") supersedes D-1199's
+    hub-class-only grant: REA is in the universal set, so every scaffold type carries it with no
+    overlay row; the hub and fabrik-lib carry it through the full catalog."""
     defs = json.loads(CATALOG.read_text())["mcpServers"]
+    assert "rea" in emitter.UNIVERSAL
     assert "rea" in emitter.ruled_server_names(make_repo(tmp_path, "fabrik", None), defs)
     assert "rea" in emitter.ruled_server_names(make_repo(tmp_path, "fabrik-lib", None), defs)
     for rtype in emitter.TYPE_SETS:
         repo = make_repo(tmp_path, f"p-{rtype}", rtype)
-        assert "rea" not in emitter.ruled_server_names(repo, defs), rtype
+        assert "rea" in emitter.ruled_server_names(repo, defs), rtype
+
+
+def test_existing_worktree_copies_are_refreshed_and_none_is_created(tmp_path, defs_file):
+    """W-7e29c9b9: `.worktreeinclude` copies `.mcp.json` into a linked worktree only at creation, so a
+    re-emission that rewrote the repo root alone left 214 of 215 worktree copies without `rea`. The
+    emitter refreshes every EXISTING copy under `<repo>/.claude/worktrees/*/` with the root's payload;
+    it creates none, leaves a symlinked copy alone, and `--check` writes nothing."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    wts = repo / ".claude" / "worktrees"
+    stale, bare, linked = wts / "wt1", wts / "wt2", wts / "wt3"
+    for w in (stale, bare, linked):
+        w.mkdir(parents=True)
+    (stale / ".mcp.json").write_text('{"mcpServers": {"session-recall": {}}}\n')
+    target = tmp_path / "elsewhere.json"
+    target.write_text("{}\n")
+    (linked / ".mcp.json").symlink_to(target)
+
+    lines = run(tmp_path, defs_file, check=True)
+    assert stale.joinpath(".mcp.json").read_text() == '{"mcpServers": {"session-recall": {}}}\n'
+    assert any("1 worktree cop" in line for line in lines), lines
+
+    lines = run(tmp_path, defs_file)
+    assert servers_of(stale) == servers_of(repo) == U5_NO_DB
+    assert not (bare / ".mcp.json").exists(), "a worktree without a copy gets none"
+    assert target.read_text() == "{}\n", "a symlinked copy is never written through"
+    assert run(tmp_path, defs_file) == ["some-api: OK"], "a refreshed copy reads OK next time"
+
+
+def test_a_symlinked_worktree_directory_is_never_followed(tmp_path, defs_file):
+    """Review pass 2 (N1): `/opt/fabrik/.claude/worktrees/fabrik-lib -> /opt/fabrik-lib` is a real entry
+    on this box; following it would write the hub's set over fabrik-lib's own file (D-638 keeps it the
+    full roster). Only a copy whose worktree directory lives inside `<repo>/.claude/worktrees` counts."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    (other / ".mcp.json").write_text("{}\n")
+    wts = repo / ".claude" / "worktrees"
+    wts.mkdir(parents=True)
+    (wts / "linked").symlink_to(other, target_is_directory=True)
+    run(tmp_path, defs_file)
+    assert (other / ".mcp.json").read_text() == "{}\n", (
+        "a symlinked worktree dir must not be written through"
+    )
+
+
+def test_an_unreadable_worktree_copy_never_blocks_the_root(tmp_path, defs_file):
+    """Review pass 2 (N2): a copy the emitter cannot read (invalid UTF-8 here; a permission error is the
+    same class) is reported in the verdict and skipped — the repo's root and its other copies still land."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    wts = repo / ".claude" / "worktrees"
+    bad, good = wts / "bad", wts / "good"
+    for w in (bad, good):
+        w.mkdir(parents=True)
+    (bad / ".mcp.json").write_bytes(b"\xff\xfe\x00broken")
+    (good / ".mcp.json").write_text("{}\n")
+    lines = run(tmp_path, defs_file)
+    assert servers_of(repo) == U5_NO_DB, lines
+    assert servers_of(good) == U5_NO_DB, lines
+    assert any("1 unreadable" in line for line in lines), lines
+
+
+def test_a_symlinked_claude_directory_is_never_followed(tmp_path, defs_file):
+    """Review pass 3 (P1): a symlink HIGHER in the path (`<repo>/.claude -> elsewhere`) must not carry the
+    refresh outside the repo — a copy counts only when its real path is `<repo>/.claude/worktrees/<dir>/`."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    ext = tmp_path / "ext"
+    (ext / "worktrees" / "w").mkdir(parents=True)
+    (ext / "worktrees" / "w" / ".mcp.json").write_text("{}\n")
+    (repo / ".claude").symlink_to(ext, target_is_directory=True)
+    run(tmp_path, defs_file)
+    assert (ext / "worktrees" / "w" / ".mcp.json").read_text() == "{}\n"
+
+
+def test_a_copy_that_cannot_be_written_is_reported_as_unwritable(tmp_path, defs_file):
+    """Review pass 3 (P2): a readable copy the emitter cannot write says so — never "unreadable"."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    w = repo / ".claude" / "worktrees" / "w"
+    w.mkdir(parents=True)
+    copy = w / ".mcp.json"
+    copy.write_text("{}\n")
+    copy.chmod(0o444)
+    try:
+        lines = run(tmp_path, defs_file)
+    finally:
+        copy.chmod(0o644)
+    assert any("1 unwritable" in line for line in lines), lines
