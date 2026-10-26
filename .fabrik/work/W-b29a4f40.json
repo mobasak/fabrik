@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T12:15:38.289062Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b29a4f40",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1246",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "URGENT operator order D-1246; infra beat (MCP config); LOW",
+  "status": "open",
+  "title": "URGENT (operator 2026-10-26: 'rea must be available to system wide for all repos.'): add rea to the USER-LEVEL universal MCP set in every account's .claude.json (D-1246) and give rn-kit-sandbox, image-generation and fabrik-dr-store a .mcp.json"
+}
