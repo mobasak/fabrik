@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
+
+- `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a
+  settings path, so the first live batch's children could only read and plan (a fix round ended with a plan and no
+  commit). Clones now go under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`), and a root under any
+  `.claude*` directory is refused before spending; a live Haiku smoke wrote, edited and pushed. The default
+  `--timeout` rises from 3600 to 10800 s, since a re-ledger round runs past an hour and a timed-out run pushes nothing
+  (W-174b8543, W-15bb59ea).
+
 ### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
 
 - W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In

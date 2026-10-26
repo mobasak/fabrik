@@ -116,6 +116,7 @@ def box(tmp_path: Path) -> dict:
         **{k: v for k, v in os.environ.items() if not k.startswith("GIT_")},
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
         "ROTATE_STATE_DIR": str(state),
+        "API_WRITE_RUN_ROOT": str(state / "api-write"),
         "API_CREDIT_ENV_FILE": str(env_file),
         "API_WRITE_MAIN_CHECKOUT": str(main),
         "API_CREDIT_MANAGED_DIR": str(tmp_path / "no-managed"),
@@ -455,6 +456,30 @@ def test_batch_and_slug_together_or_an_inline_task_refuse(box: dict) -> None:
     batch.write_text(json.dumps([{"slug": "b3", "task": "do it"}]), encoding="utf-8")
     p = _run(box, "--key", "can", "--batch", str(batch))
     assert p.returncode == 2 and "no inline task" in p.stderr and _calls(box) == []
+
+
+@pytest.mark.parametrize(
+    "under", [".claude/state/api-write", ".claude-fleet/can/api-write", "repo/.claude/x"]
+)
+def test_a_run_root_under_a_claude_dir_refuses_before_anything(box: dict, under: str) -> None:
+    """Claude Code denies every Write/Edit under ~/.claude as a settings path, so a child cloned there reads and
+    plans but changes nothing (the first live runs, W-174b8543): refused before any spend."""
+    box["env"] = {**box["env"], "API_WRITE_RUN_ROOT": str(box["tmp"] / under)}
+    p = _run(box, "--key", "can", "--slug", "t9", "--task-file", str(_brief(box, "t9")))
+    assert p.returncode == 2 and ".claude" in p.stderr and _rows(box) == [] and _calls(box) == []
+
+
+def test_the_default_run_root_is_the_users_cache_not_claude_state(box: dict) -> None:
+    home = box["tmp"] / "home"
+    env = {k: v for k, v in box["env"].items() if k != "API_WRITE_RUN_ROOT"}
+    box["env"] = {**env, "HOME": str(home)}
+    assert (
+        _run(box, "--key", "can", "--slug", "t8", "--task-file", str(_brief(box, "t8"))).returncode
+        == 0
+    )
+    cwd = Path(_runs(box)[0]["cwd"])
+    assert cwd.is_relative_to(home / ".cache" / "fabrik" / "api-write")
+    assert not any(part.startswith(".claude") for part in cwd.parts)
 
 
 @pytest.mark.parametrize("bad", ["../x", "A", "a b", "x.lock", "x."])
