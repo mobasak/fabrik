@@ -36,3 +36,29 @@
 
 - Tests: failure set at the start commit and at the end is identical in both sets run. Set 1 (13 files, `test_mobile_launch_pack.py` and `test_scaffold_office_extension.py` excluded, `pydantic` missing in this clone): 114 failed / 832 passed / 6 skipped before, 114 / 832 / 6 after (`diff` of the FAILED lists empty; `tests/test_command_rules.py::test_the_live_corpus_has_no_loss` is red at both ends from the `_shared/close-chain.yaml` LOSS only). Set 2 (corpus-glob and trigger tests, 12 files): 7 failed / 607 passed / 11 skipped before and after, FAILED lists identical (`test_check_doc_links` ×4, `test_rule_grounding` ×1, `test_command_run` ×1, `test_governance_template_split` ×1). No test pin of this command deleted or changed.
 - LEFT FOR THE HUB: (1) the author-blind audit pair on the 55 reworded entries and on the labels L16/L47/L68 (narrative), L5/L57/L61 (duplicate-of), and on L41's clause 2 (`no executable check grades this header today (… recorded deferral …)` labelled narrative; an earlier audit read it as a rule, `rel-parity-honour-bound` carries its first half); (2) whether the 50% goal should be restated for ban-heavy commands, since lint D pins the incident parenthetical and the `proven twice` aside; (3) `commands/_size_ceiling.json` ratchet, render at merge.
+
+## Fix round 2 (hub audit)
+
+Command: `fabrik-release`. Findings checked against `lean-baseline-2026-10-25:commands/_sources/fabrik-release.md`.
+
+**Confirmed and fixed (all but one):**
+- `$5` fee / listing-asset / fee hand-off in `rel-extension-unlistable-skip` — restored verbatim.
+- No-remote cut row (baseline L177: waived path, `--no-push`, row COMMITS LOCALLY, no push exists to ride) — restored; "in its own commit" (invented) removed.
+- `D-026` and "the fallback returns the whole history — that is the true answer, not 'the probe ran'" in `rel-pushed-and-upstream-relative` — restored; the `clauses: 5: narrative` label removed.
+- `docs/STRATEGIC_BACKLOG.md` deferral clause at L41 (`rel-parity-honour-bound`) — restored; `clauses: 2: narrative` removed.
+- L5 "A checklist item without evidence is not PASS" — restored in the source and carried by new entry `rel-pass-needs-evidence` (was mislabelled `duplicate-of`).
+- L57 "Continue with steps 2-5" — restored and carried by new entry `rel-extension-listable-continue` (was mislabelled `duplicate-of`).
+- `rel-extension-ring-first` examples (automation, scraping, internal enterprise tooling, remote code) — restored.
+- Sonnet lows: "in the report" and the full quoted desktop flag; "the surface's checklist below"; `(uppercase — prose "breaking" doesn't count)`; "to grep"; "(all surfaces, ...)".
+- Frontmatter `description` (Haiku #9): real — restored byte-identical to the baseline line.
+- Fresh pass 1 found two more weakenings, both fixed: the office add-in parenthetical ("ship a manifest + hosted taskpane ... hosted half") and `(operator-waived)` in the `--execute` clause.
+
+**Refuted:** Haiku #3 ("Include the printed plan in the report" is present in the after-text, `u-L75`, as the hub adjudication also found).
+
+**Own-text words:** baseline 2582 → re-ledger 2156 → now 2313 (89.6% of baseline, above the 50% floor; no per-file floor table owed).
+
+**Gates:** `tests/test_command_rules.py -rP` prints no LOSS line for `fabrik-release.yaml` (the remaining failure is `_shared` LOSS, another unit's); `assemble_commands.py --check` exits 4 with only drift. The loader files (`command_rules.py`, its test, `command-corpus-check.md`) were taken from master for the gates and left out of the commit.
+
+**Fresh passes:** 2 (separate fresh subagents; pass 1 found 2 weaker, fixed; pass 2 found nothing).
+
+COUNTS: entries read 72 / reworded 40 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0
