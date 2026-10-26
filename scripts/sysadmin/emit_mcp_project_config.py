@@ -22,9 +22,11 @@ config") because postgres-pro's env carries the repo's resolved DATABASE_URL
 inline — `${VAR}` expansion reads the shell env, not the repo `.env`, so
 inline-and-untracked is the deliberate shape (plan decision row 1).
 
-Write-set contract: the ONLY path this script creates or mutates in a target
-repo is `<repo>/.mcp.json` — never a commit, never another file (decision
-row 2: sanctioned distribution path of the governance-sync class).
+Write-set contract: the ONLY paths this script creates or mutates in a target
+repo are `<repo>/.mcp.json` and the EXISTING copies of it in the repo's linked
+worktrees (`<repo>/.claude/worktrees/*/.mcp.json`, refreshed, never created) —
+never a commit, never another file (decision row 2: sanctioned distribution path
+of the governance-sync class).
 """
 
 from __future__ import annotations
@@ -44,7 +46,8 @@ UNIVERSAL = [
     "postgres-pro",
     "serena",
     "fabrik-scrape",
-]  # D-013 + D-020 + D-021 + D-1102
+    "rea",
+]  # D-013 + D-020 + D-021 + D-1102 + D-1239
 
 TYPE_SETS: dict[str, list[str]] = {
     # D-015 (+D-019 chrome-devtools rides with playwright) · D-014 shadcn/magicui saas
@@ -308,11 +311,51 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
     target = repo / ".mcp.json"
     payload = json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n"
     if target.is_file() and target.read_text() == payload:
-        return "OK"
-    verdict = "UPDATE" if target.exists() else "CREATE"
-    if not check:
-        target.write_text(payload)
-    return verdict
+        verdict = "OK"
+    else:
+        verdict = "UPDATE" if target.exists() else "CREATE"
+        if not check:
+            target.write_text(payload)  # the root first: a bad worktree copy never blocks it
+    refreshed, failed = 0, {"unreadable": 0, "unwritable": 0}
+    for copy in _worktree_copies(repo):
+        try:
+            if copy.read_text() == payload:
+                continue
+        except (OSError, UnicodeDecodeError):
+            failed["unreadable"] += 1  # one bad copy is reported, never the repo's whole run
+            continue
+        if not check:
+            try:
+                copy.write_text(payload)
+            except OSError:
+                failed["unwritable"] += 1
+                continue
+        refreshed += 1
+    notes = [f"+{refreshed} worktree cop{'y' if refreshed == 1 else 'ies'}"] if refreshed else []
+    notes += [f"{n} {why}" for why, n in failed.items() if n]
+    return verdict + (f" ({', '.join(notes)})" if notes else "")
+
+
+def _worktree_copies(repo: Path) -> list[Path]:
+    """Every linked worktree's EXISTING `.mcp.json` under `<repo>/.claude/worktrees/*/` — `.worktreeinclude`
+    copies the file only when a worktree is created, so a re-emission that skipped them left every live
+    worktree on the old set (W-7e29c9b9: 214 of 215 without `rea`). None is created (a worktree without a copy
+    was made without one, and its session reads the user-level set), and a copy counts only when its REAL path
+    is `<repo>/.claude/worktrees/<dir>/.mcp.json`, so no symlinked file, worktree directory or `.claude` is
+    followed: `/opt/fabrik/.claude/worktrees/fabrik-lib -> /opt/fabrik-lib` exists on this box, and following it
+    would write the hub's set over fabrik-lib's own file."""
+    wts = repo / ".claude" / "worktrees"
+    if not wts.is_dir():
+        return []
+    # A symlink anywhere below the repo moves a copy's real parent away from this path.
+    real = repo.resolve() / ".claude" / "worktrees"
+    return sorted(  # by real path: an in-repo alias of a worktree directory is the same copy, counted once
+        {
+            p.resolve()
+            for p in wts.glob("*/.mcp.json")
+            if not p.is_symlink() and p.is_file() and p.resolve().parent.parent == real
+        }
+    )
 
 
 def _candidate_repos(root: Path) -> list[Path]:
@@ -342,7 +385,7 @@ def main(argv: list[str] | None = None) -> list[str]:
         try:
             verdict = emit_repo(repo, defs, args.check)
         except Exception as exc:  # one bad repo never strands the rest (plan A1 test 11)
-            verdict = f"SKIP (unreadable: {type(exc).__name__})"
+            verdict = f"SKIP (error: {type(exc).__name__})"
         line = f"{repo.name}: {verdict}"
         lines.append(line)
         print(line)

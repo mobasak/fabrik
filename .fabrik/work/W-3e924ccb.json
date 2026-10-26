@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T11:00:28.481606Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-3e924ccb",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "scripts/sysadmin/dispatch_headroom.py:707-712: when the ANTHROPIC_API_KEY/no-OAuth predicate holds, leave quota_cap unset and append a reason naming the key; one test in tests/test_dispatch_headroom_posture.py",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "dispatch_headroom.py advises zero seats at the wall even to an API-key session, whose seats draw no plan quota (W-effb7141 critique F6/O7d): skip the wall cap when the session runs on an Anthropic API key"
+}
