@@ -221,57 +221,55 @@ entries:
   file: render
   class: prose
   baseline: One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the single-doc deep converge)
-  current: One doc per run
+  current: One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the single-doc deep converge)
   text:
-  - One doc per run
-  clauses:
-    2: narrative
+  - One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the single-doc deep converge)
 - id: r-L9
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   class: prose
   baseline: '| Doc | Ground truth to sweep | Complete when (the bidirectional contract) |'
-  current: '| Doc | Ground truth to sweep | Complete when |'
+  current: '| Doc | Ground truth to sweep | Complete when (the bidirectional contract) |'
   text:
-  - '| Doc | Ground truth to sweep | Complete when |'
+  - '| Doc | Ground truth to sweep | Complete when (the bidirectional contract) |'
 - id: r-L12
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   class: ban
   baseline: '| `docs/RESILIENCE.md` | scheduler code (Beat/cron/queue registrations) · pause-key usage · spec `shape:` flags + top-level `target_vps:` · every external call-site in code with its per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval — and ONLY jobs that exist; every `shape:` flag true in the spec has its §5 addendum honored in code; the §1 Shape Card (incl. `target_vps`) matches the spec; every external API the CODE calls with a billable balance (a per-call price, a balance endpoint, a quota constant — never §2''s own cost column) has a §7 depletion row |'
-  current: '| `docs/RESILIENCE.md` | scheduler code (Beat/cron/queue registrations) · pause-key usage · spec `shape:` flags + top-level `target_vps:` · every external call-site in code with its per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval, and ONLY jobs that exist; each `shape:` flag true in the spec has its §5 addendum honored in code; the §1 Shape Card (incl. `target_vps`) matches the spec; every external API the CODE calls with a billable balance (never §2''s own cost column) has a §7 depletion row |'
+  current: '| `docs/RESILIENCE.md` | scheduler code (Beat/cron/queue registrations) · pause-key usage · spec `shape:` flags + top-level `target_vps:` · every external call-site in code with its per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval — and ONLY jobs that exist; every `shape:` flag true in the spec has its §5 addendum honored in code; the §1 Shape Card (incl. `target_vps`) matches the spec; every external API the CODE calls with a billable balance (a per-call price, a balance endpoint, a quota constant — never §2''s own cost column) has a §7 depletion row |'
   text:
-  - '| `docs/RESILIENCE.md` | scheduler code (Beat/cron/queue registrations) · pause-key usage · spec `shape:` flags + top-level `target_vps:` · every external call-site in code with its per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval, and ONLY jobs that exist; each `shape:` flag true in the spec has its §5 addendum honored in code; the §1 Shape Card (incl. `target_vps`) matches the spec; every external API the CODE calls with a billable balance (never §2''s own cost column) has a §7 depletion row |'
+  - '| `docs/RESILIENCE.md` | scheduler code (Beat/cron/queue registrations) · pause-key usage · spec `shape:` flags + top-level `target_vps:` · every external call-site in code with its per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval — and ONLY jobs that exist; every `shape:` flag true in the spec has its §5 addendum honored in code; the §1 Shape Card (incl. `target_vps`) matches the spec; every external API the CODE calls with a billable balance (a per-call price, a balance endpoint, a quota constant — never §2''s own cost column) has a §7 depletion row |'
 - id: r-L13
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   class: prose
   baseline: '| `docs/CONFIGURATION.md` | every `os.getenv`/`process.env` read in code · `.env.example` | every var read in code is documented AND in `.env.example`; every documented var is actually read (dead vars deleted, stated); defaults in the doc match the code''s defaults |'
-  current: '| `docs/CONFIGURATION.md` | every `os.getenv`/`process.env` read in code · `.env.example` | every var read in code is documented AND in `.env.example`; every documented var is actually read (dead vars deleted, stated); documented defaults match the code |'
+  current: '| `docs/CONFIGURATION.md` | every `os.getenv`/`process.env` read in code · `.env.example` | every var read in code is documented AND in `.env.example`; every documented var is actually read (dead vars deleted, stated); defaults in the doc match the code''s defaults |'
   text:
-  - '| `docs/CONFIGURATION.md` | every `os.getenv`/`process.env` read in code · `.env.example` | every var read in code is documented AND in `.env.example`; every documented var is actually read (dead vars deleted, stated); documented defaults match the code |'
+  - '| `docs/CONFIGURATION.md` | every `os.getenv`/`process.env` read in code · `.env.example` | every var read in code is documented AND in `.env.example`; every documented var is actually read (dead vars deleted, stated); defaults in the doc match the code''s defaults |'
 - id: r-L21
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   class: ban
   baseline: '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem it documents — its code paths, config keys, live probe | every claim maps to a current code path or an executed probe; every `## Related scripts` block is rendered from the scripts'' `# AFTER-EDIT:` headers, never hand-kept; a doc whose subsystem is gone is retired, not polished (01M1V443) |'
-  current: '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem''s code paths, config keys, live probe | every claim maps to a current code path or an executed probe; every `## Related scripts` block is rendered from the scripts'' `# AFTER-EDIT:` headers, never hand-kept; a doc whose subsystem is gone is retired, not polished |'
+  current: '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem it documents — its code paths, config keys, live probe | every claim maps to a current code path or an executed probe; every `## Related scripts` block is rendered from the scripts'' `# AFTER-EDIT:` headers, never hand-kept; a doc whose subsystem is gone is retired, not polished (01M1V443) |'
   text:
-  - '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem''s code paths, config keys, live probe | every claim maps to a current code path or an executed probe; every `## Related scripts` block is rendered from the scripts'' `# AFTER-EDIT:` headers, never hand-kept; a doc whose subsystem is gone is retired, not polished |'
+  - '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem it documents — its code paths, config keys, live probe | every claim maps to a current code path or an executed probe; every `## Related scripts` block is rendered from the scripts'' `# AFTER-EDIT:` headers, never hand-kept; a doc whose subsystem is gone is retired, not polished (01M1V443) |'
 - id: r-L23
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   class: prose
   baseline: '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item that a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body (an uncited drop is a miss, not a decision) |'
-  current: '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body |'
+  current: '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item that a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body (an uncited drop is a miss, not a decision) |'
   text:
-  - '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body |'
+  - '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item that a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body (an uncited drop is a miss, not a decision) |'
 - id: r-L25
   file: render
   section: '## Phase 1 — Discover ground truth (the doc is the CLAIM, never the source)'
   class: prose
   baseline: Sweep the contract row's ground-truth column from the CODE/infra outward
-  current: Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember
+  current: Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent
   text:
   - Sweep the row's ground-truth column from the CODE/infra outward
 - id: r-L26
@@ -279,11 +277,9 @@ entries:
   section: '## Phase 1 — Discover ground truth (the doc is the CLAIM, never the source)'
   class: prose
   baseline: Enumerate what you READ (files × surfaces), not what you remember — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent
-  current: Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember
+  current: Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent
   text:
-  - enumerating what you READ (files × surfaces), not what you remember
-  clauses:
-    2: narrative
+  - enumerating what you READ (files × surfaces), not what you remember — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent
 - id: r-L31
   file: render
   section: '## Phase 2 — Reconcile bidirectionally'
@@ -297,27 +293,25 @@ entries:
   section: '## Phase 2 — Reconcile bidirectionally'
   class: ban
   baseline: 'Shape discipline: keep the seeding template''s structure (it is consumer-contract-hardened); respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never copy; the Doc Sync Matrix rows bind)'
-  current: 'Shape discipline: keep the seeding template''s structure; respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never copy; the Doc Sync Matrix rows bind)'
+  current: 'Shape discipline: keep the seeding template''s structure (it is consumer-contract-hardened); respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never copy; the Doc Sync Matrix rows bind)'
   text:
-  - 'Shape discipline: keep the seeding template''s structure; respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never copy; the Doc Sync Matrix rows bind)'
+  - 'Shape discipline: keep the seeding template''s structure (it is consumer-contract-hardened); respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never copy; the Doc Sync Matrix rows bind)'
 - id: r-L33
   file: render
   section: '## Phase 2 — Reconcile bidirectionally'
   class: ban
   baseline: A path in another `/opt` repo is written as a backticked plain path, never a markdown link — GitHub resolves a link's leading `/` against this repo's root
-  current: A path in another `/opt` repo is written as a backticked plain path, never a markdown link
+  current: A path in another `/opt` repo is written as a backticked plain path, never a markdown link — GitHub resolves a link's leading `/` against this repo's root
   text:
-  - A path in another `/opt` repo is written as a backticked plain path, never a markdown link
-  clauses:
-    2: narrative
+  - A path in another `/opt` repo is written as a backticked plain path, never a markdown link — GitHub resolves a link's leading `/` against this repo's root
 - id: r-L36
   file: render
   section: '## Phase 2 — Reconcile bidirectionally'
   class: ban
   baseline: 'Code defects: before a schema, missing-table or missing-feature finding is raised, grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it, quoting the row; a ruling that does not cover the finding leaves it standing; a CODE defect the converge uncovers is filed to its owner (a mail to the code''s owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id'
-  current: 'Code defects: before raising a schema, missing-table or missing-feature finding, grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling, quoting the row; a ruling that does not cover the finding leaves it standing; a CODE defect the converge uncovers is filed to its owner (a mail to the owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id'
+  current: 'Code defects: before a schema, missing-table or missing-feature finding is raised, grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it, quoting the row; a ruling that does not cover the finding leaves it standing; a CODE defect the converge uncovers is filed to its owner (a mail to the code''s owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id'
   text:
-  - 'Code defects: before raising a schema, missing-table or missing-feature finding, grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling, quoting the row; a ruling that does not cover the finding leaves it standing; a CODE defect the converge uncovers is filed to its owner (a mail to the owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id'
+  - 'Code defects: before a schema, missing-table or missing-feature finding is raised, grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it, quoting the row; a ruling that does not cover the finding leaves it standing; a CODE defect the converge uncovers is filed to its owner (a mail to the code''s owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id'
 - id: r-L42
   file: render
   section: '## Phase 3 — Converge (LOOP to a no-op)'
@@ -339,9 +333,9 @@ entries:
   section: '## Guardrails — never'
   class: prose
   baseline: '"Fix" the seeded template''s structure locally — shape defects go upstream to `templates/scaffold/docs/` (they''re Fabrik-maintained), content lives here'
-  current: '"Fix" the seeded template''s structure locally — shape defects go upstream to `templates/scaffold/docs/`, content lives here'
+  current: '"Fix" the seeded template''s structure locally — shape defects go upstream to `templates/scaffold/docs/` (they''re Fabrik-maintained), content lives here'
   text:
-  - '"Fix" the seeded template''s structure locally — shape defects go upstream to `templates/scaffold/docs/`, content lives here'
+  - '"Fix" the seeded template''s structure locally — shape defects go upstream to `templates/scaffold/docs/` (they''re Fabrik-maintained), content lives here'
 - id: f-capability-claim-features-row
   file: render
   baseline: every capability claim maps to a FEATURES row
