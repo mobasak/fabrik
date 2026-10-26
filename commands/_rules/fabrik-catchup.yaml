@@ -6,7 +6,8 @@ entries:
   baseline: 'Get a neglected project back to a truthful, resumable state in one bounded run: MEASURE what has drifted, QUEUE it worst-first, EXECUTE the queue by dispatching each item to the command that already owns that fix'
   class: prose
   text:
-  - neglected project back to a truthful, resumable state
+  - neglected project back to a truthful, resumable state in one bounded run
+  - '**MEASURE** what has drifted, **QUEUE** it worst-first, **EXECUTE** the queue by dispatching each item to the command that already owns that fix.'
 - id: cu-L2
   baseline: This command never reconciles a doc or contract itself — it routes to `/fabrik-doc-converge`, `/fabrik-features`, `/fabrik-data-contract`, and `/fabrik-ui-design`, each of which owns its own convergence loop
   class: ban
@@ -18,7 +19,7 @@ entries:
   class: ban
   text:
   - only when a fresh re-run of Phase 0 MEASURE raises zero new queue items
-  - 'prior finding is fixed, explicitly `BLOCKED`, or accounted for (named in the report: a candidate dead consumer reference or a genuinely undecidable reconcile downgraded per Phase 2, both report-only, un-committed by design; an item ROUTED to whoever owns it — mailed to its beat, or a gate red or work item reported to its owner (an open item or a live sibling) — with the mail id or owner named; and an item another session holds, named)'
+  - 'prior finding is now fixed, explicitly `BLOCKED`, or accounted for (these count on re-measure as named, not as new items, once this run''s report names them: a candidate dead consumer reference and a genuinely undecidable reconcile downgraded per Phase 2 — both report-only, un-committed by design; an item ROUTED to whoever owns it — mailed to its beat, or a gate red or work item reported to its owner (an open item or a live sibling) — with the mail id or owner named; and an item another session holds, named)'
   - '`python scripts/final_gate.py --check --json` reports `"status":"success"`'
   - 'only on checks a named owner holds (`GATE: failure (owned: <owner>)`)'
   pins:
@@ -52,20 +53,20 @@ entries:
   baseline: 'If `/opt/fabrik/docs/infrastructure/probe-reports/fleet-doc-audit-latest.md` exists (the hub''s weekly `scripts/fleet_doc_audit.py` sweep, readable from any project on this box) and this project has a flagged row, read it as a head start — never as a substitute: the report can be up to a week stale, so every number in it still needs the fresh check below'
   class: ban
   text:
-  - '`/opt/fabrik/docs/infrastructure/probe-reports/fleet-doc-audit-latest.md` (the hub''s weekly `scripts/fleet_doc_audit.py`'
+  - '`/opt/fabrik/docs/infrastructure/probe-reports/fleet-doc-audit-latest.md` exists (the hub''s weekly `scripts/fleet_doc_audit.py` sweep, readable from any project on this box) and this project has a flagged row, read it as a head start'
   - 'never as a substitute: the report can be up to a week stale, so every number in it still needs the fresh check below.'
 - id: cu-L12
   baseline: If the path is unreadable (a non-hub box, or the file hasn't run yet), skip it — it is a head start, not a dependency
   class: prose
   text:
-  - path or file is unreadable, skip
+  - path is unreadable (a non-hub box, or the file hasn't run yet), skip
   clauses:
     2: narrative
 - id: cu-L13
   baseline: 'Run `python scripts/final_gate.py --check --json` FIRST and queue each red it reports as an item: a fresh linked worktree can red for reasons outside the project (an untracked or ignored file it lacks), and a red found only at the termination gate costs a second loop'
   class: ban
   text:
-  - only at the termination gate costs a second loop, so run `python scripts/final_gate.py --check --json` FIRST and queue
+  - 'Run `python scripts/final_gate.py --check --json` FIRST and queue each red it reports as an item: a fresh linked worktree can red for reasons outside the project (an untracked or ignored file it lacks), and a red found only at the termination gate costs a second loop'
   pins:
   - tests/test_catchup_queue_pass.py::test_phase_zero_runs_the_gate_first_and_reports_an_owned_red
 - id: cu-L14
@@ -86,39 +87,35 @@ entries:
   class: prose
   text:
   - 2-4 mirror `scripts/fleet_doc_audit.py`'s probe set project-side;
-  - probes 1, 5, 6 and 7 EXTEND
-  - it (plan-lock reconcile, spec `shape:` truth,
+  - probes 1, 5, 6 and 7 EXTEND it — plan-lock reconcile, spec `shape:` truth, dead-reference detection and work-store hygiene have no counterpart in the fleet audit, so
 - id: cu-L17
   baseline: 'Plan state vs lock. Enumerate BOTH plan shapes, excluding anything under `docs/development/plans/archived/`: single-file plans `docs/development/plans/*.md`, and plan-set dirs `docs/development/plans/*/` (read the dir''s same-stem spine file)'
   class: prose
   text:
-  - 'Enumerate BOTH plan shapes, excluding anything under `docs/development/plans/archived/`: single-file plans `docs/development/plans/*.md` and plan-set dirs `docs/development/plans/*/`'
+  - 'Enumerate BOTH plan shapes, excluding anything under `docs/development/plans/archived/`: single-file plans `docs/development/plans/*.md` and plan-set dirs `docs/development/plans/*/` (read the dir''s same-stem spine file)'
 - id: cu-L18
   baseline: For each, read its `Status:` through `parse_plan_status` (`python3 -c "import sys; sys.path[:0] = ['/opt/fabrik/scripts', 'scripts']; from docs_updater import parse_plan_status; print(parse_plan_status(__import__('pathlib').Path(sys.argv[1]))[0])" <plan file or spine .md>`; the hub's copy first, since a project's synced copy can predate a parser fix) — the value the gate's tools act on, which a grep misreads on a bold or decorated header — and look up `.fabrik/plan-locks/<file-or-dir-stem>.json` if it exists — reconcile against ALL `.fabrik/plan-locks/*` entries so no lock is left unmatched to a live plan
   class: prose
   text:
   - '`Status:` through `parse_plan_status` (`python3 -c "import sys; sys.path[:0] = [''/opt/fabrik/scripts'', ''scripts'']; from docs_updater import parse_plan_status; print(parse_plan_status(__import__(''pathlib'').Path(sys.argv[1]))[0])" <plan file or spine .md>`;'
-  - value the gate's tools act on, which a grep misreads.
-  - a grep misreads. Look up `.fabrik/plan-locks/<file-or-dir-stem>.json`
+  - the hub's copy first, since a project's synced copy can predate a parser fix) — the value the gate's tools act on, which a grep misreads on a bold or decorated header.
+  - a grep misreads on a bold or decorated header. Look up `.fabrik/plan-locks/<file-or-dir-stem>.json`
   - exists; reconcile against ALL `.fabrik/plan-locks/*` entries
 - id: cu-L19
   baseline: 'Flag a contradiction: spine says `IN-PROGRESS` but the lock is missing or its `status` is not `"active"` (a released lock while the spine still claims work is running); spine says `DRAFT`/`CONVERGED` but an `active` lock exists; spine says `EXECUTED` but the plan (file or dir) still sits outside `docs/development/plans/archived/`; a lock whose `plan` path does not resolve on disk, or resolves under `docs/development/plans/` but outside `archived/` while its `status` is terminal (a lock for a plan kept elsewhere — an epic, a spec-owned plan — is not held to the `archived/` rule) — the allowlist is {`released`, `executed`, `complete`, `completed`, `done`} (allowlist-not-denylist per fabrik-lib `f8249ec3`: an unknown word leaves a lock flagged for a human; measured live 2026-08-29, `executed` is this tree''s MOST COMMON terminal and the old `released`/`complete` example would have mis-flagged four finished locks); a lock whose `plan` path resolves INTO `docs/development/plans/archived/` while its `status` is still `"active"` (an abandoned run archived by hand without releasing the lock)'
   class: prose
   text:
-  - 'Flag a contradiction: `IN-PROGRESS` with the lock missing or its `status` not `"active"`;'
-  - 'exists; reconcile against ALL `.fabrik/plan-locks/*` entries so no lock is left unmatched to a live plan. Flag a contradiction: `IN-PROGRESS` with the lock missing or its `status` not `"active"`; `DRAFT`/`CONVERGED` with an `active`'
-  - 'spine .md>`; the hub''s copy first), the value the gate''s tools act on, which a grep misreads. Look up `.fabrik/plan-locks/<file-or-dir-stem>.json` if it exists; reconcile against ALL `.fabrik/plan-locks/*` entries so no lock is left unmatched to a live plan. Flag a contradiction: `IN-PROGRESS` with the lock missing or its `status` not `"active"`; `DRAFT`/`CONVERGED` with an `active` lock; `EXECUTED` with the plan still outside `docs/development/plans/archived/`;'
-  - '`plan` path does not resolve on disk, or resolves under `docs/development/plans/` but outside `archived/` while its `status`'
-  - '{`released`, `executed`, `complete`, `completed`, `done`} (allowlist-not-denylist per fabrik-lib `f8249ec3`: an unknown word leaves a lock flagged for a human; 2026-08-29).'
-  - '`plan` path resolves INTO `docs/development/plans/archived/` while its `status` is still `"active"`.'
+  - 'Flag a contradiction: spine says `IN-PROGRESS` but the lock is missing or its `status` is not `"active"` (a released lock while the spine still claims work is running); spine says `DRAFT`/`CONVERGED` but an `active` lock exists; spine says `EXECUTED` but the plan (file or dir) still sits outside `docs/development/plans/archived/`;'
+  - 'a lock whose `plan` path does not resolve on disk, or resolves under `docs/development/plans/` but outside `archived/` while its `status` is terminal (a lock for a plan kept elsewhere — an epic, a spec-owned plan — is not held to the `archived/` rule);'
+  - 'a lock whose `plan` path resolves INTO `docs/development/plans/archived/` while its `status` is still `"active"` (an abandoned run archived by hand without releasing the lock).'
+  - 'Terminal allowlist {`released`, `executed`, `complete`, `completed`, `done`} (allowlist-not-denylist per fabrik-lib `f8249ec3`: an unknown word leaves a lock flagged for a human; measured live 2026-08-29, `executed` is this tree''s MOST COMMON terminal and the old `released`/`complete` example would have mis-flagged four finished locks).'
   pins:
   - tests/test_catchup_queue_pass.py::test_probe_one_scopes_the_archived_rule_to_plans_under_plans_dir
 - id: cu-L20
   baseline: 'Not a finding: a lock pointing INTO `docs/development/plans/archived/` with a terminal `status` is the normal end state for a finished plan — don''t flag it'
   class: prose
   text:
-  - lock INTO `docs/development/plans/archived/` with a terminal `status`;
-  - unmatched to a live plan. Flag
+  - 'Not a finding: a lock pointing INTO `docs/development/plans/archived/` with a terminal `status` is the normal end state for a finished plan — don''t flag it.'
 - id: cu-L21
   baseline: Key-doc freshness vs code. `git log -1 --format=%ct -- <code roots>` vs the same for every registry-obligated key doc (`docs/SERVICES.md`, `docs/RESILIENCE.md`, `docs/CONFIGURATION.md`, `docs/DEPLOYMENT.md`, `docs/FEATURES.md` — only the ones this `project.yaml::type` actually obligates)
   class: ban
@@ -170,9 +167,7 @@ entries:
   class: prose
   text:
   - hub's `PORTS.md`/catalog. Report these as findings
-  - DNS/container probe silently resolves against the wrong network and can return a false "dead" for a correct reference like `postgres-main:5432`.
-  clauses:
-    2: narrative
+  - 'A project has no fleet creds (deploy is trigger-not-execute) and this WSL box runs a local Docker bridge also named `fabrik`, distinct from the fleet''s `fabrik` network — a project-side DNS/container probe silently resolves against the wrong network and can return a false "dead" for a correct reference like `postgres-main:5432`.'
 - id: cu-L30
   baseline: Liveness itself is hub-verified only
   class: ban
@@ -182,9 +177,7 @@ entries:
   baseline: 'The captcha retirement (`docs/SERVICES.md` § Service-status drift warning) is the cautionary case: a catalog row can outlive the service it describes, so neither "the row says it''s live" nor a project-side probe saying "unreachable" is proof — only a hub-side check settles it'
   class: ban
   text:
-  - only a hub-side check settles it.
-  clauses:
-    1: narrative
+  - 'the captcha retirement (`docs/SERVICES.md` § Service-status drift warning) is the cautionary case — a catalog row can outlive the service it describes, so neither "the row says it''s live" nor a project-side probe saying "unreachable" is proof; only a hub-side check settles it.'
 - id: cu-L32
   baseline: Actual retirement (once the operator confirms) routes to `/fabrik-decommission`, the hub-side retirement runbook — never remove or repoint a reference from inside this command
   class: ban
@@ -297,7 +290,7 @@ entries:
   baseline: 'A finding with no store item is executed without minting one: a minted item would stay open after the fix, an orphan for the next distributor'
   class: prose
   text:
-  - finding with no store item is executed without
+  - 'finding with no store item is executed without minting one: a minted item would stay open after the fix, an orphan for the next distributor'
 - id: cu-L54
   baseline: In the hub, an item on another agent's beat is mailed to that beat (`docs/reference/agents/`) instead of executed, and the mail id goes in the report
   class: prose
@@ -315,7 +308,7 @@ entries:
   baseline: 'Two manifesto laws bind the reconcile actions specifically: a DECISION-SHAPED reconcile (a deliberate `shape:` flag flip, a Status re-ruling — anything beyond restoring a record to observed truth) carries its `docs/DECISIONS.md` row IN THE SAME commit, classified at mint (the SAME-change law; plain row normally — a reconcile is by construction reversible, and the undecidable case already downgrades to report-only; a truth-restoring correction needs no row); and a reconcile whose true side is genuinely undecidable from the tree downgrades to a REPORT-ONLY item naming both candidate truths — the most-reversible disposition (manifesto Invariant 3), never a silent guess'
   class: ban
   text:
-  - 'laws bind the reconcile actions: a DECISION-SHAPED reconcile (a deliberate `shape:` flag flip, a Status re-ruling — anything beyond restoring a record to observed truth) carries its `docs/DECISIONS.md` row IN THE SAME commit, classified at mint (plain row normally — a reconcile is by construction reversible, and the undecidable case already downgrades to report-only; a truth-restoring correction needs no row);'
+  - 'laws bind the reconcile actions specifically: a DECISION-SHAPED reconcile (a deliberate `shape:` flag flip, a Status re-ruling — anything beyond restoring a record to observed truth) carries its `docs/DECISIONS.md` row IN THE SAME commit, classified at mint (the SAME-change law; plain row normally — a reconcile is by construction reversible, and the undecidable case already downgrades to report-only; a truth-restoring correction needs no row);'
   - true side is genuinely undecidable from the tree downgrades to a REPORT-ONLY item naming both candidate truths
   - disposition (manifesto Invariant 3), never a silent guess
 - id: cu-L57
