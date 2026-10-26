@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — cloud dispatch: a cloud run draws the account's weekly plan and is refused at its wall (2026-10-26)
+
+`docs/workstation/cloud-dispatch.md`'s billing bullet now records that cloud runs spend the account's weekly plan usage and are refused at its wall (16 lean runs, `usage_limit_reached` / `seven_day` `rejected`), so the $250 credit is not capacity on top of the plan, and the intro, `--pick`, the credit guard and `--allow-plan-usage` point at it; the credit's own drawdown stays open (D-1237, W-b00d9d72; follow-up W-87078932).
+
 ### Changed — cloud dispatch: the $250 credit is spent before plan usage; expiry 2026-11-05 (2026-10-25)
 
 `docs/workstation/cloud-dispatch.md`'s billing bullet now follows the operator's claude.ai usage page (the credit is a separate pool, applied first; usage credits are overage, off), each account's `credit.expires` in `.fabrik/cloud-routines.json` moves to 2026-11-05, and the walled-account probe on can is recorded (W-b00d9d72, D-1232).
