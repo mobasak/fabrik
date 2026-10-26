@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
 
 - W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In
-  `.windsurf/rules/core/ocoron-design-system.md`, Kalite Pusulası never carries the Ocoron name. Naming rule 4 now
+  `.windsurf/rules/core/ocoron-design-system.md`, Kalite Pusulası's brand never carries the Ocoron name. Naming rule 4 now
   covers standalone brands (Atelier Rebul and Kalite Pusulası): their product surfaces and marketing carry no Ocoron
   branding, and rules 1-3 do not apply to them. Rule 5 and the Branded House line make the same exception. Kalite
   Pusulası's site may name Ocoron Dış Ticaret Limited Şirketi only as the KVKK data controller on its legal page;
