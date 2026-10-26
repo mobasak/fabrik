@@ -14,6 +14,20 @@ All notable changes to this project will be documented in this file.
   `--timeout` rises from 3600 to 10800 s, since a re-ledger round runs past an hour and a timed-out run pushes nothing
   (W-174b8543, W-15bb59ea).
 
+### Fixed — MCP emitter no longer puts DATABASE_URL on a command line, and exits 1 when a repo fails (2026-10-26)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::_uri_connects` handed the resolved `DATABASE_URL` (password included) to its psycopg probe child as `argv[1]`. Any local user could read it in `ps` and `/proc/<pid>/cmdline` while the probe ran, which is every emission for a repo whose ruled set includes postgres-pro and whose `.env` has a URL. The URI now goes over stdin, and the child decodes it as UTF-8.
+- The script exited 0 even when a repo's emission failed. It now exits 1 when any verdict is `_failed`:
+  - an exception (`SKIP (error: …)`)
+  - a worktree copy left unread or unwritten (`N unreadable`, `N unwritable`)
+  - git unable to say whether `.mcp.json` is ignored, which is where a mistyped `--repo` lands
+- A ruled SKIP, such as an unknown repo type or an untyped repo git does not ignore, still exits 0. A run over `/opt` on 2026-10-26 (43 repos) had no failing verdict (W-d095d60b, split from W-cd40f947).
+- Graders in `tests/test_emit_mcp_project_config.py`:
+  - `::test_the_uri_probe_hands_the_child_the_uri_and_never_its_argv` runs the real probe child against a stub psycopg that records its own cmdline.
+  - `::test_the_script_exits_1_when_a_repo_or_a_copy_fails_and_0_on_a_ruled_skip` runs the script as a process.
+  - `::test_failed_reads_the_verdict_only` covers which verdicts fail.
+  - Each went red on its mutant in a throwaway worktree: the probe back on argv, `__main__` ignoring the exit code, `_failed` blind to copy failures.
+
 ### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
 
 - W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In

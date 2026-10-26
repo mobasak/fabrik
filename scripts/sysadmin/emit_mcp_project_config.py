@@ -262,13 +262,18 @@ def _uri_connects(uri: str) -> bool | None:
     (DNS and auth failures alike, both measured 2026-08-30) — past Claude's 30s
     connect timeout. So a URI is emitted only when it PROVABLY connects; an
     omitted env means the server starts unconnected in ~2s with tools present.
+    The URI goes over STDIN, never argv: it carries the DB password, and a child's argv is readable by
+    every local user in `ps` and /proc/<pid>/cmdline (W-d095d60b). Bytes are decoded as UTF-8, the
+    encoding they were sent in, never the child's locale.
     """
-    probe = "import psycopg,sys; psycopg.connect(sys.argv[1], connect_timeout=3).close()"
+    probe = "import psycopg,sys; psycopg.connect(sys.stdin.buffer.read().decode(), connect_timeout=3).close()"
     for py in (sys.executable, "/opt/fabrik/.venv/bin/python"):
         if not Path(py).exists():
             continue
         try:
-            r = subprocess.run([py, "-c", probe, uri], capture_output=True, timeout=10)
+            r = subprocess.run(
+                [py, "-c", probe], input=uri.encode(), capture_output=True, timeout=10
+            )
         except (OSError, subprocess.SubprocessError):
             continue
         if b"ModuleNotFoundError" in r.stderr:
@@ -415,7 +420,19 @@ def _candidate_repos(root: Path) -> list[Path]:
     return out
 
 
-def main(argv: list[str] | None = None) -> list[str]:
+_FAILED = re.compile(
+    r"^SKIP \((?:error:|untyped repo, and git could not say)|\b\d+ un(?:readable|writable)\b"
+)
+
+
+def _failed(verdict: str) -> bool:
+    """A verdict whose run did not do what it reports it could not: an exception, git unable to answer (a mistyped
+    `--repo` lands here), or a worktree copy left unread or unwritten. A ruled SKIP (an unknown type, an untyped repo
+    git does not ignore) is a policy verdict and never fails the run (W-d095d60b)."""
+    return bool(_FAILED.search(verdict))
+
+
+def main(argv: list[str] | None = None, failures: list[str] | None = None) -> list[str]:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--root", default="/opt", help="directory holding the repos (default /opt)")
     ap.add_argument("--repo", help="single repo path instead of a full-root run")
@@ -433,9 +450,20 @@ def main(argv: list[str] | None = None) -> list[str]:
             verdict = f"SKIP (error: {type(exc).__name__})"
         line = f"{repo.name}: {verdict}"
         lines.append(line)
+        if failures is not None and _failed(
+            verdict
+        ):  # judged on the verdict: a repo's NAME never fails a run
+            failures.append(line)
         print(line)
     return lines
 
 
+def cli(argv: list[str] | None = None) -> int:
+    """Exit 1 when any repo's verdict is `_failed`, else 0 (W-d095d60b)."""
+    failures: list[str] = []
+    main(argv, failures)
+    return 1 if failures else 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(cli())
