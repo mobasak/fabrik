@@ -292,6 +292,25 @@ def test_the_child_runs_least_privilege(box: dict) -> None:
     )
 
 
+def test_batch_and_slug_together_refuse(box: dict) -> None:
+    batch = box["tmp"] / "b.json"
+    batch.write_text(
+        json.dumps([{"slug": "b1", "task_file": str(_brief(box, "b1"))}]), encoding="utf-8"
+    )
+    p = _run(
+        box,
+        "--key",
+        "can",
+        "--batch",
+        str(batch),
+        "--slug",
+        "b2",
+        "--task-file",
+        str(_brief(box, "b2")),
+    )
+    assert p.returncode == 2 and "not both" in p.stderr and _calls(box) == []
+
+
 @pytest.mark.parametrize("bad", ["../x", "A", "", "a b"])
 def test_a_malformed_slug_refuses_before_anything(box: dict, bad: str) -> None:
     p = _run(box, "--key", "can", "--slug", bad, "--task-file", str(_brief(box, "ok")))

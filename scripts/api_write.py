@@ -65,9 +65,12 @@ ALLOWED = (
     "Glob",
     "Grep",
     "Bash(git checkout -B claude/*)",
-    "Bash(git status*)",
-    "Bash(git diff*)",
-    "Bash(git log*)",
+    "Bash(git status)",
+    "Bash(git status *)",
+    "Bash(git diff)",
+    "Bash(git diff *)",
+    "Bash(git log)",
+    "Bash(git log *)",
     "Bash(git show *)",
     "Bash(git add *)",
     "Bash(git rm *)",
@@ -318,6 +321,8 @@ def push_branch(clone: Path, slug: str) -> tuple[str | None, str | None]:
 
 
 def load_jobs(a: argparse.Namespace) -> list[dict]:
+    if a.batch and (a.slug or a.task_file):
+        raise ac.RefusalError(2, "give --batch, or --slug with --task-file — not both")
     if a.batch:
         try:
             raw = json.loads(Path(a.batch).read_text(encoding="utf-8"))
@@ -384,6 +389,16 @@ def cmd_run(a: argparse.Namespace) -> int:
                 print(f"api_write: {slug}: {e}", file=sys.stderr)
                 rc = max(rc, e.code)
                 continue
+            except (
+                Exception
+            ) as e:  # one job's unexpected failure never loses the other jobs' reports
+                print(
+                    f"api_write: {slug}: failed ({type(e).__name__}: {e}); a start row it wrote stays "
+                    "provisioned until settled",
+                    file=sys.stderr,
+                )
+                rc = max(rc, 1)
+                continue
             cost = "unknown (provisioned)" if r["cost"] is None else f"${r['cost']:.4f}"
             state = r.get("error") or "ok"
             pushed = r["pushed"] or "no claude/" + slug + " branch"
@@ -408,7 +423,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--out-dir", required=True)
     r.add_argument("--slug")
     r.add_argument("--task-file")
-    r.add_argument("--batch")
+    r.add_argument("--batch", help="instead of --slug/--task-file")
     r.add_argument("--jobs", type=int, default=DEFAULT_JOBS)
     r.add_argument("--budget", type=float, default=DEFAULT_BUDGET_USD, help="USD per run")
     r.add_argument("--max-turns", type=int, default=DEFAULT_MAX_TURNS)
