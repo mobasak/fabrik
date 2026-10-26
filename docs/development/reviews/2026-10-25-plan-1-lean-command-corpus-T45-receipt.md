@@ -19,3 +19,31 @@ Two author-blind audits (Sonnet 14 findings, Haiku 31, overlapping) checked agai
 - **Invented rules:** none found.
 - **Own-text words:** baseline 1342 → first cut 797 → after fix 1124.
 - Gates: `tests/test_command_rules.py` 32 passed, 3 skipped; `assemble_commands.py --check` exit 0.
+
+## Re-ledger round
+
+Canonical loader (`_lint`, `_covered`, `_ban_span`, `_clauses`, `_baseline_clauses`) read first; ledger rebuilt one entry per baseline line (the fix round's merged multi-line baselines produced most of the 17 LOSS lines), every `# class:` / `# clauses:` comment converted to a real key.
+
+- Own text (`command_rules.own_text`): baseline 1342 -> fix round 1124 -> now 971 (72.4%). **Target 50% missed; floor below.**
+- LOSS lines for `fabrik-workflow-review.yaml`: 17 before -> 0 after (`assemble_commands.py --check`; the only LOSS left are `_shared/*` ledgers, another unit's).
+- Entries: 43 = 17 generated unchanged (`generate_unchanged`/`u-L`, four of them re-pinned under the shortened Phase 0 heading) + 26 hand entries, all 26 reworded (ban 8 · prose 18 as real `class:` keys; 3 carry `clauses:` narrative labels for checklist-locator clauses). 36 vanished labels: 29 `rule`, 2 `duplicate-of` (L31, L41 -> the banner entry), 5 `narrative` (L5, L6, L10, L49, L50).
+- `COUNTS: entries read 43 / reworded 26 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0`
+- What earlier passes fixed (kept): `NO-POOL:` ban to sentence end, Reads ban `never by an item count)`, `only the type argument` ban with its CC1 parenthetical verbatim, `Never a token 1–2` / `must MATCH Phase 3's back-fill --> Cover, …` (the baseline's inline pool-off comment is live text to the loader, so it stays inline), `must inline the decision or tag`, `must change (…)`, `This loop never edits the upstream … wrong direction.`, `never typed by hand) running after it`, `only` in the producer-doers line, `Never leave a ledger row … re-invoke. Converge here.`.
+- Tests (start -> end, same set): `test_the_live_corpus_has_no_loss` red at both (now only `_shared/review-probe-catalogue` + `_shared/close-chain` LOSS, not this unit) + the 12 pre-existing `test_assemble_dispatch_step.py` orphan/corrupt-install reds (clone lacks box dirs); 13 failed / 535 passed / 3 skipped at both ends. `test_a_coroner_reaped_nested_session_still_blocks_end_to_end` is flaky in a 5-file run and passes alone. No test pin deleted (none pins this command's text).
+- Why the rest cannot shrink further (a Cobra check: a greedy word-deleter that keeps zero LOSS reaches 664 words, but its output is ungrammatical, e.g. "NOTHING else artifact under review upstream `## Acceptance Criteria` 0 never by an item count)." — that meets the measure and loses the rule, so it was rejected):
+
+| Clause | Floor | Why it stays |
+|---|---|---|
+| L1 banner | 38 words | D-181, 2026-09-07, D-182 and five backticked tokens are anchors and share one clause with the rule; the clause needs 6 of its first 8 stems (operator, OpenRouter, subagent, pool, ruling, revised) |
+| L3 `NO-POOL:` ban | 22 | ban clause verbatim to sentence end |
+| L7 only-type | 17 | ban clause verbatim through the CC1 parenthetical |
+| L8 Reads | 47 | one clause (the `;` and ` — ` sit inside parentheses); anchors `## Acceptance Criteria`, `0`, `never`; the upstream-per-type parenthetical kept (names which inputs to read) |
+| L21 seats (6 clauses) | 105 | anchors: three code spans, D-181, D-191, `--units`, `/fabrik-review`, `≥1`, the `fanout(…)` call; two ban clauses verbatim |
+| L23 trigger-vs-value | 28 | the example's backticked tokens are anchors |
+| L27 grounding | 28 | `external/vendor` and `exa/brave/firecrawl/official-docs` are path anchors in one clause |
+| L39 route upstream | 75 | four code spans + `must change (…)` ban verbatim |
+| L40, L51, L53, L54 | 85 | ban clauses verbatim to clause or sentence end |
+| L36, L34, L17 | 50 | ban clauses, unchanged |
+| L44-L46 | 29 | unchanged, anchors (`python scripts/final_gate.py …`, `CLAUDE.md`) |
+
+- LEFT FOR THE HUB: (1) confirm the five `narrative` labels, especially L49/L50 (human-gate recital with the north-star R14/R25 quotes: restated contract, operative rule is L48 + L51) and L6 (positioning analogy), which the fix-round audits had restored; restoring them costs about 100 words. (2) A floor D-row for the 50% shortfall, or a decision that anchors inside history-bearing clauses (D-ids, dates) may be dropped; the loader forces them into the carrier. (3) Ceiling ratchet at merge; CHANGELOG/INDEX rows. (4) `_shared/*` LOSS, not this unit.

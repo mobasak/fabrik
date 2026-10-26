@@ -1,11 +1,11 @@
 ---
-description: Force a workflow ARTIFACT to converge to a no-op — the shared paired review for the PRODUCER doers /fabrik-vision and /fabrik-epics (the `type` you pass — `vision-summary` · `epic-decomposition` · `expanded-epic-files` — names the ARTIFACT you hand it; Phase-0 table). Give it the artifact path + its type. (Not the cross-epic validation — that loop is /fabrik-epics-review's own.) Fan-outs finders, fixes, loops to a no-op; the doer produces, THIS forces convergence. TRIGGER — EN: "converge this workflow artifact", "review the epic or ticket breakdown"; TR: "bu workflow çıktısını sağlamlaştır", "epic/ticket taslağını incele" — fires on a workflow ARTIFACT, not source code. SKIP: source code review (→ /fabrik-review, /fabrik-repo-review). Stage: gate.
+description: Converge a workflow ARTIFACT to a no-op — the shared paired review for the PRODUCER doers /fabrik-vision and /fabrik-epics. TRIGGER — EN: "converge this workflow artifact", "review the epic or ticket breakdown"; TR: "bu workflow çıktısını sağlamlaştır", "epic/ticket taslağını incele". SKIP: source code review (→ /fabrik-review, /fabrik-repo-review). Stage: gate.
 argument-hint: "<artifact path> <type — one of the Phase-0 table values>"
 ---
 
-> **⚠️ POOL OFF — D-181.** Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out natively with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you; skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+> **⚠️ POOL OFF — D-181.** The OpenRouter subagent pool is OFF by operator ruling (D-181, 2026-09-07; revised D-182): every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED (kept in `<!-- POOL OFF -->` comments for re-enable). Run every fan-out this command names natively with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, author-blind rule, decide/refute/merge by you; skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
-Reads (open NOTHING else to act): the artifact under review · its upstream (the Vision Summary for a decomposition or an expanded epic; the research or interview inputs for a vision) · the doer twin's own `## Acceptance Criteria` · the checklist Phase 0 names (reference it by path, never by an item count). Everything the artifact cites is provenance — do not open it to review; a claim that can't be acted on without opening a cited file IS a finding (**hollow-citation**).
+Reads (open NOTHING else to act): the artifact under review · its upstream (Vision Summary for a decomposition or expanded epic; research or interview inputs for a vision) · the doer twin's `## Acceptance Criteria` · the checklist Phase 0 names (by path, never by an item count). Everything the artifact cites is provenance — do not open it to review; a claim that can't be acted on without opening a cited file IS a finding.
 
 {{include:run-record}}
 {{include:orient}}
@@ -13,7 +13,7 @@ Reads (open NOTHING else to act): the artifact under review · its upstream (the
 {{include:grounding-artifact}}
 
 {{include:subagents-core}}
-## Phase 0 — Scope (the `type` selects the folder + its yardstick)
+## Phase 0 — Scope
 
 Args: artifact path + type; if unset, infer from the path and state it.
 
@@ -21,28 +21,28 @@ Args: artifact path + type; if unset, infer from the path and state it.
 |---|---|---|
 | **`mega-epic-breakdown/`** (mega) | `vision-summary` · `epic-decomposition` · `expanded-epic-files` | `docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` |
 
-Only the `type` argument selects the yardstick. Load the matching doer twin's `## Acceptance Criteria` plus the checklist items its `[canonical: …]` tags point at ARE the yardstick. Never hard-code an item count — read the checklist; counts drift. Record the artifact's `md5sum`.
+Only the `type` argument selects the yardstick (CC1: "thin files, not ten more heavy ones"). Load the doer twin's `## Acceptance Criteria` plus the checklist items its `[canonical: …]` tags point at: those ARE the yardstick. Never hard-code an item count — read the checklist; counts drift. Record the artifact's `md5sum`.
 
 ## Phase 1 — Finders (recall), native seats
 
-Dispatch finders in parallel, each owning a different failure class, against the artifact + its acceptance criteria + the yardstick items, in one message: one Sonnet `fabrik-reviewer` per independent failure-class GROUP plus the Haiku seats `dispatch_headroom.py --units <groups>` prints (D-191), AND ≥1 native `fabrik-reviewer` on Opus (the authoritative pass). Collapse classes so no finding is claimed by two groups; the group count is the PARTITION passed as `--units` (D-191, the same collapse rule `/fabrik-review` § Breadth seats states), never a token 1–2. Cover, across finders, the classes THIS artifact can fail, each located by NAME in the checklist (item numbers drift):
+Dispatch finders in parallel, each owning a different failure class. Native seats per `62-using-subagents.md` (D-181): one `fabrik-reviewer` seat on Sonnet per independent failure-class GROUP plus the Haiku seats `dispatch_headroom.py --units <groups>` prints (D-191), all in one message. Collapse the classes so no finding can be claimed by two groups; the group count is the PARTITION passed as `--units` (D-191, collapse rule of `/fabrik-review`). Never a token 1–2. AND ≥1 native `fabrik-reviewer` on Opus (the authoritative pass).<!-- POOL OFF (D-181): `fanout("review", units, repo=…, project="mega-review", mode="read_only")` — the label must MATCH Phase 3's back-fill --> Cover, across finders, the classes THIS artifact can fail — locate each by NAME in the checklist (item numbers drift):
 
-- **Field completeness / propagation** — every required field is present, valued and consistent with upstream (Path A vs Path B; nothing silently dropped).
-- **Trigger-vs-value** — an `N/A` whose reason contradicts its trigger (e.g. `Responsive: N/A` on `shape.is_public: true` + HTML) is a violation, not a pass.
-- **Flavor branch** (*"Retrofit-epic special-case missing"*) — Success-Criteria count, deploy-vs-gate criterion and closure fit the epic's flavour.
-- **Hollow citation** — any claim the reader can't act on without opening a cited file → the artifact must inline the decision or tag `[canonical: …]`. **Dangling citation** — a cited path that is archived or no longer exists (verify with `ls`/`Read` before accepting it).
-- **Grounding** — every external/vendor claim carries a fresh cited source, re-verify LIVE via exa/brave/firecrawl/official-docs WebFetch when the artifact touches a vendor; a memory-based external claim is a defect.
-- **Cross-artifact seams** — nothing contradicts upstream. *(Mega types: also `Owned paths:` disjoint across a `Parallel with:` set, `Produces`/`Consumes` matched, at most one epic owning migrations.)*
+- Field completeness / propagation — every required field is present, valued, consistent with upstream; nothing silently dropped.
+- Trigger-vs-value — an `N/A` whose reason contradicts its trigger (e.g. `Responsive: N/A` on `shape.is_public: true` + HTML) is a violation, not a pass.
+- Flavor branch — Success-Criteria count, deploy-vs-gate criterion and closure fit the epic's flavour.
+- Hollow citation — a claim the reader can't act on without opening a cited file → the artifact must inline the decision or tag `[canonical: …]`. Dangling citation — a cited path that is archived or no longer exists (verify with `ls`/`Read` before accepting it).
+- Grounding — every external/vendor claim carries a fresh cited source (re-verify LIVE via exa/brave/firecrawl/official-docs WebFetch when the artifact touches a vendor); a memory-based external claim is a defect.
+- Cross-artifact seams — the artifact contradicts nothing upstream. *(Mega types: also `Owned paths:` disjoint across a `Parallel with:` set, `Produces`/`Consumes` matched, at most one epic owning migrations.)*
 
-Each finder names a concrete failure scenario. YOU keep refute/merge/decide.
+Each finder names a concrete failure scenario.
 
 ## Phase 2 — Verify / refute
 
-For each deduped candidate try to REFUTE from the real source (quote the line/anchor that disproves it). Refute only when provably impossible or factually wrong — never merely for being rare. Log every candidate raised (including refuted ones) in the ledger; a fix changes the md5, so the next pass is owed. This is the separate, fresh-context pass that forces the closing round the doer's own context won't reach. A pass whose refutations leave the artifact unchanged still converges only via the md5-verified closing round at `confirmed: 0`.
+REFUTE each deduped candidate from the real source (quote the line/anchor that disproves it). Refute only when provably impossible or factually wrong — never merely for being rare. Log every candidate raised (including refuted ones) in the ledger; a fix changes the md5, so the next pass is owed. A pass whose refutations leave the artifact unchanged still converges only via the md5-verified closing round at `confirmed: 0`.
 
 ## Phase 3 — Fix + re-check
 
-Fix every survivor in the artifact, not the doer command. When a cross-artifact finding shows the ARTIFACT right and its UPSTREAM stale, re-run THIS review on the upstream (`/fabrik-workflow-review <vision path> vision-summary` for a stale Vision Summary behind a decomposition or an expanded epic; `… epic-decomposition` for a stale cut behind an expanded epic), or the upstream's own doer when it must change (`/fabrik-vision` for the vision, `/fabrik-epics` for the cut) — and the downstream then re-derives from the changed upstream; routing is not convergence. This loop never edits the upstream, and "fix the artifact into agreeing with a stale upstream" is the wrong direction. Re-run the yardstick, then the next full pass.
+Fix every survivor in the artifact, not the doer command. One disposition fork the seams class needs stated: when a cross-artifact finding shows the ARTIFACT right and its UPSTREAM stale, the fix routes one step up — re-run THIS review on the upstream artifact (`/fabrik-workflow-review <vision path> vision-summary` for a stale Vision Summary; `… epic-decomposition` for a stale cut), or the upstream's own doer when it must change (`/fabrik-vision` for the vision, `/fabrik-epics` for the cut) — and the downstream then re-derives from the changed upstream; routing is not convergence. This loop never edits the upstream, and "fix the artifact into agreeing with a stale upstream" is the wrong direction. Re-run the yardstick, then the next full pass.
 
 ## Phase 4 — Gate + converge
 
@@ -50,6 +50,6 @@ Fix every survivor in the artifact, not the doer command. When a cross-artifact 
 
 ## After convergence — autonomous
 
-The loop is **autonomous for every type this skill serves**: converge and return control to the orchestrator so the next stage runs without a human stop. This skill owns neither human gate, and neither gate is a `type` here `[canonical: north star § Human gates — R14: "Exactly two gates: plan approval in, deploy approval out"]`: plan-in is the operator's approval of the spec/plan upstream — `/fabrik-spec-review` stops for it `[canonical: north star R25 — "/fabrik-spec-review stops for operator approval; /fabrik-plan-review runs to no-op autonomously"]`, and by the time a mega artifact reaches this review that gate has already passed. Deploy-out is Gate 2 before `/fabrik-deploy` — the operator's explicit go, the deploy triad (`fabrik apply` underneath, never typed by hand) running after it. Likewise the doer whose paired review is a dedicated command is NOT a type here: the cross-epic validation of `/fabrik-epics`' output belongs to `/fabrik-epics-review`, which self-converges. This skill is the shared review for the producer doers only — `/fabrik-vision` (`vision-summary`) and `/fabrik-epics` (`epic-decomposition` · `expanded-epic-files`). Never leave a ledger row whose `confirmed:` is non-zero for the operator to re-invoke. Converge here.
+The loop is **autonomous for every type this skill serves**: converge and return control to the orchestrator so the next stage runs without a human stop. Deploy-out is Gate 2 before `/fabrik-deploy` — the operator's explicit go, the deploy triad (`fabrik apply` underneath, never typed by hand) running after it. The doer whose paired review is a dedicated command is NOT a type here: `/fabrik-epics`' cross-epic validation belongs to `/fabrik-epics-review`. This skill is the shared review for the producer doers only — `/fabrik-vision` (`vision-summary`) and `/fabrik-epics` (`epic-decomposition` · `expanded-epic-files`). Never leave a ledger row whose `confirmed:` is non-zero for the operator to re-invoke. Converge here.
 
 {{include:close-chain}}
