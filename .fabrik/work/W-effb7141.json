@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T09:12:51.804990Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-effb7141",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1196",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 0,
+  "score_reason": "P0: the one change that lets builders run on API credit through the wall (operator: use all credits asap); infra beat (hooks); LOW: an env check + test",
+  "status": "open",
+  "title": "P0: the quota hold (.claude/hooks/quota_stop.py, and quota_posture_hook.py's band) must EXEMPT a session that runs on an Anthropic API key (ANTHROPIC_API_KEY set, no OAuth): it draws no plan quota, so the fleet wall and the urgent-90 lane must not hold its tools. Without this a builder launched on the $200 API credit freezes at the wall exactly when it is needed. Add the exemption with a test; log the exemption in the hook's stderr line so it is visible"
+}

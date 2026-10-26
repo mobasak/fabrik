@@ -58,7 +58,11 @@ def test_a_stale_stamp_from_a_dead_tick_never_freezes_the_fleet(monkeypatch):
 
 
 def _run(
-    tmp_path: Path, payload: object, stamp: bool, tick_fresh: bool
+    tmp_path: Path,
+    payload: object,
+    stamp: bool,
+    tick_fresh: bool,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
@@ -70,6 +74,7 @@ def _run(
         old = time.time() - 4000
         os.utime(log, (old, old))
     env = {**os.environ, "ROTATE_STATE_DIR": str(state), "QUOTA_STOP_TICK_LOG": str(log)}
+    env.update(extra_env or {})
     data = payload if isinstance(payload, str) else json.dumps(payload)
     return subprocess.run(
         [sys.executable, str(_HOOK)],
@@ -1876,3 +1881,120 @@ def test_the_scope_realpath_runs_once_per_distinct_scope(lane, monkeypatch):
     assert len(hook._scoped_rows(lane.common)) == 30
     # the judged scope itself, then one per distinct row scope (2): 3, where per-row was 32
     assert len(seen) == 3 and seen.count("/elsewhere/.git") == 1, seen
+
+
+# --- W-effb7141: a session on an Anthropic API key draws no plan quota --------------------------
+
+
+@pytest.mark.parametrize("tier", ["walled", "urgent-90"])
+def test_an_api_key_session_is_not_held_by_the_wall_or_the_lane(tmp_path, tier):
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text(f"1\n{tier}\n")
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "session_id": "s1"},
+        stamp=False,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert r.returncode == 0
+    assert r.stdout.strip() == "", r.stdout
+    assert "API key" in r.stderr
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-x"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "ANTHROPIC_AUTH_TOKEN": "bearer"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_USE_BEDROCK": "1"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_USE_VERTEX": "1"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_USE_FOUNDRY": "0"},
+        {"ANTHROPIC_API_KEY": "  "},
+        {},
+    ],
+    ids=[
+        "oauth-token-beside-the-key",
+        "auth-token-beside-the-key",
+        "bedrock",
+        "vertex",
+        "foundry-any-value",
+        "blank-key",
+        "no-key",
+    ],
+)
+def test_a_plan_session_is_still_held_at_the_wall(tmp_path, extra):
+    """On a PLAIN quota tier — the one stamp an API-key session passes — so each case grades the
+    env predicate alone, never the tier rule."""
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text("1\nwalled\n")
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=False,
+        tick_fresh=True,
+        extra_env=extra,
+    )
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+@pytest.mark.parametrize(
+    "line2",
+    ["battery", "bogus", "", " BATTERY", "walled-ish"],
+    ids=["battery", "unknown-tier", "pre-tier", "padded-battery", "near-miss"],
+)
+def test_only_a_plain_quota_tier_lets_an_api_key_session_through(tmp_path, line2):
+    """The battery stamp (D-898) protects the BOX, not plan quota, and any line 2 that is not
+    plainly `walled` or `urgent-90` holds — the unknown case is never the lenient one."""
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text(f"1\n{line2}\n")
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=False,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_battery_stamp_that_is_a_directory_still_holds_an_api_key_session(tmp_path):
+    state = tmp_path / "state"
+    (state / "fleet-exhausted").mkdir(parents=True)
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=False,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_stale_tick_keeps_its_own_warning_for_an_api_key_session(tmp_path):
+    """A stale tick means the hold is OFF: the session hears the dead-cron warning every plan
+    session hears, never a claim that the hold is in force."""
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=True,
+        tick_fresh=False,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert r.stdout.strip() == ""
+    assert "rotation tick has not run" in r.stderr
+    assert "API key" not in r.stderr
+
+
+def test_an_allowed_call_prints_no_exemption_note(tmp_path):
+    r = _run(
+        tmp_path,
+        {"tool_name": "Read", "tool_input": {"file_path": "x.py"}},
+        stamp=True,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert r.stdout.strip() == "" and r.stderr == ""
