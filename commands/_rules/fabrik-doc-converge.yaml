@@ -1,6 +1,6 @@
 command: fabrik-doc-converge
 baseline_sentences: fabrik-doc-converge.baseline.txt
-baseline_sha256: 'e2b1f8a305fa734c81e296a45719b20b4fb404819c059b0098af648f8412c5f8'
+baseline_sha256: e2b1f8a305fa734c81e296a45719b20b4fb404819c059b0098af648f8412c5f8
 entries:
 - id: u-L10
   # class: prose
@@ -92,38 +92,35 @@ entries:
   - everything the code obligates it to say is present
 - id: r-L2
   # class: prose
-  # clauses: dropped from baseline, author-labelled narrative — One doc per run; depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the single-doc deep converge)
   file: render
   baseline: One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the single-doc deep converge)
-  current: The whole-tree sweep is `/fabrik-docs-review`
+  current: One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the single-doc deep converge)
   text:
-  - The whole-tree sweep is `/fabrik-docs-review`
+  - One doc per run — depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; this is the single-doc deep converge)
 - id: r-L4
   # class: prose
   file: render
   section: '## Phase 0 — Establish scope + pick the contract'
   baseline: Operate on the current project (cwd)
-  current: Resolve `$ARGUMENTS` in the current project to ONE doc and its row in the Convergence Contract table
+  current: Operate on the current project (cwd)
   text:
-  - Resolve `$ARGUMENTS` in the current project to ONE doc and its row in the Convergence Contract table
+  - Operate on the current project (cwd)
 - id: r-L5
   # class: prose
   file: render
   section: '## Phase 0 — Establish scope + pick the contract'
   baseline: Resolve `$ARGUMENTS` to ONE doc and its row in the Convergence Contract table below
-  current: Resolve `$ARGUMENTS` in the current project to ONE doc and its row in the Convergence Contract table
+  current: Resolve `$ARGUMENTS` to ONE doc and its row in the Convergence Contract table
   text:
-  - Resolve `$ARGUMENTS` in the current project to ONE doc and its row in the Convergence Contract table
+  - Resolve `$ARGUMENTS` to ONE doc and its row in the Convergence Contract table
 - id: r-L6
   # class: ban
-  # clauses: dropped from baseline, author-labelled narrative — history is never "converged against code"; none of these has a row, by design)
   file: render
   section: '## Phase 0 — Establish scope + pick the contract'
   baseline: No row → STOP and say so (FEATURES → `/fabrik-features` · data-contract → `/fabrik-data-contract` · ui-design/design-system → `/fabrik-ui-design`; CHANGELOG/LESSONS_LEARNT/AFCL are append-only ledgers — history is never "converged against code" — and PORTS.md is a per-allocation registry whose reconcile home is `/fabrik-docs-review`; none of these has a row, by design)
-  current: 'No row → STOP and say so: FEATURES → `/fabrik-features`, data-contract → `/fabrik-data-contract`, ui-design/design-system → `/fabrik-ui-design`; CHANGELOG/LESSONS_LEARNT/AFCL are append-only ledgers and PORTS.md is a registry whose reconcile home is `/fabrik-docs-review`'
+  current: 'No row → STOP and say so: FEATURES → `/fabrik-features`, data-contract → `/fabrik-data-contract`, ui-design/design-system → `/fabrik-ui-design`; CHANGELOG/LESSONS_LEARNT/AFCL are append-only ledgers — history is never "converged against code" — and PORTS.md is a per-allocation registry whose reconcile home is `/fabrik-docs-review`; none of these has a row, by design'
   text:
-  - 'No row → STOP and say so: FEATURES → `/fabrik-features`, data-contract → `/fabrik-data-contract`, ui-design/design-system → `/fabrik-ui-design`'
-  - CHANGELOG/LESSONS_LEARNT/AFCL are append-only ledgers and PORTS.md is a registry whose reconcile home is `/fabrik-docs-review`
+  - 'No row → STOP and say so: FEATURES → `/fabrik-features`, data-contract → `/fabrik-data-contract`, ui-design/design-system → `/fabrik-ui-design`; CHANGELOG/LESSONS_LEARNT/AFCL are append-only ledgers — history is never "converged against code" — and PORTS.md is a per-allocation registry whose reconcile home is `/fabrik-docs-review`; none of these has a row, by design'
 - id: r-L7
   # class: prose
   file: render
@@ -145,26 +142,23 @@ entries:
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   baseline: '| `docs/SERVICES.md` | `compose.yaml` services · every external call-site in code (HTTP clients, SDKs, `claude -p`, OpenRouter) · `.env.example` keys | every compose service has a row (`check_compose_services.py` only WARNs on newly-staged services — YOUR sweep is the completeness authority) AND every external call-site has a dependency block (env, cost, rate limits, failure signature, fallback) AND no block cites a dead call-site |'
-  current: '| `docs/SERVICES.md` | `compose.yaml` services · every external call-site in code (HTTP clients, SDKs, `claude -p`, OpenRouter) · `.env.example` keys | every compose service has a row (YOUR sweep is the completeness authority, not `check_compose_services.py`) AND every call-site has a dependency block (env, cost, rate limits, failure signature, fallback) AND no block cites a dead call-site |'
+  current: '| `docs/SERVICES.md` | `compose.yaml` services · every external call-site in code (HTTP clients, SDKs, `claude -p`, OpenRouter) · `.env.example` keys | every compose service has a row (`check_compose_services.py` only WARNs on newly-staged services — YOUR sweep is the completeness authority) AND every external call-site has a dependency block (env, cost, rate limits, failure signature, fallback) AND no block cites a dead call-site |'
   text:
-  - '| `docs/SERVICES.md` | `compose.yaml` services · every external call-site in code (HTTP clients, SDKs, `claude -p`, OpenRouter) · `.env.example` keys | every compose service has a row (YOUR sweep is the completeness authority, not `check_compose_services.py`)'
-  - every call-site has a dependency block (env, cost, rate limits, failure signature, fallback)
-  - no block cites a dead call-site |
+  - '| `docs/SERVICES.md` | `compose.yaml` services · every external call-site in code (HTTP clients, SDKs, `claude -p`, OpenRouter) · `.env.example` keys | every compose service has a row (`check_compose_services.py` only WARNs on newly-staged services — YOUR sweep is the completeness authority) AND every external call-site has a dependency block (env, cost, rate limits, failure signature, fallback) AND no block cites a dead call-site |'
 - id: r-L12
   # class: ban
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   baseline: '| `docs/RESILIENCE.md` | scheduler code (Beat/cron/queue registrations) · pause-key usage · spec `shape:` flags + top-level `target_vps:` · every external call-site in code with its per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval — and ONLY jobs that exist; every `shape:` flag true in the spec has its §5 addendum honored in code; the §1 Shape Card (incl. `target_vps`) matches the spec; every external API the CODE calls with a billable balance (a per-call price, a balance endpoint, a quota constant — never §2''s own cost column) has a §7 depletion row |'
-  current: '| `docs/RESILIENCE.md` | scheduler code · pause-key usage · spec `shape:` flags + `target_vps:` · every external call-site''s per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval, and ONLY jobs that exist; each `shape:` flag true in the spec has its §5 addendum honored in code; the §1 Shape Card (incl. `target_vps`) matches the spec; every external API the CODE calls with a billable balance has a §7 depletion row (never §2''s own cost column) |'
+  current: '| `docs/RESILIENCE.md` | scheduler code (Beat/cron/queue registrations) · pause-key usage · spec `shape:` flags + top-level `target_vps:` · every external call-site in code with its per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval, and ONLY jobs that exist; each `shape:` flag true in the spec has its §5 addendum honored in code; the §1 Shape Card (incl. `target_vps`) matches the spec; every external API the CODE calls with a billable balance (a per-call price, a balance endpoint, a quota constant — never §2''s own cost column) has a §7 depletion row |'
   text:
-  - '| `docs/RESILIENCE.md` | scheduler code · pause-key usage · spec `shape:` flags + `target_vps:` · every external call-site''s per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval'
-  - every external API the CODE calls with a billable balance has a §7 depletion row (never §2's own cost column) |
+  - '| `docs/RESILIENCE.md` | scheduler code (Beat/cron/queue registrations) · pause-key usage · spec `shape:` flags + top-level `target_vps:` · every external call-site in code with its per-call price, balance endpoint or quota constant | §7 lists every scheduled job in code with its real interval, and ONLY jobs that exist; each `shape:` flag true in the spec has its §5 addendum honored in code; the §1 Shape Card (incl. `target_vps`) matches the spec; every external API the CODE calls with a billable balance (a per-call price, a balance endpoint, a quota constant — never §2''s own cost column) has a §7 depletion row |'
 - id: r-L13
   # class: prose
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   baseline: '| `docs/CONFIGURATION.md` | every `os.getenv`/`process.env` read in code · `.env.example` | every var read in code is documented AND in `.env.example`; every documented var is actually read (dead vars deleted, stated); defaults in the doc match the code''s defaults |'
-  current: '| `docs/CONFIGURATION.md` | every `os.getenv`/`process.env` read in code · `.env.example` | every var read in code is documented AND in `.env.example`; every documented var is read (delete dead vars, stated); documented defaults match the code |'
+  current: '| `docs/CONFIGURATION.md` | every `os.getenv`/`process.env` read in code · `.env.example` | every var read in code is documented AND in `.env.example`; every documented var is actually read (dead vars deleted, stated); documented defaults match the code |'
   text:
   - '| `docs/CONFIGURATION.md` | every `os.getenv`/`process.env` read in code · `.env.example` | every var read in code is documented'
   - documented defaults match the code |
@@ -173,21 +167,17 @@ entries:
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   baseline: '| `docs/OPERATIONS.md` | compose services · RESILIENCE §7 (link, never copy) · real runbook commands | every service has an operate-it section; every §7 job has a manual-fallback playbook or an explicit "no manual path"; every command in the doc RUNS (execute the read-only ones; reason the destructive ones against current flags/paths) |'
-  current: '| `docs/OPERATIONS.md` | compose services · RESILIENCE §7 (link, never copy) · runbook commands | every service has an operate-it section; every §7 job has a manual-fallback playbook or an explicit "no manual path"; every command RUNS (execute read-only ones; reason destructive ones against current flags/paths) |'
+  current: '| `docs/OPERATIONS.md` | compose services · RESILIENCE §7 (link, never copy) · real runbook commands | every service has an operate-it section; every §7 job has a manual-fallback playbook or an explicit "no manual path"; every command in the doc RUNS (execute read-only ones; reason destructive ones against current flags/paths) |'
   text:
-  - '| `docs/OPERATIONS.md` | compose services · RESILIENCE §7 (link, never copy) · runbook commands | every service has an operate-it section'
-  - every §7 job has a manual-fallback playbook or an explicit "no manual path"
-  - every command RUNS (execute read-only ones
-  - reason destructive ones against current flags/paths) |
+  - '| `docs/OPERATIONS.md` | compose services · RESILIENCE §7 (link, never copy) · real runbook commands | every service has an operate-it section; every §7 job has a manual-fallback playbook or an explicit "no manual path"; every command in the doc RUNS (execute read-only ones; reason destructive ones against current flags/paths) |'
 - id: r-L15
   # class: prose
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   baseline: '| `docs/QUICKSTART.md` | live routes/CLI entrypoints · `compose.dev.yaml` · `.env.example` · the spec''s top-level `target_vps:` | the 5-minute path works from a clean clone (execute what is executable); every endpoint/SDK example matches a live route signature; the production-URL subdomain matches the spec''s `target_vps:`; no step references retired infra |'
-  current: '| `docs/QUICKSTART.md` | live routes/CLI entrypoints · `compose.dev.yaml` · `.env.example` · the spec''s `target_vps:` | the 5-minute path works from a clean clone (execute what is executable); every endpoint/SDK example matches a live route signature; the production-URL subdomain matches `target_vps:`; no step references retired infra |'
+  current: '| `docs/QUICKSTART.md` | live routes/CLI entrypoints · `compose.dev.yaml` · `.env.example` · the spec''s top-level `target_vps:` | the 5-minute path works from a clean clone (execute what is executable); every endpoint/SDK example matches a live route signature; the production-URL subdomain matches the spec''s top-level `target_vps:`; no step references retired infra |'
   text:
-  - '| `docs/QUICKSTART.md` | live routes/CLI entrypoints · `compose.dev.yaml` · `.env.example` · the spec''s `target_vps:` | the 5-minute path works from a clean clone (execute what is executable)'
-  - every endpoint/SDK example matches a live route signature
+  - '| `docs/QUICKSTART.md` | live routes/CLI entrypoints · `compose.dev.yaml` · `.env.example` · the spec''s top-level `target_vps:` | the 5-minute path works from a clean clone (execute what is executable); every endpoint/SDK example matches a live route signature; the production-URL subdomain matches the spec''s top-level `target_vps:`; no step references retired infra |'
 - id: r-L16
   # class: ban
   file: render
@@ -205,7 +195,7 @@ entries:
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   baseline: '| `docs/TROUBLESHOOTING.md` | git log/LESSONS/incident entries since last converge · current code paths | every entry''s symptom+fix still applies to TODAY''s code (paths/commands open); recurring symptoms since the last pass have entries; fixed-forever entries are moved to archive with the fixing commit cited |'
-  current: '| `docs/TROUBLESHOOTING.md` | git log/LESSONS/incidents since last converge · current code paths | every entry''s symptom+fix still applies to TODAY''s code (open the paths/commands); recurring symptoms have entries; fixed-forever entries move to archive citing the fixing commit |'
+  current: '| `docs/TROUBLESHOOTING.md` | git log/LESSONS/incidents since last converge · current code paths | every entry''s symptom+fix still applies to TODAY''s code (open the paths/commands); recurring symptoms since the last pass have entries; fixed-forever entries move to archive citing the fixing commit |'
   text:
   - '| `docs/TROUBLESHOOTING.md` | git log/LESSONS/incidents since last converge · current code paths | every entry''s symptom+fix still applies to TODAY''s code (open the paths/commands)'
 - id: r-L18
@@ -224,7 +214,7 @@ entries:
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   baseline: '| `docs/README.md` · `docs/INDEX.md` | `docs/` dir listing · the doc registry buckets | every doc present is indexed with an honest purpose; no row for an absent doc; subdir list matches what exists; each docs-level index obeys this rule and the two agree — a disagreement in the one not under converge is a keyed ripple (Phase 2) |'
-  current: '| `docs/README.md` · `docs/INDEX.md` | `docs/` listing · the doc registry buckets | every doc present is indexed with an honest purpose; no row for an absent doc; the subdir list matches; each docs-level index obeys this rule and the two agree — a disagreement in the one not under converge is a keyed ripple (Phase 2) |'
+  current: '| `docs/README.md` · `docs/INDEX.md` | `docs/` listing · the doc registry buckets | every doc present is indexed with an honest purpose; no row for an absent doc; the subdir list matches what exists; each docs-level index obeys this rule and the two agree — a disagreement in the one not under converge is a keyed ripple (Phase 2) |'
   text:
   - '| `docs/README.md` · `docs/INDEX.md` | `docs/` listing · the doc registry buckets | every doc present is indexed with an honest purpose'
   - no row for an absent doc
@@ -234,11 +224,9 @@ entries:
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   baseline: '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem it documents — its code paths, config keys, live probe | every claim maps to a current code path or an executed probe; every `## Related scripts` block is rendered from the scripts'' `# AFTER-EDIT:` headers, never hand-kept; a doc whose subsystem is gone is retired, not polished (01M1V443) |'
-  current: '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem''s code paths, config keys, live probe | every claim maps to a current code path or an executed probe; every `## Related scripts` block is rendered from the scripts'' `# AFTER-EDIT:` headers, never hand-kept; a doc whose subsystem is gone is retired, not polished |'
+  current: '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem''s code paths, config keys, live probe | every claim maps to a current code path or an executed probe; every `## Related scripts` block is rendered from the scripts'' `# AFTER-EDIT:` headers, never hand-kept; a doc whose subsystem is gone is retired, not polished (01M1V443) |'
   text:
-  - '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem''s code paths, config keys, live probe | every claim maps to a current code path or an executed probe'
-  - every `## Related scripts` block is rendered from the scripts' `# AFTER-EDIT:` headers, never hand-kept
-  - a doc whose subsystem is gone is retired, not polished |
+  - '| any project-local `docs/reference/<name>.md` (a subsystem''s dedicated doc) | the subsystem''s code paths, config keys, live probe | every claim maps to a current code path or an executed probe; every `## Related scripts` block is rendered from the scripts'' `# AFTER-EDIT:` headers, never hand-kept; a doc whose subsystem is gone is retired, not polished (01M1V443) |'
 - id: r-L22
   # class: ban
   # clauses: dropped from baseline, author-labelled narrative — the set changes)
@@ -255,28 +243,25 @@ entries:
   file: render
   section: '## The Convergence Contract table (per-doc ground truth + completeness rule)'
   baseline: '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item that a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body (an uncited drop is a miss, not a decision) |'
-  current: '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed residuals appear here or are dropped WITH the drop cited in the commit body (an uncited drop is a miss) |'
+  current: '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body (an uncited drop is a miss, not a decision) |'
   text:
-  - '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item a landed plan already shipped (delete, cite the plan)'
-  - every item has a real trigger
-  - accepted-not-fixed residuals appear here or are dropped WITH the drop cited in the commit body (an uncited drop is a miss) |
+  - '| `docs/STRATEGIC_BACKLOG.md` | plans/ (active+archived) · review residuals · TROUBLESHOOTING recurrences | no item a landed plan already shipped (delete, cite the plan); every item has a real trigger; accepted-not-fixed review residuals appear here or are consciously dropped WITH the drop cited in the commit body (an uncited drop is a miss, not a decision) |'
 - id: r-L25
   # class: prose
   file: render
   section: '## Phase 1 — Discover ground truth (the doc is the CLAIM, never the source)'
   baseline: Sweep the contract row's ground-truth column from the CODE/infra outward
-  current: Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember
+  current: Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent
   text:
-  - Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember
+  - Sweep the row's ground-truth column from the CODE/infra outward
 - id: r-L26
   # class: prose
-  # clauses: dropped from baseline, author-labelled narrative — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent
   file: render
   section: '## Phase 1 — Discover ground truth (the doc is the CLAIM, never the source)'
   baseline: Enumerate what you READ (files × surfaces), not what you remember — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent
-  current: Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember
+  current: Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent
   text:
-  - Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember
+  - Sweep the row's ground-truth column from the CODE/infra outward, enumerating what you READ (files × surfaces), not what you remember — a capability/var/job/service found in the tree but absent from your sweep notes is the miss this phase exists to prevent
 - id: r-L27
   # class: ban
   file: render
@@ -299,13 +284,12 @@ entries:
   file: render
   section: '## Phase 2 — Reconcile bidirectionally'
   baseline: 'Shape discipline: keep the seeding template''s structure (it is consumer-contract-hardened); respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never copy; the Doc Sync Matrix rows bind)'
-  current: 'Shape discipline: keep the seeding template''s structure; respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never copy; the Doc Sync Matrix rows bind)'
+  current: 'Shape discipline: keep the seeding template''s structure (it is consumer-contract-hardened); respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never copy; the Doc Sync Matrix rows bind)'
   text:
   - 'Shape discipline: keep the seeding template''s structure'
   - respect canonical-inventory boundaries (§7 lives in RESILIENCE
 - id: r-L36
   # class: prose
-  # clauses: dropped from baseline, author-labelled narrative — a CODE defect the converge uncovers is filed to its owner (a mail to the code's owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id
   file: render
   section: '## Phase 2 — Reconcile bidirectionally'
   baseline: 'Code defects: before a schema, missing-table or missing-feature finding is raised, grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it, quoting the row; a ruling that does not cover the finding leaves it standing; a CODE defect the converge uncovers is filed to its owner (a mail to the code''s owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id'
@@ -313,32 +297,44 @@ entries:
   text:
   - 'Code defects: before raising a schema, missing-table or missing-feature finding, grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling, quoting the row'
   - a ruling that does not cover the finding leaves it standing
+- id: r-L36b
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally'
+  baseline: a CODE defect the converge uncovers is filed to its owner (a mail to the code's owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id
+  current: A CODE defect the converge uncovers is filed to its owner (a mail to the owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id
+  text:
+  - A CODE defect the converge uncovers is filed to its owner (a mail to the owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id
 - id: r-L37
   # class: prose
-  # clauses: dropped from baseline, author-labelled narrative — Ripples: a fix here may obligate a sibling doc (Doc Sync Matrix)
   file: render
   section: '## Phase 2 — Reconcile bidirectionally'
   baseline: 'Ripples: a fix here may obligate a sibling doc (Doc Sync Matrix)'
-  current: Delete dead claims, stating the removal; correct half-true ones
+  current: 'Ripples: a fix here may obligate a sibling doc (Doc Sync Matrix)'
   text:
-  - Delete dead claims, stating the removal
+  - 'Ripples: a fix here may obligate a sibling doc (Doc Sync Matrix)'
 - id: r-L38
   # class: ban
-  # clauses: dropped from baseline, author-labelled narrative — the SAME-change law
   file: render
   section: '## Phase 2 — Reconcile bidirectionally'
   baseline: 'A KEYED ripple lands as the MINIMAL MECHANICAL EDIT in this run''s own commit — the SAME-change law; a mechanical row/link edit is not a second convergence, so the one-doc guardrail is untouched (and it is OUTSIDE the convergence counters: `edits:` and the md5 track the ARTIFACT only — a sibling-doc ripple never re-opens the loop)'
-  current: 'Ripples: a KEYED ripple (Doc Sync Matrix) lands as the MINIMAL MECHANICAL EDIT in this run''s commit, outside the convergence counters (`edits:` and the md5 track the ARTIFACT only), so it never re-opens the loop'
+  current: A KEYED ripple lands as the MINIMAL MECHANICAL EDIT in this run's own commit — the SAME-change law; a mechanical row/link edit is not a second convergence, so the one-doc guardrail is untouched — and OUTSIDE the convergence counters (`edits:` and the md5 track the ARTIFACT only), so it never re-opens the loop
   text:
-  - 'Ripples: a KEYED ripple (Doc Sync Matrix) lands as the MINIMAL MECHANICAL EDIT in this run''s commit, outside the convergence counters (`edits:` and the md5 track the ARTIFACT only), so it never re-opens the loop'
+  - A KEYED ripple lands as the MINIMAL MECHANICAL EDIT in this run's own commit — the SAME-change law; a mechanical row/link edit is not a second convergence, so the one-doc guardrail is untouched — and OUTSIDE the convergence counters (`edits:` and the md5 track the ARTIFACT only), so it never re-opens the loop
 - id: r-L39
   # class: ban
   file: render
   section: '## Phase 2 — Reconcile bidirectionally'
   baseline: Only a ripple that would itself need a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the staleness stated in the commit body — never silently
-  current: A ripple needing a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the staleness stated in the commit body — never silently
+  current: Only a ripple that would itself need a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the staleness stated in the commit body — never silently
   text:
-  - A ripple needing a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the staleness stated in the commit body
+  - Only a ripple that would itself need a full converge becomes the named follow-up (`/fabrik-doc-converge <sibling>`), with the staleness stated in the commit body — never silently
+- id: r-L40
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally'
+  baseline: The only doc→doc rule `check_doc_sync` carries is added/removed/renamed-file → INDEX.md — an edit-in-place ripple fires nothing, so this law is honour-bound here; that is why the commit-body statement is mandatory
+  current: The only doc→doc rule `check_doc_sync` carries is added/removed/renamed-file → INDEX.md; an edit-in-place ripple fires nothing, so this law is honour-bound here and the commit-body statement is mandatory
+  text:
+  - The only doc→doc rule `check_doc_sync` carries is added/removed/renamed-file → INDEX.md; an edit-in-place ripple fires nothing, so this law is honour-bound here and the commit-body statement is mandatory
 - id: r-L42
   # class: prose
   # clauses: dropped from baseline, author-labelled narrative — Repeated passes until the Termination contract's closing round; `confirmed: 0`, md5 unchanged; bumps `Last Updated:` only at the final flip
@@ -350,10 +346,16 @@ entries:
   - Each pass re-runs a fresh Phase-1 sweep against the CURRENT tree, re-opens every NEW claim plus a STATED sample of old ones (the pass ledger carries re-opened k of N), re-checks the row's "complete when" clause end to end
 - id: r-L43
   # class: ban
-  # clauses: dropped from baseline, author-labelled narrative — List what you re-read each pass
   file: render
   section: '## Phase 3 — Converge (LOOP to a no-op)'
   baseline: List what you re-read each pass
+  current: Each pass re-runs a fresh Phase-1 sweep against the CURRENT tree, re-opens every NEW claim plus a STATED sample of old ones (the pass ledger carries re-opened k of N), re-checks the row's "complete when" clause end to end, and lists what it re-read
+  text:
+  - and lists what it re-read
+- id: r-L43b
+  file: render
+  section: '## Phase 3 — Converge (LOOP to a no-op)'
+  baseline: Bump `Last Updated:` only at the final flip
   current: Bump `Last Updated:` only at the final flip
   text:
   - Bump `Last Updated:` only at the final flip
@@ -381,37 +383,105 @@ entries:
   baseline: every capability claim maps to a FEATURES row
   forbidden:
   - every capability claim maps to a FEATURES row
-vanished:  # author labels — audit owed
-  L1: {rule: [r-L1]}
-  L2: {rule: [r-L2]}
-  L4: {rule: [r-L4]}
-  L5: {rule: [r-L5]}
-  L6: {rule: [r-L6]}
-  L7: {rule: [r-L7]}
-  L9: {rule: [r-L9]}
-  L11: {rule: [r-L11]}
-  L12: {rule: [r-L12]}
-  L13: {rule: [r-L13]}
-  L14: {rule: [r-L14]}
-  L15: {rule: [r-L15]}
-  L16: {rule: [r-L16]}
-  L17: {rule: [r-L17]}
-  L18: {rule: [r-L18]}
-  L19: {rule: [r-L19]}
-  L21: {rule: [r-L21]}
-  L22: {rule: [r-L22]}
-  L23: {rule: [r-L23]}
-  L25: {rule: [r-L25]}
-  L26: {rule: [r-L26]}
-  L27: {rule: [r-L27]}
-  L31: {rule: [r-L31]}
-  L32: {rule: [r-L32]}
-  L36: {rule: [r-L36]}
-  L37: {rule: [r-L37]}
-  L38: {rule: [r-L38]}
-  L39: {rule: [r-L39]}
-  L40: narrative
-  L42: {rule: [r-L42]}
-  L43: {rule: [r-L43]}
-  L45: {rule: [r-L45]}
-  L48: {rule: [r-L48]}
+vanished:
+  L1:
+    rule:
+    - r-L1
+  L2:
+    rule:
+    - r-L2
+  L4:
+    rule:
+    - r-L4
+  L5:
+    rule:
+    - r-L5
+  L6:
+    rule:
+    - r-L6
+  L7:
+    rule:
+    - r-L7
+  L9:
+    rule:
+    - r-L9
+  L11:
+    rule:
+    - r-L11
+  L12:
+    rule:
+    - r-L12
+  L13:
+    rule:
+    - r-L13
+  L14:
+    rule:
+    - r-L14
+  L15:
+    rule:
+    - r-L15
+  L16:
+    rule:
+    - r-L16
+  L17:
+    rule:
+    - r-L17
+  L18:
+    rule:
+    - r-L18
+  L19:
+    rule:
+    - r-L19
+  L21:
+    rule:
+    - r-L21
+  L22:
+    rule:
+    - r-L22
+  L23:
+    rule:
+    - r-L23
+  L25:
+    rule:
+    - r-L25
+  L26:
+    rule:
+    - r-L26
+  L27:
+    rule:
+    - r-L27
+  L31:
+    rule:
+    - r-L31
+  L32:
+    rule:
+    - r-L32
+  L36:
+    rule:
+    - r-L36
+    - r-L36b
+  L37:
+    rule:
+    - r-L37
+  L38:
+    rule:
+    - r-L38
+  L39:
+    rule:
+    - r-L39
+  L40:
+    rule:
+    - r-L40
+  L42:
+    rule:
+    - r-L42
+    - r-L43b
+  L43:
+    rule:
+    - r-L43
+  L45:
+    rule:
+    - r-L45
+  L48:
+    rule:
+    - r-L48
