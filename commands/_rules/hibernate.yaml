@@ -13,23 +13,30 @@ entries:
 - id: hib-opens-no-record
   file: render
   baseline: 'The run record below, its Orient step and the Phase sections are the hub coordinator''s alone: a repo coordinator or an agent receiving the pause text opens no record and runs no Orient for it'
-  current: 'The run record, Orient and Phases are the hub coordinator''s alone: a repo coordinator or an agent receiving the pause text opens no record and runs no Orient'
+  current: 'The run record below, its Orient step and the Phase sections are the hub coordinator''s alone: a repo coordinator or an agent receiving the pause text opens no record and runs no Orient for it'
   text:
-  - a repo coordinator or an agent receiving the pause text opens no record and runs no Orient
+  - a repo coordinator or an agent receiving the pause text opens no record and runs no Orient for it
 # class: prose
 - id: hib-mark
   file: render
   baseline: 'Mark the pause: `python3 $H mark --words "<the operator''s words>"`'
-  current: 'Mark the pause: `python3 $H mark --words "<the operator''s words>"`, with no other run of yours running: it would stay `running` across the sleep'
+  current: 'Mark the pause: `python3 $H mark --words "<the operator''s words>"`'
   text:
   - 'Mark the pause: `python3 $H mark --words "<the operator''s words>"`'
+# class: ban
+- id: hib-fresh-pause
+  file: render
+  baseline: It starts a fresh pause, so a wake from an earlier one never counts
+  current: It starts a fresh pause, so a wake from an earlier one never counts
+  text:
+  - It starts a fresh pause, so a wake from an earlier one never counts
 # class: prose
 - id: hib-mark-alone
   file: render
   baseline: 'Open `/hibernate` with no other run of yours running: a run under this one would stay `running` across the sleep, and `status` blocks on it'
-  current: 'Mark the pause: `python3 $H mark --words "<the operator''s words>"`, with no other run of yours running: it would stay `running` across the sleep'
+  current: 'Open `/hibernate` with no other run of yours running: a run under this one would stay `running` across the sleep, and `status` blocks on it'
   text:
-  - 'with no other run of yours running: it would stay `running` across the sleep'
+  - 'Open `/hibernate` with no other run of yours running: a run under this one would stay `running` across the sleep, and `status` blocks on it'
 # class: ban
 - id: hib-pool-never-messaged
   file: render
@@ -41,30 +48,30 @@ entries:
 - id: hib-listagents-first
   file: render
   baseline: 'Send the pause (`ListAgents` first — peer names change when a session restarts; use the name `targets` printed only if `ListAgents` shows it):'
-  current: 'Send the pause, after `ListAgents` (use a `targets` peer name only if `ListAgents` shows it): ONE `SendMessage` per repo coordinator with `python3 $H brief --role coordinator --words "<the words>"`, verbatim; `brief --role agent` to each session of a repo whose row says to message each session, and each `outside /opt` session'
+  current: 'Send the pause, `ListAgents` first (peer names change when a session restarts; use the name `targets` printed only if `ListAgents` shows it): ONE `SendMessage` to that peer with the output of `python3 $H brief --role coordinator --words "<the words>"`, verbatim; the output of `brief --role agent` to each session of a repo whose row says to message each session (no live coordinator, two sessions holding the name, or your own repo) and each `outside /opt` session'
   text:
-  - (use a `targets` peer name only if `ListAgents` shows it)
+  - '`ListAgents` first (peer names change when a session restarts; use the name `targets` printed only if `ListAgents` shows it)'
 # class: prose
 - id: hib-brief-coordinator
   file: render
   baseline: 'each repo whose row names a coordinator: ONE `SendMessage` to that peer with the output of `python3 $H brief --role coordinator --words "<the words>"`, verbatim;'
-  current: 'Send the pause, after `ListAgents` (use a `targets` peer name only if `ListAgents` shows it): ONE `SendMessage` per repo coordinator with `python3 $H brief --role coordinator --words "<the words>"`, verbatim; `brief --role agent` to each session of a repo whose row says to message each session, and each `outside /opt` session'
+  current: 'Send the pause, `ListAgents` first (peer names change when a session restarts; use the name `targets` printed only if `ListAgents` shows it): ONE `SendMessage` to that peer with the output of `python3 $H brief --role coordinator --words "<the words>"`, verbatim; the output of `brief --role agent` to each session of a repo whose row says to message each session (no live coordinator, two sessions holding the name, or your own repo) and each `outside /opt` session'
   text:
-  - ONE `SendMessage` per repo coordinator with `python3 $H brief --role coordinator --words "<the words>"`, verbatim
+  - ONE `SendMessage` to that peer with the output of `python3 $H brief --role coordinator --words "<the words>"`, verbatim
 # class: prose
 - id: hib-brief-agent
   file: render
   baseline: 'each repo whose row says to message each session (no live coordinator, two sessions holding the name, or your own repo) and each `outside /opt` session: the output of `brief --role agent`, to each session;'
-  current: 'Send the pause, after `ListAgents` (use a `targets` peer name only if `ListAgents` shows it): ONE `SendMessage` per repo coordinator with `python3 $H brief --role coordinator --words "<the words>"`, verbatim; `brief --role agent` to each session of a repo whose row says to message each session, and each `outside /opt` session'
+  current: 'Send the pause, `ListAgents` first (peer names change when a session restarts; use the name `targets` printed only if `ListAgents` shows it): ONE `SendMessage` to that peer with the output of `python3 $H brief --role coordinator --words "<the words>"`, verbatim; the output of `brief --role agent` to each session of a repo whose row says to message each session (no live coordinator, two sessions holding the name, or your own repo) and each `outside /opt` session'
   text:
-  - '`brief --role agent` to each session of a repo whose row says to message each session'
+  - the output of `brief --role agent` to each session of a repo whose row says to message each session (no live coordinator, two sessions holding the name, or your own repo) and each `outside /opt` session
 # class: prose
 - id: hib-pause-self
   file: render
   baseline: 'then pause yourself: finish your step, commit and push what you hold, and close your OTHER runs — this `/hibernate` run stays open until phase 4'
-  current: 'Then pause yourself: commit and push, and close your OTHER runs; this run stays open until phase 4'
+  current: 'Then pause yourself: finish your step, commit and push what you hold, and close your OTHER runs; this `/hibernate` run stays open until phase 4'
   text:
-  - 'Then pause yourself: commit and push, and close your OTHER runs; this run stays open until phase 4'
+  - 'Then pause yourself: finish your step, commit and push what you hold, and close your OTHER runs; this `/hibernate` run stays open until phase 4'
 # class: grammar
 - id: hib-collect-paused
   file: render
@@ -76,16 +83,16 @@ entries:
 - id: hib-prove-status
   file: render
   baseline: 'Prove it: `python3 $H status` — one row per live agent, yours included (marked `(you)`; this `/hibernate` run is the one run not counted); `BLOCKS` names why (a run still `running`, an unreadable run record, uncommitted changes, unpushed commits, a branch on no remote, no usable cwd)'
-  current: 'Prove it: `python3 $H status`; `BLOCKS` names why a row is not safe'
+  current: 'Prove it: `python3 $H status` — one row per live agent, yours included (marked `(you)`; this `/hibernate` run is the one run not counted); `BLOCKS` names why (a run still `running`, an unreadable run record, uncommitted changes, unpushed commits, a branch on no remote, no usable cwd)'
   text:
-  - 'Prove it: `python3 $H status`; `BLOCKS` names why a row is not safe'
+  - 'Prove it: `python3 $H status` — one row per live agent, yours included (marked `(you)`; this `/hibernate` run is the one run not counted); `BLOCKS` names why (a run still `running`, an unreadable run record, uncommitted changes, unpushed commits, a branch on no remote, no usable cwd)'
 # class: prose
 - id: hib-rerun-bound
   file: render
   baseline: Re-run it every 2 minutes for at most 15 minutes, nudging the agent each `BLOCKS` row names; untracked files are counted in the row but never block
-  current: Re-run it every 2 minutes for at most 15 minutes, nudging each agent a `BLOCKS` row names; untracked files never block
+  current: Re-run it every 2 minutes for at most 15 minutes, nudging each agent a `BLOCKS` row names; untracked files are counted in the row but never block
   text:
-  - Re-run it every 2 minutes for at most 15 minutes, nudging each agent a `BLOCKS` row names; untracked files never block
+  - Re-run it every 2 minutes for at most 15 minutes, nudging each agent a `BLOCKS` row names; untracked files are counted in the row but never block
 # class: ban
 - id: hib-close-first
   file: render
@@ -98,60 +105,59 @@ entries:
 - id: hib-table
   file: render
   baseline: Then one table — repo · agent · item · pushed sha · seed — from the PAUSED lines, and the last `status` output
-  current: Then give one table — repo · agent · item · pushed sha · seed — and the last `status` output
+  current: Then one table — repo · agent · item · pushed sha · seed — from the PAUSED lines, and the last `status` output
   text:
-  - Then give one table — repo · agent · item · pushed sha · seed — and the last `status` output
+  - Then one table — repo · agent · item · pushed sha · seed — from the PAUSED lines, and the last `status` output
 # class: ban
 - id: hib-exit-2-never-safe
   file: render
   baseline: '`status` exiting 2 (no live session found, no session id, or you are not among them) is never safe'
-  current: '`status` exiting 2 is never safe'
+  current: '`status` exiting 2 (no live session found, no session id, or you are not among them) is never safe'
   text:
-  - '`status` exiting 2 is never safe'
+  - '`status` exiting 2 (no live session found, no session id, or you are not among them) is never safe'
 # class: prose
 - id: hib-relay
   file: render
   baseline: Send its AGENT part verbatim to each of your live agents, pause yourself the same way, collect their PAUSED lines, and send them to the hub in one reply (name any agent that did not answer in 15 minutes)
-  current: Send the coordinator text's AGENT part verbatim to each live agent, pause yourself, and send their PAUSED lines to the hub in one reply, naming any agent silent for 15 minutes
+  current: Send the coordinator text's AGENT part verbatim to each live agent, pause yourself the same way, collect their PAUSED lines, and send them to the hub in one reply, naming any agent silent for 15 minutes
   text:
-  - Send the coordinator text's AGENT part verbatim to each live agent, pause yourself
-  - send their PAUSED lines to the hub in one reply, naming any agent silent for 15 minutes
+  - Send the coordinator text's AGENT part verbatim to each live agent, pause yourself the same way, collect their PAUSED lines, and send them to the hub in one reply, naming any agent silent for 15 minutes
 # class: prose
 - id: hib-agent-pause
   file: render
   baseline: 'You received the agent text: do exactly its five steps'
-  current: 'Do exactly the agent text''s five steps: let your subagents finish before closing anything; close each live run in the first form your `command_run.py` accepts (`blocked --paused` · `handoff --resume` · `blocked` with the reason); write everything your next self needs to disk'
+  current: 'Do exactly the agent text''s five steps: let your own subagents and seats finish before you close anything; close each live run in the first form your `command_run.py` accepts (`blocked --paused` · `handoff --resume` · `blocked` with the reason); write everything your next self needs to disk — the wake drops your cached prompt, so the seed, the RESUME note and memory are all you will have'
   text:
-  - 'Do exactly the agent text''s five steps: let your subagents finish before closing anything'
+  - 'Do exactly the agent text''s five steps: let your own subagents and seats finish before you close anything'
 # class: prose
 - id: hib-agent-close-forms
   file: render
   baseline: 'The important ones: let your own subagents and seats finish before you close anything; close each live run in the first form your `command_run.py` accepts (`blocked --paused` · `handoff --resume` · `blocked` with the reason); and write everything your next self needs to disk — the wake drops your cached prompt, so the seed, the RESUME note and memory are all you will have'
-  current: 'Do exactly the agent text''s five steps: let your subagents finish before closing anything; close each live run in the first form your `command_run.py` accepts (`blocked --paused` · `handoff --resume` · `blocked` with the reason); write everything your next self needs to disk'
+  current: 'Do exactly the agent text''s five steps: let your own subagents and seats finish before you close anything; close each live run in the first form your `command_run.py` accepts (`blocked --paused` · `handoff --resume` · `blocked` with the reason); write everything your next self needs to disk — the wake drops your cached prompt, so the seed, the RESUME note and memory are all you will have'
   text:
   - close each live run in the first form your `command_run.py` accepts (`blocked --paused` · `handoff --resume` · `blocked` with the reason)
-  - write everything your next self needs to disk
+  - write everything your next self needs to disk — the wake drops your cached prompt, so the seed, the RESUME note and memory are all you will have
 # class: prose
 - id: hib-woke
   file: render
   baseline: Any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") → run `python3 $H woke`
-  current: 'On any wake line run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put'
+  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
   text:
-  - On any wake line run `python3 $H woke`
+  - On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`
 # class: prose
 - id: hib-resume-same
   file: render
   baseline: 'Exit 0 means the box slept (or the hub lifted the pause): resume the SAME item from its seed without being told again'
-  current: 'On any wake line run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put'
+  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
   text:
   - means resume the SAME item from its seed without being told again
 # class: prose
 - id: hib-exit-1-stay
   file: render
   baseline: Exit 1 says why to stay put (no wake yet, or you already resumed)
-  current: 'On any wake line run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put'
+  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
   text:
-  - exit 1 says why to stay put
+  - exit 1 says why to stay put (no wake yet, or you already resumed)
 # class: prose
 - id: hib-lift
   file: render
@@ -196,11 +202,15 @@ vanished:
   L5:
     rule:
     - hib-mark
-  L6: narrative
+  L6:
+    rule:
+    - hib-fresh-pause
   L7:
     rule:
     - hib-mark-alone
-  L9: narrative
+  L9:
+    rule:
+    - u-L8
   L11:
     rule:
     - hib-pool-never-messaged
