@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T21:55:06.046357Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ad7080e7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5X3AGMWHYMZ127G73QJXNEW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: fleet-autoescape"
+}
