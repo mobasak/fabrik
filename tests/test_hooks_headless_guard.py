@@ -210,21 +210,35 @@ def test_every_declared_spawner_actually_sets_the_flag() -> None:
 
 
 def test_every_delegated_spawner_names_a_test_of_its_childs_env() -> None:
-    """Each delegated spawner's grading test exists and asserts the flag the child RECEIVED — the
-    behaviour lives there; this keeps the pointer from going stale."""
+    """Each delegated spawner's grading test exists once and asserts, as a top-level statement of its
+    body, `<…>["headless"] == "1"` — the behaviour lives there; this keeps the pointer from going stale
+    (a rename, a deletion, a weakened or unreachable assert, a later same-name def shadowing it).
+
+    Model boundary: drift, not sabotage. A skip/xfail marker on that test or a fake `claude` that logs a
+    constant is a deliberate test edit, caught by that edit's own review like any test's."""
     import ast
+
+    def flag_assert(s: ast.stmt) -> bool:
+        if not (isinstance(s, ast.Assert) and isinstance(s.test, ast.Compare)):
+            return False
+        t = s.test
+        return (
+            isinstance(t.left, ast.Subscript)
+            and isinstance(t.left.slice, ast.Constant)
+            and t.left.slice.value == "headless"
+            and [type(o) for o in t.ops] == [ast.Eq]
+            and [getattr(c, "value", None) for c in t.comparators] == ["1"]
+        )
 
     root = Path(__file__).resolve().parents[1]
     for rel, test_file, test_name in _DELEGATED_SPAWNERS:
         assert (root / rel).is_file(), f"{rel} is gone — drop its _DELEGATED_SPAWNERS row"
         tree = ast.parse((root / test_file).read_text(encoding="utf-8"))
-        fn = next(
-            (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == test_name),
-            None,
+        fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == test_name]
+        assert len(fns) == 1, (
+            f"{test_file}::{test_name} (the grader of {rel}'s child env) is defined {len(fns)} times"
         )
-        assert fn is not None, f"{test_file}::{test_name} (the grader of {rel}'s child env) is gone"
-        asserts = [ast.unparse(n) for n in ast.walk(fn) if isinstance(n, ast.Assert)]
-        assert any("'headless'" in a and "'1'" in a for a in asserts), (
+        assert any(flag_assert(s) for s in fns[0].body), (
             f"{test_file}::{test_name} no longer asserts the child received FABRIK_HEADLESS=1"
         )
 
