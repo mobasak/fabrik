@@ -886,6 +886,7 @@ def test_a_broken_git_dir_never_borrows_an_enclosing_repos_answer(tmp_path, defs
         "inner: SKIP (git could not say whether `.mcp.json` is ignored — never written)"
     ]
     assert not (repo / ".mcp.json").exists()
+    assert _cli_rc(tmp_path, defs_file) == 1
 
 
 @pytest.mark.parametrize(

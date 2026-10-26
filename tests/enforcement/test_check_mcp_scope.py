@@ -254,7 +254,24 @@ def test_a_typed_repo_whose_file_git_tracks_is_a_warning(
     _tracked(repo(tmp_path, name, rtype, servers))
     rep = check.audit(tmp_path, HUB, DEFS)
     assert [(f["repo"], f["extra"]) for f in rep["failures"]] == ([(name, extra)] if extra else [])
+    # the emitter skips this repo, so a failure's fix must name the untrack step, never a bare re-emit (review pass 2)
+    assert all("git rm --cached .mcp.json" in f["fix"] for f in rep["failures"]), rep["failures"]
     (w,) = rep["warnings"]
     assert w["repo"] == name
     assert "untyped" not in w["reason"] and "may still hold credentials" in w["reason"], w["reason"]
     assert "git rm --cached .mcp.json" in w["fix"], w["fix"]
+
+
+def test_a_symlinked_file_with_an_extra_server_names_the_plain_file_step(check, tmp_path):
+    """W-c0d9cea5 review pass 2: the emitter never writes through a symlinked `.mcp.json`, so the failure for a server
+    outside the ruling must say to make it a plain file first, never a bare re-emit."""
+    d = repo(tmp_path, "linked-api", "python-api", [])
+    (d / ".mcp.json").unlink()
+    (d / "real.json").write_text(
+        json.dumps({"mcpServers": {s: DEFS[s] for s in ("session-recall", "maestro")}})
+    )
+    (d / ".mcp.json").symlink_to("real.json")
+    rep = check.audit(tmp_path, HUB, DEFS)
+    (f,) = rep["failures"]
+    assert f["repo"] == "linked-api" and f["extra"] == ["maestro"]
+    assert f["fix"].startswith("make `.mcp.json` a plain file, then "), f["fix"]

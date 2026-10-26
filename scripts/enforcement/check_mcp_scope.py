@@ -92,18 +92,25 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
         # hub-class or typed repo was always graded before it was asked (D-1252), so after the warning it still is:
         # a server outside its ruling stays a failure, never demoted to this warning (W-c0d9cea5 review).
         if em.emitter_owns(repo) is False:
+            # the emitter skips this repo, so a re-emit clears nothing until git ignores the file: every row says so
+            fix = (
+                "make .gitignore ignore `.mcp.json`, with no later `!.mcp.json`, and if git tracks it run"
+                " `git rm --cached .mcp.json`, then " + fix
+            )
             warnings.append(
                 {
                     "repo": repo.name,
                     "present": sorted(present),
                     "reason": "its .mcp.json is not ignored by git (no rule, a `!` negation, or tracked) — the emitter"
                     " does not own it, and a tracked copy may still hold credentials",
-                    "fix": "make .gitignore ignore `.mcp.json`, with no later `!.mcp.json`, and if git tracks it run"
-                    " `git rm --cached .mcp.json`, then " + fix,
+                    "fix": fix,
                 }
             )
             if repo.name not in em.HUB_CLASS and em._repo_type(repo) is None:
                 continue
+        # the emitter never writes through a symlink, so a re-emit alone clears nothing
+        if mcp_json.is_symlink():
+            fix = "make `.mcp.json` a plain file, then " + fix
         if ruled is None:
             warnings.append(
                 {
