@@ -1071,3 +1071,102 @@ def test_unit_file_runs_the_pruner_after_the_archiver_with_the_dash_prefix():
         " --apply --nightly"
     ), "Gate C passed 2026-10-12 (D-746): the unit applies"
     assert starts[2].startswith("ExecStart=-") and "rotate_session.py due" in starts[2]
+
+
+# ── set-asides (W-a2cae11b): `<sid>.jsonl.superseded-<ms>`, Claude Code's name for a moved-aside transcript ──
+
+
+def _set_aside(world: World, live: Path | None, slug: str, sid: str, ms: int, *, days: float = 10) -> Path:
+    """A set-aside: a hard link of `live` (Claude Code's measured shape), or an inode of its own."""
+    p = world.projects / slug / f"{sid}.jsonl.superseded-{ms}"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if live is not None:
+        os.link(live, p)
+    else:
+        p.write_bytes(json.dumps({"sid": sid, "aside": ms}).encode() * 40 + b"\n")
+        _age(p, days)
+    return p
+
+
+def test_pruning_a_live_name_also_unlinks_its_set_aside_links(world):
+    """r7 over EVERY MAIN name of the inode: a set-aside link (one in a slug with no live name of the
+    inode) is vouched through the live rows, unlinked in the same pass and named in the ledger row —
+    so the blocks are freed, and `--restore` puts every name back."""
+    live = world.projects / "-opt-alpha" / "a-old-10.jsonl"
+    near = _set_aside(world, live, "-opt-alpha", "a-old-10", 1792094167189)
+    far = _set_aside(world, live, "-opt-gamma", "a-old-10", 1792288372659)
+    world.ready()
+    verdict = world.evaluate()
+    assert verdict["a-old-10"] is None, verdict  # not names-differ, not not-archived
+    assert not any(k.startswith("a-old-10.superseded") for k in verdict), "one inode, one candidate"
+    n = sum(1 for v in verdict.values() if v is None)
+    assert _apply(n) == 0
+    assert not live.exists() and not near.exists() and not far.exists(), "a set-aside pinned the inode"
+    row = next(r for r in world.ledger() if r.get("session_id") == "a-old-10")
+    assert set(row["paths"]) == {str(live), str(near), str(far)}
+    assert pt.run(["--restore", "a-old-10"]) == 0
+    assert live.exists() and near.exists() and far.exists()
+    assert live.stat().st_ino == near.stat().st_ino == far.stat().st_ino
+
+
+def test_a_set_aside_only_inode_is_archived_but_never_pruned(world):
+    """No live name: session-recall indexes `*/*.jsonl` only, so an index row for this inode can only be
+    a stale one — the inode is archived under its own key and refused, even with that row."""
+    aside = _set_aside(world, None, "-opt-alpha", "a-gone", 1792029283292)
+    world.ready()
+    st = aside.stat()
+    world.index.append((st.st_ino, st.st_size))  # a stale pre-rename row
+    key = "a-gone.superseded-1792029283292"
+    assert (world.archive / "-opt-alpha" / f"{key}.jsonl.zst").is_file()
+    assert world.evaluate()[key] == "set-aside-only"
+    assert _apply(sum(1 for v in world.evaluate().values() if v is None)) == 0
+    assert aside.exists()
+
+
+def test_a_fresh_set_aside_never_displaces_the_newest_live_session(world):
+    """Claude Code refreshes a set-aside's mtime, so a set-aside-only inode is often the slug's newest
+    file; counted by r3 it would unprotect the slug's real newest live session."""
+    _set_aside(world, None, "-opt-beta", "b-older", 1792255742699, days=4)  # newer than b-old-05
+    world.ready()
+    v = world.evaluate()
+    assert v["b-older.superseded-1792255742699"] == "set-aside-only"
+    assert v["b-old-05"] == "newest-of-slug", v
+
+
+def test_a_set_aside_in_a_slug_that_sorts_first_never_keys_its_live_inode(world, capsys):
+    """Path order puts `-opt-alpha/<sid>.jsonl.superseded-*` before `-opt-alpha--wt/<sid>.jsonl`; the
+    candidate must still key by the live name, or the inode is refused and pinned (review r1, O3).
+    An off-grammar name the set-aside glob matches is skipped, never a crash (review r1, O4), and the
+    over-threshold report counts the inode's live names, never its set-asides (review r1, O8)."""
+    live = world.transcript("-opt-alpha--wt", "w-1", days=10)
+    world.transcript("-opt-alpha--wt", "w-new", days=1)  # the slug's newest, so w-1 is not
+    _set_aside(world, live, "-opt-alpha", "w-1", 1792029283292)
+    (world.projects / "-opt-alpha" / "x-1.jsonl.superseded-abc").write_bytes(b"{}\n")
+    world.ready()
+    verdict = world.evaluate()
+    assert verdict["w-1"] is None, verdict
+    assert not any(k.startswith("w-1.superseded") for k in verdict)
+    w = pt._world(None)
+    w.advise_mb = 0  # every file is over the threshold
+    _cands, _refusals, over = pt.evaluate_main(w)
+    assert not any(".superseded-" in p for p in over), over
+    assert str(live) in over
+
+
+def test_restore_refuses_a_session_id_pruned_as_two_inodes_under_two_slugs(world, capsys):
+    """A set-aside makes "two inodes, one session id" ordinary: restoring only the latest row would
+    leave the other silently missing (review r1, O2) — refuse and list both, as `agent-` does."""
+    for slug, body in (("-opt-eta", b'{"b":1}\n' * 30), ("-opt-eta--wt", b'{"a":1}\n' * 40)):
+        world.transcript(slug, "e-1", days=10, body=body)
+        world.transcript(slug, "e-newest", days=1)
+    world.ready()
+    cands, _refusals, _over = pt.evaluate_main(pt._world(None))  # two inodes share one id: count both
+    assert _apply(sum(1 for c in cands if c.reason is None)) == 0
+    gone = [world.projects / s / "e-1.jsonl" for s in ("-opt-eta", "-opt-eta--wt")]
+    assert not any(p.exists() for p in gone)
+    assert pt.run(["--restore", "e-1"]) == pt.EXIT_REFUSED
+    err = capsys.readouterr().err
+    assert "-opt-eta--wt" in err and "--slug=" in err, err
+    assert not any(p.exists() for p in gone), "a refusal writes nothing"
+    assert pt.run(["--restore", "e-1", "--slug=-opt-eta--wt"]) == 0  # the spelling the refusal names
+    assert gone[1].exists() and not gone[0].exists()

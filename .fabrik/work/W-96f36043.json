@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T22:27:52.390677Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-96f36043",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1216",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 0,
+  "score_reason": "P0: the operator's most urgent task, every run pays for the bloat; HIGH effort: a spec and a rewrite of ~30 commands over several sessions",
+  "status": "open",
+  "tags": [
+    "waits-t01d-v6"
+  ],
+  "title": "P0 LEAN PROGRAM (operator 2026-10-25: 'yes please stop all other work before finishing this, this is our most urgent task.' on W-68083e8d; 'most of our commands like this [/fabrik-command-improve] ... very long, complex and not lean ... taking too much time to execute'): via /fabrik-spec, rewrite every /fabrik-* command to half its rendered size or less WITHOUT losing a rule (D-331 lean-without-loss; the 2026-09-21 byte-cut program is the anti-pattern), proven by a before/after rule test per command, longest and most-run first (/fabrik-review 12,700 source words, /fabrik-task median 48 min, /fabrik-review-scoped median 21 min); and change the kaizen loop so /fabrik-command-improve may land only an edit that keeps or shrinks the rendered size, with a required 'what could be removed' feedback field. Measured: sources 83,655 → 226,918 words since 2026-08-15; 39 of the last 40 command-improve commits grew the command; 0 lean verdicts since 10-06. Opus + Fable panel rules on the design"
+}

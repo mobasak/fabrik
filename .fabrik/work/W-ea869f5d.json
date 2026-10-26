@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T17:36:19.305117Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ea869f5d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QM4N8QEJ8W4F62FK1M0A6Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib `rag` — re-vendor owed by every project holding a copy (re 01M5Q623KY1BK6TGJ38W4CRKP8)."
+}

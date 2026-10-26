@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T10:29:33.726324Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c8688cca",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "change the spelling in both CLAUDE.md copies; fold into kaizen's next contract edit if one is open; pin test",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: a rule in every repo's contract gives a restore command that fails for every real slug; effort low: one spelling in two pinned copies",
+  "status": "open",
+  "title": "CLAUDE.md § Pointers (Session history) quotes 'prune_transcripts.py --restore <session_id> [--slug <slug>]', which argparse rejects for any slug starting with '-' (every ~/.claude/projects slug does); the working spelling is --slug=<slug> — both contract copies"
+}

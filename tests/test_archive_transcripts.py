@@ -1077,3 +1077,111 @@ def test_c12_agent_verb_refuses_to_double_as_another_verb(tree, rec, tmp_path, c
         with pytest.raises(SystemExit) as more:
             at.run(["--agent", "fleet", *extra])
         assert more.value.code == 2, extra  # the usage exit, never a traceback or a listing
+
+
+# ── set-asides (W-a2cae11b): `<sid>.jsonl.superseded-<ms>`, Claude Code's name for a moved-aside transcript ──
+
+
+def test_a_set_aside_only_transcript_is_archived_under_its_own_key(tree, rec, tmp_path, monkeypatch, capsys):
+    """A set-aside whose inode has no live name is history nothing else holds: it gets its OWN row and
+    object, never the live `<sid>` key of a DIFFERENT file beside it in the same slug."""
+    projects, archive = tree
+    live = projects / "-opt-alpha" / "sid-1.jsonl"
+    live.write_bytes(b'{"live":1}\n' * 30)
+    aside = projects / "-opt-alpha" / "sid-1.jsonl.superseded-1792029283292"
+    aside.write_bytes(b'{"older":1}\n' * 20)
+    identity = _identity(
+        tmp_path, [{"session_id": "sid-1", "name": "infra", "pid": 1, "pid_start": 2, "at": 10}]
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(tmp_path / "no-sessions"))
+    assert at.run(["--no-ship"]) == 0
+    rows = {r["session_id"]: r for r in _rows(archive) if r["project_slug"] == "-opt-alpha"}
+    key = "sid-1.superseded-1792029283292"
+    assert set(rows) >= {"sid-1", key}, rows.keys()
+    assert rows[key]["sha256"] == at._sha256(aside)
+    assert rows["sid-1"]["sha256"] == at._sha256(live), "the live row must still describe the live file"
+    zst = archive / "-opt-alpha" / f"{key}.jsonl.zst"
+    plain = subprocess.run(["zstd", "-dc", str(zst)], capture_output=True, check=True).stdout
+    assert plain == aside.read_bytes()
+    assert rows[key]["agent"] == "infra", "the agent tag reads the BASE session id"
+    assert at.run(["--agent", "infra"]) == 0
+    out = capsys.readouterr().out
+    assert f"{key} -opt-alpha" in out and "local=no" not in out, out
+    assert at.run(["--no-ship"]) == 0
+    assert len(_rows(archive)) == len(rows) + 1, "an unchanged set-aside is archived once"  # + -opt-beta
+
+
+def test_a_set_aside_link_of_a_live_name_is_archived_once_under_the_live_key(tree, rec):
+    """The measured shape: the set-aside is a HARD LINK of a live name, in a slug that Path-sorts FIRST
+    (`-opt-alpha` < `-opt-alpha--wt`). The inode keeps the live key and slug, gains no row, and a
+    set-aside's slug never enters `also_slugs` (which means "`<slug>/<sid>.jsonl` is a name")."""
+    projects, archive = tree
+    (projects / "-opt-alpha--wt").mkdir()
+    live = projects / "-opt-alpha--wt" / "sid-2.jsonl"
+    live.write_bytes(b'{"s":2}\n' * 40)
+    aside = projects / "-opt-alpha" / "sid-2.jsonl.superseded-1792094167189"
+    os.link(live, aside)
+    assert aside in at.main_transcripts(projects, 0), "a set-aside is a MAIN name"
+    assert at.run(["--no-ship"]) == 0
+    mine = [r for r in _rows(archive) if r["session_id"].startswith("sid-2")]
+    assert len(mine) == 1, mine
+    assert mine[0]["project_slug"] == "-opt-alpha--wt" and mine[0]["session_id"] == "sid-2"
+    assert mine[0]["also_slugs"] == []
+    assert not list(archive.glob("*/sid-2.superseded-*")), "no second object for one inode"
+
+
+def test_a_name_outside_the_set_aside_grammar_is_not_selected(tree, rec):
+    projects, _archive = tree
+    alpha = projects / "-opt-alpha"
+    for name in (
+        "sid-3.jsonl.superseded-",  # no digits
+        "sid-3.jsonl.superseded-abc",
+        "sid-3.jsonl.superseded-١٢",  # Arabic-Indic digits: `\d` would take them
+        "sid-3.jsonl.bak",
+        "sid-3.superseded-5.jsonl",  # a LIVE stem reading like a set-aside key would collide with one
+    ):
+        (alpha / name).write_bytes(b"x\n")
+    good = alpha / "sid-4.jsonl.superseded-17"
+    good.write_bytes(b"y\n")
+    both = alpha / "odd.jsonl.superseded-9.jsonl"  # matches BOTH globs: selected once, as a live name
+    both.write_bytes(b"z\n")
+    picked = sorted(p.name for p in at.main_transcripts(projects, 0))
+    assert picked == sorted(["shared-id.jsonl", "shared-id.jsonl", good.name, both.name]), picked
+    assert at.main_key(good) == ("sid-4.superseded-17", "sid-4", True)
+    assert at.main_key(alpha / "shared-id.jsonl") == ("shared-id", "shared-id", False)
+    # every selected name round-trips through its key, whatever its stem (review r1, H-C2/O9)
+    for name in (good.name, "shared-id.jsonl", both.name, "-x.superseded-5.jsonl", "a.b.superseded-5.jsonl"):
+        key = at.main_key(alpha / name)
+        if key is not None:
+            assert at.local_name(key[0]) == name, (name, key)
+
+
+def test_a_relocation_onto_a_twins_name_gives_each_inode_its_own_object(tree, rec):
+    """Twin live names A (`-opt-zeta`, `-opt-zeta--wt`); Claude Code sets `-opt-zeta`'s aside and moves a
+    new inode B in there. The alias row (`-opt-zeta--wt` → A's old row) must not keep vouching for A
+    once B's row owns `-opt-zeta/<sid>`: A is archived under its own surviving live slug, so neither
+    object is the other's bytes and A can be pruned (review r1, O1)."""
+    projects, archive = tree
+    zeta, wt = projects / "-opt-zeta", projects / "-opt-zeta--wt"
+    zeta.mkdir()
+    wt.mkdir()
+    (zeta / "z-1.jsonl").write_bytes(b'{"A":1}\n' * 50)
+    os.link(zeta / "z-1.jsonl", wt / "z-1.jsonl")
+    assert at.run(["--no-ship"]) == 0
+    (zeta / "z-1.jsonl").rename(zeta / "z-1.jsonl.superseded-1792029283292")
+    (zeta / "z-1.jsonl").write_bytes(b'{"B":2}\n' * 70)
+    for _night in (1, 2):
+        assert at.run(["--no-ship"]) == 0
+    latest = at._latest_rows(archive / at.MANIFEST_NAME)
+
+    def plain(p: Path) -> bytes:
+        return subprocess.run(["zstd", "-dc", str(p)], capture_output=True, check=True).stdout
+
+    assert plain(archive / "-opt-zeta" / "z-1.jsonl.zst") == (zeta / "z-1.jsonl").read_bytes()
+    assert plain(archive / "-opt-zeta--wt" / "z-1.jsonl.zst") == (wt / "z-1.jsonl").read_bytes()
+    assert latest[("-opt-zeta--wt", "z-1")]["project_slug"] == "-opt-zeta--wt"
+    assert latest[("-opt-zeta--wt", "z-1")]["sha256"] == at._sha256(wt / "z-1.jsonl")
+    n = len(_rows(archive))
+    assert at.run(["--no-ship"]) == 0
+    assert len(_rows(archive)) == n, "settled: a third night writes no row"

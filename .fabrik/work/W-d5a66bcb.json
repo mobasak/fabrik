@@ -1,0 +1,26 @@
+{
+  "block_digest": "50a3525e23868e7548488ef5fddac6012a9630624a0d5db3c3c7cced12f25975",
+  "blocked_by": [],
+  "created": "2026-10-24T13:45:14.421477Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-d5a66bcb",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "4be7e3380411bbf88eb6c783aa5b2479fe3f5c95bafede2ebbb6bb8f03478396"
+  ],
+  "next": "",
+  "note": "yes resume them.",
+  "owner": "",
+  "priority": 2,
+  "question": "May I resume infra-2 and intel now, so the credit work starts, while the other four builders stay paused?",
+  "status": "done",
+  "title": "May I resume infra-2 and intel now, so the credit work starts, while the other four builders stay paused?"
+}

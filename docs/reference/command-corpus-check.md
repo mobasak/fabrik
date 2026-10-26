@@ -299,6 +299,141 @@ Two classes of citation rot were fixed alongside it and should not be reintroduc
 - **Prefer a section anchor to a line range** when citing another command; two
   `/fabrik-deploy-verify` self-citations had slid three lines.
 
+## Rule ledger and size ceiling
+
+`commands/command_rules.py` is the rule test of the lean corpus program (W-96f36043, its design
+§ The rule test). A command's ledger goes at `commands/_rules/<command>.yaml`, and a shared file's
+at `commands/_rules/_shared/<name>.yaml`. Each ledger carries a sha-pinned baseline of its own text,
+split into heading-keyed units. `losses()` asserts every ledger against a render; its LOSS kinds include
+a failed `text`, `ordered` or `forbidden` carrier; a baseline unit that vanished unclassified;
+a malformed ledger; a vanished baseline line holding a ban word labelled `narrative`; or a ledger lint (below). `enforced:` is a load-time lint: the named test's own asserts must show a
+refusal, and a call that runs something (a subprocess or runner callee, never `print()` or a
+logger) must name the script the entry's `text` carrier names. `losses()` never raises.
+
+- **Own text:** a command's source; an `{{include:…}}` line stays as a marker that `units()` skips,
+  so the fragment's text is never the command's. A shared file is its own text.
+- **Units:** frontmatter is dropped. A heading, a table row, a fenced block (each line
+  whitespace-collapsed, the lines joined by ` ⏎ `) or an HTML comment is one unit, and prose splits into sentences. A comment
+  carries no rule.
+- **Matching (U2):** prose, headings and table rows match exactly after collapsing whitespace,
+  removing `**`/`__` outside backticks and dropping trailing periods and the spaces before them
+  (so a second normalisation is a no-op; only a comment that STARTS its line is a comment, so an
+  inline `<!-- … -->` in a code span stays text). A reworded or moved rule
+  therefore vanishes and must be classified as `rule: [ids]`, `duplicate-of: id` or `narrative`
+  in the ledger's `vanished:` map, keyed `L<n>` by baseline line. A `rule:` or `duplicate-of:` label
+  is a claim the check proves (W-34d76a7a): a named entry that the lints read and whose `baseline` is
+  that line carries it, or else the line owes the ledger lints A, B and D over the named entries' `text`
+  phrases pooled and their sections (each clause still needs ONE phrase); a LOSS line reads
+  `baseline L<n> vanished as rule ['<id>', …] — lint <X> — …`, or `vanished as duplicate-of <id> — lint <X> — …`.
+  The carrier is whatever file the named entry
+  names (`commands/_agents/` included), not necessarily the command's own; a renamed heading takes
+  `narrative`. An entry's `current` must be a whole unit under its `section`.
+- **Changed on purpose** (§ The rule test step 8): an entry's `changed-by:` lists each D-row that
+  changed it; every id must be a row in `docs/DECISIONS.md`.
+- **Ledger lints** (D-1236, read per D-1238 points 1-2 and D-1240): they run in the command check
+  (`_check`), not in `load_ledger`, so a ledger whose baseline file is missing, whose `baseline_sha256`
+  mismatches or whose own text is missing reports only that LOSS until it is fixed; the `clauses:` label checks
+  (below) run at load. Each lint is a LOSS line naming the ledger file, entry id and lint, for an entry with a
+  `baseline:` that carries `class:` or `clauses:` or whose baseline holds a ban word — a legacy prose entry with
+  none of these is never newly failed (`pins:` predates D-1236 and opts nothing in). The **ban words** are
+  `never`, `must`, `only` and `refuse`/`refuses`/`refused`/`refusal`, any case, whole words, outside code spans,
+  `_x_` emphasis ignored (`not`, `stays` and `refusing` are none). An entry's `class:` is
+  `ban | grammar | behavioural | prose`; absent, a baseline holding a ban word is `ban`, else `prose`, and
+  `summary()` prints the class counts. A class only ADDS: a clause holding a ban word binds in every class. The
+  baseline splits into clauses at `;`, a spaced `—` `–` `--` or an unspaced `—`, never inside a code span (a
+  backtick run closed by a run of its length; a lone backtick is literal) or a balanced parenthetical; a fenced unit
+  splits at its lines only. **A** — every (ban word, next word in the same clause)
+  pair is in a `text` phrase, the same ban word the baseline uses. **B** — each clause is covered by ONE `text`
+  phrase (`_covered`, D-1240): the phrase holds every anchor of the clause (backticked tokens, numbers, paths,
+  file names, ban words) and at least `STEM_RECALL` (0.7) of the clause's first `STEM_CAP` (8) content stems
+  (letters-only whole words of 4+ letters in any script, cut to 5, each counted once) — per phrase, never pooled; a
+  clause with no stem and no anchor needs its own words, whole and in order, in one phrase; the two constants change only by a
+  D-row — or the clause is named in `clauses: {<n>: narrative | provenance | duplicate-of: <id>}`. At load a key must be
+  an ASCII clause number within the clause count, named once (`1:` and `"1":` are one clause), a `duplicate-of` id must be another live entry whose `text` covers the clause, a
+  `provenance` clause must hold a parenthetical of ids alone, and a
+  clause holding a ban word takes no label at all (D-1238 point 1); a `vanished:` baseline line holding a ban word
+  is never `narrative` either. **C** — in class `prose` only (the carriers D-1236 lets be reworded; a
+  ban, grammar or behavioural pin is held by A, B and D), a `text` phrase is ≥6 whitespace words holding a letter or digit and appears exactly once, as a
+  whole, in the entry's FILE (a phrase equal to the whole `current` unit is exempt from the minimum only: `_check`
+  proves that unit live). **D** — a clause holding a ban word stands verbatim in the LIVE section from its ban word to the end of
+  its clause or sentence, whichever comes first (`_ban_span`, D-1240: a `,` or `(` ends nothing; the sentence is the
+  one `units()` cuts, by the same `_split_prose`, and a parenthetical opened after the ban word runs to its close), each ban word's
+  span checked unless an earlier one already holds it, with whitespace, emphasis and case normalised and punctuation
+  kept; in classes `grammar` and `behavioural` every other clause not labelled `narrative` or `duplicate-of` stands
+  verbatim too; `prose` may reword. `pins:` is a non-empty list of non-empty strings (the retired pin test node
+  ids; no node is resolved). An id or date parenthetical is history (D-1238), and D-1255 gives it one label:
+  `provenance` drops from B's measure every aside of the clause (a parenthetical not glued to a word, `)` or `]`,
+  so never a call's `f(…)`) whose whole content is id tokens — `D-<n>`,
+  `W-<hex>`, an ISO date, a SHA of 7 to 64 lowercase hex holding both a letter and a digit (a bare number stays an
+  anchor), a `§` pointer to a section number or ONE word — and the separators space `,` `;` `/` `·`, read outside
+  code spans; the rest of the clause still owes its carrier, a clause left with no word owes none
+  (`_strip_provenance`), and in classes `grammar` and `behavioural` lint D still reads the whole clause, its ids
+  included. `summary()` prints the provenance count, and D-1255 has the author-blind audit pair read every one. COBRA: the cheapest pass is a stub carrier, then a reworded clause — A/B read
+  the immutable baseline, C/D the live file, the anchors stop a stub and the per-phrase stem cap stops padding;
+  what is left is a `duplicate-of` label to an entry that genuinely carries the clause, or a baseline with no ban
+  word left unclassified, which is the decision's own scope. The `class:` tag and a `provenance` label are set at
+  baseline and changed only by a D-row (by review: the loader holds no history).
+- **Light form** (step 9): `generate_unchanged(baseline_path, new_own_text)` returns one `text`
+  entry per baseline prose or table unit that survives unchanged, `section`-pinned unless an
+  `{{include:…}}` precedes it in its section (the render splices the fragment there, so that unit is
+  matched over the whole file). Over every live command its ledgers pass with no LOSS.
+- `tests/test_command_rules.py` renders the corpus itself, asserts no LOSS and prints one
+  `LEDGER <file>: <n> entries · classes {…} · vanished {…} · provenance <n>` line per ledger (`command_rules.summary()`, which never
+  raises).
+
+**The size ceiling (L1)** — `commands/command_measure.py`, ceilings in `commands/_size_ceiling.json`.
+A command's **own text** is its render plus every file under `commands/` the render names (another
+command's source included; never a fragment already in the render, its own source or a script) plus
+the rendered definition of every seat it, or an own-text file it names, names as a bare token
+(the appended `close-feedback` and `agent-feedback` text excluded; an appended fragment named by path
+counts unless its text is already in the render or in a counted seat definition). Its **reads** are
+every other repo file it names (outputs and ledgers — `docs/development/reviews/*`, `.tmp/*`,
+`CHANGELOG.md`, `INDEX.md`, `docs/DECISIONS.md`,
+`docs/LESSONS_LEARNT.md`, `docs/STRATEGIC_BACKLOG.md`, the `CLAUDE.md`s — and scripts excluded) and
+the row of every D-id it cites. A path counts when git tracks it (the index — so every checkout
+holding the same index counts the same files, their words read from the working tree; a tracked symlink only when its target is tracked; a tracked
+path absent from disk or not a file is an error) and it is a file (`./`, `//` and `/opt/fabrik/` spellings, root
+files included); a directory or glob is a location, not a read; a
+zero-width character never glues two words into one. Each row freezes `baseline_own`, the ceiling
+(`render`, own +3%), the seats (`agents`) and the reads.
+
+`--check` breaches (exit 5) on: own over `render`; a `render` above `baseline_own`+3% without a
+`raised_by: D-<n>` (a raise is a hand edit); a seat no longer named and not `released: {<seat>:
+D-<n>}`; a seat named but not in the row; a read outside the frozen set not `added: {<key>: D-<n>}`;
+a command with no row, a row with no command; a missing or malformed file; a measure that raises.
+Each licence is a row of `docs/DECISIONS.md` that NAMES its subject — the command, the seat, or the
+read's path (a D-row read: its id) — per L1's "a D-row naming it". Every breach line names its remedy.
+A read the render stops naming needs no licence: it is read no more. It REPORTS, never failing: a frozen read that grew (its owner's reasons) and
+a ceiling with slack. `--ratchet` renders to a temp dir and rewrites only the file: each ceiling
+lowered to own +3% when lower, a newly named seat added, a new command given a row (a retired name
+takes the lower of its tombstone and its own +3%, with a baseline no higher than the tombstone), an
+orphan row moved to `retired`, a tombstone beside a live row dropped; it never raises a ceiling or
+touches `baseline_own`, `raised_by`, `released`, `added` or a frozen reads set, writes atomically, and
+prints nothing when nothing changed. A render error under `--ratchet` prints its reasons and exits 2;
+a malformed ceiling file prints the `CEILING` line `--check` would and exits 5, and so does a measure
+or a write that fails (a `CEILING: ratchet failed` line). `--extract`, `--check`
+and `--ratchet` are mutually exclusive. **The coordinator, once `merge_request.py merge --queue` has
+drained the queue, renders, runs `--ratchet`, then `--check`, whenever `commands/` changed** (a new
+command or a newly named seat breaches `--check` until `--ratchet` adds it), and commits the file
+when it changed: a branch-side ratchet, computed against its own base, could push another command
+below growth master made legally, and a ratchet mid-queue would fork a fresh test leg. A growth in a shared definition breaches
+every command naming it, so kaizen's "two raises in 30 days" counter reads raises per D-row. The
+blind spots (text moved into a script the agent is told to read, a fragment named by bare stem, a
+file named without an extension or as a bare dotfile, a file under `docs/development/reviews/`, a
+script's printed output) are listed in the module's COBRA docstring; kaizen's audit pair is their
+catcher, and kaizen counts every increase of `render` or `baseline_own` from the file's git log.
+
+`assemble_commands.py` exits:
+
+| Exit | Meaning |
+|---|---|
+| 0 | `--check`: in sync, no LOSS, no ceiling breach · `--ratchet`: done (silent when nothing changed) |
+| 1 | `--check`: drift (the installed corpus differs from the render) · `--check` or a render: a `SystemExit("…")` render defect |
+| 2 | `--check` or a render: a render error; there is then no render to check, so no LOSS is computed |
+| 3 | `--extract`, or a render into the installed corpus, refused outside the main checkout |
+| 4 | `--check`: a rule LOSS, printed before any breach or drift and outranking both |
+| 5 | `--check`: a size-ceiling breach (L1), printed after LOSS and before drift; outranks drift · `--ratchet`: a malformed ceiling file, or a measure or write that failed |
+
 ## Related
 
 - `docs/reference/ticket-breadth.md` — the sibling advisory check on plan sets

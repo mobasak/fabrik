@@ -258,7 +258,9 @@ def strip_three_marker_fences(text: str) -> str:
 
 # W-16c00597 / W-b9af1d47: inline code spans, blanked length-preserving — docs_updater's link scan and plan
 # header reads, and check_doc_links' link reader. A span opener is a whole backtick run (finditer's greedy `+`
-# never starts mid-run), not escaped; it closes on the next run of the same length.
+# never starts mid-run); it closes on the next run of the same length. Escapes by CommonMark's parity (W-753040b8):
+# an odd run of backslashes before the run escapes its FIRST backtick only, so the rest still opens one character
+# later, and an even run is escaped backslashes, leaving the run live; a backslash before a closer is span content.
 _BACKTICK_RUN_RE = re.compile(r"`+")
 # A link's `](dest "title")` tail is raw text: a backtick in it opens no span (it may still CLOSE
 # one opened before the link's `[`, as CommonMark reads it). Only a tail after `[text]` counts, so a
@@ -267,7 +269,9 @@ _BACKTICK_RUN_RE = re.compile(r"`+")
 # `"…"`, `'…'` or `(…)` title; `[r](u `x`)` is no link, so its backticks open a span, as markdown-it
 # renders it; a title may hold backslash escapes. STATED COST: a destination nested two levels deep, a
 # title on the next line, and a title with no destination read otherwise than markdown-it (0 of 762 real
-# `](` lines under /opt/fabrik/docs, the W-f365c610 design critique's count).
+# `](` lines under /opt/fabrik/docs, the W-f365c610 design critique's count). A backslash before the `[` is not read
+# either: `\[a](`)`` is no link to CommonMark, so its "`)`" is a span this tail still shields — the safe direction,
+# text left visible (W-753040b8 critique; filed as W-1c4e2a9a).
 _LINK_TAIL_RE = re.compile(
     r"\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*(\]\([ \t]*(?:<[^<>\n]*>|(?:[^\s()\\]|\\.|\((?:[^\s()\\]|\\.)*\))*)"
     r"(?:[ \t]+(?:\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?[ \t]*\))"
@@ -286,12 +290,22 @@ _BLOCK_START_RE = re.compile(
 _ONE_LINE_BLOCK_RE = re.compile(r"[ \t]*(?:#{1,6}(?:[ \t]|\r?$)|\|)", re.M)
 
 
+def _escaped(content: str, pos: int) -> bool:
+    """True when an ODD run of backslashes ends at `pos` — the backtick there is escaped (CommonMark: an even run
+    is escaped backslashes, so the backtick after it is live)."""
+    k = pos
+    while k and content[k - 1] == "\\":
+        k -= 1
+    return (pos - k) % 2 == 1
+
+
 def _blank_span(text: str) -> str:
     return re.sub(r"[^\r\n]", " ", text)
 
 
 def blank_code_spans(content: str) -> str:
-    """Each unescaped opener, outside a link tail, pairs with the next run of its length unless a line break first
+    """Each opener (a run less the first backtick an odd backslash run escapes), outside a link tail, pairs with the
+    next run of its length unless a line break first
     ends the span (any break on a heading or table line, else one that starts a block); the runs between are consumed.
     Linear (W-16c00597): every gap between two runs is examined once, each run's line start comes from one forward
     walk, and an opener finds its closer by bisect in the list of runs of its length — the scan-forward-per-opener
@@ -336,22 +350,26 @@ def blank_code_spans(content: str) -> str:
     while i < n:
         opener = runs[i]
         i += 1
-        if opener.start() and content[opener.start() - 1] == "\\":
-            continue
-        t = bisect_right(tail_starts, opener.start()) - 1
-        if t >= 0 and opener.start() < tails[t][1]:
+        o_start, o_len = opener.start(), len(opener.group())
+        if _escaped(content, o_start):
+            # an odd run of backslashes escapes the run's FIRST backtick only; the rest still opens
+            o_start, o_len = o_start + 1, o_len - 1
+            if not o_len:
+                continue
+        t = bisect_right(tail_starts, o_start) - 1
+        if t >= 0 and o_start < tails[t][1]:
             continue
         start = line_of[i - 1]
         if start not in one_line_at:
             one_line_at[start] = _ONE_LINE_BLOCK_RE.match(content, start) is not None
         limit = (next_nl if one_line_at[start] else next_block)[i - 1]
-        same = by_len[len(opener.group())]
+        same = by_len.get(o_len, [])
         k = bisect_right(same, i - 1)
         if k < len(same) and same[k] <= limit:
             j = same[k]
             out += [
-                content[kept : opener.start()],
-                _blank_span(content[opener.start() : runs[j].end()]),
+                content[kept:o_start],
+                _blank_span(content[o_start : runs[j].end()]),
             ]
             kept, i = runs[j].end(), j + 1
     return "".join(out) + content[kept:]

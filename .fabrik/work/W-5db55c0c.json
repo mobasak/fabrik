@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T17:14:11.881299Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5db55c0c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B996F3BH319ZMZ77P7X0CC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "two /fabrik-review-scoped feedback rows ask for code: work.py sync's class-8 message, and the Stop hook reading a numbered findings list as an operator menu"
+}

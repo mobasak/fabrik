@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T00:53:42.994673Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "a9204e1ef02ab51fbe46375f0333adc796c5a2d7",
+  "id": "W-487e966a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1219",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 0,
+  "score_reason": "P0 program member: the plan's T01a cannot cut a time baseline without it; intel wrote the script; LOW: commit + header + fixture test",
+  "status": "done",
+  "title": "Lean program (D-1216/D-1219) time measure on master: commit intel's W-0a91bf86 measuring script as scripts/command_time_measure.py (AFTER-EDIT header, fixture test, output identical to the merged table's method: per-run wall-clock, seat-minutes, rounds, per-item time, runs per commit, equal 14-day windows) so infra-2's slice B can pin it and wire the nightly D-1219 cobra columns; kaizen's plan probe keys on this item done + the path on master"
+}

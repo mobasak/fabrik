@@ -1354,6 +1354,27 @@ def _lane_continues(sid: str | None, cwd: str) -> bool:
         return False
 
 
+def _api_key_continues(stamp: Path) -> bool:
+    """W-effb7141: True when quota_stop.py does not hold this session at this stamp because it runs
+    on an Anthropic API key (`api_key_exempt` — a quota tier only, never the battery hold). Loaded
+    from quota_stop.py beside this hook by file path, like `_lane_continues`; any load or call
+    error is False, which keeps the wall's yield — today's behaviour. The env is read first, so a
+    plan session never pays the module load."""
+    if not (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+        return False
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_quota_stop_api_key", Path(__file__).resolve().parent / "quota_stop.py"
+        )
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.api_key_exempt(stamp) is True
+    except Exception:
+        return False
+
+
 def _urgent_checkpoint(
     root: Path,
     sid: str | None,
@@ -2579,8 +2600,93 @@ _COORD_AMBER_BANDS = frozenset({"AMBER"})
 _COORD_AMBER_STARTS = frozenset(
     {"claim", "owned", "feedback", "self", "doorbell", "merge", "triage"}
 )
-_COORD_STOOD_DOWN: list[str] = []  # the start actions this Stop skipped at AMBER, for the event
+_COORD_STOOD_DOWN: list[str] = []  # the start actions this Stop skipped, for the event
+_COORD_STOOD_WHY: list[str] = []  # which hold skipped them: "amber" and/or "rotation"
 _POSTURE_HOOK = Path("/opt/fabrik/scripts/sysadmin/quota_posture_hook.py")
+
+# W-0fae19b7 — the ROTATION BOUNDARY (D-1119, D-1123): "once a rotation is due, start no new item", and
+# the ROTATE-DUE line tells the session to end `NEXT: none — terminal; awaiting the rotation`. When a due
+# stamp AND that footer hold, the start actions of the session's OWN stand down as at AMBER (skipped,
+# attempts untouched); continue, release, commit-items and triage still block, and so does mail for a
+# coordinator or a repo's one agent (routing is its standing job) — a builder's mail claim would open a
+# new item, so `mail` is held for role=worker. The stamps are the writer's output
+# (scripts/sysadmin/transcript_size_check.py, a hub script this fleet-synced hook cannot import in a
+# project), so its constants are COPIED and pinned by test_rotation_constants_match_the_stamp_writer.
+# Fail direction: every doubt (no stamp, garbage, a sid the writer's grammar refuses, an OSError, no
+# footer) reads as NOT at the boundary, so the cause blocks as before. Two seams: a ctx stamp moves only
+# on a prompt, so after a mid-turn auto-compaction it reads due until the next prompt; the MB stamp is
+# never lowered, so a compacted session past the MB line stays due (compaction does not shrink the file).
+# COBRA (D-253): the cheapest way past is to type the footer without a due stamp — the stamp is the
+# counter; with both, the session has asked for its rotation, and every stand-down is a kaizen
+# `stood_down` event carrying `reason`.
+_ROTATION_HOLDS = frozenset({"claim", "owned", "feedback", "self", "doorbell", "merge"})
+_CTX_ROTATE_PCT = 40  # the writer's CTX_ROTATE_PCT: 85-100 are COMPACT-DUE steps past it, due too
+_ROTATE_SID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")  # the writer's `_SID_RE`
+_ROTATE_STAMP_DEFAULT = "~/.claude/state/rotate-advised"
+# The whole NEXT value, strict: `none`, an optional `terminal`, separators, then `awaiting the rotation`
+# and nothing after it but markup or a full stop — a negation (`not awaiting …`), a qualifier (`… of keys`)
+# or a successor named on the line reads as not at the boundary (review pass 1, A-1/B-2).
+_ROTATION_FOOTER_RE = re.compile(
+    r"[ \t*_`]*(?:none[ \t*_`]*[—–:;,.-]*[ \t]*(?:terminal[ \t*_`]*[—–:;,.-]*[ \t]*)?)?"
+    r"awaiting[ \t]+the[ \t]+rotation[ \t*_`.]*\r?$",
+    re.I | re.M,
+)
+
+
+def _rotation_due(sid: str) -> bool:
+    """True when the context stamp holds a step >= 40 or the MB stamp a step > 0 for this RAW sid."""
+    if not isinstance(sid, str) or not _ROTATE_SID_RE.fullmatch(sid):
+        return False
+    base = Path(os.environ.get("ROTATE_STAMP_DIR", _ROTATE_STAMP_DEFAULT)).expanduser()
+    for path, floor in ((base / ".ctx" / sid, _CTX_ROTATE_PCT), (base / sid, 1)):
+        try:
+            if not path.is_file():  # a FIFO or a directory never blocks the Stop
+                continue
+            raw = path.read_text(encoding="utf-8").strip()
+        except (OSError, ValueError):
+            continue
+        # the writer writes `f"{step}\n"`: ASCII digits only, so `+40`, `4_0` or other digits read not due,
+        # and at most 9 of them, so `int()` never meets Python's 4300-digit limit (review pass 2, A2-1)
+        if raw.isascii() and raw.isdigit() and len(raw) <= 9 and int(raw) >= floor:
+            return True
+    return False
+
+
+def _awaits_rotation(text: str | None) -> bool:
+    """True when the message's LAST `NEXT:` line outside a quoting fence awaits the rotation."""
+    if not text:
+        return False
+    fences = _fence_spans(text)
+    footer = _own_footer_fence(text, fences)
+    # stricter than `_own_footer_fence` alone: a trailing fence is this session's footer only with `NEXT:`
+    # and a second footer key, so a lone fenced example never reads as the boundary (review pass 1, A-3)
+    if footer and len({k.group(1) for k in _FOOTER_KEY_RE.finditer(text, *footer)}) < 2:
+        footer = None
+    fences = [f for f in fences if f != footer]
+    last = None
+    for m in _NEXT_LINE_RE.finditer(text):
+        if any(lo <= m.start() < hi for lo, hi in fences):
+            continue
+        # a `>` blockquote quotes a footer and a 4-space or tab indent is a markdown code block: neither
+        # makes one (review pass 1, A-2, B-4)
+        lead = text[m.start() : m.end()].split("NEXT", 1)[0]
+        quoted = ">" in lead or "\t" in lead or lead.startswith("    ")
+        last = None if quoted else m
+    return last is not None and _ROTATION_FOOTER_RE.match(text, last.end()) is not None
+
+
+def _coord_held(action: object, band: str | None, holds: frozenset[str]) -> bool:
+    """True (and recorded for the event) when AMBER or the rotation boundary holds this action."""
+    why = []
+    if band in _COORD_AMBER_BANDS and action in _COORD_AMBER_STARTS:
+        why.append("amber")
+    if action in holds:
+        why.append("rotation")
+    if not why:
+        return False
+    _COORD_STOOD_DOWN.append(str(action))
+    _COORD_STOOD_WHY.extend(why)
+    return True
 
 
 def _coord_state_path(sid: str) -> Path:
@@ -2609,7 +2715,7 @@ _COORD_LAST_ACTION: list[str] = []  # the action the last block named, for the k
 
 
 def _coordinator_ladder(
-    cands: list, state_path: Path, band: str | None = None
+    cands: list, state_path: Path, band: str | None = None, *, holds: frozenset[str] = frozenset()
 ) -> tuple[str, str] | None:
     """AUTONOMY (work.py `_autonomy_candidates`): act on the FIRST candidate whose subject has not
     used up its CAP blocks this session. One map entry per subject (`{fp: attempts}`, at most
@@ -2624,9 +2730,8 @@ def _coordinator_ladder(
     for cand in cands:
         if not isinstance(cand, dict) or not cand.get("fp"):
             continue
-        if band in _COORD_AMBER_BANDS and cand.get("action") in _COORD_AMBER_STARTS:
-            _COORD_STOOD_DOWN.append(str(cand.get("action")))  # skipped, its attempts untouched
-            continue
+        if _coord_held(cand.get("action"), band, holds):
+            continue  # skipped, its attempts untouched
         fp = str(cand["fp"])
         try:
             att = int(seen.get(fp, 0))
@@ -2652,9 +2757,14 @@ def _coordinator_ladder(
 
 
 def _coordinator_duty(
-    root: Path, sid: str, cwd: Path, band: str | None = None
+    root: Path, sid: str, cwd: Path, band: str | None = None, *, rotation: bool = False
 ) -> tuple[str, str] | None:
-    """(block reason, warn line) when this Stop must be refused or warned through; None to pass."""
+    """(block reason, warn line) when this Stop must be refused or warned through; None to pass.
+
+    `rotation`: the Stop is at a rotation boundary, so `_ROTATION_HOLDS` (plus `mail` for a worker)
+    stand down as AMBER's starts do."""
+    _COORD_STOOD_DOWN.clear()  # this call's stand-downs only, whoever the caller (review pass 1, A-6)
+    _COORD_STOOD_WHY.clear()
     argv = _COORD_ARGV or (sys.executable, str(root / "scripts" / "work.py"))
     if _COORD_ARGV is None and not Path(argv[1]).is_file():
         return None
@@ -2668,14 +2778,16 @@ def _coordinator_duty(
     except ValueError:
         result = None
     state_path = _coord_state_path(sid)
+    holds: frozenset[str] = frozenset()
+    if rotation and isinstance(result, dict):
+        holds = _ROTATION_HOLDS | ({"mail"} if result.get("role") == "worker" else frozenset())
     if isinstance(result, dict) and isinstance(result.get("candidates"), list):
-        return _coordinator_ladder(result["candidates"], state_path, band)
+        return _coordinator_ladder(result["candidates"], state_path, band, holds=holds)
     if not isinstance(result, dict) or not result.get("action"):
         state_path.unlink(missing_ok=True)
         return None
-    if band in _COORD_AMBER_BANDS and result.get("action") in _COORD_AMBER_STARTS:
-        _COORD_STOOD_DOWN.append(str(result.get("action")))  # its attempt state is left as it is
-        return None
+    if _coord_held(result.get("action"), band, holds):
+        return None  # its attempt state is left as it is
     fp = str(result.get("fp") or result.get("action"))
     try:
         state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -4927,6 +5039,10 @@ def main(argv: list[str]) -> int:
                 # merge owner, or the owner of an open P0) is not parked, so it takes the NORMAL
                 # path below — gate and causes as outside the tier — never the wall's yield
                 lane_free = urgent and _lane_continues(sid, str(root))
+                # W-effb7141: an API-key session is not held by either quota tier, so it takes the
+                # NORMAL path too — its causes stay armed while it keeps editing (battery holds)
+                if not lane_free and _api_key_continues(_state / "fleet-exhausted"):
+                    lane_free = True
                 if lane_free:
                     urgent = False
                 if not urgent and not lane_free:
@@ -5288,11 +5404,13 @@ def main(argv: list[str]) -> int:
                 if not run_active and not decision_ground and not _blocked_header(lam or ""):
                     band = _coord_band(transcript_p) or ""
                     if band not in _COORD_QUIET_BANDS:
-                        _COORD_STOOD_DOWN.clear()
-                        duty = _coordinator_duty(root, sid, Path(data.get("cwd") or root), band)
+                        rotation = _awaits_rotation(lam) and _rotation_due(sid)
+                        duty = _coordinator_duty(
+                            root, sid, Path(data.get("cwd") or root), band, rotation=rotation
+                        )
                         if duty is None and _COORD_STOOD_DOWN:
                             # only when the cause neither blocked nor warned: one event per Stop,
-                            # naming every start action it stood down
+                            # naming every start action it stood down and which hold did it
                             _kaizen(
                                 "stop_block",
                                 ev_sid,
@@ -5300,6 +5418,9 @@ def main(argv: list[str]) -> int:
                                 outcome="stood_down",
                                 band=band,
                                 action=",".join(dict.fromkeys(_COORD_STOOD_DOWN)),
+                                reason="+".join(
+                                    w for w in ("amber", "rotation") if w in _COORD_STOOD_WHY
+                                ),
                             )
                         if duty and duty[0]:
                             _kaizen(

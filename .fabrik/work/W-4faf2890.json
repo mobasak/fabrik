@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T18:30:13.178607Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-4faf2890",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1200",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 2,
+  "score_reason": "HIGH: an operator ask; HIGH effort: a cross-pack design change for every brand, spec-sized (infra-2's measurement); held behind W-00de7d82, intel's plugin wiring, which it overlaps",
+  "status": "open",
+  "tags": [
+    "waits-lean-program"
+  ],
+  "title": "Revise design-system-template + Ocoron + Tojlo against the frontend-design plugin skill (micro-label case and tracking, mono for data labels, near-black #0A0A0A/#111) — operator via wef mail 01M5QJ3V4AN7C9CJV9B9Q8QEWB part (2), 'update ocoron design systems according to it'; split from W-79008127 by infra-2 because the clashes live in the template's component patterns (design-system-template.md:350, :437, :450, :739) and Tojlo's (~20 sites), not in Ocoron alone; via /fabrik-spec"
+}

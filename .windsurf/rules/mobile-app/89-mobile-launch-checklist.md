@@ -14,7 +14,7 @@ currency_pass: 2026-10-01
 
 Apply when planning or building a mobile app — especially during epic decomposition and release. This pack answers "what must a mobile app include for launch?" not "how to code it." Skip for web-only SaaS, internal tools, or services with no mobile distribution.
 
-Specific to a React Native / Expo client with the repo's own `server/` FastAPI backend on the fleet (Pattern A; `core/35-security-auth.md`), published by a Turkish Teknokent LLC.
+Specific to a React Native / Expo client with the repo's own `server/` FastAPI backend on the fleet (Pattern A; `core/35-security-auth.md`), published by a Turkish LLC in a Teknokent zone (for an Ocoron app, the entity's legal name is in `core/ocoron-design-system.md` § Naming Rules, rule 5).
 
 ## Five Phases
 

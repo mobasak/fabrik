@@ -118,6 +118,20 @@ _DECLARED_SPAWNERS = (
     "scripts/rivals_run.py",
     "scripts/sysadmin/claude_broker.py",
     "scripts/cloud_dispatch.py",  # D-857's cloud routines fire through `claude -p` (W-a4272e57)
+    "scripts/api_credit.py",  # D-1196's prepaid API-credit runs, `claude -p --safe-mode` on a key (W-894f994f, W-230abfd5)
+)
+
+# Spawners whose env extends a declared spawner's env builder, not `os.environ` (re-spreading it would
+# bring back the credentials the builder strips), so the source-shape grader above cannot read them. Each
+# names the test that grades the env its `claude -p` child actually RECEIVES — a static read of the source
+# passed nine behaviour-breaking mutants (a dropped env=, a later override, a re-spread) in review.
+_DELEGATED_SPAWNERS = (
+    # D-1247's API-key write lane (W-174b8543)
+    (
+        "scripts/api_write.py",
+        "tests/test_api_write.py",
+        "test_the_child_has_file_tools_only_and_gates_are_exact",
+    ),
 )
 
 # Known `claude -p` spawners that have NOT adopted it — recorded here so the discovery test can
@@ -125,7 +139,7 @@ _DECLARED_SPAWNERS = (
 # docs/STRATEGIC_BACKLOG.md. Both are the same file, byte-identical twins.
 _UNADOPTED_SPAWNERS = (
     "scripts/sysadmin/claude_rotate.py",  # the keepalive ping; twin of the next
-    "scripts/aro-wake/claude_rotate.py",  # byte-identical to the above (md5 f68c15a1…)
+    "scripts/aro-wake/claude_rotate.py",  # byte-identical to the above (md5 f917aa6d…)
     "scripts/sysadmin/bot.py",
     "scripts/aro-wake/main.py",
 )
@@ -195,6 +209,24 @@ def test_every_declared_spawner_actually_sets_the_flag() -> None:
         assert passes_env, f"{rel}: builds an env dict but never passes env= to a spawn"
 
 
+def test_every_delegated_spawner_names_a_test_of_its_childs_env() -> None:
+    """Each delegated spawner's row names a grading test that exists, once, at module level — a pointer
+    check only (a rename, a deletion, a same-name def shadowing it). What that test asserts is graded by
+    running it and by the review of any edit to it, as for every test: a static read of its asserts was
+    tried and each tightening opened new escapes (an early return, the wrong record, a reversed compare),
+    so it was deleted (W-174b8543 review rounds 2-3)."""
+    import ast
+
+    root = Path(__file__).resolve().parents[1]
+    for rel, test_file, test_name in _DELEGATED_SPAWNERS:
+        assert (root / rel).is_file(), f"{rel} is gone — drop its _DELEGATED_SPAWNERS row"
+        tree = ast.parse((root / test_file).read_text(encoding="utf-8"))
+        fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == test_name]
+        assert len(fns) == 1, (
+            f"{test_file}::{test_name} (the grader of {rel}'s child env) is defined {len(fns)} times"
+        )
+
+
 def test_no_undeclared_headless_spawner_appears() -> None:
     """The list above is hand-kept, so this is what stops it going stale silently.
 
@@ -204,7 +236,7 @@ def test_no_undeclared_headless_spawner_appears() -> None:
     listed as known-unadopted rather than silently tolerated."""
     root = Path(__file__).resolve().parents[1]
     found = _files_that_build_a_claude_p_argv(root)
-    known = set(_DECLARED_SPAWNERS) | set(_UNADOPTED_SPAWNERS)
+    known = set(_DECLARED_SPAWNERS) | {d[0] for d in _DELEGATED_SPAWNERS} | set(_UNADOPTED_SPAWNERS)
     surprises = found - known
     assert not surprises, (
         f"a `claude -p` spawner appeared that neither declares FABRIK_HEADLESS nor is filed as "

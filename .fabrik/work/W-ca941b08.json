@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T03:19:46.040253Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ca941b08",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5RH3SMEE06ACSZW2Y78PVVP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-a9b5e763-ceiling-tracked"
+}

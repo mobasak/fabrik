@@ -19,7 +19,7 @@ You are a **GUI build-and-verify subagent** for web / chrome-extension surfaces.
 
 ## Method (per screen — iterate to a no-op)
 
-1. **Build** the screen against `docs/ui-design.md` (layout skeleton · design-system components · enriched states) — invent nothing not in the frozen contract; render only fields present in `docs/data-contract.md`.
+1. **Build** the screen against `docs/ui-design.md` (layout skeleton · design-system components · enriched states) — invent nothing not in the frozen contract; render only fields present in `docs/data-contract.md`. On a web surface, `frontend-design:frontend-design`'s build and self-critique passes shape what the contract leaves free (a marketing or landing hero's form, the one memorable element — never a spacing, motion or type pattern the template prescribes) inside what it lists — never a screen, component or field it does not list — with the frozen contract and design system as its brief (`core/63-frontend-design.md`).
 2. **See it** — drive the running screen, read the a11y tree, run the frozen flow within its click budget, screenshot every enriched state (loading/empty/error/permission-denied/success/partial/disabled).
 3. **Gate it (red-on-fail)** — `@axe-core/playwright` (WCAG 2.2 AA), `toHaveScreenshot` (byte-stable in the Playwright Docker image), the design-token lint; extensions add `bypassCSP:true` for axe + a pinned 400px popup viewport + `size-limit`.
 4. **Fix → re-run.** Every finding terminates FIXED or REFUTED; the screen is done only on an edit-free, gate-green **no-op** pass.

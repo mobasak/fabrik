@@ -321,6 +321,7 @@ NO_CLOSING_PASS = frozenset(
         "fabrik-generate-tests",
         "fabrik-plan-after-chat",
         "fabrik-release",
+        "fabrik-reverse-engineer",
         "fabrik-spec",
         "fabrik-task",
         "fabrik-upstream",
@@ -2612,6 +2613,15 @@ _USAGE_FIELDS = ("confusion", "waste", "change", "filed")
 _USAGE_LABEL_RE = re.compile(
     r"(?:^|[·|;\n])[^\S\n]*(confusion|waste|change|filed|cost)[^\S\n]*:", re.I | re.M
 )
+# The grammar prints its optional field as `[· cost: <…>]` (W-256d6877). Without these the `[`
+# landed in the previous field's value and the `]` in cost's, so the grammar did not round-trip
+# through its own parser and the cost gate refused `0.01]`. OPEN: a `[` right before a separator
+# and a label — always a label boundary already, so blanking it moves no mark. CLOSE: a `]` at the
+# end of the value the opener introduced, before at most one `.` and one trailing separator.
+_USAGE_OPT_OPEN_RE = re.compile(
+    r"\[(?=[^\S\n]*[·|;\n][^\S\n]*(?:confusion|waste|change|filed|cost)[^\S\n]*:)", re.I
+)
+_USAGE_OPT_CLOSE_RE = re.compile(r"\](?=\s*\.?\s*(?:[·|;]\s*)?$)")
 _USAGE_GRAMMAR = (
     "confusion: <what in the command text was ambiguous or misleading | none> · "
     "waste: <steps/turns/tokens spent without changing the outcome | none> · "
@@ -2892,10 +2902,19 @@ def _parse_usage_feedback(
     discarded an honest value (round-1 finders)."""
     fields: dict[str, str] = {}
     dupes: list[str] = []
-    marks = list(_USAGE_LABEL_RE.finditer(text or ""))
+    text = text or ""
+    openers = [o.start() for o in _USAGE_OPT_OPEN_RE.finditer(text)]
+    text = _USAGE_OPT_OPEN_RE.sub(" ", text)  # one-for-one: every position stays put
+    marks = list(_USAGE_LABEL_RE.finditer(text))
+    # the field each opener introduced: the first mark at or after it
+    owns_closer = {next((i for i, m in enumerate(marks) if m.start() >= p), None) for p in openers}
     for i, m in enumerate(marks):
         end = marks[i + 1].start(1) if i + 1 < len(marks) else len(text)
-        value = text[m.end() : end].strip()
+        value = text[m.end() : end]
+        # ...and only an UNBALANCED `]`: `[· filed: mail [01M5ABC]` ends in the id's own bracket
+        if i in owns_closer and value.count("]") > value.count("["):
+            value = _USAGE_OPT_CLOSE_RE.sub("", value, count=1)
+        value = value.strip()
         value = value.rstrip("·|;, \t").strip()
         key = m.group(1).lower()
         if key in fields:
@@ -3582,7 +3601,9 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
     empty.update(
         {
             "tok_msgs": 0,
-            "seats_seen": 0,
+            # not measured: the transcript was never read (W-256d6877) — a 0 here read as a
+            # measured zero and printed a false declared-vs-seen mismatch at the close
+            "seats_seen": None,
             "seats_partial": False,
             "seats_skipped": 0,
             "models": [],
@@ -7845,8 +7866,17 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         _declared = sum(
             _int0(r.get("seats")) for r in rec.get("rounds") or [] if isinstance(r, dict)
         )
-        _seen = _int0(_tok.get("seats_seen"))
-        if (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
+        # an UNMEASURED count (None: the transcript was not read) is never compared — read as 0 it
+        # printed a false mismatch (W-256d6877)
+        _seen_raw = _tok.get("seats_seen")
+        _seen = _int0(_seen_raw)
+        if _seen_raw is None:
+            if _declared:
+                print(
+                    f"[command_run] seats declared {_declared}; seen unknown (transcript not read)",
+                    file=sys.stderr,
+                )
+        elif (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
             print(
                 f"[command_run] seats declared {_declared} (round --seats) vs seen {_seen} (seat "
                 "transcripts in the window) — the reservation siblings subtract is only as true as "

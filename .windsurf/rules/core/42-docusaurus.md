@@ -188,9 +188,9 @@ networks:
   - `--ifm-background-color` → `#0A0A0A` (surface-0)
   - `--ifm-background-surface-color` → `#141414` (surface-1)
   - Map all surface, text, and border tokens from the design system.
-- Load **Space Grotesk** (headings), **Inter** (body), **JetBrains Mono** (code) **self-hosted** in `static/fonts/` and declared in `custom.css` (no Google Fonts — external dependency + GDPR concern). Override Infima's default font stack:
-  - `--ifm-font-family-base` → `'Inter', sans-serif`
-  - `--ifm-heading-font-family` → `'Space Grotesk', sans-serif`
+- Load **Arya** 700 (headings), **IBM Plex Sans** 400 and 500 (body), **JetBrains Mono** (code) **self-hosted** in `static/fonts/` and declared in `custom.css` (no Google Fonts — external dependency + GDPR concern). Override Infima's default font stack:
+  - `--ifm-font-family-base` → `'IBM Plex Sans', sans-serif`
+  - `--ifm-heading-font-family` → `'Arya', 'IBM Plex Sans', sans-serif`
   - `--ifm-font-family-monospace` → `'JetBrains Mono', monospace`
 - Set `colorMode.defaultMode: 'dark'` in `docusaurus.config.js`. Dark mode is the Ocoron default.
 - Sidebar navigation uses the Ocoron surface hierarchy (`--surface-0` background, `--surface-1` for active items).

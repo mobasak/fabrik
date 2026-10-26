@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T15:16:41.143487Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-ab7de0b0",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1198",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure which ~/.config/* and dot-directories on this box hold tokens, then add them with a test per name",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "api_credit.py --add-dir vetting: the credential-directory name list lacks .azure, ~/.config/gh (hosts.yml holds an oauth_token) and ~/.config/gcloud — a pass-3 /fabrik-review seat probed all three ACCEPTED on pin 90e64928f; vetting is by name, so widen SECRET_DIR_NAMES with a path-suffix form for .config/<tool> and probe the live home for other token directories first (W-894f994f residue)"
+}

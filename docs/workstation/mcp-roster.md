@@ -16,8 +16,8 @@ Since plan-3's emission run, MCP config is **layered** (Claude Code precedence: 
 
 | Layer | File | Content |
 |---|---|---|
-| PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: the universal set + per-type + overlays (this doc's tables are canonical); fabrik-lib carries the full roster, the hub the full set minus `HUB_EXCLUDE` (D-638) |
-| USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | **the 5** (session-recall, exa, brave-search, firecrawl, serena; postgres-pro rides per-repo per D-031) — rotator-synced, md5-identical across every fleet file and the ad-hoc copy; DR-backed. fabrik-lib's own `.mcp.json` (landed by its agent with `--repo`) carries its full roster on top |
+| PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`); a linked worktree reads its OWN copy, which `.worktreeinclude` takes at creation and every emission refreshes (an existing, real copy only — never created, never through a symlink) | the repo's RULED set: the universal set + per-type + overlays (this doc's tables are canonical); fabrik-lib carries the full roster, the hub the full set minus `HUB_EXCLUDE` (D-638) |
+| USER (per account) | `~/.claude.json` (ad-hoc leftover) + every account dir's `~/.claude-fleet/<slug>/.claude.json`, the API-key dirs included (the **active** symlink picks the live one) | **the 6**: the 5 the rotator carries (session-recall, exa, brave-search, firecrawl, serena; postgres-pro rides per-repo per D-031) **plus `rea`** (D-1246), which every `claude_rotate.py --sync-*` takes from the catalog (`mcp_defs.json`, `USER_CATALOG_SERVERS`) whatever the source holds — a catalog without it, or with a `${VAR}` in it, refuses the sync at rc 2. The sync writes every account dir and `~/.claude.json` (skipping the `active` pointer and the `backups` park root), so all stay identical; DR-backed. A session in a repo with no `.mcp.json` sees exactly this set. fabrik-lib's own `.mcp.json` (landed by its agent with `--repo`) carries its full roster on top |
 | POOL (Runtime B) | `/opt/fabrik/mcp.json` | research four (incl. pool-only context7) — untouched by the split |
 | PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; **the six pre-D-1102 universal servers** (no fabrik-scrape: this profile is not emitted) |
 
@@ -41,15 +41,15 @@ precondition).
 **Process model:** every VS Code Claude window spawns its OWN copy of every enabled server
 (most run 2 processes: npx wrapper + server). Tool *schemas* are deferred (ToolSearch loads them
 on demand — zero context cost), but the *processes* spawn regardless. That is the CPU/RAM problem:
-18 servers × 1–3 windows × 46+ repos.
+19 servers × 1–3 windows × 46+ repos.
 
 **Measured** (a few windows open, post-restart): 34 processes, **2.2 GB RSS**; at ~13 sessions the full roster measured ~23 GB.
 
-**⚠️ **Fetch-at-spawn fragility (D-042): every npx/uvx fetch-at-spawn server is a LOCAL PINNED INSTALL** (npm -g for the 9 node servers, `uv tool install` for serena + postgres-mcp) — a spawn is an exec, no registry fetch, no herd: full hub resolution measured **15/15 Connected in 9.2s** (was 60-90s with 4-8 timeouts). ⚠️ nvm-upgrade caveat: the bins live under the node VERSION dir (`~/.nvm/versions/node/v24.18.0/bin`) — a node major upgrade orphans them (the node-pty ABI class); after upgrading node, re-run the npm -g installs and re-run the emitter. The fragility this closes: a fetch-at-spawn server cold-fetched by every window at once (after an `_npx` cache wipe plus a WSL restart) times out on connect, and the harness marks it disconnected for the whole session — the registry is fine, the simultaneity is not; a window reload reconnects on the warm cache.
+**⚠️ **Fetch-at-spawn fragility (D-042): every npx/uvx fetch-at-spawn server is a LOCAL PINNED INSTALL** (npm -g for the 10 node servers, `uv tool install` for serena + postgres-mcp) — a spawn is an exec, no registry fetch, no herd: full hub resolution measured **15/15 Connected in 9.2s** (was 60-90s with 4-8 timeouts). ⚠️ nvm-upgrade caveat: the bins live under the node VERSION dir (`~/.nvm/versions/node/v24.18.0/bin`) — a node major upgrade orphans them (the node-pty ABI class); after upgrading node, re-run the npm -g installs and re-run the emitter. The fragility this closes: a fetch-at-spawn server cold-fetched by every window at once (after an `_npx` cache wipe plus a WSL restart) times out on connect, and the harness marks it disconnected for the whole session — the registry is fine, the simultaneity is not; a window reload reconnects on the warm cache.
 
 ---
 
-## The servers (18 active + 2 retired + 1 planned)
+## The servers (19 active + 2 retired + 1 planned)
 
 Weight = measured RSS across live processes (per-window cost scales with window count).
 
@@ -67,18 +67,19 @@ Weight = measured RSS across live processes (per-window cost scales with window 
 | magicui | motion component registry (the pair's other half) | saas-skeleton | 99 MB / 2p | ON saas-skeleton only |
 | mobile-mcp | device/emulator automation | mobile-app | light | ON mobile-app only |
 | maestro | mobile/web UI test flows — **heaviest server on the box** | mobile-app | **724 MB / 4p** | ON mobile-app only. The `mcp_health` probe keeps stdin open and returns on the first JSON-RPC frame, exactly like Claude's handshake — a `communicate()` probe closes stdin and kills this JVM server before it answers, a false DEAD no timeout budget can fix |
-| postgres-pro | restricted Postgres inspection (`--access-mode=restricted`) | ALL repos — data-contract/debug DB lens | light | ON all types — **RULED (D-020: universal, operator word)**; pinned `uvx --with 'mcp<2'` on every fleet roster (postgres-mcp is v1 code; the mcp 2.x SDK renamed FastMCP). **D-031 refinement: emitted per-repo ONLY with a proven-connecting DATABASE_URL** (emission-time psycopg probe, `+asyncpg` scheme normalised first — postgres-mcp blocks its handshake ~30s on any non-connecting URI and refuses to start env-less); a repo gains the server by adding a working DATABASE_URL to .env + re-running the emitter. User-level carries the 5 |
+| postgres-pro | restricted Postgres inspection (`--access-mode=restricted`) | ALL repos — data-contract/debug DB lens | light | ON all types — **RULED (D-020: universal, operator word)**; pinned `uvx --with 'mcp<2'` on every fleet roster (postgres-mcp is v1 code; the mcp 2.x SDK renamed FastMCP). **D-031 refinement: emitted per-repo ONLY with a proven-connecting DATABASE_URL** (emission-time psycopg probe, `+asyncpg` scheme normalised first — postgres-mcp blocks its handshake ~30s on any non-connecting URI and refuses to start env-less); a repo gains the server by adding a working DATABASE_URL to .env + re-running the emitter. User-level carries the 6, postgres-pro not among them |
 | grafana | fleet observability (Prometheus/Loki/dashboards) — runs as a docker container per window | hub (deploy/monitoring, fleet beat) | docker | ON hub only |
 | media-engine | image/video generation (`/opt/iterative_image_editor`) — product/catalog/packshot, avatar + faceless video, edit suite, stock, compliance | media producers: wef, brand-identiy-creator, youtube | 295 MB / 4p | ON those three only — **RULED (D-018): CONTENT-driven, never type-driven.** Standing rule: any future repo whose product/pipeline output IS media gets the overlay at adoption (one rotator edit); one-off design assets (hero/og/empty-state) route through a producer or hub window, or the engine's own API — never a fleet-wide MCP grant |
 | pubchem | chemistry database lookups | chemical-commerce content (wef) + the health/verification pair + the health projects | light | ON wef + fabrik-citation-verifier + fabrik-claim-validator (D-022) + longephedia-vault + supplement-tracker-advisor — **D-025 sweep**: the health-overlay predicate applied to the EXISTING fleet, not only future adoptions |
 | wsl | Claude Desktop ↔ WSL bridge: `bash`/`read_file`/`write_file`/`edit_file`/`list_dir` (`/opt/fabrik/tools/wsl-mcp`, systemd `wsl-mcp.service`, HTTP :8040; Desktop reaches it via Windows-native `npx mcp-remote`, never `wsl.exe`) — see [wsl-mcp.md](wsl-mcp.md) | Claude Desktop only (Claude Code has native Bash) | light | ON Desktop — REPLACES `wsl-shell` + `wsl-filesystem` (D-616) |
 | fabrik-citation-verifier | academic citation verification (PubMed/Crossref/…, `/opt/fabrik-citation-verifier`, MCP :8033) | dossier/research: transdoc + fabrik-claim-validator (cross-wire) + future health repos | service | ON transdoc + fabrik-claim-validator — **RULED (D-022: the health pair is cross-wired MCP↔MCP)** |
 | fabrik-scrape | raw-page fetch for research seats — one tool, `scrape(url)` → markdown or `{blocked, reason, status}` (`libs/web_scrape_mcp`, systemd `fabrik-scrape-mcp.service`, MCP :8034; `docs/reference/fabrik-scrape-mcp.md`) | every repo — the researcher's first raw fetch (W-10146d20) | service | ON everywhere — **RULED (D-1102: universal)**; Firecrawl stays the fallback, pinned to the basic proxy |
+| rea | Reverse Engineer Anything (`rea-agents`, MIT, `github.com/morluto/rea`): local stdio inspection of websites (drives the box's Chrome), JavaScript/Electron bundles, APKs, .NET and native binaries — the inspection layer of `/fabrik-reverse-engineer` | every repo (D-1239) and every account's user-level set (D-1246) — the inspection layer `/fabrik-reverse-engineer` runs from anywhere on the box | one `node …/rea-agents mcp` per Claude session anywhere on the box (D-1246 puts it in the user-level set) — spawned at session start whether called or not; a snapshot on 2026-10-26 sampled 8–9 live, RSS ~5–340 MiB, median ~230 MiB; the leak half of the proof run is still owed | ON everywhere — **ADOPTED (D-1199, reversible), RULED universal (D-1239)**; pinned global install, never REA's own `setup` (§ REA — the adoption in full) |
 | fabrik-claim-validator | multi-tradition claim validation + substance discovery (`/opt/fabrik-claim-validator`, :8002) — **MCP server NOT YET BUILT** (no MCP surface in its src; build requested of the owning repo by mail) | fabrik-citation-verifier (cross-wire) + future health repos | — (planned) | PLANNED per D-022 — joins the roster when the owning repo ships its MCP endpoint |
 | serena | LSP semantic code navigation | ALL repos — symbol-level grounding (find_symbol, find_referencing_symbols) | light idle | ON all types — **RULED (D-021: adopt-and-wire)**: zero usage before wiring was zero corpus wiring, not quality; named in plan-after-chat's grounding phase + review's adjudication. Still unused after wiring = a retirement case with evidence |
 
 **Net effect of the split as RULED:** a typical headless API repo drops 16 → the universal set alone
-(session-recall + exa + brave-search + firecrawl + postgres-pro + serena + fabrik-scrape, D-1102); the full
+(session-recall + exa + brave-search + firecrawl + postgres-pro + serena + fabrik-scrape + rea, D-1102, D-1239); the full
 roster survives only in fabrik-lib, maestro included (D-015, D-638: maestro is for mobile projects and
 fabrik-lib, which vendors and tests the mobile modules); the hub carries it minus the four per-session
 heavy servers (`maestro`, `mobile-mcp`, `playwright`, `chrome-devtools`; `HUB_EXCLUDE` in the emitter,
@@ -106,6 +107,7 @@ phantom arm (the wef 01M17XXF defect class).
 | `firecrawl` | RULED universal (D-013, "no exception") |
 | `postgres-pro` | RULED universal (D-020) — operator: "fix postgres-pro and wire it all type of projects" |
 | `fabrik-scrape` | RULED universal (D-1102): `fabrik-researcher` renders to every repo and names it as its raw-page fetch, so every repo's `.mcp.json` must carry it; a loopback service on :8034 (`docs/reference/fabrik-scrape-mcp.md`) |
+| `rea` | RULED universal (D-1239, operator 2026-10-26: "enable rea for all repos wide asap!!!") — `/fabrik-reverse-engineer` runs from any project, and REA is its inspection layer; a local stdio server with no credential (§ REA — the adoption in full) |
 | `serena` | RULED universal (D-021: adopt-and-wire) — the corpus names it for symbol-level grounding (plan-after-chat + review); unused-after-wiring = a measured retirement case |
 
 (`github` is RETIRED end-to-end per D-014 — the corpus teaches the `gh` CLI; `firecrawl` is universal per D-013.)
@@ -142,7 +144,7 @@ the planned row) — standing rule: any health project gets all three overlays a
 hub → +grafana (deploy-verify/decommission run hub-side only; user-test's "Grafana" is
 vendored-client example prose, verified).
 
-**Headcount effect (post-D-021, widened by D-1102):** headless types run **the universal set alone instead of 16**; web-GUI
+**Headcount effect (post-D-021, widened by D-1102 and D-1239):** headless types run **the universal set alone instead of 16**; web-GUI
 and mobile types add only their per-type sets from the table above.
 
 ## Playwright — the ruling in full (D-015 + D-016)
@@ -183,6 +185,46 @@ overlay (D-019: wef gets +chrome-devtools with its D-016 playwright — CWV on a
 is conversion tooling, a slow shop loses sales). `mobile-app` stays out (maestro/mobile-mcp loop);
 headless types have nothing to measure. Like playwright, it is NEVER a crawling/research tool.
 
+## REA — the adoption in full (D-1199, widened by D-1239)
+
+**What:** `rea-agents` (Reverse Engineer Anything) — one MCP server over stdio, run locally; for a website it
+drives a Chrome-family browser (`/usr/bin/google-chrome` on this box) and records page structure, scripts,
+network requests and screenshots; it also reads JavaScript/Electron bundles, APKs and .NET assemblies, and
+disassembles native binaries through Ghidra or Hopper when either is installed (neither is, today).
+`/fabrik-reverse-engineer` is its consumer (operator 2026-10-24: "i need below feature asap", W-eff97ae7).
+
+**Install — pinned, scripts off, never its own setup:** `npm install -g --ignore-scripts rea-agents@6.7.0`,
+and the catalog entry (`scripts/sysadmin/mcp_defs.json` → `rea`) launches that global binary with `mcp`.
+REA's own `setup` is NOT run: it writes `mcpServers.rea` into `~/.claude.json` (every project, every account
+file the rotator syncs) and a personal skill under `~/.claude/skills` — the roster and the emitter are the
+only writers of MCP registrations here. `--ignore-scripts` skips the one dependency install script, the
+optional `frida` binding's prebuilt download, so Frida instrumentation (native and Android runtime
+tracing) is unavailable; websites, bundles, APK and .NET inspection need no install script. Vetted
+2026-10-24: one maintainer (`morluto`, the repository owner), npm provenance (SLSA) on the release, no
+pre/post-install script in the package itself, 174 packages in the tree.
+
+**Who:** every repo (D-1239, superseding D-1199's hub-class-only grant) — it is in the emitter's universal
+set, so every scaffold type carries it with no overlay row; the hub and fabrik-lib carry it through the full
+catalog, as before. Since D-1246 it is also in the USER-level set of every account (§ Config topology), so a
+session anywhere on the box — the home folder, an untyped repo — sees it, and the emitter now serves every
+git repo: an untyped one gets the universal set when its `.gitignore` carries the `.mcp.json` line (the file
+inlines credentials), and image-generation is no longer excluded by name. A session sees it once its
+repo's `.mcp.json` is re-emitted (or the user-level sync has run) and the window is new.
+
+**What it can reach:** it runs as this OS user with the session's permissions — it can read any file the
+user can, launch the browser and reach the network the browser reaches; it keeps state and caches under
+`~/.rea` and `~/.cache/rea`. The MCP grant scopes which sessions SEE its tools, not what the process can
+touch. Its worker processes and the Chrome it launches are outside `mcp_orphan_reaper.py`'s signature (only
+the `node …/bin/rea-agents mcp` parent matches): the proof run reads every descendant's `/proc/<pid>/cmdline`
+and whether Chrome outlives a killed REA, and a leak either adds a signature or withdraws `rea` at both levels: for the project files, adds it to the emitter's `NEVER_EMIT` (which also reaches fabrik-lib, which carries the full catalog) and re-emits; for the user level, drops it from `claude_rotate.py`'s `USER_CATALOG_SERVERS` (else every sync puts it back), removes it from the source account's roster, and re-runs `--sync-mcp --from <that slug>`, which copies the source over every account and `~/.claude.json` — never by deleting it from the catalog alone, which makes every `--sync-*` refuse at rc 2 and leaves the user-level copies in place. Targets are the operator's to name (`/fabrik-reverse-engineer`
+§ The target and its limits).
+
+**Update:** a new version is a roster edit (this section's pin) plus the same `npm install -g --ignore-scripts
+rea-agents@<version>`; `rea update` is not used, and nothing tracks `@latest`. Read the release's
+`engines.node` first: REA's main branch already asks for Node `^24.22.1` (6.7.0 accepts `^24.11.0`; the box
+runs 24.18.0), and a Node move changes `/home/ozgur/.nvm/versions/node/<v>/bin/` in every node row of
+`mcp_defs.json`.
+
 ## Known non-connector classes (distinct from the herd outage)
 
 | Server | Class | What to do |
@@ -199,13 +241,13 @@ headless types have nothing to measure. Like playwright, it is NEVER a crawling/
 `/opt/apidoccreator` (docs-registry, port 8302) is the box's own crawling/docs service: registers any
 docs URL, auto-detects OpenAPI/llms.txt/sitemap/HTML, scrapes, LLM-generates + chunks, serves via
 REST — and ships its own MCP server (`docs-mcp` console script → `/opt/apidoccreator/src/docs_registry/mcp_server.py`,
-4 tools: list_docs · get_doc · search…). It is NOT in the 18-server roster — never connected to any
+4 tools: list_docs · get_doc · search…). It is NOT in the 19-server roster — never connected to any
 Claude window. Candidate: wire it (self-hosted, $0) as a partial context7 replacement for
 already-registered sources; decision rides the same split.
 
 ## The two standing rulings behind the split
 
-**fabrik-lib is HUB-CLASS (D-015): the full roster** — it builds modules for every scaffold type and its agent needs the whole toolbox; the split trims project windows, leaves fabrik-lib at the full set and the hub at the full set minus `HUB_EXCLUDE` (D-638). **session-recall · exa · brave-search · firecrawl are UNIVERSAL (D-013) — every project, no exception**; any trim excludes these four, and the firecrawl→curl corpus swap is DEAD. The split itself is EXECUTED: the user-level roster is the five of § Config topology and every repo's `.mcp.json` is emitted from this doc's tables (§ Config topology).
+**fabrik-lib is HUB-CLASS (D-015): the full roster** — it builds modules for every scaffold type and its agent needs the whole toolbox; the split trims project windows, leaves fabrik-lib at the full set and the hub at the full set minus `HUB_EXCLUDE` (D-638). **session-recall · exa · brave-search · firecrawl are UNIVERSAL (D-013) — every project, no exception**; any trim excludes these four (the full universal set is § Universal base), and the firecrawl→curl corpus swap is DEAD. The split itself is EXECUTED: the user-level roster is the six of § Config topology and every repo's `.mcp.json` is emitted from this doc's tables (§ Config topology).
 
 **Related:** [MCP_HTTP_TRANSPORT.md](MCP_HTTP_TRANSPORT.md) (transport detail) ·
 [wsl-mcp.md](wsl-mcp.md) (the Claude-Desktop bridge server; `wsl-shell-mcp-setup.md` is the superseded stdio bridge) ·

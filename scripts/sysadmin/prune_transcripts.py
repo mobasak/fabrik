@@ -26,10 +26,14 @@ FAILS CLOSED (a doubt is a refusal, printed with its reason):
       equals the row's (`zstd -t` proves the frame, not the bytes);
   r6  the bucket lists that object with the SAME size and SHA1 as the local `.zst` (one
       `rclone lsf --format psh --hash SHA1` per slug; a listing that fails refuses the whole slug);
-  r7  every name of the inode — found NOW by (st_dev, st_ino) over the whole tree, never from the
-      manifest's `also_slugs` — passes r1–r3 and has its own manifest row; one name failing ⇒ the
-      inode is skipped, and names with DIFFERENT session ids (`names-differ`) are refused outright.
-      The names are unlinked in one pass after ONE ledger row naming them all.
+  r7  every MAIN name of the inode — `<slug>/<sid>.jsonl` and the set-aside `<slug>/<sid>.jsonl.
+      superseded-<digits>` (D-1188) at depth 2, found NOW by (st_dev, st_ino), never from the
+      manifest's `also_slugs` — passes r1–r3, and each LIVE name has its own manifest row (a set-aside
+      link is vouched through them); one name failing ⇒ the inode is skipped, names with DIFFERENT
+      base session ids (`names-differ`) are refused outright, and an inode whose only names are
+      set-asides is archived but refused (`set-aside-only`: session-recall indexes `*/*.jsonl` only).
+      The names are unlinked in one pass after ONE ledger row naming them all; a link under any
+      other name is not seen and keeps the inode's blocks.
   Then THE LAST LOOK, immediately before the unlink: a re-`stat` (size and mtime_ns unchanged since
   the hash) and r2 again; a change ⇒ `changed-under-hash`.
 
@@ -38,8 +42,10 @@ THE LEDGER BEFORE THE UNLINK: a deletion appends its row to `~/.claude/archive/p
 pruned_at) and fsyncs it BEFORE any unlink — a crash between them leaves a row with the file still
 present, never a vanished file without a row. The file sits in ARCHIVE_ROOT, so the archiver's
 `ship()` uploads it nightly: the restore list is off-box too. `--restore <session_id>` (MAIN rows
-only) and `--restore agent-<id>` (subagent-tier sidechain rows only; two distinct paths for one id
-refuse, listing both) are its consumers; `--verify-ledger` its integrity check.
+only; one id pruned under two slugs — a set-aside inode and the one moved in over it, D-1188 —
+refuses, listing both: pass `--slug=<slug>`) and `--restore agent-<id>` (subagent-tier sidechain rows
+only; two distinct paths for one id refuse, listing both) are its consumers; `--verify-ledger` its
+integrity check.
 
 THE CAP (C.2.2): every run orders the deletable inodes OLDEST first and takes at most
 PRUNE_MAX_PER_RUN (default 200; `--max M` on a hand run) as THIS RUN's set; the rest are `deferred`.
@@ -69,7 +75,8 @@ when there was one) BEFORE exiting, whatever happened; `--status` prints the las
 APPLY row. `--restore`, `--verify-ledger` and `--status` write no row.
 
 EXIT CODES: 0 ran (0 or more deletions) · 3 refused (`--expect` mismatch, lock held, no manifest,
-`--verify-ledger` MISSING, `--restore` with a survivor of another sha256 or a failed fetch) ·
+`--verify-ledger` MISSING, `--restore` with a survivor of another sha256, a failed fetch, or an id
+pruned under two slugs or two paths) ·
 1 error (a dry-run/apply run writes its summary row first) · 2 usage.
 
 Env (12-Factor III) — read from the process environment, else the `SESSION_RECALL_RO_DSN`,
@@ -427,9 +434,12 @@ def _world(cap_override: int | None) -> World:
 
 
 def _main_files(projects: Path) -> list[tuple[Path, os.stat_result]]:
+    """Every MAIN name — live and set-aside (`at.main_key`) — live names first, so each inode's
+    first name, which keys its candidate, is a live one when it has one."""
     out = []
-    for p in sorted(projects.glob("*/*.jsonl")):
-        if "/subagents/" in str(p):
+    names = {q for g in at.MAIN_GLOBS for q in projects.glob(g)}
+    for p in sorted(names, key=at.main_sort_key):
+        if "/subagents/" in str(p) or at.main_key(p) is None:
             continue
         try:
             st = p.stat()
@@ -447,17 +457,21 @@ def _group(files: list[tuple[Path, os.stat_result]]) -> list[Candidate]:
         if key in groups:
             groups[key].names.append(p)
         else:
-            groups[key] = Candidate(p.stem, [p], st.st_mtime_ns, st.st_size, st.st_ino)
+            groups[key] = Candidate(at.main_key(p)[0], [p], st.st_mtime_ns, st.st_size, st.st_ino)
     return list(groups.values())
 
 
 def _newest(
     files: list[tuple[Path, os.stat_result]], agents: dict[str, str], latest: dict
 ) -> tuple[dict[str, str], dict[str, str]]:
-    """(slug → newest session id, agent → newest session id) over EVERY MAIN file, any age."""
+    """(slug → newest session id, agent → newest session id) over EVERY live MAIN file, any age. A
+    set-aside is never a resume point, and Claude Code refreshes its mtime when it sets it aside:
+    counted, a set-aside-only inode would displace the slug's real newest and unprotect it."""
     by_slug: dict[str, tuple[int, str]] = {}
     by_agent: dict[str, tuple[int, str]] = {}
     for p, st in files:
+        if at.SET_ASIDE_RE.fullmatch(p.name):
+            continue
         slug, sid = p.parent.name, p.stem
         if slug not in by_slug or st.st_mtime_ns > by_slug[slug][0]:
             by_slug[slug] = (st.st_mtime_ns, sid)
@@ -479,7 +493,11 @@ def evaluate_main(
     → r4 (the hash) → r5–r6. `listing` is created lazily so a tree the cheap rules refuse whole
     never needs credentials."""
     files = _main_files(w.projects)
-    over = [str(p) for p, st in files if st.st_size > w.advise_mb * 1024 * 1024]
+    over = [  # live names only: a set-aside link would list its inode twice
+        str(p)
+        for p, st in files
+        if st.st_size > w.advise_mb * 1024 * 1024 and not at.SET_ASIDE_RE.fullmatch(p.name)
+    ]
     manifest = w.archive_root / at.MANIFEST_NAME
     latest = at._latest_rows(manifest)
     agents = at.agent_map(w.identity, w.sessions_dir)
@@ -497,10 +515,16 @@ def evaluate_main(
             ),
             None,
         )
-        if len({n.stem for n in c.names}) > 1:
+        if len({at.main_key(n)[1] for n in c.names}) > 1:
             # a hand-made link under another session id: every per-name lookup (r3, r4, r7) would
-            # key on ONE stem, so the inode is refused outright (review 2026-10-11, pruner-S2)
+            # key on ONE stem, so the inode is refused outright (review 2026-10-11, pruner-S2); a
+            # set-aside is a name of its live session, compared by its base session id
             c.reason = "names-differ"
+        elif all(at.SET_ASIDE_RE.fullmatch(n.name) for n in c.names):
+            # archived under its own key, never pruned: session-recall indexes `*/*.jsonl` only, so
+            # an r8 pass for a set-aside name can only be a stale row (W-a2cae11b); Claude Code's own
+            # cleanup deletes set-asides
+            c.reason = "set-aside-only"
         elif c.mtime_ns > cutoff_ns:
             c.reason = "in-window"
         elif c.session_id in opened:
@@ -518,7 +542,13 @@ def evaluate_main(
     for c in cands:
         if c.reason:
             continue
-        rows = [latest.get((n.parent.name, c.session_id)) for n in c.names]
+        # r7 over the LIVE names: a set-aside link carries no row of its own — it is vouched through
+        # these rows (same inode), unlinked with them and listed in the ledger row's paths
+        rows = [
+            latest.get((n.parent.name, c.session_id))
+            for n in c.names
+            if not at.SET_ASIDE_RE.fullmatch(n.name)
+        ]
         if any(r is None for r in rows):
             c.reason = "not-archived"  # r7: one name without a row ⇒ the inode is skipped
             continue
@@ -907,6 +937,17 @@ def restore(w: World, session_id: str, slug: str | None) -> int:
             raise RefusalError(
                 f"--restore: {session_id} was pruned under {len(pruned_at)} paths — {listed}; "
                 "nothing written"
+            )
+    else:
+        # one session id pruned as two inodes under two slugs (a set-aside makes it ordinary: the
+        # old inode and the transcript moved in over it) — restoring only the latest row would leave
+        # the other silently missing (review W-a2cae11b r1, O2)
+        by_slug = {str(r.get("project_slug")): r.get("pruned_at") for r in rows}
+        if len(by_slug) > 1:
+            listed = "; ".join(f"{s} (pruned_at {t})" for s, t in sorted(by_slug.items()))
+            raise RefusalError(
+                f"--restore: {session_id} was pruned under {len(by_slug)} slugs — {listed}; "
+                "pass --slug=<one of them> (with `=`: every slug starts with `-`); nothing written"
             )
     row = rows[-1]
     paths = [Path(p) for p in row.get("paths") or []]

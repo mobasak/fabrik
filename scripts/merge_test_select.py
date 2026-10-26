@@ -66,7 +66,8 @@ _ADDRESS = re.compile(r"\bat 0x[0-9a-fA-F]+\b")
 # and a path component `tempfile` names with its default prefix (`/tmpk3j9_2xq`: "tmp" + 8 of
 # [a-z0-9_]); only as a path component, since an identifier like `tmp_results` is the failure's
 # own, and a custom-prefix name is left alone (that rule merged two different failures)
-_TMPNAME = re.compile(r"(?<=/)tmp[a-z0-9_]{8}(?![\w-])")
+# (a relative one, `tmpk3j9_2xq/out`, is a component only when a `/` follows it)
+_TMPNAME = re.compile(r"(?<=/)tmp[a-z0-9_]{8}(?![\w-])|(?<![\w./-])tmp[a-z0-9_]{8}(?=/)")
 # a record line naming no id: the leg refused without a verdict, so the base-alone run measures nothing
 _LEG_MARK = "#leg-failed"
 # The recording plugin: one JSON line per failed report (a collection error's id is the file).
@@ -121,7 +122,7 @@ def import_patterns(path: str) -> set[str]:
         rf"(?<![\w.]){pkg}\.{name}(?![\w])",
         # inside parentheses anything up to the `)` (names, line breaks, comments); without them
         # one logical line: names, commas, blanks and backslash continuations, never a next statement
-        rf"\bfrom\s+{pkg}\s+import\s*(?:\([^)]*?|(?:[ \t\w,]|\\\n)*?)(?<![\w.]){name}(?![\w])",
+        rf"\bfrom\s+{pkg}\s+import\s*(?:\((?:[^)#]|#[^\n]*)*?|(?:[ \t\w,]|\\\r?\n)*?)(?<![\w.]){name}(?![\w])",
     }
 
 
@@ -190,17 +191,67 @@ def _ignored() -> set[str]:
 
 
 def _record_path(base: str) -> Path:
+    # `merge_request.py request --pretest` runs this leg outside the merge lock and points the records
+    # at a private directory, so a pretest never rewrites the record a concurrent merge's base-alone
+    # re-run reads (W-1fb11ec8)
+    override = os.environ.get("FABRIK_MERGE_TESTS_RECORDS")
+    if override:
+        return Path(override) / f"merge-tests-{base}.txt"
     common = Path(_git("rev-parse", "--path-format=absolute", "--git-common-dir").strip())
     return common / "fabrik-merge" / f"merge-tests-{base}.txt"
 
 
-def _write_record(base: str, keys: list[str]) -> None:
-    rec = _record_path(base)
+def _green_path(branch_head: str) -> Path:
+    """The last merge of ``branch_head`` this leg passed — a rebuild after a ledger-only base move
+    (``_merge_into_base``'s failed CAS, W-347cd0c3) reads it to skip a re-test of the same code."""
+    return _record_path(branch_head).with_name(f"merge-tests-green-{branch_head}.txt")
+
+
+def _green_merge(head: str, parents: list[str]) -> tuple[str, str]:
+    """``(G, "")`` for a green merge of HEAD's branch head that HEAD only re-merges onto a newer base,
+    else ``("", why)`` — the record is a claim, so every way it can name the wrong merge is checked."""
+    try:
+        text = _green_path(parents[1]).read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return "", ""
+    except (OSError, UnicodeDecodeError) as exc:
+        return "", f"unreadable: {exc}"
+    if not re.fullmatch(r"[0-9a-f]{40}", text):
+        return "", "not a commit id"
+    r = subprocess.run(
+        ["git", "show", "-s", "--format=%P", f"{text}^{{commit}}"], capture_output=True, text=True
+    )
+    if r.returncode:
+        return "", "names no commit here"
+    if text == head:
+        return "", "it names this merge"
+    g_parents = r.stdout.split()
+    if len(g_parents) != 2 or g_parents[1] != parents[1]:
+        return "", "not a merge of this branch head"
+    behind = subprocess.run(["git", "merge-base", "--is-ancestor", g_parents[0], parents[0]])
+    if behind.returncode:
+        return "", "its base is not behind this one"
+    return text, ""
+
+
+def _write_record(base: str, keys: list[str], rec: Path | None = None) -> None:
+    rec = rec or _record_path(base)
     rec.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=rec.parent, prefix=rec.name + ".")  # never a shared temp name
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write("".join(k + "\n" for k in keys))
-    os.replace(tmp, rec)  # a reader never sees half a list
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("".join(k + "\n" for k in keys))
+        os.replace(tmp, rec)  # a reader never sees half a list
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def _record_green(head: str, parents: list[str]) -> None:
+    try:
+        _write_record("", [head], _green_path(parents[1]))
+    except OSError as exc:  # the verdict stands; a later rebuild only re-tests in full
+        print(f"merge-tests: green record not written ({exc})")
 
 
 def _tests_here() -> dict[str, str]:
@@ -415,6 +466,21 @@ def main(argv: list[str] | None = None) -> int:
             if in_merge and (_record_path(head).exists() or len(parents) < 2):
                 return _base_alone(head, runner)
             base = parents[0] if in_merge else _git("merge-base", "HEAD", "origin/master").strip()
+            if in_merge and not args.list:
+                green, why = _green_merge(head, parents)
+                if why:
+                    print(f"merge-tests: green record ignored ({why})")
+                delta = (
+                    _git("diff", "--name-only", "--no-renames", "-z", green, head) if green else ""
+                )
+                if green and all(SKIP.fullmatch(p) for p in delta.split("\0") if p):
+                    _record_path(base).unlink(missing_ok=True)
+                    _record_green(head, parents)
+                    print(
+                        "merge-tests: re-test skipped — only ledger/work-item paths changed since the "
+                        f"green merge {green[:12]}\nmerge-tests: green in {time.monotonic() - t0:.0f}s"
+                    )
+                    return 0
             if in_merge:  # until a verdict replaces it, any death reads as "measured nothing"
                 _write_record(base, [f"{_LEG_MARK}\tin-progress"])
             changed = [
@@ -439,6 +505,7 @@ def main(argv: list[str] | None = None) -> int:
                 _write_record(base, [f"{nid}\t{when}" for (nid, when), _ in new])
             elif in_merge:
                 _record_path(base).unlink(missing_ok=True)
+                _record_green(head, parents)
     except Exception as exc:  # noqa: BLE001 — every failure without a verdict is exit 3, said so
         if in_merge and base:
             try:

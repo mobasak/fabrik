@@ -1,6 +1,96 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A census that re-implements a check must read every field the check reads (2026-10-26)
+
+- **What happened:** W-34d76a7a's MEASURE counted vanished `rule:` labels with a hand-written script that pooled the
+  named entries' phrases but never read the matching entry's `clauses:` labels. It reported 11 of 185 lines newly lost
+  on kaizen's latest cut; both design critiques replayed the real `_lint` and found 0 — every label named the line's
+  own lintable entry, whose labels excuse exactly those story clauses (D-1258).
+- **Rule:** measure a proposed check by running the module's own functions on the real corpus (here `losses()` over a
+  real render, base vs new), never a re-implementation; a re-implementation is a second reading and drifts on the
+  first field it forgets.
+
+## A measure built in a worktree must not read the disk (2026-10-25)
+
+- **What happened:** slice C's size measure (D-1226) counted a path when the file existed. Its baseline was built in a
+  linked worktree, which holds only tracked files; the main checkout also holds gitignored data and secrets, so
+  master's `--check` failed there and refused every commit (D-1230).
+- **Rule:** anything that must agree across checkouts reads the repo (the git index), never the disk; and a test for it
+  builds a real repo plus a linked worktree with a file only one of them holds, because a fixture tree without git
+  cannot show the difference.
+
+## Run a key contract over the whole live corpus before anything is keyed on it (2026-10-25)
+
+- **What happened:** slice A of the lean tooling (W-a9b5e763) shipped a sentence matcher reviewed over four rounds
+  against fixtures. Slice C generated a ledger for every unit of all 40 live commands and asserted it against the
+  render: 140 units could never match (an inline `<!-- … -->` in a code span was blanked on one side only), 97
+  more sat under a fragment's heading in the render, and 3 never matched because `normalise()` was not idempotent
+  (`"404 ."` became `"404 "`, then `"404"`).
+- **Why it matters:** a key contract changes for free only while nothing is keyed on it. Once kaizen writes ledgers,
+  each fix costs a re-baseline of every ledger.
+- **Rule:** before a grammar freezes, generate its artifact over the real corpus in a test (D-1226:
+  `test_generate_unchanged_ledgers_pass_on_the_live_corpus`, `test_normalise_is_idempotent_on_every_live_unit`).
+  A fixture shows the grammar works on the cases you thought of; the corpus shows the cases you didn't.
+
+## `git log --since` stops at the first older tip; a window filter belongs on the commit's own time (2026-10-25)
+
+W-487e966a counted commits per window with `git log --since/--until`. A fixture repo whose branch tip was committed
+before the window returned 0, because git stops walking once it meets a commit older than `--since`. Live repos
+read correctly that day only because no tip was old. The fix is to log once and filter on `%ct` per window.
+- **Filter a window on each record's own time.** Never trust a producer's cutoff flag to mean "every record in
+  range": `--since` is a walk limit, not a filter.
+- **A guard's refusal test must assert its own message.** The first refusal test passed every case because the
+  default command list tripped a different refusal first. Asserting each case's own flag name exposed it.
+- **A typo guard checks only what the caller named.** Applied to the built-in default list, it refused a valid
+  run on any ledger lacking one default command. Two review seats found it.
+
+## A permanent verdict needs positive evidence; a missing signal is "unknown", so it is transient (2026-10-25)
+
+W-05021a03 split rotate-session's aborts into transient (exit 75) and permanent (exit 1). The first build classified by check name with a few overrides. Three review readers then found ten places where the permanent verdict rested on something ABSENT: no input box drawn (a blank redraw, copy-mode, a restarting pane), a reason string that lacked "timed out" (hibernate reports a timed-out probe as "detached HEAD"), an identity read that failed and so looked empty, and a second `claude` under the pane (a pool seat).
+- **Call a cause permanent only on positive evidence**: a dialog's numbered options, typed text, two transcripts, a missing binding row in a readable store. Default everything else to transient. A false permanent stops a rotation that would have passed; a false transient only keeps the old loop.
+- **A heuristic's own fix needs its own escape variants**: the first dialog test (the last `❯` row is numbered) also matched a numbered line typed in the box, and it blocked the very `--stale-input discard` the permanent hint recommends. Adding "no box drawn" plus "a numbered sibling option nearby" closed it.
+- **Size a mutation probe to the graders**: running the whole test file per mutant took about 20 minutes for 20 mutants; `-k` on the change's own tests takes seconds per mutant. That probe's one survivor was a threshold edge no test sat between (547 s against 900 s), and the new edge test killed it.
+
+## A one-batch rewrite that closes 30 findings opens 18 of its own: probe its own inputs first (2026-10-25)
+
+- **What happened:** the rule-ledger module's first review confirmed 30 defects. The fix batch
+  rewrote the module whole, and the next pass confirmed 18 more, 16 inside that rewrite. Pass 3 then
+  confirmed 7, all own-fix, and the scope-growth stop fired.
+- **Lesson:** a rewrite answering many findings needs round zero applied to it before the pin: the
+  fix's own input space (nested and sibling sections, fences, empty input, unreadable dirs) enumerated
+  and executed by the author. Re-running the finders' cases is not enough, because they only cover the
+  old code's shape.
+- **Apply:** before re-pinning after a batch fix, write and run one probe per new branch the batch
+  added. A fix that adds positions, scopes or name filters is probed with both sibling and nested
+  inputs.
+
+## Read a headless run's tool set from the CLI's init event, never from a design claim or the model (2026-10-25)
+
+W-230abfd5 (`scripts/api_credit.py`, D-1223): the script, its doc and D-1198 all said the child had Read, Grep and
+Glob, and a review passed that claim. On CLI 2.1.310 `--bare` silently dropped Grep and Glob whatever `--tools`
+listed; only a live finder saying "I had no Glob tool" exposed it.
+- **The authoritative tool list is the `system/init` event** of `--output-format stream-json --verbose`; a keyless
+  run prints it without spending (it then fails "Not logged in"), so the check costs nothing and belongs in a test or
+  a pre-flight, not in prose.
+- **Bisect the flags on that event** — seven keyless probes separated `--bare` (Read only) from `--safe-mode`
+  (Glob, Grep, Read) in minutes; reading help text and docs had not.
+- **A model's self-report of its tools is a hint, not a measure** — it was right here, but only the init event is the
+  CLI's own answer.
+
+## A token rule is a compiler claim: run the compiler before writing it (2026-10-24)
+
+W-dab6a341's first draft wrote CSS-first Tailwind rules from the docs alone. Three were wrong in ways no doc says: a plain `@theme` drops a variable no utility uses, a `var()`-valued slot's utility reads the referenced variable, and an alias under the slot's own name is a cycle. Every one surfaced only when a seat ran `compile()` from an installed `tailwindcss`. The template's own text-colour slots had sat in the font-size namespace since the CSS-first line shipped. **Lesson:** a rule about what a compiler or engine emits is checked by running it on the smallest input that shows the case, and the probe goes in the CLAIMS verify hint so the currency watcher can re-run it. A grader written to catch prose about tokens is judgement-shaped: bound it and say so, or it fires on legitimate sentences.
+
+## Probe a CLI's limits live before pricing a cap on them; the first real run is also a reviewer (2026-10-24)
+
+W-894f994f (`scripts/api_credit.py`, D-1198): two design critiques, an author's mutation battery, then a full review.
+- **An author's mutation battery covers the guards the author thought of** — the review's finders mutated independently and found guards no test pinned (the `ANTHROPIC*` strip, the timeout settle, the error flag, a duplicate start). Have a finder mutate before trusting your own all-red battery.
+- **Probe the limit you price** — the cap's margin rested on "a run overshoots by one turn". A three-Read probe at a $0.000001 budget stopped after ONE API call. The overshoot is one call, so the reserve became a per-model per-call ceiling, priced from current list prices rather than a guessed $10.
+- **A variadic flag eats a positional argument** — `claude -p … --tools "" "prompt"` failed with "Input must be provided": `--tools <tools...>` swallowed the prompt. Put the prompt on stdin whenever a variadic flag precedes it.
+- **Classify on the error flag, never the subtype** — a bogus key returns `subtype: "success"` with `is_error: true`.
+- **The first live run doubled as a finder** — a $0.07 Sonnet run reviewing the script over a two-file pin found seven real defects that the mutants could not, because the mutants only covered guards that already existed (a settle racing a live run, an unscrubbed field, uncaught overflow and symlink-loop errors).
+
 ## A work item's cause hypothesis is a claim to execute; a differential gate compares like with like (2026-10-24)
 
 W-4e756979 (the hub's merge-test leg): design critiqued by two seats, full review 15 → 13 → (closing pass).
@@ -7726,3 +7816,46 @@ document.
   superseded by a new row, never edited.
 - **Where it lives.** `scripts/enforcement/check_doc_index.py::_blank_examples`,
   `scripts/enforcement/_fences.py::blank_code_examples`, `docs/DECISIONS.md` (D-1179, D-1183).
+
+## A data-loss size is counted per inode, never per file name — hard links multiply a byte count, not the risk (2026-10-24)
+
+- **What happened.** W-a2cae11b reported 9 set-aside transcripts, about 12 GB, with no off-box copy. A `find -printf
+  '%i %n'` showed 6 inodes, 5 of them hard links of a live `<sid>.jsonl` whose bytes the manifest already held byte
+  for byte. The bytes with no copy were one file of 371,647 bytes. The other real defect was disk, not loss: the
+  pruner never saw the set-aside links, so they would have pinned about 6 GB after pruning the live names.
+- **Mechanism.** On a tree where hard links are routine (D-467 lanes, Claude Code's own relocation), a sum of file
+  sizes counts each inode once per name, and "no copy" for a name says nothing about its inode's other names.
+- **How to apply.** (1) Size a loss claim with `%i %n` and group by inode before designing. (2) Check every name
+  of each inode against the archive (`find -inum`). (3) Put the overturned figure in PROBLEM and the D-row, so the
+  item's number does not travel on.
+- **Where it lives.** `scripts/sysadmin/archive_transcripts.py::main_key`,
+  `scripts/sysadmin/prune_transcripts.py::evaluate_main`, `docs/DECISIONS.md` (D-1188).
+
+## Trusting another run's green needs the inputs it measured AND the code that measured it — bind both, then mutate every binding (2026-10-24)
+
+- **What happened.** W-1fb11ec8 let the merge skip its owner-test leg on the requester's pretest record. The
+  first design bound the record to the merged tree only. Two critique seats and three review seats then found
+  four more inputs a green record silently depends on: the runner's own code (a branch editing
+  merge_request.py writes its record with its own code), the leg's duration (`FABRIK_CAPPED_RUN=/bin/true`
+  yields a green in 0 s), the merge-tests text, and a non-finite JSON number (NaN passed the floor and crashed
+  `int()`). The first mutation battery left 3 of 16 mutants alive; each was a grader that could not fail.
+- **Mechanism.** A skip is a cache hit: every input the cached result depended on is part of its key, and a key
+  field that no test can tell apart from a constant is not a key.
+- **How to apply.** (1) List what the skipped work READ, not what it was given: tree, script, runner, env,
+  duration. (2) Bind each to the record. (3) Mutate each binding on a copy and watch a named grader fail before
+  calling it covered; an option-shaped value (`-R`) is the probe for any field passed to git.
+- **Where it lives.** `scripts/merge_request.py::_pretested`, `_pretest`, `tests/test_merge_request_pretest.py`.
+
+## A "still held" test proves one guard only when every other guard on the path is open (2026-10-26)
+
+- **What happened.** W-effb7141 added cases to `test_a_plan_session_is_still_held_at_the_wall` for a key
+  beside `ANTHROPIC_AUTH_TOKEN` and the Bedrock/Vertex/Foundry switches. Run against the code before the
+  fix, all four passed. The test wrote a pre-tier stamp (`1`), and the tier rule already held that stamp, so
+  the env predicate under test was never reached. Re-cut on a plain `walled` stamp, all four went red on the
+  old code.
+- **Mechanism.** An expected "deny" has many causes. A test asserting one is satisfied by whichever guard
+  fires first, so it grades the guard it meant to grade only when its fixture opens every other guard.
+- **How to apply.** For a held/denied/refused assertion, build the fixture the subject would otherwise PASS
+  (here: a key session on a plain quota tier), then change exactly the one input under test. Prove it red
+  on the pre-fix code; a red-first run is the only check that catches a fixture held by the wrong guard.
+- **Where it lives.** `tests/test_quota_stop_hook.py::test_a_plan_session_is_still_held_at_the_wall`.

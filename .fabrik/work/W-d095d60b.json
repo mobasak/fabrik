@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T18:07:45.565886Z",
+  "creator": "infra-3",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d095d60b",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "pass the URI on stdin, exit 1 on any 'SKIP (error' verdict, graders red-first",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "DATABASE_URL on the child command line was readable by any local process; one function + the exit line",
+  "status": "open",
+  "title": "MCP emitter: the DATABASE_URL probe passes the secret on the child's command line (visible in ps and /proc/<pid>/cmdline), and the emitter exits 0 even when a repo errors (split from W-cd40f947 (e))"
+}

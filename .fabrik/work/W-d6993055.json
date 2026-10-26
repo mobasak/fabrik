@@ -3,7 +3,7 @@
   "created": "2026-10-05T18:55:41.151880Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b9546a973d21295890fb409e8b5c5339c2a5a8e2",
   "id": "W-d6993055",
   "impact": "high",
   "kind": "task",
@@ -17,8 +17,9 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
+  "resolved_by": "W-42bde5ae",
   "score_reason": "D-958 re-score 2026-10-18: HIGH — CLAUDE.md stale gate cite, rule update",
-  "status": "open",
+  "status": "done",
   "tags": [
     "infra"
   ],

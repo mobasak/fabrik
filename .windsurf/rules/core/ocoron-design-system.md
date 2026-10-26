@@ -1,12 +1,12 @@
 ---
 description: Ocoron house identity — the Ocoron BRAND that fills core/design-system-template.md's slots: brand story, verbal identity, logo, colour tokens for both modes with a computed contrast table, typography, radius, icons, sound. Applies ONLY to a project whose docs/design-system.md declares "House identity: ocoron — chosen, not defaulted" (D-051); every other GUI takes its brand from brand-identiy-creator. The structure (components, states, tables, forms, motion, density, accessibility, responsive) is the template's, not this file's.
-currency_pass: 2026-09-24
+currency_pass: 2026-10-24
 ---
 <!-- CONSUMER: coding agents on an Ocoron-declared project; /fabrik-ui-design when a project adopts the house identity; tojlo-design-system.md (inherits these values)
      GOAL: the Ocoron brand's values and voice — one fill of the design-system template
      AGENT USAGE: build with the template's slot names; take the values below. Never invent colours or fonts. -->
 
-# Ocoron Design System v3.0
+# Ocoron Design System v3.2
 
 > The Ocoron BRAND. ⚠️ **A HOUSE identity, chosen — never defaulted** (operator ruling 2026-08-29,
 > D-051): a project uses it only when its `docs/design-system.md` header declares it explicitly;
@@ -212,7 +212,7 @@ Every system Ocoron builds makes the next one faster, cheaper, and more reliable
 
 #### Model: Branded House
 
-Ocoron is the master brand. All digital products and services live under it.
+Ocoron is the master brand. All digital products and services live under it, except the standalone brands of naming rule 4.
 
 #### Naming Convention
 
@@ -221,10 +221,10 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 #### Naming Rules
 
 1. Every digital product carries the Ocoron name.
-2. Sub-brands do NOT get their own logos. They use: Ocoron wordmark + product name set in Inter 500.
+2. Sub-brands do NOT get their own logos. They use: Ocoron wordmark + product name set in IBM Plex Sans 500.
 3. Don't create a sub-brand until the product has paying users or is in active B2B presales. Until then, it's just "Ocoron."
-4. Physical product brands (Atelier Rebul) are completely separate — no Ocoron branding on physical goods.
-5. Ocoron is registered as a Teknokent LLC. The legal entity name appears on invoices and contracts; all product surfaces and marketing use "Ocoron" only.
+4. Standalone brands are completely separate: their product surfaces and marketing never carry the Ocoron name or branding, and rules 1-3 do not apply to them. They are Atelier Rebul (physical goods) and Kalite Pusulası (the quality-systems consultancy). Kalite Pusulası's site may name Ocoron Dış Ticaret Limited Şirketi only as the KVKK data controller on its legal page; its invoices and contracts name the legal entity as rule 5 says.
+5. Ocoron's legal entity is **Ocoron Dış Ticaret Limited Şirketi**. That name appears on invoices, contracts and legal pages (the terms of service and the privacy policy, which names the KVKK data controller); every other product surface and all marketing use "Ocoron" only, except that a standalone brand's product surfaces and marketing use its own name (rule 4).
 6. Internally, sub-products can be referred to by their short name ("Fabrik"). Externally, always "Ocoron Fabrik."
 
 #### Brand Map
@@ -235,7 +235,8 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 | SaaS products | **Ocoron [TBD]** | Named when product reaches presale |
 | B2B system design services | **Ocoron** (no sub-brand) | Yes — the company does the work |
 | Candle manufacturing | **Atelier Rebul** | Independent brand, never co-branded |
-| Teknokent LLC (Ocoron) | Legal entity name | Invoices and contracts only |
+| Quality-systems consultancy (kalitepusulasi.com) | **Kalite Pusulası** | Independent brand, never co-branded; its site names the legal entity only as the KVKK data controller on its legal page |
+| Ocoron Dış Ticaret Limited Şirketi | Legal entity name | Invoices, contracts and legal pages only |
 
 #### Co-Branding Rules
 
@@ -257,10 +258,11 @@ Format: **Ocoron [Name]** — product name is 1-2 words, lowercase-friendly, tec
 
 ## Colour tokens
 
-Every slot `core/design-system-template.md` § Token slots names, for both modes. **Dark is the
-default mode.** In dark mode the state fills are light enough to read as text, so text ON them is
-near-black (`#0A0A0A`); in light mode they are dark enough to read as text, so text on them is white.
-The accent is the one fill that is never text in either mode — that is what `--color-accent-text` is for.
+Every slot `core/design-system-template.md` § Token slots names, for both modes, plus Ocoron's four
+brand fills (under the table). **Dark is the default mode.** In dark mode the state fills are light
+enough to read as text, so text ON them is near-black (`#0A0A0A`); in light mode they are dark enough to
+read as text, so text on them is white. The accent and the brand fills are the fills that are never text
+in either mode — for the accent, that is what `--color-accent-text` is for.
 
 | Slot | Dark | Light | Role |
 |---|---|---|---|
@@ -293,10 +295,23 @@ The accent is the one fill that is never text in either mode — that is what `-
 | `--color-ai` · `-text` | `#B483C8` | `#83459D` | AI-generated content and suggestions; category coding — fill and text are the same value in each mode |
 | `--color-ai-fg` | `#0A0A0A` | `#FFFFFF` | Text on the ai fill |
 | `--color-ai-muted` | `rgba(180,131,200,0.12)` | `rgba(131,69,157,0.12)` | The subtle ai tint |
+| `--color-brand-blue` | `#120AF1` | `#120AF1` | Brand FILL — marketing fills that carry their own white text (ocoron.com's homepage quadrants); never text, never a lone indicator or a chart series, never a state |
+| `--color-brand-magenta` | `#A50FEA` | `#A50FEA` | Brand FILL — as `--color-brand-blue` |
+| `--color-brand-green` | `#08941F` | `#08941F` | Brand FILL — as `--color-brand-blue`; not `--color-success` |
+| `--color-brand-orange` | `#EA880F` | `#EA880F` | Brand FILL — as `--color-brand-blue`; not `--color-warning` |
+| `--color-brand-fg` | `#FFFFFF` | `#FFFFFF` | Text on every brand fill — the operator's override (§ Contrast table, Brand fills) |
 | `--focus-ring` | `var(--color-accent)` | `var(--color-accent)` | 2px solid, offset 2px |
 
 `--color-secondary` and `--color-purple` are the retired names of `--color-warning` and `--color-ai`;
 keep them only as aliases in existing code (`--color-secondary: var(--color-warning)`).
+
+The four `--color-brand-*` fills are Ocoron's brand colours (operator ruling 2026-10-24: "blue 120AF1 /
+magenta A50FEA / green 08941F / orange EA880F", with "update brand color as well"). They are brand
+fills, not template semantic slots: a new SEMANTIC colour is proposed to the template first (template §
+Rules for Coding Agents, rule 1), while a brand's own colour is proposed here (§ Rules for coding agents,
+Brand rule 2). `--color-warning` and `--color-success` stay the states and their text. A pack that takes
+Ocoron's tokens (Tojlo, § Inheritance Contract) takes these fills and their white-text override with
+them, as an additive update.
 
 ## Contrast table
 
@@ -341,10 +356,27 @@ recomputed.
 **Forbidden pairs (whatever they compute to):** `--text-muted` on `--surface-3` (dark 4.49:1 — at the
 line, too risky for body text); `--color-accent` as TEXT on any surface (dark 3.76:1 on `--surface-1`;
 accent-as-text is `--color-accent-text`'s job); `--color-accent` text on `--color-accent-muted`; near-black text on `--color-accent` (4.04:1 — white
-it is, 4.90:1).
+it is, 4.90:1); a `--color-brand-*` fill as TEXT, a lone indicator or a chart series (as low as 1.94:1 across surface-0…2 — `--color-brand-blue` on dark `--surface-2`).
 
 **Why the accent text is mode-aware:** AA body text needs relative luminance ≥ 0.18866 on `#0A0A0A`
 but ≤ 0.18333 on white — a disjoint range no single hex satisfies (`#5B5BF7` sits at 0.16422).
+
+### Brand fills — the operator's white-text override (2026-10-24)
+
+This override covers the four `--color-brand-*` fills only; it is no template rule and changes no
+other pair in this file. The operator ruled white text on all four brand fills, "accepting 2.62:1 on orange and 3.99:1 on green
+as their call". For these four pairs only, that overrides template § Contrast contract (4.5:1 for
+`-fg` text on its fill, no large-text exception) and § Color Contrast ("Every text and control pair
+clears the thresholds"). Do not "fix" it with a darker fill or a near-black foreground: the values are
+a ruling, pinned by `tests/test_ocoron_contrast_table.py`, which recomputes every ratio below. The
+table has four columns on purpose — a five-column row would be held to a threshold.
+
+| Foreground | Background | Ratio (both modes) | Ruling |
+|---|---|---|---|
+| `--color-brand-fg` | `--color-brand-blue` | 8.98:1 | passes 4.5:1 |
+| `--color-brand-fg` | `--color-brand-magenta` | 5.45:1 | passes 4.5:1 |
+| `--color-brand-fg` | `--color-brand-green` | 3.99:1 | below 4.5:1 — operator override, do not "fix"; meets WCAG AA only as large text (24px+, or 18.66px+ bold) |
+| `--color-brand-fg` | `--color-brand-orange` | 2.62:1 | below 4.5:1 — operator override, do not "fix"; fails WCAG AA at every text size (large text needs 3:1) |
 
 ---
 
@@ -354,31 +386,36 @@ but ≤ 0.18333 on white — a disjoint range no single hex satisfies (`#5B5BF7`
 
 | Role | Font | Weights | Source |
 |---|---|---|---|
-| **Headings** (`--font-heading`) | Space Grotesk | 600, 700 | Google Fonts, SIL OFL 1.1 |
-| **Body / UI** (`--font-body`) | Inter | 400, 500 | Google Fonts (variable), SIL OFL 1.1 |
+| **Headings** (`--font-heading`) | Arya | 700 | Google Fonts, SIL OFL 1.1 (Arya ships 400 and 700 only) |
+| **Body / UI** (`--font-body`) | IBM Plex Sans | 400, 500 | Google Fonts (variable — load the `wght` axis), SIL OFL 1.1 |
 | **Code / Data** (`--font-mono`) | JetBrains Mono | 300, 400 | Google Fonts, SIL OFL 1.1 |
 
 ### Type Scale
 
 | Level | Size | Weight | Font | Letter-spacing | Usage |
 |---|---|---|---|---|---|
-| H1 | 32px | 700 | Space Grotesk | -0.5px | Page titles |
-| H2 | 24px | 600 | Space Grotesk | -0.5px | Section titles |
-| H3 | 18px | 600 | Space Grotesk | -0.3px | Card titles, subsections |
-| Body | 14px | 400 | Inter | 0 | Default body text |
-| Body small | 13px | 400 | Inter | 0 | Secondary text, descriptions |
-| Micro-label | 10px | 500 | Inter | 1.5px | Uppercase labels, tag text |
+| H1 | 32px | 700 | Arya | -0.5px | Page titles |
+| H2 | 24px | 700 | Arya | -0.5px | Section titles |
+| H3 | 18px | 700 | Arya | -0.3px | Card titles, subsections |
+| Body | 14px | 400 | IBM Plex Sans | 0 | Default body text |
+| Body small | 13px | 400 | IBM Plex Sans | 0 | Secondary text, descriptions |
+| Micro-label | 10px | 500 | IBM Plex Sans | 1.5px | Uppercase labels, tag text |
 | Code | 13px | 400 | JetBrains Mono | 0 | Code blocks, data tables, metrics |
 | Data large | 28px | 300 | JetBrains Mono | -0.5px | Dashboard KPIs, big numbers |
 
 ### Rules
 
-- Headings: always Space Grotesk. Never Inter or monospace for headings.
-- Body text: always Inter. Never monospace for paragraphs or descriptions.
+- Headings: always Arya, at 700 — Arya has no 600, so a template spec of heading font 600 is Arya 700 on an
+  Ocoron project. IBM Plex Sans sits second in the heading stack only as the per-glyph fallback for scripts
+  Arya lacks; never the body font by choice, never monospace.
+- Body text: always IBM Plex Sans. Never monospace for paragraphs or descriptions.
 - Data/code: always JetBrains Mono. Tables with numeric data, code snippets, terminal output, metrics.
-- Micro-labels: Inter 500, uppercase, letter-spacing 1.5px, 10px.
+- Micro-labels: IBM Plex Sans 500, uppercase, letter-spacing 1.5px, 10px.
 - Line-height: 1.5 for body, 1.2 for headings, 1.4 for code.
-- Script coverage: Inter covers Latin and Cyrillic; add an Arabic-script fallback (e.g. Noto Sans Arabic) for `ar` and `fa` locales.
+- Script coverage: Arya covers Latin, Latin Extended (Turkish included) and Devanagari; IBM Plex Sans covers
+  Latin, Latin Extended, Cyrillic, Greek and Vietnamese, and is the heading fallback for those last three.
+  For `ar` and `fa`, put IBM Plex Sans Arabic second in both stacks; for `hi`, put IBM Plex Sans Devanagari
+  second in the body stack (Arya covers Devanagari headings).
 
 ---
 
@@ -408,9 +445,9 @@ The template's § Scaffold Adaptation Matrix applies; these are the Ocoron-speci
 
 - **Theme mode:** dark is the default; first visit follows OS `prefers-color-scheme`, dark when the OS states none. An Ocoron project switches with `data-theme="dark|light"` on `<html>`, which the CSS below keys on.
 - **saas-skeleton, desktop-app:** all three fonts; shadcn's variables filled from the tokens above.
-- **static-site:** Space Grotesk and Inter only — drop JetBrains Mono unless the page shows code or data.
+- **static-site:** Arya and IBM Plex Sans only — drop JetBrains Mono unless the page shows code or data.
 - **chrome-extension:** all three fonts, JetBrains Mono only for data displays.
-- **mobile-app:** Space Grotesk and Inter loaded as custom fonts (a system sans-serif fallback where needed); the mobile packs map the tokens.
+- **mobile-app:** Arya and IBM Plex Sans loaded as custom fonts (a system sans-serif fallback where needed — React Native has no per-glyph cascade, so a Cyrillic or Greek heading renders in that fallback); the mobile packs map the tokens.
 - **docusaurus:** dark tokens by default; code blocks in JetBrains Mono.
 - **Light mode shadow:** subtle only — `0 1px 3px rgba(0,0,0,0.08)`.
 
@@ -419,8 +456,13 @@ The template's § Scaffold Adaptation Matrix applies; these are the Ocoron-speci
 ## CSS custom properties
 
 The template's defaults (spacing, density, motion, breakpoints) are not repeated here — Ocoron uses
-them unchanged. On a Tailwind CSS-first project declare these in `@theme` (dark mode via
-`@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *))`); on the saas-skeleton's
+them unchanged. On a Tailwind CSS-first project expose this block per template § Tailwind (CSS-first) usage: the
+`--color-*`, `--font-*` and `--radius-*` slots go in `@theme static` (`@theme static inline` for
+`--color-secondary` and `--color-purple`, whose value is a `var()`), and the light block below still
+overrides the colours; `--surface-*`, `--border*` and
+`--text-primary|body|muted` stay in `:root` with an `@theme inline` alias
+(`--color-text-primary: var(--text-primary)`). Dark mode is one hook,
+`@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *))`. On the saas-skeleton's
 Tailwind config, fill shadcn's variables from them (template § Mapping to the scaffold's variables).
 
 ```css
@@ -459,6 +501,11 @@ Tailwind config, fill shadcn's variables from them (template § Mapping to the s
   --color-ai-fg: #0A0A0A;
   --color-ai-text: #B483C8;
   --color-ai-muted: rgba(180,131,200,0.12);
+  --color-brand-blue: #120AF1;
+  --color-brand-magenta: #A50FEA;
+  --color-brand-green: #08941F;
+  --color-brand-orange: #EA880F;
+  --color-brand-fg: #FFFFFF;
   --focus-ring: var(--color-accent);
   --viz-1: var(--color-accent);
   --viz-2: var(--color-info);
@@ -469,8 +516,8 @@ Tailwind config, fill shadcn's variables from them (template § Mapping to the s
   --color-secondary: var(--color-warning); /* retired name */
   --color-purple: var(--color-ai); /* retired name */
 
-  --font-heading: 'Space Grotesk', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  --font-heading: 'Arya', 'IBM Plex Sans', sans-serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   --radius-card: 8px;
@@ -514,6 +561,11 @@ Tailwind config, fill shadcn's variables from them (template § Mapping to the s
   --color-ai-fg: #FFFFFF;
   --color-ai-text: #83459D;
   --color-ai-muted: rgba(131,69,157,0.12);
+  --color-brand-blue: #120AF1;
+  --color-brand-magenta: #A50FEA;
+  --color-brand-green: #08941F;
+  --color-brand-orange: #EA880F;
+  --color-brand-fg: #FFFFFF;
 }
 ```
 
@@ -525,7 +577,8 @@ The template's § Rules for Coding Agents apply; these add Ocoron's own.
 
 ### Brand Rules
 
-1. **Font assignment is strict.** Headings = Space Grotesk. Body = Inter. Code/data = JetBrains Mono. No exceptions.
+1. **Font assignment is strict.** Headings = Arya. Body = IBM Plex Sans. Code/data = JetBrains Mono. No exceptions
+   beyond the heading stack's IBM Plex Sans fallback for scripts Arya lacks (§ Typography, Rules).
 2. **Values come from this file.** Use the tokens above; a new colour is proposed here first, with its contrast rows computed.
 3. **Logo is always an asset.** Never render the Ocoron wordmark in a text font.
 

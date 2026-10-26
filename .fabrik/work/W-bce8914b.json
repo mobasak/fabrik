@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T01:44:44.655292Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "d31ae9cc3ce18863336a7cfeb6cff9321060c94e",
+  "id": "W-bce8914b",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1224",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "HIGH: a bug that refuses merges of the merge machinery itself; infra-3 found it with a reproduction; LOW: one delenv line",
+  "status": "done",
+  "title": "tests/test_merge_test_select.py is not hermetic to FABRIK_MERGE_TESTS_RECORDS: inside a queue or pretest leg (which sets it) 4 tests go red (reproduced: FABRIK_MERGE_TESTS_RECORDS=<dir> pytest -k 'green or rebuild or record' → 4 failed), so any branch touching merge_test_select.py is refused or confused by its own queue leg; fix = monkeypatch.delenv in the test's _run helper, right-now fix + /fabrik-review-scoped (found by infra-3 measuring W-41bbf146)"
+}

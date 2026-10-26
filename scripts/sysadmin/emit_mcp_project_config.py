@@ -22,9 +22,11 @@ config") because postgres-pro's env carries the repo's resolved DATABASE_URL
 inline — `${VAR}` expansion reads the shell env, not the repo `.env`, so
 inline-and-untracked is the deliberate shape (plan decision row 1).
 
-Write-set contract: the ONLY path this script creates or mutates in a target
-repo is `<repo>/.mcp.json` — never a commit, never another file (decision
-row 2: sanctioned distribution path of the governance-sync class).
+Write-set contract: the ONLY paths this script creates or mutates in a target
+repo are `<repo>/.mcp.json` and the EXISTING copies of it in the repo's linked
+worktrees (`<repo>/.claude/worktrees/*/.mcp.json`, refreshed, never created) —
+never a commit, never another file (decision row 2: sanctioned distribution path
+of the governance-sync class).
 """
 
 from __future__ import annotations
@@ -44,7 +46,8 @@ UNIVERSAL = [
     "postgres-pro",
     "serena",
     "fabrik-scrape",
-]  # D-013 + D-020 + D-021 + D-1102
+    "rea",
+]  # D-013 + D-020 + D-021 + D-1102 + D-1239
 
 TYPE_SETS: dict[str, list[str]] = {
     # D-015 (+D-019 chrome-devtools rides with playwright) · D-014 shadcn/magicui saas
@@ -97,10 +100,13 @@ HUB_CLASS = HUB_REPOS | {"fabrik-lib"}  # derivation; only HUB_REPOS is in the d
 # projects and fabrik-lib" need maestro — it vendors and tests the mobile modules); HUB_EXCLUDE
 # applies to HUB_REPOS alone.
 HUB_FULL_ROSTER = HUB_CLASS - HUB_REPOS
-CONDEMNED = {"image-generation"}  # D-023 ARCHIVE pending with fleet — excluded BY NAME
+# Repos excluded BY NAME whatever their project.yaml says. Empty since D-1246 ("rea must be available to system
+# wide for all repos"), which supersedes D-023/D-025's MCP exclusion of image-generation; check_mcp_scope reads it.
+CONDEMNED: set[str] = set()
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
 
-_TYPE_RE = re.compile(r"^type:\s*(\S+)\s*$", re.M)
+# a trailing comment only after whitespace, as YAML reads it (`saas-skeleton#web` is one value); [ \t] never spans lines
+_TYPE_RE = re.compile(r"^type:[ \t]*([A-Za-z0-9_-]+)(?:[ \t]+#.*)?[ \t]*$", re.M)
 _DBURL_RE = re.compile(r"^DATABASE_URL=(.+)$", re.M)
 
 
@@ -209,11 +215,23 @@ def _load_defs(defs_arg: str | None) -> dict[str, dict]:
 
 
 def _repo_type(repo: Path) -> str | None:
+    """The `type:` value, a trailing `# comment` allowed; None only when the repo has NO type (no project.yaml,
+    or no `type:` line). A `type:` line the grammar cannot read returns it raw, so it rules as an unknown type
+    (a visible SKIP), never as untyped."""
     py = repo / "project.yaml"
     if not py.is_file():
         return None
-    m = _TYPE_RE.search(py.read_text(encoding="utf-8", errors="replace"))
-    return m.group(1) if m else None
+    try:
+        text = py.read_text(encoding="utf-8", errors="replace")
+    except (
+        OSError
+    ) as e:  # a project.yaml that exists but cannot be read is an unknown type, never untyped
+        return f"(unreadable: {e.strerror or type(e).__name__})"
+    m = _TYPE_RE.search(text)
+    if m:
+        return m.group(1)
+    raw = re.search(r"^type:(.*)$", text, re.M)
+    return f"(unreadable: {raw.group(1).strip()[:40]})" if raw else None
 
 
 def _database_url(repo: Path) -> str | None:
@@ -244,13 +262,18 @@ def _uri_connects(uri: str) -> bool | None:
     (DNS and auth failures alike, both measured 2026-08-30) — past Claude's 30s
     connect timeout. So a URI is emitted only when it PROVABLY connects; an
     omitted env means the server starts unconnected in ~2s with tools present.
+    The URI goes over STDIN, never argv: it carries the DB password, and a child's argv is readable by
+    every local user in `ps` and /proc/<pid>/cmdline (W-d095d60b). Bytes are decoded as UTF-8, the
+    encoding they were sent in, never the child's locale.
     """
-    probe = "import psycopg,sys; psycopg.connect(sys.argv[1], connect_timeout=3).close()"
+    probe = "import psycopg,sys; psycopg.connect(sys.stdin.buffer.read().decode(), connect_timeout=3).close()"
     for py in (sys.executable, "/opt/fabrik/.venv/bin/python"):
         if not Path(py).exists():
             continue
         try:
-            r = subprocess.run([py, "-c", probe, uri], capture_output=True, timeout=10)
+            r = subprocess.run(
+                [py, "-c", probe], input=uri.encode(), capture_output=True, timeout=10
+            )
         except (OSError, subprocess.SubprocessError):
             continue
         if b"ModuleNotFoundError" in r.stderr:
@@ -261,7 +284,8 @@ def _uri_connects(uri: str) -> bool | None:
 
 def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
     """The NAMES a repo's ruling allows, in emission order, or None for a repo the ruling does
-    not know (no `project.yaml::type`, or a type outside TYPE_SETS). No probe runs here — this is
+    not know (a `project.yaml::type` outside TYPE_SETS — a typo stays a visible SKIP). A repo with NO
+    type (no project.yaml, or no `type:` line) gets the universal set (D-1246). No probe runs here — this is
     the roster side of the contract, shared with `scripts/enforcement/check_mcp_scope.py`, which
     grades every emitted `.mcp.json` as a SUBSET of it (an entry absent-until-configured, such as
     postgres-pro without a connecting URL, is a legal omission; an extra server is not)."""
@@ -271,9 +295,9 @@ def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
         wanted = [s for s in defs if s not in NEVER_EMIT and s not in drop]
     else:
         rtype = _repo_type(repo)
-        if rtype is None or rtype not in TYPE_SETS:
+        if rtype is not None and rtype not in TYPE_SETS:
             return None
-        wanted = list(UNIVERSAL) + TYPE_SETS[rtype] + OVERLAYS.get(name, [])
+        wanted = list(UNIVERSAL) + TYPE_SETS.get(rtype or "", []) + OVERLAYS.get(name, [])
     return [s for s in dict.fromkeys(wanted) if s not in NEVER_EMIT and s in defs]
 
 
@@ -301,18 +325,89 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
     return out
 
 
+def mcp_config_ignored(repo: Path) -> bool | None:
+    """Whether git itself ignores `<repo>/.mcp.json`: True (exit 0), False (exit 1 — no rule matches, a later `!`
+    negation, or the file is TRACKED and would carry the keys into a commit), or None when git cannot answer (git
+    missing, not a repo, a safe.directory refusal, a timeout). `git check-ignore` reads every rule git honours."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(repo), "check-ignore", "-q", ".mcp.json"],
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {0: True, 1: False}.get(r.returncode)
+
+
+def emitter_owns(repo: Path) -> bool | None:
+    """Whether the emitter writes this repo's `.mcp.json`: hub-class or typed (True), or untyped with the file
+    ignored by git — `mcp_config_ignored`'s answer, None when git cannot say. The emitter writes only on True;
+    `check_mcp_scope` warns on False (re-emitting cannot clear it) and still grades on None."""
+    if repo.name in HUB_CLASS or _repo_type(repo) is not None:
+        return True
+    return mcp_config_ignored(repo)
+
+
 def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
+    owns = emitter_owns(repo)
+    if owns is None:
+        return "SKIP (untyped repo, and git could not say whether `.mcp.json` is ignored — never written)"
+    if not owns:
+        # an untyped repo is no governed project: its .gitignore is not ours, and the emitted file inlines
+        # filled credentials (exa, brave-search, firecrawl keys; a DATABASE_URL) — never written untracked-unignored
+        return "SKIP (untyped repo whose `.mcp.json` git does not ignore — add the .gitignore line, untrack it, or type the repo)"
     servers = derive_servers(repo, defs)
     if servers is None:
         return "SKIP"
     target = repo / ".mcp.json"
     payload = json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n"
     if target.is_file() and target.read_text() == payload:
-        return "OK"
-    verdict = "UPDATE" if target.exists() else "CREATE"
-    if not check:
-        target.write_text(payload)
-    return verdict
+        verdict = "OK"
+    else:
+        verdict = "UPDATE" if target.exists() else "CREATE"
+        if not check:
+            target.write_text(payload)  # the root first: a bad worktree copy never blocks it
+    refreshed, failed = 0, {"unreadable": 0, "unwritable": 0}
+    for copy in _worktree_copies(repo):
+        try:
+            if copy.read_text() == payload:
+                continue
+        except (OSError, UnicodeDecodeError):
+            failed["unreadable"] += 1  # one bad copy is reported, never the repo's whole run
+            continue
+        if not check:
+            try:
+                copy.write_text(payload)
+            except OSError:
+                failed["unwritable"] += 1
+                continue
+        refreshed += 1
+    notes = [f"+{refreshed} worktree cop{'y' if refreshed == 1 else 'ies'}"] if refreshed else []
+    notes += [f"{n} {why}" for why, n in failed.items() if n]
+    return verdict + (f" ({', '.join(notes)})" if notes else "")
+
+
+def _worktree_copies(repo: Path) -> list[Path]:
+    """Every linked worktree's EXISTING `.mcp.json` under `<repo>/.claude/worktrees/*/` — `.worktreeinclude`
+    copies the file only when a worktree is created, so a re-emission that skipped them left every live
+    worktree on the old set (W-7e29c9b9: 214 of 215 without `rea`). None is created (a worktree without a copy
+    was made without one, and its session reads the user-level set), and a copy counts only when its REAL path
+    is `<repo>/.claude/worktrees/<dir>/.mcp.json`, so no symlinked file, worktree directory or `.claude` is
+    followed: `/opt/fabrik/.claude/worktrees/fabrik-lib -> /opt/fabrik-lib` exists on this box, and following it
+    would write the hub's set over fabrik-lib's own file."""
+    wts = repo / ".claude" / "worktrees"
+    if not wts.is_dir():
+        return []
+    # A symlink anywhere below the repo moves a copy's real parent away from this path.
+    real = repo.resolve() / ".claude" / "worktrees"
+    return sorted(  # by real path: an in-repo alias of a worktree directory is the same copy, counted once
+        {
+            p.resolve()
+            for p in wts.glob("*/.mcp.json")
+            if not p.is_symlink() and p.is_file() and p.resolve().parent.parent == real
+        }
+    )
 
 
 def _candidate_repos(root: Path) -> list[Path]:
@@ -320,14 +415,24 @@ def _candidate_repos(root: Path) -> list[Path]:
     for d in sorted(root.iterdir()):
         if not d.is_dir() or d.name in CONDEMNED or d.name in (HUB_CLASS - HUB_REPOS):
             continue  # fabrik-lib is hub-class for derivation (--repo) but its own agent lands the file
-        if not (d / ".git").exists():
-            continue
-        if d.name in HUB_REPOS or (d / "project.yaml").is_file():
+        if (d / ".git").exists():  # every git repo, typed or not (D-1246)
             out.append(d)
     return out
 
 
-def main(argv: list[str] | None = None) -> list[str]:
+_FAILED = re.compile(
+    r"^SKIP \((?:error:|untyped repo, and git could not say)|\b\d+ un(?:readable|writable)\b"
+)
+
+
+def _failed(verdict: str) -> bool:
+    """A verdict whose run did not do what it reports it could not: an exception, git unable to answer (a mistyped
+    `--repo` lands here), or a worktree copy left unread or unwritten. A ruled SKIP (an unknown type, an untyped repo
+    git does not ignore) is a policy verdict and never fails the run (W-d095d60b)."""
+    return bool(_FAILED.search(verdict))
+
+
+def main(argv: list[str] | None = None, failures: list[str] | None = None) -> list[str]:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--root", default="/opt", help="directory holding the repos (default /opt)")
     ap.add_argument("--repo", help="single repo path instead of a full-root run")
@@ -342,12 +447,23 @@ def main(argv: list[str] | None = None) -> list[str]:
         try:
             verdict = emit_repo(repo, defs, args.check)
         except Exception as exc:  # one bad repo never strands the rest (plan A1 test 11)
-            verdict = f"SKIP (unreadable: {type(exc).__name__})"
+            verdict = f"SKIP (error: {type(exc).__name__})"
         line = f"{repo.name}: {verdict}"
         lines.append(line)
+        if failures is not None and _failed(
+            verdict
+        ):  # judged on the verdict: a repo's NAME never fails a run
+            failures.append(line)
         print(line)
     return lines
 
 
+def cli(argv: list[str] | None = None) -> int:
+    """Exit 1 when any repo's verdict is `_failed`, else 0 (W-d095d60b)."""
+    failures: list[str] = []
+    main(argv, failures)
+    return 1 if failures else 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(cli())

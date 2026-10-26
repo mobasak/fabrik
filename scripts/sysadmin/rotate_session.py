@@ -116,12 +116,40 @@ _NOTIFY = re.compile(
 )  # the Stop hook's forms
 
 
-class CheckFailedError(Exception):
-    """A check failed: (check, reason)."""
+# W-05021a03: `request`'s exit names whether asking again can pass. TRANSIENT clears by itself (the session finishes its
+# turn, run or seat; the rotation in flight rows; tmux answers; a pane restarts) → EXIT_RETRY; PERMANENT needs an act
+# first → 1, which an uncaught crash also exits (read stderr and act, the same as a permanent abort). Fail direction:
+# transient-called-permanent stops a rotation that would have passed, permanent-called-transient keeps the old loop, so
+# a check is transient by default and a raise is permanent only on POSITIVE evidence that an act is needed (`transient=
+# False`): a bad argument, the request dir's ownership, a dialog's numbered option on the prompt row, text typed in the
+# box, two transcripts, no identity row or a binding elsewhere, uncommitted or unpushed work, a slash-command ending, a
+# request the unit never claimed. COBRA (D-253): calling everything transient passes any exit test and keeps the loop;
+# the measure is the consecutive-repeat census of rotations.jsonl, not the rc.
+EXIT_RETRY = 75  # sysexits EX_TEMPFAIL
+TRANSIENT_CHECKS = frozenset(
+    {
+        "status",
+        "idle",
+        "pending",
+        "record",
+        "seat",
+        "tmux",
+        "resolve",
+        "transcript",
+        "screen",
+        "worktree",
+    }
+)
+PERMANENT_CHECKS = frozenset({"args", "request", "stale-input"})
 
-    def __init__(self, check: str, reason: str) -> None:
+
+class CheckFailedError(Exception):
+    """A check failed: (check, reason), and whether asking again can pass (`transient`)."""
+
+    def __init__(self, check: str, reason: str, transient: bool | None = None) -> None:
         super().__init__(f"{check}: {reason}")
         self.check, self.reason = check, reason
+        self.transient = check not in PERMANENT_CHECKS if transient is None else transient
 
 
 def _load(name: str) -> Any:
@@ -383,7 +411,9 @@ def _registry(home: Path, proc: Path, pid: int) -> dict:
             and start is not None
         ):
             return d
-    raise CheckFailedError("resolve", f"no registry record for claude pid {pid}")
+    raise CheckFailedError(  # a claude seconds old has not written its record yet
+        "resolve", f"no registry record for claude pid {pid}", transient=True
+    )
 
 
 def _bindings() -> list[dict]:
@@ -405,7 +435,25 @@ def _bound(name: str, sid: str) -> bool:
     """The newest row for this sid names `name`, and no newer row of `name` in that toplevel names another sid."""
     rows = _bindings()
     mine = [r for r in rows if r.get("session_id") == sid]
-    if not mine or mine[-1].get("name") != name:
+    if not mine:
+        try:  # _bindings reads an unreadable store as empty: that is no evidence the session is unbound
+            with _identity().open("rb") as fh:
+                fh.read(1)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise CheckFailedError(
+                "resolve", f"the identity store is unreadable ({type(exc).__name__})"
+            ) from exc
+        # every aborted:resolve in rotations.jsonl to 2026-10-25 (24 of 24) was this state; each bound only by a
+        # `--force` re-bind 103-2493 s later, never by asking again (W-05021a03)
+        raise CheckFailedError(
+            "resolve",
+            f"session {sid} has no identity binding yet — have that window run "
+            f"python3 /opt/fabrik/scripts/whoami_agent.py --as {name} --force",
+            transient=False,
+        )
+    if mine[-1].get("name") != name:
         return False
     top = mine[-1].get("toplevel")
     later = [
@@ -418,11 +466,11 @@ def _bound(name: str, sid: str) -> bool:
 
 def resolve(name: str, repo: str) -> dict:
     if not _NAME.fullmatch(name):
-        raise CheckFailedError("resolve", f"bad agent name {name!r}")
+        raise CheckFailedError("resolve", f"bad agent name {name!r}", transient=False)
     home, proc = _home(), _proc()
     ls = _tmux("list-panes", "-a", "-F", "#{pane_id}\t#{session_name}\t#{@agent}\t#{pane_pid}")
     if ls.returncode != 0:
-        raise CheckFailedError("resolve", "tmux is not answering")
+        raise CheckFailedError("resolve", "tmux is not answering", transient=True)
     panes: dict[str, int] = {}
     for line in ls.stdout.splitlines():
         parts = line.split("\t")
@@ -440,10 +488,12 @@ def resolve(name: str, repo: str) -> dict:
     reg = _registry(home, proc, pid)
     sid = reg.get("sessionId")
     if not isinstance(sid, str) or not sid:
-        raise CheckFailedError("resolve", f"the registry record of pid {pid} carries no session id")
+        raise CheckFailedError(
+            "resolve", f"the registry record of pid {pid} carries no session id", transient=True
+        )
     if not _bound(name, sid):
         raise CheckFailedError(
-            "resolve", f"{name}'s identity binding is stale or another window's (session {sid})"
+            "resolve", f"{name} is bound to another window, not session {sid}", transient=False
         )
     return {
         "name": name,
@@ -475,7 +525,9 @@ def _transcript(proc: Path, home: Path, pid: int, sid: str) -> Path:
             ) from exc
         files.setdefault((st.st_dev, st.st_ino), f)
     if len(files) != 1:
-        raise CheckFailedError("transcript", f"{len(files)} transcripts for session {sid}")
+        raise CheckFailedError(  # none yet clears by itself; two need sorting out
+            "transcript", f"{len(files)} transcripts for session {sid}", transient=len(files) < 2
+        )
     return next(iter(files.values()))
 
 
@@ -520,8 +572,10 @@ def _idle_row_check(rows: list[dict]) -> float:
             (r.get("message") or {}).get("content") if isinstance(r.get("message"), dict) else None
         )
         if kind == "user" and isinstance(content, str) and "<command-name>" in content:
-            raise CheckFailedError(
-                "idle", "a local slash command ended the transcript — send one prompt first"
+            raise CheckFailedError(  # only a sent prompt ends it
+                "idle",
+                "a local slash command ended the transcript — send one prompt first",
+                transient=False,
             )
         raise CheckFailedError("idle", f"the transcript ends mid-turn ({kind}/{sub or '-'})")
     raise CheckFailedError("idle", "no turn end in the transcript tail")
@@ -606,7 +660,13 @@ def run_checks(t: dict, stale_text: str = "") -> Path:
         rows = _tail_rows(path, 2 * 1024 * 1024)
     except OSError as exc:
         raise CheckFailedError("idle", f"transcript unreadable ({exc})") from exc
-    ended = _idle_row_check(rows)
+    try:
+        ended = _idle_row_check(rows)
+    except CheckFailedError as exc:
+        # a turn held open by a permission dialog never ends by waiting
+        if exc.transient and _dialog(_box_now(t["pane"])[1]):
+            raise CheckFailedError("screen", _DIALOG, transient=False) from exc
+        raise
     # The registry is a VETO only when it changed AFTER that turn end — a turn started since — and only for VETO_S after
     # that change, so its stale "busy" (measured above) never blocks and a busy stamp a resume leaves with no turn after
     # it expires; a turn whose first transcript write is still pending is what this catches. It is best effort: measured
@@ -643,12 +703,41 @@ def run_checks(t: dict, stale_text: str = "") -> Path:
     if seats:
         raise CheckFailedError("seat", f"{len(seats)} background seat(s) still running")
     blocks, why = hib.worktree_state(t["cwd"])
-    if blocks:
-        raise CheckFailedError("worktree", why)
-    box, _ = _box_now(t["pane"])
-    if box is None or (box and box != stale_text):
-        raise CheckFailedError("screen", "the pane is not at an empty prompt")
+    if blocks:  # an idle builder commits or pushes only when told; any other reason may be a probe that timed out
+        raise CheckFailedError(
+            "worktree", why, transient=not why.endswith(("uncommitted change(s)", "not pushed"))
+        )
+    box, screen = _box_now(t["pane"])
+    if _dialog(screen):
+        raise CheckFailedError("screen", _DIALOG, transient=False)
+    if box is None:
+        raise CheckFailedError(
+            "screen", "no input box is drawn (a redraw, a scrolled or restarting pane)"
+        )
+    if box and box != stale_text:
+        raise CheckFailedError(
+            "screen",
+            "text is in the input box — clear it, or ask with --stale-input discard",
+            transient=False,
+        )
     return path
+
+
+_DIALOG = "a dialog is open in the pane — answer it"
+
+
+def _dialog(screen: str) -> bool:
+    """A permission or choice dialog holds the session: no input box is drawn, the pane's last `❯` row is a numbered
+    option (`❯ 1. Yes`) and another numbered option sits within three rows of it. Text typed in the box (`❯ 1. fix
+    it`) is the box's, and one numbered prompt left in scrollback has no sibling option (W-05021a03 review r2)."""
+    if _box(screen) is not None:
+        return False
+    rows = [_undimmed(r).strip() for r in screen.splitlines()]
+    at = [i for i, r in enumerate(rows) if r.startswith("❯")]
+    if not at or not re.match(r"❯\s*\d+\.\s", rows[at[-1]]):
+        return False
+    near = rows[max(0, at[-1] - 3) : at[-1]] + rows[at[-1] + 1 : at[-1] + 4]
+    return any(re.match(r"\d+\.\s", r) for r in near)
 
 
 # ── request ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -670,6 +759,18 @@ def _pending() -> bool:
             if time.time() - tmp.stat().st_mtime > STALE_S:
                 tmp.unlink()
                 append_row({"outcome": "refused:orphan", "reason": tmp.name})
+    # the unit claims a request within seconds and any claim ends inside its timeout, as ORPHAN_S says: a request this
+    # old means nothing is claiming (lstat: a dangling name is aged too, never left pending forever)
+    for left in d.glob("*.json"):
+        with contextlib.suppress(OSError):
+            age = time.time() - left.lstat().st_mtime
+            if age > ORPHAN_S:
+                raise CheckFailedError(
+                    "pending",
+                    f"{left.name} has waited {int(age)} s unclaimed — is fabrik-rotate.path running? "
+                    "(scripts/sysadmin/install_rotate_unit.sh --check)",
+                    transient=False,
+                )
     if any(d.glob("*.json")) or any(d.glob("*.claimed")) or any(d.glob(".*.tmp")):
         return True
     with contextlib.suppress(OSError), (d / ".lock").open("a") as lk:
@@ -719,7 +820,9 @@ def request(
             )
         t = resolve(name, repo)
         if stale:
-            box, _ = _box_now(t["pane"])
+            box, screen = _box_now(t["pane"])
+            if _dialog(screen):
+                raise CheckFailedError("screen", _DIALOG, transient=False)
             if box is None:
                 raise CheckFailedError("screen", "no input box is visible in the pane")
             stale_text = box[:1000]  # the refusal row below still carries what was seen
@@ -728,7 +831,13 @@ def request(
                     "stale-input", "the input box holds more than 1000 characters"
                 )
         path = run_checks(t, stale_text)
-    except CheckFailedError as exc:
+    # a tmux call past TMUX_TIMEOUT_S is a slow server, not a refusal
+    except (subprocess.TimeoutExpired, CheckFailedError) as raw:
+        exc = (
+            raw
+            if isinstance(raw, CheckFailedError)
+            else CheckFailedError("tmux", f"tmux took over {raw.timeout} s")
+        )
         row = {
             "name": name,
             "repo": repo,
@@ -739,9 +848,7 @@ def request(
         }
         if stale:
             row.update(stale_text=_safe(stale_text), operator_ok=_safe(operator_ok))
-        append_row(row)
-        print(f"rotate-session: aborted — {exc.check}: {exc.reason}", file=sys.stderr)
-        return 1
+        return request_aborted(exc, row)
     tokens = tsc._context_tokens(path)
     window = tsc._window()
     data = {
@@ -770,6 +877,24 @@ def request(
         f"rotate-session: requested {mode} of {name} (pane {t['pane']}); the outcome lands in {_log()}"
     )
     return 0
+
+
+def request_aborted(exc: CheckFailedError, row: dict) -> int:
+    """Row the abort, print the line that says whether asking again can pass, and exit by it (W-05021a03)."""
+    append_row(row)
+    if not exc.transient:
+        hint = "permanent — asking again cannot pass: fix the cause above first"
+    elif exc.check == "pending":
+        hint = (
+            f"transient — ask again once the pending rotation's row lands in {_log()} "
+            f"(up to {ORPHAN_S} s); nothing to fix"
+        )
+    elif exc.check in ("status", "idle", "record", "seat"):
+        hint = f"transient — ask again once {row['name']} ends its turn or its run or seat ends; nothing to fix"
+    else:
+        hint = "transient — ask again in a few seconds; nothing to fix"
+    print(f"rotate-session: aborted — {exc.check}: {exc.reason} ({hint})", file=sys.stderr)
+    return EXIT_RETRY if exc.transient else 1
 
 
 def _focus_ok(focus: str) -> bool:

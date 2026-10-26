@@ -1,0 +1,22 @@
+{
+  "blocked_by": [
+    "W-96f36043"
+  ],
+  "created": "2026-10-24T23:30:07.390638Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-15e63d05",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "capture a live Claude Code permission dialog with tmux capture-pane -p -e and fit _dialog to its real layout (footer or option rows), then retest (1)-(3)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "rotate_session._dialog heuristic residuals (W-05021a03 review r3, RECORDED): (1) false permanent when no box is drawn and scrollback's last ❯ row is a numbered user prompt with a numbered sibling within 3 rows; (2) a dialog framed by ─ rules reads as text in the box (mid-turn it stays transient); (3) a dialog whose options sit more than 3 rows apart is missed (transient); (4) the identity probe reads 1 byte, so an EIO later in the store still reads as no binding; (5) the typed-numbered test proves request acceptance, not execute's discard; (6) the mode-000 store case is red under root"
+}

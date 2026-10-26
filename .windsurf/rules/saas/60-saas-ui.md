@@ -21,7 +21,7 @@ UI is **designed and its truth frozen BEFORE it is built**, then **verified agai
 
 1. **Freeze the fields** — `/fabrik-data-contract` → `docs/data-contract.md` (every GUI field ↔ its DB column). A screen never shows a field absent from this file.
 2. **Freeze the screens** — `/fabrik-ui-design` → `docs/ui-design.md` (design-system-FIRST, then screen inventory + **minimal-click flows with a click budget** + IA + per-screen components/states/field-mapping). Build every screen against it verbatim; invent no screen/flow/component not listed.
-3. **Build with the toolchain** — see `docs/reference/gui-toolchain.md` (hub) for the verified stack: **shadcn MCP** (install real components, don't hand-write markup), the **`frontend-design`** skill (anti-slop: tokens + signature element + self-critique before CSS), and this design system for tokens/components.
+3. **Build with the toolchain** — see `docs/reference/gui-toolchain.md` (hub) for the verified stack: **shadcn MCP** (install real components, don't hand-write markup), the **`frontend-design:frontend-design`** skill (when, and under which brief: `core/63-frontend-design.md`), and this design system for tokens/components.
 4. **Verify each built screen — a blocking loop to a no-op** (the UI analogue of `/fabrik-review`): **Playwright MCP** (open the running screen, read the a11y tree, click the flow, screenshot 375/768/1440) → the a11y/visual/token gate (`@axe-core/playwright` + `toHaveScreenshot` + design-token lint) → **`/design-review`**. Every finding FIXED or REFUTED; iterate until `found: 0, fixed: 0`. The scaffold emits none of this gate's devDeps (`@playwright/test`, `@axe-core/playwright`, `@lhci/cli`) or its configs — installing them is a named first ticket in the plan, since a deps-file edit needs a ticket's authority.
 
 The rules below are the *standards* the frozen design and the verification enforce.
@@ -61,7 +61,7 @@ Key points for agents (token discipline — binding whichever system resolves):
 - **Design tokens:** the resolved system's tokens (`tokens.css`) are mapped INTO the scaffold's shadcn semantic variables (`--background`, `--foreground`, `--primary`, `--muted`, `--border`, …) in `app/globals.css` — brand tokens feed shadcn's names; never rename shadcn's variables (every installed component reads them). The scaffold stores them as HSL channel triplets (`221 83% 53%`) read through `hsl(var(--x))`, so convert a brand hex to channels (or switch the Tailwind mapping to `var(--x)` with full colours) — a hex assigned to an `hsl()`-wrapped variable silently renders nothing. Tailwind theme values live in `tailwind.config.*` on the JS-config majors (what the scaffold emits — read `package.json` first) and in `@theme` CSS variables on the CSS-first major, which auto-detects no JS config. Never raw hex values, arbitrary colors, or hardcoded font names in components.
 - **Typography, default mode, elevation and voice come from the RESOLVED design system** — never from this pack. Judging a BIC-branded product against the house identity is itself a finding (D-051).
 - **Both dark and light mode are mandatory.** Resolve the mode as `localStorage`, else the resolved system's first-visit rule (ocoron: OS `prefers-color-scheme`, dark when the OS states none), with a manual toggle in Settings. Switch with ONE hook on `<html>` — the scaffold's Tailwind `darkMode: ["class"]` + `.dark`, or `data-theme="dark|light"` with `darkMode: ['selector', '[data-theme="dark"]']` (an ocoron project uses `data-theme`, which its CSS keys on) — set BEFORE first paint by an inline pre-hydration script (or `next-themes`), with `<html suppressHydrationWarning>`; a `localStorage` read after hydration flashes the wrong theme.
-- **When the resolved system is the house web identity (ocoron):** Space Grotesk (headings), Inter (body/UI), JetBrains Mono (code/data) with no substitutions; dark is the default; no box-shadows in dark mode — a 1px border instead (`border border-border` on the scaffold's shadcn mapping) — except the modal-overlay shadow `design-system-template.md` § Search and Command Palette specifies.
+- **When the resolved system is the house web identity (ocoron):** Arya (headings, with IBM Plex Sans as the fallback for scripts Arya lacks), IBM Plex Sans (body/UI), JetBrains Mono (code/data) and no other substitutions; dark is the default; no box-shadows in dark mode — a 1px border instead (`border border-border` on the scaffold's shadcn mapping) — except the modal-overlay shadow `design-system-template.md` § Search and Command Palette specifies.
 - **Component patterns** (cards, tags, pills, buttons, tabs, progress bars, KPI cards, data tables, forms) follow the canonical specs. Do not reinvent.
 - **Motion, spacing and density** follow `design-system-template.md`'s scales — the defaults every project inherits; a brand changes one only in its `docs/design-system.md` § Structural overrides. Motion follows the duration scale (`--motion-fast` through `--motion-deliberate`) and easing tokens; no bounce, no spring physics outside celebrations (template § Motion Language).
 - **Spacing** uses the token scale (`xs/sm/md/lg/xl/2xl`). No arbitrary pixel values.
@@ -75,19 +75,23 @@ The example loads the house identity's three families; load the resolved system'
 
 ```typescript
 // app/layout.tsx
-import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google';
+import { Arya, IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google';
 import { detectLanguage, loadTranslations, SUPPORTED } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/I18nProvider';
 
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-heading', display: 'swap' });
-const inter = Inter({ subsets: ['latin'], variable: '--font-body', display: 'swap' });
+// Arya's variable holds the Arya face alone, so the heading family can chain the body font after it
+// (tailwind below). Other scripts (core/ocoron-design-system.md § Typography, Rules): add 'cyrillic', 'greek' or
+// 'vietnamese' to plexSans's subsets and 'devanagari' to arya's; an `ar`/`fa` or `hi` locale also loads
+// IBM_Plex_Sans_Arabic or IBM_Plex_Sans_Devanagari with its own variable, chained after the body font.
+const arya = Arya({ weight: ['700'], subsets: ['latin', 'latin-ext'], variable: '--font-heading', display: 'swap', fallback: [], adjustFontFallback: false });
+const plexSans = IBM_Plex_Sans({ weight: ['400', '500'], subsets: ['latin', 'latin-ext'], variable: '--font-body', display: 'swap' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const lang = await detectLanguage();
   const { strings, fallback } = loadTranslations(lang);
   return (
-    <html lang={lang} suppressHydrationWarning className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang={lang} suppressHydrationWarning className={`${arya.variable} ${plexSans.variable} ${jetbrainsMono.variable}`}>
       <body>
         <I18nProvider lang={lang} strings={strings} fallback={fallback} supported={SUPPORTED}>{children}</I18nProvider>
       </body>
@@ -96,7 +100,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 ```
 
-The scaffold's own `app/layout.tsx` mounts no `I18nProvider`, and `useI18n()` throws outside one — wiring it is part of the first UI ticket. MERGE the example into that layout rather than replacing it: keep its `./globals.css` import, `metadata` and `<Toaster />`, and map the font variables in `tailwind.config.*` (`fontFamily: { heading: ['var(--font-heading)'], body: ['var(--font-body)'], mono: ['var(--font-mono)'] }`) with `font-body` on `<body>`, or the fonts load and nothing uses them.
+The scaffold's own `app/layout.tsx` mounts no `I18nProvider`, and `useI18n()` throws outside one — wiring it is part of the first UI ticket. MERGE the example into that layout rather than replacing it: keep its `./globals.css` import, `metadata` and `<Toaster />`, and map the font variables in `tailwind.config.*` (`fontFamily: { heading: ['var(--font-heading)', 'var(--font-body)'], body: ['var(--font-body)'], mono: ['var(--font-mono)'] }` — the heading entry chains the body font, which is the per-glyph fallback for scripts the heading font lacks) with `font-body` on `<body>`, or the fonts load and nothing uses them.
 
 `next/font` self-hosts the fonts at build time — no external CDN requests, no GDPR concern, optimal loading. Never use `<link>` to Google Fonts CDN.
 

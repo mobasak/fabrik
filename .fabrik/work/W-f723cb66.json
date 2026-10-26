@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T00:05:19.258339Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f723cb66",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: another repo's finding on a fragment every review reads; kaizen's beat (fragment wording); folds into the lean rewrite tickets",
+  "status": "open",
+  "tags": [
+    "mail-01m5q6fz2mkbvddxr4zjgrqjce",
+    "waits-lean-program"
+  ],
+  "title": "Mail 01M5Q6FZ2M (fabrik-lib-sentinel finding): an opus fabrik-reviewer seat probing llm-dispatch ran complete() from an inline python -c with shutil.which patched but no runtime guard, i.e. a seat executed the surface it was reviewing; the seat brief (subagents-core fragment) must forbid executing the reviewed surface outside the pinned scratch; fold into the lean rewrite"
+}

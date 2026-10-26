@@ -154,6 +154,9 @@ def pytest_configure(config):
     # two elements; tests that want a jump set it with monkeypatch.
     for key in [k for k in os.environ if k.startswith("FABRIK_SSH_JUMP_")]:
         os.environ.pop(key, None)
+    # A pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to redirect its OWN
+    # records; inherited by the shards, it redirected the selector tests' records too (W-bce8914b).
+    os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
     _install_fleet_guard()
     # A runaway test is killed past FABRIK_TEST_RSS_MAX, never the host: two WSL crashes on
     # 2026-10-17 came from one test process at ~32 GB (W-162398ef; tests/memguard.py).
@@ -233,6 +236,23 @@ def _isolated_print_mode(tmp_path, _private_monkeypatch):
     proc.mkdir(exist_ok=True)
     monkeypatch.setenv("FABRIK_WORK_PROC", str(proc))
     yield proc
+
+
+@pytest.fixture(autouse=True)
+def _no_api_key_session(_private_monkeypatch):
+    """The quota hooks exempt a session on an Anthropic API key (W-effb7141), so a suite run from
+    such a session would see every hold lifted and every hold grader go falsely red. One autouse
+    pin: the key and every credential the hooks weigh beside it (`quota_stop.py::_OTHER_AUTH`)
+    removed; a test that wants an API-key session sets them after this."""
+    for name in (
+        "ANTHROPIC_API_KEY",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+    ):
+        _private_monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture(autouse=True)

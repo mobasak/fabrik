@@ -685,6 +685,59 @@ def _stamp_is_battery(stamp: Path) -> bool:
     return len(lines) > 1 and lines[1].strip() == "battery"
 
 
+# The credentials that may outrank or replace `ANTHROPIC_API_KEY` (W-effb7141): any one of them
+# set beside the key holds the session. COPIED in `scripts/sysadmin/quota_posture_hook.py`.
+_OTHER_AUTH = (
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
+)
+
+
+def _api_key_session() -> bool:
+    """A session on an Anthropic API key draws no PLAN quota, so the plan's wall and lane must not
+    hold it (W-effb7141). Today that is an interactive window the operator launches by hand with
+    `ANTHROPIC_API_KEY` in its env — the `scripts/api_credit.py` children run `--safe-mode`, which
+    disables hooks, so this file never runs there. Read from THIS process's env, which the hook
+    inherits from the claude process — a Bash-tool `export` never reaches it.
+    Any `_OTHER_AUTH` variable beside the key — a plan OAuth token, a bearer `ANTHROPIC_AUTH_TOKEN`,
+    or a Bedrock/Vertex/Foundry switch — means another credential may be the one in use, so the
+    session is HELD: unknown billing, fail-closed (any non-blank value counts as set). Only the
+    env is read, never settings: a session whose sole credential is an `apiKeyHelper` has no env
+    key and is held; one with the key in its env too is judged on the key. Extend `_OTHER_AUTH`
+    if another route is ever launched on this box. COPIED in `scripts/sysadmin/quota_posture_hook.py`;
+    `final_gate_stop.py` loads `api_key_exempt` from here. Cobra: a dummy key at launch passes this
+    check, but Claude Code then authenticates with that key and every request fails — only a real
+    paid key gets work through. Mirror: a key the interactive "use this API key?" prompt was told
+    NOT to use leaves the window on its plan login while this check exempts it; reading Claude
+    Code's own approval store to close that was rejected (undocumented internal state, absent from
+    the active config — D-row). The prompt line's clause (`quota_posture_hook.py`) names the
+    exemption to the session; the stderr note here reaches the verbose transcript only."""
+    return bool((os.environ.get("ANTHROPIC_API_KEY") or "").strip()) and not any(
+        (os.environ.get(name) or "").strip() for name in _OTHER_AUTH
+    )
+
+
+def api_key_exempt(stamp: Path) -> bool:
+    """True when a hold this stamp would place does not bind this session: an API-key session
+    (`_api_key_session`) and a stamp whose line 2 PLAINLY reads one of the two quota tiers. The
+    battery tier (D-898) protects the box, not plan quota, and every other line 2 — pre-tier,
+    unknown, unreadable — holds: the unknown case is never the lenient one. The same raw read as
+    `_stamp_tier` (`is_file()` first, `newline=""`, `split("\n")`)."""
+    if not _api_key_session():
+        return False
+    try:
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() in _STAMP_TIERS
+
+
 def _tick_log() -> Path:
     return Path(
         os.environ.get("QUOTA_STOP_TICK_LOG") or Path.home() / ".claude" / "rotate-tick.log"
@@ -718,7 +771,12 @@ def _stale_after_s() -> float:
 # ⚠️ COBRA (D-253): the cheapest way past the lane is to bind a session as the merge owner
 # (`whoami_agent.py --as coordinator --force`) or to give yourself a P0 — both are same-user acts
 # the store and the item files already record (a forced bind writes `force: true`, an item names its
-# owner), and a held builder cannot run either verb; the coordinator assigns P0, rarely (ruling 1).
+# owner); the coordinator assigns P0, rarely (ruling 1). A held session may run the re-bind ONLY to
+# the name its own claude process held last in this repo (`_same_window_name`, W-cff56c52): a
+# `/clear` rotation mints a new sid in the same process and its first act is that re-bind, which
+# the lane otherwise held until the lift. The identity store was already the trust root — a planted
+# row for a session's own sid exempts it through `_bound_name` with no verb at all — so the
+# re-bind adds no new way past the lane; a builder still cannot take another window's name.
 # Known costs, stated not fixed: an exempt session's native subagents share its sid and are exempt
 # too; the owner cache is same-user writable, no new trust boundary.
 _LANE_TIMEOUT_S = 2.0
@@ -739,7 +797,19 @@ _LANE_BASH = re.compile(
     r"^[ \t]*python3?(?:\.\d+)?[ \t]+(?:/opt/[\w-][\w.-]*/)?scripts/"
     rf"(?:merge_request\.py[ \t]+request(?:[ \t]+--(?:review|base)[ \t]+{_LANE_VALUE}"
     r"|[ \t]+--item[ \t]+W-[0-9a-f]{8})*"
-    r"|work\.py[ \t]+(?:claim|release)[ \t]+W-[0-9a-f]{8})[ \t]*\Z",
+    r"|work\.py[ \t]+(?:claim|release)[ \t]+W-[0-9a-f]{8}"
+    r"|work\.py[ \t]+next)[ \t]*\Z",
+    re.ASCII,
+)
+# The rotation's re-bind (D-1119, D-1123), in the ONE shape the ROTATE line and the rotation prompt
+# print: the hub's absolute path, exactly one `--as <name>`, at most one `--force` before or after.
+# whoami's argparse is lenient (`--as=`, `--a`, `--f` and a repeated `--as`, last wins, all parse —
+# executed by both W-cff56c52 critique seats), so every other spelling stays held.
+_LANE_REBIND_NAME = r"[a-z0-9][a-z0-9-]{0,31}"
+_LANE_REBIND = re.compile(
+    r"^[ \t]*python3?(?:\.\d+)?[ \t]+/opt/fabrik/scripts/whoami_agent\.py[ \t]+"
+    rf"(?:--force[ \t]+--as[ \t]+(?P<a>{_LANE_REBIND_NAME})"
+    rf"|--as[ \t]+(?P<b>{_LANE_REBIND_NAME})(?:[ \t]+--force)?)[ \t]*\Z",
     re.ASCII,
 )
 # tools a parked session still needs to finish: a subagent's hand-back is text, and a merge
@@ -754,6 +824,21 @@ def _lane_bash_allowed(command: str, cwd: str | None = None) -> bool:
         return False
     segments, _relocated = _resolve(command, cwd)
     return len(segments) == 1 and _segment_allowed(segments[0], _LANE_BASH)
+
+
+def _lane_rebind_allowed(command: str, cwd: str | None, rebind: str) -> bool:
+    """The re-bind to `rebind` — the name `_same_window_name` resolved for this window — under the
+    same vetoes; "" (no name resolved) allows nothing."""
+    if not rebind:
+        return False
+    masked = _mask_quoted(command)
+    if _NOT_A_BLANK.search(masked) or _BRACE_EXPANSION.search(masked):
+        return False
+    segments, _relocated = _resolve(command, cwd)
+    if len(segments) != 1 or not _segment_allowed(segments[0], _LANE_REBIND):
+        return False
+    m = _LANE_REBIND.match(segments[0])
+    return m is not None and (m.group("a") or m.group("b")) == rebind
 
 
 def _regular_text(path: Path) -> str | None:
@@ -811,17 +896,18 @@ def _lane_project_dir(cwd: str | None = None) -> str | None:
     return None
 
 
-def _bound_name(sid: str, common: Path) -> str:
-    """The LAST valid binding for `sid` scoped to `common` in the identity store, or "".
+def _scoped_rows(common: Path) -> list[dict]:
+    """The identity store's rows scoped to `common`, in file order, each with a valid name.
     `$AGENT_IDENTITY_FILE` else `$HOME/.claude/state/agent-identity.jsonl` (whoami_agent.py
     `store_path`); a corrupt line or a malformed name is skipped, as `resolve_agent_name` does."""
     raw = os.environ.get("AGENT_IDENTITY_FILE")
     store = Path(raw) if raw else Path.home() / ".claude" / "state" / "agent-identity.jsonl"
     text = _regular_text(store)
-    if not text or not sid:
-        return ""
+    if not text:
+        return []
     want = os.path.realpath(common)
-    name = ""
+    real: dict[str, str] = {}  # one realpath per distinct scope: this runs on every parked call
+    out: list[dict] = []
     for line in text.splitlines():
         line = line.strip()
         if not line:
@@ -830,14 +916,139 @@ def _bound_name(sid: str, common: Path) -> str:
             row = json.loads(line)
         except ValueError:
             continue
-        if not isinstance(row, dict) or row.get("session_id") != sid:
+        if not isinstance(row, dict):
             continue
         top = row.get("toplevel")
-        if not (isinstance(top, str) and os.path.isabs(top) and os.path.realpath(top) == want):
+        if not (isinstance(top, str) and os.path.isabs(top)):
             continue
-        cand = str(row.get("name") or "")
-        if _AGENT_NAME_RE.fullmatch(cand):
-            name = cand
+        if top not in real:
+            real[top] = os.path.realpath(top)
+        if real[top] == want and _AGENT_NAME_RE.fullmatch(str(row.get("name") or "")):
+            out.append(row)
+    return out
+
+
+def _bound_name(sid: str, common: Path) -> str:
+    """The LAST valid binding for `sid` scoped to `common` in the identity store, or ""."""
+    if not sid:
+        return ""
+    name = ""
+    for row in _scoped_rows(common):
+        if row.get("session_id") == sid:
+            name = str(row["name"])
+    return name
+
+
+def _as_int(value: object) -> int | None:
+    """whoami_agent.py `_as_int`: a stored pid or start time as an int — a digit string counts, a
+    bool never does (`True == 1` would make a corrupted row equal pid 1)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def _proc_start(proc: Path, pid: int) -> int | None:
+    """Field 22 of `<proc>/<pid>/stat` (whoami_agent.py `_pid_start`), or None."""
+    raw = _regular_text(proc / str(pid) / "stat")
+    if raw is None:
+        return None
+    try:
+        return int(raw[raw.rindex(")") + 1 :].split()[19])
+    except (ValueError, IndexError):
+        return None
+
+
+def _claude_ancestor(proc: Path) -> int | None:
+    """This hook's nearest `<proc>` ancestor named `claude` (whoami_agent.py `_session_pid`'s walk,
+    12 hops), or None."""
+    pid = os.getpid()
+    for _ in range(12):
+        status = _regular_text(proc / str(pid) / "status")
+        if status is None:
+            return None
+        name, ppid = "", 0
+        for line in status.splitlines():
+            if line.startswith("Name:"):
+                name = line.split(":", 1)[1].strip()
+            elif line.startswith("PPid:"):
+                try:
+                    ppid = int(line.split(":", 1)[1].strip() or 0)
+                except ValueError:
+                    return None
+        if name == "claude":
+            return pid
+        if ppid <= 1:
+            return None
+        pid = ppid
+    return None
+
+
+def _same_window_name(common: Path, cwd: str | None, proc_root: str | Path | None = None) -> str:
+    """The name THIS window may re-bind at the lane (W-cff56c52), or "" — every doubt is "".
+
+    This window is the `claude` process above this hook (pid AND start tick, D-748's process key —
+    a `/clear` keeps the process and mints a new sid). The name is that process's LAST in-scope row
+    when: `CLAUDE_PID` is unset or names that pid (a nested claude never reaches an outer window,
+    whoami_agent.py `same_window`); the row was written this boot (`at` >= `btime`, so a pid and
+    tick from a past boot cannot match); it is also the LAST in-scope row of that name (nobody
+    re-took it since); no OTHER row of the name belongs to a LIVE process (`--force` would override
+    a live holder); and the payload `cwd` sits in this repo (whoami writes the cwd's scope).
+    `proc_root` (env `QUOTA_STOP_PROC_ROOT`, default /proc) is the test seam."""
+    proc = Path(proc_root or os.environ.get("QUOTA_STOP_PROC_ROOT") or "/proc")
+    if not cwd or not os.path.isabs(cwd):
+        return ""
+    here = _git_common(Path(cwd))
+    if here is None or os.path.realpath(here) != os.path.realpath(common):
+        return ""
+    pid = _claude_ancestor(proc)
+    start = _proc_start(proc, pid) if pid else None
+    if pid is None or start is None:
+        return ""
+    claude_pid = (os.environ.get("CLAUDE_PID") or "").strip()
+    if claude_pid not in ("", str(pid)):
+        return ""
+    btime = None
+    for line in (_regular_text(proc / "stat") or "").splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[0] == "btime":
+            btime = _as_int(parts[1])
+    if btime is None:
+        return ""
+
+    def mine(row: dict) -> bool:
+        return _as_int(row.get("pid")) == pid and _as_int(row.get("pid_start")) == start
+
+    rows = _scoped_rows(common)
+    last = None
+    for row in rows:
+        at = _as_int(row.get("at"))
+        if mine(row) and at is not None and at >= btime:
+            last = row
+    if last is None:
+        return ""
+    name = str(last["name"])
+    of_name = [r for r in rows if str(r["name"]) == name]
+    if of_name[-1] is not last:
+        return ""
+    for row in of_name:
+        if mine(row):
+            continue
+        other = _as_int(row.get("pid"))
+        if not other:
+            continue
+        try:
+            alive = (proc / str(other)).is_dir()
+        except OSError:
+            alive = True
+        if not alive:
+            continue
+        was = row.get("pid_start")
+        if was is None or _proc_start(proc, other) == _as_int(was):
+            return ""  # a LIVE foreign holder (a row with no start is pid-only, as whoami reads it)
     return name
 
 
@@ -1082,13 +1293,15 @@ def decide(
     why: str = "",
     items: tuple[str, ...] = (),
     lift: str = "",
+    rebind: str = "",
 ) -> tuple[str, str]:
     """Decision. Returns (action, reason) with action ∈ {"allow", "deny", "allow_warn"}. Pure but
     for `cwd`: a `cd` prefix is resolved against the filesystem to find the session's own root.
 
     `exempt` is the LANE verdict at `urgent-90` (`lane_exempt`): True → allow with the lane nudge;
     False → the wall's allow-list plus the finishing verbs, denied with the park text naming the
-    session's claimed `items` and the `lift`. `None` means the caller never judged the lane — a pure probe — and keeps D-306's
+    session's claimed `items` and the `lift`; `rebind` is the one name that session may re-bind
+    (`_same_window_name`, "" for none). `None` means the caller never judged the lane — a pure probe — and keeps D-306's
     warning-tier allow; `main()` always judges it."""
     if not stamp_exists:
         return "allow", ""
@@ -1108,7 +1321,9 @@ def decide(
             return "allow_warn", _nudge(why if exempt else None)
         if tool == "Bash":
             if command is not None and (
-                _bash_allowed(command, cwd) or _lane_bash_allowed(command, cwd)
+                _bash_allowed(command, cwd)
+                or _lane_bash_allowed(command, cwd)
+                or _lane_rebind_allowed(command, cwd, rebind)
             ):
                 return "allow", ""
         elif tool in _READ_TOOLS or _READ_MCP.match(tool) or tool in _LANE_TOOLS:
@@ -1184,7 +1399,10 @@ def _park_reason(
         "(resumable by start --resume-from), send the merge request for finished work "
         "(`python3 scripts/merge_request.py request --review <receipt> --item <W-id>`), then end "
         "the turn. Reads, git, command_run.py, mail.py, thread_anchor.py, the claim verbs "
-        "(`python3 scripts/work.py claim <W-id>`), SubagentHandback, SendMessage, the self-watch "
+        "(`python3 scripts/work.py claim <W-id>`), `python3 scripts/work.py next`, the rotation's "
+        "re-bind of the one name this window held last (python3 "
+        "/opt/fabrik/scripts/whoami_agent.py --as <that name> --force, that absolute path only), "
+        "SubagentHandback, SendMessage, the self-watch "
         f"arm and TaskStop stay allowed. {lift or _lane_lift(_stamp())}; ARM the self-watch NOW "
         'if it is not: Bash(run_in_background: true, command: "bash '
         f'/opt/fabrik/scripts/sysadmin/selfwatch_arm.sh {who}").'
@@ -1246,7 +1464,7 @@ def main() -> int:
     sid = payload.get("session_id") if isinstance(payload.get("session_id"), str) else None
     cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else None
     exempt: bool | None = None
-    why, items, lift = "", (), ""
+    why, items, lift, rebind = "", (), "", ""
     if exists and tier == _STAMP_TIER_URGENT and age is not None and age <= _stale_after_s():
         # the lane is judged only while it is in force; every doubt inside is NOT exempt
         project = _lane_project_dir(cwd)
@@ -1258,6 +1476,14 @@ def main() -> int:
             except Exception:
                 items = ()
             lift = _lane_lift(_stamp())
+            if tool == "Bash" and isinstance(cmd, str) and "whoami_agent.py" in cmd:
+                # lazily, on the re-bind's own call only: a raise here would fail OPEN, and the
+                # /proc walk stays off every other parked call's 5 s hook budget
+                try:
+                    common = _git_common(Path(project)) if project else None
+                    rebind = _same_window_name(common, cwd) if common else ""
+                except Exception:
+                    rebind = ""
     action, reason = decide(
         tool,
         cmd if isinstance(cmd, str) else None,
@@ -1271,7 +1497,16 @@ def main() -> int:
         why=why,
         items=items,
         lift=lift,
+        rebind=rebind,
     )
+    if action == "deny" and api_key_exempt(_stamp()):
+        # judged on the DENY, so a stale tick keeps its own warning and an allowed call says nothing
+        sys.stderr.write(
+            "quota-stop: the fleet quota hold would hold this call, but this session runs on an "
+            "Anthropic API key (no plan login), so it draws no plan quota and is not held "
+            "(W-effb7141)\n"
+        )
+        return 0
     if action == "deny":
         # ONLY the current PreToolUse contract: the installed CLI (2.1.258) deprecates the legacy
         # `decision` key here — "PreToolUse, use hookSpecificOutput.permissionDecision instead".

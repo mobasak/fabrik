@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "review seats: a `review_loop_ledger.py stage` verb would remove the overlay + launcher steps the base copy leaves (W-f1191ec5, D-1187)"
 }

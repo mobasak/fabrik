@@ -395,3 +395,243 @@ def _events(tmp_path: Path) -> list[dict]:
         for ln in p.read_text(encoding="utf-8").splitlines()
         if ln.strip()
     ]
+
+
+# W-0fae19b7: at a rotation boundary (D-1119, D-1123) — a due stamp from the context or MB check AND
+# the session's own `NEXT: … awaiting the rotation` footer — the cause holds the start actions of the
+# session's own, as AMBER does; finishing and routing work still blocks.
+_FOOTER = (
+    "W-00000009 closed and pushed.\n\nSTATE: rotation asked\n"
+    "NEXT: none — terminal; awaiting the rotation"
+)
+_ROT_HELD = ("claim", "owned", "feedback", "self", "doorbell", "merge")
+_ROT_ENFORCED = ("continue", "release", "commit-items", "triage")
+
+
+def _stamp(tmp_path: Path, value: str, *, kind: str = "ctx", sid: str = SID) -> None:
+    """A stamp at the writer's default path under the test HOME, named by the RAW sid."""
+    base = tmp_path / "home" / ".claude" / "state" / "rotate-advised"
+    path = base / ".ctx" / sid if kind == "ctx" else base / sid
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value, encoding="utf-8")
+
+
+@pytest.fixture
+def _stamps_from_home(monkeypatch) -> None:
+    monkeypatch.delenv("ROTATE_STAMP_DIR", raising=False)
+
+
+@pytest.mark.parametrize(("kind", "value"), [("ctx", "40\n"), ("ctx", "90\n"), ("mb", "200\n")])
+@pytest.mark.parametrize("action", _ROT_HELD)
+def test_rotation_boundary_stands_down_a_start_action(
+    monkeypatch, tmp_path, _stamps_from_home, kind, value, action
+):
+    main = _repo(tmp_path)
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line({**CLAIM, "action": action, "fp": action}))
+    _stamp(tmp_path, value, kind=kind)
+    assert _drive(monkeypatch, main, lam=_FOOTER)[0] is None, "held at the rotation boundary"
+    stood = [r for r in _events(tmp_path) if r.get("outcome") == "stood_down"]
+    assert stood and stood[-1]["action"] == action and stood[-1]["reason"] == "rotation", stood
+
+
+@pytest.mark.parametrize(
+    "lam",
+    [
+        _FOOTER,
+        "done\n\nNEXT: none – terminal; awaiting the rotation",
+        "done\n\nNEXT: none - terminal - awaiting the rotation",
+        "done\n\n**NEXT:** none — terminal; awaiting the rotation",
+        "done\n\n- NEXT: none — terminal; awaiting the rotation",
+        "done\n\nNEXT: awaiting the rotation",
+        "done\n\n```\nSTATE: rotation asked\nNEXT: none — terminal; awaiting the rotation\n```",
+        "done\r\n\r\nNEXT: none — terminal; awaiting the rotation\r\n",
+        "done\n\nNEXT: none — terminal; awaiting the rotation.",
+        "done\n\nNEXT: `none — terminal; awaiting the rotation`",
+        "done\n\nNEXT: none awaiting the rotation",
+        "done\n\nNEXT\t: none — terminal; awaiting the rotation",
+        "done\n\n  NEXT: none — terminal; awaiting the rotation",
+        "NEXT: W-00000001 — claim it\n\nlater: done\n\nNEXT: none — terminal; awaiting the rotation",
+    ],
+)
+def test_rotation_footer_spellings(monkeypatch, tmp_path, _stamps_from_home, lam):
+    main = _repo(tmp_path)
+    _stamp(tmp_path, "50\n")
+    assert _drive(monkeypatch, main, lam=lam)[0] is None, lam
+    stood = [r for r in _events(tmp_path) if r.get("outcome") == "stood_down"]
+    assert stood and stood[-1]["reason"] == "rotation", (lam, stood)
+
+
+@pytest.mark.parametrize(
+    "lam",
+    [
+        "The footer reads:\n\n```\nNEXT: none — terminal; awaiting the rotation\n```\n\nbut I go on."
+        "\n\nNEXT: W-00000001 — claim it",
+        "The footer reads:\n\n```\nNEXT: none — terminal; awaiting the rotation\n```\n\nbut I go on.",
+        "done\n\nNEXT: W-00000001 — the next item, then awaiting the rotation",
+        "done\n\nNEXT: none — terminal",
+        "done\n\nNEXT: none — not awaiting the rotation",
+        "done\n\nNEXT: none — terminal; NOT awaiting the rotation",
+        "done\n\nNEXT: none — then claim W-00000001, awaiting the rotation",
+        "done\n\nNEXT: none — awaiting the rotation of keys, then deploy",
+        "done\n\nNEXT: awaiting the rotations",
+        "done\n\n> NEXT: none — terminal; awaiting the rotation",
+        "done\n\n    NEXT: none — terminal; awaiting the rotation",
+        "done\n\n\tNEXT: none — terminal; awaiting the rotation",
+        "done\n\nNEXT: none — W-00000009 is queued; awaiting the rotation",
+        "prose\n\n```\nNEXT: none — terminal; awaiting the rotation\n```\n",
+        "NEXT: none — terminal; awaiting the rotation\n\nNEXT: W-00000001 — claim it",
+    ],
+)
+def test_rotation_footer_quoted_or_successor_first_does_not_count(
+    monkeypatch, tmp_path, _stamps_from_home, lam
+):
+    main = _repo(tmp_path)
+    _stamp(tmp_path, "50\n")
+    out, _ = _drive(monkeypatch, main, lam=lam)
+    assert out is not None and "WORK WAITING — claim" in out["reason"], lam
+
+
+@pytest.mark.parametrize(
+    ("kind", "value", "sid"),
+    [
+        ("ctx", "0\n", SID),
+        ("ctx", "39\n", SID),
+        ("ctx", "garbage\n", SID),
+        ("ctx", "", SID),
+        ("ctx", "+50\n", SID),
+        ("ctx", "5_0\n", SID),
+        ("ctx", "٥٠\n", SID),
+        ("mb", "0\n", SID),
+        ("mb", "-200\n", SID),
+        ("mb", "9" * 5000, SID),
+        ("mb", "x\n", SID),
+        ("ctx", "50\n", "another-session"),
+    ],
+)
+def test_rotation_hold_needs_both_a_due_stamp_and_the_footer(
+    monkeypatch, tmp_path, _stamps_from_home, kind, value, sid
+):
+    main = _repo(tmp_path)
+    _stamp(tmp_path, value, kind=kind, sid=sid)
+    out, _ = _drive(monkeypatch, main, lam=_FOOTER)
+    assert out is not None and "WORK WAITING — claim" in out["reason"], (kind, value, sid)
+    _stamp(tmp_path, "60\n")
+    out, _ = _drive(monkeypatch, main, lam="done\n\nSTATE: idle\nNEXT: none — terminal")
+    assert out is not None and "WORK WAITING — claim" in out["reason"], "a due stamp alone"
+
+
+def test_rotation_due_refuses_a_sid_the_writer_grammar_refuses(tmp_path, _stamps_from_home):
+    _stamp(tmp_path, "50\n")
+    _stamp(
+        tmp_path, "200\n", kind="mb"
+    )  # `.ctx/../<SID>` resolves here: the traversal has a target
+    assert hook._rotation_due(SID)
+    for bad in ("../" + SID, ".ctx", "", "-" + SID, "a" * 129):
+        assert not hook._rotation_due(bad), bad
+
+
+# without the `is_file` guard the read blocks: a timeout makes it a red, not a hang
+@pytest.mark.timeout(20)
+def test_rotation_due_never_reads_a_fifo_or_a_directory(tmp_path, _stamps_from_home):
+    import os
+
+    base = tmp_path / "home" / ".claude" / "state" / "rotate-advised"
+    (base / ".ctx").mkdir(parents=True)
+    os.mkfifo(base / ".ctx" / SID)  # opening it for read would block the Stop forever
+    (base / SID).mkdir()
+    assert not hook._rotation_due(SID)
+
+
+@pytest.mark.parametrize("action", _ROT_ENFORCED)
+def test_rotation_boundary_still_enforces_finishing_and_routing_work(
+    monkeypatch, tmp_path, _stamps_from_home, action
+):
+    main = _repo(tmp_path)
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line({**CLAIM, "action": action, "fp": action}))
+    _stamp(tmp_path, "50\n")
+    out, _ = _drive(monkeypatch, main, lam=_FOOTER)
+    assert out is not None and f"WORK WAITING — {action}" in out["reason"]
+
+
+@pytest.mark.parametrize(
+    ("role", "held"), [("worker", True), ("coordinator", False), ("main", False), ("", False)]
+)
+def test_rotation_boundary_holds_mail_only_for_a_worker(
+    monkeypatch, tmp_path, _stamps_from_home, role, held
+):
+    main = _repo(tmp_path)
+    monkeypatch.setattr(
+        hook, "_COORD_ARGV", _line({**CLAIM, "role": role, "action": "mail", "fp": "mail"})
+    )
+    _stamp(tmp_path, "50\n")
+    out, _ = _drive(monkeypatch, main, lam=_FOOTER)
+    if held:
+        assert out is None
+    else:
+        assert out is not None and "WORK WAITING — mail" in out["reason"]
+
+
+def test_rotation_ladder_skips_start_candidates_without_spending_them(
+    monkeypatch, tmp_path, _stamps_from_home
+):
+    main = _repo(tmp_path)
+    ladder: dict = {
+        "role": "worker",
+        "candidates": [
+            {"action": "feedback", "fp": "fb:x", "text": "run /fabrik-command-improve x"},
+            {"action": "mail", "fp": "mail:y", "text": "answer mail y"},
+            {"action": "release", "fp": "item:W-00000002", "text": "release W-00000002"},
+        ],
+    }
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line(ladder))
+    _stamp(tmp_path, "50\n")
+    out, _ = _drive(monkeypatch, main, lam=_FOOTER)
+    assert out is not None and "W-00000002" in out["reason"]
+    state = json.loads(hook._coord_state_path(SID).read_text(encoding="utf-8"))
+    assert set(state["map"]) == {"item:W-00000002"}, "held candidates spend no attempt"
+    ladder["candidates"] = ladder["candidates"][:2]
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line(ladder))
+    assert _drive(monkeypatch, main, lam=_FOOTER)[0] is None
+    stood = [r for r in _events(tmp_path) if r.get("outcome") == "stood_down"]
+    assert stood and stood[-1]["action"] == "feedback,mail", stood
+    assert stood[-1]["reason"] == "rotation", stood
+    ladder["role"] = "coordinator"  # a coordinator's mail is routing work: it still blocks
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line(ladder))
+    out, _ = _drive(monkeypatch, main, lam=_FOOTER)
+    assert out is not None and "answer mail y" in out["reason"]
+
+
+def test_the_duty_reports_only_its_own_stand_downs(monkeypatch, tmp_path):
+    """The duty clears both lists itself, so a stale stand-down never reaches the event."""
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line({**CLAIM, "action": "owned", "fp": "owned"}))
+    hook._COORD_STOOD_DOWN[:] = ["feedback"]
+    hook._COORD_STOOD_WHY[:] = ["amber"]
+    assert hook._coordinator_duty(tmp_path, SID, tmp_path, rotation=True) is None
+    assert (hook._COORD_STOOD_DOWN, hook._COORD_STOOD_WHY) == (["owned"], ["rotation"])
+
+
+@pytest.mark.parametrize(("stamp", "reason"), [(True, "amber+rotation"), (False, "amber")])
+def test_a_stand_down_event_names_its_reason(
+    monkeypatch, tmp_path, _stamps_from_home, stamp, reason
+):
+    main = _repo(tmp_path)
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "AMBER")
+    if stamp:
+        _stamp(tmp_path, "50\n")
+    assert _drive(monkeypatch, main, lam=_FOOTER)[0] is None
+    stood = [r for r in _events(tmp_path) if r.get("outcome") == "stood_down"]
+    assert stood and stood[-1]["reason"] == reason and stood[-1]["band"] == "AMBER", stood
+
+
+def test_rotation_constants_match_the_stamp_writer():
+    writer_path = Path("/opt/fabrik/scripts/sysadmin/transcript_size_check.py")
+    if not writer_path.is_file():
+        pytest.skip("the hub stamp writer is not on this box")
+    writer = _load("tsc_parity", writer_path)
+    assert hook._CTX_ROTATE_PCT == writer.CTX_ROTATE_PCT
+    assert hook._ROTATE_SID_RE.pattern == writer._SID_RE.pattern
+    assert hook._ROTATE_STAMP_DEFAULT == "~/.claude/state/rotate-advised"
+    src = writer_path.read_text(encoding="utf-8")
+    assert '_env_path("ROTATE_STAMP_DIR", "~/.claude/state/rotate-advised")' in src
+    assert 'stamp_dir / ".ctx"' in src
+    assert frozenset(_ROT_HELD) == hook._ROTATION_HOLDS
