@@ -3139,27 +3139,24 @@ _MENU_RE = re.compile(
     r"|^[ \t]*(?:1[.)]|\(1\))[ \t]+\S[^\n]*\n(?:[^\n]*\n){0,6}?[ \t]*(?:2[.)]|\(2\))[ \t]+\S",
     re.M,
 )
-_MENU_CUE_RE = re.compile(
-    r"\?|\b(?:pick|choose|prefer(?:ence|red)?|your (?:call|pick|choice)|up to you|you decide)\b"
-    r"|\bwhich (?:one|option|way|path|of (?:the|these))\b",
-    re.I,
+_MENU_WORD_CUE = (
+    r"\b(?:pick|choose|prefer(?:ence|red)?|your (?:call|pick|choice)|up to you|you decide)\b"
+    r"|\bwhich (?:one|option|way|path|of (?:the|these))\b"
 )
-# A NUMBERED list's cue is read AFTER the list (mail 01M5B996F3): a `?` or choice word inside an
-# item is that item's own text — a findings list reported while seats are out read as a menu.
-# Measured over the 54 texts the hook had blocked as D2: 21 stop firing (findings, step and status
-# lists), both real menus whose ITEMS ask still fire. The list keeps its in-item cue when its
-# items mostly ask, say `Option`, or carry a strong hand-off phrase (`your call` is not one: it
-# re-fires status lists, "4. Deployment, which is your call."). Lettered `(a)` lists keep the old
-# rule — none was a false fire. COBRA (D-253): a menu now passes as a 2-item list with one asking
-# item, or with `your call` inside a minority of its items; the tests pin both as known misses.
+_MENU_CUE_RE = re.compile(r"\?|" + _MENU_WORD_CUE, re.I)
+_MENU_WORD_CUE_RE = re.compile(_MENU_WORD_CUE, re.I)
+# A NUMBERED list's `?` is read AFTER the list (mail 01M5B996F3): a question inside a findings item
+# is that item's own text — a findings list reported while seats are out read as a menu. Only the
+# `?` is bounded; a choice WORD (pick, prefer, your call …) still hands off from anywhere, so a menu
+# whose choice sits inside an item still fires. The list keeps its in-item `?` when most items ask
+# or its LAST item asks ("3. Something else — what would you rather?"). Lettered `(a)` lists keep
+# the old rule. COBRA (D-253): a menu now passes D2 only as a numbered list whose questions sit in a
+# minority of its items, never the last, with no choice word anywhere — pinned as a known miss.
+# Not this rule's class (measured, left as before): a step list's imperative choice word ("and
+# choose **Ubuntu**", "pick it up") still fires — the choice-word vocabulary's own precision.
 _LIST_ITEM_RE = re.compile(r"[ \t]*(?:\d{1,3}[.)]|\(\d{1,3}\))[ \t]+\S")
 _LIST_BULLET_RE = re.compile(r"[ \t]*[-*•][ \t]+\S")
-_ITEM_ASKS_RE = re.compile(r"\?(?=[\s)\]\"'*_]|$)")  # a question's `?`, never a URL's
-_ITEM_OPTION_RE = re.compile(r"\b[Oo]ption\b")
-_STRONG_HANDOFF_RE = re.compile(
-    r"\bwhich (?:one|option|way|path|of (?:the|these))\b|\bup to you\b|\byou decide\b|\bpick one\b",
-    re.I,
-)
+_ITEM_ASKS_RE = re.compile(r"\?(?![\w=&])")  # a question's `?`, never a URL query's
 
 
 def _list_end(text: str, ls: int) -> int:
@@ -3169,7 +3166,7 @@ def _list_end(text: str, ls: int) -> int:
     while pos < n:
         le = text.find("\n", pos)
         le = n if le == -1 else le
-        line = text[pos:le].rstrip("\r")
+        line = text[pos:le]
         if (
             first
             or _LIST_ITEM_RE.match(line)
@@ -3188,30 +3185,39 @@ def _list_end(text: str, ls: int) -> int:
     return min(pos, n)
 
 
-def _menu_cue_start(text: str, start: int) -> int:
-    """Where D2 looks for the hand-off cue of the menu matched at ``start``: past the list when it
-    is a multi-line NUMBERED list whose items do not themselves hand off, else ``start``."""
+def _menu_question_start(text: str, start: int) -> int:
+    """Where D2 starts reading a `?` for the menu matched at ``start``: past the list when it is a
+    NUMBERED list (a `_MENU_RE` list match spans two item lines at least) whose questions sit in a
+    minority of its items and not in the last one, else ``start``."""
     ls = text.rfind("\n", 0, start) + 1
     if not _LIST_ITEM_RE.match(text, ls) or text[ls:start].strip():
         return start
-    first_end = text.find("\n", ls)
     end = _list_end(text, ls)
-    if first_end == -1 or end <= first_end + 1:
-        return start  # one line: an inline `1. … 2. …?` keeps its cue
-    items: list[list[str]] = []
+    items: list[str] = []
     for line in text[ls:end].splitlines():
         if _LIST_ITEM_RE.match(line):
-            items.append([line])
+            items.append(line)
         elif items:
-            items[-1].append(line)
-    asking = sum(1 for it in items if _ITEM_ASKS_RE.search("\n".join(it)))
-    if (
-        asking * 2 > len(items)
-        or _ITEM_OPTION_RE.search(text, ls, end)
-        or _STRONG_HANDOFF_RE.search(text, start)
-    ):
+            items[-1] += "\n" + line
+    asks = [bool(_ITEM_ASKS_RE.search(it)) for it in items]
+    if sum(asks) * 2 > len(asks) or asks[-1]:
         return start
     return end
+
+
+_CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
+
+
+def _menu_cue(text: str, start: int) -> bool:
+    """D2's hand-off cue for the menu matched at ``start``: a choice word anywhere from the match
+    on, or a `?` from where `_menu_question_start` says a question still hands off. Inline code is
+    blanked first (same length, so offsets hold): a `pick` or `??` in backticks names code, not a
+    choice."""
+    prose = _CODE_SPAN_RE.sub(lambda c: " " * len(c.group(0)), text)
+    qs = _menu_question_start(prose, start)
+    if qs == start:
+        return _MENU_CUE_RE.search(prose, start) is not None
+    return _MENU_WORD_CUE_RE.search(prose, start) is not None or "?" in prose[qs:]
 
 
 # D3 — an offer to act (subsumes `_PERMISSION_RE`, which blocked ONLY mid-run; spec § C1 "the one
@@ -3812,7 +3818,7 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
         # The hand-off cue: a question or choice word from the menu on, or the menu sitting on
         # the NEXT: line itself — alternatives offered as the successor ARE the operator's pick.
         on_next = _NEXT_LINE_RE.match(text, text.rfind("\n", 0, m.start()) + 1) is not None
-        if on_next or _MENU_CUE_RE.search(text, _menu_cue_start(text, m.start())):
+        if on_next or _menu_cue(text, m.start()):
             return "D2", " ".join(m.group(0).split())[:200]
     for m in _OFFER_RE.finditer(text, tail):
         if _defer_skip(text, m.start(), fences):

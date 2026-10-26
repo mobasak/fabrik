@@ -325,9 +325,9 @@ def _class8_reason(shown: str | None, raw: bool = False) -> str:
         value = shown if raw else f"'{shown}'"
     return (
         f"  — Status {value} is none of DRAFT, IN-PROGRESS, CONVERGED, EXECUTED, BLOCKED; "
-        "a finished plan reads EXECUTED, which check_convergence admits only when the plan cites "
-        "a whole-plan review under docs/development/reviews/ named by its stem with a quiet Pass "
-        "row (confirmed: 0); a superseded or abandoned plan moves to plans/archived/"
+        "a finished plan reads EXECUTED, and check_convergence then wants it to cite its "
+        "whole-plan review under docs/development/reviews/ with a quiet Pass row (confirmed: 0); "
+        "a superseded or abandoned plan moves to plans/archived/"
     )
 
 
@@ -338,9 +338,30 @@ def test_class_8_line_names_the_status_and_the_rule(tmp_path):
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
     plan = _plan_dir(repo, "2026-09-24-plan-e-superseded", "SUPERSEDED (2026-10-05, D-1)")
-    want = [f"DRIFT 8 (advisory)  {plan}{_class8_reason('SUPERSEDED')}"]
+    want = [f"DRIFT 8 (advisory)  {plan}{_class8_reason('SUPERSEDED (2026-10-05, D-1)')}"]
     assert _drift_lines(_ok(["status"], env, repo), 8) == want
     assert _drift_lines(_ok(["sync", "--check"], env, repo), 8) == want
+
+
+def test_class_8_line_shows_the_whole_value_printable_and_names_an_unreadable_file(tmp_path):
+    """Round 1 of the review: a multi-word value printed only its first word (`'IN'`), a control
+    byte reached stdout, and a plan that cannot be read was called `missing`."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    spaced = _plan_dir(repo, "2026-09-24-plan-h-spaced", "IN PROGRESS")
+    coloured = _plan_dir(repo, "2026-09-24-plan-i-coloured", "\x1b[31mRED")
+    name = "2026-09-24-plan-j-dir"
+    (repo / "docs" / "development" / "plans" / f"{name}.md").mkdir(parents=True)
+    lines = sorted(_drift_lines(_ok(["status"], env, repo), 8))
+    assert lines == sorted(
+        [
+            f"DRIFT 8 (advisory)  {spaced}{_class8_reason('IN PROGRESS')}",
+            f"DRIFT 8 (advisory)  {coloured}"
+            + _class8_reason("unreadable (Status: ?[31mRED)", raw=True),
+            f"DRIFT 8 (advisory)  docs/development/plans/{name}.md"
+            + _class8_reason("unreadable (the file cannot be read)", raw=True),
+        ]
+    )
 
 
 def test_class_8_line_without_a_status_line(tmp_path):

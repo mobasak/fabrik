@@ -4490,27 +4490,34 @@ def _drift_line(repo: Path, cls: int, rel: str) -> str:
     if cls != 8:
         return line
     try:
-        text = (repo / rel).read_text(encoding="utf-8", errors="replace")
+        text: str | None = (repo / rel).read_text(encoding="utf-8", errors="replace")
     except OSError:
-        text = ""
-    value = _status_value(repo, text)
-    header = _STATUS_HEADER_RE.search(text)
-    if value:
-        shown = f"'{value}'"
-    elif header:  # a header the parser cannot read (`Status: (X)`, `Status: ✅ X`) is not missing
-        shown = f"unreadable ({header.group(0).strip()[:60]})"
+        text = None
+    if text is None:
+        shown = "unreadable (the file cannot be read)"
+    elif _status_value(repo, text):
+        shown = f"'{_shown(_status_line_raw(repo, text))}'"
+    elif header := _STATUS_HEADER_RE.search(text[:4000]):  # the parser's own window
+        shown = f"unreadable ({_shown(header.group(0).strip())})"
     else:
         shown = "missing (no Status: line)"
     return (
         f"{line}  — Status {shown} is none of {', '.join(_PLAN_STATUS_ORDER)}; "
-        "a finished plan reads EXECUTED, which check_convergence admits only when the plan cites "
-        "a whole-plan review under docs/development/reviews/ named by its stem with a quiet Pass "
-        "row (confirmed: 0); a superseded or abandoned plan moves to plans/archived/"
+        "a finished plan reads EXECUTED, and check_convergence then wants it to cite its "
+        "whole-plan review under docs/development/reviews/ with a quiet Pass row (confirmed: 0); "
+        "a superseded or abandoned plan moves to plans/archived/"
     )
 
 
 # The Python twin of `_PLAN_STATUS_GIT_PATTERN`'s header shape, for `_drift_line`'s wording only.
 _STATUS_HEADER_RE = re.compile(r"^[ \t]*(?:[-*>][ \t]+)?\*{0,2}Status\*{0,2}[ \t]*:.*$", re.M)
+
+
+def _shown(raw: str) -> str:
+    """A Status value as one printable line of at most 60 characters: control bytes (an ESC from a
+    pasted colour code) would reach every reader of the DRIFT line, final_gate's included."""
+    clean = "".join(ch if ch.isprintable() else "?" for ch in raw.strip())
+    return clean if len(clean) <= 60 else clean[:59] + "…"
 
 
 def cmd_sync(repo: Path, args: argparse.Namespace) -> int:

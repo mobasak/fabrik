@@ -170,9 +170,10 @@ def test_each_shape_blocks_outside_a_run(tmp_path: Path, text: str, shape: str) 
     assert hook.deferral_shape(text) == shape
 
 
-# --- D2: a numbered list's hand-off cue sits AFTER the list (mail 01M5B996F3) ---------------
-# Measured over the 54 texts the hook blocked as D2 (2026-10-26): 21 stop firing — findings,
-# step and status lists — while both real operator menus whose ITEMS ask (#0, #15) still fire.
+# --- D2: a numbered list's `?` sits AFTER the list (mail 01M5B996F3) ------------------------
+# Measured over the 54 texts the hook blocked as D2 (2026-10-26): 9 stop firing, every one a
+# findings list reported while seats were out; no real operator menu is lost. A choice WORD still
+# hands off from anywhere, so a menu whose choice sits inside an item still fires.
 
 _FOOTER = "\n\nSTATE: review round 1, one seat out\nNEXT: record round 1 once the seat returns"
 
@@ -184,15 +185,19 @@ _FOOTER = "\n\nSTATE: review round 1, one seat out\nNEXT: record round 1 once th
         "Findings so far:\n1. work.py:2004 prints no reason.\n"
         "2. the cue regex reads any later question mark — is that intended?\n"
         "3. the doc row is stale.\n\nFixing all three now.",
-        "Findings:\n1. the check should prefer the hub copy\n   (does it read stale data?)\n"
-        "2. the miner picks the wrong root\n\nFixing both.",
+        "Findings:\n1. the check reads the hub copy\n   (does it read stale data?)\n"
+        "2. the miner reads the wrong root\n\nFixing both.",
         "Findings:\n1. a stale doc row\n\n2. the reader drops a field — stale data?\n\n3. a typo\n\nFixing.",
         "Findings:\n1. a stale doc row\n- does it read stale data?\n2. the reader drops a field\n"
         "3. a typo\n\nFixing.",
         "Findings:\n1. the link https://x.io/a?id=1 is dead\n2. the mirror https://y.io/b?x=2 is stale"
         "\n3. the reader drops a field\n\nFixing.",
+        # corpus: a function named like a choice word, and `??` porcelain, both in backticks
+        "Three gaps:\n1. **Deps:** `pick` re-reads the list.\n2. **Index:** unpinned.\n"
+        "3. **Ledger:** `?? dir/` collapses new files.\n\nI'll take all three.",
+        "Findings:\r\n1. a — stale?\r\n2. b\r\n3. c\r\n\r\nFixing.",
     ],
-    ids=["reported", "continuation", "loose", "bullet", "url"],
+    ids=["reported", "continuation", "loose", "bullet", "url", "code-span", "crlf"],
 )
 def test_a_findings_list_is_not_a_menu(body: str) -> None:
     assert hook.deferral_shape(body + _FOOTER) is None
@@ -204,8 +209,9 @@ def test_a_findings_list_is_not_a_menu(body: str) -> None:
         "Two ways forward:\n1. rerun the sweep\n2. fold it into T04\n\nWhich do you want?",
         "Two ways forward:\n1. rerun the sweep\n2. fold it into T04\nYour pick.",
         "Two ways forward:\n1. rerun\n\n2. fold\n\nWhich do you want?",
+        "Two ways:\r\n1. rerun\r\n2. fold\r\n\r\nWhich do you want?",
     ],
-    ids=["blank-then-cue", "tight-cue", "loose-list"],
+    ids=["blank-then-cue", "tight-cue", "loose-list", "crlf"],
 )
 def test_a_list_with_its_cue_after_it_is_still_a_menu(body: str) -> None:
     assert hook.deferral_shape(body) == "D2"
@@ -218,33 +224,39 @@ def test_a_list_with_its_cue_after_it_is_still_a_menu(body: str) -> None:
         "Two decisions for you:\n1. **Orange contrast:** keep it, or darken it?\n"
         "2. **Icons:** keep outline, or switch to solid?\n\nNothing is deployed.",
         "1. Deploy now?\n2. Hold for one more smoke pass?",
-        "1. Option one: rerun\n2. Option two: fold — pick?\n3. Option three: revert",
-        "1. rerun the sweep\n2. fold into T04 — up to you",
+        "Two decisions:\n1. Ship it now?—\n2. Hold it?—\n3. Revert it?—\n\nNothing is deployed.",
+        "Three paths:\n1. Ship it now?\n2. Hold it for a smoke pass?\n3. Revert.\n\nNothing is deployed.",
+        # the question closes the list (round 1, A-sonnet-1)
+        "Paths:\n1. Ship the hook as is\n2. Tighten the regex first\n"
+        "3. Something else — what would you rather?",
+        "1. ship it\n2. tighten it\n  Thoughts?",
+        # a choice WORD inside an item still hands off (round 1, A-haiku-1/2, A-sonnet-2)
+        "Two ways forward:\n1. rerun the sweep — pick this if short on time\n2. fold it into T04\n\n"
+        "Fixing nothing until you answer.",
+        "Two ways forward:\n1. rerun the sweep\n2. fold it into T04\n   Your pick.",
+        "Paths:\n1. ship it\n2. tighten it\n3. revert\n- Recommendation: 2. Prefer it",
+        "1. rerun the sweep\n2. fold into T04 — your call",
     ],
-    ids=["items-ask", "two-asks", "option-items", "strong-phrase"],
+    ids=[
+        "items-ask", "two-asks", "asks-then-dash", "most-ask", "last-item-asks",
+        "last-item-continuation",
+        "pick-in-item", "pick-indented", "prefer-bullet", "your-call-in-item",
+    ],
 )
 def test_a_list_whose_items_hand_off_is_still_a_menu(body: str) -> None:
     assert hook.deferral_shape(body) == "D2"
 
 
 def test_a_lettered_list_keeps_its_in_item_cue() -> None:
-    """Lettered lists were never the false fire (0 of the 21 corpus drops): unchanged."""
-    assert hook.deferral_shape("(a) keep the flag\n(b) delete it — your pick") == "D2"
+    """Lettered lists were never the false fire (0 of the corpus drops): unchanged."""
+    assert hook.deferral_shape("(a) keep the flag\n(b) delete it — stale?\n(c) revert") == "D2"
 
 
-@pytest.mark.parametrize(
-    "body",
-    [
-        # 1 asking item of 2: "at least half" would re-fire the reported two-item findings case
-        "1. Deploy now?\n2. Hold",
-        # `your call` is not a strong phrase: it re-fires status lists ("4. Deployment, your call.")
-        "1. rerun the sweep\n2. fold into T04 — your call",
-    ],
-    ids=["one-of-two-asks", "your-call-in-item"],
-)
-def test_the_accepted_menu_misses_stay_documented(body: str) -> None:
-    """The design's measured costs (D-row of mail 01M5B996F3): these pass D2 on purpose."""
-    assert hook.deferral_shape(body) is None
+def test_the_accepted_menu_miss_stays_documented() -> None:
+    """The measured cost (D-row of mail 01M5B996F3): a numbered menu whose only hand-off is a `?`
+    in a minority of its items, never the last, passes D2 — "at least half" would re-fire the
+    reported two-item findings case."""
+    assert hook.deferral_shape("1. Deploy now?\n2. Hold") is None
 
 
 def test_the_permission_shape_now_blocks_without_a_midrun_marker(tmp_path: Path) -> None:
