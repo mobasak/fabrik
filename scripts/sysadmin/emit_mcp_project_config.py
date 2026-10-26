@@ -262,13 +262,17 @@ def _uri_connects(uri: str) -> bool | None:
     (DNS and auth failures alike, both measured 2026-08-30) — past Claude's 30s
     connect timeout. So a URI is emitted only when it PROVABLY connects; an
     omitted env means the server starts unconnected in ~2s with tools present.
+    The URI goes over STDIN, never argv: it carries the DB password, and a child's argv is readable by
+    every local user in `ps` and /proc/<pid>/cmdline (W-d095d60b).
     """
-    probe = "import psycopg,sys; psycopg.connect(sys.argv[1], connect_timeout=3).close()"
+    probe = "import psycopg,sys; psycopg.connect(sys.stdin.read(), connect_timeout=3).close()"
     for py in (sys.executable, "/opt/fabrik/.venv/bin/python"):
         if not Path(py).exists():
             continue
         try:
-            r = subprocess.run([py, "-c", probe, uri], capture_output=True, timeout=10)
+            r = subprocess.run(
+                [py, "-c", probe], input=uri.encode(), capture_output=True, timeout=10
+            )
         except (OSError, subprocess.SubprocessError):
             continue
         if b"ModuleNotFoundError" in r.stderr:
@@ -437,5 +441,11 @@ def main(argv: list[str] | None = None) -> list[str]:
     return lines
 
 
+def cli(argv: list[str] | None = None) -> int:
+    """Exit 1 when any repo's emission failed (`SKIP (error: …)`), else 0; a ruled SKIP is a verdict, not a
+    failure (W-d095d60b)."""
+    return 1 if any(": SKIP (error:" in line for line in main(argv)) else 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(cli())

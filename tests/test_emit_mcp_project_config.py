@@ -667,3 +667,39 @@ def test_a_root_that_cannot_be_written_is_skipped_as_an_error_not_unreadable(tmp
     finally:
         (repo / ".mcp.json").chmod(0o644)
     assert lines == ["some-api: SKIP (error: PermissionError)"], lines
+
+
+def test_the_uri_probe_never_puts_the_uri_on_a_command_line(monkeypatch):
+    """W-d095d60b: a resolved DATABASE_URL carries a password, and a child's argv is world-readable in
+    `ps` and /proc/<pid>/cmdline. The probe hands the URI over stdin; no argv element may carry it."""
+    seen: list[tuple] = []
+
+    class Done:
+        returncode = 0
+        stderr = b""
+
+    def fake_run(args, **kw):
+        seen.append((args, kw))
+        return Done()
+
+    monkeypatch.setattr(emitter.subprocess, "run", fake_run)
+    uri = "postgresql://owner:s3cretPW@db.example:5432/app"
+    assert emitter._uri_connects(uri) is True
+    assert seen, "the probe never ran"
+    for args, kw in seen:
+        assert not any("s3cretPW" in str(a) for a in args), args
+        assert kw.get("input") == uri.encode(), kw
+
+
+def test_cli_exits_nonzero_when_a_repo_errors_and_zero_otherwise(tmp_path, defs_file):
+    """W-d095d60b: `SKIP (error: …)` is a failed repo, so the command exits 1; a clean run exits 0
+    (a ruled SKIP, such as an unknown type, is a verdict and not an error)."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    base = ["--root", str(tmp_path), "--defs", str(defs_file)]
+    assert emitter.cli(base) == 0
+    (repo / ".mcp.json").write_text("{}\n")
+    (repo / ".mcp.json").chmod(0o444)
+    try:
+        assert emitter.cli(base) == 1
+    finally:
+        (repo / ".mcp.json").chmod(0o644)

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — MCP emitter no longer puts DATABASE_URL on a command line, and exits 1 when a repo fails (2026-10-26)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::_uri_connects` handed the resolved `DATABASE_URL` (password included) to its psycopg probe child as `argv[1]`, which every local user can read in `ps` and `/proc/<pid>/cmdline` during every emission. The URI now goes over stdin.
+- The CLI exited 0 even when a repo's emission failed. It now exits 1 when any verdict is `SKIP (error: …)`. A ruled SKIP, such as an unknown repo type, is still a verdict and exits 0 (W-d095d60b, split from W-cd40f947).
+- Graders: `tests/test_emit_mcp_project_config.py::test_the_uri_probe_never_puts_the_uri_on_a_command_line` and `::test_cli_exits_nonzero_when_a_repo_errors_and_zero_otherwise`, both watched red first.
+
 ### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
 
 - W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In
