@@ -155,7 +155,7 @@ entries:
   file: render
   baseline: 'The hub coordinator, once awake, ALWAYS runs `python3 $H lift` (a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none either), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle until prompted'
   text:
-  - 'The hub coordinator, once awake, ALWAYS runs `python3 $H lift`, then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle until prompted'
+  - 'The hub coordinator, once awake, ALWAYS runs `python3 $H lift` (a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none either), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle until prompted'
 - id: u-L8
   class: prose
   file: render

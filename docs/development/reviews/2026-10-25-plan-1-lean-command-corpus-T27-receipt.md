@@ -28,3 +28,22 @@
 - Gates: `tests/test_command_rules.py` 53 passed, 3 skipped, 1 failed (`test_the_live_corpus_has_no_loss`, only `_shared/*` T01d LOSS lines); `assemble_commands.py --check` rc 1, DIFFERS/MISSING drift only. Reader-test run: see the closing summary.
 - LEFT FOR THE HUB: second author-blind audit; ceiling ratchet at merge.
 - Reader-test run (per-file pytest over the stem readers + corpus-glob tests, plus the ticket's extra tests; clone lacks box services and psycopg etc.): 34 files; start and end both 47 FAILED/ERROR lines, 1671 passed, failure SET identical (diff empty).
+
+## Fix round 2 (hub audit)
+
+Findings (Sonnet + Haiku audits, overlapping pairs treated as one):
+
+| # | Finding | Verdict |
+|---|---|---|
+| 1 | `hib-lift` lost the "(a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none either)" aside (both audits) | confirmed — restored verbatim in `hibernate.md` and the `hib-lift` text phrase |
+| 2 | frontmatter `description` lost "the hub coordinator", "(its ledger's merge owner, …)", "every agent's worktree", "after the wake every agent resumes its own item" (both audits; Haiku: ban clause not verbatim) | confirmed — description restored byte-identical to the baseline |
+| 3 | Baseline L9 has no entry (Sonnet, no finding) | refuted — the line survives verbatim in the source |
+| 4 | Receipt "23 reworded" overstated (Haiku) | confirmed — the fresh pass counts 12 reworded |
+
+Own-text words: baseline 880 → re-ledger 824 → now 861 (the restored description and aside account for the difference).
+
+Floor table: the unit is 861/880, over 50% of its baseline, so no per-file floor row is owed.
+
+Fresh passes run: 1 (a fresh subagent given only the baseline, the rewrite and the ledger).
+
+COUNTS: entries read 26 / reworded 12 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0

@@ -1,5 +1,5 @@
 ---
-description: "Pause every agent on the box for a hibernate: finds each repo's live coordinator (never a hand list), sends one URGENT pause, collects a PAUSED line per agent, and says \"safe to hibernate\" only when every worktree is clean and pushed and no run is running. TRIGGER — EN: \"pause all agents, we need to hibernate\", \"/hibernate\"; TR: \"tüm ajanları durdur, hazırda bekletmemiz gerekiyor\". SKIP: pausing one agent (send it the agent text directly). Stage: utility."
+description: "Pause every agent on the box for a hibernate — the hub coordinator finds each repo's live coordinator (its ledger's merge owner, never a hand list), sends one URGENT pause, collects a PAUSED line per agent, and says \"safe to hibernate\" only when every agent's worktree is clean and pushed and no run is running; after the wake every agent resumes its own item. TRIGGER — EN: \"pause all agents, we need to hibernate\", \"/hibernate\"; TR: \"tüm ajanları durdur, hazırda bekletmemiz gerekiyor\". SKIP: pausing one agent (send it the agent text directly). Stage: utility."
 argument-hint: "[the operator's words, quoted — they ride into every pause]"
 ---
 The operator runs `/hibernate` in the hub coordinator's window; `scripts/sysadmin/hibernate.py` (`docs/reference/hibernate.md`) is the machinery, `H=/opt/fabrik/scripts/sysadmin/hibernate.py` below. The run record below, its Orient step and the Phase sections are the hub coordinator's alone: a repo coordinator or an agent receiving the pause text opens no record and runs no Orient for it.
@@ -35,6 +35,6 @@ Do exactly the agent text's five steps. The important ones: let your own subagen
 
 ## After the wake
 
-On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed). The hub coordinator, once awake, ALWAYS runs `python3 $H lift`, then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle until prompted.
+On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed). The hub coordinator, once awake, ALWAYS runs `python3 $H lift` (a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none either), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle until prompted.
 
 {{include:close-chain}}
