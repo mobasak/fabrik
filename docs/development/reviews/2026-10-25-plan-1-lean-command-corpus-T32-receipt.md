@@ -180,3 +180,19 @@ Task `lean-t32-rl-fixc`, on `claude/lean-t32-rl`. The two hub audits (Sonnet 15 
 **Self-audit by fresh readers:** seven fresh subagents ran, one per pass, each given only the baseline, the rewrite and the ledger. Findings per pass: 5, 3, 9 (stale carriers), 12, 4, 1 and then none. Every finding was fixed and the gates re-run before the next pass. The first pass also caught that the persisted-lock sentence had been moved into the Acting set.
 
 COUNTS: entries read 581 / reworded 187 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 — fresh pass 7 of 7, VERDICT: CLEAN.
+
+## Nits round (hub) — `claude/lean-t32-rl-nits`
+
+Base: `claude/lean-t32-rl-fixc` as-is. Only `commands/_sources/fabrik-vision.md` and `commands/_rules/fabrik-vision.yaml` changed.
+
+1. Template fences, emphasis: restored. Both fences carry the baseline's `**` on every line it had (Notifications, the Watchdog label, options, `cost CAP`, `not` and `on by default`, Domain structure, the `wordpress` line, Target host, `**#19**`, and `**no**` in the `i18n missing` row). Each carrier is one phrase opened with a backtick from the line before, because the loader keeps a fence's `**` unless an odd backtick count precedes it. This also answers the earlier note that a carrier cannot hold a clause split by a bold marker.
+2. v-L103 `Binds the two-env rule`: the words were already in the source and the ledger; the baseline's bold is restored (`⚠️ **Binds the two-env rule:**`). Restored.
+3. v-L196 purpose clause: already verbatim in the source, and the `needed to interpret … (present/missing/drift/n/a/override/unknown)` text with both anchors is already in the ledger `text`. No change.
+4. v-L400 `agents-fabrik.md` anchor: already in the source and in the ledger `text` (`run all 7 per `agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT`). No change.
+5. v-L90 clause 3, `not the four we happen to remember`: carries no instruction (it restates ALL TWELVE), and stays labelled `narrative` (clause 3). Labelled narrative.
+6. v-L78 `(lifecycle gaps, not separate from compliance)`: restored in the source and added to the ledger `text`. v-L24 `not scoped to one path`: already in the source and the ledger `text`; no change.
+7. L342 `it will confidently recommend Stripe, Pinecone, or a direct OpenAI SDK`: already in the source and in v-L342's `text`; no change.
+
+**Own-text words:** 13202 → 13208 (the six words of item 6; the `**` markers add none).
+
+**Gates:** `tests/test_command_rules.py -rP`: zero LOSS lines for `fabrik-vision.yaml`; the one failing test is `_shared/*.yaml` LOSS (another unit's). `assemble_commands.py --check`: no `fabrik-vision` LOSS, DIFFERS drift only. I could not dispatch a subagent, so the zero-counts self-audit pass was NOT a fresh subagent; the hub's author-blind audit pair covers it.

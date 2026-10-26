@@ -63,7 +63,7 @@ Fabrik lifecycle (mental model) — `docs/operations/fabrik-lifecycle.md` carrie
 3. Proper Registration (VPS) — `fabrik apply` fires 10 registrars. Only 7 are flag-driven — postgres (`needs_database`), redis (`needs_cache`), gatus (`is_public`+domain), backrest (`has_persistent_data`), authelia (`is_admin_dashboard`+domain), meilisearch (`has_search_feature`), prometheus (`exposes_metrics`+domain). The other 3 are NOT flag-driven: grafana fires *always*, glitchtip fires on `shape.kind`, and `watchdog` fires from the spec's `watchdog:` block and is ON by default (opt-OUT: disable with `watchdog: { enabled: false }`).
 4. Verification & Testing — `fabrik verify`, drift detection (`fabrik audit-registrars`), alerting.
 
-If a NEW vision cannot pass all 4 stages, state this explicitly and justify. If an EXISTING project has incomplete stages, flag them in the Compliance Report.
+If a NEW vision cannot pass all 4 stages, state this explicitly and justify. If an EXISTING project has incomplete stages, flag them in the Compliance Report (lifecycle gaps, not separate from compliance).
 
 Mode declaration. Ask the owner explicitly at the very start: *"Is this a NEW project (no code yet, just an idea or research) or an EXISTING project (code exists, services may already be deployed)?"* Owner says NEW → the NEW-mode path (Phases 2–4 below, NEW branch); owner says EXISTING → the EXISTING-mode path (Phases 2–4 below, EXISTING branch). Do NOT auto-detect from the filesystem. Do NOT skip this question. The owner declares the mode.
 
@@ -86,7 +86,7 @@ Architectural Mandates (non-negotiable — single source of truth). These are vi
 | VII | Port binding | Completely self-contained; exports HTTP by binding to a port; *"does not rely on runtime injection of a webserver."* | Uvicorn binds inside the container; Traefik is the routing layer — which is *why* compose declares no host `ports:`. |
 | VIII | Concurrency | Scale out via the process model. *"Processes should never daemonize or write PID files."* | `web` + `file-worker` types; scale by adding processes. Docker/systemd supervises — never daemonize or write a PID file. |
 | IX | Disposability | Fast startup. SIGTERM: web = stop listening + drain; worker = return the current job to the queue; *"all jobs are reentrant… idempotent."* | ⚠️ The missing half. `fabrik-lib/job-queue` must requeue on SIGTERM and every job must be idempotent — not merely "fast startup". |
-| X | Dev/prod parity | *"Resists the urge to use different backing services between development and production."* Same type and version. | ⚠️ Binds the two-env rule: WSL dev and VPS both run PostgreSQL + Redis. No SQLite locally, no in-memory stand-in for Redis. |
+| X | Dev/prod parity | *"Resists the urge to use different backing services between development and production."* Same type and version. | ⚠️ **Binds the two-env rule:** WSL dev and VPS both run PostgreSQL + Redis. No SQLite locally, no in-memory stand-in for Redis. |
 | XI | Logs | Unbuffered to `stdout`. *"Never concerns itself with routing or storage… should not attempt to write to or manage logfiles."* | `structlog` → stdout. Never write or rotate a logfile. Promtail → Loki is the *environment* doing the routing. |
 | XII | Admin processes | One-off tasks run against the same release + config; admin code ships with the app. | Alembic migrations live in the repo and run against the deployed release/env — never from a laptop against prod. |
 
@@ -411,7 +411,7 @@ dossier's wedge row.]
   goods — Paddle does NOT apply in-app) / none — state pricing model. Stripe is NOT available to a TR entity.]
 - **File storage:** [`fabrik-lib/storage` (Backblaze B2 backend, DEFAULT) / none — state what's stored.
   Supabase Storage is legacy/migration-only.]
-- Notifications (internal/ops): [Apprise (already deployed) / direct API / none]
+- **Notifications (internal/ops):** [Apprise (already deployed) / direct API / none]
 - **Email (transactional):** [Resend (default, 3k/mo free) / escalate to Postmark for critical auth mail —
   state what triggers emails]
 - **Email (marketing):** [Resend Broadcasts (start) / Listmonk + SES (at scale) / none — MUST be a
@@ -422,18 +422,18 @@ dossier's wedge row.]
 - **Background processing:** [file-worker needed? state what runs async: transcription, PDF gen, AI
   inference, batch imports, scheduled jobs / none]
 - **Consumed microservices:** [site-provisioner for DNS / none — image-broker is retired/not deployed]
-- Watchdog sidecar + cost-budget: [accept-defaults (state the values you are accepting — read them
-  from `WatchdogConfig`) / raise (state the per-project `daily_budget_usd` + `daily_invocations_cap`
-  per `cost-budget.md`) / opt-out (`watchdog: {enabled: false}` — no paid AI APIs / no cost-sensitive
-  ops) — ⚠️ `cost-budget.md:28` makes the cost CAP mandatory for any project that runs the watchdog (or
-  calls paid AI APIs); it does not mandate the watchdog itself — and on the `fabrik apply` path the
+- **Watchdog sidecar + cost-budget:** [**accept-defaults** (state the values you are accepting — read them
+  from `WatchdogConfig`) / **raise** (state the per-project `daily_budget_usd` + `daily_invocations_cap`
+  per `cost-budget.md`) / **opt-out** (`watchdog: {enabled: false}` — no paid AI APIs / no cost-sensitive
+  ops) — ⚠️ `cost-budget.md:28` makes the **cost CAP** mandatory for any project that runs the watchdog (or
+  calls paid AI APIs); it does **not** mandate the watchdog itself — and on the `fabrik apply` path the
   sidecar is **on by default** regardless, so the live question is the cap, not the sidecar. Without a cap
   a feedback loop (the sidecar diagnosing the sidecar) could empty the budget overnight]
-- Domain structure: [subdomains needed, e.g., api.X, app.X, admin.X]
+- **Domain structure:** [subdomains needed, e.g., api.X, app.X, admin.X]
 - **Scaffold types:** [list all scaffold types this vision needs. Valid: python-api, python-api-gpu,
   node-api, saas-skeleton, file-api, file-worker, docusaurus, chrome-extension, mobile-app, desktop-app,
-  static-site. wordpress is NOT a valid type here.]
-- Target host (per service, `target_vps:`): [`vps1` (hub, default) / `vps2` or `vps3` (spoke)]
+  static-site. **wordpress is NOT a valid type here.**]
+- **Target host (per service, `target_vps:`):** [`vps1` (hub, default) / `vps2` or `vps3` (spoke)]
 - **Documentation site:** [SaaS scaffolds: vendor `/opt/fabrik-lib/docs-site/`. Non-SaaS: N/A]
 
 ## fabrik-lib Verdict
@@ -517,11 +517,11 @@ R1. [Retrofit: add i18n] — [description] (medium)
 - Email (transactional/marketing): [as NEW mode]
 - Background processing: [file-worker needed?]
 - Scaffold types: [any NEW scaffold types]
-- Watchdog sidecar + cost-budget: [accept-defaults (state the values you are accepting — read them
+- Watchdog sidecar + cost-budget: [**accept-defaults** (state the values you are accepting — read them
   from `WatchdogConfig`; a delta inherits them silently) / **raise** (state the per-project
   `daily_budget_usd` + `daily_invocations_cap` per `cost-budget.md`) / **opt-out**
   (`watchdog: {enabled: false}`)] — ⚠️ state one of the three; "enable? yes/no" cannot express the
-  accept-vs-raise distinction constraint #19 requires.
+  accept-vs-raise distinction constraint **#19** requires.
 - Target host (per new service): [`vps1` / `vps2` / `vps3`]
 - Deploy target: VPS via fabrik apply / SSH + Docker Compose (confirmed — same as existing services)
 - Domain structure: [any NEW subdomains]
@@ -540,7 +540,7 @@ Fix-now item, alongside the delta-feature epics.]
 
 | Gap | Source | Owner decision | Epic action |
 |---|---|---|---|
-| i18n missing | The Phase 1 i18n mandate; the pack carrying the code-time rules for this scaffold — `saas/60-saas-ui.md` § i18n · `mobile-app/80-mobile.md` (the validator gate) · `chrome-ext/70-chrome-ext.md` § i18n · `core/42-docusaurus.md` § Internationalization. There is no `core/i18n` pack | Fix-now | Retrofit epic |
+| i18n missing | The Phase 1 i18n mandate; the pack carrying the code-time rules for this scaffold — `saas/60-saas-ui.md` § i18n · `mobile-app/80-mobile.md` (the validator gate) · `chrome-ext/70-chrome-ext.md` § i18n · `core/42-docusaurus.md` § Internationalization. There is **no** `core/i18n` pack | Fix-now | Retrofit epic |
 | No responsive design | `saas/60-saas-ui.md` | Fix-later | Deferred (no epic now) |
 | No abuse detection | `saas/87-abuse-detection.md` | Fix-now | Retrofit epic |
 | psycopg2 used | `core/25-data-postgres.md` | Accept-as-legacy | No action |
