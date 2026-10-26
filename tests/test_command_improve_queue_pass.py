@@ -269,24 +269,6 @@ def test_the_held_subject_search_reads_the_reasons_view() -> None:
     ) in text
 
 
-def test_fabrik_task_third_queue_pass_lines() -> None:
-    """/fabrik-task rows 1791971413, 1791966319, 1791953313, 1791973990, 1791958891, 1791975925 (D-856):
-    subprocess-run tests found by name, a relied-on grader red-proved, vendored copies searched, the
-    live-store pin named, and MEASURE's slice re-run on the built tree."""
-    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-task.md").read_text())
-    for needle in (
-        "the tests that import, grade or run the declared files (grep the tests for each file's name and every mode"
-        " or flag the change extends, since a test that runs a script by subprocess never imports it)",
-        "a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing"
-        " until it can fail",
-        "and every vendored copy outside it (`find /opt` by the file's name, `.claude/worktrees/` counted apart)",
-        "A test that writes a live store pins it to a tmp root: the hub's `tests/conftest.py` already pins the mail"
-        " root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there",
-        "before phase 4, MEASURE's test slice re-runs on the built tree,",
-    ):
-        assert needle in text, needle
-
-
 def test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss() -> None:
     """Row 1792031068 (kaizen, the fabrik-review Residual-sentence run): a ten-word gloss of Phase 2's by-design rule
     became a THIRD wording beside the rule and term-edit's restatement, and cost a round. :249's clause covered a rule

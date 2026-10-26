@@ -1,0 +1,773 @@
+command: fabrik-task
+baseline_sentences: fabrik-task.baseline.txt
+baseline_sha256: 557c3d14c5e453fc64cda7a7adb64705a5edb20690bb4440e535fdd152179582
+entries:
+- id: ft-sequences-machinery
+  # class: prose
+  baseline: One small change, one decision, one commit. This command SEQUENCES existing machinery and RESTATES none of it; the run record, the FIX DIRECTIVE, `/fabrik-review-scoped`, the close-out feedback and the decision-ledger rule keep their own text
+  current: 'One small change, one decision, one commit. This command SEQUENCES existing machinery and RESTATES none of it: run record, FIX DIRECTIVE, `/fabrik-review-scoped`, close-out feedback, decision-ledger rule'
+  text:
+  - 'One small change, one decision, one commit. This command SEQUENCES existing machinery and RESTATES none of it: run record, FIX DIRECTIVE, `/fabrik-review-scoped`, close-out feedback, decision-ledger rule'
+- id: ft-slices-never-bundled
+  # class: ban
+  baseline: A feature splitting into independently shippable slices is several of these runs, never one bundling them (D6)
+  current: Feature splitting into independently shippable slices is several runs, never one bundling them (D6)
+  text:
+  - Feature splitting into independently shippable slices is several runs, never one bundling them (D6)
+- id: ft-lane-versions
+  # class: prose
+  baseline: 'Two lane versions share this text (`.fabrik/lane.json`; `start` prints which); Lane v1 (a repo pinning `{"version": 1}`) is the old file-count gate; `command-run-protocol.md:52`''s `start` row'
+  current: 'Two lane versions share this text (`.fabrik/lane.json`; `start` prints which): lane v1 (repo pinning `{"version": 1}`) is old file-count gate (`command-run-protocol.md:52`''s `start` row)'
+  text:
+  - 'Two lane versions share this text (`.fabrik/lane.json`; `start` prints which): lane v1 (repo pinning `{"version": 1}`) is old file-count gate (`command-run-protocol.md:52`''s `start` row)'
+- id: ft-lane-v2-mechanisms
+  # class: ban
+  baseline: 'Lane v2 replaces the file count with the module tests and adds every *(v2)*-tagged mechanism below: the `consumers=` key, `--appetite`/`--why`/`--from-downgrade`, `--design-amend`, the undeclared-path REFUSAL, the space-separated multi-commit close, `--review`, and the Behaviours UPGRADE''s four close-raised tokens'
+  current: 'Lane v2 replaces file count with module tests, adding *(v2)*-tagged mechanisms: `consumers=`, `--appetite`/`--why`/`--from-downgrade`, `--design-amend`, undeclared-path REFUSAL, the space-separated multi-commit close, `--review`, and the Behaviours UPGRADE''s four close-raised tokens'
+  text:
+  - 'Lane v2 replaces file count with module tests, adding *(v2)*-tagged mechanisms: `consumers=`, `--appetite`/`--why`/`--from-downgrade`, `--design-amend`, undeclared-path REFUSAL, the space-separated multi-commit close, `--review`, and the Behaviours UPGRADE''s four close-raised tokens'
+- id: ft-lane-start-done-refused
+  # class: ban
+  baseline: ⚠️ Neither generic line above is this lane's; `command_run.py` REFUSES a `fabrik-task` `start` without `--file`/`--declare` and a `done` without `--commit`; paste the SIZE line and phase 5's close
+  current: '⚠️ Neither generic line above is this lane''s: `command_run.py` REFUSES a `fabrik-task` `start` without `--file`/`--declare` and a `done` without `--commit`; paste SIZE line and phase 5''s close'
+  text:
+  - '⚠️ Neither generic line above is this lane''s: `command_run.py` REFUSES a `fabrik-task` `start` without `--file`/`--declare` and a `done` without `--commit`; paste SIZE line and phase 5''s close'
+- id: ft-handoff-third-terminal
+  # class: prose
+  baseline: '`handoff` is the record''s third sanctioned terminal (`AGENT_CLOSED_STATES`): UPGRADE uses it'
+  current: '`handoff` is record''s third sanctioned terminal (`AGENT_CLOSED_STATES`): UPGRADE uses it'
+  text:
+  - '`handoff` is record''s third sanctioned terminal (`AGENT_CLOSED_STATES`): UPGRADE uses it'
+- id: ft-durable-is-scratch
+  # class: ban
+  baseline: '`<durable>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a WSL `/tmp` wipe and the worktree''s removal), never `RUN-SCRATCH:`; one spelling, or phase 5''s `cat` reads a path phase 2 never wrote'
+  current: '`<durable>` is `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, surviving WSL `/tmp` wipe and worktree''s removal), never `RUN-SCRATCH:`: one spelling, or phase 5''s `cat` reads path phase 2 never wrote'
+  text:
+  - '`<durable>` is `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, surviving WSL `/tmp` wipe and worktree''s removal), never `RUN-SCRATCH:`: one spelling, or phase 5''s `cat` reads path phase 2 never wrote'
+- id: ft-worktree-scratch-copy
+  # class: ban
+  baseline: a linked-worktree session, whose Write tool refuses a main-checkout path, changes each file as a copy in its scratchpad (`cp` it from that path first when it exists) and `cp`s the whole copy back after every change, which keeps any content byte for byte; with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp)
+  current: Linked-worktree session, whose Write tool refuses a main-checkout path, changes each file as a copy in its scratchpad (`cp` it from that path first when it exists) and `cp`s the whole copy back after every change, which keeps any content byte for byte; with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` in /tmp
+  text:
+  - Linked-worktree session, whose Write tool refuses a main-checkout path, changes each file as a copy in its scratchpad (`cp` it from that path first when it exists) and `cp`s the whole copy back after every change, which keeps any content byte for byte; with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` in /tmp
+- id: ft-size-lane-table
+  # class: prose
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: 'Apply the lane table (`CLAUDE.md` § Orient step 0) to the smallest change that discharges the ask, before drafting; Then open the record:'
+  current: 'Apply lane table (`CLAUDE.md` § Orient step 0) to smallest change, before drafting, then open record:'
+  text:
+  - 'Apply lane table (`CLAUDE.md` § Orient step 0) to smallest change, before drafting, then open record:'
+- id: ft-size-start-line
+  # class: behavioural
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: python3 scripts/command_run.py start --command fabrik-task --phases 5 \ ⏎ --terminal "<the one-line condition that ends this run>" \ ⏎ --surface "<the subject, one phrase>" \ ⏎ --file "<path 1>" --file "<path 2>" \ ⏎ --declare decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no,consumers=internal
+  current: python3 scripts/command_run.py start --command fabrik-task --phases 5 \ ⏎ --terminal "<the one-line condition that ends this run>" \ ⏎ --surface "<the subject, one phrase>" \ ⏎ --file "<path 1>" --file "<path 2>" \ ⏎ --declare decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no,consumers=internal
+  text:
+  - python3 scripts/command_run.py start --command fabrik-task --phases 5 \ ⏎ --terminal "<the one-line condition that ends this run>" \ ⏎ --surface "<the subject, one phrase>" \ ⏎ --file "<path 1>" --file "<path 2>" \ ⏎ --declare decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no,consumers=internal
+- id: ft-size-consumers
+  # class: prose
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: '*(v2)* `consumers=external` when another repo reads the change; v1 ignores the key'
+  current: '*(v2)* `consumers=external` when another repo reads it; v1 ignores key'
+  text:
+  - '*(v2)* `consumers=external` when another repo reads it; v1 ignores key'
+- id: ft-size-heavy-operator-named
+  # class: prose
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: '`heavy=yes` includes operator-named work (lane row 1b), declared here rather than found at phase 4'
+  current: '`heavy=yes` includes operator-named work (lane row 1b), declared here, not found at phase 4'
+  text:
+  - '`heavy=yes` includes operator-named work (lane row 1b), declared here, not found at phase 4'
+- id: ft-size-file-repeatable
+  # class: prose
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: '`--file` is repeatable, ONE quoted repo path each'
+  current: '`--file` is repeatable, ONE quoted repo path each'
+  text:
+  - '`--file` is repeatable, ONE quoted repo path each'
+- id: ft-size-new-path-declared
+  # class: ban
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: 'A path that does not exist yet is accepted on purpose: declare the grader you are about to write, `git check-ignore -v` each new file path and `git add` it just before phase 5''s pathspec commit, which refuses an unstaged one (an ignored one stays out without `-f`); `ls` and grep every other path for the rule first, since a typo reads as that grader; a golden or snapshot that pins the output is declared too'
+  current: 'Path that does not exist yet is accepted on purpose: declare grader you are about to write, `git check-ignore -v` each new file path and `git add` it just before phase 5''s pathspec commit, which refuses an unstaged one (an ignored one stays out without `-f`); `ls` and grep every other path first, since typo reads as that grader; golden or snapshot that pins output is declared too'
+  text:
+  - 'Path that does not exist yet is accepted on purpose: declare grader you are about to write, `git check-ignore -v` each new file path and `git add` it just before phase 5''s pathspec commit, which refuses an unstaged one (an ignored one stays out without `-f`); `ls` and grep every other path first, since typo reads as that grader; golden or snapshot that pins output is declared too'
+- id: ft-size-code-surface-only
+  # class: ban
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: Declare the CODE surface ONLY; the close excludes the Doc Sync Matrix destinations, the ledger files and `docs/CAPABILITIES.md`, so declaring `CHANGELOG.md` burns a slot and can refuse the start on a sibling's WIP
+  current: 'Declare CODE surface ONLY: the close excludes Doc Sync Matrix destinations, ledger files and `docs/CAPABILITIES.md`, so declaring `CHANGELOG.md` burns slot and can refuse the start on a sibling''s WIP'
+  text:
+  - 'Declare CODE surface ONLY: the close excludes Doc Sync Matrix destinations, ledger files and `docs/CAPABILITIES.md`, so declaring `CHANGELOG.md` burns slot and can refuse the start on a sibling''s WIP'
+- id: ft-size-tool-prints
+  # class: ban
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: 'The tool prints either CORRECTIONS, each naming itself (a DIRTY declared path may be a sibling''s WIP; message the author, never stage it), or a LANE verdict naming where the work belongs; Read every line: flag gaps print together, path checks stop at the first'
+  current: 'Tool prints either CORRECTIONS, each naming itself (DIRTY declared path may be sibling''s WIP; message author, never stage it), or a LANE verdict naming where the work belongs; read every line: flag gaps print together, path checks stop at first'
+  text:
+  - 'Tool prints either CORRECTIONS, each naming itself (DIRTY declared path may be sibling''s WIP; message author, never stage it), or a LANE verdict naming where the work belongs; read every line: flag gaps print together, path checks stop at first'
+- id: ft-size-sync-skipped
+  # class: prose
+  # clauses: {1: narrative}
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: ⚠️ `sync lane test SKIPPED` on stderr means the hub filter was unreadable
+  current: ⚠️ `sync lane test SKIPPED` on stderr means hub filter was unreadable
+  text:
+  - ⚠️ `sync lane test SKIPPED` on stderr means hub filter was unreadable
+- id: ft-size-refusal-is-answer
+  # class: ban
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: 'A refusal is the answer, not an obstacle: take the named lane, no record was opened; On success it prints `RECORD: <started_at>` and `SCRATCH: <path>`; the second is `<durable>`'
+  current: 'Refusal is the answer, not an obstacle: take the named lane, no record was opened; on success it prints `RECORD: <started_at>` and `SCRATCH: <path>`, second being `<durable>`'
+  text:
+  - 'Refusal is the answer, not an obstacle: take the named lane, no record was opened; on success it prints `RECORD: <started_at>` and `SCRATCH: <path>`, second being `<durable>`'
+- id: ft-size-cobra
+  # class: prose
+  section: '## SIZE — phase 0 is the `start` itself'
+  baseline: ⚠️ COBRA (D-253). The cheapest way to satisfy this gate without producing the outcome is to UNDER-DECLARE here and touch more at phase 3; the counter is phase 5's re-measure of this run's own commit; All twelve cobras and their counters are § Constraints C3 of `/opt/fabrik/docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`
+  current: '⚠️ COBRA (D-253). Cheapest way to satisfy this gate without producing outcome is to UNDER-DECLARE here and touch more at phase 3; counter is phase 5''s re-measure of this run''s own commit (all twelve cobras: § Constraints C3 of `/opt/fabrik/docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`)'
+  text:
+  - '⚠️ COBRA (D-253). Cheapest way to satisfy this gate without producing outcome is to UNDER-DECLARE here and touch more at phase 3; counter is phase 5''s re-measure of this run''s own commit (all twelve cobras: § Constraints C3 of `/opt/fabrik/docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`)'
+- id: ft-measure-failure-replay
+  # class: ban
+  section: '## Phase 1 — MEASURE'
+  baseline: FIX DIRECTIVE step 1 whole; a failure reported with a command is replayed by that command, never a reconstruction, and a work item's cited `path:line` is grepped here, in the cited file, for the symbol it names, and a failure or error path it claims there is replayed on a copy carrying the state it needs (a grep hit can sit in dead code)
+  current: 'FIX DIRECTIVE step 1 whole: failure reported with command is replayed by that command, never a reconstruction, and a work item''s cited `path:line` is grepped here, in the cited file, for the symbol it names, and a failure or error path it claims there is replayed on a copy carrying the state it needs (a grep hit can sit in dead code)'
+  text:
+  - 'FIX DIRECTIVE step 1 whole: failure reported with command is replayed by that command, never a reconstruction, and a work item''s cited `path:line` is grepped here, in the cited file, for the symbol it names, and a failure or error path it claims there is replayed on a copy carrying the state it needs (a grep hit can sit in dead code)'
+- id: ft-measure-miss-is-finding
+  # class: ban
+  section: '## Phase 1 — MEASURE'
+  baseline: a miss, or a replay on a copy carrying that state that does not fail as claimed, is a finding PROBLEM states, never the item's wording, and a replay whose copy cannot carry that state is recorded unverified, never as refuted (MIRROR greps every name the design uses again)
+  current: Miss, or replay on copy carrying that state not failing as claimed, is finding PROBLEM states, never the item's wording, and a replay whose copy cannot carry that state is recorded unverified, never as refuted (MIRROR greps every name the design uses again)
+  text:
+  - Miss, or replay on copy carrying that state not failing as claimed, is finding PROBLEM states, never the item's wording, and a replay whose copy cannot carry that state is recorded unverified, never as refuted (MIRROR greps every name the design uses again)
+- id: ft-measure-proposed-fix-replayed
+  # class: prose
+  section: '## Phase 1 — MEASURE'
+  baseline: A fix the item proposes, and a prior slice's stated reason the design builds on, are replayed the same way, on a copy, before the design adopts either; a replay that overturns either is stated in PROBLEM
+  current: Fix item proposes and prior slice's stated reason are replayed on copy before design adopts either; replay overturning either is stated in PROBLEM
+  text:
+  - Fix item proposes and prior slice's stated reason are replayed on copy before design adopts either; replay overturning either is stated in PROBLEM
+- id: ft-measure-unreachable-tool
+  # class: ban
+  section: '## Phase 1 — MEASURE'
+  baseline: An unreachable tool's server source, where one exists, is read before a claim is recorded unverified, and the read never upgrades it
+  current: Unreachable tool's server source, where one exists, is read before claim is recorded unverified, and read never upgrades it
+  text:
+  - Unreachable tool's server source, where one exists, is read before claim is recorded unverified, and read never upgrades it
+- id: ft-measure-record-to-file
+  # class: ban
+  section: '## Phase 1 — MEASURE'
+  baseline: 'Then, before phase 2 and any edit, each command and its output goes to `<durable>/measure.md`, beside phase 2''s `design.md`, never in it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that import, grade or run the declared files (grep the tests for each file''s name and every mode or flag the change extends, since a test that runs a script by subprocess never imports it), that slice and never the whole suite (a red now is pre-existing)'
+  current: 'Before phase 2 and any edit, each command and its output goes to `<durable>/measure.md`, beside phase 2''s `design.md`, never in it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that import, grade or run the declared files (grep the tests for each file''s name and every mode or flag the change extends, since a test that runs a script by subprocess never imports it), that slice and never the whole suite (a red now is pre-existing)'
+  text:
+  - 'Before phase 2 and any edit, each command and its output goes to `<durable>/measure.md`, beside phase 2''s `design.md`, never in it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that import, grade or run the declared files (grep the tests for each file''s name and every mode or flag the change extends, since a test that runs a script by subprocess never imports it), that slice and never the whole suite (a red now is pre-existing)'
+- id: ft-measure-fetch-diff
+  # class: prose
+  section: '## Phase 1 — MEASURE'
+  baseline: '`git fetch` and the declared paths diffed against the remote branch the work merges into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote)'
+  current: '`git fetch`, declared paths diffed against remote branch work merges into (`origin/master` in hub; elsewhere name ref chosen, or say no remote)'
+  text:
+  - '`git fetch`, declared paths diffed against remote branch work merges into (`origin/master` in hub; elsewhere name ref chosen, or say no remote)'
+- id: ft-measure-prior-record
+  # class: prose
+  section: '## Phase 1 — MEASURE'
+  baseline: the prior record grepped; `docs/DECISIONS.md`, the files' docstrings (and a copied script's), `/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack the rule already lives in; each searched by the item's id too, plans and specs included
+  current: 'Prior record grepped: `docs/DECISIONS.md`, files'' docstrings (and copied script''s), `/opt/fabrik-mail/<repo>/archive`, work store, fragment or pack rule lives in, each searched by item''s id too, plans and specs included'
+  text:
+  - 'Prior record grepped: `docs/DECISIONS.md`, files'' docstrings (and copied script''s), `/opt/fabrik-mail/<repo>/archive`, work store, fragment or pack rule lives in, each searched by item''s id too, plans and specs included'
+- id: ft-measure-population
+  # class: ban
+  section: '## Phase 1 — MEASURE'
+  baseline: 'the population the change writes or thresholds measured (its readers are MIRROR''s); every writer, every occurrence of the shape it admits, every host it runs on, every config and env value a changed format can sit in (grep them for its shape, e.g. `${`), the transport handing a new env var to the process (compose `environment:`, `env_file`, a build arg, another launcher) read on the started process (e.g. `docker compose run --rm <svc> env`, its keys recorded, never its values), and the n behind any rate, bound or zero the design will claim (a count is no fail direction: before a no-change verdict rests on one, the inputs the grammar admits and the corpus lacks are constructed and run)'
+  current: 'Population change writes or thresholds measured (readers are MIRROR''s): every writer, occurrence of shape it admits and host, every config and env value changed format can sit in (grep for its shape, `${`), env transport (compose `environment:`, `env_file`, build arg, another launcher) read on started process (`docker compose run --rm <svc> env`, its keys recorded, never its values), and the n behind any rate, bound or zero the design will claim (a count is no fail direction: before a no-change verdict rests on one, the inputs the grammar admits and the corpus lacks are constructed and run)'
+  text:
+  - 'Population change writes or thresholds measured (readers are MIRROR''s): every writer, occurrence of shape it admits and host, every config and env value changed format can sit in (grep for its shape, `${`), env transport (compose `environment:`, `env_file`, build arg, another launcher) read on started process (`docker compose run --rm <svc> env`, its keys recorded, never its values), and the n behind any rate, bound or zero the design will claim (a count is no fail direction: before a no-change verdict rests on one, the inputs the grammar admits and the corpus lacks are constructed and run)'
+- id: ft-measure-contracts-live
+  # class: ban
+  section: '## Phase 1 — MEASURE'
+  baseline: each external contract probed live once, a list read whole, never a sample
+  current: Each external contract probed live once, list read whole, never a sample
+  text:
+  - Each external contract probed live once, list read whole, never a sample
+- id: ft-measure-execute-real-path
+  # class: ban
+  section: '## Phase 1 — MEASURE'
+  baseline: 'each by EXECUTING the real path on real data (the producer''s code, the tool''s run output per mode, the design''s own classifier, the writer of each state value it trusts or ranks on), never a source read or a proxy: the tests that drive it by subprocess, the completion gate''s own command, a surfaced outcome run twice and traced to the line the operator reads, a recipe''s real target layout, the reported incident replayed on a copy one step past its symptom (what the reporter did next), a tool that scopes by a commit or diff range run where the branch''s merge-base is its merge target''s tip and where the target has moved past it, each spelling of a parsed input that the commands and docs feeding it prescribe, a mechanism copied from another script run read-only against the live state of each host it will run on (a side-effecting step on a copy), each callee a fail-open branch wraps and how it fails, whether a production path reaches the text, what a concurrent reader sees mid-write, a before/after hash of every file it writes, the codec a change touches run on non-UTF-8 bytes, NUL and that codec''s own escape, an independent parser for a parsed format (every probe run under an interpreter shown to import its libraries and each extra it enables: a system `python3` may lack one), its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded) and per artifact class, whose commits a gate''s new scope holds, and the whole output, not one field, with each hook output it grows sized against Claude Code''s 10,000-character cap (https://code.claude.com/docs/en/hooks)'
+  current: 'Each by EXECUTING real path on real data (producer''s code, tool''s run output per mode, design''s own classifier, writer of each state value it trusts or ranks on), never a source read or a proxy: the tests that drive it by subprocess, the completion gate''s own command, a surfaced outcome run twice and traced to the line the operator reads, a recipe''s real target layout, the reported incident replayed on a copy one step past its symptom (what the reporter did next), a tool that scopes by a commit or diff range run where the branch''s merge-base is its merge target''s tip and where the target has moved past it, each spelling of a parsed input that the commands and docs feeding it prescribe, a mechanism copied from another script run read-only against the live state of each host it will run on (a side-effecting step on a copy), each callee a fail-open branch wraps and how it fails, whether a production path reaches the text, what a concurrent reader sees mid-write, a before/after hash of every file it writes, the codec a change touches run on non-UTF-8 bytes, NUL and that codec''s own escape, an independent parser for a parsed format (every probe run under an interpreter shown to import its libraries and each extra it enables: a system `python3` may lack one), its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded) and per artifact class, whose commits a gate''s new scope holds, and the whole output, not one field, with each hook output it grows sized against Claude Code''s 10,000-character cap (https://code.claude.com/docs/en/hooks)'
+  text:
+  - 'Each by EXECUTING real path on real data (producer''s code, tool''s run output per mode, design''s own classifier, writer of each state value it trusts or ranks on), never a source read or a proxy: the tests that drive it by subprocess, the completion gate''s own command, a surfaced outcome run twice and traced to the line the operator reads, a recipe''s real target layout, the reported incident replayed on a copy one step past its symptom (what the reporter did next), a tool that scopes by a commit or diff range run where the branch''s merge-base is its merge target''s tip and where the target has moved past it, each spelling of a parsed input that the commands and docs feeding it prescribe, a mechanism copied from another script run read-only against the live state of each host it will run on (a side-effecting step on a copy), each callee a fail-open branch wraps and how it fails, whether a production path reaches the text, what a concurrent reader sees mid-write, a before/after hash of every file it writes, the codec a change touches run on non-UTF-8 bytes, NUL and that codec''s own escape, an independent parser for a parsed format (every probe run under an interpreter shown to import its libraries and each extra it enables: a system `python3` may lack one), its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded) and per artifact class, whose commits a gate''s new scope holds, and the whole output, not one field, with each hook output it grows sized against Claude Code''s 10,000-character cap (https://code.claude.com/docs/en/hooks)'
+- id: ft-measure-grader-red
+  # class: prose
+  section: '## Phase 1 — MEASURE'
+  baseline: a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing until it can fail
+  current: Grader design relies on is shown red on broken input, since pass proves nothing until it can fail
+  text:
+  - Grader design relies on is shown red on broken input, since pass proves nothing until it can fail
+- id: ft-measure-select-rules
+  # class: prose
+  # clauses: {1: narrative}
+  section: '## Phase 1 — MEASURE'
+  baseline: Then `python scripts/select_rules.py --changed <the declared paths>`; and READ the packs it prints
+  current: Then `python scripts/select_rules.py --changed <the declared paths>` and READ packs it prints
+  text:
+  - Then `python scripts/select_rules.py --changed <the declared paths>` and READ packs it prints
+- id: ft-design-six-fields
+  # class: prose
+  section: '## Phase 2 — DESIGN, where it will be minted'
+  baseline: Write six fields; PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL; to `<durable>/design.md`
+  current: Write six fields — PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL — to `<durable>/design.md`
+  text:
+  - Write six fields — PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL — to `<durable>/design.md`
+- id: ft-design-copied-mechanism
+  # class: prose
+  section: '## Phase 2 — DESIGN, where it will be minted'
+  baseline: A mechanism copied from another script carries, as Behaviours tested here (several may share one), the failure directions its tests and D-rows settled
+  current: Mechanism copied from another script carries, as Behaviours tested here, failure directions its tests and D-rows settled
+  text:
+  - Mechanism copied from another script carries, as Behaviours tested here, failure directions its tests and D-rows settled
+- id: ft-design-read-before-copy
+  # class: prose
+  section: '## Phase 2 — DESIGN, where it will be minted'
+  baseline: Before such a copy, a rule another component already applies is tried as a read of its output (stdout, a record, an exported function); when the copy stays, DECISION says why the read cannot serve
+  current: Before such copy, rule another component already applies is tried as read of its output; when copy stays, DECISION says why read cannot serve
+  text:
+  - Before such copy, rule another component already applies is tried as read of its output; when copy stays, DECISION says why read cannot serve
+- id: ft-design-input-table
+  # class: prose
+  section: '## Phase 2 — DESIGN, where it will be minted'
+  baseline: 'Each input the design branches on is tabulated whole in a `design.md` table, outside the Behaviours list: every value a state it reads can hold, the unit another tool''s rule is evaluated per (window, agent, repo), every path through a guard (a forced refresh after a write as well as the periodic one)'
+  current: 'Each input design branches on is tabulated whole in `design.md` table, outside Behaviours list: every value state it reads can hold, unit another tool''s rule is evaluated per (window, agent, repo), every path through guard (forced refresh after write as well as periodic one)'
+  text:
+  - 'Each input design branches on is tabulated whole in `design.md` table, outside Behaviours list: every value state it reads can hold, unit another tool''s rule is evaluated per (window, agent, repo), every path through guard (forced refresh after write as well as periodic one)'
+- id: ft-design-parser-grammar
+  # class: prose
+  section: '## Phase 2 — DESIGN, where it will be minted'
+  baseline: a parser it adds takes a strict grammar and fails closed on the rest; That grammar admits every spelling MEASURE recorded
+  current: Parser it adds takes strict grammar admitting every spelling MEASURE recorded and failing closed on rest
+  text:
+  - Parser it adds takes strict grammar admitting every spelling MEASURE recorded and failing closed on rest
+- id: ft-design-table-live-rows
+  # class: ban
+  section: '## Phase 2 — DESIGN, where it will be minted'
+  baseline: Beside each input the table records its live row count, the values those rows hold and the duplicates of any key the design cuts rows by, from an executed read of those rows, never assumed
+  current: Beside each input table records its live row count, values those rows hold and duplicates of any key design cuts rows by, from executed read of those rows, never assumed
+  text:
+  - Beside each input table records its live row count, values those rows hold and duplicates of any key design cuts rows by, from executed read of those rows, never assumed
+- id: ft-design-marker-block-states
+  # class: ban
+  section: '## Phase 2 — DESIGN, where it will be minted'
+  baseline: A marker-block or append-only file the change writes is tabled absent, begin without end, end without begin, nested and duplicate
+  current: Marker-block or append-only file the change writes is tabled absent, begin without end, end without begin, nested and duplicate
+  text:
+  - Marker-block or append-only file the change writes is tabled absent, begin without end, end without begin, nested and duplicate
+- id: ft-design-parser-tag-quoted
+  # class: prose
+  section: '## Phase 2 — DESIGN, where it will be minted'
+  baseline: So is each tag a parser it adds or extends reads, plus that tag quoted inside its own content
+  current: So is each tag parser it adds or extends reads, plus that tag quoted inside its own content
+  text:
+  - So is each tag parser it adds or extends reads, plus that tag quoted inside its own content
+- id: ft-design-plan-locks
+  # class: prose
+  section: '## Phase 2 — DESIGN, where it will be minted'
+  baseline: 'Before the critique seats below are stamped, read the plan locks (no CLI does: each `*.json` in `.fabrik/plan-locks/` with `status: active`); a declared path or one backticked in APPROACH/MIRROR inside another lock''s `owned_paths` is a STOP, and so is an ACTIVE lock whose `owned_paths` is empty or absent (it matches nothing and passes everything), so a locked path stops the run before a seat is spent'
+  current: 'Before critique seats are stamped, read plan locks (each `*.json` in `.fabrik/plan-locks/` with `status: active`): declared path or one backticked in APPROACH/MIRROR inside another lock''s `owned_paths` is STOP, and so is ACTIVE lock whose `owned_paths` is empty or absent'
+  text:
+  - 'Before critique seats are stamped, read plan locks (each `*.json` in `.fabrik/plan-locks/` with `status: active`): declared path or one backticked in APPROACH/MIRROR inside another lock''s `owned_paths` is STOP, and so is ACTIVE lock whose `owned_paths` is empty or absent'
+  ordered:
+  - ft-design-plan-locks
+  - ft-design-pre-seat-checklist
+  - ft-design-brief-execute
+  - ft-design-before-record
+  - ft-design-step-line
+- id: ft-design-pre-seat-checklist
+  # class: ban
+  baseline: 'Before the seats go out: re-read `design.md` against the working tree; DECISION names its evidence and whether it is independent of the change; a shipped config is executed; the fixtures a grader borrows are listed with what each stubs; the existing suites run against a throwaway scratch build of a new refusal (not phase 3)'
+  current: 'Before seats go out: re-read `design.md` against working tree; DECISION names its evidence and whether independent of change; shipped config is executed; borrowed fixtures are listed with what each stubs; existing suites run against throwaway scratch build of new refusal (not phase 3)'
+  text:
+  - 'Before seats go out: re-read `design.md` against working tree; DECISION names its evidence and whether independent of change; shipped config is executed; borrowed fixtures are listed with what each stubs; existing suites run against throwaway scratch build of new refusal (not phase 3)'
+- id: ft-design-brief-execute
+  # class: ban
+  baseline: 'This lane''s brief also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher, semantics or shell claim against the real tool under the live guard, a new parser on input outside its grammar; sweep sibling write paths and the tests pinning a moved value; name each new guard''s fail direction and any second approach the build cannot settle; run a mechanism the design copies read-only against the live state of each host it will run on (a side-effecting step on a copy); execute one claim about every external dependency (both seats are `fabrik-reviewer`, with no web tool: the lead fetches a provider-docs fact into the brief)'
+  current: 'This lane''s brief has each seat EXECUTE: replay reported incident and real corpus through design; run each matcher, semantics or shell claim against real tool under live guard, new parser on input outside its grammar; sweep sibling write paths and tests pinning moved value; name each new guard''s fail direction and any second approach build cannot settle; run mechanism design copies read-only against the live state of each host it will run on (a side-effecting step on a copy); execute one claim about every external dependency (both seats are `fabrik-reviewer`, with no web tool: lead fetches provider-docs fact into brief)'
+  text:
+  - 'This lane''s brief has each seat EXECUTE: replay reported incident and real corpus through design; run each matcher, semantics or shell claim against real tool under live guard, new parser on input outside its grammar; sweep sibling write paths and tests pinning moved value; name each new guard''s fail direction and any second approach build cannot settle; run mechanism design copies read-only against the live state of each host it will run on (a side-effecting step on a copy); execute one claim about every external dependency (both seats are `fabrik-reviewer`, with no web tool: lead fetches provider-docs fact into brief)'
+- id: ft-design-brief-pins-tree
+  # class: prose
+  baseline: It pins the tree (a commit or `git archive` copy) and any live state file the design reads, names the unmerged branch owning a mirrored file, bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small outputs
+  current: It pins tree (commit or `git archive` copy) and any live state file design reads, names unmerged branch owning mirrored file, bars live-provider credentials (no `.env` loaded) and asks for small outputs
+  text:
+  - It pins tree (commit or `git archive` copy) and any live state file design reads, names unmerged branch owning mirrored file, bars live-provider credentials (no `.env` loaded) and asks for small outputs
+- id: ft-design-wait-in-turn
+  # class: prose
+  baseline: 'Wait for both in-turn: with stamped seats out, the Stop hook''s run-record block stands down and will not hold you'
+  current: 'Wait for both in-turn: with stamped seats out, Stop hook''s run-record block stands down'
+  text:
+  - 'Wait for both in-turn: with stamped seats out, Stop hook''s run-record block stands down'
+- id: ft-design-concern-accepted
+  # class: ban
+  baseline: A concern is ACCEPTED only after the tests are grepped for every line it touches; an optional one adding behaviour only when provable inside the declared files, else filed to its owner; a later executed review finding may override it, recorded in the D-row with the drift noted
+  current: Concern is ACCEPTED only after the tests are grepped for every line it touches; optional one adding behaviour only when provable inside the declared files, else filed to its owner; later executed review finding may override it, recorded in D-row
+  text:
+  - Concern is ACCEPTED only after the tests are grepped for every line it touches; optional one adding behaviour only when provable inside the declared files, else filed to its owner; later executed review finding may override it, recorded in D-row
+- id: ft-design-second-approach
+  # class: ban
+  baseline: A second approach the build cannot settle (an equivalent implementation is not one), its seat's claim executed and holding, is the § UPGRADE crossing `tradeoffs`, taken here before `--design`, never folded in as ACCEPTED
+  current: Second approach build cannot settle (equivalent implementation is not one), its seat's claim executed and holding, is § UPGRADE crossing `tradeoffs`, taken here before `--design`, never folded in as ACCEPTED
+  text:
+  - Second approach build cannot settle (equivalent implementation is not one), its seat's claim executed and holding, is § UPGRADE crossing `tradeoffs`, taken here before `--design`, never folded in as ACCEPTED
+- id: ft-design-before-record
+  # class: prose
+  baseline: 'Then, before this call: re-read `design.md`, and `--terminal` against its TERMINAL as MEASURE and the critiques left it (a change rides this call as the `--terminal-amend` below); the lock check again, on every path (a critique may add one, and a lock may be taken while the seats ran); each Behaviour names its test; every touched path is bare in backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE; Record them:'
+  current: 'Before this call: re-read `design.md`, and `--terminal` against its TERMINAL as MEASURE and critiques left it (change rides as `--terminal-amend`); lock check again, on every path (critique may add one); each Behaviour names its test; every touched path is bare in backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE; record them:'
+  text:
+  - 'Before this call: re-read `design.md`, and `--terminal` against its TERMINAL as MEASURE and critiques left it (change rides as `--terminal-amend`); lock check again, on every path (critique may add one); each Behaviour names its test; every touched path is bare in backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE; record them:'
+- id: ft-design-step-line
+  # class: behavioural
+  baseline: 'python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \ ⏎ --design <durable>/design.md'
+  current: 'python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \ ⏎ --design <durable>/design.md'
+  text:
+  - 'python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \ ⏎ --design <durable>/design.md'
+- id: ft-design-terminal-amend
+  # class: ban
+  baseline: If MEASURE or the critiques changed what ends the run, restate it with `--terminal-amend "<one line>"` on that `--design` call or any step before it; refused once the design is recorded, so no run moves its goal to fit the result; `terminal_amends` keeps the old one
+  current: If MEASURE or critiques changed what ends run, restate it with `--terminal-amend "<one line>"` on that `--design` call or any step before it — refused once the design is recorded, so no run moves its goal to fit the result; `terminal_amends` keeps old one
+  text:
+  - If MEASURE or critiques changed what ends run, restate it with `--terminal-amend "<one line>"` on that `--design` call or any step before it — refused once the design is recorded, so no run moves its goal to fit the result; `terminal_amends` keeps old one
+- id: ft-design-no-decision-amend
+  # class: prose
+  baseline: 'There is no DECISION amend: the design is recorded after the critiques fold'
+  current: 'There is no DECISION amend: design is recorded after critiques fold'
+  text:
+  - 'There is no DECISION amend: design is recorded after critiques fold'
+- id: ft-design-stores-text
+  # class: prose
+  # clauses: {1: narrative}
+  baseline: '`--design` stores that file''s TEXT whole (no cap'
+  current: '`--design` stores that file''s TEXT whole (no cap)'
+  text:
+  - '`--design` stores that file''s TEXT whole (no cap)'
+- id: ft-design-refusal-discards
+  # class: ban
+  baseline: 'A refusal discards the `step`: fix the file and re-run, or the record stays at phase 1. A second `--design` is ignored, with only a NOTE'
+  current: 'Refusal discards the `step`: fix the file and re-run, or the record stays at phase 1. A second `--design` is ignored, with only a NOTE'
+  text:
+  - 'Refusal discards the `step`: fix the file and re-run, or the record stays at phase 1. A second `--design` is ignored, with only a NOTE'
+- id: ft-design-behaviours-cap
+  # class: prose
+  baseline: Add a `## Behaviours` list; each naming its test, at most 7 (an 8th is the `behaviours` UPGRADE, *(v2)*)
+  current: Add `## Behaviours` list, each naming its test, at most 7 (8th is `behaviours` UPGRADE, *(v2)*)
+  text:
+  - Add `## Behaviours` list, each naming its test, at most 7 (8th is `behaviours` UPGRADE, *(v2)*)
+- id: ft-design-paths-named
+  # class: ban
+  baseline: 'and name every file the build will touch, the Behaviours'' tests, deletions and a rename''s both paths included, under line-start UPPERCASE `APPROACH:`/`MIRROR:` labels, before any line opening with a field word or a `#` (fenced or not), one bare repo-relative path per backtick pair (`a.py::f`, `a.py:120` and `a.py, b.py` match nothing; a `.md` under `docs/development/reviews/` but `archived/` is exempt): *(v2)* a committed path missing from both REFUSES `done` at close (v1 measures `--file` instead and only RECORDS); the remedy is `step --phase <the current phase> --design-amend <path>` *(v2)*, append-only; it never overwrites a recorded field; and counted on the close as `design_amends`'
+  current: 'Name every file build will touch, Behaviours'' tests, deletions and rename''s both paths included, under line-start UPPERCASE `APPROACH:`/`MIRROR:` labels, before any line opening with field word or `#` (fenced or not), one bare repo-relative path per backtick pair (`a.py::f`, `a.py:120` and `a.py, b.py` match nothing; `.md` under `docs/development/reviews/` but `archived/` is exempt): *(v2)* committed path missing from both REFUSES `done` at close (v1 measures `--file` instead and only RECORDS); the remedy is `step --phase <the current phase> --design-amend <path>` *(v2)*, append-only — it never overwrites a recorded field — and counted on close as `design_amends`'
+  text:
+  - 'Name every file build will touch, Behaviours'' tests, deletions and rename''s both paths included, under line-start UPPERCASE `APPROACH:`/`MIRROR:` labels, before any line opening with field word or `#` (fenced or not), one bare repo-relative path per backtick pair (`a.py::f`, `a.py:120` and `a.py, b.py` match nothing; `.md` under `docs/development/reviews/` but `archived/` is exempt): *(v2)* committed path missing from both REFUSES `done` at close (v1 measures `--file` instead and only RECORDS); the remedy is `step --phase <the current phase> --design-amend <path>` *(v2)*, append-only — it never overwrites a recorded field — and counted on close as `design_amends`'
+- id: ft-design-amend-top-record
+  # class: ban
+  baseline: The amend runs while the `fabrik-task` record is the top one, never under a nested run
+  current: Amend runs while `fabrik-task` record is top one, never under a nested run
+  text:
+  - Amend runs while `fabrik-task` record is top one, never under a nested run
+- id: ft-mirror-mandatory
+  # class: ban
+  baseline: MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what changes; callers, each branch of a changed function, every resolver of the same identity, consumers of a moved or deleted file, other surfaces stating a changed claim, the gates that grade it; each found by an executed search, with the shape it now fails on and its cost measured, never estimated
+  current: MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what changes — callers, each branch of changed function, every resolver of same identity, consumers of moved or deleted file, other surfaces stating changed claim, gates that grade it — each found by executed search, with shape it now fails on and its cost measured, never estimated
+  text:
+  - MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what changes — callers, each branch of changed function, every resolver of same identity, consumers of moved or deleted file, other surfaces stating changed claim, gates that grade it — each found by executed search, with shape it now fails on and its cost measured, never estimated
+- id: ft-mirror-search-scope
+  # class: ban
+  baseline: The search is the whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs), every other `/opt` main checkout's tests and CI files citing a changed path, and every vendored copy outside it (`find /opt` by the file's name, `.claude/worktrees/` counted apart) under every spelling of the identifier and its rule's key verbs; the literal path beside any constant, every party a text reaches, every reader of a changed record shape or stdout (grep its tests for `== {` and `len(`), every Python reader of a name by an `ast.walk` census beside the grep, never `tree.body` alone (a function-local or `try:` import sits below it; a string-named import, `getattr` or subprocess argv is no import node, so the grep finds it), the hub scripts the text tells a project to run, the file handing a new env var to the process and the spec, the parser a read config belongs to, whether a normalised form is what readers receive, the form a ported validator's source validates, the first-or-every rule for a repeating field, the paths guarded code opens and the env each reads, and for a registration or allowlist the checks each bucket runs; sibling write paths included
+  current: 'Search is whole tracked tree (tests, pinned strings, `commands/`), every other `/opt` main checkout''s tests and CI files citing changed path, and every vendored copy (`find /opt`, `.claude/worktrees/` counted apart) under every spelling of identifier and its rule''s key verbs: literal path beside any constant, every party text reaches, every reader of changed record shape or stdout (grep its tests for `== {` and `len(`), `ast.walk` census beside grep, never `tree.body` alone (a function-local or `try:` import sits below it; string-named import, `getattr` or subprocess argv is no import node, so grep finds it), hub scripts text tells project to run, file handing new env var to process, parser read config belongs to, whether normalised form is what readers receive, paths guarded code opens and env each reads, sibling write paths included'
+  text:
+  - 'Search is whole tracked tree (tests, pinned strings, `commands/`), every other `/opt` main checkout''s tests and CI files citing changed path, and every vendored copy (`find /opt`, `.claude/worktrees/` counted apart) under every spelling of identifier and its rule''s key verbs: literal path beside any constant, every party text reaches, every reader of changed record shape or stdout (grep its tests for `== {` and `len(`), `ast.walk` census beside grep, never `tree.body` alone (a function-local or `try:` import sits below it; string-named import, `getattr` or subprocess argv is no import node, so grep finds it), hub scripts text tells project to run, file handing new env var to process, parser read config belongs to, whether normalised form is what readers receive, paths guarded code opens and env each reads, sibling write paths included'
+- id: ft-mirror-fail-direction
+  # class: prose
+  baseline: each new guard, veto or fallback names its fail direction; which error is dangerous, an answer versus an outage
+  current: 'Each new guard, veto or fallback names its fail direction: which error is dangerous, answer versus outage'
+  text:
+  - 'Each new guard, veto or fallback names its fail direction: which error is dangerous, answer versus outage'
+- id: ft-mirror-names-exist
+  # class: prose
+  baseline: Every function, anchor or subject the design names is grepped to exist, and each guard a claim relies on is quoted
+  current: Every function, anchor or subject design names is grepped to exist, and each guard claim relies on is quoted
+  text:
+  - Every function, anchor or subject design names is grepped to exist, and each guard claim relies on is quoted
+- id: ft-mirror-untouched-reader
+  # class: prose
+  baseline: 'A reader the build leaves untouched is named without backticks: every backticked MIRROR path counts as declared at a *(v2)* close'
+  current: 'Reader build leaves untouched is named without backticks: every backticked MIRROR path counts as declared at *(v2)* close'
+  text:
+  - 'Reader build leaves untouched is named without backticks: every backticked MIRROR path counts as declared at *(v2)* close'
+- id: ft-design-fields-are-d-row
+  # class: prose
+  baseline: 'The fields are the D-row''s draft: APPROACH+DECISION+MIRROR → *what*, PROBLEM → *why*, the declared files → *where*; OUT and TERMINAL stay in the record'
+  current: 'Fields are D-row''s draft: APPROACH+DECISION+MIRROR → *what*, PROBLEM → *why*, declared files → *where*; OUT and TERMINAL stay in record'
+  text:
+  - 'Fields are D-row''s draft: APPROACH+DECISION+MIRROR → *what*, PROBLEM → *why*, declared files → *where*; OUT and TERMINAL stay in record'
+- id: ft-design-pipe-escape
+  # class: prose
+  baseline: ⚠️ A literal `|` is written `&#124;`; a backslash escape makes `check_decisions_unique.py` read a 7-cell row
+  current: '⚠️ literal `|` is written `&#124;`: backslash escape makes `check_decisions_unique.py` read 7-cell row'
+  text:
+  - '⚠️ literal `|` is written `&#124;`: backslash escape makes `check_decisions_unique.py` read 7-cell row'
+- id: ft-build-lock-recheck
+  # class: prose
+  section: '## Phase 3 — BUILD'
+  baseline: 'Re-run phase 2''s plan-lock check first: a `--design-amend` path or a lock taken since is the same STOP'
+  current: 'Re-run phase 2''s plan-lock check first: `--design-amend` path or lock taken since is same STOP'
+  text:
+  - 'Re-run phase 2''s plan-lock check first: `--design-amend` path or lock taken since is same STOP'
+- id: ft-build-red-first
+  # class: ban
+  section: '## Phase 3 — BUILD'
+  baseline: The change and its grader, red-first per FIX DIRECTIVE 4 against the recorded design (a test drafted before the critiques folded is rewritten, never made green); a shared-append file goes through § EXIT's private-index recipe, never the working file
+  current: Change and its grader, red-first per FIX DIRECTIVE 4 against recorded design (test drafted before critiques folded is rewritten, never made green); a shared-append file goes through § EXIT's private-index recipe, never the working file
+  text:
+  - Change and its grader, red-first per FIX DIRECTIVE 4 against recorded design (test drafted before critiques folded is rewritten, never made green); a shared-append file goes through § EXIT's private-index recipe, never the working file
+- id: ft-build-commits
+  # class: ban
+  section: '## Phase 3 — BUILD'
+  baseline: One commit carries it at v1; *(v2)* several may, SPACE-separated; `done --commit shaA shaB …` measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in the main checkout (`done` refuses more outside a worktree; `blocked`/`handoff` only note it)
+  current: One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA shaB …` measures each in order; sync-path run (D7) commits ONCE, after phase 4, in main checkout (`done` refuses more outside a worktree; `blocked`/`handoff` only note it)
+  text:
+  - One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA shaB …` measures each in order; sync-path run (D7) commits ONCE, after phase 4, in main checkout (`done` refuses more outside a worktree; `blocked`/`handoff` only note it)
+- id: ft-build-graders
+  # class: prose
+  section: '## Phase 3 — BUILD'
+  baseline: At v1 that one commit also carries phase 5's ledgers, so nothing is committed before phase 5. Each grader names its input domain and borrowed fixtures, EXECUTES an executable subject, runs hermetic (box env stripped, e.g. `env -u DATABASE_URL`) on production's transport and is red on base by its named assertion; every guard and threshold edge the change adds is mutated
+  current: At v1 that one commit also carries phase 5's ledgers, so nothing is committed before phase 5; each grader names its input domain and borrowed fixtures, EXECUTES executable subject, runs hermetic (e.g. `env -u DATABASE_URL`) on production's transport and is red on base by its named assertion; every guard and threshold edge change adds is mutated
+  text:
+  - At v1 that one commit also carries phase 5's ledgers, so nothing is committed before phase 5; each grader names its input domain and borrowed fixtures, EXECUTES executable subject, runs hermetic (e.g. `env -u DATABASE_URL`) on production's transport and is red on base by its named assertion; every guard and threshold edge change adds is mutated
+- id: ft-build-no-formatter
+  # class: ban
+  section: '## Phase 3 — BUILD'
+  baseline: Never run a formatter by hand beyond the declared paths
+  current: Never run a formatter by hand beyond the declared paths
+  text:
+  - Never run a formatter by hand beyond the declared paths
+- id: ft-build-gate-helpers
+  # class: ban
+  section: '## Phase 3 — BUILD'
+  baseline: The gate helpers a new call shape must satisfy are read first, a removed duplicate is guarded behaviourally, never by text shape, a new threshold is derived in its comment, and a probe worktree carries the built dist a test reads at import
+  current: Gate helpers new call shape must satisfy are read first, a removed duplicate is guarded behaviourally, never by text shape, a new threshold is derived in its comment, and a probe worktree carries the built dist a test reads at import
+  text:
+  - Gate helpers new call shape must satisfy are read first, a removed duplicate is guarded behaviourally, never by text shape, a new threshold is derived in its comment, and a probe worktree carries the built dist a test reads at import
+- id: ft-build-store-tests
+  # class: prose
+  section: '## Phase 3 — BUILD'
+  baseline: 'A test that writes a live store pins it to a tmp root: the hub''s `tests/conftest.py` already pins the mail root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there; before phase 4, MEASURE''s test slice re-runs on the built tree, and so does MEASURE''s population measurement when the change adds, changes or removes a check, guard or threshold'
+  current: 'Test that writes live store pins it to tmp root: `tests/conftest.py` pins mail root and `~/.claude/state` files, work-store test passes tmp repo, and new store gets its pin there; before phase 4, MEASURE''s test slice re-runs on built tree, and so does MEASURE''s population measurement when change adds, changes or removes check, guard or threshold'
+  text:
+  - 'Test that writes live store pins it to tmp root: `tests/conftest.py` pins mail root and `~/.claude/state` files, work-store test passes tmp repo, and new store gets its pin there; before phase 4, MEASURE''s test slice re-runs on built tree, and so does MEASURE''s population measurement when change adds, changes or removes check, guard or threshold'
+- id: ft-review-invoke
+  # class: ban
+  section: '## Phase 4 — REVIEW'
+  baseline: Invoke the review phase 0 already picked; at v1 always `/fabrik-review-scoped` (a v1 sync/heavy surface never reaches the lane; it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or the full `/fabrik-review` for a sync, heavy, migration or >5-file surface (D2, D7); unchanged, never from memory; nested here, its own scope-growth stop fires at the FIRST own-fix-only round, not the third (D8), still closing only on a confirmed-zero pass
+  current: Invoke review phase 0 already picked — at v1 always `/fabrik-review-scoped` (v1 sync/heavy surface never reaches the lane; it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or full `/fabrik-review` for sync, heavy, migration or >5-file surface (D2, D7) — unchanged, never from memory; nested here, its own scope-growth stop fires at FIRST own-fix-only round, not the third (D8), still closing only on a confirmed-zero pass
+  text:
+  - Invoke review phase 0 already picked — at v1 always `/fabrik-review-scoped` (v1 sync/heavy surface never reaches the lane; it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or full `/fabrik-review` for sync, heavy, migration or >5-file surface (D2, D7) — unchanged, never from memory; nested here, its own scope-growth stop fires at FIRST own-fix-only round, not the third (D8), still closing only on a confirmed-zero pass
+- id: ft-review-full-over-committed
+  # class: prose
+  section: '## Phase 4 — REVIEW'
+  baseline: A full `/fabrik-review` over committed work runs after phase 5 step 5 on a draft in `<durable>`, its receipt made once, after the last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a scoped one needs none
+  current: Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit`, that commit its `--range` tip, and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
+  text:
+  - Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit`, that commit its `--range` tip, and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
+- id: ft-review-seat-questions
+  # class: ban
+  section: '## Phase 4 — REVIEW'
+  baseline: 'Give its seat briefs the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to? can you name a second approach whose merits the build cannot settle (an equivalent implementation is not one)?* A `yes` to the first or third is that seat''s UPGRADE verdict; take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315)'
+  current: 'Give its seat briefs phase-2 `design.md` path and phase-0 declaration, plus three questions: *does change ESCAPE declared files? did it add mechanism declaration said `no` to? can you name second approach whose merits build cannot settle?* `yes` to first or third is that seat''s UPGRADE verdict — take it; `yes` to second corrects D-row (name mechanism there), never the lane (D-315)'
+  text:
+  - 'Give its seat briefs phase-2 `design.md` path and phase-0 declaration, plus three questions: *does change ESCAPE declared files? did it add mechanism declaration said `no` to? can you name second approach whose merits build cannot settle?* `yes` to first or third is that seat''s UPGRADE verdict — take it; `yes` to second corrects D-row (name mechanism there), never the lane (D-315)'
+- id: ft-review-untouched-declared
+  # class: ban
+  section: '## Phase 4 — REVIEW'
+  baseline: 'A declared file left UNTOUCHED is padding (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row; never an UPGRADE, which would strand the run'
+  current: 'Declared file left UNTOUCHED is padding (guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in D-row — never an UPGRADE, which would strand the run'
+  text:
+  - 'Declared file left UNTOUCHED is padding (guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in D-row — never an UPGRADE, which would strand the run'
+- id: ft-review-decision-changed
+  # class: prose
+  section: '## Phase 4 — REVIEW'
+  baseline: A decision the review changes is re-drafted into the D-row with the drift noted; each path a review fix touches that APPROACH/MIRROR does not name has phase 2's plan-lock check run on it before the fix edits it, and gets *(v2)* `step --phase 4 --design-amend <path>` once the nested review has closed
+  current: Decision review changes is re-drafted into D-row with drift noted; each path review fix touches that APPROACH/MIRROR does not name gets phase 2's plan-lock check before fix edits it and, once nested review has closed, *(v2)* `step --phase 4 --design-amend <path>`
+  text:
+  - Decision review changes is re-drafted into D-row with drift noted; each path review fix touches that APPROACH/MIRROR does not name gets phase 2's plan-lock check before fix edits it and, once nested review has closed, *(v2)* `step --phase 4 --design-amend <path>`
+- id: ft-review-sized
+  # class: prose
+  section: '## Phase 4 — REVIEW'
+  baseline: The review is sized before dispatch; the callers a fix may touch counted, the quota runway read; seats create nothing outside scratch (an installed corpus included), where the nested review keeps its resume artifacts (the workflow `args`; pass, ledger; and the pin dir)
+  current: Review is sized before dispatch — callers fix may touch counted, quota runway read; seats create nothing outside scratch (installed corpus included), where nested review keeps its resume artifacts (workflow `args` — pass, ledger — and pin dir)
+  text:
+  - Review is sized before dispatch — callers fix may touch counted, quota runway read; seats create nothing outside scratch (installed corpus included), where nested review keeps its resume artifacts (workflow `args` — pass, ledger — and pin dir)
+- id: ft-review-urgent-checkpoint
+  # class: prose
+  section: '## Phase 4 — REVIEW'
+  baseline: Under the urgent-90 CHECKPOINT the record stays open, *(v2)* the build is committed through phase 5 step 5's capture line (v1 keeps it uncommitted), and the review is sized to the runway
+  current: Under urgent-90 CHECKPOINT record stays open, *(v2)* build is committed through phase 5 step 5 (v1 keeps it uncommitted), and review is sized to runway
+  text:
+  - Under urgent-90 CHECKPOINT record stays open, *(v2)* build is committed through phase 5 step 5 (v1 keeps it uncommitted), and review is sized to runway
+- id: ft-close-doc-sync
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: The Doc Sync Matrix rows this change keys (`CLAUDE.md`); the folded `/fabrik-docs-review`
+  current: Doc Sync Matrix rows this change keys (`CLAUDE.md`) — folded `/fabrik-docs-review`
+  text:
+  - Doc Sync Matrix rows this change keys (`CLAUDE.md`) — folded `/fabrik-docs-review`
+  ordered:
+  - ft-close-doc-sync
+  - ft-close-d-row
+  - ft-close-changelog
+  - ft-close-final-gate
+  - ft-close-commit-capture
+  - ft-close-push-then-close
+- id: ft-close-d-row
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: The D-row in `docs/DECISIONS.md` from the phase-2 draft, if there was a decision; minting and the reversible/ONE-WAY classification stay the decision-ledger rule's
+  current: D-row in `docs/DECISIONS.md` from phase-2 draft, if there was decision — minting and reversible/ONE-WAY classification stay decision-ledger rule's
+  text:
+  - D-row in `docs/DECISIONS.md` from phase-2 draft, if there was decision — minting and reversible/ONE-WAY classification stay decision-ledger rule's
+- id: ft-close-changelog
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: '`CHANGELOG.md` atop `[Unreleased]`; `docs/LESSONS_LEARNT.md` or an explicit `none`'
+  current: '`CHANGELOG.md` atop `[Unreleased]`; `docs/LESSONS_LEARNT.md` or explicit `none`'
+  text:
+  - '`CHANGELOG.md` atop `[Unreleased]`; `docs/LESSONS_LEARNT.md` or explicit `none`'
+- id: ft-close-final-gate
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: '`python scripts/final_gate.py --json` → `status: "success"`'
+  current: '`python scripts/final_gate.py --json` → `status: "success"`'
+  text:
+  - '`python scripts/final_gate.py --json` → `status: "success"`'
+- id: ft-close-commit-capture
+  # class: prose
+  # clauses: {1: narrative}
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: Commit with explicit pathspecs + provenance trailers, chaining the capture off the commit, found by its own subject
+  current: 'Commit with explicit pathspecs + provenance trailers, chaining capture off commit, found by its own subject:'
+  text:
+  - 'Commit with explicit pathspecs + provenance trailers, chaining capture off commit, found by its own subject:'
+- id: ft-close-capture-line
+  # class: behavioural
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: 'mkdir -p <durable> \ ⏎ && <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> \ ⏎ && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \ ⏎ && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
+  current: 'mkdir -p <durable> \ ⏎ && <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> \ ⏎ && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \ ⏎ && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
+  text:
+  - 'mkdir -p <durable> \ ⏎ && <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> \ ⏎ && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \ ⏎ && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
+- id: ft-close-push-then-close
+  # class: ban
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: '§ EXIT''s push ladder (never `--force`), then close; the capture file, not a post-ladder `HEAD` read, is what names YOUR commit:'
+  current: '§ EXIT''s push ladder (never `--force`), then close — capture file, not post-ladder `HEAD` read, is what names YOUR commit:'
+  text:
+  - '§ EXIT''s push ladder (never `--force`), then close — capture file, not post-ladder `HEAD` read, is what names YOUR commit:'
+- id: ft-close-done-line
+  # class: behavioural
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: python3 scripts/command_run.py done --command fabrik-task \ ⏎ --commit $(cat <durable>/commit.sha) \ ⏎ --evidence "<what proves the terminal condition>" --feedback "<the four fields>"
+  current: python3 scripts/command_run.py done --command fabrik-task \ ⏎ --commit $(cat <durable>/commit.sha) \ ⏎ --evidence "<what proves the terminal condition>" --feedback "<the four fields>"
+  text:
+  - python3 scripts/command_run.py done --command fabrik-task \ ⏎ --commit $(cat <durable>/commit.sha) \ ⏎ --evidence "<what proves the terminal condition>" --feedback "<the four fields>"
+- id: ft-close-v1-undeclared
+  # class: ban
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: The close re-measures every commit; At v1 an undeclared path is RECORDED as `oversized_mini`, never refused
+  current: 'Close re-measures every commit: at v1 undeclared path is RECORDED as `oversized_mini`, never refused'
+  text:
+  - 'Close re-measures every commit: at v1 undeclared path is RECORDED as `oversized_mini`, never refused'
+- id: ft-close-v2-undeclared-refuses
+  # class: ban
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: '*(v2)* a path missing from APPROACH/MIRROR/an amendment REFUSES `done` (phase 2''s rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing a sanctioned halt'
+  current: '*(v2)* path missing from APPROACH/MIRROR/an amendment REFUSES `done` (phase 2''s rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing a sanctioned halt'
+  text:
+  - '*(v2)* path missing from APPROACH/MIRROR/an amendment REFUSES `done` (phase 2''s rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing a sanctioned halt'
+- id: ft-close-contract-newsource-refuses
+  # class: ban
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: '*(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff` too, until `--review <a full /fabrik-review receipt>` names one; `blocked` needs none'
+  current: '*(v2)* contract or new-source hit found only here REFUSES `done` and `handoff` too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none'
+  text:
+  - '*(v2)* contract or new-source hit found only here REFUSES `done` and `handoff` too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none'
+- id: ft-close-receipt-range-tip
+  # class: ban
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one; `/fabrik-review`''s committed-fix form (a sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead; the `--restamp` form below): run the full `/fabrik-review` (skipping its own `--init`) with its rows in a draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>`; the Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that lands first; carry the draft''s rows into it (a rubric class the draft lacked is a hunt still owed), run `/fabrik-review`''s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7''s one-commit sync-path rule) and push it; never captured or passed to `--commit`'
+  current: 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`''s committed-fix form (sync-path run in main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — `--restamp` form below): run full `/fabrik-review` (skipping its own `--init`) with its rows in draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>` — Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so fix gate forces is run commit that lands first — carry draft''s rows into it (rubric class draft lacked is hunt still owed), run `/fabrik-review`''s close ORDER on it (gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7''s one-commit sync-path rule) and push it — never captured or passed to `--commit`'
+  text:
+  - 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`''s committed-fix form (sync-path run in main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — `--restamp` form below): run full `/fabrik-review` (skipping its own `--init`) with its rows in draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>` — Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so fix gate forces is run commit that lands first — carry draft''s rows into it (rubric class draft lacked is hunt still owed), run `/fabrik-review`''s close ORDER on it (gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7''s one-commit sync-path rule) and push it — never captured or passed to `--commit`'
+- id: ft-close-review-before-commit
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: 'Or review BEFORE the commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after the review''s last fix; the receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88)'
+  current: 'Or review BEFORE commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after review''s last fix — receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88)'
+  text:
+  - 'Or review BEFORE commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after review''s last fix — receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88)'
+- id: ft-close-evidence-split
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  baseline: When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a terminal it changed was restated with `--terminal-amend` on or before the `--design` call
+  current: When two critique verdicts differ or concern stayed OPEN, `--evidence` names split; terminal changed was restated with `--terminal-amend` on or before `--design` call
+  text:
+  - When two critique verdicts differ or concern stayed OPEN, `--evidence` names split; terminal changed was restated with `--terminal-amend` on or before `--design` call
+- id: ft-upgrade-crossing
+  # class: ban
+  section: '## UPGRADE — the one-way ratchet, available from phase 1'
+  baseline: 'A module-test crossing; a decision turned one-way, a trade-off that appeared, a sync/heavy surface noticed mid-build, or a phase-4 seat''s verdict (a mechanism found mid-run is not a crossing: the D-row names it; D-315); first materialises the seed (the phase-2 `design.md` plus a `## RESUME` block naming the test crossed; before the design exists, that block alone, naming phase 1''s `measure.md`), then closes; a critique returning after the handoff is appended to that seed file before `/fabrik-spec` opens from it (never to the `resume_copy`)'
+  current: 'Module-test crossing — decision turned one-way, trade-off that appeared, sync/heavy surface noticed mid-build, or phase-4 seat''s verdict (mechanism found mid-run is not crossing: D-row names it — D-315) — first materialises seed (phase-2 `design.md` plus `## RESUME` block naming test crossed; before design exists, that block alone, naming phase 1''s `measure.md`), then closes; critique returning after handoff is appended to that seed file before `/fabrik-spec` opens from it (never to the `resume_copy`)'
+  text:
+  - 'Module-test crossing — decision turned one-way, trade-off that appeared, sync/heavy surface noticed mid-build, or phase-4 seat''s verdict (mechanism found mid-run is not crossing: D-row names it — D-315) — first materialises seed (phase-2 `design.md` plus `## RESUME` block naming test crossed; before design exists, that block alone, naming phase 1''s `measure.md`), then closes; critique returning after handoff is appended to that seed file before `/fabrik-spec` opens from it (never to the `resume_copy`)'
+- id: ft-upgrade-token-begins
+  # class: grammar
+  section: '## UPGRADE — the one-way ratchet, available from phase 1'
+  baseline: '⚠️ `UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it; lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · *(v2)* `contract` · `new-source` · `behaviours` · `appetite`, then a dash and the detail; Nothing downgrades mid-run:'
+  current: '⚠️ `UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it — lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · *(v2)* `contract` · `new-source` · `behaviours` · `appetite`, then dash and detail; nothing downgrades mid-run:'
+  text:
+  - '⚠️ `UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it — lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · *(v2)* `contract` · `new-source` · `behaviours` · `appetite`, then dash and detail; nothing downgrades mid-run:'
+- id: ft-upgrade-to-spec-chain
+  # class: prose
+  section: '## UPGRADE — the one-way ratchet, available from phase 1'
+  baseline: 'To the spec chain (`files`, `oneway`, `tradeoffs`, `seat`); the build stops and `/fabrik-spec` opens seeded with that file, by your hand:'
+  current: 'To spec chain (`files`, `oneway`, `tradeoffs`, `seat`) — build stops and `/fabrik-spec` opens seeded with that file, by your hand:'
+  text:
+  - 'To spec chain (`files`, `oneway`, `tradeoffs`, `seat`) — build stops and `/fabrik-spec` opens seeded with that file, by your hand:'
+- id: ft-upgrade-handoff-line
+  # class: behavioural
+  section: '## UPGRADE — the one-way ratchet, available from phase 1'
+  baseline: 'python3 scripts/command_run.py handoff --command fabrik-task \ ⏎ --resume <durable>/design.md \ ⏎ --reason "UPGRADE: <token> — <the test crossed>" --feedback "<the four fields>"'
+  current: 'python3 scripts/command_run.py handoff --command fabrik-task \ ⏎ --resume <durable>/design.md \ ⏎ --reason "UPGRADE: <token> — <the test crossed>" --feedback "<the four fields>"'
+  text:
+  - 'python3 scripts/command_run.py handoff --command fabrik-task \ ⏎ --resume <durable>/design.md \ ⏎ --reason "UPGRADE: <token> — <the test crossed>" --feedback "<the four fields>"'
+- id: ft-upgrade-in-place
+  # class: prose
+  section: '## UPGRADE — the one-way ratchet, available from phase 1'
+  baseline: 'In place (`sync` or `heavy`; found mid-run); the change is NOT abandoned: finish phase 3, run the full `/fabrik-review` at phase 4 instead of `/fabrik-review-scoped` (seeded with `design.md`; the nested heavy record is accepted deliberately), discharge phase 5 in full, and close with the phase-5 `done` line; `--commit` and all; its `--evidence` reading `"UPGRADE: sync — <proof>"`'
+  current: 'In place (`sync` or `heavy`, found mid-run): change is NOT abandoned — finish phase 3, run full `/fabrik-review` at phase 4 instead of `/fabrik-review-scoped` (seeded with `design.md`; nested heavy record is accepted deliberately), discharge phase 5 in full and close with phase-5 `done` line, `--commit` and all, its `--evidence` reading `"UPGRADE: sync — <proof>"`'
+  text:
+  - 'In place (`sync` or `heavy`, found mid-run): change is NOT abandoned — finish phase 3, run full `/fabrik-review` at phase 4 instead of `/fabrik-review-scoped` (seeded with `design.md`; nested heavy record is accepted deliberately), discharge phase 5 in full and close with phase-5 `done` line, `--commit` and all, its `--evidence` reading `"UPGRADE: sync — <proof>"`'
+- id: ft-upgrade-done-not-handoff
+  # class: prose
+  section: '## UPGRADE — the one-way ratchet, available from phase 1'
+  baseline: '`done`, not `handoff`: nothing stays open'
+  current: '`done`, not `handoff`: nothing stays open'
+  text:
+  - '`done`, not `handoff`: nothing stays open'
+- id: ft-upgrade-sync-refused
+  # class: ban
+  section: '## UPGRADE — the one-way ratchet, available from phase 1'
+  baseline: ⚠️ A `sync` claim the close cannot verify from the commit's paths is REFUSED; if no sync path survived into the commit it was `heavy`, or none
+  current: ⚠️ `sync` claim close cannot verify from commit's paths is REFUSED — if no sync path survived into commit it was `heavy`, or none
+  text:
+  - ⚠️ `sync` claim close cannot verify from commit's paths is REFUSED — if no sync path survived into commit it was `heavy`, or none
+- id: ft-upgrade-v2-last-four
+  # class: ban
+  section: '## UPGRADE — the one-way ratchet, available from phase 1'
+  baseline: '*(v2)* The last four; `contract` · `new-source` · `behaviours` · `appetite`; the close ALSO raises itself, from the commit, WHETHER OR NOT you typed them: `contract`/`new-source` REFUSE `done`/ `handoff` until `--review <receipt>` names one; `behaviours`/`appetite` are findings only'
+  current: '*(v2)* last four — `contract` · `new-source` · `behaviours` · `appetite` — close ALSO raises itself, from commit, WHETHER OR NOT you typed them: `contract`/`new-source` REFUSE `done`/ `handoff` until `--review <receipt>` names one; `behaviours`/`appetite` are findings only'
+  text:
+  - '*(v2)* last four — `contract` · `new-source` · `behaviours` · `appetite` — close ALSO raises itself, from commit, WHETHER OR NOT you typed them: `contract`/`new-source` REFUSE `done`/ `handoff` until `--review <receipt>` names one; `behaviours`/`appetite` are findings only'
+- id: ft-upgrade-typing-early
+  # class: ban
+  section: '## UPGRADE — the one-way ratchet, available from phase 1'
+  baseline: Typing one early only pins which proof text the row records; the close's own re-measure, never your text, decides whether `--review` is owed
+  current: Typing one early only pins which proof text the row records — close's own re-measure, never your text, decides whether `--review` is owed
+  text:
+  - Typing one early only pins which proof text the row records — close's own re-measure, never your text, decides whether `--review` is owed
+vanished:
+  L1: {rule: [ft-sequences-machinery]}
+  L2: narrative
+  L3: {rule: [ft-slices-never-bundled]}
+  L4: {rule: [ft-lane-versions]}
+  L5: {rule: [ft-lane-versions]}
+  L6: {rule: [ft-lane-v2-mechanisms]}
+  L7: {rule: [ft-lane-start-done-refused]}
+  L8: {rule: [ft-handoff-third-terminal]}
+  L9: {rule: [ft-durable-is-scratch, ft-worktree-scratch-copy]}
+  L11: {rule: [ft-size-lane-table]}
+  L12: {rule: [ft-size-lane-table]}
+  L14: {rule: [ft-size-consumers]}
+  L15: {rule: [ft-size-heavy-operator-named]}
+  L17: {rule: [ft-size-new-path-declared]}
+  L18: {rule: [ft-size-code-surface-only]}
+  L19: {rule: [ft-size-tool-prints]}
+  L20: {rule: [ft-size-tool-prints]}
+  L21: {rule: [ft-size-sync-skipped]}
+  L22: {rule: [ft-size-refusal-is-answer]}
+  L23: {rule: [ft-size-refusal-is-answer]}
+  L24: {rule: [ft-size-cobra]}
+  L25: {rule: [ft-size-cobra]}
+  L27: {rule: [ft-measure-failure-replay, ft-measure-miss-is-finding]}
+  L28: {rule: [ft-measure-proposed-fix-replayed]}
+  L29: {rule: [ft-measure-unreachable-tool]}
+  L30: {rule: [ft-measure-record-to-file, ft-measure-fetch-diff, ft-measure-prior-record, ft-measure-population, ft-measure-contracts-live, ft-measure-execute-real-path, ft-measure-grader-red]}
+  L31: {rule: [ft-measure-select-rules]}
+  L34: {rule: [ft-design-copied-mechanism]}
+  L35: {rule: [ft-design-read-before-copy]}
+  L36: {rule: [ft-design-input-table, ft-design-parser-grammar]}
+  L37: {rule: [ft-design-parser-grammar]}
+  L38: {rule: [ft-design-table-live-rows]}
+  L39: {rule: [ft-design-marker-block-states]}
+  L40: {rule: [ft-design-parser-tag-quoted]}
+  L41: {rule: [ft-design-plan-locks]}
+  L42: {rule: [ft-design-pre-seat-checklist]}
+  L43: {rule: [ft-design-brief-execute]}
+  L44: {rule: [ft-design-brief-pins-tree]}
+  L45: {rule: [ft-design-wait-in-turn]}
+  L46: {rule: [ft-design-concern-accepted]}
+  L47: {rule: [ft-design-second-approach]}
+  L48: {rule: [ft-design-before-record]}
+  L49: {rule: [ft-design-before-record]}
+  L51: {rule: [ft-design-terminal-amend]}
+  L52: {rule: [ft-design-no-decision-amend]}
+  L53: {rule: [ft-design-stores-text]}
+  L54: {rule: [ft-design-refusal-discards]}
+  L55: {rule: [ft-design-behaviours-cap, ft-design-paths-named]}
+  L56: {rule: [ft-design-amend-top-record]}
+  L57: {rule: [ft-mirror-mandatory]}
+  L58: {rule: [ft-mirror-search-scope, ft-mirror-fail-direction]}
+  L59: {rule: [ft-mirror-names-exist]}
+  L60: {rule: [ft-mirror-untouched-reader]}
+  L61: {rule: [ft-design-fields-are-d-row]}
+  L62: {rule: [ft-design-pipe-escape]}
+  L64: {rule: [ft-build-lock-recheck]}
+  L65: {rule: [ft-build-red-first]}
+  L66: {rule: [ft-build-commits]}
+  L67: {rule: [ft-build-graders]}
+  L69: {rule: [ft-build-gate-helpers]}
+  L70: {rule: [ft-build-store-tests]}
+  L72: {rule: [ft-review-invoke]}
+  L73: {rule: [ft-review-full-over-committed]}
+  L74: {rule: [ft-review-seat-questions]}
+  L75: {rule: [ft-review-untouched-declared]}
+  L76: {rule: [ft-review-decision-changed]}
+  L77: {rule: [ft-review-sized]}
+  L78: {rule: [ft-review-urgent-checkpoint]}
+  L80: {rule: [ft-close-doc-sync]}
+  L81: {rule: [ft-close-d-row]}
+  L82: {rule: [ft-close-changelog]}
+  L84: {rule: [ft-close-commit-capture]}
+  L86: {rule: [ft-close-push-then-close]}
+  L88: {rule: [ft-close-v1-undeclared]}
+  L89: {rule: [ft-close-v1-undeclared]}
+  L90: {rule: [ft-close-v2-undeclared-refuses]}
+  L91: {rule: [ft-close-contract-newsource-refuses]}
+  L92: {rule: [ft-close-receipt-range-tip]}
+  L93: {rule: [ft-close-review-before-commit]}
+  L94: {rule: [ft-close-evidence-split]}
+  L96: {rule: [ft-upgrade-crossing]}
+  L97: {rule: [ft-upgrade-token-begins]}
+  L98: {rule: [ft-upgrade-token-begins]}
+  L99: {rule: [ft-upgrade-to-spec-chain]}
+  L101: {rule: [ft-upgrade-in-place]}
+  L103: {rule: [ft-upgrade-sync-refused]}
+  L104: {rule: [ft-upgrade-v2-last-four]}
+  L105: {rule: [ft-upgrade-typing-early]}

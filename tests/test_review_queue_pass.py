@@ -862,19 +862,6 @@ def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
     assert (
         "the receipt's sha at dispatch (in the committed-fix form below, the draft's last row id and md5)"
     ) in _norm(SRC)
-    task = _norm(ROOT / "commands" / "_sources" / "fabrik-task.md")
-    assert (
-        "run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that"
-        " lands first"
-    ) in task
-    assert (
-        "run `/fabrik-review`'s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to"
-        in task
-    )
-    assert (
-        "carry the draft's rows into it (a rubric class the draft lacked is a hunt still owed)"
-        in task
-    )
 
 
 CORE = ROOT / "commands" / "_fragments" / "subagents-core.md"
