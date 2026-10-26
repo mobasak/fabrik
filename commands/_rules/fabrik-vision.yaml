@@ -477,7 +477,7 @@
   "baseline": "Architectural Mandates (non-negotiable — single source of truth). These are vision-level architectural commitments"
   "class": "prose"
   "text":
-  - "Architectural Mandates (non-negotiable — single source of truth)"
+  - "Architectural Mandates (non-negotiable — single source of truth). These are vision-level architectural commitments"
 - "id": "v-L88"
   "file": "render"
   "baseline": "Every epic `/fabrik-epics` cuts from this vision inherits them"
@@ -589,7 +589,7 @@
   "baseline": "| X | Dev/prod parity | *\"Resists the urge to use different backing services between development and production.\"* Same type and version. | ⚠️ Binds the two-env rule: WSL dev and VPS both run PostgreSQL + Redis. No SQLite locally, no in-memory stand-in for Redis. |"
   "class": "prose"
   "text":
-  - "Dev/prod parity | *\"Resists the urge to use different backing"
+  - "| X | Dev/prod parity | *\"Resists the urge to use different backing services between development and production.\"* Same type and version. | ⚠️ Binds the two-env rule: WSL dev and VPS both run PostgreSQL + Redis. No SQLite locally, no in-memory stand-in for Redis. |"
 - "id": "v-L104"
   "file": "render"
   "baseline": "| XI | Logs | Unbuffered to `stdout`. *\"Never concerns itself with routing or storage… should not attempt to write to or manage logfiles.\"* | `structlog` → stdout. Never write or rotate a logfile. Promtail → Loki is the *environment* doing the routing. |"
@@ -2058,10 +2058,9 @@
   "file": "render"
   "baseline": "⚠️ Filter every finding through the Architectural Mandates + the 20 constraints BEFORE it reaches the Vision Summary. The web does not know your constraints — it will confidently recommend Stripe, Pinecone, or a direct OpenAI SDK, all beautifully cited"
   "class": "prose"
-  "clauses":
-    !!int "2": "narrative"
   "text":
-  - "Filter every finding through the Architectural Mandates + the 20"
+  - "⚠️ Filter every finding through the Architectural Mandates + the 20 constraints BEFORE it reaches the Vision Summary. The web does not know your constraints"
+  - "it will confidently recommend Stripe, Pinecone, or a direct OpenAI SDK, all beautifully cited"
 - "id": "v-L343"
   "file": "render"
   "baseline": "A well-cited best-practice that violates a hard constraint is WORSE than no research — cut it, then pick the best option that *survives* the constraints"
