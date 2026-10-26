@@ -1,0 +1,690 @@
+command: fabrik-ui-design-review
+baseline_sentences: fabrik-ui-design-review.baseline.txt
+baseline_sha256: '8beb248525a25ded4272853ab65384af705c340070965086ae3a944f7d604f80'
+entries:
+- id: u-L1
+  # class: prose
+  file: render
+  baseline: Converge this UI/UX design contract to a fixed point — do not stop after one pass
+  current: Converge this UI/UX design contract to a fixed point — do not stop after one pass
+  text:
+  - Converge this UI/UX design contract to a fixed point — do not stop after one pass
+- id: u-L11
+  # class: prose
+  file: render
+  baseline: '(After the closing round: the approval gate at the end.)'
+  current: '(After the closing round: the approval gate at the end.)'
+  text:
+  - '(After the closing round: the approval gate at the end.)'
+- id: u-L12
+  # class: prose
+  file: render
+  baseline: Also read the frozen `docs/data-contract.md` for every field a screen binds — a field not backed by a real column is an invented-surface defect
+  current: Also read the frozen `docs/data-contract.md` for every field a screen binds — a field not backed by a real column is an invented-surface defect
+  text:
+  - Also read the frozen `docs/data-contract.md` for every field a screen binds — a field not backed by a real column is an invented-surface defect
+- id: u-L17
+  # class: ban
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: the `/fabrik-spec` design doc (the product's goal + core workflow — the tasks the UI must serve),
+  current: the `/fabrik-spec` design doc (the product's goal + core workflow — the tasks the UI must serve),
+  text:
+  - the `/fabrik-spec` design doc (the product's goal + core workflow — the tasks the UI must serve),
+- id: u-L18
+  # class: ban
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: '`docs/data-contract.md` (the FROZEN field dictionary — screens may render only these),'
+  current: '`docs/data-contract.md` (the FROZEN field dictionary — screens may render only these),'
+  text:
+  - '`docs/data-contract.md` (the FROZEN field dictionary — screens may render only these),'
+- id: u-L19
+  # class: ban
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: the established design system (`.windsurf/rules/core/ocoron-design-system.md` / `.windsurf/rules/core/tojlo-design-system.md` — a house brand only when the project declares it; a Tojlo mobile surface adds `.windsurf/rules/mobile-app/tojlo-mobile-design-system.md`) / (CREATE, any surface) the project's own `docs/design-system.md`, and in every case `.windsurf/rules/core/design-system-template.md` for the structure — the only components/tokens/states a screen may use),
+  current: the established design system (`.windsurf/rules/core/ocoron-design-system.md` / `.windsurf/rules/core/tojlo-design-system.md` — a house brand only when the project declares it; a Tojlo mobile surface adds `.windsurf/rules/mobile-app/tojlo-mobile-design-system.md`) / (CREATE, any surface) the project's own `docs/design-system.md`, and in every case `.windsurf/rules/core/design-system-template.md` for the structure — the only components/tokens/states a screen may use),
+  text:
+  - the established design system (`.windsurf/rules/core/ocoron-design-system.md` / `.windsurf/rules/core/tojlo-design-system.md` — a house brand only when the project declares it; a Tojlo mobile surface adds `.windsurf/rules/mobile-app/tojlo-mobile-design-system.md`) / (CREATE, any surface) the project's own `docs/design-system.md`, and in every case `.windsurf/rules/core/design-system-template.md` for the structure — the only components/tokens/states a screen may use),
+- id: u-L20
+  # class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: the surface pack for the contract's `Surface:` — `saas/60-saas-ui.md` (web page inventory) · `mobile-app/80-mobile.md` (RN screen inventory + a11y) plus `mobile-app/ocoron-mobile-design-system.md` (the component patterns — every mobile project, whatever its brand or mode) · `chrome-ext/70-chrome-ext.md` (MV3 surfaces) · `desktop-app/72-desktop.md`
+  current: the surface pack for the contract's `Surface:` — `saas/60-saas-ui.md` (web page inventory) · `mobile-app/80-mobile.md` (RN screen inventory + a11y) plus `mobile-app/ocoron-mobile-design-system.md` (the component patterns — every mobile project, whatever its brand or mode) · `chrome-ext/70-chrome-ext.md` (MV3 surfaces) · `desktop-app/72-desktop.md`
+  text:
+  - the surface pack for the contract's `Surface:` — `saas/60-saas-ui.md` (web page inventory) · `mobile-app/80-mobile.md` (RN screen inventory + a11y) plus `mobile-app/ocoron-mobile-design-system.md` (the component patterns — every mobile project, whatever its brand or mode) · `chrome-ext/70-chrome-ext.md` (MV3 surfaces) · `desktop-app/72-desktop.md`
+- id: u-L21
+  # class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: Read the pack(s) that match
+  current: Read the pack(s) that match
+  text:
+  - Read the pack(s) that match
+- id: u-L23
+  # class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: Until it is split, every seat reads it in ranges and names the line ranges it read; a range no seat names is unread
+  current: Until it is split, every seat reads it in ranges and names the line ranges it read; a range no seat names is unread
+  text:
+  - Until it is split, every seat reads it in ranges and names the line ranges it read; a range no seat names is unread
+  pins:
+  - tests/test_ui_design_review_queue_pass.py::test_seats_name_the_ranges_they_read_over_the_ceiling
+- id: u-L25
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: Treat every screen/flow/mapping as unproven until verified against those sources
+  current: Treat every screen/flow/mapping as unproven until verified against those sources
+  text:
+  - Treat every screen/flow/mapping as unproven until verified against those sources
+- id: u-L26
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: Run repeated passes until one demonstrably-thorough pass finds zero new gaps
+  current: Run repeated passes until one demonstrably-thorough pass finds zero new gaps
+  text:
+  - Run repeated passes until one demonstrably-thorough pass finds zero new gaps
+- id: u-L29
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: If the system was CREATED (not adopted), confirm it defines every component the screens reference — a screen citing a component the design system never defined is a defect on one side or the other; reconcile it
+  current: If the system was CREATED (not adopted), confirm it defines every component the screens reference — a screen citing a component the design system never defined is a defect on one side or the other; reconcile it
+  text:
+  - If the system was CREATED (not adopted), confirm it defines every component the screens reference — a screen citing a component the design system never defined is a defect on one side or the other; reconcile it
+- id: u-L32
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: B) Data-wiring vs the FROZEN data contract. For every field any screen reads or writes, OPEN `docs/data-contract.md` and confirm the entity/field exists with a compatible type
+  current: B) Data-wiring vs the FROZEN data contract. For every field any screen reads or writes, OPEN `docs/data-contract.md` and confirm the entity/field exists with a compatible type
+  text:
+  - B) Data-wiring vs the FROZEN data contract. For every field any screen reads or writes, OPEN `docs/data-contract.md` and confirm the entity/field exists with a compatible type
+- id: u-L34
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: 'A screen showing a field the data contract lacks is the #1 UI-contract defect — reconcile it in the data contract (via `/fabrik-data-contract`), never by silently adding it here'
+  current: 'A screen showing a field the data contract lacks is the #1 UI-contract defect — reconcile it in the data contract (via `/fabrik-data-contract`), never by silently adding it here'
+  text:
+  - 'A screen showing a field the data contract lacks is the #1 UI-contract defect — reconcile it in the data contract (via `/fabrik-data-contract`), never by silently adding it here'
+- id: u-L35
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: C) Coverage / completeness. Every spec task has a flow (Phase 3); every flow's screens are in the inventory (Phase 2); every inventory screen is reachable in the IA (Phase 4) — hunt orphaned screens and dead nav nodes
+  current: C) Coverage / completeness. Every spec task has a flow (Phase 3); every flow's screens are in the inventory (Phase 2); every inventory screen is reachable in the IA (Phase 4) — hunt orphaned screens and dead nav nodes
+  text:
+  - C) Coverage / completeness. Every spec task has a flow (Phase 3); every flow's screens are in the inventory (Phase 2); every inventory screen is reachable in the IA (Phase 4) — hunt orphaned screens and dead nav nodes
+- id: u-L37
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: Every auth level (public/authed/admin) a screen claims is consistent with the spec
+  current: Every auth level (public/authed/admin) a screen claims is consistent with the spec
+  text:
+  - Every auth level (public/authed/admin) a screen claims is consistent with the spec
+- id: u-L38
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: No placeholders (`TBD`/`TODO`/"tbd screen")
+  current: No placeholders (`TBD`/`TODO`/"tbd screen")
+  text:
+  - No placeholders (`TBD`/`TODO`/"tbd screen")
+- id: u-L39
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: D) Flows — minimal-click + logical. Recompute each flow's click count against its budget — any flow over budget is a defect the author was supposed to redesign, not ship; flag it
+  current: D) Flows — minimal-click + logical. Recompute each flow's click count against its budget — any flow over budget is a defect the author was supposed to redesign, not ship; flag it
+  text:
+  - D) Flows — minimal-click + logical. Recompute each flow's click count against its budget — any flow over budget is a defect the author was supposed to redesign, not ship; flag it
+- id: u-L42
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: Accessibility-by-design is present per the pack (WCAG 2.2 AA baseline, target sizes — 44/48dp mobile, focus order, keyboard reachability, dark+light)
+  current: Accessibility-by-design is present per the pack (WCAG 2.2 AA baseline, target sizes — 44/48dp mobile, focus order, keyboard reachability, dark+light)
+  text:
+  - Accessibility-by-design is present per the pack (WCAG 2.2 AA baseline, target sizes — 44/48dp mobile, focus order, keyboard reachability, dark+light)
+- id: u-L43
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: 'A surface-pack rule the contract violates: the pack wins — flag and fix'
+  current: 'A surface-pack rule the contract violates: the pack wins — flag and fix'
+  text:
+  - 'A surface-pack rule the contract violates: the pack wins — flag and fix'
+- id: u-L48
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: After each pass, list what you re-grounded (which screens you read, which `docs/data-contract.md` fields you confirmed, which pack rules you checked) and what you found, then fix the contract
+  current: After each pass, list what you re-grounded (which screens you read, which `docs/data-contract.md` fields you confirmed, which pack rules you checked) and what you found, then fix the contract
+  text:
+  - After each pass, list what you re-grounded (which screens you read, which `docs/data-contract.md` fields you confirmed, which pack rules you checked) and what you found, then fix the contract
+- id: u-L49
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: 'The loop terminates ONLY at the Termination contract''s closing round — the round-1 seats over their own axes at `confirmed: 0`, md5 unchanged — the only proof of convergence'
+  current: 'The loop terminates ONLY at the Termination contract''s closing round — the round-1 seats over their own axes at `confirmed: 0`, md5 unchanged — the only proof of convergence'
+  text:
+  - 'The loop terminates ONLY at the Termination contract''s closing round — the round-1 seats over their own axes at `confirmed: 0`, md5 unchanged — the only proof of convergence'
+- id: u-L50
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: The pass in which you fixed anything is never the last; run one more
+  current: The pass in which you fixed anything is never the last; run one more
+  text:
+  - The pass in which you fixed anything is never the last; run one more
+- id: u-L51
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: A pass that finds nothing must still enumerate its coverage; an empty pass with no evidence doesn't count
+  current: A pass that finds nothing must still enumerate its coverage; an empty pass with no evidence doesn't count
+  text:
+  - A pass that finds nothing must still enumerate its coverage; an empty pass with no evidence doesn't count
+- id: u-L53
+  # class: ban
+  file: render
+  section: '## Phase 2 — Handoff-readiness (so planning can BUILD against it without inventing)'
+  baseline: 'The contract is reviewed only if a planner (Traycer or `/fabrik-plan-after-chat`) and a builder can consume it as-is:'
+  current: 'The contract is reviewed only if a planner (Traycer or `/fabrik-plan-after-chat`) and a builder can consume it as-is:'
+  text:
+  - 'The contract is reviewed only if a planner (Traycer or `/fabrik-plan-after-chat`) and a builder can consume it as-is:'
+- id: u-L54
+  # class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (so planning can BUILD against it without inventing)'
+  baseline: 'Every screen carries a complete Phase-5 block: layout skeleton · design-system components per region · enriched states · data mapping (GUI field ↔ data-contract column) · form controls, where the screen has forms'
+  current: 'Every screen carries a complete Phase-5 block: layout skeleton · design-system components per region · enriched states · data mapping (GUI field ↔ data-contract column) · form controls, where the screen has forms'
+  text:
+  - 'Every screen carries a complete Phase-5 block: layout skeleton · design-system components per region · enriched states · data mapping (GUI field ↔ data-contract column) · form controls, where the screen has forms'
+  pins:
+  - tests/test_ui_design_review_queue_pass.py::test_form_controls_follow_the_templates_named_sections
+- id: u-L55
+  # class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (so planning can BUILD against it without inventing)'
+  baseline: A screen missing any of these is not build-ready — fix it
+  current: A screen missing any of these is not build-ready — fix it
+  text:
+  - A screen missing any of these is not build-ready — fix it
+- id: u-L58
+  # class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (so planning can BUILD against it without inventing)'
+  baseline: 'The freeze is real: `Status: FROZEN` + `Version` + `Date` + `Surface` + `Design system` header set; the verbatim freeze rule present'
+  current: 'The freeze is real: `Status: FROZEN` + `Version` + `Date` + `Surface` + `Design system` header set; the verbatim freeze rule present'
+  text:
+  - 'The freeze is real: `Status: FROZEN` + `Version` + `Date` + `Surface` + `Design system` header set; the verbatim freeze rule present'
+- id: u-L59
+  # class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (so planning can BUILD against it without inventing)'
+  baseline: If your review edited anything, the freeze is stale until the bump Convergence describes — owed by the orchestrator, not a seat finding
+  current: If your review edited anything, the freeze is stale until the bump Convergence describes — owed by the orchestrator, not a seat finding
+  text:
+  - If your review edited anything, the freeze is stale until the bump Convergence describes — owed by the orchestrator, not a seat finding
+  pins:
+  - tests/test_ui_design_review_queue_pass.py::test_an_in_loop_edit_is_not_an_in_place_edit_finding
+- id: u-L65
+  # class: prose
+  file: render
+  section: '## Phase 3 — The contract must make each screen build-verifiable'
+  baseline: A contract that can't be build-verified against its own claims isn't done
+  current: A contract that can't be build-verified against its own claims isn't done
+  text:
+  - A contract that can't be build-verified against its own claims isn't done
+- id: u-L68
+  # class: ban
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'Convergence = the Termination contract''s closing round (all axes + merge/refute, `confirmed: 0`). That md5-verified round is the ONLY thing that earns the independent-review attestation; your say-so or "I fixed what I found" does not'
+  current: 'Convergence = the Termination contract''s closing round (all axes + merge/refute, `confirmed: 0`). That md5-verified round is the ONLY thing that earns the independent-review attestation; your say-so or "I fixed what I found" does not'
+  text:
+  - 'Convergence = the Termination contract''s closing round (all axes + merge/refute, `confirmed: 0`). That md5-verified round is the ONLY thing that earns the independent-review attestation; your say-so or "I fixed what I found" does not'
+- id: u-L69
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'Closing round at `confirmed: 0` (no edits): the FROZEN contract stands'
+  current: 'Closing round at `confirmed: 0` (no edits): the FROZEN contract stands'
+  text:
+  - 'Closing round at `confirmed: 0` (no edits): the FROZEN contract stands'
+- id: u-L70
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'Add a one-line attestation to its header — `Independently reviewed: v<N> — /fabrik-ui-design-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger'
+  current: 'Add a one-line attestation to its header — `Independently reviewed: v<N> — /fabrik-ui-design-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger'
+  text:
+  - 'Add a one-line attestation to its header — `Independently reviewed: v<N> — /fabrik-ui-design-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger'
+- id: u-L72
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: The bump is the LAST edit, made before the closing round, which is then quiet against the bumped text
+  current: The bump is the LAST edit, made before the closing round, which is then quiet against the bumped text
+  text:
+  - The bump is the LAST edit, made before the closing round, which is then quiet against the bumped text
+  pins:
+  - tests/test_ui_design_review_queue_pass.py::test_an_in_loop_edit_is_not_an_in_place_edit_finding
+- id: u-L75
+  # class: ban
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Only then attest
+  current: Only then attest
+  text:
+  - Only then attest
+- id: u-L78
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Do NOT attest
+  current: Do NOT attest
+  text:
+  - Do NOT attest
+- id: u-L81
+  # class: ban
+  file: render
+  section: '## Convergence & residuals'
+  baseline: A history of rounds is correct and is not drift — only the newest entry is graded — and a contract with NO attestation is silent, since most have never had a twin run
+  current: A history of rounds is correct and is not drift — only the newest entry is graded — and a contract with NO attestation is silent, since most have never had a twin run
+  text:
+  - A history of rounds is correct and is not drift — only the newest entry is graded — and a contract with NO attestation is silent, since most have never had a twin run
+- id: u-L89
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Do not commit unless the user says so this turn (`git add` is fine)
+  current: Do not commit unless the user says so this turn (`git add` is fine)
+  text:
+  - Do not commit unless the user says so this turn (`git add` is fine)
+- id: u-L96
+  # class: prose
+  file: render
+  baseline: 'On a split, end the turn with this block, written as plain lines, not inside a code fence:'
+  current: 'On a split, end the turn with this block, written as plain lines, not inside a code fence:'
+  text:
+  - 'On a split, end the turn with this block, written as plain lines, not inside a code fence:'
+- id: u-L99
+  # class: prose
+  file: render
+  baseline: On a split, the operator's answer decides; on requested changes, re-open the loop
+  current: On a split, the operator's answer decides; on requested changes, re-open the loop
+  text:
+  - On a split, the operator's answer decides; on requested changes, re-open the loop
+- id: u-L100
+  # class: ban
+  file: render
+  baseline: Never hand off on an unattested / `DRAFT` contract
+  current: Never hand off on an unattested / `DRAFT` contract
+  text:
+  - Never hand off on an unattested / `DRAFT` contract
+- id: ui-design-review-r1
+  # class: prose
+  file: render
+  baseline: 'Fixed point = a full review round that CONFIRMS zero — the Termination contract''s closing round. This is to `/fabrik-ui-design` what `/fabrik-spec-review` is to `/fabrik-spec`: the adversarial, INDEPENDENT hardening of a design artifact its author already self-converged (`/fabrik-ui-design` froze it; that pass cannot see its own blind spots — this one can)'
+  current: Fixed point = a full review round that CONFIRMS zero — the Termination contract's closing round. This is the INDEPENDENT adversarial pass after `/fabrik-ui-design`'s author self-convergence
+  text:
+  - Fixed point = a full review round that CONFIRMS zero — the Termination contract's closing round. This is the INDEPENDENT adversarial pass after `/fabrik-ui-design`'s author self-convergence
+- id: ui-design-review-r2
+  # class: prose
+  file: render
+  baseline: '`/fabrik-ui-design-review` (THIS) — the design CONTRACT, at design time. Reviews `docs/ui-design.md` itself against its sources'
+  current: 'It reviews the design CONTRACT, at design time: `docs/ui-design.md` itself against its sources'
+  text:
+  - 'It reviews the design CONTRACT, at design time: `docs/ui-design.md` itself against its sources'
+- id: ui-design-review-r3
+  # class: ban
+  file: render
+  baseline: 'No running app, no pixels — the artifact ⏎ This command is #1: it never opens a browser — it grounds text against text'
+  current: 'No running app, no pixels: it never opens a browser — it grounds text against text'
+  text:
+  - 'No running app, no pixels: it never opens a browser — it grounds text against text'
+- id: ui-design-review-r4
+  # class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: The contract under review is `$ARGUMENTS` (if empty, the current project's `docs/ui-design.md` — locate it and state which file + its `Surface:` and `Design system:` header values)
+  current: The contract under review is `$ARGUMENTS` (if empty, the current project's `docs/ui-design.md`; state which file and its `Surface:` and `Design system:` header values)
+  text:
+  - The contract under review is `$ARGUMENTS` (if empty, the current project's `docs/ui-design.md`; state which file and its `Surface:` and `Design system:` header values)
+- id: ui-design-review-r5
+  # class: ban
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: 'It MUST be `Status: FROZEN` — if it''s still `DRAFT`, stop and route back to `/fabrik-ui-design` (you review a frozen artifact, you don''t finish its authoring)'
+  current: 'It MUST be `Status: FROZEN` — if it''s still `DRAFT`, stop and route back to `/fabrik-ui-design`'
+  text:
+  - 'It MUST be `Status: FROZEN` — if it''s still `DRAFT`, stop and route back to `/fabrik-ui-design`'
+- id: ui-design-review-r6
+  # class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: 'Scope = every screen, every flow, every IA node, every per-screen component/state/field mapping, checked against its four binding sources (a fifth, the built navigation, when the surface is already built — axis C), all read THIS session:'
+  current: 'Scope = every screen, flow, IA node and per-screen component/state/field mapping, checked against its four binding sources (a fifth, the built navigation, when the surface is already built — axis C), all read THIS session:'
+  text:
+  - 'Scope = every screen, flow, IA node and per-screen component/state/field mapping, checked against its four binding sources (a fifth, the built navigation, when the surface is already built — axis C), all read THIS session:'
+- id: ui-design-review-r7
+  # class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: 'Size ceiling: 25,000 tokens (about 1,100 lines) — the Read tool''s page cap; a contract above it is read PARTIALLY by every seat, so the review''s first finding is the split: history to `docs/archive/ui-design-history.md`, the live contract under the ceiling (01M25G1BN)'
+  current: 'Size ceiling: 25,000 tokens (about 1,100 lines) — the Read tool''s page cap; a contract above it is read PARTIALLY by every seat, so the review''s first finding is the split: history to `docs/archive/ui-design-history.md`, the live contract under the ceiling'
+  text:
+  - 'Size ceiling: 25,000 tokens (about 1,100 lines) — the Read tool''s page cap; a contract above it is read PARTIALLY by every seat, so the review''s first finding is the split: history to `docs/archive/ui-design-history.md`, the live contract under the ceiling'
+- id: ui-design-review-r8
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: Cover six axes — at round 1 one INDEPENDENT seat per axis when the contract is large, after it a closing pass by the round-1 seats over their own axes (D-335 — the fragment's D5 sentence); spot-verify against the spec's INTENT, since the written spec can itself be wrong
+  current: Cover six axes, one INDEPENDENT seat per axis at round 1; spot-verify against the spec's INTENT, since the written spec can itself be wrong
+  text:
+  - Cover six axes, one INDEPENDENT seat per axis at round 1; spot-verify against the spec's INTENT, since the written spec can itself be wrong
+- id: ui-design-review-r9
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: A) Design-system integrity. Every screen's components (Phase-5 blocks) come only from the established system — on a mobile surface built to the component patterns in `mobile-app/ocoron-mobile-design-system.md` — flag any bespoke/invented component where a system primitive exists, any off-token visual, any screen missing its enriched states (loading/empty/error/permission-denied/success/partial/disabled), and any form control that breaks `design-system-template.md` § Forms and Inline Editing, § Forms (Accessibility) or § Permissions UX
+  current: A) Design-system integrity. Every screen's components (Phase-5 blocks) come only from the established system — on a mobile surface built to the component patterns in `mobile-app/ocoron-mobile-design-system.md`
+  text:
+  - A) Design-system integrity. Every screen's components (Phase-5 blocks) come only from the established system — on a mobile surface built to the component patterns in `mobile-app/ocoron-mobile-design-system.md`
+- id: ui-design-review-r10
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: A) Design-system integrity. Every screen's components (Phase-5 blocks) come only from the established system — on a mobile surface built to the component patterns in `mobile-app/ocoron-mobile-design-system.md` — flag any bespoke/invented component where a system primitive exists, any off-token visual, any screen missing its enriched states (loading/empty/error/permission-denied/success/partial/disabled), and any form control that breaks `design-system-template.md` § Forms and Inline Editing, § Forms (Accessibility) or § Permissions UX
+  current: Flag any invented component where a system primitive exists, any off-token visual, any screen missing its enriched states (loading/empty/error/permission-denied/success/partial/disabled), and any form control that breaks `design-system-template.md` § Forms and Inline Editing, § Forms (Accessibility) or § Permissions UX
+  text:
+  - Flag any invented component where a system primitive exists, any off-token visual, any screen missing its enriched states (loading/empty/error/permission-denied/success/partial/disabled), and any form control that breaks `design-system-template.md` § Forms and Inline Editing, § Forms (Accessibility) or § Permissions UX
+  pins:
+  - tests/test_ui_design_review_queue_pass.py::test_form_controls_follow_the_templates_named_sections
+- id: ui-design-review-r11
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: For a shadcn-based system, verify each referenced component actually exists via the connected shadcn MCP (`mcp__shadcn__search_items_in_registries` / `view_items_in_registries`), and re-check any component-library API the contract leans on (Radix/NativeWind/Tamagui) via `WebFetch` of their official docs; a contract naming a component that isn't real is a defect
+  current: For a shadcn-based system, verify each referenced component actually exists via the connected shadcn MCP (`mcp__shadcn__search_items_in_registries` / `view_items_in_registries`), and re-check any component-library API the contract leans on via `WebFetch` of their official docs; a contract naming a component that isn't real is a defect
+  text:
+  - For a shadcn-based system, verify each referenced component actually exists via the connected shadcn MCP (`mcp__shadcn__search_items_in_registries` / `view_items_in_registries`), and re-check any component-library API the contract leans on via `WebFetch` of their official docs; a contract naming a component that isn't real is a defect
+- id: ui-design-review-r12
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: On a web surface, check the contract's microcopy and any token the project authored beyond its kit against `frontend-design:frontend-design`'s AI-generated clusters, listed in `core/63-frontend-design.md`; a kit or house token, a pattern the template prescribes or an operator ruling is never a finding, and a finding terminates FIXED or REFUTED like any other — never by editing a frozen contract in place
+  current: On a web surface, check the microcopy and any token the project authored beyond its kit against `frontend-design:frontend-design`'s AI-generated clusters, listed in `core/63-frontend-design.md`; a kit or house token, a pattern the template prescribes or an operator ruling is never a finding, and a finding terminates FIXED or REFUTED like any other — never by editing a frozen contract in place
+  text:
+  - On a web surface, check the microcopy and any token the project authored beyond its kit against `frontend-design:frontend-design`'s AI-generated clusters, listed in `core/63-frontend-design.md`; a kit or house token, a pattern the template prescribes or an operator ruling is never a finding, and a finding terminates FIXED or REFUTED like any other — never by editing a frozen contract in place
+- id: ui-design-review-r13
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: 'Flag: an invented field (on a screen, absent from the contract) and an orphan (in the contract, surfaced on no screen, when the spec implies it should be)'
+  current: Flag an invented field (on a screen, absent from the contract) and an orphan (in the contract, surfaced on no screen, when the spec implies it should be)
+  text:
+  - Flag an invented field (on a screen, absent from the contract) and an orphan (in the contract, surfaced on no screen, when the spec implies it should be)
+- id: ui-design-review-r14
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: 'When the surface is already built, its navigation is a fifth binding source, read this session: ground each menu/IA claim against it (the router''s route table, or the surface''s menu registry such as an ERP''s menu records), not the contract''s own earlier version — a tree that was never built reads as consistent with itself'
+  current: 'When the surface is already built, its navigation is a fifth binding source, read this session: ground each menu/IA claim against it (the router''s route table, or the surface''s menu registry), not the contract''s own earlier version — a tree that was never built reads as consistent with itself'
+  text:
+  - 'When the surface is already built, its navigation is a fifth binding source, read this session: ground each menu/IA claim against it (the router''s route table, or the surface''s menu registry), not the contract''s own earlier version — a tree that was never built reads as consistent with itself'
+  pins:
+  - tests/test_ui_design_review_queue_pass.py::test_built_navigation_grounds_ia_claims
+- id: ui-design-review-r15
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: Confirm each primary task has a one-action entry from the dashboard/home; that error/empty/dead-end paths are named, not just the happy path; that no flow routes through a screen the inventory doesn't list
+  current: Confirm each primary task has a one-action entry from the dashboard/home, that error/empty/dead-end paths are named, and that no flow routes through a screen the inventory doesn't list
+  text:
+  - Confirm each primary task has a one-action entry from the dashboard/home, that error/empty/dead-end paths are named, and that no flow routes through a screen the inventory doesn't list
+- id: ui-design-review-r16
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: E) Surface-pack + accessibility conformance. The screen inventory + nav match the surface pack's mandated inventory and conventions (e.g. web landing/login/dashboard/settings/billing; MV3 popup+options mandatory; mobile tab/stack structure)
+  current: E) Surface-pack + accessibility conformance. The screen inventory + nav match the surface pack's mandated inventory and conventions (MV3 popup+options mandatory; mobile tab/stack structure)
+  text:
+  - E) Surface-pack + accessibility conformance. The screen inventory + nav match the surface pack's mandated inventory and conventions (MV3 popup+options mandatory; mobile tab/stack structure)
+- id: ui-design-review-r17
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: F) Consistency + internal contradictions. Same task-type uses the same pattern across screens; naming + microcopy follow the design system's voice; no two sections contradict (an IA that buries a screen Phase 3 calls primary; a state listed on one screen and forgotten on its twin)
+  current: F) Consistency + internal contradictions. The same task-type uses the same pattern across screens; naming + microcopy follow the design system's voice; no two sections contradict (an IA that buries a screen Phase 3 calls primary; a state listed on one screen and forgotten on its twin)
+  text:
+  - F) Consistency + internal contradictions. The same task-type uses the same pattern across screens; naming + microcopy follow the design system's voice; no two sections contradict (an IA that buries a screen Phase 3 calls primary; a state listed on one screen and forgotten on its twin)
+- id: ui-design-review-r18
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: Parallelism — UNCONDITIONAL, every round. Dispatch one INDEPENDENT native seat per axis (or per surface) — recipe in § Subagents — run them in parallel, then merge + REFUTE any finding you can disprove (quote the contract line / the data-contract field / the pack rule that makes it a non-issue) before editing
+  current: Parallelism — UNCONDITIONAL, every round. Dispatch one INDEPENDENT native seat per axis — recipe in § Subagents — in parallel, then merge + REFUTE any finding you can disprove (quote the contract line, data-contract field or pack rule that makes it a non-issue) before editing
+  text:
+  - Parallelism — UNCONDITIONAL, every round. Dispatch one INDEPENDENT native seat per axis — recipe in § Subagents — in parallel, then merge + REFUTE any finding you can disprove (quote the contract line, data-contract field or pack rule that makes it a non-issue) before editing
+- id: ui-design-review-r19
+  # class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: When `dispatch_headroom.py` trims the round (its `COST:` line names units with NO seat), dispatch exactly the seats it prints, one axis each; the seatless axes are named in the round's ledger and swept by further full-pass waves before any delta pass (term-edit's trimmed-round rule) — round 1 is complete only when every axis has had its seat, and a seat whose slice was too large reports the screens or sections it did not reach, which join that next wave
+  current: When `dispatch_headroom.py` trims the round (its `COST:` line names units with NO seat), dispatch exactly the seats it prints, one axis each; the seatless axes are named in the round's ledger and swept by further full-pass waves before any delta pass
+  text:
+  - When `dispatch_headroom.py` trims the round (its `COST:` line names units with NO seat), dispatch exactly the seats it prints, one axis each; the seatless axes are named in the round's ledger and swept by further full-pass waves before any delta pass
+  pins:
+  - tests/test_ui_design_review_queue_pass.py::test_trimmed_seats_carry_several_axes_and_report_the_rest
+- id: ui-design-review-r20
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: When `dispatch_headroom.py` trims the round (its `COST:` line names units with NO seat), dispatch exactly the seats it prints, one axis each; the seatless axes are named in the round's ledger and swept by further full-pass waves before any delta pass (term-edit's trimmed-round rule) — round 1 is complete only when every axis has had its seat, and a seat whose slice was too large reports the screens or sections it did not reach, which join that next wave
+  current: Round 1 is complete only when every axis has had its seat, and a seat whose slice was too large reports the screens or sections it did not reach, which join that next wave
+  text:
+  - Round 1 is complete only when every axis has had its seat, and a seat whose slice was too large reports the screens or sections it did not reach, which join that next wave
+- id: ui-design-review-r21
+  # class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)'
+  baseline: 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
+  current: 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it'
+  text:
+  - 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it'
+- id: ui-design-review-r22
+  # class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (so planning can BUILD against it without inventing)'
+  baseline: 'Every flow is testable by the Build Verification Loop: a named entry, an ordered click path within budget, a success end-state — so the built screen can be asserted against it ⏎ Every flow has a click budget — so "minimal-click" is a checkable number at build time, not a vibe'
+  current: 'Every flow is testable by the Build Verification Loop: a named entry, an ordered click path within budget, a success end-state'
+  text:
+  - 'Every flow is testable by the Build Verification Loop: a named entry, an ordered click path within budget, a success end-state'
+- id: ui-design-review-r23
+  # class: ban
+  file: render
+  section: '## Phase 2 — Handoff-readiness (so planning can BUILD against it without inventing)'
+  baseline: 'Every cross-reference resolves to the DESIGN it names, not merely to a heading: a pointer such as "the decision lives in §5.6" is followed, and §5.6 must state that decision (its components, states or rule) — a heading that exists but does not carry it is a dangling reference'
+  current: 'Every cross-reference resolves to the DESIGN it names, not merely to a heading: if "the decision lives in §5.6", §5.6 must state that decision (its components, states or rule)'
+  text:
+  - 'Every cross-reference resolves to the DESIGN it names, not merely to a heading: if "the decision lives in §5.6", §5.6 must state that decision (its components, states or rule)'
+  pins:
+  - tests/test_ui_design_review_queue_pass.py::test_cross_references_resolve_to_the_design_they_name
+- id: ui-design-review-r24
+  # class: ban
+  file: render
+  section: '## Phase 3 — The contract must make each screen build-verifiable'
+  baseline: 'Verify (add/fix if missing) that the frozen contract lets the downstream build enforce it: ⏎ Every screen''s states are enumerated — so the Build Verification Loop can assert each is rendered (a screen with only a happy-path state is under-specified) ⏎ Every field maps to a data-contract column — so "no invented field" is mechanically checkable against `docs/ui-design.md` + `docs/data-contract.md` during the build loop'
+  current: 'Verify (add/fix if missing) that the frozen contract lets the downstream build enforce it: every screen''s states enumerated (a screen with only a happy-path state is under-specified), every flow given a click budget, and every field mapped to a data-contract column'
+  text:
+  - 'Verify (add/fix if missing) that the frozen contract lets the downstream build enforce it: every screen''s states enumerated (a screen with only a happy-path state is under-specified), every flow given a click budget, and every field mapped to a data-contract column'
+- id: ui-design-review-r25
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Do not promise "100% coverage" — iterate to a fixed point, then enumerate residual unknowns / assumptions / out-of-scope risks, separating resolved from still-open (each open one with a named resolution step)
+  current: Do not promise "100% coverage" — iterate to a fixed point, then enumerate residual unknowns, separating resolved from still-open
+  text:
+  - Do not promise "100% coverage" — iterate to a fixed point, then enumerate residual unknowns, separating resolved from still-open
+- id: ui-design-review-r26
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'You edited the contract: the header keeps its reviewed `Version` (still `FROZEN` — a `DRAFT` header would fail Phase 0''s check on a resumed run) while the fix rounds run, and every seat brief says so — an edit this review made is not an in-place-edit finding'
+  current: 'You edited the contract: the header keeps its reviewed `Version` (still `FROZEN`) while the fix rounds run, and every seat brief says so — an edit this review made is not an in-place-edit finding'
+  text:
+  - 'You edited the contract: the header keeps its reviewed `Version` (still `FROZEN`) while the fix rounds run, and every seat brief says so — an edit this review made is not an in-place-edit finding'
+  pins:
+  - tests/test_ui_design_review_queue_pass.py::test_an_in_loop_edit_is_not_an_in_place_edit_finding
+- id: ui-design-review-r27
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Editing a FROZEN artifact re-opens it — per the freeze rule, bump `Version` and re-freeze (the closing round above IS the re-freeze convergence)
+  current: Editing a FROZEN artifact re-opens it — per the freeze rule, bump `Version` and re-freeze
+  text:
+  - Editing a FROZEN artifact re-opens it — per the freeze rule, bump `Version` and re-freeze
+- id: ui-design-review-r28
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'The bump is a Status-flip event: mint its `docs/DECISIONS.md` row staged in the same commit as the artifact (the `/fabrik-ui-design` freeze law; classify at mint — plain row normally)'
+  current: 'The bump is a Status-flip event: mint its `docs/DECISIONS.md` row staged in the same commit as the artifact (classify at mint — plain row normally)'
+  text:
+  - 'The bump is a Status-flip event: mint its `docs/DECISIONS.md` row staged in the same commit as the artifact (classify at mint — plain row normally)'
+- id: ui-design-review-r29
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'A BLOCKING gap remains (a screen needs a field the data contract lacks and you can''t reconcile it here; a spec task with no resolvable flow): stop, set `Status: DRAFT`, name the blocker, route to `/fabrik-ui-design` (or `/fabrik-data-contract` for a field gap) ⏎ The FROZEN→DRAFT flip is a Status flip — mint its `docs/DECISIONS.md` row in the same commit (it reverses a readiness claim consumers may have acted on; classify at mint)'
+  current: 'A BLOCKING gap remains (a screen needs a field the data contract lacks and you can''t reconcile it here; a spec task with no resolvable flow): stop, set `Status: DRAFT`, name the blocker, route to `/fabrik-ui-design` (or `/fabrik-data-contract` for a field gap), and mint the `docs/DECISIONS.md` row for the FROZEN→DRAFT flip in the same commit (classify at mint)'
+  text:
+  - 'A BLOCKING gap remains (a screen needs a field the data contract lacks and you can''t reconcile it here; a spec task with no resolvable flow): stop, set `Status: DRAFT`, name the blocker, route to `/fabrik-ui-design` (or `/fabrik-data-contract` for a field gap), and mint the `docs/DECISIONS.md` row for the FROZEN→DRAFT flip in the same commit (classify at mint)'
+- id: ui-design-review-r30
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Close the run record on this path — `blocked --command fabrik-ui-design-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping
+  current: Close the run record on this path — `blocked --command fabrik-ui-design-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on
+  text:
+  - Close the run record on this path — `blocked --command fabrik-ui-design-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on
+- id: ui-design-review-r31
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: '⚠️ The attestation IS graded — since 2026-08-29, by `check_frozen_chain.py`. It compares the NEWEST `Independently reviewed: v<N>` against the contract''s current `Version:` and WARNs when the contract has moved past its last author-blind pass (`docs/x.md: newest independent review attests v6 but the contract is at v11 — 5 version(s) have had no author-blind pass`)'
+  current: '`check_frozen_chain.py` grades the attestation: it WARNs when the newest `Independently reviewed: v<N>` is older than the contract''s current `Version:`'
+  text:
+  - '`check_frozen_chain.py` grades the attestation: it WARNs when the newest `Independently reviewed: v<N>` is older than the contract''s current `Version:`'
+- id: ui-design-review-r32
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: The check proves the claim is CURRENT, not that it is TRUE ⏎ Ledger honesty is still on you
+  current: It proves the claim is CURRENT, not that it is TRUE — ledger honesty is still on you
+  text:
+  - It proves the claim is CURRENT, not that it is TRUE — ledger honesty is still on you
+- id: ui-design-review-r33
+  # class: ban
+  file: render
+  section: '## Convergence & residuals'
+  baseline: '⚠️ Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed ⏎ COMMIT the artifact — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+  current: '⚠️ Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it, so COMMIT the artifact — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+  text:
+  - '⚠️ Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it, so COMMIT the artifact — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+- id: ui-design-review-r34
+  # class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28)
+  current: What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths
+  text:
+  - What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths
+- id: ui-design-review-r35
+  # class: prose
+  file: render
+  section: '## After the attestation — the panel answers the UI approval gate'
+  baseline: 'Like `/fabrik-spec-review`, this is a design approval gate: a frozen UI contract commits agents to build every screen/flow in it ⏎ Once the closing round (`confirmed: 0`) earns the attestation, the panel answers it; its brief carries the contract, the screens, the key flows with their click budgets and any reconciliations'
+  current: 'Like `/fabrik-spec-review`, this is a design approval gate: once the closing round (`confirmed: 0`) earns the attestation, the panel answers it; its brief carries the contract, the screens, the key flows with their click budgets and any reconciliations'
+  text:
+  - 'Like `/fabrik-spec-review`, this is a design approval gate: once the closing round (`confirmed: 0`) earns the attestation, the panel answers it; its brief carries the contract, the screens, the key flows with their click budgets and any reconciliations'
+- id: ui-design-review-r36
+  # class: prose
+  file: render
+  section: '## After the attestation — the panel answers the UI approval gate'
+  baseline: 'The next step: Claude Code path → `/fabrik-plan-after-chat` (references `docs/ui-design.md` + the design system + `docs/data-contract.md` as binding UI truth, its screen-building phases each running the Build Verification Loop to its closing round); Traycer path → paste/link the reviewed contract as the UI-epic Context File'
+  current: 'The next step: Claude Code path → `/fabrik-plan-after-chat` (binding UI truth: `docs/ui-design.md` + the design system + `docs/data-contract.md`); Traycer path → paste/link the reviewed contract as the UI-epic Context File'
+  text:
+  - 'The next step: Claude Code path → `/fabrik-plan-after-chat` (binding UI truth: `docs/ui-design.md` + the design system + `docs/data-contract.md`); Traycer path → paste/link the reviewed contract as the UI-epic Context File'
+- id: ui-design-review-decision-block
+  # class: behavioural
+  file: render
+  section: '## After the attestation — the panel answers the UI approval gate'
+  baseline: ''
+  text:
+  - 'DECISION NEEDED (ground: gate)'
+  - 'Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → split'
+vanished:
+  L2: {"rule": ["ui-design-review-r1"]}  # clauses narrative: ['This is to `/fabrik-ui-design` what `/fabrik-spec-review` is to `/fabrik-spec`: the adversarial, INDEPENDENT hardening of a design artifact its author already self-converged (`/fabrik-ui-design` froze it; that pass cannot see its own blind spots — this one can)']
+  L3: {"duplicate-of": "ui-design-review-r13"}
+  L4: narrative
+  L5: {"rule": ["ui-design-review-r2"]}  # clauses narrative: ['`/fabrik-ui-design-review` (THIS) —']
+  L6: {"rule": ["ui-design-review-r3"]}  # clauses narrative: ['— the artifact']
+  L7: narrative
+  L8: narrative
+  L9: narrative
+  L10: {"rule": ["ui-design-review-r3"]}
+  L14: {"rule": ["ui-design-review-r4"]}
+  L15: {"rule": ["ui-design-review-r5"]}
+  L16: {"rule": ["ui-design-review-r6"]}
+  L22: {"rule": ["ui-design-review-r7"]}  # clauses narrative: ['(01M25G1BN)']
+  L27: {"rule": ["ui-design-review-r8"]}  # clauses narrative: ["(D-335 — the fragment's D5 sentence)"]
+  L28: {"rule": ["ui-design-review-r9", "ui-design-review-r10"]}
+  L30: {"rule": ["ui-design-review-r11"]}
+  L31: {"rule": ["ui-design-review-r12"]}
+  L33: {"rule": ["ui-design-review-r13"]}
+  L36: {"rule": ["ui-design-review-r14"]}
+  L40: {"rule": ["ui-design-review-r15"]}
+  L41: {"rule": ["ui-design-review-r16"]}
+  L44: {"rule": ["ui-design-review-r17"]}
+  L45: {"rule": ["ui-design-review-r18"]}
+  L46: {"rule": ["ui-design-review-r19", "ui-design-review-r20"]}
+  L47: {"rule": ["ui-design-review-r21"]}  # clauses narrative: ['— measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)']
+  L56: {"rule": ["ui-design-review-r22"]}  # clauses narrative: ['— so the built screen can be asserted against it']
+  L57: {"rule": ["ui-design-review-r23"]}  # clauses narrative: ['— a heading that exists but does not carry it is a dangling reference']
+  L61: {"rule": ["ui-design-review-r24"]}
+  L62: {"rule": ["ui-design-review-r24"]}
+  L63: {"rule": ["ui-design-review-r22"]}  # clauses narrative: ['— so "minimal-click" is a checkable number at build time, not a vibe']
+  L64: {"rule": ["ui-design-review-r24"]}  # clauses narrative: ['— so "no invented field" is mechanically checkable against `docs/ui-design.md` + `docs/data-contract.md` during the build loop']
+  L67: {"rule": ["ui-design-review-r25"]}
+  L71: {"rule": ["ui-design-review-r26"]}  # clauses narrative: ["— a `DRAFT` header would fail Phase 0's check on a resumed run"]
+  L73: {"rule": ["ui-design-review-r27"]}  # clauses narrative: ['(the closing round above IS the re-freeze convergence)']
+  L74: {"rule": ["ui-design-review-r28"]}  # clauses narrative: ['the `/fabrik-ui-design` freeze law;']
+  L76: {"rule": ["ui-design-review-r29"]}
+  L77: {"rule": ["ui-design-review-r29"]}  # clauses narrative: ['it reverses a readiness claim consumers may have acted on;']
+  L79: {"rule": ["ui-design-review-r30"]}
+  L80: {"rule": ["ui-design-review-r31"]}  # clauses narrative: ['— since 2026-08-29, by', '(`docs/x.md: newest independent review attests v6 but the contract is at v11 — 5 version(s) have had no author-blind pass`)']
+  L82: narrative
+  L83: {"rule": ["ui-design-review-r32"]}
+  L84: {"rule": ["ui-design-review-r32"]}
+  L85: narrative
+  L86: narrative
+  L87: narrative
+  L88: narrative
+  L90: {"rule": ["ui-design-review-r33"]}  # clauses narrative: ['(causes 2 and 3)']
+  L91: {"rule": ["ui-design-review-r33"]}
+  L92: {"rule": ["ui-design-review-r34"]}  # clauses narrative: ['(trade-intelligence, 2026-08-28)']
+  L94: {"rule": ["ui-design-review-r35"]}
+  L95: {"rule": ["ui-design-review-r35"]}
+  L98: {"rule": ["ui-design-review-r36"]}
