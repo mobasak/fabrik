@@ -26,6 +26,10 @@ All notable changes to this project will be documented in this file.
   an unreadable `project.yaml` is an unknown type, a warning, never a crash.
 - Live: 8/8 account `.claude.json` files and 44/44 /opt git repos carry `rea`; rn-kit-sandbox, image-generation and
   fabrik-dr-store got their first `.mcp.json`.
+### Added — the `provenance` clause label in the rule ledgers (D-1255, D-1256) (2026-10-26)
+
+- `commands/command_rules.py`: a clause labelled `provenance` is measured by lint B without its parentheticals of ids alone (D-row, W-item, ISO date, SHA, `§` pointer); the label is refused on a ban clause and on a clause with no such parenthetical, and `summary()` prints the provenance count. See the **Ledger lints** bullet of `docs/reference/command-corpus-check.md` (W-0c38115e).
+
 ### Fixed — Ocoron brand guide: the legal entity is Ocoron Dış Ticaret Limited Şirketi; Kalite Pusulası added (2026-10-26)
 
 - W-c0080a4b, D-1250, an operator order relayed from web-ecommerce-factory. In
