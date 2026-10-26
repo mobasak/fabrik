@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from jinja2 import meta
 
 from fabrik.spec_loader import Spec
 from fabrik.template_renderer import TemplateRenderer
@@ -176,15 +177,24 @@ def test_unrepresentable_value_refused(bad: str, layer: str) -> None:
     assert "sec" not in str(exc.value)
 
 
-# A templated `KEY=value` list item — `=` and a `{{` on an unquoted `- ` line, whatever spells the key
-# (`- {{ key }}={{ value }}` was the old loop) — must go through compose_env. Exempt: a quoted item (a
-# traefik label) and the literal `DATABASE_URL=${DATABASE_URL:-…/{{ depends.postgres }}}` default, whose
-# only templated part is the spec's database name — both separate quoting items (W-80aed026's OUT).
-_UNQUOTED_ENV_LINE = re.compile(
-    r"^\s*-\s+(?![\"'])(?!.*\bcompose_env\()(?=.*=)(?=.*\{\{)"
-    r"(?!DATABASE_URL=\$\{DATABASE_URL:-(?:(?!\{\{).)*\{\{\s*depends\.postgres\s*\}\}\}$)"
+# A templated env item is exactly `- {{ <key> | compose_env(<value>) }}`. Any other `- ` item whose key — a
+# bare name or a `{{ }}` tag, quoted or not (`- {{ key }}={{ value }}` was the old loop) — is followed by `=`
+# and a `{{` is an env value written by hand. Not env items, so not flagged: a dotted key (a quoted traefik
+# label) and the literal `DATABASE_URL=${DATABASE_URL:-…/{{ depends.postgres }}}` default, whose only tag is
+# the spec's database name — both separate quoting items (W-80aed026's OUT, W-ff313a14).
+_ENV_ITEM_LINE = re.compile(r"^\s*-\s+\{\{[^{}]*\|\s*compose_env\([^{}]*\)\s*\}\}\s*$")
+_TEMPLATED_KV_LINE = re.compile(r"^\s*-\s+[\"']?(?:[A-Za-z_][A-Za-z0-9_]*|\{\{[^{}]*\}\})=.*\{\{")
+_DB_DEFAULT_LINE = re.compile(
+    r"^\s*-\s+DATABASE_URL=\$\{DATABASE_URL:-(?:(?!\{\{).)*\{\{\s*depends\.postgres\s*\}\}\}$"
 )
-_ENV_ITEM_LINE = re.compile(r"^\s*-\s+\{\{.*\|\s*compose_env\(")
+
+
+def _unquoted_env_line(line: str) -> bool:
+    return (
+        not _ENV_ITEM_LINE.match(line)
+        and bool(_TEMPLATED_KV_LINE.match(line))
+        and not _DB_DEFAULT_LINE.match(line)
+    )
 
 
 @pytest.mark.parametrize(
@@ -193,6 +203,10 @@ _ENV_ITEM_LINE = re.compile(r"^\s*-\s+\{\{.*\|\s*compose_env\(")
         ("      - {{ key }}={{ value }}", True),
         ("      - {{ key }}={{ value | env_escape }}", True),
         ("      - FOO={{ env.get('FOO', 'x') }}", True),
+        ('      - "{{ key }}={{ value }}"', True),
+        ('      - "FOO={{ value }}"', True),
+        ("      - {{ key }}={{ value | compose_env(x) }}", True),
+        ("      - {{ key | compose_env(value) }}={{ other }}", True),
         ("      - {{ key | compose_env(value) }}", False),
         ("      - {{ 'FOO' | compose_env(env.get('FOO', 'x')) }}", False),
         ('      - "traefik.http.services.x.loadbalancer.server.port={{ p }}"', False),
@@ -208,7 +222,7 @@ _ENV_ITEM_LINE = re.compile(r"^\s*-\s+\{\{.*\|\s*compose_env\(")
     ],
 )
 def test_the_unquoted_env_line_matcher(line: str, unquoted: bool) -> None:
-    assert bool(_UNQUOTED_ENV_LINE.match(line)) is unquoted
+    assert _unquoted_env_line(line) is unquoted
 
 
 def test_no_unquoted_env_line() -> None:
@@ -219,7 +233,7 @@ def test_no_unquoted_env_line() -> None:
     assert yaml_templates, "no YAML template scanned"
     for f in yaml_templates:
         for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
-            if _UNQUOTED_ENV_LINE.match(line):
+            if _unquoted_env_line(line):
                 hits.append(f"{f.relative_to(REPO)}:{n}: {line.strip()}")
             quoted += bool(_ENV_ITEM_LINE.match(line))
     assert quoted >= 24, quoted  # 9 loops + 15 fixed lines — the guard read the files it claims to
@@ -227,42 +241,47 @@ def test_no_unquoted_env_line() -> None:
 
 
 # render() $-escapes the secrets it hands to EVERY template as `env`; only compose output may read it.
-# Any bare `env` name inside Jinja code is a read (`{{ env }}`, `env | tojson`, `set e = env`); an
-# attribute (`spec.env`), a longer name (`environment`) or a quoted string (`'.env'`) is not.
-_ENV_READ = re.compile(r"(?<![\w.'\"/-])env(?![\w'\"/-])")
-_JINJA_CODE = re.compile(r"\{[{%].*?[}%]\}", re.S)
+# Jinja's own analysis decides what is a read (whitespace control `{{-env}}`, `x-env`, `env | tojson`
+# all are; `spec.env`, `'.env'` and a template-local `set env` are not) — a regex only guesses at it.
+_COMPOSE_NAMES = ("compose.yaml.j2", "_companion_service.yaml.j2")
+
+
+def _reads_env(renderer: TemplateRenderer, source: str) -> bool:
+    return "env" in meta.find_undeclared_variables(renderer.jinja.parse(source))
 
 
 @pytest.mark.parametrize(
     ("code", "reads"),
     [
         ("{{ env }}", True),
+        ("{{-env}}", True),
+        ("{{ env-}}", True),
+        ("{%-set e=env-%}", True),
+        ("{{ x-env }}", True),
         ("{{ env | tojson }}", True),
-        ("{% set e = env %}", True),
         ("{{ env.get('X') }}", True),
-        ("{% if 'X' in env %}", True),
+        ("{% if 'X' in env %}x{% endif %}", True),
         ("{{ environment }}", False),
         ("{{ spec.env }}", False),
         ("{{ '.env' }}", False),
+        ("{% set env = {} %}{{ env }}", False),
     ],
 )
-def test_the_env_read_matcher(code: str, reads: bool) -> None:
-    assert any(_ENV_READ.search(m) for m in _JINJA_CODE.findall(code)) is reads
+def test_the_env_read_check(tmp_path: Path, code: str, reads: bool) -> None:
+    renderer = TemplateRenderer(templates_dir=TEMPLATES, output_dir=tmp_path)
+    assert _reads_env(renderer, code) is reads
 
 
-def test_only_compose_templates_read_env() -> None:
-    others = [
-        f
-        for f in TEMPLATES.rglob("*.j2")
-        if f.name not in ("compose.yaml.j2", "_companion_service.yaml.j2")
-    ]
-    readers = sorted(
+def test_only_compose_templates_read_env(tmp_path: Path) -> None:
+    renderer = TemplateRenderer(templates_dir=TEMPLATES, output_dir=tmp_path)
+    readers = {
         str(f.relative_to(REPO))
-        for f in others
-        if any(_ENV_READ.search(m) for m in _JINJA_CODE.findall(f.read_text(encoding="utf-8")))
-    )
-    assert others, "no non-compose template scanned"
-    assert not readers, readers
+        for f in TEMPLATES.rglob("*.j2")
+        if _reads_env(renderer, f.read_text(encoding="utf-8"))
+    }
+    compose = {r for r in readers if r.endswith(_COMPOSE_NAMES)}
+    assert len(compose) >= len(ENV_TEMPLATES), compose  # the check sees the reads it must
+    assert readers == compose, sorted(readers - compose)
 
 
 def _busybox_ready() -> bool:
