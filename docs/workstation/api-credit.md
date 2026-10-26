@@ -124,42 +124,56 @@ seven of them real.
 ## The write lane (`scripts/api_write.py`)
 
 D-1247 (operator, 2026-10-26: "why arent we utilizing the api and cloud credits as like they are disposable agents?")
-turns the same keys into disposable WRITING agents. `api_write.py` takes the brief file a cloud run takes
-(`cloud_dispatch.py dispatch --task-file`, or a `drain` batch of `{"slug", "task_file"}`), runs it on a key with write
-tools, and pushes the run's own `claude/<slug>` branch:
+turns the same keys into disposable WRITING agents. `api_write.py` takes the brief file a cloud run takes, runs it on a
+key with file-editing tools in a throwaway clone, and the runner commits the edits and pushes `claude/<slug>`:
 
 ```
 python3 scripts/api_write.py run --pick --model sonnet --out-dir <d> --batch batch.json [--jobs 3] [--budget 10] \
     [--max-turns 300] [--timeout 3600] [--force-new]
-python3 scripts/api_write.py run --key sarp --model opus --out-dir <d> --slug lean-t15-fix --task-file brief.md
+python3 scripts/api_write.py run --key sarp --model opus --out-dir <d> --slug lean-t15-fix --task-file brief.md \
+    --base claude/lean-t15 --gate "python3 -m pytest -q tests/test_command_rules.py"
 ```
 
-Per run, before anything is spent:
-- it refuses when `origin` already has `claude/<slug>`, unless `--force-new`;
-- it makes a `git clone --shared` of the main checkout under `~/.claude/state/api-write/<run>/`, so the main checkout's
-  worktrees, refs and index are never touched, and points the clone's `origin` at the main checkout's own `origin`;
-- it installs a `pre-push` hook (through the clone's `core.hooksPath`) that refuses every ref but
-  `refs/heads/claude/<slug>`;
-- it runs the keyless pre-flight above on this lane's argv, which must report the write tools.
+A batch is a JSON list of `{"slug", "task_file", "base", "gates"}` (`base` defaults to `master`, `gates` to none). An
+entry with `cloud_dispatch.py drain`'s inline `task` is refused (write it to a file), and its `files` key is ignored.
 
-Then it reserves the budget in the same `api-credit.jsonl` through `api_credit.reserve` (one $200 cap per key across both
-lanes; the start row carries `lane: write` and the slug), and runs `claude -p --safe-mode --restricted` in the clone,
-in its own process group so a timeout kills everything it started. **Least privilege** (the coordinator's redesign after
-the classifier refused a `bypassPermissions` child, "Create Unsafe Agents"): `--permission-mode dontAsk` with the
-script's `ALLOWED` list, so anything unlisted is denied — Read, Edit, Write, Glob, Grep, and Bash only for local git on
-the slug branch (`git checkout -B claude/*`, status, diff, log, show, add, rm, mv, commit) and the briefs' two gates
-(`python3 -m pytest *`, `python3 commands/assemble_commands.py --check`). No fetch, push or pip: the runner fetched
-`origin` already and pushes the branch itself, and an editable install from a hub clone would repoint the shared
-install box-wide, so the child's PATH starts with the main checkout's venv instead. The SSH agent is dropped from its
-env. `--restricted` confines the file tools to the clone. `--safe-mode` keeps the hub's hooks out of the child, the
-quota and Stop hooks included. After the child exits the runner settles the cost, pushes `claude/<slug>` (never
-forced), writes the scrubbed result to `<out-dir>/<slug>.md` and deletes the run directory. `--jobs` (default 3) runs a
-batch in parallel; with `--pick` each job reserves the key with the most room at its own start, so three jobs spread
-over the three keys.
+**The safety lives in the runner, not in the permission rule** that lets a session start it (the operator's rule admits
+`python3 scripts/api_write.py run *`; the classifier refused a session-started headless agent twice, first with blanket
+Bash and `bypassPermissions`, then with a Bash allow-list — D-1248, D-1249). The design, D-1251:
+- **The child has no git and no free shell.** `claude -p --safe-mode --restricted --permission-mode dontAsk` with Read,
+  Edit, Write, Glob and Grep only; `--restricted` confines them to the clone and leaves writes to git and settings
+  files to a person, which `dontAsk` denies. A job's gates add `Bash(<gate>)` for each gate string, matched exactly: a
+  glob over a command's options admits the options, and the review that built this found three that reach outside the
+  clone (pytest's `--basetemp` deletes the directory it names, git's `--output` writes any path, `git commit -F` reads
+  any file). A gate is an exact command with no shell syntax; anything else is refused before spending.
+- **The runner owns git.** Before spending it refuses when `origin` already has `claude/<slug>` (unless
+  `--force-new`) or has no `<base>`, makes a plain local clone of the main checkout under `<state>/api-write/<run>/`
+  (`<state>` is `~/.claude/state` unless `ROTATE_STATE_DIR` says otherwise; no worktree, no alternates, so the main
+  checkout is only read), points its `origin` at the main checkout's `origin` URL, fetches, and checks out
+  `claude/<slug>` at `origin/<base>`. The prompt is prefixed with a runner note saying so, and telling the child to skip
+  the brief's BASE line, git, fetch, pip and push and to end with `SUBJECT: <commit subject>`.
+- **After the child exits**, on a clean exit only: the runner refuses to run git in a clone whose `.git/config` changed,
+  commits every edit as ONE commit (the child's `SUBJECT:` line, `Agent-*` trailers naming the run and key) with hooks
+  and fsmonitor forced off, refuses the push when the diff holds one of the three keys or an `sk-ant-` string, and
+  pushes `claude/<slug>` to the URL it captured (an explicit refspec, never forced). A child error, a timeout or a
+  refusal pushes nothing.
+- **Money.** The run reserves its budget in the same `api-credit.jsonl` through `api_credit.reserve` (one $200 cap per
+  key across both lanes; the start row carries `lane: write` and the slug), runs after the same keyless pre-flight
+  (which must report this child's tool set), and every outcome after the start row writes a settle row. The child runs
+  in its own process group, so a timeout kills everything in it.
+- **Env.** The child's env is `api_credit.child_env` minus every `GIT_*` name and the SSH agent, with the main
+  checkout's `.venv/bin` first on PATH when it exists, so a gate's `python3 -m pytest` has the hub's dependencies
+  without a pip install (an editable install from a hub clone would repoint the shared install box-wide).
 
-**The boundary that remains.** `python3 -m pytest` runs whatever test code the child writes, as this user, so a
-determined child can still act outside its clone through a test file. That is named in the script rather than guarded;
-the ledger names every run's slug and key, and the pushed branch is reviewed before any merge.
+On a normal exit the scrubbed result goes to `<out-dir>/<slug>.md` (printed on stdout when that file cannot be
+written); a timeout writes none. `--jobs` (default 3) runs a batch in parallel; with `--pick` each job reserves the key
+with the most room at its own start, so three jobs spread over the three keys. One run is one commit, so a multi-ticket
+brief is split into one entry per ticket.
+
+**What remains** (D-253): the cheapest abuse left is a gate, which runs code the child wrote (a test file, a rendered
+source) as this user, outside every fence above — so gates come from the brief's author, never from the child, and a
+job with no gates runs no code at all. Next, anything the child writes inside the clone ships to `claude/<slug>` (the
+secret scan knows only the three keys and the `sk-ant-` pattern), which is why the branch is reviewed before any merge.
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts

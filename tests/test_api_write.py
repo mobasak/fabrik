@@ -1,7 +1,8 @@
-"""api_write.py — the API-key WRITE lane (D-1247, W-174b8543): a cloud-format brief run by headless `claude -p` on a key,
-in a throwaway shared clone, pushing only `claude/<slug>`. The subject runs as a subprocess against a fake `claude` on
-PATH that acts on its working directory (commits on the slug branch, or tries to push master) and a real temporary
-main checkout whose origin is a local bare repository, so nothing here reaches a provider or GitHub."""
+"""api_write.py — the API-key WRITE lane (D-1247, D-1248, D-1251, W-174b8543): a cloud-format brief run by headless
+`claude -p` on a key with file tools only, in a throwaway local clone; the runner commits the edits and pushes only
+`claude/<slug>`. The subject runs as a subprocess against a fake `claude` on PATH that edits files in its working
+directory (or tampers with the clone) and a real temporary main checkout whose origin is a local bare repository, so
+nothing here reaches a provider or GitHub."""
 
 from __future__ import annotations
 
@@ -26,45 +27,38 @@ ENV_NAME = {
     "sarp": "ANTHROPIC_API_KEY_SARP",
     "ozgurbasak": "ANTHROPIC_API_KEY_OZGURBASAK",
 }
-WRITE_TOOLS = ["Bash", "Edit", "Glob", "Grep", "Read", "Write"]
+FILE_TOOLS = ["Edit", "Glob", "Grep", "Read", "Write"]
 
 FAKE_CLAUDE = """#!{python}
 import json, os, subprocess, sys, time
-log = os.environ["FAKE_LOG"]
-with open(log, "a", encoding="utf-8") as f:
+prompt = sys.stdin.read()
+with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps({{"argv": sys.argv[1:], "cwd": os.getcwd(), "env_names": sorted(os.environ),
-                        "key": os.environ.get("ANTHROPIC_API_KEY", "")}}) + "\\n")
+                        "key": os.environ.get("ANTHROPIC_API_KEY", ""), "prompt": prompt}}) + "\\n")
 if "stream-json" in sys.argv:
     sys.stdout.write(open(os.environ["FAKE_PREFLIGHT"], encoding="utf-8").read())
     sys.exit(1)
-sys.stdin.read()
-if "FAKE_GRANDCHILD" in os.environ:  # a process the child starts, as Bash does: a timeout must kill it too
-    subprocess.Popen([sys.executable, "-c", "import sys, time; time.sleep(4); open(sys.argv[1], 'w').write('alive')",
+if "FAKE_GRANDCHILD" in os.environ:  # a process the child starts: a timeout must kill it too
+    subprocess.Popen([sys.executable, "-c", "import sys, time; time.sleep(4); open(sys.argv[1], 'w').write('x')",
                       os.environ["FAKE_GRANDCHILD"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(float(os.environ.get("FAKE_SLEEP", "0")))
-slug = os.environ["FAKE_SLUG"] if "FAKE_SLUG" in os.environ else None
-action = os.environ.get("FAKE_ACTION", "commit")
-def g(*a):
-    return subprocess.run(["git", *a], capture_output=True, text=True)
-if action in ("commit", "push-master"):
-    p = [x for x in sys.argv if x.startswith("You are a metered")][0]
-    slug = p.split("checkout -B claude/")[1].split(" ")[0]
-    g("checkout", "-q", "-B", "claude/" + slug, "origin/master")
-    open("made-by-" + slug + ".txt", "w").write("x\\n")
-    g("add", "made-by-" + slug + ".txt")
-    g("-c", "user.name=w", "-c", "user.email=w@w.invalid", "commit", "-q", "-m", "work " + slug)
-if action == "push-master":
-    r = g("push", "origin", "HEAD:refs/heads/master")
-    open(os.environ["FAKE_PUSH_LOG"], "a").write(str(r.returncode) + " " + r.stderr + "\\n")
-sys.stdout.write(json.dumps({{"type": "result", "subtype": "success", "is_error": False,
-                              "result": "done " + str(slug), "total_cost_usd": 0.42, "num_turns": 3}}))
+action = os.environ.get("FAKE_ACTION", "edit")
+if action != "none":
+    open("made.txt", "w").write(os.environ.get("FAKE_CONTENT", "work\\n"))
+if action == "tamper-config":
+    with open(".git/config", "a") as f:
+        f.write("[core]\\n\\tfsmonitor = touch " + os.environ["FAKE_PWNED"] + "\\n")
+is_error = action == "error"
+sys.stdout.write(json.dumps({{"type": "result", "subtype": "error_during_execution" if is_error else "success",
+                              "is_error": is_error, "result": "done\\nSUBJECT: add made.txt",
+                              "total_cost_usd": 0.42, "num_turns": 3}}))
 """
 
 
-def _git(*a: str, cwd: Path | None = None) -> str:
+def _git(*a: str) -> str:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     return subprocess.run(
-        ["git", *a], cwd=cwd, env=env, capture_output=True, text=True, check=True
+        ["git", *a], env=env, capture_output=True, text=True, check=True
     ).stdout.strip()
 
 
@@ -89,7 +83,7 @@ def box(tmp_path: Path) -> dict:
         "init",
     )
     _git("-C", str(main), "remote", "add", "origin", str(origin))
-    _git("-C", str(main), "push", "-q", "origin", "master")
+    _git("-C", str(main), "push", "-q", "origin", "master", "master:refs/heads/side")
     state = tmp_path / "state"
     state.mkdir()
     bin_dir = tmp_path / "bin"
@@ -102,15 +96,7 @@ def box(tmp_path: Path) -> dict:
         "".join(f'{ENV_NAME[k]}="{v}"\n' for k, v in KEYS.items()), encoding="utf-8"
     )
     pre = tmp_path / "preflight.jsonl"
-    init = {"type": "system", "subtype": "init", "apiKeySource": "none", "tools": WRITE_TOOLS}
-    res = {
-        "type": "result",
-        "subtype": "success",
-        "is_error": True,
-        "total_cost_usd": 0,
-        "duration_api_ms": 0,
-    }
-    pre.write_text(json.dumps(init) + "\n" + json.dumps(res) + "\n", encoding="utf-8")
+    _preflight(pre, FILE_TOOLS)
     out = tmp_path / "out"
     out.mkdir()
     env = {
@@ -122,15 +108,31 @@ def box(tmp_path: Path) -> dict:
         "API_CREDIT_MANAGED_DIR": str(tmp_path / "no-managed"),
         "FAKE_LOG": str(tmp_path / "fake.log"),
         "FAKE_PREFLIGHT": str(pre),
-        "FAKE_PUSH_LOG": str(tmp_path / "push.log"),
+        "FAKE_PWNED": str(tmp_path / "pwned"),
         "SSH_AUTH_SOCK": str(tmp_path / "agent.sock"),
+        "GIT_DIR": str(tmp_path / "elsewhere.git"),
     }
     return {"tmp": tmp_path, "main": main, "origin": origin, "state": state, "env": env, "out": out}
 
 
+def _preflight(path: Path, tools: list[str]) -> None:
+    init = {"type": "system", "subtype": "init", "apiKeySource": "none", "tools": tools}
+    res = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": True,
+        "total_cost_usd": 0,
+        "duration_api_ms": 0,
+    }
+    path.write_text(json.dumps(init) + "\n" + json.dumps(res) + "\n", encoding="utf-8")
+
+
 def _brief(box: dict, name: str) -> Path:
     p = box["tmp"] / f"{name}.md"
-    p.write_text(f"BASE: work on claude/{name}. Make the file.", encoding="utf-8")
+    p.write_text(
+        f"BASE: git fetch origin x && git checkout -B claude/{name}. Make the file.",
+        encoding="utf-8",
+    )
     return p
 
 
@@ -163,7 +165,11 @@ def _calls(box: dict) -> list[dict]:
     return [json.loads(x) for x in log.read_text().splitlines()] if log.exists() else []
 
 
-def _origin_ref(box: dict, ref: str) -> str:
+def _runs(box: dict) -> list[dict]:
+    return [c for c in _calls(box) if "stream-json" not in c["argv"]]
+
+
+def _origin(box: dict, ref: str) -> str:
     p = subprocess.run(
         ["git", "--git-dir", str(box["origin"]), "rev-parse", "-q", "--verify", ref],
         capture_output=True,
@@ -172,63 +178,145 @@ def _origin_ref(box: dict, ref: str) -> str:
     return p.stdout.strip()
 
 
-def test_a_run_commits_in_a_clone_and_pushes_only_its_branch(box: dict) -> None:
-    """Behaviour 1: the brief runs in a throwaway clone, its claude/<slug> commit reaches origin, the ledger carries a
-    write-lane start and a costed settle, the run directory is gone and the main checkout is untouched."""
-    main_head = _git("-C", str(box["main"]), "rev-parse", "HEAD")
+def test_a_run_edits_in_a_clone_and_the_runner_commits_and_pushes_its_branch(box: dict) -> None:
+    """Behaviour 1: the child edits files in a throwaway clone already on claude/<slug> at origin/<base>; the runner
+    commits them as one trailered commit and pushes only that branch; ledger, out file, cleanup; main untouched."""
     main_refs = _git("-C", str(box["main"]), "for-each-ref")
-    p = _run(box, "--key", "sarp", "--slug", "t1", "--task-file", str(_brief(box, "t1")))
+    p = _run(
+        box,
+        "--key",
+        "sarp",
+        "--slug",
+        "t1",
+        "--task-file",
+        str(_brief(box, "t1")),
+        "--base",
+        "side",
+    )
     assert p.returncode == 0, p.stderr
-    sha = _origin_ref(box, "refs/heads/claude/t1")
-    assert sha and f"pushed {sha}" in p.stdout
-    run = [c for c in _calls(box) if "stream-json" not in c["argv"]]
-    assert len(run) == 1 and run[0]["key"] == KEYS["sarp"]
-    assert Path(run[0]["cwd"]).name == "clone" and Path(run[0]["cwd"]) != box["main"]
-    assert "--safe-mode" in run[0]["argv"] and ",".join(sorted(WRITE_TOOLS)) in run[0]["argv"]
-    assert "SSH_AUTH_SOCK" not in run[0]["env_names"]
+    sha = _origin(box, "refs/heads/claude/t1")
+    assert sha and sha in p.stdout
+    body = _git("--git-dir", str(box["origin"]), "log", "-1", "--format=%s%n%b", sha)
+    assert body.startswith("add made.txt") and "Agent-Task: t1" in body and "key sarp" in body
+    assert _git("--git-dir", str(box["origin"]), "rev-parse", f"{sha}^") == _origin(
+        box, "refs/heads/side"
+    )
+    assert _git("--git-dir", str(box["origin"]), "show", f"{sha}:made.txt") == "work"
+    run = _runs(box)
+    assert len(run) == 1 and run[0]["key"] == KEYS["sarp"] and Path(run[0]["cwd"]).name == "clone"
+    assert (
+        run[0]["prompt"].startswith("RUNNER NOTE")
+        and "claude/t1 at origin/side" in run[0]["prompt"]
+    )
     start, settle = _rows(box)
-    assert (start["kind"], start["lane"], start["slug"], start["key"]) == (
-        "start",
+    assert (start["lane"], start["slug"], start["key"], settle["cost"]) == (
         "write",
         "t1",
         "sarp",
+        0.42,
     )
-    assert (settle["kind"], settle["cost"]) == ("settle", 0.42)
     assert not any((box["state"] / "api-write").iterdir())
-    assert (box["out"] / "t1.md").read_text().strip() == "done t1"
-    assert _git("-C", str(box["main"]), "rev-parse", "HEAD") == main_head
+    assert (box["out"] / "t1.md").read_text().startswith("done")
     assert _git("-C", str(box["main"]), "for-each-ref") == main_refs
-    assert _git("-C", str(box["main"]), "worktree", "list").count("\n") == 0
 
 
-def test_the_child_cannot_push_another_branch(box: dict) -> None:
-    """Behaviour 2: the clone's pre-push hook refuses any ref but claude/<slug>; origin master does not move."""
-    before = _origin_ref(box, "refs/heads/master")
-    box["env"]["FAKE_ACTION"] = "push-master"
-    p = _run(box, "--key", "can", "--slug", "t2", "--task-file", str(_brief(box, "t2")))
-    assert p.returncode == 0, p.stderr
-    log = Path(box["env"]["FAKE_PUSH_LOG"]).read_text()
-    assert log.startswith("1 ") and "only refs/heads/claude/t2" in log
-    assert _origin_ref(box, "refs/heads/master") == before
-    assert _origin_ref(box, "refs/heads/claude/t2")
-
-
-def test_an_existing_remote_branch_refuses_before_spending(box: dict) -> None:
-    """Behaviour 3: origin already holding claude/<slug> refuses with no start row and no claude call, unless
-    --force-new."""
-    _git("-C", str(box["main"]), "push", "-q", "origin", "master:refs/heads/claude/t3")
-    p = _run(box, "--key", "can", "--slug", "t3", "--task-file", str(_brief(box, "t3")))
-    assert p.returncode == 2 and "already has claude/t3" in p.stderr
-    assert _rows(box) == [] and _calls(box) == []
-    p = _run(
-        box, "--key", "can", "--slug", "t3", "--task-file", str(_brief(box, "t3")), "--force-new"
+def test_the_child_has_file_tools_only_and_gates_are_exact(box: dict) -> None:
+    """Behaviour 2: no gates → no Bash at all; gates → Bash(<gate>) per exact string, no wildcard; dontAsk,
+    --restricted, no bypass; the child env drops GIT_* and the SSH agent."""
+    assert (
+        _run(box, "--key", "can", "--slug", "t2", "--task-file", str(_brief(box, "t2"))).returncode
+        == 0
     )
-    assert p.returncode == 0, p.stderr
+    argv = _runs(box)[0]["argv"]
+    assert argv[argv.index("--tools") + 1] == "Read,Edit,Write,Glob,Grep"
+    assert not any(a.startswith("Bash") for a in argv) and "bypassPermissions" not in argv
+    assert argv[argv.index("--permission-mode") + 1] == "dontAsk" and "--restricted" in argv
+    names = _runs(box)[0]["env_names"]
+    assert "SSH_AUTH_SOCK" not in names and not any(n.startswith("GIT_") for n in names)
+    _preflight(Path(box["env"]["FAKE_PREFLIGHT"]), FILE_TOOLS + ["Bash"])
+    gate = "python3 -m pytest -q tests/test_x.py"
+    assert (
+        _run(
+            box,
+            "--key",
+            "can",
+            "--slug",
+            "t2b",
+            "--task-file",
+            str(_brief(box, "t2b")),
+            "--gate",
+            gate,
+        ).returncode
+        == 0
+    )
+    argv = _runs(box)[1]["argv"]
+    allowed = argv[argv.index("--allowedTools") + 1 : argv.index("--no-session-persistence")]
+    assert [a for a in allowed if a.startswith("Bash")] == [f"Bash({gate})"]
+
+
+@pytest.mark.parametrize(
+    "gate", ["python3 -m pytest *", "pytest; rm -rf /", "a && b", "x $(y)", "a\nb", "echo `id`"]
+)
+def test_a_gate_with_shell_syntax_or_a_glob_is_refused(box: dict, gate: str) -> None:
+    p = _run(
+        box, "--key", "can", "--slug", "t3", "--task-file", str(_brief(box, "t3")), "--gate", gate
+    )
+    assert p.returncode == 2 and _rows(box) == [] and _calls(box) == []
+
+
+def test_a_tampered_clone_config_is_never_trusted(box: dict) -> None:
+    """Behaviour 3: a child that rewrote .git/config (fsmonitor here) gets no git run by the runner: no commit, no
+    push, the injected command never executes."""
+    box["env"]["FAKE_ACTION"] = "tamper-config"
+    p = _run(box, "--key", "can", "--slug", "t4", "--task-file", str(_brief(box, "t4")))
+    assert p.returncode == 1 and ".git/config changed" in p.stdout
+    assert not _origin(box, "refs/heads/claude/t4") and not Path(box["env"]["FAKE_PWNED"]).exists()
+
+
+def test_a_key_in_the_diff_refuses_the_push(box: dict) -> None:
+    """Behaviour 4: the runner scans the commit for the key values and the sk-ant- pattern before pushing."""
+    box["env"]["FAKE_CONTENT"] = KEYS["ozgurbasak"] + "\n"
+    p = _run(box, "--key", "can", "--slug", "t5", "--task-file", str(_brief(box, "t5")))
+    assert (
+        p.returncode == 1
+        and "holds a key value" in p.stdout
+        and not _origin(box, "refs/heads/claude/t5")
+    )
+
+
+def test_an_existing_remote_branch_or_a_missing_base_refuses_before_spending(box: dict) -> None:
+    _git("-C", str(box["main"]), "push", "-q", "origin", "master:refs/heads/claude/t6")
+    p = _run(box, "--key", "can", "--slug", "t6", "--task-file", str(_brief(box, "t6")))
+    assert p.returncode == 2 and "already has claude/t6" in p.stderr
+    p = _run(
+        box,
+        "--key",
+        "can",
+        "--slug",
+        "t6b",
+        "--task-file",
+        str(_brief(box, "t6b")),
+        "--base",
+        "nope",
+    )
+    assert p.returncode == 2 and "no branch 'nope'" in p.stderr
+    assert _rows(box) == [] and _calls(box) == []
+    assert (
+        _run(
+            box,
+            "--key",
+            "can",
+            "--slug",
+            "t6",
+            "--task-file",
+            str(_brief(box, "t6")),
+            "--force-new",
+        ).returncode
+        == 0
+    )
 
 
 def test_a_batch_runs_in_parallel_and_pick_spreads_the_keys(box: dict) -> None:
-    """Behaviour 4: a --batch runs every entry; under --pick each job reserves the key with the most room at its own
-    start, so three jobs land on three keys."""
     batch = box["tmp"] / "batch.json"
     batch.write_text(
         json.dumps(
@@ -239,30 +327,53 @@ def test_a_batch_runs_in_parallel_and_pick_spreads_the_keys(box: dict) -> None:
     p = _run(box, "--pick", "--batch", str(batch), "--jobs", "3", "--budget", "50")
     assert p.returncode == 0, p.stderr
     starts = [r for r in _rows(box) if r["kind"] == "start"]
-    assert sorted(r["slug"] for r in starts) == ["a1", "a2", "a3"]
     assert sorted(r["key"] for r in starts) == sorted(KEYS)
-    assert all(_origin_ref(box, f"refs/heads/claude/{s}") for s in ("a1", "a2", "a3"))
+    assert all(_origin(box, f"refs/heads/claude/{s}") for s in ("a1", "a2", "a3"))
 
 
-def test_the_preflight_must_report_the_write_tools(box: dict) -> None:
-    """Behaviour 5: the keyless pre-flight runs this lane's argv and refuses when the tool set is not WRITE_TOOLS."""
-    pre = Path(box["env"]["FAKE_PREFLIGHT"])
-    pre.write_text(pre.read_text().replace('"Write"', '"WebFetch"'), encoding="utf-8")
-    p = _run(box, "--key", "can", "--slug", "t5", "--task-file", str(_brief(box, "t5")))
-    assert p.returncode == 2 and "pre-flight refused" in p.stderr
-    assert _rows(box) == []
-
-
-def test_a_timeout_settles_as_provisioned_and_cleans_up(box: dict) -> None:
-    """Behaviour 6: a child past --timeout is killed with its process group, settled as a timeout with no cost,
-    reported as an error, and its run directory removed."""
-    marker = box["tmp"] / "grandchild-alive"
-    box["env"]["FAKE_SLEEP"] = "30"
-    box["env"]["FAKE_GRANDCHILD"] = str(marker)
-    p = _run(
-        box, "--key", "can", "--slug", "t6", "--task-file", str(_brief(box, "t6")), "--timeout", "2"
+def test_a_child_error_settles_and_pushes_nothing(box: dict) -> None:
+    box["env"]["FAKE_ACTION"] = "error"
+    p = _run(box, "--key", "can", "--slug", "t8", "--task-file", str(_brief(box, "t8")))
+    assert (
+        p.returncode == 1 and "child error" in p.stdout and not _origin(box, "refs/heads/claude/t8")
     )
-    assert p.returncode == 1 and "timed out" in p.stdout
+    settle = [r for r in _rows(box) if r["kind"] == "settle"]
+    assert settle and settle[0]["is_error"] is True and settle[0]["cost"] == 0.42
+
+
+def test_no_edits_pushes_nothing(box: dict) -> None:
+    box["env"]["FAKE_ACTION"] = "none"
+    p = _run(box, "--key", "can", "--slug", "t9", "--task-file", str(_brief(box, "t9")))
+    assert (
+        p.returncode == 1
+        and "nothing pushed" in p.stdout
+        and not _origin(box, "refs/heads/claude/t9")
+    )
+
+
+def test_the_preflight_must_report_the_child_tools(box: dict) -> None:
+    _preflight(Path(box["env"]["FAKE_PREFLIGHT"]), FILE_TOOLS + ["Bash"])
+    p = _run(box, "--key", "can", "--slug", "t10", "--task-file", str(_brief(box, "t10")))
+    assert p.returncode == 2 and "pre-flight refused" in p.stderr and _rows(box) == []
+
+
+def test_a_timeout_kills_the_group_settles_and_pushes_nothing(box: dict) -> None:
+    marker = box["tmp"] / "grandchild-alive"
+    box["env"].update(FAKE_SLEEP="30", FAKE_GRANDCHILD=str(marker))
+    p = _run(
+        box,
+        "--key",
+        "can",
+        "--slug",
+        "t11",
+        "--task-file",
+        str(_brief(box, "t11")),
+        "--timeout",
+        "2",
+    )
+    assert (
+        p.returncode == 1 and "timed out" in p.stdout and not _origin(box, "refs/heads/claude/t11")
+    )
     settle = [r for r in _rows(box) if r["kind"] == "settle"]
     assert settle and settle[0]["subtype"] == "timeout" and settle[0]["cost"] is None
     assert not any((box["state"] / "api-write").iterdir())
@@ -272,27 +383,7 @@ def test_a_timeout_settles_as_provisioned_and_cleans_up(box: dict) -> None:
     assert not marker.exists()
 
 
-def test_the_child_runs_least_privilege(box: dict) -> None:
-    """Behaviour 7 (the coordinator's redesign after the classifier refused a bypassPermissions child): dontAsk plus an
-    explicit allow-list — no bypass, no bare Bash, no push, fetch or pip — and --restricted confining the file tools."""
-    p = _run(box, "--key", "can", "--slug", "t7", "--task-file", str(_brief(box, "t7")))
-    assert p.returncode == 0, p.stderr
-    argv = [c for c in _calls(box) if "stream-json" not in c["argv"]][0]["argv"]
-    assert "bypassPermissions" not in argv and "--dangerously-skip-permissions" not in argv
-    assert argv[argv.index("--permission-mode") + 1] == "dontAsk" and "--restricted" in argv
-    i = argv.index("--allowedTools")
-    allowed = argv[i + 1 : argv.index("--no-session-persistence")]
-    assert "Bash" not in allowed and all(a.startswith("Bash(") or "(" not in a for a in allowed)
-    bash = [a for a in allowed if a.startswith("Bash(")]
-    assert bash and "Bash(*)" not in bash
-    assert not any(w in a for a in bash for w in ("push", "fetch", "pip", "curl"))
-    assert all(
-        a.startswith(("Bash(git ", "Bash(python3 -m pytest", "Bash(python3 commands/"))
-        for a in bash
-    )
-
-
-def test_batch_and_slug_together_refuse(box: dict) -> None:
+def test_batch_and_slug_together_or_an_inline_task_refuse(box: dict) -> None:
     batch = box["tmp"] / "b.json"
     batch.write_text(
         json.dumps([{"slug": "b1", "task_file": str(_brief(box, "b1"))}]), encoding="utf-8"
@@ -308,10 +399,13 @@ def test_batch_and_slug_together_refuse(box: dict) -> None:
         "--task-file",
         str(_brief(box, "b2")),
     )
-    assert p.returncode == 2 and "not both" in p.stderr and _calls(box) == []
+    assert p.returncode == 2 and "not both" in p.stderr
+    batch.write_text(json.dumps([{"slug": "b3", "task": "do it"}]), encoding="utf-8")
+    p = _run(box, "--key", "can", "--batch", str(batch))
+    assert p.returncode == 2 and "no inline task" in p.stderr and _calls(box) == []
 
 
-@pytest.mark.parametrize("bad", ["../x", "A", "", "a b"])
+@pytest.mark.parametrize("bad", ["../x", "A", "a b", "x.lock", "x."])
 def test_a_malformed_slug_refuses_before_anything(box: dict, bad: str) -> None:
     p = _run(box, "--key", "can", "--slug", bad, "--task-file", str(_brief(box, "ok")))
     assert p.returncode == 2 and _rows(box) == [] and _calls(box) == []
