@@ -5,9 +5,9 @@ entries:
 - id: cc-briefs-durable-unchanged-slices-said-guards
   file: commands/_fragments/close-chain.md
   baseline: In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass, printed then by its producing command; a draft written mid-loop carries none
-  current: In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass
+  current: In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass, printed then by its producing command
   text:
-  - In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass
+  - In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only after the closing pass, printed then by its producing command
   class: prose
   clauses:
     2: narrative
@@ -28,18 +28,18 @@ entries:
 - id: cc-is-printed-by-its-producing-command
   file: commands/_fragments/close-chain.md
   baseline: 'A measured figure an input states (a test total, a constant''s size, a row count) is printed by its producing command, over the population the input names, when the input is written and copied from that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool''s own total")'
-  current: Print each measured figure an input states with its producing command over the population the input names, and copy it from that output, never recall it (CLAUDE.md § HARD STOPS)
+  current: 'A measured figure an input states (a test total, a constant''s size, a row count) is printed by its producing command, over the population the input names, when the input is written and copied from that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool''s own total")'
   text:
-  - Print each measured figure an input states with its producing command over the population the input names, and copy it from that output, never recall it (CLAUDE.md § HARD STOPS)
+  - 'A measured figure an input states (a test total, a constant''s size, a row count) is printed by its producing command, over the population the input names, when the input is written and copied from that output, never recalled (CLAUDE.md § HARD STOPS: "prefer the PRODUCING tool''s own total")'
   class: ban
   pins:
   - tests/test_producing_command_fragments.py::test_a_figure_in_a_close_input_is_printed_by_its_producer_not_recalled
 - id: cc-then-1
   file: commands/_fragments/close-chain.md
   baseline: 'Then: (1) the artifact''s own check — {{ARTIFACT_CHECK}}; (2) the commit — the artifact and any code by explicit pathspec FIRST, then the shared-append ledgers (`CHANGELOG.md`, `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`) through the private-index recipe in ONE shell — the Doc Sync check reads only the STAGED diff, so a ledger committed first reads as missing beside the code; (3) `python scripts/final_gate.py --check --json` (the hub runs it under `.venv/bin/python`), then `git push` (never `--force`; a rejected push takes CLAUDE.md § EXIT''s ladder) — the gate runs BEFORE the push, so a check scoped to work not yet integrated still sees it; a red gate leaves the commit unpushed, and its fix is committed as at (2) before (3) re-runs, so the push carries it; (4) the close this command''s own text names for how the run ended — on the contract met, `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "$(cat <evidence file>)" --feedback "$(cat <feedback file>)"` by name'
-  current: 'Then: (1) the artifact''s own check — {{ARTIFACT_CHECK}}; (2) the commit — the artifact and any code by explicit pathspec FIRST, then the shared-append ledgers (`CHANGELOG.md`, `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`) through the private-index recipe in ONE shell, because the Doc Sync check reads only the STAGED diff; (3) `python scripts/final_gate.py --check --json` (the hub runs it under `.venv/bin/python`), then `git push` (never `--force`; a rejected push takes CLAUDE.md § EXIT''s ladder), a red gate leaving the commit unpushed until its fix is committed as at (2); (4) the close this command''s own text names for how the run ended — on the contract met, `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "$(cat <evidence file>)" --feedback "$(cat <feedback file>)"` by name'
+  current: 'Then: (1) the artifact''s own check — {{ARTIFACT_CHECK}}; (2) the commit — the artifact and any code by explicit pathspec FIRST, then the shared-append ledgers (`CHANGELOG.md`, `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`) through the private-index recipe in ONE shell, because the Doc Sync check reads only the STAGED diff, so a ledger committed first reads as missing beside the code; (3) `python scripts/final_gate.py --check --json` (the hub runs it under `.venv/bin/python`), then `git push` (never `--force`; a rejected push takes CLAUDE.md § EXIT''s ladder); a red gate leaves the commit unpushed, and its fix is committed as at (2) before (3) re-runs, so the push carries it; (4) the close this command''s own text names for how the run ended — on the contract met, `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "$(cat <evidence file>)" --feedback "$(cat <feedback file>)"` by name'
   text:
-  - 'Then: (1) the artifact''s own check — {{ARTIFACT_CHECK}}; (2) the commit — the artifact and any code by explicit pathspec FIRST, then the shared-append ledgers (`CHANGELOG.md`, `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`) through the private-index recipe in ONE shell, because the Doc Sync check reads only the STAGED diff; (3) `python scripts/final_gate.py --check --json` (the hub runs it under `.venv/bin/python`), then `git push` (never `--force`; a rejected push takes CLAUDE.md § EXIT''s ladder), a red gate leaving the commit unpushed until its fix is committed as at (2); (4) the close this command''s own text names for how the run ended — on the contract met, `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "$(cat <evidence file>)" --feedback "$(cat <feedback file>)"` by name'
+  - 'Then: (1) the artifact''s own check — {{ARTIFACT_CHECK}}; (2) the commit — the artifact and any code by explicit pathspec FIRST, then the shared-append ledgers (`CHANGELOG.md`, `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`) through the private-index recipe in ONE shell, because the Doc Sync check reads only the STAGED diff, so a ledger committed first reads as missing beside the code; (3) `python scripts/final_gate.py --check --json` (the hub runs it under `.venv/bin/python`), then `git push` (never `--force`; a rejected push takes CLAUDE.md § EXIT''s ladder); a red gate leaves the commit unpushed, and its fix is committed as at (2) before (3) re-runs, so the push carries it; (4) the close this command''s own text names for how the run ended — on the contract met, `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "$(cat <evidence file>)" --feedback "$(cat <feedback file>)"` by name'
   class: ban
   clauses:
     7: narrative
@@ -48,18 +48,18 @@ entries:
 - id: cc-an-input-whose-figure-the-fix
   file: commands/_fragments/close-chain.md
   baseline: A red call is fixed and THAT call re-run, never the chain from the top; an input whose figure the fix moved is re-printed and rewritten first (a committed message is corrected in the fix commit's own message, never by an amend)
-  current: Re-run only the red call, never the chain from the top; re-print and rewrite an input whose figure the fix moved (correct a committed message in the fix commit's own message, never by an amend)
+  current: A red call is fixed and THAT call re-run, never the chain from the top; re-print and rewrite an input whose figure the fix moved (correct a committed message in the fix commit's own message, never by an amend)
   text:
-  - Re-run only the red call, never the chain from the top; re-print and rewrite an input whose figure the fix moved (correct a committed message in the fix commit's own message, never by an amend)
+  - A red call is fixed and THAT call re-run, never the chain from the top; re-print and rewrite an input whose figure the fix moved (correct a committed message in the fix commit's own message, never by an amend)
   class: ban
   pins:
   - tests/test_producing_command_fragments.py::test_a_figure_in_a_close_input_is_printed_by_its_producer_not_recalled
 - id: cc2-four-calls
   file: commands/_fragments/close-chain.md
   baseline: The close is four calls, its inputs written first (D-363) — the default shape, and this command's own close text wins wherever it names something else (a different order, a `blocked` or `handoff` exit, an operator gate, a pause before execution, a nested run whose caller closes, a ledger row committed separately)
-  current: The close is four calls, its inputs written first; this command's own close text wins wherever it names something else (a `blocked` or `handoff` exit, an operator gate)
+  current: The close is four calls, its inputs written first (D-363); this command's own close text wins wherever it names something else (a `blocked` or `handoff` exit, an operator gate)
   text:
-  - The close is four calls, its inputs written first; this command's own close text wins wherever it names something else (a `blocked` or `handoff` exit, an operator gate)
+  - The close is four calls, its inputs written first (D-363); this command's own close text wins wherever it names something else (a `blocked` or `handoff` exit, an operator gate)
   class: prose
 - id: cc2-before-seven-line
   file: commands/_fragments/close-chain.md

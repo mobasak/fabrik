@@ -68,17 +68,17 @@ entries:
   baseline: python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \ ⏎ --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \ ⏎ --terminal "<this command's own terminal condition, in your words>"
   current: python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \ ⏎ --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \ ⏎ --terminal "<this command's own terminal condition, in your words>"
   text:
-  - python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}}
-  - --surface "<what this run is OVER
+  - python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \
+  - --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
   - --terminal "<this command's own terminal condition, in your words>"
   class: grammar
 - id: rr-step-each-phase
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
   baseline: Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run actually is rather than where it started
-  current: Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the `RUN:` line shows where the run is
+  current: Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run actually is rather than where it started
   text:
-  - Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the `RUN:` line shows where the run is
+  - Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:` line shows the operator where the run actually is rather than where it started
   class: grammar
 - id: rr-surface
   file: commands/_fragments/run-record.md
@@ -96,9 +96,7 @@ entries:
   baseline: Where the outcome rests on an act this run does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close
   current: Where the outcome rests on an act this run does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close
   text:
-  - Where the outcome rests on an act this run does not perform
-  - the `--terminal` names the hand-off and who performs the act
-  - '`--evidence` says whether they had acted at the close'
+  - Where the outcome rests on an act this run does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close
   ordered:
   - rr-surface
   - rr-close-one-way
@@ -125,9 +123,9 @@ entries:
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
   baseline: '⚠️ `--feedback` is REQUIRED: the close REFUSES without it (§ Close-out feedback, at the end of this command), and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
-  current: '⚠️ `--feedback` is REQUIRED: the close REFUSES without it (§ Close-out feedback, at the end of this command), and a refused close leaves the record `running`'
+  current: '⚠️ `--feedback` is REQUIRED: the close REFUSES without it (§ Close-out feedback, at the end of this command), and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
   text:
-  - '⚠️ `--feedback` is REQUIRED: the close REFUSES without it (§ Close-out feedback, at the end of this command), and a refused close leaves the record `running`'
+  - '⚠️ `--feedback` is REQUIRED: the close REFUSES without it (§ Close-out feedback, at the end of this command), and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
   class: ban
 - id: rr-none-valid
   file: commands/_fragments/run-record.md
@@ -174,27 +172,38 @@ entries:
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
   baseline: Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally — enforcement freezes there at vendor date
-  current: 'Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally; absence is never compliance — run the HUB copy read-only, `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`), and report ITS verdict'
+  current: 'Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally; absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`), and report ITS verdict'
   text:
-  - 'Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally; absence is never compliance — run the HUB copy read-only, `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`), and report ITS verdict'
+  - 'Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally; absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`), and report ITS verdict'
   class: ban
   clauses:
     2: narrative
 - id: rr-hub-copy-read-only
   file: commands/_fragments/run-record.md
   baseline: 'Absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`) — and report ITS verdict; "the gate does not exist here" reads like a finding and functions like a skip (fabrik-lib 2026-09-02/03: two CONVERGED flips on self-enforcement, 10 grammar defects and 2 BLOCKING spec defects found the moment the hub copies ran — 01M1G8NX, 01M1K28X)'
-  current: 'Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally; absence is never compliance — run the HUB copy read-only, `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`), and report ITS verdict'
+  current: 'Sync-excluded repo (fabrik-lib and its worktrees)? A check this command names by script is NOT necessarily present locally; absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`), and report ITS verdict'
   text:
-  - 'absence is never compliance — run the HUB copy read-only, `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`), and report ITS verdict'
+  - 'absence is never compliance: run the HUB copy read-only against your tree — `python3 /opt/fabrik/scripts/enforcement/<check>.py --root <repo>` (plan checks: `--plan-dir <dir> --project-root <repo>`), and report ITS verdict'
   section: '## Run record — open it as this command''s FIRST act'
   class: ban
   clauses:
     4: narrative
+- id: rr-protects-only-if-opened
+  file: commands/_fragments/run-record.md
+  section: '## Run record — open it as this command''s FIRST act'
+  baseline: That is the machinery that stops a command being abandoned half-executed — it only protects you if you open it
+  text:
+  - it only protects you if you open it
+  class: ban
+  clauses:
+    1: narrative
 vanished:
   L3:
     rule:
     - rr-stop-hook-blocks
-  L4: narrative
+  L4:
+    rule:
+    - rr-protects-only-if-opened
   L6:
     rule:
     - rr-step-each-phase
