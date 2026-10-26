@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T21:51:02.618952Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-27634d4e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "strip {# #} and {% raw %}…{% endraw %} (newline-preserving) before the span scan, list the dict-literal case in the comment, add the two probes",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "tests/test_template_renderer_no_html_escape.py template-escape scan has unmodelled cases (W-6eb61fa0 review residue, none live today): an unbalanced {{ or {% inside a {# #} comment or {% raw %} block lets the DOTALL span swallow later lines (hides an anchored {% filter escape %}, can invent a JS || e hit); a }} or %} inside a tag's string or dict literal ends the span early; the comment above _JINJA_SPAN names only the string case"
+}
