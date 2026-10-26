@@ -12,7 +12,6 @@ test that can never pass**. This command exists to make that CROSS-CHECK complet
 flags a cert board whose source resolves to a doc: *"FEATURES.md documents what the project BUILT;
 certification must cover what it SHIPS. The doc inventory is a cross-check, never the denominator."*
 The denominator is the project's LIVE REGISTRY (its routes, menus, jobs, endpoints — per scaffold type).
-This command's own guardrail says the same thing: *the CODE is the denominator; the doc is the claim.*
 
 {{include:run-record}}
 {{include:orient}}
@@ -39,7 +38,7 @@ Operate on the current project (cwd). **Two sanctioned modes (REFRESH may run sc
   §7: …`, on the row's one table line): a paraphrase still traces to the spec, and still drops the condition the
   plan then builds without. A Planned row
   that points at existing code it extends cites a SYMBOL in a named file (`src/billing.py::charge`), never a line
-  number — on a tree other agents commit to, a line moves before the plan reads it — and the plan re-grounds it.
+  number.
   A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo
   that filed it (a hub item is not in a project's store); check the citation there.
 - **REFRESH (post-build, the certify-time default):** the CODE is the source of truth — the full
@@ -54,14 +53,14 @@ Operate on the current project (cwd). **Two sanctioned modes (REFRESH may run sc
   them together per CLAUDE.md § EXIT — classified at mint (drop/keep/adopt of un-shipped
   scope are normally reversible — plain rows) (CLAUDE.md § the decision ledger). After a plan, every row its
   merged tickets' `## Deltas` blocks wrote (`/fabrik-execute-plan` D3) is re-grounded like a Planned row, Planned
-  or not — those rows were written before the plan's final review fixed the code under them.
+  or not.
 
 - **REFRESH, scoped** (`$ARGUMENTS` names a plan dir or one FEATURES section): the CODE stays the denominator,
   narrowed — Phase 1 sweeps the registry entries (routes, jobs, screens, CLI) the plan's diff added or changed, or
   the code behind the named section, instead of the whole codebase. The doc side checked against it is every
   row on that code, every row the plan's `## Deltas` blocks wrote, and one row per user-observable behaviour in
   the plan's tickets' `## Behavior Contract` (several Given/When/Then rows can map to one). State the scope and
-  the population it gives. A scoped run never hands off to certification; certification takes the full REFRESH.
+  the population it gives. A scoped run never hands off to certification.
 
 Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template first, then
 reconcile; EARLY invoked where code already ships → say so and run REFRESH instead (the code outranks the
@@ -85,8 +84,7 @@ that exists in this project:
 - **CLI/entrypoints:** `pyproject.toml`/`package.json` scripts, `__main__`, Makefile targets a user runs.
 - **UI screens/flows** (GUI projects): `docs/ui-design.md` screens + the real router/nav — every screen a
   user reaches is a feature surface.
-- **Integrations:** external services the code actually calls (payment, email, storage, search) — each is a
-  user-visible capability ("sends receipts", "full-text search").
+- **Integrations:** external services the code actually calls (payment, email, storage, search).
 - **Claims elsewhere:** `README.md`/`docs/QUICKSTART.md` feature claims — anything promised there must map
   to a row or be flagged as vapor.
 
@@ -110,8 +108,7 @@ prevent — enumerate what you READ (files × surfaces), not what you remember.
   behaviour; a known defect is a pointer to its backlog row or work item, never an enumeration of its cases. A code
   defect the grounding finds with no row yet is filed to its owner (a mail to the code's owning session, or a backlog
   row) and the feature row points at that id — never patched inside a features run.
-- Keep the template's shape: customer-oriented categories, benefit-oriented descriptions. This file doubles
-  as public feature documentation — write for the customer, cite for the agent.
+- Keep the template's shape: customer-oriented categories, benefit-oriented descriptions. 
 
 ## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)
 
@@ -139,12 +136,10 @@ at the Termination contract's closing round (`confirmed: 0`, md5-verified).
 - Write a row you didn't ground in an open file (`path:line` or a driven route; a Planned row's symbol in a
   named file) — memory is not discovery.
 - Pad with implementation trivia ("refactored X", "uses Redis") — features are user-observable behaviors.
-- Delete a row silently — a removed feature is stated in the run report (the operator may be tracking it).
-- Leave a `README`/`QUICKSTART` claim unmapped — vapor claims are findings, not decoration.
-- Hand off to certification from a scoped REFRESH — certification takes the full one.
-- Hand off to certification while the loop is non-quiet — an unconverged cross-check silently shrinks the
-  gauntlet.
-
+- Delete a row silently.
+- Leave a `README`/`QUICKSTART` claim unmapped.
+- Hand off to certification from a scoped REFRESH.
+- Hand off to certification while the loop is non-quiet.
 
 {{include:subagents-core}}
 
