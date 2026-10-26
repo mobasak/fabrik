@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T12:19:02.971870Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-bf7c2916",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1245",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "One spec-sized pass over command_rules.py's markdown readers (units()/_split_prose single-backtick parity vs _mask_code CommonMark spans, units() opening a fence on a prose line that starts with a code span, the path anchor taking and/or, one-line fence units splitting at ;, a ¦ inside a key) so every reader shares one tokeniser; receipt docs/development/reviews/2026-10-26-d1236-lints-review.md § Residual names each",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "D-1236 loader: markdown-parsing parity edge cases routed from the W-9cd8653d review's scope-growth stop"
+}

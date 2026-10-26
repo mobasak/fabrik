@@ -304,8 +304,8 @@ Two classes of citation rot were fixed alongside it and should not be reintroduc
 `commands/command_rules.py` is the rule test of the lean corpus program (W-96f36043, its design
 § The rule test). A command's ledger goes at `commands/_rules/<command>.yaml`, and a shared file's
 at `commands/_rules/_shared/<name>.yaml`. Each ledger carries a sha-pinned baseline of its own text,
-split into heading-keyed units. `losses()` asserts every ledger against a render, and a LOSS is one
-of: a failed `text`, `ordered` or `forbidden` carrier; a baseline unit that vanished unclassified;
+split into heading-keyed units. `losses()` asserts every ledger against a render; its LOSS kinds include
+a failed `text`, `ordered` or `forbidden` carrier; a baseline unit that vanished unclassified;
 a malformed ledger; a vanished baseline line holding a ban word labelled `narrative`; or a ledger lint (below). `enforced:` is a load-time lint: the named test's own asserts must show a
 refusal, and a call that runs something (a subprocess or runner callee, never `print()` or a
 logger) must name the script the entry's `text` carrier names. `losses()` never raises.
@@ -349,8 +349,8 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   ban, grammar or behavioural pin is held by A, B and D), a `text` phrase is ≥6 whitespace words holding a letter or digit and appears exactly once, as a
   whole, in the entry's FILE (a phrase equal to the whole `current` unit is exempt from the minimum only: `_check`
   proves that unit live). **D** — a clause holding a ban word stands verbatim in the LIVE section from its ban word to the end of
-  its clause or sentence, whichever comes first (`_ban_span`, D-1240: a `,` or `(` ends nothing; a sentence ends
-  where `units()` splits prose, never after `e.g.`/`i.e.`/`etc.` or inside code or a parenthetical), each ban word's
+  its clause or sentence, whichever comes first (`_ban_span`, D-1240: a `,` or `(` ends nothing; the sentence is the
+  one `units()` cuts, by the same `_split_prose`, and a parenthetical opened after the ban word runs to its close), each ban word's
   span checked unless an earlier one already holds it, with whitespace, emphasis and case normalised and punctuation
   kept; in classes `grammar` and `behavioural` every other unlabelled clause stands
   verbatim too; `prose` may reword. `pins:` is a non-empty list of non-empty strings (the retired pin test node

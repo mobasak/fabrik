@@ -19,6 +19,7 @@ import ast
 import hashlib
 import os
 import re
+import unicodedata
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -505,7 +506,13 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
 
 
 def _deemph(s: str) -> str:
-    return _outside_code(s, lambda p: _EMPH1.sub("", p))
+    """``s`` with single-underscore emphasis dropped outside code — the code spans `_mask_code` reads, so a lone
+    backtick never turns the prose after it into code."""
+    out, last = [], 0
+    for m in _CODE.finditer(s):
+        out += [_EMPH1.sub("", s[last : m.start()]), m.group(0)]
+        last = m.end()
+    return "".join(out) + _EMPH1.sub("", s[last:])
 
 
 def _words(s: str) -> list[str]:
@@ -548,14 +555,16 @@ def _mask_code(s: str) -> str:
 
 
 def _depths(masked: str) -> list[int]:
-    """The parenthesis depth at each character of a code-masked string; all zero when the parentheses do not
-    balance, so a stray `(` never swallows the rest of the text."""
-    if masked.count("(") != masked.count(")"):
-        return [0] * len(masked)
-    out, d = [], 0
-    for ch in masked:
-        d = max(0, d + (ch == "(") - (ch == ")"))
-        out.append(d)
+    """How many MATCHED parenthesis pairs enclose each character of a code-masked string: a stray `(` or `)`
+    pairs with nothing, so it never swallows the text after it nor unprotects a balanced aside beside it."""
+    out, stack = [0] * len(masked), []
+    for i, ch in enumerate(masked):
+        if ch == "(":
+            stack.append(i)
+        elif ch == ")" and stack:
+            a = stack.pop()
+            for k in range(a, i + 1):
+                out[k] += 1
     return out
 
 
@@ -614,7 +623,7 @@ def _holds(low: str, anchor: str) -> bool:
 
 def _stems(text: str) -> list[str]:
     """Content stems in order: letters-only words of 4+ letters, cut to 5, first occurrence kept."""
-    return list(dict.fromkeys(w[:5] for w in _STEM.findall(_deemph(text).lower())))
+    return list(dict.fromkeys(w[:5] for w in _STEM.findall(unicodedata.normalize("NFC", _deemph(text)).lower())))
 
 
 def _covered(clause: str, phrases: list[str]) -> bool:
@@ -625,7 +634,8 @@ def _covered(clause: str, phrases: list[str]) -> bool:
     want = _stems(clause)[:STEM_CAP]
     anchors = _anchors(clause)
     if not want and not anchors:  # nothing to measure ("Do it now"): the clause's own words, whole, in one phrase
-        return any(_has_run(_words(ph), _words(clause)) for ph in phrases)
+        words = _words(clause)
+        return not words or any(_has_run(_words(ph), words) for ph in phrases)  # a wordless clause carries nothing
     for ph in phrases:
         # as written OR de-emphasised: a code anchor (`_X_ROW`) keeps its underscores, a ban word (_never_) drops them
         forms = (normalise(ph).lower(), normalise(_deemph(ph)).lower())
@@ -639,16 +649,14 @@ def _covered(clause: str, phrases: list[str]) -> bool:
 
 def _ban_span(clause: str, m: re.Match) -> str:
     """D-1240: a ban clause is verbatim from its ban word to the end of its `;`/`—` clause or the sentence
-    end, whichever comes first; a `,` or `(` does not end it (``clause`` is already one `;`/`—` clause). A
-    sentence ends where `units()` splits prose (``_BOUNDARY``, never after ``_ABBREV``) or at the clause end,
-    and never inside code or a balanced parenthetical."""
-    rest = clause[m.start() :]
-    masked = _mask_code(rest)
-    depth = _depths(masked)
-    for b in _BOUNDARY.finditer(rest):  # on the text, since the next sentence may open with code; the mask says where code is
-        if masked[b.start()] == rest[b.start()] and not depth[b.start()] and not _ABBREV.search(rest[: b.start() + 1]):
-            return rest[: b.start()]
-    return rest.rstrip(" .!?")
+    end, whichever comes first; a `,` or `(` does not end it (``clause`` is already one `;`/`—` clause). The
+    sentence is the one `units()` cuts, by the same ``_split_prose``, so the two can never disagree; a
+    parenthetical opened after the ban word runs on to its close (D-1240: it stays verbatim)."""
+    sentences = _split_prose(clause[m.start() :])
+    span, i = (sentences[0] if sentences else ""), 1
+    while i < len(sentences) and _mask_code(span).count("(") > _mask_code(span).count(")"):
+        span, i = f"{span} {sentences[i]}", i + 1
+    return span
 
 
 def _check_clauses(e: dict, ids: dict[str, dict]) -> None:
@@ -715,9 +723,9 @@ def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
     # C binds the carriers D-1236 lets be reworded (prose); a ban/grammar/behavioural pin is held by A, B and D
     for ph in phrases if cls == "prose" else []:
         whole_unit = cur is not None and normalise(ph) == cur  # exempt from the minimum only, never uniqueness
-        if not whole_unit and len([w for w in normalise(ph).split() if re.search(r"\w", w)]) < 6:
+        if not whole_unit and len([w for w in normalise(ph).split() if re.search(r"[^\W_]", w)]) < 6:
             out.append(("C", f"text phrase under 6 words — {ph[:80]}"))
-        elif (n := sum(len(re.findall(_whole(normalise(ph)), p)) for p in file_paras)) != 1:
+        elif (n := sum(len(re.findall(_whole(normalise(ph.replace(_FENCE_JOIN, " "))), p)) for p in file_paras)) != 1:
             out.append(("C", f"text phrase appears {n}x in its file, need exactly once — {ph[:80]}"))
     labels = {str(k) for k in (e.get("clauses") or {})}
     pw = [_words(p) for p in phrases]
