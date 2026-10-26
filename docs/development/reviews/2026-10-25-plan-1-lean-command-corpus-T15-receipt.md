@@ -27,3 +27,20 @@
 - **Self-audit:** one author-blind Sonnet pass found 3 minor weaker rewordings (L29, L82, L83), all restored. COUNTS: entries read 105 / reworded 63 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0.
 - **Gates:** test_command_rules 53 pass + `test_the_live_corpus_has_no_loss` red only on `_shared/*` LOSS; test_data_contract_recurring_rules and test_check_command_corpus green except the pre-existing `test_the_cli_survives_a_detached_original…`.
 - **LEFT FOR THE HUB:** `_size_ceiling.json` ratchet, CHANGELOG/INDEX, the author-blind pair, the floor D-row, shared-file LOSS (T01d).
+
+## Fix round 2 (hub audit)
+
+Branch `claude/lean-t15-rl-fix`, command `/fabrik-data-contract`. Two hub auditors (Sonnet, Haiku) refuted the earlier zeros.
+
+**Findings:** 22 distinct, all confirmed against the baseline text, 0 refuted.
+- Weaker: r-9, r-63, r-64, r-21, r-40, r-75, r-14, r-12.
+- Lost qualifier, scope or rationale: r-17, r-19, r-29, r-34, r-46, r-70, r-72, r-82, r-98, r-101/r-102, r-105.
+- Wrong vanished label: L67 (the KVKK-defensible retention depth, now carried by r-66), L105 (the "field dictionary, nothing more" scope limiter, now carried by r-105), L61 and L47 (confirmed: "A GUI field folded into a jsonb key is written `column.jsonkey`" restored to the per-entity table text, "Per section:" restored).
+
+**Fresh-pass findings, also fixed:** pass 1 found "between the two sources" (r-35) and the D-186 evidence tail on a "Never" line (r-41). Pass 2 found the scaffold provenance (r-44), "its approval" (r-22), the r-106 tail, and the rationale tails of r-4, r-54 and r-65 (narrative labels on ban-word lines, now carried).
+
+**Own-text words:** baseline 3498 → re-ledger 3240 → now 3462 (99% of baseline). Per-file floor: above 50% of baseline, no table owed.
+
+**Fresh passes run:** 3 (each a new subagent given only baseline, rewrite and ledger). Passes 1 and 2 found defects, which were fixed. Pass 3 found none.
+
+COUNTS: entries read 105 / reworded 63 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0
