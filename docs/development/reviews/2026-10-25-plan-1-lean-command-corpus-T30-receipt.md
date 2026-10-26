@@ -17,4 +17,4 @@
 - **Refuted:** none outright. Audit 2 #28 / #49 (rationale asides) and the "(what sibling sessions subtract)" parenthetical are carried in compressed form or kept as narrative; "invented rules": none found by either audit.
 - Ledger: 56 entries (new `up-reply-outcome`); `vanished` 76 all `rule`; stale `clauses: dropped` comments rewritten for the entries whose clauses were restored.
 - Words (own text): baseline 3659 → first cut 1826 → after fix 2477. The 50% target no longer holds for this command; the cost of keeping every rule is stated here, not hidden.
-- Gates: `pytest tests/test_command_rules.py` 32 passed / 3 skipped (zero LOSS); `assemble_commands.py --check` rc above, no LOSS/ceiling.
+- Gates: `pytest tests/test_command_rules.py` 32 passed / 3 skipped (zero LOSS); `assemble_commands.py --check` exit 1 with only `MISSING` drift (installed corpus absent in the clone), no LOSS/ceiling.
