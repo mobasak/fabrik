@@ -555,3 +555,26 @@ def test_a_copy_that_cannot_be_written_is_reported_as_unwritable(tmp_path, defs_
     finally:
         copy.chmod(0o644)
     assert any("1 unwritable" in line for line in lines), lines
+
+
+def test_an_in_repo_alias_of_a_worktree_is_counted_once(tmp_path, defs_file):
+    """Review pass 4 (Q1): two entries naming the same real worktree directory are one copy, so `--check`
+    predicts exactly what the real run does."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    wts = repo / ".claude" / "worktrees"
+    (wts / "w").mkdir(parents=True)
+    (wts / "w" / ".mcp.json").write_text("{}\n")
+    (wts / "alias").symlink_to(wts / "w", target_is_directory=True)
+    assert run(tmp_path, defs_file, check=True) == ["some-api: CREATE (+1 worktree copy)"]
+
+
+def test_a_root_that_cannot_be_written_is_skipped_as_an_error_not_unreadable(tmp_path, defs_file):
+    """Review pass 4 (P4-4): a failure writing the ROOT names its exception without calling it a read failure."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    (repo / ".mcp.json").write_text("{}\n")
+    (repo / ".mcp.json").chmod(0o444)
+    try:
+        lines = run(tmp_path, defs_file)
+    finally:
+        (repo / ".mcp.json").chmod(0o644)
+    assert lines == ["some-api: SKIP (error: PermissionError)"], lines

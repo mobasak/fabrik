@@ -349,10 +349,12 @@ def _worktree_copies(repo: Path) -> list[Path]:
         return []
     # A symlink anywhere below the repo moves a copy's real parent away from this path.
     real = repo.resolve() / ".claude" / "worktrees"
-    return sorted(
-        p
-        for p in wts.glob("*/.mcp.json")
-        if not p.is_symlink() and p.is_file() and p.resolve().parent.parent == real
+    return sorted(  # by real path: an in-repo alias of a worktree directory is the same copy, counted once
+        {
+            p.resolve()
+            for p in wts.glob("*/.mcp.json")
+            if not p.is_symlink() and p.is_file() and p.resolve().parent.parent == real
+        }
     )
 
 
@@ -383,7 +385,7 @@ def main(argv: list[str] | None = None) -> list[str]:
         try:
             verdict = emit_repo(repo, defs, args.check)
         except Exception as exc:  # one bad repo never strands the rest (plan A1 test 11)
-            verdict = f"SKIP (unreadable: {type(exc).__name__})"
+            verdict = f"SKIP (error: {type(exc).__name__})"
         line = f"{repo.name}: {verdict}"
         lines.append(line)
         print(line)
