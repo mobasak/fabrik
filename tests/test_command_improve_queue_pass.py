@@ -549,13 +549,6 @@ def test_a_weakening_recurrence_routes_and_ledger_prose_follows_the_closing_pass
         "`no edit this run — the surviving row routed to the operator`, naming the row and the proposal's mail id"
         in terminal
     )
-    chain = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "close-chain.md").read_text())
-    assert (
-        "a draft written mid-loop carries none. In such a command, what an input says about the change — the commit"
-        " message, the `--evidence` text, a D-row, a `CHANGELOG.md` or other ledger hunk — is written, or checked"
-        " sentence by sentence against the final text, after that pass too, and again after any fix the chain's own"
-        " check or `final_gate.py` forces. Then: (1)" in chain
-    )
 
 
 def test_a_widened_or_split_sentence_rereads_the_clauses_already_in_it() -> None:

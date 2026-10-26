@@ -2,38 +2,93 @@ shared: commands/_fragments/orient.md
 baseline_sentences: orient.baseline.txt
 baseline_sha256: 607714a72f6c35c5c89c7de30ae5c9c8e419eaca60726100d396a044c6252928
 entries:
-- id: orient-scripts-sysadmin-mcp-health-py
+- id: or-intro
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: 'Right after `start`, ONE Bash call, its output READ, then ONE line in the reply — before phase 1''s first read:'
+  current: 'Right after `start`: ONE Bash call, output READ, then ONE reply line before phase 1''s first read:'
+  text:
+  - 'Right after `start`: ONE Bash call, output READ, then ONE reply line before phase 1''s first read:'
+  class: prose
+- id: or-fence
   file: commands/_fragments/orient.md
   section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
   baseline: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
   current: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
   text:
-  - scripts/sysadmin/mcp_health.py
-- id: orient-scripts-select-rules-py
-  file: commands/_fragments/orient.md
-  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
-  baseline: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
-  current: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
-  text:
-  - scripts/select_rules.py
-- id: orient-agents-fabrik-md
-  file: commands/_fragments/orient.md
-  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
-  baseline: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
-  current: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
-  text:
-  - agents-fabrik.md
-- id: orient-docs-reference-operating-manifesto-md
-  file: commands/_fragments/orient.md
-  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
-  baseline: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
-  current: 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
-  text:
-  - docs/reference/operating-manifesto.md
-- id: orient-orient
+  - 'python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo''s assigned vs live (~3 s) ⏎ python3 /opt/fabrik/scripts/select_rules.py --project-root . --changed <the surface''s paths> # rules — the packs this surface activates ⏎ command grep -n "^## " /opt/fabrik/agents-fabrik.md # infra — the sections the surface touches ⏎ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manifesto — the Phase this run is'
+  class: grammar
+- id: or-line-format
   file: commands/_fragments/orient.md
   section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
   baseline: '`ORIENT: mcp <live>/<assigned> · rules <n> of <N> matched (<pack names, or none>) · infra <agents-fabrik.md sections read> · manifesto <Phase n>`'
   current: '`ORIENT: mcp <live>/<assigned> · rules <n> of <N> matched (<pack names, or none>) · infra <agents-fabrik.md sections read> · manifesto <Phase n>`'
   text:
-  - 'ORIENT:'
+  - '`ORIENT: mcp <live>/<assigned> · rules <n> of <N> matched (<pack names, or none>) · infra <agents-fabrik.md sections read> · manifesto <Phase n>`'
+  class: grammar
+- id: or-hub-absolute
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: 'Hub-absolute paths on purpose: the rendered command runs from every repo on the box and two of the four live only in the hub (`mcp_health.py`, the manifesto are in no project; `--repo .` / `--project-root .` point the scripts at the repo you are in)'
+  current: 'Hub-absolute paths on purpose: the rendered command runs from every repo on the box; two of the four live only in the hub (`mcp_health.py`, the manifesto are in no project; `--repo .` / `--project-root .` point the scripts at the repo you are in)'
+  text:
+  - 'Hub-absolute paths on purpose: the rendered command runs from every repo on the box; two of the four live only in the hub (`mcp_health.py`, the manifesto are in no project; `--repo .` / `--project-root .` point the scripts at the repo you are in)'
+  class: ban
+- id: or-surface-paths
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or a directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`'
+  current: '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`'
+  text:
+  - '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`'
+  class: ban
+- id: or-bare-run
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: 'A surface with no paths yet (a spec from an idea) runs it bare: a PLANNING command then reads every ACTIVE pack (`CLAUDE.md` § Orient 4, binding); every other command reads the ACTIVE packs whose description matches the work'
+  current: 'A surface with no paths yet (a spec from an idea) runs it bare: a PLANNING command then reads every ACTIVE pack (`CLAUDE.md` § Orient 4, binding); every other command reads ACTIVE packs whose description matches the work'
+  text:
+  - 'A surface with no paths yet (a spec from an idea) runs it bare: a PLANNING command then reads every ACTIVE pack (`CLAUDE.md` § Orient 4, binding); every other command reads ACTIVE packs whose description matches the work'
+  class: prose
+- id: or-dead-mcp
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior) and is named on that line, never a silent fallback; the packs listed are READ before the first edit; the infra and manifesto sections named are the ones then read and cited `path:line` where the run relies on them
+  current: Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior), named on that line, never a silent fallback; the listed packs are READ before the first edit; infra and manifesto sections named are then read, cited `path:line` where the run relies on them
+  text:
+  - Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior), named on that line, never a silent fallback; the listed packs are READ before the first edit; infra and manifesto sections named are then read, cited `path:line` where the run relies on them
+  class: ban
+- id: or-cobra
+  file: commands/_fragments/orient.md
+  section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
+  baseline: 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is to write it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
+  current: 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is writing it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
+  text:
+  - 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is writing it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
+  class: prose
+vanished:
+  L1: narrative
+  L2:
+    rule:
+    - or-intro
+  L3:
+    rule:
+    - or-fence
+  L4:
+    rule:
+    - or-line-format
+  L5:
+    rule:
+    - or-hub-absolute
+  L6:
+    rule:
+    - or-surface-paths
+  L7:
+    rule:
+    - or-bare-run
+  L8:
+    rule:
+    - or-dead-mcp
+  L9:
+    rule:
+    - or-cobra

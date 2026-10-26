@@ -1,4 +1,683 @@
 shared: commands/_fragments/close-feedback.md
 baseline_sentences: close-feedback.baseline.txt
 baseline_sha256: 07ace22e88d69a39139086313fa353fd1802efb035e52d82a59378e19b832d27
-entries: []
+entries:
+- id: cf-2
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: Running a command means using the machinery, which makes you the only witness to how it actually behaved this run. A defect you route around silently dies in your context when the session ends
+  current: 'Running command means using machinery: you are only witness to how it actually behaved this run; a defect you route around silently dies in your context when the session ends'
+  text:
+  - 'Running command means using machinery: you are only witness to how it actually behaved this run; a defect you route around silently dies in your context when the session ends'
+  class: ban
+- id: cf-3
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: Before `command_run.py done`, TWO one-line answers are owed
+  current: Before `command_run.py done`, TWO one-line answers are owed
+  text:
+  - Before `command_run.py done`, TWO one-line answers are owed
+  class: prose
+- id: cf-4
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'First the decision line: did this run MAKE or RECEIVE a decision (an operator ruling, an approval/Status flip, a retirement/adoption, an architecture/scope choice, "built X at Y", a rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — a chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, the manifesto''s Phase-0 triage; a ONE-WAY row grows the § Binding field block, per CLAUDE.md § the decision ledger) — or state `no decisions this run`'
+  current: 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md § the decision ledger) — or state `no decisions this run`'
+  text:
+  - 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md § the decision ledger) — or state `no decisions this run`'
+  class: ban
+- id: cf-7
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'Then the feedback line:'
+  current: 'Then the feedback line:'
+  text:
+  - 'Then the feedback line:'
+  class: grammar
+- id: cf-8
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '> `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · tokens <input> input / <output> output (<n>% cached) · confusion: <what in the > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without > changing the outcome | none> · change: <axis>: <the ONE concrete edit to this command or a rule that > would have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none > — surfaces exercised: <what your run touched>> [· cost: <a PLAIN AMOUNT, e.g. `0.0125` or `$0.30` — prose or `10 usd` is refused, it is summed>]`'
+  current: '> `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · tokens <input> input / <output> output (<n>% cached) · confusion: <what in the > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without > changing the outcome | none> · change: <axis>: <the ONE concrete edit to this command or a rule that > would have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none > — surfaces exercised: <what your run touched>> [· cost: <a PLAIN AMOUNT, e.g. `0.0125` or `$0.30` — prose or `10 usd` is refused, it is summed>]`'
+  text:
+  - '> `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · tokens <input> input / <output> output (<n>% cached) · confusion: <what in the > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without > changing the outcome | none> · change: <axis>: <the ONE concrete edit to this command or a rule that > would have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none > — surfaces exercised: <what your run touched>> [· cost: <a PLAIN AMOUNT, e.g. `0.0125` or `$0.30` — prose or `10 usd` is refused, it is summed>]`'
+  class: grammar
+- id: cf-10
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'The axis is the PROPERTY OF THE COMMAND TEXT your edit improves, not the topic of your run: `lean` (it loads weight the run never used) · `fast` (it stalled you — an ask it could have answered, a re-derivation it could have carried) · `accurate` (it told you something untrue or ambiguous) · `waste` (it made you spend turns or tokens that changed nothing) · `infra` (it is wrong about this box''s machinery — paths, scripts, gates; NOT the infra BEAT of the `filed:` field) · `rules` (it contradicts or ignores a rule pack) · `manifesto` (it violates an operating principle)'
+  current: 'The axis is the PROPERTY OF THE COMMAND TEXT your edit improves, not the topic of your run: `lean` (it loads weight the run never used) · `fast` (it stalled you — an ask it could have answered, a re-derivation it could have carried) · `accurate` (it told you something untrue or ambiguous) · `waste` (it made you spend turns or tokens that changed nothing) · `infra` (it is wrong about this box''s machinery — paths, scripts, gates; NOT the infra BEAT of the `filed:` field) · `rules` (it contradicts or ignores a rule pack) · `manifesto` (it violates an operating principle)'
+  text:
+  - 'The axis is the PROPERTY OF THE COMMAND TEXT your edit improves, not the topic of your run: `lean` (it loads weight the run never used) · `fast` (it stalled you — an ask it could have answered, a re-derivation it could have carried) · `accurate` (it told you something untrue or ambiguous) · `waste` (it made you spend turns or tokens that changed nothing) · `infra` (it is wrong about this box''s machinery — paths, scripts, gates; NOT the infra BEAT of the `filed:` field) · `rules` (it contradicts or ignores a rule pack) · `manifesto` (it violates an operating principle)'
+  class: ban
+- id: cf-11
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: The one axis with no per-run key is axis 5, continuous improvement — it is read ACROSS runs, which is why seven keys serve eight axes
+  current: The one axis with no per-run key is axis 5, continuous improvement — it is read ACROSS runs, so seven keys serve eight axes
+  text:
+  - The one axis with no per-run key is axis 5, continuous improvement — it is read ACROSS runs, so seven keys serve eight axes
+  class: prose
+- id: cf-12
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: One axis per close — the report groups the queue by it, and a second key after a comma is not read
+  current: One axis per close — report groups queue by it; second key after comma is not read
+  text:
+  - One axis per close — report groups queue by it; second key after comma is not read
+  class: prose
+- id: cf-13
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '⚠️ The close REFUSES an unkeyed or unknown-axis `change:` (`change: make it faster` and `change: banana: …` both), names the seven keys, and re-keys your own value as the example'
+  current: '⚠️ The close REFUSES an unkeyed or unknown-axis `change:` (`change: make it faster` and `change: banana: …` both), names the seven keys, and re-keys your own value as the example'
+  text:
+  - '⚠️ The close REFUSES an unkeyed or unknown-axis `change:` (`change: make it faster` and `change: banana: …` both), names the seven keys, and re-keys your own value as the example'
+  class: ban
+- id: cf-14
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '`change: none` is a verdict you sign and carries no key'
+  current: 'A close with nothing to change writes `change: none` — verdict you sign, with no key'
+  text:
+  - 'A close with nothing to change writes `change: none` — verdict you sign, with no key'
+  class: prose
+- id: cat-L18
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'A close with nothing to change writes `change: none`, with no key'
+  current: 'A close with nothing to change writes `change: none` — verdict you sign, with no key'
+  text:
+  - 'A close with nothing to change writes `change: none` — verdict you sign, with no key'
+  class: prose
+- id: cf-15
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'Two traps, both executed against the real parser. (1) Keep ` · `, `|`, `;` and newlines out of the value. Precisely: the close splits on one of those four ONLY when a field label (`confusion|waste|change|filed|cost`) and a colon follow it — a bare semicolon or pipe in your prose is harmless — but when it does split, a ` · waste:` lands a duplicate field and REFUSES the close, and a ` · cost:` truncates your sentence SILENTLY and files a phantom cost'
+  current: 'Two traps, both executed against real parser: (1) keep ` · `, `|`, `;` and newlines out of value; close splits on one of those four ONLY when a field label (`confusion|waste|change|filed|cost`) and a colon follow it — bare semicolon or pipe in your prose is harmless — but when it does split, ` · waste:` lands duplicate field and REFUSES the close, and a ` · cost:` truncates your sentence SILENTLY and files a phantom cost'
+  text:
+  - 'Two traps, both executed against real parser: (1) keep ` · `, `|`, `;` and newlines out of value; close splits on one of those four ONLY when a field label (`confusion|waste|change|filed|cost`) and a colon follow it — bare semicolon or pipe in your prose is harmless — but when it does split, ` · waste:` lands duplicate field and REFUSES the close, and a ` · cost:` truncates your sentence SILENTLY and files a phantom cost'
+  class: ban
+- id: cf-16
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'Since `waste` is both an axis and a field label, a `change: waste: …` value must never begin a line; a wrapped FEEDBACK line is the case that bites, and you cannot see where it wraps — which is why the habit is to keep all four characters out rather than to reason about what follows them'
+  current: 'Since `waste` is both axis and field label, `change: waste: …` value must never begin a line — wrapped FEEDBACK line is case that bites, and you cannot see where it wraps — so keep all four characters out rather than reason about what follows them'
+  text:
+  - 'Since `waste` is both axis and field label, `change: waste: …` value must never begin a line — wrapped FEEDBACK line is case that bites, and you cannot see where it wraps — so keep all four characters out rather than reason about what follows them'
+  class: ban
+- id: cf-17
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '(2) Never paste the grammar. `_is_placeholder` strips an axis key before its `<…>` test, so a keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one — it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed'
+  current: '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one — it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed'
+  text:
+  - '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one — it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed'
+  class: ban
+- id: cf-71
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict
+  current: The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict
+  text:
+  - The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict
+  class: prose
+- id: cf-18
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'This fragment is canonical: `command_run.py`''s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md` FINAL OUTPUT blocks each hold a hand-kept twin, all four now keyed to match'
+  current: 'This fragment is canonical: `command_run.py`''s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md` FINAL OUTPUT blocks hold hand-kept twins, all four keyed to match'
+  text:
+  - 'This fragment is canonical: `command_run.py`''s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md` FINAL OUTPUT blocks hold hand-kept twins, all four keyed to match'
+  class: prose
+- id: cf-72
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'They cannot be single-sourced — `command_run.py` is fleet-synced to ~46 repos that have no `commands/_fragments/` — so the drift is GRADED instead: `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` reads this file and fails if the constant falls behind it'
+  current: 'They cannot be single-sourced — `command_run.py` is fleet-synced to ~46 repos that have no `commands/_fragments/` — so drift is GRADED instead: `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` reads this file and fails if the constant falls behind it'
+  text:
+  - 'They cannot be single-sourced — `command_run.py` is fleet-synced to ~46 repos that have no `commands/_fragments/` — so drift is GRADED instead: `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` reads this file and fails if the constant falls behind it'
+  class: prose
+- id: cf-19
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: On an expensive command a SEAT writes the line, not you. If `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are closing, dispatch ONE Sonnet seat to author the `change:` line, handing it this run's own evidence (the record's phases and rounds, the diff, what you actually hit) — an agent grading its own run is the weakest reader of it
+  current: 'On expensive command SEAT writes line, not you: if `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names command you are closing, dispatch ONE Sonnet seat to author `change:` line, handing it this run''s own evidence (the record''s phases and rounds, the diff, what you actually hit)'
+  text:
+  - 'On expensive command SEAT writes line, not you: if `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names command you are closing, dispatch ONE Sonnet seat to author `change:` line, handing it this run''s own evidence (the record''s phases and rounds, the diff, what you actually hit)'
+  class: prose
+  clauses:
+    2: narrative
+- id: cf-20
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'If that script or the ledger is not readable from where you are, write the line yourself: the seat is an optimisation, never a gate, and it needs no dispatch stamp'
+  current: 'If that script or ledger is not readable from where you are, write line yourself: the seat is optimisation, never a gate, and it needs no dispatch stamp'
+  text:
+  - 'If that script or ledger is not readable from where you are, write line yourself: the seat is optimisation, never a gate, and it needs no dispatch stamp'
+  class: ban
+- id: cf-66
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'The four labelled fields are the USAGE report (D-175, the operator''s 6th ask 2026-09-07): the corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing function'
+  current: 'The four labelled fields are USAGE report (D-175, the operator''s 6th ask 2026-09-07): the corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing function'
+  text:
+  - 'The four labelled fields are USAGE report (D-175, the operator''s 6th ask 2026-09-07): the corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing function'
+  class: prose
+- id: cf-21
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — and you get the behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before the quiet round, or made cheap by skipping a probe, moves both counters the right way while the work gets worse'
+  current: '⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — you get behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before quiet round, or made cheap by skipping probe, moves both counters right way while work gets worse'
+  text:
+  - '⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — you get behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before quiet round, or made cheap by skipping probe, moves both counters right way while work gets worse'
+  class: prose
+- id: cf-22
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: They are a REPORT on the run, never its goal — the goal is the terminal condition, and `done --evidence` is where you prove you met it
+  current: They are REPORT on run, never its goal — goal is terminal condition, and `done --evidence` is where you prove it
+  text:
+  - They are REPORT on run, never its goal — goal is terminal condition, and `done --evidence` is where you prove it
+  class: ban
+- id: cf-67
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: A shorter run you cannot evidence is not a faster run
+  text:
+  - A shorter run you cannot evidence is not a faster run
+  class: prose
+  current: A shorter run you cannot evidence is not a faster run
+- id: cf-23
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '`command_run.py` REFUSES a close that lacks any of `confusion:` `waste:` `change:` `filed:` (or leaves one empty, or writes one twice). The separator between fields is ` · ` (a middle dot; `|`, `;` or a newline also count) — a label only counts at a field boundary, so a value may mention another label''s name in prose'
+  current: '`command_run.py` REFUSES a close that lacks any of `confusion:` `waste:` `change:` `filed:` (or leaves one empty, or writes one twice); separator between fields is ` · ` (a middle dot; `|`, `;` or newline also count) — a label only counts at a field boundary, so a value may mention another label''s name in prose'
+  text:
+  - '`command_run.py` REFUSES a close that lacks any of `confusion:` `waste:` `change:` `filed:` (or leaves one empty, or writes one twice); separator between fields is ` · ` (a middle dot; `|`, `;` or newline also count) — a label only counts at a field boundary, so a value may mention another label''s name in prose'
+  class: ban
+- id: cf-68
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'Wall-clock and the round count are captured for you; write what you SAW: which sentence you misread, which step you repeated, what you would cut or rename'
+  current: 'Wall-clock and round count are captured for you; write what you SAW: which sentence you misread, which step you repeated, what you would cut or rename'
+  text:
+  - 'Wall-clock and round count are captured for you; write what you SAW: which sentence you misread, which step you repeated, what you would cut or rename'
+  class: prose
+- id: cf-24
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'A run that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you sign — every run of a 400-line command has one edit worth naming'
+  current: 'A run that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you sign — every run of a 400-line command has one edit worth naming'
+  text:
+  - 'A run that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you sign — every run of a 400-line command has one edit worth naming'
+  class: prose
+- id: cf-25
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: The close prints the finished `FEEDBACK:` line; paste it as the 7th line of the FINAL OUTPUT block
+  current: The close prints the finished `FEEDBACK:` line; paste it as the 7th line of the FINAL OUTPUT block
+  text:
+  - The close prints the finished `FEEDBACK:` line; paste it as the 7th line of the FINAL OUTPUT block
+  class: grammar
+- id: cf-26
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: Every close appends a row to the fleet-wide ledger `~/.claude/state/command-feedback.jsonl`; `python3 scripts/command_feedback_report.py` (hub) turns it into the per-command optimisation backlog
+  current: Every close appends a row to the fleet-wide ledger `~/.claude/state/command-feedback.jsonl`; `python3 scripts/command_feedback_report.py` (hub) turns it into the per-command optimisation backlog
+  text:
+  - Every close appends a row to the fleet-wide ledger `~/.claude/state/command-feedback.jsonl`; `python3 scripts/command_feedback_report.py` (hub) turns it into the per-command optimisation backlog
+  class: prose
+- id: cat-L33
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'A "filed" claim MUST name a durable artifact — the mail id, or a COMMITTED path. A cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
+  current: 'A "filed" claim MUST name a durable artifact — mail id, or COMMITTED path; a cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
+  text:
+  - 'A "filed" claim MUST name a durable artifact — mail id, or COMMITTED path; a cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
+  class: ban
+- id: cf-70
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: No artifact = not filed
+  text:
+  - No artifact = not filed
+  class: prose
+  current: No artifact = not filed
+- id: cf-28
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'Then pass it: `done --command <name> --evidence "<proof>" --feedback "<the four fields>"`'
+  current: 'Then pass it: `done --command <name> --evidence "<proof>" --feedback "<the four fields>"`'
+  text:
+  - 'Then pass it: `done --command <name> --evidence "<proof>" --feedback "<the four fields>"`'
+  class: prose
+- id: cf-29
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'The close REFUSES without it, and without the four fields — and the TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be classified into a token and discarded, which is why five operator asks produced zero visible reports; write the verdict as a report to a human, because it now reaches one) — — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
+  current: 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be classified into a token and discarded, which is why five operator asks produced zero visible reports; write verdict as report to human, because it now reaches one) — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
+  text:
+  - 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be classified into a token and discarded, which is why five operator asks produced zero visible reports; write verdict as report to human, because it now reaches one) — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
+  class: ban
+- id: cf-31
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: ⚠️ If your repo's `command_run.py` predates `--feedback` it will ERROR on the unknown argument instead of refusing — that is a STALE VENDORED COPY, not an exemption
+  current: ⚠️ If your repo's `command_run.py` predates `--feedback` it will ERROR on unknown argument instead of refusing — that is STALE VENDORED COPY, not an exemption
+  text:
+  - ⚠️ If your repo's `command_run.py` predates `--feedback` it will ERROR on unknown argument instead of refusing — that is STALE VENDORED COPY, not an exemption
+  class: prose
+- id: cat-L38
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'It happens in sync-excluded repos (fabrik-lib hit it: `01M14V7KH4`), where the box-wide command corpus you are reading is NEWER than the repo-local script it tells you to run — new instruction + old tool, the same trap that produced `error: unrecognized arguments: --feedback` on the day the refusal landed'
+  current: 'It happens in sync-excluded repos (fabrik-lib hit it: `01M14V7KH4`), where box-wide command corpus you are reading is NEWER than repo-local script it tells you to run — new instruction + old tool, the same trap that produced `error: unrecognized arguments: --feedback` on the day the refusal landed'
+  text:
+  - 'It happens in sync-excluded repos (fabrik-lib hit it: `01M14V7KH4`), where box-wide command corpus you are reading is NEWER than repo-local script it tells you to run — new instruction + old tool, the same trap that produced `error: unrecognized arguments: --feedback` on the day the refusal landed'
+  class: ban
+- id: cf-32
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'Do NOT drop the verdict: close with `--evidence` so the record does not stay `running`, state your `FEEDBACK:` line in the response (it is owed to the reader, not to the parser), and file the stale-copy fact upstream so the vendored script gets re-synced'
+  current: 'Do NOT drop the verdict: close with `--evidence` so the record does not stay `running`, state your `FEEDBACK:` line in the response (it is owed to the reader, not to the parser), and file the stale-copy fact upstream so the vendored script gets re-synced'
+  text:
+  - 'Do NOT drop the verdict: close with `--evidence` so the record does not stay `running`, state your `FEEDBACK:` line in the response (it is owed to the reader, not to the parser), and file the stale-copy fact upstream so the vendored script gets re-synced'
+  class: grammar
+- id: cat-L40
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: A verdict you spoke is information; a verdict you skipped because the parser could not take it is not
+  current: A verdict you spoke is information; one skipped because parser could not take it is not
+  text:
+  - A verdict you spoke is information; one skipped because parser could not take it is not
+  class: prose
+- id: cf-33
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '⚠️ And the trap is not limited to `--feedback` — it is the whole class: a subcommand or flag this corpus names that your local `command_run.py` REJECTS is a stale copy, never a licence to skip the step. Measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also predates the dispatch accounting — `dispatch` is an `invalid choice`, and `round` has no `--seats` and no `--confirmed` — while every fan-out in the corpus now instructs all three'
+  current: '⚠️ And trap is not limited to `--feedback` — it is whole class: a subcommand or flag this corpus names that your local `command_run.py` REJECTS is stale copy, never a licence to skip the step; measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also predates the dispatch accounting — `dispatch` is `invalid choice`, and `round` has no `--seats` and no `--confirmed`'
+  text:
+  - '⚠️ And trap is not limited to `--feedback` — it is whole class: a subcommand or flag this corpus names that your local `command_run.py` REJECTS is stale copy, never a licence to skip the step; measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also predates the dispatch accounting — `dispatch` is `invalid choice`, and `round` has no `--seats` and no `--confirmed`'
+  class: ban
+  clauses:
+    4: narrative
+- id: cf-34
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: So DO the step's work and state its number in the response (the seats you dispatched, the CONFIRMED count that closed the round), close with what the parser accepts, and file the stale-copy fact
+  current: So DO step's work and state its number in response (the seats you dispatched, CONFIRMED count that closed round), close with what parser accepts, and file stale-copy fact
+  text:
+  - So DO step's work and state its number in response (the seats you dispatched, CONFIRMED count that closed round), close with what parser accepts, and file stale-copy fact
+  class: prose
+- id: cf-35
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'Say the two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; and a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so the convergence verdict lives in your prose and the `--findings 0` rule still binds it'
+  current: 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; and a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so convergence verdict lives in your prose and `--findings 0` rule still binds it'
+  text:
+  - 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; and a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so convergence verdict lives in your prose and `--findings 0` rule still binds it'
+  class: prose
+- id: cf-36
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '"none" is a valid verdict ONLY with its surfaces named — a BARE "none" is now REFUSED by the parser (D-036, the operator''s 5th ask made mechanical). Write `none — surfaces exercised: <what your run actually touched of the machinery>`; silence and a bare "none" are byte-identical to the reader, and the close will not accept either'
+  current: '"none" is a valid verdict ONLY with its surfaces named — BARE "none" is now REFUSED by the parser (D-036, the operator''s 5th ask made mechanical); write `none — surfaces exercised: <what your run actually touched of the machinery>` — silence and bare "none" are byte-identical to reader, and close will not accept either'
+  text:
+  - '"none" is a valid verdict ONLY with its surfaces named — BARE "none" is now REFUSED by the parser (D-036, the operator''s 5th ask made mechanical); write `none — surfaces exercised: <what your run actually touched of the machinery>` — silence and bare "none" are byte-identical to reader, and close will not accept either'
+  class: ban
+- id: cf-37
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: This step is MANDATORY on every run of every command — the record stays `running` (and the Stop hook blocks the turn) until a substantive verdict lands
+  current: This step is MANDATORY on every run of every command — the record stays `running` (and the Stop hook blocks the turn) until a substantive verdict lands
+  text:
+  - This step is MANDATORY on every run of every command — the record stays `running` (and the Stop hook blocks the turn) until a substantive verdict lands
+  class: prose
+- id: cf-39
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: a command's instruction that was wrong, stale, impossible, or contradicted another command
+  current: a command's instruction that was wrong, stale, impossible, or contradicted another command
+  text:
+  - a command's instruction that was wrong, stale, impossible, or contradicted another command
+  class: prose
+- id: cat-L49
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: an enforcement check that fired on a legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects, and the false positive is the more corrosive
+  current: an enforcement check that fired on legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects, and the false positive is the more corrosive
+  text:
+  - an enforcement check that fired on legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects, and the false positive is the more corrosive
+  class: prose
+- id: cf-42
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: a script, hook, or scaffold emission that did not behave as its own docs describe
+  current: a script, hook, or scaffold emission that did not behave as its own docs describe
+  text:
+  - a script, hook, or scaffold emission that did not behave as its own docs describe
+  class: prose
+- id: cf-43
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: 'friction that cost you real time: an ambiguous step, a missing arg, an undocumented prerequisite'
+  current: 'friction that cost you real time: an ambiguous step, missing arg, undocumented prerequisite'
+  text:
+  - 'friction that cost you real time: an ambiguous step, missing arg, undocumented prerequisite'
+  class: prose
+- id: cf-44
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: anything you had to WORK AROUND to finish
+  current: anything you had to WORK AROUND to finish
+  text:
+  - anything you had to WORK AROUND to finish
+  class: prose
+- id: cf-45
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: A workaround is allowed; an unreported workaround is not
+  current: A workaround is allowed; unreported workaround is not
+  text:
+  - A workaround is allowed; unreported workaround is not
+  class: prose
+- id: cf-46
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: ⚠️ a later pass, a stronger method, or the operator's re-ask caught something a CONVERGED pass of the same command had already stamped. The false claim was yours; the no-op stamps that SURVIVED it are the machinery's, and that half is always filed
+  current: ⚠️ a later pass, stronger method, or operator's re-ask caught something CONVERGED pass of the same command had already stamped; false claim was yours — no-op stamps that SURVIVED it are machinery's, and that half is always filed
+  text:
+  - ⚠️ a later pass, stronger method, or operator's re-ask caught something CONVERGED pass of the same command had already stamped; false claim was yours — no-op stamps that SURVIVED it are machinery's, and that half is always filed
+  class: prose
+- id: cf-64
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: This is the trigger agents misclassify hardest — "my mistake, fixed in-run" — and it is exactly how two converged /fabrik-plan-review passes carrying a false Evidence-table claim produced zero mail (trade-intelligence 2026-08-29, surfaced only because the operator re-asked with a different method and then pasted the result to infra BY HAND — the duty this bullet exists to replace)
+  current: This is trigger agents misclassify hardest — "my mistake, fixed in-run" — it is exactly how two converged /fabrik-plan-review passes carrying false Evidence-table claim produced zero mail (trade-intelligence 2026-08-29, surfaced only because the operator re-asked with a different method and then pasted the result to infra BY HAND — the duty this bullet exists to replace)
+  text:
+  - This is trigger agents misclassify hardest — "my mistake, fixed in-run" — it is exactly how two converged /fabrik-plan-review passes carrying false Evidence-table claim produced zero mail (trade-intelligence 2026-08-29, surfaced only because the operator re-asked with a different method and then pasted the result to infra BY HAND — the duty this bullet exists to replace)
+  class: ban
+- id: cf-47
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: you misread the same tool's output more than once in a session (a `| head`-truncated pipe, a silently-failing compound grep)
+  current: you misread same tool's output more than once in session (a `| head`-truncated pipe, a silently-failing compound grep)
+  text:
+  - you misread same tool's output more than once in session (a `| head`-truncated pipe, a silently-failing compound grep)
+  class: prose
+- id: cat-L58
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: Twice is a tooling-discipline gap in the machinery's guidance, not a personal slip — file it with the exact pipeline that misled you
+  current: Twice is tooling-discipline gap in machinery's guidance, not a personal slip — file it with exact pipeline that misled you
+  text:
+  - Twice is tooling-discipline gap in machinery's guidance, not a personal slip — file it with exact pipeline that misled you
+  class: prose
+- id: cf-51
+  file: commands/_fragments/close-feedback.md
+  section: '### Route by BEAT, never by convenience (charters: `docs/reference/agents/`)'
+  baseline: '| infra | rendering, sync and checks of `commands/` and `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`, the box mesh, fabrik-mail |'
+  current: '| infra | rendering, sync and checks of `commands/` and `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`, the box mesh, fabrik-mail |'
+  text:
+  - '| infra | rendering, sync and checks of `commands/` and `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`, the box mesh, fabrik-mail |'
+  class: prose
+- id: cf-52
+  file: commands/_fragments/close-feedback.md
+  section: '### Route by BEAT, never by convenience (charters: `docs/reference/agents/`)'
+  baseline: '| fleet | `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding, `docs/PROJECT_CATALOG.md` |'
+  current: '| fleet | `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding, `docs/PROJECT_CATALOG.md` |'
+  text:
+  - '| fleet | `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding, `docs/PROJECT_CATALOG.md` |'
+  class: prose
+- id: cf-53
+  file: commands/_fragments/close-feedback.md
+  section: '### Route by BEAT, never by convenience (charters: `docs/reference/agents/`)'
+  baseline: '| intel | models, benchmarks, the flywheel, author-blind review |'
+  current: '| intel | models, benchmarks, the flywheel, author-blind review |'
+  text:
+  - '| intel | models, benchmarks, the flywheel, author-blind review |'
+  class: prose
+- id: cf-54
+  file: commands/_fragments/close-feedback.md
+  section: '### Route by BEAT, never by convenience (charters: `docs/reference/agents/`)'
+  baseline: '| kaizen | FEEDBACK verdicts, a command''s or rule''s WORDING (the hub''s `commands/_sources/`, `commands/_fragments/` and `.windsurf/rules/`, per `/opt/fabrik/.fabrik/beat-owners.json`), ways of working — the feedback loop (not the code behind it) |'
+  current: '| kaizen | FEEDBACK verdicts, a command''s or rule''s WORDING (the hub''s `commands/_sources/`, `commands/_fragments/` and `.windsurf/rules/`, per `/opt/fabrik/.fabrik/beat-owners.json`), ways of working — the feedback loop (not the code behind it) |'
+  text:
+  - '| kaizen | FEEDBACK verdicts, a command''s or rule''s WORDING (the hub''s `commands/_sources/`, `commands/_fragments/` and `.windsurf/rules/`, per `/opt/fabrik/.fabrik/beat-owners.json`), ways of working — the feedback loop (not the code behind it) |'
+  class: prose
+- id: cf-55
+  file: commands/_fragments/close-feedback.md
+  section: '### Route by BEAT, never by convenience (charters: `docs/reference/agents/`)'
+  baseline: 'python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel|kaizen> --kind finding --ack required ⏎ # body on stdin — the D-035 contract (docs/reference/fabrik-mail.md § The message contract): ⏎ # WHAT/WHERE/WHEN/WHO/WHY(factual root cause)/HOW/SYSTEMIC(the class) mandatory; ⏎ # ABDUCTIVE (alternatives ruled out) when WHY is inferred; INDUCTIVE/DEDUCTIVE/COUNTERFACTUAL where they carry weight'
+  current: 'python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel|kaizen> --kind finding --ack required ⏎ # body on stdin — the D-035 contract (docs/reference/fabrik-mail.md § The message contract): ⏎ # WHAT/WHERE/WHEN/WHO/WHY(factual root cause)/HOW/SYSTEMIC(the class) mandatory; ⏎ # ABDUCTIVE (alternatives ruled out) when WHY is inferred; INDUCTIVE/DEDUCTIVE/COUNTERFACTUAL where they carry weight'
+  text:
+  - python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel|kaizen> --kind finding --ack required
+  - '# body on stdin — the D-035 contract (docs/reference/fabrik-mail.md § The message contract):'
+  - '# WHAT/WHERE/WHEN/WHO/WHY(factual root cause)/HOW/SYSTEMIC(the class) mandatory;'
+  - '# ABDUCTIVE (alternatives ruled out) when WHY is inferred; INDUCTIVE/DEDUCTIVE/COUNTERFACTUAL where they carry weight'
+  class: grammar
+- id: cf-56
+  file: commands/_fragments/close-feedback.md
+  section: '### Route by BEAT, never by convenience (charters: `docs/reference/agents/`)'
+  baseline: Genuinely unsure who owns it ⇒ `--broadcast --ack no` rather than dropping it
+  current: Genuinely unsure who owns it ⇒ `--broadcast --ack no` rather than dropping it
+  text:
+  - Genuinely unsure who owns it ⇒ `--broadcast --ack no` rather than dropping it
+  class: prose
+- id: cf-57
+  file: commands/_fragments/close-feedback.md
+  section: '### Route by BEAT, never by convenience (charters: `docs/reference/agents/`)'
+  baseline: In a PROJECT repo, a defect in a SYNCED file additionally follows `/fabrik-upstream` — never edit the synced copy
+  current: In a PROJECT repo, a defect in a SYNCED file additionally follows `/fabrik-upstream` — never edit the synced copy
+  text:
+  - In a PROJECT repo, a defect in a SYNCED file additionally follows `/fabrik-upstream` — never edit the synced copy
+  class: ban
+- id: cf-73
+  file: commands/_fragments/close-feedback.md
+  section: '### A subagent''s finding is YOURS to file'
+  baseline: A `fabrik-reviewer` that notices a false-positive check, a `fabrik-researcher` that hits a dead reference, a pool finder that trips over a contradictory rule — each surfaces it in its return value and then ceases to exist
+  current: A `fabrik-reviewer` that notices false-positive check, `fabrik-researcher` that hits dead reference, pool finder that trips over contradictory rule — each surfaces it in its return value and then ceases to exist
+  text:
+  - A `fabrik-reviewer` that notices false-positive check, `fabrik-researcher` that hits dead reference, pool finder that trips over contradictory rule — each surfaces it in its return value and then ceases to exist
+  class: prose
+- id: cat-L72
+  file: commands/_fragments/close-feedback.md
+  section: '### A subagent''s finding is YOURS to file'
+  baseline: If you do not carry it out, it is gone, and the subagent cannot mail anything itself
+  current: If you do not carry it out, it is gone — the subagent cannot mail anything itself
+  text:
+  - If you do not carry it out, it is gone — the subagent cannot mail anything itself
+  class: prose
+- id: cf-60
+  file: commands/_fragments/close-feedback.md
+  section: '### A subagent''s finding is YOURS to file'
+  baseline: The bar is evidence, not a complaint. One reproducible `path:line` and the command you ran beats a paragraph of impression
+  current: 'The bar is evidence, not a complaint: one reproducible `path:line` and command you ran beats paragraph of impression'
+  text:
+  - 'The bar is evidence, not a complaint: one reproducible `path:line` and command you ran beats paragraph of impression'
+  class: prose
+- id: cf-61
+  file: commands/_fragments/close-feedback.md
+  section: '### A subagent''s finding is YOURS to file'
+  baseline: 'And know which fix discharges the duty: fixing your ARTIFACT never does. Correcting the false claim, the missed row, the wrong verdict heals YOUR run; the mail heals the COMMAND that let it survive — both are owed, always'
+  current: 'And know which fix discharges duty: fixing your ARTIFACT never does; correcting the false claim, the missed row, the wrong verdict heals YOUR run; mail heals COMMAND that let it survive; both are owed, always'
+  text:
+  - 'And know which fix discharges duty: fixing your ARTIFACT never does; correcting the false claim, the missed row, the wrong verdict heals YOUR run; mail heals COMMAND that let it survive; both are owed, always'
+  class: ban
+- id: cf-62
+  file: commands/_fragments/close-feedback.md
+  section: '### A subagent''s finding is YOURS to file'
+  baseline: The only fix that replaces the mail is fixing the MACHINERY itself (a hub agent, in-beat, in the same run — say so in the FEEDBACK line)
+  current: The only fix that replaces the mail is fixing the MACHINERY itself (a hub agent, in-beat, in the same run — say so in the FEEDBACK line)
+  text:
+  - The only fix that replaces the mail is fixing the MACHINERY itself (a hub agent, in-beat, in the same run — say so in the FEEDBACK line)
+  class: prose
+- id: cf-63
+  file: commands/_fragments/close-feedback.md
+  section: '### A subagent''s finding is YOURS to file'
+  baseline: A "none" verdict asserts all of the above triggers came up empty — it is a claim, and you are signing it
+  current: A "none" verdict asserts all of above triggers came up empty — it is a claim, and you are signing it
+  text:
+  - A "none" verdict asserts all of above triggers came up empty — it is a claim, and you are signing it
+  class: prose
+- id: cf-65
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'This is not ceremony bolted onto the exit: it is the only moment you still hold the context to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands)'
+  current: 'This is not ceremony bolted onto the exit: it is the only moment you still hold the context to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands)'
+  text:
+  - 'This is not ceremony bolted onto the exit: it is the only moment you still hold the context to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands)'
+  class: ban
+- id: cf-L8
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: '`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon: `change: lean: the rubric block is loaded in full and never cited — cut it to the matched rows`'
+  current: '`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon: `change: lean: the rubric block is loaded in full and never cited — cut it to the matched rows`'
+  text:
+  - '`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon: `change: lean: the rubric block is loaded in full and never cited — cut it to the matched rows`'
+  class: ban
+- id: cat-L50
+  file: commands/_fragments/close-feedback.md
+  section: '### File it when this run hit any of these'
+  baseline: a rule pack that contradicted another pack, or that never activated where it was needed
+  current: a rule pack that contradicted another pack, or that never activated where it was needed
+  text:
+  - a rule pack that contradicted another pack, or that never activated where it was needed
+  class: prose
+- id: cf-L73
+  file: commands/_fragments/close-feedback.md
+  section: '### A subagent''s finding is YOURS to file'
+  baseline: 'So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under review) come to you, and you file them under the routing above'
+  current: 'So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under review) come to you, and you file them under the routing above'
+  text:
+  - 'So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under review) come to you, and you file them under the routing above'
+  class: ban
+vanished:
+  L3:
+    rule:
+    - cf-2
+  L5:
+    rule:
+    - cf-4
+  L10:
+    rule:
+    - cf-11
+  L11:
+    rule:
+    - cf-12
+  L13:
+    rule:
+    - cf-14
+  L14:
+    rule:
+    - cf-15
+  L15:
+    rule:
+    - cf-16
+  L16:
+    rule:
+    - cf-17
+  L17:
+    rule:
+    - cf-71
+  L18:
+    rule:
+    - cat-L18
+  L19:
+    rule:
+    - cf-18
+  L20:
+    rule:
+    - cf-72
+  L22:
+    rule:
+    - cf-19
+  L23:
+    rule:
+    - cf-20
+  L24:
+    rule:
+    - cf-66
+  L25:
+    rule:
+    - cf-21
+  L26:
+    rule:
+    - cf-22
+  L28:
+    rule:
+    - cf-23
+  L29:
+    rule:
+    - cf-68
+  L33:
+    rule:
+    - cat-L33
+  L36:
+    rule:
+    - cf-29
+  L37:
+    rule:
+    - cf-31
+  L38:
+    rule:
+    - cat-L38
+  L40:
+    rule:
+    - cat-L40
+  L41:
+    rule:
+    - cf-33
+  L42:
+    rule:
+    - cf-34
+  L43:
+    rule:
+    - cf-35
+  L45:
+    rule:
+    - cf-36
+  L48:
+    rule:
+    - cf-39
+  L49:
+    rule:
+    - cat-L49
+  L51:
+    rule:
+    - cf-42
+  L52:
+    rule:
+    - cf-43
+  L54:
+    rule:
+    - cf-45
+  L55:
+    rule:
+    - cf-46
+  L56:
+    rule:
+    - cf-64
+  L57:
+    rule:
+    - cf-47
+  L58:
+    rule:
+    - cat-L58
+  L71:
+    rule:
+    - cf-73
+  L72:
+    rule:
+    - cat-L72
+  L74: narrative
+  L75:
+    rule:
+    - cf-60
+  L76:
+    rule:
+    - cf-61
+  L78:
+    rule:
+    - cf-63

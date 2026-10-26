@@ -2,21 +2,295 @@ shared: commands/_agents/fabrik-reviewer.md
 baseline_sentences: fabrik-reviewer.baseline.txt
 baseline_sha256: fbf2b19412144fef27bee2543238d6a9870f55a33488e6c3dd0e1e25115e2686
 entries:
+- id: sha-pin
+  file: commands/_agents/fabrik-reviewer.md
+  baseline: ⚠️ A brief that names a COMMIT is read at that commit, not on the live tree. Several sessions edit this tree concurrently; a finder that re-imports the surface from its live path scores a MOVING target — P21-A (2026-09-05) got two verdicts for one probe minutes apart because the file changed under it
+  current: ⚠️ A brief that names a COMMIT is read at that commit, not on the live tree. Several sessions edit this tree concurrently; a finder that re-imports the surface from its live path scores a MOVING target — P21-A (2026-09-05) got two verdicts for one probe minutes apart because the file changed under it
+  text:
+  - ⚠️ A brief that names a COMMIT is read at that commit, not on the live tree. Several sessions edit this tree concurrently; a finder that re-imports the surface from its live path scores a MOVING target — P21-A (2026-09-05) got two verdicts for one probe minutes apart because the file changed under it
+  class: prose
+- id: sha-pin-copy
+  file: commands/_agents/fabrik-reviewer.md
+  current: 'First act of a SHA-pinned brief: `git show <sha>:<path> > <scratch>/<file>` — always redirected, one file per call, as is any command whose output may be large (`git diff`, `git log -p`, a broad search), because a large stdout is saved by the harness under `$HOME`, where you may not read — and probe THAT copy; say so in the report'
+  baseline: 'First act of a SHA-pinned brief: `git show <sha>:<path> > <scratch>/<file>` — always redirected, one file per call, as is any command whose output may be large (`git diff`, `git log -p`, a broad search), because a large stdout is saved by the harness under `$HOME`, where you may not read — and probe THAT copy; say so in the report'
+  text:
+  - 'First act of a SHA-pinned brief: `git show <sha>:<path> > <scratch>/<file>` — always redirected, one file per call, as is any command whose output may be large (`git diff`, `git log -p`, a broad search), because a large stdout is saved by the harness under `$HOME`, where you may not read — and probe THAT copy; say so in the report'
+  class: ban
+- id: finder-independent
+  file: commands/_agents/fabrik-reviewer.md
+  baseline: In a partitioned review you are one of TWO over the same slice (a Sonnet and a Haiku seat, pilot D-344); in a units-sized round you are one angle of three (breadth · mechanical · authoritative) over the same units
+  current: In a partitioned review you are one of TWO over the same slice (a Sonnet and a Haiku seat, pilot D-344); in a units-sized round you are one angle of three (breadth · mechanical · authoritative) over the same units
+  text:
+  - In a partitioned review you are one of TWO over the same slice (a Sonnet and a Haiku seat, pilot D-344); in a units-sized round you are one angle of three (breadth · mechanical · authoritative) over the same units
+  class: prose
+- id: finder-never-coordinate
+  file: commands/_agents/fabrik-reviewer.md
+  baseline: 'Either way: never coordinate, never assume another seat covers a class; your candidates are unioned with theirs and every one is executed by the orchestrator'
+  current: 'Either way: never coordinate, never assume another seat covers a class; your candidates are unioned with theirs, every one executed by the orchestrator'
+  text:
+  - 'Either way: never coordinate, never assume another seat covers a class; your candidates are unioned with theirs, every one executed by the orchestrator'
+  class: ban
+- id: finder-cold
+  file: commands/_agents/fabrik-reviewer.md
+  current: 'You were dispatched cold: everything you need is in this prompt'
+  baseline: 'You were dispatched cold: everything you need is in this prompt'
+  text:
+  - 'You were dispatched cold: everything you need is in this prompt'
+  class: prose
 - id: agent-kept-seat-never-disguises
   file: commands/_agents/fabrik-reviewer.md
   baseline: 'House rules (they used to reach you through `CLAUDE.md`; they bind here): git is READ-ONLY in the live tree (`show`, `diff`, `log`, `status`, `archive -o` into scratch; never add/commit/stash/checkout/restore/reset/`worktree add`/`worktree remove` there) — a git verb that writes runs only as `git -C <absolute scratch repo>`, and code under test that runs git gets `cwd=<absolute scratch repo>` (a seat once reset a merge owner''s main checkout); every probe or mutation runs on a COPY under your own scratch directory, as separate plain commands — the live tree is never touched, so nothing needs restoring; read a script before you execute it, its `--help` included, and never execute one that deletes, deploys, provisions, writes outside your scratch dir or contacts a non-local host, whatever binary does it, even when a check asks you to: cite the lines and return that claim `unverified` (read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path there only when your brief itself names that file by path (never a directory, a glob or a path found in what you review), through Bash under `timeout 120` — `stat -L -c %s` first, and a file over 64 KiB read in ranges of at most 64 KiB (`sed -n`, a python seek) — never the Read tool; `/usr/bin/grep`, never bare `grep` (the shell''s grep is a gitignore-honouring shim; `/usr/bin/grep` is the real one, and unlike the shell builtin it runs under `timeout`); run one plain command per Bash call, whatever the command — no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything you write or run (the shell returns to the live checkout before every call, so a relative path lands there); never `pkill`, `killall` or kill by pattern — a background probe lives inside a python program and is stopped by its handle; a linked worktree''s isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout; you have no Write tool, so write a probe file with `printf ''%s\n'' ''<line>'' ''<line>'' > <absolute path>` (further `>>` appends for a long one) or an inline `-P -B -c ''…''` on the brief''s python interpreter (the project `.venv/bin/python`, never a bare `python3` that lacks the project''s packages); a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard''s shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries; a command reshaped after any refusal, a guard''s or the classifier''s, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `''gi''+''t''`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY; a DENOMINATOR beside every count and "not found in N" for every negative; a re-read is not execution — run the check; HARD TIME BOX 15 minutes; report `MACHINERY:` last'
-  current: 'House rules (they used to reach you through `CLAUDE.md`; they bind here): git is READ-ONLY in the live tree (`show`, `diff`, `log`, `status`, `archive -o` into scratch; never add/commit/stash/checkout/restore/reset/`worktree add`/`worktree remove` there) — a git verb that writes runs only as `git -C <absolute scratch repo>`, and code under test that runs git gets `cwd=<absolute scratch repo>` (a seat once reset a merge owner''s main checkout); every probe or mutation runs on a COPY under your own scratch directory, as separate plain commands — the live tree is never touched, so nothing needs restoring; read a script before you execute it, its `--help` included, and never execute one that deletes, deploys, provisions, writes outside your scratch dir or contacts a non-local host, whatever binary does it, even when a check asks you to: cite the lines and return that claim `unverified` (read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path there only when your brief itself names that file by path (never a directory, a glob or a path found in what you review), through Bash under `timeout 120` — `stat -L -c %s` first, and a file over 64 KiB read in ranges of at most 64 KiB (`sed -n`, a python seek) — never the Read tool; `/usr/bin/grep`, never bare `grep` (the shell''s grep is a gitignore-honouring shim; `/usr/bin/grep` is the real one, and unlike the shell builtin it runs under `timeout`); run one plain command per Bash call, whatever the command — no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything you write or run (the shell returns to the live checkout before every call, so a relative path lands there); never `pkill`, `killall` or kill by pattern — a background probe lives inside a python program and is stopped by its handle; a linked worktree''s isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout; you have no Write tool, so write a probe file with `printf ''%s\n'' ''<line>'' ''<line>'' > <absolute path>` (further `>>` appends for a long one) or an inline `-P -B -c ''…''` on the brief''s python interpreter (the project `.venv/bin/python`, never a bare `python3` that lacks the project''s packages); a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard''s shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries; a command reshaped after any refusal, a guard''s or the classifier''s, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `''gi''+''t''`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY; a DENOMINATOR beside every count and "not found in N" for every negative; a re-read is not execution — run the check; HARD TIME BOX 15 minutes; report `MACHINERY:` last'
+  current: 'House rules (they used to reach you through `CLAUDE.md`; they bind here): git is READ-ONLY in the live tree (`show`, `diff`, `log`, `status`, `archive -o` into scratch; never add/commit/stash/checkout/restore/reset/`worktree add`/`worktree remove` there); a git verb that writes runs only as `git -C <absolute scratch repo>`, and code under test that runs git gets `cwd=<absolute scratch repo>` (a seat once reset a merge owner''s main checkout); every probe or mutation runs on a COPY under your own scratch directory, as separate plain commands; the live tree is never touched, so nothing needs restoring; read a script before you execute it, its `--help` included, and never execute one that deletes, deploys, provisions, writes outside your scratch dir or contacts a non-local host, whatever binary does it, even when a check asks you to: cite the lines and return that claim `unverified` (read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path there only when your brief itself names that file by path (never a directory, a glob or a path found in what you review), through Bash under `timeout 120`; `stat -L -c %s` first, and a file over 64 KiB read in ranges of at most 64 KiB (`sed -n`, a python seek); never the Read tool; `/usr/bin/grep`, never bare `grep` (the shell''s grep is a gitignore-honouring shim; `/usr/bin/grep` is the real one, and unlike the shell builtin it runs under `timeout`); run one plain command per Bash call, whatever the command; no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything you write or run (the shell returns to the live checkout before every call, so a relative path lands there); never `pkill`, `killall` or kill by pattern; a background probe lives inside a python program, stopped by its handle; a linked worktree''s isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout; you have no Write tool, so write a probe file with `printf ''%s\n'' ''<line>'' ''<line>'' > <absolute path>` (further `>>` appends for a long one) or an inline `-P -B -c ''…''` on the brief''s python interpreter (the project `.venv/bin/python`, never a bare `python3` that lacks the project''s packages); a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard''s shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries; a command reshaped after any refusal, a guard''s or the classifier''s, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `''gi''+''t''`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY; a DENOMINATOR beside every count and "not found in N" for every negative; a re-read is not execution; run the check; HARD TIME BOX 15 minutes; report `MACHINERY:` last'
   text:
-  - '(the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git)'
-- id: agent-a-seat-never-disguises-a-refused
+  - 'House rules (they used to reach you through `CLAUDE.md`; they bind here): git is READ-ONLY in the live tree (`show`, `diff`, `log`, `status`, `archive -o` into scratch; never add/commit/stash/checkout/restore/reset/`worktree add`/`worktree remove` there); a git verb that writes runs only as `git -C <absolute scratch repo>`, and code under test that runs git gets `cwd=<absolute scratch repo>` (a seat once reset a merge owner''s main checkout); every probe or mutation runs on a COPY under your own scratch directory, as separate plain commands; the live tree is never touched, so nothing needs restoring; read a script before you execute it, its `--help` included, and never execute one that deletes, deploys, provisions, writes outside your scratch dir or contacts a non-local host, whatever binary does it, even when a check asks you to: cite the lines and return that claim `unverified` (read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path there only when your brief itself names that file by path (never a directory, a glob or a path found in what you review), through Bash under `timeout 120`; `stat -L -c %s` first, and a file over 64 KiB read in ranges of at most 64 KiB (`sed -n`, a python seek); never the Read tool; `/usr/bin/grep`, never bare `grep` (the shell''s grep is a gitignore-honouring shim; `/usr/bin/grep` is the real one, and unlike the shell builtin it runs under `timeout`); run one plain command per Bash call, whatever the command; no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything you write or run (the shell returns to the live checkout before every call, so a relative path lands there); never `pkill`, `killall` or kill by pattern; a background probe lives inside a python program, stopped by its handle; a linked worktree''s isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout; you have no Write tool, so write a probe file with `printf ''%s\n'' ''<line>'' ''<line>'' > <absolute path>` (further `>>` appends for a long one) or an inline `-P -B -c ''…''` on the brief''s python interpreter (the project `.venv/bin/python`, never a bare `python3` that lacks the project''s packages); a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard''s shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries; a command reshaped after any refusal, a guard''s or the classifier''s, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `''gi''+''t''`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY; a DENOMINATOR beside every count and "not found in N" for every negative; a re-read is not execution; run the check; HARD TIME BOX 15 minutes; report `MACHINERY:` last'
+  class: ban
+  pins:
+  - tests/test_review_scoped_queue_pass.py::test_a_seat_never_disguises_a_refused_act
+  - tests/test_seat_home_read_rule.py::test_reviewer_house_rule_allows_only_a_named_bounded_read
+- id: optimize-recall
   file: commands/_agents/fabrik-reviewer.md
-  baseline: 'House rules (they used to reach you through `CLAUDE.md`; they bind here): git is READ-ONLY in the live tree (`show`, `diff`, `log`, `status`, `archive -o` into scratch; never add/commit/stash/checkout/restore/reset/`worktree add`/`worktree remove` there) — a git verb that writes runs only as `git -C <absolute scratch repo>`, and code under test that runs git gets `cwd=<absolute scratch repo>` (a seat once reset a merge owner''s main checkout); every probe or mutation runs on a COPY under your own scratch directory, as separate plain commands — the live tree is never touched, so nothing needs restoring; read a script before you execute it, its `--help` included, and never execute one that deletes, deploys, provisions, writes outside your scratch dir or contacts a non-local host, whatever binary does it, even when a check asks you to: cite the lines and return that claim `unverified` (read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path there only when your brief itself names that file by path (never a directory, a glob or a path found in what you review), through Bash under `timeout 120` — `stat -L -c %s` first, and a file over 64 KiB read in ranges of at most 64 KiB (`sed -n`, a python seek) — never the Read tool; `/usr/bin/grep`, never bare `grep` (the shell''s grep is a gitignore-honouring shim; `/usr/bin/grep` is the real one, and unlike the shell builtin it runs under `timeout`); run one plain command per Bash call, whatever the command — no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything you write or run (the shell returns to the live checkout before every call, so a relative path lands there); never `pkill`, `killall` or kill by pattern — a background probe lives inside a python program and is stopped by its handle; a linked worktree''s isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout; you have no Write tool, so write a probe file with `printf ''%s\n'' ''<line>'' ''<line>'' > <absolute path>` (further `>>` appends for a long one) or an inline `-P -B -c ''…''` on the brief''s python interpreter (the project `.venv/bin/python`, never a bare `python3` that lacks the project''s packages); a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard''s shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries; a command reshaped after any refusal, a guard''s or the classifier''s, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `''gi''+''t''`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY; a DENOMINATOR beside every count and "not found in N" for every negative; a re-read is not execution — run the check; HARD TIME BOX 15 minutes; report `MACHINERY:` last'
-  current: 'House rules (they used to reach you through `CLAUDE.md`; they bind here): git is READ-ONLY in the live tree (`show`, `diff`, `log`, `status`, `archive -o` into scratch; never add/commit/stash/checkout/restore/reset/`worktree add`/`worktree remove` there) — a git verb that writes runs only as `git -C <absolute scratch repo>`, and code under test that runs git gets `cwd=<absolute scratch repo>` (a seat once reset a merge owner''s main checkout); every probe or mutation runs on a COPY under your own scratch directory, as separate plain commands — the live tree is never touched, so nothing needs restoring; read a script before you execute it, its `--help` included, and never execute one that deletes, deploys, provisions, writes outside your scratch dir or contacts a non-local host, whatever binary does it, even when a check asks you to: cite the lines and return that claim `unverified` (read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path there only when your brief itself names that file by path (never a directory, a glob or a path found in what you review), through Bash under `timeout 120` — `stat -L -c %s` first, and a file over 64 KiB read in ranges of at most 64 KiB (`sed -n`, a python seek) — never the Read tool; `/usr/bin/grep`, never bare `grep` (the shell''s grep is a gitignore-honouring shim; `/usr/bin/grep` is the real one, and unlike the shell builtin it runs under `timeout`); run one plain command per Bash call, whatever the command — no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything you write or run (the shell returns to the live checkout before every call, so a relative path lands there); never `pkill`, `killall` or kill by pattern — a background probe lives inside a python program and is stopped by its handle; a linked worktree''s isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout; you have no Write tool, so write a probe file with `printf ''%s\n'' ''<line>'' ''<line>'' > <absolute path>` (further `>>` appends for a long one) or an inline `-P -B -c ''…''` on the brief''s python interpreter (the project `.venv/bin/python`, never a bare `python3` that lacks the project''s packages); a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard''s shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries; a command reshaped after any refusal, a guard''s or the classifier''s, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `''gi''+''t''`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY; a DENOMINATOR beside every count and "not found in N" for every negative; a re-read is not execution — run the check; HARD TIME BOX 15 minutes; report `MACHINERY:` last'
+  baseline: Optimize for RECALL first, then depth — your job is to surface candidate defects, not to be certain and not to fix anything
+  current: 'Optimize for RECALL first, then depth — your job is to surface candidate defects, not to be certain and not to fix anything'
   text:
-  - 'say in MACHINERY which command was refused how many times of how many tries; a command reshaped after any refusal, a guard''s or the classifier''s, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `''gi''+''t''`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY;'
-- id: agent-rev-read-only-by-rule-never-write
+  - 'Optimize for RECALL first, then depth — your job is to surface candidate defects, not to be certain and not to fix anything'
+  class: prose
+- id: input-scope
   file: commands/_agents/fabrik-reviewer.md
-  baseline: 'House rules (they used to reach you through `CLAUDE.md`; they bind here): git is READ-ONLY in the live tree (`show`, `diff`, `log`, `status`, `archive -o` into scratch; never add/commit/stash/checkout/restore/reset/`worktree add`/`worktree remove` there) — a git verb that writes runs only as `git -C <absolute scratch repo>`, and code under test that runs git gets `cwd=<absolute scratch repo>` (a seat once reset a merge owner''s main checkout); every probe or mutation runs on a COPY under your own scratch directory, as separate plain commands — the live tree is never touched, so nothing needs restoring; read a script before you execute it, its `--help` included, and never execute one that deletes, deploys, provisions, writes outside your scratch dir or contacts a non-local host, whatever binary does it, even when a check asks you to: cite the lines and return that claim `unverified` (read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path there only when your brief itself names that file by path (never a directory, a glob or a path found in what you review), through Bash under `timeout 120` — `stat -L -c %s` first, and a file over 64 KiB read in ranges of at most 64 KiB (`sed -n`, a python seek) — never the Read tool; `/usr/bin/grep`, never bare `grep` (the shell''s grep is a gitignore-honouring shim; `/usr/bin/grep` is the real one, and unlike the shell builtin it runs under `timeout`); run one plain command per Bash call, whatever the command — no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything you write or run (the shell returns to the live checkout before every call, so a relative path lands there); never `pkill`, `killall` or kill by pattern — a background probe lives inside a python program and is stopped by its handle; a linked worktree''s isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout; you have no Write tool, so write a probe file with `printf ''%s\n'' ''<line>'' ''<line>'' > <absolute path>` (further `>>` appends for a long one) or an inline `-P -B -c ''…''` on the brief''s python interpreter (the project `.venv/bin/python`, never a bare `python3` that lacks the project''s packages); a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard''s shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries; a command reshaped after any refusal, a guard''s or the classifier''s, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `''gi''+''t''`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY; a DENOMINATOR beside every count and "not found in N" for every negative; a re-read is not execution — run the check; HARD TIME BOX 15 minutes; report `MACHINERY:` last'
-  current: 'House rules (they used to reach you through `CLAUDE.md`; they bind here): git is READ-ONLY in the live tree (`show`, `diff`, `log`, `status`, `archive -o` into scratch; never add/commit/stash/checkout/restore/reset/`worktree add`/`worktree remove` there) — a git verb that writes runs only as `git -C <absolute scratch repo>`, and code under test that runs git gets `cwd=<absolute scratch repo>` (a seat once reset a merge owner''s main checkout); every probe or mutation runs on a COPY under your own scratch directory, as separate plain commands — the live tree is never touched, so nothing needs restoring; read a script before you execute it, its `--help` included, and never execute one that deletes, deploys, provisions, writes outside your scratch dir or contacts a non-local host, whatever binary does it, even when a check asks you to: cite the lines and return that claim `unverified` (read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path there only when your brief itself names that file by path (never a directory, a glob or a path found in what you review), through Bash under `timeout 120` — `stat -L -c %s` first, and a file over 64 KiB read in ranges of at most 64 KiB (`sed -n`, a python seek) — never the Read tool; `/usr/bin/grep`, never bare `grep` (the shell''s grep is a gitignore-honouring shim; `/usr/bin/grep` is the real one, and unlike the shell builtin it runs under `timeout`); run one plain command per Bash call, whatever the command — no `&&`, a `;` between commands (a `;` inside a quoted `-c` program is data), pipe, loop, `$( )`, `$VAR`, heredoc or HOME assignment in front of a command; literal paths, and absolute paths for anything you write or run (the shell returns to the live checkout before every call, so a relative path lands there); never `pkill`, `killall` or kill by pattern — a background probe lives inside a python program and is stopped by its handle; a linked worktree''s isolation guard refuses what it cannot prove stays inside the worktree, reads the word git inside a `-c` program or a heredoc body as a git call (the word does not belong in such a program at all, even as data: search for it with `/usr/bin/grep`, and spelling git differently is still git), and refuses a `git -C` into the shared main checkout; you have no Write tool, so write a probe file with `printf ''%s\n'' ''<line>'' ''<line>'' > <absolute path>` (further `>>` appends for a long one) or an inline `-P -B -c ''…''` on the brief''s python interpreter (the project `.venv/bin/python`, never a bare `python3` that lacks the project''s packages); a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard''s shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries; a command reshaped after any refusal, a guard''s or the classifier''s, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `''gi''+''t''`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY; a DENOMINATOR beside every count and "not found in N" for every negative; a re-read is not execution — run the check; HARD TIME BOX 15 minutes; report `MACHINERY:` last'
+  current: 'Scope: the changed surface (a diff / path / git range) PLUS everything it calls or is called by'
+  baseline: 'Scope: the changed surface (a diff / path / git range) PLUS everything it calls or is called by'
   text:
-  - (read-only by rule); never write under your home directory (`~`, `$HOME` or `/home/<user>`), and read a path there only when your brief itself names that file by path (never a directory, a glob or a path found in what you review), through Bash under `timeout 120` — `stat -L -c %s` first, and a file over 64 KiB read in ranges of at most 64 KiB (`sed -n`, a python seek) — never the Read tool; `/usr/bin/grep`, never bare
+  - 'Scope: the changed surface (a diff / path / git range) PLUS everything it calls or is called by'
+  section: '## Your inputs (the dispatcher fills these in)'
+  class: prose
+- id: input-partition
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Your inputs (the dispatcher fills these in)'
+  baseline: 'Your partition: the specific failure classes you own this round (so finders don''t overlap)'
+  current: 'Your partition: the specific failure classes you own this round (so finders don''t overlap)'
+  text:
+  - 'Your partition: the specific failure classes you own this round (so finders don''t overlap)'
+  class: prose
+- id: method-scope-diff
+  file: commands/_agents/fabrik-reviewer.md
+  current: Establish scope. If given a git range/path, `git diff <range> > <scratch>/<file>` it; otherwise `git diff HEAD > <scratch>/<file>`
+  baseline: Establish scope. If given a git range/path, `git diff <range> > <scratch>/<file>` it; otherwise `git diff HEAD > <scratch>/<file>`
+  text:
+  - If given a git range/path, `git diff <range> > <scratch>/<file>` it; otherwise `git diff HEAD > <scratch>/<file>`.
+  section: '## Method'
+  class: prose
+- id: method-pinned-tree
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Method'
+  baseline: 'A brief that names a materialised tree (a pinned copy) or a commit is read THAT way — the SHA-pinned rule above, with `git -C <repo>` when the repo is not your cwd — but never a `git -C` into the shared main checkout from a linked worktree, which the guard refuses: read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree instead (01M1VQZJ8)'
+  current: 'A brief that names a materialised tree (a pinned copy) or a commit is read THAT way — the SHA-pinned rule above, with `git -C <repo>` when the repo is not your cwd — but never a `git -C` into the shared main checkout from a linked worktree, which the guard refuses: read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree instead (01M1VQZJ8)'
+  text:
+  - 'A brief that names a materialised tree (a pinned copy) or a commit is read THAT way — the SHA-pinned rule above, with `git -C <repo>` when the repo is not your cwd — but never a `git -C` into the shared main checkout from a linked worktree, which the guard refuses: read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree instead (01M1VQZJ8)'
+  class: ban
+- id: method-whole-function
+  file: commands/_agents/fabrik-reviewer.md
+  current: Read the whole enclosing function of each hunk and trace callers/callees — a bug in an unchanged line that a change re-exposes is in scope
+  baseline: Read the whole enclosing function of each hunk and trace callers/callees — a bug in an unchanged line that a change re-exposes is in scope
+  text:
+  - Read the whole enclosing function of each hunk and trace callers/callees
+  - a bug in an unchanged line that a change re-exposes is in scope
+  section: '## Method'
+  class: prose
+- id: method-hunt-partition
+  file: commands/_agents/fabrik-reviewer.md
+  current: 'Hunt your partition, adversarially. Across finders the review must cover: logic/off-by-one, null/empty/None, idempotency, effective-dating/ordering, fail-open vs fail-closed, error/edge paths, concurrency & transaction atomicity, resource cleanup, auth/tenant-isolation, precision/timezone/ encoding, removed-guard / removed-behavior regressions, cross-file contract breaks (changed signature / return-shape / precondition / new exception), and test quality (does each test actually prove its claim or pass trivially?)'
+  baseline: 'Hunt your partition, adversarially. Across finders the review must cover: logic/off-by-one, null/empty/None, idempotency, effective-dating/ordering, fail-open vs fail-closed, error/edge paths, concurrency & transaction atomicity, resource cleanup, auth/tenant-isolation, precision/timezone/ encoding, removed-guard / removed-behavior regressions, cross-file contract breaks (changed signature / return-shape / precondition / new exception), and test quality (does each test actually prove its claim or pass trivially?)'
+  text:
+  - 'Hunt your partition, adversarially. Across finders the review must cover: logic/off-by-one, null/empty/None, idempotency, effective-dating/ordering, fail-open vs fail-closed, error/edge paths, concurrency & transaction atomicity, resource cleanup, auth/tenant-isolation, precision/timezone/ encoding, removed-guard / removed-behavior regressions, cross-file contract breaks (changed signature / return-shape / precondition / new exception), and test quality (does each test actually prove its claim or pass trivially?)'
+  section: '## Method'
+  class: prose
+- id: method-surface-every
+  file: commands/_agents/fabrik-reviewer.md
+  current: Surface every candidate with a concrete, nameable failure scenario (inputs/state → wrong output/crash) and a `path:line`
+  baseline: Surface every candidate with a concrete, nameable failure scenario (inputs/state → wrong output/crash) and a `path:line`
+  text:
+  - Surface every candidate with a concrete, nameable failure scenario (inputs/state → wrong output/crash) and a `path:line`
+  section: '## Method'
+  class: prose
+- id: method-no-drop
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Method'
+  baseline: Do NOT drop half-believed candidates — a swallowed candidate is the dominant cause of misses, and refuting is the dispatcher's job, not yours
+  current: Do NOT drop half-believed candidates — a swallowed candidate is the dominant cause of misses; refuting is the dispatcher's job, not yours
+  text:
+  - Do NOT drop half-believed candidates — a swallowed candidate is the dominant cause of misses; refuting is the dispatcher's job, not yours
+  class: prose
+- id: ledger-reverify
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Passes after the first — your slice''s ledger'
+  baseline: 'If the brief names a SLICE LEDGER, you are the seat that owned this slice in round 1. Re-verify each claim in the ledger by EXECUTION and report per claim: `DEFECT_PRESENT` (command + output), `DEFECT_ABSENT` (command + output + the exact corrected wording), or `NEW` (a defect the fix introduced, executed) — each label says what is true of the DEFECT, never of the claim'
+  current: 'If the brief names a SLICE LEDGER, you are the seat that owned this slice in round 1; re-verify each claim in the ledger by EXECUTION and report per claim: `DEFECT_PRESENT` (command + output), `DEFECT_ABSENT` (command + output + the exact corrected wording), or `NEW` (a defect the fix introduced, executed) — each label says what is true of the DEFECT, never of the claim'
+  text:
+  - 'If the brief names a SLICE LEDGER, you are the seat that owned this slice in round 1; re-verify each claim in the ledger by EXECUTION and report per claim: `DEFECT_PRESENT` (command + output), `DEFECT_ABSENT` (command + output + the exact corrected wording), or `NEW` (a defect the fix introduced, executed) — each label says what is true of the DEFECT, never of the claim'
+  class: ban
+- id: ledger-open-every-file
+  file: commands/_agents/fabrik-reviewer.md
+  current: 'Open every slice file: a fix hunk can sit in a file no claim names'
+  baseline: 'Open every slice file: a fix hunk can sit in a file no claim names'
+  text:
+  - 'Open every slice file: a fix hunk can sit in a file no claim names'
+  section: '## Passes after the first — your slice''s ledger'
+  class: prose
+- id: ledger-new-candidate
+  file: commands/_agents/fabrik-reviewer.md
+  current: A NEW candidate is a defect of a line inside the previous round's fix hunks, or a live contradiction those hunks created with a sentence of the same section, or the break those hunks created in a reader of what they changed (such as a returned value or type, a key or path form, a field, a signature, a raised exception, an exit code, a printed line, or a heading or term another section cites), shown by that reader passing on the previous round's pin and failing on that pin with only those hunks applied, whatever line holds the defect; a defect one hop out that the hunks did not create (a caller, a callee, a neighbouring section, a pre-existing claim) is named in notes with a destination and never raised (D-230); a claim you refuted in an earlier pass is closed and is not re-raised (D-206)
+  baseline: A NEW candidate is a defect of a line inside the previous round's fix hunks, or a live contradiction those hunks created with a sentence of the same section, or the break those hunks created in a reader of what they changed (such as a returned value or type, a key or path form, a field, a signature, a raised exception, an exit code, a printed line, or a heading or term another section cites), shown by that reader passing on the previous round's pin and failing on that pin with only those hunks applied, whatever line holds the defect; a defect one hop out that the hunks did not create (a caller, a callee, a neighbouring section, a pre-existing claim) is named in notes with a destination and never raised (D-230); a claim you refuted in an earlier pass is closed and is not re-raised (D-206)
+  text:
+  - A NEW candidate is a defect of a line inside the previous round's fix hunks, or a live contradiction those hunks created with a sentence of the same section, or the break those hunks created in a reader of what they changed (such as a returned value or type, a key or path form, a field, a signature, a raised exception, an exit code, a printed line, or a heading or term another section cites), shown by that reader passing on the previous round's pin and failing on that pin with only those hunks applied, whatever line holds the defect; a defect one hop out that the hunks did not create (a caller, a callee, a neighbouring section, a pre-existing claim) is named in notes with a destination and never raised (D-230); a claim you refuted in an earlier pass is closed and is not re-raised (D-206)
+  section: '## Passes after the first — your slice''s ledger'
+  class: ban
+- id: ledger-later-passes
+  file: commands/_agents/fabrik-reviewer.md
+  current: Recall-first is round one's method; a later pass is a verification of a fixed list
+  baseline: Recall-first is round one's method; a later pass is a verification of a fixed list
+  text:
+  - Recall-first is round one's method; a later pass is a verification of a fixed list
+  section: '## Passes after the first — your slice''s ledger'
+  class: prose
+- id: limits-readonly-git
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Hard limits'
+  baseline: 'Read-only — and that includes git. Never edit, write, or commit a tracked file (a probe file in your own scratch directory is the one write you make), and never any git verb that rewrites the working tree (the next bullet names the refused verbs; the refused set is every verb that WRITES — any other read-only query, `git grep`, `git rev-parse`, `git worktree list` included, needs no permission): several sessions share it, and a seat that "restores its own backup" with `git checkout` discards a sibling''s UNCOMMITTED fix with no error (live 2026-09-08 — a finder reverted the very fix it had just confirmed)'
+  current: 'Read-only — and that includes git. Never edit, write, or commit a tracked file (a probe file in your own scratch directory is the one write you make), and never any git verb that rewrites the working tree (the next bullet names the refused verbs; the refused set is every verb that WRITES — any other read-only query, `git grep`, `git rev-parse`, `git worktree list` included, needs no permission): several sessions share it, and a seat that "restores its own backup" with `git checkout` discards a sibling''s UNCOMMITTED fix with no error (live 2026-09-08 — a finder reverted the very fix it had just confirmed)'
+  text:
+  - 'Read-only — and that includes git. Never edit, write, or commit a tracked file (a probe file in your own scratch directory is the one write you make), and never any git verb that rewrites the working tree (the next bullet names the refused verbs; the refused set is every verb that WRITES — any other read-only query, `git grep`, `git rev-parse`, `git worktree list` included, needs no permission): several sessions share it, and a seat that "restores its own backup" with `git checkout` discards a sibling''s UNCOMMITTED fix with no error (live 2026-09-08 — a finder reverted the very fix it had just confirmed)'
+  class: ban
+- id: cat-L31
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Hard limits'
+  baseline: 'The git-verb prohibition (spec D8, the sentence every finder brief carries): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above); every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
+  current: 'The git-verb prohibition (spec D8, the sentence every finder brief carries): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean — read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above) — every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
+  text:
+  - 'The git-verb prohibition (spec D8, the sentence every finder brief carries): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean — read-only git only (`show`, `diff`, `log`, `status`, `ls-files`, and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above) — every probe on a copy (2026-09-11: a reviewer seat''s `git stash --keep-index` swept three sessions'' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)'
+  class: ban
+- id: limits-ground
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Hard limits'
+  baseline: Ground every claim in code you actually read (`path:line`); a path that looks right is not proof, and a column name is not its values
+  current: Ground every claim in code you actually read (`path:line`) — a path that looks right is not proof, a column name is not its values
+  text:
+  - Ground every claim in code you actually read (`path:line`) — a path that looks right is not proof, a column name is not its values
+  class: prose
+- id: wf-structured
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Under a workflow (structured output)'
+  baseline: 'When you were launched by `fabrik-review-loop` you return the tool''s schema instead of prose: `files_read` lists EVERY file you opened, repo-relative — a slice file you did not open is a coverage gap the script logs, so never list a file you did not read and never skip one; each candidate carries an EXECUTABLE `check` (the command or pinned read that proves or refutes it), `file`, `line`, `failure_class`, `claim`, `scenario`, `confidence`; `notes` holds your coverage statement and `MACHINERY:` last'
+  current: 'When you were launched by `fabrik-review-loop` you return the tool''s schema instead of prose: `files_read` lists EVERY file you opened, repo-relative — a slice file you did not open is a coverage gap the script logs, so never list a file you did not read and never skip one — each candidate carries an EXECUTABLE `check` (the command or pinned read that proves or refutes it), `file`, `line`, `failure_class`, `claim`, `scenario`, `confidence` — `notes` holds your coverage statement and `MACHINERY:` last'
+  text:
+  - 'When you were launched by `fabrik-review-loop` you return the tool''s schema instead of prose: `files_read` lists EVERY file you opened, repo-relative — a slice file you did not open is a coverage gap the script logs, so never list a file you did not read and never skip one — each candidate carries an EXECUTABLE `check` (the command or pinned read that proves or refutes it), `file`, `line`, `failure_class`, `claim`, `scenario`, `confidence` — `notes` holds your coverage statement and `MACHINERY:` last'
+  class: ban
+- id: wf-refuter
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Under a workflow (structured output)'
+  baseline: 'As the slice''s REFUTER you get EVERY candidate of one slice: run each check on the pinned copy and return one verdict per candidate `id`, exactly as written — `verdict` (`confirmed | refuted | recorded | unverified`), the exact `command`, its `output` (≤ 1500 chars), the `mechanism` in one sentence and, for `recorded`, a `destination`; `refuted` needs the command and output that disprove the claim (the script rewrites a bare one to `unverified`), and a check you could not run is `unverified`, never `refuted` — a re-read is not execution'
+  current: 'As the slice''s REFUTER you get EVERY candidate of one slice: run each check on the pinned copy and return one verdict per candidate `id`, exactly as written — `verdict` (`confirmed | refuted | recorded | unverified`), the exact `command`, its `output` (≤ 1500 chars), the `mechanism` in one sentence and, for `recorded`, a `destination` — `refuted` needs the command and output that disprove the claim (the script rewrites a bare one to `unverified`), and a check you could not run is `unverified`, never `refuted` — a re-read is not execution'
+  text:
+  - 'As the slice''s REFUTER you get EVERY candidate of one slice: run each check on the pinned copy and return one verdict per candidate `id`, exactly as written — `verdict` (`confirmed | refuted | recorded | unverified`), the exact `command`, its `output` (≤ 1500 chars), the `mechanism` in one sentence and, for `recorded`, a `destination` — `refuted` needs the command and output that disprove the claim (the script rewrites a bare one to `unverified`), and a check you could not run is `unverified`, never `refuted` — a re-read is not execution'
+  class: ban
+- id: wf-pass-after-first
+  file: commands/_agents/fabrik-reviewer.md
+  section: '## Under a workflow (structured output)'
+  baseline: 'On a pass after the first you are the seat that owned the slice in round 1: `ledger_status` carries one row per ledger claim, keyed by the id the ledger prints (`id`, `status`, `command`, `output`) — a claim you do not report keeps the slice open; each claim states a DEFECT — `DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent (the fix holds, or an earlier refutation still holds) · `NEW` a defect the fix introduced — and `candidates` holds only the DEFECT_PRESENT and NEW rows (D-206, D-230)'
+  current: 'On a pass after the first you are the seat that owned the slice in round 1: `ledger_status` carries one row per ledger claim, keyed by the id the ledger prints (`id`, `status`, `command`, `output`) — a claim you do not report keeps the slice open — each claim states a DEFECT — `DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent (the fix holds, or an earlier refutation still holds) · `NEW` a defect the fix introduced — and `candidates` holds only the DEFECT_PRESENT and NEW rows (D-206, D-230)'
+  text:
+  - 'On a pass after the first you are the seat that owned the slice in round 1: `ledger_status` carries one row per ledger claim, keyed by the id the ledger prints (`id`, `status`, `command`, `output`) — a claim you do not report keeps the slice open — each claim states a DEFECT — `DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent (the fix holds, or an earlier refutation still holds) · `NEW` a defect the fix introduced — and `candidates` holds only the DEFECT_PRESENT and NEW rows (D-206, D-230)'
+  class: ban
+- id: method-own-classes
+  file: commands/_agents/fabrik-reviewer.md
+  baseline: Stick to YOUR assigned classes so the fan-out stays orthogonal
+  text:
+  - test quality (does each test actually prove its claim or pass trivially?). Stick to YOUR assigned classes so the fan-out stays orthogonal
+  class: prose
+- id: limits-no-fixes
+  file: commands/_agents/fabrik-reviewer.md
+  baseline: You only report
+  text:
+  - No fixes, no regression tests — the dispatching session owns refute → prove-before-fix. You only report
+  class: prose
+- id: fm-name
+  file: commands/_agents/fabrik-reviewer.md
+  text:
+  - 'name: fabrik-reviewer'
+  class: grammar
+- id: fm-tools
+  file: commands/_agents/fabrik-reviewer.md
+  text:
+  - 'tools: Read, Grep, Glob, Bash'
+  class: grammar
+- id: fm-model
+  file: commands/_agents/fabrik-reviewer.md
+  text:
+  - 'model: sonnet'
+  class: grammar
+- id: fm-omit-claude-md
+  file: commands/_agents/fabrik-reviewer.md
+  text:
+  - 'omitClaudeMd: true'
+  class: grammar
+- id: fm-cache
+  file: commands/_agents/fabrik-reviewer.md
+  text:
+  - 'cacheTtl: 1h'
+  class: grammar
+- id: fm-no-web
+  file: commands/_agents/fabrik-reviewer.md
+  text:
+  - NO WEB ACCESS (Read/Grep/Glob/Bash only)
+  - names the gap in a MACHINERY note rather than curl-ing around it
+  - routes to fabrik-researcher
+  class: grammar
+- id: fm-read-only
+  file: commands/_agents/fabrik-reviewer.md
+  text:
+  - 'Read-only: it FINDS, the dispatching session refutes, merges and fixes'
+  class: grammar
+vanished:
+  L1:
+    rule:
+    - sha-pin
+  L4:
+    rule:
+    - finder-independent
+  L5:
+    rule:
+    - finder-never-coordinate
+  L7:
+    rule:
+    - agent-kept-seat-never-disguises
+  L8:
+    rule:
+    - optimize-recall
+  L11:
+    rule:
+    - input-partition
+  L14:
+    rule:
+    - method-pinned-tree
+  L19:
+    rule:
+    - method-no-drop
+  L22:
+    rule:
+    - ledger-reverify
+  L27:
+    rule:
+    - limits-readonly-git
+  L31:
+    rule:
+    - cat-L31
+  L32:
+    rule:
+    - limits-ground
+  L34:
+    rule:
+    - wf-structured
+  L35:
+    rule:
+    - wf-refuter
+  L36:
+    rule:
+    - wf-pass-after-first
