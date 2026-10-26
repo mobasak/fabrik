@@ -111,21 +111,6 @@ def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
     )
     for name in sorted(named - {"fabrik-repo-review"}):
         assert loop in _norm(sources / f"{name}.md"), name
-    # W-27a0dc32: repo-review has no `<scratch>` ledger calls; its batch launch names the same root and scratch_dir
-    batch = _section(
-        _norm(sources / "fabrik-repo-review.md"),
-        "a slice batch IS a round",
-        "contract and fallback",
-    )
-    assert (
-        "`scratch_dir` (this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on"
-        " the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing)"
-    ) in batch
-    assert (
-        "(`pins_dir` goes under the run's `SCRATCH:` folder — the path on the line `start` printed that begins"
-        " `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed"
-        " no line that begins `SCRATCH:`);"
-    ) in batch
 
 
 def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:

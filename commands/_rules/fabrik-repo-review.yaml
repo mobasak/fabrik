@@ -1,0 +1,541 @@
+command: fabrik-repo-review
+baseline_sentences: fabrik-repo-review.baseline.txt
+baseline_sha256: 924b695730cbea60286c0abef4cb0179756dd476a516956488c9587f353ad4b7
+entries:
+- id: u-L3
+  file: render
+  baseline: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  current: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  text:
+  - 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+- id: u-L4
+  file: render
+  baseline: 'Canonical: `62-using-subagents.md` § Dispatch policy'
+  current: 'Canonical: `62-using-subagents.md` § Dispatch policy'
+  text:
+  - 'Canonical: `62-using-subagents.md` § Dispatch policy'
+- id: u-L5
+  file: render
+  baseline: FULL PROJECT CODE REVIEW
+  current: FULL PROJECT CODE REVIEW
+  text:
+  - FULL PROJECT CODE REVIEW
+- id: u-L6
+  file: render
+  baseline: Adversarially review — and fix — this Fabrik project's codebase using multiple subagents
+  current: Adversarially review — and fix — this Fabrik project's codebase using multiple subagents
+  text:
+  - Adversarially review — and fix — this Fabrik project's codebase using multiple subagents
+- id: u-L7
+  file: render
+  baseline: Orchestrate in phases; do not free-form
+  current: Orchestrate in phases; do not free-form
+  text:
+  - Orchestrate in phases; do not free-form
+- id: u-L8
+  file: render
+  baseline: Obey this project's CLAUDE.md / AGENTS.md
+  current: Obey this project's CLAUDE.md / AGENTS.md
+  text:
+  - Obey this project's CLAUDE.md / AGENTS.md
+- id: u-L9
+  file: render
+  baseline: 'If an argument was given, scope the whole run to it: `$ARGUMENTS` (a subsystem, dir, or risk-tier); otherwise review the ENTIRE repo'
+  current: 'If an argument was given, scope the whole run to it: `$ARGUMENTS` (a subsystem, dir, or risk-tier); otherwise review the ENTIRE repo'
+  text:
+  - 'If an argument was given, scope the whole run to it: `$ARGUMENTS` (a subsystem, dir, or risk-tier); otherwise review the ENTIRE repo'
+- id: u-L13
+  file: render
+  section: '## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)'
+  baseline: 'Run `python scripts/select_rules.py` (if present) and READ every ACTIVE pack + every AVAILABLE pack matching a unit — the `.windsurf/rules` packs are AUTHORITATIVE on *how* code must be written (conflict order: rule pack > ticket)'
+  current: 'Run `python scripts/select_rules.py` (if present) and READ every ACTIVE pack + every AVAILABLE pack matching a unit — the `.windsurf/rules` packs are AUTHORITATIVE on *how* code must be written (conflict order: rule pack > ticket)'
+  text:
+  - 'Run `python scripts/select_rules.py` (if present) and READ every ACTIVE pack + every AVAILABLE pack matching a unit — the `.windsurf/rules` packs are AUTHORITATIVE on *how* code must be written (conflict order: rule pack > ticket)'
+- id: u-L14
+  file: render
+  section: '## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)'
+  baseline: 'Detect which surfaces EXIST, hence which review axes apply: `compose.yaml` (deployable VPS service → deploy invariants apply), the DB migrations dir, `specs/services/*.yaml` (usually ABSENT — only apply the shape axis if it exists), a web build (vitest/tsc), and the FABRIK-SYNCED set (manifest `/opt/fabrik/scripts/fabrik_synced_manifest.py` + the `.gitignore` "Fabrik-synced" block — these files are REVIEW-ONLY, never edited locally)'
+  current: 'Detect which surfaces EXIST, hence which review axes apply: `compose.yaml` (deployable VPS service → deploy invariants apply), the DB migrations dir, `specs/services/*.yaml` (usually ABSENT — only apply the shape axis if it exists), a web build (vitest/tsc), and the FABRIK-SYNCED set (manifest `/opt/fabrik/scripts/fabrik_synced_manifest.py` + the `.gitignore` "Fabrik-synced" block — these files are REVIEW-ONLY, never edited locally)'
+  text:
+  - 'Detect which surfaces EXIST, hence which review axes apply: `compose.yaml` (deployable VPS service → deploy invariants apply), the DB migrations dir, `specs/services/*.yaml` (usually ABSENT — only apply the shape axis if it exists), a web build (vitest/tsc), and the FABRIK-SYNCED set (manifest `/opt/fabrik/scripts/fabrik_synced_manifest.py` + the `.gitignore` "Fabrik-synced" block — these files are REVIEW-ONLY, never edited locally)'
+- id: u-L16
+  file: render
+  section: '## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)'
+  baseline: Risk-rank by blast radius (money / auth / data-integrity / domain-correctness highest)
+  current: Risk-rank by blast radius (money / auth / data-integrity / domain-correctness highest)
+  text:
+  - Risk-rank by blast radius (money / auth / data-integrity / domain-correctness highest)
+- id: u-L17
+  file: render
+  section: '## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)'
+  baseline: 'Emit a COVERAGE LEDGER into the review artifact the Termination contract already mandates (`docs/development/reviews/YYYY-MM-DD-<scope>-review.md`) — that FILE is the single source of truth for all later phases: `unit → files → risk → fabrik-synced? → which axes apply → assigned`'
+  current: 'Emit a COVERAGE LEDGER into the review artifact the Termination contract already mandates (`docs/development/reviews/YYYY-MM-DD-<scope>-review.md`) — that FILE is the single source of truth for all later phases: `unit → files → risk → fabrik-synced? → which axes apply → assigned`'
+  text:
+  - 'Emit a COVERAGE LEDGER into the review artifact the Termination contract already mandates (`docs/development/reviews/YYYY-MM-DD-<scope>-review.md`) — that FILE is the single source of truth for all later phases: `unit → files → risk → fabrik-synced? → which axes apply → assigned`'
+- id: u-L18
+  file: render
+  section: '## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)'
+  baseline: If `$ARGUMENTS` scoped the run, restrict the ledger to it and say so
+  current: If `$ARGUMENTS` scoped the run, restrict the ledger to it and say so
+  text:
+  - If `$ARGUMENTS` scoped the run, restrict the ledger to it and say so
+- id: u-L20
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: One reviewer per SLICE, READ-ONLY — no edits, so parallel workers can't collide
+  current: One reviewer per SLICE, READ-ONLY — no edits, so parallel workers can't collide
+  text:
+  - One reviewer per SLICE, READ-ONLY — no edits, so parallel workers can't collide
+- id: u-L22
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: Scale the fan-out to the repo — as many seats as `dispatch_headroom.py --slices sonnet=N,haiku=N` prints for each slice batch, never a token 2–3. Every seat is a native `fabrik-reviewer` (one Sonnet and one Haiku per slice — the pool is OFF, D-181)
+  current: Scale the fan-out to the repo — as many seats as `dispatch_headroom.py --slices sonnet=N,haiku=N` prints for each slice batch, never a token 2–3. Every seat is a native `fabrik-reviewer` (one Sonnet and one Haiku per slice — the pool is OFF, D-181)
+  text:
+  - Scale the fan-out to the repo — as many seats as `dispatch_headroom.py --slices sonnet=N,haiku=N` prints for each slice batch, never a token 2–3. Every seat is a native `fabrik-reviewer` (one Sonnet and one Haiku per slice — the pool is OFF, D-181)
+- id: u-L23
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) is read by its two finders with the secret redacted from the brief
+  current: A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) is read by its two finders with the secret redacted from the brief
+  text:
+  - A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) is read by its two finders with the secret redacted from the brief
+- id: u-L25
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'Each reviewer applies the `/fabrik-review` adversarial methodology to its slice PLUS everything it calls / is called by, hunting these failure classes:'
+  current: 'Each reviewer applies the `/fabrik-review` adversarial methodology to its slice PLUS everything it calls / is called by, hunting these failure classes:'
+  text:
+  - 'Each reviewer applies the `/fabrik-review` adversarial methodology to its slice PLUS everything it calls / is called by, hunting these failure classes:'
+- id: u-L26
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'CORRECTNESS/LOGIC: off-by-one, null/empty/None, idempotency, effective-dating/ordering, error/edge paths, concurrency & transaction atomicity, resource cleanup, precision/timezone/encoding'
+  current: 'CORRECTNESS/LOGIC: off-by-one, null/empty/None, idempotency, effective-dating/ordering, error/edge paths, concurrency & transaction atomicity, resource cleanup, precision/timezone/encoding'
+  text:
+  - 'CORRECTNESS/LOGIC: off-by-one, null/empty/None, idempotency, effective-dating/ordering, error/edge paths, concurrency & transaction atomicity, resource cleanup, precision/timezone/encoding'
+- id: u-L27
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'DOMAIN SAFETY (fail-open vs fail-closed): identify THIS project''s "never silently wrong in the unsafe direction" invariant (e.g. never under-charge money / understate a levy, never over-grant a permission, never serve stale-as-fresh, never drop a job) and prove the code cannot violate it'
+  current: 'DOMAIN SAFETY (fail-open vs fail-closed): identify THIS project''s "never silently wrong in the unsafe direction" invariant (e.g. never under-charge money / understate a levy, never over-grant a permission, never serve stale-as-fresh, never drop a job) and prove the code cannot violate it'
+  text:
+  - 'DOMAIN SAFETY (fail-open vs fail-closed): identify THIS project''s "never silently wrong in the unsafe direction" invariant (e.g. never under-charge money / understate a levy, never over-grant a permission, never serve stale-as-fresh, never drop a job) and prove the code cannot violate it'
+- id: u-L28
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'SECURITY: auth, cross-tenant/RLS isolation (every read/write scoped to the authed principal; service-role paths can''t leak across tenants), secret handling (`os.getenv("KEY","default")`, no hardcoded secrets)'
+  current: 'SECURITY: auth, cross-tenant/RLS isolation (every read/write scoped to the authed principal; service-role paths can''t leak across tenants), secret handling (`os.getenv("KEY","default")`, no hardcoded secrets)'
+  text:
+  - 'SECURITY: auth, cross-tenant/RLS isolation (every read/write scoped to the authed principal; service-role paths can''t leak across tenants), secret handling (`os.getenv("KEY","default")`, no hardcoded secrets)'
+- id: u-L29
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'RULE-PACK COMPLIANCE: deviations from the ACTIVE `.windsurf/rules` packs — cite pack:rule'
+  current: 'RULE-PACK COMPLIANCE: deviations from the ACTIVE `.windsurf/rules` packs — cite pack:rule'
+  text:
+  - 'RULE-PACK COMPLIANCE: deviations from the ACTIVE `.windsurf/rules` packs — cite pack:rule'
+- id: u-L30
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: A finding that contradicts an ACTIVE pack is by definition a defect
+  current: A finding that contradicts an ACTIVE pack is by definition a defect
+  text:
+  - A finding that contradicts an ACTIVE pack is by definition a defect
+- id: u-L31
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'PORTABILITY (Fabrik 3-env invariant — only if a service scaffold): the SAME code must run unmodified in local dev (`.venv`, PG localhost, `.env`) · VPS Docker (`postgres-main:5432` / `redis-main:6379`, compose) · managed env (env vars)'
+  current: 'PORTABILITY (Fabrik 3-env invariant — only if a service scaffold): the SAME code must run unmodified in local dev (`.venv`, PG localhost, `.env`) · VPS Docker (`postgres-main:5432` / `redis-main:6379`, compose) · managed env (env vars)'
+  text:
+  - 'PORTABILITY (Fabrik 3-env invariant — only if a service scaffold): the SAME code must run unmodified in local dev (`.venv`, PG localhost, `.env`) · VPS Docker (`postgres-main:5432` / `redis-main:6379`, compose) · managed env (env vars)'
+- id: u-L32
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: Flag hardcoded localhost, `DB_HOST=localhost`, env-specific branches
+  current: Flag hardcoded localhost, `DB_HOST=localhost`, env-specific branches
+  text:
+  - Flag hardcoded localhost, `DB_HOST=localhost`, env-specific branches
+- id: u-L33
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'DEPLOY/COMPOSE INVARIANTS — ONLY IF `compose.yaml` EXISTS: every service has `deploy.resources.limits.memory` (OOM guard); on the `fabrik` network, no host-bound ports (Traefik routes); health endpoints (`/health /healthz /metrics /api/health`) NEVER behind auth; health/monitoring targets use stable Docker DNS (compose service name / registered alias), never per-redeploy UUIDs; health checks hit real deps'
+  current: 'DEPLOY/COMPOSE INVARIANTS — ONLY IF `compose.yaml` EXISTS: every service has `deploy.resources.limits.memory` (OOM guard); on the `fabrik` network, no host-bound ports (Traefik routes); health endpoints (`/health /healthz /metrics /api/health`) NEVER behind auth; health/monitoring targets use stable Docker DNS (compose service name / registered alias), never per-redeploy UUIDs; health checks hit real deps'
+  text:
+  - 'DEPLOY/COMPOSE INVARIANTS — ONLY IF `compose.yaml` EXISTS: every service has `deploy.resources.limits.memory` (OOM guard); on the `fabrik` network, no host-bound ports (Traefik routes); health endpoints (`/health /healthz /metrics /api/health`) NEVER behind auth; health/monitoring targets use stable Docker DNS (compose service name / registered alias), never per-redeploy UUIDs; health checks hit real deps'
+- id: u-L34
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: Phase 0's surface detection governs (chrome-extension, mobile-app, static-site and docusaurus all scaffold a compose.yaml; only desktop-app has none)
+  current: Phase 0's surface detection governs (chrome-extension, mobile-app, static-site and docusaurus all scaffold a compose.yaml; only desktop-app has none)
+  text:
+  - Phase 0's surface detection governs (chrome-extension, mobile-app, static-site and docusaurus all scaffold a compose.yaml; only desktop-app has none)
+- id: u-L35
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'SPEC↔CODE — ONLY IF `specs/services/*.yaml` EXISTS (usually it does NOT): code adding a DB call ⇒ `shape.needs_database:true`, cache ⇒ `needs_cache`, `/metrics` ⇒ `exposes_metrics`, search ⇒ `has_search_feature`, admin UI ⇒ `is_admin_dashboard`'
+  current: 'SPEC↔CODE — ONLY IF `specs/services/*.yaml` EXISTS (usually it does NOT): code adding a DB call ⇒ `shape.needs_database:true`, cache ⇒ `needs_cache`, `/metrics` ⇒ `exposes_metrics`, search ⇒ `has_search_feature`, admin UI ⇒ `is_admin_dashboard`'
+  text:
+  - 'SPEC↔CODE — ONLY IF `specs/services/*.yaml` EXISTS (usually it does NOT): code adding a DB call ⇒ `shape.needs_database:true`, cache ⇒ `needs_cache`, `/metrics` ⇒ `exposes_metrics`, search ⇒ `has_search_feature`, admin UI ⇒ `is_admin_dashboard`'
+- id: u-L36
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: If no specs dir, record "N/A — no spec contract in this project."
+  current: If no specs dir, record "N/A — no spec contract in this project."
+  text:
+  - If no specs dir, record "N/A — no spec contract in this project."
+- id: u-L37
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: SPEC/PLAN↔CODE deviations generally (the written spec can be wrong — judge against intent)
+  current: SPEC/PLAN↔CODE deviations generally (the written spec can be wrong — judge against intent)
+  text:
+  - SPEC/PLAN↔CODE deviations generally (the written spec can be wrong — judge against intent)
+- id: u-L38
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'Prove before you flag, WITHOUT breaking read-only (this obligation falls on the finders and on YOUR triage — a read-only seat''s findings arrive unproven and get verified at Phase 2): reproduce each suspected bug with a THROWAWAY repro in the scratchpad or a read-only execution — NOT a committed test and NOT an edit to any repo file (the kept regression test is written later, in Phase 3)'
+  current: 'Prove before you flag, WITHOUT breaking read-only (this obligation falls on the finders and on YOUR triage — a read-only seat''s findings arrive unproven and get verified at Phase 2): reproduce each suspected bug with a THROWAWAY repro in the scratchpad or a read-only execution — NOT a committed test and NOT an edit to any repo file (the kept regression test is written later, in Phase 3)'
+  text:
+  - 'Prove before you flag, WITHOUT breaking read-only (this obligation falls on the finders and on YOUR triage — a read-only seat''s findings arrive unproven and get verified at Phase 2): reproduce each suspected bug with a THROWAWAY repro in the scratchpad or a read-only execution — NOT a committed test and NOT an edit to any repo file (the kept regression test is written later, in Phase 3)'
+- id: u-L39
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'Return STRUCTURED findings only: `{file:line, failure_class, severity: correctness|security|style, reproduction, root-cause, proposed_fix, confidence, fabrik_synced: yes/no}`'
+  current: 'Return STRUCTURED findings only: `{file:line, failure_class, severity: correctness|security|style, reproduction, root-cause, proposed_fix, confidence, fabrik_synced: yes/no}`'
+  text:
+  - 'Return STRUCTURED findings only: `{file:line, failure_class, severity: correctness|security|style, reproduction, root-cause, proposed_fix, confidence, fabrik_synced: yes/no}`'
+- id: u-L40
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: A unit that finds nothing must still enumerate exactly what it inspected (files × failure classes × rule packs) — empty claims without coverage evidence don't count
+  current: A unit that finds nothing must still enumerate exactly what it inspected (files × failure classes × rule packs) — empty claims without coverage evidence don't count
+  text:
+  - A unit that finds nothing must still enumerate exactly what it inspected (files × failure classes × rule packs) — empty claims without coverage evidence don't count
+- id: u-L41
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: Update the ledger with each slice's coverage as the batches complete
+  current: Update the ledger with each slice's coverage as the batches complete
+  text:
+  - Update the ledger with each slice's coverage as the batches complete
+- id: u-L43
+  file: render
+  section: '## PHASE 2 — MERGE, DEDUPE, TRIAGE (you)'
+  baseline: Consolidate all units; dedupe cross-unit findings; re-verify each to drop false positives; keep ONLY confirmed correctness/security for fixing (style → a separate list); rank by severity × blast radius
+  current: Consolidate all units; dedupe cross-unit findings; re-verify each to drop false positives; keep ONLY confirmed correctness/security for fixing (style → a separate list); rank by severity × blast radius
+  text:
+  - Consolidate all units; dedupe cross-unit findings; re-verify each to drop false positives; keep ONLY confirmed correctness/security for fixing (style → a separate list); rank by severity × blast radius
+- id: u-L44
+  file: render
+  section: '## PHASE 2 — MERGE, DEDUPE, TRIAGE (you)'
+  baseline: 'Produce the ranked fix list and set a fix budget: the top severity×blast-radius tier is fixed THIS run; the long tail is handed off as a tracked backlog (Phase 4 output), not force-fixed in one exhausting turn'
+  current: 'Produce the ranked fix list and set a fix budget: the top severity×blast-radius tier is fixed THIS run; the long tail is handed off as a tracked backlog (Phase 4 output), not force-fixed in one exhausting turn'
+  text:
+  - 'Produce the ranked fix list and set a fix budget: the top severity×blast-radius tier is fixed THIS run; the long tail is handed off as a tracked backlog (Phase 4 output), not force-fixed in one exhausting turn'
+- id: u-L47
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: Serialized in the working tree by DEFAULT (parallel worktree-isolated subagents ONLY when that isolation is explicitly set up — never two agents on one file at once)
+  current: Serialized in the working tree by DEFAULT (parallel worktree-isolated subagents ONLY when that isolation is explicitly set up — never two agents on one file at once)
+  text:
+  - Serialized in the working tree by DEFAULT (parallel worktree-isolated subagents ONLY when that isolation is explicitly set up — never two agents on one file at once)
+- id: u-L48
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: Fix in risk order, honoring the Phase-2 fix budget — top tier now; fold the remainder into the tracked backlog rather than rushing unsafe fixes
+  current: Fix in risk order, honoring the Phase-2 fix budget — top tier now; fold the remainder into the tracked backlog rather than rushing unsafe fixes
+  text:
+  - Fix in risk order, honoring the Phase-2 fix budget — top tier now; fold the remainder into the tracked backlog rather than rushing unsafe fixes
+- id: u-L49
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: 'For each confirmed bug: write the failing test FIRST (red), then fix it, keep the test as a regression guard (verify red→green)'
+  current: 'For each confirmed bug: write the failing test FIRST (red), then fix it, keep the test as a regression guard (verify red→green)'
+  text:
+  - 'For each confirmed bug: write the failing test FIRST (red), then fix it, keep the test as a regression guard (verify red→green)'
+- id: u-L50
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: A test that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser role for an RLS bug, one tenant for an isolation bug)
+  current: A test that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser role for an RLS bug, one tenant for an isolation bug)
+  text:
+  - A test that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser role for an RLS bug, one tenant for an isolation bug)
+- id: u-L51
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: Reach for the missing constraint in a throwaway/ephemeral instance you own; never degrade shared or paid infrastructure (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red — if that is the only way to see it, say so in the finding instead
+  current: Reach for the missing constraint in a throwaway/ephemeral instance you own; never degrade shared or paid infrastructure (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red — if that is the only way to see it, say so in the finding instead
+  text:
+  - Reach for the missing constraint in a throwaway/ephemeral instance you own; never degrade shared or paid infrastructure (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red — if that is the only way to see it, say so in the finding instead
+- id: u-L52
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: Stay in scope
+  current: Stay in scope
+  text:
+  - Stay in scope
+- id: u-L54
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: Schema changes = a NEW tracked migration applied by the project's migration runner (idempotent), never hand-DDL
+  current: Schema changes = a NEW tracked migration applied by the project's migration runner (idempotent), never hand-DDL
+  text:
+  - Schema changes = a NEW tracked migration applied by the project's migration runner (idempotent), never hand-DDL
+- id: u-L55
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: Commit ONLY by explicit pathspec, never `git add -A`
+  current: Commit ONLY by explicit pathspec, never `git add -A`
+  text:
+  - Commit ONLY by explicit pathspec, never `git add -A`
+- id: u-L58
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: After each fix cluster, re-review ONLY the CHANGED surface + its callers/callees (fixes create new surface) and update the ledger — do NOT re-run all units from scratch every iteration — those are the DELTA rounds, over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), same partition and the same persisting class ledger
+  current: After each fix cluster, re-review ONLY the CHANGED surface + its callers/callees (fixes create new surface) and update the ledger — do NOT re-run all units from scratch every iteration — those are the DELTA rounds, over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), same partition and the same persisting class ledger
+  text:
+  - After each fix cluster, re-review ONLY the CHANGED surface + its callers/callees (fixes create new surface) and update the ledger — do NOT re-run all units from scratch every iteration — those are the DELTA rounds, over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), same partition and the same persisting class ledger
+- id: u-L59
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: When a delta round CONFIRMS zero, run ONE final, demonstrably-thorough FULL certification pass across all in-scope slices — a complete re-adjudication of the Coverage Checklist (slice × failure-class × rule-pack)
+  current: When a delta round CONFIRMS zero, run ONE final, demonstrably-thorough FULL certification pass across all in-scope slices — a complete re-adjudication of the Coverage Checklist (slice × failure-class × rule-pack)
+  text:
+  - When a delta round CONFIRMS zero, run ONE final, demonstrably-thorough FULL certification pass across all in-scope slices — a complete re-adjudication of the Coverage Checklist (slice × failure-class × rule-pack)
+- id: u-L60
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: You EXIT when, after that pass, every checklist row is adjudicated (CLEAN / FIXED / REFUTED / RECORDED — the only standing residual being the explicitly-tracked deferred backlog) and it CONFIRMED zero — a candidate counts only once you EXECUTED it and it reproduced; refuted and `RECORDED` candidates never reopen the loop (D-206) — and every class the certification's own fixes touched has been re-checked
+  current: You EXIT when, after that pass, every checklist row is adjudicated (CLEAN / FIXED / REFUTED / RECORDED — the only standing residual being the explicitly-tracked deferred backlog) and it CONFIRMED zero — a candidate counts only once you EXECUTED it and it reproduced; refuted and `RECORDED` candidates never reopen the loop (D-206) — and every class the certification's own fixes touched has been re-checked
+  text:
+  - You EXIT when, after that pass, every checklist row is adjudicated (CLEAN / FIXED / REFUTED / RECORDED — the only standing residual being the explicitly-tracked deferred backlog) and it CONFIRMED zero — a candidate counts only once you EXECUTED it and it reproduced; refuted and `RECORDED` candidates never reopen the loop (D-206) — and every class the certification's own fixes touched has been re-checked
+- id: u-L61
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: If certification surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re-certify the touched classes — with no round ceiling; a finding stuck after 3 fix attempts is BLOCKED-escalated per the Termination contract while the rest keeps converging
+  current: If certification surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re-certify the touched classes — with no round ceiling; a finding stuck after 3 fix attempts is BLOCKED-escalated per the Termination contract while the rest keeps converging
+  text:
+  - If certification surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re-certify the touched classes — with no round ceiling; a finding stuck after 3 fix attempts is BLOCKED-escalated per the Termination contract while the rest keeps converging
+- id: u-L65
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc) — not just the in-scope tests
+  current: Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc) — not just the in-scope tests
+  text:
+  - Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc) — not just the in-scope tests
+- id: u-L66
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: '`found` counts every candidate a slice reviewer RAISED — including ones you drop as false positives in triage — and `confirmed` counts only the ones you EXECUTED and reproduced. `confirmed` is the exit counter: a certification pass that raised 3 and refuted all 3 CLOSES (`confirmed: 0`), because a refutation you executed is knowledge, not an open defect (D-206); a pass that confirms anything fixes it in that round and re-opens the touched classes for the next delta round'
+  current: '`found` counts every candidate a slice reviewer RAISED — including ones you drop as false positives in triage — and `confirmed` counts only the ones you EXECUTED and reproduced. `confirmed` is the exit counter: a certification pass that raised 3 and refuted all 3 CLOSES (`confirmed: 0`), because a refutation you executed is knowledge, not an open defect (D-206); a pass that confirms anything fixes it in that round and re-opens the touched classes for the next delta round'
+  text:
+  - '`found` counts every candidate a slice reviewer RAISED — including ones you drop as false positives in triage — and `confirmed` counts only the ones you EXECUTED and reproduced. `confirmed` is the exit counter: a certification pass that raised 3 and refuted all 3 CLOSES (`confirmed: 0`), because a refutation you executed is knowledge, not an open defect (D-206); a pass that confirms anything fixes it in that round and re-opens the touched classes for the next delta round'
+- id: u-L67
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: 'Run every owed pass UNPROMPTED — *"already reviewed per-unit," "I triaged them all away," "obviously clean"* each mean: run the pass'
+  current: 'Run every owed pass UNPROMPTED — *"already reviewed per-unit," "I triaged them all away," "obviously clean"* each mean: run the pass'
+  text:
+  - 'Run every owed pass UNPROMPTED — *"already reviewed per-unit," "I triaged them all away," "obviously clean"* each mean: run the pass'
+- id: u-L69
+  file: render
+  section: '## DEPLOY / FABRIK LIFECYCLE — out of scope for this run'
+  baseline: Do NOT deploy
+  current: Do NOT deploy
+  text:
+  - Do NOT deploy
+- id: u-L70
+  file: render
+  section: '## DEPLOY / FABRIK LIFECYCLE — out of scope for this run'
+  baseline: For a VPS service scaffold, deploying is a human-gated step = commit → PUSH (the VPS `git pull`s from the GitHub remote, so push-before-redeploy is mandatory) → `fabrik redeploy` (or `fabrik apply` for spec/registrar/compose changes); migrations are applied separately
+  current: For a VPS service scaffold, deploying is a human-gated step = commit → PUSH (the VPS `git pull`s from the GitHub remote, so push-before-redeploy is mandatory) → `fabrik redeploy` (or `fabrik apply` for spec/registrar/compose changes); migrations are applied separately
+  text:
+  - For a VPS service scaffold, deploying is a human-gated step = commit → PUSH (the VPS `git pull`s from the GitHub remote, so push-before-redeploy is mandatory) → `fabrik redeploy` (or `fabrik apply` for spec/registrar/compose changes); migrations are applied separately
+- id: u-L71
+  file: render
+  section: '## DEPLOY / FABRIK LIFECYCLE — out of scope for this run'
+  baseline: Other scaffold types deploy differently (extension store, app bundle, package publish)
+  current: Other scaffold types deploy differently (extension store, app bundle, package publish)
+  text:
+  - Other scaffold types deploy differently (extension store, app bundle, package publish)
+- id: u-L72
+  file: render
+  section: '## DEPLOY / FABRIK LIFECYCLE — out of scope for this run'
+  baseline: The review MUST assess deploy-READINESS against whichever invariants apply and list any blocker — but state the deploy steps as a RECOMMENDATION and let the owner run them
+  current: The review MUST assess deploy-READINESS against whichever invariants apply and list any blocker — but state the deploy steps as a RECOMMENDATION and let the owner run them
+  text:
+  - The review MUST assess deploy-READINESS against whichever invariants apply and list any blocker — but state the deploy steps as a RECOMMENDATION and let the owner run them
+- id: u-L75
+  file: render
+  section: '## OUTPUT'
+  baseline: When unsure whether something is a bug, surface it
+  current: When unsure whether something is a bug, surface it
+  text:
+  - When unsure whether something is a bug, surface it
+- id: u-L76
+  file: render
+  section: '## OUTPUT'
+  baseline: Scale effort to risk — exhaustive on money/auth/domain-correctness units, proportionate on low-blast-radius ones — and log anything you deliberately skip
+  current: Scale effort to risk — exhaustive on money/auth/domain-correctness units, proportionate on low-blast-radius ones — and log anything you deliberately skip
+  text:
+  - Scale effort to risk — exhaustive on money/auth/domain-correctness units, proportionate on low-blast-radius ones — and log anything you deliberately skip
+- id: r01
+  # class: prose
+  file: render
+  baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  current: '> ⚠️ POOL OFF — D-181. Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction and every flywheel back-fill (a native seat records nothing)'
+  text:
+  - 'Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you'
+  - and skip every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction and every flywheel back-fill (a native seat records nothing)
+  - '> ⚠️ POOL OFF — D-181. Run every fan-out this command names NATIVELY'
+- id: r02
+  # class: prose
+  file: render
+  section: '## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)'
+  baseline: Read `project.yaml::type` (one of the real `SCAFFOLD_TYPES` — the live registry is `scaffold.py::SCAFFOLD_TYPES`, 13 at D-039 incl
+  current: Read `project.yaml::type` (one of the real `SCAFFOLD_TYPES` — the live registry is `scaffold.py::SCAFFOLD_TYPES`; the hub and fabrik-lib have NO project.yaml — there, skip this step and detect surfaces directly)
+  text:
+  - Read `project.yaml::type` (one of the real `SCAFFOLD_TYPES` — the live registry is `scaffold.py::SCAFFOLD_TYPES`; the hub and fabrik-lib have NO project.yaml — there, skip this step and detect surfaces directly)
+- id: r03
+  # class: ban
+  file: render
+  section: '## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)'
+  baseline: 'Partition the codebase into INDEPENDENT review units (by subsystem/dir so two units never share files) — fine-grained: a large repo is DOZENS of units, not a handful. Size each unit to what one reviewer holds in context (a file / package / the changed surface), not coarse buckets; more, smaller units = better recall AND more parallelism'
+  current: 'Partition the codebase into INDEPENDENT review units (by subsystem/dir so two units never share files) — fine-grained: a large repo is DOZENS of units, not a handful. Size each unit to what one reviewer holds in context, not coarse buckets'
+  text:
+  - 'fine-grained: a large repo is DOZENS of units, not a handful. Size each unit to what one reviewer holds in context, not coarse buckets'
+  - Partition the codebase into INDEPENDENT review units (by subsystem/dir so two units never share files)
+- id: r04
+  # class: prose
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'The repo is cut into DISJOINT slices by file and every file is read once (D-207): two cheap finders per slice — one Sonnet and one Haiku, each over the whole slice, candidates unioned — and no Opus finder (pilot D-344, superseding D-207''s Opus-on-the-risky mix; the risky units — concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets — are the slice''s named hunt priority; Opus/Fable execute in the orchestrator), at most ONE extra Haiku class seat when the brief names a non-scriptable inventory class'
+  current: 'The repo is cut into DISJOINT slices by file and every file is read once (D-207): two cheap finders per slice — one Sonnet and one Haiku, each over the whole slice, candidates unioned — and no Opus finder (D-344; the risky units — concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets — are the slice''s named hunt priority; Opus/Fable execute in the orchestrator), at most ONE extra Haiku class seat when the brief names a non-scriptable inventory class'
+  text:
+  - 'The repo is cut into DISJOINT slices by file and every file is read once (D-207): two cheap finders per slice — one Sonnet and one Haiku, each over the whole slice, candidates unioned — and no Opus finder (D-344; the risky units — concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets — are the slice''s named hunt priority; Opus/Fable execute in the orchestrator), at most ONE extra Haiku class seat when the brief names a non-scriptable inventory class'
+- id: r05
+  # class: ban
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'Batch the slices by risk tier, highest-blast-radius first — a slice batch IS a round: `dispatch_headroom.py --slices sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding) → `command_run.py dispatch --seats <n>` → the seats as ONE `Workflow` call per batch (`scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js"` (`<repo root>`: the session''s own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt''s Pass row (or, with no receipt, the close''s `--evidence`) notes `shape: agent-tool`), `args.slices` = the batch, each with its `files` and `priority`, `scratch_dir` (this run''s `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing), and `pins_dir`, `pin_manifest` and `digest` as `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir> <the batch''s files>` printed them (`pins_dir` goes under the run''s `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed no line that begins `SCRATCH:`); contract and fallback: `/opt/fabrik/docs/reference/review-loop-workflow.md`) → `round --seats <n> --findings <the raw candidates the batch''s seats raised>` with NO `--classes-swept` — a batch''s round is a RESERVATION close, never a class-ledger close, so the tool''s terminal verdict cannot fire mid-pass (only the pass''s final round sweeps classes); each batch''s sibling reservation runs on its own clock (a stamp accumulated across batches would expire on the FIRST batch''s 25 minutes), and the oscillation advisory is off for this command because per-batch counts rise and fall with the subsystem, not with convergence; the box and the quota cap what is in flight, never a hand-picked number'
+  current: 'Batch the slices by risk tier, highest-blast-radius first — a slice batch IS a round: `dispatch_headroom.py --slices sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding) → `command_run.py dispatch --seats <n>` → the seats as ONE `Workflow` call per batch (`scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js"` (`<repo root>`: the session''s own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt''s Pass row (or, with no receipt, the close''s `--evidence`) notes `shape: agent-tool`), `args.slices` = the batch, each with its `files` and `priority`, `scratch_dir` (this run''s `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing), and `pins_dir`, `pin_manifest` and `digest` as `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir> <the batch''s files>` printed them (`pins_dir` goes under the run''s `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed no line that begins `SCRATCH:`); contract and fallback: `/opt/fabrik/docs/reference/review-loop-workflow.md`) → `round --seats <n> --findings <the raw candidates the batch''s seats raised>` with NO `--classes-swept` — a batch''s round is a RESERVATION close, never a class-ledger close, so the tool''s terminal verdict cannot fire mid-pass (only the pass''s final round sweeps classes); the box and the quota cap what is in flight, never a hand-picked number'
+  text:
+  - 'Batch the slices by risk tier, highest-blast-radius first — a slice batch IS a round: `dispatch_headroom.py --slices sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding) → `command_run.py dispatch --seats <n>` → the seats as ONE `Workflow` call per batch (`scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js"` (`<repo root>`: the session''s own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt''s Pass row (or, with no receipt, the close''s `--evidence`) notes `shape: agent-tool`), `args.slices` = the batch, each with its `files` and `priority`, `scratch_dir` (this run''s `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing), and `pins_dir`, `pin_manifest` and `digest` as `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir> <the batch''s files>` printed them (`pins_dir` goes under the run''s `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed no line that begins `SCRATCH:`); contract and fallback: `/opt/fabrik/docs/reference/review-loop-workflow.md`) → `round --seats <n> --findings <the raw candidates the batch''s seats raised>` with NO `--classes-swept` — a batch''s round is a RESERVATION close, never a class-ledger close, so the tool''s terminal verdict cannot fire mid-pass (only the pass''s final round sweeps classes); the box and the quota cap what is in flight, never a hand-picked number'
+- id: r06
+  # class: prose
+  file: render
+  section: '## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)'
+  baseline: 'The coverage ledger; per-unit findings with verdicts; the fixes with their regression tests; a rule-pack & (where applicable) Fabrik-invariant compliance summary; the DEFERRED-BACKLOG list — APPENDED as owner-tagged rows to `docs/STRATEGIC_BACKLOG.md` in this run''s change (file absent — 19 of 43 /opt repos lack it, measured 2026-08-31 — → seed it from `/opt/fabrik/templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first (hub-absolute — the template is NOT synced into projects; the bare relative path resolves only in the hub), then append) (append-only: never rewrite or reflow existing rows — the shared-tree rules govern a file several sessions touch; the Doc Sync Matrix''s deferred-work row, operator rule 2026-08-27 — a chat-only backlog dies with the session), ready to fold into `docs/development/plans/*`; and an explicit RESIDUAL-RISKS list (incl. any Fabrik-synced-file bugs needing an upstream fix, and any deploy blockers)'
+  current: Update the ledger with each slice's coverage as the batches complete
+  text:
+  - Update the ledger with each slice's coverage as the batches complete
+- id: r07
+  # class: ban
+  file: render
+  section: '## PHASE 2 — MERGE, DEDUPE, TRIAGE (you)'
+  baseline: A CONFIRMED SECURITY finding budgeted OUT of this run is a risk-acceptance decision, never silent triage — surface it to the operator, and their disposition (defer / waive) mints its `docs/DECISIONS.md` row in this run's change, classified at mint — an accepted-and-shipped vulnerability is the archetypal ONE-WAY row (grows the § Binding field block; TRIPWIRE and CLOSE-OUT especially), a short deferral with a named re-visit is a plain row (the same class as `/fabrik-release`'s waiver mint; correctness-tier deferrals stay technical triage)
+  current: A CONFIRMED SECURITY finding budgeted OUT of this run is a risk-acceptance decision, never silent triage — surface it to the operator, and their disposition (defer / waive) mints its `docs/DECISIONS.md` row in this run's change, classified at mint — an accepted-and-shipped vulnerability is the archetypal ONE-WAY row (grows the § Binding field block; TRIPWIRE and CLOSE-OUT especially), a short deferral with a named re-visit is a plain row (correctness-tier deferrals stay technical triage)
+  text:
+  - TRIPWIRE and CLOSE-OUT especially), a short deferral with a named re-visit is a plain row (correctness-tier deferrals stay technical triage)
+  - surface it to the operator, and their disposition (defer / waive) mints its `docs/DECISIONS.md` row in this run's change, classified at mint
+  - A CONFIRMED SECURITY finding budgeted OUT of this run is a risk-acceptance decision, never silent triage
+  - an accepted-and-shipped vulnerability is the archetypal ONE-WAY row (grows the § Binding field block
+- id: r08
+  # class: ban
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: 'Batch the slices by risk tier, highest-blast-radius first — a slice batch IS a round: `dispatch_headroom.py --slices sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding) → `command_run.py dispatch --seats <n>` → the seats as ONE `Workflow` call per batch (`scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js"` (`<repo root>`: the session''s own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt''s Pass row (or, with no receipt, the close''s `--evidence`) notes `shape: agent-tool`), `args.slices` = the batch, each with its `files` and `priority`, `scratch_dir` (this run''s `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing), and `pins_dir`, `pin_manifest` and `digest` as `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir> <the batch''s files>` printed them (`pins_dir` goes under the run''s `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed no line that begins `SCRATCH:`); contract and fallback: `/opt/fabrik/docs/reference/review-loop-workflow.md`) → `round --seats <n> --findings <the raw candidates the batch''s seats raised>` with NO `--classes-swept` — a batch''s round is a RESERVATION close, never a class-ledger close, so the tool''s terminal verdict cannot fire mid-pass (only the pass''s final round sweeps classes); each batch''s sibling reservation runs on its own clock (a stamp accumulated across batches would expire on the FIRST batch''s 25 minutes), and the oscillation advisory is off for this command because per-batch counts rise and fall with the subsystem, not with convergence; the box and the quota cap what is in flight, never a hand-picked number'
+  current: 'CONSTRAINTS: if this is a SHARED multi-lane worktree, do NOT edit other lanes'' files; do NOT touch deps files unless authorized; and NEVER edit a FABRIK-SYNCED file locally (it is overwritten on the next governance sync — `scripts/sync_enforcement_to_projects.py`, run by the POST-commit hook — gate-enforced) — if a synced file has a real bug, fix it in `/opt/fabrik/<path>` (if correct for ALL projects) or propose it upstream, and note that in findings; never fork it here'
+  text:
+  - 'CONSTRAINTS: if this is a SHARED multi-lane worktree, do NOT edit other lanes'' files; do NOT touch deps files unless authorized; and NEVER edit a FABRIK-SYNCED file locally (it is overwritten on the next governance sync — `scripts/sync_enforcement_to_projects.py`, run by the POST-commit hook — gate-enforced) — if a synced file has a real bug, fix it in `/opt/fabrik/<path>` (if correct for ALL projects) or propose it upstream, and note that in findings; never fork it here'
+- id: r09
+  # class: ban
+  file: render
+  section: '## PHASE 3 — PROVE + FIX'
+  baseline: Re-run `final_gate.py` after each fix cluster (`--lean` for fast mid-loop self-review only · `--json` the FULL Tier-2 completion gate · `--systemic` Tier-3 repo-health only (docker/ports/docs sprawl — narrower, NOT a superset; completion still needs `--json`)) — fixes regress; a green gate is necessary but NOT proof of correctness (it doesn't test logic), and known-environmental reds (e.g. Traefik/templates checks on a repo with no templates dir) don't count as new failures
+  current: Re-run `final_gate.py` after each fix cluster (`--lean` for fast mid-loop self-review only · `--json` the FULL Tier-2 completion gate · `--systemic` Tier-3 repo-health only (docker/ports/docs sprawl — narrower, NOT a superset; completion still needs `--json`)) — fixes regress; a green gate is necessary but NOT proof of correctness (it doesn't test logic), and known-environmental reds don't count as new failures
+  text:
+  - Re-run `final_gate.py` after each fix cluster (`--lean` for fast mid-loop self-review only · `--json` the FULL Tier-2 completion gate · `--systemic` Tier-3 repo-health only (docker/ports/docs sprawl — narrower, NOT a superset; completion still needs `--json`)) — fixes regress; a green gate is necessary but NOT proof of correctness (it doesn't test logic), and known-environmental reds don't count as new failures
+- id: r10
+  # class: prose
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: '`check_review_coverage.py` grades the review artifact, and the run record''s round entries (`command_run.py round`, Stop-hook-enforced) trace the loop — record every pass in both; the certification pass''s round is the CLASS-LEDGER close — `python3 scripts/command_run.py round --seats <n> --findings <raw> --confirmed <n> --classes-swept <every class in the checklist> --classes-new none` — the only round shape that can print the TERMINAL verdict (a slice batch''s round carries no classes); the embedded proof above is what the operator audits'
+  current: You EXIT when, after that pass, every checklist row is adjudicated (CLEAN / FIXED / REFUTED / RECORDED — the only standing residual being the explicitly-tracked deferred backlog) and it CONFIRMED zero — a candidate counts only once you EXECUTED it and it reproduced; refuted and `RECORDED` candidates never reopen the loop (D-206) — and every class the certification's own fixes touched has been re-checked
+  text:
+  - You EXIT when, after that pass, every checklist row is adjudicated (CLEAN / FIXED / REFUTED / RECORDED
+- id: r11
+  # class: prose
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: 'Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success'
+  current: 'Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success + each fix''s regression test'
+  text:
+  - 'Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success + each fix''s regression test'
+- id: r12
+  # class: ban
+  file: render
+  section: '## PHASE 4 — CONVERGE (incremental)'
+  baseline: '`check_review_coverage.py` grades the review artifact, and the run record''s round entries (`command_run.py round`, Stop-hook-enforced) trace the loop — record every pass in both; the certification pass''s round is the CLASS-LEDGER close — `python3 scripts/command_run.py round --seats <n> --findings <raw> --confirmed <n> --classes-swept <every class in the checklist> --classes-new none` — the only round shape that can print the TERMINAL verdict (a slice batch''s round carries no classes); the embedded proof above is what the operator audits'
+  current: '`check_review_coverage.py` grades the review artifact, and the run record''s round entries (`command_run.py round`, Stop-hook-enforced) trace the loop — record every pass in both; the certification pass''s round is the CLASS-LEDGER close — `python3 scripts/command_run.py round --seats <n> --findings <raw> --confirmed <n> --classes-swept <every class in the checklist> --classes-new none` — the only round shape that can print the TERMINAL verdict (a slice batch''s round carries no classes)'
+  text:
+  - '`check_review_coverage.py` grades the review artifact, and the run record''s round entries (`command_run.py round`, Stop-hook-enforced) trace the loop'
+  - '`python3 scripts/command_run.py round --seats <n> --findings <raw> --confirmed <n> --classes-swept <every class in the checklist> --classes-new none`'
+  - the only round shape that can print the TERMINAL verdict (a slice batch's round carries no classes)
+- id: r13
+  # class: ban
+  file: render
+  section: '## OUTPUT'
+  baseline: Re-run `final_gate.py` after each fix cluster (`--lean` for fast mid-loop self-review only · `--json` the FULL Tier-2 completion gate · `--systemic` Tier-3 repo-health only (docker/ports/docs sprawl — narrower, NOT a superset; completion still needs `--json`)) — fixes regress; a green gate is necessary but NOT proof of correctness (it doesn't test logic), and known-environmental reds (e.g. Traefik/templates checks on a repo with no templates dir) don't count as new failures
+  current: 'The coverage ledger; per-unit findings with verdicts; the fixes with their regression tests; a rule-pack & (where applicable) Fabrik-invariant compliance summary; the DEFERRED-BACKLOG list — APPENDED as owner-tagged rows to `docs/STRATEGIC_BACKLOG.md` in this run''s change (file absent → seed it from `/opt/fabrik/templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first (hub-absolute — the template is NOT synced into projects; the bare relative path resolves only in the hub), then append) (append-only: never rewrite or reflow existing rows — the shared-tree rules govern a file several sessions touch; a chat-only backlog dies with the session), ready to fold into `docs/development/plans/*`; and an explicit RESIDUAL-RISKS list (incl. any Fabrik-synced-file bugs needing an upstream fix, and any deploy blockers)'
+  text:
+  - 'The coverage ledger; per-unit findings with verdicts; the fixes with their regression tests; a rule-pack & (where applicable) Fabrik-invariant compliance summary; the DEFERRED-BACKLOG list — APPENDED as owner-tagged rows to `docs/STRATEGIC_BACKLOG.md` in this run''s change (file absent → seed it from `/opt/fabrik/templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first (hub-absolute — the template is NOT synced into projects; the bare relative path resolves only in the hub), then append) (append-only: never rewrite or reflow existing rows — the shared-tree rules govern a file several sessions touch; a chat-only backlog dies with the session), ready to fold into `docs/development/plans/*`; and an explicit RESIDUAL-RISKS list (incl. any Fabrik-synced-file bugs needing an upstream fix, and any deploy blockers)'
+vanished:
+  L1:  # clauses: {"2": "narrative", "3": "narrative", "4": "narrative"}
+    rule:
+    - r01
+  L2:
+    rule:
+    - r01
+  L11:  # clauses: {"2": "narrative"}
+    rule:
+    - r02
+  L12:  # clauses: {"1": "narrative"}
+    rule:
+    - r02
+  L15:  # clauses: {"3": "narrative"}
+    rule:
+    - r03
+  L21:  # clauses: {"3": "narrative"}
+    rule:
+    - r04
+  L24:  # clauses: {"10": "narrative"}
+    rule:
+    - r05
+    - r08
+  L45:  # clauses: {"4": "narrative"}
+    rule:
+    - r07
+  L53:  # clauses: {"4": "narrative"}
+    rule:
+    - r08
+  L56:  # clauses: {"5": "narrative"}
+    rule:
+    - r09
+    - r13
+  L62:
+    rule:
+    - r11
+  L63:
+    rule:
+    - r11
+  L64:  # clauses: {"6": "narrative"}
+    rule:
+    - r05
+    - r10
+    - r12
+  L74:  # clauses: {"7": "narrative", "12": "narrative"}
+    rule:
+    - r06
+    - r13
