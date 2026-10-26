@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from fabrik.spec_loader import Spec
 from fabrik.version_registry import load_versions
@@ -40,10 +40,13 @@ class TemplateRenderer:
         self.templates_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Set up Jinja2 environment
-        self.jinja = Environment(
+        # Set up Jinja2 environment. No template here emits HTML (compose YAML, Dockerfiles, JS,
+        # JSON, nginx conf, markdown), so nothing is HTML-escaped: the old
+        # select_autoescape(["yaml", "yml", "j2"]) matched every `*.j2` name and deployed a secret
+        # `p&ss` as `p&amp;ss` (W-6eb61fa0; tests/test_template_renderer_no_html_escape.py).
+        self.jinja = Environment(  # nosec B701 — not HTML: compose, Dockerfile, JS, JSON, conf output
             loader=FileSystemLoader(str(self.templates_dir)),
-            autoescape=select_autoescape(["yaml", "yml", "j2"]),
+            autoescape=False,  # noqa: S701 — not HTML: compose, Dockerfile, JS, JSON, conf output
             trim_blocks=True,
             lstrip_blocks=True,
         )

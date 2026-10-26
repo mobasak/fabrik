@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
+
+`src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so
+everything it renders for a template-sourced deploy was HTML-escaped. The seven compose templates that write each env
+value and secret into `environment:` (plus the companion-service partial) turned `&`, `<`, `>`, `'` and `"` into
+entities, so a secret `p&ss` would have deployed as `p&amp;ss`. Measured over the 66 specs the renderer can render,
+only one output differed: `specs/services/zitadel.yaml` renders `--masterkey &#34;${ZITADEL_MASTERKEY}&#34;`, but
+zitadel deploys from its docker source, which never calls this renderer, so no deployed file changes today. No template
+emits HTML, so autoescape is now off (the same choice `scaffold.py`'s docusaurus emitter already states). Guarded by
+`tests/test_template_renderer_no_html_escape.py`: 14 tests, 13 red on the old code (the template-escape scan is the
+one green, since no template escapes on its own). They also go red on any non-`False` `autoescape` (a
+`select_autoescape` callable included), on an `| e` added to the companion partial, and on a `{% filter escape %}`
+wrapped around python-api's companion include. Out of scope and filed as W-80aed026: env values are unquoted YAML scalars, so `"`,
+newlines, `$`, ` #` and `: ` still deploy wrong. W-6eb61fa0.
+
 ### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
 
 - `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a
