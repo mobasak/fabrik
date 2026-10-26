@@ -21,3 +21,21 @@
 - Ledger: 49 entries re-phrased in `text:`, `current:` re-pinned to the unit that holds them (dropped where a restored clause spans two sentences); new entries `r-p0-read-order`, `r-retired-claim`; wrong `vanished` labels relabelled L4, L13, L14, L15, L26, L43, L61, L86, L88, L89, L92 to their real carriers. Kept as `narrative`: none of the audited lines.
 - Words (`own_text`): baseline 2859 → first cut 1428 → after fix 2133 (74.6% of baseline; the restored rules are the cost).
 - Gates: `tests/test_command_rules.py` 32 passed, 3 skipped; `assemble_commands.py --check` exit 0.
+
+## Re-ledger round (branch claude/lean-t40-rl)
+
+- Loader swap committed alone (canonical loader from master, W-9cd8653d merged); `class`/`clauses` are real keys; the ledger was regenerated entry-per-vanished-baseline-line, each clause covered by one live window (anchors + >=70% of first 8 stems) or labelled.
+- Own text (`command_rules.own_text`, words): baseline 2859 -> fix round 2133 -> now 1959 (68.5%). Target 50% NOT met.
+- LOSS, own ledger: 36 -> 0 (`assemble_commands.py --check` still exits 4 on `_shared/*.yaml` only, T01d's).
+- Entries: 93 (37 generated unchanged, 56 reworded); vanished: 12 narrative, 63 rule. Pointer-labelled lines (no own entry, rule carried by the named entry): L1->r-L2, L19->r-L18, L38->r-L113, L66->r-L67, L88->r-L87, L91->r-L92, L119->u-L116 — each holds dated history or a long anchor list in a single clause, and every ban span in them is verbatim in the live text.
+- Tests: the 9-file reader set had 23 failures at the start and the same 23 at the end (plus the shared-ledger `test_the_live_corpus_has_no_loss`, in both); one extra red mid-way (`test_assemble_dispatch_step` fan-out detector) was fixed by restoring "all dispatched in a single message". No test file edited.
+- COUNTS: entries read 93 / reworded 56 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 (loader-verified lints A-D; the by-hand old-vs-new read covered the narrative/pointer lines and the forced phrases; the hub's author-blind audit still owed).
+
+### Why it stays above 50% (floor)
+- 45 ban spans stand verbatim: 419 words (e.g. L63 44 words, L72 25, L32 23, L14 19, L3 18, L22/L35 17), none cuttable by D-1240.
+- Every other kept clause is already at anchors + the first-8-stem minimum (prefix floor measured at ~1500 words for the prose, plus front matter 126, headings, fences, includes ~230); clauses over their minimum are kept for the rule's tail: L28 gate-green, L55 `Dossier` sentence (single clause, anchors), L63, L72, L77 synthesis, L93 header list, L120 mail command.
+- Narrative cut: L6, L12, L30, L31, L54, L71, L80, L83, L97, L99, L106, L109 and clauses 13.1, 18.2, 20.2, 48.2, 52.2, 58.2, 59.2... 60.2, 82.2, 95.2, 96.2, 98.2, 110.2, 111.2, 112.3, 113.2, 9.3.
+
+## LEFT FOR THE HUB
+- Author-blind audit of the 56 reworded entries; decide whether 50% binds a command whose ban spans plus anchors floor near 1500-1600 words.
+- Ratchet `_size_ceiling.json`, CHANGELOG/INDEX rows.
