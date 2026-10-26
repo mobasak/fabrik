@@ -94,13 +94,13 @@ Start (attempt 1 head, separate worktree): 61 failed + 1 collection error, 2840 
 | file | start | v2 | v3 |
 |---|---|---|---|
 | close-chain.md | 461 | 336 | 462 |
-| close-feedback.md | 2352 | 1523 | 2085 |
-| run-record.md | 646 | 491 | 560 |
+| close-feedback.md | 2352 | 1523 | 2083 |
+| run-record.md | 646 | 491 | 570 |
 | orient.md | 345 | 196 | 345 |
 | no-workflow-hub.md | 148 | 111 | 120 |
 | fabrik-researcher.md | 2650 | 2115 | 2435 |
 | fabrik-reviewer.md | 2059 | 1858 | 1984 |
-| fabrik-gui.md | 611 | 451 | 530 |
+| fabrik-gui.md | 611 | 451 | 538 |
 | review-probe-catalogue.md | 6870 | 6864 | 6864 |
 
 The canonical loader makes most of v2's cut a lost rule: close-chain and orient return to their start size. The honest v3 saving is what the rewrite can shed once every ban clause and anchor is kept (the hub should measure it with `wc -w` on the merged tree).
