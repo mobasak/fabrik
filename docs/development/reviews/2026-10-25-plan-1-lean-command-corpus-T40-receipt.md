@@ -47,3 +47,15 @@
 - LOSS, own ledger: 0 (`pytest tests/test_command_rules.py -rP`; the only remaining LOSS rows are `_shared/*.yaml`).
 - Fresh passes run: 5 (five separate fresh subagents, each given only baseline, rewrite and ledger; passes 1-4 found 5, 4, 3 and 1 minor defects, all fixed; pass 5 found none).
 - COUNTS: entries read 95 / reworded 35 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 (pass 5; passes 1-4 estimated reworded 41/58/58/58, the count is estimate-dependent).
+
+## Nits round (hub)
+Branch claude/lean-t40-rl-nits. Edits are to `commands/_sources/fabrik-rivals.md` and `commands/_rules/fabrik-rivals.yaml` only.
+- 1. L66 label (-> r-L67): dropped; the "Parallelism — per RIVAL…" unit survives verbatim and the loader reports no LOSS without the label.
+- 2. L88 label (-> r-L87): kept, repointed nowhere. In this tree baseline L88 is "The reason is a SHAPE mismatch, not a quality gap (corrected 2026-08-27", which r-L87 does carry; the loader reports LOSS when the label is dropped. "There is no `Dossier.from_dict()`" is baseline L89, carried by `u-L89`.
+- 3. r-L21 "two consecutive dry rounds, not one": already present in the source and in r-L21's `text`; no edit.
+- 4. L1 -> r-L2: restored "in this command" ("instruction in this command is SUSPENDED") in source and r-L2 `text`; "(D-181; mechanism revised by D-182)" was already there.
+- 5. Tails: r-L8 "every project already has it" and r-L18 "two loops, two mechanisms" were already present and in `text`; r-L23 "no matter how much of the market is unexplored" restored (source + `text`); r-L77 "then" restored (source + `text`); r-L58 tail stays `narrative` (clause 2, already labelled); r-L99 "because it is the whole point of running before a spec": the loader sees one clause there so a `narrative` label is rejected, and the source already carried the tail, so it is now inside r-L99's `text`.
+- 6. r-L67: removed the second `text` phrase (r-L5's dispatch stamp, which r-L5 carries verbatim); the pointer is now r-L67's own phrase only.
+- 7. r-L60: closing backtick restored after `partial=True` in `text`.
+- Own text words before -> after: about +16 words (source gained "in this command", "no matter how much of the market is unexplored", "then"; r-L99 text grew by the tail); the loader's exact `own_text` count was not re-measured here.
+- Gates: `tests/test_command_rules.py` zero LOSS for fabrik-rivals.yaml; `assemble_commands.py --check` run (see runner). The zero-counts self-audit is NOT a fresh subagent: none can be dispatched in this lane; the hub's author-blind audit pair covers it.
