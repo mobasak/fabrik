@@ -616,13 +616,17 @@ def test_the_units_wire_the_alert_and_verify():
     assert interval_s >= int(burst.split("=", 1)[1]) * (
         len(commands) * start_s + 5 * stop_s + _seconds(restart.split("=", 1)[1])
     )
-    # two nightly starts can be as close as a day minus the timer's random delay (00:14:59 one night, 00:00 the next)
-    (delay,) = [
-        v
-        for v in _sections("session-archive.timer")["[Timer]"]
-        if v.startswith("RandomizedDelaySec=")
-    ]
-    assert interval_s < 24 * 3600 - _seconds(delay.split("=", 1)[1]), (
+    # the shortest gap between two nightly starts: a 23 h day (OnCalendar=daily is local time, so a DST spring-forward
+    # night), less the timer's random delay and its accuracy window (systemd.timer: AccuracySec= defaults to 1min,
+    # RandomizedDelaySec= to 0) — e.g. 00:15:59 one night, 00:00 the next
+    timer = _sections("session-archive.timer")["[Timer]"]
+
+    def _timer_s(key: str, default: str) -> float:
+        vals = [v.split("=", 1)[1] for v in timer if v.startswith(f"{key}=")]
+        return _seconds(vals[-1] if vals else default)
+
+    shortest_gap = 23 * 3600 - _timer_s("RandomizedDelaySec", "0") - _timer_s("AccuracySec", "1min")
+    assert interval_s < shortest_gap, (
         "a window that outlasts the gap to the next nightly start refuses it even when the nightly timer opened it"
     )
 
