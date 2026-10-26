@@ -3,11 +3,11 @@ description: Competitive evidence BEFORE a spec exists — drives fabrik-lib's `
 argument-hint: "[the market/category to scan] [optional: --us <our product> | --greenfield]"
 ---
 
-> **POOL OFF (D-181).** Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED: run every fan-out this command names NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose), decide/refute/merge by you, and skip every flywheel back-fill. Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **Dispatch step (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (D-186); the box is the ceiling, the units only the partition.
+> **POOL OFF — D-181 (operator, 2026-09-07).** Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable); the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control. Run every fan-out this command names NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you, and skip every flywheel back-fill. Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **Dispatch step (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition.
 
-The engine is fabrik-lib's `competitor-intel` (vendored at `libs/competitor_intel`) driven by `scripts/rivals_run.py`; this command owns the brief, the evidence contract, the convergence loop and the hand-off into `/fabrik-spec`.
+Produce the competitive evidence a product should be spec'd on, so the ANGLE, the FEATURES and the PROBLEMS-TO-SOLVE come from real rivals and real reviews instead of vibes. The engine is fabrik-lib's `competitor-intel` (vendored at `libs/competitor_intel`) driven by `scripts/rivals_run.py`; this command owns the brief, the evidence contract, the convergence loop and the hand-off into `/fabrik-spec`.
 
-**Run it from ANY repo — there is no mode to pick and no hand-off.** `scripts/rivals_run.py` is fleet-synced and resolves the engine local-first, then the hub's copy. Search keys reach every project through the driver's OWN vendored autoload: the real env, the nearest `.env` walking up from the repo, the fleet file `~/.config/fabrik/subagents.env`. Every artifact it writes lands in the CALLING repo. The cross-repo hard stop governs writes, not reads: importing the hub's vendored engine and writing only into your own tree breaks nothing, and the two-hop version turned a one-rival scan into a cross-repo errand. If the engine is in neither place the driver says so and names the fix; it never degrades to a hand-off.
+**Run it from ANY repo — there is no mode to pick and no hand-off.** `scripts/rivals_run.py` is fleet-synced and resolves the engine local-first, then the hub's copy. Search keys reach every project through the driver's OWN vendored autoload: the real env, the nearest `.env` walking up from the repo, the fleet file `~/.config/fabrik/subagents.env`. Every artifact it writes lands in the CALLING repo. The cross-repo hard stop, which governs *"create/edit/commit files in a repo OTHER than the one you were launched in"*, governs writes, not reads: importing the hub's vendored engine and writing only into your own tree breaks nothing, and the two-hop version turned a one-rival scan into a cross-repo errand. If the engine is in neither place the driver says so and names the fix; it never degrades to a hand-off.
 
 ```
 python scripts/rivals_run.py --market "<market>" --product-type <type> [--us-name X | --greenfield]
@@ -21,12 +21,12 @@ python scripts/rivals_run.py --market "<market>" --product-type <type> [--us-nam
 
 ## ⚠️ DISCOVERY termination — when the rival SET stops growing
 
-⚠️ Distinct from the dossier-text convergence loop below (`## ⚠️ Termination contract — READ FIRST`). This one governs the discovery/mining rounds; do not apply the Pass-Ledger format to these rounds.
+⚠️ Distinct from the dossier-text convergence loop below (`## ⚠️ Termination contract — READ FIRST`), which converges the WRITTEN dossier to an md5-verified no-op with its own Pass Ledger. This one governs the discovery/mining rounds — whether the set of rivals is complete; do not apply the Pass-Ledger format to these rounds.
 
-**The run is done when ALL of these hold:**
+**The run is done when ALL of these hold — this is a LOOP, not a single shot:**
 
 1. **Discovery is DRY** — a fresh `--rediscover` round surfaces no new competitor AND no new MATCH/BEAT item, twice in a row: unknown-size discovery never terminates honestly on a fixed round count, and the tail is where the non-obvious rival lives. ⚠️ **Only a `--rediscover` round can be dry** — without the flag the engine skips discovery entirely, so a plain re-run returns zero new rivals (Phase 2).
-2. **The trust audit returns zero unverifiable claims.**
+2. **The trust audit returns zero unverifiable claims**, adjudicated per the split below.
 3. **`truncated` is False.** `truncated=True` means the money ceiling BOUND the run — partial by budget, with the standing no-ceiling policy it should never fire. If it does, that is a LOUD finding, never a footnote.
 4. **`competitors` is non-empty.** Zero discovered rivals is a FAILED scan, not an empty market.
 5. The dossier is written to `docs/reference/rivals/<market>.md` in this repo, its `INDEX.md` row exists, and the gate is green THIS run.
@@ -34,7 +34,7 @@ python scripts/rivals_run.py --market "<market>" --product-type <type> [--us-nam
 ### The trust audit — split, because the rails are NOT uniform
 
 - **Feature matrix · pricing wedge · white-space** — competitor-intel HOLDS the fetched source text for these: the verbatim quote must be a real substring of a real fetched source, and the `source_url` must come from that source rather than from the LLM. Re-verify by re-fetching, not re-reading the dossier. Any claim that fails → `❓`, never a guess.
-- **BEAT** — deep-research's review cards; competitor-intel never held the raw review page, so BEAT is Tier-C and cannot be re-grounded the same way. Audit what actually exists: the ≥2-distinct-source corroboration gate and the source-weight inputs (`Signal.rating`). Label BEAT Tier-C in the dossier.
+- **BEAT** — deep-research's review cards; competitor-intel never held the raw review page, so BEAT is Tier-C and cannot be re-grounded the same way. Audit what actually exists: the ≥2-distinct-source corroboration gate and the source-weight inputs (`Signal.rating`, the subject domain). Label BEAT Tier-C in the dossier.
 - **Adapter signals** — HN comments are unclassified (`neutral`): they enrich the signal and feature extraction but do NOT auto-surface as BEAT openings. An unclassified mention is not a proven weakness; if you promote one, say who classified it.
 
 {{include:term-edit}}
@@ -43,8 +43,8 @@ python scripts/rivals_run.py --market "<market>" --product-type <type> [--us-nam
 
 Never ask the operator for what the repo already answers. Read, in this order:
 
-1. `project.yaml::type` → the `product_type`. The engine's vocabulary is its OWN (`saas mobile-app ecommerce website headless-api docs extension desktop`), NOT the fabrik `SCAFFOLD_TYPES` strings; `rivals_run.py` maps them, so pass the scaffold type.
-2. `docs/FEATURES.md` → our shipped features, verbatim, for the `us` side of the matrix. Absent, or every row `Planned`? That is a greenfield run (`--greenfield`, `us=None`) and the matrix becomes rival-vs-rival.
+1. `project.yaml::type` → the `product_type`. The engine's vocabulary is its OWN (`saas mobile-app ecommerce website headless-api docs extension desktop`), NOT the fabrik `SCAFFOLD_TYPES` strings; `rivals_run.py` maps them, so pass the scaffold type and let it alias.
+2. `docs/FEATURES.md` → our shipped features, verbatim, for the `us` side of the matrix. Absent, or every row `Planned`? That is a greenfield run (`--greenfield`, `us=None`) and the matrix becomes rival-vs-rival — the headline use case, not a degraded one.
 3. `docs/BUSINESS_MODEL.md` (SaaS) → positioning and price points, for the pricing wedge.
 4. The market/category — the ONE thing the repo often cannot answer, and the question worth asking if `docs/` does not state it.
 
@@ -56,26 +56,26 @@ Never ask the operator for what the repo already answers. Read, in this order:
 - **`legs` keys must be exactly `firecrawl`/`exa`/`brave`** — they must match the shipped packs' leg names, or the engine raises a wiring `ValueError` at entry.
 - **The free leg (`brave`) estimate must be `<= 0`.**
 - **`job_id` non-empty** — the double-book guard, so a resume re-bills nothing.
-- **every required SEARCH key present.** The pre-flight names the missing key, because the engine cannot. `--free-legs-only` requires only `BRAVE_API_KEY`.
+- **every required SEARCH key present.** A missing key raises nowhere: the leg fails, the engine degrades, and you get an empty dossier with `partial=True`. The pre-flight names the missing key, because the engine cannot. `--free-legs-only` requires only `BRAVE_API_KEY`.
 
-The script also refuses a run from a directory outside the repo the copy belongs to when that directory sits inside some other checkout: once its arguments parse, it exits with rc 2 and the `WIRING ERROR (nothing was spent)` label, before any `.env` is read (W-6a157c25). Run each repo's OWN synced copy from inside that repo; the exact rule and its fail-open cases are in `docs/reference/rivals-command.md`.
+The script also refuses a run from a directory outside the repo the copy belongs to when that directory sits inside some other checkout: once its arguments parse, it exits with rc 2 and the `WIRING ERROR (nothing was spent)` label, before any `.env` is read (W-6a157c25). Run each repo's OWN synced copy from inside that repo; the exact rule and its fail-open cases are in `docs/reference/rivals-command.md` § The vacuous-loop trap.
 
 ## Phase 2 — converge: dry discovery + the split audit
 
-**Parallelism — per RIVAL.** `libs/competitor_intel/orchestrator.py` mines reviews sequentially (zero `asyncio.gather` there; the only concurrency is deep-research's per-search-leg `gather`), so wall-clock scales linearly with rival count. The module vendored from fabrik-lib is not ours to change, so this command's convergence rounds fan out: one native `fabrik-reviewer` seat per RIVAL plus the Opus authoritative seat, all dispatched in a single message; the rival count is the PARTITION and `dispatch_headroom.py --units <rivals> --mechanical 0` prints the seats (D-191 — a citation audit is a judgement, no Haiku mechanical seat).
+**Parallelism — per RIVAL, and the engine will not do it for you.** `libs/competitor_intel/orchestrator.py` mines reviews in a plain sequential `for` loop over the kept competitors (verified 2026-09-08: zero `asyncio.gather` / `TaskGroup` / `create_task` in that file; the only concurrency is deep-research's per-search-leg `gather`), so wall-clock scales linearly with rival count. The ENGINE call stays as it is — that module is vendored from fabrik-lib and is not ours to change — but this command's own convergence rounds fan out: one native `fabrik-reviewer` seat per RIVAL plus the Opus authoritative seat to audit that rival's dossier section against its cited sources, all dispatched in a single message; the rival count is the PARTITION and `dispatch_headroom.py --units <rivals> --mechanical 0` prints the seats (D-191 — a citation audit is a judgement, no Haiku mechanical seat).
 
-⚠️ **Every convergence round MUST pass `--rediscover`, or the loop is vacuous.** The engine discovers ONCE per `job_id` (`discovery_done`; `grep -n "if not discovery_done" libs/competitor_intel/orchestrator.py`), so a plain re-run cannot surface a new rival by construction, and condition 1 above would auto-satisfy at round 2: it is the question never being asked. `--rediscover` re-arms discovery while re-billing no mined review, and re-unions the rivals already found.
+⚠️ **Every convergence round MUST pass `--rediscover`, or the loop is vacuous.** The engine discovers ONCE per `job_id` (`discovery_done`; `grep -n "if not discovery_done" libs/competitor_intel/orchestrator.py`), and the driver derives `job_id` deterministically from the market — so a plain re-run cannot surface a new rival by construction, and condition 1 above would auto-satisfy at round 2: it is the question never being asked. `--rediscover` re-arms discovery while re-billing no mined review, and re-unions the rivals already found (the engine REPLACES the competitor list rather than merging it, so without the union a thinner round silently drops rivals).
 
 ```
 round 1..N-1:  python scripts/rivals_run.py --market "<market>" ... --rediscover
 round N:       python scripts/rivals_run.py --market "<market>" ...      # no flag — synthesis round
 ```
 
-Each round: re-run discovery with `--rediscover`, read the driver's `ROUND:` line (a dry round is a MEASURED fact, never an assumption), diff the new `competitors` / `match_list` / `beat_list` against the last round, and run the split trust audit over whatever is new. A round that adds a rival is never the last round. Record a Pass Ledger row per round with `found:` / `new:` / `fixed:`.
+Each round: re-run discovery with `--rediscover`, read the driver's `ROUND:` line (it prints the NEW count and the running union — a dry round is a MEASURED fact, never an assumption), diff the new `competitors` / `match_list` / `beat_list` against the last round, and run the split trust audit over whatever is new. A round that adds a rival is never the last round. Record a Pass Ledger row per round with `found:` / `new:` / `fixed:`, exactly as the review commands do.
 
 ⚠️ **A `!!` line from `--rediscover` VOIDS the round** (the driver reports the checkpoint could not be rewritten: discovery was SKIPPED): that round's zero-new result must not be counted toward the two. Fix the checkpoint (or pass a fresh `--job-id`) and re-run it.
 
-**The final round runs WITHOUT the flag** — the engine restores the full accumulated union as its competitor set, mines any still-unmined reviews and synthesizes the matrix over ALL of them. That round's dossier is the artifact; a `--rediscover` round's dossier covers only that round's fresh discoveries and must never be written to `docs/reference/rivals/`. A rival you cannot corroborate is not a finding. Drop it to `❓` and say so.
+**The final round runs WITHOUT the flag** — the engine restores the full accumulated union as its competitor set, mines any still-unmined reviews and synthesizes the matrix over ALL of them. That round's dossier is the artifact; a `--rediscover` round's dossier covers only that round's fresh discoveries and must never be written to `docs/reference/rivals/`. A rival you cannot corroborate is not a finding. Drop it to `❓` and say so; the audit re-fetches rather than re-reads.
 
 ## Phase 3 — the artifact, and the hand-off
 
@@ -86,28 +86,28 @@ python scripts/rivals_run.py --market "<market>" [--us-name "<our product>"] \
   --out docs/reference/rivals/<slug>
 ```
 
-`--out <slug>` writes BOTH `<slug>.json` and `<slug>.md` (the flag's own help says exactly this; the `with_suffix` pair in `rivals_run.py`) — pass the path WITHOUT an extension. Read the dossier from the written file; do not trade a write for a preview.
+`--out <slug>` writes BOTH `<slug>.json` and `<slug>.md` (the flag's own help says exactly this; the writes are the `with_suffix` pair in `rivals_run.py` — grep, don't trust a line number) — pass the path WITHOUT an extension. Read the dossier from the written file; do not trade a write for a preview.
 
-Write `docs/reference/rivals/<market>.md` from `rivals_run.py::render_dossier_md(dossier.to_dict())`, not from `dossier.to_markdown()`, which raises `AttributeError` on plain dicts (it needs the live TYPED `Dossier`) while the driver writes the JSON payload BEFORE rendering, because a formatting bug must never destroy a paid run. There is no `Dossier.from_dict()`, so the saved payload can only be rendered from dicts. Re-rendering an old run from disk takes the same path. Do not repeat the retired claim that `to_markdown()` emits only 404 bytes.
+Write `docs/reference/rivals/<market>.md` from `rivals_run.py::render_dossier_md(dossier.to_dict())`, not from `dossier.to_markdown()`, which raises `AttributeError` on plain dicts (`m.universal`, `b.weight` — it needs the live TYPED `Dossier`) while the driver writes the JSON payload BEFORE rendering, because the money is already spent and a formatting bug must never destroy a paid run. There is no `Dossier.from_dict()`, so the saved payload can only be rendered from dicts. Re-rendering an old run from disk takes the same path. The earlier justification — that `to_markdown()` emitted only 404 bytes — was measured against the PRE-`e818249` engine and is now FALSE: upstream rebuilt it, and it emits all six sections (COMPETITORS · FEATURE MATRIX · MATCH · BEAT · PRICING · WHITE SPACE). Do not repeat the retired claim that `to_markdown()` emits only 404 bytes.
 
 Add a header carrying the scan DATE (the driver stamps `scanned_at`), the run's `job_id`, the model, the spend, `partial`/`truncated`, whether it ran `--free-legs-only`, and the Pass Ledger. Re-read the date before trusting an existing dossier — an old one is a starting point for a fresh scan, never evidence about today's market.
 
-Never let an unconfirmed rival read as a real one. The engine sets `verified` per competitor; the renderer marks them `❓` and names them in a callout. Add the `INDEX.md` and `docs/README.md` rows.
+Never let an unconfirmed rival read as a real one. The engine sets `verified` per competitor; on that same run 5 of 12 were `verified: False` ("No page text retrieved"). The renderer marks them `❓` and names them in a callout — carry that through, because an unconfirmed name sitting in a list of real ones is exactly how a fabricated competitor reaches a spec. `docs/reference/**/*.md` is already inside the gate-enforced `.md` allowlist, so this needs no governance change. Add the `INDEX.md` and `docs/README.md` rows — the ordinary Doc Sync Matrix obligation for a new file under `docs/reference/`, not an exemption.
 
-State the hand-off:
+State the hand-off explicitly:
 
 - **MATCH** → the features `/fabrik-spec` must decide to build, match or deliberately skip.
 - **BEAT** → the problems to solve, and the "how we win" section: the ranked list of rivals' review-proven weaknesses — the openings.
-- **pricing wedge + white-space** → positioning. Flag white-space as the weakest evidence: it is incumbent/discourse-anchored.
+- **pricing wedge + white-space** → positioning. Flag white-space as the weakest evidence: it is incumbent/discourse-anchored, it surfaces needs people are already voicing, and for four of five product types it degrades entirely to Tier-C search-excerpts.
 
-**Scope, stated plainly in the dossier:** this is competitor and entry-opportunity intel, NOT market-sizing or demand validation. Never let a dossier be read as proof that a market is big enough.
+**Scope, stated plainly in the dossier:** this is competitor and entry-opportunity intel, NOT market-sizing or demand validation. A spec still needs that separately. Never let a dossier be read as proof that a market is big enough.
 
 ## Guardrails — never
 
 - **Never write a `--rediscover` round's dossier to `docs/reference/rivals/`.** It covers that round's fresh discoveries only.
 - **Never count a round the driver flagged `!!` as dry.**
 - **Never present an unconfirmed rival as a real one.** `verified: False` renders `❓` — carry that through.
-- **Never assert a trust rail a stage does not have.**
+- **Never assert a trust rail a stage does not have.** BEAT is Tier-C and cannot be re-grounded like the matrix; say so rather than implying uniform provenance.
 - **Never ship an UNDATED dossier**, and never read an old one as current.
 - **Never prompt the operator for an API key** — a missing one is a provisioning escalation.
 - **Never silently fork `libs/competitor_intel`.** A vendored copy cannot fix itself; file upstream. Re-vendor to pick up a fix.
@@ -117,6 +117,6 @@ State the hand-off:
 
 ## Upstream
 
-A defect belongs upstream — the channel is fabrik-mail: `python scripts/mail.py send --to fabrik-lib --kind upstream-feedback --ack required` with `path:line` evidence. Never append to fabrik-lib's own `UPSTREAM_FEEDBACK.md` yourself — `/opt/fabrik-lib` is another repo, and writing there is the cross-repo HARD STOP.
+A defect belongs upstream — the channel is fabrik-mail: `python scripts/mail.py send --to fabrik-lib --kind upstream-feedback --ack required` with the symptom + fix + `path:line` evidence in the body. Never append to fabrik-lib's own `UPSTREAM_FEEDBACK.md` yourself — `/opt/fabrik-lib` is another repo, and writing there is the cross-repo HARD STOP regardless of how invited the file looks (its owner curates it from mail).
 
 {{include:close-chain}}
