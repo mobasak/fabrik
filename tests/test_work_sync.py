@@ -320,7 +320,7 @@ def _class8_reason(shown: str | None, raw: bool = False) -> str:
     """The reason a class-8 line carries — written out here, never imported, so a reworded
     message is a red test rather than a silently matching one (mail 01M5B996F3)."""
     if shown is None:
-        value = "missing (no Status: line)"
+        value = "missing (no Status: line in its first 4000 characters)"
     else:
         value = shown if raw else f"'{shown}'"
     return (
@@ -348,7 +348,7 @@ def test_class_8_line_shows_the_whole_value_printable_and_names_an_unreadable_fi
     byte reached stdout, and a plan that cannot be read was called `missing`."""
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
-    spaced = _plan_dir(repo, "2026-09-24-plan-h-spaced", "IN PROGRESS")
+    spaced = _plan_dir(repo, "2026-09-24-plan-h-spaced", "IN\tPROGRESS")
     coloured = _plan_dir(repo, "2026-09-24-plan-i-coloured", "\x1b[31mRED")
     name = "2026-09-24-plan-j-dir"
     (repo / "docs" / "development" / "plans" / f"{name}.md").mkdir(parents=True)
@@ -365,8 +365,14 @@ def test_class_8_line_shows_the_whole_value_printable_and_names_an_unreadable_fi
 
 
 def test_class_8_line_without_a_status_line(tmp_path):
+    """No header, and a header the parser's 4000-character window never reaches, both read
+    `missing … in its first 4000 characters`; a header it cannot parse reads `unreadable`."""
     env = _env(tmp_path)
     repo = _store(tmp_path, env)
+    late = "2026-09-24-plan-k-late-status"
+    d_late = repo / "docs" / "development" / "plans" / late
+    d_late.mkdir(parents=True)
+    (d_late / f"{late}.md").write_text(f"# {late}\n\n" + "x" * 4100 + "\nStatus: DRAFT\n", "utf-8")
     name = "2026-09-24-plan-f-no-status"
     d = repo / "docs" / "development" / "plans" / name
     d.mkdir(parents=True)
@@ -377,6 +383,7 @@ def test_class_8_line_without_a_status_line(tmp_path):
     assert sorted(_drift_lines(out, 8)) == sorted(
         [
             f"DRIFT 8 (advisory)  {rel}{_class8_reason(None)}",
+            f"DRIFT 8 (advisory)  docs/development/plans/{late}/{late}.md{_class8_reason(None)}",
             f"DRIFT 8 (advisory)  {unreadable}"
             + _class8_reason("unreadable (Status: (SUPERSEDED))", raw=True),
         ]

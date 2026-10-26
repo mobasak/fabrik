@@ -4500,7 +4500,7 @@ def _drift_line(repo: Path, cls: int, rel: str) -> str:
     elif header := _STATUS_HEADER_RE.search(text[:4000]):  # the parser's own window
         shown = f"unreadable ({_shown(header.group(0).strip())})"
     else:
-        shown = "missing (no Status: line)"
+        shown = "missing (no Status: line in its first 4000 characters)"
     return (
         f"{line}  — Status {shown} is none of {', '.join(_PLAN_STATUS_ORDER)}; "
         "a finished plan reads EXECUTED, and check_convergence then wants it to cite its "
@@ -4516,7 +4516,9 @@ _STATUS_HEADER_RE = re.compile(r"^[ \t]*(?:[-*>][ \t]+)?\*{0,2}Status\*{0,2}[ \t
 def _shown(raw: str) -> str:
     """A Status value as one printable line of at most 60 characters: control bytes (an ESC from a
     pasted colour code) would reach every reader of the DRIFT line, final_gate's included."""
-    clean = "".join(ch if ch.isprintable() else "?" for ch in raw.strip())
+    clean = "".join(
+        ch if ch.isprintable() else " " if ch.isspace() else "?" for ch in raw.strip()
+    )
     return clean if len(clean) <= 60 else clean[:59] + "…"
 
 

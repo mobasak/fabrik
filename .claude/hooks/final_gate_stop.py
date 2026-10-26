@@ -3210,10 +3210,15 @@ _CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
 
 def _menu_cue(text: str, start: int) -> bool:
     """D2's hand-off cue for the menu matched at ``start``: a choice word anywhere from the match
-    on, or a `?` from where `_menu_question_start` says a question still hands off. Inline code is
-    blanked first (same length, so offsets hold): a `pick` or `??` in backticks names code, not a
-    choice."""
-    prose = _CODE_SPAN_RE.sub(lambda c: " " * len(c.group(0)), text)
+    on, or a `?` from where `_menu_question_start` says a question still hands off. Inline code
+    INSIDE a numbered list's items is blanked first (same length, so offsets hold): a `pick` or
+    `??` in an item names code, not a choice — while a reply syntax written after the list
+    (``Reply `pick 1` or `pick 2`.``) still hands off."""
+    ls = text.rfind("\n", 0, start) + 1
+    prose = text
+    if _LIST_ITEM_RE.match(text, ls) and not text[ls:start].strip():
+        end = _list_end(text, ls)
+        prose = text[:ls] + _CODE_SPAN_RE.sub(lambda c: " " * len(c.group(0)), text[ls:end]) + text[end:]
     qs = _menu_question_start(prose, start)
     if qs == start:
         return _MENU_CUE_RE.search(prose, start) is not None

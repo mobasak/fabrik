@@ -171,9 +171,11 @@ def test_each_shape_blocks_outside_a_run(tmp_path: Path, text: str, shape: str) 
 
 
 # --- D2: a numbered list's `?` sits AFTER the list (mail 01M5B996F3) ------------------------
-# Measured over the 54 texts the hook blocked as D2 (2026-10-26): 9 stop firing, every one a
+# Measured over the 54 texts the hook blocked as D2 (2026-10-26): 7 stop firing, every one a
 # findings list reported while seats were out; no real operator menu is lost. A choice WORD still
-# hands off from anywhere, so a menu whose choice sits inside an item still fires.
+# hands off from anywhere, so a menu whose choice sits inside an item still fires; inline code is
+# blanked inside the items only (two findings texts whose prose AFTER the list names `pick` still
+# fire — the cost of keeping a backticked reply syntax after a list a menu).
 
 _FOOTER = "\n\nSTATE: review round 1, one seat out\nNEXT: record round 1 once the seat returns"
 
@@ -210,8 +212,10 @@ def test_a_findings_list_is_not_a_menu(body: str) -> None:
         "Two ways forward:\n1. rerun the sweep\n2. fold it into T04\nYour pick.",
         "Two ways forward:\n1. rerun\n\n2. fold\n\nWhich do you want?",
         "Two ways:\r\n1. rerun\r\n2. fold\r\n\r\nWhich do you want?",
+        # round 2: inline code is blanked inside the items only — a reply syntax after the list cues
+        "Two ways forward:\n1. rerun the sweep\n2. fold it into T04\n\nReply `pick 1` or `pick 2`.",
     ],
-    ids=["blank-then-cue", "tight-cue", "loose-list", "crlf"],
+    ids=["blank-then-cue", "tight-cue", "loose-list", "crlf", "reply-syntax-in-code"],
 )
 def test_a_list_with_its_cue_after_it_is_still_a_menu(body: str) -> None:
     assert hook.deferral_shape(body) == "D2"
