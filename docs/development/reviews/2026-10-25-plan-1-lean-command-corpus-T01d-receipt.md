@@ -186,3 +186,47 @@ Three fresh audit seats (four checks LOST/WEAKER/INVENTED/WRONG-VANISHED-LABEL) 
 
 ### Reader tests (58 test files referencing the nine files)
 Start (v3): 62 FAILED/ERROR lines (clone has no box services). End (v4): 62, `comm -13` of the two sets empty — no node new.
+
+## Fix pass v5 (branch claude/lean-t01d-v5, cloud worker; base v4 131da325e)
+
+OWN TEXT: 16463 -> 15150 (92%)
+
+v5 does not cut further (the hub accepts the ~55% floor); it makes v4 mergeable under master's stricter loader and clears every item v4's self-audit left. Loader swap to master 545817887 is its own commit (`commands/command_rules.py`, `tests/test_command_rules.py`, `docs/reference/command-corpus-check.md`, never edited afterwards).
+
+### Per-file words (`wc -w`, v4 -> v5)
+
+| file | start | v4 | v5 | v5 % of start |
+|---|---|---|---|---|
+| close-chain | 473 | 475 | 461 | 97% |
+| close-feedback | 2436 | 2023 | 2173 | 89% |
+| fabrik-gui | 637 | 598 | 599 | 94% |
+| fabrik-researcher | 2728 | 2175 | 2370 | 87% |
+| fabrik-reviewer | 2104 | 2003 | 2019 | 96% |
+| no-workflow-hub | 151 | 139 | 147 | 97% |
+| orient | 361 | 277 | 332 | 92% |
+| review-probe-catalogue | 6908 | 5059 | 6404 | 93% |
+| run-record | 665 | 615 | 645 | 97% |
+| **total** | 16463 | 13364 | 15150 | **92%** |
+
+The words rise from v4 because every audit leftover, "minor tails" and the articles inside ban clauses included, is restored verbatim; D-1240's shortest wording is used where a clause is reworded.
+
+### LOSS under master's loader: 0
+`python3 commands/assemble_commands.py --check` prints no LOSS line (rc 1 is DRIFT only: the clone has no installed `/root/.claude` corpus). `tests/test_command_rules.py`: 54 passed, 3 skipped (v4's loader copy: 50 passed). The two LOSS lines master's loader printed on v4 are cleared:
+- `close-feedback.yaml cf-17`: ban clause "REFUSED at the close exactly like the unkeyed one" restored, with the "it was not, until 2026-09-15, …" clause.
+- `orient.yaml or-fence`: the fenced block restored verbatim (comments included), class `grammar`.
+
+### Restored items
+- Catalogue (audit round 1: 146 lost incl. 44 examples/rationale on 45 of 70 baseline lines, 7 weaker, 2 invented): L4, L15, L26, L27, L47, L60 and every other line the audit listed (L6, L9, L13, L24, L33, L34, L35, L45, L56-L59, L62, L66, L68-L70 …) restored; the two invented sentences (`env -C … python -P -B`, "copy a gitignored GENERATED file") deleted with their entries (commit 72a70af added them, no kept test pins them). Round 2 restored the 14 qualifiers, 9 weaker items and the articles inside all ban spans; round 3 the 7 optional meaning restores and the two spurious `vanished:` keys (L4, L56).
+- close-feedback: cf-2/L3, cf-18, cf-72, cf-19, cf-20, cf-66, cf-23, cf-68, cf-29, cf-31, cat-L38, cf-33, cf-35, cf-39, cat-L49, cf-42, cf-46, cf-64, cf-47, cf-60, cf-61, cf-21, cf-17, cf-71, cf-4, cf-65 (`current:`), plus ledger entries for L8, L50, L73; stale `vanished:` label L39 deleted.
+- close-chain: row count, "still sees it", entry for L6. run-record: "here too", hub-copy warning and evidence parenthetical, "the machinery friction", entries for L7, L8, L11, L21; stale `vanished:` L6 deleted. no-workflow-hub: "a relaunch, a wave", "account switch's", entry L1. orient: "(D-335 § 5 item 7)", L5-L9 qualifiers, `Right after`, the or-cobra consequence clause; gui: duplicated "(spec D8)" removed, L16 budget clause, L4, L8; reviewer: L1, L4, L7, L8, L11, L19, L22, L31, V1-V3; researcher: 18 lost, 14 weaker, W1/W4-1, R1-R9 (incl. rsr-L26 narrative label dropped, anchors restored).
+
+### The four grammar entries
+Restored verbatim with `class: grammar` (v3 text): `cf-32`, `rsr-L68` (with its tail "not a contradiction to fight" and parenthetical), `rr-step-each-phase`; `or-fence` is also `grammar`. No D-row is minted here; the hub owns class changes.
+
+### Self-audit
+Four fresh-subagent passes (LOST / WEAKER / INVENTED / WRONG-VANISHED-LABEL, baseline own text vs rewrite vs ledger; word-level diffs, ban spans checked to the end of their `;`/`—` clause). Findings per round, catalogue / the other eight: round 1 146+24 lost, round 2 14+1, round 3 0+1 (borderline); round 4 (after the round-3 fixes) found nothing in either set. A final rewrap of six lines over 120 columns restored a kept test's cap (`test_own_fix_guards_helper_contracts_and_pinned_versions`).
+
+COUNTS: entries read 237+62 / lost 0 / weaker 0 / invented 0 / wrong vanished labels 0
+
+### Reader tests (58 test files naming the nine stems or globbing corpus dirs, clone as root)
+Start (v4): 62 FAILED/ERROR lines; End (v5): 62, `comm -13` of the two sets empty — no node new. The set is the clone's missing box services/psutil, and `tests/test_scrape_ledger.py` fails to collect in both.
