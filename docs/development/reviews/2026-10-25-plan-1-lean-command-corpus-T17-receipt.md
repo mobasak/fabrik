@@ -18,3 +18,13 @@ Two author-blind audits (Sonnet 18 findings, Haiku 34) checked against the befor
 - **Refuted / not restored:** S10/H24/H28 (L52 "Same position and same job as `/fabrik-review`'s refute phase", L80 "`/fabrik-review` fixes what survives refutation", L81 "almost never a one-line edit") stay `narrative` — each is a role analogy or rationale; the instruction in them survives as "distrust a CONFORMS most" and "This command does NOT fix". H17 (deleted pins): pins were plain string-presence tests on phrases that all survive verbatim in the after-text (target printed, shared fixtures read for writes, literal absolute paths). H27 ("you need both"): carried by the four-things list. H33 (explanatory "it now sees the embed" clause): explanation, no instruction.
 - **Words (own text):** baseline 2507 -> first cut 1649 -> after fix 1975.
 - Gates: `tests/test_command_rules.py` + `tests/test_conformance_review_queue_pass.py` 36 passed; `assemble_commands.py --check` has no LOSS lines (exit 1 = only DIFFERS/MISSING drift).
+
+## Re-ledger round (cloud worker `lean-t22-t37-grp-rl-run`, canonical loader, D-1236/D-1238/D-1240/D-1245)
+
+- **Loader:** swapped in as its own first commit (command_rules.py, test_command_rules.py, command-corpus-check.md; never edited after).
+- **Own text, words:** baseline 2507 → fix round 1975 → now 2264 (90% of baseline).
+- **LOSS (own ledger):** 70 → 0 (remaining `--check` LOSS lines are the `_shared/*.yaml` ledgers, T01d's).
+- **Ledger:** 91 entries (49 generated unchanged `u-L<n>`, 42 reworded `r-<n>`; reworded/total 42/91); `class:`/`clauses:` are real keys; 11 baseline lines `narrative` (L2–L5, L8, L19, L44, L57, L67, L68, L78).
+- **Floor (why not ≤50%):** one covering phrase must hold all anchors and ≥70% of the first 8 content stems, and a ban-word clause stays verbatim to its clause end (D-1240). Word-level mechanical minimum on the baseline is 48% of clause words (1123 of 2322, 162 clauses); a grammatical rewrite sits near 90% because the verbatim spans carry long tails (L7 methodology origin with `only` in `doc-stale-only`, L10 layout clause, L86 route list with its parentheticals, L109 RESIDUAL list). Only a word-bag text reaches the minimum; not shipped.
+- **Self-audit:** one author-blind Sonnet pass over baseline, rewrite and ledger: no findings. COUNTS: entries read 91 / reworded 42 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0.
+- **LEFT FOR THE HUB:** `_size_ceiling.json` ratchet, CHANGELOG/INDEX, the author-blind pair, the floor D-row, shared-file LOSS (T01d).
