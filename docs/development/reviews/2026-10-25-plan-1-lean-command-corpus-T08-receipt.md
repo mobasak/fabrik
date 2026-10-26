@@ -185,6 +185,24 @@ Pass 1 (author-blind Opus subagent over baseline/rewrite/ledger): weaker 1 (drop
 
 COUNTS: 99 entries read / 90 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels — as measured by the mechanical audit; the author-blind pass-2 re-audit is owed to the hub.
 
+## Fix round 2 (hub audit)
+
+Findings: two author-blind audits (Sonnet 24, Haiku 29, overlapping) plus 5 master-loader LOSS lines. Confirmed 29 distinct, refuted 0; every one was checked against the baseline line and found real.
+
+Restored (source and ledger `current`/`text` together): `ft-mirror-search-scope` (UI, docs, hardcoded values, "outside it", "by the file's name", "every Python reader of a name"); `ft-design-brief-pins-tree` (no provider client built); `ft-design-plan-locks` (no CLI does; a locked path stops the run before a seat is spent); `ft-design-before-record` (lock taken while the seats ran); `ft-design-concern-accepted` (drift noted); `ft-design-wait-in-turn` (will not hold you); `ft-design-stores-text` (D-314, outlives the scratch); `ft-measure-select-rules` (path-scoped form); `ft-size-sync-skipped` (that test did NOT run); `ft-close-commit-capture` (the `HEAD` read and its reason); `ft-design-read-before-copy`; `ft-design-copied-mechanism`; `ft-review-full-over-committed`; `ft-review-seat-questions`; `ft-sequences-machinery` (keep their own text); `ft-size-lane-table`; `ft-size-new-path-declared`; `ft-measure-population` (every host it runs on, the transport handing a new env var); `ft-measure-grader-red`; `ft-measure-prior-record`; `ft-build-graders`; `ft-build-store-tests`; `ft-review-urgent-checkpoint`; Haiku-only: `ft-lane-v2-mechanisms` (every ... below), `ft-size-code-surface-only` (articles), `ft-worktree-scratch-copy` (parentheses), `ft-size-refusal-is-answer` (A), `ft-size-cobra` (their counters), `ft-measure-proposed-fix-replayed` (same way, on a copy; builds on).
+
+Loader LOSS: `ft-review-invoke` — the baseline has "never reaches the lane — it routes", the ledger `baseline` and live text had `;`; both now carry the dash. The L21, L31, L53, L84 LOSS lines are cleared by restoring the text and dropping the `clauses: narrative` labels on `ft-size-sync-skipped`, `ft-measure-select-rules`, `ft-design-stores-text`, `ft-close-commit-capture` (they were instructions, not narrative).
+
+Relabelled: baseline L2 ("New here: ...") was `narrative`; it is a scoping statement, now carried by new entry `ft-new-here` (restored in the source after the opening paragraph).
+
+Own-text words: baseline 4263 → re-ledger 3617 (84.8%) → now about 3780 (estimate, +about 160 restored words); not re-measured with `command_rules.own_text`, since this run could run no ad-hoc command. The per-file floor stays above 50%, so no floor table.
+
+Gates: `tests/test_command_rules.py` — the only failure is the live-corpus test, whose LOSS list holds `_shared/*.yaml` lines alone (total 718, unchanged); no `fabrik-task.yaml` LOSS line prints first or elsewhere that was visible. `assemble_commands.py --check` exit 4 (`_shared` LOSS, `fabrik-task.md` DIFFERS drift). The reader-test groups show failures in the live-box/`_shared` tests (for instance `test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box`); a pre-edit baseline set of this run was not captured, so "set did not grow" is not proven here.
+
+Fresh pass: NOT run. No subagent can be dispatched in this run; the pass was a line-by-line re-read of the 29 findings against the restored text by the author, which is not a fresh reader. The hub's author-blind audit pair covers it.
+
+COUNTS: entries read 100 / reworded 91 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 — author re-read only, 0 fresh passes; not a fresh-pass count.
+
 ## LEFT FOR THE HUB
 
 - author-blind Sonnet+Haiku classification of the vanished labels (author labels — audit owed) and the review wave;
