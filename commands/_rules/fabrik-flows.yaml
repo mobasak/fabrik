@@ -352,7 +352,7 @@ entries:
   class: prose
   baseline: 'Produce (or backfill) this project''s journey contract — one frozen file, `docs/flows.md`, the single source of truth for who moves through the product and how: every persona''s complete journey (entry → actions → feedback → exit), the decision points, the edge/error paths, what the user sees when an external call is slow or down, and exactly one `[PRIMARY PATH]` per flow'
   text:
-  - 'Produce (or backfill) this project''s journey contract: one frozen file `docs/flows.md`, single source of truth for who moves through the product — every persona''s complete journey (entry → actions → feedback → exit), decision points, edge/error paths, and exactly one `[PRIMARY PATH]` per flow'
+  - 'Produce (or backfill) this project''s journey contract: one frozen file `docs/flows.md`, single source of truth for who moves through the product — every persona''s complete journey (entry → actions → feedback → exit), decision points, edge/error paths, what the user sees when an external call is slow or down, and exactly one `[PRIMARY PATH]` per flow'
 - id: fl-self-convergence
   class: prose
   baseline: This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT author-blind pass — the split mirrors `/fabrik-spec` → `/fabrik-spec-review`
@@ -386,13 +386,13 @@ entries:
   class: prose
   baseline: Two-faced types (`chrome-extension`, `office-extension` — hosted taskpane + fleet backend, D-039 — `mobile-app`, `desktop-app`) map BOTH the client-side journeys AND any backend-served ones (popup + dashboard; screens + API-driven notifications)
   text:
-  - Two-faced types (`chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`; hosted taskpane + fleet backend, D-039) map BOTH the client-side journeys AND any backend-served ones
+  - Two-faced types (`chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`; hosted taskpane + fleet backend, D-039) map BOTH the client-side journeys AND any backend-served ones (popup + dashboard; screens + API-driven notifications)
 - id: fl-inputs
   section: '## Phase 0 — Establish scope, journey kind, and mode'
   class: prose
   baseline: 'Inputs (read them, name them): the CONVERGED spec (goal, chosen approach, workflow) · `project.yaml::type` · the scaffold''s UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`; multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types)'
   text:
-  - 'Inputs (read them, name them): the CONVERGED spec · `project.yaml::type` · the scaffold''s UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`; multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types)'
+  - 'Inputs (read them, name them): the CONVERGED spec (goal, chosen approach, workflow) · `project.yaml::type` · the scaffold''s UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`; multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types)'
 - id: fl-sc-trace
   section: '## Phase 1 — Success Criteria (the tracing spine — extract if the spec lacks them)'
   class: prose
@@ -428,15 +428,13 @@ entries:
   class: prose
   baseline: 'The spec''s `## Personas` section is this phase''s DENOMINATOR (specs carry it as a mandatory first content section, operator law 2026-08-29): every persona it enumerates is WALKED here or declared OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice'
   text:
-  - 'The spec''s `## Personas` section is this phase''s DENOMINATOR (specs carry it; operator law 2026-08-29): walk every persona it lists or declare it OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice'
+  - 'The spec''s `## Personas` section is this phase''s DENOMINATOR (specs carry it as a mandatory first content section; operator law 2026-08-29): walk every persona it lists or declare it OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice'
 - id: fl-step-budget
   section: '## Phase 2 — Personas, including every SECOND ACTOR'
   class: prose
   baseline: 'And the primary persona''s flow carries the spec''s frozen STEP BUDGET: count the primary path''s steps as you map it; over budget is a FINDING against whichever contract is wrong — that collision is the point (a budget nobody re-counts is how nine steps to the first file sat invisible for a week)'
-  clauses:
-    3: narrative
   text:
-  - 'The primary flow carries the spec''s frozen STEP BUDGET: count the primary path''s steps as you map it; over budget is a FINDING against whichever contract is wrong'
+  - 'The primary flow carries the spec''s frozen STEP BUDGET: count the primary path''s steps as you map it; over budget is a FINDING against whichever contract is wrong — that collision is the point (a budget nobody re-counts is how nine steps to the first file sat invisible for a week)'
 - id: fl-receiver-persona
   section: '## Phase 2 — Personas, including every SECOND ACTOR'
   class: ban
@@ -454,10 +452,8 @@ entries:
   section: '## Phase 3 — Map the journeys'
   class: ban
   baseline: 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
-  clauses:
-    2: narrative
   text:
-  - 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it'
+  - 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
 - id: fl-resilience
   section: '## Phase 3 — Map the journeys'
   class: prose
@@ -477,7 +473,7 @@ entries:
   class: ban
   baseline: 'i18n (when the project declares i18n): selector placement · URL strategy · persistence · mid-flow switch survival (form data? breadcrumbs?) · locale-sensitive elements per flow — one line each, only where a developer would default wrong'
   text:
-  - 'i18n (when the project declares i18n): selector placement · URL strategy · persistence · mid-flow switch survival · locale-sensitive elements per flow — one line each, only where a developer would default wrong'
+  - 'i18n (when the project declares i18n): selector placement · URL strategy · persistence · mid-flow switch survival (form data? breadcrumbs?) · locale-sensitive elements per flow — one line each, only where a developer would default wrong'
 - id: fl-hard-exclusions
   section: '## Phase 5 — Document (the artifact)'
   class: prose
@@ -488,16 +484,20 @@ entries:
   section: '## Phase 5 — Document (the artifact)'
   class: prose
   baseline: 'The header, R-notes, Contract inputs, and the re-freeze close-out''s Downstream impact table are lifecycle metadata and EXEMPT — their entire job is naming entities, fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out mandates; a reviewer reading the exclusions against those sections is misapplying the law (live case: four false CRITICALs in one transdoc review)'
-  clauses:
-    3: narrative
   text:
-  - The header, R-notes, Contract inputs, and the re-freeze close-out's Downstream impact table are lifecycle metadata and EXEMPT — their entire job is naming entities, fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out mandates; a reviewer reading the exclusions against those sections is misapplying the law
+  - 'The header, R-notes, Contract inputs, and the re-freeze close-out''s Downstream impact table are lifecycle metadata and EXEMPT — their entire job is naming entities, fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out mandates; a reviewer reading the exclusions against those sections is misapplying the law (live case: four false CRITICALs in one transdoc review)'
 - id: fl-primary-path-rule
   section: '## Phase 5 — Document (the artifact)'
   class: prose
   baseline: '`[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every reader re-invents it: a naive grep conflates the two and mis-reports the per-flow count, which is a defect under the "exactly one" gate above and has already mis-fired in a checker, mid-run, and in a review'
   text:
   - '`[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every reader re-invents it: a naive grep conflates the two and mis-reports the per-flow count, which is a defect under the "exactly one" gate above'
+- id: fl-gate-arcs
+  section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
+  class: prose
+  baseline: 'Certification re-derives these arcs later; a flows contract frozen without them fails at cert time or, worse, ships the hole (transdoc: two md5-verified convergence loops missed a missing paying-customer exit and a missing resume path, because nothing after the authoring phase re-checked the arc set)'
+  text:
+  - 'Certification re-derives these arcs later; a flows contract frozen without them fails at cert time or, worse, ships the hole (transdoc: two md5-verified convergence loops missed a missing paying-customer exit and a missing resume path, because nothing after the authoring phase re-checked the arc set)'
 - id: fl-commit-exit
   section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
   class: prose
@@ -609,7 +609,9 @@ vanished:
   L63:
     rule:
     - fl-primary-path-rule
-  L66: narrative
+  L66:
+    rule:
+    - fl-gate-arcs
   L76:
     rule:
     - fl-commit-exit
@@ -623,7 +625,8 @@ vanished:
     rule:
     - fl-refreeze-only-you
   L88: narrative
-  L90: narrative
+  L90:
+    duplicate-of: fl-self-convergence
   L91:
     rule:
     - fl-no-consumer

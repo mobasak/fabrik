@@ -3,7 +3,7 @@ description: Freeze the project's JOURNEY contract — docs/flows.md, every pers
 argument-hint: "[spec path — omit to use the CONVERGED spec of the CURRENT project (the command always operates on cwd)]"
 ---
 
-Produce (or backfill) this project's journey contract: one frozen file `docs/flows.md`, single source of truth for who moves through the product — every persona's complete journey (entry → actions → feedback → exit), decision points, edge/error paths, and exactly one `[PRIMARY PATH]` per flow. THIS command owns that discipline at every scale — an epic's journeys are frozen here too, from the spec `/fabrik-spec <epic file>` produced.
+Produce (or backfill) this project's journey contract: one frozen file `docs/flows.md`, single source of truth for who moves through the product — every persona's complete journey (entry → actions → feedback → exit), decision points, edge/error paths, what the user sees when an external call is slow or down, and exactly one `[PRIMARY PATH]` per flow. THIS command owns that discipline at every scale — an epic's journeys are frozen here too, from the spec `/fabrik-spec <epic file>` produced.
 
 ```
 /fabrik-spec → /fabrik-spec-review (approval) → /fabrik-flows (FREEZE, self-converge)
@@ -34,9 +34,9 @@ Operate on the current project (cwd) — `$ARGUMENTS`, if given, is the spec pat
   - Consumer journeys — `python-api`, `python-api-gpu`, `node-api`, `file-api`, `file-worker`: the CALLER is the persona — onboard/obtain credentials → authenticate → happy path → error path → rate-limit/quota path → deprecation/versioning path
   - This is the denominator `/fabrik-service-test` certifies against
   - Reader journeys — `docusaurus`: find the answer from the landing page, search, land mid-site from a search engine, follow a cross-reference — the denominator `/fabrik-user-test` certifies for doc sites
-  - Two-faced types (`chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`; hosted taskpane + fleet backend, D-039) map BOTH the client-side journeys AND any backend-served ones
+  - Two-faced types (`chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`; hosted taskpane + fleet backend, D-039) map BOTH the client-side journeys AND any backend-served ones (popup + dashboard; screens + API-driven notifications)
   - `wordpress` runs no fabrik command (out of fabrik, archived 2026-08-07) — not a skip, an absence
-- Inputs (read them, name them): the CONVERGED spec · `project.yaml::type` · the scaffold's UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`; multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand's voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types). State which packs were read
+- Inputs (read them, name them): the CONVERGED spec (goal, chosen approach, workflow) · `project.yaml::type` · the scaffold's UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`; multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand's voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types). State which packs were read
 - Mode: new (spec-driven) · backfill (walk the SHIPPED product's real journeys into the contract, grandfathering gaps with a `⚠` note) · fresh (no spec yet → minimal stub, say so)
 - Absence of a flows contract in an already-shipped project is not a defect — this stage binds work entering the design pipeline, and `/fabrik-catchup` must not queue it retroactively
 
@@ -46,13 +46,13 @@ Every flow traces to ≥1 Success Criterion: quote the converged spec's explicit
 
 ## Phase 2 — Personas, including every SECOND ACTOR
 
-The spec's `## Personas` section is this phase's DENOMINATOR (specs carry it; operator law 2026-08-29): walk every persona it lists or declare it OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice. The primary flow carries the spec's frozen STEP BUDGET: count the primary path's steps as you map it; over budget is a FINDING against whichever contract is wrong. Then hunt the personas specs forget: for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too. The receiving persona starts in a different context (no session, a different tenant, an email client, a webhook consumer) — that entry point is exactly where unbuilt surface hides. Headless: distinct consumer classes (first-time integrator, production caller at rate limit, operator debugging a 4xx) are distinct personas.
+The spec's `## Personas` section is this phase's DENOMINATOR (specs carry it as a mandatory first content section; operator law 2026-08-29): walk every persona it lists or declare it OUT with a one-line reason — a persona silently absent from flows.md is a coverage defect, not an editorial choice. The primary flow carries the spec's frozen STEP BUDGET: count the primary path's steps as you map it; over budget is a FINDING against whichever contract is wrong — that collision is the point (a budget nobody re-counts is how nine steps to the first file sat invisible for a week). Then hunt the personas specs forget: for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too. The receiving persona starts in a different context (no session, a different tenant, an email client, a webhook consumer) — that entry point is exactly where unbuilt surface hides. Headless: distinct consumer classes (first-time integrator, production caller at rate limit, operator debugging a 4xx) are distinct personas.
 
 ## Phase 3 — Map the journeys
 
 **Parallelism — UNCONDITIONAL, every run.** Dispatch one native `general-purpose` seat per persona (or per journey), all in a single message; each walks that persona's path through the spec, the code and any existing flows and returns its entry → actions → feedback → exit with the gaps it hit; the persona count is the PARTITION and `dispatch_headroom.py --units <N> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a persona walk is a judgement, no Haiku mechanical seat; the Opus authoritative seat re-walks the highest-risk persona).
 YOU own the journey judgment, the [PRIMARY PATH] call and every edit — the seats ground, they do not author.
-Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it.
+Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
 
 For each persona, map Entry Point → Actions → Feedback → Exit, with:
 
@@ -64,7 +64,7 @@ For each persona, map Entry Point → Actions → Feedback → Exit, with:
 - Contract inputs: a journey step implying an entity, field, enum, or state transition → record it in the contract-inputs list (Phase 5)
 - The journey is the evidence; `/fabrik-data-contract` freezes it
 - Shape implications: a journey introducing a backing-service interaction (search, storage, admin auth) → flag it for the spec's `shape:` block
-- i18n (when the project declares i18n): selector placement · URL strategy · persistence · mid-flow switch survival · locale-sensitive elements per flow — one line each, only where a developer would default wrong
+- i18n (when the project declares i18n): selector placement · URL strategy · persistence · mid-flow switch survival (form data? breadcrumbs?) · locale-sensitive elements per flow — one line each, only where a developer would default wrong
 
 ## Phase 4 — Alignment before documentation
 
@@ -78,13 +78,14 @@ Per flow (target ≤30 lines, hard split at 50): flow name (short imperative) ·
 Mermaid sequence diagrams only for genuinely multi-party logic.
 Spec-wide (target ≤200 lines, soft cap 400): header (`Status:` / `Version:` / `Date:` / `Type:` / `Journey kinds:`) · one Personas section · one Flow Index (flow → Success Criterion) · one Contract inputs section (the entities/fields/states the journeys surfaced — `/fabrik-data-contract`'s evidence list) · (conditional) i18n Decisions · the flows in encounter order.
 Hard exclusions — these govern FLOW BODIES (the journey narratives), not lifecycle metadata: no file paths · no component names · no implementation detail (libraries, endpoints, DB tables) · no literal microcopy · no test names.
-The header, R-notes, Contract inputs, and the re-freeze close-out's Downstream impact table are lifecycle metadata and EXEMPT — their entire job is naming entities, fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out mandates; a reviewer reading the exclusions against those sections is misapplying the law.
+The header, R-notes, Contract inputs, and the re-freeze close-out's Downstream impact table are lifecycle metadata and EXEMPT — their entire job is naming entities, fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out mandates; a reviewer reading the exclusions against those sections is misapplying the law (live case: four false CRITICALs in one transdoc review).
 Length discipline: a flow over 30 lines gets a one-line justification; near 50, split it; the file near 400, propose splitting the feature.
 `[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every reader re-invents it: a naive grep conflates the two and mis-reports the per-flow count, which is a defect under the "exactly one" gate above
 
 ## Phase 6 — Validation gate, then self-convergence to FROZEN
 
 Walk the gate; resolve gaps in conversation, never hand off with known gaps: every Success Criterion traced to ≥1 flow · every persona's journey complete (entry/actions/feedback/exit/decisions/errors) · every SENDING flow has its RECEIVING persona's journey · every async boundary has its gap state · exactly one `[PRIMARY PATH]` per flow · resilience per external call · contract inputs recorded (never trimmed) · i18n decisions when applicable · hard exclusions honored · length within targets · life-cycle arc coverage (UI-bearing types): the `/fabrik-user-test` Phase-1b arc set — *first-day · habitual · paying-customer (incl. a VOLUNTARY downgrade/cancel exit, not just involuntary recovery) · leaving-user · recovery (incl. an interrupted-journey resume)* — each applicable arc has entry AND exit legs, or the gap is surfaced.
+Certification re-derives these arcs later; a flows contract frozen without them fails at cert time or, worse, ships the hole (transdoc: two md5-verified convergence loops missed a missing paying-customer exit and a missing resume path, because nothing after the authoring phase re-checked the arc set).
 Then converge: re-walk the whole artifact; fix; repeat until the Termination contract's closing round — `confirmed: 0` (md5 the file before/after the closing pass — identical hashes are the proof).
 Set `Status: FROZEN`, bump `Version`.
 The freeze is a Status flip — mint its `docs/DECISIONS.md` row in the same change (CLAUDE.md § the decision ledger); a re-freeze bump N→N+1 is a NEW row, never an edit to the old one.
