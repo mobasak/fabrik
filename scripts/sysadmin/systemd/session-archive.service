@@ -5,14 +5,17 @@
 #
 # No After=network-online.target: the USER manager has no such target, so it would order
 # nothing. A run that starts before the network is up (the boot-time catch-up) fails with a
-# non-zero exit and is retried by Restart= below, at most 4 starts in 7 hours.
+# non-zero exit and is retried by Restart= below, at most 4 starts in 19 hours.
 [Unit]
 Description=Archive Claude session transcripts to Backblaze B2
-# The interval must hold StartLimitBurst attempts of up to TimeoutStartSec + 5 x TimeoutStopSec (the stop stages of a
-# timed-out attempt) + RestartSec each (4 x 1h40 = 6h40), or a slow failure never reaches the limit, retries forever,
-# and OnFailure= never fires (graded in tests/test_session_archive_alert.py). Kept no longer than that: until the
-# window ends the limit refuses every start, a by-hand one included, unless `systemctl --user reset-failed` clears it.
-StartLimitIntervalSec=7h
+# The interval must hold StartLimitBurst attempts, or a slow failure never reaches the limit, retries forever, and
+# OnFailure= never fires. One attempt lasts up to TimeoutStartSec PER START COMMAND (systemd re-arms the timer for each
+# ExecStartPre=/ExecStart= of a oneshot — measured on systemd 255, 2026-10-27: three 2 s commands passed a 3 s
+# timeout, one 4 s command timed out), then 5 x TimeoutStopSec (the stop stages of a timed-out attempt), then
+# RestartSec: 4 commands x 1h + 25min + 15min = 4h40, x 4 attempts = 18h40. Under 24 h, so the next night's timer
+# start is never refused; until the window ends the limit refuses every start, a by-hand one included, unless
+# `systemctl --user reset-failed` clears it (both graded in tests/test_session_archive_alert.py).
+StartLimitIntervalSec=19h
 StartLimitBurst=4
 # W-36687f76: a failed night mails infra and the coordinator. With RestartMode=direct below this fires ONCE, after
 # Restart= has spent its retries — without it, it fired on every retried attempt too (measured on systemd 255).
@@ -23,8 +26,8 @@ OnFailure=session-archive-alert.service
 Type=oneshot
 RestartMode=direct
 # A hung archiver (a stuck rclone or zstd) would hold the unit `activating` forever, so nothing alerts and later
-# timer firings do nothing; 1 h ends it as `timeout` -> Restart= -> OnFailure=. The slowest measured attempt took
-# 11 min (2026-10-21 02:28-02:39).
+# timer firings do nothing; 1 h per start command ends it as `timeout` -> Restart= -> OnFailure=. The slowest measured
+# attempt took 11 min (2026-10-21 02:28-02:39).
 TimeoutStartSec=1h
 # Bounds ExecStopPost= below. A check that outran it would turn a good night into `timeout` and make Restart=
 # re-run the archiver; the check's own worst case (session_archive_alert.CHECK_BUDGET_S) is graded below this.

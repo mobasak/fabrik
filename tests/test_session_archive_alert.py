@@ -8,6 +8,7 @@ this box, design measure 2c); the archiver's summary lines come from running the
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import fcntl
 import importlib.util
@@ -202,7 +203,12 @@ def test_failed_mails_infra_and_the_coordinator_with_the_result_and_journal_tail
     )
     for field in ("WHAT:", "WHERE:", "WHEN:", "WHO:", "WHY:", "HOW:", "SYSTEMIC:"):
         assert field in body, field
-    assert "systemctl --user reset-failed session-archive.service" in body, (
+    reset, start = (
+        "systemctl --user reset-failed session-archive.service",
+        "systemctl --user start session-archive.service",
+    )
+    assert reset in body and start in body, "the recovery names both commands"
+    assert body.index(reset) < body.index(start), (
         "after the retries the start limit refuses a bare `start` until reset-failed clears its counter"
     )
 
@@ -596,30 +602,50 @@ def test_the_units_wire_the_alert_and_verify():
     assert start_s >= 3600, "a hung archiver must still end"
 
     # the retries must be able to reach the start limit, or a slow failure retries forever and OnFailure= never
-    # fires: StartLimitBurst attempts fit inside the interval, each up to TimeoutStartSec, then the five stop stages
-    # a timed-out attempt can wait TimeoutStopSec in (stop-sigterm, stop-sigkill, stop-post, final-sigterm,
+    # fires: StartLimitBurst attempts fit inside the interval, each up to TimeoutStartSec PER START COMMAND (systemd
+    # re-arms the timer for every ExecStartPre=/ExecStart= of a oneshot — measured on systemd 255), then the five stop
+    # stages a timed-out attempt can wait TimeoutStopSec in (stop-sigterm, stop-sigkill, stop-post, final-sigterm,
     # final-sigkill), then RestartSec
     stop_s = _seconds(stop[0].split("=", 1)[1])
+    commands = [v for v in service if v.startswith(("ExecStartPre=", "ExecStart="))]
+    assert len(commands) == 4, commands
     (interval,) = [v for v in svc["[Unit]"] if v.startswith("StartLimitIntervalSec=")]
     (burst,) = [v for v in svc["[Unit]"] if v.startswith("StartLimitBurst=")]
     (restart,) = [v for v in service if v.startswith("RestartSec=")]
-    assert _seconds(interval.split("=", 1)[1]) >= int(burst.split("=", 1)[1]) * (
-        start_s + 5 * stop_s + _seconds(restart.split("=", 1)[1])
+    interval_s = _seconds(interval.split("=", 1)[1])
+    assert interval_s >= int(burst.split("=", 1)[1]) * (
+        len(commands) * start_s + 5 * stop_s + _seconds(restart.split("=", 1)[1])
     )
+    assert interval_s < 24 * 3600, "a window past a day would refuse the next night's timer start"
 
     sa = _module("session_archive_alert_budget")
     assert stop_s > sa.CHECK_BUDGET_S, (
         "a check slower than TimeoutStopSec turns a good night into `timeout` and re-runs the archiver"
     )
-    worst = (
-        sa.SHOW_TRIES * sa.SHOW_TIMEOUT_S
-        + sa.RETRY_S
-        + sa.POLL_S
-        + sa.POLL_SLEEP_S  # the poll's last sleep, which can start just before the deadline
-        + sa.JOURNAL_TIMEOUT_S
-        + 4 * sa.SEND_TIMEOUT_S
+    # CHECK_BUDGET_S sums named timeouts; it holds only while every subprocess call passes one of them. A new
+    # call site, or one with a literal timeout, changes this list and must re-size the budget.
+    tree = ast.parse(SCRIPT.read_text())
+    timeouts = sorted(
+        ast.unparse(c.args[1]) if len(c.args) > 1 else ast.unparse(c.keywords[0].value)
+        for c in ast.walk(tree)
+        if isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == "_run"
     )
-    assert worst <= sa.CHECK_BUDGET_S
+    # `check` reads its invocation's journal once (`_journal`); `failed`'s unit tail (`_unit_tail`) is the other read
+    assert timeouts == [
+        "JOURNAL_TIMEOUT_S",
+        "JOURNAL_TIMEOUT_S",
+        "SEND_TIMEOUT_S",
+        "SHOW_TIMEOUT_S",
+    ], timeouts
+    direct = [
+        c
+        for c in ast.walk(tree)
+        if isinstance(c, ast.Call)
+        and isinstance(c.func, ast.Attribute)
+        and isinstance(c.func.value, ast.Name)
+        and c.func.value.id == "subprocess"
+    ]
+    assert len(direct) == 1, "every subprocess call goes through _run, which carries the timeout"
 
     alert = _sections("session-archive-alert.service")
     assert not any(v.startswith("OnFailure=") for vs in alert.values() for v in vs), "no alert loop"
