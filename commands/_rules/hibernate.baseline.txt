@@ -1,0 +1,36 @@
+ ¦ The operator runs `/hibernate` in the hub coordinator's window. The machinery is `scripts/sysadmin/hibernate.py` (`docs/reference/hibernate.md`); this command sequences it
+ ¦ `H=/opt/fabrik/scripts/sysadmin/hibernate.py` below
+ ¦ The run record below, its Orient step and the Phase sections are the hub coordinator's alone: a repo coordinator or an agent receiving the pause text opens no record and runs no Orient for it
+## Phase 1 — the hub coordinator marks the pause and finds every agent ¦ ## Phase 1 — the hub coordinator marks the pause and finds every agent
+## Phase 1 — the hub coordinator marks the pause and finds every agent ¦ Mark the pause: `python3 $H mark --words "<the operator's words>"`
+## Phase 1 — the hub coordinator marks the pause and finds every agent ¦ It starts a fresh pause, so a wake from an earlier one never counts
+## Phase 1 — the hub coordinator marks the pause and finds every agent ¦ Open `/hibernate` with no other run of yours running: a run under this one would stay `running` across the sleep, and `status` blocks on it
+## Phase 1 — the hub coordinator marks the pause and finds every agent ¦ Find every agent, live: `python3 $H targets`
+## Phase 1 — the hub coordinator marks the pause and finds every agent ¦ One block per repo: its coordinator (the ledger's merge owner) and peer name, and every other live agent session
+## Phase 1 — the hub coordinator marks the pause and finds every agent ¦ A repo added tomorrow appears the moment its agents run — never edit a list
+## Phase 1 — the hub coordinator marks the pause and finds every agent ¦ `claude -p` pool and review-seat sessions are counted on the `pool:` line and are NEVER messaged
+## Phase 2 — the hub coordinator sends the pause and pauses itself ¦ ## Phase 2 — the hub coordinator sends the pause and pauses itself
+## Phase 2 — the hub coordinator sends the pause and pauses itself ¦ Send the pause (`ListAgents` first — peer names change when a session restarts; use the name `targets` printed only if `ListAgents` shows it):
+## Phase 2 — the hub coordinator sends the pause and pauses itself ¦ each repo whose row names a coordinator: ONE `SendMessage` to that peer with the output of `python3 $H brief --role coordinator --words "<the words>"`, verbatim;
+## Phase 2 — the hub coordinator sends the pause and pauses itself ¦ each repo whose row says to message each session (no live coordinator, two sessions holding the name, or your own repo) and each `outside /opt` session: the output of `brief --role agent`, to each session;
+## Phase 2 — the hub coordinator sends the pause and pauses itself ¦ then pause yourself: finish your step, commit and push what you hold, and close your OTHER runs — this `/hibernate` run stays open until phase 4
+## Phase 3 — the hub coordinator collects and proves ¦ ## Phase 3 — the hub coordinator collects and proves
+## Phase 3 — the hub coordinator collects and proves ¦ Collect one `PAUSED — …` line per agent (a coordinator relays its agents' lines)
+## Phase 3 — the hub coordinator collects and proves ¦ Prove it: `python3 $H status` — one row per live agent, yours included (marked `(you)`; this `/hibernate` run is the one run not counted); `BLOCKS` names why (a run still `running`, an unreadable run record, uncommitted changes, unpushed commits, a branch on no remote, no usable cwd)
+## Phase 3 — the hub coordinator collects and proves ¦ Re-run it every 2 minutes for at most 15 minutes, nudging the agent each `BLOCKS` row names; untracked files are counted in the row but never block
+## Phase 4 — the hub coordinator closes and tells the operator ¦ ## Phase 4 — the hub coordinator closes and tells the operator
+## Phase 4 — the hub coordinator closes and tells the operator ¦ Close this run, then tell the operator: the terminal is `status` printing `SAFE TO HIBERNATE` (close `done`, its evidence that output) or the 15-minute bound passing (close `blocked`, its reason the blocking rows) — close FIRST, so no record of yours is `running` when the box sleeps
+## Phase 4 — the hub coordinator closes and tells the operator ¦ Then one table — repo · agent · item · pushed sha · seed — from the PAUSED lines, and the last `status` output
+## Phase 4 — the hub coordinator closes and tells the operator ¦ Say "safe to hibernate" ONLY when `status` printed `SAFE TO HIBERNATE`; otherwise name each blocking row
+## Phase 4 — the hub coordinator closes and tells the operator ¦ `status` exiting 2 (no live session found, no session id, or you are not among them) is never safe
+## If you are a repo's coordinator — the relay ¦ ## If you are a repo's coordinator — the relay
+## If you are a repo's coordinator — the relay ¦ You received the coordinator text
+## If you are a repo's coordinator — the relay ¦ Send its AGENT part verbatim to each of your live agents, pause yourself the same way, collect their PAUSED lines, and send them to the hub in one reply (name any agent that did not answer in 15 minutes)
+## If you are an agent — the pause ¦ ## If you are an agent — the pause
+## If you are an agent — the pause ¦ You received the agent text: do exactly its five steps
+## If you are an agent — the pause ¦ The important ones: let your own subagents and seats finish before you close anything; close each live run in the first form your `command_run.py` accepts (`blocked --paused` · `handoff --resume` · `blocked` with the reason); and write everything your next self needs to disk — the wake drops your cached prompt, so the seed, the RESUME note and memory are all you will have
+## After the wake ¦ ## After the wake
+## After the wake ¦ Any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") → run `python3 $H woke`
+## After the wake ¦ Exit 0 means the box slept (or the hub lifted the pause): resume the SAME item from its seed without being told again
+## After the wake ¦ Exit 1 says why to stay put (no wake yet, or you already resumed)
+## After the wake ¦ The hub coordinator, once awake, ALWAYS runs `python3 $H lift` (a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none either), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle until prompted

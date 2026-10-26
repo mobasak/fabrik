@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T12:10:03.401718Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-34d76a7a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "lean P0 integrity: closes the relabel-a-lost-line path in the canonical loader; infra beat (tooling); LOW: one check + test",
+  "status": "open",
+  "title": "Loader: a vanished `rule:` label must name an entry whose text carriers cover that baseline line under the D-1240 test (every anchor + >=70% of the first 8 stems), otherwise LOSS — today it only checks the ids exist (the D-253 cheap path: relabel a lost line onto any real id). Found by infra-3 in W-9cd8653d's review; asked by kaizen."
+}

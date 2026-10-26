@@ -1,0 +1,582 @@
+command: fabrik-docs-review
+baseline_sentences: fabrik-docs-review.baseline.txt
+baseline_sha256: 90a6b1c22e2f17ad655ae593b188cf89dffef26f87ce52ac23c45818bbc685f7
+entries:
+- id: u-L4
+  file: render
+  section: '## Run record — open it FIRST, close it only at the closing round'
+  baseline: '5 phases (0–4); terminal condition: the Termination contract''s closing round (`confirmed: 0`, md5 unchanged) with the doc-sync gate green, or red only out-of-surface and declared (Phase 4 item 2)'
+  current: '5 phases (0–4); terminal condition: the Termination contract''s closing round (`confirmed: 0`, md5 unchanged) with the doc-sync gate green, or red only out-of-surface and declared (Phase 4 item 2)'
+  text:
+  - '5 phases (0–4); terminal condition: the Termination contract''s closing round (`confirmed: 0`, md5 unchanged) with the doc-sync gate green, or red only out-of-surface and declared (Phase 4 item 2)'
+- id: u-L6
+  file: render
+  baseline: '`step --phase <N> --title "<phase title>"` on entering each phase; one `round --seats <seats dispatched this pass> --findings <discrepancies raised> --confirmed <discrepancies that held, executed> --classes-swept <doc/claim classes swept clean> --classes-new <classes this pass opened>` per Phase-2/3 pass'
+  current: '`step --phase <N> --title "<phase title>"` on entering each phase; one `round --seats <seats dispatched this pass> --findings <discrepancies raised> --confirmed <discrepancies that held, executed> --classes-swept <doc/claim classes swept clean> --classes-new <classes this pass opened>` per Phase-2/3 pass'
+  text:
+  - '`step --phase <N> --title "<phase title>"` on entering each phase; one `round --seats <seats dispatched this pass> --findings <discrepancies raised> --confirmed <discrepancies that held, executed> --classes-swept <doc/claim classes swept clean> --classes-new <classes this pass opened>` per Phase-2/3 pass'
+- id: u-L7
+  file: render
+  baseline: The ledger is the doc set — re-sweep the SAME docs each pass rather than re-scoping to whichever doc looks suspicious now
+  current: The ledger is the doc set — re-sweep the SAME docs each pass rather than re-scoping to whichever doc looks suspicious now
+  text:
+  - The ledger is the doc set — re-sweep the SAME docs each pass rather than re-scoping to whichever doc looks suspicious now
+- id: u-L8
+  file: render
+  baseline: '`done --command fabrik-docs-review --evidence "<the closing round + the verbatim gate line>" --feedback "<what you filed, to whom | none — surfaces exercised>"` at the TERMINAL verdict; `blocked --command fabrik-docs-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` otherwise'
+  current: '`done --command fabrik-docs-review --evidence "<the closing round + the verbatim gate line>" --feedback "<what you filed, to whom | none — surfaces exercised>"` at the TERMINAL verdict; `blocked --command fabrik-docs-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` otherwise'
+  text:
+  - '`done --command fabrik-docs-review --evidence "<the closing round + the verbatim gate line>" --feedback "<what you filed, to whom | none — surfaces exercised>"` at the TERMINAL verdict; `blocked --command fabrik-docs-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` otherwise'
+- id: u-L9
+  file: render
+  baseline: Always name the run you close — a bare close would end the CALLER when this command runs nested inside one
+  current: Always name the run you close — a bare close would end the CALLER when this command runs nested inside one
+  text:
+  - Always name the run you close — a bare close would end the CALLER when this command runs nested inside one
+- id: u-L10
+  file: render
+  baseline: Open the `RUN:` line on every reply until the run closes
+  current: Open the `RUN:` line on every reply until the run closes
+  text:
+  - Open the `RUN:` line on every reply until the run closes
+- id: u-L13
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: Am I in the HUB or a PROJECT? → `git rev-parse --show-toplevel`
+  current: Am I in the HUB or a PROJECT? → `git rev-parse --show-toplevel`
+  text:
+  - Am I in the HUB or a PROJECT? → `git rev-parse --show-toplevel`
+- id: u-L14
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: 'PROJECT (repo root ≠ `/opt/fabrik`) — the centrally-distributed docs are read-only here (gate: `check_synced_unmodified.py`)'
+  current: 'PROJECT (repo root ≠ `/opt/fabrik`) — the centrally-distributed docs are read-only here (gate: `check_synced_unmodified.py`)'
+  text:
+  - 'PROJECT (repo root ≠ `/opt/fabrik`) — the centrally-distributed docs are read-only here (gate: `check_synced_unmodified.py`)'
+- id: u-L15
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: 'Get the list mechanically; never hand-copy it (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project''s own lock):'
+  current: 'Get the list mechanically; never hand-copy it (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project''s own lock):'
+  text:
+  - 'Get the list mechanically; never hand-copy it (⚠️ `fabrik_synced_manifest.py` is NOT synced into projects — use the project''s own lock):'
+- id: u-L18
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  current: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  text:
+  - 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+- id: u-L19
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: 'Canonical: `62-using-subagents.md` § Dispatch policy'
+  current: 'Canonical: `62-using-subagents.md` § Dispatch policy'
+  text:
+  - 'Canonical: `62-using-subagents.md` § Dispatch policy'
+- id: u-L21
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: '*(In the HUB, or from anywhere on this box, the canonical list is `python /opt/fabrik/scripts/fabrik_synced_manifest.py --review-readonly`.)*'
+  current: '*(In the HUB, or from anywhere on this box, the canonical list is `python /opt/fabrik/scripts/fabrik_synced_manifest.py --review-readonly`.)*'
+  text:
+  - '*(In the HUB, or from anywhere on this box, the canonical list is `python /opt/fabrik/scripts/fabrik_synced_manifest.py --review-readonly`.)*'
+- id: u-L22
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: Never reconcile/rewrite a synced doc inside a project — the next sync overwrites it, and editing it is a Tier-1 violation
+  current: Never reconcile/rewrite a synced doc inside a project — the next sync overwrites it, and editing it is a Tier-1 violation
+  text:
+  - Never reconcile/rewrite a synced doc inside a project — the next sync overwrites it, and editing it is a Tier-1 violation
+- id: u-L23
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: 'Its claims are still binding context for the project docs you ARE reconciling — read it and cite it, but it stays OUTSIDE Phase 1''s claim-ledger denominator: the zero-skipped-lines count covers only the docs you are reconciling'
+  current: 'Its claims are still binding context for the project docs you ARE reconciling — read it and cite it, but it stays OUTSIDE Phase 1''s claim-ledger denominator: the zero-skipped-lines count covers only the docs you are reconciling'
+  text:
+  - 'Its claims are still binding context for the project docs you ARE reconciling — read it and cite it, but it stays OUTSIDE Phase 1''s claim-ledger denominator: the zero-skipped-lines count covers only the docs you are reconciling'
+- id: u-L24
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: (On the HUB, where synced docs ARE reconciled, they are in-denominator.)
+  current: (On the HUB, where synced docs ARE reconciled, they are in-denominator.)
+  text:
+  - (On the HUB, where synced docs ARE reconciled, they are in-denominator.)
+- id: u-L25
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: 'A synced doc in the diff is ITSELF the finding: revert + propose upstream in `/opt/fabrik`'
+  current: 'A synced doc in the diff is ITSELF the finding: revert + propose upstream in `/opt/fabrik`'
+  text:
+  - 'A synced doc in the diff is ITSELF the finding: revert + propose upstream in `/opt/fabrik`'
+- id: u-L26
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: The `SEEDED_NOT_ENFORCED` set is the exception (live set in `fabrik_synced_manifest.py` — today `PORTS.md` + `docs/DECISIONS.md`) — projects may edit these → reconcile them normally; NEVER revert a project's `docs/DECISIONS.md` (project-owned rows — reverting is data loss)
+  current: The `SEEDED_NOT_ENFORCED` set is the exception (live set in `fabrik_synced_manifest.py` — today `PORTS.md` + `docs/DECISIONS.md`) — projects may edit these → reconcile them normally; NEVER revert a project's `docs/DECISIONS.md` (project-owned rows — reverting is data loss)
+  text:
+  - The `SEEDED_NOT_ENFORCED` set is the exception (live set in `fabrik_synced_manifest.py` — today `PORTS.md` + `docs/DECISIONS.md`) — projects may edit these → reconcile them normally; NEVER revert a project's `docs/DECISIONS.md` (project-owned rows — reverting is data loss)
+- id: u-L27
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: A stale claim in a synced doc → fix it upstream in `/opt/fabrik`, so every synced project gets the fix
+  current: A stale claim in a synced doc → fix it upstream in `/opt/fabrik`, so every synced project gets the fix
+  text:
+  - A stale claim in a synced doc → fix it upstream in `/opt/fabrik`, so every synced project gets the fix
+- id: u-L28
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: Never patch the local copy
+  current: Never patch the local copy
+  text:
+  - Never patch the local copy
+- id: u-L29
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: HUB (`/opt/fabrik`) — the synced docs ARE the product; a stale claim propagates to every project
+  current: HUB (`/opt/fabrik`) — the synced docs ARE the product; a stale claim propagates to every project
+  text:
+  - HUB (`/opt/fabrik`) — the synced docs ARE the product; a stale claim propagates to every project
+- id: u-L30
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: 'Reconcile them harder, and treat a wrong enumeration (counts, scaffold types, pack lists) as high-severity: it will be copied into ~46 repos on the next sync'
+  current: 'Reconcile them harder, and treat a wrong enumeration (counts, scaffold types, pack lists) as high-severity: it will be copied into ~46 repos on the next sync'
+  text:
+  - 'Reconcile them harder, and treat a wrong enumeration (counts, scaffold types, pack lists) as high-severity: it will be copied into ~46 repos on the next sync'
+- id: u-L31
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: 'If an argument was given, treat it as the target: `$ARGUMENTS` (a changed area, a specific doc, or a git range)'
+  current: 'If an argument was given, treat it as the target: `$ARGUMENTS` (a changed area, a specific doc, or a git range)'
+  text:
+  - 'If an argument was given, treat it as the target: `$ARGUMENTS` (a changed area, a specific doc, or a git range)'
+- id: u-L32
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: Otherwise get the change under review with `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then `git diff HEAD~1`; include `git diff HEAD` if there are uncommitted changes)
+  current: Otherwise get the change under review with `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then `git diff HEAD~1`; include `git diff HEAD` if there are uncommitted changes)
+  text:
+  - Otherwise get the change under review with `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then `git diff HEAD~1`; include `git diff HEAD` if there are uncommitted changes)
+- id: u-L33
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: Scope is every doc touched by the change PLUS any doc that references the changed code
+  current: Scope is every doc touched by the change PLUS any doc that references the changed code
+  text:
+  - Scope is every doc touched by the change PLUS any doc that references the changed code
+- id: u-L34
+  file: render
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  baseline: Strictly obey all guidelines in the `.windsurf/rules` folder throughout
+  current: Strictly obey all guidelines in the `.windsurf/rules` folder throughout
+  text:
+  - Strictly obey all guidelines in the `.windsurf/rules` folder throughout
+- id: u-L36
+  file: render
+  section: '## Phase 1 — Claim extraction (zero skips)'
+  baseline: Read every line of every in-scope doc
+  current: Read every line of every in-scope doc
+  text:
+  - Read every line of every in-scope doc
+- id: u-L37
+  file: render
+  section: '## Phase 1 — Claim extraction (zero skips)'
+  baseline: Build a numbered claim ledger — one row per factual assertion (a path, a count, a command, an invariant, "X does Y", "N services", a flag, a port, an env var, a schema reference)
+  current: Build a numbered claim ledger — one row per factual assertion (a path, a count, a command, an invariant, "X does Y", "N services", a flag, a port, an env var, a schema reference)
+  text:
+  - Build a numbered claim ledger — one row per factual assertion (a path, a count, a command, an invariant, "X does Y", "N services", a flag, a port, an env var, a schema reference)
+- id: u-L38
+  file: render
+  section: '## Phase 1 — Claim extraction (zero skips)'
+  baseline: Every non-prose line maps to ≥1 claim or is explicitly marked N/A (heading/formatting)
+  current: Every non-prose line maps to ≥1 claim or is explicitly marked N/A (heading/formatting)
+  text:
+  - Every non-prose line maps to ≥1 claim or is explicitly marked N/A (heading/formatting)
+- id: u-L39
+  file: render
+  section: '## Phase 1 — Claim extraction (zero skips)'
+  baseline: 'At the end, reconcile line-count vs claims-accounted: if any line is unaccounted for, you skipped it — go back'
+  current: 'At the end, reconcile line-count vs claims-accounted: if any line is unaccounted for, you skipped it — go back'
+  text:
+  - 'At the end, reconcile line-count vs claims-accounted: if any line is unaccounted for, you skipped it — go back'
+- id: u-L41
+  file: render
+  section: '## Phase 2 — Bidirectional reconciliation (to a fixed point)'
+  baseline: In this single turn, run reconciliation passes until the Termination contract's closing round (the fragment above)
+  current: In this single turn, run reconciliation passes until the Termination contract's closing round (the fragment above)
+  text:
+  - In this single turn, run reconciliation passes until the Termination contract's closing round (the fragment above)
+- id: u-L42
+  file: render
+  section: '## Phase 2 — Bidirectional reconciliation (to a fixed point)'
+  baseline: 'Treat every claim as STALE until proven against the real source, and check BOTH directions:'
+  current: 'Treat every claim as STALE until proven against the real source, and check BOTH directions:'
+  text:
+  - 'Treat every claim as STALE until proven against the real source, and check BOTH directions:'
+- id: u-L43
+  file: render
+  section: '## Phase 2 — Bidirectional reconciliation (to a fixed point)'
+  baseline: 'Doc → code: for each claim in the ledger, OPEN the actual code/migration and confirm it holds — the symbol exists, the count matches'
+  current: 'Doc → code: for each claim in the ledger, OPEN the actual code/migration and confirm it holds — the symbol exists, the count matches'
+  text:
+  - 'Doc → code: for each claim in the ledger, OPEN the actual code/migration and confirm it holds — the symbol exists, the count matches'
+- id: u-L44
+  file: render
+  section: '## Phase 2 — Bidirectional reconciliation (to a fixed point)'
+  baseline: A runnable example/command is verified by RUNNING it, not eyeballing (an example that no longer runs is WRONG, not VERIFIED)
+  current: A runnable example/command is verified by RUNNING it, not eyeballing (an example that no longer runs is WRONG, not VERIFIED)
+  text:
+  - A runnable example/command is verified by RUNNING it, not eyeballing (an example that no longer runs is WRONG, not VERIFIED)
+- id: u-L45
+  file: render
+  section: '## Phase 2 — Bidirectional reconciliation (to a fixed point)'
+  baseline: A column name is not its values — read the values
+  current: A column name is not its values — read the values
+  text:
+  - A column name is not its values — read the values
+- id: u-L46
+  file: render
+  section: '## Phase 2 — Bidirectional reconciliation (to a fixed point)'
+  baseline: The doc's own wording is never evidence for itself
+  current: The doc's own wording is never evidence for itself
+  text:
+  - The doc's own wording is never evidence for itself
+- id: u-L47
+  file: render
+  section: '## Phase 2 — Bidirectional reconciliation (to a fixed point)'
+  baseline: 'Code → doc: scan what ACTUALLY changed (new/renamed/removed endpoints, fields, flags, env vars, files, migrations, features) and confirm each is reflected in the right doc'
+  current: 'Code → doc: scan what ACTUALLY changed (new/renamed/removed endpoints, fields, flags, env vars, files, migrations, features) and confirm each is reflected in the right doc'
+  text:
+  - 'Code → doc: scan what ACTUALLY changed (new/renamed/removed endpoints, fields, flags, env vars, files, migrations, features) and confirm each is reflected in the right doc'
+- id: u-L48
+  file: render
+  section: '## Phase 2 — Bidirectional reconciliation (to a fixed point)'
+  baseline: A shipped change no doc mentions is a discrepancy
+  current: A shipped change no doc mentions is a discrepancy
+  text:
+  - A shipped change no doc mentions is a discrepancy
+- id: u-L49
+  file: render
+  section: '## Phase 2 — Bidirectional reconciliation (to a fixed point)'
+  baseline: 'Doc → live source (EXTERNAL claims): a claim about a 3rd-party API / SDK / endpoint, pricing, a rate limit, a library version, or an ISO/RFC standard is NOT verifiable against local code — a `fabrik-researcher` seat (web, no shell) — a unit of its own, the workflow slice''s `agent` — re-verifies it LIVE (`WebSearch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` → official-docs `WebFetch` for library detail; a standard/RFC → fetch the primary doc and quote the clause)'
+  current: 'Doc → live source (EXTERNAL claims): a claim about a 3rd-party API / SDK / endpoint, pricing, a rate limit, a library version, or an ISO/RFC standard is NOT verifiable against local code — a `fabrik-researcher` seat (web, no shell) — a unit of its own, the workflow slice''s `agent` — re-verifies it LIVE (`WebSearch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` → official-docs `WebFetch` for library detail; a standard/RFC → fetch the primary doc and quote the clause)'
+  text:
+  - 'Doc → live source (EXTERNAL claims): a claim about a 3rd-party API / SDK / endpoint, pricing, a rate limit, a library version, or an ISO/RFC standard is NOT verifiable against local code — a `fabrik-researcher` seat (web, no shell) — a unit of its own, the workflow slice''s `agent` — re-verifies it LIVE (`WebSearch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` → official-docs `WebFetch` for library detail; a standard/RFC → fetch the primary doc and quote the clause)'
+- id: u-L52
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: 'Classify every claim with one of:'
+  current: 'Classify every claim with one of:'
+  text:
+  - 'Classify every claim with one of:'
+- id: u-L53
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: '| Verdict | Meaning | Action |'
+  current: '| Verdict | Meaning | Action |'
+  text:
+  - '| Verdict | Meaning | Action |'
+- id: u-L54
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: '|---|---|---|'
+  current: '|---|---|---|'
+  text:
+  - '|---|---|---|'
+- id: u-L55
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: '| VERIFIED | True now — cite `path:line` proof | None |'
+  current: '| VERIFIED | True now — cite `path:line` proof | None |'
+  text:
+  - '| VERIFIED | True now — cite `path:line` proof | None |'
+- id: u-L56
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: '| STALE | Was true, code moved/changed | Fix to reality, cite new `path:line` |'
+  current: '| STALE | Was true, code moved/changed | Fix to reality, cite new `path:line` |'
+  text:
+  - '| STALE | Was true, code moved/changed | Fix to reality, cite new `path:line` |'
+- id: u-L57
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: '| WRONG | Never true or inverted | Fix to reality, cite `path:line` |'
+  current: '| WRONG | Never true or inverted | Fix to reality, cite `path:line` |'
+  text:
+  - '| WRONG | Never true or inverted | Fix to reality, cite `path:line` |'
+- id: u-L58
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: '| DEAD | Documented but not actually used — audit by real usage, not mere code-match | Delete, don''t polish |'
+  current: '| DEAD | Documented but not actually used — audit by real usage, not mere code-match | Delete, don''t polish |'
+  text:
+  - '| DEAD | Documented but not actually used — audit by real usage, not mere code-match | Delete, don''t polish |'
+- id: u-L59
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: '| UNVERIFIABLE | Can''t be checked mechanically | State why; list as residual |'
+  current: '| UNVERIFIABLE | Can''t be checked mechanically | State why; list as residual |'
+  text:
+  - '| UNVERIFIABLE | Can''t be checked mechanically | State why; list as residual |'
+- id: u-L60
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: '| INFERENCE | A `fabrik-researcher` return: no source line states the external claim, but what the seat read implies it | Not VERIFIED: rewrite the claim to what a source line states and re-verify it, since a live-checkable claim is VERIFIED-or-WRONG |'
+  current: '| INFERENCE | A `fabrik-researcher` return: no source line states the external claim, but what the seat read implies it | Not VERIFIED: rewrite the claim to what a source line states and re-verify it, since a live-checkable claim is VERIFIED-or-WRONG |'
+  text:
+  - '| INFERENCE | A `fabrik-researcher` return: no source line states the external claim, but what the seat read implies it | Not VERIFIED: rewrite the claim to what a source line states and re-verify it, since a live-checkable claim is VERIFIED-or-WRONG |'
+- id: u-L61
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: '| NEEDS-RAW-FETCH | A `fabrik-researcher` return: the source exists (or existed: the return names its archive URL) but the seat''s tools cannot extract it | The orchestrator curls the named URL and section (a seat never curls), then classifies the claim by the rows above. If that curl cannot read the source either (a login wall, a page gone with no archive copy), the orchestrator re-dispatches a `fabrik-researcher` seat for other live sources and classifies the claim by what they say, by the rows above, a source that seat cannot read either counting as none; when they conflict, the primary source decides (the vendor''s own docs, the standard itself); only when none of them states or contradicts it, or they conflict with no single primary source to settle it (two primary surfaces that disagree settle nothing), is it UNVERIFIABLE, naming what a human should check and, for a conflict, every source on each side |'
+  current: '| NEEDS-RAW-FETCH | A `fabrik-researcher` return: the source exists (or existed: the return names its archive URL) but the seat''s tools cannot extract it | The orchestrator curls the named URL and section (a seat never curls), then classifies the claim by the rows above. If that curl cannot read the source either (a login wall, a page gone with no archive copy), the orchestrator re-dispatches a `fabrik-researcher` seat for other live sources and classifies the claim by what they say, by the rows above, a source that seat cannot read either counting as none; when they conflict, the primary source decides (the vendor''s own docs, the standard itself); only when none of them states or contradicts it, or they conflict with no single primary source to settle it (two primary surfaces that disagree settle nothing), is it UNVERIFIABLE, naming what a human should check and, for a conflict, every source on each side |'
+  text:
+  - '| NEEDS-RAW-FETCH | A `fabrik-researcher` return: the source exists (or existed: the return names its archive URL) but the seat''s tools cannot extract it | The orchestrator curls the named URL and section (a seat never curls), then classifies the claim by the rows above. If that curl cannot read the source either (a login wall, a page gone with no archive copy), the orchestrator re-dispatches a `fabrik-researcher` seat for other live sources and classifies the claim by what they say, by the rows above, a source that seat cannot read either counting as none; when they conflict, the primary source decides (the vendor''s own docs, the standard itself); only when none of them states or contradicts it, or they conflict with no single primary source to settle it (two primary surfaces that disagree settle nothing), is it UNVERIFIABLE, naming what a human should check and, for a conflict, every source on each side |'
+- id: u-L62
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: 'A seat''s return cites every `path:line` with a short fragment of that line, unique in its file, in a code span — path:line — `<fragment>` (for `path:a-b`, a fragment of line a; never a blank, rule or fence line; the fragment carries no `|`, no backtick and no ledger counter such as `confirmed:`) — and a fix is re-anchored by the fragment, never by the number: an earlier fix that adds or removes a line moves every later number in the file, and only the fragment finds its line again'
+  current: 'A seat''s return cites every `path:line` with a short fragment of that line, unique in its file, in a code span — path:line — `<fragment>` (for `path:a-b`, a fragment of line a; never a blank, rule or fence line; the fragment carries no `|`, no backtick and no ledger counter such as `confirmed:`) — and a fix is re-anchored by the fragment, never by the number: an earlier fix that adds or removes a line moves every later number in the file, and only the fragment finds its line again'
+  text:
+  - 'A seat''s return cites every `path:line` with a short fragment of that line, unique in its file, in a code span — path:line — `<fragment>` (for `path:a-b`, a fragment of line a; never a blank, rule or fence line; the fragment carries no `|`, no backtick and no ledger counter such as `confirmed:`) — and a fix is re-anchored by the fragment, never by the number: an earlier fix that adds or removes a line moves every later number in the file, and only the fragment finds its line again'
+- id: u-L63
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: Every reconciler brief carries this form
+  current: Every reconciler brief carries this form
+  text:
+  - Every reconciler brief carries this form
+- id: u-L64
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: 'Pass Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`: graders parse the first two, and a quote written into a doc goes stale with the code'
+  current: 'Pass Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`: graders parse the first two, and a quote written into a doc goes stale with the code'
+  text:
+  - 'Pass Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`: graders parse the first two, and a quote written into a doc goes stale with the code'
+- id: u-L65
+  file: render
+  section: '### Verdict taxonomy'
+  baseline: 'Hunt the drift classes: changed signatures/return shapes; renamed/removed symbols; added/removed config keys, env vars, ports, flags; outdated counts/tables; schema docs vs the latest migration; dead links/cross-references; stale versions/dates/"as of"; and features documented-but-removed or shipped-but-undocumented'
+  current: 'Hunt the drift classes: changed signatures/return shapes; renamed/removed symbols; added/removed config keys, env vars, ports, flags; outdated counts/tables; schema docs vs the latest migration; dead links/cross-references; stale versions/dates/"as of"; and features documented-but-removed or shipped-but-undocumented'
+  text:
+  - 'Hunt the drift classes: changed signatures/return shapes; renamed/removed symbols; added/removed config keys, env vars, ports, flags; outdated counts/tables; schema docs vs the latest migration; dead links/cross-references; stale versions/dates/"as of"; and features documented-but-removed or shipped-but-undocumented'
+- id: u-L67
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong (quote the code/doc line that disproves the discrepancy) before acting — before the next pass
+  current: Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong (quote the code/doc line that disproves the discrepancy) before acting — before the next pass
+  text:
+  - Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong (quote the code/doc line that disproves the discrepancy) before acting — before the next pass
+- id: u-L68
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: Every seat brief, and the orchestrator's own doc edits, apply the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE
+  current: Every seat brief, and the orchestrator's own doc edits, apply the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE
+  text:
+  - Every seat brief, and the orchestrator's own doc edits, apply the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE
+- id: u-L69
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: 'Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles, measured not assumed — 1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186); every later round is sized by the fragment''s D5 sentence (one seat per unit with an open claim, the round-1 `--units` count as the ceiling, D-335)'
+  current: 'Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles, measured not assumed — 1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186); every later round is sized by the fragment''s D5 sentence (one seat per unit with an open claim, the round-1 `--units` count as the ceiling, D-335)'
+  text:
+  - 'Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles, measured not assumed — 1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186); every later round is sized by the fragment''s D5 sentence (one seat per unit with an open claim, the round-1 `--units` count as the ceiling, D-335)'
+- id: u-L70
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: 'Verify subagents: after merging subagent ledgers, independently re-check a random sample (~20%) of each subagent''s VERIFIED claims against the code'
+  current: 'Verify subagents: after merging subagent ledgers, independently re-check a random sample (~20%) of each subagent''s VERIFIED claims against the code'
+  text:
+  - 'Verify subagents: after merging subagent ledgers, independently re-check a random sample (~20%) of each subagent''s VERIFIED claims against the code'
+- id: u-L71
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: Subagent summaries are NOT proof — a claim isn't verified until it's grounded in a `path:line` you could re-run yourself
+  current: Subagent summaries are NOT proof — a claim isn't verified until it's grounded in a `path:line` you could re-run yourself
+  text:
+  - Subagent summaries are NOT proof — a claim isn't verified until it's grounded in a `path:line` you could re-run yourself
+- id: u-L72
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: After each pass, show what you VERIFIED (which code/paths you actually read) and what you found, then fix
+  current: After each pass, show what you VERIFIED (which code/paths you actually read) and what you found, then fix
+  text:
+  - After each pass, show what you VERIFIED (which code/paths you actually read) and what you found, then fix
+- id: u-L73
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: Dispatch the doc author-fixes through the Tier-1 reconcile loop — `scripts/doc_reconcile.py` (its pool author is OFF — D-181 — so its author leg is a native `general-purpose` seat, or you) emitting a minimal structured patch, verified-before-applied — rather than hand-editing each doc; keep the Opus adjudication (what's actually wrong + the routing decision) yours
+  current: Dispatch the doc author-fixes through the Tier-1 reconcile loop — `scripts/doc_reconcile.py` (its pool author is OFF — D-181 — so its author leg is a native `general-purpose` seat, or you) emitting a minimal structured patch, verified-before-applied — rather than hand-editing each doc; keep the Opus adjudication (what's actually wrong + the routing decision) yours
+  text:
+  - Dispatch the doc author-fixes through the Tier-1 reconcile loop — `scripts/doc_reconcile.py` (its pool author is OFF — D-181 — so its author leg is a native `general-purpose` seat, or you) emitting a minimal structured patch, verified-before-applied — rather than hand-editing each doc; keep the Opus adjudication (what's actually wrong + the routing decision) yours
+- id: u-L74
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: 'The loop ends ONLY at the Termination contract''s closing round (the fragment above: the closing pass, the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged)'
+  current: 'The loop ends ONLY at the Termination contract''s closing round (the fragment above: the closing pass, the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged)'
+  text:
+  - 'The loop ends ONLY at the Termination contract''s closing round (the fragment above: the closing pass, the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged)'
+- id: u-L75
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: A pass that finds nothing must still enumerate its coverage (what you actually read); an empty pass with no evidence does not count
+  current: A pass that finds nothing must still enumerate its coverage (what you actually read); an empty pass with no evidence does not count
+  text:
+  - A pass that finds nothing must still enumerate its coverage (what you actually read); an empty pass with no evidence does not count
+- id: u-L77
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: 'Three thoughts that each mean run the next pass now: *"the docs were already in sync,"* *"the fix was trivial,"* *"it''s obviously clean."* Only the closing round is convergence'
+  current: 'Three thoughts that each mean run the next pass now: *"the docs were already in sync,"* *"the fix was trivial,"* *"it''s obviously clean."* Only the closing round is convergence'
+  text:
+  - 'Three thoughts that each mean run the next pass now: *"the docs were already in sync,"* *"the fix was trivial,"* *"it''s obviously clean."* Only the closing round is convergence'
+- id: u-L78
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: The Pass Ledger is the fragment's (its counters and md5 pair — the discrepancies you raise are its `found:`, the ones you executed and that held its `confirmed:`, the doc edits its `edits:`); a ledger ending on a non-zero `confirmed:` row is an unfinished reconciliation — run the next pass
+  current: The Pass Ledger is the fragment's (its counters and md5 pair — the discrepancies you raise are its `found:`, the ones you executed and that held its `confirmed:`, the doc edits its `edits:`); a ledger ending on a non-zero `confirmed:` row is an unfinished reconciliation — run the next pass
+  text:
+  - The Pass Ledger is the fragment's (its counters and md5 pair — the discrepancies you raise are its `found:`, the ones you executed and that held its `confirmed:`, the doc edits its `edits:`); a ledger ending on a non-zero `confirmed:` row is an unfinished reconciliation — run the next pass
+- id: u-L80
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: '⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes. Context is never a reason to stop: the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred'
+  current: '⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes. Context is never a reason to stop: the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred'
+  text:
+  - '⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes. Context is never a reason to stop: the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred'
+- id: u-L81
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: When a pass makes any doc edit, do not stop, do not print "Pass 1 done" and hand back, do not wait for the caller to re-invoke `/fabrik-docs-review`
+  current: When a pass makes any doc edit, do not stop, do not print "Pass 1 done" and hand back, do not wait for the caller to re-invoke `/fabrik-docs-review`
+  text:
+  - When a pass makes any doc edit, do not stop, do not print "Pass 1 done" and hand back, do not wait for the caller to re-invoke `/fabrik-docs-review`
+- id: u-L83
+  file: render
+  section: '### Parallelism — the DEFAULT for a multi-doc scope'
+  baseline: 'You return control EXACTLY ONCE: at the closing round. (Invoked as the final step of `/fabrik-execute-plan`, the whole loop completes before the run finishes.) Ending the turn with an unresolved discrepancy so the operator has to re-invoke is THE failure this kills — run the next pass instead'
+  current: 'You return control EXACTLY ONCE: at the closing round. (Invoked as the final step of `/fabrik-execute-plan`, the whole loop completes before the run finishes.) Ending the turn with an unresolved discrepancy so the operator has to re-invoke is THE failure this kills — run the next pass instead'
+  text:
+  - 'You return control EXACTLY ONCE: at the closing round. (Invoked as the final step of `/fabrik-execute-plan`, the whole loop completes before the run finishes.) Ending the turn with an unresolved discrepancy so the operator has to re-invoke is THE failure this kills — run the next pass instead'
+- id: u-L85
+  file: render
+  section: '## Phase 3 — Fix per pass, in one batch, routed to the right doc'
+  baseline: 'Within each pass: complete the pass''s DISCOVERY first, then apply that pass''s fixes in one batch — do not interleave discovery and editing'
+  current: 'Within each pass: complete the pass''s DISCOVERY first, then apply that pass''s fixes in one batch — do not interleave discovery and editing'
+  text:
+  - 'Within each pass: complete the pass''s DISCOVERY first, then apply that pass''s fixes in one batch — do not interleave discovery and editing'
+- id: u-L86
+  file: render
+  section: '## Phase 3 — Fix per pass, in one batch, routed to the right doc'
+  baseline: Route each fact to the document type it belongs to and respect that type's contract — API reference, architecture, quickstart/README, runbook/ops, CHANGELOG — and do not cross-contaminate (an ops detail does not belong in the API reference, a changelog line is not architecture prose)
+  current: Route each fact to the document type it belongs to and respect that type's contract — API reference, architecture, quickstart/README, runbook/ops, CHANGELOG — and do not cross-contaminate (an ops detail does not belong in the API reference, a changelog line is not architecture prose)
+  text:
+  - Route each fact to the document type it belongs to and respect that type's contract — API reference, architecture, quickstart/README, runbook/ops, CHANGELOG — and do not cross-contaminate (an ops detail does not belong in the API reference, a changelog line is not architecture prose)
+- id: u-L87
+  file: render
+  section: '## Phase 3 — Fix per pass, in one batch, routed to the right doc'
+  baseline: 'Delete DEAD claims rather than polishing them — and when a DEAD sweep retires a whole documented subsystem or feature (not just a stale line), that deletion is a decision-shaped RETIREMENT: its `docs/DECISIONS.md` row lands in the SAME change, classified at mint (a doc-recorded retirement is normally a plain row; ONE-WAY — § Binding block — once dependents have dropped the subsystem) (CLAUDE.md § the decision ledger); a routine dead-line deletion stays doc hygiene, no row'
+  current: 'Delete DEAD claims rather than polishing them — and when a DEAD sweep retires a whole documented subsystem or feature (not just a stale line), that deletion is a decision-shaped RETIREMENT: its `docs/DECISIONS.md` row lands in the SAME change, classified at mint (a doc-recorded retirement is normally a plain row; ONE-WAY — § Binding block — once dependents have dropped the subsystem) (CLAUDE.md § the decision ledger); a routine dead-line deletion stays doc hygiene, no row'
+  text:
+  - 'Delete DEAD claims rather than polishing them — and when a DEAD sweep retires a whole documented subsystem or feature (not just a stale line), that deletion is a decision-shaped RETIREMENT: its `docs/DECISIONS.md` row lands in the SAME change, classified at mint (a doc-recorded retirement is normally a plain row; ONE-WAY — § Binding block — once dependents have dropped the subsystem) (CLAUDE.md § the decision ledger); a routine dead-line deletion stays doc hygiene, no row'
+- id: u-L88
+  file: render
+  section: '## Phase 3 — Fix per pass, in one batch, routed to the right doc'
+  baseline: Bump `Last Updated:` dates where present
+  current: Bump `Last Updated:` dates where present
+  text:
+  - Bump `Last Updated:` dates where present
+- id: u-L90
+  file: render
+  section: '## Phase 4 — Gate + embedded proof'
+  baseline: Run the doc-sync gate (`docs_updater.py --check`, plus the project's Doc Sync Matrix via `python scripts/enforcement/check_doc_sync.py`) as the final step, but treat it as necessary, NOT sufficient — it verifies presence/format, not truth
+  current: Run the doc-sync gate (`docs_updater.py --check`, plus the project's Doc Sync Matrix via `python scripts/enforcement/check_doc_sync.py`) as the final step, but treat it as necessary, NOT sufficient — it verifies presence/format, not truth
+  text:
+  - Run the doc-sync gate (`docs_updater.py --check`, plus the project's Doc Sync Matrix via `python scripts/enforcement/check_doc_sync.py`) as the final step, but treat it as necessary, NOT sufficient — it verifies presence/format, not truth
+- id: u-L91
+  file: render
+  section: '## Phase 4 — Gate + embedded proof'
+  baseline: 'Your final message MUST embed structured proof — not a summary, not "all looks good":'
+  current: 'Your final message MUST embed structured proof — not a summary, not "all looks good":'
+  text:
+  - 'Your final message MUST embed structured proof — not a summary, not "all looks good":'
+- id: u-L92
+  file: render
+  section: '## Phase 4 — Gate + embedded proof'
+  baseline: Claim ledger — the full claim → verdict → `path:line` table (or a representative subset if >100 claims, with totals)
+  current: Claim ledger — the full claim → verdict → `path:line` table (or a representative subset if >100 claims, with totals)
+  text:
+  - Claim ledger — the full claim → verdict → `path:line` table (or a representative subset if >100 claims, with totals)
+- id: u-L93
+  file: render
+  section: '## Phase 4 — Gate + embedded proof'
+  baseline: 'Gate output — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red none of whose findings the change under review caused (a finding naming a reviewed doc or a file the change touched, the reference doc of a module it added, or an index its added files feed — `PLANS.md`, `INDEX.md` — is in-surface) is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting''s grammar), and its findings are listed as residuals'
+  current: 'Gate output — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red none of whose findings the change under review caused (a finding naming a reviewed doc or a file the change touched, the reference doc of a module it added, or an index its added files feed — `PLANS.md`, `INDEX.md` — is in-surface) is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting''s grammar), and its findings are listed as residuals'
+  text:
+  - 'Gate output — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red none of whose findings the change under review caused (a finding naming a reviewed doc or a file the change touched, the reference doc of a module it added, or an index its added files feed — `PLANS.md`, `INDEX.md` — is in-surface) is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting''s grammar), and its findings are listed as residuals'
+- id: u-L94
+  file: render
+  section: '## Phase 4 — Gate + embedded proof'
+  baseline: Self-audit — total claims, counts per verdict (VERIFIED / STALE-fixed / WRONG-fixed / DEAD-removed / UNVERIFIABLE), and the line-coverage reconciliation showing zero skipped lines
+  current: Self-audit — total claims, counts per verdict (VERIFIED / STALE-fixed / WRONG-fixed / DEAD-removed / UNVERIFIABLE), and the line-coverage reconciliation showing zero skipped lines
+  text:
+  - Self-audit — total claims, counts per verdict (VERIFIED / STALE-fixed / WRONG-fixed / DEAD-removed / UNVERIFIABLE), and the line-coverage reconciliation showing zero skipped lines
+- id: u-L95
+  file: render
+  section: '## Phase 4 — Gate + embedded proof'
+  baseline: Per CLAUDE.md's convergence HARD STOP, do NOT say "reviewed" / "in-sync" / "converged" without that embedded proof + the gate green (or its out-of-surface red embedded with the `GATE-SCOPE` line)
+  current: Per CLAUDE.md's convergence HARD STOP, do NOT say "reviewed" / "in-sync" / "converged" without that embedded proof + the gate green (or its out-of-surface red embedded with the `GATE-SCOPE` line)
+  text:
+  - Per CLAUDE.md's convergence HARD STOP, do NOT say "reviewed" / "in-sync" / "converged" without that embedded proof + the gate green (or its out-of-surface red embedded with the `GATE-SCOPE` line)
+- id: u-L97
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Do not promise "zero discrepancies" as a claim — iterate to a fixed point, then explicitly list any residual risks the tooling can't catch (hard-to-verify prose, screenshots/diagrams, external-facing copy, examples that need a live service to run)
+  current: Do not promise "zero discrepancies" as a claim — iterate to a fixed point, then explicitly list any residual risks the tooling can't catch (hard-to-verify prose, screenshots/diagrams, external-facing copy, examples that need a live service to run)
+  text:
+  - Do not promise "zero discrepancies" as a claim — iterate to a fixed point, then explicitly list any residual risks the tooling can't catch (hard-to-verify prose, screenshots/diagrams, external-facing copy, examples that need a live service to run)
+- id: dr-pool-off-fragment
+  class: ban
+  baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable) ¦ Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+  text:
+  - '⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  - 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+- id: dr-lock-list
+  section: '### ⚠️ Synced docs — CONTEXT, never a TARGET (settle this FIRST)'
+  class: grammar
+  baseline: '# The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are ⏎ # SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay ⏎ # normal reconciliation targets. ⏎ python3 -c "import json;print(''\n''.join(sorted(json.load(open(''.fabrik/synced.lock'')))))" | grep -vxF -e ''PORTS.md'' -e ''docs/DECISIONS.md'' ⏎ # Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/** ⏎ # docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · …'
+  text:
+  - '# The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are'
+  - '# SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay'
+  - '# normal reconciliation targets.'
+  - python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
+  - '# Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/**'
+  - '```bash # The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are # SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay # normal reconciliation targets. python3 -c "import json;print(''\n''.join(sorted(json.load(open(''.fabrik/synced.lock'')))))" | grep -vxF -e ''PORTS.md'' -e ''docs/DECISIONS.md'' # Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/** # docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · … ```'
+- id: dr-live-or-wrong
+  class: ban
+  baseline: A live-checkable external claim is VERIFIED-or-WRONG, never parked as UNVERIFIABLE — a stale price / dead endpoint / wrong version in a doc is exactly the drift this catches
+  text:
+  - A live-checkable external claim is VERIFIED-or-WRONG, never parked as UNVERIFIABLE — a stale price / dead endpoint / wrong version in a doc is exactly the drift this catches
+- id: dr-unprompted
+  class: ban
+  baseline: Run that next pass UNPROMPTED — the moment a pass makes any doc edit you owe it, automatically. Never wait to be asked *"did you reconcile to the closing round?"*; the obligation is yours and predates any challenge — reframing your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge
+  text:
+  - Run that next pass UNPROMPTED — the moment a pass makes any doc edit you owe it, automatically. Never wait to be asked *"did you reconcile to the closing round?"*; the obligation is yours and predates any challenge — reframing your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge
+- id: dr-convergence-def
+  class: prose
+  baseline: 'Convergence = the Termination contract''s closing round (the round-1 seats confirming their own docs at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."'
+  text:
+  - 'Convergence = the Termination contract''s closing round (the round-1 seats confirming their own docs at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."'
+- id: dr-converge-opening
+  class: ban
+  baseline: Converge the documentation to a fixed point — do not stop after one pass
+  text:
+  - Converge the documentation to a fixed point — do not stop after one pass
+- id: dr-keep-chaining
+  class: prose
+  baseline: Go straight into the next reconciliation pass in the SAME turn and keep chaining until the closing round
+  text:
+  - Go **straight into the next reconciliation pass** in the SAME turn and keep chaining until the closing round
+vanished:
+  L1: narrative

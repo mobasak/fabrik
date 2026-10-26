@@ -700,3 +700,42 @@ def test_every_charter_names_the_current_merge_owner() -> None:
                 if rx.search(unit)
             ]
     assert not problems, "\n".join(problems)
+
+
+CHARTER_NAMES = sorted(
+    p.stem
+    for p in REAL_AGENT_FILES
+    if p.read_text(encoding="utf-8").splitlines()[:1]
+    and p.read_text(encoding="utf-8").splitlines()[0].startswith("# Agent charter")
+)
+
+
+# Charters measured AT/OVER the cap when this guard landed: name -> measured size.
+_OVER_CAP = {"coordinator": "9,927 chars / 10,000 bytes (cap is strictly under 10,000)"}
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param(
+            n,
+            marks=pytest.mark.xfail(
+                strict=True, reason=f"over the 10,000 hook cap: {_OVER_CAP[n]}"
+            ),
+        )
+        if n in _OVER_CAP
+        else n
+        for n in CHARTER_NAMES
+    ],
+)
+def test_charter_injection_stays_under_hook_cap(name: str) -> None:
+    """Claude Code truncates hook output past 10,000 characters to a 2,000-character
+    preview (D-888), so a charter edit past the cap silently degrades; guard it in both
+    characters and UTF-8 bytes."""
+    r = _run(name)
+    assert r.returncode == 0
+    assert "AGENT ROLE" in r.stdout, f"{name}: hook injected nothing"
+    assert len(r.stdout) < 10_000, f"{name}: {len(r.stdout)} chars"
+    assert len(r.stdout.encode("utf-8")) < 10_000, (
+        f"{name}: {len(r.stdout.encode('utf-8'))} bytes"
+    )
