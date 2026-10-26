@@ -605,7 +605,7 @@ def test_the_units_wire_the_alert_and_verify():
         sa.SHOW_TRIES * sa.SHOW_TIMEOUT_S
         + sa.RETRY_S
         + sa.POLL_S
-        + 1.0  # the poll's last sleep, which can start just before the deadline
+        + sa.POLL_SLEEP_S  # the poll's last sleep, which can start just before the deadline
         + sa.JOURNAL_TIMEOUT_S
         + 4 * sa.SEND_TIMEOUT_S
     )
@@ -639,7 +639,9 @@ def test_the_units_wire_the_alert_and_verify():
     )
 
 
-def _installer_world(tmp_path: Path, verify_says: str = "") -> tuple[Path, dict[str, str]]:
+def _installer_world(
+    tmp_path: Path, verify_says: str = "", verify_rc: int = 0
+) -> tuple[Path, dict[str, str]]:
     root = tmp_path / "inst"
     (root / "systemd").mkdir(parents=True)
     shutil.copy2(INSTALLER, root / INSTALLER.name)
@@ -655,7 +657,7 @@ def _installer_world(tmp_path: Path, verify_says: str = "") -> tuple[Path, dict[
         "systemd-analyze": f'echo "verify $*" >> "{log}"\n'
         'for a in "$@"; do case "$a" in /*) [ -e "$a" ] || '
         '{ echo "Failed to prepare filename $a: No such file or directory" >&2; exit 1; } ;; esac; done\n'
-        f'printf "%s" "{verify_says}"',
+        f'printf "%s" "{verify_says}"\nexit {verify_rc}',
     }.items():
         p = bin_ / name
         p.write_text(f"#!/bin/sh\n{body}\n")
@@ -703,6 +705,14 @@ def test_the_installer_refuses_a_verify_warning_and_a_missing_alert_unit(tmp_pat
     assert r.returncode != 0
     assert "session-archive-alert.service: No such file" in r.stderr, "a failed verify says why"
     assert not (tmp_path / "b" / "cfg" / "systemd" / "user" / "session-archive.service").exists()
+
+    # a verify that fails SILENTLY is refused on its rc alone
+    root3, env3 = _installer_world(tmp_path / "c", verify_rc=1)
+    r = subprocess.run(
+        ["bash", str(root3 / INSTALLER.name)], env=env3, capture_output=True, text=True, timeout=60
+    )
+    assert r.returncode != 0 and "verify exited 1" in r.stderr
+    assert not (tmp_path / "c" / "cfg" / "systemd" / "user" / "session-archive.service").exists()
 
 
 # ── 7. a send that fails ─────────────────────────────────────────────────────────────────────
