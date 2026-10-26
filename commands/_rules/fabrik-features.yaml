@@ -3,489 +3,607 @@ baseline_sentences: fabrik-features.baseline.txt
 baseline_sha256: "dbec56097128fe4d96c6dd14d5858378f7c46f7adbcefa6858ba4eb15dee7f3c"
 entries:
 - id: u-L1
-  # class: prose
+  class: prose
   file: render
-  baseline: Converge this project's `docs/FEATURES.md` into the complete, testable feature contract
-  current: Converge this project's `docs/FEATURES.md` into the complete, testable feature contract
+  baseline: |-
+    Converge this project's `docs/FEATURES.md` into the complete, testable feature contract
+  current: |-
+    Converge this project's `docs/FEATURES.md` into the complete, testable feature contract
   text:
-  - Converge this project's `docs/FEATURES.md` into the complete, testable feature contract
-- id: u-L2
-  # class: ban
+  - |-
+    Converge this project's `docs/FEATURES.md` into the complete, testable feature contract
+- id: r-L2
+  class: ban
   file: render
-  baseline: The certification gauntlets treat every FEATURES row as inventory ("a TESTED contract, not prose") and reconcile bidirectionally — so a missing row is a feature that never gets tested, and a stale row is a test that can never pass
-  current: The certification gauntlets treat every FEATURES row as inventory ("a TESTED contract, not prose") and reconcile bidirectionally — so a missing row is a feature that never gets tested, and a stale row is a test that can never pass
+  clauses: {1: narrative}
+  baseline: |-
+    The certification gauntlets treat every FEATURES row as inventory ("a TESTED contract, not prose") and reconcile bidirectionally — so a missing row is a feature that never gets tested, and a stale row is a test that can never pass
   text:
-  - The certification gauntlets treat every FEATURES row as inventory ("a TESTED contract, not prose") and reconcile bidirectionally — so a missing row is a feature that never gets tested, and a stale row is a test that can never pass
-- id: u-L3
-  # class: prose
+  - |-
+    A missing row never gets tested, and a stale row is a test that can never pass
+- id: r-L4
+  class: ban
   file: render
-  baseline: This command exists to make that CROSS-CHECK complete BEFORE certification
-  current: This command exists to make that CROSS-CHECK complete BEFORE certification
+  baseline: |-
+    ⚠️ FEATURES.md is not the denominator, and saying so is a gate failure. `check_certification_coverage.py` flags a cert board whose source resolves to a doc: *"FEATURES.md documents what the project BUILT; certification must cover what it SHIPS
   text:
-  - This command exists to make that CROSS-CHECK complete BEFORE certification
-- id: u-L4
-  # class: ban
-  file: render
-  baseline: '⚠️ FEATURES.md is not the denominator, and saying so is a gate failure. `check_certification_coverage.py` flags a cert board whose source resolves to a doc: *"FEATURES.md documents what the project BUILT; certification must cover what it SHIPS'
-  current: '⚠️ FEATURES.md is not the denominator, and saying so is a gate failure. `check_certification_coverage.py` flags a cert board whose source resolves to a doc: *"FEATURES.md documents what the project BUILT; certification must cover what it SHIPS'
-  text:
-  - '⚠️ FEATURES.md is not the denominator, and saying so is a gate failure. `check_certification_coverage.py` flags a cert board whose source resolves to a doc: *"FEATURES.md documents what the project BUILT; certification must cover what it SHIPS'
+  - |-
+    FEATURES.md is not the denominator (a gate failure: `check_certification_coverage.py` flags a cert board)
+  - |-
+    certification must cover what it SHIPS
 - id: u-L5
-  # class: ban
+  class: ban
   file: render
-  baseline: The doc inventory is a cross-check, never the denominator."* The denominator is the project's LIVE REGISTRY (its routes, menus, jobs, endpoints — per scaffold type)
-  current: The doc inventory is a cross-check, never the denominator."* The denominator is the project's LIVE REGISTRY (its routes, menus, jobs, endpoints — per scaffold type)
+  baseline: |-
+    The doc inventory is a cross-check, never the denominator."* The denominator is the project's LIVE REGISTRY (its routes, menus, jobs, endpoints — per scaffold type)
+  current: |-
+    The doc inventory is a cross-check, never the denominator."* The denominator is the project's LIVE REGISTRY (its routes, menus, jobs, endpoints — per scaffold type)
   text:
-  - The doc inventory is a cross-check, never the denominator."* The denominator is the project's LIVE REGISTRY (its routes, menus, jobs, endpoints — per scaffold type)
+  - |-
+    The doc inventory is a cross-check, never the denominator."* The denominator is the project's LIVE REGISTRY (its routes, menus, jobs, endpoints — per scaffold type)
 - id: u-L8
-  # class: prose
+  class: prose
   file: render
   section: '## Phase 0 — Establish scope + MODE'
-  baseline: Operate on the current project (cwd)
-  current: Operate on the current project (cwd)
+  baseline: |-
+    Operate on the current project (cwd)
+  current: |-
+    Operate on the current project (cwd)
   text:
-  - Operate on the current project (cwd)
+  - |-
+    Operate on the current project (cwd)
 - id: u-L9
-  # class: prose
+  class: prose
   file: render
   section: '## Phase 0 — Establish scope + MODE'
-  baseline: 'Two sanctioned modes (REFRESH may run scoped) — state which runs:'
-  current: 'Two sanctioned modes (REFRESH may run scoped) — state which runs:'
+  baseline: |-
+    Two sanctioned modes (REFRESH may run scoped) — state which runs:
+  current: |-
+    Two sanctioned modes (REFRESH may run scoped) — state which runs:
   text:
-  - 'Two sanctioned modes (REFRESH may run scoped) — state which runs:'
-- id: u-L10
-  # class: prose
+  - |-
+    Two sanctioned modes (REFRESH may run scoped) — state which runs:
+- id: r-L10
+  class: prose
   file: render
   section: '## Phase 0 — Establish scope + MODE'
-  baseline: 'EARLY (pre-build, right after `/fabrik-spec-review` approval): the source of truth is the APPROVED SPEC (+ `docs/flows.md` if the journeys are already frozen), not the code'
-  current: 'EARLY (pre-build, right after `/fabrik-spec-review` approval): the source of truth is the APPROVED SPEC (+ `docs/flows.md` if the journeys are already frozen), not the code'
+  baseline: |-
+    EARLY (pre-build, right after `/fabrik-spec-review` approval): the source of truth is the APPROVED SPEC (+ `docs/flows.md` if the journeys are already frozen), not the code
   text:
-  - 'EARLY (pre-build, right after `/fabrik-spec-review` approval): the source of truth is the APPROVED SPEC (+ `docs/flows.md` if the journeys are already frozen), not the code'
-- id: u-L11
-  # class: ban
+  - |-
+    EARLY (after `/fabrik-spec-review` approval): the APPROVED SPEC (+ `docs/flows.md` if frozen) is the source of truth, not the code
+- id: r-L11
+  class: ban
   file: render
   section: '## Phase 0 — Establish scope + MODE'
-  baseline: Write one row per planned feature with `(Planned)` in the Description cell — the product decision, pinned before `/fabrik-flows` (the decision itself was MINTED by the spec approval's `docs/DECISIONS.md` row at `/fabrik-spec-review`; rows here transcribe it, which is why a row with no spec basis is invented scope) walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs screens for it
-  current: Write one row per planned feature with `(Planned)` in the Description cell — the product decision, pinned before `/fabrik-flows` (the decision itself was MINTED by the spec approval's `docs/DECISIONS.md` row at `/fabrik-spec-review`; rows here transcribe it, which is why a row with no spec basis is invented scope) walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs screens for it
+  baseline: |-
+    Write one row per planned feature with `(Planned)` in the Description cell — the product decision, pinned before `/fabrik-flows` (the decision itself was MINTED by the spec approval's `docs/DECISIONS.md` row at `/fabrik-spec-review`; rows here transcribe it, which is why a row with no spec basis is invented scope) walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs screens for it
   text:
-  - Write one row per planned feature with `(Planned)` in the Description cell — the product decision, pinned before `/fabrik-flows` (the decision itself was MINTED by the spec approval's `docs/DECISIONS.md` row at `/fabrik-spec-review`; rows here transcribe it, which is why a row with no spec basis is invented scope) walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs screens for it
-- id: u-L12
-  # class: behavioural
+  - |-
+    Write one row per planned feature with `(Planned)` in the Description cell
+  - |-
+    the product decision, pinned before `/fabrik-flows` (`docs/DECISIONS.md` row at `/fabrik-spec-review`) walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs screens for it
+- id: r-L12
+  class: prose
   file: render
   section: '## Phase 0 — Establish scope + MODE'
-  baseline: No code sweep; the convergence loop runs spec↔rows bidirectionally (every spec capability a row, every row traceable to the spec — a row with no spec basis is invented scope)
-  current: No code sweep; the convergence loop runs spec↔rows bidirectionally (every spec capability a row, every row traceable to the spec — a row with no spec basis is invented scope)
+  baseline: |-
+    No code sweep; the convergence loop runs spec↔rows bidirectionally (every spec capability a row, every row traceable to the spec — a row with no spec basis is invented scope)
   text:
-  - No code sweep; the convergence loop runs spec↔rows bidirectionally (every spec capability a row, every row traceable to the spec — a row with no spec basis is invented scope)
-- id: u-L13
-  # class: ban
+  - |-
+    No code sweep; the loop runs spec↔rows bidirectionally (every spec capability a row, every row traceable to the spec — a row with no spec basis is invented scope)
+- id: r-L13
+  class: ban
   file: render
   section: '## Phase 0 — Establish scope + MODE'
-  baseline: 'A Planned row''s Description states the behaviour as Phase 2 asks of every row, then carries `Spec §<n>:` and EVERY condition of its clause — each when, unless, only-if, limit or other condition, wherever in the spec it sits, a neighbouring sentence or a table cell included — in the spec''s own words or figures, quoted as whole spans cut only at their ends, never inside, never reworded and never elided with `…`, the section cited for each span (`Spec §3: … · §7: …`, on the row''s one table line): a paraphrase still traces to the spec, and still drops the condition the plan then builds without'
-  current: 'A Planned row''s Description states the behaviour as Phase 2 asks of every row, then carries `Spec §<n>:` and EVERY condition of its clause — each when, unless, only-if, limit or other condition, wherever in the spec it sits, a neighbouring sentence or a table cell included — in the spec''s own words or figures, quoted as whole spans cut only at their ends, never inside, never reworded and never elided with `…`, the section cited for each span (`Spec §3: … · §7: …`, on the row''s one table line): a paraphrase still traces to the spec, and still drops the condition the plan then builds without'
+  baseline: |-
+    A Planned row's Description states the behaviour as Phase 2 asks of every row, then carries `Spec §<n>:` and EVERY condition of its clause — each when, unless, only-if, limit or other condition, wherever in the spec it sits, a neighbouring sentence or a table cell included — in the spec's own words or figures, quoted as whole spans cut only at their ends, never inside, never reworded and never elided with `…`, the section cited for each span (`Spec §3: … · §7: …`, on the row's one table line): a paraphrase still traces to the spec, and still drops the condition the plan then builds without
   text:
-  - 'A Planned row''s Description states the behaviour as Phase 2 asks of every row, then carries `Spec §<n>:` and EVERY condition of its clause — each when, unless, only-if, limit or other condition, wherever in the spec it sits, a neighbouring sentence or a table cell included — in the spec''s own words or figures, quoted as whole spans cut only at their ends, never inside, never reworded and never elided with `…`, the section cited for each span (`Spec §3: … · §7: …`, on the row''s one table line): a paraphrase still traces to the spec, and still drops the condition the plan then builds without'
-- id: u-L15
-  # class: behavioural
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo that filed it (a hub item is not in a project's store); check the citation there
-  current: A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo that filed it (a hub item is not in a project's store); check the citation there
-  text:
-  - A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo that filed it (a hub item is not in a project's store); check the citation there
-- id: u-L16
-  # class: prose
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: 'REFRESH (post-build, the certify-time default): the CODE is the source of truth — the full multi-modal sweep below'
-  current: 'REFRESH (post-build, the certify-time default): the CODE is the source of truth — the full multi-modal sweep below'
-  text:
-  - 'REFRESH (post-build, the certify-time default): the CODE is the source of truth — the full multi-modal sweep below'
-- id: u-L17
-  # class: ban
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: 'Planned-row reconciliation: a `(Planned)` row whose capability now ships flips to shipped (drop the marker, fill or re-ground Endpoint/Module + how-to-exercise — an EARLY symbol of the code it extended is not the new endpoint; its `Spec §<n>:` conditions stay on the row until a test asserts each); a `(Planned)` row with NO code at certification time is un-shipped scope — surface it to the operator, never silently delete; a shipped capability with no Planned row is scope creep or an honest addition — surface which'
-  current: 'Planned-row reconciliation: a `(Planned)` row whose capability now ships flips to shipped (drop the marker, fill or re-ground Endpoint/Module + how-to-exercise — an EARLY symbol of the code it extended is not the new endpoint; its `Spec §<n>:` conditions stay on the row until a test asserts each); a `(Planned)` row with NO code at certification time is un-shipped scope — surface it to the operator, never silently delete; a shipped capability with no Planned row is scope creep or an honest addition — surface which'
-  text:
-  - 'Planned-row reconciliation: a `(Planned)` row whose capability now ships flips to shipped (drop the marker, fill or re-ground Endpoint/Module + how-to-exercise — an EARLY symbol of the code it extended is not the new endpoint; its `Spec §<n>:` conditions stay on the row until a test asserts each); a `(Planned)` row with NO code at certification time is un-shipped scope — surface it to the operator, never silently delete; a shipped capability with no Planned row is scope creep or an honest addition — surface which'
-- id: u-L18
-  # class: prose
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: An operator disposition received on either (drop / keep-planned / adopt) is a RECEIVED decision — its `docs/DECISIONS.md` row lands in the same change — stage the row WITH the artifact edit and commit them together per CLAUDE.md § EXIT — classified at mint (drop/keep/adopt of un-shipped scope are normally reversible — plain rows) (CLAUDE.md § the decision ledger)
-  current: An operator disposition received on either (drop / keep-planned / adopt) is a RECEIVED decision — its `docs/DECISIONS.md` row lands in the same change — stage the row WITH the artifact edit and commit them together per CLAUDE.md § EXIT — classified at mint (drop/keep/adopt of un-shipped scope are normally reversible — plain rows) (CLAUDE.md § the decision ledger)
-  text:
-  - An operator disposition received on either (drop / keep-planned / adopt) is a RECEIVED decision — its `docs/DECISIONS.md` row lands in the same change — stage the row WITH the artifact edit and commit them together per CLAUDE.md § EXIT — classified at mint (drop/keep/adopt of un-shipped scope are normally reversible — plain rows) (CLAUDE.md § the decision ledger)
-- id: u-L20
-  # class: prose
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: 'REFRESH, scoped (`$ARGUMENTS` names a plan dir or one FEATURES section): the CODE stays the denominator, narrowed — Phase 1 sweeps the registry entries (routes, jobs, screens, CLI) the plan''s diff added or changed, or the code behind the named section, instead of the whole codebase'
-  current: 'REFRESH, scoped (`$ARGUMENTS` names a plan dir or one FEATURES section): the CODE stays the denominator, narrowed — Phase 1 sweeps the registry entries (routes, jobs, screens, CLI) the plan''s diff added or changed, or the code behind the named section, instead of the whole codebase'
-  text:
-  - 'REFRESH, scoped (`$ARGUMENTS` names a plan dir or one FEATURES section): the CODE stays the denominator, narrowed — Phase 1 sweeps the registry entries (routes, jobs, screens, CLI) the plan''s diff added or changed, or the code behind the named section, instead of the whole codebase'
-- id: u-L21
-  # class: prose
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: The doc side checked against it is every row on that code, every row the plan's `## Deltas` blocks wrote, and one row per user-observable behaviour in the plan's tickets' `## Behavior Contract` (several Given/When/Then rows can map to one)
-  current: The doc side checked against it is every row on that code, every row the plan's `## Deltas` blocks wrote, and one row per user-observable behaviour in the plan's tickets' `## Behavior Contract` (several Given/When/Then rows can map to one)
-  text:
-  - The doc side checked against it is every row on that code, every row the plan's `## Deltas` blocks wrote, and one row per user-observable behaviour in the plan's tickets' `## Behavior Contract` (several Given/When/Then rows can map to one)
-- id: u-L22
-  # class: prose
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: State the scope and the population it gives
-  current: State the scope and the population it gives
-  text:
-  - State the scope and the population it gives
-- id: u-L24
-  # class: prose
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: 'Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template first, then reconcile; EARLY invoked where code already ships → say so and run REFRESH instead (the code outranks the spec once it exists), except for features the approved spec ADDS: those are EARLY rows, marked `(Planned)`, in the same file'
-  current: 'Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template first, then reconcile; EARLY invoked where code already ships → say so and run REFRESH instead (the code outranks the spec once it exists), except for features the approved spec ADDS: those are EARLY rows, marked `(Planned)`, in the same file'
-  text:
-  - 'Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template first, then reconcile; EARLY invoked where code already ships → say so and run REFRESH instead (the code outranks the spec once it exists), except for features the approved spec ADDS: those are EARLY rows, marked `(Planned)`, in the same file'
-- id: u-L25
-  # class: prose
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: 'The artifact is `docs/FEATURES.md` (scaffold-seeded from `templates/scaffold/docs/FEATURES_TEMPLATE.md` — that template IS the canonical shape: category sections, `| Feature | Description | Endpoint / Module |` tables)'
-  current: 'The artifact is `docs/FEATURES.md` (scaffold-seeded from `templates/scaffold/docs/FEATURES_TEMPLATE.md` — that template IS the canonical shape: category sections, `| Feature | Description | Endpoint / Module |` tables)'
-  text:
-  - 'The artifact is `docs/FEATURES.md` (scaffold-seeded from `templates/scaffold/docs/FEATURES_TEMPLATE.md` — that template IS the canonical shape: category sections, `| Feature | Description | Endpoint / Module |` tables)'
-- id: u-L26
-  # class: prose
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: If `$ARGUMENTS` names a subsystem, scope the sweep to it and say so; a plan dir or a FEATURES section heading runs REFRESH scoped (above); otherwise the WHOLE codebase is the denominator
-  current: If `$ARGUMENTS` names a subsystem, scope the sweep to it and say so; a plan dir or a FEATURES section heading runs REFRESH scoped (above); otherwise the WHOLE codebase is the denominator
-  text:
-  - If `$ARGUMENTS` names a subsystem, scope the sweep to it and say so; a plan dir or a FEATURES section heading runs REFRESH scoped (above); otherwise the WHOLE codebase is the denominator
-- id: u-L27
-  # class: ban
-  file: render
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: Read the frozen contracts if present (`docs/data-contract.md`, `docs/ui-design.md`) and the spec `shape:` — features must not contradict them
-  current: Read the frozen contracts if present (`docs/data-contract.md`, `docs/ui-design.md`) and the spec `shape:` — features must not contradict them
-  text:
-  - Read the frozen contracts if present (`docs/data-contract.md`, `docs/ui-design.md`) and the spec `shape:` — features must not contradict them
-- id: u-L29
-  # class: ban
-  file: render
-  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  baseline: Treat the CODE as the source of truth, never the existing doc
-  current: Treat the CODE as the source of truth, never the existing doc
-  text:
-  - Treat the CODE as the source of truth, never the existing doc
-- id: u-L30
-  # class: prose
-  file: render
-  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  baseline: 'Enumerate capabilities from EVERY surface that exists in this project:'
-  current: 'Enumerate capabilities from EVERY surface that exists in this project:'
-  text:
-  - 'Enumerate capabilities from EVERY surface that exists in this project:'
-- id: u-L31
-  # class: prose
-  file: render
-  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  baseline: 'Routes/API: the router/app registrations (FastAPI/Express routes, `include_router`, URL maps) — every endpoint group a consumer can call'
-  current: 'Routes/API: the router/app registrations (FastAPI/Express routes, `include_router`, URL maps) — every endpoint group a consumer can call'
-  text:
-  - 'Routes/API: the router/app registrations (FastAPI/Express routes, `include_router`, URL maps) — every endpoint group a consumer can call'
-- id: u-L32
-  # class: prose
-  file: render
-  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  baseline: 'Jobs/workers: Beat/cron schedules, queue consumers, `@task` handlers (`docs/RESILIENCE.md` §7 is the canonical jobs inventory — reconcile against it, don''t duplicate it)'
-  current: 'Jobs/workers: Beat/cron schedules, queue consumers, `@task` handlers (`docs/RESILIENCE.md` §7 is the canonical jobs inventory — reconcile against it, don''t duplicate it)'
-  text:
-  - 'Jobs/workers: Beat/cron schedules, queue consumers, `@task` handlers (`docs/RESILIENCE.md` §7 is the canonical jobs inventory — reconcile against it, don''t duplicate it)'
-- id: u-L33
-  # class: prose
-  file: render
-  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  baseline: 'CLI/entrypoints: `pyproject.toml`/`package.json` scripts, `__main__`, Makefile targets a user runs'
-  current: 'CLI/entrypoints: `pyproject.toml`/`package.json` scripts, `__main__`, Makefile targets a user runs'
-  text:
-  - 'CLI/entrypoints: `pyproject.toml`/`package.json` scripts, `__main__`, Makefile targets a user runs'
-- id: u-L34
-  # class: prose
-  file: render
-  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  baseline: 'UI screens/flows (GUI projects): `docs/ui-design.md` screens + the real router/nav — every screen a user reaches is a feature surface'
-  current: 'UI screens/flows (GUI projects): `docs/ui-design.md` screens + the real router/nav — every screen a user reaches is a feature surface'
-  text:
-  - 'UI screens/flows (GUI projects): `docs/ui-design.md` screens + the real router/nav — every screen a user reaches is a feature surface'
-- id: u-L36
-  # class: ban
-  file: render
-  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  baseline: 'Claims elsewhere: `README.md`/`docs/QUICKSTART.md` feature claims — anything promised there must map to a row or be flagged as vapor'
-  current: 'Claims elsewhere: `README.md`/`docs/QUICKSTART.md` feature claims — anything promised there must map to a row or be flagged as vapor'
-  text:
-  - 'Claims elsewhere: `README.md`/`docs/QUICKSTART.md` feature claims — anything promised there must map to a row or be flagged as vapor'
-- id: u-L37
-  # class: prose
-  file: render
-  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  baseline: A capability that exists in code but not in the sweep output is the exact miss this command exists to prevent — enumerate what you READ (files × surfaces), not what you remember
-  current: A capability that exists in code but not in the sweep output is the exact miss this command exists to prevent — enumerate what you READ (files × surfaces), not what you remember
-  text:
-  - A capability that exists in code but not in the sweep output is the exact miss this command exists to prevent — enumerate what you READ (files × surfaces), not what you remember
-- id: u-L39
-  # class: prose
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: 'Code → doc: every discovered capability gets a row in its category table'
-  current: 'Code → doc: every discovered capability gets a row in its category table'
-  text:
-  - 'Code → doc: every discovered capability gets a row in its category table'
-- id: u-L40
-  # class: prose
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: No capability without a row
-  current: No capability without a row
-  text:
-  - No capability without a row
-- id: u-L41
-  # class: ban
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: 'Doc → code: every existing row''s `Endpoint / Module` must cite code that EXISTS (open it — a path that looks right is not grounding)'
-  current: 'Doc → code: every existing row''s `Endpoint / Module` must cite code that EXISTS (open it — a path that looks right is not grounding)'
-  text:
-  - 'Doc → code: every existing row''s `Endpoint / Module` must cite code that EXISTS (open it — a path that looks right is not grounding)'
-- id: u-L42
-  # class: prose
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: A row whose code is gone is deleted (state the removal); a row whose feature half-exists is corrected to what is true today
-  current: A row whose code is gone is deleted (state the removal); a row whose feature half-exists is corrected to what is true today
-  text:
-  - A row whose code is gone is deleted (state the removal); a row whose feature half-exists is corrected to what is true today
-- id: u-L43
-  # class: behavioural
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: A route row's claim holds for every mode the route serves — its default and each query-parameter variant — or names the modes it covers
-  current: A route row's claim holds for every mode the route serves — its default and each query-parameter variant — or names the modes it covers
-  text:
-  - A route row's claim holds for every mode the route serves — its default and each query-parameter variant — or names the modes it covers
-- id: u-L44
-  # class: prose
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: No row without living code
-  current: No row without living code
-  text:
-  - No row without living code
-- id: u-L45
-  # class: prose
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: 'Exercisable rows — the gauntlet contract: every row carries a non-empty `Endpoint / Module` cell (`METHOD /path` · `src/module.py` · screen name — the thing a gauntlet agent drives), and its Description states the user-observable behavior (what a test would assert), not implementation trivia'
-  current: 'Exercisable rows — the gauntlet contract: every row carries a non-empty `Endpoint / Module` cell (`METHOD /path` · `src/module.py` · screen name — the thing a gauntlet agent drives), and its Description states the user-observable behavior (what a test would assert), not implementation trivia'
-  text:
-  - 'Exercisable rows — the gauntlet contract: every row carries a non-empty `Endpoint / Module` cell (`METHOD /path` · `src/module.py` · screen name — the thing a gauntlet agent drives), and its Description states the user-observable behavior (what a test would assert), not implementation trivia'
-- id: u-L46
-  # class: prose
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: A row the gauntlets cannot turn into a scenario ("improved architecture") is not a feature row — cut or rewrite it
-  current: A row the gauntlets cannot turn into a scenario ("improved architecture") is not a feature row — cut or rewrite it
-  text:
-  - A row the gauntlets cannot turn into a scenario ("improved architecture") is not a feature row — cut or rewrite it
-- id: u-L47
-  # class: ban
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: 'State honesty: deprecated/disabled/feature-flagged capabilities are marked so (`(beta)` / `(deprecated — <date>)`) — a gauntlet must know whether a red scenario is a defect or a flag'
-  current: 'State honesty: deprecated/disabled/feature-flagged capabilities are marked so (`(beta)` / `(deprecated — <date>)`) — a gauntlet must know whether a red scenario is a defect or a flag'
-  text:
-  - 'State honesty: deprecated/disabled/feature-flagged capabilities are marked so (`(beta)` / `(deprecated — <date>)`) — a gauntlet must know whether a red scenario is a defect or a flag'
-- id: u-L48
-  # class: ban
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: A shipped row states the CURRENT behaviour; a known defect is a pointer to its backlog row or work item, never an enumeration of its cases
-  current: A shipped row states the CURRENT behaviour; a known defect is a pointer to its backlog row or work item, never an enumeration of its cases
-  text:
-  - A shipped row states the CURRENT behaviour; a known defect is a pointer to its backlog row or work item, never an enumeration of its cases
-- id: u-L49
-  # class: ban
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: A code defect the grounding finds with no row yet is filed to its owner (a mail to the code's owning session, or a backlog row) and the feature row points at that id — never patched inside a features run
-  current: A code defect the grounding finds with no row yet is filed to its owner (a mail to the code's owning session, or a backlog row) and the feature row points at that id — never patched inside a features run
-  text:
-  - A code defect the grounding finds with no row yet is filed to its owner (a mail to the code's owning session, or a backlog row) and the feature row points at that id — never patched inside a features run
-- id: u-L50
-  # class: prose
-  file: render
-  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
-  baseline: 'Keep the template''s shape: customer-oriented categories, benefit-oriented descriptions'
-  current: 'Keep the template''s shape: customer-oriented categories, benefit-oriented descriptions'
-  text:
-  - 'Keep the template''s shape: customer-oriented categories, benefit-oriented descriptions'
-- id: u-L53
-  # class: prose
-  file: render
-  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
-  baseline: 'Run repeated passes until the Termination contract''s closing round — `confirmed: 0`, md5 unchanged — is reached'
-  current: 'Run repeated passes until the Termination contract''s closing round — `confirmed: 0`, md5 unchanged — is reached'
-  text:
-  - 'Run repeated passes until the Termination contract''s closing round — `confirmed: 0`, md5 unchanged — is reached'
-- id: u-L54
-  # class: prose
-  file: render
-  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
-  baseline: 'Each pass re-checks ALL of:'
-  current: 'Each pass re-checks ALL of:'
-  text:
-  - 'Each pass re-checks ALL of:'
-- id: u-L55
-  # class: ban
-  file: render
-  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
-  baseline: 'Coverage — before counting, name each denominator''s expected population and where it comes from (the router''s route count, the jobs inventory, the scoped mode''s list), so a 0 or a partial walk fails loudly; count a table''s data rows by anchoring on them, never by `tail -n +N` after a filter (a separator row the filter drops shifts the offset); then re-run a fresh Phase-1 sweep on the CURRENT code: any capability the previous pass missed?'
-  current: 'Coverage — before counting, name each denominator''s expected population and where it comes from (the router''s route count, the jobs inventory, the scoped mode''s list), so a 0 or a partial walk fails loudly; count a table''s data rows by anchoring on them, never by `tail -n +N` after a filter (a separator row the filter drops shifts the offset); then re-run a fresh Phase-1 sweep on the CURRENT code: any capability the previous pass missed?'
-  text:
-  - 'Coverage — before counting, name each denominator''s expected population and where it comes from (the router''s route count, the jobs inventory, the scoped mode''s list), so a 0 or a partial walk fails loudly; count a table''s data rows by anchoring on them, never by `tail -n +N` after a filter (a separator row the filter drops shifts the offset); then re-run a fresh Phase-1 sweep on the CURRENT code: any capability the previous pass missed?'
-- id: u-L56
-  # class: prose
-  file: render
-  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
-  baseline: Any route/job/screen added since?
-  current: Any route/job/screen added since?
-  text:
-  - Any route/job/screen added since?
-- id: u-L57
-  # class: prose
-  file: render
-  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
-  baseline: Grounding — every row's citation opens to real code (spot-check ALL new rows, sample the old)
-  current: Grounding — every row's citation opens to real code (spot-check ALL new rows, sample the old)
-  text:
-  - Grounding — every row's citation opens to real code (spot-check ALL new rows, sample the old)
-- id: u-L58
-  # class: prose
-  file: render
-  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
-  baseline: Exercisability — every row could be turned into a gauntlet scenario by an agent with no other context; every `README`/`QUICKSTART` claim maps to a row or a flagged gap
-  current: Exercisability — every row could be turned into a gauntlet scenario by an agent with no other context; every `README`/`QUICKSTART` claim maps to a row or a flagged gap
-  text:
-  - Exercisability — every row could be turned into a gauntlet scenario by an agent with no other context; every `README`/`QUICKSTART` claim maps to a row or a flagged gap
-- id: u-L59
-  # class: prose
-  file: render
-  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
-  baseline: Consistency — no row contradicts `docs/data-contract.md`, `docs/ui-design.md`, or the spec `shape:`; `Last Updated:` bumped; Doc Sync Matrix ripples applied (a feature row change may touch `QUICKSTART.md`)
-  current: Consistency — no row contradicts `docs/data-contract.md`, `docs/ui-design.md`, or the spec `shape:`; `Last Updated:` bumped; Doc Sync Matrix ripples applied (a feature row change may touch `QUICKSTART.md`)
-  text:
-  - Consistency — no row contradicts `docs/data-contract.md`, `docs/ui-design.md`, or the spec `shape:`; `Last Updated:` bumped; Doc Sync Matrix ripples applied (a feature row change may touch `QUICKSTART.md`)
-- id: u-L60
-  # class: ban
-  file: render
-  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
-  baseline: 'After each pass, list what you re-read and what changed, then run one MORE pass — the loop terminates ONLY at the Termination contract''s closing round (`confirmed: 0`, md5-verified)'
-  current: 'After each pass, list what you re-read and what changed, then run one MORE pass — the loop terminates ONLY at the Termination contract''s closing round (`confirmed: 0`, md5-verified)'
-  text:
-  - 'After each pass, list what you re-read and what changed, then run one MORE pass — the loop terminates ONLY at the Termination contract''s closing round (`confirmed: 0`, md5-verified)'
-- id: u-L62
-  # class: prose
-  file: render
-  section: '## Guardrails — never'
-  baseline: Trust the existing FEATURES.md as the inventory — the CODE is the denominator; the doc is the claim
-  current: Trust the existing FEATURES.md as the inventory — the CODE is the denominator; the doc is the claim
-  text:
-  - Trust the existing FEATURES.md as the inventory — the CODE is the denominator; the doc is the claim
-- id: u-L63
-  # class: behavioural
-  file: render
-  section: '## Guardrails — never'
-  baseline: Write a row you didn't ground in an open file (`path:line` or a driven route; a Planned row's symbol in a named file) — memory is not discovery
-  current: Write a row you didn't ground in an open file (`path:line` or a driven route; a Planned row's symbol in a named file) — memory is not discovery
-  text:
-  - Write a row you didn't ground in an open file (`path:line` or a driven route; a Planned row's symbol in a named file) — memory is not discovery
-- id: u-L64
-  # class: prose
-  file: render
-  section: '## Guardrails — never'
-  baseline: Pad with implementation trivia ("refactored X", "uses Redis") — features are user-observable behaviors
-  current: Pad with implementation trivia ("refactored X", "uses Redis") — features are user-observable behaviors
-  text:
-  - Pad with implementation trivia ("refactored X", "uses Redis") — features are user-observable behaviors
-- id: r-L6
-  # class: prose
-  # clauses: {1: narrative}
-  section: '## Guardrails — never'
-  baseline: 'This command''s own guardrail says the same thing: *the CODE is the denominator; the doc is the claim.*'
-  text:
-  - Trust the existing FEATURES.md as the inventory — the CODE is the denominator; the doc is the claim
+  - |-
+    A Planned row's Description states the behaviour as Phase 2 asks of every row, then carries `Spec §<n>:` and EVERY condition of its clause
+  - |-
+    each when, unless, only-if, limit or other condition, wherever in the spec it sits, a neighbouring sentence or a table cell included
+  - |-
+    in the spec's own words or figures, quoted as whole spans cut only at their ends, never inside, never reworded and never elided with `…`, the section cited for each span (`Spec §3: … · §7: …`, on the row's one table line): a paraphrase still traces to the spec, and still drops the condition the plan then builds without
 - id: r-L14
-  # class: ban
-  # clauses: {2: narrative}
+  class: ban
+  file: render
   section: '## Phase 0 — Establish scope + MODE'
-  baseline: A Planned row that points at existing code it extends cites a SYMBOL in a named file (`src/billing.py::charge`), never a line number — on a tree other agents commit to, a line moves before the plan reads it — and the plan re-grounds it
+  clauses: {2: narrative, 3: {duplicate-of: r-L19}}
+  baseline: |-
+    A Planned row that points at existing code it extends cites a SYMBOL in a named file (`src/billing.py::charge`), never a line number — on a tree other agents commit to, a line moves before the plan reads it — and the plan re-grounds it
   text:
-  - A Planned row that points at existing code it extends cites a SYMBOL in a named file (`src/billing.py::charge`), never a line number
-  - After a plan, every row its merged tickets' `## Deltas` blocks wrote (`/fabrik-execute-plan` D3) is re-grounded like a Planned row, Planned or not
+  - |-
+    A Planned row that points at existing code it extends cites a SYMBOL in a named file (`src/billing.py::charge`), never a line number
+- id: r-L15
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo that filed it (a hub item is not in a project's store); check the citation there
+  text:
+  - |-
+    A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo that filed it; check the citation there
+- id: r-L16
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    REFRESH (post-build, the certify-time default): the CODE is the source of truth — the full multi-modal sweep below
+  text:
+  - |-
+    REFRESH (post-build, certify-time default): the CODE is the source of truth, via the full multi-modal sweep below
+- id: r-L17
+  class: ban
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    Planned-row reconciliation: a `(Planned)` row whose capability now ships flips to shipped (drop the marker, fill or re-ground Endpoint/Module + how-to-exercise — an EARLY symbol of the code it extended is not the new endpoint; its `Spec §<n>:` conditions stay on the row until a test asserts each); a `(Planned)` row with NO code at certification time is un-shipped scope — surface it to the operator, never silently delete; a shipped capability with no Planned row is scope creep or an honest addition — surface which
+  text:
+  - |-
+    Planned-row reconciliation: a `(Planned)` row whose capability now ships flips to shipped (drop the marker, re-ground Endpoint/Module; its `Spec §<n>:` conditions stay on the row until a test asserts each)
+  - |-
+    a `(Planned)` row with NO code at certification time is un-shipped scope
+  - |-
+    surface it to the operator, never silently delete
+  - |-
+    a shipped capability with no Planned row is scope creep — surface which
+- id: r-L18
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  clauses: {3: narrative, 4: narrative}
+  baseline: |-
+    An operator disposition received on either (drop / keep-planned / adopt) is a RECEIVED decision — its `docs/DECISIONS.md` row lands in the same change — stage the row WITH the artifact edit and commit them together per CLAUDE.md § EXIT — classified at mint (drop/keep/adopt of un-shipped scope are normally reversible — plain rows) (CLAUDE.md § the decision ledger)
+  text:
+  - |-
+    An operator disposition (drop / keep-planned / adopt) is a RECEIVED decision: its `docs/DECISIONS.md` row lands in the same change
 - id: r-L19
-  # class: behavioural
-  # clauses: {2: narrative}
+  class: prose
+  file: render
   section: '## Phase 0 — Establish scope + MODE'
-  baseline: After a plan, every row its merged tickets' `## Deltas` blocks wrote (`/fabrik-execute-plan` D3) is re-grounded like a Planned row, Planned or not — those rows were written before the plan's final review fixed the code under them
+  clauses: {2: narrative}
+  baseline: |-
+    After a plan, every row its merged tickets' `## Deltas` blocks wrote (`/fabrik-execute-plan` D3) is re-grounded like a Planned row, Planned or not — those rows were written before the plan's final review fixed the code under them
   text:
-  - After a plan, every row its merged tickets' `## Deltas` blocks wrote (`/fabrik-execute-plan` D3) is re-grounded like a Planned row, Planned or not
+  - |-
+    After a plan, every row its merged tickets' `## Deltas` blocks wrote (`/fabrik-execute-plan` D3) is re-grounded like a Planned row, Planned or not
+- id: r-L20
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    REFRESH, scoped (`$ARGUMENTS` names a plan dir or one FEATURES section): the CODE stays the denominator, narrowed — Phase 1 sweeps the registry entries (routes, jobs, screens, CLI) the plan's diff added or changed, or the code behind the named section, instead of the whole codebase
+  text:
+  - |-
+    REFRESH, scoped (`$ARGUMENTS` names a plan dir or one FEATURES section): the CODE stays the denominator, narrowed
+  - |-
+    Phase 1 sweeps the registry entries (routes, jobs, screens, CLI) the plan's diff added or changed, or the code behind the named section
+- id: r-L21
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    The doc side checked against it is every row on that code, every row the plan's `## Deltas` blocks wrote, and one row per user-observable behaviour in the plan's tickets' `## Behavior Contract` (several Given/When/Then rows can map to one)
+  text:
+  - |-
+    The doc side checked against it is every row on that code, every row the plan's `## Deltas` blocks wrote, and one row per user-observable behaviour in the plan's tickets' `## Behavior Contract` (Given/When/Then rows)
+- id: u-L22
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    State the scope and the population it gives
+  current: |-
+    State the scope and the population it gives
+  text:
+  - |-
+    State the scope and the population it gives
 - id: r-L23
-  # class: ban
+  class: ban
+  file: render
   section: '## Phase 0 — Establish scope + MODE'
-  baseline: A scoped run never hands off to certification; certification takes the full REFRESH
+  clauses: {2: narrative}
+  baseline: |-
+    A scoped run never hands off to certification; certification takes the full REFRESH
   text:
-  - A scoped run never hands off to certification
-  - 'REFRESH (post-build, the certify-time default): the CODE is the source of truth — the full multi-modal sweep below'
-- id: r-L35
-  # class: prose
-  # clauses: {2: narrative}
+  - |-
+    A scoped run never hands off to certification
+- id: r-L24
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template first, then reconcile; EARLY invoked where code already ships → say so and run REFRESH instead (the code outranks the spec once it exists), except for features the approved spec ADDS: those are EARLY rows, marked `(Planned)`, in the same file
+  text:
+  - |-
+    Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template
+  - |-
+    EARLY invoked where code already ships → say so and run REFRESH instead, except for features the approved spec ADDS: those are EARLY rows, marked `(Planned)`
+- id: r-L25
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    The artifact is `docs/FEATURES.md` (scaffold-seeded from `templates/scaffold/docs/FEATURES_TEMPLATE.md` — that template IS the canonical shape: category sections, `| Feature | Description | Endpoint / Module |` tables)
+  text:
+  - |-
+    The artifact is `docs/FEATURES.md`, scaffold-seeded from `templates/scaffold/docs/FEATURES_TEMPLATE.md` (the canonical shape: `| Feature | Description | Endpoint / Module |` tables)
+- id: u-L26
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    If `$ARGUMENTS` names a subsystem, scope the sweep to it and say so; a plan dir or a FEATURES section heading runs REFRESH scoped (above); otherwise the WHOLE codebase is the denominator
+  current: |-
+    If `$ARGUMENTS` names a subsystem, scope the sweep to it and say so; a plan dir or a FEATURES section heading runs REFRESH scoped (above); otherwise the WHOLE codebase is the denominator
+  text:
+  - |-
+    If `$ARGUMENTS` names a subsystem, scope the sweep to it and say so; a plan dir or a FEATURES section heading runs REFRESH scoped (above); otherwise the WHOLE codebase is the denominator
+- id: u-L27
+  class: ban
+  file: render
+  section: '## Phase 0 — Establish scope + MODE'
+  baseline: |-
+    Read the frozen contracts if present (`docs/data-contract.md`, `docs/ui-design.md`) and the spec `shape:` — features must not contradict them
+  current: |-
+    Read the frozen contracts if present (`docs/data-contract.md`, `docs/ui-design.md`) and the spec `shape:` — features must not contradict them
+  text:
+  - |-
+    Read the frozen contracts if present (`docs/data-contract.md`, `docs/ui-design.md`) and the spec `shape:` — features must not contradict them
+- id: u-L29
+  class: ban
+  file: render
   section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  baseline: 'Integrations: external services the code actually calls (payment, email, storage, search) — each is a user-visible capability ("sends receipts", "full-text search")'
+  baseline: |-
+    Treat the CODE as the source of truth, never the existing doc
+  current: |-
+    Treat the CODE as the source of truth, never the existing doc
   text:
-  - 'Integrations: external services the code actually calls (payment, email, storage, search)'
-- id: r-L65
-  # class: prose
-  # clauses: {2: narrative}
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: Delete a row silently — a removed feature is stated in the run report (the operator may be tracking it)
+  - |-
+    Treat the CODE as the source of truth, never the existing doc
+- id: u-L30
+  class: prose
+  file: render
+  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
+  baseline: |-
+    Enumerate capabilities from EVERY surface that exists in this project:
+  current: |-
+    Enumerate capabilities from EVERY surface that exists in this project:
   text:
-  - 'Planned-row reconciliation: a `(Planned)` row whose capability now ships flips to shipped (drop the marker, fill or re-ground Endpoint/Module + how-to-exercise — an EARLY symbol of the code it extended is not the new endpoint; its `Spec §<n>:` conditions stay on the row until a test asserts each); a `(Planned)` row with NO code at certification time is un-shipped scope — surface it to the operator, never silently delete; a shipped capability with no Planned row is scope creep or an honest addition — surface which'
-- id: r-L67
-  # class: behavioural
-  # clauses: {2: narrative}
-  section: '## Phase 0 — Establish scope + MODE'
-  baseline: Hand off to certification from a scoped REFRESH — certification takes the full one
+  - |-
+    Enumerate capabilities from EVERY surface that exists in this project:
+- id: u-L31
+  class: prose
+  file: render
+  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
+  baseline: |-
+    Routes/API: the router/app registrations (FastAPI/Express routes, `include_router`, URL maps) — every endpoint group a consumer can call
+  current: |-
+    Routes/API: the router/app registrations (FastAPI/Express routes, `include_router`, URL maps) — every endpoint group a consumer can call
   text:
-  - A scoped run never hands off to certification
-- id: r-L68
-  # class: prose
-  # clauses: {2: narrative}
+  - |-
+    Routes/API: the router/app registrations (FastAPI/Express routes, `include_router`, URL maps) — every endpoint group a consumer can call
+- id: r-L32
+  class: prose
+  file: render
+  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
+  baseline: |-
+    Jobs/workers: Beat/cron schedules, queue consumers, `@task` handlers (`docs/RESILIENCE.md` §7 is the canonical jobs inventory — reconcile against it, don't duplicate it)
+  text:
+  - |-
+    Jobs/workers: Beat/cron schedules, queue consumers, `@task` handlers (reconcile against the jobs inventory `docs/RESILIENCE.md` §7, don't duplicate it)
+- id: u-L33
+  class: prose
+  file: render
+  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
+  baseline: |-
+    CLI/entrypoints: `pyproject.toml`/`package.json` scripts, `__main__`, Makefile targets a user runs
+  current: |-
+    CLI/entrypoints: `pyproject.toml`/`package.json` scripts, `__main__`, Makefile targets a user runs
+  text:
+  - |-
+    CLI/entrypoints: `pyproject.toml`/`package.json` scripts, `__main__`, Makefile targets a user runs
+- id: r-L34
+  class: prose
+  file: render
+  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
+  clauses: {2: narrative}
+  baseline: |-
+    UI screens/flows (GUI projects): `docs/ui-design.md` screens + the real router/nav — every screen a user reaches is a feature surface
+  text:
+  - |-
+    UI screens/flows (GUI projects): `docs/ui-design.md` screens + the real router/nav
+- id: r-L35
+  class: prose
+  file: render
+  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
+  clauses: {2: narrative}
+  baseline: |-
+    Integrations: external services the code actually calls (payment, email, storage, search) — each is a user-visible capability ("sends receipts", "full-text search")
+  text:
+  - |-
+    Integrations: external services the code actually calls (payment, email)
+- id: u-L36
+  class: ban
+  file: render
+  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
+  baseline: |-
+    Claims elsewhere: `README.md`/`docs/QUICKSTART.md` feature claims — anything promised there must map to a row or be flagged as vapor
+  current: |-
+    Claims elsewhere: `README.md`/`docs/QUICKSTART.md` feature claims — anything promised there must map to a row or be flagged as vapor
+  text:
+  - |-
+    Claims elsewhere: `README.md`/`docs/QUICKSTART.md` feature claims — anything promised there must map to a row or be flagged as vapor
+- id: r-L37
+  class: prose
+  file: render
+  section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
+  clauses: {1: narrative}
+  baseline: |-
+    A capability that exists in code but not in the sweep output is the exact miss this command exists to prevent — enumerate what you READ (files × surfaces), not what you remember
+  text:
+  - |-
+    Enumerate what you READ (files × surfaces), not what you remember
+- id: u-L39
+  class: prose
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    Code → doc: every discovered capability gets a row in its category table
+  current: |-
+    Code → doc: every discovered capability gets a row in its category table
+  text:
+  - |-
+    Code → doc: every discovered capability gets a row in its category table
+- id: u-L40
+  class: prose
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    No capability without a row
+  current: |-
+    No capability without a row
+  text:
+  - |-
+    No capability without a row
+- id: u-L41
+  class: ban
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    Doc → code: every existing row's `Endpoint / Module` must cite code that EXISTS (open it — a path that looks right is not grounding)
+  current: |-
+    Doc → code: every existing row's `Endpoint / Module` must cite code that EXISTS (open it — a path that looks right is not grounding)
+  text:
+  - |-
+    Doc → code: every existing row's `Endpoint / Module` must cite code that EXISTS (open it — a path that looks right is not grounding)
+- id: u-L42
+  class: prose
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    A row whose code is gone is deleted (state the removal); a row whose feature half-exists is corrected to what is true today
+  current: |-
+    A row whose code is gone is deleted (state the removal); a row whose feature half-exists is corrected to what is true today
+  text:
+  - |-
+    A row whose code is gone is deleted (state the removal); a row whose feature half-exists is corrected to what is true today
+- id: u-L43
+  class: behavioural
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    A route row's claim holds for every mode the route serves — its default and each query-parameter variant — or names the modes it covers
+  current: |-
+    A route row's claim holds for every mode the route serves — its default and each query-parameter variant — or names the modes it covers
+  text:
+  - |-
+    A route row's claim holds for every mode the route serves — its default and each query-parameter variant — or names the modes it covers
+- id: u-L44
+  class: prose
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    No row without living code
+  current: |-
+    No row without living code
+  text:
+  - |-
+    No row without living code
+- id: r-L45
+  class: prose
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    Exercisable rows — the gauntlet contract: every row carries a non-empty `Endpoint / Module` cell (`METHOD /path` · `src/module.py` · screen name — the thing a gauntlet agent drives), and its Description states the user-observable behavior (what a test would assert), not implementation trivia
+  text:
+  - |-
+    Exercisable rows: every row carries a non-empty `Endpoint / Module` cell (`METHOD /path` · `src/module.py` · screen name) and its Description states the user-observable behavior, not implementation trivia
+- id: r-L46
+  class: prose
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    A row the gauntlets cannot turn into a scenario ("improved architecture") is not a feature row — cut or rewrite it
+  text:
+  - |-
+    A row the gauntlets cannot turn into a scenario is not a feature row — cut or rewrite it
+- id: u-L47
+  class: ban
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    State honesty: deprecated/disabled/feature-flagged capabilities are marked so (`(beta)` / `(deprecated — <date>)`) — a gauntlet must know whether a red scenario is a defect or a flag
+  current: |-
+    State honesty: deprecated/disabled/feature-flagged capabilities are marked so (`(beta)` / `(deprecated — <date>)`) — a gauntlet must know whether a red scenario is a defect or a flag
+  text:
+  - |-
+    State honesty: deprecated/disabled/feature-flagged capabilities are marked so (`(beta)` / `(deprecated — <date>)`) — a gauntlet must know whether a red scenario is a defect or a flag
+- id: u-L48
+  class: ban
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    A shipped row states the CURRENT behaviour; a known defect is a pointer to its backlog row or work item, never an enumeration of its cases
+  current: |-
+    A shipped row states the CURRENT behaviour; a known defect is a pointer to its backlog row or work item, never an enumeration of its cases
+  text:
+  - |-
+    A shipped row states the CURRENT behaviour; a known defect is a pointer to its backlog row or work item, never an enumeration of its cases
+- id: u-L49
+  class: ban
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    A code defect the grounding finds with no row yet is filed to its owner (a mail to the code's owning session, or a backlog row) and the feature row points at that id — never patched inside a features run
+  current: |-
+    A code defect the grounding finds with no row yet is filed to its owner (a mail to the code's owning session, or a backlog row) and the feature row points at that id — never patched inside a features run
+  text:
+  - |-
+    A code defect the grounding finds with no row yet is filed to its owner (a mail to the code's owning session, or a backlog row) and the feature row points at that id — never patched inside a features run
+- id: u-L50
+  class: prose
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    Keep the template's shape: customer-oriented categories, benefit-oriented descriptions
+  current: |-
+    Keep the template's shape: customer-oriented categories, benefit-oriented descriptions
+  text:
+  - |-
+    Keep the template's shape: customer-oriented categories, benefit-oriented descriptions
+- id: u-L54
+  class: prose
+  file: render
+  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
+  baseline: |-
+    Each pass re-checks ALL of:
+  current: |-
+    Each pass re-checks ALL of:
+  text:
+  - |-
+    Each pass re-checks ALL of:
+- id: r-L55
+  class: ban
+  file: render
+  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
+  baseline: |-
+    Coverage — before counting, name each denominator's expected population and where it comes from (the router's route count, the jobs inventory, the scoped mode's list), so a 0 or a partial walk fails loudly; count a table's data rows by anchoring on them, never by `tail -n +N` after a filter (a separator row the filter drops shifts the offset); then re-run a fresh Phase-1 sweep on the CURRENT code: any capability the previous pass missed?
+  text:
+  - |-
+    Coverage — before counting, name each denominator's expected population and where it comes from, so a 0 or a partial walk fails loudly
+  - |-
+    count a table's data rows by anchoring on them, never by `tail -n +N` after a filter (a separator row the filter drops shifts the offset)
+  - |-
+    then re-run a fresh Phase-1 sweep on the CURRENT code
+- id: r-L57
+  class: prose
+  file: render
+  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
+  baseline: |-
+    Grounding — every row's citation opens to real code (spot-check ALL new rows, sample the old)
+  text:
+  - |-
+    Grounding — every row's citation opens to real code (spot-check ALL new rows)
+- id: u-L58
+  class: prose
+  file: render
+  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
+  baseline: |-
+    Exercisability — every row could be turned into a gauntlet scenario by an agent with no other context; every `README`/`QUICKSTART` claim maps to a row or a flagged gap
+  current: |-
+    Exercisability — every row could be turned into a gauntlet scenario by an agent with no other context; every `README`/`QUICKSTART` claim maps to a row or a flagged gap
+  text:
+  - |-
+    Exercisability — every row could be turned into a gauntlet scenario by an agent with no other context; every `README`/`QUICKSTART` claim maps to a row or a flagged gap
+- id: r-L59
+  class: prose
+  file: render
+  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
+  clauses: {2: {duplicate-of: u-L27}}
+  baseline: |-
+    Consistency — no row contradicts `docs/data-contract.md`, `docs/ui-design.md`, or the spec `shape:`; `Last Updated:` bumped; Doc Sync Matrix ripples applied (a feature row change may touch `QUICKSTART.md`)
+  text:
+  - |-
+    Consistency — `Last Updated:` bumped; Doc Sync Matrix ripples applied (a feature row change may touch `QUICKSTART.md`)
+- id: u-L60
+  class: ban
+  file: render
+  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
+  baseline: |-
+    After each pass, list what you re-read and what changed, then run one MORE pass — the loop terminates ONLY at the Termination contract's closing round (`confirmed: 0`, md5-verified)
+  current: |-
+    After each pass, list what you re-read and what changed, then run one MORE pass — the loop terminates ONLY at the Termination contract's closing round (`confirmed: 0`, md5-verified)
+  text:
+  - |-
+    After each pass, list what you re-read and what changed, then run one MORE pass — the loop terminates ONLY at the Termination contract's closing round (`confirmed: 0`, md5-verified)
+- id: r-L63
+  class: prose
+  file: render
   section: '## Guardrails — never'
-  baseline: Hand off to certification while the loop is non-quiet — an unconverged cross-check silently shrinks the gauntlet
+  clauses: {2: narrative}
+  baseline: |-
+    Write a row you didn't ground in an open file (`path:line` or a driven route; a Planned row's symbol in a named file) — memory is not discovery
   text:
-  - Hand off to certification while the loop is non-quiet
+  - |-
+    Write a row you didn't ground in an open file (`path:line` or a driven route; a Planned row's symbol in a named file)
+- id: r-L64
+  class: prose
+  file: render
+  section: '## Guardrails — never'
+  clauses: {2: {duplicate-of: r-L45}}
+  baseline: |-
+    Pad with implementation trivia ("refactored X", "uses Redis") — features are user-observable behaviors
+  text:
+  - |-
+    Pad with implementation trivia ("refactored X", "uses Redis")
+- id: r-L68
+  class: prose
+  file: render
+  section: '## Guardrails — never'
+  clauses: {2: narrative}
+  baseline: |-
+    Hand off to certification while the loop is non-quiet — an unconverged cross-check silently shrinks the gauntlet
+  text:
+  - |-
+    Hand off to certification while the loop is non-quiet
 vanished:
-  L6: {rule: [r-L6]}
+  L2: {rule: [r-L2]}
+  L3: narrative
+  L4: {rule: [r-L4]}
+  L6: narrative
+  L10: {rule: [r-L10]}
+  L11: {rule: [r-L11]}
+  L12: {rule: [r-L12]}
+  L13: {rule: [r-L13]}
   L14: {rule: [r-L14]}
+  L15: {rule: [r-L15]}
+  L16: {rule: [r-L16]}
+  L17: {rule: [r-L17]}
+  L18: {rule: [r-L18]}
   L19: {rule: [r-L19]}
+  L20: {rule: [r-L20]}
+  L21: {rule: [r-L21]}
   L23: {rule: [r-L23]}
+  L24: {rule: [r-L24]}
+  L25: {rule: [r-L25]}
+  L32: {rule: [r-L32]}
+  L34: {rule: [r-L34]}
   L35: {rule: [r-L35]}
+  L37: {rule: [r-L37]}
+  L45: {rule: [r-L45]}
+  L46: {rule: [r-L46]}
   L51: narrative
-  L65: {rule: [r-L65]}
-  L66: narrative
-  L67: {rule: [r-L67]}
+  L53: {duplicate-of: u-L60}
+  L55: {rule: [r-L55]}
+  L56: {duplicate-of: r-L55}
+  L57: {rule: [r-L57]}
+  L59: {rule: [r-L59]}
+  L62: {duplicate-of: u-L29}
+  L63: {rule: [r-L63]}
+  L64: {rule: [r-L64]}
+  L65: {rule: [r-L17, u-L42]}
+  L66: {duplicate-of: u-L36}
+  L67: {rule: [r-L23]}
   L68: {rule: [r-L68]}

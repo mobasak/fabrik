@@ -1,3 +1,5 @@
+OWN TEXT: 1873 -> 1411 (75%)
+
 # T19 receipt — lean rewrite of /fabrik-features
 
 - **Start commit:** `851b4b365cc9ccaac91ed851bc669764743ad360` (baseline written from its text; `fabrik-features.baseline.txt` sha256 in the ledger)
@@ -54,3 +56,24 @@ Targeted run on the real tree: `tests/test_features_queue_pass.py tests/test_com
 
 ## LEFT FOR THE HUB
 - CHANGELOG.md, INDEX.md rows for the new `commands/_rules/` files, the `commands/_size_ceiling.json` ratchet and the render at merge.
+
+## Re-ledger round (canonical loader, W-9cd8653d / D-1245)
+
+- **Own-text words (whole file, `wc -w`):** baseline 1873 -> fix round 1750 (93%) -> now 1411 (75%). The 50% target is NOT reached; the floor is named below. The front matter (two long lines, not a baseline unit) was left alone.
+- **LOSS for `fabrik-features.yaml`:** before 1 (`r-L14` lint B), after 0 (`--check` prints no `LOSS fabrik-features` line; `test_command_rules.py -rP` prints `LEDGER fabrik-features.yaml: 54 entries`). The LOSS lines that remain belong to other tickets' and `_shared/` ledgers.
+- **Reworded / total entries:** 29 / 54 (25 unchanged `u-L<n>`, 29 reworded `r-L<n>`). Classes {ban 17, behavioural 1, prose 36}. The `# class:` / `# clauses:` comments are now real `class:` / `clauses:` keys.
+- **Vanished:** 38 baseline lines = 31 `rule`, 4 `duplicate-of` (L53 -> u-L60, L56 -> r-L55, L62 -> u-L29, L66 -> u-L36), 3 `narrative` (L3, L6, L51). Clause labels: `narrative` on r-L2.1, r-L14.2, r-L18.3-4, r-L19.2, r-L23.2, r-L34.2, r-L35.2, r-L37.1, r-L63.2, r-L68.2; `duplicate-of` on r-L14.3 -> r-L19, r-L59.2 -> u-L27, r-L64.2 -> r-L45. No clause holding a ban word is labelled.
+- **Changed from the fix round:** L65 and L67 were rewordings carried by r-L65 / r-L67; both are now `vanished` rules pointing at the carriers of the ban (L65 -> r-L17 `never silently delete` and u-L42 `state the removal`; L67 -> r-L23 `never hands off to certification`). L66 was `narrative` and is now `duplicate-of u-L36`. The guardrail list is cut from 7 items to 3 (L62, L65, L66, L67 now live in Phases 0-2).
+- **Class retags (hub: confirm by D-row if the tag is held immutable):** the fix round tagged L12, L15, L19, L63 and L67 `behavioural`; their pins were string-in-file tests, not tests of emitted output, so the reworded entries r-L12, r-L15, r-L19, r-L63 are `prose`. u-L43 stays `behavioural` (verbatim, uncut).
+- **Pins deleted (own command, `tests/test_features_queue_pass.py`):** the guardrail assert `Hand off to certification from a scoped REFRESH` (L67 is carried by r-L23). The two bullet anchors of `test_a_planned_row_quotes_every_condition_of_its_spec_clause` were re-pointed to the new bullet heads (`- **EARLY**`, `- **REFRESH** (post-build`). No `pins:` node is listed: no whole test was retired.
+- **COUNTS: 54 entries read / 29 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels** (weaker read formally per D-1240: every anchor held, at least 70% of the first 8 stems in one phrase, ban clauses verbatim to their clause end). Earlier passes fixed: r-L21 dropped the anchor `Given/When/Then` (restored as `(Given/When/Then rows)`); the L65/L66/L67 labels named no carrier of the dropped words (relabelled above); a `duplicate-of r-L20` for L26's second clause failed the 70% reading (clause restored, entry back to unchanged u-L26). Self-audit only: no author-blind pass could run in this clone.
+
+## Floor (why 75%, not 50%)
+
+Every one of the 54 entries is live rule text: ban clauses stand verbatim from the ban word to the end of their `;`/`—` clause (u-L5, r-L11, r-L13 whose `only`/`never` span runs to the end of its sentence, r-L17, r-L55, u-L41, u-L47-49, u-L60), and each other clause keeps its backticked anchors plus at least 6 of its first 8 stems. The levers used: narrative/restatement deletes (L3, L6, L51, L53, L56, L62, L65-L67 and the tails of L2, L14, L18, L19, L23, L34, L35, L37, L63, L68) and compression of reworded clauses. What is left over 50% is the ban-clause floor plus the front matter; cutting further would delete rules. Thin but formally covered rewordings for the author-blind audit to read: r-L11 (drops "minted by the spec approval ... rows here transcribe it"), r-L17 (drops "an EARLY symbol of the code it extended is not the new endpoint" and "honest addition"), r-L18 (c3/c4 labelled narrative as restated CLAUDE.md § EXIT / the decision ledger), r-L57 (drops "sample the old"), r-L24 (drops "then reconcile", "the code outranks the spec once it exists").
+
+## Gates (this clone; no box services)
+The start failure set was not captured (the first reader-test run overlapped my first edits). End: features/queue group 406 passed, 2 skipped; fragments/review group 459 passed; spec-lane group 40 passed; corpus/feedback group 413 passed; `test_command_rules.py` 56 passed, 1 failed (`test_the_live_corpus_has_no_lo0`: other tickets' ledgers, none `fabrik-features`); dispatch/agents group 14 failed (symlink-orphan, FIFO and `git grep` tests, no `.git` in the clone); improve/measure group 573 passed, 2 failed (`test_check_exit_order_loss_then_ceiling_then_drift`: other ledgers' LOSS; `test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box`: box). None reads a line of `fabrik-features`.
+
+## LEFT FOR THE HUB (re-ledger)
+- The 50% target is not met (75%). Class retags (behavioural -> prose) on r-L12, r-L15, r-L19, r-L63. The `commands/_size_ceiling.json` ratchet and the render at merge.
