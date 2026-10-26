@@ -6,6 +6,7 @@
 - **By class (D-1236 tag, set at baseline):** unchanged {'prose': 125, 'behavioural': 10, 'ban': 101} · reworded {'prose': 14, 'ban': 4}. The tag is a `# class:` YAML comment (the loader on this base has no `class` key).
 - **Vanished baseline lines:** 27 = 18 `rule:` (covered by a reworded entry) + 9 `narrative` (every clause labelled narrative). 31 clauses inside the `rule:` lines are labelled narrative, recorded per entry as a `# clauses:` comment.
 - **Labels:** author labels — audit owed (the Sonnet + Haiku classification seats cannot run in this clone).
+- **Audit weaker-count:** not run — the author-blind audit pair cannot run in this clone, so every `rule`/`narrative` label above is an author label and the weaker-count is owed by the audit (reworded entries / total entries are stated above).
 - **Coverage rule applied by hand (D-1240):** per clause (split at `;`/`—`, outside code spans) ONE `text` phrase holds 100% of the clause's anchors (backticked tokens, numbers, paths, ban words) and ≥70% of its first 8 content-word stems; a clause holding never/must/only/refus* is verbatim from that word to the end of its clause and is never labelled narrative; the carrier holds the same ban token; every phrase is ≥6 normalised words and unique in the file. Checked by a scratch script (not committed; `commands/command_rules.py` was not edited).
 
 ## Floor
@@ -85,6 +86,8 @@ none — one Touches test (`tests/test_plan_after_chat_queue_pass.py::test_every
 
 ## Failure sets (reader-test run, `capped_run.sh` unavailable in the clone: plain pytest)
 Targeted run on the real tree: `tests/test_features_queue_pass.py tests/test_plan_after_chat_queue_pass.py tests/test_plan_review_queue_pass.py tests/test_spec_plan_lane_text.py tests/test_spec_queue_pass.py tests/test_command_rules.py`: 112 passed, 3 skipped, 0 failed. The full reader-set failure set (55 at the start commit) is re-run at the end of the batch and recorded in the T19 receipt.
+
+**Final run (all five tickets applied, tree at the last commit):** the same reader set (65 test files) plus `tests/test_command_rules.py`, plain `python3 -m pytest` with `.git` present in the scratch copy: 53 failed + 2 collection errors = **55, the identical set to the start commit** (`comm` of the sorted FAILED/ERROR node ids: 0 new, 0 gone). The first full run of the finished tree had found 4 new reds (all `/fabrik-plan-review` drops pinned outside any Touches test: the EXTRACT after-text block, a digest-grammar clause, the `/fabrik-generate-tests` mention); the three clauses were restored in the fix commit and the second full run is the one reported here. The pre-existing 55 are box-service or optional-dependency reds, unchanged by this batch.
 
 ## LEFT FOR THE HUB
 - CHANGELOG.md, INDEX.md rows for the new `commands/_rules/` files, the `commands/_size_ceiling.json` ratchet and the render at merge.
