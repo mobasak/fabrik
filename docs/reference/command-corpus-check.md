@@ -324,7 +324,8 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   is a claim the check proves (W-34d76a7a): a named entry that the lints read and whose `baseline` is
   that line carries it, or else the line owes the ledger lints A, B and D over the named entries' `text`
   phrases pooled and their sections (each clause still needs ONE phrase); a LOSS line reads
-  `baseline L<n> vanished as rule [ids] — lint <X> — …`. The carrier is whatever file the named entry
+  `baseline L<n> vanished as rule ['<id>', …] — lint <X> — …`, or `vanished as duplicate-of <id> — lint <X> — …`.
+  The carrier is whatever file the named entry
   names (`commands/_agents/` included), not necessarily the command's own; a renamed heading takes
   `narrative`. An entry's `current` must be a whole unit under its `section`.
 - **Changed on purpose** (§ The rule test step 8): an entry's `changed-by:` lists each D-row that

@@ -1179,10 +1179,9 @@ def test_a_vanished_rule_label_must_be_covered(tmp_path: Path) -> None:
     probe = {"id": "P", "section": "## Scope", "text": ["run the probe on a copy"]}
     verdict = {"id": "V", "section": "## Scope", "text": ["We record the verdict here"]}
     # the cheap path: a real id that carries another rule
-    for label in ({"rule": ["R1"]}, {"duplicate-of": "R1"}):
+    for label, says in (({"rule": ["R1"]}, "vanished as rule ['R1'] — lint B"), ({"duplicate-of": "R1"}, "vanished as duplicate-of R1 — lint B")):
         lost = _vanished_lines(_gone(old, new, [ENTRY], "Run the probe", label, tmp_path / f"r1-{len(str(label))}"))
-        assert len(lost) == 2 and all("lint B" in x for x in lost), lost  # both clauses of the line, each named
-        assert any("vanished as rule ['R1']" in x or "vanished as duplicate-of R1" in x for x in lost), lost
+        assert len(lost) == 2 and all(says in x for x in lost), lost  # both clauses of the line, each named by its label
     # covered clause by clause across two named entries: nothing
     assert _gone(old, new, [ENTRY, probe, verdict], "Run the probe", {"rule": ["P", "V"]}, tmp_path / "pv") == []
     # one entry carries only one clause: the other clause is the LOSS
@@ -1223,8 +1222,14 @@ def test_a_vanished_ban_line_keeps_its_span_verbatim(tmp_path: Path) -> None:
     lost = _vanished_lines(_gone(SOURCE, reworded, [loose], "Never stage", {"rule": ["M"]}, tmp_path / "rw"))
     assert any("lint D" in x for x in lost) and any("lint A" in x for x in lost), lost
     # the span never reads across two named sections
-    # the first section ENDS on "never" and the next STARTS on its object: only the blank-line join keeps them apart
-    split = SOURCE.replace(" Never stage a sibling's file.", "").replace("Stop at the pin.", "Stop at the pin. Keep going and never")
+    # every named section is read: the carrier may be the SECOND named entry, in another section
+    across = SOURCE.replace(" Never stage a sibling's file.", "").replace("2. Push it.", "2. Push it. Never stage a sibling's file or a stranger's.")
+    pin = {"id": "F", "section": "## Scope", "text": ["Stop at the pin"]}
+    close = {"id": "C", "section": "## Close", "text": ["Never stage a sibling's file or a stranger's"]}
+    assert _gone(SOURCE, across, [pin, close], "Never stage", {"rule": ["F", "C"]}, tmp_path / "across") == []
+    # the first section ENDS on "never" and the next STARTS on its object: each section stays its own paragraph
+    # (every `_scope` body starts and ends with a newline, so the blank-line join is defensive, never the only guard)
+    split =SOURCE.replace(" Never stage a sibling's file.", "").replace("Stop at the pin.", "Stop at the pin. Keep going and never")
     split = split.replace("## Close\n\n", "## Close\n\nstage a sibling's file today.\n\n")
     tail = {"id": "T", "section": "## Scope", "text": ["Keep going and never"]}
     head = {"id": "S", "section": "## Close", "text": ["stage a sibling's file today"]}

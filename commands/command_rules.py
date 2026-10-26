@@ -864,7 +864,7 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
 def _vanished_proof(line: str, label: object, ids: dict[str, dict], scopes: dict[str, str]) -> list[str]:
     """W-34d76a7a: a vanished line labelled `rule:`/`duplicate-of:` owes what an entry's own baseline owes
     (D-1236, D-1238, D-1240) — never just a live id. Proven by a named `_lintable` entry whose baseline IS the
-    line (its own lints already bind every clause, so nothing prints twice), else by `_lint` over a probe: the
+    line (its own lints already cover or classify every clause under D-1236, so nothing prints twice), else by `_lint` over a probe: the
     line's unit as baseline, the named entries' phrases pooled (`_covered` stays per phrase) and their sections
     joined by a blank line (so no ban span reads across two sections), classed `ban` (C stays with each
     carrier's own entry). A named entry whose file or section is missing is already a LOSS: nothing more here.
