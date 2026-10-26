@@ -58,9 +58,9 @@ entries:
   file: commands/_fragments/run-record.md
   section: '## Run record — open it as this command''s FIRST act'
   baseline: '`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation, and the Stop hook''s fifth cause reads it: while a record says `running`, ending the turn is BLOCKED'
-  current: '`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation; the Stop hook BLOCKS ending the turn while a record says `running`'
+  current: '`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation, and the Stop hook''s fifth cause reads it: while a record says `running`, ending the turn is BLOCKED'
   text:
-  - '`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation; the Stop hook BLOCKS ending the turn while a record says `running`'
+  - '`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation, and the Stop hook''s fifth cause reads it: while a record says `running`, ending the turn is BLOCKED'
   class: prose
 - id: rr-start-block
   file: commands/_fragments/run-record.md

@@ -29,7 +29,7 @@ entries:
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'First the decision line: did this run MAKE or RECEIVE a decision (an operator ruling, an approval/Status flip, a retirement/adoption, an architecture/scope choice, "built X at Y", a rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — a chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, the manifesto''s Phase-0 triage; a ONE-WAY row grows the § Binding field block, per CLAUDE.md § the decision ledger) — or state `no decisions this run`'
   text:
-  - 'First the decision line: did this run MAKE or RECEIVE a decision (an operator ruling, an approval/Status flip, a retirement/adoption, an architecture/scope choice, "built X at Y", a rejected option)? → append its row to `docs/DECISIONS.md` in this run''s change; a chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger)'
+  - 'First the decision line: did this run MAKE or RECEIVE a decision (an operator ruling, an approval/Status flip, a retirement/adoption, an architecture/scope choice, "built X at Y", a rejected option worth not re-proposing)? → append its row to `docs/DECISIONS.md` in this run''s change; a chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger)'
   - Classify it at mint (reversible / ONE-WAY, the manifesto's Phase-0 triage; a ONE-WAY row grows the § Binding field block, per CLAUDE.md § the decision ledger)
   - Otherwise state `no decisions this run`
   class: prose
@@ -141,9 +141,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: On an expensive command a SEAT writes the line, not you. If `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are closing, dispatch ONE Sonnet seat to author the `change:` line, handing it this run's own evidence (the record's phases and rounds, the diff, what you actually hit) — an agent grading its own run is the weakest reader of it
-  current: On an expensive command a SEAT writes the line. If `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are closing, dispatch ONE Sonnet seat to author `change:` from this run's evidence (phases, rounds, the diff, what you hit), because an agent grading its own run reads it worst
+  current: On an expensive command a SEAT writes the line, not you. If `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are closing, dispatch ONE Sonnet seat to author `change:` from this run's evidence (phases, rounds, the diff, what you hit), because an agent grading its own run reads it worst
   text:
-  - On an expensive command a SEAT writes the line. If `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are closing, dispatch ONE Sonnet seat to author `change:` from this run's evidence (phases, rounds, the diff, what you hit), because an agent grading its own run reads it worst
+  - On an expensive command a SEAT writes the line, not you. If `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are closing, dispatch ONE Sonnet seat to author `change:` from this run's evidence (phases, rounds, the diff, what you hit), because an agent grading its own run reads it worst
   class: prose
   clauses:
     2: narrative
@@ -159,12 +159,20 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: '⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — and you get the behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before the quiet round, or made cheap by skipping a probe, moves both counters the right way while the work gets worse'
-  current: 'The four fields are the USAGE report (D-175). `rounds <n>` and `tokens <i>/<o>` are COUNTED and captured for you, and you get the behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before the quiet round, or made cheap by skipping a probe, moves both counters the right way while the work gets worse'
+  current: '`rounds <n>` and `tokens <i>/<o>` are COUNTED and captured for you, and you get the behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before the quiet round, or made cheap by skipping a probe, moves both counters the right way while the work gets worse'
   text:
-  - 'The four fields are the USAGE report (D-175). `rounds <n>` and `tokens <i>/<o>` are COUNTED and captured for you, and you get the behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before the quiet round, or made cheap by skipping a probe, moves both counters the right way while the work gets worse'
+  - '`rounds <n>` and `tokens <i>/<o>` are COUNTED and captured for you, and you get the behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before the quiet round, or made cheap by skipping a probe, moves both counters the right way while the work gets worse'
   class: prose
   clauses:
     1: narrative
+- id: cf-66
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'The four labelled fields are the USAGE report (D-175, the operator''s 6th ask 2026-09-07): the corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing function'
+  text:
+  - 'The four labelled fields are the USAGE report (D-175, the operator''s 6th ask 2026-09-07): the corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing function'
+  class: prose
+  current: 'The four labelled fields are the USAGE report (D-175, the operator''s 6th ask 2026-09-07): the corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing function'
 - id: cf-22
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -173,6 +181,14 @@ entries:
   text:
   - They are a REPORT on the run, never its goal — the goal is the terminal condition, and `done --evidence` is where you prove you met it
   class: ban
+- id: cf-67
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: A shorter run you cannot evidence is not a faster run
+  text:
+  - A shorter run you cannot evidence is not a faster run
+  class: prose
+  current: A shorter run you cannot evidence is not a faster run
 - id: cf-23
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -185,12 +201,18 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'A run that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you sign — every run of a 400-line command has one edit worth naming'
-  current: 'Write what you SAW; a run that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you sign'
+  current: 'A run that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you sign — every run of a 400-line command has one edit worth naming'
   text:
-  - 'Write what you SAW; a run that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you sign'
+  - 'A run that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you sign — every run of a 400-line command has one edit worth naming'
   class: prose
-  clauses:
-    2: narrative
+- id: cf-68
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'Wall-clock and the round count are captured for you; write what you SAW: which sentence you misread, which step you repeated, what you would cut or rename'
+  text:
+  - 'Wall-clock and the round count are captured for you; write what you SAW: which sentence you misread, which step you repeated, what you would cut or rename'
+  class: prose
+  current: 'Wall-clock and the round count are captured for you; write what you SAW: which sentence you misread, which step you repeated, what you would cut or rename'
 - id: cf-25
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -215,6 +237,22 @@ entries:
   text:
   - A "filed" claim MUST name a durable artifact — the mail id, or a COMMITTED path
   class: prose
+- id: cf-70
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: No artifact = not filed
+  text:
+  - No artifact = not filed
+  class: prose
+  current: No artifact = not filed
+- id: cf-69
+  file: commands/_fragments/close-feedback.md
+  section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
+  baseline: 'A cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
+  text:
+  - 'A cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
+  class: prose
+  current: 'A cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
 - id: cf-28
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -305,9 +343,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '### File it when this run hit any of these'
   baseline: an enforcement check that fired on a legitimate pattern (false positive) or stayed silent on a real one (false negative)
-  current: an enforcement check that fired on a legitimate pattern (false positive) or stayed silent on a real one (false negative)
+  current: an enforcement check that fired on a legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects, and the false positive is the more corrosive
   text:
-  - an enforcement check that fired on a legitimate pattern (false positive) or stayed silent on a real one (false negative)
+  - an enforcement check that fired on a legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects, and the false positive is the more corrosive
   class: prose
 - id: cf-41
   file: commands/_fragments/close-feedback.md
@@ -530,6 +568,7 @@ vanished:
   L24:
     rule:
     - cf-21
+    - cf-66
   L25:
     rule:
     - cf-21
@@ -539,12 +578,14 @@ vanished:
   L27:
     rule:
     - cf-22
+    - cf-67
   L28:
     rule:
     - cf-23
   L29:
     rule:
     - cf-24
+    - cf-68
   L30:
     rule:
     - cf-24
@@ -554,9 +595,11 @@ vanished:
   L33:
     rule:
     - cf-27
+    - cf-69
   L34:
     rule:
     - cf-27
+    - cf-70
   L36:
     rule:
     - cf-29

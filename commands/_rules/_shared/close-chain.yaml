@@ -44,28 +44,26 @@ entries:
 - id: cc-an-input-whose-figure-the-fix
   file: commands/_fragments/close-chain.md
   baseline: A red call is fixed and THAT call re-run, never the chain from the top; an input whose figure the fix moved is re-printed and rewritten first (a committed message is corrected in the fix commit's own message, never by an amend)
-  current: A red call is fixed and THAT call re-run, never the chain from the top; re-print and rewrite an input whose figure the fix moved (correct a committed message in the fix commit's own message, never by an amend)
+  current: A red call is fixed and THAT call re-run, never the chain from the top; an input whose figure the fix moved is re-printed and rewritten first (a committed message is corrected in the fix commit's own message, never by an amend)
   text:
-  - A red call is fixed and THAT call re-run, never the chain from the top; re-print and rewrite an input whose figure the fix moved (correct a committed message in the fix commit's own message, never by an amend)
+  - A red call is fixed and THAT call re-run, never the chain from the top; an input whose figure the fix moved is re-printed and rewritten first (a committed message is corrected in the fix commit's own message, never by an amend)
   class: ban
   pins:
   - tests/test_producing_command_fragments.py::test_a_figure_in_a_close_input_is_printed_by_its_producer_not_recalled
 - id: cc2-four-calls
   file: commands/_fragments/close-chain.md
   baseline: The close is four calls, its inputs written first (D-363) — the default shape, and this command's own close text wins wherever it names something else (a different order, a `blocked` or `handoff` exit, an operator gate, a pause before execution, a nested run whose caller closes, a ledger row committed separately)
-  current: The close is four calls, its inputs written first (D-363); this command's own close text wins wherever it names something else (a `blocked` or `handoff` exit, an operator gate)
+  current: The close is four calls, its inputs written first (D-363) — the default shape, and this command's own close text wins wherever it names something else (a different order, a `blocked` or `handoff` exit, an operator gate, a pause before execution, a nested run whose caller closes, a ledger row committed separately)
   text:
-  - The close is four calls, its inputs written first (D-363); this command's own close text wins wherever it names something else (a `blocked` or `handoff` exit, an operator gate)
+  - The close is four calls, its inputs written first (D-363) — the default shape, and this command's own close text wins wherever it names something else (a different order, a `blocked` or `handoff` exit, an operator gate, a pause before execution, a nested run whose caller closes, a ledger row committed separately)
   class: prose
 - id: cc2-before-seven-line
   file: commands/_fragments/close-chain.md
   baseline: It runs BEFORE the response's closing seven-line block (CLAUDE.md § FINAL OUTPUT), whose `FEEDBACK:` line the chain's last call prints — and so before any output section of the command's own that reports the run
-  current: It runs BEFORE the response's closing seven-line block (CLAUDE.md § FINAL OUTPUT), whose `FEEDBACK:` line the chain's last call prints
+  current: It runs BEFORE the response's closing seven-line block (CLAUDE.md § FINAL OUTPUT), whose `FEEDBACK:` line the chain's last call prints — and so before any output section of the command's own that reports the run
   text:
-  - It runs BEFORE the response's closing seven-line block (CLAUDE.md § FINAL OUTPUT), whose `FEEDBACK:` line the chain's last call prints
+  - It runs BEFORE the response's closing seven-line block (CLAUDE.md § FINAL OUTPUT), whose `FEEDBACK:` line the chain's last call prints — and so before any output section of the command's own that reports the run
   class: grammar
-  clauses:
-    2: narrative
 - id: cc2-recheck-after-pass
   file: commands/_fragments/close-chain.md
   baseline: In such a command, what an input says about the change — the commit message, the `--evidence` text, a D-row, a `CHANGELOG.md` or other ledger hunk — is written, or checked sentence by sentence against the final text, after that pass too, and again after any fix the chain's own check or `final_gate.py` forces

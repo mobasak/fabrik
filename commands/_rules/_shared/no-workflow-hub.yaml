@@ -16,7 +16,7 @@ entries:
   file: commands/_fragments/no-workflow-hub.md
   baseline: 'Every `Workflow` launch this command names (a round-1 pass, a delta or closing pass, a relaunch, a wave) is replaced by its Agent-tool fallback: the same seats and the same briefs as ONE `Agent` message, with each seat''s absolute scratch folder and the pass''s pin (a later pass may resume a round-1 seat with `SendMessage`, and one that comes back dead, as after an account switch''s API 403, is re-dispatched fresh with its slice''s or unit''s ledger and the previous seat''s REFUTED list), and the close or the Pass row records `shape: agent-tool`'
   text:
-  - 'never call the `Workflow` tool: replace every launch this command names with ONE `Agent` message of the same seats, briefs, absolute scratch folders and pin, and record `shape: agent-tool` in the close or the Pass row. A later pass may resume a round-1 seat with `SendMessage`; re-dispatch a dead seat (an API 403 after an account switch) fresh with its slice''s ledger and the previous REFUTED list'
+  - 'never call the `Workflow` tool: replace every launch this command names with ONE `Agent` message of the same seats, briefs, absolute scratch folders and pin, and record `shape: agent-tool` in the close or the Pass row. A later pass may resume a round-1 seat with `SendMessage`; re-dispatch a dead seat (an API 403 after an account switch) fresh with its slice''s or unit''s ledger and the previous seat''s REFUTED list'
   class: ban
   pins:
   - tests/test_review_queue_pass.py::test_every_workflow_command_carries_the_no_workflow_in_the_hub_note

@@ -2,7 +2,7 @@
 
 A step this command's text names as running BEFORE the record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step routed to another command, whose record replaces this one.
 
-`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation; the Stop hook BLOCKS ending the turn while a record says `running`. That is the machinery that stops a command being abandoned half-executed — it only protects you if you open it.
+`CLAUDE.md` makes a run record the first act of any `/fabrik-*` invocation, and the Stop hook's fifth cause reads it: while a record says `running`, ending the turn is BLOCKED. That is the machinery that stops a command being abandoned half-executed — it only protects you if you open it.
 
 ```bash
 python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \

@@ -35,13 +35,10 @@ entries:
   file: commands/_fragments/orient.md
   section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
   baseline: '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or a directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`'
-  current: '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names; a range or directory matches 0 packs at rc 0, so re-run with paths, never `none`'
+  current: '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or a directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`'
   text:
-  - '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names'
-  - a range or directory matches 0 packs at rc 0, so re-run with paths, never `none`
+  - '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or a directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`'
   class: ban
-  clauses:
-    2: narrative
 - id: or-bare-run
   file: commands/_fragments/orient.md
   section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
@@ -54,9 +51,9 @@ entries:
   file: commands/_fragments/orient.md
   section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
   baseline: Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior) and is named on that line, never a silent fallback; the packs listed are READ before the first edit; the infra and manifesto sections named are the ones then read and cited `path:line` where the run relies on them
-  current: Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior), named on that line, never a silent fallback; the packs listed are READ before the first edit; the infra and manifesto sections named are cited `path:line` where the run relies on them
+  current: Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior) and is named on that line, never a silent fallback; the packs listed are READ before the first edit; the infra and manifesto sections named are the ones then read and cited `path:line` where the run relies on them
   text:
-  - Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior), named on that line, never a silent fallback; the packs listed are READ before the first edit; the infra and manifesto sections named are cited `path:line` where the run relies on them
+  - Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior) and is named on that line, never a silent fallback; the packs listed are READ before the first edit; the infra and manifesto sections named are the ones then read and cited `path:line` where the run relies on them
   class: ban
 - id: or-hub-absolute
   file: commands/_fragments/orient.md
@@ -70,14 +67,10 @@ entries:
   file: commands/_fragments/orient.md
   section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
   baseline: 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is to write it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
-  current: Every field is an EXECUTED output; an empty field has skipped a step, not saved one
+  current: 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is to write it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
   text:
-  - Every field is an EXECUTED output; an empty field has skipped a step, not saved one
+  - 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is to write it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
   class: prose
-  clauses:
-    1: narrative
-    2: narrative
-    3: narrative
 vanished:
   L3:
     rule:
