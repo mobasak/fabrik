@@ -22,9 +22,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'First the decision line: did this run MAKE or RECEIVE a decision (an operator ruling, an approval/Status flip, a retirement/adoption, an architecture/scope choice, "built X at Y", a rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — a chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, the manifesto''s Phase-0 triage; a ONE-WAY row grows the § Binding field block, per CLAUDE.md § the decision ledger) — or state `no decisions this run`'
-  current: 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md) — or state `no decisions this run`'
+  current: 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md § decision ledger) — or state `no decisions this run`'
   text:
-  - 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md) — or state `no decisions this run`'
+  - 'First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run''s change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto''s Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md § decision ledger) — or state `no decisions this run`'
   class: ban
 - id: cf-7
   file: commands/_fragments/close-feedback.md
@@ -172,9 +172,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: '⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — and you get the behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before the quiet round, or made cheap by skipping a probe, moves both counters the right way while the work gets worse'
-  current: '⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — you get behavior you measure (the Cobra Effect, CLAUDE.md § FIX DIRECTIVE item 5): a run shortened by closing before quiet round moves both counters'
+  current: '⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — you get behavior you measure (the Cobra Effect, CLAUDE.md § FIX DIRECTIVE item 5): a run shortened by closing before quiet round, or made cheap by skipping probe, moves both counters right way while work gets worse'
   text:
-  - '⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — you get behavior you measure (the Cobra Effect, CLAUDE.md § FIX DIRECTIVE item 5): a run shortened by closing before quiet round moves both counters'
+  - '⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — you get behavior you measure (the Cobra Effect, CLAUDE.md § FIX DIRECTIVE item 5): a run shortened by closing before quiet round, or made cheap by skipping probe, moves both counters right way while work gets worse'
   class: prose
 - id: cf-22
   file: commands/_fragments/close-feedback.md
@@ -260,9 +260,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'The close REFUSES without it, and without the four fields — and the TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be classified into a token and discarded, which is why five operator asks produced zero visible reports; write the verdict as a report to a human, because it now reaches one) — — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
-  current: 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055) — and and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
+  current: 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — write verdict as report to human, because it now reaches one) — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
   text:
-  - 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055) — and and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
+  - 'The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — write verdict as report to human, because it now reaches one) — and a refused close leaves the record `running`, which the Stop hook blocks the turn on'
   class: ban
 - id: cf-31
   file: commands/_fragments/close-feedback.md
@@ -310,17 +310,17 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: So DO the step's work and state its number in the response (the seats you dispatched, the CONFIRMED count that closed the round), close with what the parser accepts, and file the stale-copy fact
-  current: So DO step's work and state its number in response (the seats you dispatched, CONFIRMED count that closed round)
+  current: So DO step's work and state its number in response (the seats you dispatched, CONFIRMED count that closed round), close with what parser accepts, and file stale-copy fact
   text:
-  - So DO step's work and state its number in response (the seats you dispatched, CONFIRMED count that closed round)
+  - So DO step's work and state its number in response (the seats you dispatched, CONFIRMED count that closed round), close with what parser accepts, and file stale-copy fact
   class: prose
 - id: cf-35
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'Say the two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; and a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so the convergence verdict lives in your prose and the `--findings 0` rule still binds it'
-  current: 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py` — size down and name gap — round you cannot close with `--confirmed` cannot record D-206''s exit counter, so `--findings 0` rule still binds it'
+  current: 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py` — size down and name gap — round you cannot close with `--confirmed` cannot record D-206''s exit counter, so convergence verdict lives in your prose and `--findings 0` rule still binds it'
   text:
-  - 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py` — size down and name gap — round you cannot close with `--confirmed` cannot record D-206''s exit counter, so `--findings 0` rule still binds it'
+  - 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py` — size down and name gap — round you cannot close with `--confirmed` cannot record D-206''s exit counter, so convergence verdict lives in your prose and `--findings 0` rule still binds it'
   class: prose
 - id: cf-36
   file: commands/_fragments/close-feedback.md
@@ -368,9 +368,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '### File it when this run hit any of these'
   baseline: 'friction that cost you real time: an ambiguous step, a missing arg, an undocumented prerequisite'
-  current: 'friction that cost you real time: an ambiguous step, missing arg'
+  current: 'friction that cost you real time: an ambiguous step, missing arg, undocumented prerequisite'
   text:
-  - 'friction that cost you real time: an ambiguous step, missing arg'
+  - 'friction that cost you real time: an ambiguous step, missing arg, undocumented prerequisite'
   class: prose
 - id: cf-44
   file: commands/_fragments/close-feedback.md
@@ -483,9 +483,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '### A subagent''s finding is YOURS to file'
   baseline: A `fabrik-reviewer` that notices a false-positive check, a `fabrik-researcher` that hits a dead reference, a pool finder that trips over a contradictory rule — each surfaces it in its return value and then ceases to exist
-  current: A `fabrik-reviewer` that notices false-positive check, `fabrik-researcher` that hits dead reference — each surfaces it in its return value and then ceases to exist
+  current: A `fabrik-reviewer` that notices false-positive check, `fabrik-researcher` that hits dead reference, pool finder that trips over contradictory rule — each surfaces it in its return value and then ceases to exist
   text:
-  - A `fabrik-reviewer` that notices false-positive check, `fabrik-researcher` that hits dead reference — each surfaces it in its return value and then ceases to exist
+  - A `fabrik-reviewer` that notices false-positive check, `fabrik-researcher` that hits dead reference, pool finder that trips over contradictory rule — each surfaces it in its return value and then ceases to exist
   class: prose
 - id: cat-L72
   file: commands/_fragments/close-feedback.md
