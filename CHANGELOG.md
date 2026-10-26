@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Ocoron brand guide: the legal entity is Ocoron Dış Ticaret Limited Şirketi; Kalite Pusulası added (2026-10-26)
+
+- W-c0080a4b, D-1250, operator order relayed from web-ecommerce-factory. `.windsurf/rules/core/ocoron-design-system.md`
+  rule 5 and the Brand Map named "Teknokent LLC"; both now name "Ocoron Dış Ticaret Limited Şirketi", and that name
+  also appears on legal notices such as the KVKK data controller. The Brand Map gains Kalite Pusulası
+  (kalitepusulasi.com) as an Ocoron brand.
+
 ### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
 
 A session whose env carries `ANTHROPIC_API_KEY` and none of the credentials that could replace it
