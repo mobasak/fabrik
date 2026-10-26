@@ -18,7 +18,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       {% for key, value in env.items() %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
     {% if volumes %}
     volumes:

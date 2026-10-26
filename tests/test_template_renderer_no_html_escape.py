@@ -3,8 +3,8 @@
 `select_autoescape(["yaml", "yml", "j2"])` matched every `*.j2` name, so compose files, Dockerfiles,
 JS and env lines came out HTML-escaped: a template-sourced secret `p&ss` deployed as `p&amp;ss`. No
 template emits HTML, so the renderer renders verbatim. Scope: the five characters HTML escaping
-rewrote (`& < > ' "`). `env_escape` still writes `"` as `\\"`, and newlines, `$`, ` #` and `: ` in an
-env value are separate YAML/compose-quoting defects this file does not cover.
+rewrote (`& < > ' "`). Env-value quoting (`"`, newlines, `$`, ` #`, `: `) is graded by
+tests/test_compose_env_quoting.py (W-80aed026).
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from fabrik.spec_loader import Spec, load_spec
 from fabrik.template_renderer import TemplateRenderer
 
 REPO = Path(__file__).resolve().parent.parent
-# The characters autoescape rewrote, minus `"`, which env_escape backslash-escapes by design.
+# The characters autoescape rewrote, minus `"` (graded with the other quoting cases in test_compose_env_quoting.py).
 TRICKY = "a&b<c>d'e"
 
 # The compose templates that write every env/secret value into `environment:` (`KEY=value`).
