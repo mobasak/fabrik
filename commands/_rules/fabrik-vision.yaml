@@ -231,7 +231,7 @@
   "baseline": "Cite URL + fetch date"
   "class": "prose"
   "text":
-  - "cite URL + fetch date and verify"
+  - "a LEAD, never a citation). Cite URL + fetch date"
 - "id": "v-L42"
   "file": "render"
   "baseline": "⚠️ Persisted + LOCKED on confirm — the Vision Summary IS the project's decisions lock (it carries Technology Decisions, the fabrik-lib Verdict, Rejected Alternatives and — EXISTING — Locked Decisions): on the owner's confirm it is written to `docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md` with a `**Status:** LOCKED <YYYY-MM-DD>` header line that downstream automation greps (Phase 5)"
@@ -314,8 +314,7 @@
   "baseline": "`fabrik redeploy` handles code-only updates — see `docs/operations/fabrik-lifecycle.md`)"
   "class": "ban"
   "text":
-  - "`fabrik redeploy` handles code-only updates — see"
-  - "`docs/operations/fabrik-lifecycle.md` carries no stage model; it"
+  - "`fabrik redeploy` handles code-only updates — see `docs/operations/fabrik-lifecycle.md`"
 - "id": "v-L61"
   "file": "render"
   "baseline": "Easy to maintain — when two solutions both work, prefer the one needing less ongoing attention"
@@ -1364,8 +1363,7 @@
   "baseline": "| `core/90-bootstrap-scripts.md` | `bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh` — fresh-install + DR-restore paths |"
   "class": "prose"
   "text":
-  - "`bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh` (per `core/90-bootstrap-scripts.md`) | Inspect"
-  - "fresh-install + DR-restore paths; `core/app-audit-log.md` in-app audit"
+  - "`core/90-bootstrap-scripts.md` `bootstrap-vps.sh` / `bootstrap-spoke-restore.sh` / `bootstrap-hub.sh` — fresh-install + DR-restore paths"
 - "id": "v-L233"
   "file": "render"
   "baseline": "| `core/app-audit-log.md` | In-app audit trail (tenant-scoped, immutable rows) |"
@@ -1383,8 +1381,7 @@
   "baseline": "| `core/self-healing.md` | Drift → diagnose → action loops; Tier A/B/C decision matrix |"
   "class": "prose"
   "text":
-  - "`core/self-healing.md` drift → diagnose → action loops, Tier"
-  - "Tier A/B/C decision matrix (per `core/self-healing.md`)"
+  - "`core/self-healing.md` drift → diagnose → action loops, Tier A/B/C decision matrix"
 - "id": "v-L236"
   "file": "render"
   "baseline": "| `saas/60-saas-ui.md`, `saas/95-multi-tenant-saas.md` | SaaS UI patterns, tenancy |"
@@ -1803,8 +1800,7 @@
   "baseline": "LLM gateway — scoped by domain"
   "class": "prose"
   "text":
-  - "LLM gateway | Scoped by domain — see"
-  - "Scoped by domain — see constraint 15"
+  - "LLM gateway — scoped by domain. (a) RAG / search / embeddings pipeline"
 - "id": "v-L303"
   "file": "render"
   "baseline": "(a) RAG / search / embeddings pipeline (`65-rag-search.md` — glob-activated on `**/rag/**`, `**/embeddings/**`, `**/search/**`, `**/vector/**`, `**/retrieval/**`): OpenRouter API required for embeddings and all pipeline LLM calls"
@@ -2174,7 +2170,7 @@
   "baseline": "\"Didn't check fabrik-lib\" is a defect"
   "class": "prose"
   "text":
-  - "\"Didn't check fabrik-lib\" is a defect.]"
+  - "the Vision Summary. \"Didn't check fabrik-lib\" is a defect"
 - "id": "v-L361"
   "file": "render"
   "baseline": "Present: (1) Features extracted with complexity classification, (2) Gaps, (3) Conflicts with Fabrik, (4) Opportunities, (5) Scale estimate + epic-count signal, (6) Constraints `all clear`/`conflict`/`unknown`, (7) Research sufficiency notes, (8) Live-grounded external facts + their source URLs & dates, (9) The chosen approach + its cited current best-practice, and the Rejected Alternatives, (10) The fabrik-lib vendor→enhance→build Verdict per capability"
@@ -2309,8 +2305,7 @@
   "baseline": "`docs/development/PLANS.md` open rows + the `<!-- Merge owner: … -->` header, and `docs/STRATEGIC_BACKLOG.md` — both when present)"
   "class": "prose"
   "text":
-  - "`docs/development/PLANS.md` open rows + the `<!-- Merge owner: … -->` header, and `docs/STRATEGIC_BACKLOG.md` — both when present) ·"
-  - "both when present) · `.windsurf/rules/` (synced — check"
+  - "`docs/` (incl. `docs/development/PLANS.md` open rows + the `<!-- Merge owner: … -->` header, and `docs/STRATEGIC_BACKLOG.md` — both when present)"
 - "id": "v-L385"
   "file": "render"
   "baseline": "`.windsurf/rules/` — synced from this repo"
@@ -2385,13 +2380,13 @@
   "baseline": "`.fabrik/state/*.json` exists?"
   "class": "prose"
   "text":
-  - "`.fabrik/state/*.json` exists? Registrars active? Verification: `fabrik"
+  - "`.fabrik/state/*.json` exists? Registrars active? 4. Verification:"
 - "id": "v-L397"
   "file": "render"
   "baseline": "Registrars active?"
   "class": "prose"
   "text":
-  - "Registrars active? Verification: `fabrik verify` passes?"
+  - "Registrars active? 4. Verification: `fabrik verify`"
 - "id": "v-L398"
   "file": "render"
   "baseline": "Verification: `fabrik verify` passes?"
@@ -2444,7 +2439,7 @@
   "baseline": "Port: [Y]"
   "class": "prose"
   "text":
-  - "[X] · Port: [Y] · Shape: [registrar flags]"
+  - "State: \"Project read. Scaffold: [X / pre-scaffold]. Port: [Y]. [N] API routes"
 - "id": "v-L406"
   "file": "render"
   "baseline": "[N] API routes, [M] DB tables, [K] workers"
@@ -2508,7 +2503,7 @@
   "baseline": "STOP GENERATION HERE"
   "class": "prose"
   "text":
-  - "Phase 4. CRITICAL: STOP GENERATION HERE"
+  - "Wait for owner confirmation. Do NOT proceed without it. STOP GENERATION HERE"
 - "id": "v-L415"
   "file": "render"
   "baseline": "Compliance Detection. Compare the project against current Fabrik scaffold standards AND rule packs"
@@ -3661,7 +3656,7 @@
   "baseline": "Owner explicitly confirms"
   "class": "prose"
   "text":
-  - "owner explicitly confirms: owner answers Open"
+  - "no Guardrails prohibition tripped (below); the owner explicitly confirms"
 - "id": "v-L584"
   "file": "render"
   "baseline": "Acceptance — NEW adds: research (if present) improved: gaps, conflicts, opportunities surfaced; multiple research files' conflicts flagged in Open Questions, not silently resolved"
@@ -3913,7 +3908,7 @@
   "baseline": "Silence ≠ confirmation"
   "class": "prose"
   "text":
-  - "owner explicitly says \"restart\". Silence ≠ confirmation"
+  - "the owner explicitly confirms. Silence ≠ confirmation"
 - "id": "v-L589"
   "file": "render"
   "baseline": "Lifecycle gaps detected; pre-flight checks completed"
