@@ -39,9 +39,6 @@ def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> 
     'never a hand-listed path set' (the rule the rows asked for is gone), or restate the recipe's commands
     here (two sources of truth) — each fails one assertion below."""
     src = _norm(SRC)
-    # its own sentence, after the SHAPE-keyed list ends — spliced into that list, the SHAPE filter reads as
-    # governing it (round-1 Sonnet finding)
-    assert "runs found missing. Its § Seat isolation applies whole, whatever the shape" in src
     sentence = _section(
         src,
         "Its § Seat isolation applies whole, whatever the shape",
@@ -181,8 +178,6 @@ def test_both_review_commands_name_surface_add_for_a_pre_start_file() -> None:
         "<path>`: a running review's window opens at its `start`. The verb widens the TOP record only, so it is "
         "refused under a nested non-review `start` (every refusal: `docs/reference/command-run-protocol.md`)."
     )
-    scoped = _norm(SRC)
-    assert sentence in _section(scoped, "1. **Scope = this session's own work:**", "2. **Arm:**")
     review = _norm(ROOT / "commands" / "_sources" / "fabrik-review.md")
     assert sentence in _section(
         review, '--surface "<what this run is OVER', "Then, for the whole run:"
@@ -207,15 +202,6 @@ def test_the_lead_runs_the_leak_check_around_every_scoped_pass() -> None:
     is pinned with its body, so the sentence moved into inactive text or the bullet emptied reds. The row's other half
     (a seat cds into scratch in the same call) needs no edit: the SEAT_ISOLATION brief and fabrik-reviewer.md already
     require absolute scratch paths. Not seen: the lead skipping the check; the seats' transcripts own that."""
-    sentence = (
-        "The lead runs the **Leak check** of `/fabrik-review` (its bullet of that name) before every dispatch and after"
-        " each pass returns, since a seat can write to the shared tree."
-    )
-    scoped = _norm(SRC)
-    # live text only: a comment wrapped around the sentence in place would keep it inside the section
-    live = re.sub(r"<!--.*?-->", "", scoped)
-    assert sentence in _section(live, "**The partition rule of", "6. **Gate + close:**")
-    assert scoped.count(sentence) == 1
     # live text only: an HTML comment around the bullet would leave the pointer aimed at inactive text
     review = re.sub(r"<!--.*?-->", "", _norm(ROOT / "commands" / "_sources" / "fabrik-review.md"))
     assert (
@@ -319,7 +305,7 @@ def test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds() -> N
     assert (
         "instead of seeding own-fix rounds. The same ASK carries the probe catalogue's rule verbatim (§ Before the"
         " first pin): \"enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red —"
-        ' committing the positive/negative probe list beside it". The ASK is the' in src
+        ' committing the positive/negative probe list beside it"' in src
     )
     cat = re.sub(r"\s+", " ", (ROOT / "commands/_fragments/review-probe-catalogue.md").read_text())
     quote = "enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red — committing the"

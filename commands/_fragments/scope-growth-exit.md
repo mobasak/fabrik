@@ -3,8 +3,8 @@
    > print a verdict. **`⚠️ SCOPE GROWTH`** — the loop is correcting its own corrections:
    > stop HUNTING, name and fix every confirmed defect still open in the window, route
    > own-fix residue to a backlog row with a named destination, re-verify the fixed set, and
-   > close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` row. **`↗ ESCALATE`** — the ratio was computed, NOT met, and the count is not falling:
-   > the surface outgrew this pass, so route up per step 5.
+   > close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` row (D-355). **`↗ ESCALATE`** — the ratio was computed, NOT met, and the count is not falling:
+   > the artifact's own defects: the surface outgrew this pass, so route up per step 5.
    > **`? SCOPE GROWTH UNCOMPUTABLE`** — a window round never stated a readable
    > `--confirmed`/`--own-fix` pair and it would decide the verdict: state it and re-record before
    > deciding. ⚠️ **SILENCE IS COMMON AND IS NOT A VERDICT.** Nothing prints before the third round —
