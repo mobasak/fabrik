@@ -30,7 +30,8 @@ None. The ticket's Touches lists no test file; `tests/test_check_command_corpus.
 - `python3 commands/assemble_commands.py --check`: exit 1, every DRIFT line `DIFFERS from what this tree renders` or `MISSING` (installed corpus is master's); `REPORT fabrik-epics-review: shrank to 26515 words, ceiling 29473` (ratchet at merge; `_size_ceiling.json` untouched).
 - Reader tests (tests that name `fabrik-epics-review`): failure set at the start commit and at the end below.
 
-FAILURE_SETS_PLACEHOLDER
+Start commit: 14 failed + 1 collection error (test_assemble_dispatch_step 1, test_check_command_corpus 2, test_command_run 1, test_governance_template_split 3, test_quota_dashboard 7, test_cli_orchestrator_hint collection error: no `fabrik` deps in the clone), 1201 passed.
+End commit: the full re-run of the same files had not finished when this worker closed (a long-running test held it), so the end set is NOT reported; `tests/test_command_rules.py` passes (32 passed, 3 skipped). LEFT FOR THE HUB: re-run the 12 reader-test files and diff against the start set above.
 
 ## LEFT FOR THE HUB
 
