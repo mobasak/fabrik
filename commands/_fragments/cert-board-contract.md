@@ -1,16 +1,15 @@
 Output: the **CERT BOARD + LEDGER**, generated — never hand-written.
 
-⚠️ **The denominator comes from a live REGISTRY, not from this list and not from a doc.** The four
-discovery modes above are demoted to **cross-checks**. The denominator resolves to a machine-readable registry of the RUNNING system,
+⚠️ **The denominator comes from a live REGISTRY, not from this list or a doc.** The four
+discovery modes above are **cross-checks** (their bidirectional-reconciliation value is real and is kept). The denominator resolves to a machine-readable registry of the RUNNING system,
 declared in `project.yaml::certification_registry`; undeclared falls back to the per-type default AND
 records the fallback. A registry that cannot be reached **fails LOUD naming what could not be
 enumerated**.
 
-Why: on an INHERITED surface the agent's enumeration under-counts silently and the run terminates HONESTLY AND WRONG;
-on a surface the project authored it never bites. `/fabrik-features` is NOT the fix: it documents what the project
+On a surface the project authored, the agent's enumeration and reality converge and this never bites; on an INHERITED surface it under-counts silently and the run terminates HONESTLY AND WRONG. `/fabrik-features` is NOT the fix: it documents what the project
 BUILT; certification must cover what the product SHIPS.
 
-**Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:**
+**Two generated artifacts and one hand-written recipe, inside the run's own board directory so they archive as a unit:**
 
 ```
 docs/development/certifications/YYYY-MM-DD-cert-<surface>/
@@ -24,21 +23,20 @@ docs/development/certifications/YYYY-MM-DD-cert-<surface>/
 `TC##[a-z]?-<slug>.md` (not `T##`), `docs/development/certifications/` (not `plans/`), and
 `.fabrik/cert-locks/` (not `.fabrik/plan-locks/`). The heading is load-bearing:
 `/fabrik-execute-plan`'s dispatcher triggers on that **bare string**, so a mis-headed board is
-dispatched to CODING agents. `check_certification_coverage.py`
+dispatched to CODING agents holding a lock the Stop hook believes in. `check_certification_coverage.py`
 flags all four as **BLOCKING**, not advisory.
 
 **Every ID reaches a terminal disposition — `EXERCISED` (evidence path must EXIST on disk) or
 `OUT-OF-SCOPE(reason naming an external owner)`. `UNVISITED` is a FINDING, not a hard block: `check_certification_coverage.py` reports it **advisory by deliberate design** (registration `advisory=True`; since 2026-08-29 a MIX-UP finding exits 1 and BLOCKS — coverage quality alone never does; see its docstring) — so a board full of `UNVISITED` will NOT redden the gate. **You must therefore paste the grader's verbatim counters into the report** (`ids`/`exercised`/`unvisited`/`blocking`) and read them: measured at transdoc 2026-08-27, a board reporting `{ids: 7, exercised: 0, unvisited: 7}` passed a green 49/0 gate because the board had gone STALE, and neither the grader nor an operator reading a green gate could tell that from a genuinely untested surface. A run that closes with `unvisited > 0` closes NOT-QUIET, never `done`. `DEFERRED` is
 REJECTED**, with its synonyms. `inherited` / `vendored` / `generated` / `legacy` / `low priority` are **rejected REASONS**:
-they describe how OUR surface came to exist, not whether a customer can reach it, and inherited
-surfaces are exactly what the T3 generated-smoke tier is FOR.
+they describe how OUR surface came to exist, not whether a customer can reach it; T3 generated-smoke covers inherited surfaces.
 
 **Board grammar, exact (learned by failing the grader — brand-identiy `01M168QED`):** the
 disposition column is headed **`Disposition`** (or `State`) — a `Status` column reads as UNVISITED;
 ONE evidence path per cell (a comma-separated cell fails the existence check whole); ticket files
 are `TC##[a-z]?-<slug>.md` ONLY — beside the spine, `ledger.md` and the `runtime.md` recipe are the
 two non-ticket files, and any other `.md` flags BAD TICKET. **Evidence discipline:** the board's `evidence/`
-dir is NEVER a runner's `--output` dir (runners WIPE their output root at start); take explicit `page.screenshot` paths and `cp` to
+dir is NEVER a runner's `--output` dir (runners WIPE their output root at start — passing the sweep dir as `--output` deletes cross-run evidence); take explicit `page.screenshot` paths and `cp` to
 `evidence/` IMMEDIATELY (attachments persist only for failing tests).
 
 **Bulk marking is where a deny-list leaks — and the grader never records.** A sweep flag
@@ -54,15 +52,14 @@ only reads.
 **The fifth oracle — reference-data reconciliation (trade-intelligence `01M1580AH`, 2026-08-29).**
 The UI-truth-vs-SYSTEM-truth comparison is blind to a defect ABSENT FROM BOTH SIDES: a levy the API
 never computed and the card therefore never rendered agreed perfectly across four certification
-runs (30 quiet rounds) while silently omitting a ~2.46M TRY line whose ZERO happened to be correct. So for every journey whose output is ADJUDICATED CONTENT (levies, prices), at least one scenario per content class reconciles the
+runs (30 quiet rounds) while silently omitting a ~2.46M TRY line whose ZERO happened to be correct. So for every journey whose output is ADJUDICATED CONTENT (levies, prices, entitlements, computed rows), at least one scenario per content class reconciles the
 response against an INDEPENDENT reference source — the governing table/ruleset/fixture the domain
 itself names — asserting not just that rendered rows are right but that every row the reference
 implies is PRESENT or its absence individually justified. No independent reference reachable → say
 so in the ledger (`reference-reconciliation: unavailable — <why>`).
 
-**The demoted doc inventory keeps its teeth.** Demoting `docs/FEATURES.md` to a cross-check does NOT
-mean discarding it: **every FEATURES row must map to the ticket/scenario IDs that exercise it, and a
-feature with zero mapped IDs cannot be reported as working.** That clause survived the denominator change and is the cross-check's whole value. A large divergence between the doc inventory and the registry is
+**The demoted doc inventory keeps its teeth.** `docs/FEATURES.md` stays a cross-check: **every FEATURES row must map to the ticket/scenario IDs that exercise it, and a
+feature with zero mapped IDs cannot be reported as working**. A large divergence between the doc inventory and the registry is
 REPORTED, not silently preferred either way.
 
 **Tiers set DEPTH, never whether something is tested.** T1 money/tenancy/PII/auth → full

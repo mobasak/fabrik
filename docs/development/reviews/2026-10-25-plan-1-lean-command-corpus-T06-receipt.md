@@ -183,7 +183,7 @@ The 41 clauses still more than 8 words over their anchors-plus-8-stems minimum (
 | `design-gate-panel` | L8.1 Before the round that reviews the revision is pinned, each c… | 49 | 29 | ban clause whose comma list (objects of the ban) must stay verbatim to the end of the clause (D-1240) |
 | `design-gate-panel` | L8.3 the code line it describes, a decision row, an artifact sect… | 28 | 9 | list of required items; each item is a distinct rule (dropping any one loses it) |
 | `design-gate-panel` | L14.1 In autonomy mode the Stop hook checks that line against the … | 22 | 9 | procedure step; the tail carries a condition or an object of the step |
-| `deploy-chain` | L10.1 | 4 | `/fabrik-deploy-plan-review` | the same repo as the pl… | 24 | 12 | phrase pinned by a reader test that this ticket keeps green (kept verbatim) |
+| `deploy-chain` | L10.1 \| 4 \| `/fabrik-deploy-plan-review` \| the same repo as the pl… | 24 | 12 | phrase pinned by a reader test that this ticket keeps green (kept verbatim) |
 | `cert-board-contract` | L9.1 Two generated artifacts and one hand-written recipe, all ins… | 20 | 9 | procedure step; the tail carries a condition or an object of the step |
 | `cert-board-contract` | L12.1 The heading is load-bearing: `/fabrik-execute-plan`'s dispat… | 28 | 10 | phrase pinned by a reader test that this ticket keeps green (kept verbatim) |
 | `cert-board-contract` | L19.1 `inherited` / `vendored` / `generated` / `legacy` / `low pri… | 40 | 14 | phrase pinned by a reader test that this ticket keeps green (kept verbatim) |
@@ -236,3 +236,26 @@ The hub mints the floor D-row (live rule count x the U1 words-per-rule figure); 
 Inputs: the `baseline_sentences:` file of each ledger at the start commit, the rewritten file, its ledger. Method: an executable clause audit (every baseline clause, split at `;`/`—` outside backticks, checked against its carrier entry for anchor presence — backticked tokens, numbers, ban words —, at least 70% of its first 8 content stems, and the ban clause verbatim from the ban word to the clause end; a clause labelled narrative/duplicate-of is refused if it holds a ban word), plus a by-eye read of the diff for the four checks. Earlier passes fixed: ban tails and anchors restored in `design-gate-panel` L8 (`must still pass …`, `must reach …`), `autonomy-run` L5 (`must behave`), L32 (`test-only dependency …`), L2/L13, `cert-board-contract` L27 (`That clause survived …`), `cert-execution` L3/L13, `design-critique` L11 (SQL-predicate clause), `deploy-chain` row 3 and L2, and the wrong labels `deploy-chain` L2 (duplicate-of a table header), `design-review` L2/L5/L68 (persona/goal sentences that carry a rule) — all restored or relabelled.
 
 COUNTS: entries read 193 / reworded 42 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0
+
+## Re-ledger round (lean-t06-rl)
+
+Base: claude/lean-t06 + kaizen-lean-u01 (canonical D-1236 loader). Own-text words, baseline -> before -> now:
+7652 -> 5496 -> 5419 (71%); LOSS before -> after: 10 -> 0 (own ledgers, checked with the loader's `losses()` filtered to the nine ledgers). Every `# class:` / `# clauses:` comment is now a real key. `assemble_commands.py --check` exits 4 here from other units' ledgers only (718 LOSS lines at the merge, none naming these nine).
+
+| File | Baseline | Now | Share | Reworded/entries |
+|---|---|---|---|---|
+| autonomy-run | 1907 | 1073 | 56% | 17/38 |
+| cert-board-contract | 1160 | 925 | 80% | 7/31 |
+| cert-execution | 924 | 567 | 61% | 12/17 |
+| cert-handoff-grammar | 285 | 269 | 94% | 3/5 |
+| cert-visual-deliverable | 155 | 118 | 76% | 2/3 |
+| deploy-chain | 652 | 359 | 55% | 3/14 |
+| design-critique | 832 | 787 | 95% | 12/22 |
+| design-gate-panel | 668 | 645 | 97% | 6/19 |
+| design-review (agent) | 1069 | 676 | 63% | 5/41 |
+
+Over 50%, so the floor table (D-1254): the bulk of every remaining over-minimum clause holds a ban word whose clause must stay verbatim to its `;`/`—`/sentence end (cbc-u12/u13/u17/u18/u19/u21, dcr-u15/u6/u12/u13/u18, dgp-u0/u7/u8/u15/u18, ar-u21/u24/u26/u29/u30/u35, ce-u15/u18, chg-u0/u3/u4, dr git-verb and frontend-design paragraphs); anchor-dense clauses (dates, ids, paths, backticked commands) whose anchors force the phrase (ce-u14 clause 2, chg-u1, cvd-u0/u1, deploy-chain table rows, dc-u14 clause 2); and phrases pinned by tests (dcr-u4/u6/u10/u15, dgp-u0/u6/u19, dr frontend-design). The design-critique/design-gate-panel files are the least cut (95%/97%): nearly every sentence is a ban clause or a test-pinned phrase.
+
+Audit passes: pass 1 (3 fresh seats) found 0 lost / 0 invented / 0 wrong vanished labels plus 23 weakened rewordings and 5 narrative labels on rule clauses (ar-u27, cbc-u27, ce-u3, dc-u14, design-critique L23); all restored. Final fresh pass (author-blind) found 1 label (cvd-u0 clause 3, removed) and 1 weaker (ar-u33, restored) plus ar-u37 "waits" (broader, not weaker, left).
+
+COUNTS: 190 entries read / 58 reworded / 0 weaker (after fixes) / 0 lost / 0 invented / 0 wrong vanished labels

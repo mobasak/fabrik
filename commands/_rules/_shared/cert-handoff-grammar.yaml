@@ -3,43 +3,50 @@ baseline_sentences: cert-handoff-grammar.baseline.txt
 baseline_sha256: d5bb632dfb13dae331e0ffa0fe5bc561a54039bdce10703ca16e3463a3a78e36
 entries:
 - id: chg-u0
-  # class: ban
   file: commands/_fragments/cert-handoff-grammar.md
-  baseline: "Machine-readable disposition rows (the two `HANDOFF` forms are gate-parsed by `check_review_coverage.py`; `DESIGN-GAP` is honour-bound grammar — no parser reads it, only `/fabrik-release`'s untouched-DESIGN-GAP block catches it): every routed finding appears as one line in the report: `HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` · `HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` · `DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open)"
-  current: "Machine-readable disposition rows (the two `HANDOFF` forms are gate-parsed by `check_review_coverage.py`; `DESIGN-GAP` is honour-bound grammar — no parser reads it, only `/fabrik-release`'s untouched-DESIGN-GAP block catches it): every routed finding appears as one line in the report: `HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` · `HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` · `DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open)"
+  baseline: 'Machine-readable disposition rows (the two `HANDOFF` forms are gate-parsed by `check_review_coverage.py`; `DESIGN-GAP` is honour-bound grammar — no parser reads it, only `/fabrik-release`''s untouched-DESIGN-GAP block catches it): every routed finding appears as one line in the report: `HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` · `HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` · `DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open)'
+  current: 'Machine-readable disposition rows (the two `HANDOFF` forms are gate-parsed by `check_review_coverage.py`; `DESIGN-GAP` is honour-bound grammar — no parser reads it, only `/fabrik-release`''s untouched-DESIGN-GAP block catches it): every routed finding appears as one line in the report: `HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` · `HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` · `DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open)'
+  class: ban
   text:
-  - "Machine-readable disposition rows (the two `HANDOFF` forms are gate-parsed by `check_review_coverage.py`; `DESIGN-GAP` is honour-bound grammar — no parser reads it, only `/fabrik-release`'s untouched-DESIGN-GAP block catches it): every routed finding appears as one line in the report: `HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` · `HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` · `DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open)"
+  - 'Machine-readable disposition rows (the two `HANDOFF` forms are gate-parsed by `check_review_coverage.py`; `DESIGN-GAP` is honour-bound grammar — no parser reads it, only `/fabrik-release`''s untouched-DESIGN-GAP block catches it): every routed finding appears as one line in the report: `HANDOFF P<0-3> OPEN <desc> — repro: <path> — route: <command> — evidence: <body/key-set/state one-liner>` · `HANDOFF P<0-3> CLOSED <desc> — repro: <path> — proof: <green-run one-liner>` · `DESIGN-GAP <desc> — brief: <docs/development/reviews/...-design-gap-*.md>` (operator decision, may stay open)'
 - id: chg-u1
-  # class: ban
-  # clauses: {L2.3: narrative}
   file: commands/_fragments/cert-handoff-grammar.md
-  baseline: "A CLOSED row without an existing repro path + proof fails the gate; an OPEN row routed to `/fabrik-review` (the code-wrong route) without an `evidence:` slot fails the gate (the wire/state evidence is what proves attribution — see Phase 4); any OPEN HANDOFF row requires the final ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`"
-  current: "A CLOSED row without an existing repro path + proof fails the gate; an OPEN row routed to `/fabrik-review` (the code-wrong route) without an `evidence:` slot fails the gate; any OPEN HANDOFF row requires the final ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`"
+  baseline: A CLOSED row without an existing repro path + proof fails the gate; an OPEN row routed to `/fabrik-review` (the code-wrong route) without an `evidence:` slot fails the gate (the wire/state evidence is what proves attribution — see Phase 4); any OPEN HANDOFF row requires the final ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`
+  current: A CLOSED row without an existing repro path + proof fails the gate; an OPEN row routed to `/fabrik-review` (the code-wrong route) without an `evidence:` slot fails the gate (the wire/state evidence proves attribution — see Phase 4); any OPEN HANDOFF row requires the final ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`
+  class: ban
   text:
-  - "A CLOSED row without an existing repro path + proof fails the gate; an OPEN row routed to `/fabrik-review` (the code-wrong route) without an `evidence:` slot fails the gate; any OPEN HANDOFF row requires the final ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`"
+  - A CLOSED row without an existing repro path + proof fails the gate; an OPEN row routed to `/fabrik-review` (the code-wrong route) without an `evidence:` slot fails the gate (the wire/state evidence proves attribution — see Phase 4); any OPEN HANDOFF row requires the final ledger marked `NOT-QUIET (routes outstanding)` AND a `## RESUME` section; NOT-QUIET requires `## RESUME`
 - id: chg-u2
-  # class: prose
   file: commands/_fragments/cert-handoff-grammar.md
-  baseline: "Severity is ASSIGNED by blast radius, not vibes (`/fabrik-release` BLOCKS on P0/P1 and operator-WARNs P2/P3, so the digit has teeth): P0 = data loss / tenant-crossing / auth bypass / money mischarged · P1 = a journey a real consumer cannot complete, or a fail-open on system truth · P2 = degraded-but-workaroundable behavior, latency-budget breaches, error-shape drift · P3 = doc-drift, cosmetic payload issues"
-  current: "Severity is ASSIGNED by blast radius, not vibes (`/fabrik-release` BLOCKS on P0/P1 and operator-WARNs P2/P3): P0 = data loss / tenant-crossing / auth bypass / money mischarged · P1 = a journey a real consumer cannot complete, or a fail-open on system truth · P2 = degraded-but-workaroundable behavior, latency-budget breaches, error-shape drift · P3 = doc-drift, cosmetic payload issues"
+  baseline: 'Severity is ASSIGNED by blast radius, not vibes (`/fabrik-release` BLOCKS on P0/P1 and operator-WARNs P2/P3, so the digit has teeth): P0 = data loss / tenant-crossing / auth bypass / money mischarged · P1 = a journey a real consumer cannot complete, or a fail-open on system truth · P2 = degraded-but-workaroundable behavior, latency-budget breaches, error-shape drift · P3 = doc-drift, cosmetic payload issues'
+  current: 'Severity is ASSIGNED by blast radius (`/fabrik-release` BLOCKS on P0/P1 and operator-WARNs P2/P3): P0 = data loss / tenant-crossing / auth bypass / money mischarged · P1 = a journey a real consumer cannot complete, or a fail-open on system truth · P2 = degraded-but-workaroundable behavior, latency-budget breaches, error-shape drift · P3 = doc-drift, cosmetic payload issues'
+  class: prose
   text:
-  - "Severity is ASSIGNED by blast radius, not vibes (`/fabrik-release` BLOCKS on P0/P1 and operator-WARNs P2/P3): P0 = data loss / tenant-crossing / auth bypass / money mischarged · P1 = a journey a real consumer cannot complete, or a fail-open on system truth · P2 = degraded-but-workaroundable behavior, latency-budget breaches, error-shape drift · P3 = doc-drift, cosmetic payload issues"
+  - 'Severity is ASSIGNED by blast radius (`/fabrik-release` BLOCKS on P0/P1 and operator-WARNs P2/P3): P0 = data loss / tenant-crossing / auth bypass / money mischarged · P1 = a journey a real consumer cannot complete, or a fail-open on system truth · P2 = degraded-but-workaroundable behavior, latency-budget breaches, error-shape drift · P3 = doc-drift, cosmetic payload issues'
 - id: chg-u3
-  # class: ban
   file: commands/_fragments/cert-handoff-grammar.md
-  baseline: "When torn between two tiers, take the HIGHER — the operator can waive down (their waiver mints its ledger row); nobody catches a silent under-tier (the grader parses the digit, never validates it)"
-  current: "When torn between two tiers, take the HIGHER — the operator can waive down (their waiver mints its ledger row); a silent under-tier goes uncaught (the grader parses the digit, never validates it)"
+  baseline: When torn between two tiers, take the HIGHER — the operator can waive down (their waiver mints its ledger row); nobody catches a silent under-tier (the grader parses the digit, never validates it)
+  current: When torn between two tiers, take the HIGHER — the operator can waive down (their waiver mints its ledger row); a silent under-tier goes uncaught (the grader parses the digit, never validates it)
+  class: ban
   text:
-  - "When torn between two tiers, take the HIGHER — the operator can waive down (their waiver mints its ledger row); a silent under-tier goes uncaught (the grader parses the digit, never validates it)"
+  - When torn between two tiers, take the HIGHER — the operator can waive down (their waiver mints its ledger row); a silent under-tier goes uncaught (the grader parses the digit, never validates it)
 - id: chg-u4
-  # class: ban
   file: commands/_fragments/cert-handoff-grammar.md
-  baseline: "Only the two `HANDOFF` forms carry the digit — `DESIGN-GAP` rows have NO severity slot in the parsed grammar; never write `DESIGN-GAP P1` — no parser reads DESIGN-GAP rows at all (honour-bound), and the digit falsely implies a gate obligation; `/fabrik-release` blocks on an operator-untouched DESIGN-GAP regardless of decoration"
-  current: "Only the two `HANDOFF` forms carry the digit — `DESIGN-GAP` rows have NO severity slot in the parsed grammar; never write `DESIGN-GAP P1` — no parser reads DESIGN-GAP rows at all, and the digit falsely implies a gate obligation; `/fabrik-release` blocks on an operator-untouched DESIGN-GAP regardless of decoration"
+  baseline: Only the two `HANDOFF` forms carry the digit — `DESIGN-GAP` rows have NO severity slot in the parsed grammar; never write `DESIGN-GAP P1` — no parser reads DESIGN-GAP rows at all (honour-bound), and the digit falsely implies a gate obligation; `/fabrik-release` blocks on an operator-untouched DESIGN-GAP regardless of decoration
+  current: Only the two `HANDOFF` forms carry the digit — `DESIGN-GAP` rows have NO severity slot in the parsed grammar; never write `DESIGN-GAP P1` — no parser reads DESIGN-GAP rows (honour-bound), and the digit falsely implies a gate obligation; `/fabrik-release` blocks on an operator-untouched DESIGN-GAP regardless of decoration
+  class: ban
   text:
-  - "Only the two `HANDOFF` forms carry the digit — `DESIGN-GAP` rows have NO severity slot in the parsed grammar; never write `DESIGN-GAP P1` — no parser reads DESIGN-GAP rows at all, and the digit falsely implies a gate obligation; `/fabrik-release` blocks on an operator-untouched DESIGN-GAP regardless of decoration"
+  - Only the two `HANDOFF` forms carry the digit — `DESIGN-GAP` rows have NO severity slot in the parsed grammar; never write `DESIGN-GAP P1` — no parser reads DESIGN-GAP rows (honour-bound), and the digit falsely implies a gate obligation; `/fabrik-release` blocks on an operator-untouched DESIGN-GAP regardless of decoration
 vanished:
-  L2: {rule: [chg-u1]}
-  L3: {rule: [chg-u2]}
-  L4: {rule: [chg-u3]}
-  L5: {rule: [chg-u4]}
+  L2:
+    rule:
+    - chg-u1
+  L3:
+    rule:
+    - chg-u2
+  L4:
+    rule:
+    - chg-u3
+  L5:
+    rule:
+    - chg-u4
