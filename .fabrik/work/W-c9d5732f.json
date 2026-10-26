@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T14:29:09.840852Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c9d5732f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5W7MDXTVN6Z51Y1RDTNCTV8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: infra-rea-user"
+}
