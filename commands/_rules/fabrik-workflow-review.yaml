@@ -88,16 +88,17 @@ entries:
 - id: pool-off-native-fanout  # class: prose
   baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable) Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing) No flywheel back-fill while the pool is OFF (D-181/D-182 — the seats are native and record nothing)'
   text:
-  - Run every fan-out natively with Claude Task subagents
+  - "Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)"
+  - "same unit split, same author-blind rule, same decide/refute/merge by you; skip every flywheel back-fill (a native seat records nothing)"
 - id: pool-off-no-pool-ban  # class: ban
   baseline: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
   text:
-  - and never write `NO-POOL:`
+  - "Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)."
 - id: reads-open-nothing-else  # class: ban
   baseline: 'Reads (open NOTHING else to act): the artifact under review · its upstream (the Vision Summary for a decomposition or an expanded epic; the research or interview inputs for a vision) · the doer twin''s own `## Acceptance Criteria` · the checklist Phase 0 names (see Phase 0 — reference it by path, never by an item count) Everything the artifact cites is provenance — do not open it to review; if the artifact''s claim can''t be acted on without opening a cited file, that IS a finding (the applicable checklist''s hollow-citation item)'
   text:
-  - Reads (open NOTHING else to act)
-  - a claim that can't be acted on without opening a cited file IS a finding
+  - "Reads (open NOTHING else to act): the artifact under review · its upstream (the Vision Summary for a decomposition or an expanded epic; the research or interview inputs for a vision) · the doer twin's own `## Acceptance Criteria` · the checklist Phase 0 names (reference it by path, never by an item count)."
+  - "a claim that can't be acted on without opening a cited file IS a finding"
 - id: p0-args-infer  # class: prose
   section: '## Phase 0 — Scope (the `type` selects the folder + its yardstick)'
   baseline: Args name the artifact path + its type If unset, infer from the path and state it
@@ -107,25 +108,29 @@ entries:
   section: '## Phase 0 — Scope (the `type` selects the folder + its yardstick)'
   baseline: 'Load the matching doer twin''s `## Acceptance Criteria` and the checklist items that twin''s `[canonical: …]` provenance tags point at — those two ARE the yardstick ⚠️ Never hard-code an item count — read the checklist; counts drift'
   text:
-  - ARE the yardstick
-  - Never hard-code an item count — read the checklist
+  - "Only the `type` argument selects the yardstick. Load the matching doer twin's `## Acceptance Criteria` plus"
+  - "ARE the yardstick"
+  - "Never hard-code an item count — read the checklist; counts drift."
 - id: p1-seats-one-message  # class: prose
   section: '## Phase 1 — Finders (recall), native seats'
   baseline: 'Dispatch finders in parallel, each owning a different failure class, against the artifact + its acceptance criteria + the yardstick items Native seats, per `62-using-subagents.md` (the pool is OFF, D-181): one `fabrik-reviewer` seat on Sonnet per independent failure-class GROUP plus the Haiku mechanical seats `dispatch_headroom.py --units <groups>` prints (D-191), all dispatched in one message — collapse the classes so no finding can be claimed by two groups, then the group count is the PARTITION passed as `--units` (D-191, the same collapse rule `/fabrik-review` § Breadth seats states); never a token 1–2 — AND ≥1 native `fabrik-reviewer` on Opus (the authoritative pass).<!-- POOL OFF (D-181): the pool breadth layer via `fanout("review", units, repo=…, project="mega-review", mode="read_only")` — the label must MATCH Phase 3''s back-fill --> Cover, across finders, the classes THIS artifact can fail — locate each by NAME in the checklist (item numbers drift):'
   text:
-  - one failure-class GROUP each, in one message
-  - the group count is `--units`, never a token 1–2
-  - AND at least one Opus `fabrik-reviewer`
+  - "each owning a different failure class, against the artifact + its acceptance criteria + the yardstick items, in one message"
+  - "one Sonnet `fabrik-reviewer` per independent failure-class GROUP"
+  - "AND ≥1 native `fabrik-reviewer` on Opus (the authoritative pass)"
+  - "the group count is the PARTITION passed as `--units` (D-191, the same collapse rule `/fabrik-review` § Breadth seats states), never a token 1–2"
+  - "Cover, across finders, the classes THIS artifact can fail, each located by NAME in the checklist (item numbers drift)"
 - id: p1-class-field-completeness  # class: prose
   section: '## Phase 1 — Finders (recall), native seats'
   baseline: Field completeness / propagation — every field the acceptance criteria require is present, valued, and consistent with the upstream artifact (Path A vs Path B; nothing silently dropped)
   text:
-  - every required field is present, valued and consistent with upstream
+  - "every required field is present, valued and consistent with upstream (Path A vs Path B; nothing silently dropped)."
 - id: p1-class-trigger-vs-value  # class: prose
   section: '## Phase 1 — Finders (recall), native seats'
   baseline: 'Trigger-vs-value (the *feature-vs-scaffold / N-A-contradicts-its-trigger* item) — an `N/A` whose reason contradicts its trigger (e.g. `Responsive: N/A` on `shape.is_public: true` + HTML) is a violation, not a pass'
   text:
-  - an `N/A` whose reason contradicts its trigger
+  - "an `N/A` whose reason contradicts its trigger"
+  - "is a violation, not a pass."
 - id: p1-class-flavor-branch  # class: prose
   section: '## Phase 1 — Finders (recall), native seats'
   baseline: Flavor branch (the *"Retrofit-epic special-case missing"* item) — Success-Criteria count, deploy-vs-gate criterion, closure applied correctly for the epic's flavour
@@ -135,13 +140,14 @@ entries:
   section: '## Phase 1 — Finders (recall), native seats'
   baseline: 'Hollow citation (the *hollow-citation* item) — any claim the reader can''t act on without opening a cited file → the artifact must inline the decision or tag `[canonical: …]` Dangling citation — a cited path that is archived or no longer exists (verify with `ls`/`Read` before accepting it)'
   text:
-  - 'inline the decision or tag `[canonical: …]`'
-  - verify a cited path exists with `ls`/`Read`
+  - "Hollow citation — any claim the reader can't act on without opening a cited file → the artifact must inline the decision or tag `[canonical: …]`."
+  - "Dangling citation — a cited path that is archived or no longer exists (verify with `ls`/`Read` before accepting it)."
 - id: p1-class-grounding  # class: prose
   section: '## Phase 1 — Finders (recall), native seats'
   baseline: Grounding — every external/vendor claim carries a fresh cited source (re-verify LIVE via exa/brave/firecrawl/official-docs WebFetch when the artifact touches a vendor); a memory-based external claim is a defect
   text:
-  - a memory-based external claim is a defect
+  - "re-verify LIVE via exa/brave/firecrawl/official-docs WebFetch when the artifact touches a vendor"
+  - "a memory-based external claim is a defect"
 - id: p1-class-seams  # class: prose
   section: '## Phase 1 — Finders (recall), native seats'
   baseline: 'Cross-artifact seams — the artifact contradicts nothing upstream produced *(mega types: also the decomposition contract — `Owned paths:` disjoint across a `Parallel with:` set, `Produces`/`Consumes` matched, at most one epic owning migrations.)*'
@@ -152,17 +158,18 @@ entries:
   section: '## Phase 2 — Verify / refute'
   baseline: Dedup; for each candidate try to REFUTE from the real source (quote the line/anchor that disproves it)
   text:
-  - try to REFUTE from the real source (quote the line that disproves it)
+  - "try to REFUTE from the real source (quote the line/anchor that disproves it)"
 - id: p2-log-and-md5-pass-owed  # class: prose
   section: '## Phase 2 — Verify / refute'
   baseline: Log every candidate raised (including refuted ones) in the ledger; a fix is an edit → the md5 changes → the next pass is owed
   text:
-  - Log every candidate, refuted ones too; a fix changes the md5, so the next pass is owed
+  - "Log every candidate raised (including refuted ones) in the ledger; a fix changes the md5, so the next pass is owed"
 - id: p2-closing-round-md5  # class: grammar
   section: '## Phase 2 — Verify / refute'
   baseline: 'A pass whose refutations leave the artifact unchanged still converges only via the md5-verified closing round at `confirmed: 0`'
   text:
-  - 'Convergence comes only from the md5-verified closing round at `confirmed: 0`'
+  - "This is the separate, fresh-context pass that forces the closing round the doer's own context won't reach."
+  - "A pass whose refutations leave the artifact unchanged still converges only via the md5-verified closing round at `confirmed: 0`."
 - id: p3-fix-in-artifact  # class: prose
   section: '## Phase 3 — Fix + re-check'
   baseline: Fix every survivor in the artifact (route the fix to the artifact, not the doer command)
@@ -172,8 +179,8 @@ entries:
   section: '## Phase 3 — Fix + re-check'
   baseline: 'One disposition fork the seams class needs stated: when a cross-artifact finding shows the ARTIFACT right and its UPSTREAM stale, the fix routes one step up — re-run THIS review on the upstream artifact (`/fabrik-workflow-review <vision path> vision-summary` for a stale Vision Summary behind a decomposition or an expanded epic; `… epic-decomposition` for a stale cut behind an expanded epic), or the upstream''s own doer when it must change (`/fabrik-vision` for the vision, `/fabrik-epics` for the cut) — and the downstream then re-derives from the changed upstream; routing is not convergence'
   text:
-  - When the ARTIFACT is right and its UPSTREAM stale, re-run THIS review on the upstream
-  - then re-derive the downstream
+  - "When a cross-artifact finding shows the ARTIFACT right and its UPSTREAM stale, re-run THIS review on the upstream"
+  - "or the upstream's own doer when it must change (`/fabrik-vision` for the vision, `/fabrik-epics` for the cut) — and the downstream then re-derives from the changed upstream; routing is not convergence."
 - id: p3-never-edit-upstream  # class: ban
   section: '## Phase 3 — Fix + re-check'
   baseline: This loop never edits the upstream, and "fix the artifact into agreeing with a stale upstream" is the wrong direction. Re-run the yardstick
@@ -189,29 +196,29 @@ entries:
   section: '## After convergence — autonomous'
   baseline: 'The loop is autonomous for every type this skill serves: converge and return control to the orchestrator so the next stage runs without a human stop'
   text:
-  - Return control to the orchestrator so the next stage runs without a human stop
+  - "The loop is **autonomous for every type this skill serves**: converge and return control to the orchestrator so the next stage runs without a human stop"
 - id: ac-neither-human-gate  # class: prose
   section: '## After convergence — autonomous'
   baseline: '⚠️ This skill does not own either human gate, and neither gate is a `type` here `[canonical: north star § Human gates — R14: "Exactly two gates: plan approval in, deploy approval out"]` Plan-in is the operator''s approval of the spec/plan upstream at the front door — `/fabrik-spec-review` is the command that stops for it `[canonical: north star R25 — "/fabrik-spec-review stops for operator approval; /fabrik-plan-review runs to no-op autonomously"]`; by the time a mega artifact reaches this review, that gate has already passed Deploy-out is Gate 2 before `/fabrik-deploy` — the operator''s explicit go, with the deploy triad (`fabrik apply` underneath, never typed by hand) running after it'
   text:
-  - This skill owns neither human gate
-  - plan-in is approved upstream (`/fabrik-spec-review` stops for it)
-  - the deploy triad (`fabrik apply` underneath, never typed by hand) running after it
+  - "This skill owns neither human gate, and neither gate is a `type` here"
+  - "plan-in is the operator's approval of the spec/plan upstream — `/fabrik-spec-review` stops for it `[canonical: north star R25 — \"/fabrik-spec-review stops for operator approval; /fabrik-plan-review runs to no-op autonomously\"]`, and by the time a mega artifact reaches this review that gate has already passed."
+  - "Deploy-out is Gate 2 before `/fabrik-deploy` — the operator's explicit go, the deploy triad (`fabrik apply` underneath, never typed by hand) running after it"
 - id: ac-epics-review-owns-cross-epic  # class: prose
   section: '## After convergence — autonomous'
   baseline: 'Likewise the doer whose paired review is a dedicated command is NOT a type here: the cross-epic validation of `/fabrik-epics`'' output belongs to `/fabrik-epics-review`, which self-converges'
   text:
-  - The cross-epic validation belongs to `/fabrik-epics-review`, which self-converges
+  - "Likewise the doer whose paired review is a dedicated command is NOT a type here: the cross-epic validation of `/fabrik-epics`' output belongs to `/fabrik-epics-review`, which self-converges"
 - id: ac-producer-doers-only  # class: prose
   section: '## After convergence — autonomous'
   baseline: This skill is the shared review for the producer doers only — `/fabrik-vision` (`vision-summary`) and `/fabrik-epics` (`epic-decomposition` · `expanded-epic-files`)
   text:
-  - This skill is the shared review for the producer doers only
+  - "This skill is the shared review for the producer doers only — `/fabrik-vision`"
 - id: ac-converge-here  # class: ban
   section: '## After convergence — autonomous'
   baseline: Never leave a ledger row whose `confirmed:` is non-zero for the operator to re-invoke Converge here
   text:
-  - Never leave a ledger row whose `confirmed:` is non-zero for the operator to re-invoke
+  - "Never leave a ledger row whose `confirmed:` is non-zero for the operator to re-invoke. Converge here."
 vanished:
   L1:
     rule:
@@ -226,7 +233,9 @@ vanished:
   L6:
     rule:
     - p2-closing-round-md5
-  L7: narrative
+  L7:
+    rule:
+    - p0-yardstick-no-item-count
   L8:
     rule:
     - reads-open-nothing-else
