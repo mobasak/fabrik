@@ -28,9 +28,7 @@ entries:
     ⚠️ FEATURES.md is not the denominator, and saying so is a gate failure. `check_certification_coverage.py` flags a cert board whose source resolves to a doc: *"FEATURES.md documents what the project BUILT; certification must cover what it SHIPS
   text:
   - |-
-    FEATURES.md is not the denominator (a gate failure: `check_certification_coverage.py` flags a cert board)
-  - |-
-    certification must cover what it SHIPS
+    FEATURES.md is not the denominator, and saying so is a gate failure. `check_certification_coverage.py` flags a cert board whose source resolves to a doc: *"FEATURES.md documents what the project BUILT; certification must cover what it SHIPS
 - id: u-L5
   class: ban
   file: render
@@ -82,7 +80,7 @@ entries:
   - |-
     Write one row per planned feature with `(Planned)` in the Description cell
   - |-
-    the product decision, pinned before `/fabrik-flows` (`docs/DECISIONS.md` row at `/fabrik-spec-review`) walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs screens for it
+    the product decision, pinned before `/fabrik-flows` (the decision itself was MINTED by the spec approval's `docs/DECISIONS.md` row at `/fabrik-spec-review`; rows here transcribe it, which is why a row with no spec basis is invented scope) walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs screens for it
 - id: r-L12
   class: prose
   file: render
@@ -109,12 +107,14 @@ entries:
   class: ban
   file: render
   section: '## Phase 0 — Establish scope + MODE'
-  clauses: {2: narrative, 3: {duplicate-of: r-L19}}
+  clauses: {2: narrative}
   baseline: |-
     A Planned row that points at existing code it extends cites a SYMBOL in a named file (`src/billing.py::charge`), never a line number — on a tree other agents commit to, a line moves before the plan reads it — and the plan re-grounds it
   text:
   - |-
     A Planned row that points at existing code it extends cites a SYMBOL in a named file (`src/billing.py::charge`), never a line number
+  - |-
+    and the plan re-grounds it
 - id: r-L15
   class: prose
   file: render
@@ -123,7 +123,7 @@ entries:
     A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo that filed it (a hub item is not in a project's store); check the citation there
   text:
   - |-
-    A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo that filed it; check the citation there
+    A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo that filed it (a hub item is not in a project's store); check the citation there
 - id: r-L16
   class: prose
   file: render
@@ -141,23 +141,26 @@ entries:
     Planned-row reconciliation: a `(Planned)` row whose capability now ships flips to shipped (drop the marker, fill or re-ground Endpoint/Module + how-to-exercise — an EARLY symbol of the code it extended is not the new endpoint; its `Spec §<n>:` conditions stay on the row until a test asserts each); a `(Planned)` row with NO code at certification time is un-shipped scope — surface it to the operator, never silently delete; a shipped capability with no Planned row is scope creep or an honest addition — surface which
   text:
   - |-
-    Planned-row reconciliation: a `(Planned)` row whose capability now ships flips to shipped (drop the marker, re-ground Endpoint/Module; its `Spec §<n>:` conditions stay on the row until a test asserts each)
+    Planned-row reconciliation: a `(Planned)` row whose capability now ships flips to shipped (drop the marker, fill or re-ground Endpoint/Module + how-to-exercise — an EARLY symbol of the code it extended is not the new endpoint; its `Spec §<n>:` conditions stay on the row until a test asserts each)
   - |-
     a `(Planned)` row with NO code at certification time is un-shipped scope
   - |-
     surface it to the operator, never silently delete
   - |-
-    a shipped capability with no Planned row is scope creep — surface which
+    a shipped capability with no Planned row is scope creep or an honest addition — surface which
 - id: r-L18
   class: prose
   file: render
   section: '## Phase 0 — Establish scope + MODE'
-  clauses: {3: narrative, 4: narrative}
   baseline: |-
     An operator disposition received on either (drop / keep-planned / adopt) is a RECEIVED decision — its `docs/DECISIONS.md` row lands in the same change — stage the row WITH the artifact edit and commit them together per CLAUDE.md § EXIT — classified at mint (drop/keep/adopt of un-shipped scope are normally reversible — plain rows) (CLAUDE.md § the decision ledger)
   text:
   - |-
     An operator disposition (drop / keep-planned / adopt) is a RECEIVED decision: its `docs/DECISIONS.md` row lands in the same change
+  - |-
+    stage the row WITH the artifact edit and commit them together per CLAUDE.md § EXIT
+  - |-
+    classified at mint (drop/keep/adopt of un-shipped scope are normally reversible — plain rows) (CLAUDE.md § the decision ledger)
 - id: r-L19
   class: prose
   file: render
@@ -187,7 +190,7 @@ entries:
     The doc side checked against it is every row on that code, every row the plan's `## Deltas` blocks wrote, and one row per user-observable behaviour in the plan's tickets' `## Behavior Contract` (several Given/When/Then rows can map to one)
   text:
   - |-
-    The doc side checked against it is every row on that code, every row the plan's `## Deltas` blocks wrote, and one row per user-observable behaviour in the plan's tickets' `## Behavior Contract` (Given/When/Then rows)
+    The doc side checked against it is every row on that code, every row the plan's `## Deltas` blocks wrote, and one row per user-observable behaviour in the plan's tickets' `## Behavior Contract` (several Given/When/Then rows can map to one)
 - id: u-L22
   class: prose
   file: render
@@ -203,12 +206,11 @@ entries:
   class: ban
   file: render
   section: '## Phase 0 — Establish scope + MODE'
-  clauses: {2: narrative}
   baseline: |-
     A scoped run never hands off to certification; certification takes the full REFRESH
   text:
   - |-
-    A scoped run never hands off to certification
+    A scoped run never hands off to certification; certification takes the full REFRESH
 - id: r-L24
   class: prose
   file: render
@@ -217,9 +219,9 @@ entries:
     Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template first, then reconcile; EARLY invoked where code already ships → say so and run REFRESH instead (the code outranks the spec once it exists), except for features the approved spec ADDS: those are EARLY rows, marked `(Planned)`, in the same file
   text:
   - |-
-    Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template
+    Mode ambiguity resolves reversibly: no `docs/FEATURES.md` on disk → seed it from the template first, then reconcile
   - |-
-    EARLY invoked where code already ships → say so and run REFRESH instead, except for features the approved spec ADDS: those are EARLY rows, marked `(Planned)`
+    EARLY invoked where code already ships → say so and run REFRESH instead (the code outranks the spec once it exists), except for features the approved spec ADDS: those are EARLY rows, marked `(Planned)`, in the same file
 - id: r-L25
   class: prose
   file: render
@@ -228,7 +230,7 @@ entries:
     The artifact is `docs/FEATURES.md` (scaffold-seeded from `templates/scaffold/docs/FEATURES_TEMPLATE.md` — that template IS the canonical shape: category sections, `| Feature | Description | Endpoint / Module |` tables)
   text:
   - |-
-    The artifact is `docs/FEATURES.md`, scaffold-seeded from `templates/scaffold/docs/FEATURES_TEMPLATE.md` (the canonical shape: `| Feature | Description | Endpoint / Module |` tables)
+    The artifact is `docs/FEATURES.md` (scaffold-seeded from `templates/scaffold/docs/FEATURES_TEMPLATE.md` — that template IS the canonical shape: category sections, `| Feature | Description | Endpoint / Module |` tables)
 - id: u-L26
   class: prose
   file: render
@@ -308,22 +310,20 @@ entries:
   class: prose
   file: render
   section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  clauses: {2: narrative}
   baseline: |-
     UI screens/flows (GUI projects): `docs/ui-design.md` screens + the real router/nav — every screen a user reaches is a feature surface
   text:
   - |-
-    UI screens/flows (GUI projects): `docs/ui-design.md` screens + the real router/nav
+    UI screens/flows (GUI projects): `docs/ui-design.md` screens + the real router/nav — every screen a user reaches is a feature surface
 - id: r-L35
   class: prose
   file: render
   section: '## Phase 1 — Discover every shipped capability (multi-modal sweep — each mode catches what the others miss)'
-  clauses: {2: narrative}
   baseline: |-
     Integrations: external services the code actually calls (payment, email, storage, search) — each is a user-visible capability ("sends receipts", "full-text search")
   text:
   - |-
-    Integrations: external services the code actually calls (payment, email)
+    Integrations: external services the code actually calls (payment, email, storage, search) — each is a user-visible capability ("sends receipts", "full-text search")
 - id: u-L36
   class: ban
   file: render
@@ -419,7 +419,7 @@ entries:
     Exercisable rows — the gauntlet contract: every row carries a non-empty `Endpoint / Module` cell (`METHOD /path` · `src/module.py` · screen name — the thing a gauntlet agent drives), and its Description states the user-observable behavior (what a test would assert), not implementation trivia
   text:
   - |-
-    Exercisable rows: every row carries a non-empty `Endpoint / Module` cell (`METHOD /path` · `src/module.py` · screen name) and its Description states the user-observable behavior, not implementation trivia
+    Exercisable rows: every row carries a non-empty `Endpoint / Module` cell (`METHOD /path` · `src/module.py` · screen name — the thing a gauntlet agent drives) and its Description states the user-observable behavior (what a test would assert), not implementation trivia
 - id: r-L46
   class: prose
   file: render
@@ -473,6 +473,24 @@ entries:
   text:
   - |-
     Keep the template's shape: customer-oriented categories, benefit-oriented descriptions
+- id: r-L51
+  class: prose
+  file: render
+  section: '## Phase 2 — Reconcile bidirectionally + make every row EXERCISABLE'
+  baseline: |-
+    This file doubles as public feature documentation — write for the customer, cite for the agent
+  text:
+  - |-
+    This file doubles as public feature documentation — write for the customer, cite for the agent
+- id: r-L53
+  class: ban
+  file: render
+  section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
+  baseline: |-
+    Run repeated passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached
+  text:
+  - |-
+    Run repeated passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached
 - id: u-L54
   class: prose
   file: render
@@ -492,11 +510,11 @@ entries:
     Coverage — before counting, name each denominator's expected population and where it comes from (the router's route count, the jobs inventory, the scoped mode's list), so a 0 or a partial walk fails loudly; count a table's data rows by anchoring on them, never by `tail -n +N` after a filter (a separator row the filter drops shifts the offset); then re-run a fresh Phase-1 sweep on the CURRENT code: any capability the previous pass missed?
   text:
   - |-
-    Coverage — before counting, name each denominator's expected population and where it comes from, so a 0 or a partial walk fails loudly
+    Coverage — before counting, name each denominator's expected population and where it comes from (the router's route count, the jobs inventory, the scoped mode's list), so a 0 or a partial walk fails loudly
   - |-
     count a table's data rows by anchoring on them, never by `tail -n +N` after a filter (a separator row the filter drops shifts the offset)
   - |-
-    then re-run a fresh Phase-1 sweep on the CURRENT code
+    then re-run a fresh Phase-1 sweep on the CURRENT code: any capability the previous pass missed? Any route/job/screen added since?
 - id: r-L57
   class: prose
   file: render
@@ -505,7 +523,7 @@ entries:
     Grounding — every row's citation opens to real code (spot-check ALL new rows, sample the old)
   text:
   - |-
-    Grounding — every row's citation opens to real code (spot-check ALL new rows)
+    Grounding — every row's citation opens to real code (spot-check ALL new rows, sample the old)
 - id: u-L58
   class: prose
   file: render
@@ -521,12 +539,11 @@ entries:
   class: prose
   file: render
   section: '## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)'
-  clauses: {2: {duplicate-of: u-L27}}
   baseline: |-
     Consistency — no row contradicts `docs/data-contract.md`, `docs/ui-design.md`, or the spec `shape:`; `Last Updated:` bumped; Doc Sync Matrix ripples applied (a feature row change may touch `QUICKSTART.md`)
   text:
   - |-
-    Consistency — `Last Updated:` bumped; Doc Sync Matrix ripples applied (a feature row change may touch `QUICKSTART.md`)
+    Consistency — no row contradicts `docs/data-contract.md`, `docs/ui-design.md`, or the spec `shape:`; `Last Updated:` bumped; Doc Sync Matrix ripples applied (a feature row change may touch `QUICKSTART.md`)
 - id: u-L60
   class: ban
   file: render
@@ -568,6 +585,42 @@ entries:
   text:
   - |-
     Hand off to certification while the loop is non-quiet
+- id: r-L62
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: |-
+    Trust the existing FEATURES.md as the inventory — the CODE is the denominator; the doc is the claim
+  text:
+  - |-
+    Trust the existing FEATURES.md as the inventory — the CODE is the denominator; the doc is the claim
+- id: r-L65
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: |-
+    Delete a row silently — a removed feature is stated in the run report (the operator may be tracking it)
+  text:
+  - |-
+    Delete a row silently — a removed feature is stated in the run report (the operator may be tracking it)
+- id: r-L66
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: |-
+    Leave a `README`/`QUICKSTART` claim unmapped — vapor claims are findings, not decoration
+  text:
+  - |-
+    Leave a `README`/`QUICKSTART` claim unmapped — vapor claims are findings, not decoration
+- id: r-L67
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: |-
+    Hand off to certification from a scoped REFRESH — certification takes the full one
+  text:
+  - |-
+    Hand off to certification from a scoped REFRESH — certification takes the full one
 vanished:
   L2: {rule: [r-L2]}
   L3: narrative
@@ -594,16 +647,16 @@ vanished:
   L37: {rule: [r-L37]}
   L45: {rule: [r-L45]}
   L46: {rule: [r-L46]}
-  L51: narrative
-  L53: {duplicate-of: u-L60}
+  L51: {rule: [r-L51]}
+  L53: {rule: [r-L53]}
   L55: {rule: [r-L55]}
-  L56: {duplicate-of: r-L55}
+  L56: {rule: [r-L55]}
   L57: {rule: [r-L57]}
   L59: {rule: [r-L59]}
-  L62: {duplicate-of: u-L29}
+  L62: {rule: [r-L62]}
   L63: {rule: [r-L63]}
   L64: {rule: [r-L64]}
-  L65: {rule: [r-L17, u-L42]}
-  L66: {duplicate-of: u-L36}
-  L67: {rule: [r-L23]}
+  L65: {rule: [r-L65]}
+  L66: {rule: [r-L66]}
+  L67: {rule: [r-L67]}
   L68: {rule: [r-L68]}

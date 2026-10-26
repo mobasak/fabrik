@@ -77,3 +77,35 @@ The start failure set was not captured (the first reader-test run overlapped my 
 
 ## LEFT FOR THE HUB (re-ledger)
 - The 50% target is not met (75%). Class retags (behavioural -> prose) on r-L12, r-L15, r-L19, r-L63. The `commands/_size_ceiling.json` ratchet and the render at merge.
+
+## Fix round 2 (hub audit)
+
+**Findings.** All 18 Sonnet and 19 Haiku findings were checked against the baseline lines and confirmed. None was refuted (the two reports overlap and were treated as pairs).
+
+**Fixed by restoring the baseline wording in `commands/_sources/fabrik-features.md`, with a matching carrier in the ledger:**
+- `r-L4`: the trigger "whose source resolves to a doc" and the quoted "FEATURES.md documents what the project BUILT" half.
+- `r-L11`: "the decision itself was MINTED by the spec approval's … rows here transcribe it".
+- `r-L14` clause 3: "and the plan re-grounds it" is now carried by `r-L14` itself. The `duplicate-of: r-L19` label was wrong, because `r-L19` covers `## Deltas` rows only.
+- `r-L15`: "(a hub item is not in a project's store)".
+- `r-L17`: "fill or re-ground … + how-to-exercise — an EARLY symbol … is not the new endpoint", and "scope creep or an honest addition".
+- `r-L18`: the stage-and-commit step and the classify-at-mint step. These were wrongly labelled narrative.
+- `r-L21`: "several … can map to one".
+- `r-L23`: "certification takes the full REFRESH". The ledger label for it was wrongly `narrative`.
+- `r-L24`: "first, then reconcile", "the code outranks the spec once it exists" and "in the same file".
+- `r-L25`: "that template IS the canonical shape: category sections".
+- `r-L34`, `r-L35`: "every screen a user reaches is a feature surface", "storage, search", and "each is a user-visible capability". These were wrongly labelled narrative.
+- `r-L45`: both glosses.
+- `r-L55` and `L56`: the population sources and the two re-sweep questions. `L56` is now labelled `rule: [r-L55]`.
+- `r-L57`: "sample the old".
+- `r-L59`: the "no row contradicts …" check is back in the Phase 3 consistency item. The `duplicate-of: u-L27` label was wrong, because `u-L27` is a Phase 0 read step.
+- `L51`: restored as `r-L51` ("write for the customer, cite for the agent").
+- `L53`: restored as `r-L53`.
+- `L62`, `L65`, `L66`, `L67`: restored as guardrail entries `r-L62`, `r-L65`, `r-L66`, `r-L67`. This also cures the D-1258 LOSS lines and the Haiku finding that the `L65` label narrowed the silent-delete ban to Planned rows.
+
+**Ledger.** LOSS lines for `fabrik-features.yaml`: 0. `test_command_rules.py -rP` shows `LEDGER fabrik-features.yaml: 60 entries`. The one failing test there fails on other units' ledgers (for example `fabrik-plan-after-chat.yaml`), not this one. `--check` reports only `fabrik-features.md: DIFFERS` drift for this command.
+
+**Words.** Own-text words (baseline → re-ledger → now): the exact count was not measured, because the shell here allows only the listed gate commands. The report line shows the rendered command at 23100 words. Both auditors estimated the previous rewrite at about 1,330–1,800 of about 1,900–2,300 body words; this round restores roughly 250–300 words of rules.
+
+**Fresh passes.** No subagent can be dispatched in this run, so the zero-counts self-audit pass is NOT a fresh subagent. I checked each audit finding line by line against the baseline. The hub's author-blind audit pair covers the fresh pass.
+
+COUNTS: entries read 60 / reworded 17 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 (author line-by-line check; 0 fresh passes)
