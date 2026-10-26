@@ -65,9 +65,15 @@ entries:
 - id: rel-termination-verdicts
   file: render
   baseline: 'You are done when EVERY item of the surface''s checklist below has a verdict — PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched) — and you have printed the Gate-2 handoff block'
-  current: 'You are done when EVERY checklist item has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
+  current: 'You are done when EVERY item of the surface''s checklist below has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
   text:
-  - 'You are done when EVERY checklist item has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
+  - 'You are done when EVERY item of the surface''s checklist below has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
+- id: rel-pass-needs-evidence
+  file: render
+  baseline: A checklist item without evidence is not PASS
+  current: A checklist item without evidence is not PASS
+  text:
+  - A checklist item without evidence is not PASS
 - id: rel-ending-at-handoff-is-success
   file: render
   baseline: You never perform the Gate-2 action yourself; ending at the handoff IS success, not an incomplete run
@@ -116,9 +122,9 @@ entries:
 - id: rel-severity-binds-on-honour
   file: render
   baseline: 'Grader honesty: the HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded (`check_review_coverage.py`); the severity-tiered blocking HERE is read by no check — it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep'
-  current: The HANDOFF grammar and NOT-QUIET↔RESUME pairing are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows carry the exact grammar
+  current: The HANDOFF grammar and NOT-QUIET↔RESUME pairing are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep
   text:
-  - The HANDOFF grammar and NOT-QUIET↔RESUME pairing are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows carry the exact grammar
+  - The HANDOFF grammar and NOT-QUIET↔RESUME pairing are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep
 - id: rel-waiver-is-a-received-decision
   file: render
   baseline: 'The operator may waive a specific row explicitly this turn; you may never waive one — and a waiver granted is a RECEIVED decision: mint its `docs/DECISIONS.md` row and COMMIT AND PUSH it now, its own commit, BEFORE `release_cut.py` runs (Phase 0''s own precondition demands `@{u}..HEAD` empty — an unpushed waiver commit would block the release on its own mandated act) — the cut''s hardcoded `-- CHANGELOG.md` pathspec would strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted risk must outlive this chat'
@@ -130,15 +136,15 @@ entries:
 - id: rel-surface-map
   file: render
   baseline: 'Map: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (office add-ins ship a manifest + hosted taskpane: the store checklist plus the VPS preconditions for the hosted half) · `desktop-app` → DESKTOP · `wordpress` → out of scope here: WordPress is out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
-  current: 'Read `project.yaml::type`: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (an office add-in adds the store checklist plus the VPS preconditions for its hosted taskpane) · `desktop-app` → DESKTOP · `wordpress` → out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
+  current: 'Read `project.yaml::type`: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (office add-ins ship a manifest + hosted taskpane: the store checklist plus the VPS preconditions for the hosted half) · `desktop-app` → DESKTOP · `wordpress` → out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
   text:
-  - 'Read `project.yaml::type`: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (an office add-in adds the store checklist plus the VPS preconditions for its hosted taskpane) · `desktop-app` → DESKTOP · `wordpress` → out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
+  - 'Read `project.yaml::type`: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (office add-ins ship a manifest + hosted taskpane: the store checklist plus the VPS preconditions for the hosted half) · `desktop-app` → DESKTOP · `wordpress` → out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
 - id: rel-surface-read-type
   file: render
   baseline: Read `project.yaml::type`
-  current: 'Read `project.yaml::type`: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (an office add-in adds the store checklist plus the VPS preconditions for its hosted taskpane) · `desktop-app` → DESKTOP · `wordpress` → out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
+  current: 'Read `project.yaml::type`: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (office add-ins ship a manifest + hosted taskpane: the store checklist plus the VPS preconditions for the hosted half) · `desktop-app` → DESKTOP · `wordpress` → out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
   text:
-  - 'Read `project.yaml::type`: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (an office add-in adds the store checklist plus the VPS preconditions for its hosted taskpane) · `desktop-app` → DESKTOP · `wordpress` → out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
+  - 'Read `project.yaml::type`: `saas-skeleton | python-api | python-api-gpu | node-api | file-api | file-worker | static-site | docusaurus` → VPS · `mobile-app` → MOBILE · `chrome-extension` | `office-extension` → EXTENSION (office add-ins ship a manifest + hosted taskpane: the store checklist plus the VPS preconditions for the hosted half) · `desktop-app` → DESKTOP · `wordpress` → out of fabrik (`/opt/wpf` archived 2026-08-07) — no fabrik release or deploy path exists; print that and stop'
 - id: rel-unmapped-type-inferred
   file: render
   baseline: A REGISTERED type this map omits → INFER the surface from its artifacts and SAY SO (never fall through silently — the registry outgrows hand-maintained maps, proven twice)
@@ -148,9 +154,9 @@ entries:
 - id: rel-universal-preconditions-real-commands
   file: render
   baseline: 'Universal preconditions (all surfaces, verify with real commands, not memory):'
-  current: 'Universal preconditions, verified with real commands, not memory:'
+  current: 'Universal preconditions (all surfaces, verify with real commands, not memory):'
   text:
-  - Universal preconditions, verified with real commands, not memory
+  - Universal preconditions (all surfaces, verify with real commands, not memory)
 - id: rel-final-gate-this-run
   file: render
   baseline: '`python scripts/final_gate.py --check --json` → `"status":"success"` this run (a stale green is not evidence)'
@@ -165,12 +171,10 @@ entries:
   - Tree clean for this project's scope
   - work committed AND pushed (`git status --short`, `git log @{u}..HEAD` empty)
   - 'upstream-relative, never a hardcoded `origin/master`: the fleet splits across `master`/`main`/fork-convention branches and the hardcoded form errors on half of it'
-  - With no upstream configured use `git log HEAD --not --remotes` (THIS branch only; `--branches` would catch a sibling session's parked branches on a shared tree)
+  - With no upstream configured at all (the fleet has no-remote repos, D-026) use `git log HEAD --not --remotes` (THIS branch only; `--branches` would catch a sibling session's parked branches on a shared tree)
   - only when `git remote` is actually EMPTY
-  - state in the report that nothing is off-box-protected, treating the precondition as UNSATISFIABLE, so BLOCKED unless the operator waives it this turn
+  - state in the report that nothing is off-box-protected, treating the precondition as UNSATISFIABLE (the fallback returns the whole history — that is the true answer, not "the probe ran"), so BLOCKED unless the operator waives it this turn
   - the waiver row then commits LOCALLY (the PUSH half is impossible there) and `release_cut.py` runs with `--no-push`
-  clauses:
-    5: narrative
 - id: rel-remoted-repo-lacking-tracking-ref
   file: render
   baseline: A remoted repo whose branch merely lacks a tracking ref just lists its genuinely-unpushed commits, no such statement
@@ -256,9 +260,7 @@ entries:
   baseline: 'Mirrors the certification-handoff precondition above: same grammar, same honour-bound binding — no executable check grades this header today (a deliberate, recorded deferral in `docs/STRATEGIC_BACKLOG.md`)'
   current: ''
   text:
-  - 'Mirrors the certification-handoff precondition above: same grammar, same honour-bound binding'
-  clauses:
-    2: narrative
+  - 'Mirrors the certification-handoff precondition above: same grammar, same honour-bound binding; no executable check grades this header today (a deliberate, recorded deferral in `docs/STRATEGIC_BACKLOG.md`)'
 - id: rel-shape-honest
   file: render
   baseline: 'Spec/shape honest: read `specs/services/<id>.yaml` `shape:` and verify each flag against the code (DB call ⇒ `needs_database`, `/metrics` ⇒ `exposes_metrics`, …) — a lying shape is a silently broken deploy'
@@ -327,13 +329,19 @@ entries:
   current: ''
   text:
   - Decide and state the DISTRIBUTION RING first, exactly as the MOBILE path does, with its evidence
-  - steps 2-5 apply ONLY to the listable ring. `chrome-extension` covers both
+  - 'steps 2-5 apply ONLY to the listable ring. `chrome-extension` covers both, and the unlistable case is not exotic: automation, scraping, internal enterprise tooling, and anything shipping remote code all hit it permanently'
 - id: rel-extension-listable
   file: render
   baseline: LISTABLE (Chrome Web Store) — the extension's behaviour is within Web Store policy
   current: 'LISTABLE (Chrome Web Store): the extension''s behaviour is within Web Store policy'
   text:
   - 'LISTABLE (Chrome Web Store): the extension''s behaviour is within Web Store policy'
+- id: rel-extension-listable-continue
+  file: render
+  baseline: Continue with steps 2-5
+  current: Continue with steps 2-5
+  text:
+  - Continue with steps 2-5
 - id: rel-extension-unlistable
   file: render
   baseline: UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, or enterprise force-install) — the listing is not "not yet done", it is permanently unavailable
@@ -345,7 +353,7 @@ entries:
   baseline: SKIP steps 2-5 entirely. Doing them anyway fabricates four privacy-practices answers, a listing-asset check, and a "$5 fee, review takes days-to-weeks" hand-off for a submission that will never happen — and step 3's own rule ("never invent a data practice") is violated by the step that compels inventing the artifact those practices describe (job-agent, 2026-08-28, on a LinkedIn-automation extension)
   current: ''
   text:
-  - SKIP steps 2-5 entirely. Doing them anyway fabricates four answers for a submission that will never happen
+  - SKIP steps 2-5 entirely. Doing them anyway fabricates four privacy-practices answers, a listing-asset check, and a "$5 fee, review takes days-to-weeks" hand-off for a submission that will never happen
   - step 3's own rule ("never invent a data practice") is violated by the step that compels inventing the artifact those practices describe (job-agent, 2026-08-28, on a LinkedIn-automation extension)
 - id: rel-extension-unlistable-record-why
   file: render
@@ -387,15 +395,15 @@ entries:
 - id: rel-desktop-preconditions
   file: render
   baseline: Run the universal preconditions + a packaging sanity pass (installer builds from the pushed SHA; no bundled secrets; auto-update channel documented)
-  current: Run the universal preconditions + a packaging sanity pass (installer builds from the pushed SHA; no bundled secrets; auto-update channel documented), flag *"desktop-app has no launch-checklist pack"* and propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships regularly, then hand off Gate 2 (operator distributes the artifact; gates here are minimal)
+  current: Run the universal preconditions + a packaging sanity pass (installer builds from the pushed SHA; no bundled secrets; auto-update channel documented), flag in the report *"desktop-app has no launch-checklist pack — gates here are minimal; propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships regularly."* Then hand off Gate 2 (operator distributes the artifact)
   text:
-  - Run the universal preconditions + a packaging sanity pass (installer builds from the pushed SHA; no bundled secrets; auto-update channel documented), flag *"desktop-app has no launch-checklist pack"* and propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships regularly, then hand off Gate 2 (operator distributes the artifact; gates here are minimal)
+  - Run the universal preconditions + a packaging sanity pass (installer builds from the pushed SHA; no bundled secrets; auto-update channel documented), flag in the report *"desktop-app has no launch-checklist pack — gates here are minimal; propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships regularly."* Then hand off Gate 2 (operator distributes the artifact)
 - id: rel-desktop-flag-and-handoff
   file: render
   baseline: 'Flag in the report: *"desktop-app has no launch-checklist pack — gates here are minimal; propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships regularly."* Then the Gate-2 handoff (operator distributes the artifact)'
-  current: Run the universal preconditions + a packaging sanity pass (installer builds from the pushed SHA; no bundled secrets; auto-update channel documented), flag *"desktop-app has no launch-checklist pack"* and propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships regularly, then hand off Gate 2 (operator distributes the artifact; gates here are minimal)
+  current: Run the universal preconditions + a packaging sanity pass (installer builds from the pushed SHA; no bundled secrets; auto-update channel documented), flag in the report *"desktop-app has no launch-checklist pack — gates here are minimal; propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships regularly."* Then hand off Gate 2 (operator distributes the artifact)
   text:
-  - Run the universal preconditions + a packaging sanity pass (installer builds from the pushed SHA; no bundled secrets; auto-update channel documented), flag *"desktop-app has no launch-checklist pack"* and propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships regularly, then hand off Gate 2 (operator distributes the artifact; gates here are minimal)
+  - Run the universal preconditions + a packaging sanity pass (installer builds from the pushed SHA; no bundled secrets; auto-update channel documented), flag in the report *"desktop-app has no launch-checklist pack — gates here are minimal; propose `desktop-app/89-desktop-launch-checklist.md` upstream if this surface ships regularly."* Then hand off Gate 2 (operator distributes the artifact)
 - id: rel-cut-on-pass
   file: render
   baseline: 'When every checklist item is PASS, cut the release version — this is what puts real versions next to the repo on GitHub:'
@@ -413,16 +421,16 @@ entries:
 - id: rel-cut-dry-run
   file: render
   baseline: '`python scripts/release_cut.py --dry-run` — show the plan (current tag → next semver, derived from the `[Unreleased]` entry types: any `BREAKING` marker (uppercase — prose "breaking" doesn''t count) → major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow version)'
-  current: '`python scripts/release_cut.py --dry-run` shows the plan (current tag → next semver from the `[Unreleased]` entry types: any uppercase `BREAKING` marker → major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow version)'
+  current: '`python scripts/release_cut.py --dry-run` shows the plan (current tag → next semver from the `[Unreleased]` entry types: any `BREAKING` marker (uppercase — prose "breaking" doesn''t count) → major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow version)'
   text:
   - '`python scripts/release_cut.py --dry-run`'
-  - 'shows the plan (current tag → next semver from the `[Unreleased]` entry types: any uppercase `BREAKING` marker → major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow version)'
+  - '`python scripts/release_cut.py --dry-run` shows the plan (current tag → next semver from the `[Unreleased]` entry types: any `BREAKING` marker (uppercase — prose "breaking" doesn''t count) → major · any Added → minor · else patch; refuses on an empty `[Unreleased]` — never cut a hollow version)'
 - id: rel-cut-execute
   file: render
   baseline: '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — the script''s bare `git push` dies without an upstream and its TAG push hardcodes `origin`, either way mid-cut, stranding a local tag on a graduated CHANGELOG) — graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag, creates the GitHub Release with the graduated entries as notes (`gh` missing is non-fatal: tag-only cut)'
-  current: '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo or a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`) graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and creates the GitHub Release with the graduated entries as notes (`gh` missing: tag-only cut)'
+  current: '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`) graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and creates the GitHub Release with the graduated entries as notes (`gh` missing: tag-only cut)'
   text:
-  - '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo or a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`)'
+  - '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`)'
   - 'graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and creates the GitHub Release with the graduated entries as notes (`gh` missing: tag-only cut)'
 - id: rel-cut-decision-row
   file: render
@@ -430,7 +438,7 @@ entries:
   current: ''
   text:
   - Mint the cut's `docs/DECISIONS.md` row and commit AND push it IMMEDIATELY AFTER the cut, before anything else
-  - Gate 2's decision, not yours to row). `release_cut.py --execute` ALREADY pushed branch+tag by the time it returns, so the row rides its OWN push (after the `vX.Y.Z` tag); on the no-remote path the cut ran `--no-push` and the row COMMITS LOCALLY
+  - Gate 2's decision, not yours to row). `release_cut.py --execute` ALREADY pushed branch+tag by the time it returns, so the row rides its OWN push; on the waived no-remote path the cut ran `--no-push` and this row likewise COMMITS LOCALLY, no push exists to ride (it lands after the `vX.Y.Z` tag; acceptable — the ledger is master-tracked, not tag-tracked)
   clauses:
     1: narrative
     2: narrative
@@ -469,7 +477,8 @@ vanished:
     rule:
     - rel-termination-verdicts
   L5:
-    duplicate-of: rel-termination-verdicts
+    rule:
+    - rel-pass-needs-evidence
   L6:
     rule:
     - rel-ending-at-handoff-is-success
@@ -656,4 +665,5 @@ vanished:
     rule:
     - rel-deploy-stays-gate-2
   L57:
-    duplicate-of: rel-extension-ring-first
+    rule:
+    - rel-extension-listable-continue
