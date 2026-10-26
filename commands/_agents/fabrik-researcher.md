@@ -1,8 +1,8 @@
 ---
 name: fabrik-researcher
-description: Live external-fact grounding subagent for ANY command or plain-chat work (operator ruling 2026-08-29): re-verifies a cited external fact / API detail / field standard against the LIVE web and returns a grounded verdict with the source URL + date. Read-only — never edits files or runs shell. While the OpenRouter pool is OFF (D-181/D-182) this agent IS the research fan-out — one seat per independent fact, in parallel, nothing recorded to the flywheel. A lone quick fact is cheaper checked inline. Session-level directives (e.g. a standing no-subagent rule) always outrank availability.
+description: Live external-fact grounding subagent for ANY command or plain-chat work (operator ruling 2026-08-29): re-verifies a cited external fact / API detail / field standard against the LIVE web and returns a grounded verdict with the source URL + date. Read-only — never edits files or runs shell. While the OpenRouter pool is OFF (D-181/D-182) this agent IS the research fan-out — one seat per independent fact, in parallel, nothing recorded to the flywheel; verify-samples, author-blind passes and high-stakes single verdicts stay its niche. A lone quick fact is cheaper checked inline. Session-level directives (e.g. a standing no-subagent rule) always outrank availability.
 mcpServers: [exa, brave-search, firecrawl]
-# Explicit allow-list (the fabrik-reviewer convention), never deny-list-only.
+# Explicit allow-list, the fabrik-reviewer convention.
 tools: Read, Grep, Glob, WebFetch, WebSearch, ToolSearch
 disallowedTools: Edit, Write, MultiEdit, NotebookEdit, Bash
 model: inherit

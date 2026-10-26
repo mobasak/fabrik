@@ -251,7 +251,7 @@ entries:
 - id: fm-read-only
   file: commands/_agents/fabrik-reviewer.md
   text:
-  - 'Read-only: it FINDS, the dispatching session refutes, merges and fixes'
+  - 'Read-only: it FINDS, it does not fix; the dispatching session refutes, merges, decides clean and applies the fixes'
   class: grammar
 vanished:
   L1:

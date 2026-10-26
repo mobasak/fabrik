@@ -657,7 +657,7 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   baseline: ''
   text:
-  - Explicit allow-list (the fabrik-reviewer convention), never deny-list-only
+  - Explicit allow-list, the fabrik-reviewer convention
   class: grammar
 vanished:
   L2:
