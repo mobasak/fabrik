@@ -1,3 +1,5 @@
+OWN TEXT: 4330 -> 3730 (86%)
+
 # T38 receipt — lean rewrite of /fabrik-deploy-plan-review (light form, D-1240)
 
 - Start commit: `851b4b365` (branch base origin/kaizen-lean-u01)
@@ -215,3 +217,68 @@ L83: narrative
 - The Sonnet + Haiku classification audit of the 36 vanished labels and the author-blind old-vs-new read of the 38 hand entries.
 - The floor D-row (83% reached against the 50% target) and the conversion of the `# class:` / `# clauses:` comments to keys once infra-3's loader lands.
 - CHANGELOG, INDEX rows for the new `commands/_rules/` files, D-rows (hub writes at merge).
+
+## Re-ledger round (API-key write lane, W-96f36043; D-1245 canonical loader, master 545817887)
+
+Branch `claude/lean-t38-rl` = `claude/lean-t38-t39-rlbase` + the loader-swap commit. Edited only this ticket's Touches (source, ledger; the baseline and `commands/_size_ceiling.json` untouched; the presence pin in `tests/test_run_scratch_brief_wording.py` was already deleted by the fix round, nothing left there) plus this receipt.
+
+- Own text, words (source file, the `wc` basis the fix receipt uses): baseline 4330 -> fix round 3619 (83%) -> now ~3730 (86%). The fix round was under the old loader and cut by dropping text inside ban clauses; under the canonical loader that text is verbatim-bound, so it went back (~+110 words net after this round's cuts). The render word count, `--check` REPORT: 20471 -> 20582 (+111), so the file figure is 3619 + 111. Hand-estimated, no `wc` on this lane.
+- LOSS, my ledger: 56 lines at the start (lint A 10, B 37, D 9) -> 0 after. `python3 commands/assemble_commands.py --check` prints only `_shared/*.yaml` LOSS lines (T01d's, outside Touches) plus the existing `fabrik-task.md` DIFFERS drift; no `fabrik-deploy-plan-review` or ceiling line.
+- Entries: 80 total = 46 unchanged units (`u-L<n>`) + 33 reworded (`c<n>`) + 1 fence (`f-decision`); reworded/total = 33/80. Classes (loader summary): ban 36, grammar 1, prose 43. Every `# class:`/`# clauses:` comment is now a real `class:`/`clauses:` key. Vanished lines: 35 labels = 33 `rule: [id]` + 2 `narrative` (L7, L83).
+- Clauses labelled `narrative` (all without a ban word, loader-checked): L1 c2 (the 2026-09-07 ruling story), L8 c2, L12 c2, L17 c3+c4 (lifecycle restating the BLOCKED/CONVERGED bullets), L23 c2, L28 c2, L38 c2 (example list), L51 c2, L54 c2 (tryton-crm incident), L55 c2, L77 c4. No `duplicate-of` label.
+- What came out beyond the fix round: the leftover sentence "A deploy plan's characteristic defects are invisible to the author's own re-read" (a residue of narrative L7, not a baseline unit); L12/L13/L8/L23/L28/L38/L54/L55/L77 glosses; L9's `per-axis`; L43's gloss `(a step whose "verify" cannot fail …)` (row 8 and L58 carry the same check); L42's two examples; L20's `(the committed evidence …)`; row 8's two example lists; the L60 `chunk 6b`, `across a WSL shutdown` and `the breadth went to the OpenRouter pool`; L57's `that is what …` kept, its second half reworded to the same rule.
+- What went back in (ban spans verbatim, D-1240): L17 (`only the target literal … regex.) The plan lifecycle it serves is simple by design`), L25 (unchanged baseline), L29 (clause 2, 5, 6 spans), L33 (the whole parenthetical), L35/L36 (unchanged), L44 (unchanged), row 4 (`never renumbered; list ordinals are not ids — the deploy ledger joins on them)`), row 5 (clause 3 from `only while` to `the close never writes`, the `simulate it` and `a fake sudo` parentheticals included), L70, L74 (from `must not opt itself in` to the end), L79 (`EXECUTED` token), L82 clause 2 and `(b)'s run`. Also restored operative actions the fix round had cut: L2 `same unit split, same author-blind rule`, L9 `record the answers and continue the loop in the same invocation`, L20 `and converge again` and `in the re-convergence commit`, L29 `the loop converges the other axes meanwhile, that step's amendment finalizing on the answer`, L60 `or nothing`.
+- Anchors the loader found missing and the rewrite now holds: `decide/refute/merge` (L2), `incident/evidence` (L72), `EXECUTED` (L79), `D-186` (L5), `N/A-<surface>` (L34), step `1` (L82).
+
+### Self-audit (line by line against the baseline file, the source and the ledger; no subagent on this lane)
+
+Pass 1 found and fixed: 5 operative actions cut inside clauses the loader counts as covered (listed above); 1 invented sentence (the L7 residue); f-decision under `class: grammar` needed one whole-fence phrase (a `text` phrase there carries ` ⏎ ` joins); 3 anchors missing (above). Pass 2 re-read every `c` entry old against new and every `u-` unit against the source and found nothing more.
+
+COUNTS: 80 entries read / 33 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels
+
+Caveat the hub's author-blind audit should weigh: a handful of reworded clauses drop only words past the first 8 content stems (L9's parenthetical was restored, L43's gloss and row 8's examples were not); that is the loader's covered-clause reading (D-1240), and every dropped phrase is a gloss, example or a restatement carried by another unit.
+
+### Floor — why this file cannot reach 50%
+
+Target 2165 words (50% of 4330); now ~3730 (86%). By hand count the strict D-1240 floor, with every non-ban clause also cut to its anchors plus 6 of its first 8 stems, is about 2700 words (62%): the ban-clause spans alone are about 1450 words (34% of the baseline), the headings, the table header and the two fences about 320 more, and about 90 non-ban clauses at anchors-plus-6 about 900. Reaching even 62% means deleting distinct checks from operative lists (rows 1-3, 6-10 and the L32/L37/L41/L43 lists), which the loader accepts but which are rules a deploy plan is judged on; this round kept them. Live rule count: 80 ledger entries (36 ban-class).
+
+| unit (baseline line) | ~words now | why it cannot shrink |
+|---|---|---|
+| POOL OFF + dispatch (L1-L5) | 175 | L3 is one ban clause whole; `c5` holds 4 command tokens, `SEATS:`, 191, 186 and `only the partition`; the `Dispatch step (D-191)` literal is what `assemble_commands.py` greps; `c1`/`c2` hold 8 backticked tokens and the `decide/refute/merge` path |
+| L9 sanctioned endings | 75 | clause 2 is verbatim from the first `refusal` to `stop)`; anchors `/fabrik-deploy`, 0 and 2 |
+| L10 chain line | 28 | pinned by `tests/test_check_command_corpus.py` (`You are at step 4 of the chain`) |
+| L17 status guard | 62 | `only the target literal … simple by design` is one ban span (the baseline's parenthesis never closes, so the span runs to the clause end) |
+| L19, L24, L25, L26, L27, L28 status bullets | 190 | each a ban clause; L25's two spans run to the clause end (`never got to unwind), write the literal … BLOCKED case`) |
+| L29 re-entry audit | 220 | spans of clauses 2, 5, 6 (33, 22, 14 words) verbatim; clauses 3, 4, 7, 8, 9 at anchors-plus-6 |
+| L32 gate-required shape | 80 | 11 backticked anchors and `1` in two clauses, whose first-8 stems include `name the RIGHT gate for each demand` |
+| L33 monolith | 74 | the ban clause is one parenthesis, verbatim from `must` to its close |
+| L35, L36 precondition trail | 64 | two ban clauses (`must embed … mandates`, `only record`, `must not survive`); anchor `2` |
+| L44 class checklist | 45 | `never silently dropped; … row verdict):` verbatim |
+| rows 1, 7 | 105 | `only from values …`, `never inlined`, `never assumed` clauses verbatim; the rest are path anchors |
+| rows 2, 3, 6, 9, 10, 8 | 230 | each clause already at or near anchors-plus-6 once the glosses went; the remaining words are the per-surface checks (operative) |
+| row 4 | 190 | `never renumbered; … joins on them)` verbatim; 9 non-ban clauses with 8 backticked anchors |
+| row 5 | 520 | clause 3 (`only while …` to `the close never writes`) is one ban span of ~330 words because the baseline's first `(` never closes; clause 6 span 12 more; the rest are anchors |
+| L59 fan-out | 105 | `never a token 1–2; D-191) with the plan …` verbatim; 9 anchors |
+| L60 Opus + Workflow paragraph | 375 | clause 1 is a ~140-word span (`never the main checkout … the riskiest unit`); clause 5 a 30-word span; clause 4 holds 14 backticked tokens, 181 and 836; pinned by `tests/test_review_loop_workflow.py` (script path, `cannot load the script`, `pins_dir`/`pin_manifest`, `SCRATCH:` forms) |
+| L61, L65, L69, L70, L78, L79 | 190 | ban clauses verbatim |
+| L74 edit-convergence artifact | 130 | one parenthesis, verbatim from `must not opt itself in` (~110 words) |
+| L82 two gate runs | 215 | span `must touch the PLAN … after)`; clauses (a)-(f) at anchors-plus-6 with 7 backticked tokens |
+| Output fence + DECISION block + `Next command` | 245 | grammar fences and a kept test pin (`tests/test_gate_decision_blocks.py`, `tests/test_final_gate_stop_deferral.py`); the fence lines hold `only` twice, so a change needs a ban entry too |
+
+### Gates (start -> end; the clone lacks box services, so the reds pre-exist)
+
+1. `tests/test_command_rules.py -rP`: start 1 failed / 56 passed, end 1 failed / 56 passed (`test_generate_unchanged_ledgers_pass_on_the_live_corpus`, red on the `_shared` LOSS lines); the PASSES section prints `LEDGER fabrik-deploy-plan-review.yaml: 80 entries · classes {'ban': 36, 'grammar': 1, 'prose': 43} · vanished {'narrative': 2, 'rule': 33}`.
+2. `--check`: exit 4 only from `_shared/*.yaml` LOSS lines (T01d); zero LOSS lines for this ledger.
+3. flip-gate / agent-definition group: start 14 failed / 100 passed, end 14 failed / 100 passed, same set (`test_assemble_dispatch_step.py` ×13, `test_assemble_orch_retired.py::test_git_grep_for_retired_tokens_prints_nothing`).
+4. worktree-guard / corpus group: 376 passed -> 376 passed.
+5. measure / run group: 2 failed, 746 passed -> 2 failed, 746 passed (`test_command_measure.py::test_check_exit_order_loss_then_ceiling_then_drift`, `test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box`).
+6. firecrawl group: 237 passed -> 237 passed.
+7. producing-fragments group (with `test_run_scratch_brief_wording.py`): 463 passed -> 463 passed.
+8. spec-plan-lane group: 33 passed -> 33 passed.
+
+## LEFT FOR THE HUB (re-ledger round)
+
+- A floor D-row for this command (86% against the 50% target; strict floor ~62%, see above) through Deltas; `commands/_size_ceiling.json` ratchet at the text-measure merge.
+- The author-blind old-vs-new audit of the 33 reworded entries and of the 35 vanished labels; the Sonnet + Haiku pair could not run on this lane.
+- The `_shared/*.yaml` LOSS lines (T01d's unit) that keep gate 1's `test_generate_unchanged_ledgers_pass_on_the_live_corpus` and the `--check` exit at red/4.
+- CHANGELOG, INDEX rows for the new `commands/_rules/` files, D-rows.
