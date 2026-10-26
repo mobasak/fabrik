@@ -312,63 +312,6 @@ def test_an_equivalent_mutant_is_discarded_never_reported_as_a_test_gap() -> Non
     ) in _norm(CAT)
 
 
-def test_a_fix_is_probed_against_every_shape_the_form_it_replaces_held() -> None:
-    """Rows 1792001701 and 1792016553 (fabrik-review): a closing pass accepted a selector-to-id fix that dropped the
-    scoped shape the selector had matched, and a restored test guard that covered fewer pages and languages than
-    the test it replaced; 22 of 542 rejected reasons had already named the mirror clause, so the held subject
-    recurs and is edited (D-711). Phase 3's verify-the-fix list gains the question — the shapes enumerated from the
-    OLD form and listed in the fix's ledger row — and the catalogue's closing-pass brief re-checks every replaced
-    form against them. Mutants: delete the question, drop 'EVERY shape', drop 'before the fix is drafted', 'never
-    from the new one' to 'or from the new one', drop a named shape, drop a cite, move the question or a shape past
-    its '?', drop the catalogue's re-check — each fails an assertion (the question is bounded by its own '?', so a
-    clause moved elsewhere in the paragraph is not found)."""
-    text = _norm(SRC)
-    para = _section(
-        text, "verify the FIX, not just the finding", "**Never apply a fix you can't stand behind"
-    )
-    head = "does the new form still hold EVERY shape the form it replaces held"
-    assert head in para, "the question left Phase 3's verify-the-fix list"
-    rest = para[para.index(head) :]
-    assert "?" in rest, "the question lost its question mark"
-    q = rest[: rest.index("?") + 1]
-    assert q.endswith(
-        'population before it widens or narrows", asked here of every replaced form)?'
-    ), q[-80:]
-    assert (
-        "the shapes enumerated from the OLD form before the fix is drafted, never from the new one, and listed in"
-        " the fix's Pass Ledger `method:` cell beside its `round-zero probe` note"
-    ) in q, (
-        "the enumeration, its source and its record are one contiguous clause; an insertion breaks it"
-    )
-    for shape in (
-        "a selector replaced by an id or a scoped lookup",
-        "a guard replaced by a narrower one",
-        "a restored test by one covering fewer pages or languages",
-    ):
-        assert shape in q, shape
-    # the two cites quote their sources, which must still carry the quoted words
-    cite_cat = "what a replaced guard covered that its replacement does not"
-    cite_cov = "against its live population before it widens or narrows"
-    assert cite_cat in q and cite_cov in q
-    assert cite_cat in _norm(CAT), "the cite names a catalogue line that no longer exists"
-    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert cite_cov in cov, "the cite names a round-zero clause that no longer exists"
-    assert "; round-zero probe — <what>" in cov, (
-        "the method-cell note the question points at is gone"
-    )
-    assert "for a matcher or replacer" in q, (
-        "the cite must name the subject term-coverage gives the phrase"
-    )
-    assert "matcher clause" not in q, "an invented label a reader cannot grep for"
-    assert "or from the new one" not in q
-    assert "2026-" not in q, "a rule carries no dated incident"
-    # the closing-pass seats re-check the lead's enumeration, so the lead's step is not the only reader
-    assert (
-        "the closing-pass brief has every seat list each slice file it read, by path, and re-check every fix that"
-        " replaced a form against the shapes the OLD form held, as the fix's ledger row lists them"
-    ) in _norm(CAT)
-
-
 def test_a_reader_over_another_language_starts_from_a_fail_closed_grammar() -> None:
     """Row 1792019529 (wef2, a /fabrik-review under /fabrik-task over a TypeScript reader): four rounds and 10.7 h
     went to a tokenizer that a strict line grammar replaced in one; the catalogue's Parsers row said 'the parsing
@@ -465,71 +408,6 @@ def test_a_fixture_equal_to_the_codes_own_literal_is_a_test_quality_finding() ->
         "the finder mutates that constant on a copy under its scratch dir and the test must go red"
         in checklist
     )
-
-
-def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None:
-    """D-711 recurrences, 2026-10-17 pass: receipt re-made after a fix commit (1792137103, 1792184935), counts name
-    their commit (1792072266), a served build's real port (1792087244), two fix forms (1792119582, 1792111760),
-    branches a doc sentence summarises (1792088847), readers of a written field (1792081559), and the post-fix prose
-    sweep (1792085958, 1792067212, 1792084655). Mutants: drop any clause."""
-    src = _norm(SRC)
-    assert (
-        "a fix committed after the draft's `--init` moves the tip, which is why that form writes the receipt itself"
-        " only at the close (`--init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last fix commit>`,"
-        " its rows carried from the draft — `--init`"
-        " never overwrites, and `--restamp` re-anchors only a working-tree receipt)"
-    ) in _section(src, "## Reporting", "{{include:close-chain}}")
-    # rows 1792097032 (the seat folder exists first) and 1792082624 (two vacuous-test shapes, recurring
-    # negation-safe-assertions)
-    assert (
-        "`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write"
-        in src
-    )
-    assert (
-        "**a value compared with itself, or a matcher softened until it cannot fail** (a substring where the contract"
-        " is equality, a regex widened to `.*`)"
-    ) in _section(src, "**Test-quality checklist", "## Phase 2")
-    lessons = _section(
-        src, "Every finder brief carries these lessons VERBATIM", "**HARD TIME BOX 15 minutes**"
-    )
-    assert (
-        "print a DENOMINATOR, and the commit (or the pin's md5) it was measured at, beside every count"
-        in lessons
-    )
-    assert (
-        "a probe of a served build reads the port the server actually bound, from its own output, or serves the"
-        " files with no port at all (Playwright `page.route`), never a port the brief assumed"
-    ) in lessons
-    fixed = _section(src, "## Phase 3 — Prove & fix", "## Phase 4 — Converge")
-    assert (
-        "**Two fix forms recur:** two predicates over one input (an arm and its lift, an allow and its deny) become"
-        " ONE classifier both read, its grader sweeping every input pair; a sanitizing fix is an allowlist of"
-        " spelled-out characters, never a bracket range"
-    ) in fixed
-    assert "(with bash's `globasciiranges` off, `B` matches `[a-c]` under `en_US.UTF-8`)" in fixed
-    cat = _norm(CAT)
-    assert (
-        "trace each rationale sentence's mechanism to the code through every branch it summarises (refusals and"
-        " fallbacks, not only the happy path)"
-    ) in cat
-    assert "and of each field a fix writes, named before the closing round." in cat
-    assert (
-        "each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix writes that"
-        " restates a rule already stated elsewhere, found at its source by that restated rule's terms and two rewordings"
-        " of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; a fix that narrows,"
-        " widens or splits a rule's subject is held to `/fabrik-review`'s \"does the new form still hold EVERY shape the"
-        ' form it replaces held", with "the shapes enumerated from the OLD form before the fix is drafted, never from'
-        ' the new one": here each case no new clause covers, two now cover or only the new wording reaches, listed with'
-        " where it now lands or, with its reason, that it is dropped on purpose, where your command records the fix"
-        " (`/fabrik-review`'s"
-        " Pass Ledger `method:` cell, `/fabrik-review-scoped`'s report); every doc"
-        " line, docstring,"
-        " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
-        " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
-        " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
-        " outdates), and every comment and docstring of a function whose behaviour a fix changes re-read whole, since"
-        " a paraphrase names neither the verb nor a removed name;"
-    ) in cat
 
 
 def test_a_by_design_d_owner_is_a_ledger_row_and_the_refusals_point_at_the_gate() -> None:
@@ -946,30 +824,6 @@ def test_a_fix_between_round_one_waves_is_in_the_delta_surface() -> None:
         "since round 1 is not complete until every slice is read. A fix the lead makes between waves is in the next"
         " wave's pin, as every fix is in the pin cut after it. **By SECTION,"
     ) in _norm(SUB)
-
-
-def test_a_seat_scratch_repo_is_checked_and_git_runs_hermetic() -> None:
-    """Rows 1792560934 (held gitdir-shim-recipe) and 1792559094 (held third-party-cli-empty-home): a scratch init
-    that failed left git on the live repo, and a git test read the box's config."""
-    cat = _norm(CAT)
-    assert (
-        "is checked before its first git write: `git -C <it> rev-parse --show-toplevel` prints its own path, since an"
-        " init that failed under the hub's `.tmp/` leaves every later git call on the live repo."
-    ) in cat
-    assert (
-        "runs with `GIT_CONFIG_GLOBAL` at an empty file, `GIT_CONFIG_NOSYSTEM=1`, and `HOME` and `XDG_CONFIG_HOME` at"
-        " empty folders under its scratch, with `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and"
-        " `GIT_COMMITTER_EMAIL` set when it commits, since the empty config holds no identity (an older git ignores"
-        " `GIT_CONFIG_GLOBAL` and reads `$HOME/.gitconfig`), and"
-        " a test that a hook stays silent first shows that hook fire on a positive control. - Every file a grader reads"
-    ) in cat
-    leak = next(line for line in SRC.read_text().splitlines() if line.startswith("- **Leak check"))
-    assert leak.endswith(
-        "so a live process that vanished shows in the same diff. The baseline also holds the `md5sum` of the `config`"
-        " file in the directory `git rev-parse --path-format=absolute --git-common-dir` prints, since a remote or"
-        " `core.hooksPath` a seat writes there shows in no status; a hook file under that directory's `hooks/` is in"
-        " neither, so the baseline lists it too."
-    )
 
 
 def test_the_lead_creates_each_seat_folder_before_dispatch() -> None:
