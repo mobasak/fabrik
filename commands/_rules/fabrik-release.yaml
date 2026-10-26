@@ -65,9 +65,9 @@ entries:
 - id: rel-termination-verdicts
   file: render
   baseline: 'You are done when EVERY item of the surface''s checklist below has a verdict — PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched) — and you have printed the Gate-2 handoff block'
-  current: 'You are done when EVERY item of the surface''s checklist below has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
+  current: 'You are done when EVERY item of the surface''s checklist below has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and you have printed the Gate-2 handoff block'
   text:
-  - 'You are done when EVERY item of the surface''s checklist below has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and the Gate-2 handoff is printed'
+  - 'You are done when EVERY item of the surface''s checklist below has a verdict, PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched), and you have printed the Gate-2 handoff block'
 - id: rel-pass-needs-evidence
   file: render
   baseline: A checklist item without evidence is not PASS
@@ -84,15 +84,15 @@ entries:
 - id: rel-context-never-a-reason
   file: render
   baseline: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
-  current: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going. If >3 items are BLOCKED on the same root cause, stop early and report it'
+  current: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going. If >3 items are BLOCKED on the same root cause, stop early and report that cause'
   text:
   - 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
 - id: rel-blocked-same-root-cause
   file: render
   baseline: If >3 items are BLOCKED on the same root cause, stop early and report that cause
-  current: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going. If >3 items are BLOCKED on the same root cause, stop early and report it'
+  current: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going. If >3 items are BLOCKED on the same root cause, stop early and report that cause'
   text:
-  - If >3 items are BLOCKED on the same root cause, stop early and report it
+  - If >3 items are BLOCKED on the same root cause, stop early and report that cause
 - id: rel-cert-precondition-lead
   file: render
   baseline: 'No file matching `docs/development/reviews/*-{user,service}-test-*.md` for this project is itself BLOCKED (run the gauntlet first — every scaffold type owes one: UI-bearing types a user-test, headless types a service-test, CLAUDE.md § Pipeline item 2) — a `reviews/` directory holding other review types is not a certification report'
@@ -110,9 +110,9 @@ entries:
 - id: rel-open-p0-p1-blocked
   file: render
   baseline: 'An open P0/P1 row (or any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator) is a BLOCKED release — report it as `BLOCKED: certification handoff open — <finding> → <route>` and stop'
-  current: 'An open P0/P1 row, any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator is `BLOCKED: certification handoff open — <finding> → <route>`: stop'
+  current: 'An open P0/P1 row, any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator is a BLOCKED release; report it as `BLOCKED: certification handoff open — <finding> → <route>`: stop'
   text:
-  - 'An open P0/P1 row, any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator is `BLOCKED: certification handoff open — <finding> → <route>`: stop'
+  - 'An open P0/P1 row, any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator is a BLOCKED release; report it as `BLOCKED: certification handoff open — <finding> → <route>`: stop'
 - id: rel-p2-p3-warn
   file: render
   baseline: Open P2/P3 rows are printed as a ⚠ WARN list in the Gate-2 handoff block — visible for the operator's explicit accept, never silently passed
@@ -122,16 +122,16 @@ entries:
 - id: rel-severity-binds-on-honour
   file: render
   baseline: 'Grader honesty: the HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded (`check_review_coverage.py`); the severity-tiered blocking HERE is read by no check — it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep'
-  current: The HANDOFF grammar and NOT-QUIET↔RESUME pairing are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep
+  current: The HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep
   text:
-  - The HANDOFF grammar and NOT-QUIET↔RESUME pairing are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep
+  - The HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep
 - id: rel-waiver-is-a-received-decision
   file: render
   baseline: 'The operator may waive a specific row explicitly this turn; you may never waive one — and a waiver granted is a RECEIVED decision: mint its `docs/DECISIONS.md` row and COMMIT AND PUSH it now, its own commit, BEFORE `release_cut.py` runs (Phase 0''s own precondition demands `@{u}..HEAD` empty — an unpushed waiver commit would block the release on its own mandated act) — the cut''s hardcoded `-- CHANGELOG.md` pathspec would strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted risk must outlive this chat'
   current: ''
   text:
   - The operator may waive a specific row explicitly this turn; you may never waive one
-  - 'A waiver granted is a RECEIVED decision: mint its `docs/DECISIONS.md` row and COMMIT AND PUSH it now, its own commit, BEFORE `release_cut.py` runs (Phase 0 demands `@{u}..HEAD` empty)'
+  - 'A waiver granted is a RECEIVED decision: mint its `docs/DECISIONS.md` row and COMMIT AND PUSH it now, its own commit, BEFORE `release_cut.py` runs (Phase 0''s own precondition demands `@{u}..HEAD` empty — an unpushed waiver commit would block the release on its own mandated act)'
   - the cut's hardcoded `-- CHANGELOG.md` pathspec would strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted risk must outlive this chat
 - id: rel-surface-map
   file: render
@@ -184,9 +184,9 @@ entries:
 - id: rel-upatream-fatal-not-nothing-unpushed
   file: render
   baseline: Reading the `@{u}` fatal as "nothing unpushed" is the fail-open this clause kills) — the VPS pulls from the remote, and a store zip must be reproducible from a SHA
-  current: Reading the `@{u}` fatal as "nothing unpushed" is the fail-open — the VPS pulls from the remote, and a store zip must be reproducible from a SHA
+  current: Reading the `@{u}` fatal as "nothing unpushed" is the fail-open this clause kills — the VPS pulls from the remote, and a store zip must be reproducible from a SHA
   text:
-  - Reading the `@{u}` fatal as "nothing unpushed" is the fail-open
+  - Reading the `@{u}` fatal as "nothing unpushed" is the fail-open this clause kills
   - the VPS pulls from the remote, and a store zip must be reproducible from a SHA
 - id: rel-docs-truth-dated
   file: render
@@ -320,16 +320,16 @@ entries:
 - id: rel-mobile-handoff
   file: render
   baseline: 'Gate-2 handoff: print the artifact + checklist verdicts — *"Operator: approve and run `eas submit` (TestFlight / Play Internal first ring) — submission is yours."*'
-  current: 'Gate-2 handoff: print the artifact + verdicts: *"Operator: approve and run `eas submit` (TestFlight / Play Internal first ring) — submission is yours."*'
+  current: 'Gate-2 handoff: print the artifact + checklist verdicts: *"Operator: approve and run `eas submit` (TestFlight / Play Internal first ring) — submission is yours."*'
   text:
-  - 'Gate-2 handoff: print the artifact + verdicts: *"Operator: approve and run `eas submit` (TestFlight / Play Internal first ring) — submission is yours."*'
+  - 'Gate-2 handoff: print the artifact + checklist verdicts: *"Operator: approve and run `eas submit` (TestFlight / Play Internal first ring) — submission is yours."*'
 - id: rel-extension-ring-first
   file: render
   baseline: 'Decide the DISTRIBUTION RING first, exactly as the MOBILE path does — steps 2-5 below apply ONLY to the listable ring. `chrome-extension` covers both, and the unlistable case is not exotic: automation, scraping, internal enterprise tooling, and anything shipping remote code all hit it permanently, not temporarily'
   current: ''
   text:
-  - Decide and state the DISTRIBUTION RING first, exactly as the MOBILE path does, with its evidence
-  - 'steps 2-5 apply ONLY to the listable ring. `chrome-extension` covers both, and the unlistable case is not exotic: automation, scraping, internal enterprise tooling, and anything shipping remote code all hit it permanently'
+  - Decide and state the DISTRIBUTION RING first, exactly as the MOBILE path does, with its evidence; an unstated ring means the next run re-derives it
+  - 'steps 2-5 apply ONLY to the listable ring. `chrome-extension` covers both, and the unlistable case is not exotic: automation, scraping, internal enterprise tooling, and anything shipping remote code all hit it permanently, not temporarily'
 - id: rel-extension-listable
   file: render
   baseline: LISTABLE (Chrome Web Store) — the extension's behaviour is within Web Store policy
@@ -345,9 +345,9 @@ entries:
 - id: rel-extension-unlistable
   file: render
   baseline: UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, or enterprise force-install) — the listing is not "not yet done", it is permanently unavailable
-  current: 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): the listing is permanently unavailable'
+  current: 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): the listing is permanently unavailable, not "not yet done"'
   text:
-  - 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): the listing is permanently unavailable'
+  - 'UNLISTABLE / INTERNAL (developer-unpacked, self-hosted zip, enterprise force-install): the listing is permanently unavailable, not "not yet done"'
 - id: rel-extension-unlistable-skip
   file: render
   baseline: SKIP steps 2-5 entirely. Doing them anyway fabricates four privacy-practices answers, a listing-asset check, and a "$5 fee, review takes days-to-weeks" hand-off for a submission that will never happen — and step 3's own rule ("never invent a data practice") is violated by the step that compels inventing the artifact those practices describe (job-agent, 2026-08-28, on a LinkedIn-automation extension)
@@ -364,9 +364,9 @@ entries:
 - id: rel-extension-zip-checks
   file: render
   baseline: 'Build the production zip from the pushed SHA; verify: MV3, secret-grep clean, every permission mapped to a using `path:line`, version bumped, no obfuscation, `size-limit` green (checklist § 2)'
-  current: Build the production zip from the pushed SHA; verify MV3, secret-grep clean, every permission mapped to a `path:line`, version bumped, no obfuscation, `size-limit` green (checklist § 2)
+  current: Build the production zip from the pushed SHA; verify MV3, secret-grep clean, every permission mapped to a using `path:line`, version bumped, no obfuscation, `size-limit` green (checklist § 2)
   text:
-  - Build the production zip from the pushed SHA; verify MV3, secret-grep clean, every permission mapped to a `path:line`, version bumped, no obfuscation, `size-limit` green (checklist § 2)
+  - Build the production zip from the pushed SHA; verify MV3, secret-grep clean, every permission mapped to a using `path:line`, version bumped, no obfuscation, `size-limit` green (checklist § 2)
 - id: rel-extension-listing-assets
   file: render
   baseline: Verify listing assets exist at exact sizes (128/48/16 icons; 1280×800 or 640×400 screenshot) — checklist § 3
@@ -428,10 +428,10 @@ entries:
 - id: rel-cut-execute
   file: render
   baseline: '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — the script''s bare `git push` dies without an upstream and its TAG push hardcodes `origin`, either way mid-cut, stranding a local tag on a graduated CHANGELOG) — graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag, creates the GitHub Release with the graduated entries as notes (`gh` missing is non-fatal: tag-only cut)'
-  current: '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`) graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and creates the GitHub Release with the graduated entries as notes (`gh` missing: tag-only cut)'
+  current: '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`, either way mid-cut, stranding a local tag on a graduated CHANGELOG) graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and creates the GitHub Release with the graduated entries as notes (`gh` missing is non-fatal: tag-only cut)'
   text:
-  - '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`)'
-  - 'graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and creates the GitHub Release with the graduated entries as notes (`gh` missing: tag-only cut)'
+  - '`python scripts/release_cut.py --execute` (no upstream tracking ref — a no-remote repo (operator-waived) OR a remoted repo on an untracked branch: add `--no-push`, then set the upstream and push branch+tag yourself where a remote exists — its bare `git push` dies without an upstream and its tag push hardcodes `origin`, either way mid-cut, stranding a local tag on a graduated CHANGELOG)'
+  - 'graduates `[Unreleased]` → `[X.Y.Z] — date` in the CHANGELOG, commits, tags `vX.Y.Z`, pushes branch + tag and creates the GitHub Release with the graduated entries as notes (`gh` missing is non-fatal: tag-only cut)'
 - id: rel-cut-decision-row
   file: render
   baseline: 'The cut is decision-shaped — "built X at vY" — mint its `docs/DECISIONS.md` row and commit AND push it IMMEDIATELY AFTER the cut, before anything else — `release_cut.py --execute` has ALREADY pushed branch+tag by the time it returns, so the row rides its OWN push (it lands after the `vX.Y.Z` tag; acceptable — the ledger is master-tracked, not tag-tracked; on the waived no-remote path the cut ran `--no-push` and this row likewise COMMITS LOCALLY, no push exists to ride) (classify at mint: the cut is reversible-by-new-tag; the DEPLOY that follows is Gate 2''s decision, not yours to row)'

@@ -62,3 +62,23 @@ Command: `fabrik-release`. Findings checked against `lean-baseline-2026-10-25:co
 **Fresh passes:** 2 (separate fresh subagents; pass 1 found 2 weaker, fixed; pass 2 found nothing).
 
 COUNTS: entries read 72 / reworded 40 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0
+
+## Nits round (hub)
+
+Each item restored in `commands/_sources/fabrik-release.md` and inside its ledger entry's `text` (`fabrik-release.yaml`).
+
+- rel-extension-zip-checks "using" — restored.
+- "non-fatal" (`gh` missing) — restored.
+- "stranding a local tag on a graduated CHANGELOG" — restored (tail after "either way mid-cut").
+- "an unpushed waiver commit would block the release on its own mandated act" — restored with "Phase 0's own precondition".
+- "an unstated ring means the next run re-derives it" (L61) — restored in `rel-extension-ring-first`.
+- "not temporarily" — restored.
+- "not 'not yet done'" — restored.
+- "checklist verdicts" — restored.
+- "decision-shaped" (clause 1 of `rel-cut-decision-row`) — labelled narrative (already `clauses: 1: narrative`; it names the cut's class and carries no instruction).
+- Pronoun/passive rewordings — restored: "report it as" (as "is a BLOCKED release; report it as"), "you have printed the Gate-2 handoff block", "report that cause", "this clause kills", "in those reports".
+- Refuted, untouched: "A key doc" → "a doc"; the wordpress "out of fabrik" line.
+
+**Own-text words:** about 2313 → 2374 (rendered command 9683 → 9744, ceiling 10251).
+
+**Gates:** `tests/test_command_rules.py -rP` shows zero LOSS for `fabrik-release.yaml` (only `_shared` LOSS remains); `assemble_commands.py --check` shows only DIFFERS drift. The zero-counts self-audit was NOT a fresh subagent (none could be dispatched); the hub's author-blind audit pair covers it.
