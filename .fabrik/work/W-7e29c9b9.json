@@ -3,7 +3,7 @@
   "created": "2026-10-26T11:04:50.774754Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "bd0368ada858e7c67a7c51b3c1f2e6dea5942aba",
   "id": "W-7e29c9b9",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 0,
   "score_reason": "URGENT: operator order (D-1239) — rea for every repo; infra beat (MCP roster/emitter); LOW: roster row + emitter grant + re-emit",
-  "status": "open",
+  "status": "done",
   "title": "URGENT (operator 2026-10-26: 'enable rea for all repos wide asap!!!'): grant the rea MCP to every /opt repo and re-emit .mcp.json fleet-wide (D-1239)"
 }
