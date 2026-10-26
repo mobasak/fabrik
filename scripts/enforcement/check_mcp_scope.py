@@ -9,15 +9,15 @@ D-015) never granted the hub; the JVMs outlived their sessions by days and, afte
 resume, 48 of them held ~11 GB of swap and no window could reconnect. A hand-added or stale
 server survives silently because `.mcp.json` is gitignored and nothing reads it back against the
 roster. This check does: for every repo the emitter rules (the hub, every repo with a
-`project.yaml::type` the roster knows, and since D-1246 every UNTYPED repo whose `.mcp.json` git ignores — the
-universal set; `emit_mcp_project_config.emitter_owns` is the predicate) the
+`project.yaml::type` the roster knows, and since D-1246 every UNTYPED repo — the universal set; each of them only
+when git ignores its `.mcp.json`, W-c0d9cea5; `emit_mcp_project_config.emitter_owns` is the predicate) the
 servers PRESENT in `<repo>/.mcp.json` must be a subset
 of `emit_mcp_project_config.ruled_server_names(repo)`. A server the ruling allows but the file
 omits is legal (postgres-pro is absent until its URL connects); a server the ruling does not
 allow is the defect, named with the command that fixes it (re-run the emitter — never a hand edit).
 
-A repo that carries a `.mcp.json` the emitter does NOT rule or own (a `type:` the roster does not know, an
-untyped repo whose `.mcp.json` git does not ignore, or hub-class landed by its own agent such as fabrik-lib)
+A repo that carries a `.mcp.json` the emitter does NOT rule or own (a `type:` the roster does not know, a
+repo of any kind whose `.mcp.json` git does not ignore (W-c0d9cea5), or hub-class landed by its own agent such as fabrik-lib)
 is reported as a WARNING with the same
 command, never a failure: the hub's gate cannot red on a file another repo's agent writes.
 
@@ -92,9 +92,10 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
                 {
                     "repo": repo.name,
                     "present": sorted(present),
-                    "reason": "untyped and its .mcp.json is not ignored by git (no rule, a `!` negation, or tracked)"
-                    " — the emitter does not own it",
-                    "fix": "add `.mcp.json` to its .gitignore (or type the repo), then " + fix,
+                    "reason": "its .mcp.json is not ignored by git (no rule, a `!` negation, or tracked) — the emitter"
+                    " does not own it, and a tracked copy may still hold credentials",
+                    "fix": "make .gitignore ignore `.mcp.json`, with no later `!.mcp.json`, and if git tracks it run"
+                    " `git rm --cached .mcp.json`, then " + fix,
                 }
             )
             continue

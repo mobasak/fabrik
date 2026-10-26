@@ -77,9 +77,18 @@ def defs_file(tmp_path: Path) -> Path:
     return p
 
 
-def make_repo(root: Path, name: str, rtype: str | None, env: str | None = None) -> Path:
+def make_repo(
+    root: Path, name: str, rtype: str | None, env: str | None = None, real_git: bool = True
+) -> Path:
+    """A REAL git repo whose .gitignore ignores `.mcp.json`, as every scaffolded repo's does (the emitter asks git for
+    every repo, W-c0d9cea5); `real_git=False` makes a bare `.git` dir git cannot answer for."""
     d = root / name
-    (d / ".git").mkdir(parents=True)
+    if real_git:
+        d.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(d)], check=True)
+        (d / ".gitignore").write_text(".mcp.json\n")
+    else:
+        (d / ".git").mkdir(parents=True)
     if rtype is not None:
         (d / "project.yaml").write_text(f"name: {name}\ntype: {rtype}\n")
     if env is not None:
@@ -195,12 +204,12 @@ def test_untyped_gitless_and_unguarded_repos(tmp_path, defs_file, capsys):
     assert servers_of(guarded) == U5_NO_DB
     assert not (unguarded / ".mcp.json").exists(), "no gitignore line, no secrets file"
     out = capsys.readouterr().out
-    assert "vendor-clone: SKIP (untyped repo whose `.mcp.json` git does not ignore" in out
+    assert "vendor-clone: SKIP (git does not ignore `.mcp.json`" in out
     # a `.git` git cannot read: no answer, never written, and the line says so
-    unanswerable = make_repo(tmp_path, "unanswerable", None)
+    unanswerable = make_repo(tmp_path, "unanswerable", None, real_git=False)
     run(tmp_path, defs_file)
     assert not (unanswerable / ".mcp.json").exists()
-    assert "unanswerable: SKIP (untyped repo, and git could not say" in capsys.readouterr().out
+    assert "unanswerable: SKIP (git could not say" in capsys.readouterr().out
     assert not (gitless / ".mcp.json").exists()
     assert servers_of(formerly_condemned) == U5_NO_DB
     assert not (lib / ".mcp.json").exists(), "fabrik-lib's own agent lands its file"
@@ -301,6 +310,7 @@ def test_malformed_yaml_reads_as_untyped_and_the_run_continues(tmp_path, defs_fi
     """A project.yaml with no `type:` line is untyped (D-1246): with no gitignore line it is skipped, said by
     name, and the rest of the run still emits."""
     bad = make_repo(tmp_path, "broken", None)
+    (bad / ".gitignore").unlink()
     (bad / "project.yaml").write_text("::: not yaml :::\n")
     good = make_repo(tmp_path, "good-api", "python-api")
     run(tmp_path, defs_file)
@@ -750,12 +760,13 @@ def test_the_script_exits_1_when_a_repo_or_a_copy_fails_and_0_on_a_ruled_skip(tm
         ("CREATE (+1 worktree copy)", False),
         ("SKIP", False),
         (
-            "SKIP (untyped repo whose `.mcp.json` git does not ignore — add the .gitignore line, untrack it, or type the repo)",
+            "SKIP (git does not ignore `.mcp.json` — make .gitignore ignore it, with no later `!.mcp.json`, and if git"
+            " tracks it run `git rm --cached .mcp.json`; the file carries credentials)",
             False,
         ),
         ("SKIP (error: PermissionError)", True),
         (
-            "SKIP (untyped repo, and git could not say whether `.mcp.json` is ignored — never written)",
+            "SKIP (git could not say whether `.mcp.json` is ignored — never written)",
             True,
         ),
         ("OK (1 unreadable)", True),
@@ -766,3 +777,65 @@ def test_failed_reads_the_verdict_only(verdict, failed):
     """W-d095d60b: which verdicts fail the run. A repo NAME holding the error text never does (main passes the
     verdict, not the printed line)."""
     assert emitter._failed(verdict) is failed
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t", *args],
+        check=True,
+        capture_output=True,
+    )
+
+
+def _not_ignored(repo: Path, shape: str) -> None:
+    """Put `<repo>/.mcp.json` in one shape git does NOT ignore (measured, W-c0d9cea5 measure.md)."""
+    if shape == "no-rule":
+        (repo / ".gitignore").unlink()
+    elif shape == "negation":
+        (repo / ".gitignore").write_text(".mcp.json\n!.mcp.json\n")
+    else:  # tracked, or tracked with skip-worktree (the trade-intelligence shape: git status hides the filled copy)
+        _git(repo, "add", "-f", ".gitignore", ".mcp.json")
+        _git(repo, "commit", "-q", "-m", "tracked")
+        if shape == "skip-worktree":
+            _git(repo, "update-index", "--skip-worktree", ".mcp.json")
+
+
+@pytest.mark.parametrize("shape", ["skip-worktree", "tracked", "no-rule", "negation"])
+@pytest.mark.parametrize("name, rtype", [("some-api", "python-api"), ("fabrik", None)])
+def test_a_typed_repo_whose_file_git_tracks_is_never_written(
+    tmp_path, defs_file, capsys, shape, name, rtype
+):
+    """W-c0d9cea5: the emitted file inlines credentials, so a TYPED or HUB repo whose `.mcp.json` git does not ignore
+    (tracked, skip-worktree, no rule, a later `!`) is never written; the file keeps its bytes and the line says how to
+    fix it. A rule alone is no fix for a tracked file, so the line names both steps."""
+    repo = make_repo(tmp_path, name, rtype)
+    (repo / ".mcp.json").write_text('{"placeholder": "${EXA_API_KEY}"}\n')
+    _not_ignored(repo, shape)
+    before = (repo / ".mcp.json").read_bytes()
+    lines = run(tmp_path, defs_file)
+    assert (repo / ".mcp.json").read_bytes() == before
+    verdict = next(v for v in lines if v.startswith(f"{name}: "))
+    assert verdict.startswith(f"{name}: SKIP (git does not ignore `.mcp.json`"), verdict
+    assert "git rm --cached .mcp.json" in verdict and "!.mcp.json" in verdict, verdict
+    assert not emitter._failed(verdict.split(": ", 1)[1]), "a ruled SKIP: the repo's owner fixes it"
+
+
+def test_a_typed_repo_whose_file_git_ignores_is_written(tmp_path, defs_file):
+    """W-c0d9cea5: a typed repo whose .gitignore ignores `.mcp.json` is written, from no file at all (the fresh-scaffold
+    case: git answers for a path that does not exist yet)."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    assert not (repo / ".mcp.json").exists()
+    assert run(tmp_path, defs_file) == ["some-api: CREATE"]
+    assert servers_of(repo)
+
+
+def test_a_typed_repo_git_cannot_answer_for_fails_the_run(tmp_path, defs_file):
+    """W-c0d9cea5: a typed repo git cannot answer for (a bare `.git` dir) is never written, and that verdict fails the
+    run, since nothing may be written on an unknown answer."""
+    repo = make_repo(tmp_path, "some-api", "python-api", real_git=False)
+    lines = run(tmp_path, defs_file)
+    assert not (repo / ".mcp.json").exists()
+    assert lines == [
+        "some-api: SKIP (git could not say whether `.mcp.json` is ignored — never written)"
+    ], lines
+    assert _cli_rc(tmp_path, defs_file) == 1

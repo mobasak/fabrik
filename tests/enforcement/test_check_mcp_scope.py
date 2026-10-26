@@ -223,3 +223,51 @@ def test_a_credential_abort_in_the_emitter_is_a_structured_fail(
     rc = check.main(["--root", str(tmp_path), "--hub", str(HUB)])
     out = capsys.readouterr().out
     assert rc == 1 and "check_mcp_scope: FAIL" in out and "exa.env.EXA_API_KEY" in out
+
+
+def test_a_typed_repo_whose_file_git_tracks_is_a_warning(check, tmp_path):
+    """W-c0d9cea5: the emitter never writes a TYPED repo's `.mcp.json` that git does not ignore, so re-emitting cannot
+    clear it: a warning, never a failure. Its reason no longer says "untyped", and it says a tracked copy may still hold
+    credentials, since the skip leaves the old file in place."""
+    typed = repo(tmp_path, "tracked-api", "python-api", ["session-recall", "maestro"])
+    (typed / ".git").rmdir()
+    subprocess.run(["git", "init", "-q", str(typed)], check=True)
+    (typed / ".gitignore").write_text(".mcp.json\n")
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(typed),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "add",
+            "-f",
+            ".gitignore",
+            ".mcp.json",
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(typed),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            "t",
+        ],
+        check=True,
+    )
+    rep = check.audit(tmp_path, HUB, DEFS)
+    assert rep["failures"] == []
+    (w,) = rep["warnings"]
+    assert w["repo"] == "tracked-api"
+    assert "untyped" not in w["reason"] and "may still hold credentials" in w["reason"], w["reason"]
+    assert "git rm --cached .mcp.json" in w["fix"], w["fix"]
