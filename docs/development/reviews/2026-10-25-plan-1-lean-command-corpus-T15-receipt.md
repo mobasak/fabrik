@@ -16,3 +16,14 @@
 - **Not restored (narrative / rationale, no instruction):** incident ids (youtube 01M17T8Z, "7 of 79", transdoc), "Traycer/Kilo" named consumers, "a plan built on a half-agreed field list…" rationale, "measured, not assumed" evidence, "— this artifact is the field dictionary, nothing more", "enough to be KVKK-defensible…" (L67 stays narrative; its only constraint, "not per field", is restored), md5 anti-cheat rationale, "gate's WARN will nag" aside, wording-only rewordings (Sonnet 29/Haiku 34–46) whose anchors all survive.
 - Finding 31 / Haiku 46 (invented rules): none found.
 - Own-text words: baseline 3850-ish rough → first cut 2290 → after fix 2787 (command_rules.own_text, exact). Gates: `tests/test_command_rules.py` 32 passed, 3 skipped; `assemble_commands.py --check` exit 1 (only DIFFERS/MISSING drift, same as base).
+
+## Re-ledger round (cloud worker `lean-t22-t37-grp-rl-run`, canonical loader, D-1236/D-1238/D-1240/D-1245)
+
+- **Loader:** swapped in as its own first commit (command_rules.py, test_command_rules.py, command-corpus-check.md; never edited after).
+- **Own text, words:** baseline 3491 → fix round 2787 → now 3240 (93% of baseline; the fix round's 80% came from rewordings the canonical loader refuses).
+- **LOSS (own ledger):** 84 → 0 (the remaining `assemble_commands.py --check` LOSS lines are the `_shared/*.yaml` ledgers, T01d's).
+- **Ledger:** 105 entries (42 generated unchanged `u-L<n>`, 63 reworded `r-<n>`; reworded/total 63/105); `class:` and `clauses:` are real keys; six `pins:` carried over from the fix round.
+- **Floor (why not ≤50%):** a clause is covered only by ONE phrase holding all its anchors and ≥70% of its first 8 content stems, and a ban-word clause stays verbatim to the end of its `;`/`—` clause or sentence (D-1240). Measured on the baseline, the word-level mechanical minimum is 47% of clause words (1535 of 3268, 209 clauses); a grammatical rewrite sits near 93% because the verbatim ban spans carry their parentheticals (e.g. the youtube 01M17T8Z enumeration clause, the House-rules header, the `validation` regex clause) and only a word-bag text reaches the minimum, which was not shipped. Labelled `narrative` and deleted: L4.2, L39.1, L41.2, L54.1, L65.2, L67.1, L105.2 (rationale/measurement clauses).
+- **Self-audit:** one author-blind Sonnet pass found 3 minor weaker rewordings (L29, L82, L83), all restored. COUNTS: entries read 105 / reworded 63 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0.
+- **Gates:** test_command_rules 53 pass + `test_the_live_corpus_has_no_loss` red only on `_shared/*` LOSS; test_data_contract_recurring_rules and test_check_command_corpus green except the pre-existing `test_the_cli_survives_a_detached_original…`.
+- **LEFT FOR THE HUB:** `_size_ceiling.json` ratchet, CHANGELOG/INDEX, the author-blind pair, the floor D-row, shared-file LOSS (T01d).
