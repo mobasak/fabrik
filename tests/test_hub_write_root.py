@@ -347,7 +347,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sysadmin/claude_rotate.py": "untracked: rotate-ledger.jsonl under ~/.claude/state, outside the repo",
     "scripts/sysadmin/fabrik_deck.py": "untracked: `--hub` defaults to /opt/fabrik as the checkout the systemd unit runs it from; writes go to ~/.config/fabrik-deck and ~/.config/systemd/user, outside the repo",
     "scripts/sysadmin/detect_reversals.py": "untracked: writes logs/lessons-pending.jsonl + logs/sysadmin-actions.jsonl (gitignored `logs/`)",
-    "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json (not tracked — `git ls-files .mcp.json` is empty)",
+    "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json and its existing worktree copies under .claude/worktrees/ (not tracked — `git ls-files .mcp.json` is empty)",
     "scripts/sysadmin/install_user_hooks.py": "untracked: installs into the user's own ~/.claude hooks, outside the repo",
     "scripts/sysadmin/prune_transcripts.py": "untracked: `/opt/fabrik/.env` is only the default SESSION_ARCHIVE_ENV_FILE it reads; its writes (prune ledger and logs under ~/.claude/archive, unlinks and rmtree under ~/.claude, `--restore` back into ~/.claude/projects) are all outside the repo",
     "scripts/sysadmin/quota_dashboard.py": "untracked: quota dashboard state under ~/.claude, outside the repo",

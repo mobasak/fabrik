@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-26T16:25:26.626594Z",
   "creator": "kaizen",
-  "evidence": "",
+  "evidence": "f26641416591a4c59d3705b7ccf6fe858771bc27",
   "id": "W-0c38115e",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "title": "Loader: accept the D-1255 'provenance' clause label in commands/command_rules.py (lean program W-96f36043)"
 }
