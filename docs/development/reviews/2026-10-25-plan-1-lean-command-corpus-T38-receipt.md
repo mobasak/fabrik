@@ -2,7 +2,7 @@
 
 - Start commit: `851b4b365` (branch base origin/kaizen-lean-u01)
 - Own text, words: file 4330 -> 3619 (83%); unit words (baseline keys) 4194 -> 3483 (83%)
-- Floor: 
+- Floor: not reached — 83% of the baseline against the 50% target. The text is rule-dense: about 530 words sit in ban clauses that stay verbatim from the ban word to the clause end (D-1240); every backticked token, path and number of a covered clause stays in one phrase; the 10-row class checklist, the Phase 0 status guard, the Phase 3 gate sequence and the fenced Output and DECISION blocks are operative rules (the DECISION fence and the review-loop launch sentence are pinned by kept tests). What went was narrative: 36 baseline units were reworded or dropped (34 re-carried by a reworded entry, 2 labelled narrative) plus 40-odd clauses labelled narrative. Floor D-row owed through Deltas: 83 live ledger entries; going lower means cutting a clause that holds anchors or a ban word, which is a rule change.
 - Entries: 83 total = 45 generated unchanged (`generate_unchanged`) + 38 hand-written (reworded/fence); reworded/total = 38/83
 - Hand entries by class (recorded as `# class:` comments; the loader on this base has no `class` key): {'prose': 16, 'ban': 21, 'grammar': 1}
 - Vanished baseline lines: 36 of 89 — {'rule': 34, 'narrative': 2}; labels are the author's ("author labels — audit owed"); the Sonnet + Haiku classification pair could not run in this clone
