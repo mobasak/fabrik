@@ -1,0 +1,10 @@
+# T20 receipt — /fabrik-doc-converge (light form, cloud worker, D-1236)
+
+- Start commit: `8ac547a6139658fed456bb3f3f069596856d6316` (kaizen-lean-u01). Branch `claude/lean-t20`.
+- Own text (`command_rules.keys` unit words): 1540 -> 1316 (85%). **Floor, not 50%**: 743 of the 1540 words are the 13-row Convergence Contract table, each row a per-doc rule (ground truth + completeness clause); cutting them below ~620 words drops clauses, which D-1236 forbids. Narrative cut: the intro restatement, the `check_doc_sync` aside, the "same-change law" gloss, per-phase explanations.
+- Entries: 43 total = 10 generated unchanged (`generate_unchanged`) + 32 reworded (`r-L<n>`) + 1 forbidden pin. Reworded/total: 32/43. By class (YAML `# class:` comments): see ledger; ban/grammar/prose tagged by heuristic.
+- Vanished: 33 baseline lines, 32 `rule:` (mapped to the reworded entry), 1 `narrative` (L40, the `check_doc_sync` aside). **Author labels — audit owed** (no Sonnet/Haiku seats in a cloud clone). `# clauses:` comments list baseline clauses the heuristic found not covered by the new unit; read by the audit pair.
+- Pins deleted: `tests/test_doc_converge_queue_pass.py` whole (6 plain string-in-file presence pins); its phrases are `text` carriers; the absence pin (`every capability claim maps to a FEATURES row`) is `forbidden:` entry `f-capability-claim-features-row`. Kept untouched: `tests/test_assemble_dispatch_step.py` (`project-local docs/reference/<name>.md` survives), `tests/test_skill_router_hook.py` (description untouched).
+- Gates: `tests/test_command_rules.py` 32 passed, 3 skipped, LEDGER line `fabrik-doc-converge.yaml: 43 entries`, zero LOSS; `assemble_commands.py --check` exit 1, only DIFFERS/REPORT lines.
+- Reader-test failure set: start 52 failed / 2223 passed; end 52 failed / 2217 passed (6 fewer = the deleted pins); failing set identical (pre-existing, box services/httpx absent).
+- LEFT FOR THE HUB: ratchet `commands/_size_ceiling.json` (report: 22806 vs ceiling 23721) at merge; CHANGELOG/INDEX rows; Sonnet+Haiku audit of the `vanished:` labels and reworded entries (old vs new); tighten the `# class:` tags (no `class:` key in this loader).
