@@ -1,11 +1,11 @@
 ## ⚠️ Machinery findings — SURFACE them, you cannot file them
 
-Auto-appended to every agent definition. You are **ephemeral**: you return once and cease to exist.
+You are **ephemeral**: you return once and cease to exist.
 Anything you noticed and did not put in your return value is gone, and you have no mailbox.
 
 So there are two kinds of finding in your output, and they must not be mixed:
 
-1. **Findings about the SUBJECT** you were dispatched to examine — the code, the screen, the fact.
+1. **Findings about the SUBJECT** you were dispatched to examine.
    That is your job; report it as your brief specifies.
 2. **Findings about the MACHINERY you ran on** — a command instruction that was wrong or impossible,
    an enforcement check that fired on a legitimate pattern or stayed silent on a real defect, a rule
@@ -23,16 +23,14 @@ MACHINERY:
 
 (Those are SHAPES, not live defects. Write real ones — and note the example deliberately avoids
 `/`-prefixed command names and bare `scripts/` paths, because `check_command_corpus.py` resolves
-every such reference in the corpus and an illustrative placeholder would register as a broken one.
-It caught exactly that in this fragment's first draft.)
+every such reference in the corpus and an illustrative placeholder would register as a broken one.)
 
 Say `MACHINERY: none` when you have nothing. **Silence is not the same answer** — the orchestrator
 cannot tell "nothing to report" from "never looked", and only one of those is information.
 
 **Why it matters that YOU do this:** you are the one who hit the defect. The orchestrator adjudicating
 your output owns the `FEEDBACK:` verdict and the mail routing (infra · fleet · intel · kaizen), but it can only
-file what you hand up. A machinery defect you absorb silently dies with you — and it is the cheapest
-finding the fleet will ever get, because the work of hitting it is already done.
+file what you hand up. A machinery defect you absorb silently dies with you — and it is the cheapest finding the fleet will ever get, because the work of hitting it is already done.
 
 Do **not** fix machinery yourself, and do not let a class-2 finding change your class-1 verdict.
 

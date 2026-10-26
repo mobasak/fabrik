@@ -1,0 +1,169 @@
+shared: commands/_fragments/agent-feedback.md
+baseline_sentences: agent-feedback.baseline.txt
+baseline_sha256: 36c2a4059aa0eece8e8e9d656e05c95d474aa14e5f58f83d4064871d67a05a16
+entries:
+- id: af-you-are-ephemeral-you-return
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: 'You are ephemeral: you return once and cease to exist'
+  current: 'You are ephemeral: you return once and cease to exist'
+  text:
+  - 'You are ephemeral: you return once and cease to exist'
+- id: af-anything-you-noticed-and-did
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: Anything you noticed and did not put in your return value is gone, and you have no mailbox
+  current: Anything you noticed and did not put in your return value is gone, and you have no mailbox
+  text:
+  - Anything you noticed and did not put in your return value is gone, and you have no mailbox
+- id: af-so-there-are-two-kinds
+  # class: ban
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: 'So there are two kinds of finding in your output, and they must not be mixed:'
+  current: 'So there are two kinds of finding in your output, and they must not be mixed:'
+  text:
+  - 'So there are two kinds of finding in your output, and they must not be mixed:'
+- id: af-findings-about-the-subject-you
+  # class: prose
+  # clauses: {2: narrative}
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: Findings about the SUBJECT you were dispatched to examine — the code, the screen, the fact
+  current: Findings about the SUBJECT you were dispatched to examine
+  text:
+  - Findings about the SUBJECT you were dispatched to examine
+- id: af-that-is-your-job-report
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: That is your job; report it as your brief specifies
+  current: That is your job; report it as your brief specifies
+  text:
+  - That is your job; report it as your brief specifies
+- id: af-findings-about-the-machinery-you
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: Findings about the MACHINERY you ran on — a command instruction that was wrong or impossible, an enforcement check that fired on a legitimate pattern or stayed silent on a real defect, a rule pack that contradicted another, a script that did not behave as its own docs describe, a prerequisite nobody documented, friction that cost you real time
+  current: Findings about the MACHINERY you ran on — a command instruction that was wrong or impossible, an enforcement check that fired on a legitimate pattern or stayed silent on a real defect, a rule pack that contradicted another, a script that did not behave as its own docs describe, a prerequisite nobody documented, friction that cost you real time
+  text:
+  - Findings about the MACHINERY you ran on — a command instruction that was wrong or impossible, an enforcement check that fired on a legitimate pattern or stayed silent on a real defect, a rule pack that contradicted another, a script that did not behave as its own docs describe, a prerequisite nobody documented, friction that cost you real time
+- id: af-class-2-goes-in-a
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: Class 2 goes in a clearly-labelled `MACHINERY:` block at the END of your return, one line each, with evidence at `path:line` and the command you actually ran
+  current: Class 2 goes in a clearly-labelled `MACHINERY:` block at the END of your return, one line each, with evidence at `path:line` and the command you actually ran
+  text:
+  - Class 2 goes in a clearly-labelled `MACHINERY:` block at the END of your return, one line each, with evidence at `path:line` and the command you actually ran
+- id: af-nothing-else-no-prose-no
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: Nothing else — no prose, no hedging
+  current: Nothing else — no prose, no hedging
+  text:
+  - Nothing else — no prose, no hedging
+- id: af-machinery-check-secrets-py-88
+  # class: grammar
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: 'MACHINERY: ⏎ - check_secrets.py:88 flags os.getenv("K","d") as hardcoded; core/10-python.md:12 mandates that form. ⏎ - fabrik-review.md step 3 names a script that is not on disk (I ran it; No such file).'
+  current: 'MACHINERY: ⏎ - check_secrets.py:88 flags os.getenv("K","d") as hardcoded; core/10-python.md:12 mandates that form. ⏎ - fabrik-review.md step 3 names a script that is not on disk (I ran it; No such file).'
+  text:
+  - 'MACHINERY: ⏎ - check_secrets.py:88 flags os.getenv("K","d") as hardcoded; core/10-python.md:12 mandates that form. ⏎ - fabrik-review.md step 3 names a script that is not on disk (I ran it; No such file).'
+- id: af-those-are-shapes-not-live
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: (Those are SHAPES, not live defects
+  current: (Those are SHAPES, not live defects
+  text:
+  - (Those are SHAPES, not live defects
+- id: af-write-real-ones-and-note
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: Write real ones — and note the example deliberately avoids `/`-prefixed command names and bare `scripts/` paths, because `check_command_corpus.py` resolves every such reference in the corpus and an illustrative placeholder would register as a broken one
+  current: Write real ones — and note the example deliberately avoids `/`-prefixed command names and bare `scripts/` paths, because `check_command_corpus.py` resolves every such reference in the corpus and an illustrative placeholder would register as a broken one.)
+  text:
+  - Write real ones — and note the example deliberately avoids `/`-prefixed command names and bare `scripts/` paths, because `check_command_corpus.py` resolves every such reference in the corpus and an illustrative placeholder would register as a broken one.)
+- id: af-say-when-you-have-nothing
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: 'Say `MACHINERY: none` when you have nothing'
+  current: 'Say `MACHINERY: none` when you have nothing'
+  text:
+  - 'Say `MACHINERY: none` when you have nothing'
+- id: af-silence-is-not-the-same
+  # class: ban
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: Silence is not the same answer — the orchestrator cannot tell "nothing to report" from "never looked", and only one of those is information
+  current: Silence is not the same answer — the orchestrator cannot tell "nothing to report" from "never looked", and only one of those is information
+  text:
+  - Silence is not the same answer — the orchestrator cannot tell "nothing to report" from "never looked", and only one of those is information
+- id: af-why-it-matters-that-you
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: 'Why it matters that YOU do this: you are the one who hit the defect'
+  current: 'Why it matters that YOU do this: you are the one who hit the defect'
+  text:
+  - 'Why it matters that YOU do this: you are the one who hit the defect'
+- id: af-the-orchestrator-adjudicating-your-output
+  # class: ban
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: The orchestrator adjudicating your output owns the `FEEDBACK:` verdict and the mail routing (infra · fleet · intel · kaizen), but it can only file what you hand up
+  current: The orchestrator adjudicating your output owns the `FEEDBACK:` verdict and the mail routing (infra · fleet · intel · kaizen), but it can only file what you hand up
+  text:
+  - The orchestrator adjudicating your output owns the `FEEDBACK:` verdict and the mail routing (infra · fleet · intel · kaizen), but it can only file what you hand up
+- id: af-a-machinery-defect-you-absorb
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: A machinery defect you absorb silently dies with you — and it is the cheapest finding the fleet will ever get, because the work of hitting it is already done
+  current: A machinery defect you absorb silently dies with you — and it is the cheapest finding the fleet will ever get, because the work of hitting it is already done
+  text:
+  - A machinery defect you absorb silently dies with you — and it is the cheapest finding the fleet will ever get, because the work of hitting it is already done
+- id: af-do-not-fix-machinery-yourself
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
+  baseline: Do not fix machinery yourself, and do not let a class-2 finding change your class-1 verdict
+  current: Do not fix machinery yourself, and do not let a class-2 finding change your class-1 verdict
+  text:
+  - Do not fix machinery yourself, and do not let a class-2 finding change your class-1 verdict
+- id: af-findings-in-your-dispatched-scope
+  # class: ban
+  file: commands/_fragments/agent-feedback.md
+  baseline: '### Findings in your dispatched scope: FIX, or return the fix — never deflect'
+  current: '### Findings in your dispatched scope: FIX, or return the fix — never deflect'
+  text:
+  - '### Findings in your dispatched scope: FIX, or return the fix — never deflect'
+- id: af-if-your-brief-lets-you
+  # class: prose
+  file: commands/_fragments/agent-feedback.md
+  section: '### Findings in your dispatched scope: FIX, or return the fix — never deflect'
+  baseline: If your brief lets you write and the defect sits INSIDE the surface you were dispatched to, fix it at the root with its regression guard (the FIX DIRECTIVE binds you as it binds your dispatcher)
+  current: If your brief lets you write and the defect sits INSIDE the surface you were dispatched to, fix it at the root with its regression guard (the FIX DIRECTIVE binds you as it binds your dispatcher)
+  text:
+  - If your brief lets you write and the defect sits INSIDE the surface you were dispatched to, fix it at the root with its regression guard (the FIX DIRECTIVE binds you as it binds your dispatcher)
+- id: af-if-you-are-read-only
+  # class: ban
+  file: commands/_fragments/agent-feedback.md
+  section: '### Findings in your dispatched scope: FIX, or return the fix — never deflect'
+  baseline: If you are read-only, return the finding WITH the concrete fix (path:line, the diff you would apply) — "there is a bug and it is not my job" is not a valid return value from any Fabrik agent (operator directive 2026-08-29)
+  current: If you are read-only, return the finding WITH the concrete fix (path:line, the diff you would apply) — "there is a bug and it is not my job" is not a valid return value from any Fabrik agent (operator directive 2026-08-29)
+  text:
+  - If you are read-only, return the finding WITH the concrete fix (path:line, the diff you would apply) — "there is a bug and it is not my job" is not a valid return value from any Fabrik agent (operator directive 2026-08-29)
+vanished:
+  L2: narrative
+  L6: {rule: [af-findings-about-the-subject-you]}
+  L13: {rule: [af-write-real-ones-and-note]}
+  L14: narrative
