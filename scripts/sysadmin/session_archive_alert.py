@@ -18,7 +18,7 @@ Two verbs, both wired into the units in scripts/sysadmin/systemd/:
              ExecStopPost= (measured on systemd 255, W-36687f76 review). Any other SERVICE_RESULT exits 0
              silently: a retry follows, or OnFailure= owns it. No SERVICE_RESULT (a hand run) exits 2.
 
-Both verbs exit 0 once their mails are sent and 1 when a send fails. Every read `check` cannot complete is REPORTED,
+Both verbs exit 0 once their mails are sent and 1 when a send fails; `check` also exits 1 when it crashed. Every read `check` cannot complete is REPORTED,
 never skipped — silence is the defect this script exists to end — and a crash in `check` is mailed as "check
 crashed". Each mail goes to two recipients, infra (ack required) and the coordinator (ack no), through
 scripts/mail.py, the transport rotate_session.py's nightly mail already uses.
@@ -59,7 +59,7 @@ POLL_S = 10.0
 SEND_TIMEOUT_S = 30
 POLL_SLEEP_S = 1.0
 # the worst case of one `check`: two shows and the pause between, the poll window plus the sleep that can start just
-# before its deadline and one journalctl call after it, and four sends (two for the report, two for a crash after it)
+# before its deadline and one journalctl call after it, and four sends (the report's two plus a crash mail's two — an over-bound: one path or the other runs)
 CHECK_BUDGET_S = (
     SHOW_TRIES * SHOW_TIMEOUT_S
     + RETRY_S
