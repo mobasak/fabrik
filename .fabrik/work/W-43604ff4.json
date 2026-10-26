@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T10:59:25.008698Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-43604ff4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5VXKM06P0W9BVV3KGQWA6P2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-3-cloud-plan-wall"
+}

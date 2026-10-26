@@ -70,6 +70,27 @@ def test_name_and_stem_select():
     assert mts.import_patterns("library_x.py") == set()
 
 
+def _imports_state(text: str) -> bool:
+    import re
+
+    return any(re.search(p, text) for p in mts.import_patterns("src/fabrik/state.py"))
+
+
+def test_import_patterns_paren_comment_with_close_paren():
+    assert _imports_state("from fabrik import (\n    cli,  # see (why)\n    state,\n)\n")
+    assert not _imports_state("from fabrik import (\n    cli,  # see (why)\n    other,\n)\n")
+
+
+def test_import_patterns_crlf_backslash_continuation():
+    assert _imports_state("from fabrik import cli, \\\r\n state\r\n")
+    assert not _imports_state("from fabrik import cli, \\\r\n other\r\n")
+
+
+def test_normalise_relative_default_tempdir():
+    assert mts.normalise("missing tmpk3j9_2xq/out.txt") == mts.normalise("missing tmpzz81_q0a/out.txt")
+    assert mts.normalise("missing tmpfiles_old/out") != mts.normalise("missing tmpfiles_new/out")
+
+
 def test_directory_and_tree_grader_keys():
     tests = {
         "tests/test_path.py": 'ROOT / "commands/_sources/x.md"',

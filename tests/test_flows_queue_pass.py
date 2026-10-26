@@ -1,21 +1,16 @@
 """/fabrik-flows feedback queue answered in one pass (D-735, D-772).
 
-The commit rule quotes check_doc_index.py's own error for an untracked doc; the test checks both
+The commit rule (a ledger carrier now) quotes check_doc_index.py's own error for an untracked doc; the test checks both
 halves of that quote are the script's message strings.
 """
 
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "commands" / "_sources" / "fabrik-flows.md"
 
 
-def test_the_draft_is_committed_at_first_write_with_its_index_rows() -> None:
-    """Row 1790700641."""
-    text = re.sub(r"\s+", " ", SRC.read_text())
-    assert "**COMMIT the artifact** at its first write, `DRAFT` included, with its `INDEX.md` and `docs/README.md` rows" in text
-    assert "an untracked `docs/` file reds every full (Tier-2) gate run in that checkout, a sibling's included, and warns in the lean run" in text
+def test_the_index_row_rule_quotes_the_checkers_own_messages() -> None:
+    """Row 1790700641. The command's wording is a ledger carrier (commands/_rules/fabrik-flows.yaml)."""
     checker = (ROOT / "scripts" / "enforcement" / "check_doc_index.py").read_text()
     assert "live doc not in INDEX.md: " in checker
     assert "(untracked — the run that creates a doc owes its INDEX row)" in checker

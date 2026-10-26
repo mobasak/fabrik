@@ -3,7 +3,7 @@
 """Dispatch a task to a fleet account's claude.ai routine as a CLOUD subagent (D-857).
 
 A local subagent spends the dispatching account's subscription; a cloud session spends that
-account's promotional cloud credit first ($250 per Max account, expiring 2026-11-04). The one
+account's promotional cloud credit first ($250 per Max account, expiring 2026-11-05). The one
 scriptable way to start a cloud session is to fire a routine, so every fleet account carries one
 routine ``fabrik-cloud-worker`` whose trigger id lives in ``.fabrik/cloud-routines.json``. This
 script fires it, waits for the worker's branch and reads its log. Operator or hub session only —
