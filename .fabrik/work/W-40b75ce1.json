@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T17:36:44.250473Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-40b75ce1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1200",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: decide brand-neutral font roles vs the new names (D-051 favours neutral), edit the 5 template spots, extend tests/test_ocoron_fonts.py or add a template pin so a brand ruling cannot drift the scaffold again",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Scaffold templates still name the old Ocoron fonts (Space Grotesk / Inter) after D-1200 made them Arya 700 + IBM Plex Sans 400/500: templates/mobile-app/src/global.css:16-17, app.config.ts:81-105 + package.json:50 (Inter embedded), templates/saas-skeleton/README.md:156 and app/layout.tsx:2,7 (infra-2 mail 01M5Q9QHCY). Per D-051 a house brand is declared per project, never a scaffold default, so the likely fix is brand-neutral font roles; W-e8014a88 (the wider mobile theme drift) was dropped 2026-10-17"
+}
