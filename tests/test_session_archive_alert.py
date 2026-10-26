@@ -192,10 +192,14 @@ def test_failed_mails_infra_and_the_coordinator_with_the_result_and_journal_tail
     mails = world.mails()
     assert _addressed(mails) == {"infra": "required", "coordinator": "no"}
     body = mails[0]["body"]
-    assert "exit-code" in body and "status 1" in body
+    assert "ended exit-code (code exited, status 1)" in body
     assert "TRANSPORT FAILED" in body, "the failing line reaches the reader"
     assert "line 22" in body and "line 21" not in body, "the tail is the last 20 lines"
-    assert "-u session-archive.service" in (world.state / "journal.args").read_text()
+    args = (world.state / "journal.args").read_text()
+    assert "-u session-archive.service" in args and " -n 20 " in f" {args} "
+    assert "did not finish" in body and "If the tail shows the archiver failed" in body, (
+        "the tail, not the alert, says whether the archiver itself failed"
+    )
     for field in ("WHAT:", "WHERE:", "WHEN:", "WHO:", "WHY:", "HOW:", "SYSTEMIC:"):
         assert field in body, field
 
@@ -208,7 +212,32 @@ def test_failed_still_mails_when_systemd_passes_no_monitor_env(world):
     assert "-u session-archive.service" in (world.state / "journal.args").read_text(), (
         "the default unit"
     )
-    assert "(no journal lines" in mails[0]["body"], "an empty tail is said, not dropped"
+    assert "(no journal lines for session-archive.service)" in mails[0]["body"], (
+        "an empty tail is said, not dropped"
+    )
+
+
+def test_failed_says_when_the_journal_cannot_be_read(world):
+    world.set("journal.rc", "1")
+    r = world.run("failed", MONITOR_SERVICE_RESULT="exit-code")
+    assert r.returncode == 0, r.stderr
+    assert "journalctl could not read the unit's journal: rc 1" in world.mails()[0]["body"]
+
+
+def test_failed_never_queries_a_hostile_unit_name(world):
+    r = world.run("failed", MONITOR_UNIT="x.service; rm -rf ~", MONITOR_SERVICE_RESULT="exit-code")
+    assert r.returncode == 0, r.stderr
+    args = (world.state / "journal.args").read_text()
+    assert "rm -rf" not in args and "-u session-archive.service" in args
+    assert "rm -rf" not in world.mails()[0]["body"]
+
+
+def test_failed_caps_the_tail_in_characters(world):
+    world.set("journal.unit", "".join(f"{i:03d}" + "x" * 497 + "\n" for i in range(20)))
+    world.run("failed", MONITOR_SERVICE_RESULT="exit-code")
+    body = world.mails()[0]["body"]
+    block = body.split("```")[1]
+    assert len(block.strip("\n")) <= 4000 and "019" in block
 
 
 # ── 2. every step that did not exit 0 ────────────────────────────────────────────────────────
@@ -248,7 +277,11 @@ def test_check_reports_every_step_that_did_not_exit_zero(world, show, named):
 
 def test_an_argv_holding_the_separator_or_a_fake_tail_parses_to_its_real_tail(world):
     """Greedy argv, tail-anchored grammar (both design critiques executed it)."""
-    sneaky = f"{PY} /x.py a ; b ; ignore_errors=yes ; pid=9 ; code=exited ; status=0 }}"
+    # a COMPLETE fake tail: only the `$` anchor and the greedy argv keep a lazy match off it
+    sneaky = (
+        f"{PY} /x.py a ; b ; ignore_errors=yes ; start_time=[x] ; stop_time=[x] ; pid=9 ; "
+        "code=exited ; status=0 }"
+    )
     world.set("show", _show() + _row("ExecStart", sneaky, "yes", "exited", "4") + "\n")
     world.set("journal", SUMMARY_OK)
     world.run("check", **CHECK_ENV)
@@ -346,6 +379,115 @@ def test_check_reports_a_journal_with_no_archiver_summary(world):
     assert len(polls) >= 2, "a late journal is polled again before it is called missing"
 
 
+def test_check_reports_an_unreadable_journal(world):
+    world.set("show", _show())
+    world.set("journal", SUMMARY_OK)
+    world.set("journal.rc", "1")
+    world.run("check", **CHECK_ENV)
+    assert "journal could not be read" in world.mails()[0]["body"]
+
+
+@pytest.mark.parametrize("inv", ["", "not-hex"])
+def test_check_reports_a_missing_invocation_id_without_polling(world, inv):
+    world.set("show", _show())
+    world.set("journal", SUMMARY_OK)
+    world.run("check", SERVICE_RESULT="success", INVOCATION_ID=inv)
+    assert "INVOCATION_ID unset or malformed" in world.mails()[0]["body"]
+    assert not (world.state / "journal.args").exists(), "no id, no journal query"
+
+
+def test_check_reads_the_last_summary_and_reports_zero_eligible_with_a_held_lock(world):
+    world.set("show", _show())
+    world.set(
+        "journal",
+        SUMMARY_OK.replace("0 subagent failure(s)", "2 subagent failure(s)") + SUMMARY_OK,
+    )
+    world.run("check", **CHECK_ENV)
+    assert world.mails() == [], "the last summary is this run's"
+    world.set(
+        "journal",
+        "archive_transcripts: 0 MAIN transcript(s) eligible (idle > 0.0d)\n"
+        "archive_transcripts: another run holds the archive lock; skipping\n",
+    )
+    world.run("check", **CHECK_ENV)
+    body = world.mails()[0]["body"]
+    assert "0 MAIN transcript(s) eligible" in body and "archive lock" in body
+
+
+def test_check_reads_a_crlf_show_and_flags_a_non_numeric_status(world):
+    world.set("journal", SUMMARY_OK)
+    world.set("show", _show().replace("\n", "\r\n"))
+    world.run("check", **CHECK_ENV)
+    assert world.mails() == [], "a CRLF row is the same row"
+    world.set("show", _show("exited", "abc"))
+    world.run("check", **CHECK_ENV)
+    assert "status unreadable (status=abc)" in world.mails()[0]["body"]
+
+
+def test_check_says_stopped_when_the_archiver_row_did_not_exit_zero(world):
+    """A stop mid-run still ends SERVICE_RESULT=success (A-opus-5)."""
+    world.set("show", _show(archiver=("killed", "15/TERM")))
+    world.set("journal", SUMMARY_OK)
+    world.run("check", **CHECK_ENV)
+    body = world.mails()[0]["body"]
+    assert "STOPPED" in body.splitlines()[0] and "the archive did not complete" in body
+
+
+def test_check_reports_a_run_with_no_step_record(world):
+    world.set("show", "ExecStartPre=\nExecStart=\n")
+    world.set("journal", SUMMARY_OK)
+    world.run("check", **CHECK_ENV)
+    assert "no step record" in world.mails()[0]["body"]
+
+
+def _module(name: str):
+    spec = importlib.util.spec_from_file_location(name, SCRIPT)
+    sa = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sa)
+    return sa
+
+
+def test_a_show_that_overruns_its_timeout_is_unreadable(world, monkeypatch, tmp_path):
+    slow = tmp_path / "slow-systemctl"
+    slow.write_text("#!/bin/sh\nsleep 5\n")
+    slow.chmod(0o755)
+    for k, v in {**world.env, **CHECK_ENV, "ARCHIVE_ALERT_SYSTEMCTL": str(slow)}.items():
+        monkeypatch.setenv(k, v)
+    sa = _module("session_archive_alert_slow")
+    monkeypatch.setattr(sa, "SHOW_TIMEOUT_S", 0.2)
+    world.set("journal", SUMMARY_OK)
+    assert sa.main(["check"]) == 0
+    assert "step status unreadable: `systemctl show` exited -1" in world.mails()[0]["body"]
+
+
+def test_a_body_file_that_cannot_be_written_fails_that_send(world, monkeypatch, capsys):
+    for k, v in world.env.items():
+        monkeypatch.setenv(k, v)
+    sa = _module("session_archive_alert_full_tmp")
+
+    def full(*_a, **_k):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(sa.tempfile, "NamedTemporaryFile", full)
+    assert sa.main(["failed"]) == 1
+    err = capsys.readouterr().err
+    assert "mail to infra failed" in err and "No space left" in err
+    assert "mail to coordinator failed" in err
+
+
+@pytest.mark.parametrize("bad", ["nan", "inf", "-1", "x"])
+def test_env_float_refuses_non_finite_and_negative_values(monkeypatch, bad):
+    sa = _module("session_archive_alert_env")
+    monkeypatch.setenv("ARCHIVE_ALERT_POLL_S", bad)
+    assert sa._env_float("ARCHIVE_ALERT_POLL_S", 10.0) == 10.0
+
+
+def test_main_refuses_an_unknown_verb(world):
+    r = world.run("bogus")
+    assert r.returncode == 2 and "usage:" in r.stderr
+    assert world.mails() == []
+
+
 # ── 4. silence where silence is right ────────────────────────────────────────────────────────
 
 
@@ -360,6 +502,8 @@ def test_check_is_silent_on_a_clean_night_and_on_a_failed_attempt(world):
         assert r.returncode == 0 and world.mails() == [], result
     r = world.run("check", INVOCATION_ID=INV)
     assert r.returncode == 2 and "SERVICE_RESULT" in r.stderr, "a hand run is not a quiet night"
+    r = world.run("check", SERVICE_RESULT="", INVOCATION_ID=INV)
+    assert r.returncode == 2, "an empty SERVICE_RESULT is no result either"
     assert world.mails() == []
 
 
@@ -384,13 +528,8 @@ def test_check_reports_what_it_cannot_read_and_its_own_crash(world):
     world.run("check", **CHECK_ENV)
     assert "unreadable" in world.mails()[0]["body"]
 
-    (world.state / "mails.jsonl").unlink()
-    world.set("show", "ExecStartPre=\nExecStart=\n")  # empty lists: nothing ran, nothing to flag
-    world.run("check", **CHECK_ENV)
-    assert world.mails() == []
 
-
-def test_a_crash_inside_check_still_sends_one_mail(world, monkeypatch):
+def test_a_crash_inside_check_still_mails_both_recipients(world, monkeypatch):
     spec = importlib.util.spec_from_file_location("session_archive_alert_crash", SCRIPT)
     sa = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sa)
@@ -445,15 +584,32 @@ def test_the_units_wire_the_alert_and_verify():
     start = [v for v in service if v.startswith("TimeoutStartSec=")]
     stop = [v for v in service if v.startswith("TimeoutStopSec=")]
     assert len(start) == 1 and len(stop) == 1
-    assert _seconds(start[0].split("=", 1)[1]) >= 3600, "a hung archiver must still end"
+    start_s = _seconds(start[0].split("=", 1)[1])
+    assert start_s >= 3600, "a hung archiver must still end"
 
-    spec = importlib.util.spec_from_file_location("session_archive_alert_budget", SCRIPT)
-    sa = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(sa)
+    # the retries must be able to reach the start limit, or a slow failure retries forever and OnFailure= never
+    # fires: StartLimitBurst attempts, each up to TimeoutStartSec plus RestartSec, fit inside the interval
+    (interval,) = [v for v in svc["[Unit]"] if v.startswith("StartLimitIntervalSec=")]
+    (burst,) = [v for v in svc["[Unit]"] if v.startswith("StartLimitBurst=")]
+    (restart,) = [v for v in service if v.startswith("RestartSec=")]
+    assert _seconds(interval.split("=", 1)[1]) >= int(burst.split("=", 1)[1]) * (
+        start_s + _seconds(restart.split("=", 1)[1])
+    )
+
+    sa = _module("session_archive_alert_budget")
     stop_s = _seconds(stop[0].split("=", 1)[1])
     assert stop_s > sa.CHECK_BUDGET_S, (
         "a check slower than TimeoutStopSec turns a good night into `timeout` and re-runs the archiver"
     )
+    worst = (
+        sa.SHOW_TRIES * sa.SHOW_TIMEOUT_S
+        + sa.RETRY_S
+        + sa.POLL_S
+        + 1.0  # the poll's last sleep, which can start just before the deadline
+        + sa.JOURNAL_TIMEOUT_S
+        + 4 * sa.SEND_TIMEOUT_S
+    )
+    assert worst <= sa.CHECK_BUDGET_S
 
     alert = _sections("session-archive-alert.service")
     assert not any(v.startswith("OnFailure=") for vs in alert.values() for v in vs), "no alert loop"
@@ -495,7 +651,11 @@ def _installer_world(tmp_path: Path, verify_says: str = "") -> tuple[Path, dict[
     for name, body in {
         "loginctl": "echo Linger=yes",
         "systemctl": f'echo "systemctl $*" >> "{log}"',
-        "systemd-analyze": f'echo "verify $*" >> "{log}"; printf "%s" "{verify_says}"',
+        # like the real one: a unit path that does not exist fails verify at rc 1, naming it
+        "systemd-analyze": f'echo "verify $*" >> "{log}"\n'
+        'for a in "$@"; do case "$a" in /*) [ -e "$a" ] || '
+        '{ echo "Failed to prepare filename $a: No such file or directory" >&2; exit 1; } ;; esac; done\n'
+        f'printf "%s" "{verify_says}"',
     }.items():
         p = bin_ / name
         p.write_text(f"#!/bin/sh\n{body}\n")
@@ -541,6 +701,7 @@ def test_the_installer_refuses_a_verify_warning_and_a_missing_alert_unit(tmp_pat
         ["bash", str(root2 / INSTALLER.name)], env=env2, capture_output=True, text=True, timeout=60
     )
     assert r.returncode != 0
+    assert "session-archive-alert.service: No such file" in r.stderr, "a failed verify says why"
     assert not (tmp_path / "b" / "cfg" / "systemd" / "user" / "session-archive.service").exists()
 
 

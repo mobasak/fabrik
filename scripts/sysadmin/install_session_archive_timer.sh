@@ -29,11 +29,13 @@ if [ "$linger" != "Linger=yes" ]; then
   exit 1
 fi
 
-# A missing unit file fails verify (and `set -e` stops here), so nothing is installed without the alert unit.
+# A missing unit file fails verify at rc 1, so nothing is installed without the alert unit; the `||` keeps `set -e`
+# from exiting before verify's own words are printed.
+verify_rc=0
 said="$(systemd-analyze --user verify "$units/session-archive.service" "$units/session-archive.timer" \
-  "$units/session-archive-alert.service" 2>&1)"
-if [ -n "$said" ]; then
-  echo "install_session_archive_timer: systemd-analyze verify is not silent — nothing installed:" >&2
+  "$units/session-archive-alert.service" 2>&1)" || verify_rc=$?
+if [ "$verify_rc" -ne 0 ] || [ -n "$said" ]; then
+  echo "install_session_archive_timer: systemd-analyze verify exited $verify_rc or was not silent — nothing installed:" >&2
   printf '%s\n' "$said" >&2
   exit 1
 fi

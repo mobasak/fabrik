@@ -13,13 +13,15 @@ Two verbs, both wired into the units in scripts/sysadmin/systemd/:
              `exited` with status 0, read from systemd's own per-step record (`systemctl --user show -p
              ExecStartPre -p ExecStart`, live only until the unit goes inactive; systemd logs nothing for an
              ignored `-` failure), and the archiver's own summary from this invocation's journal: subagent
-             failures, 0 MAIN transcripts eligible, the archive lock held, or no summary at all (each exits 0).
-             Any other SERVICE_RESULT exits 0 silently: a retry follows, or OnFailure= owns it. No
-             SERVICE_RESULT at all (a hand run) exits 2.
+             failures, 0 MAIN transcripts eligible, the archive lock held, or no summary at all. Each run reads
+             only its own attempt's lines: every Restart= attempt gets a fresh INVOCATION_ID, shared with its
+             ExecStopPost= (measured on systemd 255, W-36687f76 review). Any other SERVICE_RESULT exits 0
+             silently: a retry follows, or OnFailure= owns it. No SERVICE_RESULT (a hand run) exits 2.
 
-Every read `check` cannot complete is REPORTED, never skipped — silence is the defect this script exists to end —
-and a crash in `check` sends one "check crashed" mail. Each mail goes to infra (ack required) and to the
-coordinator (ack no), through scripts/mail.py, the transport rotate_session.py's nightly mail already uses.
+Both verbs exit 0 once their mails are sent and 1 when a send fails. Every read `check` cannot complete is REPORTED,
+never skipped — silence is the defect this script exists to end — and a crash in `check` is mailed as "check
+crashed". Each mail goes to two recipients, infra (ack required) and the coordinator (ack no), through
+scripts/mail.py, the transport rotate_session.py's nightly mail already uses.
 
 The time bound: `check` runs inside the unit's TimeoutStopSec. A check that outlives it turns a good night into
 result=timeout, and Restart= would re-run the ARCHIVER — so every subprocess carries its own timeout and
@@ -36,6 +38,7 @@ Env (test seams): ARCHIVE_ALERT_SYSTEMCTL (systemctl), ARCHIVE_ALERT_JOURNALCTL 
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import subprocess
@@ -54,15 +57,23 @@ RETRY_S = 2.0
 JOURNAL_TIMEOUT_S = 5
 POLL_S = 10.0
 SEND_TIMEOUT_S = 30
-# the worst case of one `check`: two shows and the pause between, the poll window plus one journalctl call that
-# starts at its edge, and four sends (two for the report, two for a crash after it)
+POLL_SLEEP_S = 1.0
+# the worst case of one `check`: two shows and the pause between, the poll window plus the sleep that can start just
+# before its deadline and one journalctl call after it, and four sends (two for the report, two for a crash after it)
 CHECK_BUDGET_S = (
-    SHOW_TRIES * SHOW_TIMEOUT_S + RETRY_S + POLL_S + JOURNAL_TIMEOUT_S + 4 * SEND_TIMEOUT_S
+    SHOW_TRIES * SHOW_TIMEOUT_S
+    + RETRY_S
+    + POLL_S
+    + POLL_SLEEP_S
+    + JOURNAL_TIMEOUT_S
+    + 4 * SEND_TIMEOUT_S
 )
+_UNIT_RE = re.compile(r"[A-Za-z0-9@._:-]+\.service")
+_INVOCATION_RE = re.compile(r"[0-9a-f]{32}")
 
 # `{ path=P ; argv[]=A ; ignore_errors=yes|no ; start_time=[T] ; stop_time=[T] ; pid=N ; code=C ; status=S }` —
-# systemd 255, verbatim in the tests. Anchored on the TAIL with a greedy argv, so an argv holding " ; " or a fake
-# tail of its own still parses to the real one.
+# systemd 255, verbatim in the tests. The `$` anchor and the greedy argv EACH bind the match to the row's TAIL, so an
+# argv holding " ; " or a complete fake tail of its own still parses to the real one; the test kills only both lost.
 _STEP_RE = re.compile(
     r"^(?P<key>ExecStartPre|ExecStart)=\{ path=(?P<path>.*?) ; argv\[\]=(?P<argv>.*) ; "
     r"ignore_errors=(?P<ign>yes|no) ; start_time=\[[^\]]*\] ; stop_time=\[[^\]]*\] ; "
@@ -75,6 +86,7 @@ _SUMMARY_RE = re.compile(
 )
 _LOCK = "another run holds the archive lock"
 _ZERO_ELIGIBLE = "archive_transcripts: 0 MAIN transcript(s) eligible"
+_ARCHIVER = "/archive_transcripts.py"
 
 
 def _env_float(name: str, default: float) -> float:
@@ -82,7 +94,7 @@ def _env_float(name: str, default: float) -> float:
         v = float(os.environ.get(name, default))
     except ValueError:
         return default
-    return v if v >= 0 else default
+    return v if math.isfinite(v) and v >= 0 else default
 
 
 def _run(argv: list[str], timeout: float) -> tuple[int, str, str]:
@@ -97,7 +109,7 @@ def _run(argv: list[str], timeout: float) -> tuple[int, str, str]:
 
 def _journal(invocation: str) -> tuple[bool, list[str]]:
     """(read, lines) of one invocation's journal; an id that is not 32 hex digits is never queried."""
-    if not re.fullmatch(r"[0-9a-f]{32}", invocation or ""):
+    if not _INVOCATION_RE.fullmatch(invocation or ""):
         return False, []
     rc, out, _err = _run(
         [
@@ -115,8 +127,10 @@ def _journal(invocation: str) -> tuple[bool, list[str]]:
 
 def step_findings(show: str) -> list[str]:
     """Every step row that is not `exited` with leading status 0, and every line outside the grammar. On a
-    successful run every row ran, so a `(null)` code is a status systemd lost — reported, not skipped."""
+    successful run every row ran, so a `(null)` code is a status systemd lost — reported, not skipped — and so is a
+    show with no ExecStart row at all."""
     found = []
+    started = False
     for line in show.split("\n"):
         line = line.rstrip("\r")
         if not line or line in _EMPTY:
@@ -125,6 +139,7 @@ def step_findings(show: str) -> list[str]:
         if m is None:
             found.append(f"step status unreadable: {line[:300]}")
             continue
+        started = started or m["key"] == "ExecStart"
         lead = re.match(r"\d+", m["status"])
         if lead is None:
             found.append(f"step status unreadable (status={m['status']}): {m['argv'][:300]}")
@@ -132,6 +147,8 @@ def step_findings(show: str) -> list[str]:
             found.append(
                 f"step did not exit 0 (code={m['code']} status={m['status']}): {m['argv'][:300]}"
             )
+    if not started and not found:
+        found.append("no step record: `systemctl show` listed no ExecStart step for this run")
     return found
 
 
@@ -191,12 +208,10 @@ def _when() -> str:
     return time.strftime("%Y-%m-%d %H:%M %z")
 
 
-def _unit_tail(unit: str) -> list[str]:
-    """The unit's last lines, systemd's own included. NOT by MONITOR_INVOCATION_ID: when the retries end at the
-    start limit, systemd hands OnFailure= the refused start's FRESH invocation id, which holds no lines (measured
-    on systemd 255 — the archiver's lines sit under the attempts' ids)."""
-    if not re.fullmatch(r"[A-Za-z0-9@._:-]+\.service", unit):
-        return []
+def _unit_tail(unit: str) -> tuple[int, list[str]]:
+    """(rc, lines): the unit's last lines, systemd's own included. NOT by MONITOR_INVOCATION_ID: when the retries end
+    at the start limit, systemd hands OnFailure= the refused start's FRESH invocation id, which holds no lines
+    (measured on systemd 255 — the archiver's lines sit under the attempts' ids). `unit` is validated by the caller."""
     rc, out, _err = _run(
         [
             os.environ.get("ARCHIVE_ALERT_JOURNALCTL", "journalctl"),
@@ -211,24 +226,31 @@ def _unit_tail(unit: str) -> list[str]:
         ],
         JOURNAL_TIMEOUT_S,
     )
-    return out.splitlines() if rc == 0 else []
+    return rc, out.splitlines() if rc == 0 else []
 
 
 def cmd_failed() -> int:
     env = os.environ
     unit = env.get("MONITOR_UNIT") or UNIT
+    if not _UNIT_RE.fullmatch(unit):  # never query, nor mail, a name systemd would not hand over
+        unit = UNIT
     result = env.get("MONITOR_SERVICE_RESULT") or "unknown"
     code = env.get("MONITOR_EXIT_CODE") or "unknown"
     status = env.get("MONITOR_EXIT_STATUS") or "unknown"
-    tail = "\n".join(_unit_tail(unit)[-TAIL_LINES:])[-TAIL_CHARS:]
+    rc, lines = _unit_tail(unit)
+    if rc != 0:
+        tail = f"(journalctl could not read the unit's journal: rc {rc})"
+    else:
+        tail = "\n".join(lines[-TAIL_LINES:])[-TAIL_CHARS:] or f"(no journal lines for {unit})"
     return _mail(
-        f"Subject: nightly chat backup FAILED — {unit} ended {result} (exit {code}, status {status})",
+        f"Subject: nightly chat backup FAILED — {unit} ended {result} (code {code}, status {status})",
         [
-            f"WHAT: {unit} ended `{result}` (exit {code}, status {status}) after Restart= spent its retries; "
-            "tonight's transcripts are NOT in the bucket, and the pruner did not run.",
-            "WHERE: the last lines of the failed run's journal:",
+            f"WHAT: {unit} ended `{result}` (code {code}, status {status}) after Restart= spent its retries: the "
+            "run did not finish. If the tail shows the archiver failed, tonight's transcripts are NOT in the "
+            "bucket and the pruner did not run.",
+            "WHERE: the unit's last journal lines:",
             "```",
-            tail or "(no journal lines for that invocation)",
+            tail,
             "```",
             f"WHEN: {_when()}, when the retries ran out.",
             "WHO: infra owns session-history retention (D-736); the coordinator is told so it can schedule the fix.",
@@ -257,20 +279,38 @@ def _check() -> int:
     else:
         found.append(f"step status unreadable: `systemctl show` exited {rc}: {err.strip()[-300:]}")
 
-    # journald ingests the unit's stdout asynchronously: poll until the summary (or the lock line) is in
-    deadline = time.monotonic() + _env_float("ARCHIVE_ALERT_POLL_S", POLL_S)
-    while True:
-        complete, summary = summary_findings(*_journal(os.environ.get("INVOCATION_ID", "")))
-        if complete or time.monotonic() >= deadline:
-            break
-        time.sleep(1.0)
-    found += summary
+    # a stop mid-run (`systemctl stop`) still ends SERVICE_RESULT=success: the archiver's own row says it
+    stopped = any(
+        f.startswith(("step did not exit 0", "step status unreadable (")) and _ARCHIVER in f
+        for f in found
+    )
+
+    invocation = os.environ.get("INVOCATION_ID", "")
+    if not _INVOCATION_RE.fullmatch(invocation):
+        found.append(
+            f"INVOCATION_ID unset or malformed ({invocation[:40]!r}) — this run's journal was not read"
+        )
+    else:
+        # journald ingests the unit's stdout asynchronously: poll until the summary (or the lock line) is in
+        deadline = time.monotonic() + _env_float("ARCHIVE_ALERT_POLL_S", POLL_S)
+        while True:
+            complete, summary = summary_findings(*_journal(invocation))
+            if complete or time.monotonic() >= deadline:
+                break
+            time.sleep(POLL_SLEEP_S)
+        found += summary
     if not found:
         return 0
+    if stopped:
+        subject = f"Subject: nightly chat backup STOPPED — the archive did not complete ({UNIT})"
+        what = "WHAT: the archive did not complete — the run ended `success`, but the archiver's step did not exit 0:"
+    else:
+        subject = f"Subject: nightly chat backup PARTIAL — {len(found)} problem(s) on a successful {UNIT} run"
+        what = "WHAT: the archive step succeeded, but:"
     return _mail(
-        f"Subject: nightly chat backup PARTIAL — {len(found)} problem(s) on a successful {UNIT} run",
+        subject,
         [
-            "WHAT: the archive step succeeded, but:",
+            what,
             *(f"- {f}" for f in found),
             f"WHERE: {UNIT}, invocation {os.environ.get('INVOCATION_ID') or 'unknown'}.",
             f"WHEN: {_when()}, as the run ended.",
@@ -285,7 +325,7 @@ def _check() -> int:
 
 def cmd_check() -> int:
     result = os.environ.get("SERVICE_RESULT")
-    if result is None:
+    if not result:
         print(
             "session_archive_alert check: no SERVICE_RESULT — not run by systemd's ExecStopPost=",
             file=sys.stderr,

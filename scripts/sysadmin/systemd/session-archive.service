@@ -5,10 +5,13 @@
 #
 # No After=network-online.target: the USER manager has no such target, so it would order
 # nothing. A run that starts before the network is up (the boot-time catch-up) fails with a
-# non-zero exit and is retried by Restart= below, at most 4 times in 2 hours.
+# non-zero exit and is retried by Restart= below, at most 4 starts in 10 hours.
 [Unit]
 Description=Archive Claude session transcripts to Backblaze B2
-StartLimitIntervalSec=2h
+# The interval must hold StartLimitBurst attempts of up to TimeoutStartSec + RestartSec each (4 x 2h15 = 9 h), or a
+# slow failure never reaches the limit, retries forever, and OnFailure= never fires (graded in
+# tests/test_session_archive_alert.py).
+StartLimitIntervalSec=10h
 StartLimitBurst=4
 # W-36687f76: a failed night mails infra and the coordinator. With RestartMode=direct below this fires ONCE, after
 # Restart= has spent its retries — without it, it fired on every retried attempt too (measured on systemd 255).
@@ -19,9 +22,9 @@ OnFailure=session-archive-alert.service
 Type=oneshot
 RestartMode=direct
 # A hung archiver (a stuck rclone or zstd) would hold the unit `activating` forever, so nothing alerts and later
-# timer firings do nothing; 3 h ends it as `timeout` -> Restart= -> OnFailure=. The slowest measured attempt took
+# timer firings do nothing; 2 h ends it as `timeout` -> Restart= -> OnFailure=. The slowest measured attempt took
 # 11 min (2026-10-21 02:28-02:39).
-TimeoutStartSec=3h
+TimeoutStartSec=2h
 # Bounds ExecStopPost= below. A check that outran it would turn a good night into `timeout` and make Restart=
 # re-run the archiver; the check's own worst case (session_archive_alert.CHECK_BUDGET_S) is graded below this.
 TimeoutStopSec=5min
@@ -33,13 +36,14 @@ ExecStart=/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/archive_tran
 # a failing command without "-" stops the rest and fails the unit), so a night whose archive
 # failed prunes nothing. Its own "-" keeps a pruner refusal (exit 3) from failing the unit, which
 # would make Restart= re-run the ARCHIVER for a pruner outcome; the pruner reports for itself in
-# ~/.claude/archive/prune-log.jsonl (`prune_transcripts.py --status`). Gate C of the retention plan
+# ~/.claude/archive/prune-log.jsonl (`prune_transcripts.py --status`), and the ExecStopPost= check below mails a
+# refusal (W-36687f76). Gate C of the retention plan
 # passed on 2026-10-12 (D-736, D-746): the leg runs --apply --nightly — the 3-day cliff is live.
 ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --apply --nightly
 # W-f975fee0 slice 3 (D-1119, D-1123): after the pruner, mail each repo's coordinator the agents whose transcript
 # is past the MB line (ROTATE_ADVISE_MB, default 200) — read-only advice, never a rotation. MB only: the nightly runs
 # while agents may be mid-item, and context is a per-boundary signal. The "-" keeps a mail failure from failing the
-# unit (Restart= would re-run the ARCHIVER); the failure lands in this unit's journal.
+# unit (Restart= would re-run the ARCHIVER); a failed send exits nonzero and the ExecStopPost= check below mails it.
 ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/rotate_session.py due --mb-only --mail
 # W-36687f76: the "-" steps above fail silently (systemd logs nothing for an ignored failure), and the archiver exits
 # 0 on a partial night. On a SUCCESSFUL run this reads each step's status and the archiver's summary and mails what
