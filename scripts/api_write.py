@@ -153,11 +153,14 @@ def write_env(key_value: str, config_dir: Path, main: Path, run_dir: Path) -> di
     the run directory (``GIT_CEILING_DIRECTORIES``): the work tree has no ``.git``, so a gate's git would otherwise
     climb into whatever repository encloses the state directory; a gate that needs a repository finds none."""
     env = {
-        k: v
-        for k, v in ac.child_env(key_value, config_dir).items()
-        if not k.startswith("GIT_") and k not in ("SSH_AUTH_SOCK", "SSH_AGENT_PID")
+        **{
+            k: v
+            for k, v in ac.child_env(key_value, config_dir).items()
+            if not k.startswith("GIT_") and k not in ("SSH_AUTH_SOCK", "SSH_AGENT_PID")
+        },
+        "FABRIK_HEADLESS": "1",  # child_env sets it too; declared here, at the spawner (test_hooks_headless_guard)
+        "GIT_CEILING_DIRECTORIES": str(run_dir),
     }
-    env["GIT_CEILING_DIRECTORIES"] = str(run_dir)
     venv_bin = main / ".venv" / "bin"
     if venv_bin.is_dir():
         env["PATH"] = f"{venv_bin}{os.pathsep}{env.get('PATH', '')}"
