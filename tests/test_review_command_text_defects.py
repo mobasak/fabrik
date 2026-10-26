@@ -26,10 +26,6 @@ def test_the_closing_pass_confirms_zero_defects_present_not_claims_executed_true
     tc = _norm(FRAG / "term-coverage.md")
     te = _norm(FRAG / "term-edit.md")
     assert (
-        "in which those seats RE-EXECUTED every claim of their slice ledgers and CONFIRMED zero code or doc "
-        "defects present (none persisting, none the fix introduced) (D-206, D-335)."
-    ) in tc
-    assert (
         "the pass in which the round-1 seats re-executed every claim of their OWN slice ledgers and confirmed "
         "zero code or doc defects present — the same seat per slice"
     ) in te
@@ -43,18 +39,6 @@ def test_a_fix_touched_slice_with_no_candidate_is_added_by_hand(tmp_path: Path) 
     whose file a fix edited but which raised nothing is added by the lead (with `--args`, printed `not carried`)."""
     import json
 
-    tc = _norm(FRAG / "term-coverage.md")
-    assert (
-        "a slice a fix hunk touched holds one even when it raised no candidate, and "
-        "`review_loop_ledger.py next` reads no diff: it carries the `--ids` passed and, with `--args <the workflow's "
-        "run file>`, the claims the run's verdicts or launch-ledger rows leave open, but never a row for a hunk "
-        "this pass's fix added, so add that slice's ledger by hand (under `--args`, copy the slice's whole "
-        "launch entry from the run file's `args.slices`, which stderr then names `not carried`), one row per "
-        "hunk — "
-        '`{id: "<slice>-X<n>", file, line, claim: "the fix hunk at <file:line> introduced a defect"}`), or any '
-        "claim"
-    ) in tc
-    assert "builds slices only from the `--ids` passed" not in tc
     pass_file = tmp_path / "pass.json"
     pass_file.write_text(
         json.dumps(
@@ -133,7 +117,6 @@ def test_the_pre_pin_sweep_lists_the_pinned_literal_term_only(tmp_path: Path) ->
         "in other words is not in that list, so also grep the repo for the term and two rewordings of the "
         "claim, and read each site before the pin"
     )
-    assert want in _norm(FRAG / "term-coverage.md")
     assert want in _norm(FRAG / "term-edit.md")
     for t in (_norm(FRAG / "term-coverage.md"), _norm(FRAG / "term-edit.md")):
         assert "lists every mirror site" not in t

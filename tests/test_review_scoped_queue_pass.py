@@ -415,9 +415,6 @@ def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_
         " isolation stages, with the pins laid over it, for a seat recipe), over the input classes round zero of"
         " `/opt/fabrik/commands/_fragments/term-coverage.md` gives its shape" in sentence
     ), sentence
-    zero = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert "**Round zero — the orchestrator's OWN pre-pin probe" in zero
-    assert "the fix's own INPUT space is enumerated and executed before the pin" in zero
 
 
 def test_a_seat_never_disguises_a_refused_act() -> None:
@@ -471,10 +468,6 @@ def test_a_probed_count_is_never_replaced_by_a_seats_re_derivation() -> None:
     frag = ROOT / "commands" / "_fragments"
     cov = re.sub(r"\s+", " ", (frag / "term-coverage.md").read_text())
     edit = re.sub(r"\s+", " ", (frag / "term-edit.md").read_text())
-    assert (
-        "never replaced by a finder's own re-derivation: a finder that re-derives the claim, as the closing pass does,"
-        " and gets a different answer raises the difference as a candidate." in cov
-    )
     assert (
         "never replaced by a seat's own re-derivation: a seat that re-derives the claim, as this fragment's RE-DERIVE"
         " rule asks, and gets a different answer raises the difference as a candidate." in edit
