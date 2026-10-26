@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "ADVISORY (data loss) — fabrik-lib rag classifier: default model retired 2026-10-09; a failed classify run DELETES existing tags and reports success"
 }

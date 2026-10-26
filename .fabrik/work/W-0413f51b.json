@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Ocoron fonts are now Arya + IBM Plex Sans (D-1200) — the scaffold templates still emit Space Grotesk / Inter"
 }
