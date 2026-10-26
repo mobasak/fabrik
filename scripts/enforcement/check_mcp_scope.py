@@ -9,8 +9,8 @@ D-015) never granted the hub; the JVMs outlived their sessions by days and, afte
 resume, 48 of them held ~11 GB of swap and no window could reconnect. A hand-added or stale
 server survives silently because `.mcp.json` is gitignored and nothing reads it back against the
 roster. This check does: for every repo the emitter rules (the hub, every repo with a
-`project.yaml::type` the roster knows, and since D-1246 every UNTYPED repo — the universal set; each of them only
-when git ignores its `.mcp.json`, W-c0d9cea5; `emit_mcp_project_config.emitter_owns` is the predicate) the
+`project.yaml::type` the roster knows, and since D-1246 every UNTYPED repo — the universal set — where the emitter
+writes the file only when git ignores it, W-c0d9cea5; `emit_mcp_project_config.emitter_owns` is the predicate) the
 servers PRESENT in `<repo>/.mcp.json` must be a subset
 of `emit_mcp_project_config.ruled_server_names(repo)`. A server the ruling allows but the file
 omits is legal (postgres-pro is absent until its URL connects); a server the ruling does not
@@ -19,7 +19,9 @@ allow is the defect, named with the command that fixes it (re-run the emitter �
 A repo that carries a `.mcp.json` the emitter does NOT rule or own (a `type:` the roster does not know, a
 repo of any kind whose `.mcp.json` git does not ignore (W-c0d9cea5), or hub-class landed by its own agent such as fabrik-lib)
 is reported as a WARNING with the same
-command, never a failure: the hub's gate cannot red on a file another repo's agent writes.
+command, never a failure: the hub's gate cannot red on a file another repo's agent writes. One exception: a hub-class
+or typed repo whose file git does not ignore is still graded after its warning, as it was before git was asked, so a
+server outside its ruling stays a failure (W-c0d9cea5).
 
 Cobra: the cheapest way to satisfy this gate without the outcome is to add the unwanted server to
 the ruling (TYPE_SETS / OVERLAYS / the hub-class set) — every such edit is a ledger decision and a
@@ -86,7 +88,9 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
         checked += 1
         fix = f"python3 {hub / EMITTER_REL} --repo {repo}"
         # False: the emitter would SKIP it, so re-emitting cannot clear a failure — a warning. None (git cannot say
-        # whether the file is ignored) is graded like an owned repo: an unknown answer never demotes a failure.
+        # whether the file is ignored) is graded like an owned repo: an unknown answer never demotes a failure. A
+        # hub-class or typed repo was always graded before it was asked (D-1252), so after the warning it still is:
+        # a server outside its ruling stays a failure, never demoted to this warning (W-c0d9cea5 review).
         if em.emitter_owns(repo) is False:
             warnings.append(
                 {
@@ -98,7 +102,8 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
                     " `git rm --cached .mcp.json`, then " + fix,
                 }
             )
-            continue
+            if repo.name not in em.HUB_CLASS and em._repo_type(repo) is None:
+                continue
         if ruled is None:
             warnings.append(
                 {

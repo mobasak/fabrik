@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -326,15 +327,19 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
     return out
 
 
-def mcp_config_ignored(repo: Path) -> bool | None:
-    """Whether git itself ignores `<repo>/.mcp.json`: True (exit 0), False (exit 1 — no rule matches, a later `!`
-    negation, or the file is TRACKED and would carry the keys into a commit), or None when git cannot answer (git
-    missing, not a repo, a safe.directory refusal, a timeout). `git check-ignore` reads every rule git honours."""
+def mcp_config_ignored(repo: Path, at: Path | None = None) -> bool | None:
+    """Whether git itself ignores `<at>/.mcp.json` (`at` defaults to `repo`; a linked worktree's dir asks that
+    worktree's index): True (exit 0), False (exit 1 — no rule matches, a later `!` negation, or the file is TRACKED
+    and would carry the keys into a commit), or None when git cannot answer (git missing, not a repo, a safe.directory
+    refusal, a timeout). `git check-ignore` reads every rule git honours. Discovery stops at `repo`'s parent, so a bare
+    or broken `.git` dir never borrows an enclosing repo's answer (W-c0d9cea5 review)."""
+    env = {**os.environ, "GIT_CEILING_DIRECTORIES": str(repo.resolve().parent)}
     try:
         r = subprocess.run(
-            ["git", "-C", str(repo), "check-ignore", "-q", ".mcp.json"],
+            ["git", "-C", str(at or repo), "check-ignore", "-q", ".mcp.json"],
             capture_output=True,
             timeout=10,
+            env=env,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -360,10 +365,14 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
             "SKIP (git does not ignore `.mcp.json` — make .gitignore ignore it, with no later `!.mcp.json`, and if git"
             " tracks it run `git rm --cached .mcp.json`; the file carries credentials)"
         )
+    target = repo / ".mcp.json"
+    if (
+        target.is_symlink()
+    ):  # git answers for the link's name; a write follows it into whatever it names
+        return "SKIP (`.mcp.json` is a symlink — never written through it; make it a plain file)"
     servers = derive_servers(repo, defs)
     if servers is None:
         return "SKIP"
-    target = repo / ".mcp.json"
     payload = json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n"
     if target.is_file() and target.read_text() == payload:
         verdict = "OK"
@@ -371,8 +380,13 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
         verdict = "UPDATE" if target.exists() else "CREATE"
         if not check:
             target.write_text(payload)  # the root first: a bad worktree copy never blocks it
-    refreshed, failed = 0, {"unreadable": 0, "unwritable": 0}
+    refreshed, failed = 0, {"unreadable": 0, "unwritable": 0, "unanswerable": 0, "not ignored": 0}
     for copy in _worktree_copies(repo):
+        # each linked worktree has its own index and .gitignore: the root's answer says nothing about its copy
+        ignored = mcp_config_ignored(repo, copy.parent)
+        if not ignored:
+            failed["unanswerable" if ignored is None else "not ignored"] += 1
+            continue
         try:
             if copy.read_text() == payload:
                 continue
@@ -423,12 +437,14 @@ def _candidate_repos(root: Path) -> list[Path]:
     return out
 
 
-_FAILED = re.compile(r"^SKIP \((?:error:|git could not say)|\b\d+ un(?:readable|writable)\b")
+_FAILED = re.compile(
+    r"^SKIP \((?:error:|git could not say)|\b\d+ un(?:readable|writable|answerable)\b"
+)
 
 
 def _failed(verdict: str) -> bool:
     """A verdict whose run did not do what it reports it could not: an exception, git unable to answer (a mistyped
-    `--repo` lands here), or a worktree copy left unread or unwritten. A ruled SKIP (an unknown type, a repo whose
+    `--repo` lands here), or a worktree copy left unread, unwritten or unanswered by git. A ruled SKIP (an unknown type, a repo whose
     `.mcp.json` git does not ignore) is a policy verdict and never fails the run (W-d095d60b, W-c0d9cea5)."""
     return bool(_FAILED.search(verdict))
 

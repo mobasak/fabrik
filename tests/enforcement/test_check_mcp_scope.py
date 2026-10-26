@@ -225,49 +225,36 @@ def test_a_credential_abort_in_the_emitter_is_a_structured_fail(
     assert rc == 1 and "check_mcp_scope: FAIL" in out and "exa.env.EXA_API_KEY" in out
 
 
-def test_a_typed_repo_whose_file_git_tracks_is_a_warning(check, tmp_path):
-    """W-c0d9cea5: the emitter never writes a TYPED repo's `.mcp.json` that git does not ignore, so re-emitting cannot
-    clear it: a warning, never a failure. Its reason no longer says "untyped", and it says a tracked copy may still hold
-    credentials, since the skip leaves the old file in place."""
-    typed = repo(tmp_path, "tracked-api", "python-api", ["session-recall", "maestro"])
-    (typed / ".git").rmdir()
-    subprocess.run(["git", "init", "-q", str(typed)], check=True)
-    (typed / ".gitignore").write_text(".mcp.json\n")
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(typed),
-            "-c",
-            "user.email=t@t",
-            "-c",
-            "user.name=t",
-            "add",
-            "-f",
-            ".gitignore",
-            ".mcp.json",
-        ],
-        check=True,
-    )
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(typed),
-            "-c",
-            "user.email=t@t",
-            "-c",
-            "user.name=t",
-            "commit",
-            "-q",
-            "-m",
-            "t",
-        ],
-        check=True,
-    )
+def _tracked(d: Path) -> None:
+    """Turn a fixture dir into a real git repo whose `.mcp.json` is TRACKED despite its `.gitignore` rule."""
+    (d / ".git").rmdir()
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    (d / ".gitignore").write_text(".mcp.json\n")
+    for args in (["add", "-f", ".gitignore", ".mcp.json"], ["commit", "-q", "-m", "t"]):
+        subprocess.run(
+            ["git", "-C", str(d), "-c", "user.email=t@t", "-c", "user.name=t", *args], check=True
+        )
+
+
+@pytest.mark.parametrize(
+    "name, rtype, servers, extra",
+    [
+        ("tracked-api", "python-api", ["session-recall"], []),
+        ("tracked-api", "python-api", ["session-recall", "maestro"], ["maestro"]),
+        ("fabrik", None, ["session-recall", "exa", "maestro"], ["maestro"]),
+    ],
+)
+def test_a_typed_repo_whose_file_git_tracks_is_a_warning(
+    check, tmp_path, name, rtype, servers, extra
+):
+    """W-c0d9cea5: the emitter never writes a TYPED or hub repo's `.mcp.json` that git does not ignore, so re-emitting
+    cannot clear it: a warning, whose reason no longer says "untyped" and says a tracked copy may still hold
+    credentials. Such a repo was always graded before git was asked, so a server outside its ruling is STILL a
+    failure (the review's fail-open: the hub's own over-scoped file must never demote to a warning)."""
+    _tracked(repo(tmp_path, name, rtype, servers))
     rep = check.audit(tmp_path, HUB, DEFS)
-    assert rep["failures"] == []
+    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == ([(name, extra)] if extra else [])
     (w,) = rep["warnings"]
-    assert w["repo"] == "tracked-api"
+    assert w["repo"] == name
     assert "untyped" not in w["reason"] and "may still hold credentials" in w["reason"], w["reason"]
     assert "git rm --cached .mcp.json" in w["fix"], w["fix"]

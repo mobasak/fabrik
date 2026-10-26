@@ -839,3 +839,58 @@ def test_a_typed_repo_git_cannot_answer_for_fails_the_run(tmp_path, defs_file):
         "some-api: SKIP (git could not say whether `.mcp.json` is ignored — never written)"
     ], lines
     assert _cli_rc(tmp_path, defs_file) == 1
+
+
+def test_a_worktree_copy_git_tracks_is_never_written(tmp_path, defs_file):
+    """W-c0d9cea5 review (A-1): each linked worktree has its own index, so the root being ignored says nothing about a
+    copy. A worktree on a branch that still TRACKS `.mcp.json` keeps its file and the verdict counts it, ruled (exit 0)."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    (repo / ".gitignore").unlink()
+    (repo / ".mcp.json").write_text("{}\n")
+    _git(repo, "add", "-f", "project.yaml", ".mcp.json")
+    _git(repo, "commit", "-q", "-m", "old: tracked")
+    _git(repo, "branch", "old")
+    _git(repo, "rm", "-q", "--cached", ".mcp.json")
+    (repo / ".gitignore").write_text(".mcp.json\n")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "commit", "-q", "-m", "ignored now")
+    wt = repo / ".claude" / "worktrees" / "w"
+    _git(repo, "worktree", "add", "-q", str(wt), "old")
+    (wt / ".mcp.json").write_text("{}\n")
+    assert run(tmp_path, defs_file) == ["some-api: UPDATE (1 not ignored)"]
+    assert (wt / ".mcp.json").read_text() == "{}\n"
+    assert _cli_rc(tmp_path, defs_file) == 0
+
+
+def test_a_symlinked_root_file_is_never_written_through(tmp_path, defs_file):
+    """W-c0d9cea5 review (A-2): git answers for the LINK's name, which the rule ignores, while a write follows the link
+    into the file it names, here a tracked one."""
+    repo = make_repo(tmp_path, "some-api", "python-api")
+    (repo / "config.json").write_text("{}\n")
+    _git(repo, "add", ".gitignore", "project.yaml", "config.json")
+    _git(repo, "commit", "-q", "-m", "c")
+    (repo / ".mcp.json").symlink_to("config.json")
+    assert run(tmp_path, defs_file) == [
+        "some-api: SKIP (`.mcp.json` is a symlink — never written through it; make it a plain file)"
+    ]
+    assert (repo / "config.json").read_text() == "{}\n"
+
+
+def test_a_broken_git_dir_never_borrows_an_enclosing_repos_answer(tmp_path, defs_file):
+    """W-c0d9cea5 review (A-3): a bare `.git` dir is no repository, and git would walk up to an enclosing repo whose rule
+    ignores `.mcp.json`. Discovery stops at the repo's parent, so the answer is "cannot say": never written, run fails."""
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".gitignore").write_text(".mcp.json\n")
+    repo = make_repo(tmp_path, "inner", "python-api", real_git=False)
+    assert run(tmp_path, defs_file) == [
+        "inner: SKIP (git could not say whether `.mcp.json` is ignored — never written)"
+    ]
+    assert not (repo / ".mcp.json").exists()
+
+
+@pytest.mark.parametrize(
+    "verdict, failed", [("OK (1 unanswerable)", True), ("UPDATE (1 not ignored)", False)]
+)
+def test_failed_reads_the_copy_verdicts(verdict, failed):
+    """W-c0d9cea5 review: a copy git cannot answer for fails the run; a copy git does not ignore is a ruled skip."""
+    assert emitter._failed(verdict) is failed
