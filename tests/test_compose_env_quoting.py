@@ -176,19 +176,48 @@ def test_unrepresentable_value_refused(bad: str, layer: str) -> None:
     assert "sec" not in str(exc.value)
 
 
-# A templated env list item (`- KEY=` with a `{{` on the line) must go through compose_env. Exempt: the
-# literal `DATABASE_URL=${DATABASE_URL:-…/{{ depends.postgres }}}` default, whose only templated part is the
-# spec's database name, not an env value (a separate quoting item, W-80aed026's OUT).
+# A templated `KEY=value` list item — `=` and a `{{` on an unquoted `- ` line, whatever spells the key
+# (`- {{ key }}={{ value }}` was the old loop) — must go through compose_env. Exempt: a quoted item (a
+# traefik label) and the literal `DATABASE_URL=${DATABASE_URL:-…/{{ depends.postgres }}}` default, whose
+# only templated part is the spec's database name — both separate quoting items (W-80aed026's OUT).
 _UNQUOTED_ENV_LINE = re.compile(
-    r"^\s*-\s+[A-Za-z_][A-Za-z0-9_]*=.*\{\{(?!\s*depends\.postgres\s*\}\}\}$)"
+    r"^\s*-\s+(?![\"'])(?!.*\bcompose_env\()(?=.*=)(?=.*\{\{)"
+    r"(?!DATABASE_URL=\$\{DATABASE_URL:-(?:(?!\{\{).)*\{\{\s*depends\.postgres\s*\}\}\}$)"
 )
 _ENV_ITEM_LINE = re.compile(r"^\s*-\s+\{\{.*\|\s*compose_env\(")
+
+
+@pytest.mark.parametrize(
+    ("line", "unquoted"),
+    [
+        ("      - {{ key }}={{ value }}", True),
+        ("      - {{ key }}={{ value | env_escape }}", True),
+        ("      - FOO={{ env.get('FOO', 'x') }}", True),
+        ("      - {{ key | compose_env(value) }}", False),
+        ("      - {{ 'FOO' | compose_env(env.get('FOO', 'x')) }}", False),
+        ('      - "traefik.http.services.x.loadbalancer.server.port={{ p }}"', False),
+        ("      - {{ vol.name }}:{{ vol.path }}", False),
+        ("      - PYTHONUNBUFFERED=1", False),
+        (
+            "      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}"
+            "@postgres-main:5432/{{ depends.postgres }}}",
+            False,
+        ),
+        ("      - DATABASE_URL={{ depends.postgres }}", True),
+        ("      - DATABASE_URL=${DATABASE_URL:-{{ evil }}/{{ depends.postgres }}}", True),
+    ],
+)
+def test_the_unquoted_env_line_matcher(line: str, unquoted: bool) -> None:
+    assert bool(_UNQUOTED_ENV_LINE.match(line)) is unquoted
 
 
 def test_no_unquoted_env_line() -> None:
     hits: list[str] = []
     quoted = 0
-    for f in sorted(TEMPLATES.rglob("*.j2")):
+    # YAML templates only: a markdown bullet (`preplan.md.j2`) is a `- ` line with `=` and `{{` too.
+    yaml_templates = sorted({*TEMPLATES.rglob("*.yaml.j2"), *TEMPLATES.rglob("*.yml.j2")})
+    assert yaml_templates, "no YAML template scanned"
+    for f in yaml_templates:
         for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
             if _UNQUOTED_ENV_LINE.match(line):
                 hits.append(f"{f.relative_to(REPO)}:{n}: {line.strip()}")
