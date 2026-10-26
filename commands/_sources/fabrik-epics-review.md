@@ -47,9 +47,17 @@ The Cross-Epic Validation Report (structure in Phase 5), PERSISTED to `docs/deve
 
 {{include:grounding-rules}}
 
-⚠️ **Constraints-Digest citation (BINDING):** every architecture, tool, or dependency selection in this command cites a row of the upstream CONSTRAINTS DIGEST or states `unconstrained`; a selection that collides with a digest row is DEAD. If no digest artifact exists upstream, STOP — run the Rule-grounding gate above before proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed.
+⚠️ **Constraints-Digest citation (BINDING):** every architecture, tool, or dependency selection in this
+command cites a row of the upstream CONSTRAINTS DIGEST or states `unconstrained`; a selection that collides
+with a digest row is DEAD. If no digest artifact exists upstream, STOP — run the Rule-grounding gate above
+before proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed.
 
-**Read all artifacts:** every ticket in full, the Vision Summary, Infrastructure Decisions and Dependency Graph. **If any is missing, do not review — ROUTE BACK** (not a halt): hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, **or the Infrastructure Decisions FILE**) and re-enter once it re-emits. State: *"Read the Vision Summary + Infrastructure Decisions and [M] epic tickets; owner set: <names>."*
+**Read all artifacts.** Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision
+Summary + Infrastructure Decisions + Dependency Graph. **If any is missing, do not review — ROUTE BACK**
+(not a halt): state which, hand to the creating command (`/fabrik-vision` for the Vision Summary;
+`/fabrik-epics` for the decomposition, a ticket, the graph, **or the Infrastructure Decisions FILE**), and
+re-enter here once it re-emits. State: *"Read the Vision Summary + Infrastructure Decisions and [M] epic
+tickets; owner set: <names>."*
 
 ## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE
 

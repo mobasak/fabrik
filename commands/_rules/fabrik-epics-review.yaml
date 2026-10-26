@@ -120,6 +120,20 @@ entries:
   current: 'If no digest artifact exists upstream, STOP — run the Rule-grounding gate above before proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed'
   text:
   - 'If no digest artifact exists upstream, STOP — run the Rule-grounding gate above before proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed'
+- id: u-L65
+  # class: prose
+  file: render
+  baseline: Read all artifacts. Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph
+  current: Read all artifacts. Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph
+  text:
+  - Read all artifacts. Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph
+- id: u-L66
+  # class: prose
+  file: render
+  baseline: 'If any is missing, do not review — ROUTE BACK (not a halt): state which, hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, or the Infrastructure Decisions FILE), and re-enter here once it re-emits'
+  current: 'If any is missing, do not review — ROUTE BACK (not a halt): state which, hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, or the Infrastructure Decisions FILE), and re-enter here once it re-emits'
+  text:
+  - 'If any is missing, do not review — ROUTE BACK (not a halt): state which, hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, or the Infrastructure Decisions FILE), and re-enter here once it re-emits'
 - id: u-L67
   # class: prose
   file: render
@@ -667,19 +681,6 @@ entries:
   text:
   - step;  never a bare defect list
   - The result is the adjudicated verdict — every report lens PASS-with-evidence, with the round ledger, fixup count, route-backs, owner set and per-window next step; never a bare defect list
-- id: ec-read-all-artifacts-every-ticket-in
-  # class: prose
-  # clauses: {L65.0: narrative}
-  baseline: Read all artifacts. Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph
-  current: 'Read all artifacts: every ticket in full, the Vision Summary, Infrastructure Decisions and Dependency Graph'
-  text:
-  - 'Read all artifacts: every ticket in full, the Vision Summary, Infrastructure Decisions and Dependency Graph'
-- id: ec-if-any-is-missing-do-not
-  # class: prose
-  baseline: 'If any is missing, do not review — ROUTE BACK (not a halt): state which, hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, or the Infrastructure Decisions FILE), and re-enter here once it re-emits'
-  current: 'If any is missing, do not review — ROUTE BACK (not a halt): hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, or the Infrastructure Decisions FILE) and re-enter once it re-emits'
-  text:
-  - 'If any is missing, do not review — ROUTE BACK (not a halt): hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, or the Infrastructure Decisions FILE) and re-enter once it re-emits'
 - id: ec-ticket-set-integrity-is-the-deterministic
   # class: prose
   # clauses: {L69.0: narrative, L70.1: narrative, L70.2: narrative}
@@ -1449,7 +1450,7 @@ vanished:
   L48: {rule: [ec-flavour-aware-staging-a-delta-feature]}
   L49: {rule: [ec-docs-operations-fabrik-lifecycle-md-covers]}
   L50: narrative
-  L51: {duplicate-of: ec-read-all-artifacts-every-ticket-in}
+  L51: {duplicate-of: u-L66}
   L52: {duplicate-of: ec-the-vision-summary-docs-superpowers-specs}
   L53: {duplicate-of: ec-the-infrastructure-decisions-spec-docs-superpowers}
   L54: {duplicate-of: ec-the-epic-ticket-files-docs-development}
@@ -1459,8 +1460,6 @@ vanished:
   L59: {rule: [ec-structure-bounded-not-token-capped-a]}
   L60: {rule: [ec-structure-bounded-not-token-capped-a, ec-the-result-is-the-adjudicated-verdict]}
   L61: narrative
-  L65: {rule: [ec-read-all-artifacts-every-ticket-in]}
-  L66: {rule: [ec-if-any-is-missing-do-not]}
   L69: {rule: [ec-ticket-set-integrity-is-the-deterministic]}
   L70: {rule: [ec-ticket-set-integrity-is-the-deterministic]}
   L79: {rule: [ec-count-mismatch-missing-number-fabrik-epics]}
