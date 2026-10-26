@@ -944,9 +944,19 @@ def test_a_provenance_clause_owes_its_id_parentheticals_nothing(tmp_path: Path) 
     # the id tokens, one by one; a hex-letter word is no SHA and a § heading of two words is words
     for ids in ("D-1", "W-0c38115e", "2026-10-26", "0c70b53", "§ Behavior", "§2", "D-181/D-182", "D-9; D-10"):
         assert cr._strip_provenance(f"do it ({ids})") == "do it ", ids
-    for words in ("D-181, mechanism revised", "operator, 2026-09-07", "defaced", "§ Binding field block", "see D-9", "D-9 says so", "`D-9`"):
+    for words in ("D-181, mechanism revised", "operator, 2026-09-07", "defaced", "1234567", "D-٣", "§ Binding field block", "see D-9", "D-9 says so", "`D-9`"):
         assert cr._strip_provenance(f"do it ({words})") == f"do it ({words})", words
-    assert cr._strip_provenance("run `f(D-1)` now") == "run `f(D-1)` now"  # inside a code span: code, never provenance
+    assert cr._strip_provenance("run `x (D-1)` now") == "run `x (D-1)` now"  # inside a code span: code, never provenance
+    assert cr._strip_provenance("set_version(2026-10-26)") == "set_version(2026-10-26)"  # a call's argument (a fenced line)
+    assert cr._strip_provenance("ship it (D-1) (0c70b53)") == "ship it  "  # each aside stripped
+    sha256 = "0c70b5366" + "a" * 55
+    assert cr._strip_provenance(f"do it ({sha256})") == "do it " and cr._strip_provenance(f"do it ({sha256}b)") != "do it "
+    # an operative number in an aside stays an anchor the carrier owes
+    num = {"id": "R", "class": "prose", "baseline": "Cap the upload size (1048576)", "text": ["Cap the upload size"], "clauses": {1: "provenance"}}
+    assert "B" in _fires(num, "Cap the upload size")
+    # in classes grammar and behavioural lint D still reads the whole clause, its ids included (D-1256)
+    g = {**e, "class": "grammar", "clauses": {1: "provenance"}}
+    assert "B" not in _fires(g, base) and "D" in _fires(g, text[0]) and "D" not in _fires(g, base)
 
 
 def test_provenance_labels_are_refused_on_a_ban_clause_or_a_clause_without_ids(tmp_path: Path) -> None:
@@ -958,6 +968,8 @@ def test_provenance_labels_are_refused_on_a_ban_clause_or_a_clause_without_ids(t
     _one(_losses(t), "no parenthetical of ids alone")  # a word beside the id is no provenance
     _ledger(t, [{**ENTRY, "baseline": "Never stage a sibling's file (D-9)", "clauses": {1: "provenance"}}])
     _one(_losses(t), "holds a ban word")  # D-1238 point 1: a ban clause takes no label, provenance included
+    _ledger(t, [{**plain, "baseline": "Run the probe on a copy; stop at the pin (D-9)", "clauses": {2: "provenance", "2": "narrative"}}])
+    _one(_losses(t), "`clauses` is not")  # `2:` and `"2":` name one clause: never two labels for it
     _ledger(t, [{**plain, "baseline": "Run the probe on a copy; stop at the pin (D-9)", "clauses": {2: "provenance"}}])
     assert [x for x in _losses(t) if "malformed" in x] == []
     assert cr.summary(t["rules"])[0].endswith("· provenance 1")

@@ -353,14 +353,16 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   its clause or sentence, whichever comes first (`_ban_span`, D-1240: a `,` or `(` ends nothing; the sentence is the
   one `units()` cuts, by the same `_split_prose`, and a parenthetical opened after the ban word runs to its close), each ban word's
   span checked unless an earlier one already holds it, with whitespace, emphasis and case normalised and punctuation
-  kept; in classes `grammar` and `behavioural` every other unlabelled clause stands
+  kept; in classes `grammar` and `behavioural` every other clause not labelled `narrative` or `duplicate-of` stands
   verbatim too; `prose` may reword. `pins:` is a non-empty list of non-empty strings (the retired pin test node
   ids; no node is resolved). An id or date parenthetical is history (D-1238), and D-1255 gives it one label:
-  `provenance` drops from B's measure every parenthetical of the clause whose whole content is id tokens — `D-<n>`,
-  `W-<hex>`, an ISO date, a SHA of 7+ hex holding a digit, a `§` pointer to a section number or ONE word — and the
-  separators space `,` `;` `/` `·`, read outside code spans; the rest of the clause still owes its carrier, and a
-  clause left with no word owes none (`_strip_provenance`). `summary()` prints the provenance count; the
-  author-blind audit pair reads every one. COBRA: the cheapest pass is a stub carrier, then a reworded clause — A/B read
+  `provenance` drops from B's measure every aside of the clause (a parenthetical not glued to a word, so never a
+  call's `f(…)`) whose whole content is id tokens — `D-<n>`,
+  `W-<hex>`, an ISO date, a SHA of 7 to 64 lowercase hex holding both a letter and a digit (a bare number stays an
+  anchor), a `§` pointer to a section number or ONE word — and the separators space `,` `;` `/` `·`, read outside
+  code spans; the rest of the clause still owes its carrier, a clause left with no word owes none
+  (`_strip_provenance`), and in classes `grammar` and `behavioural` lint D still reads the whole clause, its ids
+  included. `summary()` prints the provenance count, and D-1255 has the author-blind audit pair read every one. COBRA: the cheapest pass is a stub carrier, then a reworded clause — A/B read
   the immutable baseline, C/D the live file, the anchors stop a stub and the per-phrase stem cap stops padding;
   what is left is a `duplicate-of` label to an entry that genuinely carries the clause, or a baseline with no ban
   word left unclassified, which is the decision's own scope. The `class:` tag and a `provenance` label are set at

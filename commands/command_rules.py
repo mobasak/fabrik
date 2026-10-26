@@ -445,7 +445,7 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
                 re.fullmatch(r"[1-9]\d*", str(k))
                 and (v in ("narrative", "provenance") or (isinstance(v, dict) and set(v) == {"duplicate-of"} and isinstance(v["duplicate-of"], str)))
                 for k, v in cl.items()
-            )
+            ) and len({str(k) for k in cl}) == len(cl)  # `1:` and `"1":` name one clause: never two labels for it
             if not ok:
                 raise LedgerError(f"entry {e['id']}: `clauses` is not {{<n>: narrative | provenance | duplicate-of: id}}")
         for c in ("file", "section", "baseline", "current", "enforced"):
@@ -647,10 +647,11 @@ def _covered(clause: str, phrases: list[str]) -> bool:
     return False
 
 
-# D-1255: one id token — a D-row, a W-item, an ISO date, a SHA of 7+ hex holding a digit (so a hex-letter word
-# like `defaced` is no SHA), or a `§` pointer to a section number or ONE word (a heading of more words is words)
-_ID = r"(?:D-\d+|W-[0-9a-f]+|\d{4}-\d{2}-\d{2}|(?=[a-f]*\d)[0-9a-f]{7,40}|§ ?(?:\d+(?:\.\d+)*|[^\W\d_]+))"
-_PROVENANCE = re.compile(rf"\( *{_ID}(?:[ ,;/·]+{_ID})* *\)")
+# D-1255: one id token — a D-row, a W-item, an ISO date, a SHA of 7-64 hex holding a letter AND a digit (so neither a
+# hex-letter word like `defaced` nor a bare number like `1234567`, which stays an anchor, is a SHA), or a `§`
+# pointer to a section number or ONE word (a heading of more words is words); ASCII digits only
+_ID = r"(?:D-[0-9]+|W-[0-9a-f]+|[0-9]{4}-[0-9]{2}-[0-9]{2}|(?=[0-9]*[a-f])(?=[a-f]*[0-9])[0-9a-f]{7,64}|§ ?(?:[0-9]+(?:\.[0-9]+)*|[^\W\d_]+))"
+_PROVENANCE = re.compile(rf"(?<![\w)\]])\( *{_ID}(?:[ ,;/·]+{_ID})* *\)")  # an aside, never a call's `f(…)`
 
 
 def _strip_provenance(clause: str) -> str:
