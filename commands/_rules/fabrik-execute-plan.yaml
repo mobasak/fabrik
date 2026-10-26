@@ -127,19 +127,6 @@ entries:
   current: A monolith plan file runs the phase mode below verbatim
   text:
   - A monolith plan file runs the phase mode below verbatim
-- id: e24-a-spine-or-monolith-declaring-profile
-  # class: prose
-  baseline: 'A spine or monolith declaring `Profile: small` (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the orchestrator in its own working tree (no worktree coder, no dispatch wait — a set''s tickets carry `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged)'
-  current: 'A spine or monolith declaring `Profile: small` (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the orchestrator in its own working tree (a set''s tickets carry `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged)'
-  text:
-  - 'A spine or monolith declaring `Profile: small` (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the orchestrator in its own working tree (a set''s tickets carry `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas'
-  - 'A spine or monolith declaring `Profile: small` (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the orchestrator in its own working tree (a set''s tickets carry `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged)'
-- id: e25-in-the-main-checkout-a-small-plan-whos
-  # class: prose
-  baseline: 'In the main checkout, a small plan whose owned paths include a governance-sync trigger path (the `governance-sync` files-filter in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8''s `EnterWorktree` path even with no other plan-lock active, because every main-checkout commit on such a path distributes fleet-wide and a worktree commit distributes nothing (`scripts/governance_sync_postcommit.sh`): its phases still commit one by one, and the plan reaches the fleet ONCE, when Finish position (b) merges the branch and the merge''s own hook syncs it (post-merge over `ORIG_HEAD..HEAD`, or post-commit when a conflicted merge is concluded with a commit)'
-  current: 'In the main checkout, a small plan whose owned paths include a governance-sync trigger path (the `governance-sync` files-filter in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8''s `EnterWorktree` path even with no other plan-lock active (`scripts/governance_sync_postcommit.sh`): its phases still commit one by one, and the plan reaches the fleet ONCE, when Finish position (b) merges the branch and the merge''s own hook syncs it (post-merge over `ORIG_HEAD..HEAD`, or post-commit when a conflicted merge is concluded with a commit)'
-  text:
-  - 'In the main checkout, a small plan whose owned paths include a governance-sync trigger path (the `governance-sync` files-filter in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8''s `EnterWorktree` path even with no other plan-lock active (`scripts/governance_sync_postcommit.sh`): its phases still commit one by one, and the plan reaches the fleet ONCE, when Finish position (b) merges the branch and the merge''s own hook syncs it (post-merge over `ORIG_HEAD..HEAD`, or post-commit when a conflicted merge is concluded with a commit)'
 - id: u-L26
   # class: ban
   baseline: That hook run is the Finish sync; run `sync_enforcement_to_projects.py --force` by hand only when it prints a sync failure
@@ -182,25 +169,6 @@ entries:
   current: Identify all phases, their dependency order, and the Subagent Mandates table (in the design spec)
   text:
   - Identify all phases, their dependency order, and the Subagent Mandates table (in the design spec)
-- id: e33-a-validation-or-the-part-of-one-that
-  # class: prose
-  # clauses: {'the one position where acting on it is e': narrative}
-  baseline: '⚠️ A validation, or the PART of one, that tests the rule the plan BUILDS against evidence that ALREADY EXISTS — a backtest over real history, a replay over a prior corpus — runs FIRST, before the FIRST ticket that implements that rule, wherever the Board scheduled it. (One that needs the built artifact — a dogfood, a live probe — cannot, and is not this rule; nor is D7''s whole-plan validation, which still runs last.) Scheduled late, its verdict lands after the thing it judges is built, reviewed, merged and distributed — the one position where acting on it is expensive: on the `/fabrik-task` lane a backtest over 24 of 101 lane-choice commits re-cut two clauses of the decision rule six tickets late (D-298)'
-  current: ⚠️ A validation, or the PART of one, that tests the rule the plan BUILDS against evidence that ALREADY EXISTS — a backtest over real history, a replay over a prior corpus — runs FIRST, before the FIRST ticket that implements that rule, wherever the Board scheduled it. (One that needs the built artifact — a dogfood, a live probe — cannot, and is not this rule; nor is D7's whole-plan validation, which still runs last.) A spec that places it before the build and a Board that schedules it last are a contradiction you resolve in the SPEC's favour, naming the re-order in the run record; a verdict that REFUTES the rule is governed by the spec's own stop threshold and re-cuts the spec before the implementing ticket runs
-  text:
-  - ⚠️ A validation, or the PART of one, that tests the rule the plan BUILDS against evidence that ALREADY EXISTS
-  - a backtest over real history, a replay over a prior corpus
-  - runs FIRST, before the FIRST ticket that implements that rule, wherever the Board scheduled it. (One that needs the built artifact
-  - a dogfood, a live probe — cannot, and is not this rule
-  - cannot, and is not this rule
-  - nor is D7's whole-plan validation, which still runs last.) A spec that places it before the build and a Board that schedules it last are a contradiction you resolve in the SPEC's favour, naming the re-order in the run record
-- id: e34-a-spec-that-places-it-before-the-build
-  # class: prose
-  baseline: A spec that places it before the build and a Board that schedules it last are a contradiction you resolve in the SPEC's favour, naming the re-order in the run record; a verdict that REFUTES the rule is governed by the spec's own stop threshold and re-cuts the spec before the implementing ticket runs
-  current: ⚠️ A validation, or the PART of one, that tests the rule the plan BUILDS against evidence that ALREADY EXISTS — a backtest over real history, a replay over a prior corpus — runs FIRST, before the FIRST ticket that implements that rule, wherever the Board scheduled it. (One that needs the built artifact — a dogfood, a live probe — cannot, and is not this rule; nor is D7's whole-plan validation, which still runs last.) A spec that places it before the build and a Board that schedules it last are a contradiction you resolve in the SPEC's favour, naming the re-order in the run record; a verdict that REFUTES the rule is governed by the spec's own stop threshold and re-cuts the spec before the implementing ticket runs
-  text:
-  - nor is D7's whole-plan validation, which still runs last.) A spec that places it before the build and a Board that schedules it last are a contradiction you resolve in the SPEC's favour, naming the re-order in the run record
-  - a verdict that REFUTES the rule is governed by the spec's own stop threshold and re-cuts the spec before the implementing ticket runs
 - id: u-L35
   # class: ban
   baseline: The spec edit is always yours — the plan is downstream of its spec and never owns it, so an owned-paths test on the SPEC routes every refutation to a halt; re-pin the spine's `**Spec:**` basis to the re-cut SHA and mint the D-row
@@ -292,17 +260,6 @@ entries:
   current: 'Never guess: on this shared tree, uncommitted residue on "your" paths can be an unlocked sibling''s or the daily pipeline''s, and no prose heuristic can tell — resetting destroys a sibling''s work, adopting publishes it'
   text:
   - 'Never guess: on this shared tree, uncommitted residue on "your" paths can be an unlocked sibling''s or the daily pipeline''s, and no prose heuristic can tell — resetting destroys a sibling''s work, adopting publishes it'
-- id: e50-the-operator-rules-once-and-a-received
-  # class: prose
-  baseline: 'The operator rules once — and a received ruling is a RECEIVED decision: its `docs/DECISIONS.md` row (appended by the orchestrator — the dispatching session holds the pen) is committed WITH the spine-Evidence record as the FIRST commit after the ruling, before any resumed work, so a second crash cannot orphan it (CLAUDE.md § the decision ledger; the same law binds every operator ruling this run receives — the D7 flaky-quarantine ruling and the blocked-resume ruling included); the run then continues autonomously'
-  current: 'The operator rules once — and a received ruling is a RECEIVED decision: its `docs/DECISIONS.md` row (appended by the orchestrator — the dispatching session holds the pen) is committed WITH the spine-Evidence record as the FIRST commit after the ruling, before any resumed work (CLAUDE.md § the decision ledger; the same law binds every operator ruling this run receives — the D7 flaky-quarantine ruling and the blocked-resume ruling included); the run then continues autonomously'
-  text:
-  - 'The operator rules once — and a received ruling is a RECEIVED decision: its `docs/DECISIONS.md` row (appended by the orchestrator'
-  - 'and a received ruling is a RECEIVED decision: its `docs/DECISIONS.md` row (appended by the orchestrator'
-  - the dispatching session holds the pen) is committed WITH the spine-Evidence record as the FIRST commit after the ruling, before any resumed work (CLAUDE.md § the decision ledger
-  - the same law binds every operator ruling this run receives
-  - the D7 flaky-quarantine ruling and the blocked-resume ruling included)
-  - the D7 flaky-quarantine ruling and the blocked-resume ruling included); the run then continues autonomously
 - id: u-L51
   # class: ban
   baseline: A resume never `reset`s, `clean`s, stashes, or reverts anything
@@ -476,19 +433,6 @@ entries:
   current: 'This is your attribution reference: a red at finish that was already red at start is NOT yours to fix (a sibling owns it — shared-master); only a newly-red check is'
   text:
   - 'This is your attribution reference: a red at finish that was already red at start is NOT yours to fix (a sibling owns it — shared-master); only a newly-red check is'
-- id: e80-critical-pre-flight-review-before-phas
-  # class: prose
-  # clauses: {'the plan may be stale even if it converg': narrative; 'the repo moves under it': narrative}
-  baseline: Critical pre-flight review (before Phase A, its spot-check repeated per phase — the plan may be stale even if it converged). A plan is grounded when written, not necessarily now — the repo moves under it (siblings commit, deps drift, an approach gets invalidated)
-  current: 'Critical pre-flight review (before Phase A, its spot-check repeated per phase). Read the plan adversarially against the code AS IT IS NOW: does any phase contradict the current code/schema, assume a `path:line` / dependency / invariant that has since changed, or rest on an approach the codebase has moved past?'
-  text:
-  - 'Critical pre-flight review (before Phase A, its spot-check repeated per phase). Read the plan adversarially against the code AS IT IS NOW: does any phase contradict the current code/schema, assume a `path:line` / dependency / invariant that has since changed, or rest on an approach the codebase has moved past?'
-- id: e81-read-the-plan-adversarially-against-th
-  # class: prose
-  baseline: 'Read the plan adversarially against the code AS IT IS NOW: does any phase contradict the current code/schema, assume a `path:line` / dependency / invariant that has since changed, or rest on an approach the codebase has moved past?'
-  current: 'Critical pre-flight review (before Phase A, its spot-check repeated per phase). Read the plan adversarially against the code AS IT IS NOW: does any phase contradict the current code/schema, assume a `path:line` / dependency / invariant that has since changed, or rest on an approach the codebase has moved past?'
-  text:
-  - 'Critical pre-flight review (before Phase A, its spot-check repeated per phase). Read the plan adversarially against the code AS IT IS NOW: does any phase contradict the current code/schema, assume a `path:line` / dependency / invariant that has since changed, or rest on an approach the codebase has moved past?'
 - id: u-L82
   # class: prose
   baseline: Spot-check the plan's key `Interfaces` and Evidence `path:line`s still resolve
@@ -513,14 +457,6 @@ entries:
   current: This is an upfront sanity gate; it does NOT weaken the autonomous contract — once past it you execute start→finish per §Execution Contract, fixing (not asking) at every step
   text:
   - This is an upfront sanity gate; it does NOT weaken the autonomous contract — once past it you execute start→finish per §Execution Contract, fixing (not asking) at every step
-- id: e87-track-in-session-with-todowrite-create
-  # class: prose
-  baseline: Track in-session with TodoWrite — create one todo per phase (and per parallel task) so progress is visible; the plan file's `Status:` field + phase-done markers remain the durable record a resumed run reads (§Plan Status Tracking)
-  current: Track in-session with TodoWrite — create one todo per phase (and per parallel task); the plan file's `Status:` field + phase-done markers remain the durable record a resumed run reads (§Plan Status Tracking)
-  text:
-  - Track in-session with TodoWrite — create one todo per phase (and per parallel task)
-  - create one todo per phase (and per parallel task)
-  - the plan file's `Status:` field + phase-done markers remain the durable record a resumed run reads (§Plan Status Tracking)
 - id: u-L89
   # class: ban
   baseline: '> Branch model — deliberate divergence, not an omission. Fabrik runs on a shared `BASE` branch > (step 8 resolves it, three positions: `master` in the main checkout · that tree''s own branch in an > isolation worktree this run created · `worktree-<agent>` in a named agent''s window) > with plan-locks + Agent Provenance Trailers + explicit-path commits (§Commit Provenance Trailers), so > `executing-plans`'' "never start on main without consent" and the `finishing-a-development-branch` > merge/PR handoff are intentionally superseded — THIS run has no feature branch to finish; the > plan-lock IS the isolation and the per-phase commits ARE the integration'
@@ -746,13 +682,6 @@ entries:
   current: There is no noted/deferred/residual bucket for an in-scope finding (see `/fabrik-review` Phase 3 + the disposition ledger)
   text:
   - There is no noted/deferred/residual bucket for an in-scope finding (see `/fabrik-review` Phase 3 + the disposition ledger)
-- id: e127-re-run-the-phase-gate-after-each-fix-t
-  # class: prose
-  # clauses: {"the loop's later passes do": narrative}
-  baseline: Re-run the phase gate after each fix too (the gate finds no logic bugs; the loop's later passes do)
-  current: Re-run the phase gate after each fix too
-  text:
-  - Re-run the phase gate after each fix too
 - id: u-L128
   # class: ban
   baseline: 'The next phase begins only after that review''s closing pass — `confirmed: 0 · fixed: 0`, every slice verified; a single pass is never enough'
@@ -1146,13 +1075,6 @@ entries:
   current: 'Only the EPIC side carries globs: Touches and File Scope are literal paths / `dir/` entries by grammar, and a spine that copied a glob in is a plan defect the emit gate ERRORs, not something to match leniently'
   text:
   - 'Only the EPIC side carries globs: Touches and File Scope are literal paths / `dir/` entries by grammar, and a spine that copied a glob in is a plan defect the emit gate ERRORs, not something to match leniently'
-- id: e212-an-epic-path-that-does-not-resolve-on
-  # class: ban
-  baseline: 'An `Epic:` path that does not resolve on disk, or an epic whose frontmatter carries no `owned_paths`, is `BLOCKED: epic <path> unreadable — searched: <what you opened> — missing: its owned_paths frontmatter` (the § Execution Contract shape, all three clauses) — never a silent dispatch: a header the dispatcher cannot read is containment that never ran, which is exactly the fail-open this rule exists to close'
-  current: 'An `Epic:` path that does not resolve on disk, or an epic whose frontmatter carries no `owned_paths`, is `BLOCKED: epic <path> unreadable — searched: <what you opened> — missing: its owned_paths frontmatter` — never a silent dispatch: a header the dispatcher cannot read is containment that never ran, which is exactly the fail-open this rule exists to close'
-  text:
-  - 'An `Epic:` path that does not resolve on disk, or an epic whose frontmatter carries no `owned_paths`, is `BLOCKED: epic <path> unreadable — searched: <what you opened> — missing: its owned_paths frontmatter`'
-  - 'never a silent dispatch: a header the dispatcher cannot read is containment that never ran, which is exactly the fail-open this rule exists to close'
 - id: u-L213
   # class: prose
   baseline: A spine with no `Epic:` line at all is untouched by this rule
@@ -1199,15 +1121,6 @@ entries:
   current: 'Native coder tier: Sonnet default; Opus for design-heavy (auth flow/schema/migration design, concurrency); Haiku never codes'
   text:
   - 'Native coder tier: Sonnet default; Opus for design-heavy (auth flow/schema/migration design, concurrency); Haiku never codes'
-- id: e220-concurrency-3-coders-when-more-tickets
-  # class: prose
-  baseline: 'Concurrency: 3 coders; when more tickets are eligible than a wave holds, fill each wave in `## Merge Order` position order (deterministic across runs, and it frees downstream `Depends:` earliest); acceptance reviews serialize (one at a time — the orchestrator''s adjudication is serial anyway, and it meters the Opus stream)'
-  current: 'Concurrency: 3 coders; when more tickets are eligible than a wave holds, fill each wave in `## Merge Order` position order (it frees downstream `Depends:` earliest); acceptance reviews serialize (one at a time — the orchestrator''s adjudication is serial anyway, and it meters the Opus stream)'
-  text:
-  - 'Concurrency: 3 coders; when more tickets are eligible than a wave holds, fill each wave in `## Merge Order` position order (it frees downstream `Depends:` earliest)'
-  - when more tickets are eligible than a wave holds, fill each wave in `## Merge Order` position order (it frees downstream `Depends:` earliest)
-  - acceptance reviews serialize (one at a time
-  - the orchestrator's adjudication is serial anyway, and it meters the Opus stream)
 - id: u-L221
   # class: prose
   baseline: 'Dispatch economics (budgeted rules, not vibes):'
@@ -1316,13 +1229,6 @@ entries:
   current: Integration-ticket command outputs flow through the same mechanism
   text:
   - Integration-ticket command outputs flow through the same mechanism
-- id: e241-ettw-07-is-provenance-the-epic-to-tic
-  # class: prose
-  # clauses: {'"ettw-07" is provenance': narrative; 'the epic-to-ticket workflow step': narrative; 'the CONTRACT is the text below': narrative}
-  baseline: '("ettw-07" is provenance — the epic-to-ticket workflow step this floor was adapted from; the CONTRACT is the text below, self-contained.) The review unit is the WAVE — the tickets one pass of the D-loop dispatched together (D-429: 28 per-ticket runs were 76% of three chains'' review minutes, each paying a 9–29 min floor)'
-  current: 'The review unit is the WAVE — the tickets one pass of the D-loop dispatched together (D-429: 28 per-ticket runs were 76% of three chains'' review minutes, each paying a 9–29 min floor)'
-  text:
-  - 'the tickets one pass of the D-loop dispatched together (D-429: 28 per-ticket runs were 76% of three chains'' review minutes, each paying a 9–29 min floor)'
 - id: u-L242
   # class: prose
   baseline: 'The wave converges to `/fabrik-review`''s coverage-adjudicated exit BEFORE any of its tickets merges — ONE review-loop workflow run over the wave, one slice per ticket (that ticket''s diff; two cheap finders and one refuter per slice, D-344) AND exactly 1 native Opus finder per round, UNCONDITIONAL — the riskiest ticket''s slice''s third finder (`models: ["sonnet", "haiku", "opus"]`; under `Profile: small` this floor runs ONCE, at D7 — the carve-out below)'
@@ -1609,27 +1515,6 @@ entries:
   current: Every dispatched subagent MUST run each command as a plain synchronous shell call (a generous `timeout`) and read its exit output in the SAME turn
   text:
   - Every dispatched subagent MUST run each command as a plain synchronous shell call (a generous `timeout`) and read its exit output in the SAME turn
-- id: e301-if-a-step-is-too-slow-for-one-synchron
-  # class: ban
-  baseline: If a step is too slow for one synchronous call, SPLIT its scope (e.g. a big provisioning phase → seed-countries, then chart-of-accounts, then fiscal-year, each run and verified synchronously) — never defer a slice to a signal that will not arrive
-  current: If a step is too slow for one synchronous call, SPLIT its scope — never defer a slice to a signal that will not arrive
-  text:
-  - If a step is too slow for one synchronous call, SPLIT its scope
-  - never defer a slice to a signal that will not arrive
-- id: e302-a-generous-timeout-is-not-advice-it-i
-  # class: prose
-  # clauses: {'it AUTO-BACKGROUNDS. So a subagent obeyi': narrative}
-  baseline: '⚠️ "A generous `timeout`" is not advice, it is the load-bearing part: the Bash tool''s DEFAULT is 120s, and a call that exceeds it does not error — it AUTO-BACKGROUNDS. So a subagent obeying this instruction to the letter lands in exactly the state the instruction exists to prevent, with no signal that it happened (transdoc, 2026-08-28: a first synchronous `npx playwright test` silently backgrounded on a cold dev-server boot)'
-  current: '⚠️ "A generous `timeout`" is the load-bearing part: the Bash tool''s DEFAULT is 120s, and a call that exceeds it does not error — it AUTO-BACKGROUNDS. Pass an EXPLICIT multi-minute `timeout` on anything that boots a server, runs a browser suite, or provisions — "split scope" cannot help when the call is a single unsplittable server boot'
-  text:
-  - '⚠️ "A generous `timeout`" is the load-bearing part: the Bash tool''s DEFAULT is 120s, and a call that exceeds it does not error'
-- id: e303-pass-an-explicit-multi-minute-timeout
-  # class: prose
-  baseline: Pass an EXPLICIT multi-minute `timeout` on anything that boots a server, runs a browser suite, or provisions — "split scope" cannot help when the call is a single unsplittable server boot
-  current: '⚠️ "A generous `timeout`" is the load-bearing part: the Bash tool''s DEFAULT is 120s, and a call that exceeds it does not error — it AUTO-BACKGROUNDS. Pass an EXPLICIT multi-minute `timeout` on anything that boots a server, runs a browser suite, or provisions — "split scope" cannot help when the call is a single unsplittable server boot'
-  text:
-  - it AUTO-BACKGROUNDS. Pass an EXPLICIT multi-minute `timeout` on anything that boots a server, runs a browser suite, or provisions
-  - '"split scope" cannot help when the call is a single unsplittable server boot'
 - id: u-L304
   # class: ban
   baseline: Dispatch every subagent with an explicit *"run synchronously with an explicit multi-minute `timeout` on any server-boot / browser-suite / provisioning call; never background a run or wait on a Monitor/notification; split scope only when the work genuinely divides"* instruction in its brief
@@ -1678,13 +1563,6 @@ entries:
   current: 'Use this template:'
   text:
   - 'Use this template:'
-- id: e314-state-the-precedence-in-the-brief-or
-  # class: prose
-  # clauses: {'written for an OPERATOR-facing turn': narrative; 'while its brief asks for a return VALUE': narrative}
-  baseline: ⚠️ State the precedence in the brief, or every finder re-derives it. A dispatched subagent inherits `CLAUDE.md`'s response contract (the FIRST-OUTPUT `RULES ACTIVE` line, the 7-line FINAL OUTPUT block, the STATE footer) — written for an OPERATOR-facing turn — while its brief asks for a return VALUE the orchestrator will parse
-  current: ⚠️ State the precedence in the brief, or every finder re-derives it. A dispatched subagent inherits `CLAUDE.md`'s response contract (the FIRST-OUTPUT `RULES ACTIVE` line, the 7-line FINAL OUTPUT block, the STATE footer)
-  text:
-  - ⚠️ State the precedence in the brief, or every finder re-derives it. A dispatched subagent inherits `CLAUDE.md`'s response contract (the FIRST-OUTPUT `RULES ACTIVE` line, the 7-line FINAL OUTPUT block, the STATE footer)
 - id: u-L316
   # class: prose
   baseline: 'The brief outranks the response-format contract for a dispatched subagent: return exactly what the brief asks for and nothing else'
@@ -1759,7 +1637,9 @@ entries:
   - 'Agent-Context: {one-line summary of what you did}'
   - 'Agent-Context: {one-line summary of what you did}'
   - 'Co-Authored-By: Claude <model> <noreply@anthropic.com>'
-  - 'then run, one command per call: git add {explicit file list}, then git commit -F <msg-file>.'
+  - 'then run, one command per call:'
+  - git add {explicit file list}
+  - git commit -F <msg-file>
   - Do NOT push. Do NOT merge. The orchestrator handles that.
   - 'Report: list of files changed, tests passing (count), any issues encountered.'
 - id: e319-you-are-executing-task-n-of-the-fabrik-2
@@ -1936,13 +1816,6 @@ entries:
   current: A plan-mandated finding that conflicts with the plan is the user's call
   text:
   - A plan-mandated finding that conflicts with the plan is the user's call
-- id: e357-batch-confirmed-findings-into-a-single
-  # class: prose
-  baseline: Batch CONFIRMED findings into a single fix dispatch; it re-runs the covering tests and reports results
-  current: One fix subagent for the whole findings list, not one per finding. Batch CONFIRMED findings into a single fix dispatch; it re-runs the covering tests and reports results
-  text:
-  - One fix subagent for the whole findings list, not one per finding. Batch CONFIRMED findings into a single fix dispatch
-  - it re-runs the covering tests and reports results
 - id: u-L359
   # class: prose
   baseline: A native Claude Task implementer or finder (Runtime A) produces no `AgentResult`, so there is nothing to record and nothing to score while the pool is OFF; `check_subagent_flywheel.py` stands down by the same ruling (D-182)
@@ -2087,12 +1960,6 @@ entries:
   current: No per-phase orchestrator worktree — the two-level rule binds here too (Before You Start step 8)
   text:
   - No per-phase orchestrator worktree — the two-level rule binds here too (Before You Start step 8)
-- id: e390-there-is-one-orchestrator-you-and-one
-  # class: prose
-  baseline: 'There is ONE orchestrator (you) and ONE level of coder worktrees: dispatch every parallel phase''s subagents as SIBLING worktrees at that same level, whichever phase each belongs to, or run a phase in place when it needs no isolation'
-  current: 'There is ONE orchestrator (you) and ONE level of coder worktrees: dispatch every parallel phase''s subagents as SIBLING worktrees at that same level, or run a phase in place when it needs no isolation'
-  text:
-  - 'There is ONE orchestrator (you) and ONE level of coder worktrees: dispatch every parallel phase''s subagents as SIBLING worktrees at that same level, or run a phase in place when it needs no isolation'
 - id: u-L391
   # class: prose
   baseline: Giving a phase its own worktree makes it a second orchestrator level and puts its subagents at a third
@@ -2609,13 +2476,6 @@ entries:
   current: ⚠️ A rename is only half a change until its REFERRERS move with it — repoint every doc the grep named except the ledger, IN THIS SAME COMMIT — `docs/STRATEGIC_BACKLOG.md` (rows routed out of its reviews) for any plan worth executing; a row inside that file's `AUTO-GENERATED:BACKLOG` block is written by `work.py render` from its work item, the block's only writer (`docs/reference/work-tracking.md`), so change the item in `.fabrik/work/<id>.json` (a delivered one closes with `work.py done <id> --evidence <sha>`) and run `work.py render` rather than editing the row
   text:
   - ⚠️ A rename is only half a change until its REFERRERS move with it — repoint every doc the grep named except the ledger, IN THIS SAME COMMIT — `docs/STRATEGIC_BACKLOG.md` (rows routed out of its reviews) for any plan worth executing; a row inside that file's `AUTO-GENERATED:BACKLOG` block is written by `work.py render` from its work item, the block's only writer (`docs/reference/work-tracking.md`), so change the item in `.fabrik/work/<id>.json` (a delivered one closes with `work.py done <id> --evidence <sha>`) and run `work.py render` rather than editing the row
-- id: e481-doc-link-integrity-does-catch-a-missed
-  # class: prose
-  baseline: Doc Link Integrity DOES catch a missed one outside `docs/DECISIONS.md` (the ledger is no link source, W-e9c8a4df) — but at the last gate before the commit, after the move, so it costs a full gate re-run and lands the repair in a commit whose message was already written (`01M2GCTCP5F8`)
-  current: Doc Link Integrity DOES catch a missed one outside `docs/DECISIONS.md` (the ledger is no link source, W-e9c8a4df) — but at the last gate before the commit, after the move, so it costs a full gate re-run
-  text:
-  - Doc Link Integrity DOES catch a missed one outside `docs/DECISIONS.md` (the ledger is no link source, W-e9c8a4df)
-  - but at the last gate before the commit, after the move, so it costs a full gate re-run
 - id: u-L482
   # class: ban
   baseline: 'The grep also lists the review receipts under `docs/development/reviews/` — never repoint those, nor any verbatim captured output: a receipt is a frozen artifact, rewriting one re-admits it to `check_convergence`/`check_review_coverage` under today''s grammar (four 2026-08/09 receipts redded on the first try, `01M4BYT60T`), and the link check never reads `docs/development/`, so its pre-archive cite stays as written'
@@ -2687,49 +2547,27 @@ vanished:
   L16: {rule: [e16-once-set-command-run-py-line-s-pinned]}
   L17: {rule: [e17-the-fabrik-review-at-a-phase-boundary]}
   L21: {rule: [e21-shape-detection-which-mode-runs-if-arg]}
-  L24: {rule: [e24-a-spine-or-monolith-declaring-profile]}
-  L25: {rule: [e25-in-the-main-checkout-a-small-plan-whos]}
-  L33: {rule: [e33-a-validation-or-the-part-of-one-that]}
-  L34: {rule: [e34-a-spec-that-places-it-before-the-build]}
   L39: {rule: [e39-acquire-the-scope-lock-this-is-what-le]}
   L43: {rule: [e43-the-operator-s-re-invocation-is-the-au]}
-  L50: {rule: [e50-the-operator-rules-once-and-a-received]}
   L52: {rule: [e52-the-seven-governance-surfaces-changel]}
   L53: {rule: [e53-same-plan-lock-status-released-or-the]}
   L59: {rule: [e59-a-lock-left-active-by-an-orderly-bloc]}
   L60: {rule: [e60-locks-are-in-repo-and-per-working-tree]}
   L79: narrative
-  L80: {rule: [e80-critical-pre-flight-review-before-phas]}
-  L81: {rule: [e81-read-the-plan-adversarially-against-th]}
-  L86: {duplicate-of: u-L85}
-  L87: {rule: [e87-track-in-session-with-todowrite-create]}
-  L88: {duplicate-of: e87-track-in-session-with-todowrite-create}
   L109: {rule: [e109-i-judged-x-unnecessary-running-low-on]}
   L110: {rule: [e110-filing-the-context-excuse-as-blocked-c]}
   L111: {rule: [e111-if-a-remaining-phase-genuinely-deserve]}
   L112: {rule: [e112-post-compact-the-sessionstart-hook-aut]}
   L113: {rule: [e113-a-step-you-believe-is-genuinely-wrong]}
   L123: {rule: [e123-phase-reviews-run-as-parallel-subagent]}
-  L127: {rule: [e127-re-run-the-phase-gate-after-each-fix-t]}
   L129: {rule: [e129-fixes-are-the-least-reviewed-code-in-a]}
   L134: {rule: [e134-for-each-screen-the-phase-built-drive]}
   L139: narrative
   L157: narrative
-  L173: narrative
-  L174: narrative
-  L175: narrative
-  L176: narrative
-  L177: narrative
-  L178: narrative
-  L179: narrative
-  L180: {duplicate-of: u-L168}
   L197: {rule: [e197-precondition-a-dispatched-coder-must-b]}
   L201: {rule: [e201-the-probe-covers-the-lane-it-dispatche]}
   L208: narrative
-  L212: {rule: [e212-an-epic-path-that-does-not-resolve-on]}
   L217: {rule: [e217-coder-runtime-per-complexity-all-five]}
-  L220: {rule: [e220-concurrency-3-coders-when-more-tickets]}
-  L241: {rule: [e241-ettw-07-is-provenance-the-epic-to-tic]}
   L243: {rule: [e243-secrets-carve-out-a-diff-touching-secr]}
   L253: narrative
   L254: {rule: [e254-without-it-the-dispatcher-s-only-doc-g]}
@@ -2742,16 +2580,5 @@ vanished:
   L294: {duplicate-of: e293-it-specifies-per-phase}
   L295: {duplicate-of: e293-it-specifies-per-phase}
   L296: {duplicate-of: e293-it-specifies-per-phase}
-  L301: {rule: [e301-if-a-step-is-too-slow-for-one-synchron]}
-  L302: {rule: [e302-a-generous-timeout-is-not-advice-it-i]}
-  L303: {rule: [e303-pass-an-explicit-multi-minute-timeout]}
-  L314: {rule: [e314-state-the-precedence-in-the-brief-or]}
   L315: narrative
-  L319: {rule: [e319-you-are-executing-task-n-of-the-fabrik-1, e319-you-are-executing-task-n-of-the-fabrik-2]}
-  L323: narrative
   L335: narrative
-  L356: narrative
-  L357: {rule: [e357-batch-confirmed-findings-into-a-single]}
-  L360: narrative
-  L390: {rule: [e390-there-is-one-orchestrator-you-and-one]}
-  L481: {rule: [e481-doc-link-integrity-does-catch-a-missed]}

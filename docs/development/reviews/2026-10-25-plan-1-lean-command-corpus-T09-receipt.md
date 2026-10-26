@@ -62,6 +62,56 @@ COUNTS (last pass, after the fixes above; re-checked by my checker, not by a sec
 
 The Sonnet+Haiku vanished-line classification pair; the review wave; the floor D-row for this unit; the `_size_ceiling.json` ratchet; `CHANGELOG.md`, `INDEX.md` rows for the two new `commands/_rules/` files and this receipt, and every D-row; converting the `# class:` / `# clauses:` comments to keys when the canonical loader lands; deciding whether to run a deeper telegraphic compression pass (anchors-plus-6) on the Appendix A tails.
 
+## Fix round 2 (hub audit)
+
+Branch `claude/lean-t09-rl-fix`, from `claude/lean-t09-rl`. The clone had no git and no shell beyond the named gate commands, so every check below is a file read or a named gate run.
+
+### Findings: confirmed / refuted
+
+All checked against `fabrik-execute-plan.baseline.txt` (line N = baseline line N). None refuted; one only partly fixed (the POOL OFF body, below).
+
+| finding | verdict | fix |
+|---|---|---|
+| A1/A2/A3, B3 (L173–L180: the three commit fences, their intros, `git commit -F <scratch>/msg-<name>`) | confirmed — fences labelled `narrative` | restored verbatim under `### Commit message format`; L173–L180 labels deleted |
+| A4, B2 (L323 `Agent(` fence) | confirmed | restored verbatim after the `### Dispatch pattern` colon; label deleted |
+| A5, B4 (L360 + the POOL OFF flywheel block) | confirmed for the sentence; the block body only partly | L360 sentence restored; label deleted. A `<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:` block is back after it, but its baseline body is not in this tree (the baseline file holds units, not comment bodies; no git), so the block is rebuilt from the audit's quoted heading and `fanout` fence plus `docs/reference/subagent-pool-contract.md`. NOT verbatim: the hub should diff it against `git show lean-baseline-2026-10-25:commands/_sources/fabrik-execute-plan.md` and overwrite |
+| A6 (e481 `01M2GCTCP5F8`) | confirmed | tail restored; `e481` removed |
+| A7 (e319 fence) | confirmed | the briefing fence is the baseline's again (blank lines, wraps, the two `git` lines on their own lines) |
+| A8, B10 (e212 "all three clauses") | confirmed | restored; `e212` removed |
+| B1 (e390 "whichever phase each belongs to") | confirmed | restored; `e390` removed |
+| B5 (L88 "source of truth") | confirmed — `duplicate-of` had no carrier | sentence restored (and e87's "so progress is visible"); `e87`, L87, L88 removed |
+| B6 (L356) | confirmed — wrong `narrative` label | the whole L356 unit restored; `e357`, L356, L357 removed |
+| B7 (e302 "is not advice") | confirmed | restored; the dropped "So a subagent obeying…" sentence too; `e301`/`e302`/`e303` removed |
+| B8 (L86) | confirmed — `u-L85` does not hold "not a licence to stop mid-run" | the `(This is executing-plans'…)` sentence restored; label deleted |
+| B9 (e24 "no worktree coder, no dispatch wait") | confirmed | restored; `e24` removed |
+| B11 (e301 `seed-countries` example) | confirmed | restored |
+| master-loader LOSS: L33, L50, L80, L127, L220, L241, L314, L319 | confirmed | L33 "Scheduled late… (D-298)", L50 "so a second crash cannot orphan it", L80 "A plan is grounded when written…", L127 parenthetical, L220 "deterministic across runs", L241 "ettw-07 is provenance", L314 "written for an OPERATOR-facing turn…" restored; entries and labels removed |
+| also restored, unflagged | e25 "because every main-checkout commit… distributes nothing" | restored; `e25` removed |
+
+Ledger: 425 → 406 entries (19 reworded entries removed, their units are verbatim again); 33 `vanished:` labels removed. Appendices A–C above describe the first round and are stale for those units. The two Touches pins the first round deleted (the `Agent()` counts in `test_execute_plan_queue_pass.py`, `24 of 101` in `test_execute_plan_validation_first.py`) are satisfiable again; I did not touch tests, the hub decides whether to re-pin.
+
+### Words
+
+Own-text words: baseline 17726 → re-ledger 16437 → now about 17000 (estimate: restored text counted by hand, +~560). I could not run `command_rules.own_text` — no shell beyond the named gate commands. The per-file floor table above is unchanged in shape (still over 50%; the fences and clauses restored are all rule text).
+
+### Gates
+
+- `python3 commands/assemble_commands.py --check`: exit 4; no `fabrik-execute-plan.yaml` LOSS line; LOSS lines are `_shared` ledgers only (close-chain, fabrik-researcher, fabrik-reviewer, ...).
+- `tests/test_command_rules.py`: the one failing test (`test_the_live_corpus_has_no_loss`) fails on those `_shared` LOSS lines only.
+- Reader-test groups (the start-commit failure set was not re-measured: no git in this clone, so "did not grow" is not proven):
+  - enforcement/sysadmin group: 1 failed, 333 passed (`test_dispatch_headroom.py::test_own_session_id_…nosession_key`, a session-id environment red);
+  - `test_domain_pack_epic_headings` … `test_fabrik_deck` group (includes `test_execute_plan_d7/queue_pass/validation_first`): all passed;
+  - `test_features_queue_pass` … `test_gate_decision_blocks` group: all passed;
+  - `test_producing_command_fragments` … `test_run_scratch_brief_wording` group: all passed;
+  - `test_agent_definitions` … `test_check_command_corpus` group: 14 failed, 214 passed — 13 in `test_assemble_dispatch_step.py` (the `--check` exit-code cases, which see the `_shared` LOSS lines) and `test_assemble_orch_retired.py::test_git_grep_for_retired_tokens_prints_nothing` (needs git); no retired literal is in the restored text;
+  - `test_check_convergence` group, `test_command_improve_queue_pass`/`test_command_run*` group, `test_generate_capability_index`/`test_mail_structure` group, `test_skill_router_hook` group: not completed (the first two were killed at the 10-minute background limit with several groups sharing the box; the last two were not run).
+
+### Self-audit
+
+NO FRESH SUBAGENT PASS RAN: this run cannot dispatch a subagent. I re-read every restored clause against its baseline line and checked that each baseline unit now survives in the source (unit split per `command_rules._split_prose`); that is the author re-checking their own fixes, so it does not support a zeros claim. The hub's author-blind audit pair must cover it.
+
+COUNTS (author re-check, not a fresh pass): entries read 406 / reworded 47 → 28 / weaker unknown / lost unknown / invented 1 possible (the rebuilt POOL OFF body) / wrong vanished labels 0 known. Fresh passes run: 0.
+
 ## Appendix A — non-ban clauses still over their minimum
 
 | # | section | free tail words | clause start … tail (cut candidate) | why it stays |
