@@ -326,12 +326,10 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa''s fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3''s routing (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`)'
-  current: 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa''s fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3''s routing'
+  current: 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa''s fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3''s routing (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`)'
   text:
-  - 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa''s fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3''s routing'
+  - 'Library/API docs: `WebFetch` the library''s OFFICIAL docs site to find and read the page — but on an HTML docs page a schema field or a parameter name is quoted from the raw arm (rule 1: exa''s fetch, then `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`; the page''s `.md` source when the site publishes one), never from a WebFetch answer alone, which has stated fields the page does not carry (a /fabrik-spec run, 2026-10-06: three invented facts); JSON/XML and version claims keep rule 3''s routing (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`)'
   class: ban
-  clauses:
-    3: narrative
   pins:
   - tests/test_spec_queue_pass.py::test_researcher_quotes_schema_and_versions_from_a_raw_fetch
 - id: agent-rsr-no-as-many-times
@@ -537,9 +535,9 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Method (per fact)'
   baseline: Fetch the real source. Don't trust a search snippet — open the page (`mcp__exa__web_fetch_exa`/`WebFetch`, per the routing above) or the library's official docs (`WebFetch`) and confirm the source actually says what's claimed
-  current: Fetch the real source. Don't trust a search snippet — open the page (`mcp__exa__web_fetch_exa`/`WebFetch`, per the routing above) and confirm the source actually says what's claimed
+  current: Fetch the real source. Don't trust a search snippet — open the page (`mcp__exa__web_fetch_exa`/`WebFetch`, per the routing above) or the library's official docs (`WebFetch`) and confirm the source actually says what's claimed
   text:
-  - Fetch the real source. Don't trust a search snippet — open the page (`mcp__exa__web_fetch_exa`/`WebFetch`, per the routing above) and confirm the source actually says what's claimed
+  - Fetch the real source. Don't trust a search snippet — open the page (`mcp__exa__web_fetch_exa`/`WebFetch`, per the routing above) or the library's official docs (`WebFetch`) and confirm the source actually says what's claimed
   class: ban
 - id: rsr-L48-cross-check-load-bearing-facts-pricing-rat
   file: commands/_agents/fabrik-researcher.md
