@@ -12,7 +12,7 @@ entries:
   class: ban
   text:
   - command never reconciles a doc or contract itself
-  - '`/fabrik-doc-converge`, `/fabrik-features`, `/fabrik-data-contract` and `/fabrik-ui-design`'
+  - '`/fabrik-doc-converge`, `/fabrik-features`, `/fabrik-data-contract` and `/fabrik-ui-design`,'
 - id: cu-L5
   baseline: 'You are done only when a fresh re-run of Phase 0 MEASURE raises zero new queue items — every prior finding is now fixed, explicitly `BLOCKED`, or accounted for (these count on re-measure as named, not as new items, once this run''s report names them: a candidate dead consumer reference and a genuinely undecidable reconcile downgraded per Phase 2 — both report-only, un-committed by design; an item ROUTED to whoever owns it — mailed to its beat, or a gate red or work item reported to its owner (an open item or a live sibling) — with the mail id or owner named; and an item another session holds, named) — a genuine no-op re-measure and `python scripts/final_gate.py --check --json` reports `"status":"success"` in this same run — or reds only on checks a named owner holds (`GATE: failure (owned: <owner>)`)'
   class: ban
@@ -73,7 +73,7 @@ entries:
   class: ban
   text:
   - Before fixing a red, look
-  - '`.fabrik/work/` that names the failing check, or a sibling; an owned red is reported to its owner (and, in a worktree, to the merge owner), never fixed here'
+  - '`.fabrik/work/` that names the failing check, or a sibling mid-flight on that file; an owned red is reported to its owner (and, in a worktree, to the merge owner), never fixed here'
   pins:
   - tests/test_catchup_queue_pass.py::test_phase_zero_runs_the_gate_first_and_reports_an_owned_red
 - id: cu-L15
@@ -100,16 +100,16 @@ entries:
   - '`Status:` through `parse_plan_status` (`python3 -c "import sys; sys.path[:0] = [''/opt/fabrik/scripts'', ''scripts'']; from docs_updater import parse_plan_status; print(parse_plan_status(__import__(''pathlib'').Path(sys.argv[1]))[0])" <plan file or spine .md>`;'
   - value the gate's tools act on, which a grep misreads.
   - a grep misreads. Look up `.fabrik/plan-locks/<file-or-dir-stem>.json`
-  - exists; reconcile against ALL `.fabrik/plan-locks/*` entries.
+  - exists; reconcile against ALL `.fabrik/plan-locks/*` entries
 - id: cu-L19
   baseline: 'Flag a contradiction: spine says `IN-PROGRESS` but the lock is missing or its `status` is not `"active"` (a released lock while the spine still claims work is running); spine says `DRAFT`/`CONVERGED` but an `active` lock exists; spine says `EXECUTED` but the plan (file or dir) still sits outside `docs/development/plans/archived/`; a lock whose `plan` path does not resolve on disk, or resolves under `docs/development/plans/` but outside `archived/` while its `status` is terminal (a lock for a plan kept elsewhere — an epic, a spec-owned plan — is not held to the `archived/` rule) — the allowlist is {`released`, `executed`, `complete`, `completed`, `done`} (allowlist-not-denylist per fabrik-lib `f8249ec3`: an unknown word leaves a lock flagged for a human; measured live 2026-08-29, `executed` is this tree''s MOST COMMON terminal and the old `released`/`complete` example would have mis-flagged four finished locks); a lock whose `plan` path resolves INTO `docs/development/plans/archived/` while its `status` is still `"active"` (an abandoned run archived by hand without releasing the lock)'
   class: prose
   text:
   - 'Flag a contradiction: `IN-PROGRESS` with the lock missing or its `status` not `"active"`;'
-  - 'exists; reconcile against ALL `.fabrik/plan-locks/*` entries. Flag a contradiction: `IN-PROGRESS` with the lock missing or its `status` not `"active"`; `DRAFT`/`CONVERGED` with an `active`'
-  - 'spine .md>`; the hub''s copy first), the value the gate''s tools act on, which a grep misreads. Look up `.fabrik/plan-locks/<file-or-dir-stem>.json` if it exists; reconcile against ALL `.fabrik/plan-locks/*` entries. Flag a contradiction: `IN-PROGRESS` with the lock missing or its `status` not `"active"`; `DRAFT`/`CONVERGED` with an `active` lock; `EXECUTED` with the plan still outside `docs/development/plans/archived/`;'
+  - 'exists; reconcile against ALL `.fabrik/plan-locks/*` entries so no lock is left unmatched to a live plan. Flag a contradiction: `IN-PROGRESS` with the lock missing or its `status` not `"active"`; `DRAFT`/`CONVERGED` with an `active`'
+  - 'spine .md>`; the hub''s copy first), the value the gate''s tools act on, which a grep misreads. Look up `.fabrik/plan-locks/<file-or-dir-stem>.json` if it exists; reconcile against ALL `.fabrik/plan-locks/*` entries so no lock is left unmatched to a live plan. Flag a contradiction: `IN-PROGRESS` with the lock missing or its `status` not `"active"`; `DRAFT`/`CONVERGED` with an `active` lock; `EXECUTED` with the plan still outside `docs/development/plans/archived/`;'
   - '`plan` path does not resolve on disk, or resolves under `docs/development/plans/` but outside `archived/` while its `status`'
-  - allowlist {`released`, `executed`, `complete`, `completed`, `done`} per fabrik-lib `f8249ec3` (2026-08-29).
+  - '{`released`, `executed`, `complete`, `completed`, `done`} (allowlist-not-denylist per fabrik-lib `f8249ec3`: an unknown word leaves a lock flagged for a human; 2026-08-29).'
   - '`plan` path resolves INTO `docs/development/plans/archived/` while its `status` is still `"active"`.'
   pins:
   - tests/test_catchup_queue_pass.py::test_probe_one_scopes_the_archived_rule_to_plans_under_plans_dir
@@ -118,7 +118,7 @@ entries:
   class: prose
   text:
   - lock INTO `docs/development/plans/archived/` with a terminal `status`;
-  - reconcile against ALL `.fabrik/plan-locks/*` entries. Flag
+  - unmatched to a live plan. Flag
 - id: cu-L21
   baseline: Key-doc freshness vs code. `git log -1 --format=%ct -- <code roots>` vs the same for every registry-obligated key doc (`docs/SERVICES.md`, `docs/RESILIENCE.md`, `docs/CONFIGURATION.md`, `docs/DEPLOYMENT.md`, `docs/FEATURES.md` — only the ones this `project.yaml::type` actually obligates)
   class: ban
@@ -322,7 +322,7 @@ entries:
   baseline: A routed command owns its own termination contract (e.g. `/fabrik-doc-converge` converges to its own edit-free no-op) — catchup dispatches to it and moves to the next queue item once that command reports done; it never re-implements that command's convergence loop itself
   class: ban
   text:
-  - command owns its own termination contract (e.g. `/fabrik-doc-converge`)
+  - command owns its own termination contract (e.g. `/fabrik-doc-converge`
   - moves to the next queue item once that
   - never re-implements that command's convergence loop itself.
 - id: cu-L58
@@ -331,7 +331,7 @@ entries:
   text:
   - dead consumer reference is never auto-executed
   - reported, un-committed item;
-  - queue item once it is named in the report (retirement is the operator's call, run hub-side via `/fabrik-decommission`)
+  - queue item once it is named in the report (retirement is the operator's call, run hub-side via `/fabrik-decommission`,
 - id: cu-L61
   baseline: 'Next command: this run''s fix queue IS the routing — each item already named its owning command (`/fabrik-doc-converge` · `/fabrik-features` · `/fabrik-data-contract` · `/fabrik-ui-design`); once the re-measure is clean, resume whichever pipeline stage the project was actually in before it went stale'
   class: prose
@@ -419,9 +419,3 @@ vanished:
   L56:
     rule:
     - cu-L56
-  L57:
-    rule:
-    - cu-L57
-  L58:
-    rule:
-    - cu-L58
