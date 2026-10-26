@@ -158,9 +158,7 @@ def test_no_renderer_template_escapes_on_its_own() -> None:
             continue
         for f in sorted(d.rglob("*.j2")):
             scanned += 1
-            hits += [
-                f"{f.relative_to(REPO)}:{h}" for h in _escapes(f.read_text(encoding="utf-8"))
-            ]
+            hits += [f"{f.relative_to(REPO)}:{h}" for h in _escapes(f.read_text(encoding="utf-8"))]
     assert scanned > 0
     assert not hits, hits
 
