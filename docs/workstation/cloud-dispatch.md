@@ -195,28 +195,33 @@ the local `gh` token — `/web-setup` is hidden headless; drive it through a pty
   setup script is web-only configuration).
 - The repo's own hooks load in the clone: the hub's Stop hook ran inside a probe worker and offered
   it infra's work queue (it refused correctly, and the run ended); the rules forbid claims anyway.
-- Billing is UNRESOLVED, and the sections above assume the side the evidence leans against. The
-  registry's `credit_note` says the $250 promotional credit is "spent before plan usage".
-  Anthropic's docs say a cloud session "counts toward your plan's usage limits"
-  (code.claude.com/docs/en/claude-code-on-the-web), that scheduled tasks "draw down subscription
-  usage the same way interactive sessions do", and they name usage credits as metered overage
-  past the plan limit (code.claude.com/docs/en/routines § Usage and limits; both pages fetched
-  whole 2026-10-25). Neither page mentions a promotional credit. Measured for W-b00d9d72:
-  - Three of the five fires (can and ozgurbasak on 10-14, ob on 10-24, none of them the box's
-    active account at the fire in the rotation ledger) opened a 5-hour plan window. Each reset came
-    at fire + 4.91–5.01 h; every reset here is a whole multiple of 10 minutes.
-  - mob's window was already open (its reset came at fire + 0.5 h). ob's 10-14 fire landed in a
-    window that had reset at 17:00 while ob was the active account.
-  - Each run has one reading, taken after it, with no before/after pair. can, ozgurbasak and ob
-    (10-24) read 5-hour utilization 0 (two decimals) after runs costing $0.33–$0.57.
-  - Every run's `rate_limit_info` reads `overageStatus: rejected`: `org_level_disabled` on can,
-    ozgurbasak and mob, and `out_of_credits` on ob from its first run on.
-
-  If the docs hold, every run spends plan quota, none spends the credit while overage is off, and
-  the dollar guard counts a list-price estimate of the plan draw. The web balance read before and
-  after a known run, with no other cloud run on that account between, settles it, provided the
-  run is large enough to move the displayed balance. The balance is visible only at
-  claude.ai/settings/usage (no endpoint exposes it), and `calibrate` records it.
+- Billing: the claude.ai usage page is the authority. The operator read one account's page on
+  2026-10-25 (which account is not recorded), and it lists two separate items. **Cloud session credits:** "Applies
+  automatically to cloud sessions. After it's used or expires, your plan's regular usage applies."
+  $250 of $250 left, expiring Nov 5 10:59 GMT+3. **Usage credits** ($0, off) is metered overage
+  past the plan limit, a different pool (monthly spend limit $40, auto-reload off). On that
+  wording a cloud run spends the credit before plan usage. Anthropic's docs say a cloud session
+  "counts toward your plan's usage limits" (code.claude.com/docs/en/claude-code-on-the-web), and
+  that scheduled tasks "draw down subscription usage the same way interactive sessions do"
+  (code.claude.com/docs/en/routines § Usage and limits, both fetched 2026-10-25). Neither page
+  mentions the promotional credit, so the account page takes precedence. A run's
+  `rate_limit_info` reads the plan windows and is not a bill. 3 of 5 fires opened a 5-hour window
+  (reset at fire + 4.91–5.01 h), which shows the window is tracked, not by itself that it is charged. can,
+  ozgurbasak and ob (10-24) read 5-hour utilization 0 (two decimals) after runs costing
+  $0.33–$0.57. Every run reads `overageStatus: rejected` (`org_level_disabled`, and
+  `out_of_credits` on ob from its first run on). That field is about usage credits, not the
+  cloud-session credit.
+  - Still open: does the credit actually draw down? The page read "$250 of $250 left" while
+    every account had settled $0.33–$0.90 of runs. Either the page rounds to whole dollars or
+    lags, or the runs drew plan usage instead. So the dollar guard counts a list-price estimate, and it
+    stays conservative either way. One check settles it, if the display shows cents (otherwise fire a run large enough to move
+    it): read can's balance after its $0.37 probe
+    (cse_01JXHDM65DEJD6fBSYEJe9TF, 2026-10-25), with no other cloud run on can in between. The
+    balance is visible only at claude.ai/settings/usage, and `calibrate` records it.
+  - Also open: whether a cloud run starts on an account Anthropic has walled (seven_day status
+    `rejected`). That probe ran and finished. The server read can at seven_day 0.98
+    `allowed_warning`, which is not its wall. The fleet's 99% wall comes from this box's
+    `caps.json`, not from Anthropic. One probe fired while an account reads `rejected` answers it.
 
 ## Related scripts
 

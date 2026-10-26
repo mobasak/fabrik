@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — cloud dispatch: the $250 credit is spent before plan usage; expiry 2026-11-05 (2026-10-25)
+
+`docs/workstation/cloud-dispatch.md`'s billing bullet now follows the operator's claude.ai usage page (the credit is a separate pool, applied first; usage credits are overage, off), each account's `credit.expires` in `.fabrik/cloud-routines.json` moves to 2026-11-05, and the walled-account probe on can is recorded (W-b00d9d72, D-1232).
+
 ### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
 
 - `commands/command_measure.py` measured a named path whenever the file existed on disk, so the main checkout's
