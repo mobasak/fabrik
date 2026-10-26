@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T11:31:14.124611Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ad91676f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5VZM4CPBSVKG6BWG8TTT2BR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: w-effb7141-apikey-exempt"
+}

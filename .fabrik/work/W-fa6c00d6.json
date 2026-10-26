@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T11:48:07.619497Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-fa6c00d6",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "follow-up from W-7e29c9b9's review; LOW/LOW fill-in",
+  "status": "open",
+  "title": "/fabrik-review-scoped closing-pass seat briefs should require pytest --basetemp under the run's scratch — an authoritative seat wrote fixtures to /tmp/pytest-of-* in W-7e29c9b9's passes 1-3 (wording: kaizen's beat)"
+}
