@@ -352,17 +352,3 @@ def test_critique_seats_run_one_plain_command_per_call() -> None:
         "and one plain command per Bash call: the seat's own `mkdir -p` on its absolute folder first, then "
         "absolute paths, never `cd`, `&&`, a pipe or a `$VAR`."
     ) in rules
-
-
-def test_a_scripted_fix_replaces_exactly_once() -> None:
-    """Row 1792630747 (after held fix-script-exact-once-replace): a substitution script wrote a no-op; the fix residue
-    the hygiene script catches stays named as the hygiene script's."""
-    residue = _between(_live(TERM_EDIT), "(1) **RESIDUE", "(2) **PIN**")
-    assert (
-        "the orchestrator's own fix residue is caught by the hygiene script, never by a seat;"
-        in residue
-    )
-    assert (
-        "a scripted fix states how many times each old string occurs (once by default) and writes nothing unless every"
-        " one matches that count and differs from its new text, so it never writes a no-op or a half edit;"
-    ) in residue

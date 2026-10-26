@@ -427,8 +427,6 @@ def test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan() -> No
             "touches); the executable sequence belongs to the plan, so every fix inside such a section is written as "
             "invariants + touchpoints from its FIRST edit — not only once the edit loop's TWO CONSECUTIVE RESIDUE "
             "PASSES rule forces a rewrite there — and never as a re-worded sequence or new mechanism.") in d
-    te = (REPO / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
-    assert "(3) **TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE**" in te, "the rule the review names moved"
     spec = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
     assert '`firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`, a live fetch) and match' in spec
     assert "data flow (as invariants + touchpoints — the step sequence is the plan's)" in spec

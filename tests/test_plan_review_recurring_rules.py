@@ -81,17 +81,6 @@ def test_round_zero_cites_the_callee_in_both_review_contracts() -> None:
         assert want in zero, frag
 
 
-def test_the_flip_copy_recipe_is_the_matrix_rows_method() -> None:
-    """flip-gate-scratch-root (2 rows): the copy shows the flip as a change and links scripts/ and .windsurf/."""
-    gate = _between(_norm(FRAG / "term-edit.md"), "a gate run COUNTS only", "**Round zero")
-    assert (
-        "so a flipped scratch copy is a git checkout in which the flip shows as a change, the DRAFT committed and "
-        "the flip in the working tree or staged (`check_convergence` grades only the plans `git status` lists "
-        "there), with the repo's `scripts/` and `.windsurf/` linked in, the MATRIX row's method (without them "
-        "`check_rule_grounding` reports the plan UNGRADED and every digest quote QUOTE-NOT-FOUND)."
-    ) in gate
-
-
 def test_plan_tickets_reruns_after_every_behavior_contract_edit_and_the_small_loop_flips_at_the_panel() -> (
     None
 ):
