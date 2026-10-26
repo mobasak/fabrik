@@ -86,3 +86,25 @@ Start (this branch, before any edit): gate 1 `tests/test_command_rules.py` 1 fai
 - CHANGELOG.md, INDEX.md rows for the new `commands/_rules/` files, the `commands/_size_ceiling.json` ratchet and the render at merge.
 - A floor D-row for `/fabrik-spec-review` (131 live rules, ban tails and pinned phrases above), or the shared-fragment move named in the floor table.
 - The author-blind audit pair (Sonnet + Haiku) over the 21 reworded entries; every label here is an author label.
+
+## Fix round 2 (hub audit)
+
+Findings from the Sonnet and Haiku hub audits, checked against the baseline text (the two reports overlap; a pair counts as one):
+
+| finding | verdict | fix |
+|---|---|---|
+| r-L36 "grep it, line anchors drift" dropped (both) | confirmed | restored: "the frontmatter key — grep it, line anchors drift" |
+| r-L81 / L81 Litmus parenthetical dropped, vanished label wrong (both) | confirmed | restored "(Litmus: could this be open-sourced today without leaking credentials?)" in source and `text` |
+| r-L42 "(the current best-practice / leanest / low-maintenance research)" dropped | confirmed | restored in source and `text` |
+| r-L37 "instructing it to is instructing it to fail" labelled narrative, id `01M14V7KH4` dropped | confirmed | restored the clause and the `01M14V7KH4` id; only the "after a grounder substituted WebFetch and said so" tail stays `narrative` (clause 2) |
+| r-L44 "the review is the second chance, not a rubber stamp" labelled narrative | confirmed | restored; the `clauses:` label is removed |
+| r-L93 "a permanent provider death needs a SWAP no retry loop can make" labelled narrative | confirmed | restored; clause 3 is now carried, and only clause 2 ("those four heal a TRANSIENT fault") stays `narrative` |
+| r-L105 "(a repo or checkout the sync has not reached)" dropped | confirmed | restored in source and `text` |
+| r-L2 "before it is trusted" dropped (Haiku, flagged qualifier only) | confirmed | restored "before it is trusted"; "the adversarial" stays cut (an adjective, no instruction) |
+| L135 `DECISION NEEDED (ground: gate)` block has no entry (both) | refuted as a loss | the block is verbatim in the source fence; it is grammar kept in place, not a vanished unit, and the loader prints 0 LOSS for this ledger |
+
+- **Own-text words:** baseline 4839 → re-ledger 4461 → now about 4540 (+~80: the eight restored phrases). Estimated, not measured: this run cannot execute the word-count one-liner.
+- **Floor table:** the table above stands. The 50% target is retired (D-1257).
+- **Gates:** `python3 commands/assemble_commands.py --check` prints no LOSS line for `fabrik-spec-review.yaml` (only the DIFFERS drift line and the REPORT line). `tests/test_command_rules.py` has one failure, the full-corpus no-loss test over other commands' and `_shared` ledgers. The other reader-test gates were not re-run after the edits.
+- **Fresh pass:** NOT RUN. This run cannot dispatch a subagent, so the check below is the author's line-by-line read of the eight fixes, not a fresh reader. The hub's author-blind audit pair covers it.
+- **COUNTS (author re-read, not a fresh pass; 0 fresh passes ran):** entries read 131 / reworded 21 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0

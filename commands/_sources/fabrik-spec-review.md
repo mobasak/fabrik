@@ -5,7 +5,7 @@ argument-hint: "[path to the spec file — omit to use the spec under discussion
 {{include:no-workflow-hub}}
 
 Converge this design spec to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet CLOSING round (§ Termination contract; D-206, D-212).** This is to
-`/fabrik-spec` what `/fabrik-plan-review` is to `/fabrik-plan-after-chat`: independent hardening of a DRAFT.
+`/fabrik-spec` what `/fabrik-plan-review` is to `/fabrik-plan-after-chat`: independent hardening of a DRAFT before it is trusted.
 
 {{include:run-record}}
 {{include:orient}}
@@ -89,9 +89,9 @@ hallucinated any quoted sentence you cannot find verbatim in the raw source.
   re-verified here by `curl` on 2026-08-28). So an **existence or liveness claim** grounded ONLY through
   a mirroring fetch returns a **false CONFIRMED**. Such a claim needs a **NON-CACHING second path** that reports a STATUS
   CODE, not rendered content. ⚠️ **The ORCHESTRATOR owns that probe, not the grounder** —
-  `fabrik-researcher` has `Bash` in its `disallowedTools` (`/opt/fabrik/commands/_agents/fabrik-researcher.md`, the frontmatter key),
+  `fabrik-researcher` has `Bash` in its `disallowedTools` (`/opt/fabrik/commands/_agents/fabrik-researcher.md`, the frontmatter key — grep it, line anchors drift),
   because it is read-only. So a dispatched grounder CANNOT run
-  `curl -sSI -L -o /dev/null -w '%{http_code}'`.
+  `curl -sSI -L -o /dev/null -w '%{http_code}'`; instructing it to is instructing it to fail (reported by fabrik-lib `01M14V7KH4`).
   Division of labour: the grounder returns CONTENT and its source; **you** run the status probe
   from the orchestrator shell — or use `WebFetch`, which the grounder does have, accepting that
   it answers about a page rather than reporting a code. Every other shell-only check is yours from the shell
@@ -101,7 +101,7 @@ hallucinated any quoted sentence you cannot find verbatim in the raw source.
   what a mirror is good for; existence is not. And **absence from a vendor's `llms.txt` is weak sole
   evidence of removal**.
 
-**Best-practice / approach citations too (the 1c gate):** re-verify every source backing an *approach* choice,
+**Best-practice / approach citations too (the 1c gate):** re-verify every source backing an *approach* choice (the current best-practice / leanest / low-maintenance research),
 not just external API facts — a dead /
 stale / hallucinated best-practice citation, or an approach claimed "lean/low-maintenance/best-practice" with
 **no current cited source**, is the same defect. **Kill research-theater:** a citation that does not actually
@@ -110,7 +110,7 @@ support the leanness / maintenance / best-practice claim it is attached to is a 
 `check_spec_convergence.py` enforces it at the flip):** count the DRAFT's
 distinct approach-backing sources — **fewer than 2 distinct URLs with fetched-dates, or all of them
 from one tool, or summariser-only grounding (WebFetch answers with no search leg) = the run REOPENS
-1c and does the research itself before any other pass**. ⚠️ An author's "internal-only, no research needed" claim waives 1a facts, NEVER the
+1c and does the research itself before any other pass** — the review is the second chance, not a rubber stamp. ⚠️ An author's "internal-only, no research needed" claim waives 1a facts, NEVER the
 approach floor: that exact self-exemption shipped a spec on one summariser fetch the day this floor
 landed, and the mandated search then overturned its core semantics in ten minutes. If YOU do the
 reopened research, your sources enter the spec with tool + URL + date, and the flip happens only
@@ -171,7 +171,7 @@ to CUT the approach, not to footnote it:**
 |---|---|
 | I | Do two apps share one codebase? (Shared code belongs in `fabrik-lib`.) |
 | II | Does it assume a system tool exists (`curl`, ImageMagick) instead of vendoring it / using Gotenberg-Browserless? |
-| III | Any secret or config constant in code? A grouped `config/production.yml` env set? |
+| III | Any secret or config constant in code? A grouped `config/production.yml` env set? (Litmus: could this be open-sourced today without leaking credentials?) |
 | IV | Is a backing service reachable only by a **code** change rather than a config/DSN change? |
 | V | Does anything mutate a release or hot-patch a running container? (Releases immutable; git SHA = release ID.) |
 | VI | **Sticky sessions** or file-based sessions? (State → `redis-main`.) |
@@ -193,7 +193,7 @@ If the design has an **unattended loop over an external dependency** (an LLM cha
 hammers, any job whose progress depends on a third party), it must state how it satisfies all three of
 `58-resilience.md` § Provider-death resilience: **(1)** no single point of death in the chain, **(2)** a
 last rung that is actually **exercised**, **(3)** an alarm on **zero forward progress**. A design carrying
-timeout + retry + backoff + circuit-breaker and *none* of these is a **DEFECT, not a gap**. Two specific
+timeout + retry + backoff + circuit-breaker and *none* of these is a **DEFECT, not a gap** — a permanent provider death needs a SWAP no retry loop can make. Two specific
 things to catch: a design that says "we use OpenRouter" without naming WHICH mechanism (pinning `sort`/
 `order` disables the outage-aware routing it is claiming), and a fallback ladder whose bottom rung has
 never been run. ⚠️ **This row is graded by YOU reading the design — there is no mechanical check for it**
@@ -227,7 +227,7 @@ round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix;
 a NEW `Workflow` call with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next
 <scratch>/pass-<n>.json --ids <the confirmed ids>` (`--args <a scratch copy of the run file>` added whenever that file exists: it then prints each slice whole and carries the open claims the `--ids` leave out; read its stderr either way, `/opt/fabrik/docs/reference/review-loop-workflow.md`) — the round-1 seats re-verifying their OWN slices over the fix
 diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher seat re-fetches only the facts on its
-ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script, or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the
+ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the
 `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. Opus stays yours for
 the adjudication, the decide-clean and the md5-verified close.
 The Pass Ledger lives in the review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-spec-review.md`,

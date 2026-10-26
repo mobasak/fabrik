@@ -13,7 +13,7 @@ entries:
   file: render
   baseline: 'Fixed point = the fragment''s quiet CLOSING round (§ Termination contract defines it; D-206, D-212). This is to `/fabrik-spec` what `/fabrik-plan-review` is to `/fabrik-plan-after-chat`: the adversarial, independent hardening of a DRAFT before it is trusted'
   text:
-  - 'Fixed point = the fragment''s quiet CLOSING round (§ Termination contract; D-206, D-212). This is to `/fabrik-spec` what `/fabrik-plan-review` is to `/fabrik-plan-after-chat`: independent hardening of a DRAFT'
+  - 'Fixed point = the fragment''s quiet CLOSING round (§ Termination contract; D-206, D-212). This is to `/fabrik-spec` what `/fabrik-plan-review` is to `/fabrik-plan-after-chat`: independent hardening of a DRAFT before it is trusted'
 - id: u-L4
   class: ban
   file: render
@@ -217,7 +217,7 @@ entries:
   section: '## Phase 1 — Adversarial grounding to a fixed point (the section partition)'
   baseline: '⚠️ The ORCHESTRATOR owns that probe, not the grounder — `fabrik-researcher` has `Bash` in its `disallowedTools` (`/opt/fabrik/commands/_agents/fabrik-researcher.md`, the frontmatter key — grep it, line anchors drift), deliberately, because it is read-only'
   text:
-  - '⚠️ The ORCHESTRATOR owns that probe, not the grounder — `fabrik-researcher` has `Bash` in its `disallowedTools` (`/opt/fabrik/commands/_agents/fabrik-researcher.md`, the frontmatter key), because it is read-only'
+  - '⚠️ The ORCHESTRATOR owns that probe, not the grounder — `fabrik-researcher` has `Bash` in its `disallowedTools` (`/opt/fabrik/commands/_agents/fabrik-researcher.md`, the frontmatter key — grep it, line anchors drift), because it is read-only'
 - id: r-L37
   class: prose
   clauses: {2: narrative}
@@ -225,7 +225,7 @@ entries:
   section: '## Phase 1 — Adversarial grounding to a fixed point (the section partition)'
   baseline: 'So a dispatched grounder CANNOT run `curl -sSI -L -o /dev/null -w ''%{http_code}''`; instructing it to is instructing it to fail (reported by fabrik-lib `01M14V7KH4` after a grounder substituted WebFetch and said so)'
   text:
-  - 'So a dispatched grounder CANNOT run `curl -sSI -L -o /dev/null -w ''%{http_code}''`'
+  - 'So a dispatched grounder CANNOT run `curl -sSI -L -o /dev/null -w ''%{http_code}''`; instructing it to is instructing it to fail (reported by fabrik-lib `01M14V7KH4`)'
 - id: u-L38
   class: prose
   file: render
@@ -260,7 +260,7 @@ entries:
   section: '## Phase 1 — Adversarial grounding to a fixed point (the section partition)'
   baseline: 'Best-practice / approach citations too (the 1c gate): re-verify every source backing an *approach* choice (the current best-practice / leanest / low-maintenance research), not just external API facts — a dead / stale / hallucinated best-practice citation, or an approach claimed "lean/low-maintenance/best-practice" with no current cited source, is the same defect'
   text:
-  - 'Best-practice / approach citations too (the 1c gate): re-verify every source backing an *approach* choice, not just external API facts — a dead / stale / hallucinated best-practice citation, or an approach claimed "lean/low-maintenance/best-practice" with no current cited source, is the same defect'
+  - 'Best-practice / approach citations too (the 1c gate): re-verify every source backing an *approach* choice (the current best-practice / leanest / low-maintenance research), not just external API facts — a dead / stale / hallucinated best-practice citation, or an approach claimed "lean/low-maintenance/best-practice" with no current cited source, is the same defect'
 - id: u-L43
   class: prose
   file: render
@@ -270,12 +270,11 @@ entries:
   - *a43
 - id: r-L44
   class: ban
-  clauses: {3: narrative}
   file: render
   section: '## Phase 1 — Adversarial grounding to a fixed point (the section partition)'
   baseline: 'AUDIT THE 1c FLOOR before anything else in this section (countable, 2026-08-30 — `check_spec_convergence.py` enforces it at the flip you are about to make): count the DRAFT''s distinct approach-backing sources — fewer than 2 distinct URLs with fetched-dates, or all of them from one tool, or summariser-only grounding (WebFetch answers with no search leg) = the run REOPENS 1c and does the research itself before any other pass — the review is the second chance, not a rubber stamp'
   text:
-  - 'AUDIT THE 1c FLOOR before anything else in this section (countable, 2026-08-30 — `check_spec_convergence.py` enforces it at the flip): count the DRAFT''s distinct approach-backing sources — fewer than 2 distinct URLs with fetched-dates, or all of them from one tool, or summariser-only grounding (WebFetch answers with no search leg) = the run REOPENS 1c and does the research itself before any other pass'
+  - 'AUDIT THE 1c FLOOR before anything else in this section (countable, 2026-08-30 — `check_spec_convergence.py` enforces it at the flip): count the DRAFT''s distinct approach-backing sources — fewer than 2 distinct URLs with fetched-dates, or all of them from one tool, or summariser-only grounding (WebFetch answers with no search leg) = the run REOPENS 1c and does the research itself before any other pass — the review is the second chance, not a rubber stamp'
 - id: u-L45
   class: ban
   file: render
@@ -527,7 +526,7 @@ entries:
   section: '## Phase 1 — Adversarial grounding to a fixed point (the section partition)'
   baseline: '| III | Any secret or config constant in code? A grouped `config/production.yml` env set? (Litmus: could this be open-sourced today without leaking credentials?) |'
   text:
-  - '| III | Any secret or config constant in code? A grouped `config/production.yml` env set? |'
+  - '| III | Any secret or config constant in code? A grouped `config/production.yml` env set? (Litmus: could this be open-sourced today without leaking credentials?) |'
 - id: u-L82
   class: ban
   file: render
@@ -607,11 +606,11 @@ entries:
   - *a92
 - id: r-L93
   class: prose
-  clauses: {2: narrative, 3: narrative}
+  clauses: {2: narrative}
   section: '## Phase 1 — Adversarial grounding to a fixed point (the section partition)'
   baseline: 'A design carrying timeout + retry + backoff + circuit-breaker and *none* of these is a DEFECT, not a gap — those four heal a TRANSIENT fault; a permanent provider death needs a SWAP no retry loop can make'
   text:
-  - 'A design carrying timeout + retry + backoff + circuit-breaker and *none* of these is a DEFECT, not a gap'
+  - 'A design carrying timeout + retry + backoff + circuit-breaker and *none* of these is a DEFECT, not a gap — a permanent provider death needs a SWAP no retry loop can make'
 - id: u-L94
   class: ban
   file: render
@@ -696,7 +695,7 @@ entries:
   section: '## Phase 1 — Adversarial grounding to a fixed point (the section partition)'
   baseline: 'When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger''s row notes `shape: agent-tool`'
   text:
-  - 'When the `Workflow` tool is absent or cannot load the script, or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger''s row notes `shape: agent-tool`'
+  - 'When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger''s row notes `shape: agent-tool`'
 - id: u-L106
   class: prose
   file: render
