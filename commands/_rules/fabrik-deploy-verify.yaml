@@ -519,7 +519,7 @@ entries:
   baseline: A checklist item without a fresh-this-run command output is not a verdict, it is a guess (`n/a (not obligated)` is the one exception — it cites the spec flag that voids the obligation instead of a command output)
   class: prose
   text:
-  - An item without a fresh-this-run command output is not a verdict, it is a guess; `n/a (not obligated)` cites the spec flag instead
+  - An item without a fresh-this-run command output is not a verdict, it is a guess; `n/a (not obligated)` is the one exception — it cites the spec flag instead of a command output
 - id: r-15
   section: '## ⚠️ Termination contract'
   baseline: If >3 items FAIL on the same root cause (e.g. the whole VPS is unreachable), stop early and report that cause rather than exhausting the checklist against a dead host — every unreached item then carries `NOT-RUN (<the shared root cause>)` in the verdict table, so the early stop stays fillable and honest
@@ -549,7 +549,7 @@ entries:
   baseline: 'Read `specs/services/<id>.yaml` (or the path/id argument if given): `domain`, `target_vps` (default `vps1`), and every `shape:` flag — this is the obligation list Phase 3 checks against'
   class: prose
   text:
-  - 'Read `specs/services/<id>.yaml` (or the path/id argument): `domain`, `target_vps` (default `vps1`), and every `shape:` flag — this is the obligation list Phase 3 checks against'
+  - 'Read `specs/services/<id>.yaml` (or the path/id argument if given): `domain`, `target_vps` (default `vps1`), and every `shape:` flag — this is the obligation list Phase 3 checks against'
 - id: r-23
   section: '## Phase 0 — Resolve the target'
   baseline: 'Spoke-aware from here on. `target_vps: vps1` (hub, default) → shared infra (`postgres-main`, `redis-main`, GlitchTip, Gatus, Authelia) lives on the same host as the app'
@@ -603,7 +603,7 @@ entries:
   baseline: Target AND siblings ALL fail → inconclusive (transient outage or a network-reachability gap from this box) — name it, re-probe later, never report it as a verdict either way
   class: ban
   text:
-  - 'Target AND siblings ALL fail → inconclusive (outage or reachability gap): name it, re-probe later, never report it as a verdict either way'
+  - 'Target AND siblings ALL fail → inconclusive (transient outage or a network-reachability gap from this box): name it, re-probe later, never report it as a verdict either way'
 - id: r-38
   section: '## Phase 1 — DNS: live, not merely cataloged `[anywhere]`'
   baseline: 'If a designated sibling itself fails to resolve while the target''s own result would otherwise be a FAIL, the discriminator is VOID — report `discriminator void (sibling NXDOMAIN)`, never `inconclusive`: a voided run means the chosen sibling was a bad pick (pick a different one and re-probe), not a shared outage'

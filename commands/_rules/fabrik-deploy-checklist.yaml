@@ -421,7 +421,7 @@ entries:
   baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
   class: prose
   text:
-  - 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge — and skip every flywheel back-fill'
+  - 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
 - id: r-5
   baseline: Author this project's deployment-verification contract — the artifact that lets a deploy be certified against what was BUILT rather than against liveness alone
   class: prose
@@ -579,7 +579,7 @@ entries:
   baseline: 'Yes → a floor (`comparator=lambda e, a: a >= e`) after the first deploy, or the contract goes red the day the first real record is created and every re-freeze chases production'
   class: prose
   text:
-  - 'Yes → a floor (`comparator=lambda e, a: a >= e`) after the first deploy'
+  - 'Yes → a floor (`comparator=lambda e, a: a >= e`) after the first deploy, or the contract goes red the day the first real record is created and every re-freeze chases production'
 - id: r-53
   section: '## Phase 2 — Emit the contract `[anywhere]`'
   baseline: 'Derived stores that mirror a row set take the SAME comparator as the rows they mirror and switch together — a file-backed attachment store grows on the same event as its attachment rows, a search index on the same event as its documents (tryton-crm''s first freeze floored attachments and compared the filestore exactly: red on the first real upload — the example list read naturally at deploy time and was wrong a day later)'
@@ -675,7 +675,7 @@ entries:
   baseline: 'Set the header: `Status: FROZEN · Version: v<N> · Date`, freeze rule verbatim (a header that still carries a trailing `· Mode: …` from an earlier freeze parses, and the re-freeze drops it)'
   class: prose
   text:
-  - 'Set the header: `Status: FROZEN · Version: v<N> · Date`, freeze rule verbatim (a trailing `· Mode: …` from an earlier freeze parses; the re-freeze drops it)'
+  - 'Set the header: `Status: FROZEN · Version: v<N> · Date`, freeze rule verbatim (a header that still carries a trailing `· Mode: …` from an earlier freeze parses, and the re-freeze drops it)'
 - id: r-92
   section: '## Phase 6 — Freeze + wire the truth `[anywhere]`'
   baseline: This header write is a post-convergence action, exempt from the no-op rule — measured on the body, not the flip
