@@ -1,3 +1,5 @@
+OWN TEXT: 5118 -> 4021 (78.6%)
+
 # T21 receipt — lean rewrite of /fabrik-user-test (light form)
 
 Start commit (baseline, frozen copy): `851b4b365cc9ccaac91ed851bc669764743ad360` (origin/kaizen-lean-u01). Branch: `claude/lean-t21`. Rule read: D-1236, D-1238 points 1-2, D-1240 (per the dispatch).
@@ -97,8 +99,47 @@ None. T21's Touches list names no test file, so no plain string-in-file presence
 - Reader-test run (spine § Global Constraints; 40 files = the stem readers plus the corpus-glob tests): failure set at the start commit (a clean worktree of `851b4b365cc9ccaac91ed851bc669764743ad360`) = failure set at the end = 54 failed + 1 collection error, identical lists (`diff` empty), 2360 passed, 10 skipped. The reds pre-exist and need box services or secrets (fabrik_deck, generate_capability_index, quota_dashboard DB child, conftest_isolation, check_command_corpus selftest, rules_render_versions, scaffold_office_extension collection). The set did not grow.
 - `tests/test_quota_dashboard.py`'s seat rule (`rule["fabrik-user-test"][1] == ("flow",)`) is in that run and stays green.
 
+## Re-ledger round (canonical loader, W-9cd8653d; D-1236, D-1238 points 1-2, D-1240, D-1245)
+
+Words (own text, `command_rules.own_text` units; the 4124 and 4021 are the fix-round figure and that figure less the measured shrink of the render, 26143 → 26040): baseline 5118 → fix round 4124 (80.6%) → now **4021 (78.6%)**. The ≤50% target is NOT met; the floor is named below.
+
+LOSS on this ledger, canonical loader, `--check`: **28 → 0**. The `_shared/*.yaml` LOSS lines print on every base and belong to T01d; none is touched.
+
+Ledger rebuilt for the real keys: `# class:` / `# clauses:` comments are now `class:` / `clauses:` keys. 83 entries: 2 are `duplicate-of` targets kept verbatim (`u-L2`, `u-L9`), 81 reworded (`t21-L<n>`, one per baseline line, so a clause number always indexes that line's own clauses; the fix round joined lines with ` | ` and so shifted every clause index). The ~60 generated `u-L<n>` pins of unchanged units are dropped: an unchanged unit is its own carrier and the baseline file still catches any later edit of it. Classes: ban 25, prose 58. Vanished labels: `rule` 81, `narrative` 12 (L8, L30, L33, L40, L42, L47, L94, L95, L101, L104, L106, L107), `duplicate-of` 1 (L89 → `t21-L160`). Clause labels (every one on a clause with no ban word): `narrative` on L15.2, L28.1, L28.3, L32.2, L39.2, L41.2, L43.2, L44.2, L48.2, L57.1, L60.1, L86.2, L90.2, L97.2, L111.3, L127.4, L130.2, L131.2, L146.4, L160.3, L162.2, L168.2; `duplicate-of` on L160.2 → `u-L2` and L166.1 → `u-L9` (both targets cover the clause by `_covered`, checked at load).
+
+What the 28 LOSS lines were and how each closed: 14 were the ` | ` join shifting clause numbers (t21-011, 019, 020, 029, 030, 042, 070, 081, 094, 098, 107, 109, 123, 131): fixed by one entry per baseline line. Real ones, restored in the live text: L160 `ONLY option for browser/device legs (the pool has no browser tools — the native-mandate case per `core/62`)` (ban span through the parenthetical), L29 (`this command STANDS UP a long-lived service that does NOT auto-reload`, 6 of 8 stems), L1 (`mechanism revised by D-182`, the `<!-- POOL OFF -->` token), L66 (`with the actor changed from the user to an operator`, stems). No ban clause was cut; every ban span stands verbatim.
+
+Cut this round (words out): Phase 3 seat mapping in the browser-work bullet (restated in § Subagents), the output-dir "because … erase each other's evidence" tail, the "deletion revoked access" example, the three isolation examples, the L47 framing sentence, the "full-stack QC leg" gloss, two incident stories (stale-server findings, transdoc "every route test … green"), the `A false finding … slower` aphorism.
+
+### Floor (why 78.6% and not 50%)
+
+Own text left = 4021 words. It is not narrative; the strict loader floor, counted by class:
+| class | what it holds | words (≈) | why it cannot shrink |
+|---|---|---|---|
+| behavioural pins | banner L1-L5 (POOL OFF, `NO-POOL:` ban, D-191 dispatch step) | 230 | `assemble_commands.py`, `quota_dashboard.py` and `tests/test_assemble_dispatch_step.py` read these literally; the dispatch line is one `SEATS:` grammar |
+| ban-bearing units (verbatim from the ban word to the clause end, parentheticals included) | 46 units: L3, L11, L16, L20, L25, L28, L32, L34, L35, L41, L44, L57, L62, L69, L72, L90, L96, L98, L100-L102, L105, L112, L114, L116, L117, L120, L123, L127, L132, L133, L135, L136, L140, L142, L143, L146, L149, L159, L160, L163, L168, the SaaS table row | ~1,150 | D-1240: the span is verbatim and a ban clause is never labelled; L140 alone keeps a 24-word span with its parenthetical |
+| anchor-pinned lists | personas (L75, `garbage/emoji/RTL/oversized`), surface table (6 rows: `saas-skeleton`… with `forgot/reset`, `role/tenant`, `billing/paywall`), inventory modes (`sidebar/nav`, `popup/options/content-scripts`, `long-press/gesture`), journeys (`invoice/receipt`, `downgrade/cancel`), tooling (`LCP/CLS/INP`, `web/SaaS/website/docs`), contract list (`ui-design.md`, 6 pack paths), harness tokens (L36: 9 backticked names) | ~1,350 | every backtick token, number and slash path is an anchor the phrase must hold; the list items around them are the requirement itself, so removing one is a LOST rule, not a lean win |
+| handoff / report grammar | L137-L147, L169-L170 (`/fabrik-*` routes, `HANDOFF … OPEN`, `## RESUME`, `git log … -- <owning paths>`, the report filename) | ~480 | parsed by `check_certification_coverage` / the handoff grammar; every route is an anchor |
+| reworded prose at its minimum | the 81 reworded entries | ~810 | each is already at anchors + ≥6 of its first 8 stems; the remaining tail words are the anchors' grammar |
+Live rule count: 46 ban-bearing units + 81 reworded units + ~65 unchanged units ≈ 190 rule units in 4021 words (≈21 words per rule). A further cut means dropping list items (personas, surface-table cells, journey steps) or anchors, each a lost rule under D-1240.
+
+### COUNTS
+
+Author pass over all 83 entries, old against new, line by line. Findings of earlier passes (all fixed): L160 carrier lacked the parenthetical after `ONLY`; L29 phrase held 3 of 8 stems; L66 phrase 4 of 8 stems (`from`, `user`, `chang`); L1 lacked `mechanism revised by`; L140 had dropped "why it is not fixable in the presentation layer" (restored in short form); L113-L115 clause numbering.
+
+COUNTS: 83 entries read / 81 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels
+
+(The author-blind Sonnet + Haiku pair cannot run in this write lane; the hub re-runs the audit.)
+
+### Gates
+
+- `tests/test_command_rules.py -rP`: `LEDGER fabrik-user-test.yaml: 83 entries · classes {'ban': 25, 'prose': 58} · vanished {'duplicate-of': 1, 'narrative': 12, 'rule': 81}` printed; 56 passed, 1 failed at start AND at end (`test_the_live_corpus_has_no_loss`, red only on the T01d `_shared/` LOSS lines).
+- `python3 commands/assemble_commands.py --check`: exit 4 at start (28 own LOSS + `_shared/`), exit 4 at end with `_shared/` LOSS only; DRIFT lines are `DIFFERS`; REPORT `fabrik-user-test: shrank to 26040 words, ceiling 27952`.
+- Reader-test failure set start = end: dispatch_step 13 (same names), `test_assemble_orch_retired` 1, `test_command_measure` 1 + `test_conftest_isolation` 1, `test_thread_anchor` 1; the other groups green (541 and 459 passed). Pre-existing, no git or box service in this clone. The set did not grow.
+
 ## LEFT FOR THE HUB
 
+0. Re-run the author-blind audit over the 81 reworded entries; ratchet `_size_ceiling.json` (27952 → ~26040, not edited here).
 1. Ratchet `commands/_size_ceiling.json` at merge (report: ceiling 27952 → 26143); not edited here.
 2. Floor D-row for T21 (4124 words, 80.6%; see Floor).
 3. Convert the `# class:` / `# clauses:` comments to real keys when the canonical loader (W-9cd8653d) lands, and re-run the loader's clause-coverage lints over the ledger.
