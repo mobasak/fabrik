@@ -9,11 +9,11 @@ env value are separate YAML/compose-quoting defects this file does not cover.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
 import yaml
+from jinja2 import nodes
 
 from fabrik.spec_loader import Spec, load_spec
 from fabrik.template_renderer import TemplateRenderer
@@ -103,13 +103,50 @@ def test_the_renderer_environment_never_autoescapes() -> None:
     assert TemplateRenderer().jinja.autoescape is False
 
 
-# Only Jinja code is scanned (`|| e` in plain JS is not a filter), whole-file so a tag split across
-# lines is one span. Not modelled: a `}}`/`%}` inside a string literal in a tag, which ends the span early.
-_JINJA_SPAN = re.compile(r"\{\{.*?\}\}|\{%.*?%\}", re.DOTALL)
-_ESCAPE_IN_SPAN = re.compile(
-    r"^\{%[-+]?\s*(?:autoescape|filter\s+(?:e|escape|forceescape))\b"  # block forms
-    r"|\|\s*(?:e|escape|forceescape)\b"  # the pipe-filter form
+_ESCAPE_FILTERS = {"e", "escape", "forceescape"}
+
+
+def _escapes(source: str) -> list[str]:
+    """Escape routes in a template, read from Jinja's own parse tree (W-27634d4e).
+
+    A regex over `{{ }}`/`{% %}` spans misread comments, `{% raw %}` blocks and a `}}`/`%}` inside a
+    string or dict literal; the parser does not. `nodes.Filter` covers the pipe form, `{% filter %}`
+    blocks and `{% set x | e %}`; an `{% autoescape %}` block is a scoped eval-context modifier.
+    """
+    tree = TemplateRenderer().jinja.parse(source)
+    hits = [
+        f"{n.lineno}: |{n.name}" for n in tree.find_all(nodes.Filter) if n.name in _ESCAPE_FILTERS
+    ]
+    hits += [
+        f"{n.lineno}: autoescape block"
+        for n in tree.find_all(nodes.EvalContextModifier)
+        if any(k.key == "autoescape" for k in n.options)
+    ]
+    return hits
+
+
+@pytest.mark.parametrize(
+    ("source", "escapes"),
+    [
+        ("{{ x | e }}", True),
+        ("{% filter escape %}x{% endfilter %}", True),
+        ("{% autoescape true %}{{ x }}{% endautoescape %}", True),
+        ("{% set y | forceescape %}x{% endset %}", True),
+        # An unbalanced `{{` in a comment or a raw block must not swallow (and hide) the next line.
+        ("{# a {{ b #}\n{% filter escape %}x{% endfilter %}{{ y }}", True),
+        ("{% raw %}{{{% endraw %}\n{% filter escape %}x{% endfilter %}{{ y }}", True),
+        # A `}}` inside a string or dict literal must not end the expression early.
+        ('{{ "}}" | e }}', True),
+        ("{{ {'k': '}}'} | e }}", True),
+        # Not Jinja: JS `||`, a comment, a raw block, a string.
+        ("const a = b || e;", False),
+        ("{# {{ x | e }} #}", False),
+        ("{% raw %}{{ x | e }}{% endraw %}", False),
+        ('{{ "| e" }}', False),
+    ],
 )
+def test_the_escape_scan(source: str, escapes: bool) -> None:
+    assert bool(_escapes(source)) is escapes
 
 
 def test_no_renderer_template_escapes_on_its_own() -> None:
@@ -121,11 +158,9 @@ def test_no_renderer_template_escapes_on_its_own() -> None:
             continue
         for f in sorted(d.rglob("*.j2")):
             scanned += 1
-            text = f.read_text(encoding="utf-8")
-            for m in _JINJA_SPAN.finditer(text):
-                if _ESCAPE_IN_SPAN.search(m.group()):
-                    line = text.count("\n", 0, m.start()) + 1
-                    hits.append(f"{f.relative_to(REPO)}:{line}: {m.group()}")
+            hits += [
+                f"{f.relative_to(REPO)}:{h}" for h in _escapes(f.read_text(encoding="utf-8"))
+            ]
     assert scanned > 0
     assert not hits, hits
 
