@@ -12,7 +12,9 @@ All notable changes to this project will be documented in this file.
   root are no longer synced as accounts, so a healthy sync exits 0; `--new-dir backups` is refused.
 - `emit_mcp_project_config.py` serves every git repo: an untyped one gets the universal set when `git check-ignore` says
   its `.mcp.json` is ignored; an unknown or unreadable `type:` stays a visible SKIP; image-generation is no longer excluded.
-  `check_mcp_scope.py` reads the same ownership predicate (`emitter_owns`) and skips non-git directories.
+  `check_mcp_scope.py` reads the same ownership predicate (`emitter_owns`) and skips only a directory that is untyped,
+  not hub-class and outside git (a typed or hub directory is graded wherever it sits — the liveness canary's fixture);
+  an unreadable `project.yaml` is an unknown type, a warning, never a crash.
 - Live: 8/8 account `.claude.json` files and 44/44 /opt git repos carry `rea`; rn-kit-sandbox, image-generation and
   fabrik-dr-store got their first `.mcp.json`.
 ### Fixed — Ocoron brand guide: the legal entity is Ocoron Dış Ticaret Limited Şirketi; Kalite Pusulası added (2026-10-26)
