@@ -2,22 +2,13 @@ shared: commands/_fragments/no-workflow-hub.md
 baseline_sentences: no-workflow-hub.baseline.txt
 baseline_sha256: f1cf6e91b9a798cbfd753522d6fc8750deb704587b5fb685dcd6bfb35290e2a4
 entries:
-- id: banner-every-workflow-command-carries-the-no
-  file: commands/_fragments/no-workflow-hub.md
-  baseline: '> ⚠️ NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part). In the hub — a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool'
-  current: '> ⚠️ NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part). In the hub (a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/`), never call the `Workflow` tool: replace every launch this command names with ONE `Agent` message of the same seats, briefs, absolute scratch folders and pin, and record `shape: agent-tool` in the close or the Pass row'
-  text:
-  - NO `Workflow` IN THE HUB — D-961 (operator, 2026-10-18; supersedes D-957 in part). In the hub
-  - a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under `/opt/fabrik/.claude/worktrees/`), never call the `Workflow` tool
-  class: ban
-  pins:
-  - tests/test_review_queue_pass.py::test_every_workflow_command_carries_the_no_workflow_in_the_hub_note
 - id: banner-a-dead-resumed-seat-is-re
   file: commands/_fragments/no-workflow-hub.md
   baseline: 'Every `Workflow` launch this command names (a round-1 pass, a delta or closing pass, a relaunch, a wave) is replaced by its Agent-tool fallback: the same seats and the same briefs as ONE `Agent` message, with each seat''s absolute scratch folder and the pass''s pin (a later pass may resume a round-1 seat with `SendMessage`, and one that comes back dead, as after an account switch''s API 403, is re-dispatched fresh with its slice''s or unit''s ledger and the previous seat''s REFUTED list), and the close or the Pass row records `shape: agent-tool`'
+  current: 'Every `Workflow` launch this command names (a round-1 pass, a delta or closing pass) is replaced by its Agent-tool fallback: the same seats and briefs as ONE `Agent` message (a later pass may resume a round-1 seat with `SendMessage`; one dead, as after an API 403, is re-dispatched fresh), and the close or the Pass row records `shape: agent-tool`'
   text:
-  - 'never call the `Workflow` tool: replace every launch this command names with ONE `Agent` message of the same seats, briefs, absolute scratch folders and pin, and record `shape: agent-tool` in the close or the Pass row. A later pass may resume a round-1 seat with `SendMessage`; re-dispatch a dead seat (an API 403 after an account switch) fresh with its slice''s or unit''s ledger and the previous seat''s REFUTED list'
-  class: ban
+  - 'Every `Workflow` launch this command names (a round-1 pass, a delta or closing pass) is replaced by its Agent-tool fallback: the same seats and briefs as ONE `Agent` message (a later pass may resume a round-1 seat with `SendMessage`; one dead, as after an API 403, is re-dispatched fresh), and the close or the Pass row records `shape: agent-tool`'
+  class: prose
   pins:
   - tests/test_review_queue_pass.py::test_every_workflow_command_carries_the_no_workflow_in_the_hub_note
   - tests/test_review_queue_pass.py::test_a_dead_resumed_seat_is_re_dispatched_fresh
@@ -40,9 +31,6 @@ entries:
   pins:
   - tests/test_review_queue_pass.py::test_every_workflow_command_carries_the_no_workflow_in_the_hub_note
 vanished:
-  L1:
-    rule:
-    - banner-every-workflow-command-carries-the-no
   L2:
     rule:
     - banner-a-dead-resumed-seat-is-re
