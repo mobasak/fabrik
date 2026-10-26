@@ -447,13 +447,13 @@
   "baseline": "Owner says NEW → the NEW-mode path (Phases 2–4 below, NEW branch)"
   "class": "prose"
   "text":
-  - "EXISTING-mode path (Phases 2–4, EXISTING branch). Do NOT auto-detect from the filesystem. Do NOT skip this question. The owner"
+  - "Owner says NEW → the NEW-mode path (Phases 2–4 below, NEW branch); owner says EXISTING → the EXISTING-mode path (Phases 2–4 below, EXISTING branch). Do NOT auto-detect from the filesystem. Do NOT skip this question"
 - "id": "v-L82"
   "file": "render"
   "baseline": "Owner says EXISTING → the EXISTING-mode path (Phases 2–4 below, EXISTING branch)"
   "class": "prose"
   "text":
-  - "EXISTING-mode path (Phases 2–4, EXISTING branch). Do NOT auto-detect from the filesystem. Do NOT skip this question. The owner"
+  - "owner says EXISTING → the EXISTING-mode path (Phases 2–4 below, EXISTING branch)"
 - "id": "v-L83"
   "file": "render"
   "baseline": "Do NOT auto-detect from the filesystem"
@@ -1255,7 +1255,7 @@
   "baseline": "Rule pack index (consulted for rule-pack judgment):"
   "class": "prose"
   "text":
-  - "Rule pack index Phase 2 consults);"
+  - "Rule pack index (consulted for rule-pack judgment; NOT exhaustive — see B below):"
 - "id": "v-L215"
   "file": "render"
   "baseline": "| `core/10-python.md`, `core/12-node.md`, `core/20-typescript.md` | Language-level conventions, project layout |"
@@ -2046,8 +2046,9 @@
   "baseline": "2 — Approach / best-practice (BLOCKING). ⚡ Same parallel dispatch as step 1 (one grounder per approach question)"
   "class": "prose"
   "text":
-  - "2 states the precedence order when"
   - "Approach / best-practice (BLOCKING). ⚡ Same parallel dispatch as step 1 (one grounder per approach question)"
+  "clauses":
+    !!int "1": "narrative"
 - "id": "v-L341"
   "file": "render"
   "baseline": "For the core of the vision, research the current best-practice / leanest / lowest-maintenance / pro-grade way the field actually does this now, and cite source + date"
@@ -2106,9 +2107,10 @@
   "baseline": "3 — fabrik-lib vendor→enhance→build ladder (per capability). For EACH capability the vision needs, read `/opt/fabrik-lib/README.md` and decide — stop at the first rung that fits"
   "class": "prose"
   "text":
-  - "3) — and they are always present"
   - "fabrik-lib vendor→enhance→build ladder (per capability). For EACH capability the vision needs, read `/opt/fabrik-lib/README.md` and decide"
   - "stop at the first rung that fits."
+  "clauses":
+    !!int "1": "narrative"
 - "id": "v-L350"
   "file": "render"
   "baseline": "⚠️ The index row alone cannot separate rung 1 from rung 2: once a module is a candidate, open that module's own `README.md` and judge coverage against its real interface, not its one-line summary"
@@ -2406,11 +2408,11 @@
   "file": "render"
   "baseline": "Pre-flight checks — run all 7 per `agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT: Ports, Business Model, Microservices, Hardware Audit, Design System, External Knowledge, fabrik-lib"
   "class": "prose"
+  "text":
+  - "Pre-flight checks — run all 7 per `agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT (the Phase 2 list)"
   "clauses":
     !!int "2":
       "duplicate-of": "v-L160"
-  "text":
-  - "PRE-FLIGHT checks (`agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT):"
 - "id": "v-L401"
   "file": "render"
   "baseline": "Scope note for pre-scaffold projects: if the project predates `fabrik scaffold` (no `project.yaml`), Hardware Audit and Design System are *retrospective only* (document current state, no \"decide\" step); Ports, Business Model, Microservices, External Knowledge, and fabrik-lib still apply forward"
@@ -3551,8 +3553,7 @@
   "baseline": "Acceptance — both modes:"
   "class": "prose"
   "text":
-  - "Acceptance Criteria (Phase 5) with fresh"
-  - "both modes: the mode declared explicitly"
+  - "Acceptance — both modes: the mode declared explicitly"
 - "id": "v-L560"
   "file": "render"
   "baseline": "Mode declared explicitly at Phase 0 — never auto-detected"
@@ -3666,8 +3667,7 @@
   "baseline": "Acceptance — NEW adds: research (if present) improved: gaps, conflicts, opportunities surfaced; multiple research files' conflicts flagged in Open Questions, not silently resolved"
   "class": "prose"
   "text":
-  - "Acceptance Criteria (Phase 5) with fresh"
-  - "NEW adds: research (if present) improved: gaps, conflicts, opportunities surfaced"
+  - "Acceptance — NEW adds: research (if present) improved: gaps, conflicts, opportunities surfaced"
   - "multiple research files' conflicts flagged in Open Questions, not silently resolved"
 - "id": "v-L585"
   "file": "render"
@@ -3687,8 +3687,7 @@
   "baseline": "Acceptance — EXISTING adds: project state read from actual files"
   "class": "prose"
   "text":
-  - "Acceptance Criteria (Phase 5) with fresh"
-  - "EXISTING adds: project state read from actual files"
+  - "Acceptance — EXISTING adds: project state read from actual files"
 - "id": "v-L588"
   "file": "render"
   "baseline": "Project Snapshot confirmed (Checkpoint E-1)"
@@ -3706,7 +3705,7 @@
   "baseline": "Integration points identified"
   "class": "prose"
   "text":
-  - "Identify integration points: existing tables read/written,"
+  - "rule packs loaded; integration points identified"
 - "id": "v-L597"
   "file": "render"
   "baseline": "Create files or tickets — orientation only"

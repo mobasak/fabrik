@@ -64,7 +64,7 @@ Fabrik lifecycle (mental model) — `docs/operations/fabrik-lifecycle.md` carrie
 
 If a NEW vision cannot pass all 4 stages, state this explicitly and justify. If an EXISTING project has incomplete stages, flag them in the Compliance Report.
 
-Mode declaration. Ask the owner explicitly at the very start: *"Is this a NEW project (no code yet, just an idea or research) or an EXISTING project (code exists, services may already be deployed)?"* NEW → the NEW-mode path (Phases 2–4, NEW branch); EXISTING → the EXISTING-mode path (Phases 2–4, EXISTING branch). Do NOT auto-detect from the filesystem. Do NOT skip this question. The owner declares the mode.
+Mode declaration. Ask the owner explicitly at the very start: *"Is this a NEW project (no code yet, just an idea or research) or an EXISTING project (code exists, services may already be deployed)?"* Owner says NEW → the NEW-mode path (Phases 2–4 below, NEW branch); owner says EXISTING → the EXISTING-mode path (Phases 2–4 below, EXISTING branch). Do NOT auto-detect from the filesystem. Do NOT skip this question. The owner declares the mode.
 
 ## Phase 1 — Rule-grounding gate + Architectural Mandates + Shape model
 
@@ -233,7 +233,7 @@ Read existing project state — not from memory, from files. The owner must have
 Lifecycle check (4 stages — completeness audit; gaps feed the Compliance Report):
 - Scaffolding: `project.yaml` exists? Full Fabrik-synced set (canonical list in `scripts/fabrik_synced_manifest.py`; covers the governance files — AGENTS.md, CLAUDE.md, agents-fabrik.md, agents-fabrik-core.md — plus `.windsurf/rules/`, `scripts/enforcement/`, etc.) present AND byte-identical to what the sync last distributed (the project's `.fabrik/synced.lock`; a project's CLAUDE.md comes from `templates/governance/CLAUDE.md`, never the hub's own)? Run `python scripts/enforcement/check_synced_unmodified.py` to verify both presence and unmodified state in one shot. A missing file and a locally-edited file are different gaps: missing → propose `fabrik fix /opt/<project> --type <scaffold-type>`; modified → revert + propose the change upstream in `/opt/fabrik`.
 - Implementation: structured code (src/, tests/, docs/)? Registration: `fabrik apply` run? `.fabrik/state/*.json` exists? Registrars active? Verification: `fabrik verify` passes? `fabrik audit-registrars` clean?
-- Pre-flight checks — run all 7 (the Phase 2 list). Scope note for pre-scaffold projects: if the project predates `fabrik scaffold` (no `project.yaml`), Hardware Audit and Design System are *retrospective only* (document current state, no "decide" step); Ports, Business Model, Microservices, External Knowledge, and fabrik-lib still apply forward. State findings as "Retrospective: [X]" vs "Forward: [Y]".
+- Pre-flight checks — run all 7 per `agents-fabrik.md` § MANDATORY ORCHESTRATOR PRE-FLIGHT (the Phase 2 list). Scope note for pre-scaffold projects: if the project predates `fabrik scaffold` (no `project.yaml`), Hardware Audit and Design System are *retrospective only* (document current state, no "decide" step); Ports, Business Model, Microservices, External Knowledge, and fabrik-lib still apply forward. State findings as "Retrospective: [X]" vs "Forward: [Y]".
 
 State: "Project read. Scaffold: [X / pre-scaffold]. Port: [Y]. [N] API routes, [M] DB tables, [K] workers. Lifecycle: [all 4 / gaps at Stage N]. Pre-flight: [findings]." Produce the Project Snapshot — what EXISTS right now:
 
