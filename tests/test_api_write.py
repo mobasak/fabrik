@@ -32,7 +32,7 @@ FAKE_CLAUDE = """#!{python}
 import json, os, subprocess, sys, time
 log = os.environ["FAKE_LOG"]
 with open(log, "a", encoding="utf-8") as f:
-    f.write(json.dumps({{"argv": sys.argv[1:], "cwd": os.getcwd(),
+    f.write(json.dumps({{"argv": sys.argv[1:], "cwd": os.getcwd(), "env_names": sorted(os.environ),
                         "key": os.environ.get("ANTHROPIC_API_KEY", "")}}) + "\\n")
 if "stream-json" in sys.argv:
     sys.stdout.write(open(os.environ["FAKE_PREFLIGHT"], encoding="utf-8").read())
@@ -48,7 +48,7 @@ def g(*a):
     return subprocess.run(["git", *a], capture_output=True, text=True)
 if action in ("commit", "push-master"):
     p = [x for x in sys.argv if x.startswith("You are a metered")][0]
-    slug = p.split("branch claude/")[1].split(" ")[0]
+    slug = p.split("checkout -B claude/")[1].split(" ")[0]
     g("checkout", "-q", "-B", "claude/" + slug, "origin/master")
     open("made-by-" + slug + ".txt", "w").write("x\\n")
     g("add", "made-by-" + slug + ".txt")
@@ -123,6 +123,7 @@ def box(tmp_path: Path) -> dict:
         "FAKE_LOG": str(tmp_path / "fake.log"),
         "FAKE_PREFLIGHT": str(pre),
         "FAKE_PUSH_LOG": str(tmp_path / "push.log"),
+        "SSH_AUTH_SOCK": str(tmp_path / "agent.sock"),
     }
     return {"tmp": tmp_path, "main": main, "origin": origin, "state": state, "env": env, "out": out}
 
@@ -184,6 +185,7 @@ def test_a_run_commits_in_a_clone_and_pushes_only_its_branch(box: dict) -> None:
     assert len(run) == 1 and run[0]["key"] == KEYS["sarp"]
     assert Path(run[0]["cwd"]).name == "clone" and Path(run[0]["cwd"]) != box["main"]
     assert "--safe-mode" in run[0]["argv"] and ",".join(sorted(WRITE_TOOLS)) in run[0]["argv"]
+    assert "SSH_AUTH_SOCK" not in run[0]["env_names"]
     start, settle = _rows(box)
     assert (start["kind"], start["lane"], start["slug"], start["key"]) == (
         "start",
@@ -268,6 +270,26 @@ def test_a_timeout_settles_as_provisioned_and_cleans_up(box: dict) -> None:
         5
     )  # past the grandchild's 4 s: had it survived the kill, its marker would be on disk now
     assert not marker.exists()
+
+
+def test_the_child_runs_least_privilege(box: dict) -> None:
+    """Behaviour 7 (the coordinator's redesign after the classifier refused a bypassPermissions child): dontAsk plus an
+    explicit allow-list — no bypass, no bare Bash, no push, fetch or pip — and --restricted confining the file tools."""
+    p = _run(box, "--key", "can", "--slug", "t7", "--task-file", str(_brief(box, "t7")))
+    assert p.returncode == 0, p.stderr
+    argv = [c for c in _calls(box) if "stream-json" not in c["argv"]][0]["argv"]
+    assert "bypassPermissions" not in argv and "--dangerously-skip-permissions" not in argv
+    assert argv[argv.index("--permission-mode") + 1] == "dontAsk" and "--restricted" in argv
+    i = argv.index("--allowedTools")
+    allowed = argv[i + 1 : argv.index("--no-session-persistence")]
+    assert "Bash" not in allowed and all(a.startswith("Bash(") or "(" not in a for a in allowed)
+    bash = [a for a in allowed if a.startswith("Bash(")]
+    assert bash and "Bash(*)" not in bash
+    assert not any(w in a for a in bash for w in ("push", "fetch", "pip", "curl"))
+    assert all(
+        a.startswith(("Bash(git ", "Bash(python3 -m pytest", "Bash(python3 commands/"))
+        for a in bash
+    )
 
 
 @pytest.mark.parametrize("bad", ["../x", "A", "", "a b"])
