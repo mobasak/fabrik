@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-26T21:40:48.752353Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "d3a846c98487cd11b6ef1f0d2607501fe267b192",
   "id": "W-80aed026",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

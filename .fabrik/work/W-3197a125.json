@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T23:02:20.665470Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3197a125",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: guard on health.start_period like python-api:72, red-first with docker compose config over every fleet spec per template",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "static-site, node-api and chrome-extension compose templates render an invalid healthcheck start_period when a spec has health: but no start_period: they test 'if health' (static-site:39, node-api:50, chrome-extension:52) where python-api:72 tests health.start_period, so docker compose config refuses the file (healthcheck.start_period must be a string) — a W-80aed026 review seat measured 14 of 65 fleet specs failing config this way. Also pre-existing, same templates: NODE_ENV (and NEXT_TELEMETRY_DISABLED in saas-skeleton) is listed twice when the spec env sets it, and 3 mobile-app specs have no compose template."
+}

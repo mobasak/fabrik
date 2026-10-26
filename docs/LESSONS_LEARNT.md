@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A guard over a template language asks that language's parser, never a regex (2026-10-27)
+
+- **What happened:** W-80aed026's grader needed "only compose templates read `env`". The first regex missed
+  `{{ env }}` and `env | tojson`; the widened one (review round 1) missed whitespace control `{{-env}}` and
+  arithmetic `x-env`, both real reads Jinja renders — two review rounds on one matcher. `jinja2.meta
+  .find_undeclared_variables` over the renderer's own environment answered every case, a template-local
+  `set env` included. The same review measured the item's own proposed fix (double every `$`) against the
+  fleet's specs first and refuted it: 20+ specs put `${VAR}` in `env:` on purpose (D-1269).
+- **Rule:** when a guard asks what code in some language DOES (reads a name, quotes a value), call that
+  language's own parser or analyser; a regex re-derives the grammar and drifts on the first form it forgets.
+  And replay an item's proposed fix on the real corpus before adopting it.
+
 ## A census that re-implements a check must read every field the check reads (2026-10-26)
 
 - **What happened:** W-34d76a7a's MEASURE counted vanished `rule:` labels with a hand-written script that pooled the
