@@ -16,5 +16,5 @@
   "owner": "",
   "priority": 3,
   "status": "open",
-  "title": "Five low fill-ins split from W-cd40f947: (a) claude_rotate._fleet_dirs() counts the backups folder as an account; (b) _fill_credentials raises AttributeError on a wrong-shape roster; (c) a typed repo without the gitignore line or with a tracked .mcp.json still gets written; (d) emitter --check reports a worktree copy it did not write; (f) hermetic-git test fixtures do not neutralise git's XDG global-ignore fallback"
+  "title": "Six low fill-ins split from W-cd40f947: (a) claude_rotate._fleet_dirs() counts the backups folder as an account; (b) _fill_credentials raises AttributeError on a wrong-shape roster; (c) a typed repo without the gitignore line or with a tracked .mcp.json still gets written; (d) emitter --check reports a worktree copy it did not write; (f) hermetic-git test fixtures do not neutralise git's XDG global-ignore fallback; (g) an unreadable project.yaml gives a bare SKIP and exit 0 (found by the W-d095d60b review)"
 }
