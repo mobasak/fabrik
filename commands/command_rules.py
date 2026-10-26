@@ -805,12 +805,14 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
     own = own if "shared" in ledger else own_text(own)
     loss: list[str] = []
     labels = ledger.get("vanished") or {}
-    for n in vanished(baseline, own):
+    gone = vanished(baseline, own)
+    for n in gone:
         if f"L{n}" not in labels:
             loss.append(f"LOSS {name}: baseline L{n} vanished, unclassified — {baseline[n - 1][:120]}")
         elif labels[f"L{n}"] == "narrative" and _is_ban(baseline[n - 1].split(" ¦ ", 1)[-1]):  # D-1238 point 1; the unit, never its heading key
             loss.append(f"LOSS {name}: baseline L{n} holds a ban word and cannot vanish as narrative — {baseline[n - 1][:120]}")
     positions: dict[str, int] = {}
+    scopes: dict[str, str] = {}  # each resolved entry's live section, for the vanished-label proof below
     for e in ledger["_ids"].values():
         f = _resolve(e, ledger, render_dir, root)
         if not f.is_file():
@@ -826,6 +828,7 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
             loss.append(f"LOSS {name} {e['id']}: section {e['section']!r} missing")
             continue
         scope, start = found
+        scopes[e["id"]] = scope
         for lint, msg in _lint(e, scope, text):
             loss.append(f"LOSS {name} {e['id']}: lint {lint} — {msg}")
         where = "under its section" if e.get("section") else "in its file"
@@ -853,7 +856,32 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
         at = [p for p in seq if p is not None]
         if seq and (len(at) < len(seq) or at != sorted(at)):
             loss.append(f"LOSS {name} {e['id']}: `ordered` entries out of order or missing")
+    for n in gone:
+        loss += [f"LOSS {name}: baseline L{n} {msg}" for msg in _vanished_proof(baseline[n - 1], labels.get(f"L{n}"), ledger["_ids"], scopes)]
     return loss
+
+
+def _vanished_proof(line: str, label: object, ids: dict[str, dict], scopes: dict[str, str]) -> list[str]:
+    """W-34d76a7a: a vanished line labelled `rule:`/`duplicate-of:` owes what an entry's own baseline owes
+    (D-1236, D-1238, D-1240) — never just a live id. Proven by a named `_lintable` entry whose baseline IS the
+    line (its own lints already bind every clause, so nothing prints twice), else by `_lint` over a probe: the
+    line's unit as baseline, the named entries' phrases pooled (`_covered` stays per phrase) and their sections
+    joined by a blank line (so no ban span reads across two sections), classed `ban` (C stays with each
+    carrier's own entry). A named entry whose file or section is missing is already a LOSS: nothing more here.
+    COBRA (D-253): the cheapest pass left is an equal-baseline entry labelling every non-ban clause `narrative`
+    — D-1236's own residue, which the author-blind audit pair reads."""
+    if not isinstance(label, dict):
+        return []  # unlabelled and `narrative` lines are `_check`'s own reads above
+    named = label.get("rule") or [label["duplicate-of"]]
+    if any(i not in scopes for i in named):
+        return []
+    unit = line.split(" ¦ ", 1)[-1]
+    same = _deemph(normalise(unit))
+    if any(_lintable(ids[i]) and _deemph(normalise(ids[i]["baseline"])) == same for i in named):
+        return []
+    probe = {"id": "", "class": "ban", "baseline": unit, "text": [ph for i in named for ph in ids[i].get("text") or []]}
+    how = f"rule {named}" if "rule" in label else f"duplicate-of {named[0]}"
+    return [f"vanished as {how} — lint {lint} — {msg}" for lint, msg in _lint(probe, "\n\n".join(scopes[i] for i in named), "")]
 
 
 def ledgers(rules: Path | None = None) -> list[Path]:
