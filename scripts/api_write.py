@@ -22,9 +22,10 @@ option a glob would admit: pytest's ``--basetemp`` deletes the directory it name
 ``git commit -F`` reads any file). The child has no git and no repository: the runner clones the main checkout under
 ``<state>/api-write/<run>/`` with the git dir OUTSIDE the work tree (``gitdir/``, beyond the child's reach; the work
 tree's ``.git`` pointer is deleted), fetches ``origin`` and checks out ``claude/<slug>`` at ``origin/<base>`` before
-the child starts. Every runner git call names ``--git-dir``/``--work-tree`` with ``core.hooksPath`` and
-``core.fsmonitor`` forced off, so nothing written in the work tree picks the repository or its config (a review found
-a ``.git/commondir`` the child writes redirecting config past a digest of ``.git/config``). After a clean exit the
+the child starts. Every runner git call that acts on the clone names ``--git-dir``/``--work-tree`` with
+``core.hooksPath`` and ``core.fsmonitor`` forced off, so nothing written in the work tree picks the repository or its
+config (a review found a ``.git/commondir`` the child writes redirecting config past a digest of ``.git/config``), and
+the child's git discovery stops at the run directory (a gate that needs a repository finds none). After a clean exit the
 runner refuses when the git dir's config changed or the child left any ``.git`` entry in the work tree, commits the
 edits as one commit, scans that commit's diff (binary files included, no diff drivers) for a key value or an
 ``sk-ant-`` string, and pushes that same commit to ``claude/<slug>`` at the URL it captured from the main checkout
@@ -146,14 +147,17 @@ def build_write_argv(model: str, budget: float, max_turns: int, gates: list[str]
     ]
 
 
-def write_env(key_value: str, config_dir: Path, main: Path) -> dict[str, str]:
+def write_env(key_value: str, config_dir: Path, main: Path, run_dir: Path) -> dict[str, str]:
     """``api_credit.child_env`` minus ``GIT_*`` and the SSH agent, with the main checkout's venv first on PATH when it
-    exists, so a gate's ``python3 -m pytest`` has the hub's dependencies without a pip install."""
+    exists, so a gate's ``python3 -m pytest`` has the hub's dependencies without a pip install. Git discovery stops at
+    the run directory (``GIT_CEILING_DIRECTORIES``): the work tree has no ``.git``, so a gate's git would otherwise
+    climb into whatever repository encloses the state directory; a gate that needs a repository finds none."""
     env = {
         k: v
         for k, v in ac.child_env(key_value, config_dir).items()
         if not k.startswith("GIT_") and k not in ("SSH_AUTH_SOCK", "SSH_AGENT_PID")
     }
+    env["GIT_CEILING_DIRECTORIES"] = str(run_dir)
     venv_bin = main / ".venv" / "bin"
     if venv_bin.is_dir():
         env["PATH"] = f"{venv_bin}{os.pathsep}{env.get('PATH', '')}"
@@ -168,8 +172,10 @@ def origin_url(main: Path) -> str:
 
 
 def repo(gitdir: Path, clone: Path) -> tuple[str, ...]:
-    """Every runner git call names the git dir and work tree explicitly, with hooks and fsmonitor off: nothing the
-    child can write (it has no ``.git`` of its own) chooses which repository or config git reads."""
+    """Every runner git call that acts on the clone names its git dir and work tree explicitly, with hooks and
+    fsmonitor off: nothing the child can write (it has no ``.git`` of its own) chooses which repository or config git
+    reads. (The calls that never touch the clone — the main checkout's origin URL, the clone itself, ``ls-remote``,
+    ``check-ref-format`` — read nothing the child can write.)"""
     return ("--git-dir", str(gitdir), "--work-tree", str(clone), *SAFE_GIT)
 
 
@@ -349,7 +355,7 @@ def one(job: dict, a: argparse.Namespace, keys: dict[str, str], main: Path, url:
                 build_write_argv(a.model, budget, a.max_turns, gates),
                 prompt,
                 clone,
-                write_env(keys[best], config_dir, main),
+                write_env(keys[best], config_dir, main, run_dir),
                 a.timeout,
             )
             res = ac.parse_result(out)

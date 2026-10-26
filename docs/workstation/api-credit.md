@@ -151,11 +151,13 @@ Bash and `bypassPermissions`, then with a Bash allow-list — D-1248, D-1249). T
   (`<state>` is `~/.claude/state` unless `ROTATE_STATE_DIR` says otherwise) with the git dir OUTSIDE the work tree
   (`gitdir/`, beyond `--restricted`'s reach; the work tree's `.git` pointer file is deleted), points `origin` at the
   main checkout's `origin` URL, fetches, and checks out `claude/<slug>` at `origin/<base>`. No worktree of the main
-  checkout is made and its refs and index are only read; its objects are hardlinked into `gitdir/` (a full copy would be 1.7 GB
-  per job), and git adds objects, never rewrites one. Every runner git call names `--git-dir` and `--work-tree`, so
-  nothing written in the work tree picks the repository or its config — the review that built this found a child-written
-  `.git/commondir` redirecting config past a digest of `.git/config`. The prompt is prefixed with a runner note saying
-  so, and telling the child to skip the brief's BASE line, git, fetch, pip and push and to end with `SUBJECT: <commit
+  checkout is made and its refs and index are only read; its objects are hardlinked into `gitdir/` (a full copy would
+  be 1.7 GB per job), and git adds objects, never rewrites one. Every runner git call that acts on the clone names
+  `--git-dir` and `--work-tree`, so nothing written in the work tree picks the repository or its config — the review
+  that built this found a child-written `.git/commondir` redirecting config past a digest of `.git/config` — and the
+  child's git discovery stops at the run directory (`GIT_CEILING_DIRECTORIES`), so a gate that needs a git repository
+  finds none rather than climbing into one that encloses the state directory. The prompt is prefixed with a runner
+  note saying so, and telling the child to skip the brief's BASE line, git, fetch, pip and push and to end with `SUBJECT: <commit
   subject>`.
 - **After the child exits**, on a clean exit only: the runner refuses when the git dir's config changed or the child
   left any `.git` entry in the work tree, commits every edit as ONE commit (the child's `SUBJECT:` line, `Agent-*`

@@ -34,7 +34,9 @@ import json, os, subprocess, sys, time
 prompt = sys.stdin.read()
 with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
     f.write(json.dumps({{"argv": sys.argv[1:], "cwd": os.getcwd(), "env_names": sorted(os.environ),
-                        "has_git": os.path.lexists(".git"),
+                        "has_git": os.path.lexists(".git"), "ceiling": os.environ.get("GIT_CEILING_DIRECTORIES"),
+                        "toplevel": subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True,
+                                                   text=True).stdout.strip(),
                         "key": os.environ.get("ANTHROPIC_API_KEY", ""), "prompt": prompt}}) + "\\n")
 if "stream-json" in sys.argv:
     sys.stdout.write(open(os.environ["FAKE_PREFLIGHT"], encoding="utf-8").read())
@@ -242,7 +244,9 @@ def test_the_child_has_file_tools_only_and_gates_are_exact(box: dict) -> None:
     assert not any(a.startswith("Bash") for a in argv) and "bypassPermissions" not in argv
     assert argv[argv.index("--permission-mode") + 1] == "dontAsk" and "--restricted" in argv
     names = _runs(box)[0]["env_names"]
-    assert "SSH_AUTH_SOCK" not in names and not any(n.startswith("GIT_") for n in names)
+    assert "SSH_AUTH_SOCK" not in names
+    assert [n for n in names if n.startswith("GIT_")] == ["GIT_CEILING_DIRECTORIES"]
+    assert _runs(box)[0]["ceiling"] == str(Path(_runs(box)[0]["cwd"]).parent)
     _preflight(Path(box["env"]["FAKE_PREFLIGHT"]), FILE_TOOLS + ["Bash"])
     gate = "python3 -m pytest -q tests/test_x.py"
     assert (
@@ -286,6 +290,21 @@ def test_a_git_entry_the_child_leaves_is_never_trusted(box: dict, action: str, w
     assert _runs(box)[0]["has_git"] is False
     assert p.returncode == 1 and f"left a git entry at {where}" in p.stdout
     assert not _origin(box, "refs/heads/claude/t4") and not Path(box["env"]["FAKE_PWNED"]).exists()
+
+
+def test_the_childs_git_does_not_climb_into_an_enclosing_repository(box: dict) -> None:
+    """Behaviour 3c: with the state directory inside some other repository, a git run from the child's work tree finds
+    no repository (discovery stops at the run directory) instead of that enclosing one."""
+    outer = box["tmp"] / "outer"
+    _git("init", "-q", str(outer))
+    box["env"]["ROTATE_STATE_DIR"] = str(outer / "state")
+    assert (
+        _run(
+            box, "--key", "can", "--slug", "t4c", "--task-file", str(_brief(box, "t4c"))
+        ).returncode
+        == 0
+    )
+    assert _runs(box)[0]["toplevel"] == ""
 
 
 def test_a_changed_git_dir_config_is_never_trusted(box: dict) -> None:
