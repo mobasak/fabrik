@@ -41,21 +41,27 @@ entries:
 - id: ci-this-command-is-the-reader
   # class: prose
   baseline: 'This command is the reader, and the whole of it is: one command, one edit, one commit that says which verdicts it answers'
-  current: 'This command is the reader: one command, one edit, one commit that says which verdicts it answers'
+  current: 'This command is the reader, and the whole of it is: one command, one edit, one commit that says which verdicts it answers'
   text:
-  - 'This command is the reader: one command, one edit, one commit that says which verdicts it answers'
+  - 'This command is the reader, and the whole of it is: one command, one edit, one commit that says which verdicts it answers'
 - id: ci-it-improves-one-command-per
   # class: ban
   baseline: It improves ONE command per run, proposes ONE edit, and closes on `/fabrik-review-scoped` — never the heavy review loop
   current: It improves ONE command per run, proposes ONE edit, and closes on `/fabrik-review-scoped` — never the heavy review loop
   text:
   - It improves ONE command per run, proposes ONE edit, and closes on `/fabrik-review-scoped` — never the heavy review loop
+- id: ci-it-is-deliberately-small
+  # class: prose
+  baseline: It is deliberately SMALL
+  current: It is deliberately SMALL
+  text:
+  - It is deliberately SMALL
 - id: ci-a-command-whose-queue-deserves
   # class: prose
   baseline: A command whose queue deserves five edits gets five runs, each of which a reader can judge on its own
-  current: A command whose queue deserves five edits gets five runs
+  current: A command whose queue deserves five edits gets five runs, each of which a reader can judge on its own
   text:
-  - A command whose queue deserves five edits gets five runs
+  - A command whose queue deserves five edits gets five runs, each of which a reader can judge on its own
 - id: ci-caller-a-hub-window-whose
   # class: prose
   section: '## Drive — who runs it, on what, and how hard'
@@ -159,12 +165,11 @@ entries:
   - An EXTERNAL fact (a vendor API, a documented status value) is grounded LIVE, never recalled — inline for a lone quick fact, on a `fabrik-researcher` seat when it is load-bearing or several
 - id: ci-every-count-and-claim-the
   # class: prose
-  # clauses: {2: narrative}
   section: '## Drive — who runs it, on what, and how hard'
   baseline: Every count, `file::symbol` and claim the edit introduces is EXECUTED before the render — a recalled number is a wrong number
-  current: Every count, `file::symbol` and claim the edit introduces is EXECUTED before the render
+  current: Every count, `file::symbol` and claim the edit introduces is EXECUTED before the render — a recalled number is a wrong number
   text:
-  - Every count, `file::symbol` and claim the edit introduces is EXECUTED before the render
+  - Every count, `file::symbol` and claim the edit introduces is EXECUTED before the render — a recalled number is a wrong number
 - id: ci-time-budget-one-run-at
   # class: prose
   section: '## Drive — who runs it, on what, and how hard'
@@ -241,9 +246,9 @@ entries:
   # class: ban
   section: '## PHASE 1 — Read the queue'
   baseline: The lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyping it or taking it from a seat's report; a row a seat reports is mapped back to its line in that output by its verdict text
-  current: The lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyping it or taking it from a seat's report; a row a seat reports is mapped back to its line by its verdict text
+  current: The lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyping it or taking it from a seat's report; a row a seat reports is mapped back to its line in that output by its verdict text
   text:
-  - The lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyping it or taking it from a seat's report; a row a seat reports is mapped back to its line by its verdict text
+  - The lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyping it or taking it from a seat's report; a row a seat reports is mapped back to its line in that output by its verdict text
 - id: ci-before-the-trailer-or-takes
   # class: prose
   section: '## PHASE 1 — Read the queue'
@@ -255,9 +260,9 @@ entries:
   # class: prose
   section: '## PHASE 1 — Read the queue'
   baseline: 'Then TAKE the queue''s own work item, so the depth is tracked in the store and PHASE 5''s `--mark-answered` has an item to close:'
-  current: 'Then TAKE the queue''s own work item, so the depth is tracked and PHASE 5''s `--mark-answered` has an item to close:'
+  current: 'Then TAKE the queue''s own work item, so the depth is tracked in the store and PHASE 5''s `--mark-answered` has an item to close:'
   text:
-  - 'Then TAKE the queue''s own work item, so the depth is tracked and PHASE 5''s `--mark-answered` has an item to close:'
+  - 'Then TAKE the queue''s own work item, so the depth is tracked in the store and PHASE 5''s `--mark-answered` has an item to close:'
 - id: ci-python3-opt-fabrik-scripts-command-2
   # class: grammar
   section: '## PHASE 1 — Read the queue'
@@ -344,19 +349,18 @@ entries:
   - 'Sort your reading by axis, not by recency: four rows saying the same thing about `lean` are one edit; four rows on four axes are four runs'
 - id: ci-expect-to-dominate-the-backlog
   # class: prose
-  # clauses: {2: narrative}
   section: '## PHASE 1 — Read the queue'
   baseline: ⚠️ Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows. The axis convention landed 2026-09-15 and was documented-but-unenforced for its first hours, so the historical tail is almost entirely `unkeyed`
-  current: '⚠️ Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows. ⚠️ Do not trust any figure quoted here: run the tally yourself over today''s ledger, and note that the `unkeyed` bucket folds in every legitimate `change: none`, which carries no key by contract — separate them before you report a number'
+  current: ⚠️ Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows. The axis convention landed 2026-09-15, so the historical tail is almost entirely `unkeyed`
   text:
-  - '⚠️ Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows. ⚠️ Do not trust any figure quoted here: run the tally yourself over today''s ledger, and note that the `unkeyed` bucket folds in every legitimate `change: none`, which carries no key by contract — separate them before you report a number'
+  - ⚠️ Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows. The axis convention landed 2026-09-15, so the historical tail is almost entirely `unkeyed`
 - id: ci-do-not-trust-any-figure
   # class: prose
   section: '## PHASE 1 — Read the queue'
   baseline: '⚠️ Do not trust any figure quoted here: run the tally yourself over today''s ledger, and note that the `unkeyed` bucket folds in every legitimate `change: none`, which carries no key by contract — separate them before you report a number'
-  current: '⚠️ Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows. ⚠️ Do not trust any figure quoted here: run the tally yourself over today''s ledger, and note that the `unkeyed` bucket folds in every legitimate `change: none`, which carries no key by contract — separate them before you report a number'
+  current: '⚠️ Do not trust any figure quoted here: run the tally yourself over today''s ledger, and note that the `unkeyed` bucket folds in every legitimate `change: none`, which carries no key by contract — separate them before you report a number'
   text:
-  - '⚠️ Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows. ⚠️ Do not trust any figure quoted here: run the tally yourself over today''s ledger, and note that the `unkeyed` bucket folds in every legitimate `change: none`, which carries no key by contract — separate them before you report a number'
+  - '⚠️ Do not trust any figure quoted here: run the tally yourself over today''s ledger, and note that the `unkeyed` bucket folds in every legitimate `change: none`, which carries no key by contract — separate them before you report a number'
 - id: ci-rows-written-after-the-gate
   # class: ban
   section: '## PHASE 1 — Read the queue'
@@ -375,9 +379,9 @@ entries:
   # class: prose
   section: '## PHASE 1 — Read the queue'
   baseline: Rows a previous run answered are ALREADY EXCLUDED — `--queue` reads the answered index (`~/.claude/state/command-feedback-answered.jsonl`, written by PHASE 5's `--mark-answered`) and its header states how many it dropped, so the count you read is the work that is actually left
-  current: Rows a previous run answered are ALREADY EXCLUDED — `--queue` reads the answered index (`~/.claude/state/command-feedback-answered.jsonl`, written by PHASE 5's `--mark-answered`) and its header states how many it dropped
+  current: Rows a previous run answered are ALREADY EXCLUDED — `--queue` reads the answered index (`~/.claude/state/command-feedback-answered.jsonl`, written by PHASE 5's `--mark-answered`) and its header states how many it dropped, so the count you read is the work that is actually left
   text:
-  - Rows a previous run answered are ALREADY EXCLUDED — `--queue` reads the answered index (`~/.claude/state/command-feedback-answered.jsonl`, written by PHASE 5's `--mark-answered`) and its header states how many it dropped
+  - Rows a previous run answered are ALREADY EXCLUDED — `--queue` reads the answered index (`~/.claude/state/command-feedback-answered.jsonl`, written by PHASE 5's `--mark-answered`) and its header states how many it dropped, so the count you read is the work that is actually left
 - id: ci-this-used-to-be-a
   class: ban
   clauses:
@@ -396,19 +400,18 @@ entries:
   - The commit trailer is still written and is still the provenance — it is simply no longer the only state
 - id: ci-rows-whose-edit-already-landed
   # class: prose
-  # clauses: {2: narrative}
   section: '## PHASE 1 — Read the queue'
   baseline: Rows whose edit already landed. A `change:` verdict is often written by the run that ALSO made the edit ("the one edit is already made and is what closed this run…"), or by a later run that shipped it
-  current: 'Rows whose edit already landed. Read the row, then read the command''s current text: if its MECHANISM (trigger, scope, unit) is already there, not merely its topic, the row is answered — `--reject <command> --rows <ts> --reason "<live path:line + quote + the landing commit>"`, the commit found with `git log --reverse -S ''<phrase>'' -- <file>` on a phrase from ONE source line (`-S` and `-G` both miss a phrase wrapped across lines)'
+  current: Rows whose edit already landed. A `change:` verdict is often written by the run that ALSO made the edit, or by a later run that shipped it
   text:
-  - 'Rows whose edit already landed. Read the row, then read the command''s current text: if its MECHANISM (trigger, scope, unit) is already there, not merely its topic, the row is answered — `--reject <command> --rows <ts> --reason "<live path:line + quote + the landing commit>"`, the commit found with `git log --reverse -S ''<phrase>'' -- <file>` on a phrase from ONE source line (`-S` and `-G` both miss a phrase wrapped across lines)'
+  - Rows whose edit already landed. A `change:` verdict is often written by the run that ALSO made the edit, or by a later run that shipped it
 - id: ci-read-the-row-then-read
   # class: prose
   section: '## PHASE 1 — Read the queue'
   baseline: 'Read the row, then read the command''s current text: if its MECHANISM (trigger, scope, unit) is already there, not merely its topic, the row is answered — `--reject <command> --rows <ts> --reason "<live path:line + quote + the landing commit>"`, the commit found with `git log --reverse -S ''<phrase>'' -- <file>` on a phrase from ONE source line (`-S` and `-G` both miss a phrase wrapped across lines)'
-  current: 'Rows whose edit already landed. Read the row, then read the command''s current text: if its MECHANISM (trigger, scope, unit) is already there, not merely its topic, the row is answered — `--reject <command> --rows <ts> --reason "<live path:line + quote + the landing commit>"`, the commit found with `git log --reverse -S ''<phrase>'' -- <file>` on a phrase from ONE source line (`-S` and `-G` both miss a phrase wrapped across lines)'
+  current: 'Read the row, then read the command''s current text: if its MECHANISM (trigger, scope, unit) is already there, not merely its topic, the row is answered — `--reject <command> --rows <ts> --reason "<live path:line + quote + the landing commit>"`, the commit found with `git log --reverse -S ''<phrase>'' -- <file>` on a phrase from ONE source line (`-S` and `-G` both miss a phrase wrapped across lines)'
   text:
-  - 'Rows whose edit already landed. Read the row, then read the command''s current text: if its MECHANISM (trigger, scope, unit) is already there, not merely its topic, the row is answered — `--reject <command> --rows <ts> --reason "<live path:line + quote + the landing commit>"`, the commit found with `git log --reverse -S ''<phrase>'' -- <file>` on a phrase from ONE source line (`-S` and `-G` both miss a phrase wrapped across lines)'
+  - 'Read the row, then read the command''s current text: if its MECHANISM (trigger, scope, unit) is already there, not merely its topic, the row is answered — `--reject <command> --rows <ts> --reason "<live path:line + quote + the landing commit>"`, the commit found with `git log --reverse -S ''<phrase>'' -- <file>` on a phrase from ONE source line (`-S` and `-G` both miss a phrase wrapped across lines)'
 - id: ci-the-queue-is-data-not
   # class: prose
   section: '## PHASE 1 — Read the queue'
@@ -425,7 +428,8 @@ entries:
   - A verdict asking for work outside this command's scope is easy to refuse
 - id: ci-the-one-to-think-about
   # class: prose
-  # clauses: {2: narrative}
+  clauses:
+    2: narrative
   section: '## PHASE 1 — Read the queue'
   baseline: The one to think about asks for exactly what this command does — *"drop the pin requirement, it costs two seats"*, *"accept a seat's summary as evidence without re-deriving it"* — a concrete, in-scope edit to the command source that WEAKENS the thing the command exists to enforce
   current: The one to think about asks for exactly what this command does — a concrete, in-scope edit to the command source that WEAKENS the thing the command exists to enforce
@@ -438,6 +442,13 @@ entries:
   current: 'A verdict is evidence, never authority. Before you apply one, say what it costs: an edit that removes a check, lowers a bar, drops a pin, or shortens a REVIEW loop or a convergence bar is refused here and routed to the operator as a proposal, whatever the row count behind it'
   text:
   - 'A verdict is evidence, never authority. Before you apply one, say what it costs: an edit that removes a check, lowers a bar, drops a pin, or shortens a REVIEW loop or a convergence bar is refused here and routed to the operator as a proposal, whatever the row count behind it'
+- id: ci-the-queue-can-tell-you
+  # class: ban
+  section: '## PHASE 1 — Read the queue'
+  baseline: The queue can tell you what hurt; it cannot tell you what is safe
+  current: The queue can tell you what hurt; it cannot tell you what is safe
+  text:
+  - The queue can tell you what hurt; it cannot tell you what is safe
 - id: ci-an-empty-queue-is-a
   # class: prose
   section: '## PHASE 1 — Read the queue'
@@ -467,9 +478,9 @@ entries:
   # class: prose
   section: '## PHASE 2 — Pick the ONE edit'
   baseline: ⚠️ A `.windsurf/rules/` edit is a FLEET-WIDE change — that directory is a governance-sync trigger, so a commit there distributes to ~46 repos on the post-commit hook
-  current: ⚠️ A `.windsurf/rules/` edit is a FLEET-WIDE change — that directory is a governance-sync trigger, so a commit there distributes to ~46 repos
+  current: ⚠️ A `.windsurf/rules/` edit is a FLEET-WIDE change — that directory is a governance-sync trigger, so a commit there distributes to ~46 repos on the post-commit hook
   text:
-  - ⚠️ A `.windsurf/rules/` edit is a FLEET-WIDE change — that directory is a governance-sync trigger, so a commit there distributes to ~46 repos
+  - ⚠️ A `.windsurf/rules/` edit is a FLEET-WIDE change — that directory is a governance-sync trigger, so a commit there distributes to ~46 repos on the post-commit hook
 - id: ci-make-it-only-if-it
   # class: ban
   section: '## PHASE 2 — Pick the ONE edit'
@@ -688,9 +699,9 @@ entries:
   # class: prose
   section: '## PHASE 3 — Write the edit, then prove it renders'
   baseline: An append that restates what the file already says creates two sources of truth in one document
-  current: An append that restates what the file already says creates two sources of truth
+  current: An append that restates what the file already says creates two sources of truth in one document
   text:
-  - An append that restates what the file already says creates two sources of truth
+  - An append that restates what the file already says creates two sources of truth in one document
 - id: ci-before-a-sentence-is-written
   # class: ban
   section: '## PHASE 3 — Write the edit, then prove it renders'
@@ -744,9 +755,9 @@ entries:
   # class: prose
   section: '## PHASE 3 — Write the edit, then prove it renders'
   baseline: Before an edit widens a sentence's subject, splits the sentence or places text between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in the sentence edited, in the sentence holding the pronoun, and in each later sentence or item pointing back into either — is read against what that clause will bind once the edit lands, since a clause written for one subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed text puts nearer
-  current: Before an edit widens a sentence's subject, splits the sentence or places text between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in the sentence edited, the sentence holding the pronoun, and each later sentence pointing back into either — is read against what that clause will bind once the edit lands, since a clause written for one subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed text puts nearer
+  current: Before an edit widens a sentence's subject, splits the sentence or places text between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in the sentence edited, the sentence holding the pronoun, and each later sentence or item pointing back into either — is read against what that clause will bind once the edit lands, since a clause written for one subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed text puts nearer
   text:
-  - Before an edit widens a sentence's subject, splits the sentence or places text between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in the sentence edited, the sentence holding the pronoun, and each later sentence pointing back into either — is read against what that clause will bind once the edit lands, since a clause written for one subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed text puts nearer
+  - Before an edit widens a sentence's subject, splits the sentence or places text between a pronoun (or an "above") and what it names, each clause that attaches to the changed part — in the sentence edited, the sentence holding the pronoun, and each later sentence or item pointing back into either — is read against what that clause will bind once the edit lands, since a clause written for one subject or one antecedent then binds whatever the widening adds, the split leaves beside it or the placed text puts nearer
   pins:
   - tests/test_command_improve_queue_pass.py::test_a_widened_or_split_sentence_rereads_the_clauses_already_in_it
 - id: ci-an-edit-to-what-a
@@ -780,9 +791,9 @@ entries:
   # class: prose
   section: '## PHASE 3 — Write the edit, then prove it renders'
   baseline: '`python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check` reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line, not its exit code, and if the surface grew say in the commit what the growth buys'
-  current: '`python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check` reports the delta against the base branch and exits 0 either way: read its ⚠ line, not its exit code, and if the surface grew say in the commit what the growth buys'
+  current: '`python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check` reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line, not its exit code, and if the surface grew say in the commit what the growth buys'
   text:
-  - '`python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check` reports the delta against the base branch and exits 0 either way: read its ⚠ line, not its exit code, and if the surface grew say in the commit what the growth buys'
+  - '`python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check` reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line, not its exit code, and if the surface grew say in the commit what the growth buys'
 - id: ci-a-target-a-test-caps
   # class: prose
   section: '## PHASE 3 — Write the edit, then prove it renders'
@@ -883,9 +894,9 @@ entries:
   # class: prose
   section: '## PHASE 3 — Write the edit, then prove it renders'
   baseline: A sentence a `_fragments/` edit adds names, in its own words, the consumers that have its subject (for example a review loop or a round count) and binds no other
-  current: A sentence a `_fragments/` edit adds names, in its own words, the consumers that have its subject and binds no other
+  current: A sentence a `_fragments/` edit adds names, in its own words, the consumers that have its subject (for example a review loop or a round count) and binds no other
   text:
-  - A sentence a `_fragments/` edit adds names, in its own words, the consumers that have its subject and binds no other
+  - A sentence a `_fragments/` edit adds names, in its own words, the consumers that have its subject (for example a review loop or a round count) and binds no other
   pins:
   - tests/test_command_improve_queue_pass.py::test_test_fragment_and_removed_word_rules
 - id: ci-then-from-the-main-master
@@ -920,9 +931,9 @@ entries:
   # class: prose
   section: '## PHASE 4 — Review it'
   baseline: For a `_fragments/` edit the brief names the consumers PHASE 3 names (each `{{include:}}` consumer and each source or fragment that names the fragment), so no seat hunts for homes the fragment does not have
-  current: For a `_fragments/` edit the brief names the consumers PHASE 3 names, (each `{{include:}}` consumer and each source or fragment that names the fragment), so no seat hunts for homes the fragment does not have
+  current: For a `_fragments/` edit the brief names the consumers PHASE 3 names (each `{{include:}}` consumer and each source or fragment that names the fragment), so no seat hunts for homes the fragment does not have
   text:
-  - For a `_fragments/` edit the brief names the consumers PHASE 3 names, (each `{{include:}}` consumer and each source or fragment that names the fragment), so no seat hunts for homes the fragment does not have
+  - For a `_fragments/` edit the brief names the consumers PHASE 3 names (each `{{include:}}` consumer and each source or fragment that names the fragment), so no seat hunts for homes the fragment does not have
   pins:
   - tests/test_command_improve_queue_pass.py::test_the_audit_seat_reads_the_source_and_briefs_name_pins_and_consumers
 - id: ci-a-seat-that-cannot-find
@@ -1034,7 +1045,8 @@ entries:
   - '⚠️ The trailer block must be its OWN paragraph with NO blank line inside it, or git parses none of it. Verify: `git log -1 --format=''%(trailers:key=Agent-Context,valueonly)''` — empty output means the block did not parse'
 - id: ci-then-mark-the-rows-answered
   # class: prose
-  # clauses: {2: narrative}
+  clauses:
+    2: narrative
   section: '## PHASE 5 — Commit, naming what you answered'
   baseline: 'Then MARK the rows answered — the step that makes the queue fall:'
   current: 'Then MARK the rows answered in the queue:'
@@ -1053,16 +1065,16 @@ entries:
   # class: ban
   section: '## PHASE 5 — Commit, naming what you answered'
   baseline: ⚠️ The sha and `--repo` must name the same repository. `--repo` defaults to `$FABRIK_ROOT` when set, else the checkout you run from inside a hub worktree, else the hub, and the sha is verified against that history — a 4-hex abbreviation collision between two repos was brute-forced in review and silenced a verdict on the strength of an unrelated commit, so pass the full sha of the edit and the checkout it was committed in
-  current: ⚠️ The sha and `--repo` must name the same repository. `--repo` defaults to `$FABRIK_ROOT` when set, else the checkout you run from inside a hub worktree, else the hub, and the sha is verified against that history — a 4-hex abbreviation collision between two repos was brute-forced in review and silenced a verdict on an unrelated commit, so pass the full sha of the edit and the checkout it was committed in
+  current: ⚠️ The sha and `--repo` must name the same repository. `--repo` defaults to `$FABRIK_ROOT` when set, else the checkout you run from inside a hub worktree, else the hub, and the sha is verified against that history — a 4-hex abbreviation collision between two repos was brute-forced in review and silenced a verdict on the strength of an unrelated commit, so pass the full sha of the edit and the checkout it was committed in
   text:
-  - ⚠️ The sha and `--repo` must name the same repository. `--repo` defaults to `$FABRIK_ROOT` when set, else the checkout you run from inside a hub worktree, else the hub, and the sha is verified against that history — a 4-hex abbreviation collision between two repos was brute-forced in review and silenced a verdict on an unrelated commit, so pass the full sha of the edit and the checkout it was committed in
+  - ⚠️ The sha and `--repo` must name the same repository. `--repo` defaults to `$FABRIK_ROOT` when set, else the checkout you run from inside a hub worktree, else the hub, and the sha is verified against that history — a 4-hex abbreviation collision between two repos was brute-forced in review and silenced a verdict on the strength of an unrelated commit, so pass the full sha of the edit and the checkout it was committed in
 - id: ci-same-list-as-the-trailer
   # class: ban
   section: '## PHASE 5 — Commit, naming what you answered'
   baseline: Same `ts` list as the trailer, and every handle must match a REAL row of that command's queue — copy them from `--queue` exactly, the whole `ts` with its fractional part (`1792030670` matches no row of `1792030670.5328414`), since a typo used to be accepted as answered work
-  current: Same `ts` list as the trailer, and every handle must match a REAL row of that command's queue — copy them from `--queue` exactly, the whole `ts` with its fractional part (`1792030670` matches no row of `1792030670.5328414`)
+  current: Same `ts` list as the trailer, and every handle must match a REAL row of that command's queue — copy them from `--queue` exactly, the whole `ts` with its fractional part (`1792030670` matches no row of `1792030670.5328414`), since a typo used to be accepted as answered work
   text:
-  - Same `ts` list as the trailer, and every handle must match a REAL row of that command's queue — copy them from `--queue` exactly, the whole `ts` with its fractional part (`1792030670` matches no row of `1792030670.5328414`)
+  - Same `ts` list as the trailer, and every handle must match a REAL row of that command's queue — copy them from `--queue` exactly, the whole `ts` with its fractional part (`1792030670` matches no row of `1792030670.5328414`), since a typo used to be accepted as answered work
   pins:
   - tests/test_command_improve_queue_pass.py::test_the_mark_step_says_a_handle_is_the_whole_ts_with_its_fraction
 - id: ci-it-refuses-a-commit-that
@@ -1123,7 +1135,8 @@ entries:
   - 'Both are orchestrator-applied shared-append surfaces: commit them with the private-index recipe, never by pathspec over a working file a sibling is also editing'
 - id: ci-next-re-run-this-command
   # class: prose
-  # clauses: {3: narrative}
+  clauses:
+    3: narrative
   section: '## Terminal'
   baseline: 'NEXT: re-run this command over the DEEPEST remaining queue — `--queue <name>` prints each one''s depth in its header, and that order is NOT `--observer-rank`''s: the rank sorts by what a close COSTS, this sorts by how many verdicts are waiting, and on live data the two disagree — when this was written the second-deepest queue did not appear in the rank at all'
   current: 'NEXT: re-run this command over the DEEPEST remaining queue — `--queue <name>` prints each one''s depth in its header, and that order is NOT `--observer-rank`''s: the rank sorts by what a close COSTS, this sorts by how many verdicts are waiting'
@@ -1166,7 +1179,7 @@ vanished:
   L7: narrative
   L8: narrative
   L10: {rule: [ci-this-command-is-the-reader]}
-  L11: {duplicate-of: ci-it-improves-one-command-per}
+  L11: {rule: [ci-it-is-deliberately-small]}
   L13: {rule: [ci-a-command-whose-queue-deserves]}
   L29: {rule: [ci-every-count-and-claim-the]}
   L41: {rule: [ci-the-lead-copies-each-handle]}
@@ -1179,7 +1192,7 @@ vanished:
   L64: {rule: [ci-rows-whose-edit-already-landed]}
   L65: {rule: [ci-read-the-row-then-read]}
   L68: {rule: [ci-the-one-to-think-about]}
-  L70: {duplicate-of: ci-a-verdict-is-evidence-never}
+  L70: {rule: [ci-the-queue-can-tell-you]}
   L73: {rule: [ci-group-the-rows-by-what]}
   L75: {rule: [ci-a-edit-is-a-fleet]}
   L91: {rule: [ci-only-then-read-the-locks]}

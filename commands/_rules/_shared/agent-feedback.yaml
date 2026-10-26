@@ -28,13 +28,12 @@ entries:
   - 'So there are two kinds of finding in your output, and they must not be mixed:'
 - id: af-findings-about-the-subject-you
   # class: prose
-  # clauses: {2: narrative}
   file: commands/_fragments/agent-feedback.md
   section: '## ⚠️ Machinery findings — SURFACE them, you cannot file them'
   baseline: Findings about the SUBJECT you were dispatched to examine — the code, the screen, the fact
-  current: Findings about the SUBJECT you were dispatched to examine
+  current: Findings about the SUBJECT you were dispatched to examine — the code, the screen, the fact
   text:
-  - Findings about the SUBJECT you were dispatched to examine
+  - Findings about the SUBJECT you were dispatched to examine — the code, the screen, the fact
 - id: af-that-is-your-job-report
   # class: prose
   file: commands/_fragments/agent-feedback.md

@@ -5,7 +5,7 @@ Anything you noticed and did not put in your return value is gone, and you have 
 
 So there are two kinds of finding in your output, and they must not be mixed:
 
-1. **Findings about the SUBJECT** you were dispatched to examine.
+1. **Findings about the SUBJECT** you were dispatched to examine — the code, the screen, the fact.
    That is your job; report it as your brief specifies.
 2. **Findings about the MACHINERY you ran on** — a command instruction that was wrong or impossible,
    an enforcement check that fired on a legitimate pattern or stayed silent on a real defect, a rule

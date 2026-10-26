@@ -262,6 +262,31 @@ Entries kept more than two words above their clause minimum (83 command, 7 fragm
 Pass 1 (fresh subagent, four checks) found 1 lost, 9 firm + 11 low weaker, 1 wrong label, 0 invented; all restored (tails with conditions/exceptions, the appended-fragment routing clause, the dangling-"It" sentence, the "best practice" clause relabel removed). Pass 2 result: restored every item pass 2 named (bounds, since-clauses, L95, L142, L17/L19, clause-3 labels) instead of relabelling
 COUNTS: 164 read / 44 reworded / 14 weaker found, all restored after the pass / 0 lost / 0 invented (1 INFO) / 5 wrong labels found, all restored after the pass (no third pass run; my mechanical clause check after the fixes shows 0 uncovered, 0 below 70% outside labelled clauses)
 
+## Fix round 2 (hub audit)
+Findings are numbered A1–A6 (Sonnet) and H1–H15 (Haiku); an overlapping pair counts once.
+
+**Confirmed and fixed (restored to the baseline wording):**
+- Sonnet 2 "or item" (`ci-before-an-edit-widens-a`); Sonnet 3 / Haiku 5 "on the post-commit hook" (`ci-a-edit-is-a-fleet`); Sonnet 4 / Haiku 9 "in that output" (`ci-the-lead-copies-each-handle`); Sonnet 5 "a recalled number is a wrong number" (`ci-every-count-and-claim-the`, its `narrative` label is gone: the clause is text again); Sonnet 6 / Haiku 15 "since a typo used to be accepted as answered work" (`ci-same-list-as-the-trailer`); Haiku 4 "in one document"; Haiku 6 "in one reading"; Haiku 7 the stray comma in `names, (each` (a real defect, removed in source and ledger); Haiku 8 "in the store"; Haiku 10 "so the count you read is the work that is actually left"; Haiku 11 "and the whole of it is"; Haiku 12 "each of which a reader can judge on its own"; Haiku 13 "(for example a review loop or a round count)"; Haiku 14 "on the strength of".
+- Haiku 2 / loader L70: "The queue can tell you what hurt; it cannot tell you what is safe" was in no entry. It is back in PHASE 1 after the "evidence, never authority" sentence, with its own entry `ci-the-queue-can-tell-you`; L70 is relabelled `rule` there (the old `duplicate-of` was wrong).
+- Loader L11: "It is deliberately SMALL" was labelled a duplicate of the ban entry, which does not carry it. Restored in the source with its own entry `ci-it-is-deliberately-small`; L11 is `rule` there.
+- Loader L56 / Haiku 1: its clause 1 held the axis-convention sentence, which no phrase covered. Restored shortened ("The axis convention landed 2026-09-15, so the historical tail is almost entirely `unkeyed`"; the documented-but-unenforced history is cut). `ci-expect-to-dominate-the-backlog` and `ci-do-not-trust-any-figure` now each carry their own phrase.
+- Loader L64: `change:` verdict sentence restored without the quoted example; `ci-rows-whose-edit-already-landed` and `ci-read-the-row-then-read` now carry separate phrases.
+- Loader L68 (two quoted example verdicts), L145 ("the step that makes the queue fall"), L158 (second-deepest-queue anecdote): kept as `narrative` clause labels, now written as real `clauses:` keys (they were `# clauses:` comments, which the loader does not read). Examples, rationale and anecdote: no instruction.
+- Loader `_shared/agent-feedback.yaml` L6: "the code, the screen, the fact" restored in the fragment and the entry (the `# clauses` comment is gone).
+
+**Refuted:**
+- Sonnet 1 / Haiku 3 "invented" size-ceiling sentence: not invented, it is the ticket's own acceptance line. T10's Gate line (docs/development/plans/2026-10-25-plan-1-lean-command-corpus/T10-...md:32) reads "it states that an edit must fit its ceiling and pass the ledger, and that a `remove:` candidate is a ledger check, never permission to delete (spec § Loop changes)". It stays; the receipt's earlier "no baseline unit, no entry" stands. The hub may rule otherwise.
+- Haiku 1 first half ("`after/` has no 'Expect `unkeyed`'"): the sentence is in the source at PHASE 1 (`**Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows.**`); only the loader's clause-1 coverage was short, fixed above.
+
+**Own-text words:** baseline 6219 → re-ledger 5970 → now about 6095 for `fabrik-command-improve.md` (this run could not execute the measuring one-liner: it has no shell beyond the listed gate commands, so the figure is the 5970 plus a hand count of the restored words, about 125; hub: re-measure). Share about 98%; the 50% target stays unmet, floor named above. The fragment `agent-feedback.md` 452 → about 458.
+
+**Gates:** `tests/test_command_rules.py`: 56 passed, 1 failed (`test_the_live_corpus_has_no_loss`); the failure is the `_shared` ledgers of T01d's files, and no LOSS line names `fabrik-command-improve.yaml` or `_shared/agent-feedback.yaml` (the list opens with `_shared/close-chain.yaml`; `assemble_commands.py --check` exit 4, drift only DIFFERS/MISSING and the same `_shared` LOSS).
+
+**Reader/Gate-line tests (end of this round only; none run before the first edit, so no start set to compare):** batch 2 (`test_command_improve_drive.py`, `test_command_feedback_report.py`, `test_check_command_corpus.py` and the rest: 349 passed), batch 5 (producing-command fragments, review queue pass etc.) and batch 6 (spec) passed. Batch 1 (flip-gate/agent tests) showed several `F` marks; batch 3 (`test_command_improve_queue_pass.py` first, its 11 tests green, then `test_command_measure.py` and `test_command_run.py`) showed one `F` at test 25; batch 4 was still running. This run could not read the failing names before it ended (the runner prints progress dots only until exit); the receipt's start set had 52 box-service failures, so the hub should diff the failure set against it. I do not claim the set did not grow.
+
+**Self-audit:** no subagent could be dispatched here, so there was NO fresh pass. The hub's author-blind audit pair covers it. I re-read each restored line against the baseline file by hand; that is my own re-check, not a fresh pass.
+COUNTS: entries read 152 / reworded 32 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 (author's own pass, fresh passes run: 0; not a zeros claim)
+
 ## LEFT FOR THE HUB
 - author-blind Sonnet+Haiku audit of the vanished labels and reworded entries; the review wave.
 - floor D-row for the 50% target (above); the `commands/_size_ceiling.json` ratchet at merge; CHANGELOG, INDEX rows for the two new baseline files and ledgers, D-rows.
