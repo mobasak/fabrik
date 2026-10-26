@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a worktree run's scratch is writable; a round of stale seats is never TERMINAL (2026-10-27)
+
+- `scripts/command_run.py start` roots a run's `SCRATCH:` folder in the checkout the session runs in — a linked
+  worktree's own `.tmp/runs/` — because a worktree-isolated session's Write tool refuses the main checkout's path
+  (W-128df814, D-1268, superseding D-836's root). Every `start` now prunes every checkout's `.tmp/runs/`, and a seed
+  whose scratch is gone says so.
+- The dispatch stamp keeps per-message `batches`; `round` records `dispatched_at` (oldest batch first) and prints
+  `⛔ NOT TERMINAL` when every seat it closed went out before the newest confirming round was recorded — fleet's
+  [4, 0, 0] wave round that read TERMINAL before its fixes were re-verified.
+
 ### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
 
 - `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a
