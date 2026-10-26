@@ -12,9 +12,11 @@ Description=Archive Claude session transcripts to Backblaze B2
 # OnFailure= never fires. One attempt lasts up to TimeoutStartSec PER START COMMAND (systemd re-arms the timer for each
 # ExecStartPre=/ExecStart= of a oneshot — measured on systemd 255, 2026-10-27: three 2 s commands passed a 3 s
 # timeout, one 4 s command timed out), then 5 x TimeoutStopSec (the stop stages of a timed-out attempt), then
-# RestartSec: 4 commands x 1h + 25min + 15min = 4h40, x 4 attempts = 18h40. Under 24 h, so the next night's timer
-# start is never refused; until the window ends the limit refuses every start, a by-hand one included, unless
-# `systemctl --user reset-failed` clears it (both graded in tests/test_session_archive_alert.py).
+# RestartSec: 4 commands x 1h + 25min + 15min = 4h40, x 4 attempts = 18h40. Under 24 h, so a window the nightly timer
+# opened closes before the next night's start; one opened by a boot catch-up (Persistent=true) or a by-hand start can
+# still refuse that start. Until the window ends the limit refuses every start, a by-hand one included, unless
+# `systemctl --user reset-failed` clears it — which the FAILED mail of the run that hit the limit says to do (both
+# bounds graded in tests/test_session_archive_alert.py).
 StartLimitIntervalSec=19h
 StartLimitBurst=4
 # W-36687f76: a failed night mails infra and the coordinator. With RestartMode=direct below this fires ONCE, after

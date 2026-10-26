@@ -616,7 +616,9 @@ def test_the_units_wire_the_alert_and_verify():
     assert interval_s >= int(burst.split("=", 1)[1]) * (
         len(commands) * start_s + 5 * stop_s + _seconds(restart.split("=", 1)[1])
     )
-    assert interval_s < 24 * 3600, "a window past a day would refuse the next night's timer start"
+    assert interval_s < 24 * 3600, (
+        "a window past a day would refuse the next night's start even when the nightly timer opened it"
+    )
 
     sa = _module("session_archive_alert_budget")
     assert stop_s > sa.CHECK_BUDGET_S, (
@@ -626,7 +628,9 @@ def test_the_units_wire_the_alert_and_verify():
     # call site, or one with a literal timeout, changes this list and must re-size the budget.
     tree = ast.parse(SCRIPT.read_text())
     timeouts = sorted(
-        ast.unparse(c.args[1]) if len(c.args) > 1 else ast.unparse(c.keywords[0].value)
+        ast.unparse(c.args[1])
+        if len(c.args) > 1
+        else ast.unparse(next(k.value for k in c.keywords if k.arg == "timeout"))
         for c in ast.walk(tree)
         if isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == "_run"
     )
