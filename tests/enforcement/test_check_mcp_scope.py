@@ -78,13 +78,18 @@ def test_a_headless_repo_carrying_a_browser_server_fails(check, tmp_path):
     assert rep["failures"][0]["extra"] == ["playwright"]
 
 
-def test_an_unruled_repo_and_the_own_agent_hub_class_repo_only_warn(check, tmp_path):
-    repo(tmp_path, "mystery", None, ["session-recall", "maestro"])  # no project.yaml
+def test_an_unknown_type_and_the_own_agent_hub_class_repo_only_warn(check, tmp_path):
+    repo(
+        tmp_path, "mystery", "sass-skeleton", ["session-recall", "maestro"]
+    )  # a type the roster lacks
+    # an UNTYPED repo is ruled since D-1246 (the universal set): a server outside it now FAILS
+    repo(tmp_path, "untyped", None, ["session-recall", "rea", "maestro"])
     # fabrik-lib keeps the FULL roster, maestro included (operator ruling 2026-10-07) — no warning
     lib = repo(tmp_path, "fabrik-lib", None, ["session-recall", "maestro", "playwright"])
     rep = check.audit(tmp_path, HUB, DEFS)
-    assert rep["failures"] == []
+    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [("untyped", ["maestro"])]
     assert sorted(w["repo"] for w in rep["warnings"]) == ["mystery"]
+    (tmp_path / "untyped" / ".mcp.json").unlink()
     # a server outside the roster in an own-agent repo warns (its agent writes the file), never fails
     (lib / ".mcp.json").write_text(
         json.dumps(
@@ -129,10 +134,12 @@ def test_projects_skip_without_the_hub_marker(tmp_path):
     assert r.returncode == 0 and "hub-only" in r.stdout
 
 
-def test_a_condemned_repo_is_skipped_by_name_even_with_a_valid_type(check, tmp_path):
+def test_image_generation_is_graded_like_any_repo_of_its_type(check, tmp_path):
+    """D-1246 emptied CONDEMNED: image-generation now carries an emitted .mcp.json, graded as python-api."""
     repo(tmp_path, "image-generation", "python-api", ["session-recall", "maestro"])
     rep = check.audit(tmp_path, HUB, DEFS)
-    assert rep["failures"] == [] and rep["warnings"] == [] and rep["checked"] == 0
+    assert rep["checked"] == 1
+    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [("image-generation", ["maestro"])]
 
 
 def test_a_credential_abort_in_the_emitter_is_a_structured_fail(

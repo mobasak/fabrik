@@ -64,6 +64,19 @@ def _pre_2026_10_14_flip_line(monkeypatch):
     monkeypatch.setenv("ROTATE_THRESHOLD", "98")
 
 
+REA = {"type": "stdio", "command": "/pinned/bin/rea-agents", "args": ["mcp"]}
+
+
+@pytest.fixture(autouse=True)
+def _catalog(tmp_path, monkeypatch):
+    """The MCP catalog the sync overlays the user-level servers from (W-b29a4f40, D-1246) — a tmp copy,
+    never the live scripts/sysadmin/mcp_defs.json, so a catalog edit cannot move these tests."""
+    p = tmp_path / "mcp_defs.json"
+    p.write_text(json.dumps({"mcpServers": {"rea": REA, "exa": {"env": {"K": "${EXA_API_KEY}"}}}}))
+    monkeypatch.setattr(cr, "MCP_DEFS_PATH", p, raising=False)
+    return p
+
+
 def _canonical(tmp_path, monkeypatch):
     """A fake ~/.claude + ~/.claude.json + an empty fleet root. Returns (fleet, cdir, home)."""
     home = tmp_path / "home"
@@ -720,7 +733,9 @@ def test_sync_mcp_updates_every_dir_and_preserves_oauth(tmp_path, monkeypatch):
 
     for slug in ("seo", "youtube"):
         blob = json.loads((fleet / slug / ".claude.json").read_text())
-        assert blob["mcpServers"] == roster
+        assert blob["mcpServers"] == {**roster, "rea": REA}, (
+            "the catalog's user servers ride every sync"
+        )
         assert blob["oauthAccount"] == {"emailAddress": f"{slug}@ocoron.com"}
         assert blob["projects"] == {"/opt/seo": {"hasTrustDialogAccepted": True}}
 
@@ -752,7 +767,10 @@ def test_sync_from_a_migrated_dir_is_the_roster_source(tmp_path, monkeypatch, ca
 
     assert cr.main(["--sync-mcp", "--from", "seo"]) == 0
 
-    assert json.loads((fleet / "youtube" / ".claude.json").read_text())["mcpServers"] == live
+    assert json.loads((fleet / "youtube" / ".claude.json").read_text())["mcpServers"] == {
+        **live,
+        "rea": REA,
+    }
     assert "WARNING" not in capsys.readouterr().err
 
 
@@ -833,6 +851,81 @@ def test_sync_shared_also_repushes_the_settings_copy(tmp_path, monkeypatch):
     assert json.loads((fleet / "seo" / "settings.json").read_text()) == {
         "hooks": {"SessionStart": ["new"]}
     }
+
+
+# ── B4b: the user-level roster always carries the catalog's servers (W-b29a4f40, D-1246) ──────
+
+
+@pytest.mark.parametrize("source", [None, "seo"], ids=["default-source", "from-a-dir"])
+def test_sync_overlays_the_catalog_servers_everywhere(tmp_path, monkeypatch, source):
+    """rea comes from the catalog, never from a hand edit: a sync from a source WITHOUT it (or with a stale
+    pin) writes the catalog's entry into every fleet dir AND ~/.claude.json, the default source included,
+    keeping each file's OAuth, projects and mode."""
+    fleet, _cdir, home = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    assert cr.main(["--new-dir", "youtube", "c@d.com"]) == 0
+    stale = {"serena": {"command": "serena"}, "rea": {"command": "/old/rea", "args": ["mcp"]}}
+    for f in (home / ".claude.json", fleet / "seo" / ".claude.json"):
+        blob = json.loads(f.read_text())
+        blob["mcpServers"] = stale
+        f.write_text(json.dumps(blob))
+    (home / ".claude.json").chmod(0o644)
+
+    argv = ["--sync-mcp"] + (["--from", source] if source else [])
+    assert cr.main(argv) == 0
+
+    want = {"serena": {"command": "serena"}, "rea": REA}
+    for f in (
+        home / ".claude.json",
+        fleet / "seo" / ".claude.json",
+        fleet / "youtube" / ".claude.json",
+    ):
+        blob = json.loads(f.read_text())
+        assert blob["mcpServers"] == want, f
+        assert "projects" in blob, f
+    assert json.loads((home / ".claude.json").read_text())["oauthAccount"] == {
+        "emailAddress": "ob@ocoron.com"
+    }
+    assert (home / ".claude.json").stat().st_mode & 0o777 == 0o644, "the target's mode is kept"
+
+
+@pytest.mark.parametrize(
+    "catalog",
+    [
+        {"mcpServers": {"exa": {}}},  # rea missing
+        {"mcpServers": {"rea": {**REA, "env": {"TOKEN": "${REA_TOKEN}"}}}},  # a placeholder
+        "not json",
+    ],
+    ids=["missing", "placeholder", "unreadable"],
+)
+def test_sync_refuses_a_bad_catalog(tmp_path, monkeypatch, capsys, _catalog, catalog):
+    """A roster pushed without rea would REMOVE it from every account, and a `${VAR}` would displace a real
+    key in the emitter's first credential donor: refuse with rc 2 and write nothing."""
+    fleet, _cdir, home = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    _catalog.write_text(catalog if isinstance(catalog, str) else json.dumps(catalog))
+    before = {f: f.read_bytes() for f in (home / ".claude.json", fleet / "seo" / ".claude.json")}
+    capsys.readouterr()
+
+    assert cr.main(["--sync-mcp", "--from", "seo"]) == 2
+
+    assert {f: f.read_bytes() for f in before} == before, "nothing written"
+    assert "catalog" in capsys.readouterr().err
+
+
+def test_sync_skips_the_pointer_and_the_park_root(tmp_path, monkeypatch, capsys):
+    """The live fleet root holds `active -> <slug>` and the `backups` park root: neither is an account, so a
+    healthy fleet syncs at rc 0 and no account is written twice."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    (fleet / "backups" / "tasks-merged-from").mkdir(parents=True)
+    (fleet / "active").symlink_to(fleet / "seo", target_is_directory=True)
+    capsys.readouterr()
+
+    assert cr.main(["--sync-mcp", "--from", "seo"]) == 0
+
+    out = capsys.readouterr().out
+    assert "seo:" in out and "active:" not in out and "backups" not in out
 
 
 # ── B5: the WRITE-THROUGH probe that decided the settings.json seeding mode ───────────────────
@@ -1154,6 +1247,23 @@ def test_twin_copies_are_byte_identical():
     a = (REPO / "scripts" / "sysadmin" / "claude_rotate.py").read_bytes()
     b = (REPO / "scripts" / "aro-wake" / "claude_rotate.py").read_bytes()
     assert a == b, "the two vendored copies must stay byte-identical (cp after every edit)"
+
+
+def test_both_copies_find_the_real_catalog_and_it_carries_the_user_servers():
+    """The catalog is found by repo path, so the aro-wake twin reads scripts/sysadmin/mcp_defs.json too
+    (beside itself there is none); the live catalog passes the overlay's own guards."""
+    want = REPO / "scripts" / "sysadmin" / "mcp_defs.json"
+    for sub in ("sysadmin", "aro-wake"):
+        s = importlib.util.spec_from_file_location(
+            f"claude_rotate_catalog_{sub.replace('-', '_')}",
+            REPO / "scripts" / sub / "claude_rotate.py",
+        )
+        m = importlib.util.module_from_spec(s)
+        s.loader.exec_module(m)
+        assert want == m.MCP_DEFS_PATH, sub
+    servers = json.loads(want.read_text())["mcpServers"]
+    for name in cr.USER_CATALOG_SERVERS:
+        assert name in servers and "${" not in json.dumps(servers[name]), name
 
 
 # ── T03: fleet-mode --status / tick + --keepalive ─────────────────────────────────────────────

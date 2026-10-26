@@ -100,7 +100,9 @@ HUB_CLASS = HUB_REPOS | {"fabrik-lib"}  # derivation; only HUB_REPOS is in the d
 # projects and fabrik-lib" need maestro — it vendors and tests the mobile modules); HUB_EXCLUDE
 # applies to HUB_REPOS alone.
 HUB_FULL_ROSTER = HUB_CLASS - HUB_REPOS
-CONDEMNED = {"image-generation"}  # D-023 ARCHIVE pending with fleet — excluded BY NAME
+# Repos excluded BY NAME whatever their project.yaml says. Empty since D-1246 ("rea must be available to system
+# wide for all repos"), which supersedes D-023/D-025's MCP exclusion of image-generation; check_mcp_scope reads it.
+CONDEMNED: set[str] = set()
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
 
 _TYPE_RE = re.compile(r"^type:\s*(\S+)\s*$", re.M)
@@ -264,7 +266,8 @@ def _uri_connects(uri: str) -> bool | None:
 
 def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
     """The NAMES a repo's ruling allows, in emission order, or None for a repo the ruling does
-    not know (no `project.yaml::type`, or a type outside TYPE_SETS). No probe runs here — this is
+    not know (a `project.yaml::type` outside TYPE_SETS — a typo stays a visible SKIP). A repo with NO
+    type (no project.yaml, or no `type:` line) gets the universal set (D-1246). No probe runs here — this is
     the roster side of the contract, shared with `scripts/enforcement/check_mcp_scope.py`, which
     grades every emitted `.mcp.json` as a SUBSET of it (an entry absent-until-configured, such as
     postgres-pro without a connecting URL, is a legal omission; an extra server is not)."""
@@ -274,9 +277,9 @@ def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
         wanted = [s for s in defs if s not in NEVER_EMIT and s not in drop]
     else:
         rtype = _repo_type(repo)
-        if rtype is None or rtype not in TYPE_SETS:
+        if rtype is not None and rtype not in TYPE_SETS:
             return None
-        wanted = list(UNIVERSAL) + TYPE_SETS[rtype] + OVERLAYS.get(name, [])
+        wanted = list(UNIVERSAL) + TYPE_SETS.get(rtype or "", []) + OVERLAYS.get(name, [])
     return [s for s in dict.fromkeys(wanted) if s not in NEVER_EMIT and s in defs]
 
 
@@ -304,7 +307,23 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
     return out
 
 
+def _gitignores_mcp_config(repo: Path) -> bool:
+    """True when the repo's root .gitignore has a whole `.mcp.json` (or `/.mcp.json`) line — all 44 /opt
+    repos spell it `.mcp.json` (census 2026-10-26)."""
+    try:
+        lines = (repo / ".gitignore").read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return False
+    return any(ln.strip() in (".mcp.json", "/.mcp.json") for ln in lines)
+
+
 def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
+    if repo.name not in HUB_CLASS and _repo_type(repo) is None and not _gitignores_mcp_config(repo):
+        # an untyped repo is no governed project: its .gitignore is not ours, and the emitted file inlines
+        # filled credentials (exa, brave-search, firecrawl keys; a DATABASE_URL) — never written untracked-unignored
+        return (
+            "SKIP (untyped repo without the `.mcp.json` .gitignore line — add it, or type the repo)"
+        )
     servers = derive_servers(repo, defs)
     if servers is None:
         return "SKIP"
@@ -363,9 +382,7 @@ def _candidate_repos(root: Path) -> list[Path]:
     for d in sorted(root.iterdir()):
         if not d.is_dir() or d.name in CONDEMNED or d.name in (HUB_CLASS - HUB_REPOS):
             continue  # fabrik-lib is hub-class for derivation (--repo) but its own agent lands the file
-        if not (d / ".git").exists():
-            continue
-        if d.name in HUB_REPOS or (d / "project.yaml").is_file():
+        if (d / ".git").exists():  # every git repo, typed or not (D-1246)
             out.append(d)
     return out
 

@@ -8,14 +8,15 @@ in /opt/fabrik spawned a Maestro JVM and two browser servers that the per-type r
 D-015) never granted the hub; the JVMs outlived their sessions by days and, after a hibernate
 resume, 48 of them held ~11 GB of swap and no window could reconnect. A hand-added or stale
 server survives silently because `.mcp.json` is gitignored and nothing reads it back against the
-roster. This check does: for every repo the emitter rules (the hub and every repo with a
-`project.yaml::type` the roster knows) the servers PRESENT in `<repo>/.mcp.json` must be a subset
+roster. This check does: for every repo the emitter rules (the hub, every repo with a
+`project.yaml::type` the roster knows, and since D-1246 every UNTYPED repo — the universal set) the
+servers PRESENT in `<repo>/.mcp.json` must be a subset
 of `emit_mcp_project_config.ruled_server_names(repo)`. A server the ruling allows but the file
 omits is legal (postgres-pro is absent until its URL connects); a server the ruling does not
 allow is the defect, named with the command that fixes it (re-run the emitter — never a hand edit).
 
-A repo that carries a `.mcp.json` the emitter does NOT own (no `project.yaml` and not hub-class,
-or hub-class landed by its own agent such as fabrik-lib) is reported as a WARNING with the same
+A repo that carries a `.mcp.json` the emitter does NOT rule (a `type:` the roster does not know, or
+hub-class landed by its own agent such as fabrik-lib) is reported as a WARNING with the same
 command, never a failure: the hub's gate cannot red on a file another repo's agent writes.
 
 Cobra: the cheapest way to satisfy this gate without the outcome is to add the unwanted server to
@@ -81,7 +82,7 @@ def audit(root: Path, hub: Path, defs: dict[str, dict] | None = None) -> dict:
                 {
                     "repo": repo.name,
                     "present": sorted(present),
-                    "reason": "no ruling (no project.yaml::type the roster knows, not hub-class)",
+                    "reason": "no ruling (a project.yaml::type the roster does not know)",
                     "fix": fix,
                 }
             )

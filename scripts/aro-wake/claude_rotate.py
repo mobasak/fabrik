@@ -58,6 +58,14 @@ ACCOUNTS_DIR = CLAUDE_DIR / "manager-accounts"
 # .credentials.json). It is the one file a new fleet dir is seeded from, so a fresh dir needs no
 # re-onboarding and no re-trusting; the operator's single /login replaces its OAuth section.
 USER_CLAUDE_JSON = Path.home() / ".claude.json"
+# W-b29a4f40 (D-1246): the user-level servers every `--sync-*` takes from the MCP catalog, whatever the source
+# roster holds — credential-free only (a `${VAR}` entry is refused). Found by REPO path so the aro-wake twin
+# reads the same catalog. COBRA: the cheapest pass is a sync that skips the overlay when the catalog is bad;
+# it refuses instead (rc 2, nothing written), since a roster pushed without rea removes it from every account.
+USER_CATALOG_SERVERS: Final = ("rea",)
+MCP_DEFS_PATH = Path(__file__).resolve().parents[1] / "sysadmin" / "mcp_defs.json"
+# The fleet root's park directory (`--merge-shared` parks copies under it) — not an account dir.
+_PARK_ROOT_NAME: Final = "backups"
 _CRED_MARGIN_S = 300  # never hand over a token that dies mid-switch
 BACKUP_CREDS = CLAUDE_DIR / ".credentials.json.prev"  # single rolling backup of outgoing active
 ROTATE_LOCK = CLAUDE_DIR / ".claude-rotate.lock"
@@ -2168,7 +2176,8 @@ def _merge_roster_once(target: Path, roster: dict) -> str | None:
     """
     for attempt in (0, 1):
         try:
-            before = target.stat().st_mtime_ns
+            st = target.stat()
+            before, mode = st.st_mtime_ns, st.st_mode & 0o777  # keep the file's own mode
             blob = json.loads(target.read_text())
             if not isinstance(blob, dict):
                 raise ValueError("not a JSON object")
@@ -2182,10 +2191,34 @@ def _merge_roster_once(target: Path, roster: dict) -> str | None:
                 if attempt == 0:
                     continue  # a live write landed under us — re-read and re-merge onto it
                 return "changed under us twice (a live session is writing it) — skipped"
-            _write_json_atomic(target, blob)
+            _write_json_atomic(target, blob, mode=mode)
         except (OSError, ValueError) as e:
             return f"write failed ({e})"
         return None
+
+
+def _catalog_overlay() -> tuple[dict | None, str]:
+    """({name: entry} for every USER_CATALOG_SERVERS name, "") from MCP_DEFS_PATH, or (None, why) when the
+    catalog is unreadable, lacks a name, or a named entry carries a `${` placeholder — a placeholder pushed
+    into the user-level roster would displace a real key there (the emitter's first credential donor)."""
+    try:
+        servers = json.loads(MCP_DEFS_PATH.read_text()).get("mcpServers")
+    except (OSError, ValueError, AttributeError) as e:
+        return None, f"the MCP catalog {MCP_DEFS_PATH} is unreadable ({e})"
+    if not isinstance(servers, dict):
+        return None, f"the MCP catalog {MCP_DEFS_PATH} has no 'mcpServers' object"
+    out: dict = {}
+    for name in USER_CATALOG_SERVERS:
+        entry = servers.get(name)
+        if not isinstance(entry, dict):
+            return None, f"the MCP catalog {MCP_DEFS_PATH} has no {name!r} entry"
+        if "${" in json.dumps(entry):
+            return None, (
+                f"the MCP catalog's {name!r} entry carries a ${{VAR}} placeholder — the user-level roster "
+                "takes credential-free servers only"
+            )
+        out[name] = entry
+    return out, ""
 
 
 def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
@@ -2202,11 +2235,24 @@ def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
     becomes the ad-hoc leftover, so the default source goes stale and syncing from it would REVERT
     every dir to an old roster. Taking the default with dirs present prints a loud warning naming
     the fix.
+
+    The pushed roster is the source's with every ``USER_CATALOG_SERVERS`` entry taken from the MCP catalog
+    (W-b29a4f40, D-1246): a bad catalog refuses the whole sync at rc 2 before any write. ``~/.claude.json`` gets
+    the same roster (the source case included), and the ``active`` pointer and the ``backups`` park root are
+    not accounts, so they are skipped.
     """
+    overlay, why = _catalog_overlay()
+    if overlay is None:
+        sys.stderr.write(f"claude_rotate: {why} — nothing synced\n")
+        return 2
     src = _roster_source(source)
     root = _fleet_root()
     try:
-        dirs = sorted(d for d in root.iterdir() if d.is_dir())
+        dirs = sorted(
+            d
+            for d in root.iterdir()
+            if d.is_dir() and not d.is_symlink() and d.name != _PARK_ROOT_NAME
+        )
     except FileNotFoundError:
         sys.stderr.write(f"claude_rotate: no fleet root at {root} — nothing to sync\n")
         return 1
@@ -2230,6 +2276,7 @@ def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
     if not isinstance(roster, dict):
         sys.stderr.write(f"claude_rotate: {src} has no 'mcpServers' object — nothing to sync\n")
         return 1
+    roster = {**roster, **overlay}
 
     shared: dict[str, bytes] = {}
     if include_settings:
@@ -2257,6 +2304,18 @@ def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
                 failures += 1
         extra = (" + " + ", ".join(pushed)) if pushed else ""
         print(f"  {d.name}: {len(roster)} MCP servers{extra}")
+    # ~/.claude.json is what a process WITHOUT CLAUDE_CONFIG_DIR reads: it carries the same roster
+    try:
+        home_roster = json.loads(USER_CLAUDE_JSON.read_text()).get("mcpServers")
+    except (OSError, ValueError, AttributeError):
+        home_roster = None
+    if home_roster != roster:
+        reason = _merge_roster_once(USER_CLAUDE_JSON, roster)
+        if reason is not None:
+            sys.stderr.write(f"  SKIP {USER_CLAUDE_JSON}: {reason}\n")
+            failures += 1
+        else:
+            print(f"  {USER_CLAUDE_JSON}: {len(roster)} MCP servers")
     return 1 if failures else 0
 
 
@@ -2486,7 +2545,7 @@ def _finish_interrupted_swaps(name: str, canon: Path, stamp: str) -> list[str]:
 
 def _merge_shared_locked(name: str, canon: Path, dry_run: bool) -> int:
     fleet = _fleet_root()
-    park_root = fleet / "backups" / f"{name}-merged-from"
+    park_root = fleet / _PARK_ROOT_NAME / f"{name}-merged-from"
     active = _resolve_active()
     dirs = _fleet_dirs()
     stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + f".{time.time_ns() % 10**9:09d}Z"
