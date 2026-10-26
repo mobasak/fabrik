@@ -1226,10 +1226,11 @@ def test_a_vanished_ban_line_keeps_its_span_verbatim(tmp_path: Path) -> None:
     across = SOURCE.replace(" Never stage a sibling's file.", "").replace("2. Push it.", "2. Push it. Never stage a sibling's file or a stranger's.")
     pin = {"id": "F", "section": "## Scope", "text": ["Stop at the pin"]}
     close = {"id": "C", "section": "## Close", "text": ["Never stage a sibling's file or a stranger's"]}
-    assert _gone(SOURCE, across, [pin, close], "Never stage", {"rule": ["F", "C"]}, tmp_path / "across") == []
+    for order in (["F", "C"], ["C", "F"]):  # the carrier last, then first: no named section is ever skipped
+        assert _gone(SOURCE, across, [pin, close], "Never stage", {"rule": order}, tmp_path / f"across-{order[0]}") == []
     # the first section ENDS on "never" and the next STARTS on its object: each section stays its own paragraph
     # (every `_scope` body starts and ends with a newline, so the blank-line join is defensive, never the only guard)
-    split =SOURCE.replace(" Never stage a sibling's file.", "").replace("Stop at the pin.", "Stop at the pin. Keep going and never")
+    split = SOURCE.replace(" Never stage a sibling's file.", "").replace("Stop at the pin.", "Stop at the pin. Keep going and never")
     split = split.replace("## Close\n\n", "## Close\n\nstage a sibling's file today.\n\n")
     tail = {"id": "T", "section": "## Scope", "text": ["Keep going and never"]}
     head = {"id": "S", "section": "## Close", "text": ["stage a sibling's file today"]}
