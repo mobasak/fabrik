@@ -355,29 +355,27 @@ entries:
   - 'Produce (or backfill) this project''s journey contract: one frozen file `docs/flows.md`, single source of truth for who moves through the product — every persona''s complete journey (entry → actions → feedback → exit), decision points, edge/error paths, and exactly one `[PRIMARY PATH]` per flow'
 - id: fl-self-convergence
   class: prose
-  baseline: This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT author-blind pass
+  baseline: This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT author-blind pass — the split mirrors `/fabrik-spec` → `/fabrik-spec-review`
   text:
-  - This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT author-blind pass
+  - This command owns the AUTHOR'S self-convergence; the separate `/fabrik-flows-review` runs the INDEPENDENT author-blind pass — the split mirrors `/fabrik-spec` → `/fabrik-spec-review`
 - id: fl-epic
   class: prose
   baseline: 'THIS command owns that discipline at every scale — an epic''s journeys are frozen here too, from the spec `/fabrik-spec <epic file>` produced — and it sits before the data contract on purpose:'
   clauses:
-    1: narrative
     3: narrative
   text:
-  - Epic journeys are frozen here too, from the spec `/fabrik-spec <epic file>` produced
+  - THIS command owns that discipline at every scale — an epic's journeys are frozen here too, from the spec `/fabrik-spec <epic file>` produced
 - id: fl-ordering
   class: prose
   baseline: 'Why journeys precede the contract (the ordering law): a data contract frozen before any journey thinking becomes a scope ceiling — downstream stages cut features "for want of fields" instead of bumping the contract'
-  clauses:
-    2: narrative
   text:
-  - 'Why journeys precede the contract (the ordering law): a data contract frozen before any journey thinking becomes a scope ceiling'
+  - 'Why journeys precede the contract (the ordering law): a data contract frozen before any journey thinking becomes a scope ceiling — downstream stages cut features "for want of fields" instead of bumping the contract'
 - id: fl-contract-input
   class: ban
-  baseline: A journey implying an entity, field, or state the contract will need is recorded as CONTRACT INPUT — never trimmed to fit
+  baseline: 'A journey implying an entity, field, or state the contract will need is recorded as CONTRACT INPUT — never trimmed to fit. The two live defect classes this stage exists to kill: a feature whose *second actor* was never walked (an invite that could be sent but never accepted — no token-landing surface ever designed), and an *async boundary* nobody stood in (a paying customer shown a plan picker in the checkout→webhook gap)'
   text:
   - A journey implying an entity, field, or state the contract will need is recorded as CONTRACT INPUT — never trimmed to fit
+  - 'The two live defect classes this stage exists to kill: a feature whose *second actor* was never walked (an invite that could be sent but never accepted — no token-landing surface ever designed), and an *async boundary* nobody stood in (a paying customer shown a plan picker in the checkout→webhook gap)'
 - id: fl-spec-first
   class: prose
   baseline: A CONVERGED spec first. Input is the `/fabrik-spec` design doc after its `/fabrik-spec-review` approval
@@ -396,31 +394,31 @@ entries:
   text:
   - 'Inputs (read them, name them): the CONVERGED spec · `project.yaml::type` · the scaffold''s UI/surface pack when UI-bearing (`saas/60-saas-ui.md` · `chrome-ext/70-chrome-ext.md` · `mobile-app/80-mobile.md` · `desktop-app/72-desktop.md`) · any domain pack the work touches (auth/signup → `core/35-security-auth.md`; payments → `core/85-payments-billing.md`; multi-tenant → `saas/95-multi-tenant-saas.md`) · `design-system-template.md` § States (Enriched) + the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types)'
 - id: fl-sc-trace
-  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  section: '## Phase 1 — Success Criteria (the tracing spine — extract if the spec lacks them)'
   class: prose
   baseline: Every flow will trace to ≥1 Success Criterion
   text:
   - Every flow traces to ≥1 Success Criterion
 - id: fl-sc-list
-  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  section: '## Phase 1 — Success Criteria (the tracing spine — extract if the spec lacks them)'
   class: prose
   baseline: If the converged spec carries an explicit list, quote it
   text:
   - quote the converged spec's explicit list
 - id: fl-sc-planned
-  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  section: '## Phase 1 — Success Criteria (the tracing spine — extract if the spec lacks them)'
   class: prose
   baseline: If the EARLY `/fabrik-features` pass ran, its `(Planned)` rows JOIN the tracing spine — every planned feature is served by ≥1 flow, or the gap is surfaced
   text:
   - the `(Planned)` rows of an EARLY `/fabrik-features` pass JOIN it — every planned feature is served by ≥1 flow, or the gap is surfaced
 - id: fl-sc-extract
-  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  section: '## Phase 1 — Success Criteria (the tracing spine — extract if the spec lacks them)'
   class: prose
   baseline: If it does not (feature-scale specs often bury criteria in prose), extract the criteria from the spec and write them back to the spec as a short `## Success Criteria` section (5–12 one-line, testable outcomes — this is the one sanctioned spec edit; note it in the spec's changelog line)
   text:
   - With none (feature-scale specs often bury criteria in prose), extract the criteria and write 5–12 one-line testable criteria back to the spec as a `## Success Criteria` section — the one sanctioned spec edit, noted in its changelog line
 - id: fl-criterion-finding
-  section: '## Phase 1 — Success Criteria (the tracing spine)'
+  section: '## Phase 1 — Success Criteria (the tracing spine — extract if the spec lacks them)'
   class: ban
   baseline: A criterion with no covering journey, or a journey serving no criterion, is a finding — surfaced, never dropped
   text:
@@ -445,13 +443,13 @@ entries:
   baseline: 'Then hunt the personas specs forget: for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too. The receiving persona starts in a different context (no session, a different tenant, an email client, a webhook consumer) — that entry point is exactly where unbuilt surface hides'
   text:
   - 'Then hunt the personas specs forget: for every flow that SENDS something (email, invite link, webhook, notification, export, payment request), the RECEIVER is a persona whose journey must be walked too'
-  - The receiving persona starts in a different context (no session, a different tenant, an email client) — that entry point is exactly where unbuilt surface hides
+  - The receiving persona starts in a different context (no session, a different tenant, an email client, a webhook consumer) — that entry point is exactly where unbuilt surface hides
 - id: fl-seats
   section: '## Phase 3 — Map the journeys'
   class: prose
   baseline: Parallelism — UNCONDITIONAL, every run. Dispatch one native `general-purpose` seat per persona (or per journey), all in a single message to walk that persona's path through the spec, the code and any existing flows and return its entry → actions → feedback → exit with the gaps it hit; the persona count is the PARTITION and `dispatch_headroom.py --units <N> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a persona walk is a judgement, no Haiku mechanical seat; the Opus authoritative seat re-walks the highest-risk persona)
   text:
-  - Parallelism — UNCONDITIONAL, every run. Dispatch one native `general-purpose` seat per persona (or per journey), all in a single message; each walks its path and returns its entry → actions → feedback → exit with the gaps it hit; the persona count is the PARTITION and `dispatch_headroom.py --units <N> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a persona walk is a judgement, no Haiku mechanical seat; the Opus authoritative seat re-walks the highest-risk persona)
+  - Parallelism — UNCONDITIONAL, every run. Dispatch one native `general-purpose` seat per persona (or per journey), all in a single message; each walks that persona's path through the spec, the code and any existing flows and returns its entry → actions → feedback → exit with the gaps it hit; the persona count is the PARTITION and `dispatch_headroom.py --units <N> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a persona walk is a judgement, no Haiku mechanical seat; the Opus authoritative seat re-walks the highest-risk persona)
 - id: fl-never-solo
   section: '## Phase 3 — Map the journeys'
   class: ban
@@ -465,7 +463,7 @@ entries:
   class: prose
   baseline: 'Resilience (the persona''s view): for each action calling an external service (payment, search, upload, notification, model API), what the persona sees when it is slow (loading state + timeout threshold) and when it is down (graceful fallback + alternative)'
   text:
-  - 'Resilience (the persona''s view): for each action calling an external service, what the persona sees when it is slow (loading state + timeout threshold) and when it is down (graceful fallback + alternative)'
+  - 'Resilience (the persona''s view): for each action calling an external service (payment, search, upload, notification, model API), what the persona sees when it is slow (loading state + timeout threshold) and when it is down (graceful fallback + alternative)'
 - id: fl-async-gap
   section: '## Phase 3 — Map the journeys'
   class: prose
@@ -473,7 +471,7 @@ entries:
   clauses:
     2: narrative
   text:
-  - 'Async boundaries: every external round-trip that completes OUT OF BAND (checkout → webhook, send → delivery) names what the persona sees IN THE GAP between the two legs'
+  - 'Async boundaries: every external round-trip that completes OUT OF BAND (checkout → webhook, send → delivery, job → callback) names what the persona sees IN THE GAP between the two legs'
 - id: fl-i18n
   section: '## Phase 3 — Map the journeys'
   class: ban
@@ -485,28 +483,27 @@ entries:
   class: prose
   baseline: 'Hard exclusions — these govern FLOW BODIES (the journey narratives), not lifecycle metadata: no file paths · no component names · no implementation detail (libraries, endpoints, DB tables) · no literal microcopy · no test names'
   text:
-  - 'Hard exclusions — these govern FLOW BODIES, not lifecycle metadata: no file paths · no component names · no implementation detail (libraries, endpoints, DB tables) · no literal microcopy · no test names'
+  - 'Hard exclusions — these govern FLOW BODIES (the journey narratives), not lifecycle metadata: no file paths · no component names · no implementation detail (libraries, endpoints, DB tables) · no literal microcopy · no test names'
 - id: fl-exempt
   section: '## Phase 5 — Document (the artifact)'
   class: prose
   baseline: 'The header, R-notes, Contract inputs, and the re-freeze close-out''s Downstream impact table are lifecycle metadata and EXEMPT — their entire job is naming entities, fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out mandates; a reviewer reading the exclusions against those sections is misapplying the law (live case: four false CRITICALs in one transdoc review)'
   clauses:
-    2: narrative
     3: narrative
   text:
-  - The header, R-notes, Contract inputs, and the re-freeze close-out's Downstream impact table are lifecycle metadata and EXEMPT
+  - The header, R-notes, Contract inputs, and the re-freeze close-out's Downstream impact table are lifecycle metadata and EXEMPT — their entire job is naming entities, fields, tables, and consumer docs (`docs/data-contract.md`, `docs/ui-design.md`), which the close-out mandates; a reviewer reading the exclusions against those sections is misapplying the law
 - id: fl-primary-path-rule
   section: '## Phase 5 — Document (the artifact)'
   class: prose
   baseline: '`[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every reader re-invents it: a naive grep conflates the two and mis-reports the per-flow count, which is a defect under the "exactly one" gate above and has already mis-fired in a checker, mid-run, and in a review'
   text:
-  - '`[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every reader re-invents it'
+  - '`[PRIMARY PATH]` counting rule — state it verbatim in the artifact: *a MARKER is that token labelling a step sequence inside a flow; every occurrence outside one — this rule, the freeze law, a validation-gate line, a review ledger — is prose ABOUT the convention and is not counted.* Say it in the artifact or every reader re-invents it: a naive grep conflates the two and mis-reports the per-flow count, which is a defect under the "exactly one" gate above'
 - id: fl-commit-exit
   section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
   class: prose
   baseline: '⚠️ Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed'
   text:
-  - 'Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3)'
+  - 'Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed'
 - id: fl-commit
   section: '## Phase 6 — Validation gate, then self-convergence to FROZEN'
   class: ban
@@ -532,10 +529,9 @@ entries:
   class: prose
   baseline: Do NOT let a consumer freeze against a contract the review has not attested — a `FROZEN` status is the author's word; the review is what makes it independent
   clauses:
-    2: narrative
     3: narrative
   text:
-  - Do NOT let a consumer freeze against a contract the review has not attested
+  - Do NOT let a consumer freeze against a contract the review has not attested — a `FROZEN` status is the author's word; the review is what makes it independent
 vanished:
   L1:
     rule:
@@ -543,8 +539,6 @@ vanished:
   L2:
     rule:
     - fl-epic
-  L3:
-    duplicate-of: u-L89
   L4:
     rule:
     - fl-ordering
@@ -564,7 +558,9 @@ vanished:
   L23:
     rule:
     - fl-inputs
-  L27: narrative
+  L27:
+    rule:
+    - fl-sc-extract
   L28:
     rule:
     - fl-sc-trace
