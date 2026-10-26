@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -174,9 +175,8 @@ def test_untyped_gitless_and_unguarded_repos(tmp_path, defs_file, capsys):
     """D-1246 ("rea must be available to system wide for all repos"): an untyped git repo gets the universal
     set — but only when its .gitignore keeps `.mcp.json` out of git, since the file carries filled credentials;
     image-generation is no longer excluded by name; a non-git dir and fabrik-lib are still skipped."""
-    guarded = make_repo(tmp_path, "no-yaml", None)
-    (guarded / ".gitignore").write_text("node_modules/\n.mcp.json\n")
-    unguarded = make_repo(tmp_path, "vendor-clone", None)
+    guarded = git_repo(tmp_path, "no-yaml", "node_modules/\n.mcp.json\n")
+    unguarded = git_repo(tmp_path, "vendor-clone", "node_modules/\n")
     gitless = tmp_path / "not-a-repo"
     gitless.mkdir()
     (gitless / "project.yaml").write_text("name: not-a-repo\ntype: python-api\n")
@@ -191,15 +191,43 @@ def test_untyped_gitless_and_unguarded_repos(tmp_path, defs_file, capsys):
     assert not (lib / ".mcp.json").exists(), "fabrik-lib's own agent lands its file"
 
 
+def git_repo(root: Path, name: str, gitignore: str | None) -> Path:
+    """A REAL git repo (the guard asks `git check-ignore`), untyped, with an optional .gitignore."""
+    d = root / name
+    d.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    if gitignore is not None:
+        (d / ".gitignore").write_text(gitignore)
+    return d
+
+
 @pytest.mark.parametrize(
-    "line, emitted",
-    [(".mcp.json", True), ("/.mcp.json", True), ("# .mcp.json", False), (".mcp.json.bak", False)],
+    "gitignore, emitted",
+    [
+        ("x\n.mcp.json\n", True),
+        ("x\n/.mcp.json\n", True),
+        ("*.json\n", True),  # any rule git honours counts
+        ("x\n# .mcp.json\n", False),
+        ("x\n.mcp.json.bak\n", False),
+        (".mcp.json\n!.mcp.json\n", False),  # a later negation un-ignores it
+        (None, False),
+    ],
+    ids=["plain", "rooted", "glob", "comment", "other-file", "negated", "no-gitignore"],
 )
-def test_the_gitignore_guard_reads_whole_lines(tmp_path, defs_file, line, emitted):
-    repo = make_repo(tmp_path, "untyped", None)
-    (repo / ".gitignore").write_text(f"x\n{line}\n")
+def test_the_gitignore_guard_asks_git(tmp_path, defs_file, gitignore, emitted):
+    repo = git_repo(tmp_path, "untyped", gitignore)
     run(tmp_path, defs_file)
     assert (repo / ".mcp.json").exists() is emitted
+
+
+def test_the_gitignore_guard_refuses_a_tracked_file(tmp_path, defs_file):
+    """A tracked .mcp.json is not ignored whatever .gitignore says: inlined keys would be committed."""
+    repo = git_repo(tmp_path, "untyped", "x\n")
+    (repo / ".mcp.json").write_text('{"mcpServers": {}}\n')
+    subprocess.run(["git", "-C", str(repo), "add", "-f", ".mcp.json"], check=True)
+    (repo / ".gitignore").write_text(".mcp.json\n")
+    run(tmp_path, defs_file)
+    assert (repo / ".mcp.json").read_text() == '{"mcpServers": {}}\n', "never overwritten"
 
 
 def test_untyped_repo_gets_the_universal_set_and_an_unknown_type_stays_unruled(tmp_path):
@@ -208,9 +236,17 @@ def test_untyped_repo_gets_the_universal_set_and_an_unknown_type_stays_unruled(t
     no_type_line = make_repo(tmp_path, "half", None)
     (no_type_line / "project.yaml").write_text("name: half\n")
     typo = make_repo(tmp_path, "typo-saas", "sass-skeleton")
+    unparsed = make_repo(tmp_path, "quoted", None)
+    (unparsed / "project.yaml").write_text('name: quoted\ntype: "python api"\n')
+    commented = make_repo(tmp_path, "commented", None)
+    (commented / "project.yaml").write_text("name: commented\ntype: saas-skeleton  # web\n")
     assert set(emitter.ruled_server_names(untyped, defs)) == UNIVERSAL
     assert set(emitter.ruled_server_names(no_type_line, defs)) == UNIVERSAL
     assert emitter.ruled_server_names(typo, defs) is None, "a typo stays a visible SKIP"
+    assert emitter.ruled_server_names(unparsed, defs) is None, (
+        "an unreadable type line is not untyped"
+    )
+    assert "playwright" in emitter.ruled_server_names(commented, defs), "a trailing comment is read"
 
 
 def test_claim_validator_never_emitted(tmp_path, defs_file):

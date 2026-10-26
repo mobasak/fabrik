@@ -895,8 +895,10 @@ def test_sync_overlays_the_catalog_servers_everywhere(tmp_path, monkeypatch, sou
         {"mcpServers": {"exa": {}}},  # rea missing
         {"mcpServers": {"rea": {**REA, "env": {"TOKEN": "${REA_TOKEN}"}}}},  # a placeholder
         "not json",
+        {"mcpServers": {"rea": {}}},  # an entry with nothing to launch
+        {"mcpServers": {"rea": {"type": "stdio", "command": "  "}}},
     ],
-    ids=["missing", "placeholder", "unreadable"],
+    ids=["missing", "placeholder", "unreadable", "empty-entry", "blank-command"],
 )
 def test_sync_refuses_a_bad_catalog(tmp_path, monkeypatch, capsys, _catalog, catalog):
     """A roster pushed without rea would REMOVE it from every account, and a `${VAR}` would displace a real
@@ -911,6 +913,44 @@ def test_sync_refuses_a_bad_catalog(tmp_path, monkeypatch, capsys, _catalog, cat
 
     assert {f: f.read_bytes() for f in before} == before, "nothing written"
     assert "catalog" in capsys.readouterr().err
+
+
+def test_sync_without_a_home_file_succeeds_and_creates_none(tmp_path, monkeypatch, capsys):
+    """~/.claude.json may be absent on a fleet-only host: the account dirs are synced at rc 0, and no home file
+    is conjured (a bare one would read as an un-onboarded config)."""
+    fleet, _cdir, home = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    (home / ".claude.json").unlink()
+    capsys.readouterr()
+
+    assert cr.main(["--sync-mcp", "--from", "seo"]) == 0
+
+    assert not (home / ".claude.json").exists()
+    assert json.loads((fleet / "seo" / ".claude.json").read_text())["mcpServers"]["rea"] == REA
+
+
+def test_sync_writes_through_a_symlinked_home_file(tmp_path, monkeypatch):
+    """A symlinked ~/.claude.json stays a symlink and its TARGET gains the roster (os.replace on the link path
+    would turn it into a plain file and leave the real one stale)."""
+    _fleet, _cdir, home = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    real = tmp_path / "real-claude.json"
+    real.write_text((home / ".claude.json").read_text())
+    (home / ".claude.json").unlink()
+    (home / ".claude.json").symlink_to(real)
+
+    assert cr.main(["--sync-mcp", "--from", "seo"]) == 0
+
+    assert (home / ".claude.json").is_symlink()
+    assert json.loads(real.read_text())["mcpServers"]["rea"] == REA
+
+
+def test_new_dir_refuses_the_park_root_name(tmp_path, monkeypatch, capsys):
+    """`backups` is the park root the sync skips: an account by that name would never be synced."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "backups", "a@b.com"]) == 2
+    assert not (fleet / "backups").exists()
+    assert "park" in capsys.readouterr().err
 
 
 def test_sync_skips_the_pointer_and_the_park_root(tmp_path, monkeypatch, capsys):

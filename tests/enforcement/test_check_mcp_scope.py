@@ -82,14 +82,25 @@ def test_an_unknown_type_and_the_own_agent_hub_class_repo_only_warn(check, tmp_p
     repo(
         tmp_path, "mystery", "sass-skeleton", ["session-recall", "maestro"]
     )  # a type the roster lacks
-    # an UNTYPED repo is ruled since D-1246 (the universal set): a server outside it now FAILS
-    repo(tmp_path, "untyped", None, ["session-recall", "rea", "maestro"])
+    # an UNTYPED repo the emitter owns (its .gitignore keeps .mcp.json out of git) is ruled since D-1246 (the
+    # universal set): a server outside it FAILS; one the emitter would refuse to write only warns, since
+    # re-emitting cannot clear it
+    owned = tmp_path / "untyped"
+    owned.mkdir()
+    subprocess.run(["git", "init", "-q", str(owned)], check=True)
+    (owned / ".gitignore").write_text(".mcp.json\n")
+    (owned / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {s: DEFS[s] for s in ("rea", "maestro")}})
+    )
+    repo(tmp_path, "vendor-clone", None, ["session-recall", "maestro"])  # no gitignore line
     # fabrik-lib keeps the FULL roster, maestro included (operator ruling 2026-10-07) — no warning
     lib = repo(tmp_path, "fabrik-lib", None, ["session-recall", "maestro", "playwright"])
     rep = check.audit(tmp_path, HUB, DEFS)
     assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [("untyped", ["maestro"])]
-    assert sorted(w["repo"] for w in rep["warnings"]) == ["mystery"]
-    (tmp_path / "untyped" / ".mcp.json").unlink()
+    assert sorted(w["repo"] for w in rep["warnings"]) == ["mystery", "vendor-clone"]
+    assert "gitignore" in next(w for w in rep["warnings"] if w["repo"] == "vendor-clone")["reason"]
+    (owned / ".mcp.json").unlink()
+    (tmp_path / "vendor-clone" / ".mcp.json").unlink()
     # a server outside the roster in an own-agent repo warns (its agent writes the file), never fails
     (lib / ".mcp.json").write_text(
         json.dumps(

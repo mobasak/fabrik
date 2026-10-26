@@ -1906,6 +1906,12 @@ def _cmd_new_dir(
             "symlink (scaffolding it would write INTO whichever account dir the pointer names)\n"
         )
         return 2
+    if slug == _PARK_ROOT_NAME:
+        sys.stderr.write(
+            f"claude_rotate: refusing slug {slug!r} — reserved for the fleet's park root (--merge-shared "
+            "parks copies there, and --sync-* skips it, so an account by that name would never be synced)\n"
+        )
+        return 2
     if "@" not in email:
         sys.stderr.write(f"claude_rotate: refusing account {email!r} — expected an email address\n")
         return 2
@@ -2210,8 +2216,9 @@ def _catalog_overlay() -> tuple[dict | None, str]:
     out: dict = {}
     for name in USER_CATALOG_SERVERS:
         entry = servers.get(name)
-        if not isinstance(entry, dict):
-            return None, f"the MCP catalog {MCP_DEFS_PATH} has no {name!r} entry"
+        launch = entry.get("command") or entry.get("url") if isinstance(entry, dict) else None
+        if not isinstance(launch, str) or not launch.strip():
+            return None, f"the MCP catalog {MCP_DEFS_PATH} has no launchable {name!r} entry"
         if "${" in json.dumps(entry):
             return None, (
                 f"the MCP catalog's {name!r} entry carries a ${{VAR}} placeholder — the user-level roster "
@@ -2304,13 +2311,17 @@ def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
                 failures += 1
         extra = (" + " + ", ".join(pushed)) if pushed else ""
         print(f"  {d.name}: {len(roster)} MCP servers{extra}")
-    # ~/.claude.json is what a process WITHOUT CLAUDE_CONFIG_DIR reads: it carries the same roster
+    # ~/.claude.json is what a process WITHOUT CLAUDE_CONFIG_DIR reads: it carries the same roster. An absent one is
+    # left absent (a bare file would read as an un-onboarded config); a symlink is written through to its target.
+    home = USER_CLAUDE_JSON.resolve()
     try:
-        home_roster = json.loads(USER_CLAUDE_JSON.read_text()).get("mcpServers")
+        home_roster = json.loads(home.read_text()).get("mcpServers")
+    except FileNotFoundError:
+        return 1 if failures else 0
     except (OSError, ValueError, AttributeError):
         home_roster = None
     if home_roster != roster:
-        reason = _merge_roster_once(USER_CLAUDE_JSON, roster)
+        reason = _merge_roster_once(home, roster)
         if reason is not None:
             sys.stderr.write(f"  SKIP {USER_CLAUDE_JSON}: {reason}\n")
             failures += 1

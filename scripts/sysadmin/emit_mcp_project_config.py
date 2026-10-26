@@ -105,7 +105,7 @@ HUB_FULL_ROSTER = HUB_CLASS - HUB_REPOS
 CONDEMNED: set[str] = set()
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
 
-_TYPE_RE = re.compile(r"^type:\s*(\S+)\s*$", re.M)
+_TYPE_RE = re.compile(r"^type:\s*([A-Za-z0-9_-]+)\s*(?:#.*)?$", re.M)
 _DBURL_RE = re.compile(r"^DATABASE_URL=(.+)$", re.M)
 
 
@@ -214,11 +214,18 @@ def _load_defs(defs_arg: str | None) -> dict[str, dict]:
 
 
 def _repo_type(repo: Path) -> str | None:
+    """The `type:` value, a trailing `# comment` allowed; None only when the repo has NO type (no project.yaml,
+    or no `type:` line). A `type:` line the grammar cannot read returns it raw, so it rules as an unknown type
+    (a visible SKIP), never as untyped."""
     py = repo / "project.yaml"
     if not py.is_file():
         return None
-    m = _TYPE_RE.search(py.read_text(encoding="utf-8", errors="replace"))
-    return m.group(1) if m else None
+    text = py.read_text(encoding="utf-8", errors="replace")
+    m = _TYPE_RE.search(text)
+    if m:
+        return m.group(1)
+    raw = re.search(r"^type:(.*)$", text, re.M)
+    return f"(unreadable: {raw.group(1).strip()[:40]})" if raw else None
 
 
 def _database_url(repo: Path) -> str | None:
@@ -308,17 +315,28 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
 
 
 def _gitignores_mcp_config(repo: Path) -> bool:
-    """True when the repo's root .gitignore has a whole `.mcp.json` (or `/.mcp.json`) line — all 44 /opt
-    repos spell it `.mcp.json` (census 2026-10-26)."""
+    """True when git itself says `<repo>/.mcp.json` is ignored — `git check-ignore` reads every rule git honours
+    (a glob, a later `!` negation) and answers no for a TRACKED file, which would carry the keys into a commit.
+    Fails closed: a missing git, a non-repo or a timeout is False."""
     try:
-        lines = (repo / ".gitignore").read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
+        r = subprocess.run(
+            ["git", "-C", str(repo), "check-ignore", "-q", ".mcp.json"],
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
         return False
-    return any(ln.strip() in (".mcp.json", "/.mcp.json") for ln in lines)
+    return r.returncode == 0
+
+
+def emitter_owns(repo: Path) -> bool:
+    """Whether the emitter writes this repo's `.mcp.json`: hub-class, typed, or untyped with the file
+    gitignored. `check_mcp_scope` reads the same predicate, so it never fails a file re-emission cannot clear."""
+    return repo.name in HUB_CLASS or _repo_type(repo) is not None or _gitignores_mcp_config(repo)
 
 
 def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
-    if repo.name not in HUB_CLASS and _repo_type(repo) is None and not _gitignores_mcp_config(repo):
+    if not emitter_owns(repo):
         # an untyped repo is no governed project: its .gitignore is not ours, and the emitted file inlines
         # filled credentials (exa, brave-search, firecrawl keys; a DATABASE_URL) — never written untracked-unignored
         return (
