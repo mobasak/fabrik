@@ -704,9 +704,10 @@ def _api_key_session() -> bool:
     inherits from the claude process — a Bash-tool `export` never reaches it.
     Any `_OTHER_AUTH` variable beside the key — a plan OAuth token, a bearer `ANTHROPIC_AUTH_TOKEN`,
     or a Bedrock/Vertex/Foundry switch — means another credential may be the one in use, so the
-    session is HELD: unknown billing, fail-closed (any non-blank value counts as set). An
-    `apiKeyHelper` session carries no env key and is held too. Extend `_OTHER_AUTH` if another
-    route is ever launched on this box. COPIED in `scripts/sysadmin/quota_posture_hook.py`;
+    session is HELD: unknown billing, fail-closed (any non-blank value counts as set). Only the
+    env is read, never settings: a session whose sole credential is an `apiKeyHelper` has no env
+    key and is held; one with the key in its env too is judged on the key. Extend `_OTHER_AUTH`
+    if another route is ever launched on this box. COPIED in `scripts/sysadmin/quota_posture_hook.py`;
     `final_gate_stop.py` loads `api_key_exempt` from here. Cobra: a dummy key at launch passes this
     check, but Claude Code then authenticates with that key and every request fails — only a real
     paid key gets work through. Mirror: a key the interactive "use this API key?" prompt was told
