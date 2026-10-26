@@ -49,6 +49,8 @@ TRICKY = {
     "linesep": "a\u2028b",
     "nonascii": "caf\u00e9 \u00a0\U0001f600",
     "long": "x" * 300,
+    # PyYAML folds a double-quoted scalar only at a space, so this one is what width=sys.maxsize guards.
+    "long_spaced": "word " * 60,
     "lead_trail": "  pad  ",
     "dashes": "- item",
 }
@@ -196,20 +198,41 @@ def test_no_unquoted_env_line() -> None:
 
 
 # render() $-escapes the secrets it hands to EVERY template as `env`; only compose output may read it.
-_ENV_READ = re.compile(r"\benv\s*(?:\.|\[|\))|\bin\s+env\b")
+# Any bare `env` name inside Jinja code is a read (`{{ env }}`, `env | tojson`, `set e = env`); an
+# attribute (`spec.env`), a longer name (`environment`) or a quoted string (`'.env'`) is not.
+_ENV_READ = re.compile(r"(?<![\w.'\"/-])env(?![\w'\"/-])")
+_JINJA_CODE = re.compile(r"\{[{%].*?[}%]\}", re.S)
+
+
+@pytest.mark.parametrize(
+    ("code", "reads"),
+    [
+        ("{{ env }}", True),
+        ("{{ env | tojson }}", True),
+        ("{% set e = env %}", True),
+        ("{{ env.get('X') }}", True),
+        ("{% if 'X' in env %}", True),
+        ("{{ environment }}", False),
+        ("{{ spec.env }}", False),
+        ("{{ '.env' }}", False),
+    ],
+)
+def test_the_env_read_matcher(code: str, reads: bool) -> None:
+    assert any(_ENV_READ.search(m) for m in _JINJA_CODE.findall(code)) is reads
 
 
 def test_only_compose_templates_read_env() -> None:
+    others = [
+        f
+        for f in TEMPLATES.rglob("*.j2")
+        if f.name not in ("compose.yaml.j2", "_companion_service.yaml.j2")
+    ]
     readers = sorted(
         str(f.relative_to(REPO))
-        for f in TEMPLATES.rglob("*.j2")
-        if f.name != "compose.yaml.j2"
-        and f.name != "_companion_service.yaml.j2"
-        and any(
-            _ENV_READ.search(m)
-            for m in re.findall(r"\{[{%].*?[}%]\}", f.read_text(encoding="utf-8"), re.S)
-        )
+        for f in others
+        if any(_ENV_READ.search(m) for m in _JINJA_CODE.findall(f.read_text(encoding="utf-8")))
     )
+    assert others, "no non-compose template scanned"
     assert not readers, readers
 
 
