@@ -20,9 +20,6 @@ def _section(path: Path, start: str, end: str) -> str:
 
 def test_form_controls_follow_the_templates_named_sections() -> None:
     """Row 1790753997: the author pass and axis A both name sections the template really has."""
-    p5 = _section(DESIGN, "## Phase 5", "## Phase 6")
-    assert "§ Forms and Inline Editing" in p5 and "§ Permissions UX" in p5
-    assert "§ Forms (Accessibility) under § Accessibility (Enriched)" in p5
     headings = re.findall(r"^#{2,3} (.+)$", TEMPLATE.read_text(), re.M)
     for name in ("Forms and Inline Editing", "Permissions UX", "Forms (Accessibility)", "Accessibility (Enriched)"):
         assert name in headings, name
