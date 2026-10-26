@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -150,36 +151,42 @@ def test_a_fenced_baseline_round_trips(tmp_path: Path) -> None:
 
 
 # ── Behaviour 3 ───────────────────────────────────────────────────────────────────────────────
+def _carriers(t: dict[str, Path]) -> list[str]:
+    """The carrier and ledger LOSS lines, the D-1236 lint lines left out (their own tests grade them)."""
+    return [x for x in _losses(t) if ": lint " not in x]
+
+
 def test_each_failed_carrier_is_a_loss(tmp_path: Path) -> None:
     t = _tree(tmp_path)
     _ledger(t, [ENTRY])
     assert _losses(t) == []
     t = _tree(tmp_path / "gone", render=SOURCE.replace("Never stage a sibling's file.", "Stage carefully."))
     _ledger(t, [ENTRY])
-    _one(_losses(t), "`current` is not a unit under its section")
+    _one(_carriers(t), "`current` is not a unit under its section")
+    assert any("lint D" in x for x in _losses(t))  # the ban clause left the live text
     longer = SOURCE.replace("Never stage a sibling's file.", "Never stage a sibling's file twice.")
     t = _tree(tmp_path / "longer", render=longer)
     _ledger(t, [ENTRY])
-    _one(_losses(t), "`current` is not a unit")  # a substring of a longer sentence is not the rule
+    _one(_carriers(t), "`current` is not a unit")  # a substring of a longer sentence is not the rule
     commented = SOURCE.replace("Never stage a sibling's file.", "<!-- Never stage a sibling's file. -->")
     t = _tree(tmp_path / "commented", render=commented)
     _ledger(t, [ENTRY])
-    _one(_losses(t), "`current` is not a unit")
+    _one(_carriers(t), "`current` is not a unit")
     t = _tree(tmp_path / "phrase")
     _ledger(t, [{**ENTRY, "text": ["Never commit"]}])
-    _one(_losses(t), "text phrase not in `current`")
+    _one(_carriers(t), "text phrase not in `current`")
     t = _tree(tmp_path / "textonly")
     _ledger(t, [{"id": "R2", "section": "## Scope", "text": ["Never commit"]}])
-    _one(_losses(t), "text phrase not under its section")  # a text carrier with no `current` is checked
+    _one(_carriers(t), "text phrase not under its section")  # a text carrier with no `current` is checked
     t = _tree(tmp_path / "forbid", render=SOURCE + "\n<!-- always force-\npush -->\n")
     _ledger(t, [{**ENTRY, "forbidden": ["force- push"]}])
-    _one(_losses(t), "forbidden phrase present")  # comments and line wraps included
+    _one(_carriers(t), "forbidden phrase present")  # comments and line wraps included
     t = _tree(tmp_path / "section")
     _ledger(t, [{**ENTRY, "section": "## Close"}])
-    _one(_losses(t), "`current` is not a unit under its section")
+    _one(_carriers(t), "`current` is not a unit under its section")
     t = _tree(tmp_path / "nosection")
     _ledger(t, [{**ENTRY, "section": "## Absent"}])
-    _one(_losses(t), "section '## Absent' missing")
+    _one(_carriers(t), "section '## Absent' missing")
     deep = SOURCE.replace("## Close", "### Sub\n\nInner line.\n\n## Close")
     t = _tree(tmp_path / "deeper", source=deep, render=deep)
     _ledger(t, [{"id": "R3", "section": "## Scope", "current": "Inner line.", "text": ["Inner"]}], baseline_from=deep)
@@ -190,7 +197,7 @@ def test_each_failed_carrier_is_a_loss(tmp_path: Path) -> None:
         {"id": "C2", "section": "## Close", "current": "Push it.", "text": ["Push"], "ordered": ["C2", "C1"]},
     ]
     _ledger(t, entries)
-    _one(_losses(t), "out of order or missing")
+    _one(_carriers(t), "out of order or missing")
     entries[1]["ordered"] = ["C1", "C2"]
     _ledger(t, entries)
     assert _losses(t) == []
@@ -794,8 +801,10 @@ def _fires(e: dict, scope: str, text: str | None = None) -> set[str]:
 
 
 def test_a_faithful_reworded_entry_loses_nothing(tmp_path: Path) -> None:
-    # through the consumer's entry point (`losses()`), a prose clause reworded within D-1240
-    assert _lint_tree(tmp_path) == []
+    # through the consumer's entry point (`losses()`), a prose clause reworded within D-1240: no LOSS of any kind
+    t = _tree(tmp_path, LSRC)
+    _ledger(t, [{"id": "R1", "section": "## Scope", "baseline": LBASE, "text": LTEXT}], baseline_from=LSRC)
+    assert _losses(t) == []
 
 
 def test_lint_a_each_ban_word_with_its_next_word_in_the_same_clause(tmp_path: Path) -> None:
@@ -812,7 +821,7 @@ def test_lint_a_each_ban_word_with_its_next_word_in_the_same_clause(tmp_path: Pa
 def test_ban_words_are_never_must_only_refuse_in_any_case() -> None:
     for ban in ("NEVER push", "Never push", "you must read", "MUST read", "only on master", "refuse it", "it refuses", "refused", "a refusal"):
         assert cr.entry_class({"baseline": ban}) == "ban", ban
-    for not_ban in ("do not push", "it stays put", "tie a knot", "refusing it", "nevertheless", "mustard"):
+    for not_ban in ("do not push", "it stays put", "tie a knot", "refusing it", "nevertheless", "mustard", "set `never-route` here", "pass `--only x`"):
         assert cr.entry_class({"baseline": not_ban}) == "prose", not_ban
     assert cr.entry_class({"baseline": "Do _NEVER_ push"}) == "ban"  # single-underscore emphasis dropped
 
@@ -841,6 +850,15 @@ def test_lint_b_coverage_is_anchors_plus_seventy_percent_of_eight_stems() -> Non
     assert "B" in _fires({**a, "text": ["run `make gate` on two machines before tagging"]}, "x")
     assert "B" not in _fires({**a, "text": ["run `make gate` on 2 machines prior to tagging"]}, "x")
     assert cr.STEM_RECALL == 0.7 and cr.STEM_CAP == 8  # D-1240's starting value, changed only by a D-row
+    # an anchor is held where it stands whatever its edges: a path of numbers, a code span, a parenthetical
+    two = "bare rows inside a ```text fence grade on nothing; `a.py`'s `_X_ROW` passes when the row is bare"
+    assert "B" not in _fires({"id": "R", "class": "prose", "baseline": two, "text": [two]}, two)  # a ``` run flips parity
+    for clause in ("three runs found 0/5/0 across the same surface", "run `make`s twice and check them all before merging", "pass `--json` to every gate run you make", "this rule holds (see D-9) for every seat"):
+        assert "B" not in _fires({"id": "R", "class": "prose", "baseline": clause, "text": [clause]}, clause), clause
+    assert cr._anchors("found 0/5/0 here") == {"0/5/0"}
+    # `_whole` demands a word boundary only at an edge that is a word character, on either side
+    assert re.search(cr._whole("`x`"), "a`x`b") and re.search(cr._whole("(see D-9)"), "rule(see D-9)s")
+    assert not re.search(cr._whole("run it"), "rerun it") and not re.search(cr._whole("run it"), "run its")
 
 
 def test_lint_b_a_narrative_label_releases_a_clause(tmp_path: Path) -> None:
@@ -881,6 +899,9 @@ def test_lint_c_six_whitespace_words_unique_in_the_file() -> None:
     assert "C" not in _fires(p, once + " now", "## A\n\n" + once + " now\n\n## B\n\nrerun the tests before you push")
     assert "C" in _fires(p, once + " now", "## A\n\n" + once + " now\n\n## B\n\n" + once)  # unique in its FILE
     assert "C" in _fires(p, "nothing here", "nothing here")  # 0x
+    # C binds prose carriers only: a grammar pin (a front-matter line, a script path) is short by nature
+    for cls in ("grammar", "behavioural", "ban"):
+        assert "C" not in _fires({"id": "R", "class": cls, "baseline": "model: inherit", "text": ["model: inherit"]}, "model: inherit"), cls
     # a phrase equal to the whole `current` unit is exempt: `_check` proves that unit is live
     assert "C" not in _fires({**p, "baseline": "Push it", "current": "Push it.", "text": ["Push it"]}, "Push it.")
 
@@ -953,3 +974,48 @@ def test_summary_survives_malformed_entries(tmp_path: Path) -> None:
         "LEDGER bad.yaml: 2 entries · classes {'prose': 2} · vanished {}",
         "LEDGER good.yaml: 1 entries · classes {'ban': 1} · vanished {}",
     ], lines
+
+
+def test_a_ban_line_never_vanishes_as_narrative(tmp_path: Path) -> None:
+    t = _tree(tmp_path, source=SOURCE.replace("Never stage a sibling's file.", ""))
+    base = t["rules"] / "demo.baseline.txt"
+    sha = cr.write_baseline(cr.own_text(SOURCE), base)
+    n = next(i for i, ln in enumerate(cr._read_baseline(base.read_bytes()), 1) if "Never stage" in ln)
+    other = {"id": "R2", "section": "## Scope", "current": "Stop at the pin.", "text": ["Stop at the pin"]}
+    data = {"command": "demo", "baseline_sentences": base.name, "baseline_sha256": sha, "entries": [other], "vanished": {f"L{n}": "narrative"}}
+    (t["rules"] / "demo.yaml").write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
+    _one(_losses(t), "holds a ban word and cannot vanish as narrative")
+    data["vanished"] = {f"L{n}": {"rule": ["R2"]}}  # classified to a rule instead: the label raises nothing
+    (t["rules"] / "demo.yaml").write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
+    assert not any("vanish" in x for x in _losses(t))
+
+
+def test_a_fence_marker_does_not_flip_code_parity_for_the_prose_beside_it() -> None:
+    e = {"id": "R", "class": "prose", "baseline": "Run the full test suite now", "text": ["Run the full test suite now"]}
+    assert "C" not in _fires(e, "```\nRun **the** full test suite now")
+
+
+def test_a_lint_loss_exits_the_corpus_check_with_4(tmp_path: Path, monkeypatch, capsys) -> None:
+    # through the consumer's entry point: a real command's ban unit carried by a stub fails `--check`
+    own = cr.own_text((ac.SRC / "fabrik-task.md").read_text(encoding="utf-8"))
+    heading, unit = next(
+        (h, u) for h, k, u in cr.units(own) if k == "prose" and h.startswith("## ") and cr._ban_hits(u) and len(u.split()) > 8
+    )
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    sha = cr.write_baseline(own, rules / "fabrik-task.baseline.txt")
+    stub = " ".join(w for w in unit.split() if not cr._is_ban(w))
+    entry = {"id": "T1", "section": heading, "baseline": unit, "current": unit, "text": [stub]}
+    led = {"command": "fabrik-task", "baseline_sentences": "fabrik-task.baseline.txt", "baseline_sha256": sha, "entries": [entry]}
+    (rules / "fabrik-task.yaml").write_text(yaml.safe_dump(led, allow_unicode=True), encoding="utf-8")
+    monkeypatch.setattr(cr, "RULES", rules)
+    inst, skills, agents = tmp_path / "installed", tmp_path / "skills", tmp_path / "agents"
+    ac.render(inst, skills, agents_dest=agents)
+    monkeypatch.setattr(ac, "OUT", inst)
+    monkeypatch.setattr(ac, "SKILLS", skills)
+    monkeypatch.setattr(ac, "AGENTS", agents)
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as exc:
+        ac.check()
+    out = capsys.readouterr().out
+    assert exc.value.code == 4 and "lint A" in out, out

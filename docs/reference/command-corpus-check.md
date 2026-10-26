@@ -306,7 +306,7 @@ Two classes of citation rot were fixed alongside it and should not be reintroduc
 at `commands/_rules/_shared/<name>.yaml`. Each ledger carries a sha-pinned baseline of its own text,
 split into heading-keyed units. `losses()` asserts every ledger against a render, and a LOSS is one
 of: a failed `text`, `ordered` or `forbidden` carrier; a baseline unit that vanished unclassified;
-or a malformed ledger. `enforced:` is a load-time lint: the named test's own asserts must show a
+a malformed ledger; or a ledger lint (below). `enforced:` is a load-time lint: the named test's own asserts must show a
 refusal, and a call that runs something (a subprocess or runner callee, never `print()` or a
 logger) must name the script the entry's `text` carrier names. `losses()` never raises.
 
@@ -324,33 +324,44 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   whole unit under its `section`.
 - **Changed on purpose** (§ The rule test step 8): an entry's `changed-by:` lists each D-row that
   changed it; every id must be a row in `docs/DECISIONS.md`.
-- **Ledger lints** (D-1236): they run in the command check (`_check`), not in `load_ledger`, so a ledger whose
-  baseline file is missing, whose `baseline_sha256` mismatches or whose own text is missing reports only that
-  LOSS until it is fixed; the `clauses:` label checks (below) run at load. Each lint is a LOSS line naming the
-  ledger file, entry id and lint, for an entry with a `baseline:` that carries `class:`, `clauses:` or `pins:`
-  or whose baseline holds a ban token — a legacy prose entry with none of these is never newly failed. An
-  entry's `class:` is `ban | grammar | behavioural | prose`; absent, a baseline holding a ban token (`NEVER`
-  and `MUST` upper-case only; `only`, `not`, `refus*`, `stays` any case; whole words, `_x_` emphasis ignored)
-  is `ban`, else `prose`, and `summary()` prints the class counts. **A** — a `ban` entry needs `text` carriers
-  holding EVERY (ban token, next word) pair of its baseline. **B** — split `baseline` at `;`, a spaced `—` `–`
-  `--` or an unspaced `—` (never inside a code span); each clause must share ≥6 consecutive normalised words
-  with a `text` phrase (or be contained in one) or be named in `clauses: {<n>: narrative | duplicate-of: <id>}`;
-  at load a key must be within the clause count, a `duplicate-of` id must be a live entry, and `narrative` is
-  refused for a clause holding a ban token. **C** — a `text` phrase is ≥6 normalised words and appears exactly
-  once, as whole words, in the entry's own section (a phrase equal to the whole `current` unit is exempt: the
-  unit match anchors it). **D** — in classes `ban`, `grammar` and `behavioural` every unlabelled clause stays
-  verbatim (word for word, `refuse` ≠ `refusing`) in the LIVE section text, with or without a `current`;
-  `prose` may reword. `pins:` lists retired pin test node ids (non-empty strings). COBRA: the cheapest pass is
-  a stub carrier, then a reworded clause — A/B read the immutable baseline, C/D the live file; what is left
-  is a `duplicate-of` label to a live id, or no `class:` on a baseline with no ban token. The `class:` tag is
-  set at baseline and changed only by a D-row (by review: the loader holds no history).
-  `command_rules.LINTS = False` switches them off for the pre-D-1236 fixture tests only.
+- **Ledger lints** (D-1236, read per D-1238 points 1-2 and D-1240): they run in the command check
+  (`_check`), not in `load_ledger`, so a ledger whose baseline file is missing, whose `baseline_sha256`
+  mismatches or whose own text is missing reports only that LOSS until it is fixed; the `clauses:` label checks
+  (below) run at load. Each lint is a LOSS line naming the ledger file, entry id and lint, for an entry with a
+  `baseline:` that carries `class:` or `clauses:` or whose baseline holds a ban word — a legacy prose entry with
+  none of these is never newly failed (`pins:` predates D-1236 and opts nothing in). The **ban words** are
+  `never`, `must`, `only` and `refuse`/`refuses`/`refused`/`refusal`, any case, whole words, outside code spans,
+  `_x_` emphasis ignored (`not`, `stays` and `refusing` are none). An entry's `class:` is
+  `ban | grammar | behavioural | prose`; absent, a baseline holding a ban word is `ban`, else `prose`, and
+  `summary()` prints the class counts. A class only ADDS: a clause holding a ban word binds in every class. The
+  baseline splits into clauses at `;`, a spaced `—` `–` `--` or an unspaced `—`, never inside a code span or a
+  parenthetical; a fenced unit splits at its lines only. **A** — every (ban word, next word in the same clause)
+  pair is in a `text` phrase, the same ban word the baseline uses. **B** — each clause is covered by ONE `text`
+  phrase (`_covered`, D-1240): the phrase holds every anchor of the clause (backticked tokens, numbers, paths,
+  file names, ban words) and at least `STEM_RECALL` (0.7) of the clause's first `STEM_CAP` (8) content stems
+  (letters-only words of 4+ letters, cut to 5) — per phrase, never pooled; the two constants change only by a
+  D-row — or the clause is named in `clauses: {<n>: narrative | duplicate-of: <id>}`. At load a key must be
+  within the clause count, a `duplicate-of` id must be another live entry whose `text` covers the clause, and a
+  clause holding a ban word takes no label at all (D-1238 point 1); a `vanished:` baseline line holding a ban word
+  is never `narrative` either. **C** — in class `prose` only (the carriers D-1236 lets be reworded; a
+  ban, grammar or behavioural pin is held by A, B and D), a `text` phrase is ≥6 whitespace words and appears exactly once, as a
+  whole, in the entry's FILE (a phrase equal to the whole `current` unit is exempt: `_check` proves that unit
+  live). **D** — a clause holding a ban word stands verbatim in the LIVE section from its ban word to the end of
+  its clause or sentence, whichever comes first (`_ban_span`, D-1240: a `,` or `(` ends nothing), whitespace,
+  emphasis and case normalised; in classes `grammar` and `behavioural` every other unlabelled clause stands
+  verbatim too; `prose` may reword. `pins:` is a non-empty list of non-empty strings (the retired pin test node
+  ids; no node is resolved). An id or date parenthetical is history: label its clause `narrative`, never
+  exempt it in the loader (D-1238). COBRA: the cheapest pass is a stub carrier, then a reworded clause — A/B read
+  the immutable baseline, C/D the live file, the anchors stop a stub and the per-phrase stem cap stops padding;
+  what is left is a `duplicate-of` label to an entry that genuinely carries the clause, or a baseline with no ban
+  word left unclassified, which is the decision's own scope. The `class:` tag is set at baseline and changed
+  only by a D-row (by review: the loader holds no history).
 - **Light form** (step 9): `generate_unchanged(baseline_path, new_own_text)` returns one `text`
   entry per baseline prose or table unit that survives unchanged, `section`-pinned unless an
   `{{include:…}}` precedes it in its section (the render splices the fragment there, so that unit is
   matched over the whole file). Over every live command its ledgers pass with no LOSS.
 - `tests/test_command_rules.py` renders the corpus itself, asserts no LOSS and prints one
-  `LEDGER <file>: <n> entries · vanished {…}` line per ledger (`command_rules.summary()`, which never
+  `LEDGER <file>: <n> entries · classes {…} · vanished {…}` line per ledger (`command_rules.summary()`, which never
   raises).
 
 **The size ceiling (L1)** — `commands/command_measure.py`, ceilings in `commands/_size_ceiling.json`.

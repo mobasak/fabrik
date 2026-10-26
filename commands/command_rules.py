@@ -518,8 +518,14 @@ def _has_run(hay: list[str], needle: list[str]) -> bool:
     return bool(n) and any(hay[i : i + n] == needle for i in range(len(hay) - n + 1))
 
 
+def _ban_hits(s: str) -> list[re.Match]:
+    """The ban words of ``_deemph(s)`` outside code spans (an identifier like `never-route` bans nothing);
+    the match positions index ``_deemph(s)``, since a masked span keeps its length."""
+    return list(_BAN.finditer(re.sub(r"`[^`]*`", lambda m: "x" * len(m.group(0)), _deemph(s))))
+
+
 def _is_ban(baseline: object) -> bool:
-    return isinstance(baseline, str) and bool(_BAN.search(_deemph(baseline)))
+    return isinstance(baseline, str) and bool(_ban_hits(baseline))
 
 
 def entry_class(e: dict) -> str:
@@ -569,7 +575,8 @@ def _baseline_clauses(baseline: str) -> list[str]:
 
 
 # ── D-1240: the two readings the loader applies, one function each, changed only by a D-row ──
-_ANCHOR = re.compile(r"`[^`]+`|(?<![\w.])\d[\d.,]*\b|[\w.-]*/[\w./-]+|\b[\w-]+\.(?:py|md|json|jsonl|sh|ya?ml|js|ts|toml)\b")
+# order matters: a path or file name is tried before a number, so `0/5/0` is one anchor, never `0` + `/5/0`
+_ANCHOR = re.compile(r"`[^`]+`|[\w.-]*/[\w./-]+|\b[\w-]+\.(?:py|md|json|jsonl|sh|ya?ml|js|ts|toml)\b|(?<![\w.])\d[\d.,]*\b")
 _STEM = re.compile(r"[a-z]{4,}")
 STEM_RECALL = 0.7  # D-1240: the share of a clause's content stems one phrase must hold
 STEM_CAP = 8  # D-1240: only the clause's first 8 content stems count
@@ -578,8 +585,20 @@ STEM_CAP = 8  # D-1240: only the clause's first 8 content stems count
 def _anchors(clause: str) -> set[str]:
     """What no rewording may drop: backticked tokens, numbers, paths, file names and the ban words."""
     found = {normalise(m.group(0)).lower() for m in _ANCHOR.finditer(clause)}
-    found |= {m.group(0).lower() for m in _BAN.finditer(_deemph(clause))}
+    found |= {m.group(0).lower() for m in _ban_hits(clause)}
     return {a for a in found if a}
+
+
+def _whole(s: str) -> str:
+    """A regex for ``s`` standing whole: a word boundary is demanded only at an edge that is a word character,
+    so `0/5/0`, `` `x` `` or `(see D-9)` match where they stand (anchors, the C count and D all read it)."""
+    lead = r"(?<!\w)" if re.match(r"\w", s) else ""
+    tail = r"(?!\w)" if re.search(r"\w$", s) else ""
+    return lead + re.escape(s) + tail
+
+
+def _holds(low: str, anchor: str) -> bool:
+    return bool(re.search(_whole(anchor), low))
 
 
 def _stems(text: str) -> list[str]:
@@ -595,8 +614,9 @@ def _covered(clause: str, phrases: list[str]) -> bool:
     want = _stems(clause)[:STEM_CAP]
     anchors = _anchors(clause)
     for ph in phrases:
-        low = normalise(_deemph(ph)).lower()
-        if not all(re.search(rf"(?<!\w){re.escape(a)}(?!\w)", low) for a in anchors):
+        # as written OR de-emphasised: a code anchor (`_X_ROW`) keeps its underscores, a ban word (_never_) drops them
+        forms = (normalise(ph).lower(), normalise(_deemph(ph)).lower())
+        if not all(any(_holds(f, a) for f in forms) for a in anchors):
             continue
         held = set(_stems(ph))
         if not want or sum(s in held for s in want) >= STEM_RECALL * len(want):
@@ -635,15 +655,16 @@ def _check_clauses(e: dict, ids: dict[str, dict]) -> None:
 
 
 def _paras(scope: str) -> list[str]:
-    """Blank-line paragraphs: an odd backtick in one (a fence line) must not flip code parity in the rest."""
-    return re.split(r"\n\s*\n", scope)
+    """Blank-line paragraphs, with every fence marker line a break of its own: an odd backtick run must not flip
+    code parity for the prose beside it."""
+    return re.split(r"\n\s*\n|^\s*(?:```|~~~).*$", scope, flags=re.M)
 
 
 def _verbatim(span: str, paras: list[str]) -> bool:
     """``span`` stands in one live paragraph as written: whitespace and emphasis normalised, case folded
     (D-1238 matches ban words in any case), punctuation and word boundaries kept."""
     want = normalise(_deemph(span.replace(_FENCE_JOIN, " "))).casefold()
-    return bool(want) and any(re.search(rf"(?<!\w){re.escape(want)}(?!\w)", p) for p in paras)
+    return bool(want) and any(_holds(p, want) for p in paras)
 
 
 def _lintable(e: dict) -> bool:
@@ -656,8 +677,9 @@ def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
     """D-1236 lints on one entry (``scope`` the live text under its section, ``text`` its whole file):
     ``(lint, message)`` pairs. A: every (ban word, next word) pair of a ban-bearing clause is in a text phrase.
     B: each clause is covered by one text phrase (``_covered``, D-1240) or labelled in `clauses:`.
-    C: a text phrase is >=6 whitespace words and appears once as whole words in its FILE (a phrase equal to
-    the whole `current` unit is exempt: `_check` proves that unit live). D: a ban-bearing clause stands
+    C (class prose only, the carriers D-1236 lets be reworded): a text phrase is >=6 whitespace words and
+    appears once as a whole in its FILE (a phrase equal to the whole `current` unit is exempt: `_check` proves
+    that unit live). D: a ban-bearing clause stands
     verbatim in the live section from its ban word on (``_ban_span``, D-1240), and in classes grammar and
     behavioural every unlabelled clause does. COBRA (D-253): the cheapest abuse is a stub carrier, then a
     reworded clause; A and B read the immutable `baseline`, C and D the live file, and the author-blind audit
@@ -670,14 +692,15 @@ def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
     phrases = e.get("text") or []
     cur = normalise(e["current"]) if e.get("current") else None
     file_paras = [normalise(p) for p in _paras(text)]
-    for ph in phrases:
+    cls = entry_class(e)
+    # C binds the carriers D-1236 lets be reworded (prose); a ban/grammar/behavioural pin is held by A, B and D
+    for ph in phrases if cls == "prose" else []:
         if cur is not None and normalise(ph) == cur:
             continue
         if len(normalise(ph).split()) < 6:
             out.append(("C", f"text phrase under 6 words — {ph[:80]}"))
-        elif (n := sum(len(re.findall(rf"(?<!\w){re.escape(normalise(ph))}(?!\w)", p)) for p in file_paras)) != 1:
+        elif (n := sum(len(re.findall(_whole(normalise(ph)), p)) for p in file_paras)) != 1:
             out.append(("C", f"text phrase appears {n}x in its file, need exactly once — {ph[:80]}"))
-    cls = entry_class(e)
     labels = {str(k) for k in (e.get("clauses") or {})}
     pw = [_words(p) for p in phrases]
     live = [normalise(_deemph(p)).casefold() for p in _paras(scope)]
@@ -685,7 +708,7 @@ def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
         if not _words(clause):
             continue  # punctuation only: no word to carry
         dc = _deemph(clause)
-        bans = list(_BAN.finditer(dc))
+        bans = _ban_hits(clause)
         for m in bans:
             nxt = _words(dc[m.end() :])[:1]
             need = [m.group(0).lower()] + nxt
@@ -730,6 +753,8 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
     for n in vanished(baseline, own):
         if f"L{n}" not in labels:
             loss.append(f"LOSS {name}: baseline L{n} vanished, unclassified — {baseline[n - 1][:120]}")
+        elif labels[f"L{n}"] == "narrative" and _is_ban(baseline[n - 1]):  # D-1238 point 1, the line-level label
+            loss.append(f"LOSS {name}: baseline L{n} holds a ban word and cannot vanish as narrative — {baseline[n - 1][:120]}")
     positions: dict[str, int] = {}
     for e in ledger["_ids"].values():
         f = _resolve(e, ledger, render_dir, root)

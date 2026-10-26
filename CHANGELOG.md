@@ -4,14 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added — lean ledger lints for D-1236 (2026-10-25)
+### Added — the canonical D-1236 ledger lints, read per D-1238 and D-1240 (2026-10-26)
 
-- `commands/command_rules.py` gains an optional per-entry `class:` (ban | grammar | behavioural | prose, inferred
-  from a ban token when absent) and `clauses:` (validated at load), and four lints run in the command check
-  (A every ban-token+next-word carried, B clause coverage, C ≥6-word whole-word phrase unique in its section,
-  D clause verbatim in the LIVE text for non-prose classes), each a LOSS line naming ledger, entry and lint,
-  only for entries with a baseline that carry `class:`/`clauses:`/`pins:` or a ban token; `summary()` prints
-  class counts and never raises on malformed YAML. Documented in `docs/reference/command-corpus-check.md`.
+- `commands/command_rules.py` gains an optional per-entry `class:` and `clauses:`, and four lints that run in the
+  command check, each a LOSS line naming the ledger, the entry and the lint. The rules (ban words, A–D, the
+  D-1240 coverage reading and its two constants) are written once, in `docs/reference/command-corpus-check.md`
+  § Rule ledger and size ceiling; a `vanished:` ban line is never `narrative`. The one canonical loader for the
+  lean program (W-9cd8653d, D-1245).
 
 ### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
 
