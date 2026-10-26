@@ -221,7 +221,12 @@ def _repo_type(repo: Path) -> str | None:
     py = repo / "project.yaml"
     if not py.is_file():
         return None
-    text = py.read_text(encoding="utf-8", errors="replace")
+    try:
+        text = py.read_text(encoding="utf-8", errors="replace")
+    except (
+        OSError
+    ) as e:  # a project.yaml that exists but cannot be read is an unknown type, never untyped
+        return f"(unreadable: {e.strerror or type(e).__name__})"
     m = _TYPE_RE.search(text)
     if m:
         return m.group(1)

@@ -175,6 +175,32 @@ def test_projects_skip_without_the_hub_marker(tmp_path):
     assert r.returncode == 0 and "hub-only" in r.stdout
 
 
+def test_the_hub_without_a_git_dir_is_still_graded(check, tmp_path):
+    """Hub-class names are ruled by name, never by type: a hub dir with no `.git` (and no project.yaml) carrying a
+    heavy server still FAILS — the untyped-non-git skip never reaches it."""
+    hub = repo(tmp_path, "fabrik", None, ["session-recall", "maestro"])
+    (hub / ".git").rmdir()
+    rep = check.audit(tmp_path, HUB, DEFS)
+    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == [("fabrik", ["maestro"])]
+
+
+def test_an_unreadable_project_yaml_warns_never_crashes(check, tmp_path):
+    """A project.yaml the gate cannot read (mode 000) is an unknown type — a warning — never a traceback that
+    takes the whole gate down; with or without a `.git`."""
+    for name in ("unreadable-repo", "unreadable-dir"):
+        d = repo(tmp_path, name, "python-api", ["session-recall", "maestro"])
+        if name == "unreadable-dir":
+            (d / ".git").rmdir()
+        (d / "project.yaml").chmod(0)
+    try:
+        rep = check.audit(tmp_path, HUB, DEFS)
+    finally:
+        for name in ("unreadable-repo", "unreadable-dir"):
+            (tmp_path / name / "project.yaml").chmod(0o644)
+    assert rep["failures"] == []
+    assert sorted(w["repo"] for w in rep["warnings"]) == ["unreadable-dir", "unreadable-repo"]
+
+
 def test_image_generation_is_graded_like_any_repo_of_its_type(check, tmp_path):
     """D-1246 emptied CONDEMNED: image-generation now carries an emitted .mcp.json, graded as python-api."""
     repo(tmp_path, "image-generation", "python-api", ["session-recall", "maestro"])
