@@ -8,8 +8,8 @@ go out with `python3 scripts/command_run.py dispatch --seats 2`. Both get the SA
 other's answer. The brief holds:
 - the design artifact pinned by md5 (the spec, plan, flows or UI contract, or the phase-2 `design.md`) and the
   commit it was read at — a cited fleet-synced file (`scripts/enforcement/`, `.windsurf/rules/`) is gitignored in a
-  project, so no commit of the project holds it: copy the project's own file to the scratchpad and name it by that
-  absolute path and its md5 (its origin is the hub's `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line
+  project, so copy the project's own file to the scratchpad and name it by that
+  absolute path and its md5 (origin: the hub's `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line
   numbers are cited;
 - the operator's ask in their own words;
 - the house rules every seat brief carries: read-only, no `$HOME` read the brief does not name by file, scratch only under
@@ -27,13 +27,13 @@ COLD and return:
   SQL predicate, a regex, a sentence);
 - or, when it has no concern, the attacks it tried and why each held.
 
-Fable runs on metered usage credits. When Fable is unavailable, refused or out of credit, run a second
+When Fable is unavailable, refused or out of credit, run a second
 Opus seat in its place, and say so in the presentation with the reason. Never present a single critique.
 
 **Once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when
 one came back empty), you adjudicate every concern by executing its claim**, then give it one disposition:
-- `ACCEPTED` — the change is applied, and reviewed before anyone approves it: in spec-review and plan-review
-  it re-opens the loop for ONE delta round by the round-1 seats over the fix, recorded as the next Pass with every slice an earlier round stated re-stated in `--slices`, and the `Status: CONVERGED`
+- `ACCEPTED` — the change is applied and reviewed before anyone approves it: in spec-review and plan-review it
+  re-opens the loop for ONE delta round by the round-1 seats, recorded as the next Pass with every slice an earlier round stated re-stated in `--slices`, and the `Status: CONVERGED`
   flip waits for that round: it is written only on its `confirmed 0`, in the commit that mints the approval row (a
   round that confirms more leaves the artifact `DRAFT` and the loop continues — that round is a delta round of the same loop, so its
   own-fix defects count in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row — residue a delta round raises AFTER the stop fired is `RECORDED — measured`

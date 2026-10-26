@@ -1,0 +1,320 @@
+shared: commands/_fragments/autonomy-run.md
+baseline_sentences: autonomy-run.baseline.txt
+baseline_sha256: f8900855455f851a5d4e7a90bac1cf41f17a6cca60cbe49b7c68792a2aa40151
+entries:
+- id: ar-u1
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "This certification runs start→finish in ONE invocation, fully autonomously. You do NOT pause to ask, to narrate progress, or to hand control back so the operator can say \"continue.\" The operator invoked this because they want a *finished* certification, not a conversation — stopping to ask is the failure this contract exists to prevent. Permitted output between start and finish is a one-line-per-round ledger and the final report; never \"shall I continue / proceeding unless you redirect.\""
+  current: "This certification runs start→finish in ONE invocation, fully autonomously. You do NOT pause to ask, narrate progress or hand control back"
+  text:
+  - "This certification runs start→finish in ONE invocation, fully autonomously. You do NOT pause to ask, narrate progress or hand control back"
+- id: ar-u2
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "This certification runs start→finish in ONE invocation, fully autonomously. You do NOT pause to ask, to narrate progress, or to hand control back so the operator can say \"continue.\" The operator invoked this because they want a *finished* certification, not a conversation — stopping to ask is the failure this contract exists to prevent. Permitted output between start and finish is a one-line-per-round ledger and the final report; never \"shall I continue / proceeding unless you redirect.\""
+  current: "Stopping to ask is the failure this contract exists to prevent. Permitted output between start and finish is a one-line-per-round ledger and the final report; never \"shall I continue / proceeding unless you redirect.\""
+  text:
+  - "Stopping to ask is the failure this contract exists to prevent. Permitted output between start and finish is a one-line-per-round ledger and the final report; never \"shall I continue / proceeding unless you redirect.\""
+- id: ar-u3
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Self-service EVERY uncertainty — in this order — before it can even become a question:"
+  current: "Self-service EVERY uncertainty — in this order — before it can even become a question:"
+  text:
+  - "Self-service EVERY uncertainty — in this order — before it can even become a question:"
+- id: ar-u5
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "the `.windsurf/rules/` packs (the surface pack + core) — binding on how the product must behave"
+  current: "the `.windsurf/rules/` packs (the surface pack + core) — binding on how the product must behave"
+  text:
+  - "the `.windsurf/rules/` packs (the surface pack + core) — binding on how the product must behave"
+- id: ar-u6
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "`docs/` (QUICKSTART / OPERATIONS / CONFIGURATION / TROUBLESHOOTING) + `AFCL.md`"
+  current: "`docs/` (QUICKSTART / OPERATIONS / CONFIGURATION / TROUBLESHOOTING) + `AFCL.md`"
+  text:
+  - "`docs/` (QUICKSTART / OPERATIONS / CONFIGURATION / TROUBLESHOOTING) + `AFCL.md`"
+- id: ar-u7
+  # class: prose
+  # clauses: {L7.2: narrative}
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "`grep` / `Read` the codebase — the router / handler / schema / the actual symbol"
+  current: "`grep` / `Read` the codebase"
+  text:
+  - "`grep` / `Read` the codebase"
+- id: ar-u8
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "research online — `WebFetch` the library's official docs for an API detail → `WebSearch`; cite the URL"
+  current: "research online — `WebFetch` the library's official docs for an API detail → `WebSearch`; cite the URL"
+  text:
+  - "research online — `WebFetch` the library's official docs for an API detail → `WebSearch`; cite the URL"
+- id: ar-u9
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Only a question that materially changes what \"correct\" means AND that all five sources fail to settle may even be considered — and if it truly stops you establishing the oracle to run at all, that is the pre-start refusal below, never a mid-run chat"
+  current: "Only a question that materially changes what \"correct\" means AND that all five sources fail to settle may even be considered — and if it truly stops you establishing the oracle to run at all, that is the pre-start refusal below, never a mid-run chat"
+  text:
+  - "Only a question that materially changes what \"correct\" means AND that all five sources fail to settle may even be considered — and if it truly stops you establishing the oracle to run at all, that is the pre-start refusal below, never a mid-run chat"
+- id: ar-u10
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Everything else: decide with the house rules, note it in one line the operator can override, and keep going"
+  current: "Everything else: decide with the house rules, note it in one line the operator can override, and keep going"
+  text:
+  - "Everything else: decide with the house rules, note it in one line the operator can override, and keep going"
+- id: ar-u11
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Fix or hand off — BOTH are autonomous and NON-BLOCKING; neither is ever a reason to stop:"
+  current: "Fix or hand off — BOTH are autonomous and NON-BLOCKING; neither is ever a reason to stop:"
+  text:
+  - "Fix or hand off — BOTH are autonomous and NON-BLOCKING; neither is ever a reason to stop:"
+- id: ar-u12
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "a defect you own ({{OWN_FIX}}) → prove-before-fix (red→green), keep going"
+  current: "a defect you own ({{OWN_FIX}}) → prove-before-fix (red→green), keep going"
+  text:
+  - "a defect you own ({{OWN_FIX}}) → prove-before-fix (red→green), keep going"
+- id: ar-u13
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "a defect you do not own ({{HANDOFF}}) → write the failing repro test, commit it red, route it to the owning `/fabrik-review` / plan, and keep going. A handoff is a logged routing action, never a halt — the run does not wait for the other owner mid-sweep, and the gauntlet continues on everything else"
+  current: "a defect you do not own ({{HANDOFF}}) → write the failing repro test, commit it red, route it to the owning `/fabrik-review` / plan, and keep going. A handoff is a logged routing action, never a halt — the run does not wait for the other owner mid-sweep, and the gauntlet continues on everything else"
+  text:
+  - "a defect you do not own ({{HANDOFF}}) → write the failing repro test, commit it red, route it to the owning `/fabrik-review` / plan, and keep going. A handoff is a logged routing action, never a halt — the run does not wait for the other owner mid-sweep, and the gauntlet continues on everything else"
+- id: ar-u14
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Where a Phase 6 exists (the certification gauntlets), the routes are EXECUTED there in this same run, in fresh dispatched contexts — deferred sequencing, never exported work"
+  current: "Where a Phase 6 exists (the certification gauntlets), the routes are EXECUTED there in this same run, in fresh dispatched contexts — deferred sequencing, never exported work"
+  text:
+  - "Where a Phase 6 exists (the certification gauntlets), the routes are EXECUTED there in this same run, in fresh dispatched contexts — deferred sequencing, never exported work"
+- id: ar-u15
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Classify by ownership honestly — a defect you own (the {{OWN_FIX}} list) terminates FIXED; never re-label it a handoff to dodge the fix loop"
+  current: "Classify by ownership honestly — a defect you own (the {{OWN_FIX}} list) terminates FIXED; never re-label it a handoff to dodge the fix loop"
+  text:
+  - "Classify by ownership honestly — a defect you own (the {{OWN_FIX}} list) terminates FIXED; never re-label it a handoff to dodge the fix loop"
+- id: ar-u16
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "There is no \"noted / I'll ask about this / defer to the operator / good enough for now\" bucket — that is the exact stall this kills"
+  current: "There is no \"noted / I'll ask about this / defer to the operator / good enough for now\" bucket — that is the exact stall this kills"
+  text:
+  - "There is no \"noted / I'll ask about this / defer to the operator / good enough for now\" bucket — that is the exact stall this kills"
+- id: ar-u17
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "\"I judged this worth asking,\" \"running low on context, I'll finish later,\" \"the core is covered, the rest can wait,\" \"substantial enough to deserve a fresh context\" are contract violations, not decisions"
+  current: "\"I judged this worth asking,\" \"running low on context, I'll finish later,\" and similar are contract violations, not decisions"
+  text:
+  - "\"I judged this worth asking,\" \"running low on context, I'll finish later,\" and similar are contract violations, not decisions"
+- id: ar-u18
+  # class: prose
+  # clauses: {L18.2: narrative}
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "(Context is not a reason: the harness AUTO-COMPACTS long conversations and the run continues — your durable-as-you-go artifacts are what make that seamless"
+  current: "(Context is not a reason: the harness AUTO-COMPACTS long conversations and the run continues"
+  text:
+  - "(Context is not a reason: the harness AUTO-COMPACTS long conversations and the run continues"
+- id: ar-u19
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Dressing the context excuse as a BLOCKED report does not legitimize it"
+  current: "Dressing the context excuse as a BLOCKED report does not legitimize it"
+  text:
+  - "Dressing the context excuse as a BLOCKED report does not legitimize it"
+- id: ar-u20
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Post-compact, the SessionStart hook auto-injects a recent-context recap, and the `session-recall` MCP (`search_chats` / `get_chat`) recovers any detail the summary dropped — use it instead of re-deriving or guessing.)"
+  current: "Post-compact, the SessionStart hook injects a recap, and the `session-recall` MCP (`search_chats` / `get_chat`) recovers any detail the summary dropped — use it instead of re-deriving or guessing.)"
+  text:
+  - "Post-compact, the SessionStart hook injects a recap, and the `session-recall` MCP (`search_chats` / `get_chat`) recovers any detail the summary dropped — use it instead of re-deriving or guessing.)"
+- id: ar-u21
+  # class: ban
+  # clauses: {L21.4: narrative}
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "A HARD STOP always overrides — this contract AND the Termination contract below; it is never a \"routable finding,\" and it is the one thing that outranks \"never pause.\" If you discover mid-run that a seam actually touches production / shared-VPS data, or that a scenario would fire a destructive action against real data: abort that action and HALT the run immediately in the `BLOCKED:` format — you have lost the test-isolation precondition, so you can no longer safely certify"
+  current: "A HARD STOP always overrides — this contract AND the Termination contract below; it is never a \"routable finding,\" and it is the one thing that outranks \"never pause.\" If you discover mid-run that a seam actually touches production / shared-VPS data, or that a scenario would fire a destructive action against real data: abort that action and HALT the run immediately in the `BLOCKED:` format"
+  text:
+  - "A HARD STOP always overrides — this contract AND the Termination contract below; it is never a \"routable finding,\" and it is the one thing that outranks \"never pause.\" If you discover mid-run that a seam actually touches production / shared-VPS data, or that a scenario would fire a destructive action against real data: abort that action and HALT the run immediately in the `BLOCKED:` format"
+- id: ar-u22
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "This is the one legitimate early exit that may leave checklist rows `UNCHECKED` (safety outranks coverage); resume only once a safe, isolated environment is restored"
+  current: "This is the one legitimate early exit that may leave checklist rows `UNCHECKED` (safety outranks coverage); resume only once a safe, isolated environment is restored"
+  text:
+  - "This is the one legitimate early exit that may leave checklist rows `UNCHECKED` (safety outranks coverage); resume only once a safe, isolated environment is restored"
+- id: ar-u23
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "\"Never pause\" never authorizes writing to real data — safety outranks autonomy, always"
+  current: "\"Never pause\" never authorizes writing to real data — safety outranks autonomy, always"
+  text:
+  - "\"Never pause\" never authorizes writing to real data — safety outranks autonomy, always"
+- id: ar-u24
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Otherwise (absent the safety HARD STOP above, which is the only thing that halts the whole run mid-loop), stop ONLY on an absolute-must, in the format `BLOCKED: <what> — searched: <sources checked> — missing: <need>`"
+  current: "Otherwise (absent the safety HARD STOP above, which is the only thing that halts the whole run mid-loop), stop ONLY on an absolute-must, in the format `BLOCKED: <what> — searched: <sources checked> — missing: <need>`"
+  text:
+  - "Otherwise (absent the safety HARD STOP above, which is the only thing that halts the whole run mid-loop), stop ONLY on an absolute-must, in the format `BLOCKED: <what> — searched: <sources checked> — missing: <need>`"
+- id: ar-u25
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "There are exactly two, and neither halts the whole run on a single finding — one pauses a lone finding, the other refuses before the loop begins:"
+  current: "There are exactly two, and neither halts the whole run on a single finding — one pauses a lone finding, the other refuses before the loop begins:"
+  text:
+  - "There are exactly two, and neither halts the whole run on a single finding — one pauses a lone finding, the other refuses before the loop begins:"
+- id: ar-u26
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "*In-loop, mid-run* (governed by the Termination contract below): the loop's only non-quiet stop is a specific finding that survived 3 consecutive fix attempts (the same test failing three times) — and even that only pauses THAT finding while you keep looping on everything else, never the whole run"
+  current: "*In-loop, mid-run* (governed by the Termination contract below): the loop's only non-quiet stop is a specific finding that survived 3 consecutive fix attempts (the same test failing three times) — and even that only pauses THAT finding while you keep looping on everything else, never the whole run"
+  text:
+  - "*In-loop, mid-run* (governed by the Termination contract below): the loop's only non-quiet stop is a specific finding that survived 3 consecutive fix attempts (the same test failing three times) — and even that only pauses THAT finding while you keep looping on everything else, never the whole run"
+- id: ar-u27
+  # class: prose
+  # clauses: {L27.2: narrative}
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Any other finding — a contract↔code contradiction on one field/flow, a degradable gap — is routed, not halted: refute it, or terminate it FIXED / HANDED-OFF per Phase 4, and keep going"
+  current: "Any other finding is routed, not halted: refute it, or terminate it FIXED / HANDED-OFF per Phase 4, and keep going"
+  text:
+  - "Any other finding is routed, not halted: refute it, or terminate it FIXED / HANDED-OFF per Phase 4, and keep going"
+- id: ar-u28
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "(A FROZEN-contract conflict is a re-freeze handoff to the owning contract command, not a run-stop.)"
+  current: "(A FROZEN-contract conflict is a re-freeze handoff to the owning contract command, not a run-stop.)"
+  text:
+  - "(A FROZEN-contract conflict is a re-freeze handoff to the owning contract command, not a run-stop.)"
+- id: ar-u29
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "*Pre-start refusal* (Phase 0 \"Ground truth, or refuse\" — you cannot establish the oracle to run the gauntlet at all, so there is no loop to enter): the app/service will not start, OR there is no isolated test dataset/seam and you cannot seed one, OR a required backing service is truly absent"
+  current: "*Pre-start refusal* (Phase 0 \"Ground truth, or refuse\" — you cannot establish the oracle to run the gauntlet at all, so there is no loop to enter): the app/service will not start, OR there is no isolated test dataset/seam and you cannot seed one, OR a required backing service is truly absent"
+  text:
+  - "*Pre-start refusal* (Phase 0 \"Ground truth, or refuse\" — you cannot establish the oracle to run the gauntlet at all, so there is no loop to enter): the app/service will not start, OR there is no isolated test dataset/seam and you cannot seed one, OR a required backing service is truly absent"
+- id: ar-u30
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "This is the one refusal that predates the loop — never a stop within it"
+  current: "This is the one refusal that predates the loop — never a stop within it"
+  text:
+  - "This is the one refusal that predates the loop — never a stop within it"
+- id: ar-u31
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Fixing an oracle gap is BOUNDED setup (seed the minimum, then certify); if it genuinely needs a PLAN, that IS the pre-start BLOCKED finding — the certification never converts itself into a plan-execution run"
+  current: "Fixing an oracle gap is BOUNDED setup (seed the minimum, then certify); if it genuinely needs a PLAN, that IS the pre-start BLOCKED finding — the certification never converts itself into a plan-execution run"
+  text:
+  - "Fixing an oracle gap is BOUNDED setup (seed the minimum, then certify); if it genuinely needs a PLAN, that IS the pre-start BLOCKED finding — the certification never converts itself into a plan-execution run"
+- id: ar-u32
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Degradable gaps are NEITHER stop: the pool 402/quota, or a test-only dependency you can't seed (a mail-catcher, a sandbox key), is a BLOCKED-env FINDING you record and route around INLINE so coverage doesn't suffer; a paid external with no sandbox is a recorded BLOCKED-env FINDING you SKIP — never spend real operator money to manufacture a red"
+  current: "Degradable gaps are NEITHER stop: the pool 402/quota, or a test-only dependency you can't seed (a mail-catcher, a sandbox key), is a BLOCKED-env FINDING you record and route around INLINE so coverage doesn't suffer; a paid external with no sandbox is a recorded BLOCKED-env FINDING you SKIP — never spend real operator money to manufacture a red"
+  text:
+  - "Degradable gaps are NEITHER stop: the pool 402/quota, or a test-only dependency you can't seed (a mail-catcher, a sandbox key), is a BLOCKED-env FINDING you record and route around INLINE so coverage doesn't suffer; a paid external with no sandbox is a recorded BLOCKED-env FINDING you SKIP — never spend real operator money to manufacture a red"
+- id: ar-u33
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Interruption is recoverable — the gauntlet RESUMES, it never restarts from scratch. Every unit of progress is durable the moment it lands: the persisted review file (the adjudicated checklist + ledgers), the committed specs under `tests/` (the rerunnable suite), each fix's commit, and per-agent output dirs"
+  current: "Interruption is recoverable — the gauntlet RESUMES, it never restarts from scratch. Every unit of progress is durable the moment it lands: the persisted review file (the adjudicated checklist + ledgers), the committed specs under `tests/` (the rerunnable suite), each fix's commit, and per-agent output dirs"
+  text:
+  - "Interruption is recoverable — the gauntlet RESUMES, it never restarts from scratch. Every unit of progress is durable the moment it lands: the persisted review file (the adjudicated checklist + ledgers), the committed specs under `tests/` (the rerunnable suite), each fix's commit, and per-agent output dirs"
+- id: ar-u34
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "On re-invocation after a crash / quota-hit / disconnect / kill, the Termination contract's Anchor step reads the newest review file for this scope and re-adjudicates from where it stands: rows already CLEAN / FIXED / REFUTED with evidence are banked (spot-verify, don't redo); `UNCHECKED` rows and un-run matrix cells are the remaining work; committed specs re-run cheaply as regression proof"
+  current: "On re-invocation after a crash / quota-hit / disconnect / kill, the Termination contract's Anchor step reads the newest review file for this scope and re-adjudicates from where it stands: rows already CLEAN / FIXED / REFUTED with evidence are banked (spot-verify, don't redo); `UNCHECKED` rows and un-run matrix cells are the remaining work; committed specs re-run cheaply as regression proof"
+  text:
+  - "On re-invocation after a crash / quota-hit / disconnect / kill, the Termination contract's Anchor step reads the newest review file for this scope and re-adjudicates from where it stands: rows already CLEAN / FIXED / REFUTED with evidence are banked (spot-verify, don't redo); `UNCHECKED` rows and un-run matrix cells are the remaining work; committed specs re-run cheaply as regression proof"
+- id: ar-u35
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Update artifacts as you go (after each round, not only at the end) — an artifact written only at the end is the resume state a crash destroys"
+  current: "Update artifacts as you go (after each round, not only at the end) — an artifact written only at the end is the resume state a crash destroys"
+  text:
+  - "Update artifacts as you go (after each round, not only at the end) — an artifact written only at the end is the resume state a crash destroys"
+- id: ar-u36
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Dead subagents' partial output dirs are evidence to harvest, not to re-earn"
+  current: "Dead subagents' partial output dirs are evidence to harvest, not to re-earn"
+  text:
+  - "Dead subagents' partial output dirs are evidence to harvest, not to re-earn"
+- id: ar-u37
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Dispatched subagents run their suites SYNCHRONOUSLY. A subagent that backgrounds a test/suite run or arms a Monitor and then waits for a notification stalls until its budget is exhausted — background/Monitor signals do NOT deliver to a subagent"
+  current: "Dispatched subagents run their suites SYNCHRONOUSLY. A subagent that backgrounds a test/suite run or arms a Monitor and then waits for a notification stalls until its budget is exhausted — background/Monitor signals do NOT deliver to a subagent"
+  text:
+  - "Dispatched subagents run their suites SYNCHRONOUSLY. A subagent that backgrounds a test/suite run or arms a Monitor and then waits for a notification stalls until its budget is exhausted — background/Monitor signals do NOT deliver to a subagent"
+- id: ar-u38
+  # class: prose
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Every gauntlet subagent runs its suite as a plain synchronous shell call with a generous timeout and reads the exit output; if a suite is too slow for one call, it splits its scope and runs each slice synchronously"
+  current: "Every gauntlet subagent runs its suite as a plain synchronous shell call with a generous timeout and reads the exit output; if a suite is too slow for one call, it splits its scope and runs each slice synchronously"
+  text:
+  - "Every gauntlet subagent runs its suite as a plain synchronous shell call with a generous timeout and reads the exit output; if a suite is too slow for one call, it splits its scope and runs each slice synchronously"
+- id: ar-u39
+  # class: ban
+  file: commands/_fragments/autonomy-run.md
+  section: "## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)"
+  baseline: "Dispatch each agent with an explicit \"run synchronously; never background a run or wait on a Monitor/notification\" instruction"
+  current: "Dispatch each agent with an explicit \"run synchronously; never background a run or wait on a Monitor/notification\" instruction"
+  text:
+  - "Dispatch each agent with an explicit \"run synchronously; never background a run or wait on a Monitor/notification\" instruction"
+vanished:
+  L2: {rule: [ar-u1, ar-u2]}
+  L7: {rule: [ar-u7]}
+  L17: {rule: [ar-u17]}
+  L18: {rule: [ar-u18]}
+  L20: {rule: [ar-u20]}
+  L21: {rule: [ar-u21]}
+  L27: {rule: [ar-u27]}

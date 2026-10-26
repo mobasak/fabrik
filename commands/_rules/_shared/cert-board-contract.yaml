@@ -1,0 +1,243 @@
+shared: commands/_fragments/cert-board-contract.md
+baseline_sentences: cert-board-contract.baseline.txt
+baseline_sha256: 8f2cf4198166bfd224feb4bd40ed664639351562e4068aff107a1528f07cfddc
+entries:
+- id: cbc-u0
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "Output: the CERT BOARD + LEDGER, generated — never hand-written"
+  current: "Output: the CERT BOARD + LEDGER, generated — never hand-written"
+  text:
+  - "Output: the CERT BOARD + LEDGER, generated — never hand-written"
+- id: cbc-u1
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "⚠️ The denominator comes from a live REGISTRY, not from this list and not from a doc. The four discovery modes above are demoted to cross-checks (their bidirectional-reconciliation value is real and is kept)"
+  current: "⚠️ The denominator comes from a live REGISTRY, not from this list and not from a doc. The four discovery modes above are demoted to cross-checks"
+  text:
+  - "⚠️ The denominator comes from a live REGISTRY, not from this list and not from a doc. The four discovery modes above are demoted to cross-checks"
+- id: cbc-u2
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "The denominator resolves to a machine-readable registry of the RUNNING system, declared in `project.yaml::certification_registry`; undeclared falls back to the per-type default AND records the fallback"
+  current: "The denominator resolves to a machine-readable registry of the RUNNING system, declared in `project.yaml::certification_registry`; undeclared falls back to the per-type default AND records the fallback"
+  text:
+  - "The denominator resolves to a machine-readable registry of the RUNNING system, declared in `project.yaml::certification_registry`; undeclared falls back to the per-type default AND records the fallback"
+- id: cbc-u3
+  # class: prose
+  # clauses: {L4.2: narrative}
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "A registry that cannot be reached fails LOUD naming what could not be enumerated — a silently short list rebuilds the defect one layer down"
+  current: "A registry that cannot be reached fails LOUD naming what could not be enumerated"
+  text:
+  - "A registry that cannot be reached fails LOUD naming what could not be enumerated"
+- id: cbc-u4
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "On a surface the project authored, the agent's enumeration and reality converge and this never bites; on an INHERITED surface it under-counts silently and the run terminates HONESTLY AND WRONG"
+  current: "Why: on an INHERITED surface the agent's enumeration under-counts silently and the run terminates HONESTLY AND WRONG; on a surface the project authored it never bites"
+  text:
+  - "Why: on an INHERITED surface the agent's enumeration under-counts silently and the run terminates HONESTLY AND WRONG; on a surface the project authored it never bites"
+- id: cbc-u5
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "`/fabrik-features` is NOT the fix: it documents what the project BUILT; certification must cover what the product SHIPS"
+  current: "`/fabrik-features` is NOT the fix: it documents what the project BUILT; certification must cover what the product SHIPS"
+  text:
+  - "`/fabrik-features` is NOT the fix: it documents what the project BUILT; certification must cover what the product SHIPS"
+- id: cbc-u6
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:"
+  current: "Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:"
+  text:
+  - "Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:"
+- id: cbc-u7
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "docs/development/certifications/YYYY-MM-DD-cert-<surface>/ ⏎ YYYY-MM-DD-cert-<surface>.md ← the spine, carrying `## Test Board` ⏎ ledger.md ← source: · registry_total: · ids_enumerated: ⏎ runtime.md ← hand-written: how the target was started, recorded before any round ⏎ TC01-<slug>.md … ← one ticket per touchpoint GROUP"
+  current: "docs/development/certifications/YYYY-MM-DD-cert-<surface>/ ⏎ YYYY-MM-DD-cert-<surface>.md ← the spine, carrying `## Test Board` ⏎ ledger.md ← source: · registry_total: · ids_enumerated: ⏎ runtime.md ← hand-written: how the target was started, recorded before any round ⏎ TC01-<slug>.md … ← one ticket per touchpoint GROUP"
+  text:
+  - "docs/development/certifications/YYYY-MM-DD-cert-<surface>/ ⏎ YYYY-MM-DD-cert-<surface>.md ← the spine, carrying `## Test Board` ⏎ ledger.md ← source: · registry_total: · ids_enumerated: ⏎ runtime.md ← hand-written: how the target was started, recorded before any round ⏎ TC01-<slug>.md … ← one ticket per touchpoint GROUP"
+- id: cbc-u8
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "⚠️ NAMESPACE — never reuse the implementation plan's. `## Test Board` (not `## Ticket Board`), `TC##[a-z]?-<slug>.md` (not `T##`), `docs/development/certifications/` (not `plans/`), and `.fabrik/cert-locks/` (not `.fabrik/plan-locks/`)"
+  current: "⚠️ NAMESPACE — never reuse the implementation plan's. `## Test Board` (not `## Ticket Board`), `TC##[a-z]?-<slug>.md` (not `T##`), `docs/development/certifications/` (not `plans/`), and `.fabrik/cert-locks/` (not `.fabrik/plan-locks/`)"
+  text:
+  - "⚠️ NAMESPACE — never reuse the implementation plan's. `## Test Board` (not `## Ticket Board`), `TC##[a-z]?-<slug>.md` (not `T##`), `docs/development/certifications/` (not `plans/`), and `.fabrik/cert-locks/` (not `.fabrik/plan-locks/`)"
+- id: cbc-u9
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "The heading is load-bearing: `/fabrik-execute-plan`'s dispatcher triggers on that bare string, so a mis-headed board is dispatched to CODING agents holding a lock the Stop hook believes in"
+  current: "The heading is load-bearing: `/fabrik-execute-plan`'s dispatcher triggers on that bare string, so a mis-headed board is dispatched to CODING agents"
+  text:
+  - "The heading is load-bearing: `/fabrik-execute-plan`'s dispatcher triggers on that bare string, so a mis-headed board is dispatched to CODING agents"
+- id: cbc-u10
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "`check_certification_coverage.py` flags all four as BLOCKING, not advisory"
+  current: "`check_certification_coverage.py` flags all four as BLOCKING, not advisory"
+  text:
+  - "`check_certification_coverage.py` flags all four as BLOCKING, not advisory"
+- id: cbc-u11
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "Every ID reaches a terminal disposition — `EXERCISED` (evidence path must EXIST on disk) or `OUT-OF-SCOPE(reason naming an external owner)`"
+  current: "Every ID reaches a terminal disposition — `EXERCISED` (evidence path must EXIST on disk) or `OUT-OF-SCOPE(reason naming an external owner)`"
+  text:
+  - "Every ID reaches a terminal disposition — `EXERCISED` (evidence path must EXIST on disk) or `OUT-OF-SCOPE(reason naming an external owner)`"
+- id: cbc-u12
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "`UNVISITED` is a FINDING, not a hard block: `check_certification_coverage.py` reports it advisory by deliberate design (registration `advisory=True`; since 2026-08-29 a MIX-UP finding exits 1 and BLOCKS — coverage quality alone never does; see its docstring) — so a board full of `UNVISITED` will NOT redden the gate"
+  current: "`UNVISITED` is a FINDING, not a hard block: `check_certification_coverage.py` reports it advisory by deliberate design (registration `advisory=True`; since 2026-08-29 a MIX-UP finding exits 1 and BLOCKS — coverage quality alone never does; see its docstring) — so a board full of `UNVISITED` will NOT redden the gate"
+  text:
+  - "`UNVISITED` is a FINDING, not a hard block: `check_certification_coverage.py` reports it advisory by deliberate design (registration `advisory=True`; since 2026-08-29 a MIX-UP finding exits 1 and BLOCKS — coverage quality alone never does; see its docstring) — so a board full of `UNVISITED` will NOT redden the gate"
+- id: cbc-u13
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "You must therefore paste the grader's verbatim counters into the report (`ids`/`exercised`/`unvisited`/`blocking`) and read them: measured at transdoc 2026-08-27, a board reporting `{ids: 7, exercised: 0, unvisited: 7}` passed a green 49/0 gate because the board had gone STALE, and neither the grader nor an operator reading a green gate could tell that from a genuinely untested surface"
+  current: "You must therefore paste the grader's verbatim counters into the report (`ids`/`exercised`/`unvisited`/`blocking`) and read them: measured at transdoc 2026-08-27, a board reporting `{ids: 7, exercised: 0, unvisited: 7}` passed a green 49/0 gate because the board had gone STALE, and neither the grader nor an operator reading a green gate could tell that from a genuinely untested surface"
+  text:
+  - "You must therefore paste the grader's verbatim counters into the report (`ids`/`exercised`/`unvisited`/`blocking`) and read them: measured at transdoc 2026-08-27, a board reporting `{ids: 7, exercised: 0, unvisited: 7}` passed a green 49/0 gate because the board had gone STALE, and neither the grader nor an operator reading a green gate could tell that from a genuinely untested surface"
+- id: cbc-u14
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "A run that closes with `unvisited > 0` closes NOT-QUIET, never `done`"
+  current: "A run that closes with `unvisited > 0` closes NOT-QUIET, never `done`"
+  text:
+  - "A run that closes with `unvisited > 0` closes NOT-QUIET, never `done`"
+- id: cbc-u15
+  # class: prose
+  # clauses: {L18.2: narrative}
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "`DEFERRED` is REJECTED, with its synonyms — a \"later\" state is the loophole that lets the whole contract be ignored"
+  current: "`DEFERRED` is REJECTED, with its synonyms"
+  text:
+  - "`DEFERRED` is REJECTED, with its synonyms"
+- id: cbc-u16
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "`inherited` / `vendored` / `generated` / `legacy` / `low priority` are rejected REASONS: they describe how OUR surface came to exist, not whether a customer can reach it, and inherited surfaces are exactly what the T3 generated-smoke tier is FOR"
+  current: "`inherited` / `vendored` / `generated` / `legacy` / `low priority` are rejected REASONS: they describe how OUR surface came to exist, not whether a customer can reach it, and inherited surfaces are exactly what the T3 generated-smoke tier is FOR"
+  text:
+  - "`inherited` / `vendored` / `generated` / `legacy` / `low priority` are rejected REASONS: they describe how OUR surface came to exist, not whether a customer can reach it, and inherited surfaces are exactly what the T3 generated-smoke tier is FOR"
+- id: cbc-u17
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "Board grammar, exact (learned by failing the grader — brand-identiy `01M168QED`): the disposition column is headed `Disposition` (or `State`) — a `Status` column reads as UNVISITED; ONE evidence path per cell (a comma-separated cell fails the existence check whole); ticket files are `TC##[a-z]?-<slug>.md` ONLY — beside the spine, `ledger.md` and the `runtime.md` recipe are the two non-ticket files, and any other `.md` flags BAD TICKET"
+  current: "Board grammar, exact (learned by failing the grader — brand-identiy `01M168QED`): the disposition column is headed `Disposition` (or `State`) — a `Status` column reads as UNVISITED; ONE evidence path per cell (a comma-separated cell fails the existence check whole); ticket files are `TC##[a-z]?-<slug>.md` ONLY — beside the spine, `ledger.md` and the `runtime.md` recipe are the two non-ticket files, and any other `.md` flags BAD TICKET"
+  text:
+  - "Board grammar, exact (learned by failing the grader — brand-identiy `01M168QED`): the disposition column is headed `Disposition` (or `State`) — a `Status` column reads as UNVISITED; ONE evidence path per cell (a comma-separated cell fails the existence check whole); ticket files are `TC##[a-z]?-<slug>.md` ONLY — beside the spine, `ledger.md` and the `runtime.md` recipe are the two non-ticket files, and any other `.md` flags BAD TICKET"
+- id: cbc-u18
+  # class: ban
+  # clauses: {L21.2: narrative}
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "Evidence discipline: the board's `evidence/` dir is NEVER a runner's `--output` dir (runners WIPE their output root at start — passing the sweep dir as `--output` deletes cross-run evidence); take explicit `page.screenshot` paths and `cp` to `evidence/` IMMEDIATELY (attachments persist only for failing tests)"
+  current: "Evidence discipline: the board's `evidence/` dir is NEVER a runner's `--output` dir (runners WIPE their output root at start); take explicit `page.screenshot` paths and `cp` to `evidence/` IMMEDIATELY (attachments persist only for failing tests)"
+  text:
+  - "Evidence discipline: the board's `evidence/` dir is NEVER a runner's `--output` dir (runners WIPE their output root at start); take explicit `page.screenshot` paths and `cp` to `evidence/` IMMEDIATELY (attachments persist only for failing tests)"
+- id: cbc-u19
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "Bulk marking is where a deny-list leaks — and the grader never records. A sweep flag (`--tier`/`--kind`/any multi-id form) must pass the SAME per-id refusals as a single mark: the reference implementation's first live sweep marked 39 navigation containers `EXERCISED` via a screen suite that never touched them because the sweep path skipped the modelless-entry refusal (tryton-crm, fixed and re-proven 424→385)"
+  current: "Bulk marking is where a deny-list leaks — and the grader never records. A sweep flag (`--tier`/`--kind`/any multi-id form) must pass the SAME per-id refusals as a single mark: the reference implementation's first live sweep marked 39 navigation containers `EXERCISED` via a screen suite that never touched them because the sweep path skipped the modelless-entry refusal (tryton-crm, fixed and re-proven 424→385)"
+  text:
+  - "Bulk marking is where a deny-list leaks — and the grader never records. A sweep flag (`--tier`/`--kind`/any multi-id form) must pass the SAME per-id refusals as a single mark: the reference implementation's first live sweep marked 39 navigation containers `EXERCISED` via a screen suite that never touched them because the sweep path skipped the modelless-entry refusal (tryton-crm, fixed and re-proven 424→385)"
+- id: cbc-u20
+  # class: prose
+  # clauses: {L23.2: narrative}
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "And recording stays OUT of the grader by design — a checker that can also mark things done will eventually mark things done; retiring an id goes through the PROJECT'S recorder script — project-local by design, not hub-synced; the reference implementation is `/opt/tryton-crm/scripts/certification_record.py` (cross-repo READ to vendor from; a project without one vendors it before the first sweep), evidence mandatory, the grader only reads"
+  current: "And recording stays OUT of the grader by design; retiring an id goes through the PROJECT'S recorder script — project-local by design, not hub-synced; the reference implementation is `/opt/tryton-crm/scripts/certification_record.py` (cross-repo READ to vendor from; a project without one vendors it before the first sweep), evidence mandatory, the grader only reads"
+  text:
+  - "And recording stays OUT of the grader by design; retiring an id goes through the PROJECT'S recorder script — project-local by design, not hub-synced; the reference implementation is `/opt/tryton-crm/scripts/certification_record.py` (cross-repo READ to vendor from; a project without one vendors it before the first sweep), evidence mandatory, the grader only reads"
+- id: cbc-u21
+  # class: ban
+  # clauses: {L24.3: narrative}
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "The fifth oracle — reference-data reconciliation (trade-intelligence `01M1580AH`, 2026-08-29). The UI-truth-vs-SYSTEM-truth comparison is blind to a defect ABSENT FROM BOTH SIDES: a levy the API never computed and the card therefore never rendered agreed perfectly across four certification runs (30 quiet rounds) while silently omitting a ~2.46M TRY line whose ZERO happened to be correct — agreement is what the comparison checks, and no number of rounds, personas or viewports can see a row missing from both sides"
+  current: "The fifth oracle — reference-data reconciliation (trade-intelligence `01M1580AH`, 2026-08-29). The UI-truth-vs-SYSTEM-truth comparison is blind to a defect ABSENT FROM BOTH SIDES: a levy the API never computed and the card therefore never rendered agreed perfectly across four certification runs (30 quiet rounds) while silently omitting a ~2.46M TRY line whose ZERO happened to be correct"
+  text:
+  - "The fifth oracle — reference-data reconciliation (trade-intelligence `01M1580AH`, 2026-08-29). The UI-truth-vs-SYSTEM-truth comparison is blind to a defect ABSENT FROM BOTH SIDES: a levy the API never computed and the card therefore never rendered agreed perfectly across four certification runs (30 quiet rounds) while silently omitting a ~2.46M TRY line whose ZERO happened to be correct"
+- id: cbc-u22
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "So for every journey whose output is ADJUDICATED CONTENT (levies, prices, entitlements, computed rows), at least one scenario per content class reconciles the response against an INDEPENDENT reference source — the governing table/ruleset/fixture the domain itself names — asserting not just that rendered rows are right but that every row the reference implies is PRESENT or its absence individually justified"
+  current: "So for every journey whose output is ADJUDICATED CONTENT (levies, prices), at least one scenario per content class reconciles the response against an INDEPENDENT reference source — the governing table/ruleset/fixture the domain itself names — asserting not just that rendered rows are right but that every row the reference implies is PRESENT or its absence individually justified"
+  text:
+  - "So for every journey whose output is ADJUDICATED CONTENT (levies, prices), at least one scenario per content class reconciles the response against an INDEPENDENT reference source — the governing table/ruleset/fixture the domain itself names — asserting not just that rendered rows are right but that every row the reference implies is PRESENT or its absence individually justified"
+- id: cbc-u23
+  # class: prose
+  # clauses: {L26.2: narrative}
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "No independent reference reachable → say so in the ledger (`reference-reconciliation: unavailable — <why>`); an unstated missing oracle is how this class survives"
+  current: "No independent reference reachable → say so in the ledger (`reference-reconciliation: unavailable — <why>`)"
+  text:
+  - "No independent reference reachable → say so in the ledger (`reference-reconciliation: unavailable — <why>`)"
+- id: cbc-u24
+  # class: ban
+  # clauses: {L27.2: narrative}
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "The demoted doc inventory keeps its teeth. Demoting `docs/FEATURES.md` to a cross-check does NOT mean discarding it: every FEATURES row must map to the ticket/scenario IDs that exercise it, and a feature with zero mapped IDs cannot be reported as working. That clause survived the denominator change and is the cross-check's whole value — an independent second opinion is exactly what catches a generator that agrees with itself | A large divergence between the doc inventory and the registry is REPORTED, not silently preferred either way"
+  current: "The demoted doc inventory keeps its teeth. Demoting `docs/FEATURES.md` to a cross-check does NOT mean discarding it: every FEATURES row must map to the ticket/scenario IDs that exercise it, and a feature with zero mapped IDs cannot be reported as working. That clause survived the denominator change and is the cross-check's whole value"
+  text:
+  - "The demoted doc inventory keeps its teeth. Demoting `docs/FEATURES.md` to a cross-check does NOT mean discarding it: every FEATURES row must map to the ticket/scenario IDs that exercise it, and a feature with zero mapped IDs cannot be reported as working. That clause survived the denominator change and is the cross-check's whole value"
+- id: cbc-u25
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "A large divergence between the doc inventory and the registry is REPORTED, not silently preferred either way"
+  current: "A large divergence between the doc inventory and the registry is REPORTED, not silently preferred either way"
+  text:
+  - "A large divergence between the doc inventory and the registry is REPORTED, not silently preferred either way"
+- id: cbc-u26
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "Tiers set DEPTH, never whether something is tested. T1 money/tenancy/PII/auth → full UI-truth-vs-system-truth · T2 authored or modified → deep · T3 inherited → generated smoke"
+  current: "Tiers set DEPTH, never whether something is tested. T1 money/tenancy/PII/auth → full UI-truth-vs-system-truth · T2 authored or modified → deep · T3 inherited → generated smoke"
+  text:
+  - "Tiers set DEPTH, never whether something is tested. T1 money/tenancy/PII/auth → full UI-truth-vs-system-truth · T2 authored or modified → deep · T3 inherited → generated smoke"
+- id: cbc-u27
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "100% is achievable only because the tail is generated; hand-authoring it guarantees the tier is skipped"
+  current: "100% is achievable only because the tail is generated; hand-authoring it guarantees the tier is skipped"
+  text:
+  - "100% is achievable only because the tail is generated; hand-authoring it guarantees the tier is skipped"
+- id: cbc-u28
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "Every ticket declares `Runner:` — `gui` · `service` · `generated-smoke` · `fix`"
+  current: "Every ticket declares `Runner:` — `gui` · `service` · `generated-smoke` · `fix`"
+  text:
+  - "Every ticket declares `Runner:` — `gui` · `service` · `generated-smoke` · `fix`"
+- id: cbc-u29
+  # class: prose
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "The dispatcher's default unit is a CODER, so an unrouted test ticket puts a coding agent on a browser job"
+  current: "The dispatcher's default unit is a CODER, so an unrouted test ticket puts a coding agent on a browser job"
+  text:
+  - "The dispatcher's default unit is a CODER, so an unrouted test ticket puts a coding agent on a browser job"
+- id: cbc-u30
+  # class: ban
+  file: commands/_fragments/cert-board-contract.md
+  baseline: "An issue found becomes ANOTHER TICKET on the same board (`Runner: fix`), and a fix ticket does not close its test ticket — the test must be re-run green"
+  current: "An issue found becomes ANOTHER TICKET on the same board (`Runner: fix`), and a fix ticket does not close its test ticket — the test must be re-run green"
+  text:
+  - "An issue found becomes ANOTHER TICKET on the same board (`Runner: fix`), and a fix ticket does not close its test ticket — the test must be re-run green"
+vanished:
+  L2: {rule: [cbc-u1]}
+  L4: {rule: [cbc-u3]}
+  L5: narrative
+  L6: {rule: [cbc-u4]}
+  L7: narrative
+  L12: {rule: [cbc-u9]}
+  L18: {rule: [cbc-u15]}
+  L21: {rule: [cbc-u18]}
+  L23: {rule: [cbc-u20]}
+  L24: {rule: [cbc-u21]}
+  L25: {rule: [cbc-u22]}
+  L26: {rule: [cbc-u23]}
+  L27: {rule: [cbc-u24]}
+  L34: narrative
