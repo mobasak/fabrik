@@ -116,6 +116,7 @@ def box(tmp_path: Path) -> dict:
         **{k: v for k, v in os.environ.items() if not k.startswith("GIT_")},
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
         "ROTATE_STATE_DIR": str(state),
+        "API_WRITE_RUN_ROOT": str(state / "api-write"),
         "API_CREDIT_ENV_FILE": str(env_file),
         "API_WRITE_MAIN_CHECKOUT": str(main),
         "API_CREDIT_MANAGED_DIR": str(tmp_path / "no-managed"),
@@ -303,6 +304,7 @@ def test_the_childs_git_does_not_climb_into_an_enclosing_repository(box: dict) -
     outer = box["tmp"] / "outer"
     _git("init", "-q", str(outer))
     box["env"]["ROTATE_STATE_DIR"] = str(outer / "state")
+    box["env"]["API_WRITE_RUN_ROOT"] = str(outer / "state" / "api-write")
     assert (
         _run(
             box, "--key", "can", "--slug", "t4c", "--task-file", str(_brief(box, "t4c"))
@@ -455,6 +457,72 @@ def test_batch_and_slug_together_or_an_inline_task_refuse(box: dict) -> None:
     batch.write_text(json.dumps([{"slug": "b3", "task": "do it"}]), encoding="utf-8")
     p = _run(box, "--key", "can", "--batch", str(batch))
     assert p.returncode == 2 and "no inline task" in p.stderr and _calls(box) == []
+
+
+@pytest.mark.parametrize(
+    "under",
+    [
+        ".claude/state/api-write",
+        ".claude-fleet/can/api-write",
+        "repo/.claude/x",
+        ".Claude/x",
+        "link/api-write",
+    ],
+)
+def test_a_run_root_under_a_claude_dir_refuses_before_anything(box: dict, under: str) -> None:
+    """Claude Code denies every Write/Edit under ~/.claude as a settings path, so a child cloned there reads and
+    plans but changes nothing (the first live runs, W-174b8543): refused before any spend — before the key file is
+    even read (it is missing here, so a later refusal would name it instead). `link` is a symlink into .claude."""
+    (box["tmp"] / ".claude" / "state").mkdir(parents=True)
+    (box["tmp"] / "link").symlink_to(box["tmp"] / ".claude" / "state")
+    box["env"] = {
+        **box["env"],
+        "API_WRITE_RUN_ROOT": str(box["tmp"] / under),
+        "API_CREDIT_ENV_FILE": str(box["tmp"] / "missing.env"),
+    }
+    p = _run(box, "--key", "can", "--slug", "t9", "--task-file", str(_brief(box, "t9")))
+    assert p.returncode == 2 and "sits under a .claude directory" in p.stderr
+    assert _rows(box) == [] and _calls(box) == []
+
+
+@pytest.mark.parametrize("raw", ["~/plain-api-write", "rel/x", " ", "~nosuchuser-zz9/x"])
+def test_a_relative_run_root_is_refused_or_expanded(box: dict, raw: str) -> None:
+    """A relative value would land under the launch directory; `~` is expanded, the rest refused before any spend."""
+    home = box["tmp"] / "home"
+    box["env"] = {**box["env"], "API_WRITE_RUN_ROOT": raw, "HOME": str(home)}
+    p = _run(box, "--key", "can", "--slug", "t7", "--task-file", str(_brief(box, "t7")))
+    if raw.startswith("~nosuchuser"):  # an unknown user: a clean refusal, never a traceback
+        assert p.returncode == 2 and "cannot expand ~" in p.stderr and "Traceback" not in p.stderr
+        assert _calls(box) == []
+    elif raw.startswith("~"):
+        assert p.returncode == 0
+        assert Path(_runs(box)[0]["cwd"]).is_relative_to(home / "plain-api-write")
+    elif raw.strip():
+        assert p.returncode == 2 and "is not an absolute path" in p.stderr and _calls(box) == []
+    else:  # blank means unset: the default root
+        assert p.returncode == 0
+        assert Path(_runs(box)[0]["cwd"]).is_relative_to(home / ".cache" / "fabrik" / "api-write")
+
+
+def test_the_default_timeout_outlasts_a_long_round() -> None:
+    """A timed-out run pushes nothing, and a re-ledger round runs past an hour (W-15bb59ea)."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import api_write
+
+    assert api_write.DEFAULT_TIMEOUT_S == 10800
+
+
+def test_the_default_run_root_is_the_users_cache_not_claude_state(box: dict) -> None:
+    home = box["tmp"] / "home"
+    env = {k: v for k, v in box["env"].items() if k != "API_WRITE_RUN_ROOT"}
+    box["env"] = {**env, "HOME": str(home)}
+    assert (
+        _run(box, "--key", "can", "--slug", "t8", "--task-file", str(_brief(box, "t8"))).returncode
+        == 0
+    )
+    cwd = Path(_runs(box)[0]["cwd"])
+    assert cwd.is_relative_to(home / ".cache" / "fabrik" / "api-write")
+    assert not any(part.startswith(".claude") for part in cwd.parts)
 
 
 @pytest.mark.parametrize("bad", ["../x", "A", "a b", "x.lock", "x."])

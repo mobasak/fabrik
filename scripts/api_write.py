@@ -20,7 +20,9 @@ child is ``claude -p --safe-mode --restricted --permission-mode dontAsk`` with O
 denies — plus, when the job names gates, ``Bash(<gate>)`` for each gate string matched EXACTLY (no wildcard, so no
 option a glob would admit: pytest's ``--basetemp`` deletes the directory it names, git's ``--output`` writes any path,
 ``git commit -F`` reads any file). The child has no git and no repository: the runner clones the main checkout under
-``<state>/api-write/<run>/`` with the git dir OUTSIDE the work tree (``gitdir/``, beyond the child's reach; the work
+``<run root>/<run>/`` (``API_WRITE_RUN_ROOT``, default ``~/.cache/fabrik/api-write``; ``run_root()`` refuses a
+relative root and one under a ``.claude`` or ``.claude-*`` directory, because Claude Code denies every Write/Edit
+under ``~/.claude`` as a settings path and the child would only plan) with the git dir OUTSIDE the work tree (``gitdir/``, beyond the child's reach; the work
 tree's ``.git`` pointer is deleted), fetches ``origin`` and checks out ``claude/<slug>`` at ``origin/<base>`` before
 the child starts. Every runner git call that acts on the clone names ``--git-dir``/``--work-tree`` with
 ``core.hooksPath`` and ``core.fsmonitor`` forced off, so nothing written in the work tree picks the repository or its
@@ -60,13 +62,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import api_credit as ac  # noqa: E402
-from cloud_dispatch import state_dir  # noqa: E402
 
 FILE_TOOLS = ("Read", "Edit", "Write", "Glob", "Grep")
 DEFAULT_BASE = "master"
 DEFAULT_BUDGET_USD = 10.0
 DEFAULT_MAX_TURNS = 300
-DEFAULT_TIMEOUT_S = 3600
+DEFAULT_TIMEOUT_S = (
+    10800  # a re-ledger round runs past an hour, and a timed-out run pushes nothing (W-15bb59ea)
+)
 DEFAULT_JOBS = 3
 GIT_TIMEOUT_S = 600
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,80}$")
@@ -110,6 +113,31 @@ def git(*args: str, check: bool = True) -> subprocess.CompletedProcess:
             2, f"git {' '.join(args[:4])} failed (rc {p.returncode}): {p.stderr.strip()[-300:]}"
         )
     return p
+
+
+def run_root() -> Path:
+    """Where the throwaway clones go: an absolute path never under a `.claude` or `.claude-*` directory (symlinks
+    resolved, case ignored). Claude Code denies every Write and Edit there as a settings path, so a child in such a
+    clone can read and plan but change nothing (the first live runs, W-174b8543). A relative or `~` value would land
+    under whatever directory the run was launched from, so `~` is expanded and anything still relative is refused."""
+    raw = (os.environ.get("API_WRITE_RUN_ROOT") or "").strip()
+    try:
+        given = Path(raw).expanduser() if raw else Path.home() / ".cache" / "fabrik" / "api-write"
+    except RuntimeError:  # `~name` for a user with no home entry
+        raise ac.RefusalError(
+            2, f"API_WRITE_RUN_ROOT={raw!r}: cannot expand ~ — nothing started"
+        ) from None
+    if not given.is_absolute():
+        raise ac.RefusalError(
+            2, f"API_WRITE_RUN_ROOT={raw!r} is not an absolute path — nothing started"
+        )
+    root = given.resolve()
+    if any(p.lower() == ".claude" or p.lower().startswith(".claude-") for p in root.parts):
+        raise ac.RefusalError(
+            2,
+            f"run root {root} sits under a .claude directory, where the child cannot write — nothing started",
+        )
+    return root
 
 
 def gate_phrase(gates: list[str]) -> str:
@@ -317,7 +345,7 @@ def one(job: dict, a: argparse.Namespace, keys: dict[str, str], main: Path, url:
     slug, base, gates = job["slug"], job["base"], job["gates"]
     prompt = HEADER.format(slug=slug, base=base, gates=gate_phrase(gates)) + job["prompt"]
     run = uuid.uuid4().hex
-    run_dir = state_dir().resolve() / "api-write" / run
+    run_dir = run_root() / run
     report: dict = {"slug": slug, "run": run, "key": None, "cost": None, "pushed": None}
     try:
         run_dir.mkdir(parents=True)
@@ -488,6 +516,7 @@ def cmd_run(a: argparse.Namespace) -> int:
     if not out_dir.is_dir() or not os.access(out_dir, os.W_OK):
         raise ac.RefusalError(2, f"--out-dir does not exist or is not writable: {out_dir}")
     jobs = load_jobs(a)
+    run_root()
     keys = ac.read_keys(ac.env_file())
     if shutil.which("claude") is None:
         raise ac.RefusalError(2, "no `claude` executable on PATH — nothing started")

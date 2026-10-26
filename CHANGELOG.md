@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
+
+- `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a
+  settings path, so the first live batch's children could only read and plan (a fix round ended with a plan and no
+  commit). Clones now go under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`, `~` expanded), and a
+  relative root, or one under a `.claude` or `.claude-*` directory (symlinks resolved, case ignored), is refused
+  before spending; a live Haiku smoke wrote, edited and pushed. The default
+  `--timeout` rises from 3600 to 10800 s, since a re-ledger round runs past an hour and a timed-out run pushes nothing
+  (W-174b8543, W-15bb59ea).
+
 ### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
 
 - W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In
@@ -45,7 +55,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added — the API-key write lane: disposable writers on the prepaid keys (2026-10-26)
 
-`scripts/api_write.py run` takes a cloud-dispatch brief (`--slug` + `--task-file` [+ `--base`, `--gate`], or a `--batch` of `{"slug", "task_file", "base", "gates"}`) and runs it with `claude -p --safe-mode --restricted --permission-mode dontAsk` on an API key with Read, Edit, Write, Glob and Grep only, plus `Bash(<gate>)` per exact gate string (D-1251; a glob over a command's options was shown to admit `--basetemp`, `--output` and `-F`). The runner owns git: it checks out `claude/<slug>` at `origin/<base>` in a plain local clone of the main checkout under `<state>/api-write/<run>/`, and after a clean exit refuses a clone whose `.git/config` changed, commits the edits as one trailered commit with hooks and fsmonitor off, refuses a diff holding a key, and pushes the explicit refspec to the captured URL (never forced). Every outcome after the start row settles in `api-credit.jsonl` under the same $200-per-key cap (`lane: write`); the clone is deleted. `--jobs` runs a batch in parallel and `--pick` spreads it across the keys; an existing `origin` branch or a missing base refuses before spending, and a timeout kills the child's whole process group. `api_credit.py` gains `main_checkout()`, `reserve()` and a pre-flight that takes the lane's argv and tool set; its behaviour is unchanged. Docs: `docs/workstation/api-credit.md` § The write lane (D-1247, W-174b8543).
+`scripts/api_write.py run` takes a cloud-dispatch brief (`--slug` + `--task-file` [+ `--base`, `--gate`], or a `--batch` of `{"slug", "task_file", "base", "gates"}`) and runs it with `claude -p --safe-mode --restricted --permission-mode dontAsk` on an API key with Read, Edit, Write, Glob and Grep only, plus `Bash(<gate>)` per exact gate string (D-1251; a glob over a command's options was shown to admit `--basetemp`, `--output` and `-F`). The runner owns git: it checks out `claude/<slug>` at `origin/<base>` in a plain local clone of the main checkout under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`, see the Fixed entry above), and after a clean exit refuses a clone whose `.git/config` changed, commits the edits as one trailered commit with hooks and fsmonitor off, refuses a diff holding a key, and pushes the explicit refspec to the captured URL (never forced). Every outcome after the start row settles in `api-credit.jsonl` under the same $200-per-key cap (`lane: write`); the clone is deleted. `--jobs` runs a batch in parallel and `--pick` spreads it across the keys; an existing `origin` branch or a missing base refuses before spending, and a timeout kills the child's whole process group. `api_credit.py` gains `main_checkout()`, `reserve()` and a pre-flight that takes the lane's argv and tool set; its behaviour is unchanged. Docs: `docs/workstation/api-credit.md` § The write lane (D-1247, W-174b8543).
 
 ### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
 
