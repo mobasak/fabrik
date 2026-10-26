@@ -625,10 +625,9 @@ def test_the_units_wire_the_alert_and_verify():
     )
 
     def _timer_s(key: str, default: str) -> float:
-        vals = [v.split("=", 1)[1] for v in timer if v.startswith(f"{key}=")]
-        return _seconds(
-            (vals[-1] if vals else "") or default
-        )  # an empty assignment resets to the default
+        # systemd 255 ignores an empty value here ("Failed to parse sec value, ignoring"), so the last non-empty one holds
+        vals = [v.split("=", 1)[1] for v in timer if v.startswith(f"{key}=") and v.split("=", 1)[1]]
+        return _seconds(vals[-1] if vals else default)
 
     shortest_gap = 23 * 3600 - _timer_s("RandomizedDelaySec", "0") - _timer_s("AccuracySec", "1min")
     assert interval_s < shortest_gap, (
