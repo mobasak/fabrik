@@ -155,10 +155,9 @@ entries:
   section: '## Run record — open it as this command''s FIRST act'
   baseline: That is the machinery that stops a command being abandoned half-executed — it only protects you if you open it
   text:
+  - That is the machinery that stops a command being abandoned half-executed
   - it only protects you if you open it
   class: ban
-  clauses:
-    1: narrative
 - id: runrec-no-nothing-else-is-a-legitimate-halt
   file: commands/_fragments/run-record.md
   forbidden:

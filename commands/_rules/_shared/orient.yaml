@@ -67,7 +67,6 @@ entries:
   - 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is writing it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
   class: prose
 vanished:
-  L1: narrative
   L2:
     rule:
     - or-intro

@@ -230,3 +230,30 @@ COUNTS: entries read 237+62 / lost 0 / weaker 0 / invented 0 / wrong vanished la
 
 ### Reader tests (58 test files naming the nine stems or globbing corpus dirs, clone as root)
 Start (v4): 62 FAILED/ERROR lines; End (v5): 62, `comm -13` of the two sets empty — no node new. The set is the clone's missing box services/psutil, and `tests/test_scrape_ledger.py` fails to collect in both.
+
+## Fix round v6 (hub)
+Branch `claude/lean-t01d-v6`, base `kaizen-t01d-v6base`. API lane: no shell beyond the listed gate commands, no git, no subagent.
+
+### Items
+- **A, execution ban (D-1260): done, one placement deviation.** `fabrik-reviewer.md` line 15 carries the inserted clause, and ledger entry `rv-never-execute-surface` (class `ban`, no `baseline`) carries it as `text`. The clause stands after `(read-only by rule)`, not directly after "whatever binary does it": the loader's D lint holds the baseline clause "never execute one that deletes … (read-only by rule)" verbatim from its ban word to the end of its `;` clause (`_ban_span`), and a `;` inserted mid-clause gave a LOSS on `agent-kept-seat-never-disguises`. The entry's `current` and `text` follow the new unit. The hub may move it if D-1260 pins the earlier spot.
+- **B, seat bullet (D-1261): done.** The five old entries are in `retired:` with `decision: D-1261`, and the loader accepted all five. Seven new entries (ids `cat-seat-*`, no `baseline`) carry the bullet's seven sentences, each backticked token, number and ban clause verbatim. The bullet's wording is untouched. New entries carry no `ordered` (it needs a `current`). Vanished labels: L51 and L54 now name the new entries that carry those reworded units; the L50, L52 and L53 labels are dropped, since master's text holds those units verbatim.
+- **C1, fabrik-researcher `description:` and tools comment: REFUSED.** The baseline tag is reachable only by `git show`, which this lane cannot run, and no baseline copy of the front matter is in the clone (the `*.baseline.txt` files start at the body). I would not reconstruct the text from the quoted phrases. "never deny-list-only" is also unremoved: its ledger entry `rsr-fm-allow-list-not-deny-list` carries it, and the baseline comment wording is unknown.
+- **C2, fabrik-reviewer `description:`: REFUSED**, same reason.
+- **C3, fabrik-gui `description:`: REFUSED**, same reason.
+- **C4, close-feedback: done, partly.** cf-33's "— while every fan-out in the corpus now instructs all three" and cf-19's "— an agent grading its own run is the weakest reader of it" are restored in the fragment, with `current` and a `text` carrier each; the `clauses` labels on cf-33 and cf-19 are dropped. Vanished labels: L48 and L51 dropped (units stand). L49, L52, L54, L55, L56, L57, L71, L72, L75, L76 and L78 are KEPT: the loader reports each unit reworded in place (11 LOSS lines when dropped), and the label names the live entry that carries it.
+- **C5, orient `vanished: L1`: done.**
+- **C6, run-record `rr-protects-only-if-opened`: done differently.** Dropping `clauses: 1: narrative` alone gave lint B on clause 1, "That is the machinery that stops a command being abandoned half-executed", which holds no ban word (the "only" is in clause 2). It now has a `text` carrier instead of a label.
+
+### LOSS: before → after
+Before: 9 (all the seat bullet, `review-probe-catalogue.yaml`). After: 0 (`tests/test_command_rules.py` 57 passed; `assemble_commands.py --check` exit 1, DIFFERS drift only, no LOSS line).
+
+### Own-text words per file
+Not measured: `wc` is outside this lane's commands. Net change is a few dozen words added (the D-1260 clause, the cf-33 and cf-19 clauses).
+
+### Reader tests (the ten gate commands)
+Failing here: `test_agent_definitions.py::test_the_live_box_matches_the_repo_sources`, `test_assemble_dispatch_step.py::test_v7_the_retired_d191_seat_mix_literal_survives_nowhere`, `test_assemble_orch_retired.py::test_git_grep_for_retired_tokens_prints_nothing` (no `.git` in this clone), `test_kaizen_collect_v2.py::test_bare_completion_gate_run_emits_noncheck_mode` (`git clone` of this tree fails). These are the clone's missing git history and box. I did not run the gates before my first edit, so I cannot show the failure set did not grow. The hub should diff it against the base.
+
+### Self-audit
+Not a fresh subagent: none can be dispatched in this lane, so the zero-counts pass is NOT independent. The hub's author-blind audit pair covers it.
+
+COUNTS: not produced (no fresh pass run)

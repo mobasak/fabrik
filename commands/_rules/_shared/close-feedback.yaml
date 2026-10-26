@@ -142,12 +142,11 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: On an expensive command a SEAT writes the line, not you. If `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are closing, dispatch ONE Sonnet seat to author the `change:` line, handing it this run's own evidence (the record's phases and rounds, the diff, what you actually hit) — an agent grading its own run is the weakest reader of it
-  current: 'On expensive command SEAT writes line, not you: if `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names command you are closing, dispatch ONE Sonnet seat to author `change:` line, handing it this run''s own evidence (the record''s phases and rounds, the diff, what you actually hit)'
+  current: 'On expensive command SEAT writes line, not you: if `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names command you are closing, dispatch ONE Sonnet seat to author `change:` line, handing it this run''s own evidence (the record''s phases and rounds, the diff, what you actually hit) — an agent grading its own run is the weakest reader of it'
   text:
   - 'On expensive command SEAT writes line, not you: if `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names command you are closing, dispatch ONE Sonnet seat to author `change:` line, handing it this run''s own evidence (the record''s phases and rounds, the diff, what you actually hit)'
+  - an agent grading its own run is the weakest reader of it
   class: prose
-  clauses:
-    2: narrative
 - id: cf-20
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -296,12 +295,11 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: '⚠️ And the trap is not limited to `--feedback` — it is the whole class: a subcommand or flag this corpus names that your local `command_run.py` REJECTS is a stale copy, never a licence to skip the step. Measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also predates the dispatch accounting — `dispatch` is an `invalid choice`, and `round` has no `--seats` and no `--confirmed` — while every fan-out in the corpus now instructs all three'
-  current: '⚠️ And trap is not limited to `--feedback` — it is whole class: a subcommand or flag this corpus names that your local `command_run.py` REJECTS is stale copy, never a licence to skip the step; measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also predates the dispatch accounting — `dispatch` is `invalid choice`, and `round` has no `--seats` and no `--confirmed`'
+  current: '⚠️ And trap is not limited to `--feedback` — it is whole class: a subcommand or flag this corpus names that your local `command_run.py` REJECTS is stale copy, never a licence to skip the step; measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also predates the dispatch accounting — `dispatch` is `invalid choice`, and `round` has no `--seats` and no `--confirmed` — while every fan-out in the corpus now instructs all three'
   text:
   - '⚠️ And trap is not limited to `--feedback` — it is whole class: a subcommand or flag this corpus names that your local `command_run.py` REJECTS is stale copy, never a licence to skip the step; measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also predates the dispatch accounting — `dispatch` is `invalid choice`, and `round` has no `--seats` and no `--confirmed`'
+  - while every fan-out in the corpus now instructs all three
   class: ban
-  clauses:
-    4: narrative
 - id: cf-34
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -638,15 +636,9 @@ vanished:
   L45:
     rule:
     - cf-36
-  L48:
-    rule:
-    - cf-39
   L49:
     rule:
     - cat-L49
-  L51:
-    rule:
-    - cf-42
   L52:
     rule:
     - cf-43

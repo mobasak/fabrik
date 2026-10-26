@@ -464,58 +464,62 @@ entries:
   pins:
   - tests/test_review_scoped_queue_pass.py::test_a_brief_says_what_the_pin_holds_and_where_the_rest_is_read
   - tests/test_review_scoped_queue_pass.py::test_a_seat_runs_a_mutant_against_whole_test_files
-- id: cat-a-pins-only-copy-is-not
+- id: cat-seat-pins-only-copy-is-not-a-test-tree
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Seat isolation'
-  baseline: 'A pins-only copy is not a test tree: it holds the pins and nothing else — no package, no pytest config, no conftest, none of the files a conftest loads by path (the hub''s `tests/conftest.py` loads `tests/memguard.py`; its root `conftest.py` mutes live alerting and imports this tree''s `src`)'
-  current: 'A pins-only copy is not a test tree: it holds the pins and nothing else; no package, no pytest config, no conftest, none of the files a conftest loads by path (the hub''s `tests/conftest.py` loads `tests/memguard.py`; its root `conftest.py` mutes live alerting and imports this tree''s `src`)'
   text:
-  - 'A pins-only copy is not a test tree: it holds the pins and nothing else; no package, no pytest config, no conftest, none of the files a conftest loads by path (the hub''s `tests/conftest.py` loads `tests/memguard.py`; its root `conftest.py` mutes live alerting and imports this tree''s `src`)'
+  - 'A pins-only copy is not a test tree: it holds the pins and nothing else — no package, no pytest config, no conftest, none of the files a conftest loads by path (the hub''s `tests/conftest.py` loads `tests/memguard.py`; its root `conftest.py` mutes live alerting and imports this tree''s `src`)'
   class: ban
   pins:
   - tests/test_seat_recipe_readable.py::<module>
-  ordered:
-  - cat-a-seat-runs-a-python-test
-  - cat-a-seat-that-runs-pytest-or
-  - cat-the-brief-s-base-sha-is
-  - cat-a-base-copy-is-a-whole
-- id: cat-a-seat-runs-a-python-test
+- id: cat-seat-runs-a-python-test-only-through-pytest
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Seat isolation'
-  baseline: A seat runs a Python test only through pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe builds (the whole test tree, the root conftest, the pytest config and every root the tests import, read or run, never a subset that leaves one out), the lead's base copy, or, for a test that reads git history or the tracked set, the clone above — never on the pins dir, a copy of it or any hand-assembled tree, and never with a conftest or the pytest config dropped, skipped or pointed elsewhere by any flag, option or environment variable (`--noconftest`, `--confcutdir`, `--ignore` of a conftest, `-p no:` on a conftest's plugin, `PYTEST_ADDOPTS`, `-c` or `--rootdir` naming any other file or tree, or `-o` on `addopts`, `testpaths`, `python_files` or another key that changes what is collected; `-o timeout=…` and the like stay legal); a test it cannot run that way is unverified, never run another way
-  current: A seat runs a Python test only through pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe builds (the whole test tree, the root conftest, the pytest config and every root the tests import, read or run, never a subset that leaves one out), the lead's base copy, or, for a test that reads git history or the tracked set, the clone above — never on the pins dir, a copy of it or any hand-assembled tree, and never with a conftest or the pytest config dropped, skipped or pointed elsewhere by any flag, option or environment variable (`--noconftest`, `--confcutdir`, `--ignore` of a conftest, `-p no:` on a conftest's plugin, `PYTEST_ADDOPTS`, `-c` or `--rootdir` naming any other file or tree, or `-o` on `addopts`, `testpaths`, `python_files` or another key that changes what is collected; `-o timeout=…` and the like stay legal); a test it cannot run that way is unverified, never run another way
   text:
-  - A seat runs a Python test only through pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe builds (the whole test tree, the root conftest, the pytest config and every root the tests import, read or run, never a subset that leaves one out), the lead's base copy, or, for a test that reads git history or the tracked set, the clone above — never on the pins dir, a copy of it or any hand-assembled tree, and never with a conftest or the pytest config dropped, skipped or pointed elsewhere by any flag, option or environment variable (`--noconftest`, `--confcutdir`, `--ignore` of a conftest, `-p no:` on a conftest's plugin, `PYTEST_ADDOPTS`, `-c` or `--rootdir` naming any other file or tree, or `-o` on `addopts`, `testpaths`, `python_files` or another key that changes what is collected; `-o timeout=…` and the like stay legal); a test it cannot run that way is unverified, never run another way
+  - A seat runs a Python test only through pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe builds (the whole test tree, the root conftest, the pytest config and every root the tests import, read or run, never a subset that leaves one out), the lead's base copy, or, for a test that reads git history or the tracked set, the clone above — never on the pins dir, a copy of it or any hand-assembled tree
   class: ban
   pins:
   - tests/test_seat_recipe_readable.py::<module>
-- id: cat-a-seat-that-runs-pytest-or
+- id: cat-seat-pytest-writes-no-config-and-takes-only-allowed-args
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Seat isolation'
-  baseline: 'A seat that runs pytest or imports pinned code needs the unmodified tree, so its brief''s pin takes `--base` (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`''s PIN paragraph), on each pass by the shape that pass''s surface has then (a surface committed since the previous pass is pinned `--from`, as the bullet above says): `HEAD` for a working-tree pin (its basis is `HEAD` and its `base_sha` HEAD''s commit either way; a repo with no commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the commit before the fix when it spans several'
-  current: 'A seat that runs pytest or imports pinned code needs unmodified tree, so its brief''s pin takes `--base` (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`''s PIN paragraph), on each pass by shape that pass''s surface has (a surface committed since previous pass is pinned `--from`, as the bullet above says): `HEAD` for working-tree pin (its basis is `HEAD` and its `base_sha` HEAD''s commit either way; a repo with no commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the commit before the fix when it spans several'
   text:
-  - 'A seat that runs pytest or imports pinned code needs unmodified tree, so its brief''s pin takes `--base` (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`''s PIN paragraph), on each pass by shape that pass''s surface has (a surface committed since previous pass is pinned `--from`, as the bullet above says): `HEAD` for working-tree pin (its basis is `HEAD` and its `base_sha` HEAD''s commit either way; a repo with no commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the commit before the fix when it spans several'
+  - On that tree the seat writes no pytest config file or conftest beyond the pins, their reverts and mutants and the recipe's `__file__` print, sets no environment variable beyond those the recipe, term-coverage rule (4) and this section name
+  - 'passes pytest only these arguments: paths and node ids inside the staged tree, `-q` or `-v` (repeated or not), `-s`, `-x`/`--exitfirst`, `-r<chars>`, `--tb` with a style, `-p no:cacheprovider`, `--co` (a collection check, never a result) and, in a mutant run, one `--deselect` per environment-bound test naming its full rootdir-relative node id, each id shown by `--co` to select one test and the run''s deselected count equal to the ids named (`--deselect` matches by prefix)'
   class: ban
   pins:
   - tests/test_seat_recipe_readable.py::<module>
-- id: cat-the-brief-s-base-sha-is
+- id: cat-seat-pytest-every-other-argument-is-barred
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Seat isolation'
-  baseline: The brief's `base_sha` is then the one the pin records, and it gives `<pins_dir>.base` as the recipe's `${args.base_pin_dir}`, so each seat copies that tree in place of the archive steps of both `PIN_IMPORT` and `PYTEST_PINS`
-  current: The brief's `base_sha` is then one pin records, and gives `<pins_dir>.base` as recipe's `${args.base_pin_dir}`, so each seat copies that tree in place of archive steps of both `PIN_IMPORT` and `PYTEST_PINS`
   text:
-  - The brief's `base_sha` is then one pin records, and gives `<pins_dir>.base` as recipe's `${args.base_pin_dir}`, so each seat copies that tree in place of archive steps of both `PIN_IMPORT` and `PYTEST_PINS`
+  - 'Every other argument is barred, an `@file` argument file included, since many can drop a conftest, replace or override the pytest config, change the imports or plugins, or change the verdict (`--noconftest`, `--confcutdir`, `-c`/`--config-file`, `--rootdir`, `--import-mode`, `--runxfail`, any other `-p`, `-W`, and `-o`/`--override-ini` on any key, `timeout` included, since the config''s own timeout is the hang guard)'
+  - a test it cannot run that way is unverified, never run another way
+  class: ban
+  pins:
+  - tests/test_seat_recipe_readable.py::<module>
+- id: cat-seat-pytest-or-pinned-import-takes-the-base-pin
+  file: commands/_fragments/review-probe-catalogue.md
+  section: '## Seat isolation'
+  text:
+  - 'A seat that runs pytest or imports pinned code needs the unmodified tree, so its brief''s pin takes `--base` (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`''s PIN paragraph), on each pass by the shape that pass''s surface has then (a surface committed since the previous pass is pinned `--from`, as the bullet above says): `HEAD` for a working-tree pin (its basis is `HEAD` and its `base_sha` HEAD''s commit either way; a repo with no commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the commit before the fix when it spans several'
+  class: ban
+  pins:
+  - tests/test_seat_recipe_readable.py::<module>
+- id: cat-seat-base-sha-and-base-pin-dir
+  file: commands/_fragments/review-probe-catalogue.md
+  section: '## Seat isolation'
+  text:
+  - The brief's `base_sha` is then the one the pin records, and it gives `<pins_dir>.base` as the recipe's `${args.base_pin_dir}`, so each seat copies that tree in place of the archive steps of both `PIN_IMPORT` and `PYTEST_PINS`
   class: prose
   pins:
   - tests/test_seat_recipe_readable.py::<module>
-- id: cat-a-base-copy-is-a-whole
+- id: cat-seat-base-copy-is-removed-after-the-pass
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Seat isolation'
-  baseline: 'A base copy is a whole commit (some 120 MB in the hub) beside the pins dir — in the durable `SCRATCH:` folder, which `start` keeps 14 days, where the including command puts pins there: once the pass is adjudicated, the lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins afresh and a delta brief reads the previous `pins_dir`, never its base copy'
-  current: 'A base copy is whole commit (some 120 MB in hub) beside pins dir — in durable `SCRATCH:` folder, which `start` keeps 14 days, where the including command puts pins there: once pass is adjudicated, lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins afresh and delta brief reads previous `pins_dir`, never its base copy'
   text:
-  - 'A base copy is whole commit (some 120 MB in hub) beside pins dir — in durable `SCRATCH:` folder, which `start` keeps 14 days, where the including command puts pins there: once pass is adjudicated, lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins afresh and delta brief reads previous `pins_dir`, never its base copy'
+  - 'A base copy is a whole commit (some 120 MB in the hub) beside the pins dir (in the durable `SCRATCH:` folder, which `start` keeps 14 days, when the including command pins there)'
+  - 'once the pass is adjudicated, the lead removes it wherever it sits (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins afresh and a delta brief reads the previous `pins_dir`, never its base copy'
   class: ban
   pins:
   - tests/test_seat_recipe_readable.py::<module>
@@ -688,6 +692,72 @@ entries:
   forbidden:
   - render a fragment edit's consumers to a temp dir and read each
   class: prose
+retired:
+- decision: D-1261
+  entry:
+    id: cat-a-pins-only-copy-is-not
+    file: commands/_fragments/review-probe-catalogue.md
+    section: '## Seat isolation'
+    baseline: 'A pins-only copy is not a test tree: it holds the pins and nothing else — no package, no pytest config, no conftest, none of the files a conftest loads by path (the hub''s `tests/conftest.py` loads `tests/memguard.py`; its root `conftest.py` mutes live alerting and imports this tree''s `src`)'
+    current: 'A pins-only copy is not a test tree: it holds the pins and nothing else; no package, no pytest config, no conftest, none of the files a conftest loads by path (the hub''s `tests/conftest.py` loads `tests/memguard.py`; its root `conftest.py` mutes live alerting and imports this tree''s `src`)'
+    text:
+    - 'A pins-only copy is not a test tree: it holds the pins and nothing else; no package, no pytest config, no conftest, none of the files a conftest loads by path (the hub''s `tests/conftest.py` loads `tests/memguard.py`; its root `conftest.py` mutes live alerting and imports this tree''s `src`)'
+    class: ban
+    pins:
+    - tests/test_seat_recipe_readable.py::<module>
+    ordered:
+    - cat-a-seat-runs-a-python-test
+    - cat-a-seat-that-runs-pytest-or
+    - cat-the-brief-s-base-sha-is
+    - cat-a-base-copy-is-a-whole
+- decision: D-1261
+  entry:
+    id: cat-a-seat-runs-a-python-test
+    file: commands/_fragments/review-probe-catalogue.md
+    section: '## Seat isolation'
+    baseline: A seat runs a Python test only through pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe builds (the whole test tree, the root conftest, the pytest config and every root the tests import, read or run, never a subset that leaves one out), the lead's base copy, or, for a test that reads git history or the tracked set, the clone above — never on the pins dir, a copy of it or any hand-assembled tree, and never with a conftest or the pytest config dropped, skipped or pointed elsewhere by any flag, option or environment variable (`--noconftest`, `--confcutdir`, `--ignore` of a conftest, `-p no:` on a conftest's plugin, `PYTEST_ADDOPTS`, `-c` or `--rootdir` naming any other file or tree, or `-o` on `addopts`, `testpaths`, `python_files` or another key that changes what is collected; `-o timeout=…` and the like stay legal); a test it cannot run that way is unverified, never run another way
+    current: A seat runs a Python test only through pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe builds (the whole test tree, the root conftest, the pytest config and every root the tests import, read or run, never a subset that leaves one out), the lead's base copy, or, for a test that reads git history or the tracked set, the clone above — never on the pins dir, a copy of it or any hand-assembled tree, and never with a conftest or the pytest config dropped, skipped or pointed elsewhere by any flag, option or environment variable (`--noconftest`, `--confcutdir`, `--ignore` of a conftest, `-p no:` on a conftest's plugin, `PYTEST_ADDOPTS`, `-c` or `--rootdir` naming any other file or tree, or `-o` on `addopts`, `testpaths`, `python_files` or another key that changes what is collected; `-o timeout=…` and the like stay legal); a test it cannot run that way is unverified, never run another way
+    text:
+    - A seat runs a Python test only through pytest, and only on a tree this section stages, with the pins laid over it — the archive the recipe builds (the whole test tree, the root conftest, the pytest config and every root the tests import, read or run, never a subset that leaves one out), the lead's base copy, or, for a test that reads git history or the tracked set, the clone above — never on the pins dir, a copy of it or any hand-assembled tree, and never with a conftest or the pytest config dropped, skipped or pointed elsewhere by any flag, option or environment variable (`--noconftest`, `--confcutdir`, `--ignore` of a conftest, `-p no:` on a conftest's plugin, `PYTEST_ADDOPTS`, `-c` or `--rootdir` naming any other file or tree, or `-o` on `addopts`, `testpaths`, `python_files` or another key that changes what is collected; `-o timeout=…` and the like stay legal); a test it cannot run that way is unverified, never run another way
+    class: ban
+    pins:
+    - tests/test_seat_recipe_readable.py::<module>
+- decision: D-1261
+  entry:
+    id: cat-a-seat-that-runs-pytest-or
+    file: commands/_fragments/review-probe-catalogue.md
+    section: '## Seat isolation'
+    baseline: 'A seat that runs pytest or imports pinned code needs the unmodified tree, so its brief''s pin takes `--base` (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`''s PIN paragraph), on each pass by the shape that pass''s surface has then (a surface committed since the previous pass is pinned `--from`, as the bullet above says): `HEAD` for a working-tree pin (its basis is `HEAD` and its `base_sha` HEAD''s commit either way; a repo with no commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the commit before the fix when it spans several'
+    current: 'A seat that runs pytest or imports pinned code needs unmodified tree, so its brief''s pin takes `--base` (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`''s PIN paragraph), on each pass by shape that pass''s surface has (a surface committed since previous pass is pinned `--from`, as the bullet above says): `HEAD` for working-tree pin (its basis is `HEAD` and its `base_sha` HEAD''s commit either way; a repo with no commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the commit before the fix when it spans several'
+    text:
+    - 'A seat that runs pytest or imports pinned code needs unmodified tree, so its brief''s pin takes `--base` (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`''s PIN paragraph), on each pass by shape that pass''s surface has (a surface committed since previous pass is pinned `--from`, as the bullet above says): `HEAD` for working-tree pin (its basis is `HEAD` and its `base_sha` HEAD''s commit either way; a repo with no commit has no base copy, and `--base` is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the commit before the fix when it spans several'
+    class: ban
+    pins:
+    - tests/test_seat_recipe_readable.py::<module>
+- decision: D-1261
+  entry:
+    id: cat-the-brief-s-base-sha-is
+    file: commands/_fragments/review-probe-catalogue.md
+    section: '## Seat isolation'
+    baseline: The brief's `base_sha` is then the one the pin records, and it gives `<pins_dir>.base` as the recipe's `${args.base_pin_dir}`, so each seat copies that tree in place of the archive steps of both `PIN_IMPORT` and `PYTEST_PINS`
+    current: The brief's `base_sha` is then one pin records, and gives `<pins_dir>.base` as recipe's `${args.base_pin_dir}`, so each seat copies that tree in place of archive steps of both `PIN_IMPORT` and `PYTEST_PINS`
+    text:
+    - The brief's `base_sha` is then one pin records, and gives `<pins_dir>.base` as recipe's `${args.base_pin_dir}`, so each seat copies that tree in place of archive steps of both `PIN_IMPORT` and `PYTEST_PINS`
+    class: prose
+    pins:
+    - tests/test_seat_recipe_readable.py::<module>
+- decision: D-1261
+  entry:
+    id: cat-a-base-copy-is-a-whole
+    file: commands/_fragments/review-probe-catalogue.md
+    section: '## Seat isolation'
+    baseline: 'A base copy is a whole commit (some 120 MB in the hub) beside the pins dir — in the durable `SCRATCH:` folder, which `start` keeps 14 days, where the including command puts pins there: once the pass is adjudicated, the lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins afresh and a delta brief reads the previous `pins_dir`, never its base copy'
+    current: 'A base copy is whole commit (some 120 MB in hub) beside pins dir — in durable `SCRATCH:` folder, which `start` keeps 14 days, where the including command puts pins there: once pass is adjudicated, lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins afresh and delta brief reads previous `pins_dir`, never its base copy'
+    text:
+    - 'A base copy is whole commit (some 120 MB in hub) beside pins dir — in durable `SCRATCH:` folder, which `start` keeps 14 days, where the including command puts pins there: once pass is adjudicated, lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every pass pins afresh and delta brief reads previous `pins_dir`, never its base copy'
+    class: ban
+    pins:
+    - tests/test_seat_recipe_readable.py::<module>
 vanished:
   L2: narrative
   L6:
@@ -801,18 +871,12 @@ vanished:
   L48:
     rule:
     - cat-a-brief-says-what-the-pin
-  L50:
+  L51:
     rule:
-    - cat-a-pins-only-copy-is-not
-  L52:
-    rule:
-    - cat-a-seat-that-runs-pytest-or
-  L53:
-    rule:
-    - cat-the-brief-s-base-sha-is
+    - cat-seat-runs-a-python-test-only-through-pytest
   L54:
     rule:
-    - cat-a-base-copy-is-a-whole
+    - cat-seat-base-copy-is-removed-after-the-pass
   L57:
     rule:
     - cat-rest-no-uv-pip-no-live-api-key-outside-the-su
