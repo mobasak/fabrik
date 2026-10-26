@@ -1,6 +1,6 @@
 ## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)
 
-After `start`: ONE Bash call, output READ, then ONE reply line before phase 1's first read:
+Right after `start`: ONE Bash call, output READ, then ONE reply line before phase 1's first read:
 
 ```bash
 python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo . # MCPs — this repo's assigned vs live (~3 s)
@@ -13,6 +13,6 @@ command grep -n "^## " /opt/fabrik/docs/reference/operating-manifesto.md # manif
 
 Hub-absolute paths on purpose: the rendered command runs from every repo on the box; two of the four live only in the hub (`mcp_health.py`, the manifesto are in no project; `--repo .` / `--project-root .` point the scripts at the repo you are in).
 
-`<the surface's paths>` is the FILE LIST the run record's `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan's Touches, a spec's files; a range or directory passed as-is matches 0 packs at rc 0, a re-run with paths, never `none`. A surface with no paths yet (a spec from an idea) runs it bare: a PLANNING command then reads every ACTIVE pack (`CLAUDE.md` § Orient 4, binding); every other command reads ACTIVE packs whose description matches the work.
+`<the surface's paths>` is the FILE LIST the run record's `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan's Touches, a spec's files; a range or directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`. A surface with no paths yet (a spec from an idea) runs it bare: a PLANNING command then reads every ACTIVE pack (`CLAUDE.md` § Orient 4, binding); every other command reads ACTIVE packs whose description matches the work.
 
-Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior), named on that line, never a silent fallback; the listed packs are READ before the first edit; infra and manifesto sections named are then read, cited `path:line` where the run relies on them. COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is writing it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names; an empty field has skipped a step, not saved one.
+Executed, never recalled — an assigned-but-dead MCP is FIX-FIRST (`CLAUDE.md` § Behavior), named on that line, never a silent fallback; the listed packs are READ before the first edit; infra and manifesto sections named are then read, cited `path:line` where the run relies on them. COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is writing it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one.

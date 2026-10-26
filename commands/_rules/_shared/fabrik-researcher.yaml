@@ -252,9 +252,9 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Your toolset'
   baseline: 'A firecrawl error that is not a 404 (credit, auth, a timeout) decides nothing: the verdict is then `NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED` (`WebFetch` 404''d a raw.githubusercontent.com file that exa served, "possibly from its crawl cache" — 01M4VHFP7S)'
-  current: 'A firecrawl error that is not 404 (credit, auth, timeout) decides nothing: the verdict is then `NEEDS-RAW-FETCH`, a copy exa serves meanwhile is its crawl cache, never `VERIFIED` (`WebFetch` 404''d a raw.githubusercontent.com file that exa served, "possibly from its crawl cache" — 01M4VHFP7S)'
+  current: 'A firecrawl error that is not 404 (credit, auth, timeout) decides nothing: the verdict is then `NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED` (`WebFetch` 404''d a raw.githubusercontent.com file that exa served, "possibly from its crawl cache" — 01M4VHFP7S)'
   text:
-  - 'A firecrawl error that is not 404 (credit, auth, timeout) decides nothing: the verdict is then `NEEDS-RAW-FETCH`, a copy exa serves meanwhile is its crawl cache, never `VERIFIED` (`WebFetch` 404''d a raw.githubusercontent.com file that exa served, "possibly from its crawl cache" — 01M4VHFP7S)'
+  - 'A firecrawl error that is not 404 (credit, auth, timeout) decides nothing: the verdict is then `NEEDS-RAW-FETCH`, and a copy exa serves meanwhile is its crawl cache, never `VERIFIED` (`WebFetch` 404''d a raw.githubusercontent.com file that exa served, "possibly from its crawl cache" — 01M4VHFP7S)'
   class: ban
   pins:
   - tests/test_agent_definitions.py::test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar
@@ -394,9 +394,9 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Method (per fact)'
   baseline: Fetch the real source. Don't trust a search snippet — open the page (`mcp__exa__web_fetch_exa`/`WebFetch`, per the routing above) or the library's official docs (`WebFetch`) and confirm the source actually says what's claimed
-  current: Fetch real source; don't trust search snippet — open page (`mcp__exa__web_fetch_exa`/`WebFetch`, per routing above) or library's official docs (`WebFetch`) and confirm source actually says what's claimed
+  current: Fetch real source; don't trust a search snippet — open page (`mcp__exa__web_fetch_exa`/`WebFetch`, per routing above) or library's official docs (`WebFetch`) and confirm source actually says what's claimed
   text:
-  - Fetch real source; don't trust search snippet — open page (`mcp__exa__web_fetch_exa`/`WebFetch`, per routing above) or library's official docs (`WebFetch`) and confirm source actually says what's claimed
+  - Fetch real source; don't trust a search snippet — open page (`mcp__exa__web_fetch_exa`/`WebFetch`, per routing above) or library's official docs (`WebFetch`) and confirm source actually says what's claimed
   class: prose
 - id: rsr-L48-cross-check-load-bearing-facts-pricing-rat
   file: commands/_agents/fabrik-researcher.md
@@ -502,9 +502,9 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Method (per fact)'
   baseline: 'Freshness binds: a fact you did not open a source for THIS run is not verified — say so'
-  current: 'Freshness binds: fact you did not open source for THIS run is not verified — say so'
+  current: 'Freshness binds: a fact you did not open a source for THIS run is not verified — say so'
   text:
-  - 'Freshness binds: fact you did not open source for THIS run is not verified — say so'
+  - 'Freshness binds: a fact you did not open a source for THIS run is not verified — say so'
   class: prose
   ordered:
   - agent-rsr-a-claim-about-a-current-value
@@ -545,9 +545,9 @@ entries:
   file: commands/_agents/fabrik-researcher.md
   section: '## Method (per fact)'
   baseline: A quote's wording stays shape 1's and a PDF's text shape 3's — only the claim about the current value needs the live read — and a figure inside a document fixed once published (a published paper, a filing, a dated changelog entry, a versioned release note) is not a changing one, though which entry or release is the newest is a current value; a page's "last updated" stamp does not make it fixed
-  current: A quote's wording stays shape 1's and PDF's text shape 3's — only the claim about the current value needs the live read — figure inside document fixed once published (a published paper, filing, dated changelog entry, versioned release note) is not changing one, though which entry or release is newest is current value — page's "last updated" stamp does not make it fixed
+  current: A quote's wording stays shape 1's and PDF's text shape 3's — only the claim about the current value needs the live read — and a figure inside a document fixed once published (a published paper, filing, dated changelog entry, versioned release note) is not changing one, though which entry or release is newest is current value — page's "last updated" stamp does not make it fixed
   text:
-  - A quote's wording stays shape 1's and PDF's text shape 3's — only the claim about the current value needs the live read — figure inside document fixed once published (a published paper, filing, dated changelog entry, versioned release note) is not changing one, though which entry or release is newest is current value — page's "last updated" stamp does not make it fixed
+  - A quote's wording stays shape 1's and PDF's text shape 3's — only the claim about the current value needs the live read — and a figure inside a document fixed once published (a published paper, filing, dated changelog entry, versioned release note) is not changing one, though which entry or release is newest is current value — page's "last updated" stamp does not make it fixed
   class: ban
   pins:
   - tests/test_agent_definitions.py::test_the_researcher_returns_a_bounded_inference_verdict

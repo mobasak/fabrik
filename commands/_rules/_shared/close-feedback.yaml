@@ -110,12 +110,10 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: '(2) Never paste the grammar. `_is_placeholder` strips an axis key before its `<…>` test, so a keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one — it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed'
-  current: '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one'
+  current: '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one — it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed'
   text:
-  - '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one'
+  - '(2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one — it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed'
   class: ban
-  clauses:
-    2: narrative
 - id: cf-71
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
@@ -234,9 +232,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'A "filed" claim MUST name a durable artifact — the mail id, or a COMMITTED path. A cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
-  current: 'A "filed" claim MUST name a durable artifact — mail id, or COMMITTED path; cross-repo write to hub path is not filing (live case: "filed (5 items)" to hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
+  current: 'A "filed" claim MUST name a durable artifact — mail id, or COMMITTED path; a cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
   text:
-  - 'A "filed" claim MUST name a durable artifact — mail id, or COMMITTED path; cross-repo write to hub path is not filing (live case: "filed (5 items)" to hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
+  - 'A "filed" claim MUST name a durable artifact — mail id, or COMMITTED path; a cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable)'
   class: ban
 - id: cf-70
   file: commands/_fragments/close-feedback.md
@@ -266,9 +264,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: ⚠️ If your repo's `command_run.py` predates `--feedback` it will ERROR on the unknown argument instead of refusing — that is a STALE VENDORED COPY, not an exemption
-  current: ⚠️ If your repo's `command_run.py` predates `--feedback` it will ERROR on unknown argument instead of refusing — that is STALE VENDORED COPY, not exemption
+  current: ⚠️ If your repo's `command_run.py` predates `--feedback` it will ERROR on unknown argument instead of refusing — that is STALE VENDORED COPY, not an exemption
   text:
-  - ⚠️ If your repo's `command_run.py` predates `--feedback` it will ERROR on unknown argument instead of refusing — that is STALE VENDORED COPY, not exemption
+  - ⚠️ If your repo's `command_run.py` predates `--feedback` it will ERROR on unknown argument instead of refusing — that is STALE VENDORED COPY, not an exemption
   class: prose
 - id: cat-L38
   file: commands/_fragments/close-feedback.md
@@ -316,9 +314,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record'
   baseline: 'Say the two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; and a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so the convergence verdict lives in your prose and the `--findings 0` rule still binds it'
-  current: 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name gap — round you cannot close with `--confirmed` cannot record D-206''s exit counter, so convergence verdict lives in your prose and `--findings 0` rule still binds it'
+  current: 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; and a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so convergence verdict lives in your prose and `--findings 0` rule still binds it'
   text:
-  - 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name gap — round you cannot close with `--confirmed` cannot record D-206''s exit counter, so convergence verdict lives in your prose and `--findings 0` rule still binds it'
+  - 'Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; and a round you cannot close with `--confirmed` cannot record D-206''s exit counter, so convergence verdict lives in your prose and `--findings 0` rule still binds it'
   class: prose
 - id: cf-36
   file: commands/_fragments/close-feedback.md
@@ -412,9 +410,9 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '### File it when this run hit any of these'
   baseline: Twice is a tooling-discipline gap in the machinery's guidance, not a personal slip — file it with the exact pipeline that misled you
-  current: Twice is tooling-discipline gap in machinery's guidance, not personal slip — file it with exact pipeline that misled you
+  current: Twice is tooling-discipline gap in machinery's guidance, not a personal slip — file it with exact pipeline that misled you
   text:
-  - Twice is tooling-discipline gap in machinery's guidance, not personal slip — file it with exact pipeline that misled you
+  - Twice is tooling-discipline gap in machinery's guidance, not a personal slip — file it with exact pipeline that misled you
   class: prose
 - id: cf-51
   file: commands/_fragments/close-feedback.md
@@ -487,17 +485,17 @@ entries:
   file: commands/_fragments/close-feedback.md
   section: '### A subagent''s finding is YOURS to file'
   baseline: If you do not carry it out, it is gone, and the subagent cannot mail anything itself
-  current: If you do not carry it out, it is gone — subagent cannot mail anything itself
+  current: If you do not carry it out, it is gone — the subagent cannot mail anything itself
   text:
-  - If you do not carry it out, it is gone — subagent cannot mail anything itself
+  - If you do not carry it out, it is gone — the subagent cannot mail anything itself
   class: prose
 - id: cf-60
   file: commands/_fragments/close-feedback.md
   section: '### A subagent''s finding is YOURS to file'
   baseline: The bar is evidence, not a complaint. One reproducible `path:line` and the command you ran beats a paragraph of impression
-  current: 'The bar is evidence, not complaint: one reproducible `path:line` and command you ran beats paragraph of impression'
+  current: 'The bar is evidence, not a complaint: one reproducible `path:line` and command you ran beats paragraph of impression'
   text:
-  - 'The bar is evidence, not complaint: one reproducible `path:line` and command you ran beats paragraph of impression'
+  - 'The bar is evidence, not a complaint: one reproducible `path:line` and command you ran beats paragraph of impression'
   class: prose
 - id: cf-61
   file: commands/_fragments/close-feedback.md

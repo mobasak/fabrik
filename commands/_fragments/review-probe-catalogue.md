@@ -9,7 +9,7 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
 - Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
   check END STATE recipe exists to produce, not only each step, against the artifact the next step compares it with (a
   lock file, a manifest), not only the source it reads; run README snippet, usage text or rewritten docstring
-  instruction as caller would, and hand each seat that same command to run under § Seat isolation; one that writes live
+  instruction as caller would, and hand each seat of the brief that same command to run under § Seat isolation; one that writes live
   store, sends, commits, deploys or reaches host stays lead's, who runs it on a scratch target (a throwaway database,
   repo, host or account), every such command and SQL block of a runbook included, or, when no scratch target exists,
   names it in the brief as not run, with why and the owner who can run it; only a read that changes nothing (no write,
@@ -233,7 +233,7 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
   checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree. An editable install's `.pth`
   entry never outranks a copy placed as `PIN_IMPORT` says; live code still runs instead of pin through `PYTHONPATH`
   entry (`PIN_IMPORT`), pytest run from live repo (`PYTEST_PINS`) and child process started with its own `env=`, which
-  resolves `.pth` again. The pins line follows real layout, digest pin authority. A SEAT never runs `git worktree add`
+  resolves `.pth` again. The pins line follows real layout, digest is pin authority. A SEAT never runs `git worktree add`
   on the live repo (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive
   copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree,
   never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. A seat test that reads git history
@@ -271,12 +271,12 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
   `-o` on `addopts`, `testpaths`, `python_files` or another key that changes what is collected; `-o timeout=…` and the
   like stay legal); a test it cannot run that way is unverified, never run another way. A seat that runs pytest or
   imports pinned code needs unmodified tree, so its brief's pin takes `--base`
-  (`/opt/fabrik/commands/_fragments/subagents-core.md`'s PIN paragraph), on each pass by shape that pass's surface has
+  (the pin command of `/opt/fabrik/commands/_fragments/subagents-core.md`'s PIN paragraph), on each pass by shape that pass's surface has
   (a surface committed since previous pass is pinned `--from`, as the bullet above says): `HEAD` for working-tree pin
   (its basis is `HEAD` and its `base_sha` HEAD's commit either way; a repo with no commit has no base copy, and `--base`
   is refused there), `<c>^` for a fix pinned `--from <c>` (never `<c>`, which calls every file `UNCHANGED`), and the
   commit before the fix when it spans several. The brief's `base_sha` is then one pin records, and gives
-  `<pins_dir>.base` as recipe's `${args.base_pin_dir}`; each seat copies that tree in place of archive steps of both
+  `<pins_dir>.base` as recipe's `${args.base_pin_dir}`, so each seat copies that tree in place of archive steps of both
   `PIN_IMPORT` and `PYTEST_PINS`. A base copy is whole commit (some 120 MB in hub) beside pins dir — in durable
   `SCRATCH:` folder, which `start` keeps 14 days, where the including command puts pins there: once pass is adjudicated,
   lead removes it (`chmod -R u+w <pins_dir>.base`, then `rm -rf <pins_dir>.base`, each its own command), since every
@@ -338,7 +338,7 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
 
 - Run `dispatch_headroom.py` before pin, then stamp `command_run.py dispatch --seats <SEATS + one refuter per unit>`
   before dispatching message; stamp is upper bound, closed by round's `--seats`; SEATS 0 on box cap is in-turn wait
-  (re-run once minute), and when the `Workflow` tool is absent or cannot load the script, or the session is in the hub
+  (re-run once a minute), and when the `Workflow` tool is absent or cannot load the script, or the session is in the hub
   (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this run (the tool runs only on their
   explicit opt-in), seats go out through the `Agent` tool and the close's `--evidence` names `shape: agent-tool`; while
   seats are out, build the next fixes in a scratch copy, never the pinned files, and keep a timer running; outside the
@@ -350,10 +350,10 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
   expects; closing-pass brief has every seat list each slice file it read, by path, and re-check every fix that replaced
   a form against the shapes the OLD form held, as fix's ledger row lists them; delta brief lists exact mutant ids
   executed, reads unified diff, and checks ROUTED claims for routing only; one-hop edit found mid-fix is named in next
-  brief; guard fix adds goes into every brief from then on, by name, with its escape variants (quote styles, unreadable
+  brief; guard fix adds goes into every brief from that next one on, by name, with its escape variants (quote styles, unreadable
   values, globbed paths) and its model boundary; stale pre-existing text in edited file is RECORDED with a destination
   (term-coverage D4), or fixed in the same hunk and named; never counted; slice ledger is round 1's claim count even at
-  zero confirmed. A measurement or proof brief hands seat names, up front, bound that limits it (a peak capped by very
+  zero confirmed. A measurement or proof a brief hands seat names, up front, bound that limits it (a peak capped by very
   limit being sized, a re-vendor's byte identity read at HEAD because neither the copy's header nor its vendoring
   commit's trailer records a SHA), so seat attacks it as bounded, never as unbounded.
 - Lint or format findings are compared against HEAD, against committed diff, under every claimed toolchain version,

@@ -6,9 +6,9 @@ entries:
   file: commands/_fragments/orient.md
   section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
   baseline: 'Right after `start`, ONE Bash call, its output READ, then ONE line in the reply — before phase 1''s first read:'
-  current: 'After `start`: ONE Bash call, output READ, then ONE reply line before phase 1''s first read:'
+  current: 'Right after `start`: ONE Bash call, output READ, then ONE reply line before phase 1''s first read:'
   text:
-  - 'After `start`: ONE Bash call, output READ, then ONE reply line before phase 1''s first read:'
+  - 'Right after `start`: ONE Bash call, output READ, then ONE reply line before phase 1''s first read:'
   class: prose
 - id: or-fence
   file: commands/_fragments/orient.md
@@ -38,9 +38,9 @@ entries:
   file: commands/_fragments/orient.md
   section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
   baseline: '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or a directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`'
-  current: '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or directory passed as-is matches 0 packs at rc 0, a re-run with paths, never `none`'
+  current: '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`'
   text:
-  - '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or directory passed as-is matches 0 packs at rc 0, a re-run with paths, never `none`'
+  - '`<the surface''s paths>` is the FILE LIST the run record''s `--surface` names — `$(git diff --name-only <range>)` for a diff range, a plan''s Touches, a spec''s files; a range or directory passed as-is matches 0 packs at rc 0 and is a re-run with paths, never `none`'
   class: ban
 - id: or-bare-run
   file: commands/_fragments/orient.md
@@ -62,12 +62,10 @@ entries:
   file: commands/_fragments/orient.md
   section: '## Orient — the four things every run executes before its first phase (D-335 § 5 item 7)'
   baseline: 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is to write it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
-  current: 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is writing it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names; an empty field has skipped a step, not saved one'
+  current: 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is writing it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
   text:
-  - 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is writing it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names; an empty field has skipped a step, not saved one'
+  - 'COBRA (D-253): the cheapest way to satisfy "one ORIENT line" is writing it from memory, so every field is an EXECUTED output — the assigned count, the pack count with its denominator, the section names — and a recalled line reads wrong on the next run; an empty field has skipped a step, not saved one'
   class: prose
-  clauses:
-    3: narrative
 vanished:
   L1: narrative
   L2:

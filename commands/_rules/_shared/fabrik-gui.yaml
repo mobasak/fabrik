@@ -21,9 +21,9 @@ entries:
   file: commands/_agents/fabrik-gui.md
   section: '## Your toolset'
   baseline: 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, run the frozen flow, screenshot at 375/768/1440; for an extension, load the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`)'
-  current: 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, screenshot at 375/768/1440; for an extension, load the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`)'
+  current: 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, run the frozen flow, screenshot at 375/768/1440; for an extension, load the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`)'
   text:
-  - 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, screenshot at 375/768/1440; for an extension, load the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`)'
+  - 'Drive + screenshot the running UI: `mcp__playwright__*` (open the page, read the accessibility tree, run the frozen flow, screenshot at 375/768/1440; for an extension, load the unpacked build via the Playwright fixture and `goto(''chrome-extension://<id>/…'')`)'
   class: prose
 - id: gui-shadcn
   file: commands/_agents/fabrik-gui.md
