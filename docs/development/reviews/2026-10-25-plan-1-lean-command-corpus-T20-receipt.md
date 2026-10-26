@@ -38,3 +38,15 @@ Re-ledgered under the canonical loader (`_lint`, `_covered`, `_ban_span`, `_clau
 | L29, L30, L35, L37, L45-L47 | Short single rules with no narrative left; each is already near its anchors plus stems. |
 
 - **LEFT FOR THE HUB**: ratchet `commands/_size_ceiling.json` (report: 22928 vs ceiling 23721) at merge; CHANGELOG/INDEX rows; an audit-pair read of the 15 reworded entries (old vs new); decide whether the 50% target applies to a command whose table and ban clauses are a rule floor of ~1020 words, or whether a ban clause's verbatim span should stop at the parenthesis it opens.
+
+## Fix round 2 (hub audit)
+
+Findings: the two hub audits (Sonnet, Haiku) overlapped; 11 distinct findings, all checked against the before-text (`lean-baseline-2026-10-25`).
+
+- **Confirmed and fixed (11):** r-L2 (restored "depth over breadth (the whole-tree sweep is `/fabrik-docs-review`; …)"; the `narrative` label removed), r-L9 ("the bidirectional contract"), r-L12 ("every", the "—", the billable-balance parenthetical), r-L13 (defaults clause verbatim), r-L21 ("it documents —", `01M1V443`), r-L23 ("that", "an uncited drop is a miss, not a decision"), r-L25/r-L26 (the miss clause restored; the `narrative` label removed; the carrier is the merged sentence), r-L32 ("consumer-contract-hardened"), r-L33 (the `/` rationale; the `narrative` label removed), r-L36 ("the code's owning session" and "is raised … on it"), r-L48 ("Fabrik-maintained").
+- **Refuted:** none. Audit 2's r-L12 "every→each" and r-L9 were restored too, though only marginal.
+- Ledger: every restored entry now has `current` = baseline and no `clauses:` label. `pytest tests/test_command_rules.py -rP` prints zero LOSS lines for `fabrik-doc-converge.yaml` (the remaining LOSS lines are `_shared/*`, another unit's). `assemble_commands.py --check` was not run separately; the same check runs inside the test (DRIFT only on `fabrik-task.md`, not this unit).
+- Own-text words: baseline 1661 → re-ledger 1559 → now 1647 (−0.8% against baseline, so no per-file floor table is owed).
+- Fresh passes: 1 (a fresh subagent given only the baseline, rewrite and ledger).
+
+COUNTS: entries read 49 / reworded 5 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0
