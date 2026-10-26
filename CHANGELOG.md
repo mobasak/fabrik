@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — review probe catalogue: the pins-only-copy bullet bars `-o pythonpath` and closes its legal `-o` set (2026-10-26)
+### Changed — review probe catalogue: a seat's pytest run takes an allow-list of arguments, not a deny-list (2026-10-26)
 
-`commands/_fragments/review-probe-catalogue.md` § Seat isolation: `-o pythonpath` joins the barred keys ("collected or imported"), `-c`/`--rootdir` name a file or tree "other than the staged tree's own", the legal `-o` set is "a key that changes neither, such as `timeout`" instead of an open "and the like", and the base-copy SCRATCH clause is reworded; `-o confcutdir` is not listed because this pytest treats it as an unknown option (the `--confcutdir` flag stays barred). `tests/test_seat_recipe_readable.py` re-pinned (W-47d58d2c).
+`commands/_fragments/review-probe-catalogue.md` § Seat isolation, bullet "A pins-only copy is not a test tree": a seat passes pytest only test paths, node ids, `-q`, `-v`, `-s`, `-x`, `-r<chars>`, `--tb=<style>`, `--co`, `-p no:cacheprovider` and a mutant run's `--deselect`, sets no `PYTHONPATH` or `PYTEST_*` variable and writes no pytest config or conftest into the staged tree. The old deny-list missed `-o pythonpath`, `-o filterwarnings`/`xfail_strict`, `--config-file`, `-p no:warnings`, `--runxfail`, `--import-mode` and `PYTHONPATH`, each shown to change the verdict or the imports on pytest 9.0.2; `-o timeout` is now barred too (the config's own timeout is the hang guard), and `--ignore` of a conftest is gone from the examples because it does not drop the conftest. The base-copy removal now reads "wherever it sits". `tests/test_seat_recipe_readable.py` re-pinned (W-47d58d2c).
 
 ### Changed — cloud dispatch: a cloud run draws the account's weekly plan and is refused at its wall (2026-10-26)
 
