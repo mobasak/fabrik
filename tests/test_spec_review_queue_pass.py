@@ -112,11 +112,6 @@ def test_flow_fixes_panel_residue_and_absolute_brief_paths() -> None:
         "stop), not confirmed, so it does not hold the flip, while the round that fires the stop confirms and "
         "fixes its defects and does"
     ) in critique
-    core = _norm(ROOT / "commands" / "_fragments" / "subagents-core.md")
-    assert (
-        "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never "
-        "one relative to a checkout or a placeholder the seat expands"
-    ) in core
 
 
 def test_both_design_reviews_name_the_receipt_and_the_command_line_the_gate_routes_on(

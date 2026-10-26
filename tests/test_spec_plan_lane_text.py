@@ -510,10 +510,6 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
 
     text = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
     panel = norm((REPO / "commands" / "_fragments" / "judge-panel.md").read_text(encoding="utf-8"))
-    reads = norm((REPO / "commands" / "_fragments" / "delegated-reads.md").read_text(encoding="utf-8"))
-    assert ("a question with several parts is numbered in the brief, which tells the seat to answer the parts in "
-            "order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, "
-            "and a part the return never reaches is asked again, never read as empty.") in reads
     assert ("every premise the brief states about the codebase, every mechanism the design relies on (\"X fires\", "
             "\"Y catches this\"), every design rule (an algebra, a classifier) and every runtime-state claim is EXECUTED "
             "this session, its command and output cited in the spec (a key, token or credential in that output is "

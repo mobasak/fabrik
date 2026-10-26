@@ -44,23 +44,6 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
         "**Every seat's brief carries the git-verb prohibition (D8):**",
         "<!-- POOL OFF (D-181, 2026-09-07)",
     )
-    assert d8.count(RULE) == 1
-    # the three consequences ride the same paragraph: nothing durable, the pins dir, the only staging
-    assert "so nothing durable is written there (resume artifacts go to `SCRATCH:`)" in d8
-    assert (
-        "a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead"
-        in d8
-    )
-    assert (
-        "the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it"
-        " under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`,"
-        " `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins;"
-        in d8
-    )
-    assert (
-        "a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the"
-        " pinned SHA, or a `clone --shared --no-checkout` — never a copy of the live checkout" in d8
-    )
     # stated once in the fragment: the rule's key phrase appears in no other paragraph
     assert core.count("under the run's disposable folder") == 1
     assert core.count("`<run scratch>/seat-<n>/`") == 1
@@ -75,8 +58,6 @@ def test_the_pin_paragraph_defers_the_pins_dir_root_to_d8() -> None:
         "**PIN the subject before you dispatch",
         "<!-- POOL OFF (D-181) — pool-grounder",
     )
-    assert "--pins-dir <a NEW dir per pass>" in pin
-    assert "the pins dir sits where the D8 paragraph puts it" in pin
     assert "<run scratch>" not in pin and "SCRATCH:" not in pin and "disposable" not in pin
 
 

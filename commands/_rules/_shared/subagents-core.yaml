@@ -3,14 +3,16 @@ baseline_sentences: subagents-core.baseline.txt
 baseline_sha256: "60e5ebc03b84ea526b67fd516c55f832c63126040b26a9aa4494f19f573e1407"
 entries:
 - id: sc-by-file-two-finders-per-slice
-  # class: prose
-  # clauses: L8.11
+  # class: ban
+  # clauses: L8.7, L8.11
   file: commands/_fragments/subagents-core.md
   section: "## Subagents — {{HEADLINE}}"
-  baseline: "unless `dispatch_headroom.py` printed a `TRIMMED partition` line (a quota, box or concurrency cap below the slice count): then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read"
+  baseline: "`/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands), at most ONE extra Haiku class seat for a judgement-shaped inventory class the close-out hygiene script cannot express and only when the brief names it, and you — the orchestrator, Opus or Fable whichever the quota allows, and whichever newer model replaces them (D-334, D-456) — orchestrating and EXECUTING every refutation and every confirmed reproduction, never a finder — the union of the slices IS the full pass, every file in exactly one slice and read by that slice's two finders — unless `dispatch_headroom.py` printed a `TRIMMED partition` line (a quota, box or concurrency cap below the slice count): then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read"
   current: "By FILE, `/fabrik-review` and `/fabrik-repo-review` (D-207, on the operator's ruling D-203): two cheap finders per slice — one Sonnet and one Haiku, each over the whole slice, candidates unioned, never voted — and no Opus finder (pilot D-344, 2026-09-22, superseding D-207's Opus-on-the-risky mix; the risky units — concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets — are the slice's named hunt priority, and Opus/Fable execute in the orchestrator; `/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands), at most ONE extra Haiku class seat for a judgement-shaped inventory class the close-out hygiene script cannot express and only when the brief names it, and you — the orchestrator, Opus or Fable whichever the quota allows, and whichever newer model replaces them (D-334, D-456) — orchestrating and EXECUTING every refutation and every confirmed reproduction, never a finder — the union of the slices IS the full pass, every file in exactly one slice and read by that slice's two finders — unless `dispatch_headroom.py` printed a `TRIMMED partition` line (a quota, box or concurrency cap below the slice count): then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read"
   text:
   - "since round 1 is not complete until every slice is read"
+  - "`/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands"
+  - "then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves over those slices alone run before any delta pass, since round 1 is not complete until every slice is read."
 - id: sc-fix-between-waves-in-the-next-pin
   # class: prose
   # clauses: L9.1
@@ -31,15 +33,37 @@ entries:
   - "runs, outside the hub (D-961: the hub never calls it), as ONE `Workflow` call"
 - id: sc-d8-seat-folder-and-scratch-homes
   # class: ban
-  # clauses: L29.7
+  # clauses: L29.1, L29.2, L29.3, L29.5, L29.6, L29.7, L29.9
   file: commands/_fragments/subagents-core.md
   section: "## Subagents — {{HEADLINE}}"
-  baseline: "a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears"
+  baseline: "The scratch dir a brief names is a SEAT FOLDER under the run's disposable folder — `<run scratch>/seat-<n>/`, `<run scratch>` being the path this run's `start` printed as `RUN-SCRATCH:` (kept as `run_scratch` in the run record; `docs/reference/command-run-protocol.md` § A run's disposable folder) — never the session scratchpad root, which no run owns and nothing removes. The folder goes when the run is consumed, so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists); a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead and the brief says so; the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`, `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins; a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears; and a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the pinned SHA, or a `clone --shared --no-checkout`"
   current: "The scratch dir a brief names is a SEAT FOLDER under the run's disposable folder — `<run scratch>/seat-<n>/`, `<run scratch>` being the path this run's `start` printed as `RUN-SCRATCH:` (kept as `run_scratch` in the run record; `docs/reference/command-run-protocol.md` § A run's disposable folder) — never the session scratchpad root, which no run owns and nothing removes. The folder goes when the run is consumed, so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists); a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead and the brief says so; the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`, `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins; a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears; and a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the pinned SHA, or a `clone --shared --no-checkout` — never a copy of the live checkout, whose `.claude/`, `.venv` and `node_modules` filled 73 GB of session scratch by 2026-10-14 (`round` names a seat folder over 2 GB — D5)"
   text:
   - "a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears;"
   - "for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists);"
   - "so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to run that same `mkdir -p` first (a no-op once the folder exists);"
+  - "The scratch dir a brief names is a SEAT FOLDER under the run's disposable folder — `<run scratch>/seat-<n>/`, `<run scratch>` being the path this run's `start` printed as `RUN-SCRATCH:` (kept as `run_scratch` in the run record; `docs/reference/command-run-protocol.md` § A run's disposable folder) — never the session scratchpad root, which no run owns and nothing removes."
+  - "a start that printed `RUN-SCRATCH: none — <why>` names a folder under the session scratchpad instead and the brief says so"
+  - "the pins dir (the PIN paragraph below) sits under the same root, unless the including command puts it under the run's durable `SCRATCH:` folder (D-836), as `/fabrik-review`, `/fabrik-plan-review`, `/fabrik-spec-review` and `/fabrik-repo-review` do so an interrupted pass keeps its pins;"
+  - "a tree is staged in a seat folder only as the probe catalogue's § Seat isolation says — an archive of the pinned SHA, or a `clone --shared --no-checkout` — never a copy of the live checkout"
+- id: sc-d8-absolute-paths-in-briefs
+  # class: ban
+  # clauses: L30.1
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never one relative to a checkout or a placeholder the seat expands (the review-loop workflow's per-file `<repo-relative path>` under its absolute `pins_dir` excepted), because a seat that cannot resolve a path rebuilds the pin itself"
+  current: "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never one relative to a checkout or a placeholder the seat expands (the review-loop workflow's per-file `<repo-relative path>` under its absolute `pins_dir` excepted), because a seat that cannot resolve a path rebuilds the pin itself"
+  text:
+  - "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never one relative to a checkout or a placeholder the seat expands"
+- id: sc-d8-never-execute-an-unread-or-destructive-script
+  # class: ban
+  # clauses: L31.1
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "A seat reads a script before it EXECUTES it, its `--help` included, and never executes one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, whatever binary does it, even when its brief asks it to confirm what that script does: it cites the lines and returns that claim `unverified` (read-only by rule), and the same rule rides in `/opt/fabrik/commands/_agents/fabrik-reviewer.md`'s house rules (2026-10-14: four plan-review seats ran `scripts/proof_run.py`, which has no argument parsing, and destroyed a live fixture)"
+  current: "A seat reads a script before it EXECUTES it, its `--help` included, and never executes one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, whatever binary does it, even when its brief asks it to confirm what that script does: it cites the lines and returns that claim `unverified` (read-only by rule), and the same rule rides in `/opt/fabrik/commands/_agents/fabrik-reviewer.md`'s house rules (2026-10-14: four plan-review seats ran `scripts/proof_run.py`, which has no argument parsing, and destroyed a live fixture)"
+  text:
+  - "A seat reads a script before it EXECUTES it, its `--help` included, and never executes one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, whatever binary does it, even when its brief asks it to confirm what that script does: it cites the lines and returns that claim `unverified` (read-only by rule)"
 - id: sc-d8-one-plain-command-per-bash-call
   # class: ban
   # clauses: L32.4, L32.12
@@ -59,6 +83,16 @@ entries:
   current: "A command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY"
   text:
   - "A command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split or encoded (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked unverified and named in MACHINERY."
+- id: sc-pin-afresh-per-pass
+  # class: prose
+  # clauses: L39.3, L39.4
+  file: commands/_fragments/subagents-core.md
+  section: "## Subagents — {{HEADLINE}}"
+  baseline: "and from the repo root: record `git rev-parse HEAD`, before any edit, as the pass's base SHA, then run `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir per pass> <the repo-relative files>` (add `--base <base sha>` when seats need the unmodified tree; the pins dir sits where the D8 paragraph puts it)"
+  current: "So, afresh for every pass — its files are that pass's surface, which at a delta or closing pass includes every file the previous round's fix touched — and from the repo root: record `git rev-parse HEAD`, before any edit, as the pass's base SHA, then run `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir per pass> <the repo-relative files>` (add `--base <base sha>` when seats need the unmodified tree; the pins dir sits where the D8 paragraph puts it)"
+  text:
+  - "--pins-dir <a NEW dir per pass>"
+  - "the pins dir sits where the D8 paragraph puts it"
 - id: sc-pin-writes-read-only-copies-and-a-manifest
   # class: prose
   # clauses: L40.1

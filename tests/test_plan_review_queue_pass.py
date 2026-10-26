@@ -47,11 +47,6 @@ def test_the_advisory_the_clause_expects_is_what_command_run_prints() -> None:
 
 def test_the_opus_floor_and_the_half_blocked_split_are_stated() -> None:
     """Mail 01M3VSFP9D (fabrik-lib): D-344's 'no Opus finder' hid execute-plan's floor; a half-blocked plan had no split rule."""
-    core = " ".join((ROOT / "commands" / "_fragments" / "subagents-core.md").read_text().split())
-    assert (
-        "`/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands"
-        in core
-    )
     plan = " ".join((ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text().split())
     assert (
         "SPLIT the plan: the phases BEFORE the first blocked one keep the plan's name, converge and execute; that phase and every later one move to a new `DRAFT` plan"
@@ -66,13 +61,6 @@ def test_a_seat_never_executes_a_script_that_acts_outside_its_scratch() -> None:
     to confirm what a sentence described, and destroyed a live fixture. The rule rides in both texts a seat can load:
     the seat-isolation paragraph of subagents-core and the native reviewer's house rules, whose verdict for such a
     claim is `unverified`."""
-    core = " ".join((ROOT / "commands" / "_fragments" / "subagents-core.md").read_text().split())
-    assert (
-        "A seat reads a script before it EXECUTES it, its `--help` included, and never executes one that deletes,"
-        " deploys, provisions, writes outside its scratch dir or contacts a non-local host, whatever binary does it,"
-        " even when its brief asks it to confirm what that script does: it cites the lines and returns that claim"
-        " `unverified` (read-only by rule)" in core
-    )
     agent = " ".join((ROOT / "commands" / "_agents" / "fabrik-reviewer.md").read_text().split())
     assert (
         "read a script before you execute it, its `--help` included, and never execute one that deletes, deploys,"

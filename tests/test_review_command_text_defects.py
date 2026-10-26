@@ -167,11 +167,6 @@ def test_a_trimmed_round_one_sweeps_its_unread_slices_before_any_delta_pass() ->
     sc = _norm(FRAG / "subagents-core.md")
     te = _norm(FRAG / "term-edit.md")
     assert (
-        "then the union is NOT the full pass: the receipt names the unread slices, and further full-pass waves "
-        "over those slices alone run before any delta pass, since round 1 is not complete until every slice is "
-        "read."
-    ) in sc
-    assert (
         "then the union is NOT the full pass, the ledger names the unread slices and further full-pass waves "
         "over those slices alone run before any delta pass;"
     ) in te
