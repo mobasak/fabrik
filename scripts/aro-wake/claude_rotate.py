@@ -3807,9 +3807,14 @@ def _fleet_dirs() -> list[Path]:
     """Scaffolded fleet dirs (sorted). [] when the root is absent/unreadable — which IS the
     feature detection: no dirs, no fleet mode. SYMLINKS are excluded: the `active` pointer is
     itself a dir-symlink under the root, and counting it would double-count its target account
-    (a phantom pending-login row on --status, a double keepalive ping, an off-by-one dir count)."""
+    (a phantom pending-login row on --status, a double keepalive ping, an off-by-one dir count). The ``backups``
+    park root is no account either and is left out for the same reason (W-f7772267 (a))."""
     try:
-        return sorted(d for d in _fleet_root().iterdir() if d.is_dir() and not d.is_symlink())
+        return sorted(
+            d
+            for d in _fleet_root().iterdir()
+            if d.is_dir() and not d.is_symlink() and d.name != _PARK_ROOT_NAME
+        )
     except OSError:
         return []
 
