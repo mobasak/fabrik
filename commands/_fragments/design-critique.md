@@ -1,13 +1,13 @@
 **Two independent design critiques before the operator decides (operator ruling 2026-10-03).** Before the
 design-approval DECISION block — and in `/fabrik-task`, after writing `design.md` and BEFORE `step --design`
-records it (before phase 3) — dispatch two author-blind critique seats in ONE message: `fabrik-reviewer` with `model: "opus"`
-and `fabrik-reviewer` with `model: "fable"` (each the latest) — the operator's exception to
+records it, so before phase 3 builds anything — dispatch two author-blind critique seats in ONE message: `fabrik-reviewer` with `model: "opus"` (the latest Opus)
+and `fabrik-reviewer` with `model: "fable"` (the latest Fable) — the operator's exception to
 the tier map's "Fable is never a routine finder" (D-517). **Dispatch step (D-191):** the pair is fixed at two
 seats, under the floor `dispatch_headroom.py` always grants, so no sizing run is owed — stamp them BEFORE they
 go out with `python3 scripts/command_run.py dispatch --seats 2`. Both get the SAME brief; neither sees the
 other's answer. The brief holds:
-- the design artifact pinned by md5 (spec, plan, flows or UI contract, or the phase-2 `design.md`) and its commit — a cited fleet-synced file (`scripts/enforcement/`, `.windsurf/rules/`) is gitignored in a project, so no commit of the project holds it: copy the project's own file to the scratchpad and name it by that
-  absolute path and its md5 (origin `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line
+- the design artifact pinned by md5 (the spec, plan, flows or UI contract, or the phase-2 `design.md`) and the commit it was read at — a cited fleet-synced file (`scripts/enforcement/`, `.windsurf/rules/`) is gitignored in a project, so no commit of the project holds it: copy the project's own file to the scratchpad and name it by that
+  absolute path and its md5 (its origin is the hub's `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line
   numbers are cited;
 - the operator's ask in their own words;
 - the house rules every seat brief carries: read-only, no `$HOME` read the brief does not name by file, scratch only under

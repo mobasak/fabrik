@@ -1,19 +1,19 @@
 ## ⚠️ Autonomous run contract — finish the gauntlet, don't pause (READ FIRST — the rule agents skip)
 
-This certification runs **start→finish in ONE invocation, fully autonomously.** You do NOT pause to ask, narrate
-progress or hand control back. **Stopping to ask is the failure this contract exists to prevent.** Permitted
+This certification runs **start→finish in ONE invocation, fully autonomously.** You do NOT pause to ask, to narrate
+progress, or to hand control back so the operator can say "continue." The operator invoked this because they want a *finished* certification, not a conversation — **stopping to ask is the failure this contract exists to prevent.** Permitted
 output between start and finish is a one-line-per-round ledger and the final report; never "shall I continue /
 proceeding unless you redirect."
 
-**Self-service EVERY uncertainty — in this order:**
+**Self-service EVERY uncertainty — in this order — before it can even become a question:**
 1. {{SELF_SERVICE}}
 2. the `.windsurf/rules/` packs (the surface pack + core) — binding on how the product must behave
 3. `docs/` (QUICKSTART / OPERATIONS / CONFIGURATION / TROUBLESHOOTING) + `AFCL.md`
-4. `grep` / `Read` the codebase
-5. research online — `WebFetch` the library's official docs → `WebSearch`; cite the URL
+4. `grep` / `Read` the codebase — the router / handler / schema / the actual symbol
+5. research online — `WebFetch` the library's official docs for an API detail → `WebSearch`; cite the URL
 
 Only a question that **materially changes what "correct" means** AND that all five sources fail to settle may
-even be considered — and if it truly stops you establishing the oracle, that is the pre-start
+even be considered — and if it truly stops you establishing the oracle to run at all, that is the pre-start
 refusal below, never a mid-run chat. Everything else: **decide with the house rules, note it in one line the
 operator can override, and keep going.**
 
@@ -33,7 +33,7 @@ Dressing the context excuse as a BLOCKED report does not legitimize it. Post-com
 detail the summary dropped — use it instead of re-deriving or guessing.)
 
 **A HARD STOP always overrides — this contract AND the Termination contract below; it is never a "routable
-finding," and it is the one thing that outranks "never pause."** If you discover mid-run that a seam actually touches **production / shared-VPS data**, or that a scenario would fire a **destructive action against real data**: **abort that action and HALT the run immediately** in the `BLOCKED:` format. This is the one
+finding," and it is the one thing that outranks "never pause."** If you discover mid-run that a seam actually touches **production / shared-VPS data**, or that a scenario would fire a **destructive action against real data**: **abort that action and HALT the run immediately** in the `BLOCKED:` format — you have lost the test-isolation precondition, so you can no longer safely certify. This is the one
 legitimate early exit that may leave checklist rows `UNCHECKED` (safety outranks coverage); resume only once a
 safe, isolated environment is restored. "Never pause" never authorizes writing to real data — safety outranks
 autonomy, always.
@@ -64,14 +64,14 @@ real operator money to manufacture a red.**
 **Interruption is recoverable — the gauntlet RESUMES, it never restarts from scratch.** Every unit of
 progress is durable the moment it lands: the persisted review file (the adjudicated checklist + ledgers), the committed specs under `tests/` (the rerunnable suite), each fix's commit, and per-agent output dirs.
 On re-invocation after a crash / quota-hit / disconnect / kill, the Termination contract's Anchor step reads
-the newest review file for this scope and **re-adjudicates**: rows already CLEAN /
+the newest review file for this scope and **re-adjudicates from where it stands**: rows already CLEAN /
 FIXED / REFUTED with evidence are banked (spot-verify, don't redo); `UNCHECKED` rows and un-run matrix cells
 are the remaining work; committed specs re-run cheaply as regression proof. Update artifacts **as you go**
 (after each round, not only at the end) — an artifact written only at the end is the resume state a crash
 destroys. Dead subagents' partial output dirs are evidence to harvest, not to re-earn.
 
-**Dispatched subagents run their suites SYNCHRONOUSLY.** A subagent that backgrounds a test/suite run or arms a Monitor **stalls until its budget is exhausted** — background/Monitor
+**Dispatched subagents run their suites SYNCHRONOUSLY.** A subagent that backgrounds a test/suite run or arms a Monitor and then waits for a notification **stalls until its budget is exhausted** — background/Monitor
 signals do NOT deliver to a subagent. Every gauntlet subagent runs its suite as a plain synchronous shell call
-with a generous timeout; if a suite is too slow for one call, it **splits its
+with a generous timeout and reads the exit output; if a suite is too slow for one call, it **splits its
 scope** and runs each slice synchronously. Dispatch each agent with an explicit "run synchronously; never
 background a run or wait on a Monitor/notification" instruction.

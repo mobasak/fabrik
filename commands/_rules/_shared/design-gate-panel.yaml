@@ -90,9 +90,9 @@ entries:
   class: prose
   file: commands/_fragments/design-gate-panel.md
   baseline: "In autonomy mode the Stop hook checks that line against the seats' own returned text: two approving VERDICT lines naming this artifact"
-  current: "In autonomy mode the Stop hook checks that line against the seats' returned text: two approving VERDICT lines naming this artifact"
+  current: "In autonomy mode the Stop hook checks that line against the seats' own returned text: two approving VERDICT lines naming this artifact"
   text:
-  - "In autonomy mode the Stop hook checks that line against the seats' returned text: two approving VERDICT lines naming this artifact"
+  - "In autonomy mode the Stop hook checks that line against the seats' own returned text: two approving VERDICT lines naming this artifact"
 - id: dgp-u14
   class: prose
   file: commands/_fragments/design-gate-panel.md
@@ -111,9 +111,9 @@ entries:
   class: prose
   file: commands/_fragments/design-gate-panel.md
   baseline: "A split still goes to the operator. Write the same brief, add one line per disputed concern with each seat's position, then end the turn with the command's DECISION block, its Why line naming the artifact path and its `Panel:` line ending `→ split`"
-  current: "A split still goes to the operator: write the same brief, add a line per disputed concern with each seat's position, then end the turn with the command's DECISION block, its Why line naming the artifact path and its `Panel:` line ending `→ split`"
+  current: "A split still goes to the operator: write the same brief, add one line per disputed concern with each seat's position, then end the turn with the command's DECISION block, its Why line naming the artifact path and its `Panel:` line ending `→ split`"
   text:
-  - "A split still goes to the operator: write the same brief, add a line per disputed concern with each seat's position, then end the turn with the command's DECISION block, its Why line naming the artifact path and its `Panel:` line ending `→ split`"
+  - "A split still goes to the operator: write the same brief, add one line per disputed concern with each seat's position, then end the turn with the command's DECISION block, its Why line naming the artifact path and its `Panel:` line ending `→ split`"
 - id: dgp-u17
   class: prose
   file: commands/_fragments/design-gate-panel.md

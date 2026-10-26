@@ -28,11 +28,11 @@ operator would — approve, or name the changes it wants first — and opens wit
 4. **Brief the operator** in at most ten lines under the heading `PANEL APPROVED (<artifact path>)`: what the
    file is, what it will make happen once built, each verdict in one line, the changes it caused, the approval
    row's id, the same `Panel:` line. In autonomy mode the Stop hook checks that line against the seats'
-   returned text: two approving VERDICT lines naming this artifact.
+   own returned text: two approving VERDICT lines naming this artifact.
 5. **Continue.** After the brief, run the next command named below. `/fabrik-execute-plan` is never started
    from a gate: after an approved plan, the brief's `NEXT:` names it as ready work.
 
-**A split still goes to the operator:** write the same brief, add a line per disputed concern with each
+**A split still goes to the operator:** write the same brief, add one line per disputed concern with each
 seat's position, then end the turn with the command's DECISION block, its Why line naming the artifact path and its
 `Panel:` line ending `→ split`. Other gate classes (deploy, destructive, spend, credentials, publish) stay the
 operator's.

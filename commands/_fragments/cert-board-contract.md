@@ -1,7 +1,7 @@
 Output: the **CERT BOARD + LEDGER**, generated — never hand-written.
 
-⚠️ **The denominator comes from a live REGISTRY, not from this list or a doc.** The four
-discovery modes above are **cross-checks** (their bidirectional-reconciliation value is real and is kept). The denominator resolves to a machine-readable registry of the RUNNING system,
+⚠️ **The denominator comes from a live REGISTRY, not from this list and not from a doc.** The four
+discovery modes above are **demoted to cross-checks** (their bidirectional-reconciliation value is real and is kept). The denominator resolves to a machine-readable registry of the RUNNING system,
 declared in `project.yaml::certification_registry`; undeclared falls back to the per-type default AND
 records the fallback. A registry that cannot be reached **fails LOUD naming what could not be
 enumerated**.
@@ -9,7 +9,7 @@ enumerated**.
 On a surface the project authored, the agent's enumeration and reality converge and this never bites; on an INHERITED surface it under-counts silently and the run terminates HONESTLY AND WRONG. `/fabrik-features` is NOT the fix: it documents what the project
 BUILT; certification must cover what the product SHIPS.
 
-**Two generated artifacts and one hand-written recipe, inside the run's own board directory so they archive as a unit:**
+**Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:**
 
 ```
 docs/development/certifications/YYYY-MM-DD-cert-<surface>/
@@ -58,7 +58,7 @@ itself names — asserting not just that rendered rows are right but that every 
 implies is PRESENT or its absence individually justified. No independent reference reachable → say
 so in the ledger (`reference-reconciliation: unavailable — <why>`).
 
-**The demoted doc inventory keeps its teeth.** `docs/FEATURES.md` stays a cross-check: **every FEATURES row must map to the ticket/scenario IDs that exercise it, and a
+**The demoted doc inventory keeps its teeth.** Demoting `docs/FEATURES.md` to a cross-check does NOT mean discarding it: **every FEATURES row must map to the ticket/scenario IDs that exercise it, and a
 feature with zero mapped IDs cannot be reported as working**. A large divergence between the doc inventory and the registry is
 REPORTED, not silently preferred either way.
 

@@ -259,3 +259,30 @@ Over 50%, so the floor table (D-1254): the bulk of every remaining over-minimum 
 Audit passes: pass 1 (3 fresh seats) found 0 lost / 0 invented / 0 wrong vanished labels plus 23 weakened rewordings and 5 narrative labels on rule clauses (ar-u27, cbc-u27, ce-u3, dc-u14, design-critique L23); all restored. Final fresh pass (author-blind) found 1 label (cvd-u0 clause 3, removed) and 1 weaker (ar-u33, restored) plus ar-u37 "waits" (broader, not weaker, left).
 
 COUNTS: 190 entries read / 58 reworded / 0 weaker (after fixes) / 0 lost / 0 invented / 0 wrong vanished labels
+
+## Fix round 2 (hub audit)
+
+The hub's Sonnet and Haiku audits refuted the zeros above. Each finding was checked against the before-text (`*.baseline.txt`); the original frontmatter is in no baseline file.
+
+**Confirmed and fixed** (clause restored at its baseline wording in the source; the ledger `text` and `current` match):
+- autonomy-run: `ar-u38` (lost "reads the exit output"); `ar-u1` (restored the full "to narrate progress, or to hand control back so the operator can say "continue."" ban object and the "not a conversation" rationale, and dropped the circular `duplicate-of`); `ar-u3` ("before it can even become a question" is a timing rule, so the narrative label was wrong); `ar-u7` (search targets); `ar-u8` ("for an API detail"); `ar-u9` ("to run at all"); `ar-u21` (the isolation-lost reason, narrative label removed); `ar-u34` ("from where it stands"); `ar-u37` ("and then waits for a notification": dropping it had broadened the rule).
+- design-review: `dr-u2` (the file had lost "by the lead," while the ledger still carried it); `dr-u3` ("always", "principle"); `dr-u8` ("if no PR supplied"); `L2`, `L7`, `L68` (narrative labels were wrong, now `dr-u1`, `dr-u6`, `dr-u67`); `L51` (the example, now `dr-u50x`); frontmatter `description` trigger conditions and example.
+- design-critique: `dcr-u0` ("builds anything", "the latest Opus" / "the latest Fable"); `dcr-u4` ("the commit it was read at", "the hub's").
+- design-gate-panel: `dgp-u13` ("own"); `dgp-u16` ("one line").
+- cert-visual-deliverable: `cvd-u0` (the "if a journey's deliverable IS a visual artifact" scope and the live-defect parenthetical).
+- cert-execution: `ce-u17` (the verification-depth clause); also `ce-u0`, `u1`, `u2`, `u5`, `u6`, `u8`, `u9`, `u13` (rationale parentheticals, "which are yours", "exactly why", "own ... by the sweeps", "2-minute").
+- cert-board-contract: `cbc-u24` ("does NOT mean discarding it"), `cbc-u6` ("all"), `cbc-u0` ("not from a doc", "demoted to").
+- cert-handoff-grammar: `chg-u2` ("not vibes"), `chg-u4` ("at all").
+
+**Refuted or left:**
+- Haiku's "no entry, no label" lines (design-review L16-L55, design-critique L4, design-gate-panel L12 and `dgp-u11`): the text survives verbatim in the file, so nothing is lost, and the loader reports no LOSS for them.
+- Sonnet's `ar-u16` and `ar-u18` rationale clauses (labelled narrative): left; neither holds an instruction.
+- The frontmatter `description` was rebuilt from the audits' quotations of the original (no git in this run). The hub should diff it against `git show lean-baseline-2026-10-25:commands/_agents/design-review.md`.
+
+**Own-text words:** `python3 -c` is not allowed in this run, so these are estimates from the words added, not a loader measure. Baseline 7652 -> re-ledger 5419 -> about 5700 now (about 74%). Per-file shares rise by the restored words (autonomy-run about 61%, design-review about 69%, cert-execution about 67%, cert-visual-deliverable about 98%; the others within 1-2 points). The floor table of the re-ledger round still holds: the restored clauses carry ban words or anchors.
+
+**Gates:** `assemble_commands.py --check` exits 4 and lists no LOSS line outside the `_shared` ledgers of close-chain, fabrik-researcher, fabrik-reviewer, no-workflow-hub, review-probe-catalogue and run-record; every DRIFT line is DIFFERS. `tests/test_command_rules.py` fails only on `test_the_live_corpus_has_no_loss`, from those other ledgers. Of the other gate files, `test_assemble_orch_retired` and `test_seat_home_read_rule` fail only because this clone is not a git repository (`git grep` / `git ls-files` exit 128).
+
+**Fresh passes:** none. This run cannot dispatch a subagent, so no fresh-reader pass ran; the hub's author-blind audit pair covers it. The loader's lint (A: ban words, B: clause coverage) was the only mechanical re-check, and it is not a fresh reader.
+
+COUNTS: not claimed (no fresh pass ran)

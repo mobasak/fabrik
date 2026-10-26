@@ -13,9 +13,9 @@ entries:
   class: prose
   file: commands/_fragments/cert-board-contract.md
   baseline: "⚠️ The denominator comes from a live REGISTRY, not from this list and not from a doc. The four discovery modes above are demoted to cross-checks (their bidirectional-reconciliation value is real and is kept)"
-  current: "⚠️ The denominator comes from a live REGISTRY, not from this list or a doc. The four discovery modes above are cross-checks (their bidirectional-reconciliation value is real and is kept)"
+  current: "⚠️ The denominator comes from a live REGISTRY, not from this list and not from a doc. The four discovery modes above are demoted to cross-checks (their bidirectional-reconciliation value is real and is kept)"
   text:
-  - "⚠️ The denominator comes from a live REGISTRY, not from this list or a doc. The four discovery modes above are cross-checks (their bidirectional-reconciliation value is real and is kept)"
+  - "⚠️ The denominator comes from a live REGISTRY, not from this list and not from a doc. The four discovery modes above are demoted to cross-checks (their bidirectional-reconciliation value is real and is kept)"
 - id: cbc-u2
   class: prose
   file: commands/_fragments/cert-board-contract.md
@@ -50,9 +50,9 @@ entries:
   class: prose
   file: commands/_fragments/cert-board-contract.md
   baseline: "Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:"
-  current: "Two generated artifacts and one hand-written recipe, inside the run's own board directory so they archive as a unit:"
+  current: "Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:"
   text:
-  - "Two generated artifacts and one hand-written recipe, inside the run's own board directory so they archive as a unit:"
+  - "Two generated artifacts and one hand-written recipe, all inside the run's own board directory so they archive as a unit:"
 - id: cbc-u7
   class: prose
   file: commands/_fragments/cert-board-contract.md
@@ -184,9 +184,9 @@ entries:
   class: ban
   file: commands/_fragments/cert-board-contract.md
   baseline: "The demoted doc inventory keeps its teeth. Demoting `docs/FEATURES.md` to a cross-check does NOT mean discarding it: every FEATURES row must map to the ticket/scenario IDs that exercise it, and a feature with zero mapped IDs cannot be reported as working. That clause survived the denominator change and is the cross-check's whole value — an independent second opinion is exactly what catches a generator that agrees with itself | A large divergence between the doc inventory and the registry is REPORTED, not silently preferred either way"
-  current: "The demoted doc inventory keeps its teeth. `docs/FEATURES.md` stays a cross-check: every FEATURES row must map to the ticket/scenario IDs that exercise it, and a feature with zero mapped IDs cannot be reported as working"
+  current: "The demoted doc inventory keeps its teeth. Demoting `docs/FEATURES.md` to a cross-check does NOT mean discarding it: every FEATURES row must map to the ticket/scenario IDs that exercise it, and a feature with zero mapped IDs cannot be reported as working"
   text:
-  - "The demoted doc inventory keeps its teeth. `docs/FEATURES.md` stays a cross-check: every FEATURES row must map to the ticket/scenario IDs that exercise it, and a feature with zero mapped IDs cannot be reported as working"
+  - "The demoted doc inventory keeps its teeth. Demoting `docs/FEATURES.md` to a cross-check does NOT mean discarding it: every FEATURES row must map to the ticket/scenario IDs that exercise it, and a feature with zero mapped IDs cannot be reported as working"
   clauses:
     2: narrative
 - id: cbc-u25

@@ -5,24 +5,24 @@ entries:
 - id: ce-u0
   file: commands/_fragments/cert-execution.md
   baseline: 'Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` — TWO consecutive dry discovery sweeps (the loop-until-dry rule: one clean round can be luck)'
-  current: 'Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` — TWO consecutive dry discovery sweeps (loop-until-dry rule)'
+  current: 'Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` — TWO consecutive dry discovery sweeps (the loop-until-dry rule: one clean round can be luck)'
   class: ban
   text:
-  - 'Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` — TWO consecutive dry discovery sweeps (loop-until-dry rule)'
+  - 'Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` — TWO consecutive dry discovery sweeps (the loop-until-dry rule: one clean round can be luck)'
 - id: ce-u1
   file: commands/_fragments/cert-execution.md
   baseline: 'Grader honesty — which exit conditions are machine-read and which are yours: board shape, dispositions, evidence-paths-exist and the registry/ledger are graded by `check_certification_coverage.py` (mix-ups BLOCK; coverage quality is advisory); the HANDOFF grammar and NOT-QUIET/RESUME pairing by `check_review_coverage.py`; the round ledger by `command_run.py round`'
-  current: 'Grader honesty — which exit conditions are machine-read: board shape, dispositions, evidence-paths-exist and the registry/ledger are graded by `check_certification_coverage.py` (mix-ups BLOCK; coverage quality is advisory); the HANDOFF grammar and NOT-QUIET/RESUME pairing by `check_review_coverage.py`; the round ledger by `command_run.py round`'
+  current: 'Grader honesty — which exit conditions are machine-read and which are yours: board shape, dispositions, evidence-paths-exist and the registry/ledger are graded by `check_certification_coverage.py` (mix-ups BLOCK; coverage quality is advisory); the HANDOFF grammar and NOT-QUIET/RESUME pairing by `check_review_coverage.py`; the round ledger by `command_run.py round`'
   class: prose
   text:
-  - 'Grader honesty — which exit conditions are machine-read: board shape, dispositions, evidence-paths-exist and the registry/ledger are graded by `check_certification_coverage.py` (mix-ups BLOCK; coverage quality is advisory); the HANDOFF grammar and NOT-QUIET/RESUME pairing by `check_review_coverage.py`; the round ledger by `command_run.py round`'
+  - 'Grader honesty — which exit conditions are machine-read and which are yours: board shape, dispositions, evidence-paths-exist and the registry/ledger are graded by `check_certification_coverage.py` (mix-ups BLOCK; coverage quality is advisory); the HANDOFF grammar and NOT-QUIET/RESUME pairing by `check_review_coverage.py`; the round ledger by `command_run.py round`'
 - id: ce-u2
   file: commands/_fragments/cert-execution.md
   baseline: The TWO-dry-sweeps count, the ×2 reproduction rule and the T2 batch cap are read by NO check — they bind you on honour, which is exactly why the ledger rows exist
-  current: The TWO-dry-sweeps count, the ×2 reproduction rule and the T2 batch cap are read by NO check — they bind you on honour; the ledger rows exist for that
+  current: The TWO-dry-sweeps count, the ×2 reproduction rule and the T2 batch cap are read by NO check — they bind you on honour, which is exactly why the ledger rows exist
   class: ban
   text:
-  - The TWO-dry-sweeps count, the ×2 reproduction rule and the T2 batch cap are read by NO check — they bind you on honour; the ledger rows exist for that
+  - The TWO-dry-sweeps count, the ×2 reproduction rule and the T2 batch cap are read by NO check — they bind you on honour, which is exactly why the ledger rows exist
 - id: ce-u3
   file: commands/_fragments/cert-execution.md
   baseline: A matrix cell deliberately skipped is listed SKIPPED with a reason — silent shrinkage of the inventory or matrix is the exact failure this command exists to prevent
@@ -36,18 +36,18 @@ entries:
   file: commands/_fragments/cert-execution.md
   section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
   baseline: Discovery first, fixes second — and the fixes DO happen in this run, but never in this context. The gauntlet's own context is depleted by the sweeps; the deep work runs in clean contexts while YOU stay the orchestrator ("you dispatch and judge — you do not drive")
-  current: Discovery first, fixes second — and the fixes DO happen in this run, but never in this context. The gauntlet's context is depleted; the deep work runs in clean contexts while YOU stay the orchestrator ("you dispatch and judge — you do not drive")
+  current: Discovery first, fixes second — and the fixes DO happen in this run, but never in this context. The gauntlet's own context is depleted by the sweeps; the deep work runs in clean contexts while YOU stay the orchestrator ("you dispatch and judge — you do not drive")
   class: ban
   text:
-  - Discovery first, fixes second — and the fixes DO happen in this run, but never in this context. The gauntlet's context is depleted; the deep work runs in clean contexts while YOU stay the orchestrator ("you dispatch and judge — you do not drive")
+  - Discovery first, fixes second — and the fixes DO happen in this run, but never in this context. The gauntlet's own context is depleted by the sweeps; the deep work runs in clean contexts while YOU stay the orchestrator ("you dispatch and judge — you do not drive")
 - id: ce-u6
   file: commands/_fragments/cert-execution.md
   section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
   baseline: 'Work the HANDED-OFF list on a hard schedule (no budget-feel exits): T3 doc re-freezes first (cheap, bounded) → T1 leftovers → T2 risk-ordered'
-  current: 'Work the HANDED-OFF list on a hard schedule (no budget-feel exits): T3 doc re-freezes first → T1 leftovers → T2 risk-ordered'
+  current: 'Work the HANDED-OFF list on a hard schedule (no budget-feel exits): T3 doc re-freezes first (cheap, bounded) → T1 leftovers → T2 risk-ordered'
   class: prose
   text:
-  - 'Work the HANDED-OFF list on a hard schedule (no budget-feel exits): T3 doc re-freezes first → T1 leftovers → T2 risk-ordered'
+  - 'Work the HANDED-OFF list on a hard schedule (no budget-feel exits): T3 doc re-freezes first (cheap, bounded) → T1 leftovers → T2 risk-ordered'
 - id: ce-u7
   file: commands/_fragments/cert-execution.md
   section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
@@ -60,18 +60,18 @@ entries:
   file: commands/_fragments/cert-execution.md
   section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
   baseline: 'When it returns, verify yourself before closing (a subagent''s success is a claim): re-run the repro AND the affected journeys end-to-end (surface truth AND system truth)'
-  current: 'When it returns, verify yourself before closing: re-run the repro AND the affected journeys end-to-end (surface truth AND system truth)'
+  current: 'When it returns, verify yourself before closing (a subagent''s success is a claim): re-run the repro AND the affected journeys end-to-end (surface truth AND system truth)'
   class: prose
   text:
-  - 'When it returns, verify yourself before closing: re-run the repro AND the affected journeys end-to-end (surface truth AND system truth)'
+  - 'When it returns, verify yourself before closing (a subagent''s success is a claim): re-run the repro AND the affected journeys end-to-end (surface truth AND system truth)'
 - id: ce-u9
   file: commands/_fragments/cert-execution.md
   section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
   baseline: 'T2 batch cap: more than 3 distinct owning modules on the list is a SYSTEMIC signal (the phase-boundary reviews failed upstream) — emit that finding and route the batch to a plan instead of serial review loops'
-  current: 'T2 batch cap: more than 3 distinct owning modules on the list is a SYSTEMIC signal — emit that finding and route the batch to a plan instead of serial review loops'
+  current: 'T2 batch cap: more than 3 distinct owning modules on the list is a SYSTEMIC signal (the phase-boundary reviews failed upstream) — emit that finding and route the batch to a plan instead of serial review loops'
   class: prose
   text:
-  - 'T2 batch cap: more than 3 distinct owning modules on the list is a SYSTEMIC signal — emit that finding and route the batch to a plan instead of serial review loops'
+  - 'T2 batch cap: more than 3 distinct owning modules on the list is a SYSTEMIC signal (the phase-boundary reviews failed upstream) — emit that finding and route the batch to a plan instead of serial review loops'
 - id: ce-u10
   file: commands/_fragments/cert-execution.md
   section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
@@ -100,12 +100,10 @@ entries:
   file: commands/_fragments/cert-execution.md
   section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
   baseline: The operator decides whether a spec is warranted; the brief makes that a 2-minute decision
-  current: The operator decides whether a spec is warranted
+  current: The operator decides whether a spec is warranted; the brief makes that a 2-minute decision
   class: prose
   text:
-  - The operator decides whether a spec is warranted
-  clauses:
-    2: narrative
+  - The operator decides whether a spec is warranted; the brief makes that a 2-minute decision
 - id: ce-u14
   file: commands/_fragments/cert-execution.md
   section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
@@ -126,10 +124,10 @@ entries:
   file: commands/_fragments/cert-execution.md
   section: '## Phase 7 — CONFIRMING ROUND (the code-changing pass is never the last)'
   baseline: 'After the last code-changing row closes, run one full Phase-5 round (fresh discovery sweep + full reconcile — not just affected journeys): Phase 6''s fixes are the deepest changes in the run and get the deepest re-verification'
-  current: After the last code-changing row closes (Phase 6), run one full Phase-5 round (fresh discovery sweep + full reconcile — not just affected journeys)
+  current: 'After the last code-changing row closes, run one full Phase-5 round (fresh discovery sweep + full reconcile — not just affected journeys): Phase 6''s fixes are the deepest changes in the run and get the deepest re-verification'
   class: prose
   text:
-  - After the last code-changing row closes (Phase 6), run one full Phase-5 round (fresh discovery sweep + full reconcile — not just affected journeys)
+  - 'After the last code-changing row closes, run one full Phase-5 round (fresh discovery sweep + full reconcile — not just affected journeys): Phase 6''s fixes are the deepest changes in the run and get the deepest re-verification'
 - id: ce-u18
   file: commands/_fragments/cert-execution.md
   section: '## Phase 7 — CONFIRMING ROUND (the code-changing pass is never the last)'

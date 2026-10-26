@@ -13,16 +13,16 @@ entries:
   class: ban
   file: commands/_agents/design-review.md
   baseline: "The git-verb prohibition (spec D8): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat's `git stash --keep-index` swept three sessions' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)"
-  current: "The git-verb prohibition (spec D8): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat's `git stash --keep-index` swept three sessions' uncommitted work mid-pass — recovered by content from the stash, never a pop)"
+  current: "The git-verb prohibition (spec D8): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat's `git stash --keep-index` swept three sessions' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)"
   text:
-  - "The git-verb prohibition (spec D8): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat's `git stash --keep-index` swept three sessions' uncommitted work mid-pass — recovered by content from the stash, never a pop)"
+  - "The git-verb prohibition (spec D8): NO git command that mutates state in the shared tree — no stash, checkout, reset, restore, apply, commit, clean; read-only git only (`show`, `diff`, `log`, `status`, `ls-files`); every probe on a copy (2026-09-11: a reviewer seat's `git stash --keep-index` swept three sessions' uncommitted work mid-pass — recovered by the lead, by content from the stash, never a pop)"
 - id: dr-u3
   class: prose
   file: commands/_agents/design-review.md
   baseline: "Your Core Methodology: You strictly adhere to the \"Live Environment First\" principle - always assessing the interactive experience before diving into static analysis or code"
-  current: "Core Methodology: strictly adhere to Live Environment First: assess the interactive experience before static analysis or code"
+  current: "Core Methodology: strictly adhere to the \"Live Environment First\" principle - always assessing the interactive experience before diving into static analysis or code"
   text:
-  - "Core Methodology: strictly adhere to Live Environment First: assess the interactive experience before static analysis or code"
+  - "Core Methodology: strictly adhere to the \"Live Environment First\" principle - always assessing the interactive experience before diving into static analysis or code"
 - id: dr-u4
   class: prose
   file: commands/_agents/design-review.md
@@ -35,9 +35,9 @@ entries:
   file: commands/_agents/design-review.md
   section: "## Phase 0: Preparation"
   baseline: "Analyze the PR description to understand motivation, changes, and testing notes (or just the description of the work to review in the user's message if no PR supplied)"
-  current: "Analyze the PR description (or the work description in the user's message) for motivation, changes and testing notes"
+  current: "Analyze the PR description to understand motivation, changes, and testing notes (or just the description of the work to review in the user's message if no PR supplied)"
   text:
-  - "Analyze the PR description (or the work description in the user's message) for motivation, changes and testing notes"
+  - "Analyze the PR description to understand motivation, changes, and testing notes (or just the description of the work to review in the user's message if no PR supplied)"
 - id: dr-u9
   class: prose
   file: commands/_agents/design-review.md
@@ -325,15 +325,45 @@ entries:
   current: "You maintain objectivity while constructive, always assuming good intent from the implementer"
   text:
   - "You maintain objectivity while constructive, always assuming good intent from the implementer"
+- id: dr-u1
+  class: prose
+  file: commands/_agents/design-review.md
+  baseline: "You conduct world-class design reviews following the rigorous standards of top Silicon Valley companies like Stripe, Airbnb, and Linear"
+  current: "You conduct world-class design reviews following the rigorous standards of top Silicon Valley companies like Stripe, Airbnb, and Linear"
+  text:
+  - "You conduct world-class design reviews following the rigorous standards of top Silicon Valley companies like Stripe, Airbnb, and Linear"
+- id: dr-u6
+  class: prose
+  file: commands/_agents/design-review.md
+  baseline: "You will systematically execute a comprehensive design review following these phases:"
+  current: "You will systematically execute a comprehensive design review following these phases:"
+  text:
+  - "You will systematically execute a comprehensive design review following these phases:"
+- id: dr-u50x
+  class: prose
+  file: commands/_agents/design-review.md
+  section: "## Phase 7: Content and Console"
+  baseline: "Example: Instead of \"Change margin to 16px\", say \"The spacing feels inconsistent with adjacent elements, creating visual clutter.\""
+  current: "Example: Instead of \"Change margin to 16px\", say \"The spacing feels inconsistent with adjacent elements, creating visual clutter.\""
+  text:
+  - "Example: Instead of \"Change margin to 16px\", say \"The spacing feels inconsistent with adjacent elements, creating visual clutter.\""
+- id: dr-u67
+  class: prose
+  file: commands/_agents/design-review.md
+  section: "## Phase 7: Content and Console"
+  baseline: "Your goal is to ensure the highest quality user experience while balancing perfectionism with practical delivery timelines"
+  current: "Your goal is to ensure the highest quality user experience while balancing perfectionism with practical delivery timelines"
+  text:
+  - "Your goal is to ensure the highest quality user experience while balancing perfectionism with practical delivery timelines"
 vanished:
-  L2: narrative
+  L2: {rule: [dr-u1]}
   L4: {rule: [dr-u3]}
   L6: narrative
-  L7: narrative
+  L7: {rule: [dr-u6]}
   L3: {rule: [dr-u2]}
   L9: {rule: [dr-u8]}
   L49: narrative
-  L51: narrative
+  L51: {rule: [dr-u50x]}
   L60: {rule: [dr-u58]}
   L67: {rule: [dr-u65]}
-  L68: narrative
+  L68: {rule: [dr-u67]}
