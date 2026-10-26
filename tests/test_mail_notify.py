@@ -132,13 +132,15 @@ def test_summary_forged_from_with_controls_neutralized(tmp_path):
 
 def test_summary_skips_dot_named_files_as_the_header_count_does(tmp_path):
     # pathlib's glob("*.md") matches a dot-name; the header total and mail.py list skip one, so the
-    # digest must too — an editor swap file is neither a row nor part of the "+N more" count
+    # digest must too — a dot-prefixed .md is neither a row nor part of the "+N more" count. It sorts
+    # first, so with cap=1 an unfiltered list would show it as the only row.
     inbox = tmp_path / "inbox"
     for i in range(4):
         _write_msg(inbox, f"01MSG{i:02d}")
-    (inbox / ".01MSG00.md.swp.md").write_text((inbox / "01MSG00.md").read_text())
+    _write_msg(inbox, ".01DOT", body="DOT-NAMED-SUBJECT")
     lines = hook._summaries(inbox, cap=1)
-    assert len([x for x in lines if x.startswith("[untrusted")]) == 1
+    rows = [x for x in lines if x.startswith("[untrusted")]
+    assert len(rows) == 1 and "DOT-NAMED-SUBJECT" not in rows[0]
     assert lines[-1].startswith("+3 more")
 
 
