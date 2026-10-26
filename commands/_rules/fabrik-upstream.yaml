@@ -159,11 +159,9 @@ entries:
   file: render
   baseline: 'Where this runs: any project, entirely with local project tooling — no hub shell-out, no SSH, no dependency on anything outside this project''s own tree plus what CLAUDE.md already documents about the synced-file mechanism'
   class: prose
-  clauses:
-    1: narrative
-  current: No hub shell-out, no SSH, no dependency outside this project's tree plus what CLAUDE.md documents
+  current: 'Where this runs: any project, entirely with local project tooling — no hub shell-out, no SSH, no dependency on anything outside this project''s own tree plus what CLAUDE.md already documents'
   text:
-  - No hub shell-out, no SSH, no dependency outside this project's tree plus what CLAUDE.md documents
+  - 'Where this runs: any project, entirely with local project tooling — no hub shell-out, no SSH, no dependency on anything outside this project''s own tree plus what CLAUDE.md already documents'
 - id: up-hub-where
   file: render
   baseline: 'Where this runs: hub-side only — the hub is the only side holding the real synced source and the commit path that redistributes a fix fleet-wide'
@@ -264,9 +262,9 @@ entries:
       duplicate-of: up-commit
     4:
       duplicate-of: up-commit
-  current: 'Staging precedes the gate, and the project''s own gate must run green THIS run against that staged tree: `--check` never stages anything itself, so an unstaged run leaves the gate''s doc-sync checks (which read `--cached`) testing nothing, a vacuous green'
+  current: 'The three files (the proposal, the `INDEX.md` row, the `docs/README.md` row) are staged first, THEN the project''s own gate must run green THIS run against that staged tree: `python scripts/final_gate.py --check --json` — `--check` never stages anything itself, so an unstaged run leaves the gate''s doc-sync checks (which read `--cached`) testing nothing, a vacuous green; the same three files are then committed with Agent Provenance Trailers (CLAUDE.md § EXIT), and an uncommitted proposal is not done'
   text:
-  - 'Staging precedes the gate, and the project''s own gate must run green THIS run against that staged tree: `--check` never stages anything itself, so an unstaged run leaves the gate''s doc-sync checks (which read `--cached`) testing nothing, a vacuous green'
+  - 'The three files (the proposal, the `INDEX.md` row, the `docs/README.md` row) are staged first, THEN the project''s own gate must run green THIS run against that staged tree: `python scripts/final_gate.py --check --json` — `--check` never stages anything itself, so an unstaged run leaves the gate''s doc-sync checks (which read `--cached`) testing nothing, a vacuous green; the same three files are then committed with Agent Provenance Trailers (CLAUDE.md § EXIT), and an uncommitted proposal is not done'
 - id: up-project-done
   file: render
   baseline: 'PROJECT mode is done when: the proposal file exists at `docs/reference/upstream-proposals/YYYY-MM-DD-<slug>.md` AND a self-check table confirms the addressing header (property 0) plus all four load-bearing properties, each with its own evidence line — a checkbox is not evidence'
@@ -301,9 +299,9 @@ entries:
   file: render
   baseline: (`scripts/fabrik_synced_manifest.py` is the canonical list, but it is hub-side-only — it lives at `/opt/fabrik`, not in this project's tree, so treat it as a secondary cross-check when you happen to have hub access, never the primary test from inside a project.)
   class: ban
-  current: (`scripts/fabrik_synced_manifest.py` is hub-side-only — it lives at `/opt/fabrik`, not in this project's tree, so treat it as a secondary cross-check when you happen to have hub access, never the primary test from inside a project.)
+  current: (`scripts/fabrik_synced_manifest.py` is the canonical list, but it is hub-side-only — it lives at `/opt/fabrik`, not in this project's tree, so treat it as a secondary cross-check when you happen to have hub access, never the primary test from inside a project.)
   text:
-  - (`scripts/fabrik_synced_manifest.py` is hub-side-only — it lives at `/opt/fabrik`, not in this project's tree, so treat it as a secondary cross-check when you happen to have hub access, never the primary test from inside a project.)
+  - (`scripts/fabrik_synced_manifest.py` is the canonical list, but it is hub-side-only — it lives at `/opt/fabrik`, not in this project's tree, so treat it as a secondary cross-check when you happen to have hub access, never the primary test from inside a project.)
 - id: up-missing-property
   file: render
   baseline: 'A proposal missing even one property is not done; go back and add it, never ship partial as close enough (every trade-intelligence exemplar carries all four in SOME shape — e.g. the contrast-table proposal has a recomputed evidence table, a `## Severity` blast-radius section, and a prescriptive prose-and-table replacement rather than a fenced diff (a conjunctive numbered list of four required changes, not ranked options — the only genuinely ranked exemplar is #3); the check-structure exemplar is the one carrying the fenced verbatim patches and the `## Impact if not fixed` heading — don''t swap the two when citing them)'
@@ -444,9 +442,9 @@ entries:
   class: prose
   clauses:
     3: narrative
-  current: THEN commit the same three files, explicit pathspecs, with Agent Provenance Trailers per CLAUDE.md § EXIT (`git commit -m <msg> -- <the three files>`); an uncommitted proposal is unfinished work under the same rule as any other task
+  current: THEN commit the same three files, explicit pathspecs, with Agent Provenance Trailers per CLAUDE.md § EXIT (`git commit -m <msg> -- <the three files>`) — before calling PROJECT mode done; an uncommitted proposal is unfinished work under the same rule as any other task
   text:
-  - THEN commit the same three files, explicit pathspecs, with Agent Provenance Trailers per CLAUDE.md § EXIT (`git commit -m <msg> -- <the three files>`); an uncommitted proposal is unfinished work under the same rule as any other task
+  - THEN commit the same three files, explicit pathspecs, with Agent Provenance Trailers per CLAUDE.md § EXIT (`git commit -m <msg> -- <the three files>`) — before calling PROJECT mode done; an uncommitted proposal is unfinished work under the same rule as any other task
 - id: up-never-touch-synced
   file: render
   baseline: Never touch the synced file itself, in any phase, for any reason — that boundary is the entire reason this command exists
@@ -460,11 +458,11 @@ entries:
   file: render
   baseline: 'End the run by sending the proposal to the hub via fabrik-mail (`docs/reference/fabrik-mail.md`): name the committed proposal path(s) in the body — a body with the message contract''s WHAT, WHERE, WHEN, WHO, WHY, HOW and SYSTEMIC headers (`docs/reference/fabrik-mail.md` § The message contract) — and `python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required`, `<beat>` the file''s owner in the close-out''s Route-by-BEAT table (`kaizen` for a command''s or rule''s wording, `infra` for scripts, hooks, sync and checks, and for any other synced file such as the project `CLAUDE.md`, which the map gives infra as `templates/governance/**`) — or `--to fabrik-lib --kind upstream-feedback --ack required` when the proposal is a vendored fabrik-lib module fix'
   class: prose
-  current: End the run by sending the proposal to the hub via fabrik-mail (`docs/reference/fabrik-mail.md`), committed path(s) in a body with the message contract's WHAT, WHERE, WHEN, WHO, WHY, HOW and SYSTEMIC headers (`docs/reference/fabrik-mail.md` § The message contract) — `python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required`, `<beat>` the file's owner in the close-out's Route-by-BEAT table (`kaizen` for a command's or rule's wording, `infra` for scripts, hooks, sync and checks, and for any other synced file such as the project `CLAUDE.md`, which the map gives infra as `templates/governance/**`) — or `--to fabrik-lib --kind upstream-feedback --ack required` for a vendored module
+  current: End the run by sending the proposal to the hub via fabrik-mail (`docs/reference/fabrik-mail.md`), committed path(s) in a body with the message contract's WHAT, WHERE, WHEN, WHO, WHY, HOW and SYSTEMIC headers (`docs/reference/fabrik-mail.md` § The message contract) — `python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required`, `<beat>` the file's owner in the close-out's Route-by-BEAT table (`kaizen` for a command's or rule's wording, `infra` for scripts, hooks, sync and checks, and for any other synced file such as the project `CLAUDE.md`, which the map gives infra as `templates/governance/**`) — or `--to fabrik-lib --kind upstream-feedback --ack required` for a vendored fabrik-lib module fix
   text:
   - End the run by sending the proposal to the hub via fabrik-mail (`docs/reference/fabrik-mail.md`), committed path(s) in a body with the message contract's WHAT, WHERE, WHEN, WHO, WHY, HOW and SYSTEMIC headers (`docs/reference/fabrik-mail.md` § The message contract)
   - '`python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required`, `<beat>` the file''s owner in the close-out''s Route-by-BEAT table (`kaizen` for a command''s or rule''s wording, `infra` for scripts, hooks, sync and checks, and for any other synced file such as the project `CLAUDE.md`, which the map gives infra as `templates/governance/**`)'
-  - '`--to fabrik-lib --kind upstream-feedback --ack required` for a vendored module'
+  - '`--to fabrik-lib --kind upstream-feedback --ack required` for a vendored fabrik-lib module fix'
 - id: up-roundtrip-intro
   file: render
   baseline: 'When the hub has replied to a proposal you filed, the round-trip is its own proposal file (same path pattern, new date, own addressing header) and carries:'
@@ -527,9 +525,9 @@ entries:
   clauses:
     3:
       duplicate-of: up-dispatch-step
-  current: 'Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per claim (or per proposal file) plus the Opus seat, in one message — the claim count is the PARTITION; `dispatch_headroom.py --units <claims> --mechanical 0` prints the seats — never a token one (D-191 — re-verifying a claim is a judgement, no Haiku mechanical seat)'
+  current: 'Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per claim (or per proposal file) plus the Opus authoritative seat, all dispatched in a single message — the claim count is the PARTITION; `dispatch_headroom.py --units <claims> --mechanical 0` prints the seats — never a token one (D-191 — re-verifying a claim is a judgement, no Haiku mechanical seat)'
   text:
-  - 'Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per claim (or per proposal file) plus the Opus seat, in one message'
+  - 'Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per claim (or per proposal file) plus the Opus authoritative seat, all dispatched in a single message'
   - the claim count is the PARTITION; `dispatch_headroom.py --units <claims> --mechanical 0` prints the seats
   - never a token one (D-191 — re-verifying a claim is a judgement, no Haiku mechanical seat)
 - id: up-verdict
@@ -633,7 +631,7 @@ entries:
   file: render
   baseline: This replaces the old operator-relay hand-off — the hub's next session surfaces the mail automatically and runs HUB mode; no hub shell-out needed
   class: prose
-  current: 'Next command: PROJECT mode (including its Phase 3 round-trip) ends by `python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required` (`<beat>` per Phase 2) — the hub''s next session surfaces the mail and runs HUB mode; this replaces the old operator-relay hand-off: no operator relay, no hub shell-out needed'
+  current: 'Next command: PROJECT mode (including its Phase 3 round-trip) ends by `python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required` (`<beat>` per Phase 2) (proposal path(s) in the body, under the message contract''s seven headers as Phase 2 says) — the hub''s next session surfaces the mail and runs HUB mode; this replaces the old operator-relay hand-off: no operator relay, no hub shell-out needed'
   text:
   - 'the hub''s next session surfaces the mail and runs HUB mode; this replaces the old operator-relay hand-off: no operator relay, no hub shell-out needed'
 - id: up-output-format
@@ -650,7 +648,7 @@ entries:
   file: render
   baseline: 'Next command: PROJECT mode (including its Phase 3 round-trip) ends by `python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required` (`<beat>` as PROJECT mode''s send names it) (proposal path(s) in the body, under the message contract''s seven headers as Phase 2 says) — the hub''s next session surfaces the mail and runs HUB mode; no operator relay, no hub shell-out needed'
   class: prose
-  current: 'Next command: PROJECT mode (including its Phase 3 round-trip) ends by `python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required` (`<beat>` per Phase 2) — the hub''s next session surfaces the mail and runs HUB mode; this replaces the old operator-relay hand-off: no operator relay, no hub shell-out needed'
+  current: 'Next command: PROJECT mode (including its Phase 3 round-trip) ends by `python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required` (`<beat>` per Phase 2) (proposal path(s) in the body, under the message contract''s seven headers as Phase 2 says) — the hub''s next session surfaces the mail and runs HUB mode; this replaces the old operator-relay hand-off: no operator relay, no hub shell-out needed'
   text:
   - 'Next command: PROJECT mode (including its Phase 3 round-trip) ends by **`python scripts/mail.py send --to fabrik --to-agent <beat> --kind request --ack required`** (`<beat>` per Phase 2)'
   - 'the hub''s next session surfaces the mail and runs HUB mode; this replaces the old operator-relay hand-off: no operator relay, no hub shell-out needed'
