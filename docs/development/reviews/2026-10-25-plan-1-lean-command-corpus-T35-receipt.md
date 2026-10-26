@@ -48,3 +48,13 @@ Two author-blind audits (Sonnet: 30 findings; Haiku: 59) read the cut against `l
 - **Invented rules:** none (both audits).
 - **Gates:** `tests/test_command_rules.py` 32 passed, 3 skipped; `assemble_commands.py --check` exit 1 with only DIFFERS/MISSING drift, no LOSS.
 - **Words (own text):** baseline 4898 → first cut 2781 → after fix 3950.
+
+## Re-ledger round (canonical loader, W-96f36043)
+
+- Base: origin/claude/lean-t35-fix; first commit is the loader swap (`commands/command_rules.py`, `tests/test_command_rules.py`, `docs/reference/command-corpus-check.md` from origin/master, W-9cd8653d merged), never edited after.
+- Own-text words (`len(own_text.split())`, front matter included): baseline 4898 -> fix round 3950 -> now 4699 (95% of baseline). **Target 50% not met; the count went UP from the fix round by 749**: under the canonical loader every ban clause must stand word for word from its ban word to the end of its `;`/`—` clause (parentheticals, history and examples inside it included), and each clause needs ONE phrase holding all its anchors, so the fix round's rewordings (which the old loader accepted) had to be restored.
+- Own-ledger LOSS: 46 -> 0 (`assemble_commands.py --check`; the remaining LOSS lines are all `_shared/*.yaml`, the shared-file unit's).
+- Ledger rebuilt from the baseline: 106 entries (one per baseline rule unit), 102 reworded / 4 kept whole, real `class:` and `clauses:` keys, 0 `clauses:` label(s), every `text` phrase the smallest window the D-1240 reading covers (all anchors, >=70% of the first 8 stems, the ban word's next word, the whole ban span). Vanished labels: 50 lines.
+- Floor (why not 50%): the protected windows alone are about 70% of the live text; they are forced by (a) ban spans verbatim to clause end, (b) clauses whose 4-9 backticked/numeric anchors must sit in ONE phrase, (c) history inside ban clauses that D-1238 point 1 forbids labelling narrative. I measured the pure-telegraphic floor (anchors + 6 stems + ban spans, nothing else) at 47-55% of the unit words; reaching it would leave text that no longer reads as instructions, so I stopped at the readable floor.
+- Self-audit: one fresh Sonnet auditor read baseline, rewrite and ledger; its findings (LOST/WEAKER/WRONG-LABEL) were fixed in the rewrite (dropped qualifiers restored) and the ledger regenerated. Residual: see COUNTS in the hub summary; hub author-blind audit still owed.
+- LEFT FOR THE HUB: policy call on D-1238 point 1 / D-1240 (they force history retention and make 50% unreachable for ban-dense commands); ratchet `_size_ceiling.json`; CHANGELOG/INDEX rows.
