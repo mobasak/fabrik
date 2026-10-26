@@ -1,0 +1,4 @@
+shared: commands/_fragments/grounding-artifact.md
+baseline_sentences: grounding-artifact.baseline.txt
+baseline_sha256: "95e45e1792aa5d43eaf4f0144f69a8004d3329365481d06ee2f92f28af6af106"
+entries: []

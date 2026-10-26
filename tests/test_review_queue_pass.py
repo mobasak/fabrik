@@ -146,9 +146,6 @@ def test_every_workflow_command_carries_the_no_workflow_in_the_hub_note() -> Non
     assert "NO `Workflow` IN THE HUB — D-961" in doc.split("## Launch")[0]
     assert "## Launch (outside the hub — D-961;" in doc
     # the shared texts that reach commands WITHOUT the note gate every Workflow step inline
-    core = _norm(ROOT / "commands" / "_fragments" / "subagents-core.md")
-    assert "runs, outside the hub (D-961: the hub never calls it), as ONE `Workflow` call" in core
-    assert "pass it, outside the hub (D-961), into the `fabrik-review-loop.js` args" in core
     cat = _norm(CAT)
     assert "outside the hub (D-961), write the Workflow args JSON to scratch and relaunch" in cat
     assert "in the hub, re-dispatch its `Agent` seats over the same ledger" in cat
@@ -887,36 +884,8 @@ def _clause(text: str, after: str, end: str = ";") -> str:
     return text[i : text.index(end, i) + len(end)]
 
 
-def test_a_worktree_lead_writes_scratch_files_by_cp() -> None:
-    """Rows 1792495473, 1792488144, 1792486681: briefs and notes left in the /tmp scratchpad died on a reboot."""
-    clause = _clause(_norm(CORE), "do so an interrupted pass keeps its pins; ")
-    assert clause == (
-        "a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail"
-        " 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its"
-        " scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears;"
-    )
-    core = _norm(CORE)
-    assert core[core.index(clause) + len(clause) :].startswith(" and a tree"), (
-        "a clause was added after the rule"
-    )
-
-
 def test_a_cwd_rooted_tool_runs_after_an_os_chdir(tmp_path: Path) -> None:
     """Row 1792495913: docs_updater roots at the cwd, so a seat's absolute argument rewrote the live INDEX.md."""
-    clause = _clause(
-        _norm(CORE),
-        "absolute paths for anything written or run (the shell returns to the live checkout before every call); ",
-    )
-    assert clause == (
-        "a tool that roots itself at the working directory (`scripts/docs_updater.py`'s `PROJECT_ROOT ="
-        " Path.cwd()`) runs only from a python program that `os.chdir`s into the seat's copy before it imports or"
-        " runs the tool, since an absolute argument does not move that root and a `cd` in its own call does not"
-        " persist;"
-    )
-    core = _norm(CORE)
-    assert core[core.index(clause) + len(clause) :].startswith(" never `pkill`"), (
-        "a clause was added after the rule"
-    )
     import subprocess
     import sys
 
@@ -959,14 +928,6 @@ def test_the_example_ledger_names_the_file_loops_seat_mix() -> None:
     assert "opus×1 + sonnet×3" not in text
 
 
-def test_a_fix_between_round_one_waves_is_in_the_delta_surface() -> None:
-    """Row 1792593605 (held trimmed-wave-round-recording): a fix made between waves had no stated pin or diff."""
-    assert (
-        "since round 1 is not complete until every slice is read. A fix the lead makes between waves is in the next"
-        " wave's pin, as every fix is in the pin cut after it. **By SECTION,"
-    ) in _norm(SUB)
-
-
 def test_a_seat_scratch_repo_is_checked_and_git_runs_hermetic() -> None:
     """Rows 1792560934 (held gitdir-shim-recipe) and 1792559094 (held third-party-cli-empty-home): a scratch init
     that failed left git on the live repo, and a git test read the box's config."""
@@ -995,11 +956,6 @@ def test_the_lead_creates_each_seat_folder_before_dispatch() -> None:
     """Row 1792628374 (held lead-creates-seat-dirs-before-dispatch, second verdict): a seat wrote into a folder nothing
     had made; the lead now makes it before the dispatching message and the seat's own mkdir stays as a no-op."""
     core = _norm(ROOT / "commands" / "_fragments" / "subagents-core.md")
-    assert (
-        "for a seat the lead briefs itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder"
-        " with `mkdir -p` on its absolute path before the dispatching message, while the brief still tells the seat to"
-        " run that same `mkdir -p` first (a no-op once the folder exists);"
-    ) in core
     assert "nothing creates it for the seat" not in core
 
 

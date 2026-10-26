@@ -1,0 +1,4 @@
+shared: commands/_fragments/test-generation-loop.md
+baseline_sentences: test-generation-loop.baseline.txt
+baseline_sha256: "c7394d5e63ca5e1b3a2d68428fc47085bdb30b1167f265fca27cc6513a24ede2"
+entries: []

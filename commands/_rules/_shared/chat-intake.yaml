@@ -1,0 +1,4 @@
+shared: commands/_fragments/chat-intake.md
+baseline_sentences: chat-intake.baseline.txt
+baseline_sha256: "005911b4172db18ae2b84ec5b3a2abe6f7167932b07049cf80090d512f2b59e0"
+entries: []

@@ -1,0 +1,4 @@
+shared: commands/_fragments/injection.md
+baseline_sentences: injection.baseline.txt
+baseline_sha256: "f1f7d60f753a1d9ba5912ed0fe4306635c110612ab07485e5e970ef09919ed27"
+entries: []

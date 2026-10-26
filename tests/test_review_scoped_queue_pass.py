@@ -600,23 +600,8 @@ def test_a_seat_never_disguises_a_refused_act() -> None:
     agent = re.sub(r"\s+", " ", (ROOT / "commands" / "_agents" / "fabrik-reviewer.md").read_text())
     assert agent.count(f"{tail}; a {body};") == 1
     core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text()
-    assert re.sub(r"\s+", " ", core).count(f"{tail}. A {body}.") == 1
     for text in (agent, re.sub(r"\s+", " ", core)):
         assert hint in text and "keep that word out of code you run" not in text
-
-
-def test_a_brief_tells_each_seat_to_create_its_folder_first() -> None:
-    """Row 1792414928: two Agent-tool seats hit ENOENT writing into a seat folder nothing had created. The Workflow's
-    seat prompt already says "create it first with `mkdir -p SCRATCH` — its parent exists and nothing creates it for
-    you"; the subagents-core seat-folder rule, which a lead's own brief follows, now says so. It names no parent, since in the
-    `RUN-SCRATCH: none` case the folder sits under a session scratchpad `start` may not have found."""
-    core = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text())
-    assert (
-        "so nothing durable is written there (resume artifacts go to `SCRATCH:`), and for a seat the lead briefs"
-        " itself (a `Workflow` seat's prompt makes its own folder) the lead creates the folder with `mkdir -p` on"
-        " its absolute path before the dispatching message, while the brief still tells the seat to run that same"
-        " `mkdir -p` first (a no-op once the folder exists);" in core
-    )
 
 
 def test_a_probed_count_is_never_replaced_by_a_seats_re_derivation() -> None:

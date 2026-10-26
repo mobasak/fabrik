@@ -1,0 +1,4 @@
+shared: commands/_fragments/delegated-reads.md
+baseline_sentences: delegated-reads.baseline.txt
+baseline_sha256: "c7e7818be3458527b0239c5fcc4bb5de4275d3b5cd11d24e18225b3e18e6ed5d"
+entries: []
