@@ -31,3 +31,15 @@ Two author-blind audits (Sonnet 75 findings over both commands, Haiku 95, overla
 - **Floor (why not ≤50%):** the loader covers a clause only when ONE phrase holds all its anchors (backticked tokens, numbers, paths) and ≥70% of its first 8 content stems, and a ban-word clause stays verbatim to the end of its `;`/`—` clause or sentence. Measured on the baseline: T370. A grammatical rewrite cannot go below the clause-by-clause minimum (further stopword/tail removal measured at ~85–94%); only a word-bag text reaches the mechanical floor, which this worker did not ship because it would read as noise to the agent. Clauses over their minimum are those whose ban span or anchors sit inside parentheticals/recipes (the Phase-6 stage/run recipes, the VERDICT line, the termination-contract sentence, the `must`/`only`/`never` clauses), which D-1240 holds verbatim; the removable rest (narrative: 760-companies, 'many specs', the 0/5/0 measurement, example lists) was labelled `narrative` and deleted.
 - **Self-audit:** one author-blind Sonnet pass over baseline, rewrite and ledger found T371 findings; all fixed (restored dropped clauses, relabelled L7). COUNTS: T372.
 - **LEFT FOR THE HUB:** `_size_ceiling.json` ratchet, CHANGELOG/INDEX, the author-blind pair, the floor D-row, shared-file LOSS (T01d).
+
+## Fix round 2 (hub audit, cloud worker `lean-t22-t37-rl-fix`)
+
+Two author-blind hub audits (Sonnet, Haiku; overlapping) refuted the round-1 zeros. Every finding was checked against `lean-baseline-2026-10-25:commands/_sources/fabrik-deploy-verify.md`.
+
+- **Confirmed and fixed:** r-90, r-12, r-21 (and Haiku's L21 label), r-119, r-43, r-45, r-125 restored in the source and each carrier.
+- **Refuted:** none. Findings that cite only dropped evidence or an example (e.g. ledger `text` carriers attached to a neighbouring unit) were treated as low and, where they held an instruction or a number, restored anyway.
+- **Pass-1 extras restored:** r-12 (`is the one exception`), r-22 (`if given`), r-37 (`transient … from this box`).
+- **Own-text words:** baseline 4583 → re-ledger 4322 → now 4385 (96% of baseline; over the 50% floor because the loader's one-phrase anchor + 70%-stem test and verbatim ban clauses hold the text).
+- **Gates:** `pytest tests/test_command_rules.py -rP` — no LOSS line for this ledger (the one failing test reports `_shared/*.yaml` LOSS only, another unit's). `assemble_commands.py --check` not re-run in this environment.
+- **Fresh self-audit:** 2 fresh subagent passes (never the author). Pass 1 found 6 WEAKER items across both commands (checklist r-52, r-91, r-2; verify r-12, r-22, r-37), all restored. Pass 2 (new subagent) found nothing.
+- **Last fresh pass:** `COUNTS: entries read 234 / reworded 95 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0` (both commands combined; 2 fresh passes ran).
