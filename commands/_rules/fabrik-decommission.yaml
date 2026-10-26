@@ -11,9 +11,7 @@ entries:
   baseline: Run this from the hub (`/opt/fabrik`) — it needs fleet DNS/SSH reachability a project-side agent does not have (deploy is trigger-not-execute for projects; the hub is the execution side)
   class: prose
   text:
-  - Run this from the hub (`/opt/fabrik`)
-  clauses:
-    2: narrative
+  - Run this from the hub (`/opt/fabrik`) — it needs fleet DNS/SSH reachability a project-side agent does not have (deploy is trigger-not-execute for projects; the hub is the execution side)
 - id: cu-L4
   baseline: This is a bounded GROUND TRUTH → DECIDE → CONFIRM → EXECUTE run for ONE name, not an open loop
   class: prose
@@ -218,7 +216,7 @@ entries:
   class: ban
   text:
   - MUST match the "before" counts exactly
-  - preserved 8 uncommitted files, the captcha move 6; `CHANGELOG.md` 2026-08-07)
+  - 'preserved 8 uncommitted files, the captcha move preserved 6 (`CHANGELOG.md` § "Changed — captcha project retired and archived; the deployed service stays live" (2026-08-07, the RETRACTED claim), `CHANGELOG.md` § "Changed — wpf retired and archived" (2026-08-07))'
 - id: cu-L43
   baseline: 'A mismatch is a CRITICAL failure: stop, do not proceed to bookkeeping, report the discrepancy'
   class: prose
@@ -429,9 +427,6 @@ entries:
   - decommission*, the operator's own `fabrik destroy specs/services/<id>.yaml` run is the next action (never auto-chained from here);
   - '*migrate-consumers-first*, the named blockers are the next'
 vanished:
-  L2:
-    rule:
-    - cu-L2
   L4:
     rule:
     - cu-L4
