@@ -672,6 +672,12 @@ def test_a_phrase_that_normalises_to_nothing_is_refused(tmp_path: Path) -> None:
     assert _losses(t) == []
 
 
+def test_a_raw_forbidden_phrase_present_in_the_render_is_a_loss(tmp_path: Path) -> None:
+    t = _tree(tmp_path, render=SOURCE + "\n**bold**\n")
+    _ledger(t, [{**ENTRY, "forbidden": ["**"]}])
+    _one(_losses(t), "forbidden phrase present")
+
+
 def test_normalise_is_idempotent_on_every_live_unit() -> None:
     # `_check` re-normalises a stored `current`; a unit that changes on a second pass can never match
     # (a unit ending in " ." kept its space: "HTTP 404 ." -> "HTTP 404 " -> "HTTP 404"; emphasis

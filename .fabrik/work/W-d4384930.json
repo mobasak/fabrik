@@ -17,10 +17,10 @@
     "5ebbb43736dc02d547019455c8422c29993d4ae01e32efe1132d63efc299d986"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-25: cloud credits are separate from usage credits (the usage page: 'Cloud session credits — applies automatically to cloud sessions'); usage credits stay off; the cloud drain runs on the cloud credit",
   "owner": "",
   "priority": 2,
   "question": "Should \"usage credits\" (overage) be turned on at claude.ai/settings/usage for ob, ozgurbasak, can and mob, so the $250 cloud credits can be spent before they expire on 2026-11-04?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should \"usage credits\" (overage) be turned on at claude.ai/settings/usage for ob, ozgurbasak, can and mob, so the $250 cloud credits can be spent before they expire on 2026-11-04?"
 }

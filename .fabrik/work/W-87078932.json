@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T10:49:35.805785Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-87078932",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make --pick and drain prefer the account with the most weekly headroom and refuse one whose live seven_day reading is at its wall (server status rejected, or 100%), naming it; test both against a fixture status JSON; supersede the --pick ordering in the doc",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "cloud-dispatch"
+  ],
+  "title": "cloud_dispatch.py sends runs to accounts at Anthropic's weekly wall: --pick ranks the HIGHEST weekly % first (docs/workstation/cloud-dispatch.md § --pick) and the credit guard treats the weekly reading as advisory only, but a cloud run draws the weekly plan and is refused at its wall (16 lean runs 2026-10-25: usage_limit_reached 429, seven_day rejected; 7 lost partial work)"
+}
