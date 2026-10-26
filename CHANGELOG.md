@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The Stop hook no longer reads a numbered findings list as an operator menu; class-8 drift lines say why (D-1264, 2026-10-27)
+- `.claude/hooks/final_gate_stop.py`: the D2 menu check read a `?` anywhere after a numbered list's start as the
+  hand-off cue, so a findings list reported while review seats were out blocked the turn whenever one item asked
+  a question. A numbered list's `?` is now read after the list, unless most of its items ask or its last item
+  does; inline code inside the items is blanked first; choice words (pick, prefer, your call …) still hand off
+  from anywhere, and lettered lists keep the old rule. Over the 54 texts the hook had blocked as D2, 7 stop
+  firing, every one a findings list; no real operator menu is lost. Mail 01M5B996F3.
+- `scripts/work.py`: `status` and `sync --check` print a class-8 line with the plan's Status line (printable, at
+  most 60 characters; `unreadable (…)` or `missing (no Status: line in its first 4000 characters)` otherwise),
+  the five statuses, what check_convergence wants of an EXECUTED plan, and the archive as a superseded plan's
+  remedy. `docs/reference/work-tracking.md` says the same.
+
 ### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
 
 - W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In
