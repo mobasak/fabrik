@@ -47,7 +47,7 @@ you close** — a bare close would end the CALLER when this command runs nested 
 # normal reconciliation targets.
 python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
 # Covers: AGENTS.md · CLAUDE.md · agents-fabrik*.md · .windsurf/rules/**
-# docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · …
+#         docs/reference/MD/** · docs/reference/kilo/** · fabrik-lifecycle.md · tech-stack guide · …
 ```
 
 *(In the HUB, or from anywhere on this box, the canonical list is

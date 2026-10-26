@@ -32,3 +32,12 @@
 - Gates: `tests/test_command_rules.py` 53 passed, 3 skipped, 1 failed (`test_the_live_corpus_has_no_loss`: only `_shared/*` T01d LOSS lines); `assemble_commands.py --check` rc 1, DIFFERS/MISSING drift only. Reader-test run: see the closing summary.
 - LEFT FOR THE HUB: second author-blind audit; the decision on whether `duplicate-of` may point at an entry whose phrases live in an included fragment (used here for L16/L17).
 - Reader-test run (per-file pytest over the stem readers + corpus-glob tests, plus the ticket's extra tests; clone lacks box services and psycopg etc.): 34 files (incl. `tests/test_docs_review_queue_pass.py`); start and end both 46 FAILED/ERROR lines, 1654 passed, failure SET identical (diff empty).
+
+## Fix round 2 (hub audit)
+
+- Findings: 2 audits, 16 raw items, 7 distinct classes. **Confirmed and fixed (6):** POOL OFF paragraph (L16/L17, incl. `fanout`/`pick_models`/`set_quality`/`record_agent_run`/`results_table`, NATIVE roster, flywheel back-fill) restored verbatim; lock-list fence comments (SEEDED_NOT_ENFORCED, `# Covers:` paths) restored in the fence; `dr-unprompted` clause 4 and `dr-convergence-def` clause 2 restored (were wrongly `narrative`); L50 illustration clause restored; L2 opening line and `DOCS UPDATE CONVERGENCE` title restored (L2's `duplicate-of: u-L74` was wrong); frontmatter `(parallel reconcilers)` / `with cited evidence` restored; "Go straight into the next reconciliation pass … keep chaining" (L82, not carried by u-L80) restored. **Refuted (1):** `u-L64` "Pass Ledger rows" — "Pass" ends the previous line in both baseline and rewrite (line wrap), identical text.
+- Ledger: dr-pool-off-fragment, dr-lock-list (class grammar, whole-fence phrase), dr-live-or-wrong, dr-unprompted, dr-convergence-def now carry full text; added dr-converge-opening, dr-keep-chaining; `vanished:` is only `L1: narrative` (title/frontmatter delimiter).
+- Own-text words: baseline 2786 → re-ledger 2539 → now 2786 (100%; floor table not needed).
+- Gates: `tests/test_command_rules.py` zero LOSS for fabrik-docs-review (only `_shared/*` LOSS remains); `assemble_commands.py --check` rc 4 (DIFFERS/MISSING drift + `_shared` LOSS).
+- Fresh passes run: 1 (one fresh subagent given only baseline, rewrite, ledger); it found nothing except a whitespace indent in a fence comment, which was restored.
+- `COUNTS: entries read 84 / reworded 0 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0`
