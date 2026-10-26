@@ -9,8 +9,7 @@ in-container port that only works in dev, a healer restarting a mid-migration co
 catch HERE, on paper, before anything runs. This command **authors only**: no `fabrik apply`, no SSH
 mutation, no store upload — and no convergence claim (`/fabrik-deploy-plan-review` owns that). The failure
 classes named below (A1, A5, B1, B2, B3, M2, M3) are defined in
-`docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md` — the review whose findings
-seeded this command's section list; each is also glossed inline where it binds.
+`docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md`.
 
 **You are at step 3 of the chain below — previous: `/fabrik-release` (Gate-2 handoff) · next: `/fabrik-deploy-plan-review`.**
 
@@ -58,16 +57,14 @@ embed the fenced outputs in the plan header:
 - the service's tree clean and pushed (`git -C /opt/<service> status --short` empty,
   `git -C /opt/<service> log @{u}..HEAD` empty — upstream-relative, never a hardcoded
   `origin/<branch>`: the fleet splits across `master`/`main`/fork-convention branches and the
-  hardcoded form exits FATAL with empty stdout, which reads as "nothing unpushed" — the fail-open
-  `/fabrik-release` Phase 0 already kills; no upstream configured → `git log HEAD --not --remotes`
+  hardcoded form exits FATAL with empty stdout, which reads as "nothing unpushed"; no upstream configured → `git log HEAD --not --remotes`
   (THIS branch only — `--branches` catches a sibling session's parked branches) and say so, never
   guess);
 - the service's `CHANGELOG.md [Unreleased]` (or the cut version) describes what this deploy ships.
 
 OR the operator explicitly waived release readiness THIS turn — record the waiver verbatim in the header.
 Neither → `BLOCKED: release readiness unproven — run /fabrik-release first`. A header that merely asserts
-"release: PASS" with no fenced evidence is the exact fabrication the review command is instructed to
-reject — and hub-repo evidence pasted for a service claim is the same fabrication.
+"release: PASS" with no fenced evidence (or hub-repo evidence pasted for a service claim) is the fabrication the review command rejects.
 
 **⚠️ Second precondition (VPS surfaces) — the parity contract is FROZEN, and it is a plan INPUT.** Run
 `scripts/verify_prod_parity.py --header` in the SERVICE's checkout (`git -C` semantics as above — the
@@ -105,8 +102,7 @@ inside them.
    repo itself has none) and dispatch against the LIVE registry
    (`/opt/fabrik/src/fabrik/scaffold.py::SCAFFOLD_TYPES` — 12 types). Hub-side runs verify the table
    below against it (on divergence the REGISTRY wins: proceed on the registry and record the divergence
-   in the plan's `## Self-audit` — or, on a plan-less ending like the LEGACY verdict, in your report —
-   the stale table is a corpus defect for the operator); a project-side run that cannot reach the hub
+   in the plan's `## Self-audit` — or, on a plan-less ending like the LEGACY verdict, in your report); a project-side run that cannot reach the hub
    tree proceeds on the table and says so:
 
    | `type` | Surface | Plan shape |
@@ -257,15 +253,13 @@ printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner
 touch /run/fabrik-autoheal/pause'"` (**OWNER FIRST, pause second — deliberate ordering**: a
 half-landed open then leaves OUR stem-verifiable owner with no pause — repairable by re-running the
 full open ONCE — while a `pause` with NO owner is always someone ELSE's: the healer's own header
-documents the operator's bare-`touch`-no-owner contract, so no repair path ever writes over or
-removes an ownerless pause) and every
+documents the operator's bare-`touch`-no-owner contract) and every
 heartbeat step is the STEM-GUARDED variant —
 `ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause ] &&
 [ -f /run/fabrik-autoheal/pause.owner ] &&
 grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner && touch /run/fabrik-autoheal/pause &&
 printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner ||
-echo OWNERSHIP-LOST'"` — the guard proves BOTH files live before refreshing (a heartbeat that
-silently re-created a vanished pause would hide that the healer was LIVE during the gap), so an
+echo OWNERSHIP-LOST'"` — the guard proves BOTH files live before refreshing, so an
 `OWNERSHIP-LOST` heartbeat means the window is no longer intact — ours taken, or the pause gone —
 and the sensitive step STOPS while the deploy's fresh two-file probe disambiguates (theft → the
 halt protocol; vanished → the deploy's full re-open procedure); NEVER re-take a lost
@@ -310,10 +304,7 @@ call through the real API proving pools/queues are live post-init), a queue-drai
 the service has workers, companion-service reachability (each compose sibling probed from the app
 container), ACME/cert diagnostics for a new domain (the acme log read BEFORE the TLS test, so a
 cert-pending state isn't misread as a routing failure), and same-origin routing probes where routing is
-nontrivial. Store surfaces: artifact installability + a first-run smoke on the built artifact. (The
-battery is AUTHORED here; `/fabrik-deploy` runs it at deploy time — after the runbook, EXCEPT when the
-runbook's terminal step is a DEFERRED gate, where it runs immediately before that gate (nothing can
-run after it); hub-side for VPS, project-side for stores.)
+nontrivial. Store surfaces: artifact installability + a first-run smoke on the built artifact. (The battery is AUTHORED here; `/fabrik-deploy` runs it at deploy time, timed per Phase 4; hub-side for VPS, project-side for stores.)
 
 **The battery is NOT the parity contract, and neither replaces the other.** The battery proves the DEPLOY
 works (write path, queue drain, companions, routing); the contract — `scripts/verify_prod_parity.py`,
@@ -368,12 +359,8 @@ later `CONVERGED` flip) hard-check them:
   configs, the plan file itself);
 - `## Behavior Contract` — one row per **user-observable** post-deploy behavior, each with the check that
   proves it (`Given` the deploy ran, `When` <probe>, `Then` <observable>). For a deploy this is the
-  verification battery stated as behaviors rather than commands: the route answers through Traefik, the
-  health endpoint reports its real dependencies, the scheduled job fires once, the rollback restores the
-  prior tag. ⚠️ **Omitting it fails the gate**, and the failure is discovered at gate time rather than at
-  authoring time: `check_test_proposal.evaluate_plan` refuses any new plan without the section —
-  *"missing a `## Behavior Contract` section — enumerate a test per user-observable behavior, not a single
-  One-Test Rule"*. It is NOT enforced by `check_plan_quality` (whose `Behavior Contract` pillar is
+  verification battery stated as behaviors rather than commands. ⚠️ **Omitting it fails the gate**, and the failure is discovered at gate time rather than at
+  authoring time: `check_test_proposal.evaluate_plan` refuses any new plan without the section. It is NOT enforced by `check_plan_quality` (whose `Behavior Contract` pillar is
   spine-only, gated on `## Ticket Board`), so grepping that gate alone suggests a deploy monolith is
   exempt. It is not.
 - `## Evidence` — the fenced probe outputs backing each section's claims;
@@ -385,8 +372,6 @@ in `## Evidence`. Consequences: every Phase section — including an `N/A-<surfa
 citation (for an N/A, cite the artifact that PROVES inapplicability, e.g. the `eas.json:1` that makes the
 surface mobile); and write the runbook's steps as numbered list items, never `### Step N` headings (each
 such heading inflates the per-heading citation denominator).
-
-End by naming the next command.
 
 Next command: /fabrik-deploy-plan-review — adversarially converge the deploy plan before it is trusted.
 
