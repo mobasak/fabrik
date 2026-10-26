@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
+
+A session whose env carries `ANTHROPIC_API_KEY` and none of the credentials that could replace it
+(a plan OAuth token, `ANTHROPIC_AUTH_TOKEN`, a Bedrock/Vertex/Foundry switch) draws no plan quota,
+so the hold no longer binds it while the fleet-exhausted stamp plainly reads `walled` or
+`urgent-90`: `.claude/hooks/quota_stop.py` turns its deny into an allow (a stderr note in the
+verbose transcript), `scripts/sysadmin/quota_posture_hook.py` skips its RED deny and AMBER notice
+and replaces the prompt line's CHECKPOINT clause with one naming the exemption, and
+`.claude/hooks/final_gate_stop.py` keeps the session's Stop causes armed instead of yielding. The
+battery hold (D-898) and any unknown stamp still hold it. Today this serves a window launched by
+hand on a key; `scripts/api_credit.py` children run `--safe-mode` and never run hooks. W-effb7141.
+
 ### Changed — cloud dispatch: a cloud run draws the account's weekly plan and is refused at its wall (2026-10-26)
 
 `docs/workstation/cloud-dispatch.md`'s billing bullet now records that cloud runs spend the account's weekly plan usage and are refused at its wall (16 lean runs, `usage_limit_reached` / `seven_day` `rejected`), so the $250 credit is not capacity on top of the plan, and the intro, `--pick`, the credit guard and `--allow-plan-usage` point at it; the credit's own drawdown stays open (D-1237, W-b00d9d72; follow-up W-87078932).

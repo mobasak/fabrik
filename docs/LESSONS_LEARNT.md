@@ -7835,3 +7835,17 @@ document.
   duration. (2) Bind each to the record. (3) Mutate each binding on a copy and watch a named grader fail before
   calling it covered; an option-shaped value (`-R`) is the probe for any field passed to git.
 - **Where it lives.** `scripts/merge_request.py::_pretested`, `_pretest`, `tests/test_merge_request_pretest.py`.
+
+## A "still held" test proves one guard only when every other guard on the path is open (2026-10-26)
+
+- **What happened.** W-effb7141 added cases to `test_a_plan_session_is_still_held_at_the_wall` for a key
+  beside `ANTHROPIC_AUTH_TOKEN` and the Bedrock/Vertex/Foundry switches. Run against the code before the
+  fix, all four passed. The test wrote a pre-tier stamp (`1`), and the tier rule already held that stamp, so
+  the env predicate under test was never reached. Re-cut on a plain `walled` stamp, all four went red on the
+  old code.
+- **Mechanism.** An expected "deny" has many causes. A test asserting one is satisfied by whichever guard
+  fires first, so it grades the guard it meant to grade only when its fixture opens every other guard.
+- **How to apply.** For a held/denied/refused assertion, build the fixture the subject would otherwise PASS
+  (here: a key session on a plain quota tier), then change exactly the one input under test. Prove it red
+  on the pre-fix code; a red-first run is the only check that catches a fixture held by the wrong guard.
+- **Where it lives.** `tests/test_quota_stop_hook.py::test_a_plan_session_is_still_held_at_the_wall`.
