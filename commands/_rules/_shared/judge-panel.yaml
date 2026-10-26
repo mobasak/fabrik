@@ -1,0 +1,36 @@
+shared: commands/_fragments/judge-panel.md
+baseline_sentences: judge-panel.baseline.txt
+baseline_sha256: "167b2cba82a99876cbbe381299b729227424612cd88aaba5b8f1cd31be460033"
+entries:
+- id: u-L1
+  # class: ban
+  baseline: A judge panel ranks the approaches, never the lead alone (D-363). Before you recommend, dispatch THREE `general-purpose` seats on Sonnet in ONE message, each handed the approaches WITHOUT your recommendation — in alphabetical order at equal depth, no `recommended` marker; you form your recommendation only after the panel returns — the grounding they rest on (anchored `path:line` and cited URLs) and the scoring rules of this phase; each returns, per approach, a verdict per rule with its one-line reason and the approach it ranks first
+  current: A judge panel ranks the approaches, never the lead alone (D-363). Before you recommend, dispatch THREE `general-purpose` seats on Sonnet in ONE message, each handed the approaches WITHOUT your recommendation — in alphabetical order at equal depth, no `recommended` marker; you form your recommendation only after the panel returns — the grounding they rest on (anchored `path:line` and cited URLs) and the scoring rules of this phase; each returns, per approach, a verdict per rule with its one-line reason and the approach it ranks first
+  text:
+  - A judge panel ranks the approaches, never the lead alone (D-363). Before you recommend, dispatch THREE `general-purpose` seats on Sonnet in ONE message, each handed the approaches WITHOUT your recommendation — in alphabetical order at equal depth, no `recommended` marker; you form your recommendation only after the panel returns — the grounding they rest on (anchored `path:line` and cited URLs) and the scoring rules of this phase; each returns, per approach, a verdict per rule with its one-line reason and the approach it ranks first
+- id: u-L2
+  # class: ban
+  baseline: 'The brief carries only the approaches that survive 1b-bis''s hard constraints and the Phase 3 cuts (fewer than two: say so and return to 1c for another), any precedent quoted in its exact lines beside every approach it bears on, and every count and every local claim a ranking rests on, each from an executed probe with its command and output beside it (an external fact carries its cited URL instead); each seat prices each approach''s mechanism against Fabrik''s hard constraints and the stack it runs on'
+  current: 'The brief carries only the approaches that survive 1b-bis''s hard constraints and the Phase 3 cuts (fewer than two: say so and return to 1c for another), any precedent quoted in its exact lines beside every approach it bears on, and every count and every local claim a ranking rests on, each from an executed probe with its command and output beside it (an external fact carries its cited URL instead); each seat prices each approach''s mechanism against Fabrik''s hard constraints and the stack it runs on'
+  text:
+  - 'The brief carries only the approaches that survive 1b-bis''s hard constraints and the Phase 3 cuts (fewer than two: say so and return to 1c for another), any precedent quoted in its exact lines beside every approach it bears on, and every count and every local claim a ranking rests on, each from an executed probe with its command and output beside it (an external fact carries its cited URL instead); each seat prices each approach''s mechanism against Fabrik''s hard constraints and the stack it runs on'
+- id: u-L4
+  # class: prose
+  baseline: Stamp the three seats (`command_run.py dispatch --seats 3`)
+  current: Stamp the three seats (`command_run.py dispatch --seats 3`)
+  text:
+  - Stamp the three seats (`command_run.py dispatch --seats 3`)
+- id: u-L5
+  # class: ban
+  baseline: 'Cobra: a panel handed your recommendation agrees with it — the brief never names it'
+  current: 'Cobra: a panel handed your recommendation agrees with it — the brief never names it'
+  text:
+  - 'Cobra: a panel handed your recommendation agrees with it — the brief never names it'
+- id: r-L3
+  # class: behavioural
+  baseline: 'You adjudicate: verify every factual claim a dissent rests on first, fold a confirmed dissent''s gap into the design (a fold that changes the ranked approach''s mechanism re-dispatches the panel), and a recommendation the panel''s majority does not rank first states why in the artifact; what stays split is carried to the operator''s approval as an open question'
+  text:
+  - 'You adjudicate: verify every factual claim a dissent rests on first, fold a confirmed dissent''s gap into the design (a fold that changes the ranked approach''s mechanism re-dispatches the panel), and state why in the artifact when the panel''s majority does not rank your recommendation first'
+  - what stays split is carried to the operator's approval as an open question
+vanished:
+  L3: {rule: [r-L3]}
