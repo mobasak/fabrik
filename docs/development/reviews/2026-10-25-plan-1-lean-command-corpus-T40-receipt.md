@@ -39,3 +39,11 @@
 ## LEFT FOR THE HUB
 - Author-blind audit of the 56 reworded entries; decide whether 50% binds a command whose ban spans plus anchors floor near 1500-1600 words.
 - Ratchet `_size_ceiling.json`, CHANGELOG/INDEX rows.
+
+## Fix round 2 (hub audit)
+- Findings: the two hub audits (Sonnet 24, Haiku 27, overlapping) checked against the before-text. Confirmed and fixed: all of them except those below. Restored: the `<!-- POOL OFF -->`/2026-09-07/author-blind/credentials-stay-provisioned rationale and "ONE message ... model token ... what sibling sessions subtract ... tripwire on D-186"; the per-RIVAL seat's audit task and "ENGINE call stays as it is"; `TaskGroup`/`create_task`/2026-09-08; `m.universal`/`b.weight`; `e818249` + the six sections; "four of five"/Tier-C; "subject domain"; "grep, don't trust a line number"; "exactly as the review commands do"; "symptom + fix"; "regardless of how invited"; "let it alias"; `partial=True`; the `§ The vacuous-loop trap` pointer; the union reason; "adjudicated per the split below"; "5 of 12"; "not an exemption"/`docs/reference/`; the BEAT Tier-C "say so" guardrail text; "A spec still needs that separately". Relabelled: L6, L97, L99, L106 (now carried by r-L7, r-L98, r-L99, r-L106), L80 (duplicate-of r-L33), L66/L91 (carriers now hold the content); three clauses that carried dates (youtube 2026-08-27 x2, "corrected 2026-08-27") restored.
+- Refuted: none outright; the Haiku r-L18 "completeness" and r-L20 "LOOP" items were real and restored too.
+- Own text words: baseline 2859 -> re-ledger 1959 -> now 2616 (loader `own_text`). Above 50% floor: the hub's rule is the rule-survival one, so the cut stops where the rules do; the ban spans (419 words) plus every anchor-keeping clause now stand.
+- LOSS, own ledger: 0 (`pytest tests/test_command_rules.py -rP`; the only remaining LOSS rows are `_shared/*.yaml`).
+- Fresh passes run: 5 (five separate fresh subagents, each given only baseline, rewrite and ledger; passes 1-4 found 5, 4, 3 and 1 minor defects, all fixed; pass 5 found none).
+- COUNTS: entries read 95 / reworded 35 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 (pass 5; passes 1-4 estimated reworded 41/58/58/58, the count is estimate-dependent).
