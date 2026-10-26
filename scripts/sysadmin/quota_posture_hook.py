@@ -268,6 +268,49 @@ def _live_tier() -> str | None:
     return _stamp_tier(stamp)
 
 
+# COPIED from `.claude/hooks/quota_stop.py::_OTHER_AUTH` (W-effb7141); a grader holds the two equal
+_OTHER_AUTH = (
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
+)
+
+_API_KEY_CLAUSE = (
+    " · this session runs on an Anthropic API key — the plan-quota band and hold do not bind it"
+    " (W-effb7141)"
+)
+
+
+def _api_key_session() -> bool:
+    """COPIED from `.claude/hooks/quota_stop.py::_api_key_session` (its docstring carries the
+    reason, the routes that stay held, the cobra and the mirror): an Anthropic API key and none
+    of `_OTHER_AUTH` in the env this hook inherits from claude (W-effb7141)."""
+    return bool((os.environ.get("ANTHROPIC_API_KEY") or "").strip()) and not any(
+        (os.environ.get(name) or "").strip() for name in _OTHER_AUTH
+    )
+
+
+def _api_key_free() -> bool:
+    """An API-key session that no plan-quota hold binds: no stamp stands, or the stamp's line 2
+    PLAINLY reads a quota tier — the battery tier (D-898) and every unknown or unreadable line 2
+    hold, mirroring `quota_stop.py::api_key_exempt` (the same raw read as `_stamp_tier` here)."""
+    if not _api_key_session():
+        return False
+    stamp = _rotate_state_dir() / "fleet-exhausted"
+    try:
+        if not stamp.exists():
+            return True
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() in _STAMP_TIERS
+
+
 def _wall_stamp_stands() -> bool:
     """Does `quota_stop.py` hold EVERY session? Only at the `walled` tier. At `urgent-90` it runs
     the LANE — it parks builders and lets the merge owner and P0 owners continue — so this hook
@@ -1117,14 +1160,17 @@ def main(argv: list[str] | None = None) -> int:
             print(_unavailable(reason))
         else:
             band, is_fable = _band_for_session(posture, payload.get("transcript_path"))
+            # the clause only where a hold could bind — a stamp stands or the band is not GREEN
+            free = _api_key_free() and (_live_tier() is not None or band != "GREEN")
             print(
                 _format_line(
                     posture,
                     band,
                     is_fable=is_fable,
-                    checkpoint=_live_tier() == _STAMP_TIER_URGENT,
+                    checkpoint=not free and _live_tier() == _STAMP_TIER_URGENT,
                     lane_enforced=_tick_fresh(now),
                 )
+                + (_API_KEY_CLAUSE if free else "")
             )
         return 0
 
@@ -1146,6 +1192,14 @@ def main(argv: list[str] | None = None) -> int:
     # the markers stop accumulating in the state dir with nobody to prune them.
     if band != "AMBER":
         _clear_said(sid)
+    if action != "pass" and _api_key_free():
+        if action == "deny":
+            sys.stderr.write(
+                f"quota-posture: the band is {band or 'RED'}, but this session runs on an "
+                "Anthropic API key (no plan login), so it draws no plan quota and is not held "
+                "(W-effb7141)\n"
+            )
+        return 0
     if action == "deny":
         print(
             json.dumps(

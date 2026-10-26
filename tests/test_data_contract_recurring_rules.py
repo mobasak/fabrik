@@ -1,78 +1,12 @@
-"""/fabrik-data-contract queue — the recurring pass-ledger-placement subject (D-711: a recurrence is edited).
+"""/fabrik-data-contract: the doc-links gate honours the lowercase `does not exist` marker.
 
-Fleet practice (trade-intelligence, tryton-crm and transdoc carry a Pass Ledger section; the first two date their
-entries): a re-freeze adds one version entry there, after the closing round. Each test asserts its sentence inside the paragraph
-that owns it.
+The corpus-text presence pins of this file retired into commands/_rules/fabrik-data-contract.yaml (the lean
+rule ledger); the behavioural test below stays because it executes the checker.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-
-SRC = Path(__file__).resolve().parents[1] / "commands" / "_sources" / "fabrik-data-contract.md"
-
-
-def _norm(p: Path) -> str:
-    return " ".join(p.read_text(encoding="utf-8").split())
-
-
-def _between(text: str, start: str, end: str) -> str:
-    i = text.index(start)
-    return text[i : text.index(end, i)]
-
-
-def test_phase_3_names_the_ledger_home_and_when_the_version_entry_is_written() -> None:
-    """Rows 1791138316 and 1791065143: a report-only contract and the not-yet-written version entry."""
-    phase3 = _between(_norm(SRC), "## Phase 3 — Converge", "1. **Coverage**")
-    assert (
-        "The Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; "
-        "a bumping re-freeze adds its own dated version entry there after that closing round, so its absence is never a "
-        "finding in any round of the run. A run paused before that round (the Termination contract's no-seat pause) "
-        "carries its rows so far in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the "
-        "resumed run copies them into the entry, or into the closing report when the contract has no ledger section."
-    ) in phase3
-
-
-def test_the_version_entry_is_an_exempt_post_convergence_write_and_phase_2_keeps_the_section() -> (
-    None
-):
-    """The entry changes the contract's md5 after the closing round, so Phase 4 and the Guardrails exempt it; Phase
-    2's 'exactly the shape of the seeded template' must not strip an existing ledger section."""
-    t = _norm(SRC)
-    phase4 = _between(t, "## Phase 4", "## Phase 5")
-    assert (
-        "This status/header write — and the version's Pass Ledger entry (Phase 3) — is a post-convergence action, "
-        "exempt from the no-op rule"
-    ) in phase4
-    assert (
-        "(The Phase-4 `Status → FROZEN` header flip and the version's Pass Ledger entry are the exempt "
-        "post-convergence writes, not reconciliation edits"
-    ) in t
-    phase2 = _between(t, "## Phase 2", "## Phase 3")
-    assert (
-        "which **is the canonical shape** (plus an existing Pass Ledger section, which is kept — Phase 3)."
-    ) in phase2
-
-
-def test_an_approved_spec_naming_the_delta_is_the_refreeze_confirmation() -> None:
-    """Rows 1791335722 and 1791305447 (refreeze-stop-confirmation), decided by the Opus + Fable panel (D-730): the
-    approving row plus a named delta is the confirmation; anything else still stops, re-checked in Phase 3."""
-    phase0 = _between(_norm(SRC), "## Phase 0", "## Phase 1")
-    assert (
-        "An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row "
-        "naming the spec's path that records the panel's `→ both-approve` or the operator's approving answer (a DRAFT or "
-        "CONVERGED-flip row is not one) — and its § Contract deltas (the section a `Profile: delta` spec carries; a "
-        "spec without one still stops) names the change: cite that row and the spec "
-        "in the re-freeze's D-row and proceed. Anything else still stops: no approval row, or any field, column, "
-        "type, validation, PII, reference or enum change the deltas do not name, which Phase 3's closing round "
-        "re-checks before the Phase-4 flip. A `Version` that moved since the spec renumbers only when the spec "
-        "says it does and the interim versions touch none of its deltas."
-    ) in phase0
-    phase3 = _between(_norm(SRC), "## Phase 3", "## Phase 4")
-    assert (
-        "5. **Re-freeze deltas (D-730)** — on a re-freeze confirmed by an approved spec, every change in "
-        in phase3
-    )
 
 
 def test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker() -> None:
@@ -81,15 +15,8 @@ def test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker() -> None:
     honours, its exact phrase and its whole-line reach; the checker still honours it, lowercase only."""
     import importlib.util
 
-    phase3 = _between(_norm(SRC), "1. **Coverage**", "After each pass")
-    assert (
-        "6. **Unbuilt files** — in any mode, the contract cites a file its spec has not built yet on a physical line"
-        " of its own (a bullet or table row with nothing else to check) that carries the exact lowercase marker of"
-        " the doc-links gate" in phase3
-    )
-    assert "that gate skips the WHOLE line, so no built file shares it" in phase3
     spec = importlib.util.spec_from_file_location(
-        "check_doc_links", SRC.parents[2] / "scripts" / "enforcement" / "check_doc_links.py"
+        "check_doc_links", Path(__file__).resolve().parents[1] / "scripts" / "enforcement" / "check_doc_links.py"
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -99,32 +26,3 @@ def test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker() -> None:
     assert list(mod._iter_refs(marked)) == []
     assert list(mod._iter_refs(unmarked)) != []
     assert list(mod._iter_refs(capital)) != []
-
-
-def test_a_refreeze_whose_deltas_touch_no_tabled_item_closes_without_a_bump() -> None:
-    """Row 1791945393 (refreeze-short-path, a recurrence): Phase 0 names the zero-delta close."""
-    phase0 = _between(_norm(SRC), "## Phase 0", "## Phase 1")
-    assert (
-        "When no delta (an empty § Contract deltas included) changes anything the contract records — a table row, "
-        "an enum value, a retention row, a house rule, a reconciliation note — the re-freeze is zero-delta: Phases "
-        "1–3 still run and confirm the body unchanged, then Phase 4 bumps no `Version` and edits nothing, its D-row "
-        "cites the approval row and the spec and says no recorded item changed, and the re-freeze close-out does "
-        "not run."
-    ) in phase0
-    assert "bump `Version` (a zero-delta re-freeze, below, excepted), never a silent overwrite." in phase0
-    phase3 = _between(_norm(SRC), "## Phase 3", "## Phase 4")
-    assert "A zero-delta re-freeze (Phase 0) edits nothing, so its rows always go in the closing report." in phase3
-
-
-def test_a_checkable_validation_cell_is_a_probed_regex() -> None:
-    """Row 1791957889 (probe-from-table-cells, a recurrence): two rounds refined a validation cell's prose before it
-    became one probed regex. Pinned in Phase 2's per-entity table rules."""
-    phase2 = _between(_norm(SRC), "## Phase 2", "## Phase 3")
-    assert (
-        "A `validation` cell whose rule is a format the project defines itself (a URL shape, a key or code format) is"
-        " written as the regex itself, in backticks (a `|` inside it escaped as `\\|` for the table and unescaped"
-        " when probed), never prose, and in the same edit is probed against each guard that consumes it (the request schema, form validator or DB constraint)"
-        " with one value it must accept and one it must refuse; a cited standard (RFC 5322, E.164) or a bound"
-        " (`≤255`) stays as written, and a field no guard enforces yet gets a reconciliation note naming the missing"
-        " guard."
-    ) in phase2

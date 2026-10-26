@@ -1,0 +1,26 @@
+{
+  "block_digest": "70191a63551e3e0995fe0954423073c2865f798f79a1c4aa94bef17755188df4",
+  "blocked_by": [],
+  "created": "2026-10-26T12:40:31.606876Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-0262bef6",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "04eb46ae81b477ff5f0475ae32e6d3c84e362292a74f6bcf8b4d1f79e5bc4ceb"
+  ],
+  "next": "",
+  "note": "yes (option A: add the permission rule Bash(python3 scripts/api_write.py run *) so agents may start the API-credit runner)",
+  "owner": "",
+  "priority": 2,
+  "question": "May agents start the API-credit agent runner, so the $562 of API credit can do lean work in parallel batches without you typing each batch?",
+  "status": "done",
+  "title": "May agents start the API-credit agent runner, so the $562 of API credit can do lean work in parallel batches without you typing each batch?"
+}

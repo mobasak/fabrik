@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T13:59:23.734311Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "3d8cbc428f0b8f83ab93f14c29dbd32f5aeba905",
+  "id": "W-f466ec87",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "operator answer to D-1250's open question; same pack fleet just fixed (W-c0080a4b); synced surface -> full review",
+  "status": "done",
+  "title": "Brand Map: settle Kalite Pusulası as a STANDALONE Ocoron brand (operator via wef, verbatim: 'it is standalone brand of ocoron, it does not have carry ocoron naming'; wef D-522) — like Atelier Rebul (rule 4), never carries 'Ocoron'; Ocoron Dış Ticaret Limited Şirketi appears only as the KVKK controller on its legal page; remove the 'awaiting the brand owner' mark"
+}

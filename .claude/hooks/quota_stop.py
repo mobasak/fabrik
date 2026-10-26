@@ -685,6 +685,59 @@ def _stamp_is_battery(stamp: Path) -> bool:
     return len(lines) > 1 and lines[1].strip() == "battery"
 
 
+# The credentials that may outrank or replace `ANTHROPIC_API_KEY` (W-effb7141): any one of them
+# set beside the key holds the session. COPIED in `scripts/sysadmin/quota_posture_hook.py`.
+_OTHER_AUTH = (
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY",
+)
+
+
+def _api_key_session() -> bool:
+    """A session on an Anthropic API key draws no PLAN quota, so the plan's wall and lane must not
+    hold it (W-effb7141). Today that is an interactive window the operator launches by hand with
+    `ANTHROPIC_API_KEY` in its env — the `scripts/api_credit.py` children run `--safe-mode`, which
+    disables hooks, so this file never runs there. Read from THIS process's env, which the hook
+    inherits from the claude process — a Bash-tool `export` never reaches it.
+    Any `_OTHER_AUTH` variable beside the key — a plan OAuth token, a bearer `ANTHROPIC_AUTH_TOKEN`,
+    or a Bedrock/Vertex/Foundry switch — means another credential may be the one in use, so the
+    session is HELD: unknown billing, fail-closed (any non-blank value counts as set). Only the
+    env is read, never settings: a session whose sole credential is an `apiKeyHelper` has no env
+    key and is held; one with the key in its env too is judged on the key. Extend `_OTHER_AUTH`
+    if another route is ever launched on this box. COPIED in `scripts/sysadmin/quota_posture_hook.py`;
+    `final_gate_stop.py` loads `api_key_exempt` from here. Cobra: a dummy key at launch passes this
+    check, but Claude Code then authenticates with that key and every request fails — only a real
+    paid key gets work through. Mirror: a key the interactive "use this API key?" prompt was told
+    NOT to use leaves the window on its plan login while this check exempts it; reading Claude
+    Code's own approval store to close that was rejected (undocumented internal state, absent from
+    the active config — D-row). The prompt line's clause (`quota_posture_hook.py`) names the
+    exemption to the session; the stderr note here reaches the verbose transcript only."""
+    return bool((os.environ.get("ANTHROPIC_API_KEY") or "").strip()) and not any(
+        (os.environ.get(name) or "").strip() for name in _OTHER_AUTH
+    )
+
+
+def api_key_exempt(stamp: Path) -> bool:
+    """True when a hold this stamp would place does not bind this session: an API-key session
+    (`_api_key_session`) and a stamp whose line 2 PLAINLY reads one of the two quota tiers. The
+    battery tier (D-898) protects the box, not plan quota, and every other line 2 — pre-tier,
+    unknown, unreadable — holds: the unknown case is never the lenient one. The same raw read as
+    `_stamp_tier` (`is_file()` first, `newline=""`, `split("\n")`)."""
+    if not _api_key_session():
+        return False
+    try:
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() in _STAMP_TIERS
+
+
 def _tick_log() -> Path:
     return Path(
         os.environ.get("QUOTA_STOP_TICK_LOG") or Path.home() / ".claude" / "rotate-tick.log"
@@ -1446,6 +1499,14 @@ def main() -> int:
         lift=lift,
         rebind=rebind,
     )
+    if action == "deny" and api_key_exempt(_stamp()):
+        # judged on the DENY, so a stale tick keeps its own warning and an allowed call says nothing
+        sys.stderr.write(
+            "quota-stop: the fleet quota hold would hold this call, but this session runs on an "
+            "Anthropic API key (no plan login), so it draws no plan quota and is not held "
+            "(W-effb7141)\n"
+        )
+        return 0
     if action == "deny":
         # ONLY the current PreToolUse contract: the installed CLI (2.1.258) deprecates the legacy
         # `decision` key here — "PreToolUse, use hookSpecificOutput.permissionDecision instead".
