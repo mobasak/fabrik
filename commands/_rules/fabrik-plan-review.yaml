@@ -1064,7 +1064,7 @@ entries:
   clauses: {2: narrative}
   baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
   text:
-  - POOL OFF — D-181. Run every fan-out this command names NATIVELY
+  - 'POOL OFF — D-181. Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable): a `fanout` would still dispatch and SPEND, so this text is the control'
 - id: r-L2
   class: prose
   baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
@@ -1083,13 +1083,12 @@ entries:
   baseline: 'Convergence precondition (mechanical): `python -m scripts.enforcement.check_plan_tickets --plan-dir <dir>` (from the repo root — same gotcha the sibling command flags for this script) must exit 0 before the `CONVERGED` flip, and again after every edit to a ticket''s Behavior Contract (the spine''s roll-up must still equal its tickets'' rows) (`<dir>` is the plan DIRECTORY — when the target you were handed is the spine file, pass its PARENT directory; the CLI rejects a file path) — and the gate normally re-runs the same contract in-process AT the flip at full severity (fail-soft: if that in-process run itself crashes, the flip degrades to the native convergence checks alone — so the precondition command above is the guarantee YOU own; never lean on the flip re-run to catch what you skipped)'
   text:
   - 'Convergence precondition (mechanical): `python -m scripts.enforcement.check_plan_tickets --plan-dir <dir>` (from the repo root — same gotcha the sibling command flags for this script) must exit 0 before the `CONVERGED` flip, and again after every edit to a ticket''s Behavior Contract (the spine''s roll-up must still equal its tickets'' rows) (`<dir>` is the plan DIRECTORY — when the target you were handed is the spine file, pass its PARENT directory; the CLI rejects a file path)'
-  - 'and the gate normally re-runs the same contract in-process AT the flip at full severity (fail-soft: if that in-process run itself crashes, the flip degrades to the native convergence checks alone; never lean on the flip re-run to catch what you skipped)'
+  - 'and the gate normally re-runs the same contract in-process AT the flip at full severity (fail-soft: if that in-process run itself crashes, the flip degrades to the native convergence checks alone — so the precondition command above is the guarantee YOU own; never lean on the flip re-run to catch what you skipped)'
 - id: r-L30
   class: prose
-  clauses: {2: narrative}
   baseline: Exit 0 alone is byte-identical to a run that resolved the wrong directory, which is the un-denominated claim the bounded-search rule forbids; the summary is what a convergence artifact can EMBED as proof
   text:
-  - Exit 0 alone is byte-identical to a run that resolved the wrong directory, which is the un-denominated claim the bounded-search rule forbids
+  - Exit 0 alone is byte-identical to a run that resolved the wrong directory, which is the un-denominated claim the bounded-search rule forbids; the summary is what a convergence artifact can EMBED as proof
 - id: r-L35
   class: ban
   clauses: {2: narrative}
@@ -1123,10 +1122,9 @@ entries:
   - when you peel an area, its tests move with it
 - id: r-L45
   class: prose
-  clauses: {2: narrative}
   baseline: ⚠️ ARM THE PASS BEFORE PASS 1 — two mechanical obligations, both prerequisites, not warm-up
   text:
-  - ⚠️ ARM THE PASS BEFORE PASS 1
+  - ⚠️ ARM THE PASS BEFORE PASS 1 — two mechanical obligations, both prerequisites, not warm-up
 - id: r-L52
   class: behavioural
   clauses: {3: narrative}
@@ -1150,10 +1148,9 @@ entries:
   - '4 of them named in the rubric that was never injected, including a `task_name` the DB `CHECK` constraint refuses to store (so the plan''s own fix for a previous unreachable-handler defect was another unreachable handler) and a per-tenant job created every 300s forever'
 - id: r-L79
   class: prose
-  clauses: {2: narrative}
   baseline: 'A plan that steps timeout + retry + backoff + circuit-breaker and none of these is a DEFECT — those heal a transient fault, while a permanent provider death needs a SWAP no retry loop can make, and a stall with no progress alarm is invisible for as long as it lasts (measured live: 8h)'
   text:
-  - A plan that steps timeout + retry + backoff + circuit-breaker and none of these is a DEFECT
+  - 'A plan that steps timeout + retry + backoff + circuit-breaker and none of these is a DEFECT — those heal a transient fault, while a permanent provider death needs a SWAP no retry loop can make, and a stall with no progress alarm is invisible for as long as it lasts (measured live: 8h)'
 - id: r-L84
   class: ban
   clauses: {2: narrative}
@@ -1162,16 +1159,14 @@ entries:
   - '⚠️ The distinction the reviewer must make, and the reason this is prose and not a check: a symbol the ticket INTRODUCES (a new env var, constant, column, field) is legitimately absent from the read set'
 - id: r-L88
   class: ban
-  clauses: {1: narrative, 2: narrative}
   baseline: 'Reported by brand-identiy-creator (`01M150NTHP`): on a 9-ticket set, 7 were initially not executable and the three most serious defects — an unreachable 429 wire shape, unconstructible leg calls whose required args were elided by `...` in the Interfaces, and a fail-open reclassifying profiles as official sites — were each findable ONLY by reading files no ticket listed'
   text:
-  - Such defects were each findable ONLY by reading files no ticket listed
+  - 'Reported by brand-identiy-creator (`01M150NTHP`): on a 9-ticket set, 7 were initially not executable and the three most serious defects — an unreachable 429 wire shape, unconstructible leg calls whose required args were elided by `...` in the Interfaces, and a fail-open reclassifying profiles as official sites — were each findable ONLY by reading files no ticket listed'
 - id: r-L93
   class: ban
-  clauses: {5: narrative, 6: narrative}
   baseline: '⚠️ Nothing else in the pipeline asks this question at a useful time. `check_spec_convergence.py` grades the SPEC''s own convergence claim; `check_stage_artifacts.py` (Tier-2 gate) refuses a new CONVERGED flip while the spec the plan designates (its `Spec:` field, else its first 40 non-table lines) is missing or not CONVERGED — a spec under, or moved to, `docs/superpowers/specs/archived/` is exempt — and compares no requirements, so read that spec''s Status before round 1 rather than meet it at the flip (a joint `Size: small` loop flips both in the panel''s approval commit); `/fabrik-conformance-review` does compare spec↔implementation but runs at the `gate` stage — after the code exists'
   text:
-  - '⚠️ Nothing else in the pipeline asks this question at a useful time. `check_spec_convergence.py` grades the SPEC''s own convergence claim; `check_stage_artifacts.py` (Tier-2 gate) refuses a new CONVERGED flip while the spec the plan designates (its `Spec:` field, else its first 40 non-table lines) is missing or not CONVERGED — a spec under, or moved to, `docs/superpowers/specs/archived/` is exempt — and compares no requirements, so read that spec''s Status before round 1 rather than meet it at the flip (a joint `Size: small` loop flips both in the panel''s approval commit)'
+  - '⚠️ Nothing else in the pipeline asks this question at a useful time. `check_spec_convergence.py` grades the SPEC''s own convergence claim; `check_stage_artifacts.py` (Tier-2 gate) refuses a new CONVERGED flip while the spec the plan designates (its `Spec:` field, else its first 40 non-table lines) is missing or not CONVERGED — a spec under, or moved to, `docs/superpowers/specs/archived/` is exempt — and compares no requirements, so read that spec''s Status before round 1 rather than meet it at the flip (a joint `Size: small` loop flips both in the panel''s approval commit); `/fabrik-conformance-review` does compare spec↔implementation but runs at the `gate` stage — after the code exists'
 - id: r-L95
   class: prose
   clauses: {2: narrative}
@@ -1193,13 +1188,12 @@ entries:
   class: ban
   baseline: 'Scope decides this outcome, not intent (live defect: a plan whose authorized paths contained no route or caller on the consumer side merged three libraries with zero production callers — reproducing the exact stored-and-never-read defect the plan existed to fix, with the terminal consumer authored mid-run as a rescue)'
   text:
-  - 'Scope decides this outcome, not intent (live defect: three libraries merged with zero production callers, reproducing the exact stored-and-never-read defect the plan existed to fix, with the terminal consumer authored mid-run as a rescue)'
+  - 'Scope decides this outcome, not intent (live defect: a plan whose authorized paths contained no route or caller on the consumer side merged three libraries with zero production callers, reproducing the exact stored-and-never-read defect the plan existed to fix, with the terminal consumer authored mid-run as a rescue)'
 - id: r-L119
   class: prose
-  clauses: {2: narrative}
   baseline: Ask-before-not-during sweeps ticket BODIES too — a deferred question inside a ticket stalls the dispatched coder exactly like one inside a monolith phase; force it RESOLVED or SELF-SERVICE (§ Convergence & residuals) before the flip
   text:
-  - Ask-before-not-during sweeps ticket BODIES too; force it RESOLVED or SELF-SERVICE (§ Convergence & residuals) before the flip
+  - Ask-before-not-during sweeps ticket BODIES too — a deferred question inside a ticket stalls the dispatched coder exactly like one inside a monolith phase; force it RESOLVED or SELF-SERVICE (§ Convergence & residuals) before the flip
 - id: r-L121
   class: ban
   baseline: 'Parallelism — the partition (D-207, D-212, D-218), run as the review-loop workflow (chunk 6). Round 1 is ONE combined pass with DISJOINT slices: one Opus `fabrik-reviewer` on the RULE/GRAMMAR content — for a set, the tickets that touch fleet-synced grammars or gates plus the spine''s Interfaces, Behavior Contract, Global Constraints and Execution Discipline; for a monolith, the phases that touch them plus § Global Constraints, § File Scope, § Constraints digest, § Coverage Checklist and § Evidence — one Sonnet `fabrik-reviewer` on every other ticket or section, and `fabrik-researcher` seats only for the external facts the plan itself cites (a spec-fed plan cites none: the spec grounded them; the pool is OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->) — no ticket''s or section''s text read by two seats; the union IS the pass'
@@ -1234,27 +1228,25 @@ entries:
   - '"The `/fabrik-execute-plan` dispatcher owns the per-ticket review loop at runtime" is TRUE and is NOT a pass: the artifact must say it, or nobody reading the plan — operator or auditing agent'
 - id: r-L151
   class: prose
-  clauses: {2: narrative}
   baseline: 'A phase that just says "use a subagent" without naming the seats and their independence leaves the executor without an author-blind floor — flag it and fix the plan.<!-- POOL OFF (D-181): the pre-D-181 text required POOL-DEFAULT (`fanout(task_type, units, …)`, auto-records to the flywheel, `set_quality` back-fill) with native on top -->'
   text:
   - A phase that just says "use a subagent" without naming the seats and their independence leaves the executor without an author-blind floor
+  - '<!-- POOL OFF (D-181): the pre-D-181 text required POOL-DEFAULT (`fanout(task_type, units, …)`, auto-records to the flywheel, `set_quality` back-fill) with native on top -->'
 - id: r-L160
   class: ban
-  clauses: {2: narrative}
   baseline: A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0)
   text:
-  - A class check must LOAD the artefact it grades — narrowing such a check is not converging
+  - A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0)
 - id: r-L162
   class: prose
   baseline: 'The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row, staged with the flipped plan and committed together per CLAUDE.md § EXIT (classify at mint; plain row normally; under a `Size: small` joint loop both documents flip in the panel''s approval commit, its row serving), together with a row for each operator ruling RESOLVED during this review (an answered real question is a received decision — CLAUDE.md § the decision ledger)'
   text:
-  - 'The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row, staged with the flipped plan and committed together per CLAUDE.md § EXIT (classify at mint; plain row normally; under a `Size: small` joint loop both documents flip in the panel''s approval commit, its row serving), together with a row for each operator ruling RESOLVED during this review'
+  - 'The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row, staged with the flipped plan and committed together per CLAUDE.md § EXIT (classify at mint; plain row normally; under a `Size: small` joint loop both documents flip in the panel''s approval commit, its row serving), together with a row for each operator ruling RESOLVED during this review (an answered real question is a received decision — CLAUDE.md § the decision ledger)'
 - id: r-L166
   class: prose
-  clauses: {2: narrative}
   baseline: ⚠️ No execution-blocking open question survives to CONVERGED (the "ask BEFORE, not DURING" gate). The plan is where questions get answered — NOT mid-execution
   text:
-  - ⚠️ No execution-blocking open question survives to CONVERGED (the "ask BEFORE, not DURING" gate). The plan is where questions get answered
+  - ⚠️ No execution-blocking open question survives to CONVERGED (the "ask BEFORE, not DURING" gate). The plan is where questions get answered — NOT mid-execution
 - id: r-L171
   class: prose
   clauses: {2: narrative}

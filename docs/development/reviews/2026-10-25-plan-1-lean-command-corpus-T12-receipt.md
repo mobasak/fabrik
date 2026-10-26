@@ -149,3 +149,31 @@ Targeted run on the real tree after the deletions: `tests/test_plan_review_queue
 
 ## LEFT FOR THE HUB
 - CHANGELOG.md, INDEX.md rows for the new `commands/_rules/` files, the `commands/_size_ceiling.json` ratchet and the render at merge.
+
+## Fix round 2 (hub audit)
+
+Scope: `fabrik-plan-review` only (source, ledger).
+
+**Findings confirmed and fixed (all real against the before-text):**
+- A1#1 / A2#1,#2 (`r-L1`): the SUSPENDED rule and its five backticked tokens were lost; restored in the banner and the ledger text; clause 2 (the dated provenance parenthetical) stays `narrative`.
+- A1#2 / A2#5,#6 (`r-L28`): "so the precondition command above is the guarantee YOU own" restored in source and in the text list.
+- A1#3 / A2#9 (`r-L162`): the `CLAUDE.md § the decision ledger` pointer restored.
+- A1#4 (`r-L93`): the `/fabrik-conformance-review` … `gate` stage clause restored; its `narrative` labels removed.
+- A1#5 (`r-L108`): "a plan whose authorized paths contained no route or caller on the consumer side" restored.
+- A1#6 (`r-L79`): the reasons for the DEFECT call and `8h` restored.
+- A1#7 (`r-L119`): the deferred-question antecedent restored. For the dangling "Such defects…" after `r-L88`, the whole Reported-by sentence is restored.
+- A2#3,#4 (`r-L151`): the POOL OFF re-enable comment restored in source and carried as a second text entry; `narrative` label removed.
+- A2#7 (`r-L45`): "two mechanical obligations, both prerequisites, not warm-up" restored.
+- A2#8 (`r-L160`): the grep-refuted-by-rewording clause and `01M25Q9S0` restored.
+- A2#10 (`r-L30`): the "summary … EMBED as proof" clause restored; `narrative` label removed.
+- A2#11 (`r-L166`): "NOT mid-execution" restored.
+
+**Refuted:** none.
+
+**Own-text words:** the measuring one-liner is not among the commands this run may execute, so no exact figure was taken. The fixes add roughly 230 words to the previous re-ledger text. The `--check` REPORT line reads shrank to 36437 words against ceiling 38164 (rendered size, before the render). The 50% target is retired (D-1257), so no floor table.
+
+**Gates:** `python3 commands/assemble_commands.py --check` prints no LOSS line for `fabrik-plan-review.yaml` (one transient `r-L1` clause-2 line mid-round, fixed). Its only DIFFERS line is for the unrendered `fabrik-plan-review.md`. `tests/test_command_rules.py`: 56 passed, 1 failed (`test_the_live_corpus_has_no_loss`, 750 LOSS items from other units' ledgers and `_shared`, none this ledger's). The other gate test sets were not re-run after the final edit; only `fabrik-plan-review.md`, its ledger and this receipt changed.
+
+**Fresh passes run: 0.** No subagent can be dispatched in this run, so the zero-counts self-audit was NOT a fresh subagent. I walked every restored entry against the baseline line by line; the hub's author-blind audit pair covers the fresh pass. No zero-counts claim is made.
+
+COUNTS (own line-by-line check, not a fresh pass): restored entries 13 / lost 0 known / weaker 0 known / invented 0 / wrong vanished labels 0 known.

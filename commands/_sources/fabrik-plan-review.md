@@ -4,7 +4,7 @@ argument-hint: "[path to the plan file OR a spine+ticket plan-set directory — 
 ---
 {{include:no-workflow-hub}}
 
-> **⚠️ POOL OFF — D-181.** Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+> **⚠️ POOL OFF — D-181.** Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable): a `fanout` would still dispatch and SPEND, so this text is the control. Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
 Converge this plan to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet CLOSING round (§ Termination contract defines it; D-206, D-212);** the round in which you *made* edits is never the last one.
 
@@ -86,11 +86,11 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   spine's roll-up must still equal its tickets' rows) (`<dir>` is the plan DIRECTORY — when the
   target you were handed is the spine file, pass its PARENT directory; the CLI rejects a file path) —
   and the gate normally re-runs the same contract in-process AT the flip at full severity (fail-soft:
-  if that in-process run itself crashes, the flip degrades to the native convergence checks alone; never lean on the flip re-run to catch what
+  if that in-process run itself crashes, the flip degrades to the native convergence checks alone — so the precondition command above is the guarantee YOU own; never lean on the flip re-run to catch what
   you skipped). ⚠️ **Cite its SUMMARY line, never the exit code** — a `--plan-dir` run ends with
   `✓ [plan_tickets] <dir>: graded N ticket(s), M Touches path(s), K Context-Files entry(ies); READ
   budget measured against <root>; 0 finding(s)`. Exit 0 alone is byte-identical to a run that
-  resolved the wrong directory, which is the un-denominated claim the bounded-search rule forbids. Findings the checker raises are review findings: fix them in the set, don't route around the gate. A seat that runs the check grades its pinned copy, never the live set the
+  resolved the wrong directory, which is the un-denominated claim the bounded-search rule forbids; the summary is what a convergence artifact can EMBED as proof. Findings the checker raises are review findings: fix them in the set, don't route around the gate. A seat that runs the check grades its pinned copy, never the live set the
   orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory name, outside any
   docs/development/plans/ directory> --allow-external`, run from the repo root. A seat that imports or runs code the
   plan cites builds an archive of the base SHA with the pinned files laid over it (the `PIN_IMPORT` recipe in
@@ -113,7 +113,7 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
 
 ## Phase 1 — Grounding passes (adversarial, to a fixed point)
 
-**⚠️ ARM THE PASS BEFORE PASS 1.**
+**⚠️ ARM THE PASS BEFORE PASS 1 — two mechanical obligations, both prerequisites, not warm-up.**
 
 1. **Rubric.** Run `python scripts/review_rubric.py --changed <the plan's `## File Scope (owned paths)`
    entries>` and paste its **verbatim** output into the plan inside a fenced block. The File Scope IS the
@@ -191,7 +191,7 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   worker), the plan must step all three outcomes from `58-resilience.md` § Provider-death resilience:
   no single point of death in the chain · a last rung that is actually **exercised** · an alarm on **zero
   forward progress**. A plan that steps timeout + retry + backoff + circuit-breaker and none of these is a
-  **DEFECT**.
+  **DEFECT** — those heal a transient fault, while a permanent provider death needs a SWAP no retry loop can make, and a stall with no progress alarm is invisible for as long as it lasts (measured live: 8h).
   Catch the two disguises: "we use OpenRouter" without naming WHICH mechanism (pinning `sort`/`order`
   turns off the outage-aware routing being claimed), and a fallback ladder with an untested bottom rung.
   ⚠️ **You grade this by reading the plan — no mechanical check exists for it**, by design; never report
@@ -203,7 +203,7 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   must match. ⚠️ **The distinction the reviewer must make, and the reason this is prose and not a check:**
   a symbol the ticket INTRODUCES (a new env var, constant, column, field) is legitimately absent from the
   read set. Only a CONSUMED symbol is a defect. You can make it, so you own it.
-  Such defects were each findable ONLY by reading files no ticket listed.
+  Reported by brand-identiy-creator (`01M150NTHP`): on a 9-ticket set, 7 were initially not executable and the three most serious defects — an unreachable 429 wire shape, unconstructible leg calls whose required args were elided by `...` in the Interfaces, and a fail-open reclassifying profiles as official sites — were each findable ONLY by reading files no ticket listed.
 - **Spec COVERAGE — does this plan actually build the spec, all of it?** Open the cited design spec and
   enumerate its committed surface: every **Chosen approach** element, every row of its **fabrik-lib
   verdict table**, every **success criterion**, and every `shape:` implication. Each one must map to a
@@ -216,7 +216,7 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   flip while the spec the plan designates (its `Spec:` field, else its first 40 non-table lines) is missing
   or not CONVERGED — a spec under, or moved to, `docs/superpowers/specs/archived/` is exempt — and compares
   no requirements, so read that spec's Status before round 1 rather than meet it at the flip (a joint
-  `Size: small` loop flips both in the panel's approval commit). You grade this by READING both artifacts.
+  `Size: small` loop flips both in the panel's approval commit); `/fabrik-conformance-review` does compare spec↔implementation but runs at the `gate` stage — after the code exists. You grade this by READING both artifacts.
 - **`## Context Ledger`** — every ACTIVE `.windsurf/rules` pack, every vendored `fabrik-lib` module (with its real
   API), every touched `agents-fabrik.md` invariant (`AGENTS.md` is a stub) + `shape.*` flag is listed and grounded.
 - **`## File Scope (owned paths)`** — complete (nothing the plan touches is missing — **except the
@@ -251,7 +251,7 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   either inside File Scope or already live in the repo (OPEN it and confirm the call site). A
   producer with no named consumer is a defect: add the terminal-consumer ticket/phase (the route,
   CLI entry, or job that invokes the new surface) or strike the producer. Scope decides this
-  outcome, not intent (live defect: three libraries merged with zero production callers, reproducing the exact
+  outcome, not intent (live defect: a plan whose authorized paths contained no route or caller on the consumer side merged three libraries with zero production callers, reproducing the exact
   stored-and-never-read defect the plan existed to fix, with the terminal consumer authored mid-run
   as a rescue).
 - **Reader census (the mirror of the consumer audit)** — for every existing function, value or build script whose behaviour the
@@ -278,7 +278,7 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
 - **Serialized rows agree with Merge Order** — the dispatcher takes barrier DIRECTION from
   `## Merge Order` position (canonical); a `Serialized:` row listing its IDs against Merge Order is an
   authoring defect to fix here, not an ambiguity to leave the dispatcher.
-- **Ask-before-not-during sweeps ticket BODIES too**; force it RESOLVED or SELF-SERVICE
+- **Ask-before-not-during sweeps ticket BODIES too** — a deferred question inside a ticket stalls the dispatched coder exactly like one inside a monolith phase; force it RESOLVED or SELF-SERVICE
   (§ Convergence & residuals) before the flip.
 
 Also hunt: plan↔reality drift, unstated assumptions, missing edge cases and failure modes, and steps whose
@@ -367,7 +367,7 @@ or auditing agent — can see it.
    dispatch policy** (per `62-using-subagents.md` § Dispatch policy — native Claude seats for every fan-out while
    the pool is OFF, D-181; Opus for GUI / high-risk / decide-merge). A phase that just says "use a subagent"
    without naming the seats and their independence leaves the executor without an author-blind floor — flag it
-   and fix the plan.
+   and fix the plan.<!-- POOL OFF (D-181): the pre-D-181 text required POOL-DEFAULT (`fanout(task_type, units, …)`, auto-records to the flywheel, `set_quality` back-fill) with native on top -->
 3. **Parallelism whenever independent work exists.** Independent subagents in the same phase (or independent
    phases) run in PARALLEL and their results are merged/deduped — call out explicitly which steps fan out and where the merge happens.
 4. **GUI phases must ALSO carry the surface-aware Build Verification Loop** (per `/fabrik-ui-design`) as a
@@ -386,12 +386,12 @@ or auditing agent — can see it.
 Do not promise "100% accuracy" — iterate to a fixed point, then explicitly enumerate every residual unknown,
 assumption, and out-of-scope risk that remains, separating ones the plan resolved from ones still open.
 **Convergence = the quiet closing round (§ Termination contract defines it: three counters at zero, md5 unchanged).** That round is mandatory and is the ONLY thing that earns
-`Status: CONVERGED`; your say-so or "I fixed what I found" does not. A class check must LOAD the artefact it grades — narrowing such a check is not converging. If you cannot reach a quiet round
+`Status: CONVERGED`; your say-so or "I fixed what I found" does not. A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0). If you cannot reach a quiet round
 because a BLOCKING unknown remains, stop at `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
 **The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row, staged with the flipped
 plan and committed together per CLAUDE.md § EXIT (classify at mint; plain row
 normally; under a `Size: small` joint loop both documents flip in the panel's approval commit, its row serving), together with a row for each operator ruling RESOLVED
-during this review**.
+during this review** (an answered real question is a received decision — CLAUDE.md § the decision ledger).
 
 **A quiet closing round is necessary but NOT sufficient — the Coverage Checklist (Phase 1) must be fully
 adjudicated too.** A quiet round that never swept a class proves only that you did not look there
@@ -400,7 +400,7 @@ earned. `check_convergence.py` enforces this mechanically on NEW convergence tra
 `CONVERGED` at HEAD is settled and is never retroactively invalidated by this rule.
 
 **⚠️ No execution-blocking open question survives to CONVERGED (the "ask BEFORE, not DURING" gate).** The plan is
-where questions get answered. Before flipping
+where questions get answered — NOT mid-execution. Before flipping
 `CONVERGED`, sweep every residual / `[OPEN]` / `[DECISION]` / cross-AI / infra / credential / product-behaviour
 item and force each into exactly one of two terminal states:
 - **RESOLVED** — you surfaced it to the user **during this review** (batch them in one turn) and recorded the
