@@ -283,8 +283,9 @@ it, or name in the brief why the shape does not have it.
   above — never on the pins dir, a copy of it or any hand-assembled tree. On that tree the seat writes no pytest config
   file or conftest beyond the pins, their reverts and mutants and the recipe's `__file__` print, sets no environment
   variable beyond those the recipe, term-coverage rule (4) and this section name (a conftest may read one to skip a
-  test or lift a guard, as the hub's reads `FABRIK_MERGE_CHECK` and `FABRIK_TEST_ALLOW_FLEET`, and `PYTHONPATH` or a
-  `PYTEST_*` variable changes the imports or the arguments), and passes pytest only these arguments: paths and node
+  test or lift a guard, as the hub's `tests/conftest.py` does with its merge-check and live-fleet switches, and
+  `PYTHONPATH` or a `PYTEST_*` variable changes the imports or the arguments), and passes pytest only these
+  arguments: paths and node
   ids inside the staged tree, `-q` or `-v` (repeated or not), `-s`, `-x`/`--exitfirst`, `-r<chars>`, `--tb` with a
   style, `-p no:cacheprovider`, `--co` (a collection check, never a result) and, in a mutant run, one `--deselect` per
   environment-bound test naming its full rootdir-relative node id, each id shown by `--co` to select one test and the
