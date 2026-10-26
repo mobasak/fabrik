@@ -1602,13 +1602,13 @@
   "baseline": "8–15 features total → likely 2–3 epics"
   "class": "prose"
   "text":
-  - "8–15 → likely 2–3 epics; more than 15 → likely 4–7 epics. (Bands are on the total"
+  - "8–15 features total → likely 2–3 epics"
 - "id": "v-L273"
   "file": "render"
   "baseline": "More than 15 features total → likely 4–7 epics"
   "class": "prose"
   "text":
-  - "more than 15 → likely 4–7 epics. (Bands are on the total"
+  - "more than 15 features total → likely 4–7 epics"
 - "id": "v-L274"
   "file": "render"
   "baseline": "(Bands are on the total feature count and are disjoint; size only escalates, never de-escalates.)"
@@ -2126,13 +2126,13 @@
   "class": "prose"
   "text":
   - "VENDOR + ENHANCE — a module covers *most*"
-  - "a module covers *most* of it → vendor it and extend at the seams;"
+  - "a module covers *most* of it → vendor it and extend at the seams"
 - "id": "v-L353"
   "file": "render"
   "baseline": "Enhance ≠ silent fork: a change to the module's *core* goes back upstream (`UPSTREAM_FEEDBACK.md` at minimum), or every project ends up with a divergent copy"
   "class": "prose"
   "text":
-  - "ENHANCE — a module covers *most* of it → vendor it and extend at the seams; a change to the module's *core* goes back upstream (`UPSTREAM_FEEDBACK.md`"
+  - "Enhance ≠ silent fork: a change to the module's *core* goes back upstream (`UPSTREAM_FEEDBACK.md` at minimum), or every project ends up with a divergent copy"
 - "id": "v-L354"
   "file": "render"
   "baseline": "BUILD — genuinely nothing fits → build fresh and justify it"
@@ -3985,6 +3985,12 @@
   "class": "prose"
   "text":
   - "EXISTING mode → same shape + `## Locked Decisions` + `## Compliance Report` (so `/fabrik-epics` consumes both modes identically; the extras drive Retrofit epic emission there)"
+- "id": "v-L28"
+  "file": "render"
+  "baseline": "The repo-first leg, BEFORE any live research: `grep docs/` · `docs/reference/` · `AFCL.md` · `docs/LESSONS_LEARNT.md`"
+  "class": "prose"
+  "text":
+  - "The repo-first leg, BEFORE any live research: `grep docs/` · `docs/reference/` · `AFCL.md` · `docs/LESSONS_LEARNT.md`"
 "vanished":
   "L2":
     "rule":
@@ -4003,8 +4009,6 @@
   "L24":
     "rule":
     - "v-L24"
-  "L28":
-    "duplicate-of": "v-L332"
   "L38": "narrative"
   "L40":
     "rule":
