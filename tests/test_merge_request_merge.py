@@ -2080,8 +2080,8 @@ def test_the_documented_merge_wrapper_covers_the_budget():
 
 
 # --- W-e914202a: every scripted merge commit is signed with a parseable trailer block --------
-def _trailers(world: World, sha: str) -> dict[str, str]:
-    """The trailers git itself parses from ``sha``'s message (never a substring check)."""
+def _trailer_lines(world: World, sha: str) -> list[str]:
+    """The trailer lines git itself parses from ``sha``'s message, in order (never a substring)."""
     body = _git(world.main, "log", "-1", "--format=%B", sha)
     res = subprocess.run(
         ["git", "interpret-trailers", "--parse"],
@@ -2092,7 +2092,11 @@ def _trailers(world: World, sha: str) -> dict[str, str]:
         timeout=60,
         check=True,
     )
-    return dict(ln.split(": ", 1) for ln in res.stdout.splitlines() if ": " in ln)
+    return res.stdout.splitlines()
+
+
+def _trailers(world: World, sha: str) -> dict[str, str]:
+    return dict(ln.split(": ", 1) for ln in _trailer_lines(world, sha) if ": " in ln)
 
 
 def test_a_request_merge_commit_carries_parseable_provenance_trailers(world):
@@ -2105,13 +2109,13 @@ def test_a_request_merge_commit_carries_parseable_provenance_trailers(world):
     assert _git(world.main, "log", "-1", "--format=%s", new) == (
         f"merge(infra): feat — request {msg_id}, item W-0123abcd"
     )
-    tr = _trailers(world, new)
-    assert tr.get("Agent-Role") == "orchestrator", tr
-    assert tr.get("Agent-Name") == "infra", tr
-    assert tr.get("Agent-Context") == (
-        f"merge_request.py merged branch feat for request {msg_id}, item W-0123abcd"
-    ), tr
-    assert "Merged-From" not in tr  # scratch_sweep reads it over merges: a reused name reads merged
+    # the exact block, in order: a duplicated or forged trailer line fails here, and no Merged-From
+    # (scratch_sweep reads it over merges, where a reused branch name would read merged for ever)
+    assert _trailer_lines(world, new) == [
+        "Agent-Role: orchestrator",
+        "Agent-Name: infra",
+        f"Agent-Context: merge_request.py merged branch feat for request {msg_id}, item W-0123abcd",
+    ]
 
 
 def test_a_conflict_resolved_merge_commit_is_signed(world):
@@ -2128,7 +2132,7 @@ def test_a_conflict_resolved_merge_commit_is_signed(world):
     assert msg_id in tr.get("Agent-Context", ""), tr
 
 
-def test_a_catch_up_merge_commit_is_signed(world):
+def test_a_catch_up_merge_commit_is_signed(world, capsys):
     head = world.branch({"x.txt": "x\n"})
     msg_id = world.send(head)
     pushed: list[str] = []
@@ -2138,15 +2142,47 @@ def test_a_catch_up_merge_commit_is_signed(world):
             pushed.append(world.push_from_elsewhere("y.txt", "y\n"))
 
     assert world.run("merge", phase=race) == 4
+    capsys.readouterr()
     assert world.run("resume", msg_id) == 0
 
     tip = world.base()
     assert _git(world.main, "rev-parse", f"{tip}^2") == pushed[0]  # the catch-up merge itself
-    tr = _trailers(world, tip)
-    assert tr.get("Agent-Role") == "orchestrator" and tr.get("Agent-Name") == "infra", tr
-    assert tr.get("Agent-Context") == (
-        f"merge_request.py catch-up of origin/master after request {msg_id}"
-    ), tr
+    assert _trailer_lines(world, tip) == [
+        "Agent-Role: orchestrator",
+        "Agent-Name: infra",
+        f"Agent-Context: merge_request.py catch-up of origin/master after request {msg_id}",
+    ]
+    # both runs passed the post-CAS steps: the duty is recorded once, and the resume's gate line
+    # reports the REQUEST merge's owner tests (recorded by the first run), named as such
+    assert world.record(msg_id)["evidence"].count(world.mod.GATE_DUTY) == 1
+    out = capsys.readouterr().out
+    assert (
+        f"{world.mod.GATE_DUTY}; owner tests of the request merge: no owner tests ran "
+        "(no .fabrik/merge-tests, no touched tests/)"
+    ) in out.splitlines(), out
+
+
+def test_the_gate_line_without_recorded_tests_says_so():
+    mod = _load_module()
+    assert mod._gate_line({"merge_sha": "abc123"}) == (
+        f"{mod.GATE_DUTY}; owner tests of the request merge: none recorded "
+        "(resumed an existing merge abc123)"
+    )
+    rec = {"evidence": ["tests: A", "catch-up merge s of origin/master (tests: B)", mod.GATE_DUTY]}
+    assert mod._gate_line(rec).endswith("owner tests of the request merge: A")
+
+
+def test_an_uppercase_ascii_owner_signs_its_lowercase_name_without_a_note(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "INFRA")
+    message = world.mod._signed(ctx, "merge(INFRA): subject", "context")
+    assert "Agent-Name: infra" in message.splitlines() and ctx.notes == []
+
+
+def test_the_owner_grammar_note_is_written_once_per_run(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "two words")
+    for _ in range(2):  # a rebuild signs again
+        world.mod._signed(ctx, "merge(x): subject", "context")
+    assert len(ctx.notes) == 1, ctx.notes
 
 
 def test_the_block_parses_under_merge_log(world):
@@ -2194,10 +2230,10 @@ def test_merge_states_that_the_gate_is_the_callers(world, capsys):
     i = next(n for n, ln in enumerate(out) if ln.startswith(f"merged {msg_id} as "))
     duty = (
         "gate: merge does not run final_gate — gating the merged result is the caller's duty; "
-        "the requester's completion gate ran on the branch tip"
+        "merge itself runs only the owner tests"
     )
     assert out[i + 1] == (
-        f"{duty}; owner tests this run: no owner tests ran (no .fabrik/merge-tests, no touched "
-        "tests/)"
+        f"{duty}; owner tests of the request merge: no owner tests ran (no .fabrik/merge-tests, "
+        "no touched tests/)"
     ), out
     assert f"evidence: {duty}\n" in world.replies(msg_id)["fleet"]

@@ -244,11 +244,11 @@ overwritten; a path that changed is kept and listed in the reply — (f) a fast-
 hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. Every merge commit it writes, a catch-up's included, ends in one Agent Provenance
 Trailer block — `Agent-Role: orchestrator`, the owner's `Agent-Name` (left out, with a note, when the
-owner is outside the agent-name grammar) and an `Agent-Context` naming the branch, request and item —
-and no `Merged-From`, which `scratch_sweep.py` reads over merges. `merge` runs no `final_gate`: after
-`merged <id> as <sha>` it prints that gating the merged result is the caller's duty, the requester's
-gate having run on the branch tip, with the owner-test summary, and the reply carries the duty line
-(W-e914202a). A refusal acks `blocked` with the refused step; the requester fixes and sends a new
+owner is outside the agent-name grammar) and an `Agent-Context` (the request's names the branch,
+request and item; a catch-up's names the remote/base and the request) — and no `Merged-From`, which
+`scratch_sweep.py` reads over merges. `merge` runs no `final_gate`: after `merged <id> as <sha>` it
+prints that gating the merged result is the caller's duty, merge itself running only the owner tests,
+with the request merge's owner-test summary, and the reply carries the duty line (W-e914202a). A refusal acks `blocked` with the refused step; the requester fixes and sends a new
 request. When the reason is a conflict with the base, the requester brings the base in by MERGING it
 into the branch (`git merge <base>`), never a rebase: the branch is already pushed, so a rebase could
 only be republished with `--force`. A refusal that names the main checkout (a dirty,

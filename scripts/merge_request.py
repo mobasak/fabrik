@@ -2084,25 +2084,21 @@ def _signed(ctx: _Ctx, subject: str, context: str) -> str:
     return "\n".join([subject, "", *lines])
 
 
+# Only what merge itself does: it never sees the requester's gate (`--review` is a path).
 GATE_DUTY = (
     "gate: merge does not run final_gate — gating the merged result is the caller's duty; "
-    "the requester's completion gate ran on the branch tip"
+    "merge itself runs only the owner tests"
 )
 
 
 def _gate_line(rec: dict) -> str:
-    """GATE_DUTY plus the owner-test summary this run recorded (W-e914202a)."""
-    tests = ""
-    for line in reversed(rec.get("evidence", [])):
-        if line.startswith("tests: "):
-            tests = line[len("tests: ") :]
-            break
-        m = re.search(r"\(tests: (.*)\)$", line) if line.startswith("catch-up merge ") else None
-        if m:
-            tests = m.group(1)
-            break
-    tests = tests or f"none recorded (resumed an existing merge {rec.get('merge_sha')})"
-    return f"{GATE_DUTY}; owner tests this run: {tests}"
+    """GATE_DUTY plus the request merge's owner-test summary (W-e914202a) — recorded by whichever
+    run built it; a catch-up's summary rides its own evidence line."""
+    tests = next(
+        (e[len("tests: ") :] for e in reversed(rec.get("evidence", [])) if e.startswith("tests: ")),
+        f"none recorded (resumed an existing merge {rec.get('merge_sha')})",
+    )
+    return f"{GATE_DUTY}; owner tests of the request merge: {tests}"
 
 
 def _merge_message(ctx: _Ctx, rec: dict) -> str:
