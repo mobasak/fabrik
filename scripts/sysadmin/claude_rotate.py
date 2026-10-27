@@ -7289,7 +7289,9 @@ def _wall_line(row: dict | None, threshold: float) -> float:
     return line if line >= _urgent_drain_pct() else threshold
 
 
-def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool, dict | None]:
+def _active_account_walled(
+    accounts: list[dict], threshold: float, now: float | None = None
+) -> tuple[bool, dict | None]:
     """Is the account the fleet's ``active`` pointer resolves to (AFTER this tick's flip leg)
     walled? Uses the ONE shared exclusion predicate (:func:`_flip_churn_excluded`) — a pointer
     sitting on a ≥threshold / cap-walled / ≥100 account IS the real "no active quota left"
@@ -7303,7 +7305,9 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     )
     if row is None:
         return False, None
-    heat = _active_heat_view(row, _now())  # decided on the heat view, the row itself returned
+    # decided on the heat view, the row itself returned; the tick passes ITS `now`, so the walled
+    # verdict and the advisory's heat read one clock (review pass 2)
+    heat = _active_heat_view(row, _now() if now is None else now)
     utils = _row_utils(heat)
     if not _row_has_reading(heat):
         return False, row  # no reading → no claim
@@ -8394,7 +8398,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     week of unbroken exhaustion. Dedup is epoch-free: no reset-timestamp key to churn (the
     51181918 defect class — a raw sliding reset epoch re-fired every tick, mob@ 8x at a steady
     95%). (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
-    walled, row = _active_account_walled(accounts, threshold)
+    walled, row = _active_account_walled(accounts, threshold, now)
     # the heat view (W-010bb0d9): a cached window that reset since its reading is no heat
     heat = _active_heat_view(row, now) if row is not None else {}  # {} reads as no reading
     # URGENT tier (operator rule 2026-09-03): the active account's SESSION at/over 90 with no
@@ -8700,7 +8704,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
 def _tick_row(accounts, threshold, now) -> None:
     """The ``{"event": "tick"}`` ledger row for the active account's reading. Called guarded: a
     raise here is printed and the advisory and the posture still run (W-21b4c0e5)."""
-    _active_walled, _active_row = _active_account_walled(accounts, threshold)
+    _active_walled, _active_row = _active_account_walled(accounts, threshold, now)
     if _active_row is not None and isinstance(_active_row.get("five_hour"), dict):
         _sess = _usable_ts(_active_row["five_hour"].get("utilization"))
         if _sess is not None:

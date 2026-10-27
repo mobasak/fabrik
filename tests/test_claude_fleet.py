@@ -10173,6 +10173,11 @@ def test_the_heat_view_reads_the_readings_own_time_not_a_later_clock(tmp_path, m
     assert cr._active_heat_view({**row, "cached_at": now - 300}, now)["five_hour"] is not None, (
         "a reading taken after the reset still counts"
     )
+    # the walled verdict reads the CALLER's clock, so it and the advisory's heat agree (pass 2)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "seo")
+    hot = {**row, "five_hour": _cache_window(99.0, now + 100), "cached_at": now - 100}
+    assert cr._active_account_walled([hot], 98.0)[0] is True, "live at the module clock"
+    assert cr._active_account_walled([hot], 98.0, now + 200)[0] is False, "the caller's clock"
 
 
 def test_the_tick_holds_the_critical_section_across_the_hold_legs(monkeypatch):
@@ -10418,7 +10423,13 @@ def test_the_watchdog_waits_for_the_critical_section_and_parses_its_bound(tmp_pa
 
     class FakeTimer:
         def __init__(self, interval, fn, args=()):
-            self.rec = {"interval": interval, "fn": fn, "started": False, "cancelled": False}
+            self.rec = {
+                "interval": interval,
+                "fn": fn,
+                "args": args,
+                "started": False,
+                "cancelled": False,
+            }
             timers.append(self.rec)
             self.daemon = False
 
@@ -10438,6 +10449,12 @@ def test_the_watchdog_waits_for_the_critical_section_and_parses_its_bound(tmp_pa
     assert len(timers) == 1, timers
     assert timers[0]["interval"] == 1800.0 and timers[0]["fn"] is cr._tick_watchdog
     assert timers[0]["started"] and timers[0]["daemon"] and timers[0]["cancelled"], timers
+    # the Timer fired anyway, as the body ended (cancel cannot stop a fired Timer): the finally
+    # set `done`, so the real watchdog stands down — no exit, no tick end (review pass 2)
+    exits.clear()
+    ends.clear()
+    timers[0]["fn"](*timers[0]["args"])
+    assert exits == [] and ends == [], (exits, ends)
 
 
 def test_status_says_a_stale_hold_is_not_in_force(tmp_path, monkeypatch, capsys):
