@@ -30,6 +30,16 @@ newlines, `$`, ` #` and `: ` still deploy wrong. W-6eb61fa0.
 - `scripts/enforcement/check_mcp_scope.py` warns on such a repo and says a tracked copy may still hold credentials. A hub-class or typed one is still graded after the warning, as before, so a server outside its ruling stays a failure.
 - Over the 43 repos in `/opt`, one verdict changes: trade-intelligence goes from OK to SKIP until it untracks the file (W-c0d9cea5).
 
+### Added — the nightly chat backup alerts when it fails (W-36687f76, D-1265, 2026-10-27)
+`session-archive.service` failed silently: no `OnFailure=` existed, its `-` steps (sampler, pruner, rotation mail) fail
+with nothing logged, and the archiver exits 0 on a partial night. New `scripts/sysadmin/session_archive_alert.py` mails
+infra (ack required) and the coordinator (ack no): `failed`, run once by the new `session-archive-alert.service` after the
+retries are spent (`OnFailure=` + `RestartMode=direct`, which stops it firing on every retried attempt), with the unit's
+journal tail; and `check`, the unit's `ExecStopPost=-`, which on a successful run reports every step that did not exit 0
+and the archiver's subagent failures, 0 eligible transcripts, a held lock or a missing summary. `TimeoutStartSec=` ends a
+hung archiver; the installer verifies all three units, refuses any verify output and installs the alert unit first.
+Install: the coordinator re-runs `scripts/sysadmin/install_session_archive_timer.sh` from the main checkout after the merge.
+
 ### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
 
 - `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a
