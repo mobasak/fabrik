@@ -10,8 +10,8 @@ All notable changes to this project will be documented in this file.
 `a`, through `env_file` and `${K}` interpolation alike. A new codec, `src/fabrik/env_file.py`, now writes
 and reads every Fabrik `.env` to compose's own dotenv grammar. A spec `env:` value keeps its `$` as a
 compose interpolation; in every other value a `$` is literal, single-quoted or `\$`-escaped. The reader matches
-compose on quotes, escapes, ` #` comments and line breaks, and refuses a line compose refuses instead of
-writing a guess back, naming the key and line but never the value. `.env` and `.env.owner` are now
+compose on quotes, escapes, ` #` comments and line breaks, and refuses an unterminated quote or a quote after the closing
+quote (compose refuses both) instead of writing a guess back, naming the key and line but never the value. `.env` and `.env.owner` are now
 parsed apart. The hub `from_env` reader drops surrounding quotes and stops the deploy on a malformed
 file, a `from_file` secret loses its trailing newline, and `.env.example` lines are quoted so a newline
 cannot inject a line (W-2ae286e2).

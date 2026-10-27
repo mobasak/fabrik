@@ -120,7 +120,10 @@ def parse_env(content: str) -> dict[str, str]:
                 raise ValueError(f"{e} for {key} at line {lineno}") from None
             tail_end = content.find("\n", after)
             tail_end = n if tail_end < 0 else tail_end
-            # Compose ignores `K="v" junk` and `K="v" # c` but refuses a second quoted word.
+            # Compose ignores `K="v" junk` and `K="v" # c` and refuses a quote in the tail, which
+            # is refused here too; it also refuses some other tail words (`K="v" x#c`) that this
+            # reader still reads as `v` (W-2ae286e2 review, recorded: leniency, the quoted content
+            # is kept).
             if any(q in content[after:tail_end].split("#", 1)[0] for q in ("'", '"')):
                 raise ValueError(f"a quote after the closing quote for {key} at line {lineno}")
             source = content[vstart:after]

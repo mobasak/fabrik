@@ -178,8 +178,8 @@ literal. A value is written bare unless it holds a space, `#`, a quote, `\`, a T
 literal `$`; a literal holding `$` is single-quoted (`API_KEY='a$b'`) when it holds no `'`, `\` or line
 break, and every other quoted value is double-quoted with `\$`, `\\`, `\"`, `\n`, `\r`, `\t` escapes.
 The reader follows compose: single quotes are literal, a
-` #` ends an unquoted value, text after a closing quote is ignored, and an unterminated quote or a
-second quoted word after the closing quote aborts the read (compose refuses the same file); the error
+` #` ends an unquoted value, other text after a closing quote is ignored, and an unterminated quote or
+a quote character after the closing quote aborts the read (compose refuses the same file); the error
 names the key and line, never the value, and a malformed hub `.env` stops the deploy. A hand-written template is written back unchanged. The
 deployed `.env` and `.env.owner` are read in one ssh call and parsed apart.
 
