@@ -24,6 +24,8 @@ import re
 _DQ_ESCAPES = {"n": "\n", "r": "\r", "t": "\t", "\\": "\\", '"': '"', "$": "$"}
 _QUOTE_TRIGGERS = (" ", "#", "'", '"', "\n", "\r", "\t", "\\")
 _KEY_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# The key grammar docker compose's .env parser accepts for a variable name.
+_ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
 
 
 def _shown_key(key: str) -> str:
@@ -78,6 +80,8 @@ def format_env_line(key: str, value: str) -> str:
         line.encode("utf-8")
     except UnicodeEncodeError:
         raise ValueError(f"the .env line for {_shown_key(key)} is not valid UTF-8") from None
+    if not _ENV_KEY.fullmatch(key):
+        raise ValueError(f"the .env key {key!r} is not a valid variable name")
     return line
 
 
