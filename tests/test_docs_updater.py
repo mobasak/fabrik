@@ -1143,3 +1143,86 @@ def test_blank_code_spans_beats_the_quadratic_original_on_unmatched_runs() -> No
     _old_blank_code_spans(text)
     old = time.perf_counter() - start
     assert _best_of_3(text) * 20 < old, (old, _best_of_3(text))
+
+
+# --- W-da101088: what the staleness gate may watch -------------------------------------------
+# A watched doc must be one the project can edit and may keep where it is: a stale-header row on a
+# hub-synced file or on a path check_structure calls misplaced is a row nobody can clear (D-1272).
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "enforcement"))
+import check_structure  # noqa: E402
+import fabrik_synced_manifest  # noqa: E402
+
+
+def _not_the_projects_to_edit(entries: list[str]) -> list[str]:
+    # This tree's own synced set, never the main checkout's (the function's default root).
+    readonly = set(fabrik_synced_manifest.review_readonly_paths(Path(__file__).resolve().parents[1]))
+    return [e for e in entries if e in readonly]
+
+
+def _misplaced(entries: list[str]) -> list[str]:
+    # The fallback allowlist lacks API_REFERENCE.md, so a failed registry import would be red
+    # for a reason that has nothing to do with the list.
+    assert check_structure._doc_registry is not None, "doc registry import failed"
+    # Ask the structure gate itself, path by path: any violation it reports means misplaced.
+    root = Path(__file__).resolve().parents[1]
+    return [e for e in entries if check_structure.check_structure(root, files=[e])]
+
+
+def test_no_watched_doc_is_a_file_the_project_cannot_edit() -> None:
+    assert _not_the_projects_to_edit(du.MANUAL_DOCS) == []
+
+
+@pytest.mark.parametrize(
+    "synced",
+    [
+        "AGENTS.md",
+        "agents-fabrik.md",
+        "agents-fabrik-core.md",
+        "CLAUDE.md",
+        "docs/reference/convergence-prompts.md",
+    ],
+)
+def test_the_readonly_guard_catches_every_synced_doc(synced: str) -> None:
+    assert _not_the_projects_to_edit(["docs/QUICKSTART.md", synced]) == [synced]
+
+
+def test_no_watched_doc_is_one_governance_misplaces() -> None:
+    assert _misplaced(du.MANUAL_DOCS) == []
+
+
+@pytest.mark.parametrize(
+    "misplaced",
+    [
+        "docs/INDEX.md",
+        "docs/NOTES.md",
+        "docs/notes/setup.md",
+        "notes.md",
+        "docs/index.md",
+        "scripts/notes.md",
+        "src/x.md",
+        "proposals/x.md",
+    ],
+)
+def test_the_misplaced_guard_catches_every_spelling(misplaced: str) -> None:
+    assert _misplaced(["docs/QUICKSTART.md", misplaced]) == [misplaced]
+
+
+@pytest.mark.parametrize(
+    "placed",
+    ["README.md", "docs/QUICKSTART.md", "docs/guides/setup.md", "docs/foo/README.md", ".github/x.md"],
+)
+def test_the_misplaced_guard_passes_a_doc_governance_allows(placed: str) -> None:
+    assert placed not in _misplaced([placed])
+
+
+def test_staleness_skips_the_dropped_docs_and_still_runs(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "docs").mkdir()
+    for rel in ("AGENTS.md", "docs/INDEX.md", "docs/FUNNEL.md", "docs/AUTOMATION.md", "docs/QUICKSTART.md"):
+        (tmp_path / rel).write_text("# no marker\n")
+    (tmp_path / "docs/CONFIGURATION.md").write_text("**Last Updated:** 2000-01-01\n")
+    monkeypatch.setattr(du, "PROJECT_ROOT", tmp_path)
+    issues = du.check_staleness()
+    assert issues[0] == "Missing 'Last Updated' date: docs/QUICKSTART.md"
+    assert re.fullmatch(r"Stale doc \(\d+ days old\): docs/CONFIGURATION\.md", issues[1])
+    assert len(issues) == 2

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T03:40:00.345575Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ce6f9f15",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5C86456RFKCYY3VS4BNADP1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Two /fabrik-plan-review feedback rows ask for code: refuse a duplicate `round` seconds after the last, and fire the transcript ROTATE line before a multi-seat round"
+}

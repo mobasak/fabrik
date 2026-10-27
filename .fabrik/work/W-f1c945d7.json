@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T00:33:31.209935Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f1c945d7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one Go-duration pattern (compose-go time.ParseDuration grammar) shared by Health interval/timeout/start_period and _validate_compose, measured against every spec and /opt compose before it lands (290 live values, all valid today)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Healthcheck durations are type-checked, never format-checked: a spec or project compose with start_period/interval/timeout \"banana\", \"10 s\" or \"30\" (no unit) passes Health and _validate_compose and is refused only by compose on the VPS (W-3197a125 review; the design rejected format validation as additive scope)"
+}

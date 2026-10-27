@@ -23,7 +23,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       {% for key, value in env.items() %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
       {% if depends.postgres %}
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/{{ depends.postgres }}}
@@ -47,7 +47,7 @@ services:
       interval: {{ health.interval if health else '10s' }}
       timeout: {{ health.timeout if health else '5s' }}
       retries: {{ health.retries if health else 3 }}
-      start_period: {{ health.start_period if health else '30s' }}
+      start_period: {{ health.start_period if health and health.start_period else '30s' }}
     networks:
       - fabrik
 

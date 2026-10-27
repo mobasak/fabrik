@@ -20,7 +20,8 @@ never a donor.
 The emitted file is GITIGNORED fleet-wide (manifest gitignore group "MCP
 config") because postgres-pro's env carries the repo's resolved DATABASE_URL
 inline — `${VAR}` expansion reads the shell env, not the repo `.env`, so
-inline-and-untracked is the deliberate shape (plan decision row 1).
+inline-and-untracked is the deliberate shape (plan decision row 1). So the file is written only where
+`git check-ignore` says it is ignored, in every repo (W-c0d9cea5): a tracked copy is never ignored.
 
 Write-set contract: the ONLY paths this script creates or mutates in a target
 repo are `<repo>/.mcp.json` and the EXISTING copies of it in the repo's linked
@@ -33,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -146,17 +148,21 @@ def _fill_credentials(loaded: dict[str, dict]) -> list[str]:
     donor (operator ruling 2026-10-07, D-641): filling from it re-wrote a revoked Grafana token
     twice while printing OK (01M1A3A698), and a rotated key can never be re-emitted stale when the
     only sources are the places a rotation is written to."""
-    roster: dict[str, dict] = {}
+    servers: object = None
     try:
         data = json.loads(ROSTER_PATH.read_text())
-        roster = data.get("mcpServers") or {}
-    except (OSError, ValueError):
-        roster = {}
+        servers = data.get("mcpServers") if isinstance(data, dict) else None
+    except (OSError, ValueError, RecursionError):  # a deeply nested file overflows json.loads
+        pass
+    # a roster of a wrong shape, at any level, is no donor, never a crash (W-f7772267 (b))
+    roster: dict = servers if isinstance(servers, dict) else {}
     dotenv = _env_file_values(HUB_ENV_PATH)
     unresolved: list[str] = []
     for name, entry in loaded.items():
         env = entry.get("env") or {}
-        donor = (roster.get(name) or {}).get("env") or {}
+        donor_entry = roster.get(name)
+        donor = donor_entry.get("env") if isinstance(donor_entry, dict) else None
+        donor = donor if isinstance(donor, dict) else {}
         for k, v in env.items():
             if not (isinstance(v, str) and _PLACEHOLDER_RE.match(v)):
                 continue
@@ -182,6 +188,10 @@ def _is_credential(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip()) and "${" not in value
 
 
+def _no_constant(name: str) -> object:
+    raise ValueError(f"{name} is not JSON")
+
+
 def _load_defs(defs_arg: str | None) -> dict[str, dict]:
     """The server DEFINITIONS: `--defs`, else the hand-curated `mcp_defs.json` beside this script
     (the STATIC catalog heads the chain — BLOCKER regression, author-blind review 2026-08-30: the
@@ -189,20 +199,35 @@ def _load_defs(defs_arg: str | None) -> dict[str, dict]:
     postgres-pro from every repo). Credentials are then filled by `_fill_credentials`; an
     unresolved one FAILS the run naming the key — never a silent placeholder, never the prior
     output."""
-    candidates = ([Path(defs_arg)] if defs_arg else []) + [
-        Path(__file__).resolve().parent / "mcp_defs.json",
-    ]
-    loaded: dict[str, dict] | None = None
-    for p in candidates:
-        if not p.is_file():
+    # an explicit --defs is the ONLY catalog read: one it cannot use is a named abort, never a silent fall-back to
+    # mcp_defs.json; every read, parse or shape fault is a SystemExit, which check_mcp_scope prints (W-f7772267 (k))
+    p = Path(defs_arg) if defs_arg else Path(__file__).resolve().parent / "mcp_defs.json"
+    try:
+        # NaN/Infinity parse in Python but are no JSON: emitted verbatim, they would make every .mcp.json unreadable
+        data = json.loads(p.read_text(), parse_constant=_no_constant)
+    except (OSError, ValueError, RecursionError) as e:
+        raise SystemExit(
+            f"emit_mcp: server definitions {p} could not be read as JSON — {e}"
+        ) from None
+    servers = data.get("mcpServers") if isinstance(data, dict) else None
+    if not isinstance(servers, dict) or not servers:
+        raise SystemExit(f"emit_mcp: server definitions {p} hold no non-empty `mcpServers` object")
+    bad = []
+    for n, e in servers.items():
+        if not isinstance(e, dict):
+            bad.append(n)
             continue
-        data = json.loads(p.read_text())
-        servers = data.get("mcpServers")
-        if isinstance(servers, dict) and servers:
-            loaded = json.loads(json.dumps(servers))  # deep copy
-            break
-    if loaded is None:
-        raise SystemExit("emit_mcp: no server definitions source found (pass --defs)")
+        bad += [f"{n}.env"] if e.get("env") is not None and not isinstance(e["env"], dict) else []
+        bad += [f"{n}.command"] if "command" in e and not isinstance(e["command"], str) else []
+        args = e.get("args", [])
+        bad += (
+            [f"{n}.args"]
+            if not (isinstance(args, list) and all(isinstance(a, str) for a in args))
+            else []
+        )
+    if bad:
+        raise SystemExit(f"emit_mcp: server definitions {p} — wrong shape: {', '.join(bad)}")
+    loaded: dict[str, dict] = json.loads(json.dumps(servers))  # deep copy
     unresolved = _fill_credentials(loaded)
     if unresolved:
         raise SystemExit(
@@ -219,9 +244,14 @@ def _repo_type(repo: Path) -> str | None:
     or no `type:` line). A `type:` line the grammar cannot read returns it raw, so it rules as an unknown type
     (a visible SKIP), never as untyped."""
     py = repo / "project.yaml"
-    if not py.is_file():
-        return None
+    # only a MISSING file is untyped (W-f7772267 (g)); anything else that is no regular file — a directory, a dangling or
+    # looping link, a FIFO, whose read blocks with no writer — is unreadable and never opened
     try:
+        # Python 3.12's exists()/is_file() RAISE on EACCES — a link into a mode-000 directory (W-f7772267 (k))
+        if not (py.exists() or py.is_symlink()):
+            return None
+        if not py.is_file():
+            return "(unreadable: not a regular file)"
         text = py.read_text(encoding="utf-8", errors="replace")
     except (
         OSError
@@ -231,7 +261,8 @@ def _repo_type(repo: Path) -> str | None:
     if m:
         return m.group(1)
     raw = re.search(r"^type:(.*)$", text, re.M)
-    return f"(unreadable: {raw.group(1).strip()[:40]})" if raw else None
+    # `(unparsed:`, never `(unreadable:`: only an OSError is a file the emitter could not read (W-f7772267 (g))
+    return f"(unparsed: {raw.group(1).strip()[:40]})" if raw else None
 
 
 def _database_url(repo: Path) -> str | None:
@@ -325,15 +356,19 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
     return out
 
 
-def mcp_config_ignored(repo: Path) -> bool | None:
-    """Whether git itself ignores `<repo>/.mcp.json`: True (exit 0), False (exit 1 — no rule matches, a later `!`
-    negation, or the file is TRACKED and would carry the keys into a commit), or None when git cannot answer (git
-    missing, not a repo, a safe.directory refusal, a timeout). `git check-ignore` reads every rule git honours."""
+def mcp_config_ignored(repo: Path, at: Path | None = None) -> bool | None:
+    """Whether git itself ignores `<at>/.mcp.json` (`at` defaults to `repo`; a linked worktree's dir asks that
+    worktree's index): True (exit 0), False (exit 1 — no rule matches, a later `!` negation, or the file is TRACKED
+    and would carry the keys into a commit), or None when git cannot answer (git missing, not a repo, a safe.directory
+    refusal, a timeout). `git check-ignore` reads every rule git honours. Discovery stops at `repo`'s parent, so a bare
+    or broken `.git` dir never borrows an enclosing repo's answer (W-c0d9cea5 review)."""
+    env = {**os.environ, "GIT_CEILING_DIRECTORIES": str(repo.resolve().parent)}
     try:
         r = subprocess.run(
-            ["git", "-C", str(repo), "check-ignore", "-q", ".mcp.json"],
+            ["git", "-C", str(at or repo), "check-ignore", "-q", ".mcp.json"],
             capture_output=True,
             timeout=10,
+            env=env,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -341,26 +376,37 @@ def mcp_config_ignored(repo: Path) -> bool | None:
 
 
 def emitter_owns(repo: Path) -> bool | None:
-    """Whether the emitter writes this repo's `.mcp.json`: hub-class or typed (True), or untyped with the file
-    ignored by git — `mcp_config_ignored`'s answer, None when git cannot say. The emitter writes only on True;
-    `check_mcp_scope` warns on False (re-emitting cannot clear it) and still grades on None."""
-    if repo.name in HUB_CLASS or _repo_type(repo) is not None:
-        return True
+    """Whether the emitter writes this repo's `.mcp.json`: `mcp_config_ignored`'s answer, for EVERY repo — hub-class
+    and typed ones too, since the file inlines credentials and a typed repo can track it (trade-intelligence,
+    W-c0d9cea5). None when git cannot say. The emitter writes only on True; `check_mcp_scope` warns on False
+    (re-emitting cannot clear it) and still grades on None."""
     return mcp_config_ignored(repo)
 
 
 def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
     owns = emitter_owns(repo)
     if owns is None:
-        return "SKIP (untyped repo, and git could not say whether `.mcp.json` is ignored — never written)"
+        return "SKIP (git could not say whether `.mcp.json` is ignored — never written)"
     if not owns:
-        # an untyped repo is no governed project: its .gitignore is not ours, and the emitted file inlines
-        # filled credentials (exa, brave-search, firecrawl keys; a DATABASE_URL) — never written untracked-unignored
-        return "SKIP (untyped repo whose `.mcp.json` git does not ignore — add the .gitignore line, untrack it, or type the repo)"
+        # the emitted file inlines filled credentials (exa, brave-search, firecrawl keys; a DATABASE_URL), so it is
+        # never written where a commit would carry it: a rule does nothing for a tracked file, so both steps are named
+        return (
+            "SKIP (git does not ignore `.mcp.json` — make .gitignore ignore it, with no later `!.mcp.json`, and if git"
+            " tracks it run `git rm --cached .mcp.json`; the file carries credentials)"
+        )
+    target = repo / ".mcp.json"
+    # git answers for the link's name; a write follows it into whatever it names
+    if target.is_symlink():
+        return "SKIP (`.mcp.json` is a symlink — never written through it; make it a plain file)"
     servers = derive_servers(repo, defs)
     if servers is None:
-        return "SKIP"
-    target = repo / ".mcp.json"
+        # an unreadable project.yaml is no ruling to apply: a named error, which fails the run (W-f7772267 (g))
+        rtype = _repo_type(repo) or ""
+        return (
+            f"SKIP (error: project.yaml {rtype[1:-1]})"
+            if rtype.startswith("(unreadable:")
+            else "SKIP"
+        )
     payload = json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n"
     if target.is_file() and target.read_text() == payload:
         verdict = "OK"
@@ -368,8 +414,13 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
         verdict = "UPDATE" if target.exists() else "CREATE"
         if not check:
             target.write_text(payload)  # the root first: a bad worktree copy never blocks it
-    refreshed, failed = 0, {"unreadable": 0, "unwritable": 0}
+    refreshed, failed = 0, {"unreadable": 0, "unwritable": 0, "unanswerable": 0, "not ignored": 0}
     for copy in _worktree_copies(repo):
+        # each linked worktree has its own index and .gitignore: the root's answer says nothing about its copy
+        ignored = mcp_config_ignored(repo, copy.parent)
+        if not ignored:
+            failed["unanswerable" if ignored is None else "not ignored"] += 1
+            continue
         try:
             if copy.read_text() == payload:
                 continue
@@ -421,14 +472,14 @@ def _candidate_repos(root: Path) -> list[Path]:
 
 
 _FAILED = re.compile(
-    r"^SKIP \((?:error:|untyped repo, and git could not say)|\b\d+ un(?:readable|writable)\b"
+    r"^SKIP \((?:error:|git could not say)|\b\d+ un(?:readable|writable|answerable)\b"
 )
 
 
 def _failed(verdict: str) -> bool:
     """A verdict whose run did not do what it reports it could not: an exception, git unable to answer (a mistyped
-    `--repo` lands here), or a worktree copy left unread or unwritten. A ruled SKIP (an unknown type, an untyped repo
-    git does not ignore) is a policy verdict and never fails the run (W-d095d60b)."""
+    `--repo` lands here), or a worktree copy left unread, unwritten or unanswered by git. A ruled SKIP (an unknown type, a repo whose
+    `.mcp.json` git does not ignore) is a policy verdict and never fails the run (W-d095d60b, W-c0d9cea5)."""
     return bool(_FAILED.search(verdict))
 
 

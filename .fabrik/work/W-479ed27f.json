@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T04:26:58.393344Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-479ed27f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5XN5SDR3ZJ5HYJHPB4BDM90",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: infra-2-merge-queue-legs"
+}

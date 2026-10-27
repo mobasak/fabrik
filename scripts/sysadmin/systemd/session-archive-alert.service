@@ -1,0 +1,13 @@
+# The nightly chat backup's failure alert (W-36687f76, docs/workstation/session-history-retention.md).
+# session-archive.service names this unit in OnFailure=; with its RestartMode=direct it starts ONCE, after the
+# archive unit's retries are spent, and systemd hands it MONITOR_SERVICE_RESULT, MONITOR_EXIT_CODE,
+# MONITOR_EXIT_STATUS and MONITOR_INVOCATION_ID. It mails infra and the coordinator. No OnFailure= here: a failed
+# alert lands in this unit's journal and is never re-alerted, so the two units cannot loop.
+# Installed by scripts/sysadmin/install_session_archive_timer.sh, before the archive unit.
+[Unit]
+Description=Mail infra and the coordinator when the nightly chat backup fails
+
+[Service]
+Type=oneshot
+ExecStart=/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/session_archive_alert.py failed
+Nice=10
