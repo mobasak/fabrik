@@ -21,7 +21,7 @@
   "status": "open",
   "tags": [
     "operator-ask",
-    "waits-repo-replies"
+    "waits-repo-session"
   ],
   "title": "Operator ruling D-1036: roll the coordinator model out to every repo — per repo: a coordinator window in the main checkout, charters for coordinator and builders, builders in worktrees, agents_up launcher entry (.bat + WT profile), full autonomy (agents ask their coordinator, never the operator); after the fabrik-lib pilot proves out"
 }
