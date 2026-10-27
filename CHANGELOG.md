@@ -24,6 +24,17 @@ of the file's 67 tests red. The fixture now points `XDG_CONFIG_HOME` and `GIT_TE
 dirs, as `tests/test_emit_mcp_fillins.py` already did for XDG. W-f7772267 (f); a fixture-only hunk under
 intel's plan-3 lock, on the coordinator's ruling.
 
+### Fixed — the hub's secrets reader reads `.env` as compose does and refuses a malformed file (2026-10-27)
+
+`SecretsManager`, which `fabrik apply` asks for a secret the environment lacks, read `<cwd>/.env` with its own
+parser: an inline ` # comment` stayed in the value (34 values measured across the hub and 22 project `.env`
+files), `\"` and `\$` stayed two characters, and an unterminated quote was read leniently, so a key
+python-dotenv had skipped was read wrong or minted over the real secret. It now uses the `.env` codec
+(`src/fabrik/env_file.py`, D-1277), returns plain literals, decodes as UTF-8 whatever the locale, and raises
+`ValidationError` on a file it cannot read — naming the file, key and line or byte offset, never a value. A
+value holding a line break logs a warning naming its key. 11 new tests in `tests/orchestrator/test_secrets.py`
+(W-f62a2cdc, D-1281).
+
 ### Fixed — deployed `.env` values reach the container exactly: a secret's `$` is no longer interpolated (2026-10-27)
 
 `_format_env` never escaped `$`, so a secret `a$b` was written as `K=a$b` and docker compose delivered

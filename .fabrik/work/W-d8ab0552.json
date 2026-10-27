@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T05:28:26.678249Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d8ab0552",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure compose 2.40.3 on a BOM .env and on a lone \\r (inside a quoted value and as a line end) in a real container, then match it in parse_env and in the text readers (SecretsManager and _load_secrets read with universal newlines, so a lone \\r is a line break there; W-f62a2cdc review); a dangling symlink: refuse like an unreadable file",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "The .env codec (src/fabrik/env_file.py parse_env) keeps a UTF-8 BOM inside the first key, so every reader (SecretsManager, _load_secrets, the deployed .env reader) misses that key and SecretsManager mints over it; and SecretsManager.load_dotenv returns {} for a dangling .env symlink (exists() is False), minting every key — both pre-existing, found by the W-f62a2cdc review pass 1 (Haiku + Opus seats), 2026-10-27"
+}
