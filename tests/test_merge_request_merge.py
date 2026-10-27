@@ -349,6 +349,13 @@ def _branch_mints_a_colliding_d_id(world):
     return head, "D-3 collides"
 
 
+def _dirty_kaizen_log_overlaps_the_branch(world):
+    # W-6778171c: a ledger now, so the refusal names the owner's remedy, never "not a ledger"
+    _kaizen_world(world, KAIZEN_LOG)
+    head = world.branch({KAIZEN_LOG: KAIZEN.replace("| 2026-10-22 | 10.6 |", "| 2026-10-22 | x |")})
+    return head, "the owner commits or moves it aside"
+
+
 @pytest.mark.parametrize(
     "setup",
     [
@@ -360,6 +367,7 @@ def _branch_mints_a_colliding_d_id(world):
         _red_owner_test,
         _dirty_ledger_carry_conflicts,
         _branch_mints_a_colliding_d_id,
+        _dirty_kaizen_log_overlaps_the_branch,
     ],
 )
 def test_preflight_refusal_leaves_everything_byte_identical(world, setup):
@@ -1469,6 +1477,39 @@ def test_a_dirty_ledger_with_no_snapshot_is_three_way_merged_keeping_the_wip(wor
     # exactly the WIP line over the merge: one line added, nothing of the merge missing
     numstat = _git(world.main, "diff", "--numstat", "HEAD", "--", "CHANGELOG.md")
     assert numstat.split() == ["1", "0", "CHANGELOG.md"]
+    assert "not carried" not in world.replies(msg_id)["fleet"]
+
+
+# --- W-6778171c: the daily kaizen collector leaves the kaizen logs dirty in the main checkout -----
+# It rewrites the newest week row in place and appends rows (measured 2026-10-27), so the two logs
+# are ledgers: a branch's edit to another row is 3-way carried, an overlapping one refuses with the
+# owner's remedy. The collector's own write discipline is W-6c06c35d.
+KAIZEN_LOG = "docs/reference/agents/kaizen-log-infra.md"
+KAIZEN = "| Date | Friction |\n|---|---|\n| 2026-10-11 | — |\n| 2026-10-22 | 10.6 |\n"
+COLLECTED = KAIZEN.replace("| 2026-10-22 | 10.6 |", "| 2026-10-25 | 5.1 |") + "| 2026-10-26 | 3.7 |\n"
+
+
+def _kaizen_world(world, path):
+    world.write(path, KAIZEN)
+    world.commit_main("kaizen log", path)
+    _git(world.main, "push", "-q", "origin", "master")
+    _git(world.wt, "merge", "-q", "master")
+    world.write(path, COLLECTED)  # the collector's uncommitted write
+
+
+@pytest.mark.parametrize("path", [KAIZEN_LOG, "docs/reference/agents/kaizen-log-fleet.md"])
+def test_a_dirty_kaizen_log_is_carried_through_a_merge_editing_another_row(world, path):
+    _kaizen_world(world, path)
+    head = world.branch({path: KAIZEN.replace("| 2026-10-11 | — |", "| 2026-10-11 | fixed |")})
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+
+    assert world.base() != head and world.origin() == world.base()
+    expected = COLLECTED.replace("| 2026-10-11 | — |", "| 2026-10-11 | fixed |")
+    assert world.read(path) == expected  # the merge's row AND the collector's WIP
+    assert "| 2026-10-11 | fixed |" in _git(world.main, "show", f"HEAD:{path}")
+    assert "2026-10-25" not in _git(world.main, "show", f"HEAD:{path}")  # WIP stays uncommitted
     assert "not carried" not in world.replies(msg_id)["fleet"]
 
 
