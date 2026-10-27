@@ -228,8 +228,6 @@ def test_a_descendant_that_left_the_group_cannot_hold_the_budget_open(tmp_path, 
             os.kill(int(pidfile.read_text()), signal.SIGKILL)  # the escapee this test spawned
     assert code is None
     assert elapsed < 1 + fg._GROUP_DRAIN_S + 10, f"the read waited out the escapee: {elapsed:.1f}s"
-    # the killed leader is REAPED before return, never left a zombie child of the gate
-    assert not _zombie_children(), "the runner returned with its killed leader unreaped"
 
 
 def _zombie_children() -> list[int]:
@@ -270,6 +268,9 @@ def test_an_interrupt_while_waiting_kills_the_group_and_propagates(tmp_path, mon
     if alive:
         os.kill(pid, signal.SIGKILL)
     assert not alive, "the child outlived the interrupt"
+    # the exception path never reaches communicate()'s own reaping: the killed leader must be
+    # waited for, or it stays a zombie child of the gate
+    assert not _zombie_children(), "the runner raised with its killed leader unreaped"
 
 
 def test_a_child_left_behind_by_a_finished_scan_is_reaped(tmp_path, monkeypatch):
@@ -327,6 +328,9 @@ def test_the_sigterm_guard_passes_a_body_exception_through_and_restores_the_hand
         before = signal.getsignal(signal.SIGTERM)
         with pytest.raises(ValueError, match="body"):
             with fg._sigterm_raises():
+                # a caller's own handler stays the caller's; only the default is replaced
+                during = signal.getsignal(signal.SIGTERM)
+                assert during is (before if caller_handler else fg._raise_exit)
                 raise ValueError("body")
         assert signal.getsignal(signal.SIGTERM) is before
     finally:
