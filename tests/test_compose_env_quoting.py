@@ -196,6 +196,22 @@ def test_image_command_round_trips(value: str) -> None:
     assert _service(compose)["command"] == value, compose
 
 
+@pytest.mark.parametrize("bad", ["sec\x00ret", "sec\udc80ret"], ids=["nul", "lone-surrogate"])
+@pytest.mark.parametrize("field", ["image_command", "health.test", "companion command"])
+def test_compose_str_refuses_unrepresentable_naming_the_field(bad: str, field: str) -> None:
+    """`compose_str` refuses what compose or runc cannot hold, naming the field and never the value."""
+    if field == "image_command":
+        spec = _spec("python-api", {}, source={"image": "busybox:1", "image_command": bad})
+    elif field == "health.test":
+        spec = _spec("python-api", {}, health={"test": ["CMD-SHELL", bad]})
+    else:
+        companion = {"id": "demo-svc-worker", "command": ["node", bad], "memory": "256M"}
+        spec = _spec("python-api", {}, companion_services=[companion])
+    with pytest.raises(ValueError, match=field.replace(".", r"\.")) as exc:
+        _render(spec, {})
+    assert "sec" not in str(exc.value)
+
+
 @pytest.mark.parametrize("name", sorted(TRICKY))
 def test_health_test_round_trips(name: str) -> None:
     test = ["CMD-SHELL", TRICKY[name], "x"]
@@ -245,10 +261,21 @@ def test_file_api_port_round_trips(port: str) -> None:
         "${A:-65536}",
     ],
 )
-def test_file_api_port_refused(port: str) -> None:
-    """Both PORT sites accept only a port number or a compose interpolation; anything else is refused at render."""
+@pytest.mark.parametrize("site", ["label", "healthcheck"])
+def test_file_api_port_refused(port: str, site: str) -> None:
+    """Each PORT site on its own accepts only a port number or a compose interpolation: the label renders
+    with no health block, the healthcheck with no HTTP exposure (review C-1)."""
+    if site == "label":
+        spec = _spec("file-api", {"PORT": port})
+    else:
+        spec = _spec(
+            "file-api", {"PORT": port}, health={"path": "/h"}, expose={"http": False}, domain=None
+        )
+    compose_without_port = _render(spec.model_copy(update={"env": {}}), {})
+    assert ("loadbalancer.server.port=" in compose_without_port) is (site == "label")
+    assert ("healthcheck:" in compose_without_port) is (site == "healthcheck")
     with pytest.raises(ValueError, match="PORT"):
-        _render(_spec("file-api", {"PORT": port}, health={"path": "/api/health"}), {})
+        _render(spec, {})
 
 
 _BAD_HEALTH_PATHS = [
@@ -301,12 +328,51 @@ def test_health_path_query_is_shell_quoted() -> None:
 
 
 def test_every_service_spec_passes_the_new_grammars() -> None:
+    from fabrik.orchestrator.validator import SpecValidator
     from fabrik.spec_loader import load_spec
 
+    validator = SpecValidator(templates_dir=TEMPLATES)
     specs = sorted((REPO / "specs" / "services").glob("*.yaml"))
     assert len(specs) >= 60, len(specs)
     for f in specs:
         load_spec(f)
+        validator.validate(validator.load_spec(f))
+
+
+def _raw_apply_spec(**extra: object) -> dict:
+    return {"name": "demo-svc", "template": "python-api", "domain": "demo.vps1.ocoron.com", **extra}
+
+
+@pytest.mark.parametrize("name", ["x}#", "a-b", "main\n", 7])
+def test_apply_validator_refuses_a_bad_database_name(name: object) -> None:
+    """The apply path loads a raw dict: a bad name is refused at step 1, before DNS (review A2-1)."""
+    from fabrik.orchestrator.exceptions import ValidationError as ApplyError
+    from fabrik.orchestrator.validator import SpecValidator
+
+    with pytest.raises(ApplyError, match="depends.postgres"):
+        SpecValidator(templates_dir=TEMPLATES).validate(_raw_apply_spec(depends={"postgres": name}))
+
+
+@pytest.mark.parametrize("port", ["80'; id; '", "8080", 0, 65536, True, 8.5])
+def test_apply_validator_refuses_a_bad_image_port(port: object) -> None:
+    """The docker-image writer pastes `image_port` into its shell probe and traefik label (review A2-2)."""
+    from fabrik.orchestrator.exceptions import ValidationError as ApplyError
+    from fabrik.orchestrator.validator import SpecValidator
+
+    raw = _raw_apply_spec(source={"type": "docker", "image": "busybox:1", "image_port": port})
+    with pytest.raises(ApplyError, match="image_port"):
+        SpecValidator(templates_dir=TEMPLATES).validate(raw)
+
+
+def test_apply_validator_keeps_the_legitimate_values() -> None:
+    from fabrik.orchestrator.validator import SpecValidator
+
+    raw = _raw_apply_spec(
+        depends={"postgres": "app_db"},
+        source={"type": "docker", "image": "busybox:1", "image_port": 8080},
+    )
+    assert SpecValidator(templates_dir=TEMPLATES).validate(raw) is not None
+    SpecValidator(templates_dir=TEMPLATES).validate(_raw_apply_spec(depends={"postgres": ""}))
 
 
 @pytest.mark.parametrize("name", ["db}x", "a #b", "x-y", "1db", "a" * 64, "d$b", "main\n"])
@@ -336,12 +402,12 @@ def test_database_url_default_round_trips() -> None:
 
 # A templated env item is exactly `- {{ <key> | compose_env(<value>) }}`. Any other `- ` item whose key — names,
 # hyphens and `{{ }}` tags in any mix, quoted or not, the quote closing before or after the `=` (`- {{ key }}=
-# {{ value }}` was the old loop) — is followed by `=` and a `{{` is an env value written by hand. A dotted key (a
+# {{ value }}` was the old loop) — is followed by `=` and a `{{` or `{%` is an env value written by hand. A dotted key (a
 # quoted traefik label) is not an env item, so not flagged; there is no other exemption (W-ff313a14).
 # The tag may hold single braces (the DATABASE_URL default's `'${…:-' ~ … ~ '}'`), never a second tag.
 _IN_TAG = r"(?:(?!\{\{|\}\}).)*"
 _ENV_ITEM_LINE = re.compile(rf"^\s*-\s+\{{\{{{_IN_TAG}\|\s*compose_env\({_IN_TAG}\)\s*\}}\}}\s*$")
-_TEMPLATED_KV_LINE = re.compile(r"^\s*-\s+[\"']?(?:[A-Za-z0-9_-]|\{\{[^{}]*\}\})+[\"']?=.*\{\{")
+_TEMPLATED_KV_LINE = re.compile(r"^\s*-\s+[\"']?(?:[A-Za-z0-9_-]|\{\{[^{}]*\}\})+[\"']?=.*\{[{%]")
 
 
 def _unquoted_env_line(line: str) -> bool:
@@ -375,6 +441,7 @@ def _unquoted_env_line(line: str) -> bool:
         ("      - PREFIX_{{ key }}={{ value }}", True),
         ("      - {{ key }}_SUFFIX={{ value }}", True),
         ("      - MY-KEY={{ value }}", True),
+        ("      - FOO={% if x %}1{% endif %}", True),
         ("      - {{ 'DATABASE_URL' | compose_env('${X:-' ~ depends.postgres ~ '}') }}", False),
     ],
 )
@@ -401,7 +468,9 @@ def test_no_unquoted_env_line() -> None:
 # A `command:` or `test:` whose value opens with a raw tag pastes spec text into a YAML scalar unquoted (the old
 # `command: {{ spec.source.image_command }}` and `test: {{ health.test }}`); a tag routed through `compose_str`
 # is the quoted form. A literal value that only embeds a tag (`sh -c "… {{ svc_port }}"`) is not this shape.
-_RAW_SCALAR_TAG_LINE = re.compile(r"^\s*(?:command|test):\s*\[?\s*\{\{(?![^}]*\bcompose_str\b)")
+_RAW_SCALAR_TAG_LINE = re.compile(
+    r"^\s*(?:command|test|entrypoint):(?:.*[\[,])?\s*[\"']?\{\{(?![^}]*\bcompose_str\b)"
+)
 
 
 @pytest.mark.parametrize(
@@ -411,6 +480,10 @@ _RAW_SCALAR_TAG_LINE = re.compile(r"^\s*(?:command|test):\s*\[?\s*\{\{(?![^}]*\b
         ("      test: {{ health.test }}", True),
         ("    command: {{ c.command | tojson | safe }}", True),
         ("      test: [{{ x | join(', ') }}]", True),
+        ('    command: "{{ spec.source.image_command }}"', True),
+        ("    command: '{{ x }}'", True),
+        ('      test: ["CMD-SHELL", {{ health.test }}]', True),
+        ("    entrypoint: {{ x }}", True),
         (
             "    command: {{ spec.source.image_command | compose_str('source.image_command') }}",
             False,

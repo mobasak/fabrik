@@ -21,7 +21,7 @@ import yaml
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.orchestrator.exceptions import ValidationError
-from fabrik.spec_loader import HEALTH_PATH_RE, merge_template_defaults
+from fabrik.spec_loader import HEALTH_PATH_RE, POSTGRES_IDENT_RE, merge_template_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -344,6 +344,27 @@ class SpecValidator:
                     "(no quotes, backslash, $, #, backtick, braces or whitespace)",
                     field="health.path",
                 )
+
+        # The same raw-dict gap for the two other values pasted into compose: the DATABASE_URL default
+        # (`Depends.postgres` would refuse it only at render, after DNS) and the docker-image deployer's
+        # probe URL and traefik port (`Source.image_port` is typed only on the `Spec` path).
+        depends = spec.get("depends")
+        db_name = depends.get("postgres") if isinstance(depends, dict) else None
+        if db_name and (not isinstance(db_name, str) or not POSTGRES_IDENT_RE.fullmatch(db_name)):
+            raise ValidationError(
+                "depends.postgres must be a PostgreSQL identifier matching [a-zA-Z_][a-zA-Z0-9_]{0,62}",
+                field="depends.postgres",
+            )
+        source = spec.get("source")
+        image_port = source.get("image_port") if isinstance(source, dict) else None
+        if image_port is not None and (
+            isinstance(image_port, bool)
+            or not isinstance(image_port, int)
+            or not 1 <= image_port <= 65535
+        ):
+            raise ValidationError(
+                "source.image_port must be an integer port (1-65535)", field="source.image_port"
+            )
 
         logger.info("Spec validated: %s", spec["name"])
         return warnings
