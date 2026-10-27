@@ -664,6 +664,8 @@ class SSHDeployer:
         existing: dict[str, Any] | None,
     ) -> None:
         """Deploy from a Fabrik template — render compose, SCP to VPS, up."""
+        import jinja2
+
         from fabrik.drivers.ssh import ssh as _ssh
         from fabrik.spec_loader import Spec
         from fabrik.template_renderer import TemplateRenderer
@@ -696,11 +698,19 @@ class SSHDeployer:
         # key among the secrets never reaches compose.yaml (the renderer puts every secret into
         # every service's `environment:`, which would hand the app the owner DSN, D-754): it
         # rides to `.env.owner` through `_build_env` and the writer instead (the Finish review, O1).
-        rendered = TemplateRenderer().render(
-            spec_obj,
-            secrets={k: v for k, v in ctx.secrets.items() if k not in OWNER_ENV_KEYS},
-            dry_run=True,
-        )
+        # A render refusal is the spec's or a secret's (a NUL or non-UTF-8 value, a bad port, a
+        # template that does not exist — D-1269), so it is a named DeployError, not an orchestrator
+        # traceback (W-c9dcd641). The renderer's messages name a key or a template, never a value.
+        # The try holds the render alone, which writes nothing; a hub defect it meets (a missing
+        # version key, a broken defaults.yaml) is not caught and stays a traceback.
+        try:
+            rendered = TemplateRenderer().render(
+                spec_obj,
+                secrets={k: v for k, v in ctx.secrets.items() if k not in OWNER_ENV_KEYS},
+                dry_run=True,
+            )
+        except (ValueError, jinja2.TemplateError) as exc:
+            raise DeployError(f"Template render failed for {name}: {exc}") from exc
         compose_content = rendered["compose.yaml"]
 
         # Validate compose against rule-pack constraints

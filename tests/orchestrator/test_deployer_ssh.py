@@ -1254,6 +1254,51 @@ class TestDeployGit:
 
 
 # ======================================================================
+# _deploy_template — a render refusal is a DeployError (W-c9dcd641)
+# ======================================================================
+
+
+class TestDeployTemplateRenderRefusal:
+    """The renderer refuses bad spec or secret input with a ValueError (D-1269) or jinja2's
+    TemplateNotFound; on the template deploy path either one is a named DeployError, raised before
+    any remote call, never an orchestrator 'Unexpected error' traceback."""
+
+    @pytest.mark.parametrize(
+        ("template", "secrets", "env", "names"),
+        [
+            pytest.param("python-api", {"API_TOKEN": "s3cr3t\x00tail"}, {}, "API_TOKEN", id="nul"),
+            pytest.param(
+                "python-api", {"API_TOKEN": "s3cr3t\udc80tail"}, {}, "API_TOKEN", id="not-utf8"
+            ),
+            pytest.param("python-api", {}, {"LOG_TAG": "s3cr3t\x00tail"}, "LOG_TAG", id="nul-env"),
+            pytest.param("no-such-template-xyz", {}, {}, "no-such-template-xyz", id="unknown"),
+        ],
+    )
+    def test_a_render_refusal_is_a_deploy_error(self, template, secrets, env, names):
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "template"},
+                "template": template,
+                "domain": "my-app.example.com",
+                "env": env,
+            }
+        )
+        ctx.secrets = secrets
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+            pytest.raises(DeployError, match="Template render failed for my-app") as err,
+        ):
+            SSHDeployer()._deploy_template(ctx, "my-app", None)
+        assert err.value.step == "deploying"
+        assert names in str(err.value)
+        assert "s3cr3t" not in str(err.value)
+        mock_ssh.assert_not_called()
+        mock_write.assert_not_called()
+
+
+# ======================================================================
 # _deploy_docker — SSH-level assertions
 # ======================================================================
 
