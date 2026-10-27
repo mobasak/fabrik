@@ -14,6 +14,7 @@ from typing import Any
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
+from fabrik.env_file import EnvTemplate, format_env_line
 from fabrik.spec_loader import Spec
 from fabrik.version_registry import load_versions
 
@@ -208,9 +209,11 @@ class TemplateRenderer:
             env_example_lines.append(f"{key}=")
         env_example_lines.append("")
         env_example_lines.append("# Application environment variables")
+        # Quoted by the deployed-.env codec, so a value holding a newline stays one line; a spec
+        # value's `$` is a compose interpolation and is kept (fabrik.env_file).
         for key, value in spec.env.items():
             if key not in spec.secrets.required:
-                env_example_lines.append(f"{key}={value}")
+                env_example_lines.append(format_env_line(key, EnvTemplate(str(value))))
         # transdoc finding 1.10 (2026-08-23): .env.example is generated purely from what the
         # spec DECLARES, so a database-backed project shipped Paddle/iyzico/Resend/B2 entries
         # while omitting the two variables the app cannot start without. A shape that needs a
