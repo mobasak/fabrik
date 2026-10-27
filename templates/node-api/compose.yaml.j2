@@ -23,7 +23,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       {% for key, value in env.items() %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
       {% if depends.postgres %}
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/{{ depends.postgres }}}

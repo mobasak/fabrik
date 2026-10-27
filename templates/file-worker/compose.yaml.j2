@@ -9,8 +9,8 @@ services:
 
     environment:
       # Core
-      - LOG_LEVEL={{ env.get('LOG_LEVEL', 'info') }}
-      - TZ={{ env.get('TZ', 'UTC') }}
+      - {{ 'LOG_LEVEL' | compose_env(env.get('LOG_LEVEL', 'info')) }}
+      - {{ 'TZ' | compose_env(env.get('TZ', 'UTC')) }}
       # 12-Factor XI (Logs): stdout must be UNBUFFERED. Without this, Python block-buffers
       # stdout when piped to Docker's log driver — so on an OOM-kill/SIGKILL the last 4-8 KB
       # (the crash's own logs) never flush and never reach Promtail -> Loki. A worker is the
@@ -20,11 +20,11 @@ services:
       {% endif %}
 
       # Worker config
-      - WORKER_ID={{ env.get('WORKER_ID', 'worker-1') }}
-      - JOB_TYPES={{ env.get('JOB_TYPES', 'transcribe,ocr,extract_text') }}
-      - POLL_INTERVAL={{ env.get('POLL_INTERVAL', '5') }}
-      - MAX_CONCURRENT_JOBS={{ env.get('MAX_CONCURRENT_JOBS', '2') }}
-      - MAX_PROCESSING_TIME={{ env.get('MAX_PROCESSING_TIME', '3600') }}
+      - {{ 'WORKER_ID' | compose_env(env.get('WORKER_ID', 'worker-1')) }}
+      - {{ 'JOB_TYPES' | compose_env(env.get('JOB_TYPES', 'transcribe,ocr,extract_text')) }}
+      - {{ 'POLL_INTERVAL' | compose_env(env.get('POLL_INTERVAL', '5')) }}
+      - {{ 'MAX_CONCURRENT_JOBS' | compose_env(env.get('MAX_CONCURRENT_JOBS', '2')) }}
+      - {{ 'MAX_PROCESSING_TIME' | compose_env(env.get('MAX_PROCESSING_TIME', '3600')) }}
 
       # Supabase
       - SUPABASE_URL=${SUPABASE_URL:?}
@@ -37,7 +37,7 @@ services:
       - R2_BUCKET=${R2_BUCKET:?}
       - R2_ENDPOINT=${R2_ENDPOINT:?}
 {% for key, value in env.items() if key not in ['LOG_LEVEL', 'TZ', 'WORKER_ID', 'JOB_TYPES', 'POLL_INTERVAL', 'MAX_CONCURRENT_JOBS', 'MAX_PROCESSING_TIME'] %}
-      - {{ key }}={{ value }}
+      - {{ key | compose_env(value) }}
 {% endfor %}
 
     deploy:

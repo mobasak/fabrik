@@ -3,7 +3,7 @@
   "created": "2026-10-26T21:40:48.752353Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d3a846c98487cd11b6ef1f0d2607501fe267b192",
   "id": "W-80aed026",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "a deployed secret containing a quote, a dollar sign, ' #' or ': ' corrupts silently in compose env; one quoting function in the renderer plus a test",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

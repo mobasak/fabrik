@@ -25,7 +25,7 @@ services:
       - EXTENSION_LATEST_SHA256=${EXTENSION_LATEST_SHA256:-}
       {# the six values above are the template's own; a spec env: copy of them is skipped #}
       {% for key, value in env.items() if key not in ('PYTHONUNBUFFERED', 'LOG_LEVEL', 'EXTENSION_ID', 'EXTENSION_LATEST_VERSION', 'EXTENSION_LATEST_URL', 'EXTENSION_LATEST_SHA256') %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
       {% if depends.postgres %}
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/{{ depends.postgres }}}

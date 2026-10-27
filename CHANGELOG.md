@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
+
+Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value
+deployed wrong: a `"` arrived as a literal `\"` (the old `env_escape` filter added a backslash nothing
+removed), a newline broke the list in file-api and file-worker (no filter there) and became a literal `\n`
+elsewhere, ` #` cut the value off as a comment, `: ` turned the item into a mapping, and a `$` in a secret was
+compose-interpolated (`p$ss` deployed as `p`). `src/fabrik/template_renderer.py` now has a `compose_env`
+filter (it replaces `env_escape`) that writes each item as PyYAML's ASCII double-quoted scalar and refuses a
+NUL or a lone surrogate before anything reaches the VPS, naming the key only. `render()` doubles `$` in a new
+copy of the secrets, while spec `env:` keeps `${VAR}` interpolation, which 20+ specs rely on. All 9 env loops
+and the 15 fixed `env.get` lines in the 8 compose templates use it. Measured over all 69 fleet specs: the 66 the
+renderer can render parse to identical environments before and after, so only secrets carrying those
+characters change, and they now deploy as written. Guarded by `tests/test_compose_env_quoting.py` (159 tests;
+91 red on the old code, a docker-run test reading the started container's env byte for byte, and guards that
+every templated env line goes through the filter and that only compose templates read `env`). D-row in
+`docs/DECISIONS.md` (W-80aed026). Still open, filed: other unquoted compose fields (W-ff313a14), `.env`
+`$` quoting and readers (W-2ae286e2), an invalid healthcheck `start_period` in three templates (W-3197a125).
+
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
 
 `src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so

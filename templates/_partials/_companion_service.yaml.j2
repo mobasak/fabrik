@@ -34,7 +34,7 @@
       start_period: 10s
     environment:
       {% for key, value in env.items() %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
       {% if depends.postgres %}
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/{{ depends.postgres }}}
@@ -43,7 +43,7 @@
       - REDIS_URL=${REDIS_URL:-redis://redis-main:6379/0}
       {% endif %}
       {% for key, value in (c.env_overrides or {}).items() %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
     deploy:
       resources:
