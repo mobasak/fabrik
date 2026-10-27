@@ -15,7 +15,7 @@
   },
   "next": "reproduce with a transcript fixture (dispatch, notification, resume, late notification), then key the stand-down on the resume's own later notification",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — hook bug misreads resumed seat, seen live",
   "status": "open",
