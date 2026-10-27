@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — three hub tests no longer red only inside a merge leg (2026-10-27)
+
+- `tests/test_scaffold_deploy_contract.py::_flat_stage` sets the staged `health_probe/` copy's modes to
+  the recipe's own (dirs 755, files 644) instead of inheriting the checkout's. A checkout made under
+  umask 002 is group-writable, so the stub rightly refused the copy as "writable by others", and
+  `test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script` was red in a merge leg and
+  green alone. It refused kaizen's batch on 2026-10-27.
+- `tests/test_kaizen_events.py`: the two exposure tests expect the project that the documented
+  `/opt/<name>` rule gives this checkout. That is "fabrik" under `/opt/fabrik` and "unknown" in a merge
+  leg's `/tmp` throwaway, where they used to fail on a hardcoded "fabrik". W-17fc722a; the item's
+  load-only flakes remain.
+
 ### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
 
 Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value

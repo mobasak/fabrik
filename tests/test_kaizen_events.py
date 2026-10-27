@@ -26,6 +26,9 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 MODULE = REPO / "scripts" / "sysadmin" / "kaizen_events.py"
+# The project this checkout's own cwd reads as, by the documented `/opt/<name>` contract: "fabrik"
+# for /opt/fabrik and its worktrees, "unknown" for a merge leg's /tmp throwaway (W-17fc722a).
+THIS_PROJECT = REPO.parts[2] if len(REPO.parts) >= 3 and REPO.parts[1] == "opt" else "unknown"
 sys.path.insert(0, str(REPO / "scripts" / "sysadmin"))
 
 import kaizen_events  # noqa: E402
@@ -375,7 +378,7 @@ def test_exposure_inside_this_repo_reports_the_head_commit(monkeypatch):
     monkeypatch.chdir(REPO)
     exp = kaizen_events.exposure(refresh=True)
     assert len(exp["commit"]) >= 7 and exp["commit"] != "unknown"
-    assert exp["project"] == "fabrik"
+    assert exp["project"] == THIS_PROJECT
 
 
 def test_exposure_plan_era_picks_the_newest_in_progress_plan(tmp_path, monkeypatch):
@@ -471,7 +474,7 @@ def test_exposure_cwd_pins_the_probes_to_the_callers_directory(tmp_path, monkeyp
     assert kaizen_events.exposure(refresh=True, cwd=str(other))["commit"] == other_head
     assert kaizen_events.exposure(refresh=True, cwd=str(other))["project"] == UNKNOWN_PROJECT
     # ...and a pinned answer must never be served from, or poison, the shared cache.
-    assert kaizen_events.exposure(refresh=True)["project"] == "fabrik"
+    assert kaizen_events.exposure(refresh=True)["project"] == THIS_PROJECT
 
 
 UNKNOWN_PROJECT = "unknown"

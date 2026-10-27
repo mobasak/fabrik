@@ -568,9 +568,16 @@ def test_rows_for_takes_only_the_parsed_values() -> None:
 
 
 def _flat_stage(dst_dir: Path) -> Path:
-    """The recipe's staging layout: the stub beside a FLAT `health_probe/` copy of the comparator."""
+    """The recipe's staging layout: the stub beside a FLAT `health_probe/` copy of the comparator.
+    The copy's modes are set to the recipe's own (`scp` under a 022 umask), never inherited: copytree
+    keeps the checkout's modes, and a checkout made under umask 002 is group-writable, which the stub
+    rightly refuses as "writable by others" (red in merge legs, green alone — W-17fc722a)."""
     dst_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(REPO / "libs" / "health_probe", dst_dir / "health_probe")
+    staged = dst_dir / "health_probe"
+    shutil.copytree(REPO / "libs" / "health_probe", staged)
+    staged.chmod(0o755)
+    for f in staged.rglob("*"):
+        f.chmod(0o755 if f.is_dir() else 0o644)
     stub = dst_dir / "verify_prod_parity.py"
     shutil.copy(TEMPLATE, stub)
     return stub
