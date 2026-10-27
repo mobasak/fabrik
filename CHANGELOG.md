@@ -46,6 +46,16 @@ is unset, and `_validate_compose` refuses a healthcheck `interval`, `timeout`, `
 that is not a non-empty string, locally before SSH. A replay over the 66 rendered specs now finds 0 failing on
 `start_period`. Duration format is still checked only by compose on the VPS (W-f1c945d7). D-1271, W-3197a125.
 
+### Fixed — the template-escape guard reads Jinja's parse tree, not a span regex (2026-10-27)
+
+`tests/test_template_renderer_no_html_escape.py` scanned `{{ }}`/`{% %}` spans with a regex, so an unbalanced `{{` in a
+comment or raw block could swallow and hide a later escape, a `}}` inside a string or dict literal ended a span early,
+and `|| e` in plain JS could read as a filter. The scan now walks the renderer environment's own parse tree: every
+`e`/`escape`/`forceescape`/`xmlattr`/`urlize` filter (pipe, `{% filter %}` and `{% set | %}` forms), a `map` that names
+an escape filter or a name known only at render time, and any `{% autoescape %}` block that is not a falsy constant.
+`tojson` stays unflagged: its JSON string escapes decode in every JSON or YAML reader. 23 probe rows; the old regex
+gets 7 of the first 12 wrong. Scoped review 4→5→0. W-27634d4e.
+
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
 
 `src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so
