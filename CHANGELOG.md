@@ -15,6 +15,38 @@ quote (compose refuses both) instead of writing a guess back, naming the key and
 parsed apart. The hub `from_env` reader drops surrounding quotes and stops the deploy on a malformed
 file, a `from_file` secret loses its trailing newline, and `.env.example` lines are quoted so a newline
 cannot inject a line (W-2ae286e2).
+### Fixed — compose scalars outside `environment:` deploy exactly or are refused (2026-10-27)
+
+A spec string pasted into a compose scalar outside `environment:` broke or mangled the file: python-api's
+`command: {{ image_command }}` lost everything after ` #`, `test: {{ health.test }}` printed a Python list
+repr, file-api's `PORT` sat raw inside the healthcheck item and the Traefik port label, `health.path` sat
+inside double-quoted probe items and two CMD-SHELL probes, a companion `command` wrote a non-BMP character as a
+JSON surrogate pair, and `depends.postgres` sat inside the `${DATABASE_URL:-…}` default, where a `}` closed the
+interpolation. Now `compose_str` (`src/fabrik/template_renderer.py`) quotes `image_command`, `health.test` items
+and companion `command` items; `compose_port` admits only an ASCII port 1-65535 or a `${NAME}` /
+`${NAME:-port}` interpolation; `Health.path` (`HEALTH_PATH_RE`) and `Depends.postgres` (`POSTGRES_IDENT_RE`,
+now also the postgres driver's rule) are refused at `Spec` load, and the apply-path validator refuses the same
+two plus an `image_port` that is not an integer port; both CMD-SHELL probes single-quote the URL; the
+DATABASE_URL defaults go through `compose_env`, so the env-line guard in `tests/test_compose_env_quoting.py`
+has no exemption. W-ff313a14, D-1276.
+
+### Fixed — parity-root and kaizen exposure tests no longer red only inside a merge leg (2026-10-27)
+
+- `tests/test_scaffold_deploy_contract.py`: a new `_owner_only_modes` gives each staged `health_probe/`
+  copy the modes a 022 umask gives (dirs 755, files 644), in `_flat_stage` and in B6. Before this, the
+  modes were inherited: a merge leg runs under umask 002, where the copy is group-writable, and the stub
+  rightly refuses it as "writable by others". So
+  `test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script` and both cases of
+  `test_parity_root_found_but_unusable_module_names_the_cause` were red in a merge leg and green alone.
+  The first refused kaizen's batch on 2026-10-27. B7 and B8 gain a group-writable row each, so the
+  refusal of a group-writable copy keeps a test now that no test meets it by accident.
+- `tests/test_kaizen_events.py`: the exposure tests expect the project that the `/opt/<name>` rule gives
+  this checkout. That is "fabrik" under `/opt/fabrik` and "unknown" in a merge leg's `/tmp` throwaway,
+  where two tests failed on a hardcoded "fabrik". The cache check now reads the cache it claims to
+  guard (it called `refresh=True`, which skips the cache read) and compares commits, both ways: a pinned
+  call on a warm cache is not served from it, and a pinned call does not poison it. A new
+  parametrised test proves `_project`'s rule on fixed paths. W-17fc722a; the item's load-only flakes
+  remain.
 
 ### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
 
@@ -33,6 +65,90 @@ characters change, and they now deploy as written. Guarded by `tests/test_compos
 every templated env line goes through the filter and that only compose templates read `env`). D-row in
 `docs/DECISIONS.md` (W-80aed026). Still open, filed: other unquoted compose fields (W-ff313a14), `.env`
 `$` quoting and readers (W-2ae286e2), an invalid healthcheck `start_period` in three templates (W-3197a125).
+
+### Fixed — `--adopt` no longer stamps the scaffold template's example backlog rows as owned work (2026-10-27)
+
+`scripts/docs_updater.py --adopt` tagged an owner on every untagged row of a STRATEGIC_BACKLOG.md work table, and the
+scaffold template ships its examples (`[Feature/Refactor]`, `[System Overhaul]`, `[Small hardening/refactor]`) as live
+table rows, so 24 of the 82 stamps `--adopt` would write across the 27 fleet backlogs were those placeholders, in 12
+repos and two template generations. `classify_backlog_row` now skips a row whose `Item` cell is one bracketed phrase
+(balanced emphasis allowed); the `--check` untagged-row advisory inherits it. Re-measured: 82 → 58, the other 58
+byte-identical. The mailed defect this item carried — closed rows stamped because "no backlog uses strikethrough" — no
+longer reproduces: 22 of 23 closed rows skip today and the 23rd is live. Guarded by
+`TestTemplatePlaceholderRowsAreNeverStamped` in `tests/test_docs_updater_adopt.py` (six mutants of the guard killed;
+it reads the template from disk). W-e89d7983, D-1270.
+
+### Fixed — a spec's healthcheck `start_period` reaches its compose file, and the deploy gate refuses a null duration (2026-10-27)
+
+`Health` in `src/fabrik/spec_loader.py` had no `start_period` field and ignores unknown keys, so a spec's value was
+dropped at load. The static-site, node-api, chrome-extension and docusaurus compose templates guarded it with
+`if health`, which is true whenever a spec has a `health:` block, and rendered an empty `start_period:` (YAML null):
+`docker compose config` refused 15 of the 66 fleet specs the renderer can render. python-api fell back to 30s over
+seo's declared 10s and youtube's 20s. `Health.start_period` is now an optional field (a blank value counts as unset),
+the seven health-reading templates and the docker-source compose writer fall back to their own default only when it
+is unset, and `_validate_compose` refuses a healthcheck `interval`, `timeout`, `start_period` or `start_interval`
+that is not a non-empty string, locally before SSH. A replay over the 66 rendered specs now finds 0 failing on
+`start_period`. Duration format is still checked only by compose on the VPS (W-f1c945d7). D-1271, W-3197a125.
+
+### Fixed — the template-escape guard reads Jinja's parse tree, not a span regex (2026-10-27)
+
+`tests/test_template_renderer_no_html_escape.py` scanned `{{ }}`/`{% %}` spans with a regex, so an unbalanced `{{` in a
+comment or raw block could swallow and hide a later escape, a `}}` inside a string or dict literal ended a span early,
+and `|| e` in plain JS could read as a filter. The scan now walks the renderer environment's own parse tree: every
+`e`/`escape`/`forceescape`/`xmlattr`/`urlize` filter (pipe, `{% filter %}` and `{% set | %}` forms), a `map` that names
+an escape filter or a name known only at render time, and any `{% autoescape %}` block that is not a falsy constant.
+`tojson` stays unflagged: its JSON string escapes decode in every JSON or YAML reader. 23 probe rows; the old regex
+gets 7 of the first 12 wrong. Scoped review 4→5→0. W-27634d4e.
+
+### Fixed — the docs staleness check stops watching docs/FUNNEL.md and docs/AUTOMATION.md (2026-10-27)
+
+- `scripts/docs_updater.py::MANUAL_DOCS` drops `docs/FUNNEL.md` and `docs/AUTOMATION.md`, site-provisioner's own docs
+  at a path `check_structure.py` warns is misplaced; registering them would have made both names legal in every repo.
+  No staleness row changes today; D-1273 says why and what the drop gives up.
+- `tests/test_docs_updater.py` drops the `_MISPLACED_PENDING` exception: no watched doc may be one
+  `check_structure.check_structure()` flags, and the dropped-docs staleness test covers both docs. W-1adf4ed4.
+
+### Fixed — the docs staleness check stops watching AGENTS.md and docs/INDEX.md (2026-10-27)
+
+- `scripts/docs_updater.py::MANUAL_DOCS`, the docs whose `**Last Updated:**` header the advisory staleness check
+  reads, drops `AGENTS.md` (hub-synced, so no project can refresh it) and `docs/INDEX.md` (a path
+  `check_structure.py` already warns is misplaced). Fleet-wide that removes 51 rows nobody could clear and changes
+  no other row. The opt-out list proposed in site-provisioner's mail 01M2NJGZGV20WP is rejected; D-1272 says why.
+- `tests/test_docs_updater.py` grades the two rules: no watched doc is read-only for a project, and none is one
+  `check_structure.check_structure()` flags, except `docs/FUNNEL.md` and `docs/AUTOMATION.md`, which W-1adf4ed4
+  decides. W-da101088.
+
+### Fixed — the orphan-FIFO assembler test no longer times out inside the rule-ledger pass (2026-10-27)
+
+- `tests/test_assemble_dispatch_step.py::test_an_orphan_fifo_never_hangs_the_render_or_the_gate`: its 20 s alarm
+  wrapped `check()`'s rule-ledger LOSS pass, which takes 45-105 s on the lean corpus, so on the lean batch head the
+  alarm fired mid-ledger and `check()` exited 4, not 1 (kaizen finding; blocked batch MR 01M5X49M0S). The ledger and
+  measure passes are now spies in that test: they return their empty results and refuse an installed tree, so the
+  alarm bounds only the orphan-position reads and a pass handed the installed tree still goes red. Red on the batch
+  head before (exit 4), green after; still red with either orphan guard neutered. Filed W-21f88ec3 (a FIFO at a kept
+  name still blocks `render()`/`check()`).
+
+### Fixed — `merge --queue` lands again: full-width legs, a wall that fits a landing, no wasted legs (2026-10-27)
+
+On 2026-10-27 two hub queue runs landed nothing: every queue leg died at its 1800 s limit, the queue stopped
+at its wall with 0 landed, and legs forked for later requests held the queue lock 30 more minutes. The queue
+now runs one leg at a time at the owner script's own width (`--jobs` defaults to 1; the `FABRIK_MERGE_SHARDS=4`
+override is gone), its wall is `LANDING_WORST_S + MERGE_TEST_BUDGET_S + QUEUE_BUILD_S` = 11100 s (run it as
+`rund --timeout 11200 -- /opt/fabrik/scripts/capped_run.sh --timeout 11100 -- python3 scripts/merge_request.py
+merge --queue`), a leg forks only while it and a landing after it fit (`_leg_fits`), and no later leg forks
+beside a first request that runs its own locked leg. `merge_test_select.py`'s base ordered re-run now covers
+only reds its ordered confirm found, and no longer overwrites an alone-confirmed red's base verdict. D-1275
+(supersedes D-1224's jobs, shards and wall figures); follow-ups W-c832e59f (duration-balanced shards) and
+W-17fc722a (load-flaky tests that trigger ordered re-runs).
+
+### Fixed — scripted merge commits carry Agent Provenance Trailers, and `merge` states who gates the merged tree (2026-10-27)
+
+`scripts/merge_request.py merge` wrote one-line merge commits with no trailer block (replayed on the hub's own
+0882afb23), so no `%(trailers)` query could attribute a scripted merge (tryton-crm mail 01M3TZERFR). Both its merge
+commits, the request's and a catch-up's, now end in `Agent-Role: orchestrator`, the owner's `Agent-Name` and an
+`Agent-Context`; a multi-line value refuses, `--no-log` keeps the block parseable under `merge.log=true`, and the
+reflog keeps the subject only. `merge` runs no `final_gate` and now says so after `merged <id> as <sha>`, with the
+owner-test summary; the reply carries the duty line. Decision: D-1274.
 
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
 

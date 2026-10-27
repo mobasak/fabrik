@@ -419,10 +419,17 @@ def differential(
             rc, on_base, base_tail = runner.run(alone_files)
             if rc not in RAN:
                 raise LegError(f"the base run exited {rc}:\n{base_tail}")
-        if ordered:
+        # only a red the ORDERED confirm found needs its shard's order on the base: one confirmed
+        # alone is compared with its own alone run above (alone with alone; the ordered base run used
+        # to overwrite that with its in-order result), and one green in order too was flaky, with
+        # nothing to compare (a whole ~8 min shard per flaky leg, 2026-10-27)
+        by_order = [k for k in confirmed if k not in alone]
+        base_ordered = [g for g in ordered if any(group_of[k] is g for k in by_order)]
+        if base_ordered:
             _checkout(base)
-            in_order = [[f for f in g if Path(f).is_file()] for g in ordered]
-            on_base.update(_parallel(runner, in_order, "the ordered base run of shard"))
+            in_order = [[f for f in g if Path(f).is_file()] for g in base_ordered]
+            in_order_base = _parallel(runner, in_order, "the ordered base run of shard")
+            on_base.update({k: v for k, v in in_order_base.items() if k in by_order})
     except BaseException as exc:
         err = exc
         raise

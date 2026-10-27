@@ -22,7 +22,7 @@ services:
       - {{ key | compose_env(value) }}
       {% endfor %}
       {% if depends.postgres %}
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/{{ depends.postgres }}}
+      - {{ 'DATABASE_URL' | compose_env('${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/' ~ depends.postgres ~ '}') }}
       {% endif %}
       {% if depends.redis %}
       - REDIS_URL=${REDIS_URL:-redis://redis-main:6379/0}
@@ -52,7 +52,7 @@ services:
       interval: {{ health.interval if health else '10s' }}
       timeout: {{ health.timeout if health else '5s' }}
       retries: {{ health.retries if health else 3 }}
-      start_period: 40s
+      start_period: {{ health.start_period if health and health.start_period else '40s' }}
     networks:
       - fabrik
 

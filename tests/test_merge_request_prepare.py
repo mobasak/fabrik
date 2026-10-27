@@ -354,3 +354,127 @@ def test_queue_window_skips_landed_requests_before_the_limit(world):
     m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
     ctx = world.mod._context(world.main)
     assert [e["id"] for e in world.mod._queue_entries(ctx, 1, {m1})] == [m2]
+
+
+# --- W-d5d1d394: the queue landed nothing on 2026-10-27 (two hub runs) --------------------------------
+# Two 4-shard legs at once doubled each leg's wall against the unchanged per-leg limit; the wall left no
+# landing after a wave that used its limit; legs forked for later requests held the queue lock 30 min
+# after it stopped; and a later leg ran beside a locked merge running its own leg.
+
+
+def _kind_log(world, fail_queue_on: str = "") -> Path:
+    """A leg that appends `<request head> <queue|locked> <start> <stop>`: `queue` when it runs in a
+    queue child (FABRIK_MERGE_TESTS_RECORDS is set by `_run_leg` and by `request --pretest`, never
+    by the locked merge). With ``fail_queue_on``, a queue leg
+    whose merge adds that file exits 124 — a leg that "timed out", leaving no record."""
+    log = world.tmp / "kinds.log"
+    script = (
+        "python3 - <<'PY'\n"
+        "import os, subprocess, sys, time\n"
+        "t0 = time.time()\n"
+        "time.sleep(0.5)\n"
+        "head = subprocess.run(['git', 'rev-parse', 'HEAD^2'], capture_output=True, text=True).stdout.strip()\n"
+        "kind = 'queue' if os.environ.get('FABRIK_MERGE_TESTS_RECORDS') else 'locked'\n"
+        f"open({str(log)!r}, 'a').write(f'{{head}} {{kind}} {{t0}} {{time.time()}}\\n')\n"
+        "added = subprocess.run(['git', 'diff', '--name-only', 'HEAD^1', 'HEAD'], capture_output=True, text=True).stdout.split()\n"
+        f"sys.exit(124 if kind == 'queue' and {fail_queue_on!r} in added else 0)\n"
+        "PY\n"
+    )
+    _owner_tests(world, script)
+    return log
+
+
+def _kinds(log: Path) -> list[tuple[str, str, float, float]]:
+    if not log.exists():
+        return []
+    rows = [line.split(" ") for line in log.read_text().splitlines()]
+    return [(h, k, float(t0), float(t1)) for h, k, t0, t1 in rows]
+
+
+def test_queue_child_keeps_the_selector_width(world, monkeypatch):
+    """A queue child runs the owner script with the caller's FABRIK_MERGE_SHARDS, or none: no
+    halving of the leg's width against a limit sized for a full-width leg."""
+    log = world.tmp / "shards.log"
+    _owner_tests(world, f'echo "${{FABRIK_MERGE_SHARDS:-unset}}" >> {log}\n')
+    h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
+    m1 = world.send(h1, branch=b1)
+    monkeypatch.delenv("FABRIK_MERGE_SHARDS", raising=False)
+
+    assert _queue(world) == 0
+
+    assert log.read_text().split() == ["unset"]  # one leg, the queue child's; the landing skipped
+    assert _skipped(world, m1)
+    h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
+    world.send(h2, branch=b2)
+    monkeypatch.setenv("FABRIK_MERGE_SHARDS", "3")
+
+    assert _queue(world) == 0
+
+    assert log.read_text().split() == ["unset", "3"]
+
+
+def test_queue_default_runs_one_leg_at_a_time(world):
+    log = _leg_log(world, sleep=1.0)
+    sends = []
+    for i in range(3):
+        h, b = _new_branch(world, f"r{i}", {f"f{i}.txt": f"{i}\n"})
+        sends.append(world.send(h, branch=b))
+
+    assert _queue(world) == 0
+
+    legs = sorted((t0, t1) for _, t0, t1 in _legs(log))
+    assert len(legs) == 3
+    # never two at once
+    assert all(a[1] <= b[0] for a, b in zip(legs, legs[1:], strict=False)), legs
+    assert all(_record(world, m)["outcome"] == "merged" for m in sends)
+
+
+def test_queue_wall_fits_a_full_leg_then_a_landing(world):
+    """The first wave may run the longest leg any base can declare and still be followed by a
+    worst-case landing: a wall with no room after it lands nothing (02:48:18, elapsed ~1818 s)."""
+    mod = world.mod
+    longest = "# merge-test-timeout: 999999\n"
+    assert mod._declared_leg(longest) == mod.MERGE_TEST_BUDGET_S
+    assert hasattr(mod, "_leg_fits"), "no leg-fit guard"
+    now = mod.time.monotonic()
+    assert mod._leg_fits(now, longest)  # at the start: the longest leg, then a landing
+    edge = mod.QUEUE_BUILD_S - mod.LEG_OVERHEAD_S  # what is left for the chain build
+    assert edge > 0
+    assert mod._leg_fits(now - edge + 1, longest)
+    assert not mod._leg_fits(now - edge - 1, longest)
+
+
+def test_queue_starts_no_leg_past_its_wall(world, monkeypatch):
+    """A leg that could not finish AND be followed by a landing never forks; while a landing still
+    fits, each request lands through its locked merge, which runs its own leg (the pre-queue path)."""
+    log = _kind_log(world)
+    h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
+    h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
+    m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
+    # a landing fits for 600 s; no default-limit leg ever does
+    monkeypatch.setattr(world.mod, "QUEUE_WALL_S", world.mod.LANDING_WORST_S + 600)
+
+    assert _queue(world) == 0
+
+    assert [(h, k) for h, k, _, _ in _kinds(log)] == [(h1, "locked"), (h2, "locked")]
+    assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
+    assert not _skipped(world, m1) and not _skipped(world, m2)
+
+
+def test_queue_forks_no_leg_beside_a_locked_leg(world):
+    """The first request's queue leg leaves no record (it "timed out"), so its locked merge runs its
+    own leg: no later queue leg runs beside it (16 processes on 24 CPUs tonight)."""
+    log = _kind_log(world, fail_queue_on="slow.txt")
+    h1, b1 = _new_branch(world, "one", {"slow.txt": "x\n"})
+    h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
+    m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
+
+    assert _queue(world) == 0
+
+    rows = _kinds(log)
+    locked1 = [r for r in rows if r[0] == h1 and r[1] == "locked"]
+    queue2 = [r for r in rows if r[0] == h2 and r[1] == "queue"]
+    assert len(locked1) == 1 and queue2, rows
+    assert all(q[2] >= locked1[0][3] for q in queue2), rows  # two's leg forked after one's ended
+    assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
+    assert _skipped(world, m2)

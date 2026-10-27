@@ -9,11 +9,11 @@ tests/test_compose_env_quoting.py (W-80aed026).
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
 import yaml
+from jinja2 import nodes
 
 from fabrik.spec_loader import Spec, load_spec
 from fabrik.template_renderer import TemplateRenderer
@@ -103,13 +103,81 @@ def test_the_renderer_environment_never_autoescapes() -> None:
     assert TemplateRenderer().jinja.autoescape is False
 
 
-# Only Jinja code is scanned (`|| e` in plain JS is not a filter), whole-file so a tag split across
-# lines is one span. Not modelled: a `}}`/`%}` inside a string literal in a tag, which ends the span early.
-_JINJA_SPAN = re.compile(r"\{\{.*?\}\}|\{%.*?%\}", re.DOTALL)
-_ESCAPE_IN_SPAN = re.compile(
-    r"^\{%[-+]?\s*(?:autoescape|filter\s+(?:e|escape|forceescape))\b"  # block forms
-    r"|\|\s*(?:e|escape|forceescape)\b"  # the pipe-filter form
+# The built-in filters that HTML-escape their input (`xmlattr` and `urlize` call markupsafe's escape).
+# `tojson` is not one: its `&`-style escapes are JSON string escapes, which every JSON or YAML
+# reader decodes back (`_partials/_companion_service.yaml.j2` relies on that for `command:`).
+_ESCAPE_FILTERS = {"e", "escape", "forceescape", "xmlattr", "urlize"}
+
+
+def _escapes_by_filter(n: nodes.Filter) -> bool:
+    if n.name in _ESCAPE_FILTERS:
+        return True
+    # `map("e")` applies the filter its positional arguments name, `map("map", "e")` included, so any
+    # escape name among them is flagged, and so is a name only known at render time (`map(name)`,
+    # `map(*names)`); a constant name outside `_ESCAPE_FILTERS` (`map("upper")`) is not.
+    if n.name == "map":
+        return n.dyn_args is not None or any(
+            not isinstance(a, nodes.Const) or a.value in _ESCAPE_FILTERS for a in n.args
+        )
+    return False
+
+
+def _escapes(source: str) -> list[str]:
+    """Escape routes in a template, read from Jinja's own parse tree (W-27634d4e).
+
+    A regex over `{{ }}`/`{% %}` spans misread comments, `{% raw %}` blocks and a `}}`/`%}` inside a
+    string or dict literal; the parser does not. `nodes.Filter` covers the pipe form, `{% filter %}`
+    blocks and `{% set x | e %}`; an `{% autoescape %}` block is a scoped eval-context modifier, flagged
+    unless its value is a falsy constant (`false`, `0`, `none`, `""`) — `not true` is flagged too. Not modelled: a file the scan below does not read, reached
+    through `{% include %}`/`{% import %}` (today every such tag in the files it reads names
+    `_partials/`, which it reads).
+    """
+    tree = TemplateRenderer().jinja.parse(source)
+    hits = [f"{n.lineno}: |{n.name}" for n in tree.find_all(nodes.Filter) if _escapes_by_filter(n)]
+    hits += [
+        f"{n.lineno}: autoescape block"
+        for n in tree.find_all(nodes.EvalContextModifier)
+        for k in n.options
+        if k.key == "autoescape" and not (isinstance(k.value, nodes.Const) and not k.value.value)
+    ]
+    return hits
+
+
+@pytest.mark.parametrize(
+    ("source", "escapes"),
+    [
+        ("{{ x | e }}", True),
+        ("{% filter escape %}x{% endfilter %}", True),
+        ("{% autoescape true %}{{ x }}{% endautoescape %}", True),
+        ("{% set y | forceescape %}x{% endset %}", True),
+        # An unbalanced `{{` in a comment or a raw block must not swallow (and hide) the next line.
+        ("{# a {{ b #}\n{% filter escape %}x{% endfilter %}{{ y }}", True),
+        ("{% raw %}{{{% endraw %}\n{% filter escape %}x{% endfilter %}{{ y }}", True),
+        # A `}}` inside a string or dict literal must not end the expression early.
+        ('{{ "}}" | e }}', True),
+        ("{{ {'k': '}}'} | e }}", True),
+        # A filter applied by name, and the built-ins that escape internally.
+        ('{{ xs | map("e") | join }}', True),
+        ("{{ xs | map(name) | join }}", True),
+        ("{{ xs | map(*names) | join }}", True),
+        ('{{ [xs] | map("map", "e") | map("join") | join }}', True),
+        ("{{ {'a': x} | xmlattr }}", True),
+        ("{{ x | urlize }}", True),
+        ("{% autoescape flag %}{{ x }}{% endautoescape %}", True),
+        # Not an escape: a block that turns escaping off, JSON encoding, `map` over an attribute.
+        ("{% autoescape false %}{{ x }}{% endautoescape %}", False),
+        ("{{ x | tojson }}", False),
+        ('{{ xs | map(attribute="name") | join }}', False),
+        ('{{ xs | map("upper") | join }}', False),
+        # Not Jinja: JS `||`, a comment, a raw block, a string.
+        ("const a = b || e;", False),
+        ("{# {{ x | e }} #}", False),
+        ("{% raw %}{{ x | e }}{% endraw %}", False),
+        ('{{ "| e" }}', False),
+    ],
 )
+def test_the_escape_scan(source: str, escapes: bool) -> None:
+    assert bool(_escapes(source)) is escapes
 
 
 def test_no_renderer_template_escapes_on_its_own() -> None:
@@ -121,18 +189,19 @@ def test_no_renderer_template_escapes_on_its_own() -> None:
             continue
         for f in sorted(d.rglob("*.j2")):
             scanned += 1
-            text = f.read_text(encoding="utf-8")
-            for m in _JINJA_SPAN.finditer(text):
-                if _ESCAPE_IN_SPAN.search(m.group()):
-                    line = text.count("\n", 0, m.start()) + 1
-                    hits.append(f"{f.relative_to(REPO)}:{line}: {m.group()}")
+            hits += [f"{f.relative_to(REPO)}:{h}" for h in _escapes(f.read_text(encoding="utf-8"))]
     assert scanned > 0
     assert not hits, hits
 
 
 def test_a_quoted_spec_command_renders_its_quotes() -> None:
-    """zitadel's spec is the live case (its deploy takes the docker-source path, not this renderer)."""
-    compose = TemplateRenderer().render(
-        load_spec(REPO / "specs" / "services" / "zitadel.yaml"), dry_run=True
-    )["compose.yaml"]
-    assert '--masterkey "${ZITADEL_MASTERKEY}"' in compose
+    """zitadel's spec is the live case (its deploy takes the docker-source path, not this renderer).
+
+    The command is a double-quoted YAML scalar since W-ff313a14, so its `"` is `\\"` in the text: the
+    parsed value is the check (an HTML-escaped `&quot;` would fail it the same way).
+    """
+    spec = load_spec(REPO / "specs" / "services" / "zitadel.yaml")
+    compose = TemplateRenderer().render(spec, dry_run=True)["compose.yaml"]
+    command = yaml.safe_load(compose)["services"]["zitadel"]["command"]
+    assert command == spec.source.image_command
+    assert '--masterkey "${ZITADEL_MASTERKEY}"' in command

@@ -89,7 +89,7 @@ builder confirms no run will resume it, using a word from work.py's `_PLAN_STATU
 Before either, check each SHA or id its verdict cites (`git log -1 --format=%s <sha>`, `git log -E --grep='<id>\b'`).
 
 **Do:** merges (`scripts/merge_request.py merge`, `resume`/`retry <id>`; `merge --queue` until no request waits, D-1224,
-under `rund` 9100 / `capped_run` 9000), then render + `--ratchet` + `--check` (commit `commands/_size_ceiling.json` if
+under `rund` 11200 / `capped_run` 11100, W-d5d1d394), then render + `--ratchet` + `--check` (commit `commands/_size_ceiling.json` if
 changed) when `commands/` changed, and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then the session named
 exactly as its role; fix a duplicate or missing role first.
