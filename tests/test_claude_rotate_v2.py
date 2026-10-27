@@ -3200,3 +3200,86 @@ def test_fleet_dirs_leaves_out_the_backups_park_root(tmp_path, monkeypatch):
     (root / cr._PARK_ROOT_NAME / "tasks-merged-from").mkdir(parents=True)
     (root / cr._ACTIVE_POINTER_NAME).symlink_to(root / "alpha", target_is_directory=True)
     assert [d.name for d in cr._fleet_dirs()] == ["alpha", "beta"]
+
+
+# ── W-09957e81: the tick spawns the box-budget checker, detached and with no inherited stdio ──────
+
+
+def _box_script(opt: Path, body: str) -> Path:
+    script = opt / "fabrik" / "scripts" / "sysadmin" / "box_budget_check.py"
+    script.parent.mkdir(parents=True, exist_ok=True)
+    script.write_text(body)
+    return script
+
+
+def test_tick_spawns_box_budget_check_from_the_opt_seam(tmp_path, monkeypatch, capsys):
+    opt = Path(os.environ["FABRIK_OPT_DIR"])  # conftest's autouse pin: an empty tmp dir
+    cr._box_budget_leg()
+    assert "box-budget check absent" in capsys.readouterr().out  # nothing under the seam: no spawn
+    marker = tmp_path / "spawned"
+    _box_script(
+        opt,
+        "import pathlib, sys\n"
+        "print('CHILD-STDOUT'); print('CHILD-STDERR', file=sys.stderr)\n"
+        f"pathlib.Path({str(marker)!r}).write_text(sys.stdin.read() + '|' + repr(sys.argv[1:]))\n",
+    )
+    seen = {}
+    real = subprocess.Popen
+
+    def spy(*a, **kw):
+        seen.update(kw)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(cr.subprocess, "Popen", spy)
+    cr._box_budget_leg()
+    out = capsys.readouterr().out
+    assert "box-budget check spawned" in out
+    # DEVNULL is load-bearing: the quota board reads the tick through a captured pipe, and a child
+    # holding that pipe would hold the board's call until it exited
+    assert seen["stdin"] is subprocess.DEVNULL
+    assert seen["stdout"] is subprocess.DEVNULL and seen["stderr"] is subprocess.DEVNULL
+    assert seen["start_new_session"] is True
+    for _ in range(200):
+        if marker.exists():
+            break
+        threading.Event().wait(0.05)
+    assert marker.read_text() == "|[]"
+
+
+def test_the_tick_board_pipe_is_not_held_by_the_child(tmp_path, monkeypatch):
+    """The quota board's `subprocess.run(capture_output=True)` returns while the child still runs."""
+    opt = Path(os.environ["FABRIK_OPT_DIR"])
+    _box_script(opt, "import time\ntime.sleep(5)\n")
+    driver = tmp_path / "driver.py"
+    driver.write_text(
+        "import importlib.util, sys\n"
+        f"spec = importlib.util.spec_from_file_location('crx', {str(REPO / 'scripts' / 'sysadmin' / 'claude_rotate.py')!r})\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "m._box_budget_leg()\n"
+    )
+    t0 = __import__("time").monotonic()
+    r = subprocess.run([sys.executable, str(driver)], capture_output=True, text=True, timeout=30,
+                       env={**os.environ})
+    assert r.returncode == 0, r.stderr
+    assert __import__("time").monotonic() - t0 < 4, "the reader waited for the detached child"
+    assert "box-budget check spawned" in r.stdout
+
+
+def test_box_budget_leg_never_raises_and_runs_from_the_tick_finally(tmp_path, monkeypatch, capsys):
+    opt = Path(os.environ["FABRIK_OPT_DIR"])
+    _box_script(opt, "pass\n")
+
+    def boom(*a, **kw):
+        raise OSError("no fork")
+
+    monkeypatch.setattr(cr.subprocess, "Popen", boom)
+    cr._box_budget_leg()
+    assert "tick: box-budget leg ERROR OSError" in capsys.readouterr().out
+    called = []
+    monkeypatch.setattr(cr, "_box_budget_leg", lambda: called.append(1))
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "fleet-absent"))
+    monkeypatch.setattr(
+        cr, "_collect_statuses", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    assert cr._cmd_tick() == 0
+    assert called == [1], "a tick that raises still spawns the checker (the finally)"

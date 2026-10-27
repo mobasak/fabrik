@@ -1,41 +1,60 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_box_budget_check.py | docs/workstation/vscode-configuration.md | docs/workstation/hooks-index.md | docs/workstation/claude-account-rotation.md
-"""The box's shared per-user budgets, watched from the 5-minute rotation tick (W-09957e81, D-xxxx).
+# AFTER-EDIT: tests/test_box_budget_check.py | docs/workstation/vscode-configuration.md | docs/workstation/claude-account-rotation.md
+"""The box's shared per-user budgets, watched from the 5-minute rotation tick (W-09957e81).
 
 On 2026-10-27 at 11:12 `fabrik-rotate.path` failed with result `resources` ("Failed to enter waiting
 state: No space left on device"): code-server's three file watchers held 523,576 of this user's
 524,288 inotify watches. A failed path unit stays failed — systemd never restarts it — so for most of
 an hour no builder in any repo could be rotated, and nothing said so.
 
-Two legs, each alerting ONCE per episode by fabrik-mail to the hub coordinator:
+`claude_rotate.py --tick` spawns this script detached, with no inherited stdio (the quota board reads
+the tick through a captured pipe), every five minutes. Two legs, each alerting by fabrik-mail to the
+hub coordinator once per EPISODE:
 
-- **unit** — when `fabrik-rotate.path` is ENABLED and reads `failed` or `inactive`, run `reset-failed`
-  on it and its service, `start` it, and re-read it. A unit that is not enabled is the operator's
-  choice and is left alone (disable it to keep it down: an enabled unit stopped by hand is restarted
-  within five minutes). Any other state, or any systemctl error, acts on nothing — the leg fails OPEN,
-  so a fault here is one more tick of an outage, never a fight with the operator.
-- **inotify** — the watches in use (the `inotify wd:` lines of every /proc/<pid>/fdinfo file of this
-  uid's processes) and the inotify instances (fds linking to `anon_inode:inotify`) against
-  /proc/sys/fs/inotify/max_user_{watches,instances}. AMBER at 85% of either; the episode clears only
-  below 80%, so a reading hovering at the line mails once, not every tick. A process this user cannot
-  read is skipped, so the count is a lower bound. The scan costs ~0.9 s at 114,598 watches (measured),
-  ~4 s at the full budget: fine for a detached tick child, too slow for a per-prompt hook.
+- **unit** — when `fabrik-rotate.path` is ENABLED and reads `failed` or `inactive`, read both units'
+  Result (a reset wipes the service's), `reset-failed` both, `start` the path unit, re-read it. A unit
+  that is not enabled is the operator's choice and is left alone — disable it to keep it down: an
+  enabled unit stopped by hand is restarted at the next tick. Any other state (`activating`,
+  `deactivating`, `reloading`) or a systemctl that cannot be asked acts on nothing: this leg fails
+  OPEN, so a fault here costs one more tick of an outage, never a fight with the operator. Episode:
+  opens on a failed/inactive reading (a heal that held mails `--ack no`, one that failed `--ack
+  required`); inside it further heals are logged, not mailed, except the first FAILED heal of an
+  episode that had only healed (an escalation); it closes only after an hour of `active` since its
+  last bad reading, so a unit dying between ticks mails at most hourly, and a close after a failed
+  heal mails "recovered".
+- **inotify** — watches in use (the `inotify wd:` lines of /proc/<pid>/fdinfo/<fd> for each fd of
+  this uid's processes linking to `anon_inode:inotify`) and those instances, against
+  /proc/sys/fs/inotify/max_user_{watches,instances}. The scan is an ESTIMATE — a process whose fd table
+  cannot be read is skipped (and counted: 9 of 558 measured, non-dumpable daemons and zombies), an fd
+  shared across fork is counted per holder (0 such sets measured) — so a CANARY settles exhaustion:
+  one `inotify_init1` + `inotify_add_watch` on the state dir, closed at once; EMFILE means the
+  instances are gone, ENOSPC the watches. AMBER at 85% of either ratio or a canary exhaustion; the
+  episode clears only below 80% with a clean canary (5 points of hysteresis: a reading hovering at the
+  line mails once, not every tick). With no readable process at all the scan is `unknown` and opens
+  nothing unless the canary says exhausted. The scan costs ~0.9 s at 114,598 watches (measured), ~4 s
+  at the full budget: fine for a detached tick child, too slow for a per-prompt hook.
 
-An episode is recorded open only when its mail was sent (rc 0), so a failed send retries next run; a
-state file that is missing, unreadable or corrupt reads as "no open episode" — the worst case is one
-duplicate mail, never a lost alert. Cobra (D-253): healing a unit that keeps dying could hide the
-cause, so a SUCCESSFUL heal mails too (once per episode, `--ack no`), with the readings.
+An episode (or an escalation) is recorded only when its mail was sent (rc 0), so a failed send
+retries next run; a state file that is missing, unreadable or corrupt reads as "no open episode" — the
+worst case is one duplicate mail, never a lost alert. Cobra (D-253): the cheapest way to silence the
+unit alert is to keep healing a unit that keeps dying — every new episode mails (a successful heal
+too) and an episode needs an hour of health to close; the cheapest way to silence the budget alert is
+a scan that sees nothing — the canary answers that.
 
-Modes: no argument = the tick run (heal, probe, alert; always exits 0); `--report` = print the
-readings and the top holders, change nothing, mail nothing (exit 0).
+Modes: no argument = the tick run (heal, probe, alert; output appended to the log; always exits 0);
+`--report` = print the readings to stdout, change and mail nothing; exits 2 when the unit is enabled
+and not active or the budget is AMBER, 1 when the inotify reading is unknown, else 0.
 
-Seams (tests): BOX_BUDGET_STATE (state file), FABRIK_OPT_DIR (mail.py under <opt>/fabrik/scripts),
-BOX_BUDGET_PROC (the /proc root), BOX_BUDGET_SYSTEMCTL (the systemctl command).
+Seams (tests): BOX_BUDGET_STATE (state file), BOX_BUDGET_LOG (log file), FABRIK_OPT_DIR (mail.py
+under <opt>/fabrik/scripts), BOX_BUDGET_PROC (the /proc root), BOX_BUDGET_SYSTEMCTL (the systemctl
+command).
 """
 
 from __future__ import annotations
 
 import contextlib
+import ctypes
+import errno
 import fcntl
 import json
 import os
@@ -47,14 +66,32 @@ from pathlib import Path
 UNIT = "fabrik-rotate.path"
 SERVICE = "fabrik-rotate.service"
 AMBER = 0.85
-CLEAR = 0.80  # 5 points below AMBER: a reading that hovers at the line opens one episode, not one per tick
+CLEAR = (
+    0.80  # 5 points below AMBER: a reading hovering at the line opens one episode, not one per tick
+)
+HEALTHY_S = 3600  # a unit episode closes after an hour of `active` since its last bad reading
 TOP = 3
+SYSTEMCTL_TIMEOUT_S = 10
+MAIL_TIMEOUT_S = 30
 RESTART = f"systemctl --user reset-failed {UNIT} {SERVICE} && systemctl --user start {UNIT}"
+FOOTER = "(W-09957e81 — scripts/sysadmin/box_budget_check.py, spawned by claude_rotate.py --tick every 5 min)"
+_IN_NONBLOCK = 0o4000
+_IN_CLOEXEC = 0o2000000
+_IN_DELETE_SELF = 0x400
+
+
+def _now() -> float:
+    return time.time()
 
 
 def _state_path() -> Path:
     raw = os.environ.get("BOX_BUDGET_STATE")
     return Path(raw) if raw else Path.home() / ".claude" / "state" / "box-budget.json"
+
+
+def _log_path() -> Path:
+    raw = os.environ.get("BOX_BUDGET_LOG")
+    return Path(raw) if raw else _state_path().with_name("box-budget.log")
 
 
 def _proc() -> Path:
@@ -65,10 +102,19 @@ def _mail_script() -> Path:
     return Path(os.environ.get("FABRIK_OPT_DIR") or "/opt") / "fabrik" / "scripts" / "mail.py"
 
 
+def _log(line: str) -> None:
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(_now()))
+    with contextlib.suppress(OSError):
+        path = _log_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a") as fh:
+            fh.write(f"{stamp} box-budget: {line}\n")
+
+
 def _systemctl(*args: str) -> subprocess.CompletedProcess[str] | None:
     cmd = [os.environ.get("BOX_BUDGET_SYSTEMCTL", "systemctl"), "--user", *args]
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=SYSTEMCTL_TIMEOUT_S)
     except (OSError, subprocess.SubprocessError):
         return None
 
@@ -84,19 +130,45 @@ def _user_bus() -> None:
 # ── readings ──────────────────────────────────────────────────────────────────────────────────────
 
 
-def _unit_state() -> dict[str, str] | None:
-    """`{"enabled", "active", "sub", "result"}`, or None when systemctl cannot be asked."""
-    en = _systemctl("is-enabled", UNIT)
-    show = _systemctl("show", "-p", "ActiveState", "-p", "SubState", "-p", "Result", UNIT)
-    if en is None or show is None or show.returncode != 0:
+def _show(unit: str) -> dict[str, str] | None:
+    r = _systemctl("show", "-p", "ActiveState", "-p", "SubState", "-p", "Result", unit)
+    if r is None or r.returncode != 0:
         return None
-    vals = dict(ln.split("=", 1) for ln in show.stdout.splitlines() if "=" in ln)
+    return dict(ln.split("=", 1) for ln in r.stdout.splitlines() if "=" in ln)
+
+
+def unit_state() -> dict[str, str] | None:
+    """The path unit's enablement and state, and the service's Result; None when systemctl cannot be asked."""
+    en = _systemctl("is-enabled", UNIT)
+    path, svc = _show(UNIT), _show(SERVICE)
+    if en is None or path is None:
+        return None
     return {
         "enabled": en.stdout.strip() or "unknown",
-        "active": vals.get("ActiveState", ""),
-        "sub": vals.get("SubState", ""),
-        "result": vals.get("Result", ""),
+        "active": path.get("ActiveState", ""),
+        "sub": path.get("SubState", ""),
+        "result": path.get("Result", ""),
+        "service_result": (svc or {}).get("Result", "") or "unknown",
     }
+
+
+def _canary() -> str:
+    """`ok`, `instances` (EMFILE: no inotify instance left), `watches` (ENOSPC: no watch left), or `unknown`."""
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        fd = libc.inotify_init1(_IN_NONBLOCK | _IN_CLOEXEC)
+        if fd < 0:
+            return "instances" if ctypes.get_errno() == errno.EMFILE else "unknown"
+        try:
+            target = _state_path().parent
+            target.mkdir(parents=True, exist_ok=True)
+            if libc.inotify_add_watch(fd, os.fsencode(target), _IN_DELETE_SELF) < 0:
+                return "watches" if ctypes.get_errno() == errno.ENOSPC else "unknown"
+            return "ok"
+        finally:
+            os.close(fd)
+    except (OSError, AttributeError):
+        return "unknown"
 
 
 def _read_int(p: Path) -> int | None:
@@ -107,21 +179,19 @@ def _read_int(p: Path) -> int | None:
 
 
 def inotify_reading() -> dict[str, object] | None:
-    """Watches and instances in use by this uid, the maxima, and the top watch holders.
-
-    None when a maximum cannot be read (no ratio can be formed)."""
+    """The scan, the maxima and the canary; None when a maximum cannot be read."""
     proc = _proc()
     max_w = _read_int(proc / "sys" / "fs" / "inotify" / "max_user_watches")
     max_i = _read_int(proc / "sys" / "fs" / "inotify" / "max_user_instances")
     if not max_w or not max_i:
         return None
     uid = os.getuid()
-    watches = instances = 0
-    holders: list[tuple[int, str, str]] = []
+    watches = instances = readable = unreadable = 0
+    holders: list[tuple[int, int, str, str]] = []
     try:
         entries = list(proc.iterdir())
     except OSError:
-        return None
+        entries = []
     for p in entries:
         if not p.name.isdigit():
             continue
@@ -130,44 +200,73 @@ def inotify_reading() -> dict[str, object] | None:
                 continue
             fds = list((p / "fd").iterdir())
         except OSError:
+            unreadable += 1
             continue
-        n = 0
+        readable += 1
+        n = k = 0
         for fd in fds:
             try:
                 if os.readlink(fd) != "anon_inode:inotify":
                     continue
-                instances += 1
                 with (p / "fdinfo" / fd.name).open("rb") as fh:
                     n += sum(1 for ln in fh if ln.startswith(b"inotify wd:"))
+                k += 1
             except OSError:
                 continue
-        if n:
+        if k:
             watches += n
+            instances += k
             try:
                 cmd = (p / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
             except OSError:
                 cmd = "?"
-            holders.append((n, p.name, cmd.strip()[:100]))
-    holders.sort(reverse=True)
+            holders.append((n, k, p.name, cmd.strip()[:100]))
+    w_load, i_load = watches / max_w, instances / max_i
+    by_instances = i_load > w_load
+    holders.sort(key=lambda h: (h[1], h[0]) if by_instances else (h[0], h[1]), reverse=True)
     return {
         "watches": watches,
         "max_watches": max_w,
         "instances": instances,
         "max_instances": max_i,
-        "load": max(watches / max_w, instances / max_i),
+        "load": max(w_load, i_load),
+        "readable": readable,
+        "unreadable": unreadable,
+        "canary": _canary(),
         "top": holders[:TOP],
     }
 
 
+def _known(r: dict[str, object] | None) -> bool:
+    return r is not None and int(r["readable"]) > 0  # type: ignore[call-overload]
+
+
+def _exhausted(r: dict[str, object] | None) -> bool:
+    return r is not None and r["canary"] in ("watches", "instances")
+
+
+def _amber(r: dict[str, object] | None) -> bool:
+    return _exhausted(r) or (_known(r) and float(r["load"]) >= AMBER)  # type: ignore[index, arg-type]
+
+
 def _fmt_inotify(r: dict[str, object] | None) -> str:
     if r is None:
-        return "inotify: unreadable"
-    lines = [
+        return "inotify: maxima unreadable"
+    canary = {
+        "ok": "ok",
+        "watches": "EXHAUSTED — inotify_add_watch answered ENOSPC: no watch is left",
+        "instances": "EXHAUSTED — inotify_init1 answered EMFILE: no instance is left",
+        "unknown": "unknown",
+    }[str(r["canary"])]
+    head = (
         f"inotify watches {r['watches']}/{r['max_watches']} · instances {r['instances']}/{r['max_instances']}"
-        f" · load {float(r['load']):.0%} (a lower bound: unreadable processes are skipped)"
-    ]
-    for n, pid, cmd in r["top"]:  # type: ignore[attr-defined]
-        lines.append(f"  pid {pid}: {n} watches — {cmd}")
+        f" · load {float(r['load']):.0%} (estimate; {r['unreadable']} processes unreadable)"  # type: ignore[arg-type]
+        if _known(r)
+        else f"inotify unknown — no process readable ({r['unreadable']} unreadable)"
+    )
+    lines = [head, f"canary: {canary}"]
+    for n, k, pid, cmd in r["top"]:  # type: ignore[attr-defined]
+        lines.append(f"  pid {pid}: {n} watches, {k} instances — {cmd}")
     return "\n".join(lines)
 
 
@@ -190,7 +289,7 @@ def _save_state(d: dict[str, object]) -> None:
         tmp.write_text(json.dumps(d, sort_keys=True))
         os.replace(tmp, path)
     except OSError as e:
-        print(f"box-budget: state not written ({e.__class__.__name__}) — the next run may mail again")
+        _log(f"state not written ({type(e).__name__}) — the next run may mail again")
         with contextlib.suppress(OSError):
             tmp.unlink()
 
@@ -198,19 +297,33 @@ def _save_state(d: dict[str, object]) -> None:
 def _mail(subject: str, body: str, ack: str) -> bool:
     script = _mail_script()
     if not script.is_file():
-        print(f"box-budget: no {script} — alert printed only: {subject}")
+        _log(f"no {script} — alert logged only: {subject}")
         return False
     try:
         r = subprocess.run(
-            [sys.executable, str(script), "send", "--to", "fabrik", "--to-agent", "coordinator",
-             "--kind", "finding", "--ack", ack],
-            input=f"{subject}\n\n{body}\n", capture_output=True, text=True, timeout=30,
+            [
+                sys.executable,
+                str(script),
+                "send",
+                "--to",
+                "fabrik",
+                "--to-agent",
+                "coordinator",
+                "--kind",
+                "finding",
+                "--ack",
+                ack,
+            ],
+            input=f"{subject}\n\n{body}\n{FOOTER}\n",
+            capture_output=True,
+            text=True,
+            timeout=MAIL_TIMEOUT_S,
         )
     except (OSError, subprocess.SubprocessError) as e:
-        print(f"box-budget: mail not sent ({e.__class__.__name__}) — retried next run")
+        _log(f"mail not sent ({type(e).__name__}) — retried next run")
         return False
     if r.returncode != 0:
-        print(f"box-budget: mail not sent (rc {r.returncode}) — retried next run")
+        _log(f"mail not sent (rc {r.returncode}) — retried next run")
         return False
     return True
 
@@ -219,68 +332,105 @@ def _mail(subject: str, body: str, ack: str) -> bool:
 
 
 def unit_leg(state: dict[str, object], reading: dict[str, object] | None) -> None:
-    s = _unit_state()
+    raw = state.get("unit")
+    ep: dict[str, object] = dict(raw) if isinstance(raw, dict) else {}
+    s = unit_state()
     if s is None:
-        print(f"box-budget: {UNIT} unreadable (systemctl failed) — nothing done")
+        _log(f"{UNIT} unreadable (systemctl could not be asked) — nothing done")
         return
     if s["enabled"] != "enabled":
-        print(f"box-budget: {UNIT} is {s['enabled']} — left alone")
+        _log(f"{UNIT} is {s['enabled']} — left alone")
         return
     if s["active"] == "active":
-        if state.pop("unit", None) is not None:
-            print(f"box-budget: {UNIT} active — episode closed")
+        last_bad = ep.get("last_bad")
+        if ep and isinstance(last_bad, (int, float)) and _now() - last_bad >= HEALTHY_S:
+            if ep.get("state") == "failed" and not _mail(
+                f"{UNIT} recovered — active for an hour since the failed restart",
+                f"WHAT: {UNIT} has read active for {HEALTHY_S // 60} min; the episode is closed.",
+                "no",
+            ):
+                return  # the recovered mail is retried next run
+            state.pop("unit", None)
+            _log(f"{UNIT} active for an hour — episode closed")
         return
     if s["active"] not in ("failed", "inactive"):
-        print(f"box-budget: {UNIT} is {s['active']} — transitional, nothing done")
+        _log(f"{UNIT} is {s['active']} — transitional, nothing done")
         return
-    was = f"ActiveState={s['active']} SubState={s['sub']} Result={s['result']}"
+    was = f"ActiveState={s['active']} SubState={s['sub']} Result={s['result']} (service Result={s['service_result']})"
     _systemctl("reset-failed", UNIT, SERVICE)
     _systemctl("start", UNIT)
     after = _systemctl("is-active", UNIT)
     healed = after is not None and after.stdout.strip() == "active"
-    print(f"box-budget: {UNIT} was {was} — restart {'held' if healed else 'FAILED'}")
-    if state.get("unit") == ("healed" if healed else "failed"):
-        return  # this episode already mailed
-    subject = (
-        f"{UNIT} was down ({was}) and the rotation tick restarted it"
-        if healed
-        else f"{UNIT} is down ({was}) and the rotation tick could NOT restart it — no builder can be rotated"
-    )
-    body = (
-        f"WHAT: {subject}.\nWHEN: {time.strftime('%Y-%m-%d %H:%M:%S %z')}.\n"
-        f"WHY (likely): a full per-user inotify budget fails a path unit with Result=resources.\n"
-        f"{_fmt_inotify(reading)}\n"
-        f"HOW: journalctl --user -u {UNIT} -n 20; restart by hand: {RESTART}; "
-        f"budgets: python3 scripts/sysadmin/box_budget_check.py --report.\n"
-        f"(W-09957e81 — box_budget_check.py, run by claude_rotate.py --tick every 5 min)"
-    )
-    if _mail(subject, body, "no" if healed else "required"):
-        state["unit"] = "healed" if healed else "failed"
+    _log(f"{UNIT} was {was} — restart {'held' if healed else 'FAILED'}")
+    ep["last_bad"] = _now()
+    prior = ep.get("state")
+    mail_now = prior is None or (prior == "healed" and not healed)
+    new_state = "failed" if (prior == "failed" or not healed) else "healed"
+    if mail_now:
+        subject = (
+            f"{UNIT} was down and the rotation tick restarted it"
+            if healed
+            else f"{UNIT} is down and the rotation tick could NOT restart it — no builder can be rotated"
+        )
+        body = (
+            f"WHAT: {subject}. Before the restart: {was}.\n"
+            f"WHEN: {time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(_now()))}.\n"
+            "WHY (likely): a full per-user inotify budget fails a path unit with Result=resources.\n"
+            f"{_fmt_inotify(reading)}\n"
+            f"HOW: journalctl --user -u {UNIT} -n 20; restart by hand: {RESTART}; "
+            "budgets: python3 scripts/sysadmin/box_budget_check.py --report"
+        )
+        if not _mail(subject, body, "no" if healed else "required"):
+            return  # nothing recorded: the next run mails again
+    ep["state"] = new_state
+    state["unit"] = ep
 
 
 def inotify_leg(state: dict[str, object], reading: dict[str, object] | None) -> None:
     if reading is None:
-        print("box-budget: inotify maxima unreadable — nothing done")
+        _log("inotify maxima unreadable — nothing done")
+        return
+    if not _known(reading) and not _exhausted(reading):
+        _log(
+            f"inotify unknown — no process readable ({reading['unreadable']} unreadable); canary {reading['canary']}"
+        )
         return
     load = float(reading["load"])  # type: ignore[arg-type]
-    if load < CLEAR:
-        if state.pop("inotify", None) is not None:
-            print(f"box-budget: inotify load {load:.0%} — episode closed")
+    if not _amber(reading):
+        if (
+            load < CLEAR
+            and reading["canary"] != "unknown"
+            and state.pop("inotify", None) is not None
+        ):
+            _log(f"inotify load {load:.0%} — episode closed")
         return
-    if load < AMBER or state.get("inotify"):
+    if state.get("inotify"):
         return
-    subject = f"inotify budget at {load:.0%} — path units and file watchers fail at 100%"
+    subject = (
+        f"inotify budget exhausted ({reading['canary']}) — path units and file watchers are failing"
+        if _exhausted(reading)
+        else f"inotify budget at {load:.0%} — path units and file watchers fail at 100%"
+    )
     body = (
         f"WHAT: {subject}.\n{_fmt_inotify(reading)}\n"
-        "WHY: every process of this user shares one watch budget; at 100% systemd path units "
+        "WHY: every process of this user shares one inotify budget; at 100% systemd path units "
         "(fabrik-rotate.path among them) fail with Result=resources.\n"
         "HOW: the usual holder is code-server's file watcher — keep its files.watcherExclude "
-        "(docs/workstation/vscode-configuration.md § code-server) and reload the window.\n"
-        "(W-09957e81 — box_budget_check.py, run by claude_rotate.py --tick every 5 min)"
+        "(docs/workstation/vscode-configuration.md § code-server) and reload the window."
     )
-    print(f"box-budget: AMBER — {subject}")
+    _log(f"AMBER — {subject}")
     if _mail(subject, body, "required"):
         state["inotify"] = "amber"
+
+
+def report() -> int:
+    reading = inotify_reading()
+    print(_fmt_inotify(reading))
+    s = unit_state()
+    print(f"{UNIT}: " + (" ".join(f"{k}={v}" for k, v in s.items()) if s else "unreadable"))
+    if (s and s["enabled"] == "enabled" and s["active"] != "active") or _amber(reading):
+        return 2
+    return 0 if _known(reading) else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -289,34 +439,31 @@ def main(argv: list[str] | None = None) -> int:
         print("usage: box_budget_check.py [--report]", file=sys.stderr)
         return 2
     _user_bus()
-    reading = inotify_reading()
     if args == ["--report"]:
-        print(_fmt_inotify(reading))
-        s = _unit_state()
-        print(f"{UNIT}: " + (" ".join(f"{k}={v}" for k, v in s.items()) if s else "unreadable"))
-        return 0
+        return report()
     lock_path = _state_path().with_name(f".{_state_path().name}.lock")
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock = lock_path.open("a")
     except OSError:
-        print("box-budget: lock unavailable — nothing done")
+        _log("lock unavailable — nothing done")
         return 0
     with lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
-            print("box-budget: another run holds the lock — nothing done")
+            _log("another run holds the lock — nothing done")
             return 0
         try:
+            reading = inotify_reading()
             state = _load_state()
-            before = dict(state)
+            before = json.dumps(state, sort_keys=True)
             unit_leg(state, reading)
             inotify_leg(state, reading)
-            if state != before:
+            if json.dumps(state, sort_keys=True) != before:
                 _save_state(state)
-        except Exception as e:  # noqa: BLE001 — a cron child: one line, never a traceback storm
-            print(f"box-budget: INTERNAL ERROR {type(e).__name__}: {e}")
+        except Exception as e:  # noqa: BLE001 — a cron child: one log line, never a traceback
+            _log(f"INTERNAL ERROR {type(e).__name__}: {e}")
     return 0
 
 

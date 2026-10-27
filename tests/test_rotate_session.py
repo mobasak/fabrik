@@ -1477,7 +1477,7 @@ def test_w05021a03_worktree_probe_timeout_is_transient(world, monkeypatch):
     assert _rows(world)[-1]["outcome"] == "aborted:worktree"
 
 
-def test_w05021a03_stale_unclaimed_request_is_permanent(world, capsys):
+def test_w05021a03_stale_unclaimed_request_is_permanent(world, capsys, monkeypatch):
     rs._ensure_req_dir()
     left = world["req"] / "x--other.json"
     left.write_text("{}")
@@ -1495,6 +1495,21 @@ def test_w05021a03_stale_unclaimed_request_is_permanent(world, capsys):
         last["outcome"] == "aborted:pending" and "install_rotate_unit.sh --check" in last["reason"]
     )
     assert "(permanent" in capsys.readouterr().err
+    # W-09957e81: the refusal names the unit's state and the exact restart command (conftest pins
+    # ROTATE_SYSTEMCTL to an absent path, so the state reads unknown and no live unit is asked)
+    restart = (
+        "systemctl --user reset-failed fabrik-rotate.path fabrik-rotate.service"
+        " && systemctl --user start fabrik-rotate.path"
+    )
+    assert "fabrik-rotate.path is unknown" in last["reason"] and restart in last["reason"]
+    assert "box_budget_check.py --report" in last["reason"]
+    fake = world["tmp"] / "fake-systemctl"
+    fake.write_text("#!/bin/sh\nprintf 'ActiveState=failed\\nResult=resources\\n'\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("ROTATE_SYSTEMCTL", str(fake))
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    last = _rows(world)[-1]
+    assert "fabrik-rotate.path is ActiveState=failed Result=resources" in last["reason"]
 
 
 def test_w05021a03_no_binding_yet_names_the_rebind(world, capsys):

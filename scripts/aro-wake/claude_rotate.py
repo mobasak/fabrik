@@ -3569,6 +3569,7 @@ def _cmd_tick() -> int:
             with _TICK_CRITICAL:  # a watchdog already past its Timer waits here, then stands down
                 done.set()
                 watchdog.cancel()
+        _box_budget_leg()  # first: a spawn takes milliseconds and must not wait behind a wake
         _battery_leg(time.time(), lift=True)
         _resume_leg(start, prev_end)
 
@@ -7530,6 +7531,34 @@ def _battery_leg(now: float, *, lift: bool) -> None:
             _battery_lift(now)
     except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_cmd_tick`'s own guard
         print(f"tick: battery hold leg ERROR {type(exc).__name__}: {exc}")
+
+
+def _box_budget_leg() -> None:
+    """Spawn the box-budget checker (W-09957e81) detached, once per tick. Never raises.
+
+    `scripts/sysadmin/box_budget_check.py` restarts a failed `fabrik-rotate.path` and alerts on the
+    shared inotify budget; it runs seconds (a /proc scan, systemctl, a mail send), so it is a child,
+    never in-line. Resolved through `_opt_dir()`, the seam `_drain_mail` uses, so a test (whose
+    FABRIK_OPT_DIR conftest pins to an empty dir) spawns nothing. The child gets NO inherited stdio:
+    the quota board runs the tick with `capture_output=True` (quota_dashboard.py), and a child holding
+    that pipe would hold the board's call until it exited; it writes its own log
+    (`~/.claude/state/box-budget.log`). A tick the watchdog ends with `os._exit` spawns nothing; the
+    next tick does."""
+    try:
+        script = _opt_dir() / "fabrik" / "scripts" / "sysadmin" / "box_budget_check.py"
+        if not script.is_file():
+            print("tick: box-budget check absent — not spawned")
+            return
+        subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+            [sys.executable, str(script)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        print("tick: box-budget check spawned")
+    except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_battery_leg`
+        print(f"tick: box-budget leg ERROR {type(exc).__name__}: {exc}")
 
 
 def _cmd_battery_tick() -> int:

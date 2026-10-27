@@ -743,6 +743,32 @@ def _dialog(screen: str) -> bool:
 # ── request ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
+def _rotate_unit_state() -> str:
+    """`ActiveState=… Result=…` of fabrik-rotate.path for a refusal's text, or `unknown` (W-09957e81)."""
+    try:
+        r = subprocess.run(
+            [
+                os.environ.get("ROTATE_SYSTEMCTL", "systemctl"),
+                "--user",
+                "show",
+                "-p",
+                "ActiveState",
+                "-p",
+                "Result",
+                "fabrik-rotate.path",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    vals = dict(ln.split("=", 1) for ln in r.stdout.splitlines() if "=" in ln)
+    if r.returncode != 0 or not vals.get("ActiveState"):
+        return "unknown"
+    return f"ActiveState={vals['ActiveState']} Result={vals.get('Result', '')}"
+
+
 def _pending() -> bool:
     d = _req_dir()
     for stray in d.glob(
@@ -767,8 +793,11 @@ def _pending() -> bool:
             if age > ORPHAN_S:
                 raise CheckFailedError(
                     "pending",
-                    f"{left.name} has waited {int(age)} s unclaimed — is fabrik-rotate.path running? "
-                    "(scripts/sysadmin/install_rotate_unit.sh --check)",
+                    f"{left.name} has waited {int(age)} s unclaimed — fabrik-rotate.path is "
+                    f"{_rotate_unit_state()} (scripts/sysadmin/install_rotate_unit.sh --check); restart it: "
+                    "systemctl --user reset-failed fabrik-rotate.path fabrik-rotate.service && "
+                    "systemctl --user start fabrik-rotate.path; a full inotify budget fails it with "
+                    "Result=resources: python3 scripts/sysadmin/box_budget_check.py --report",
                     transient=False,
                 )
     if any(d.glob("*.json")) or any(d.glob("*.claimed")) or any(d.glob(".*.tmp")):

@@ -324,6 +324,14 @@ def _isolated_opt_dir(tmp_path, _private_monkeypatch):
     # and the settings list the installer and the tick's advisory walk, so neither reads the
     # operator's real per-account files
     monkeypatch.setenv("QUOTA_POSTURE_SETTINGS", str(tmp_path / "isolated-settings.json"))
+    # the tick's box-budget child (W-09957e81) RESTARTS the live fabrik-rotate.path and opens alert
+    # episodes: its systemctl, state and log seams are pinned here, so a test that runs it directly
+    # reaches no real unit (an absent systemctl reads as "unreadable", acts on nothing), and
+    # rotate_session's refusal text never carries the live unit's state
+    monkeypatch.setenv("BOX_BUDGET_SYSTEMCTL", str(tmp_path / "no-systemctl-in-tests"))
+    monkeypatch.setenv("BOX_BUDGET_STATE", str(state / "box-budget.json"))
+    monkeypatch.setenv("BOX_BUDGET_LOG", str(state / "box-budget.log"))
+    monkeypatch.setenv("ROTATE_SYSTEMCTL", str(tmp_path / "no-systemctl-in-tests"))
     yield opt
 
 

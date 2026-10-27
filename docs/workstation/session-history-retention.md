@@ -192,7 +192,10 @@ is a named constant and `REQUEST_WORST_S` (487 s) is derived from them, and `exe
 `run_checks` makes (60 s timeout each) are not counted yet (W-b728822f). A request left unclaimed waits for the path
 unit's next start, which almost always rows it `stale` (it is then older than 60 s). Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
-reports). The previous session stays resumable and is archived that night.
+reports). A failed path unit (a full inotify budget fails it with `Result=resources`, 2026-10-27) is restarted by the
+5-minute rotation tick's `scripts/sysadmin/box_budget_check.py`, which mails the coordinator once per episode; a
+request refused as unclaimed names the unit's `ActiveState`/`Result` and the restart command (W-09957e81). The
+previous session stays resumable and is archived that night.
 
 The pane's input box must be empty for a rotation: check 5 reads every row of the box down to its closing rule, and the
 dim placeholder of a fresh box counts as empty. Text someone left unsent in the box blocks it; the coordinator clears it
