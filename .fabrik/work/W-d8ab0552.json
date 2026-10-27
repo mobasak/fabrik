@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure compose 2.40.3 on a BOM .env in a real container, then match it in parse_env (strip or refuse); a dangling symlink: refuse like an unreadable file",
+  "next": "measure compose 2.40.3 on a BOM .env and on a lone \\r (inside a quoted value and as a line end) in a real container, then match it in parse_env and in the text readers (SecretsManager and _load_secrets read with universal newlines, so a lone \\r is a line break there; W-f62a2cdc review); a dangling symlink: refuse like an unreadable file",
   "note": "",
   "owner": "",
   "priority": 3,
