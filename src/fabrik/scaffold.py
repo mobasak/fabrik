@@ -167,7 +167,7 @@ VENDORED_MODULE_NAMES = frozenset({"fastapi_user_auth", "audit_log"})
 # ruff I001 fails and the import breaks (W-a352701a). A static list on purpose: an importlib lookup would
 # depend on what the local environment has installed. tests/test_scaffold_project_name_shadow.py reads
 # every pinned requirement in this file and in templates/**/requirements*.txt and fails when one is
-# missing here.
+# missing here (Pillow excepted: it imports as `PIL`, which no lowercase project name can shadow).
 SHADOWABLE_LIBRARY_NAMES = frozenset(
     {
         "alembic",
@@ -181,7 +181,6 @@ SHADOWABLE_LIBRARY_NAMES = frozenset(
         "jwt",
         "packaging",
         "pdf2image",
-        "PIL",
         "prometheus_client",
         "psycopg",
         "pydantic",

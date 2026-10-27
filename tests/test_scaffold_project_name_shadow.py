@@ -10,7 +10,9 @@ from fabrik.scaffold import SHADOWABLE_LIBRARY_NAMES, _validate_project_name
 
 # A requirement's distribution name where its import name differs; every other name imports as
 # itself with `-` read as `_`.
-_IMPORT_NAME = {"argon2-cffi": "argon2", "pillow": "PIL", "pyjwt": "jwt", "python-dotenv": "dotenv"}
+_IMPORT_NAME = {"argon2-cffi": "argon2", "pyjwt": "jwt", "python-dotenv": "dotenv"}
+# Pillow imports as `PIL`; a project name is lowercase, and `pil/` does not shadow `PIL` on Linux.
+_NO_LOWERCASE_IMPORT = {"pillow"}
 _TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
 # A pinned requirement inside a string literal: `name>=1`, `name[extra]>=1`, `name==1`, `name~=1`.
 _PINNED = re.compile(
@@ -43,6 +45,9 @@ def test_every_pinned_scaffold_requirement_is_a_shadowable_name():
         pinned |= found
     assert len(sources) >= 2 and "fastapi" in pinned, sources
     missing = sorted(
-        n for n in pinned if _IMPORT_NAME.get(n, n.replace("-", "_")) not in SHADOWABLE_LIBRARY_NAMES
+        n
+        for n in pinned - _NO_LOWERCASE_IMPORT
+        if _IMPORT_NAME.get(n, n.replace("-", "_")) not in SHADOWABLE_LIBRARY_NAMES
     )
+    assert _NO_LOWERCASE_IMPORT <= pinned, "drop a stale _NO_LOWERCASE_IMPORT entry"
     assert missing == [], f"add the import names of {missing} to SHADOWABLE_LIBRARY_NAMES"
