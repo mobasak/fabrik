@@ -108,3 +108,21 @@ None. The step-2 scan over the 36 reader tests found three literal hits: `{{incl
 - `commands/_size_ceiling.json` ratchet at merge, `CHANGELOG.md`, `INDEX.md`, any floor D-row.
 - The `_shared/` LOSS (T01d) that fails `tests/test_command_rules.py`.
 - The author-blind audit of the 32 reworded entries and the four `narrative` judgement calls.
+
+## Fix round 2 (hub audit)
+
+Branch `claude/lean-t26-rl-fix`. Both audits checked against the baseline units (`fabrik-service-test.baseline.txt`).
+
+**Confirmed and fixed (restored word for word; the ledger entry dropped where the unit is whole again):**
+- st-L7 (both mandate questions and "kind of"), st-L23 (registry denominator, TESTED contract), st-L46 (read the response, successful, correctly), st-L49 (out-of-family flag, the `10s` sentence), st-L44 (the four cross-call failure cases and "A call is one request"), st-L77 ("really" x4 and "the full-stack leg"), st-L83 (the two lookup questions), st-L96 (stored artifact, "believes"), st-L119 (journey-ledger columns, FIXED/HANDED-OFF/REFUTED/SKIPPED fields), st-L73, st-L87, st-L33, st-L48 (honor the contract, mojibake), st-L86 (if / no judgment call), st-L90 (quiet-exit tail), st-L93 (fix-loop parenthetical), st-L1 (D-182 revision, "this text is the control"). st-L14 is restored in full and kept as an entry: its baseline unit spans two sentences that the render splits.
+- L47 ("every ambiguity is a defect") and L8 (integrators plus one hostile client): not narrative, restored; labels removed.
+- L66 ("Pool-check the matrix for holes (see Subagents) before dispatch") and L68 ("Dispatch parallel subagents ... no two agents mutating the same seeded tenant/queue"): the `duplicate-of` labels were wrong (u-L114/u-L111 lack the ordering and the no-shared-tenant constraint); both lines restored in Phase 2 and Phase 3, labels removed.
+- Audit 2 #1, the `<!-- POOL OFF -->` block in the Subagents section: confirmed lost. Its original text is not in `baseline.txt` and this clone has no git, so I could not diff it. I restored a short comment carrying its rules (≥1 pool `fanout` for gradeable breadth with `set_quality` back-fill, the breadth list, pool unavailable = BLOCKED-env finding, not a silent skip). It is a reconstruction, not verbatim: the hub should diff it against `git show lean-baseline-2026-10-25:commands/_sources/fabrik-service-test.md` and swap in the original lines.
+
+**Refuted:** none.
+
+**Own-text words:** baseline 3741 -> re-ledger 3205 -> now not re-measured (the measuring one-liner was not an allowed command in this run); rendered size is 24254 words against ceiling 25150. Every restoration costs words (D-1254); the 50% target is retired (D-1257), so no floor table.
+
+**Gates:** `assemble_commands.py --check` exit 4 with no `fabrik-service-test.yaml` LOSS (only `_shared/` LOSS and DIFFERS drift). `tests/test_command_rules.py`: the only red is the live-corpus LOSS test, from `_shared/` ledgers. Reader gates: domain-pack 495 passed 2 skipped; decision-blocks 500 passed; command gate 2 failed 608 passed (same count as the start run); assemble gate 14 failed 220 passed (as at the start); enforcement gate 1 failed, `test_agent_definitions.py::test_the_live_box_matches_the_repo_sources` (live-box state; the start run showed 111 passed, not re-run on the old tree).
+
+**Fresh passes run: 0.** No subagent can be dispatched from this run, so the zero-counts self-audit is NOT a fresh subagent; the hub's author-blind audit pair covers it. I read each audit finding against its baseline unit line by line, but that is the author re-checking: no COUNTS line of zeros is claimed.

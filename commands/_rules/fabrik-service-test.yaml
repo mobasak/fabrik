@@ -550,25 +550,13 @@ entries:
   current: 'End with the next command: defects handed off → the owning `/fabrik-review`/plan; `shape:`/contract drift → fix the spec (and re-freeze the data contract via `/fabrik-data-contract` if fields changed) before any deploy; all green → `/fabrik-release` (release-readiness, then the hub-side `fabrik apply`)'
   text:
   - 'End with the next command: defects handed off → the owning `/fabrik-review`/plan; `shape:`/contract drift → fix the spec (and re-freeze the data contract via `/fabrik-data-contract` if fields changed) before any deploy; all green → `/fabrik-release` (release-readiness, then the hub-side `fabrik apply`)'
-- id: st-L1
-  class: prose
-  baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
-  current: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181/D-182): the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND, so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
-  text:
-  - '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181/D-182): the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND, so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
-- id: st-L7
-  class: prose
-  baseline: 'Your mandate is the end-to-end consumer experience of a system with no screen: not "do the endpoints return 200" but "can every kind of real consumer complete every real journey, does the SYSTEM actually do what the response claims, and does the service behave correctly when things go WRONG"'
-  current: 'Your mandate is the end-to-end consumer experience of a system with no screen: not "do the endpoints return 200" but "can every real consumer complete every real journey"'
-  text:
-  - 'Your mandate is the end-to-end consumer experience of a system with no screen: not "do the endpoints return 200" but "can every real consumer complete every real journey"'
 - id: st-L14
   section: '## Phase 0 — Ground truth, or refuse'
   class: ban
   baseline: Certify the service side here when the project exposes an API / worker / job / webhook surface — even a UI-typed project often ships a headless API the GUI (or a third party) calls, and that API deserves this gauntlet; if so, run it here AND note the GUI half belongs to `/fabrik-user-test`. Only a project that is purely a GUI with no service surface at all → STOP and route to `/fabrik-user-test`
   text:
-  - Certify the service side here when the project exposes an API / worker / job / webhook surface — even a UI-typed project often ships a headless API the GUI calls; run it here AND note the GUI half belongs to `/fabrik-user-test`
-  - run it here AND note the GUI half belongs to `/fabrik-user-test`. Only a project that is purely a GUI with no service surface at all → STOP and route to `/fabrik-user-test`
+  - Certify the service side here when the project exposes an API / worker / job / webhook surface — even a UI-typed project often ships a headless API the GUI (or a third party) calls, and that API deserves this gauntlet
+  - if so, run it here AND note the GUI half belongs to `/fabrik-user-test`. Only a project that is purely a GUI with no service surface at all → STOP and route to `/fabrik-user-test`
 - id: st-L15
   section: '## Phase 0 — Ground truth, or refuse'
   class: prose
@@ -576,14 +564,6 @@ entries:
   current: A `type`↔surface mismatch (headless type, no service found — or a UI type hiding a real API) is itself a finding
   text:
   - A `type`↔surface mismatch (headless type, no service found — or a UI type hiding a real API) is itself a finding
-- id: st-L23
-  section: '## Phase 0 — Ground truth, or refuse'
-  class: ban
-  clauses: {2: narrative}
-  baseline: '`docs/FEATURES.md` (thin/stale? run `/fabrik-features` first — it converges the cross-check; the denominator is the live registry) — the denominator this gauntlet tests against) — a TESTED contract: every row must be traversed by a journey (bidirectional — shipped-but-undocumented is doc-drift; documented-but-broken is a defect)'
-  current: '`docs/FEATURES.md` (thin/stale? run `/fabrik-features` first) — the denominator: every row must be traversed by a journey (bidirectional — shipped-but-undocumented is doc-drift; documented-but-broken is a defect)'
-  text:
-  - '`docs/FEATURES.md` (thin/stale? run `/fabrik-features` first) — the denominator: every row must be traversed by a journey (bidirectional — shipped-but-undocumented is doc-drift; documented-but-broken is a defect)'
 - id: st-L29
   section: '## Phase 0 — Ground truth, or refuse'
   class: prose
@@ -592,13 +572,6 @@ entries:
   current: ⚠️ RECORD how you started it — `<board>/runtime.md` — before any round runs. Write the exact start command, its env, the port, and the git SHA; a round that restarts it UPDATES that file
   text:
   - ⚠️ RECORD how you started it — `<board>/runtime.md` — before any round runs. Write the exact start command, its env, the port, and the git SHA; a round that restarts it UPDATES that file
-- id: st-L33
-  section: '## Phase 0 — Ground truth, or refuse'
-  class: prose
-  baseline: 'Vendor the harness, don''t hand-roll: `fabrik-lib/api-smoke-test` is the backbone for FastAPI services — route inventory (exact equality: no dropped, no un-catalogued route), auth-boundary assertions, and an authed fixture with guaranteed cleanup'
-  current: 'Vendor the harness, don''t hand-roll: `fabrik-lib/api-smoke-test` is the backbone for FastAPI services — route inventory (exact equality), auth-boundary assertions, and an authed fixture with guaranteed cleanup'
-  text:
-  - 'Vendor the harness, don''t hand-roll: `fabrik-lib/api-smoke-test` is the backbone for FastAPI services — route inventory (exact equality), auth-boundary assertions, and an authed fixture with guaranteed cleanup'
 - id: st-L37
   section: '## Phase 1 — The CONTRACT INVENTORY: the denominator nothing may hide from'
   class: prose
@@ -614,36 +587,6 @@ entries:
   current: 'Code-driven: the router/decorator inventory (FastAPI routers, Express/Hono routes, Celery/RQ task registry, CLI entrypoints, file-watch/drop handlers, webhook receivers, Beat schedule)'
   text:
   - 'Code-driven: the router/decorator inventory (FastAPI routers, Express/Hono routes, Celery/RQ task registry, CLI entrypoints, file-watch/drop handlers, webhook receivers, Beat schedule)'
-- id: st-L44
-  section: '## Phase 1b — CONSUMER JOURNEYS: the layer above endpoints (the QC engineer''s real subject)'
-  class: prose
-  clauses: {1: narrative}
-  baseline: A call is one request; a journey is a consumer's LIFE with the service — calls chained across time, where cross-call state breaks (tokens expiring mid-batch, pagination cursors invalidated by concurrent writes, a job retried into a duplicate charge, a webhook replayed)
-  current: A journey is a consumer's LIFE with the service — calls chained across time, where cross-call state breaks
-  text:
-  - A journey is a consumer's LIFE with the service — calls chained across time, where cross-call state breaks
-- id: st-L46
-  section: '## Phase 1b — CONSUMER JOURNEYS: the layer above endpoints (the QC engineer''s real subject)'
-  class: prose
-  baseline: First-integration journey — read `QUICKSTART.md` and follow it literally, as written (a step that doesn't work as documented is a finding) → obtain a credential → first successful call → read the response → handle the first error correctly
-  current: First-integration journey — read `QUICKSTART.md` and follow it literally, as written (a step that doesn't work as documented is a finding) → obtain a credential → first call → handle the first error
-  text:
-  - First-integration journey — read `QUICKSTART.md` and follow it literally, as written (a step that doesn't work as documented is a finding) → obtain a credential → first call → handle the first error
-- id: st-L48
-  section: '## Phase 1b — CONSUMER JOURNEYS: the layer above endpoints (the QC engineer''s real subject)'
-  class: prose
-  baseline: 'Production-client journey — sustained realistic load: pagination to the last page, bulk writes, concurrent clients, long-running jobs, resume-after-restart, and idempotency (the same request twice ⇒ one effect, per `15-api-contracts`); plus encoding/locale round-trip fidelity: Turkish `İ/ı/ş/ğ`, emoji, and RTL survive store → retrieve → generate byte-identically (mojibake in a DB row, PDF, or email is invisible to every schema check), and timestamps honor the UTC-storage/`Europe/Istanbul`-rendering contract across DST edges'
-  current: 'Production-client journey — sustained realistic load: pagination to the last page, bulk writes, concurrent clients, long jobs, resume-after-restart, and idempotency (the same request twice ⇒ one effect, per `15-api-contracts`); plus encoding/locale round-trip fidelity: Turkish `İ/ı/ş/ğ`, emoji, RTL byte-identical store → retrieve → generate, and UTC-storage/`Europe/Istanbul`-rendering across DST edges'
-  text:
-  - 'Production-client journey — sustained realistic load: pagination to the last page, bulk writes, concurrent clients, long jobs, resume-after-restart, and idempotency (the same request twice ⇒ one effect, per `15-api-contracts`); plus encoding/locale round-trip fidelity: Turkish `İ/ı/ş/ğ`, emoji, RTL byte-identical store → retrieve → generate, and UTC-storage/`Europe/Istanbul`-rendering across DST edges'
-- id: st-L49
-  section: '## Phase 1b — CONSUMER JOURNEYS: the layer above endpoints (the QC engineer''s real subject)'
-  class: prose
-  clauses: {3: narrative}
-  baseline: 'Latency budget (the "easy to integrate" gate — the CWV analogue): during the production-client journey capture p50/p95 per exercised endpoint; DECLARE a budget from each endpoint''s purpose (interactive read vs batch/report) before measuring, then flag every endpoint over its budget or wildly out of family as a finding — a schema-perfect endpoint that takes 10s fails "easy to integrate" exactly as a slow screen fails "easy to use"'
-  current: 'Latency budget ("easy to integrate" gate): during the production-client journey capture p50/p95 per exercised endpoint; DECLARE a budget from each endpoint''s purpose (interactive read vs batch/report) before measuring, then flag every endpoint over its budget as a finding'
-  text:
-  - 'Latency budget ("easy to integrate" gate): during the production-client journey capture p50/p95 per exercised endpoint; DECLARE a budget from each endpoint''s purpose (interactive read vs batch/report) before measuring, then flag every endpoint over its budget as a finding'
 - id: st-L50
   section: '## Phase 1b — CONSUMER JOURNEYS: the layer above endpoints (the QC engineer''s real subject)'
   class: ban
@@ -665,13 +608,6 @@ entries:
   current: ⚠️ COPY every evidence artifact into the board's `evidence/` dir BEFORE recording its path. An `EXERCISED` row is graded by that path EXISTING on disk (Phase 1b), so lost scratch evidence flips it into `EVIDENCE MISSING`
   text:
   - ⚠️ COPY every evidence artifact into the board's `evidence/` dir BEFORE recording its path. An `EXERCISED` row is graded by that path EXISTING on disk (Phase 1b), so lost scratch evidence flips it into `EVIDENCE MISSING`
-- id: st-L73
-  section: '## Phase 3 — Parallel gauntlet (subagents drive; you collect evidence, never impressions)'
-  class: ban
-  baseline: For every journey milestone, JUDGE the actual values against what the request implies (your seeded inputs echoed back, computations correct, generated content real) — schema conformance proves shape, never truth
-  current: For every journey milestone, JUDGE the actual values against what the request implies — schema conformance proves shape, never truth
-  text:
-  - For every journey milestone, JUDGE the actual values against what the request implies — schema conformance proves shape, never truth
 - id: st-L74
   section: '## Phase 3 — Parallel gauntlet (subagents drive; you collect evidence, never impressions)'
   class: prose
@@ -679,13 +615,6 @@ entries:
   current: 'Evidence per verdict, no exceptions: every PASS = the request/response pair (or job record) captured; every FAIL = exact repro (curl/CLI line or test), the response body/status, the log/metric excerpt, reproduced ×2 before it may be CONFIRMED'
   text:
   - 'Evidence per verdict, no exceptions: every PASS = the request/response pair (or job record) captured; every FAIL = exact repro (curl/CLI line or test), the response body/status, the log/metric excerpt, reproduced ×2 before it may be CONFIRMED'
-- id: st-L77
-  section: '## Phase 3 — Parallel gauntlet (subagents drive; you collect evidence, never impressions)'
-  class: prose
-  baseline: 'RESPONSE truth vs SYSTEM truth (the full-stack leg): at every journey milestone verify the layer beneath the response — the row really committed (`SELECT` it back), the job artifact really landed in storage, the queue really drained, the metric really incremented, the email/webhook really fired, the deleted record really gone'
-  current: 'RESPONSE truth vs SYSTEM truth: at every journey milestone verify the layer beneath the response — the row really committed (`SELECT` it back), the job artifact really landed in storage, the queue drained, the metric incremented, the email/webhook fired, the deleted record gone'
-  text:
-  - 'RESPONSE truth vs SYSTEM truth: at every journey milestone verify the layer beneath the response — the row really committed (`SELECT` it back), the job artifact really landed in storage, the queue drained, the metric incremented, the email/webhook fired, the deleted record gone'
 - id: st-L82
   section: '## Phase 4 — Refute, then fix-or-handoff (no silent bucket)'
   class: ban
@@ -693,28 +622,6 @@ entries:
   current: 'A red test is a SYMPTOM with at least two causes — the service is wrong, or the RIG is wrong (the test''s OWN assertions/fixtures/client/seeded repro) — and an assertion message never distinguishes them (live defect: a rig reading snake_case keys off a camelCase wire produced `assert None in (...)` repeatedly; the "service defects" were the rig''s own `dict.get()` on keys that don''t exist, and a coder was nearly dispatched to break correct code into agreeing with a broken test)'
   text:
   - 'A red test is a SYMPTOM with at least two causes — the service is wrong, or the RIG is wrong (the test''s OWN assertions/fixtures/client/seeded repro) — and an assertion message never distinguishes them (live defect: a rig reading snake_case keys off a camelCase wire produced `assert None in (...)` repeatedly; the "service defects" were the rig''s own `dict.get()` on keys that don''t exist, and a coder was nearly dispatched to break correct code into agreeing with a broken test)'
-- id: st-L83
-  section: '## Phase 4 — Refute, then fix-or-handoff (no silent bucket)'
-  class: prose
-  baseline: 'Before ANY row survives as a service finding, refute the rig first: one schema/contract lookup (is the field required? what is its wire alias?) plus the ACTUAL response body or system state'
-  current: 'Before ANY row survives as a service finding, refute the rig first: one schema/contract lookup plus the ACTUAL response body or system state'
-  text:
-  - 'Before ANY row survives as a service finding, refute the rig first: one schema/contract lookup plus the ACTUAL response body or system state'
-- id: st-L86
-  section: '## Phase 4 — Refute, then fix-or-handoff (no silent bucket)'
-  class: prose
-  clauses: {2: narrative}
-  baseline: 'Mechanical path-gate: if the fix''s diff touches ANY file outside the test-harness/response layer (business logic, models, migrations, schema), the row is AUTO-RECLASSIFIED to the code-wrong route — no judgment call, the diff decides'
-  current: 'Mechanical path-gate: a fix diff touching ANY file outside the test-harness/response layer (business logic, models, migrations, schema) AUTO-RECLASSIFIES the row to the code-wrong route — the diff decides'
-  text:
-  - 'Mechanical path-gate: a fix diff touching ANY file outside the test-harness/response layer (business logic, models, migrations, schema) AUTO-RECLASSIFIES the row to the code-wrong route — the diff decides'
-- id: st-L87
-  section: '## Phase 4 — Refute, then fix-or-handoff (no silent bucket)'
-  class: prose
-  baseline: A test that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser role for an RLS bug, one tenant for isolation, an un-exhausted quota for a limit, a healthy dependency for a fallback)
-  current: A test that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable
-  text:
-  - A test that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable
 - id: st-L88
   section: '## Phase 4 — Refute, then fix-or-handoff (no silent bucket)'
   class: ban
@@ -723,27 +630,6 @@ entries:
   current: Reach for the missing constraint in a throwaway/ephemeral instance you own; never degrade shared or paid infrastructure (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red
   text:
   - Reach for the missing constraint in a throwaway/ephemeral instance you own; never degrade shared or paid infrastructure (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red
-- id: st-L90
-  section: '## Phase 4 — Refute, then fix-or-handoff (no silent bucket)'
-  class: prose
-  baseline: 'A refuted rig may NOT be left as a permanently-red committed test: Phase 5 re-runs treat every red as a finding, so an unrepaired rig blocks the quiet exit forever'
-  current: 'A refuted rig may NOT be left as a permanently-red committed test: Phase 5 re-runs treat every red as a finding'
-  text:
-  - 'A refuted rig may NOT be left as a permanently-red committed test: Phase 5 re-runs treat every red as a finding'
-- id: st-L93
-  section: '## Phase 4 — Refute, then fix-or-handoff (no silent bucket)'
-  class: prose
-  baseline: 'contract right, code wrong in a sibling service / upstream vendor → `/fabrik-review` the owning module (that command IS the fix loop: finders → refute → prove-before-fix → guard);'
-  current: 'contract right, code wrong in a sibling service / upstream vendor → `/fabrik-review` the owning module;'
-  text:
-  - 'contract right, code wrong in a sibling service / upstream vendor → `/fabrik-review` the owning module;'
-- id: st-L96
-  section: '## Phase 4 — Refute, then fix-or-handoff (no silent bucket)'
-  class: ban
-  baseline: Never decide a product question inside a test run. Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect + why it is not fixable in the presentation layer) and WIRE/STATE EVIDENCE — the actual response body/key set, or for fail-open rows the queried system state (the row `SELECT`ed back, the queue depth, the stored artifact), demonstrating the SERVICE violated the contract — never the assertion text alone (a committed red repro can itself be rig-defective; the repro proves reproducibility, the evidence proves attribution — cite the body/state Phase 3 already captured, don't re-derive it)
-  current: Never decide a product question inside a test run. Every code-wrong row carries a one-line ownership justification (the owning file + why it is not fixable in the presentation layer) and WIRE/STATE EVIDENCE — the actual response body/key set, or for fail-open rows the queried system state (the row `SELECT`ed back, the queue depth), demonstrating the SERVICE violated the contract — never the assertion text alone (a committed red repro can itself be rig-defective; the repro proves reproducibility, the evidence proves attribution — cite the body/state Phase 3 already captured, don't re-derive it)
-  text:
-  - Never decide a product question inside a test run. Every code-wrong row carries a one-line ownership justification (the owning file + why it is not fixable in the presentation layer) and WIRE/STATE EVIDENCE — the actual response body/key set, or for fail-open rows the queried system state (the row `SELECT`ed back, the queue depth), demonstrating the SERVICE violated the contract — never the assertion text alone (a committed red repro can itself be rig-defective; the repro proves reproducibility, the evidence proves attribution — cite the body/state Phase 3 already captured, don't re-derive it)
 - id: st-L98
   section: '## Phase 4 — Refute, then fix-or-handoff (no silent bucket)'
   class: ban
@@ -773,49 +659,21 @@ entries:
   current: 'Fixture-grade SEEDED DATA in a live tenant is a FINDING, never scenery: a seeder under `scripts/**`/`tests/**` that mutated a REAL database with self-disclaiming data ("approximation, NOT a customs declaration") passes every mechanical gate green — hunt for it explicitly (live: tryton-crm, 24/42 products mis-coded)'
   text:
   - 'Fixture-grade SEEDED DATA in a live tenant is a FINDING, never scenery: a seeder under `scripts/**`/`tests/**` that mutated a REAL database with self-disclaiming data ("approximation, NOT a customs declaration") passes every mechanical gate green — hunt for it explicitly (live: tryton-crm, 24/42 products mis-coded)'
-- id: st-L119
-  section: '## Report + chain'
-  class: prose
-  baseline: '`docs/development/reviews/YYYY-MM-DD-service-test-<slug>.md`: the Inventory Ledger + coverage fractions (journeys completed / journey set · endpoints+jobs exercised / inventory · FEATURES rows verified / total · dependencies degraded-tested / RESILIENCE §2 — each with the scenario IDs proving it), the journey ledger (per journey × archetype: milestones passed, response-vs- system truth checks, where it broke), the round ledger, per-scenario verdicts with evidence, FIXED list (test paths + doc corrections), HANDED-OFF list (owner + repro), REFUTED list (proof), SKIPPED list (reasons), and the persisted-suite inventory'
-  current: '`docs/development/reviews/YYYY-MM-DD-service-test-<slug>.md`: the Inventory Ledger + coverage fractions (journeys completed / journey set · endpoints+jobs exercised / inventory · FEATURES rows verified / total · dependencies degraded-tested / RESILIENCE §2 — each with the scenario IDs proving it), the journey ledger, the round ledger, per-scenario verdicts with evidence, FIXED / HANDED-OFF / REFUTED / SKIPPED lists, and the persisted-suite inventory'
-  text:
-  - '`docs/development/reviews/YYYY-MM-DD-service-test-<slug>.md`: the Inventory Ledger + coverage fractions (journeys completed / journey set · endpoints+jobs exercised / inventory · FEATURES rows verified / total · dependencies degraded-tested / RESILIENCE §2 — each with the scenario IDs proving it), the journey ledger, the round ledger, per-scenario verdicts with evidence, FIXED / HANDED-OFF / REFUTED / SKIPPED lists, and the persisted-suite inventory'
 vanished:
-  L1: {rule: [st-L1]}
-  L7: {rule: [st-L7]}
-  L8: narrative
   L14: {rule: [st-L14]}
   L15: {rule: [st-L15]}
-  L23: {rule: [st-L23]}
   L29: {rule: [st-L29]}
   L30: {rule: [st-L29]}
-  L33: {rule: [st-L33]}
   L37: {rule: [st-L37]}
   L39: {rule: [st-L39]}
-  L44: {rule: [st-L44]}
-  L46: {rule: [st-L46]}
-  L47: narrative
-  L48: {rule: [st-L48]}
-  L49: {rule: [st-L49]}
   L50: {rule: [st-L50]}
-  L66: {duplicate-of: u-L114}
-  L68: {duplicate-of: u-L111}
   L69: {rule: [st-L69]}
   L70: {rule: [st-L70]}
-  L73: {rule: [st-L73]}
   L74: {rule: [st-L74]}
-  L77: {rule: [st-L77]}
   L82: {rule: [st-L82]}
-  L83: {rule: [st-L83]}
-  L86: {rule: [st-L86]}
-  L87: {rule: [st-L87]}
   L88: {rule: [st-L88]}
-  L90: {rule: [st-L90]}
-  L93: {rule: [st-L93]}
-  L96: {rule: [st-L96]}
   L98: {rule: [st-L98]}
   L109: {rule: [st-L109]}
   L110: {rule: [st-L109]}
   L112: {rule: [st-L112]}
   L118: {rule: [st-L118]}
-  L119: {rule: [st-L119]}
