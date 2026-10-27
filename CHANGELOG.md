@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — compose scalars outside `environment:` deploy exactly or are refused (2026-10-27)
+
+A spec string pasted into a compose scalar outside `environment:` broke or mangled the file: python-api's
+`command: {{ image_command }}` lost everything after ` #`, `test: {{ health.test }}` printed a Python list
+repr, file-api's `PORT` sat raw inside the healthcheck item and the Traefik port label, `health.path` sat
+inside double-quoted probe items and two CMD-SHELL probes, a companion `command` wrote a non-BMP character as a
+JSON surrogate pair, and `depends.postgres` sat inside the `${DATABASE_URL:-…}` default, where a `}` closed the
+interpolation. Now `compose_str` (`src/fabrik/template_renderer.py`) quotes `image_command`, `health.test` items
+and companion `command` items; `compose_port` admits only an ASCII port 1-65535 or a `${NAME}` /
+`${NAME:-port}` interpolation; `Health.path` (`HEALTH_PATH_RE`) and `Depends.postgres` (`POSTGRES_IDENT_RE`,
+now also the postgres driver's rule) are refused at `Spec` load, and the apply-path validator refuses the same
+two plus an `image_port` that is not an integer port; both CMD-SHELL probes single-quote the URL; the
+DATABASE_URL defaults go through `compose_env`, so the env-line guard in `tests/test_compose_env_quoting.py`
+has no exemption. W-ff313a14, D-1276.
+
 ### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
 
 Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value

@@ -23,6 +23,13 @@
 - **Rule:** before editing a file, read the plan locks, whatever lane the change took: `status: active` with the path
   under `owned_paths` is a stop and a message to the coordinator, never a silent edit.
 
+## A guard that renders in several places is proven one site at a time (2026-10-27, W-ff313a14)
+
+The file-api `PORT` guard sat at two template sites, and its refusal test rendered both at once, so deleting
+either guard left the suite green: the other site still raised (review pass 1, C-1, executed by mutants D2/D3).
+The test now renders each site alone (label with no health block, healthcheck with no HTTP exposure) and
+asserts the other site is absent. Apply it to any refusal that more than one template line enforces.
+
 ## A guard over a template language asks that language's parser, never a regex (2026-10-27)
 
 - **What happened:** W-80aed026's grader needed "only compose templates read `env`". The first regex missed

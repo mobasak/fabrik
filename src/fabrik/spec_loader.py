@@ -5,6 +5,7 @@ This module is the single source of truth for spec file schema.
 All spec files are validated against Pydantic models before use.
 """
 
+import re
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
@@ -13,6 +14,22 @@ import yaml
 from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
 
 from fabrik.config import FABRIK_ROOT
+
+HEALTH_PATH_RE = re.compile(r"/[A-Za-z0-9._~%/!&()*+,;=:@?-]*")
+"""A health-check path (fullmatch, W-ff313a14): RFC 3986 path characters plus a query, minus every
+character that would break where the path is pasted — `'` (the single-quoted URL in the CMD-SHELL
+probes), `"` and `\\` (the double-quoted YAML items), `$` (compose interpolation), `#`, a backtick, braces
+and whitespace. `&`, `;` and parentheses are admitted, so both shell probes single-quote the URL."""
+
+POSTGRES_IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
+"""PostgreSQL identifier validation — the registrar's rule (``drivers/postgres.py`` imports it).
+
+Matches the conservative subset of the SQL standard: leading letter or
+underscore, followed by up to 62 letters / digits / underscores. This is
+deliberately stricter than Postgres's own rules (which allow quoted
+identifiers with arbitrary content) — we never want the driver to need
+to emit a quoted identifier that a shell might unquote.
+"""
 
 
 class Kind(str, Enum):
@@ -145,7 +162,18 @@ class Health(BaseModel):
     always fail and Traefik v3 would then filter the container out."""
     test: list[str] | None = None
     """Custom HEALTHCHECK test command (docker-compose ``test`` form).
-    Overrides the default wget/curl probe when set."""
+    Overrides the default wget/curl probe when set. Compose interpolates a ``$`` in it: a shell
+    variable is written ``$$VAR``."""
+
+    @field_validator("path")
+    @classmethod
+    def _path_in_grammar(cls, v: str) -> str:
+        if not HEALTH_PATH_RE.fullmatch(v):
+            raise ValueError(
+                "health.path must start with / and hold only URL path and query characters "
+                "(no quotes, backslash, $, #, backtick, braces or whitespace)"
+            )
+        return v
 
     @field_validator("start_period")
     @classmethod
@@ -200,6 +228,17 @@ class Depends(BaseModel):
         default=None,
         description="Project-relative path to a .sql.gz dump used to seed the new DB",
     )
+
+    @field_validator("postgres")
+    @classmethod
+    def _postgres_is_an_identifier(cls, v: str | None) -> str | None:
+        # The name is pasted into the compose DATABASE_URL default `${DATABASE_URL:-…/<name>}`, where no
+        # quoting stops a `}` or `$` (W-ff313a14). An empty value keeps meaning "no database".
+        if v and not POSTGRES_IDENT_RE.fullmatch(v):
+            raise ValueError(
+                "depends.postgres must be a PostgreSQL identifier matching [a-zA-Z_][a-zA-Z0-9_]{0,62}"
+            )
+        return v
 
 
 class Infrastructure(BaseModel):

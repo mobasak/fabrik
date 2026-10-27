@@ -195,8 +195,13 @@ def test_no_renderer_template_escapes_on_its_own() -> None:
 
 
 def test_a_quoted_spec_command_renders_its_quotes() -> None:
-    """zitadel's spec is the live case (its deploy takes the docker-source path, not this renderer)."""
-    compose = TemplateRenderer().render(
-        load_spec(REPO / "specs" / "services" / "zitadel.yaml"), dry_run=True
-    )["compose.yaml"]
-    assert '--masterkey "${ZITADEL_MASTERKEY}"' in compose
+    """zitadel's spec is the live case (its deploy takes the docker-source path, not this renderer).
+
+    The command is a double-quoted YAML scalar since W-ff313a14, so its `"` is `\\"` in the text: the
+    parsed value is the check (an HTML-escaped `&quot;` would fail it the same way).
+    """
+    spec = load_spec(REPO / "specs" / "services" / "zitadel.yaml")
+    compose = TemplateRenderer().render(spec, dry_run=True)["compose.yaml"]
+    command = yaml.safe_load(compose)["services"]["zitadel"]["command"]
+    assert command == spec.source.image_command
+    assert '--masterkey "${ZITADEL_MASTERKEY}"' in command
