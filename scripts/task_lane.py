@@ -885,6 +885,103 @@ def _resolve_commit(root: Path, rev: str) -> str | None:
     return sha or None
 
 
+def _touched_paths(root: Path, sha: str) -> list[str] | None:
+    """Every path ``sha`` touches — both halves of a rename, a merge read against its FIRST
+    parent (the two-tree form: `-m --first-parent` prints one diff per parent on some gits, and
+    no `-m` prints nothing for a merge), a root commit against the empty tree — or ``None`` when
+    git cannot say."""
+    parents = _git(root, "rev-list", "--parents", "-n", "1", sha)
+    if parents is None or parents.returncode != 0:
+        return None
+    ids = parents.stdout.decode("ascii", "replace").split()
+    base = ["--root", sha] if len(ids) < 2 else [f"{sha}^1", sha]
+    r = _git(root, "diff-tree", "-r", "--no-commit-id", "--no-renames", "--name-only", "-z", *base)
+    if r is None or r.returncode != 0:
+        return None
+    return [p for p in r.stdout.decode("utf-8", "surrogateescape").split("\0") if p]
+
+
+def _later_commit_reasons(
+    root: Path, anchor: str, commits: list[str], exempt: Callable[[str], bool] | None
+) -> list[str]:
+    """Check (d)'s coverage half (W-0b900e92, site-provisioner 01M4F5HTPS): every listed commit
+    that is neither ``anchor`` nor one of its ancestors came AFTER what the receipt covers, so it
+    may touch only paths ``exempt`` accepts — the close passes its own exclusion set narrowed to
+    receipts and ledgers. Decided from git ancestry and touched paths, never from the list's
+    order. ``exempt=None`` exempts nothing; a git probe that fails, or an ``exempt`` that
+    raises, refuses (fail closed — a close never passes on an unproven commit). An empty commit
+    touches nothing and passes."""
+    reasons: list[str] = []
+    for c in commits:
+        sha = _resolve_commit(root, c)
+        if sha is None:
+            reasons.append(f"(d) --commit {c} does not resolve to a commit")
+            continue
+        if sha == anchor:
+            continue
+        r = _git(root, "merge-base", "--is-ancestor", sha, anchor)
+        if r is None or r.returncode not in (0, 1):
+            reasons.append(
+                f"(d) `git merge-base --is-ancestor {sha[:12]} {anchor[:12]}` failed — the "
+                "receipt cannot be checked"
+            )
+            continue
+        if r.returncode == 0:
+            continue
+        paths = _touched_paths(root, sha)
+        if paths is None:
+            reasons.append(f"(d) the paths --commit {sha[:12]} touches cannot be read")
+            continue
+        try:
+            bad = [p for p in paths if exempt is None or not exempt(p)]
+        except Exception as exc:  # noqa: BLE001 — a failing rule refuses, never escapes
+            reasons.append(
+                f"(d) the exempt rule failed on --commit {sha[:12]} ({exc.__class__.__name__}) "
+                "— the receipt cannot be checked"
+            )
+            continue
+        if bad:
+            shown = ", ".join(bad[:5]) + (f" (+{len(bad) - 5} more)" if len(bad) > 5 else "")
+            reasons.append(
+                f"(d) --commit {sha[:12]} comes after the reviewed tip {anchor[:12]} and touches "
+                f"{shown} — only the receipt and the ledgers may follow the review; review it "
+                "too (a receipt over the later range)"
+            )
+    return reasons
+
+
+def _working_tree_anchor(root: Path, commits: list[str]) -> tuple[str | None, list[str]]:
+    """The listed commit every other listed commit is an ancestor of (the topological last), so
+    the working-tree rebuild never depends on the list's order (W-0b900e92); ``(None, reasons)``
+    when one does not resolve or no listed commit contains every other."""
+    shas: list[str] = []
+    for c in commits:
+        sha = _resolve_commit(root, c)
+        if sha is None:
+            return None, [f"(d) --commit {c} does not resolve to a commit"]
+        shas.append(sha)
+    for cand in shas:
+        ok = True
+        for other in shas:
+            if other == cand:
+                continue
+            r = _git(root, "merge-base", "--is-ancestor", other, cand)
+            if r is None or r.returncode not in (0, 1):
+                return None, [
+                    f"(d) `git merge-base --is-ancestor {other[:12]} {cand[:12]}` failed — the "
+                    "receipt cannot be checked"
+                ]
+            if r.returncode == 1:
+                ok = False
+                break
+        if ok:
+            return cand, []
+    return None, [
+        "(d) no listed --commit contains every other (sibling commits) — the reviewed bytes "
+        "cannot be anchored"
+    ]
+
+
 def _working_tree_reasons(root: Path, wt: re.Match[str], last_in: str) -> list[str]:
     """Check (d) for a WORKING-TREE Surface: the receipt hashed `git diff HEAD -- <paths>` (plus
     every untracked path's bytes) at review time; the commit must hold that exact diff. The
@@ -956,7 +1053,13 @@ def _working_tree_reasons(root: Path, wt: re.Match[str], last_in: str) -> list[s
     return []
 
 
-def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[str]:
+def check_review_receipt(
+    path: Path,
+    commits: list[str],
+    *,
+    root: Path,
+    exempt: Callable[[str], bool] | None = None,
+) -> list[str]:
     """The refusal reasons for a ``--review <receipt>`` on a ``done``/``handoff`` close that owes
     the full review (``CloseVerdict.needs_full_review``); empty when all four hold. Reasons
     ACCUMULATE — every failing check appends its own, each opening with its check's letter (a
@@ -973,14 +1076,21 @@ def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[
         text up to the next `` · `` — is exactly ``/fabrik-review`` (``/fabrik-review-scoped``
         shares the prefix and is refused);
     (d) the header zone holds exactly one ``**Surface:**`` field, and EITHER its ``range tip``
-        (written by ``review_receipt.py --range``) and the LAST of ``commits`` both resolve with
-        ``git rev-parse`` to the same full SHA — a short SHA is compared in full, an ambiguous one
-        refuses — OR it is the working-tree form ``--init`` writes without ``--range`` and the
-        commit's diff over its paths rebuilds to the same bytes (``_working_tree_reasons``; re-anchor
-        with ``review_receipt.py --restamp`` after the review's last fix — W-ebbedc88).
+        (written by ``review_receipt.py --range``) resolves with ``git rev-parse`` to the full SHA
+        of one of ``commits`` — a short SHA is compared in full, an ambiguous one refuses — OR it
+        is the working-tree form ``--init`` writes without ``--range`` and the diff of the listed
+        commit containing every other (``_working_tree_anchor``) over its paths rebuilds to the
+        same bytes (``_working_tree_reasons``; re-anchor with ``review_receipt.py --restamp``
+        after the review's last fix — W-ebbedc88). In both forms every listed commit after that
+        anchor in git ancestry may touch only paths ``exempt`` accepts (``_later_commit_reasons``;
+        ``None`` exempts nothing) — LIST ORDER decides nothing (W-0b900e92: the old "last
+        ``--commit``" rule refused the receipt and ledger commits made after the reviewed tip, and
+        passed an unreviewed code commit listed before it).
 
     (d) is TIP-ONLY, as the spec words it: the range's base is not checked, so a receipt over
-    ``<last>~1..<last>`` passes for a run with earlier commits.
+    ``<last>~1..<last>`` passes for a run with earlier commits. The working-tree rebuild checks the
+    Surface's own paths only (D-750's reviewed subset): a later commit touching only other paths
+    passes in either order.
 
     THE CHEAPEST WAY TO SATISFY THIS CHECK WITHOUT THE OUTCOME (D-253): ``review_receipt.py
     --init --range <base>..<last>`` and never run the review — the skeleton's
@@ -1077,12 +1187,18 @@ def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[
                 "`--restamp` after the last fix) or `--range <base>..<last commit>`"
             )
         else:
-            reasons.extend(_working_tree_reasons(root, wt, commits[-1]))
+            anchor, why = _working_tree_anchor(root, commits)
+            reasons.extend(why)
+            if anchor is not None:
+                reasons.extend(_working_tree_reasons(root, wt, anchor))
     else:
-        tip, last = _resolve_commit(root, m.group(1)), _resolve_commit(root, commits[-1])
-        if tip is None or last is None or tip != last:
+        tip = _resolve_commit(root, m.group(1))
+        listed = [_resolve_commit(root, c) for c in commits]
+        if tip is None or tip not in listed:
             reasons.append(
-                f"(d) the receipt's range tip {m.group(1)} (→ {tip}) is not the last --commit "
-                f"{commits[-1]} (→ {last})"
+                f"(d) the receipt's range tip {m.group(1)} (→ {tip}) is not one of the --commit "
+                f"values ({', '.join(f'{c} (→ {s})' for c, s in zip(commits, listed))})"
             )
+        else:
+            reasons.extend(_later_commit_reasons(root, tip, commits, exempt))
     return reasons
