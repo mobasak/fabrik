@@ -413,6 +413,42 @@ def _failing_slices(row: Any) -> list[dict[str, Any]]:
     return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 0]
 
 
+def _repeats_round(last: Any, args: argparse.Namespace, slices: Any, phase: int) -> bool:
+    """True when this `round` call repeats ``last``, a round that closed seats (W-fe322585).
+
+    `findings`, `confirmed` and the phase must be equal; every other typed field must be equal
+    WHERE STATED ON BOTH sides — absent on either matches, so a retry that re-spells the call or
+    adds `--own-fix` after the NOTE asking for it is still a repeat. The class lists compare as
+    sets. A last round that closed no seats (an in-shell backfill, a pre-stamp record) or carries a
+    malformed seat count never repeats: the caller fails toward recording."""
+    if not isinstance(last, dict):
+        return False
+    seats = last.get("seats")
+    if isinstance(seats, bool) or not isinstance(seats, int) or seats <= 0:
+        return False
+    if (
+        last.get("findings") != args.findings
+        or last.get("confirmed") != args.confirmed
+        or _int0(last.get("phase")) != phase
+    ):
+        return False
+
+    def _set(v: Any) -> frozenset | None:
+        return frozenset(str(x) for x in v) if isinstance(v, list) and v else None
+
+    def _norm(v: Any) -> str | None:
+        return None if v is None else json.dumps(v, sort_keys=True)
+
+    pairs = (
+        (last.get("own_fix"), args.own_fix),
+        (_set(last.get("swept")), _set(_csv(args.classes_swept))),
+        (_set(last.get("new")), _set(_csv(args.classes_new))),
+        (last.get("new_count"), args.new),
+        (_norm(last.get("slices")), _norm(slices)),
+    )
+    return all(a is None or b is None or a == b for a, b in pairs)
+
+
 def _slice_expectation(
     rounds: list[Any],
     classes: dict[str, Any],
@@ -3438,6 +3474,42 @@ def _seat_transcripts(path: Path, lo: float) -> list[Path]:
         except OSError:
             continue  # one vanished/unreadable seat file must never null the others (round 5)
     return sorted(out)
+
+
+def _unstamped_seat_count(sid: str, rec: dict[str, Any], rounds: list) -> tuple[int, bool]:
+    """The seat transcripts whose newest IN-WINDOW line is newer than the previous round (or a
+    nested child's close, or the record's start), and whether the count completed.
+
+    Read by `round`'s unstamped-seat nudge and by its blind-retry refusal (W-fe322585), which treats
+    an incomplete count as "something ran" — it fails toward recording. A `step` writes no timestamp
+    the window reads, so it never narrows it. Counted by the seat's last line, not the file's mtime
+    (round-12 Opus: a stamped seat still flushing after its close re-fired the nudge on the next,
+    empty round); an UNREADABLE transcript ("skipped") has only its mtime to date it and counts.
+    A session transcript that cannot be found leaves the count incomplete too: its seat directory
+    may sit elsewhere, so no seat seen there is not evidence that none ran."""
+    n = 0
+    complete = True
+    try:
+        since = max(
+            [_finite_ts(r.get("ts")) or 0.0 for r in rounds if isinstance(r, dict)]
+            + [
+                _finite_ts(rec.get("started_epoch")) or 0.0,
+                _finite_ts(rec.get("child_closed_ts")) or 0.0,
+            ]
+        )
+        tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
+        complete = tp is not None and tp.is_file()
+        if tp is not None:
+            for q in _seat_transcripts(tp, since):
+                e = _seat_last_epoch(q)
+                # strict `>`: a line ON the round's own sub-second `ts` is that round's
+                if (isinstance(e, float) and e > since) or e == "skipped":
+                    n += 1
+    except Exception:
+        # advisory for the nudge — it may never void the round (a non-numeric `started_epoch`
+        # voided one, silently); for the refusal an unfinished count means "do not refuse"
+        return n, False
+    return n, complete
 
 
 def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, float] | str | None:
@@ -7022,6 +7094,45 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
             return 2
         _seats = args.seats if args.seats is not None else _stamped
+        # W-fe322585: a BLIND RETRY — the call re-run because `2>&1 | tail -1` hid its output —
+        # landed as a second round, and a retried quiet round 1 printed TERMINAL with no closing
+        # pass run. Recognised by what it lacks: the last round closed seats, and nothing has run
+        # since — no stamp (`dispatch --seats 0` is a known zero), no newer seat transcript — while
+        # the figures repeat (`_repeats_round`). Refused before the in-flight check and every
+        # advisory, so the refusal is the call's LAST line; the landed verdict is printed above it.
+        # The record keeps everything but `event_seq` (no `_touch`: the Stop hook's review window
+        # reads `updated_ts`), so the `round_refused` event keeps the stream's seq dense.
+        # COBRA (D-253): retyping the retry with `--seats 0` passes — and records the truth of a
+        # retry, that nobody ran; a lead set on faking a closing pass could always type that.
+        _last = rounds[-1] if rounds else None
+        if (
+            not _stamped
+            and isinstance(_last, dict)
+            and (args.seats is None or args.seats == _last.get("seats"))
+            and _repeats_round(_last, args, slices, _phase_now)
+        ):
+            _n_seen, _counted = _unstamped_seat_count(sid, rec, rounds)
+            if _counted and not _n_seen:
+                _landed = _int0(_last.get("n")) or len(rounds)
+                _at = _finite_ts(_last.get("ts"))
+                _age = max(0, int(time.time() - _at)) if _at is not None else None
+                msg = (
+                    f"REFUSED — round {_landed} was already recorded "
+                    + (f"{_age}s ago" if _age is not None else "at an unknown time")
+                    + " with these "
+                    "figures (verdict above); no round was recorded. A new seat pass is stamped "
+                    "first (`dispatch --seats <n>`, then `round`); a pass you ran alone types "
+                    "`round --seats 0`."
+                )
+                sys.stderr.write(f"[command_run] {msg}\n")
+                _ev = _queue(rec, outbox, "round_refused", {"n": _landed, "age_s": _age})
+                _ev["persisted"] = save(sid, rec)
+                # the verdict is a courtesy; a report that raises must never swallow the refusal
+                # (main()'s outer handler would turn it into a silent rc 0)
+                with contextlib.suppress(Exception):
+                    print(_round_report(rec))
+                print(msg)
+                return 2
         # W-93a9d22a: a FULL close typed while the stamp's seats are verifiably still out is a
         # round nobody read — infra's row 1792629286 recorded one and the tool called it
         # terminal. The hook's own reader decides (W-4c7edc74, `_hook_seats_in_flight`); a
@@ -7060,30 +7171,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _ran = 0
         if not _stamped and args.seats is None:
             # a fan-out that ran with NO stamp is silent until the close (fleet, 2026-09-08:
-            # declared 0 vs seen 12 on a live execute-plan) — name it where the agent stands:
-            # a seat transcript whose newest IN-WINDOW line is newer than the previous round (or
-            # a nested child's close) means seats ran unstamped. A `step` writes no timestamp the
-            # window reads — it never narrows it. Counted by the seat's last line, not the file's
-            # mtime (round-12 Opus: a stamped seat still flushing after its close re-fired the
-            # nudge on the next, empty round). Advisory only: it may never void the round, so
-            # every read here is guarded (a non-numeric `started_epoch` voided one, silently).
-            with contextlib.suppress(Exception):
-                _since = max(
-                    [_finite_ts(r.get("ts")) or 0.0 for r in rounds if isinstance(r, dict)]
-                    + [
-                        _finite_ts(rec.get("started_epoch")) or 0.0,
-                        _finite_ts(rec.get("child_closed_ts")) or 0.0,
-                    ]
-                )
-                _tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
-                if _tp is not None:
-                    for _q in _seat_transcripts(_tp, _since):
-                        _e = _seat_last_epoch(_q)
-                        # strict `>`: a line ON the round's own sub-second `ts` is that round's;
-                        # an UNREADABLE transcript ("skipped") has only its mtime to date it, and
-                        # the nudge exists to stop silent under-reporting (round-13 Opus finding)
-                        if (isinstance(_e, float) and _e > _since) or _e == "skipped":
-                            _ran += 1
+            # declared 0 vs seen 12 on a live execute-plan) — name it where the agent stands
+            # (`_unstamped_seat_count`; advisory only, every read guarded inside it)
+            _ran, _ = _unstamped_seat_count(sid, rec, rounds)
             if _ran:
                 print(
                     f"[command_run] {_ran} seat transcript(s) since the last round and NO "
