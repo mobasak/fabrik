@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T10:54:26.771519Z",
+  "creator": "infra-2",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d077095a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "handle SIGHUP/SIGTERM in api_write.py: kill every child process group, settle each started run as interrupted in the api_credit ledger, print one line per abandoned slug, remove run dirs; or daemonize the runner (setsid + its own log file) so a parent's death cannot kill it; regression test with a real SIGHUP to the runner; meanwhile api_credit.py status shows $131.46 in flight unsettled",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "a window reload silently killed 6 paid API jobs (queue5) and orphaned their children; a signal handler plus settle-on-exit",
+  "status": "open",
+  "title": "api_write.py dies on SIGHUP without settling: a reloaded window orphans its claude children (they run on unsupervised in their own session), loses their answers and pushes, leaves run folders, and logs nothing — queue5 lost 6 of 11 paid jobs (coordinator fabrik-0c, 2026-10-27)"
+}

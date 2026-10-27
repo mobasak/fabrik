@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T10:41:59.891676Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3a268579",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5ED7TKEZNQ9T9HDPGESC6RN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Upstream proposal from youtube (yt3, work item W-3013c11d): one canonical plan-archive folder."
+}

@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — gate semgrep leg never runs fleet-wide: false green in a gate",
-  "status": "open",
+  "status": "done",
   "title": "Synced-file defect in scripts/final_gate.py (semgrep leg): a hard-coded 30 s timeout against semgrep's ~110 s start-up (373 s on src/) means the leg never runs fleet-wide, and no --error means it could not fail on a finding if it did. Proposal with measured evidence, a verbatim diff (read TIMEOUTS[\""
 }
