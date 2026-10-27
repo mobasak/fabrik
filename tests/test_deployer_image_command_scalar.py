@@ -15,6 +15,7 @@ from fabrik.orchestrator.deployer_ssh import SSHDeployer, _generate_docker_compo
 from fabrik.orchestrator.exceptions import DeployError
 
 _IMG = "ghcr.io/zitadel/zitadel:v4.17.1"
+_TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
 _ZITADEL = 'start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode external'
 
 
@@ -64,3 +65,21 @@ def test_deploy_maps_a_refused_command_to_deploy_error_before_any_ssh() -> None:
         with pytest.raises(DeployError, match="image_command: the value contains a NUL byte"):
             SSHDeployer()._deploy_docker(ctx, "svc", ctx.spec["source"], None)
     mock_ssh.assert_not_called()
+
+
+@pytest.mark.parametrize("cmd", [["sh", "-c", "x"], 7, {"a": 1}, True])
+def test_apply_validator_refuses_a_non_string_image_command(cmd: object) -> None:
+    # The apply path never builds a `Spec`, so without this a list reached the compose as its repr.
+    from fabrik.orchestrator.exceptions import ValidationError as ApplyError
+    from fabrik.orchestrator.validator import SpecValidator
+
+    raw = {
+        "name": "svc",
+        "template": "python-api",
+        "domain": "svc.example.com",
+        "source": {"type": "docker", "image": _IMG, "image_command": cmd},
+    }
+    with pytest.raises(ApplyError, match="image_command"):
+        SpecValidator(templates_dir=_TEMPLATES).validate(raw)
+    raw["source"]["image_command"] = _ZITADEL
+    assert SpecValidator(templates_dir=_TEMPLATES).validate(raw) is not None

@@ -24,7 +24,7 @@ import re
 _DQ_ESCAPES = {"n": "\n", "r": "\r", "t": "\t", "\\": "\\", '"': '"', "$": "$"}
 _QUOTE_TRIGGERS = (" ", "#", "'", '"', "\n", "\r", "\t", "\\")
 _KEY_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
-# The key grammar docker compose's .env parser accepts for a variable name.
+# The keys this writer emits: a variable name, `.` and `-` allowed after the first character.
 _ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
 
 

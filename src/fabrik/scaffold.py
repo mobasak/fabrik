@@ -166,7 +166,8 @@ VENDORED_MODULE_NAMES = frozenset({"fastapi_user_auth", "audit_log"})
 # (plus alembic/celery). A project whose package bears one of these names would shadow the library —
 # ruff I001 fails and the import breaks (W-a352701a). A static list on purpose: an importlib lookup would
 # depend on what the local environment has installed. tests/test_scaffold_project_name_shadow.py reads
-# every pinned requirement in this file and fails when one is missing here.
+# every pinned requirement in this file and in templates/**/requirements*.txt and fails when one is
+# missing here.
 SHADOWABLE_LIBRARY_NAMES = frozenset(
     {
         "alembic",
@@ -178,11 +179,16 @@ SHADOWABLE_LIBRARY_NAMES = frozenset(
         "fastapi",
         "httpx",
         "jwt",
+        "packaging",
+        "pdf2image",
+        "PIL",
         "prometheus_client",
         "psycopg",
         "pydantic",
         "pydantic_settings",
+        "pydub",
         "pypdf",
+        "pytesseract",
         "pytest",
         "pytest_asyncio",
         "pytest_timeout",

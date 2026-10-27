@@ -20,10 +20,9 @@ def test_a_key_inside_the_grammar_is_written(key: str) -> None:
 
 
 def test_a_refused_key_writes_nothing() -> None:
-    written: list[str] = []
+    # A raise returns no line, and one bad key refuses the whole file.
     with pytest.raises(ValueError, match="not a valid variable name"):
-        written.append(format_env_line("A\nB", "INJECTED=1"))
-    assert written == []
+        format_env_line("A\nB", "INJECTED=1")
     with pytest.raises(ValueError):
         format_env({"OK": "1", "A B": "2"})
 
