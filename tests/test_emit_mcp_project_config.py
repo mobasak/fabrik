@@ -326,12 +326,14 @@ def test_malformed_yaml_reads_as_untyped_and_the_run_continues(tmp_path, defs_fi
     assert "broken: SKIP" in capsys.readouterr().out
 
 
-def test_scaffold_helper_emits_mcp_config(tmp_path, defs_file, monkeypatch):
+def test_scaffold_helper_emits_mcp_config(tmp_path, defs_file, monkeypatch, capsys):
     """Plan-3 follow-up (operator 2026-08-30): NEW projects get their .mcp.json at
-    scaffold time via scaffold._emit_mcp_config — crash-safe, real emitter subprocess. It runs
-    only inside a provisioning opt-in (W-e2f0b6e5). The subprocess is the real emitter behind a
-    shim that points its catalog, roster and hub .env at this test's files (W-2c2f1025): run
-    bare, it copied the box's live API keys out of /opt/fabrik/.env into the tmp repo."""
+    scaffold time via scaffold._emit_mcp_config, a real emitter subprocess, inside a provisioning
+    opt-in (W-e2f0b6e5; the gate itself is graded in tests/test_scaffold_provision_opt_in.py). The
+    subprocess is the real emitter behind a shim that points its catalog, roster and hub .env at
+    this test's files (W-2c2f1025): run bare, it copied the box's live API keys out of
+    /opt/fabrik/.env into the tmp repo. The shim runs the emitter only on the argv the helper is
+    meant to pass, so a helper that dropped `--repo` fails here instead of sweeping the live /opt."""
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
     from fabrik import scaffold
     from fabrik.scaffold import _emit_mcp_config, provisioning
@@ -341,24 +343,29 @@ def test_scaffold_helper_emits_mcp_config(tmp_path, defs_file, monkeypatch):
     defs_file.write_text(json.dumps(defs))
     hub_env = tmp_path / "hub.env"
     hub_env.write_text("EXA_API_KEY=test-exa-key\n")
+    repo = make_repo(tmp_path, "fresh-api", "python-api")
     shim = tmp_path / "root" / "scripts/sysadmin/emit_mcp_project_config.py"
     shim.parent.mkdir(parents=True)
     shim.write_text(
         "import importlib.util, sys\n"
         "from pathlib import Path\n"
+        f"if sys.argv[1:] != ['--repo', {str(repo)!r}]:\n"
+        "    sys.exit(f'shim: unexpected argv {sys.argv[1:]!r}')\n"
         f"spec = importlib.util.spec_from_file_location('emitter', {str(_SCRIPT)!r})\n"
         "m = importlib.util.module_from_spec(spec)\n"
         "spec.loader.exec_module(m)\n"
+        "assert hasattr(m, 'ROSTER_PATH') and hasattr(m, 'HUB_ENV_PATH'), 'emitter renamed its paths'\n"
         f"m.ROSTER_PATH = Path({str(tmp_path / 'roster.json')!r})\n"
         f"m.HUB_ENV_PATH = Path({str(hub_env)!r})\n"
-        f"sys.exit(m.cli(sys.argv[1:] + ['--defs', {str(defs_file)!r}]))\n"
+        f"sys.exit(m.cli(sys.argv[1:] + ['--defs', {str(defs_file)!r}]))\n",
+        encoding="utf-8",
     )
     monkeypatch.setattr(scaffold, "FABRIK_ROOT", tmp_path / "root")
     monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
-    repo = make_repo(tmp_path, "fresh-api", "python-api")
     with provisioning():
         _emit_mcp_config(repo)
-    assert (repo / ".mcp.json").exists(), "scaffold must emit the repo's ruled .mcp.json"
+    err = capsys.readouterr().err
+    assert (repo / ".mcp.json").exists(), f"scaffold must emit the repo's ruled .mcp.json: {err}"
     assert servers_of(repo) == U5_NO_DB
     exa = json.loads((repo / ".mcp.json").read_text())["mcpServers"]["exa"]
     assert exa["env"] == {"EXA_API_KEY": "test-exa-key"}, "the key comes from this test's hub .env"
