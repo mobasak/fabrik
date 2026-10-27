@@ -325,7 +325,12 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   that line carries it, or else the line owes the ledger lints A, B and D over the named entries' `text`
   phrases pooled and their sections (each clause still needs ONE phrase); a LOSS line reads
   `baseline L<n> vanished as rule ['<id>', …] — lint <X> — …`, or `vanished as duplicate-of <id> — lint <X> — …`.
-  The carrier is whatever file the named entry
+  A line that a reviewed master change rewrote after the lean baseline tag takes `superseded: D-<n>` instead
+  (W-5dc4163d): the D-row must name the ledger's source file (checked at load) and a one-parent commit that is not
+  an ancestor of `lean-baseline-2026-10-25`, is an ancestor of master (`origin/master`, else `master`) and made the
+  line vanish from that source; and the units master's current source added under the line's heading since the tag
+  must all be in the ledger's own text. Anything else is a LOSS line `baseline L<n> superseded by D-<n>: …` naming
+  the cause, a tree without git history included (`command_rules._superseded_proof`). The carrier is whatever file the named entry
   names (`commands/_agents/` included), not necessarily the command's own; a renamed heading takes
   `narrative`. An entry's `current` must be a whole unit under its `section`.
 - **Changed on purpose** (§ The rule test step 8): an entry's `changed-by:` lists each D-row that

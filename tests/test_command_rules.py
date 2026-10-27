@@ -1236,3 +1236,114 @@ def test_a_vanished_ban_line_keeps_its_span_verbatim(tmp_path: Path) -> None:
     head = {"id": "S", "section": "## Close", "text": ["stage a sibling's file today"]}
     lost = _vanished_lines(_gone(SOURCE, split, [tail, head], "Never stage", {"rule": ["T", "S"]}, tmp_path / "split"))
     assert any("lint D" in x for x in lost), lost
+
+
+# ── W-5dc4163d: `superseded: D-n` — a line master rewrote after the lean baseline tag ─────────────────────────
+MASTER_SRC = SOURCE.replace("Stop at the pin.", "Stop at the pinned base.")  # master's reviewed rewrite of one line
+LEAN_SRC = MASTER_SRC.replace("Run the probe on a copy. ", "")  # the lean side cuts another line on its branch
+
+
+def _git(root: Path, *args: str) -> str:
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True, env=env).stdout.strip()
+
+
+def _commit(t: dict[str, Path], text: str, msg: str) -> str:
+    (t["src"] / "demo.md").write_text(text, encoding="utf-8")
+    _git(t["root"], "add", "src/demo.md")
+    _git(t["root"], "commit", "-q", "-m", msg)
+    return _git(t["root"], "rev-parse", "HEAD")
+
+
+def _history(tmp: Path, own: str = LEAN_SRC) -> tuple[dict[str, Path], dict[str, str]]:
+    """A repo at the fixture root. "Run the probe on a copy." is cut by: a commit BEFORE the tag (restored by the tagged
+    commit), a side branch merged into master (so only the MERGE is named in a test), and a lean branch never merged.
+    Master's one-parent commit after the tag rewrites "Stop at the pin.". The working tree (the ledger's own text) is
+    ``own``; the baseline is the tagged SOURCE."""
+    t = _tree(tmp, source=SOURCE, render=own)
+    no_probe = SOURCE.replace("Run the probe on a copy. ", "")
+    _git(t["root"], "init", "-q", "-b", "master")
+    _commit(t, SOURCE, "first")
+    shas = {"pre_tag": _commit(t, no_probe, "pre-tag cut")}
+    shas["base"] = _commit(t, SOURCE, "restored")
+    _git(t["root"], "tag", cr.LEAN_BASELINE_TAG)
+    shas["master"] = _commit(t, MASTER_SRC, "master rewrite")
+    _git(t["root"], "checkout", "-q", "-b", "side", shas["base"])
+    shas["side"] = _commit(t, no_probe, "side cut")
+    _git(t["root"], "checkout", "-q", "master")
+    _git(t["root"], "merge", "-q", "--no-ff", "-m", "merge side", "side")
+    shas["merge"] = _git(t["root"], "rev-parse", "HEAD")
+    _git(t["root"], "checkout", "-q", "-b", "lean", shas["master"])
+    shas["lean"] = _commit(t, LEAN_SRC, "lean cut")
+    (t["src"] / "demo.md").write_text(own, encoding="utf-8")
+    return t, shas
+
+
+def _line(part: str) -> int:
+    return next(i for i, k in enumerate(cr.keys(cr.own_text(SOURCE)), 1) if part in k)
+
+
+def _superseded(t: dict[str, Path], rows: dict[str, str], vanished: dict[str, object]) -> list[str]:
+    (t["root"] / "docs" / "DECISIONS.md").write_text(
+        "".join(f"| {d} | 2026-10-27 | x | {what} | y | z |\n" for d, what in rows.items()), encoding="utf-8"
+    )
+    _ledger(t, [ENTRY], baseline_from=SOURCE, vanished=vanished)
+    return _losses(t)
+
+
+PIN, PROBE = _line("Stop at the pin"), _line("Run the probe")
+
+
+def test_superseded_carried_by_the_master_commit_its_row_names(tmp_path: Path) -> None:
+    t, s = _history(tmp_path)
+    lost = _superseded(t, {"D-0002": f"master rewrote demo.md in {s['master']}", "D-0003": f"lean cut demo.md ({s['lean'][:9]})"},
+                       {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert lost == [], lost
+    # a short sha in the row is enough
+    lost = _superseded(t, {"D-0002": f"demo.md · {s['master'][:9]}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert lost == [], lost
+    assert any("'superseded': 1" in x for x in cr.summary(t["rules"])), cr.summary(t["rules"])
+
+
+def test_superseded_refused_for_a_branch_cut_or_a_merge(tmp_path: Path) -> None:
+    t, s = _history(tmp_path)
+    for sha in (s["lean"], s["merge"]):  # a branch-only cut; a merge commit (its diff spans a whole branch)
+        lost = _superseded(t, {"D-0002": f"demo.md {sha}"}, {f"L{PIN}": "narrative", f"L{PROBE}": {"superseded": "D-0002"}})
+        assert len(lost) == 1 and f"L{PROBE}" in lost[0] and "no commit D-0002 names removed this line on master" in lost[0], lost
+
+
+def test_superseded_refused_for_a_pre_tag_commit_or_one_not_removing_the_line(tmp_path: Path) -> None:
+    t, s = _history(tmp_path)
+    for sha in (s["pre_tag"], s["master"]):  # an ancestor of the tag that DID cut it; a master commit rewriting ANOTHER line
+        lost = _superseded(t, {"D-0002": f"demo.md {sha}"}, {f"L{PIN}": "narrative", f"L{PROBE}": {"superseded": "D-0002"}})
+        assert len(lost) == 1 and "no commit D-0002 names removed this line on master" in lost[0], lost
+    # a W-item's hex is never read as a commit, even when it is one's prefix
+    lost = _superseded(t, {"D-0002": f"demo.md W-{s['master'][:8]}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert len(lost) == 1 and "no commit D-0002 names removed this line on master" in lost[0], lost
+
+
+def test_superseded_refused_when_masters_replacement_is_not_carried(tmp_path: Path) -> None:
+    t, s = _history(tmp_path, own=LEAN_SRC.replace("Stop at the pinned base.", "Stop."))
+    lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert len(lost) == 1 and "master's replacement" in lost[0] and "Stop at the pinned base" in lost[0], lost
+
+
+def test_superseded_label_shape_row_and_mixing(tmp_path: Path) -> None:
+    t, s = _history(tmp_path)
+    for label in ({"superseded": "D-9999"}, {"superseded": "1251"}, {"superseded": ["D-0002"]}, {"superseded": "D-0002", "rule": ["R1"]}):
+        lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": label, f"L{PROBE}": "narrative"})
+        assert len(lost) == 1 and "malformed" in lost[0], (label, lost)
+    lost = _superseded(t, {"D-0002": f"another.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert len(lost) == 1 and "malformed" in lost[0] and "demo.md" in lost[0], lost
+    # mixed with a failing `rule:` label: both LOSS lines print, neither hides the other
+    lost = _superseded(t, {"D-0002": f"demo.md {s['lean']}"}, {f"L{PIN}": {"rule": ["R1"]}, f"L{PROBE}": {"superseded": "D-0002"}})
+    assert any("vanished as rule ['R1']" in x for x in lost) and any("superseded by D-0002" in x for x in lost), lost
+
+
+def test_superseded_fails_closed_without_git_history(tmp_path: Path) -> None:
+    # an enclosing repo with a full history (the tag, master, the named commit) must never answer for the fixture root
+    _outer, s = _history(tmp_path / "outer")
+    t = _tree(tmp_path / "outer" / "inner", source=SOURCE, render=LEAN_SRC)
+    (t["src"] / "demo.md").write_text(LEAN_SRC, encoding="utf-8")
+    lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert len(lost) == 1 and "no git history readable" in lost[0], lost
