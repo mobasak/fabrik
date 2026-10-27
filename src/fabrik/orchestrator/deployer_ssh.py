@@ -1226,7 +1226,10 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     safe_name = filename.replace("/", "-")
     fd, tmp_local = tempfile.mkstemp(prefix=f"fabrik-{safe_name}-")
     try:
-        with os.fdopen(fd, "w") as f:
+        # UTF-8 whatever the hub's locale: the codec's refusals (env_file.format_env_line) promise
+        # that a line passing them is writable, and a locale codec (LC_ALL=C → ASCII) broke that
+        # mid-write, after .env.owner was already on the VPS (W-8495d72f review).
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
         # The remote temp file is made by `mktemp` (a random name, O_EXCL, mode 0600) BEFORE scp
         # writes into it. A pid-derived name was predictable: a local VPS user could pre-create it
