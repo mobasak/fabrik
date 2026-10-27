@@ -217,7 +217,7 @@ second declaration could drift from the first (T12.8, 01M23CRZZ).
 own `.github/workflows/*` run pytest — OR the repo carries `.fabrik/run-pytest`**. ⚠️ The marker exists because the workflow-scan signal INVERTS during a CI cutover: deleting the workflows disarms local pytest instead of relocating it. A repo retiring its workflows MUST touch the marker. Rationale: the gate must be equivalent to what CI will reject —
 an agent must not reach `status:success` and still push test-failing code. A repo whose CI doesn't run pytest is skipped (no CI red to prevent;
 the hub's own suite is far past the 900s budget — never run it inside a completion gate). Graceful skips:
-one of the three `_why` reasons (`:1505-1517`) → `pytest (NOT RUN)`; exit 5 → the separate `pytest (NO TESTS COLLECTED)` row (`:1467-1468`). Via the CLI a missing pytest never reaches these rows — the `REQUIRED_TOOLS` probe aborts at `status: "setup-error"` (`:3082-3096`) first (pytest must import under the selected interpreter, ruff must resolve as a binary, `:81`), which leaves the `pytest (NOT RUN) — pytest is not installed` branch at `:1150-1151` unreachable.
+one of the three `_why` reasons (`:1840-1853`) → `pytest (NOT RUN)`; exit 5 → the separate `pytest (NO TESTS COLLECTED)` row (`:1467-1468`). Via the CLI a missing pytest never reaches these rows — the `REQUIRED_TOOLS` probe aborts at `status: "setup-error"` (`:3537-3554`) first (pytest must import under the selected interpreter, ruff must resolve as a binary, `:84`), which leaves the `pytest (NOT RUN) — pytest is not installed` branch at `:1466` unreachable.
 
 **What the pytest leg PRINTS, and what each line means** (read these before writing prose about the mechanism):
 
