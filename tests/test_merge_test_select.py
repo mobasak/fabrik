@@ -9,6 +9,7 @@ this repo's history, read-only.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -910,3 +911,199 @@ def test_an_alone_red_keeps_its_alone_base_verdict_beside_an_ordered_red(tmp_pat
     assert new == [], out
     assert any("pre-existing on the base — tests/test_a.py::test_k " in line for line in out), out
     assert any("pre-existing on the base — tests/test_b.py::test_k2 " in line for line in out), out
+
+
+# ── W-c832e59f: shards balanced by recorded per-file duration ──────────────────────────────
+
+
+def _loads(groups, weights):
+    return [round(sum(weights.get(f, 0) + mts.IMPORT_S for f in g), 2) for g in groups]
+
+
+def test_balance_puts_the_longest_files_on_the_lightest_shard():
+    """Round-robin stacks the two heavy files of a sorted selection on one shard; the balance gives
+    each its own, and many near-zero files spread instead of piling on shard 0 (the critiques' probe:
+    200 zero-weight files went 201 on one shard under a bare least-load rule)."""
+    weights = {"t/a.py": 100.0, "t/b.py": 1.0, "t/c.py": 100.0, "t/d.py": 1.0}
+    files = sorted(weights)
+    rr = [g for g in (files[i::2] for i in range(2)) if g]
+    got = mts.balance(files, 2, weights)
+    assert got == [["t/a.py", "t/b.py"], ["t/c.py", "t/d.py"]], got
+    assert max(_loads(got, weights)) < max(_loads(rr, weights))
+
+    heavy = {f"t/h{i}.py": 60.0 for i in range(8)}
+    tiny = {f"t/z{i:02}.py": 0.0 for i in range(32)}
+    weights = {**heavy, **tiny}
+    sizes = [len(g) for g in mts.balance(sorted(weights), 8, weights)]
+    assert max(sizes) - min(sizes) <= 1, sizes
+
+    # the import constant counts: ten instant files are not free beside one 1 s file
+    weights = {"t/a.py": 1.0, **{f"t/z{i}.py": 0.0 for i in range(10)}}
+    got = mts.balance(sorted(weights), 2, weights)
+    assert len(next(g for g in got if "t/a.py" in g)) >= 2, got
+
+
+@pytest.mark.parametrize("n_files", [0, 1, 5, 17, 40])
+@pytest.mark.parametrize("shards", [1, 2, 3, 8, 11])
+def test_balance_without_a_record_is_the_round_robin_split(n_files, shards):
+    files = [f"tests/test_{i:03}.py" for i in range(n_files)]
+    assert mts.balance(files, shards, {}) == [
+        g for g in (files[i::shards] for i in range(shards)) if g
+    ]
+
+
+def test_balance_weighs_an_unrecorded_file_at_the_median_of_the_recorded():
+    """`b` is unrecorded among a=10, c=30, d=30: at the median (30) it leads the order and pairs
+    with `d`; at a bare import constant it would trail and pair with `c` instead."""
+    weights = {"t/a.py": 10.0, "t/c.py": 30.0, "t/d.py": 30.0}
+    assert mts.balance(["t/a.py", "t/b.py", "t/c.py", "t/d.py"], 2, weights) == [
+        ["t/b.py", "t/d.py"],
+        ["t/a.py", "t/c.py"],
+    ]
+
+
+def test_balance_is_deterministic_and_drops_empty_shards():
+    weights = {"t/x.py": 5.0, "t/y.py": 5.0, "t/a.py": 7.0}
+    files = ["t/a.py", "t/x.py", "t/y.py"]
+    one, two = mts.balance(files, 8, weights), mts.balance(files, 8, weights)
+    assert one == two and len(one) == 3 and all(one), one
+    assert all(g == sorted(g) for g in mts.balance(sorted(weights), 2, weights))
+
+
+_DUR_BASE = {
+    "library_x.py": "VALUE = 1\n",
+    "tests/test_one.py": "import time, library_x\n\ndef test_one():\n    time.sleep(0.2)\n",
+    "tests/test_two.py": "import library_x\n\ndef test_two():\n    pass\n",
+}
+
+
+def _durations_record(repo: Path) -> Path:
+    return repo / ".git" / "fabrik-merge" / "merge-tests-durations.json"
+
+
+def test_a_leg_records_durations_and_the_next_leg_splits_by_them(tmp_path, monkeypatch, capsys):
+    repo = _repo(tmp_path, _DUR_BASE)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    rec = json.loads(_durations_record(repo).read_text(encoding="utf-8"))
+    assert set(rec) == {"tests/test_one.py", "tests/test_two.py"}, rec
+    assert rec["tests/test_one.py"] >= 0.2 > rec["tests/test_two.py"], rec
+    assert "merge-tests: shards measured" in out and "shards planned" not in out, out
+
+    _git(repo, "checkout", "-qb", "feat2")
+    _write(repo, {"library_x.py": "VALUE = 1  # touched again\n"})
+    _git(repo, "commit", "-qam", "change 2")
+    _git(repo, "checkout", "-q", "master")
+    _git(repo, "merge", "--no-ff", "-q", "-m", "merge 2", "feat2")
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    planned = [line for line in out.splitlines() if line.startswith("merge-tests: shards planned")]
+    assert len(planned) == 1, out
+    loads = [float(x) for x in planned[0].split("planned ", 1)[1].split()]
+    assert max(loads) >= 0.2 + mts.IMPORT_S, planned  # test_one's shard carries its recorded time
+
+
+@pytest.mark.parametrize(
+    "text", ["{not json", "[1, 2]", '{"tests/test_one.py": "slow", "tests/test_two.py": -1}']
+)
+def test_a_bad_duration_record_is_ignored_not_fatal(tmp_path, monkeypatch, capsys, text):
+    repo = _repo(tmp_path, _DUR_BASE)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    _durations_record(repo).parent.mkdir(parents=True, exist_ok=True)
+    _durations_record(repo).write_text(text, encoding="utf-8")
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and out.strip().splitlines()[-1].startswith("merge-tests: green"), out
+    assert "shards planned" not in out, out  # nothing usable was recorded: today's split
+    if not text.startswith('{"'):
+        assert "duration record ignored" in out, out
+
+
+def test_a_garbled_duration_line_is_skipped(tmp_path):
+    runner = mts._Runner(tmp_path)
+    first = tmp_path / "dur-1.jsonl"
+    first.write_text(
+        '{"f": "tests/test_a.py", "s": 1.5}\n{"f": "tests/test_a.py", "s": 0.5}\n{"f": "tests/te',
+        encoding="utf-8",
+    )
+    later = tmp_path / "dur-2.jsonl"
+    later.write_text(
+        'garbage\n{"f": "tests/test_a.py", "s": 9}\n{"f": "tests/test_b.py", "s": 2}\n',
+        encoding="utf-8",
+    )
+    runner.dur_files += [first, later]
+    # the first run holding a file wins; a torn or garbage line is skipped
+    assert runner.durations() == {"tests/test_a.py": 2.0, "tests/test_b.py": 2.0}
+
+
+def test_a_duration_record_that_cannot_be_written_keeps_the_verdict(tmp_path, monkeypatch, capsys):
+    repo = _repo(tmp_path, _DUR_BASE)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    _durations_record(repo).mkdir(parents=True)  # a directory where the file goes: replace fails
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "duration record not written" in out, out
+    assert out.strip().splitlines()[-1].startswith("merge-tests: green"), out
+
+    (tmp_path / "local").mkdir()
+    other = _repo(tmp_path / "local", _DUR_BASE)
+    _merge(other, {"library_x.py": "VALUE = 1  # touched\n"})
+    _git(other, "update-ref", "refs/remotes/origin/master", "HEAD~1")
+    rc, out = _run(other, monkeypatch, capsys, merge_check=False)
+    assert rc == 0 and not _durations_record(other).exists(), (
+        out
+    )  # a branch-local leg records nothing
+
+
+def test_a_merge_legs_shards_follow_the_recorded_durations(tmp_path, monkeypatch, capsys):
+    """Three files, two shards: round-robin over the sorted selection pairs the two heavy files
+    (one, two) on shard 0; the record splits them, so no planned shard carries both."""
+    repo = _repo(
+        tmp_path,
+        {**_DUR_BASE, "tests/test_three.py": "import library_x\n\ndef test_three():\n    pass\n"},
+    )
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rec = _durations_record(repo)
+    rec.parent.mkdir(parents=True)
+    rec.write_text(
+        json.dumps({"tests/test_one.py": 5, "tests/test_two.py": 5, "tests/test_three.py": 0.1}),
+        encoding="utf-8",
+    )
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    planned = next(line for line in out.splitlines() if "shards planned" in line)
+    assert max(float(x) for x in planned.split("planned ", 1)[1].split()) < 6, planned
+
+
+def test_a_shard_run_that_fails_still_saves_what_it_measured(tmp_path, monkeypatch):
+    """The save sits in a `finally` around the shard run: a shard exiting 4 is a leg failure, and the
+    files that did run still teach the next leg their cost."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_a.py").write_text("")
+
+    class Runner(_FakeRunner):
+        def finish(self, _proc, _files, _log):
+            return 4, {}, "usage error"
+
+        def durations(self):
+            return {"tests/test_a.py": 3.0}
+
+    record = tmp_path / "rec" / "d.json"
+    with pytest.raises(mts.LegError, match="exited 4"):
+        mts.differential(["tests/test_a.py"], "M", "B", Runner({}), 1, compare=True, record=record)
+    assert json.loads(record.read_text(encoding="utf-8")) == {"tests/test_a.py": 3.0}
+
+
+def test_the_duration_record_ignores_the_records_override(tmp_path, monkeypatch, capsys):
+    """A pretest or `merge --queue` leg points FABRIK_MERGE_TESTS_RECORDS at a private directory
+    deleted with the leg (merge_request.py `_run_leg`, the pretest); the durations still go to the
+    common dir every leg shares, or those legs would never balance."""
+    repo = _repo(tmp_path, _DUR_BASE)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    private = tmp_path / "private"
+    private.mkdir()
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_RECORDS", str(private))
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert _durations_record(repo).is_file(), out
+    assert not list(private.glob("*durations*")), list(private.iterdir())
