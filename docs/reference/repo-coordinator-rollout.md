@@ -145,6 +145,10 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 11. Each builder worktree gets `.claude/settings.local.json` listing the main checkout's `CLAUDE.md` under
     `claudeMdExcludes`, plus the `.venv` symlink setting if the repo shares one venv, plus its `memory` and
     `mcpServers` settings; never copy the main checkout's permission allow-list into it (youtube's adaptation).
+    The operator writes the file, or each builder writes its own worktree's file on the operator's word: it is a
+    session's own config, which a peer's request cannot authorise, for the rollout agent's own worktree or any
+    other builder's. The rollout agent supplies the content, never the file (web-ecommerce-factory wef2, mail
+    01M5X8DT0Q).
     Known false alarm: in a worktree that shares the main checkout's `.venv`, the gate's undeclared-imports check
     reports the repo's own editable packages as undeclared, because they resolve to the main checkout's copy (youtube
     01M5CG2QC2, 01M5CG40NV, with infra). It is not a defect of the builder's change: report it to the coordinator,
