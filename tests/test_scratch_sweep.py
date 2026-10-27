@@ -953,6 +953,151 @@ def test_worktree_merge_states(repo: Path) -> None:
     assert seen.get("wt-dirty") == "wt-dirty", proc.stdout
 
 
+# ── W-69322546: a Merged-From trailer vouches only for the state it squashed ───────────────────
+#
+# Branch names are reused (worktree-fleet, worktree-intel, an agent branch that gained a wip snapshot
+# after its squash), so a trailer that names a branch says nothing about commits made after it.
+# Every commit below pins both of its dates, so the time order is the test's, not the clock's.
+
+
+def _dated(repo: Path, when: int, *args: str, committed: int | None = None) -> None:
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_DATE": f"@{when} +0000",
+        "GIT_COMMITTER_DATE": f"@{committed if committed is not None else when} +0000",
+    }
+    proc = subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=30, env=env
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def _vouch_repo(tmp_path: Path) -> Path:
+    """One branch per vouch shape; the main checkout keeps the squash and merge commits."""
+    main = tmp_path / "vouch"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "main")
+    _git(main, "config", "user.email", "t@t")
+    _git(main, "config", "user.name", "t")
+    (main / "a.txt").write_text("base", encoding="utf-8")
+    _git(main, "add", "-A")
+    _dated(main, 1000, "commit", "-qm", "base")
+
+    def branch(name: str, *stamps: int) -> Path:
+        path = tmp_path / name
+        _git(main, "worktree", "add", "-q", str(path), "-b", name)
+        for i, when in enumerate(stamps):
+            (path / f"{name}-{i}.txt").write_text(str(when), encoding="utf-8")
+            _git(path, "add", "-A")
+            _dated(path, when, "commit", "-qm", f"{name} {i}")
+        return path
+
+    def squash(when: int, trailer: str, committed: int | None = None) -> None:
+        _dated(
+            main,
+            when,
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            f"squash\n\n{trailer}\n",
+            committed=committed,
+        )
+
+    # a merge commit of `branch~1` carries the trailer: its parents say z2 was never taken
+    branch("reused-merge", 1100, 1200)
+    _dated(
+        main,
+        1300,
+        "merge",
+        "-q",
+        "--no-ff",
+        "reused-merge~1",
+        "-m",
+        "merge\n\nMerged-From: reused-merge (hand merge)\n",
+    )
+    # squashed at 1300, then the reused name gains a commit at 1400
+    path = branch("reused-squash", 1100)
+    squash(1300, "Merged-From: reused-squash (x)")
+    (path / "late.txt").write_text("late", encoding="utf-8")
+    _git(path, "add", "-A")
+    _dated(path, 1400, "commit", "-qm", "wip: snapshot after the squash")
+    # squashed, gained a commit, squashed again: the newest vouch covers it
+    path = branch("resquashed", 1100)
+    squash(1200, "Merged-From: resquashed (first)")
+    (path / "more.txt").write_text("more", encoding="utf-8")
+    _git(path, "add", "-A")
+    _dated(path, 1300, "commit", "-qm", "more")
+    squash(1400, "Merged-From: resquashed (second)")
+    # the squash lands in the same second as the branch's last commit
+    branch("same-second", 1500)
+    squash(1500, "Merged-From: same-second (tie)")
+    # a squash authored at 1200 whose committer date an amend moved to 1900: the work at 1600 is new
+    path = branch("amended", 1100)
+    squash(1200, "Merged-From: amended (x)", committed=1900)
+    (path / "new.txt").write_text("new", encoding="utf-8")
+    _git(path, "add", "-A")
+    _dated(path, 1600, "commit", "-qm", "new work after the squash")
+    # new work authored after the squash, committed on a slower clock: its author date counts
+    path = branch("slow-clock", 1100)
+    squash(1800, "Merged-From: slow-clock (x)")
+    (path / "slow.txt").write_text("slow", encoding="utf-8")
+    _git(path, "add", "-A")
+    _dated(path, 1850, "commit", "-qm", "authored after the squash", committed=1750)
+    # one commit, two trailer lines: both names are vouched
+    branch("two-lines", 1100)
+    squash(1700, "Merged-From: other-branch (x)\nMerged-From: two-lines (y)")
+    # a trailer naming a branch that has no ref
+    squash(1800, "Merged-From: ghost-branch (gone)")
+    for meta in (main / ".git" / "worktrees").iterdir():
+        os.utime(meta / "gitdir", (NOW, NOW))
+    return main
+
+
+def test_merged_from_trusts_no_stale_vouch(tmp_path: Path) -> None:
+    """A trailer vouches for the squashed state only — never a merge commit's, never later work."""
+    main = _vouch_repo(tmp_path)
+    mod = _w18_module("w69322546_vouch")
+    verdict = {
+        b: mod._merged_from(main, "main", b)
+        for b in (
+            "reused-merge",
+            "reused-squash",
+            "resquashed",
+            "same-second",
+            "amended",
+            "slow-clock",
+            "two-lines",
+            "ghost-branch",
+        )
+    }
+    assert verdict == {
+        "reused-merge": False,  # a merge's parents decide, and z2 is not among them
+        "reused-squash": False,  # a commit newer than the squash
+        "resquashed": True,  # the newest vouch covers the later commit
+        "same-second": True,  # the tie vouches (strictly-later rule)
+        "amended": False,  # the vouch keeps the squash's author date, not the amend's
+        "slow-clock": False,  # a branch commit counts by its later date
+        "two-lines": True,  # the second trailer line is read too
+        "ghost-branch": False,  # `git log main..ghost-branch` fails: not merged
+    }
+
+
+def test_worktree_reason_names_a_stale_vouch(tmp_path: Path) -> None:
+    """The refusal tells a stale trailer apart from a branch nothing vouches for."""
+    main = _vouch_repo(tmp_path)
+    proc = _run("--worktrees", str(main), env=_wt_env())
+    assert proc.returncode == 0, proc.stderr
+    seen = _classes(proc.stdout)
+    assert seen.get("reused-squash") == "wt-unmerged", proc.stdout
+    assert seen.get("reused-merge") == "wt-unmerged", proc.stdout
+    assert seen.get("resquashed") == "wt-removable", proc.stdout
+    row = next(line for line in proc.stdout.splitlines() if "/reused-squash " in line)
+    assert "1 commit(s) newer than the Merged-From squash" in row, row
+    row = next(line for line in proc.stdout.splitlines() if "/reused-merge " in line)
+    assert "newer than the Merged-From" not in row, row
+
+
 def test_worktree_data_guards(repo: Path) -> None:
     """A stash, ignored DATA and a harness tree are each spared; ignored CACHE is not data."""
     proc = _run("--worktrees", str(repo), env=_wt_env())

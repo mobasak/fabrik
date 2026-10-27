@@ -2795,29 +2795,85 @@ def _parse_worktree_porcelain(out: str) -> list[dict]:
     return entries
 
 
-def _merged_from(repo: Path, target: str, branch: str) -> bool:
-    """Was `branch` squash-merged into `target`? Read the `Merged-From` trailer.
+def _squash_vouch(repo: Path, target: str, branch: str) -> int | None:
+    """The time up to which a `Merged-From` squash on `target` vouches for `branch`, or None.
 
     The trailer is a COMMA LIST of `branch (free-text description)` entries, so each item is
     `.strip()`ped (without it every item after the first keeps its leading space and matches
     nothing), the trailing ` (…)` description is removed, and the comparison is WHOLE-STRING — a
     substring test would let one branch's description word mark a different branch merged.
-    `git log --format=` also emits a BLANK line between commits, so empties are skipped.
+    `separator=,` joins two trailer lines on one commit into that list, and `\\x1e` opens each
+    commit's record, so a record whose times do not parse is skipped — it never vouches — instead
+    of failing the read for every branch.
+
+    `--no-merges` (W-69322546): a merge commit's parents already say what it took, and the
+    caller's `merge-base --is-ancestor` arm is the truth for it — hand merges carry reused names
+    (`Merged-From: worktree-fleet`), which read merged for ever otherwise. A squash's vouch is
+    `min(author, committer)` time: an amend or a rebase of the target moves only the committer
+    date forward, past work the squash never took. The NEWEST vouch wins (a re-squash covers it).
     """
-    rc, out = _git(repo, "log", "--format=%(trailers:key=Merged-From,valueonly)", target)
+    rc, out = _git(
+        repo,
+        "log",
+        "--no-merges",
+        "--format=%x1e%at%x1f%ct%x1f%(trailers:key=Merged-From,valueonly,separator=%x2c)",
+        target,
+    )
     if rc != 0:
-        return False
-    for line in out.splitlines():
-        line = line.strip()
-        if not line:
+        return None
+    vouch: int | None = None
+    for record in out.split("\x1e"):
+        fields = record.strip("\n").split("\x1f")
+        if len(fields) != 3 or not fields[2].strip():
             continue
-        for item in line.split(","):
+        try:
+            when = min(int(fields[0]), int(fields[1]))
+        except ValueError:
+            continue
+        for item in fields[2].split(","):
             name = item.strip()
             if name.endswith(")") and " (" in name:
                 name = name[: name.rindex(" (")].strip()
-            if name and name == branch:
-                return True
-    return False
+            if name and name == branch and (vouch is None or when > vouch):
+                vouch = when
+    return vouch
+
+
+def _newer_than_vouch(repo: Path, target: str, branch: str, vouch: int) -> int | None:
+    """How many commits of `target..branch` are newer than `vouch`, or None when unreadable.
+
+    A commit counts by `max(author, committer)` time, so new work reads new whichever clock
+    stamped it. Equal seconds do not count: an orchestrator squash may land in the same second as
+    the branch's last commit. Known fail-open (D-row of W-69322546): work made inside the squash
+    window, a commit whose BOTH dates were set before the vouch, a name re-pointed at older work.
+    """
+    rc, out = _git(repo, "log", "--format=%at%x1f%ct", f"{target}..{branch}")
+    if rc != 0:
+        return None
+    newer = 0
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        try:
+            at, ct = (int(x) for x in line.split("\x1f"))
+        except ValueError:
+            return None
+        if max(at, ct) > vouch:
+            newer += 1
+    return newer
+
+
+def _merged_from(repo: Path, target: str, branch: str) -> bool:
+    """Was `branch` squash-merged into `target`, with nothing committed to it since?
+
+    A trailer names a branch, not a state: branch names are reused, so a `Merged-From` squash
+    vouches only when every commit of `target..branch` is no newer than it. Every uncertain answer
+    — no vouch, an unreadable log — is `False`, which keeps the worktree.
+    """
+    vouch = _squash_vouch(repo, target, branch)
+    if vouch is None:
+        return False
+    return _newer_than_vouch(repo, target, branch, vouch) == 0
 
 
 def _sync_source_for(worktree: Path, rel: str) -> Path | None:
@@ -3442,7 +3498,12 @@ def _worktree_chain(
     if rc_anc != 0 and not _merged_from(main_path, target, branch):
         rc_n, ahead = _git(main_path, "rev-list", "--count", f"{target}..{branch}")
         n = ahead.strip() if rc_n == 0 else "?"
-        return "wt-unmerged", f"not merged into {target} (ahead {n})", ""
+        why = f"not merged into {target} (ahead {n})"
+        vouch = _squash_vouch(main_path, target, branch)
+        newer = None if vouch is None else _newer_than_vouch(main_path, target, branch, vouch)
+        if newer:
+            why += f"; {newer} commit(s) newer than the Merged-From squash that names it"
+        return "wt-unmerged", why, ""
     return "wt-removable", f"merged into {target}, clean, unlocked, unheld", ""
 
 
