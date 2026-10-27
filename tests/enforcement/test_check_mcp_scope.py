@@ -223,3 +223,55 @@ def test_a_credential_abort_in_the_emitter_is_a_structured_fail(
     rc = check.main(["--root", str(tmp_path), "--hub", str(HUB)])
     out = capsys.readouterr().out
     assert rc == 1 and "check_mcp_scope: FAIL" in out and "exa.env.EXA_API_KEY" in out
+
+
+def _tracked(d: Path) -> None:
+    """Turn a fixture dir into a real git repo whose `.mcp.json` is TRACKED despite its `.gitignore` rule."""
+    (d / ".git").rmdir()
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    (d / ".gitignore").write_text(".mcp.json\n")
+    for args in (["add", "-f", ".gitignore", ".mcp.json"], ["commit", "-q", "-m", "t"]):
+        subprocess.run(
+            ["git", "-C", str(d), "-c", "user.email=t@t", "-c", "user.name=t", *args], check=True
+        )
+
+
+@pytest.mark.parametrize(
+    "name, rtype, servers, extra",
+    [
+        ("tracked-api", "python-api", ["session-recall"], []),
+        ("tracked-api", "python-api", ["session-recall", "maestro"], ["maestro"]),
+        ("fabrik", None, ["session-recall", "exa", "maestro"], ["maestro"]),
+    ],
+)
+def test_a_typed_repo_whose_file_git_tracks_is_a_warning(
+    check, tmp_path, name, rtype, servers, extra
+):
+    """W-c0d9cea5: the emitter never writes a TYPED or hub repo's `.mcp.json` that git does not ignore, so re-emitting
+    cannot clear it: a warning, whose reason no longer says "untyped" and says a tracked copy may still hold
+    credentials. Such a repo was always graded before git was asked, so a server outside its ruling is STILL a
+    failure (the review's fail-open: the hub's own over-scoped file must never demote to a warning)."""
+    _tracked(repo(tmp_path, name, rtype, servers))
+    rep = check.audit(tmp_path, HUB, DEFS)
+    assert [(f["repo"], f["extra"]) for f in rep["failures"]] == ([(name, extra)] if extra else [])
+    # the emitter skips this repo, so a failure's fix must name the untrack step, never a bare re-emit (review pass 2)
+    assert all("git rm --cached .mcp.json" in f["fix"] for f in rep["failures"]), rep["failures"]
+    (w,) = rep["warnings"]
+    assert w["repo"] == name
+    assert "untyped" not in w["reason"] and "may still hold credentials" in w["reason"], w["reason"]
+    assert "git rm --cached .mcp.json" in w["fix"], w["fix"]
+
+
+def test_a_symlinked_file_with_an_extra_server_names_the_plain_file_step(check, tmp_path):
+    """W-c0d9cea5 review pass 2: the emitter never writes through a symlinked `.mcp.json`, so the failure for a server
+    outside the ruling must say to make it a plain file first, never a bare re-emit."""
+    d = repo(tmp_path, "linked-api", "python-api", [])
+    (d / ".mcp.json").unlink()
+    (d / "real.json").write_text(
+        json.dumps({"mcpServers": {s: DEFS[s] for s in ("session-recall", "maestro")}})
+    )
+    (d / ".mcp.json").symlink_to("real.json")
+    rep = check.audit(tmp_path, HUB, DEFS)
+    (f,) = rep["failures"]
+    assert f["repo"] == "linked-api" and f["extra"] == ["maestro"]
+    assert f["fix"].startswith("make `.mcp.json` a plain file, then "), f["fix"]

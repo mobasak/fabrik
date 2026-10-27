@@ -19,6 +19,17 @@ one green, since no template escapes on its own). They also go red on any non-`F
 wrapped around python-api's companion include. Out of scope and filed as W-80aed026: env values are unquoted YAML scalars, so `"`,
 newlines, `$`, ` #` and `: ` still deploy wrong. W-6eb61fa0.
 
+### Fixed — MCP emitter writes .mcp.json only where git ignores it, in every repo (2026-10-27)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::emitter_owns` returned True for any hub-class or typed repo without asking git. So the emitter wrote filled exa, brave-search and firecrawl keys into trade-intelligence's tracked `.mcp.json`. Skip-worktree was set, so `git status` hid the change; its only commit holds placeholders, so nothing leaked. It now asks `git check-ignore` for every repo (D-1266, superseding D-1252 in part).
+- A repo whose file git does not ignore gets a ruled SKIP that names both fixes: make `.gitignore` ignore it, and `git rm --cached .mcp.json` if git tracks it. Not ignored means tracked (skip-worktree and assume-unchanged included), no rule, or a later `!`.
+- The review found three more ways credentials reached a committable file, and closed each (D-1267):
+  - Each linked worktree's copy now asks git from its own worktree: `N not ignored` is a ruled skip, `N unanswerable` fails the run.
+  - A symlinked `.mcp.json` is a ruled SKIP, never written through.
+  - Git's discovery stops at the repo's parent, so a broken `.git` dir no longer borrows an enclosing repo's answer.
+- `scripts/enforcement/check_mcp_scope.py` warns on such a repo and says a tracked copy may still hold credentials. A hub-class or typed one is still graded after the warning, as before, so a server outside its ruling stays a failure.
+- Over the 43 repos in `/opt`, one verdict changes: trade-intelligence goes from OK to SKIP until it untracks the file (W-c0d9cea5).
+
 ### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
 
 - `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a

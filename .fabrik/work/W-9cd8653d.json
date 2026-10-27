@@ -3,7 +3,7 @@
   "created": "2026-10-26T11:09:07.808014Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "545817887636f376e32eea663ac5b158d5e9060a",
   "id": "W-9cd8653d",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-3",
   "priority": 0,
   "score_reason": "P0 lean program (D-1216) tooling; infra beat; LOW: one function + review; the grading of every lean branch waits on it",
-  "status": "open",
+  "status": "done",
   "title": "Lean P0 tooling: the one canonical D-1236 loader (claude/lean-d1236-lints-fix) fixed to D-1238 points 1-2 and D-1240 (anchors 100% + 70%/8 stems per phrase; ban clause verbatim to its ;/— end), full /fabrik-review, one merge request"
 }
