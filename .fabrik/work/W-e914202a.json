@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — merge commits lack trailers and gate",
-  "status": "open",
+  "status": "done",
   "title": "merge_request.py merge: merge commits carry no Agent Provenance Trailers and no gate runs."
 }
