@@ -103,7 +103,20 @@ def test_the_renderer_environment_never_autoescapes() -> None:
     assert TemplateRenderer().jinja.autoescape is False
 
 
-_ESCAPE_FILTERS = {"e", "escape", "forceescape"}
+# The built-in filters that HTML-escape their input (`xmlattr` and `urlize` call markupsafe's escape).
+# `tojson` is not one: its `&`-style escapes are JSON string escapes, which every JSON or YAML
+# reader decodes back (`_partials/_companion_service.yaml.j2` relies on that for `command:`).
+_ESCAPE_FILTERS = {"e", "escape", "forceescape", "xmlattr", "urlize"}
+
+
+def _escapes_by_filter(n: nodes.Filter) -> bool:
+    if n.name in _ESCAPE_FILTERS:
+        return True
+    # `map("e")` applies the filter named by its first argument; a name not known here is flagged.
+    if n.name == "map" and n.args:
+        first = n.args[0]
+        return not isinstance(first, nodes.Const) or first.value in _ESCAPE_FILTERS
+    return False
 
 
 def _escapes(source: str) -> list[str]:
@@ -111,16 +124,17 @@ def _escapes(source: str) -> list[str]:
 
     A regex over `{{ }}`/`{% %}` spans misread comments, `{% raw %}` blocks and a `}}`/`%}` inside a
     string or dict literal; the parser does not. `nodes.Filter` covers the pipe form, `{% filter %}`
-    blocks and `{% set x | e %}`; an `{% autoescape %}` block is a scoped eval-context modifier.
+    blocks and `{% set x | e %}`; an `{% autoescape %}` block is a scoped eval-context modifier, flagged
+    unless its value is a constant false. Not modelled: a file the scan below does not read, reached
+    through `{% include %}`/`{% import %}` (today every such tag names `_partials/`, which it reads).
     """
     tree = TemplateRenderer().jinja.parse(source)
-    hits = [
-        f"{n.lineno}: |{n.name}" for n in tree.find_all(nodes.Filter) if n.name in _ESCAPE_FILTERS
-    ]
+    hits = [f"{n.lineno}: |{n.name}" for n in tree.find_all(nodes.Filter) if _escapes_by_filter(n)]
     hits += [
         f"{n.lineno}: autoescape block"
         for n in tree.find_all(nodes.EvalContextModifier)
-        if any(k.key == "autoescape" for k in n.options)
+        for k in n.options
+        if k.key == "autoescape" and not (isinstance(k.value, nodes.Const) and not k.value.value)
     ]
     return hits
 
@@ -138,6 +152,17 @@ def _escapes(source: str) -> list[str]:
         # A `}}` inside a string or dict literal must not end the expression early.
         ('{{ "}}" | e }}', True),
         ("{{ {'k': '}}'} | e }}", True),
+        # A filter applied by name, and the built-ins that escape internally.
+        ('{{ xs | map("e") | join }}', True),
+        ("{{ xs | map(name) | join }}", True),
+        ("{{ {'a': x} | xmlattr }}", True),
+        ("{{ x | urlize }}", True),
+        ("{% autoescape flag %}{{ x }}{% endautoescape %}", True),
+        # Not an escape: a block that turns escaping off, JSON encoding, `map` over an attribute.
+        ("{% autoescape false %}{{ x }}{% endautoescape %}", False),
+        ("{{ x | tojson }}", False),
+        ('{{ xs | map(attribute="name") | join }}', False),
+        ('{{ xs | map("upper") | join }}', False),
         # Not Jinja: JS `||`, a comment, a raw block, a string.
         ("const a = b || e;", False),
         ("{# {{ x | e }} #}", False),
