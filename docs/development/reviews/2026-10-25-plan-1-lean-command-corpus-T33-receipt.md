@@ -143,3 +143,35 @@ COUNTS: 216 entries read / 52 reworded / 0 weaker / 0 lost / 0 invented / 0 wron
 - Ratchet `commands/_size_ceiling.json` at merge (22907 words now).
 - The audit pair over the labels and tails above; kaizen's call on whether ~88% is this unit's floor or whether the fences need a grammar-only reading (D-row).
 - `_shared/*` LOSS (T01d) is untouched.
+
+## Fix round 2 (hub audit)
+
+Source: two author-blind hub audits (Sonnet 23 items, Haiku 19 items; overlapping pairs treated as one). Each item was checked against its baseline line.
+
+### Findings: confirmed 23 / refuted 0
+All confirmed and fixed in `commands/_sources/fabrik-epics.md` and `commands/_rules/fabrik-epics.yaml`.
+- **Rules restored in the source text:**
+  - POOL OFF: the SUSPENDED clause (`fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table`, `<!-- POOL OFF -->`, "D-181 (operator, 2026-09-07)"), the "Canonical: `62-using-subagents.md` § Dispatch policy" pointer, and both `<!-- POOL OFF … set_quality … -->` re-enable comments.
+  - Phase 2 template: audit-log "vendor the module — resolve it from the fabrik-lib index", the nine self-healing failure classes, the six per-spec cap names, the External Services row columns, "file-worker epic or backend slice", and "for the current roster".
+  - Compact entry and ticket Metadata: the Consumes examples, the Delivers/Produces distinction, "the concurrency contract", "→ Target host", the full Registrars wording (grafana (always), glitchtip (shape.kind), watchdog (opt-OUT), force-disable), "no new deploy unit, so", and "ground the registry from".
+  - Wording and qualifiers: the `owner:` / Step 1.5 `--assign` sentence, "the section is extensible", the § Frontend/§ Billing parenthetical, "CURRENT-value", "either way", "(small retrofits are permitted)", "with delta features that don't touch it", the 1c shared-component list, "rather than scattering", "actually on record … not to presentation", "the count matches", "inline", the `Epic 4 — i18n Retrofit` example, "no hand-off to a second command", "once assigned, by whichever agent claims the epic", and the 5a "Opus pass catches a subtle `Owned paths:` overlap".
+- **Vanished labels corrected (now `rule:` with a carrier entry):**
+  - L47 (was duplicate-of u-L232; the "EXACTLY one epic" bullet is back in 1b as `r-L47`).
+  - L251 (was duplicate-of u-L189; `r-L251` carries the two layers, the comment, and "The epic-file CONTENT stays single-agent Opus").
+  - L136 → `r-L134`; L84 → `r-L84`; L151 → `r-L151`; L177 → `r-L177`; L254 → `r-L254`; L73 → `r-L73`.
+  - L133 is now carried by its own suspension text in `r-L133` (the misplaced guardrail copy is gone).
+  - Clause labels removed where the clause is now carried: r-L3, r-L175, r-L191, r-L246. r-L114 keeps `{3: narrative}` (the "see the Subagents section … recipe" pointer); its "record nothing" tail is carried.
+- **Refuted:** none. **Invented:** none (both auditors agreed).
+
+### Words (own text, REPORT line)
+Baseline 7715 (round 1: 6825) → re-ledger REPORT 22907 → now REPORT 23430, ceiling 24511. The two REPORT figures are in the loader's own unit and the 7715/6825 figures are round 1's `wc` unit; I did not re-measure the baseline in the first unit. The 50% target is retired (D-1257), so there is no floor table.
+
+### Gates
+- `assemble_commands.py --check`: no LOSS line for this ledger (only `_shared/*`, T01d's); DRIFT only `DIFFERS`.
+- `tests/test_command_rules.py -rP`: 1 failed / 56 passed; the failure is the corpus-wide `_shared/*` LOSS. LEDGER line: `fabrik-epics.yaml: 223 entries`.
+- Reader-test groups re-run: improve/measure 2 failed / 573 passed (same two names as round 1); producing-fragments 464 passed; skill-router 278 passed; enforcement 15 failed / 99 passed (installed-tree, orphan, `git grep` and live-box tests; this clone has no git). Round 1 recorded 14 failed on the enforcement group and I did not keep that name list, so I cannot show the failure set did not grow by one. The assemble/corpus and final-gate groups were not re-run.
+
+### Self-audit: NOT a fresh pass
+No subagent could be dispatched here, so no fresh reader audited the rewrite. I checked each of the 23 items line by line against the baseline and used the `--check` loader (zero LOSS for this ledger after the fixes), but that is my own re-check of my own fixes. The hub's author-blind audit pair covers it.
+
+COUNTS: not claimed — 0 fresh passes ran, so zeros are NOT asserted
