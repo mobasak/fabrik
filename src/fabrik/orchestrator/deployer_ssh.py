@@ -1609,12 +1609,12 @@ def _generate_docker_compose(
     # the 2.40.3 check could not tell them apart; a secrets-minted ${ZITADEL_MASTERKEY} expands here because
     # it lives in that project `.env` — an owner key never would (it lives in `.env.owner`).
     if image_command:
-        # Single-quoted YAML scalar (escape embedded single-quotes by doubling) — keeps a colon, `#`, or
-        # other YAML-special char in the command from breaking the compose, and matches Zitadel's own official
-        # docker-compose form. Compose still interpolates ${VAR} from the project `.env` (interpolation runs
-        # on the parsed string value, after YAML parsing).
-        _q = image_command.replace("'", "''")
-        lines.append(f"    command: '{_q}'")
+        # One double-quoted YAML scalar via the template path's `_compose_str` (W-4b977f21): a single-quoted
+        # scalar folded a newline to a space and passed DEL / lone surrogates raw. A colon, `#` or quote stays
+        # inert, and compose still interpolates ${VAR} from the project `.env` after YAML parsing.
+        from fabrik.template_renderer import TemplateRenderer
+
+        lines.append(f"    command: {TemplateRenderer._compose_str(image_command, 'image_command')}")
     lines += [
         "    deploy:",
         "      resources:",
