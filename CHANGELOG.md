@@ -19,6 +19,12 @@ one green, since no template escapes on its own). They also go red on any non-`F
 wrapped around python-api's companion include. Out of scope and filed as W-80aed026: env values are unquoted YAML scalars, so `"`,
 newlines, `$`, ` #` and `: ` still deploy wrong. W-6eb61fa0.
 
+### Fixed — claude_rotate no longer counts the backups park root as an account; the MCP-scope tests ignore the user's global git ignore (2026-10-27)
+
+- `scripts/sysadmin/claude_rotate.py::_fleet_dirs` listed `~/.claude-fleet/backups`, the park root `--merge-shared` writes to, so `--status` showed it as a pending-login account ("8 dir(s)" on this box; 7 after). It is now left out like the `active` pointer, and its byte-identical twin `scripts/aro-wake/claude_rotate.py` is copied (W-f7772267 (a)).
+- `tests/enforcement/test_check_mcp_scope.py`'s hermetic-git fixture emptied `GIT_CONFIG_GLOBAL` but left git's default excludes file, `$XDG_CONFIG_HOME/git/ignore` (else `~/.config/git/ignore`), so a box whose global ignore listed `.mcp.json` could decide the tests. The fixture now points `XDG_CONFIG_HOME` at an empty dir. The emitter test file's copy of the fixture waits on its plan lock (W-f7772267 (f)).
+- Graders: `tests/test_claude_rotate_v2.py::test_fleet_dirs_leaves_out_the_backups_park_root` and `tests/enforcement/test_check_mcp_scope.py::test_the_hermetic_fixture_blinds_git_to_the_users_global_ignore`, each watched red first.
+
 ### Fixed — MCP emitter writes .mcp.json only where git ignores it, in every repo (2026-10-27)
 
 - `scripts/sysadmin/emit_mcp_project_config.py::emitter_owns` returned True for any hub-class or typed repo without asking git. So the emitter wrote filled exa, brave-search and firecrawl keys into trade-intelligence's tracked `.mcp.json`. Skip-worktree was set, so `git status` hid the change; its only commit holds placeholders, so nothing leaked. It now asks `git check-ignore` for every repo (D-1266, superseding D-1252 in part).

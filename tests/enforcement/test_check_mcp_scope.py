@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -40,11 +41,15 @@ DEFS = {
 
 @pytest.fixture(autouse=True)
 def _hermetic_git(tmp_path, monkeypatch):
-    """The ownership predicate asks git: the box's global or system excludes must not decide these tests."""
+    """The ownership predicate asks git: the box's global or system excludes must not decide these tests. An empty
+    `GIT_CONFIG_GLOBAL` still leaves git's DEFAULT excludes file (`$XDG_CONFIG_HOME/git/ignore`, else
+    `$HOME/.config/git/ignore`), so `XDG_CONFIG_HOME` points at an empty dir too (W-f7772267 (f))."""
     empty = tmp_path / "empty.gitconfig"
     empty.write_text("")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    (tmp_path / "empty-xdg").mkdir()
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-xdg"))
 
 
 @pytest.fixture(scope="module")
@@ -275,3 +280,22 @@ def test_a_symlinked_file_with_an_extra_server_names_the_plain_file_step(check, 
     (f,) = rep["failures"]
     assert f["repo"] == "linked-api" and f["extra"] == ["maestro"]
     assert f["fix"].startswith("make `.mcp.json` a plain file, then "), f["fix"]
+
+
+def test_the_hermetic_fixture_blinds_git_to_the_users_global_ignore(check, tmp_path, monkeypatch):
+    """W-f7772267 (f): with `GIT_CONFIG_GLOBAL` emptied git still reads its DEFAULT excludes file,
+    `$XDG_CONFIG_HOME/git/ignore`, else `$HOME/.config/git/ignore`. A box whose global ignore lists `.mcp.json` would
+    make a repo with no rule read as ignored, and decide these tests. The fixture points `XDG_CONFIG_HOME` at an empty
+    dir, so a HOME carrying that file changes nothing."""
+    # the fixture's own state, so a runner that exports XDG_CONFIG_HOME cannot hide its loss (review pass 1, F1)
+    xdg = Path(os.environ.get("XDG_CONFIG_HOME", ""))
+    assert xdg.is_relative_to(tmp_path) and xdg.is_dir() and not any(xdg.iterdir()), xdg
+    home = tmp_path / "home"
+    (home / ".config" / "git").mkdir(parents=True)
+    (home / ".config" / "git" / "ignore").write_text(".mcp.json\n")
+    monkeypatch.setenv("HOME", str(home))
+    d = repo(tmp_path, "vendor-clone", None, ["session-recall"])
+    (d / ".git").rmdir()
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    rep = check.audit(tmp_path, HUB, DEFS)
+    assert [w["repo"] for w in rep["warnings"]] == ["vendor-clone"], rep
