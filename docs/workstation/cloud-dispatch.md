@@ -46,7 +46,8 @@ http_<n> | walled | chain_dead | error` — the exit code follows it: 1 unparsed
 `http_<n>`, 3 for a rejected token or no qualifying account, 4 fire limit, 5 quota wall, 6 dead
 refresh chain, 7 a paused or expired account (§ The credit guard). Shared flags `--registry`,
 `--fleet-root`, `--ledger` go before or after the verb; `list` takes `--no-status` and
-`--ledger-tail N`, `dispatch` takes `--task`/`--task-file`, `--force-new` and `--allow-plan-usage`,
+`--ledger-tail N`, `dispatch` takes `--task`/`--task-file`, `--force-new`, `--allow-plan-usage` and
+`--max-weekly` (with `--pick` only; § `--pick`),
 `wait` takes `--since`, `--timeout` and `--interval` (floored at 1 s).
 
 ## Draining a batch
@@ -120,20 +121,26 @@ is refused at its wall (the billing bullet below; W-87078932, D-row in `docs/DEC
 pick reads `claude_rotate.py --status --json` — a live probe — and its `picture`, the rotation
 tick's own verdict per account. An account qualifies only when:
 
+- its picture `weekly_pct` is a finite number ≥ 0, read live or cached no more than 6 h ago (for
+  every account: a token fire never refreshes the reading);
 - its picture `state` is `eligible` or `active` (every walled, exhausted, unreadable,
-  over-threshold or unavailable state is out);
-- its `weekly_pct` is a number under the ceiling: `--max-weekly <pct>` on `dispatch` or `drain`,
+  over-threshold or unavailable state is out). The tick names the account the hub runs on `active`
+  before any wall test, so its own `weekly_cap` and its session trip are re-applied here;
+- that `weekly_pct` is under the ceiling: `--max-weekly <pct>` on `dispatch --pick` or `drain`,
   else the picture's `thresholds.drain_band` (85 by default). The coordinator sets the ceiling for
-  the account the hub sessions run on (45 on ozgurbasak, 2026-10-27);
+  the account the hub sessions run on (45 on ozgurbasak, 2026-10-27). `--max-weekly` with a named
+  `--account` is refused: a named account is fired as named;
 - it is not parked, paused or expired, and a CLI account's status row is live (or a cached reading
   no older than 6 h) with a refresh chain neither expired nor expiring within a day.
 
 The rest rank token accounts before CLI ones, then the **lowest weekly %**, then the fewest ledger
 dispatches in the last 7 days — the same order with and without `--allow-plan-usage`. A status with
-no picture, or no qualifying account, REFUSES the dispatch (exit 3, `no_account` — pass `--account`),
-naming each account skipped at its wall; it never guesses. A batch puts every fire on the coolest
-account, because a run's draw shows minutes later; six runs moved ozgurbasak 33% → 34% on
-2026-10-27, so the ceiling, not the batch size, bounds what a drain spends.
+no picture (or claude_rotate's error picture), or no qualifying account, REFUSES the dispatch
+(exit 3, `no_account` — pass `--account`), naming each account skipped and why; it never guesses.
+The ceiling is checked per fire against a reading that shows a run's draw only minutes later, so
+nothing reserves a batch's own draw and a batch puts every fire on the coolest account. Measured:
+six runs moved ozgurbasak 33% → 34% on 2026-10-27, so a batch of n runs can pass the ceiling by
+about 0.2 × n points.
 
 ## The credit guard
 

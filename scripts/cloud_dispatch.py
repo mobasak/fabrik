@@ -37,8 +37,10 @@ task that mentions "limit" or "/login" cannot mis-report a fired run.
 
 ``--pick`` sends a run only where the account's weekly plan can take it: a cloud run draws that
 plan and Anthropic refuses it at the wall (D-1237), so an account qualifies only when
-``claude_rotate.py --status --json``'s own picture calls it ``eligible`` or ``active`` and its
-readable weekly % is under the ceiling (``--max-weekly``, else the picture's drain band, else 85);
+``claude_rotate.py --status --json``'s own picture calls it ``eligible`` or ``active`` (the active
+one also under its own cap and session trip, which the tick does not apply to it), its weekly %
+is a finite reading no older than 6 h, and that % is under the ceiling (``--max-weekly``, else the
+picture's drain band, else 85);
 it must also be unparked, and a CLI account needs a LIVE status row — not a cached reading of
 unknown age or older than 6 h — and a refresh chain that is neither expired nor expiring within a
 day. Then a token account over a CLI one, the LOWEST weekly %, the fewest ledger dispatches in
@@ -587,9 +589,12 @@ DEFAULT_MAX_WEEKLY = 85.0  # ROTATE_DRAIN_THRESHOLD's default, when the picture 
 
 def _picture_rows(status: dict | None) -> dict[str, dict] | None:
     """claude_rotate's per-account verdict (``picture.accounts``) keyed by slug; None when the
-    status carries no picture, which the pick refuses rather than reading raw windows."""
+    status carries no picture, or the error picture claude_rotate writes when building it raised
+    (``{"error": …, "accounts": []}``), which the pick refuses rather than reading raw windows."""
     picture = (status or {}).get("picture")
     if not isinstance(picture, dict) or not isinstance(picture.get("accounts"), list):
+        return None
+    if picture.get("error"):
         return None
     rows: dict[str, dict] = {}
     for row in picture["accounts"]:
@@ -600,11 +605,48 @@ def _picture_rows(status: dict | None) -> dict[str, dict] | None:
     return rows
 
 
+def _pct(raw: object) -> float | None:
+    """A percentage reading as claude_rotate writes it — a finite number >= 0 — else None (bool,
+    str, NaN, inf, a negative and an int too large for a float are no reading)."""
+    if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+        return None
+    try:
+        val = float(raw)
+    except OverflowError:
+        return None
+    return val if math.isfinite(val) and val >= 0 else None
+
+
+def _picture_wall(pic: dict, ceiling: float) -> str | None:
+    """Why this picture row may not take a cloud run, or None. The tick names the ACTIVE account
+    ``active`` before any wall test (claude_rotate.py, the picture's state ladder), so its own cap
+    and session trip are re-applied here; a cached reading older than STALE_STATUS_S is no reading
+    for a token account either (a token fire never refreshes it)."""
+    state = pic.get("state")
+    weekly = _pct(pic.get("weekly_pct"))
+    if weekly is None:
+        return "no weekly reading"
+    age = _num(pic.get("age_s"))
+    if pic.get("source") != "live" and (age is None or age > STALE_STATUS_S):
+        return f"{pic.get('source') or 'no'} reading, age {'unknown' if age is None else f'{age / 3600:.0f} h'}"
+    if not isinstance(state, str) or state not in PICK_STATES:
+        return str(state)
+    cap = _pct(pic.get("weekly_cap"))
+    if cap is not None and weekly >= cap:
+        return f"weekly {weekly:g}% >= cap {cap:g}%"
+    session, trip = _pct(pic.get("session_pct")), _pct(pic.get("trip"))
+    if session is not None and session >= min(trip if trip is not None else 100.0, 100.0):
+        return f"session {session:g}% spent"
+    if weekly >= ceiling:
+        return f"weekly {weekly:g}% >= ceiling {ceiling:g}%"
+    return None
+
+
 def _weekly_ceiling(status: dict | None, max_weekly: float | None) -> float:
     if max_weekly is not None:
         return max_weekly
     thresholds = ((status or {}).get("picture") or {}).get("thresholds")
-    band = _num(thresholds.get("drain_band")) if isinstance(thresholds, dict) else None
+    band = _pct(thresholds.get("drain_band")) if isinstance(thresholds, dict) else None
     return band if band is not None and 0 < band <= 100 else DEFAULT_MAX_WEEKLY
 
 
@@ -647,22 +689,11 @@ def pick_account(
     walled: list[str] = []
     for s in slugs:
         pic = pictured.get(s)
-        raw = (pic or {}).get("weekly_pct")  # claude_rotate writes a number or None; else unread
-        weekly = (
-            float(raw)
-            if isinstance(raw, (int, float)) and not isinstance(raw, bool) and math.isfinite(raw)
-            else None
-        )
-        state = (pic or {}).get("state")
-        if pic is None or weekly is None:
-            walled.append(f"{s} no weekly reading")
+        why = "no weekly reading" if pic is None else _picture_wall(pic, ceiling)
+        if why is not None:
+            walled.append(f"{s} {why}")
             continue
-        if state not in PICK_STATES:
-            walled.append(f"{s} {state}")
-            continue
-        if weekly >= ceiling:
-            walled.append(f"{s} weekly {weekly:g}% >= ceiling {ceiling:g}%")
-            continue
+        weekly = _pct(pic["weekly_pct"]) or 0.0
         has_token = _has_token(s, fleet_root)
         row = rows.get(s)
         if row is not None and row.get("parked"):
@@ -1434,6 +1465,10 @@ def _cmd_dispatch(args: argparse.Namespace) -> int:
         if args.account:
             if args.account not in reg["accounts"]:
                 raise DispatchError(f"error: {args.account} is not in the registry")
+            if getattr(args, "max_weekly", None) is not None:
+                raise DispatchError(
+                    "error: --max-weekly is the --pick ceiling; a named --account is fired as named"
+                )
             account, why = args.account, "named"
         else:
             account, why = pick_account(
@@ -1862,8 +1897,8 @@ def _drain_locked(args: argparse.Namespace, batch: list[dict]) -> int:
 
 
 MAX_WEEKLY_HELP = (
-    "--pick skips an account whose weekly %% is at or over this (default: the fleet picture's "
-    "drain band, 85)"
+    "--pick only: skip an account whose weekly %% is at or over this (default: the fleet "
+    "picture's drain band, 85); refused with --account"
 )
 
 

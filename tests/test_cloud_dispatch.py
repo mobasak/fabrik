@@ -499,10 +499,11 @@ def test_a_fire_without_a_session_id_exits_1_and_records_the_attempt_as_unparsed
 # --- Behaviour 5: --pick --------------------------------------------------------------------------
 
 
-def _status(*rows, states=None, drain_band=85.0):
-    """Raw rows plus claude_rotate's `picture` view (state + weekly_pct per account), the part
-    pick_account reads for the weekly wall (W-87078932). A state defaults to `eligible`, or
-    `weekly-exhausted` at 100%; `states={slug: state}` overrides it."""
+def _status(*rows, states=None, drain_band=85.0, extra=None):
+    """Raw rows plus claude_rotate's `picture` view (state, weekly_pct, source and age per
+    account), the part pick_account reads for the weekly wall (W-87078932). A state defaults to
+    `eligible`, or `weekly-exhausted` at 100%; `states={slug: state}` overrides it and
+    `extra={slug: {field: value}}` adds picture fields (weekly_cap, session_pct, trip, …)."""
     out = []
     pic = []
     for slug, weekly, parked, expires_in_days, *rest in rows:
@@ -510,7 +511,16 @@ def _status(*rows, states=None, drain_band=85.0):
         state = (states or {}).get(slug) or (
             "weekly-exhausted" if weekly is not None and weekly >= 100 else "eligible"
         )
-        pic.append({"slugs": [slug], "state": state, "weekly_pct": weekly})
+        pic.append(
+            {
+                "slugs": [slug],
+                "state": state,
+                "weekly_pct": weekly,
+                "source": source,
+                "age_s": age,
+                **(extra or {}).get(slug, {}),
+            }
+        )
         out.append(
             {
                 "email": f"{slug}@ocoron.com",
@@ -743,6 +753,117 @@ def test_a_live_status_snapshot_picks_the_only_account_with_room(tmp_path):
     with pytest.raises(cd.DispatchError) as exc:
         cd.pick_account(reg, status, rows, fleet, now=1_000_000.0, max_weekly=30.0)
     assert "ozgurbasak weekly 33% >= ceiling 30%" in str(exc.value)
+
+
+def _two_token_fleet(tmp_path):
+    fleet = _fleet(tmp_path, "ob", "hub", token_for="hub")
+    tok = fleet / "ob" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    return fleet, _reg("ob", "hub")
+
+
+@pytest.mark.parametrize(
+    "extra, needle",
+    [
+        ({"weekly_cap": 40, "session_pct": 10.0, "trip": 99.0}, "hub weekly 42% >= cap 40%"),
+        ({"weekly_cap": 99, "session_pct": 99.0, "trip": 99.0}, "hub session 99% spent"),
+        ({"weekly_cap": 99, "session_pct": 100.0, "trip": None}, "hub session 100% spent"),
+    ],
+)
+def test_the_active_account_keeps_its_own_cap_and_session_trip(tmp_path, extra, needle):
+    """The tick names the ACTIVE account `active` before any wall test, so its cap and session
+    trip are re-applied (review pass 1: an active row at 42% over cap 40 was picked)."""
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(
+        ("ob", 70.0, False, 30),
+        ("hub", 42.0, False, 30),
+        states={"hub": "active"},
+        extra={"hub": extra},
+    )
+    slug, _ = cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert slug == "ob"
+    status["accounts"].pop(0)
+    status["picture"]["accounts"].pop(0)
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert needle in str(exc.value)
+    extra_ok = {**extra, "weekly_cap": 99, "session_pct": 10.0}
+    status = _status(("hub", 42.0, False, 30), states={"hub": "active"}, extra={"hub": extra_ok})
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "hub"
+
+
+@pytest.mark.parametrize("bad", [-5.0, True, float("nan"), float("inf"), 10**400, "40", None])
+def test_an_unreadable_weekly_figure_is_no_reading(tmp_path, bad):
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30))
+    status["picture"]["accounts"][1]["weekly_pct"] = bad
+    slug, _ = cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert slug == "ob", bad  # hub would win on every key if its figure were read
+    status["accounts"].pop(0)
+    status["picture"]["accounts"].pop(0)
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "hub no weekly reading" in str(exc.value), bad
+
+
+def test_a_stale_cached_reading_is_no_reading_for_a_token_account_too(tmp_path):
+    fleet, reg = _two_token_fleet(tmp_path)
+    stale = cd.STALE_STATUS_S + 1
+    status = _status(("hub", 20.0, False, 30, "cache", stale))
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "hub cache reading, age 6 h" in str(exc.value)
+    status = _status(("hub", 20.0, False, 30, "cache", None))
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "hub cache reading, age unknown" in str(exc.value)
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30, "cache", stale))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30, "cache", 3600.0))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "hub"  # fresh cache
+
+
+@pytest.mark.parametrize("state", [["eligible"], {"a": 1}, None, 7])
+def test_a_malformed_state_is_skipped_never_a_crash(tmp_path, state):
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30))
+    status["picture"]["accounts"][1]["state"] = state
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+
+
+def test_an_error_picture_is_refused_as_no_picture(tmp_path):
+    """claude_rotate writes {"error": …, "accounts": []} when building the picture raised."""
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(("ob", 10.0, False, 30))
+    status["picture"] = {"error": "RuntimeError: boom", "accounts": []}
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert str(exc.value).startswith("no_account: no fleet status picture")
+
+
+@pytest.mark.parametrize("band", [0, -1, 500, "90", None])
+def test_a_drain_band_outside_0_to_100_falls_back_to_85(tmp_path, band):
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(("ob", 70.0, False, 30), ("hub", 86.0, False, 30))
+    status["picture"]["thresholds"]["drain_band"] = band
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    status["picture"]["accounts"][0]["weekly_pct"] = 85.0
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "ceiling 85%" in str(exc.value)
+
+
+def test_dispatch_pick_forwards_the_weekly_ceiling(tmp_path, monkeypatch, capsys, quiet_remote):
+    fleet = _fleet(tmp_path, *TRIG)
+    monkeypatch.setattr(cd, "fleet_status", lambda: _status(*((s, 33.0, False, 30) for s in TRIG)))
+    args = _args(tmp_path, fleet, extra=("--max-weekly", "30"))
+    args[args.index("--account")] = "--pick"
+    del args[args.index("can")]
+    assert cd.main(args) == 3
+    assert "33% >= ceiling 30%" in capsys.readouterr().err
+    assert cd.main(_args(tmp_path, fleet, extra=("--max-weekly", "30"))) == 1
+    assert "--max-weekly is the --pick ceiling" in capsys.readouterr().err
 
 
 # --- Behaviour 6: wait + the branch guard ---------------------------------------------------------
@@ -2027,11 +2148,16 @@ def test_drain_passes_the_weekly_ceiling_to_every_fire(tmp_path, monkeypatch):
     assert fired[0].max_weekly is None  # no flag: the picture's drain band decides
 
 
-@pytest.mark.parametrize("bad", ["0", "-5", "100.5", "nan", "x"])
+@pytest.mark.parametrize("bad", ["0", "-5", "100.5", "nan", "inf", "x"])
 def test_a_weekly_ceiling_outside_0_to_100_is_refused_at_parse(tmp_path, bad, capsys):
     with pytest.raises(SystemExit):
         cd.main(["dispatch", "--slug", "s", "--pick", "--task", "t", "--max-weekly", bad])
-    assert "--max-weekly" in capsys.readouterr().err
+    assert "must be a percentage in (0, 100]" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("good, val", [("100", 100.0), ("0.5", 0.5), ("45", 45.0)])
+def test_a_weekly_ceiling_inside_0_to_100_parses(good, val):
+    assert cd._weekly_pct_arg(good) == val
 
 
 @pytest.mark.parametrize("max_open", ["0", "-1"])
