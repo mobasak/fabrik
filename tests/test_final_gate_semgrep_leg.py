@@ -197,11 +197,14 @@ def test_the_runner_kills_the_whole_process_group_on_timeout(tmp_path, monkeypat
         "import subprocess, sys, time\n"
         f"g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
         f"open({str(pidfile)!r}, 'w').write(str(g.pid))\n"
+        "print('partial-output', flush=True)\n"
         "time.sleep(60)\n"
     )
     t0 = time.monotonic()
-    code, _ = fg._run_process_group([sys.executable, "-c", script], 3)
+    code, out = fg._run_process_group([sys.executable, "-c", script], 3)
     assert code is None, "a timeout is reported as None, never as an exit code"
+    # the group is killed BEFORE the drain, so what the scan printed is still read
+    assert "partial-output" in out, "the drain timed out on a live group and lost the output"
     assert time.monotonic() - t0 < 30
     gpid = int(pidfile.read_text())
     deadline = time.monotonic() + 5
