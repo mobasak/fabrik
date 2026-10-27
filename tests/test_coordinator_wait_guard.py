@@ -213,7 +213,8 @@ def test_the_timeout_is_read_strictly(box: dict) -> None:
     loop = "while kill -0 1; do sleep 5; done"
     plain = "python3 scripts/merge_request.py merge"
     # junk tool timeouts fall to the default 120000: a loop is denied, a plain call is not
-    for junk in (True, 0, -5, float("nan"), float("inf"), "abc", "1.5", "²"):
+    # "٣٠٠٠٠٠" is 300000 in Arabic-Indic digits: float() and `\d` take it, the ASCII grammar does not
+    for junk in (True, 0, -5, float("nan"), float("inf"), "abc", "1.5", "²", "٣٠٠٠٠٠"):
         assert _denied(_run(box, loop, timeout=junk)), junk
         assert not _denied(_run(box, plain, timeout=junk)), junk
     # a digit string counts as its number; a huge int is over every cap and never raises
@@ -225,7 +226,10 @@ def test_the_timeout_is_read_strictly(box: dict) -> None:
     out = _run(box, plain, timeout=10**400)
     assert out is not None and "over 1000000000000 s" in out["permissionDecisionReason"]
     out = _run(box, plain, timeout=150000)
-    assert out is not None and "over 150 s" not in out["permissionDecisionReason"]
+    assert out is not None and "its timeout is 150 s, over 120 s" in out["permissionDecisionReason"]
+    # leading zeros are not significant: a long zero-padded string is its number, not the cap
+    out = _run(box, plain, timeout="0" * 16 + "150000")
+    assert out is not None and "its timeout is 150 s, over 120 s" in out["permissionDecisionReason"]
     # the strict edges, one past each cap
     assert _denied(_run(box, plain, timeout=120001))
     assert _denied(_run(box, loop, timeout=60001))

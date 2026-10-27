@@ -1125,9 +1125,8 @@ def _ms(value: object) -> float | None:
     if isinstance(value, float):
         return min(value, _MS_CAP) if math.isfinite(value) and value > 0 else None
     if isinstance(value, str) and _MS_TEXT.fullmatch(value.strip()):
-        digits = value.strip().lstrip(
-            "0"
-        )  # never int() a long string: Python refuses > 4300 digits
+        # never int() a long string: Python refuses more than 4300 digits
+        digits = value.strip().lstrip("0")
         if not digits:
             return None
         return _MS_CAP if len(digits) > 15 else min(float(digits), _MS_CAP)
