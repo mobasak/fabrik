@@ -622,7 +622,8 @@ TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE
 # markers added before they can be watched. Re-measure before adding any entry; the numbers move.
 # An entry must be a doc the project can edit (not in fabrik_synced_manifest.review_readonly_paths(),
 # so AGENTS.md is out) and may keep where it is (check_structure.py allows its path, so docs/INDEX.md
-# is out); tests/test_docs_updater.py grades both. D-1272 records why the list stays hand-picked
+# is out); tests/test_docs_updater.py grades both, holding docs/FUNNEL.md and docs/AUTOMATION.md
+# as the named exceptions W-1adf4ed4 decides. D-1272 records why the list stays hand-picked
 # rather than every project doc by default (site-provisioner, 01M2NJGZGV20WP): a date header
 # cannot see content, and the git-date signal lives in fleet_doc_audit.py and /fabrik-release.
 MANUAL_DOCS = [
