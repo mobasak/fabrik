@@ -1,0 +1,526 @@
+command: fabrik-flows-review
+baseline_sentences: fabrik-flows-review.baseline.txt
+baseline_sha256: '01f798b5819d145b43b8b94dabdbb0ba872de094864171e39ad31b03e9bd02a8'
+entries:
+- id: u-L1
+  class: prose
+  file: render
+  baseline: Converge this journey contract to a fixed point — do not stop after one pass
+  text:
+  - Converge this journey contract to a fixed point — do not stop after one pass
+- id: u-L3
+  class: ban
+  file: render
+  baseline: The defects a flows contract hides — and the ones this pass exists to catch — are (1) a flow that SENDS something whose RECEIVING persona was never walked (the invite that could be sent but never accepted), (2) an async boundary with no gap state (what the persona sees between checkout return and webhook landing), and (3) a Success Criterion no journey covers — or a journey serving no criterion. All are invisible until a non-author re-walks the journeys against the spec
+  clauses: {2: narrative}
+  text:
+  - The defects a flows contract hides are (1) a flow that SENDS something whose RECEIVING persona was never walked (the invite that could be sent but never accepted), (2) an async boundary with no gap state (what the persona sees between checkout return and webhook landing), and (3) a Success Criterion no journey covers — or a journey serving no criterion. All are invisible until a non-author re-walks the journeys against the spec
+- id: u-L5
+  class: ban
+  file: render
+  baseline: Also read `docs/data-contract.md` IF it already exists — a journey implying an entity/field the contract lacks routes to "contract bump needed" (consumed by `/fabrik-data-contract`), never silently absorbed here and never trimmed from the journey
+  text:
+  - Also read `docs/data-contract.md` IF it already exists — a journey implying an entity/field the contract lacks routes to "contract bump needed" (consumed by `/fabrik-data-contract`), never silently absorbed here and never trimmed from the journey
+- id: u-L7
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: The contract under review is `$ARGUMENTS` (if empty, the current project's `docs/flows.md` — locate it and state which file + its `Type:` and `Journey kinds:` header values)
+  text:
+  - The contract under review is `$ARGUMENTS` (if empty, the current project's `docs/flows.md` — locate it and state which file + its `Type:` and `Journey kinds:` header values)
+- id: u-L8
+  class: ban
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: 'It MUST be `Status: FROZEN` — still `DRAFT` → stop and route back to `/fabrik-flows` (you review a frozen artifact, you don''t finish its authoring)'
+  text:
+  - 'It MUST be `Status: FROZEN` — still `DRAFT` → stop and route back to `/fabrik-flows` (you review a frozen artifact, you don''t finish its authoring)'
+- id: u-L9
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: 'Scope = every persona, every flow, every decision point and gap state, checked against its binding sources, all read THIS session:'
+  text:
+  - 'Scope = every persona, every flow, every decision point and gap state, against binding sources read THIS session:'
+- id: u-L10
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: the CONVERGED `/fabrik-spec` design doc (+ its Success Criteria list — the tracing spine),
+  text:
+  - the CONVERGED `/fabrik-spec` design doc (+ its Success Criteria list),
+- id: u-L11
+  class: ban
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: '`project.yaml::type` (the journey kind must match: user / consumer / reader; two-faced types carry BOTH client and backend journeys),'
+  text:
+  - '`project.yaml::type` (the journey kind must match: user / consumer / reader; two-faced types carry BOTH client and backend journeys),'
+- id: u-L12
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: 'the surface pack for UI-bearing types and any domain pack the flows touch (auth · payments · multi-tenant) — a pack rule a flow violates: the pack wins,'
+  text:
+  - 'the surface pack for UI-bearing types and any domain pack the flows touch (auth · payments · multi-tenant) — a pack rule a flow violates: the pack wins,'
+- id: u-L13
+  class: prose
+  file: render
+  section: '## Phase 0 — Establish scope'
+  baseline: '`design-system-template.md` § States (Enriched) + the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types — hot-spots and state flags speak its language)'
+  text:
+  - '`design-system-template.md` § States (Enriched) + the resolved brand''s voice (`docs/design-system.md` § Voice; ocoron: `ocoron-design-system.md` § Verbal Identity) (UI types — hot-spots and state flags speak its language)'
+- id: u-L15
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: Treat every flow as unproven until re-walked
+  text:
+  - Treat every flow as unproven until re-walked
+- id: u-L16
+  class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: Run repeated passes until one demonstrably-thorough pass finds zero new gaps; the class ledger below persists across rounds — a round re-sweeps it, never re-scopes it
+  text:
+  - Run repeated passes until one demonstrably-thorough pass finds zero new gaps; the class ledger below persists across rounds — a round re-sweeps it, never re-scopes it
+- id: u-L17
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: 'Dispatch one INDEPENDENT native seat per axis, every round (recipe in § Subagents: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units 8 --mechanical 2 --risky 2` — one unit per axis A–G plus E2 (`--units 7` when E2 does not apply, a type that is not UI-bearing), the two risky units being C and D, which take the Opus seats; axes E (marker count) and F (line count) are the grep-able ones, the rest are judgement)'
+  text:
+  - 'Dispatch one INDEPENDENT native seat per axis, every round (recipe in § Subagents: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units 8 --mechanical 2 --risky 2` — one unit per axis A–G plus E2; `--units 7` when E2 does not apply, a type that is not UI-bearing; the two risky units being C and D, which take the Opus seats; axes E (marker count) and F (line count) are the grep-able ones, the rest are judgement)'
+- id: u-L19
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: Then merge + REFUTE what you can disprove (quote the flow line / spec line / pack rule) before editing
+  text:
+  - Then merge + REFUTE what you can disprove (quote the flow line / spec line / pack rule) before editing
+- id: u-L20
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: A) Success-Criterion tracing (both directions). Every criterion → ≥1 covering flow; every flow → ≥1 criterion
+  text:
+  - A) Success-Criterion tracing (both directions). Every criterion → ≥1 covering flow; every flow → ≥1 criterion
+- id: u-L21
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: A criterion with no journey is missing product; a journey with no criterion is scope creep or a missing criterion — resolve which
+  text:
+  - A criterion with no journey is missing product; a journey with no criterion is scope creep or a missing criterion — resolve which
+- id: u-L22
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: 'B) Persona completeness. The DENOMINATOR is the spec''s `## Personas` section — open it and diff: every persona it enumerates is walked in flows.md or explicitly OUT with a reason; a silently missing persona is a blocking gap (operator law 2026-08-29)'
+  text:
+  - 'B) Persona completeness. The DENOMINATOR is the spec''s `## Personas` section — open it and diff: every persona it enumerates is walked in flows.md or explicitly OUT with a reason; a silently missing persona is a blocking gap (operator law 2026-08-29)'
+- id: u-L23
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: RE-COUNT the primary persona's path against the spec's frozen STEP BUDGET yourself — the author's count is a claim, and a breach is a finding against whichever contract is wrong
+  text:
+  - RE-COUNT the primary persona's path against the spec's frozen STEP BUDGET yourself — the author's count is a claim, and a breach is a finding against whichever contract is wrong
+- id: u-L24
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: 'Then the per-journey floor: every persona''s journey has entry → actions → feedback → exit, decision points, and error paths'
+  text:
+  - 'Then the per-journey floor: every persona''s journey has entry → actions → feedback → exit, decision points, and error paths'
+- id: u-L25
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: No persona exits into the void ("then they're done" with no confirmed end state)
+  text:
+  - No persona exits into the void ("then they're done" with no confirmed end state)
+- id: u-L26
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: C) SECOND-ACTOR completeness. For every flow that sends/emits anything (email, invite, webhook, notification, export), the receiving persona's journey exists and starts from the RECEIVER'S real context (no session, other tenant, mail client, webhook consumer)
+  text:
+  - C) SECOND-ACTOR completeness. For every flow that sends/emits anything (email, invite, webhook, notification, export), the receiving persona's journey exists and starts from the RECEIVER'S real context (no session, other tenant, mail client, webhook consumer)
+- id: u-L27
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: This is the highest-yield axis — walk it first
+  text:
+  - This is the highest-yield axis — walk it first
+- id: u-L28
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: D) Async-boundary gap states. Every out-of-band round-trip names what the persona sees between the two legs
+  text:
+  - D) Async-boundary gap states. Every out-of-band round-trip names what the persona sees between the two legs
+- id: u-L29
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: '"The webhook updates the status" is the system''s view; the axis demands the PERSONA''S view of the gap'
+  clauses: {1: narrative}
+  text:
+  - The axis demands the PERSONA'S view of the gap
+- id: u-L30
+  class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: 'E) `[PRIMARY PATH]` + resilience. Exactly ONE `[PRIMARY PATH]` per flow (zero or two is a defect — it is the certification DEPTH input, the journey exercised deeply, never the denominator: the gauntlets resolve that from a live registry)'
+  text:
+  - 'E) `[PRIMARY PATH]` + resilience. Exactly ONE `[PRIMARY PATH]` per flow (zero or two is a defect — it is the certification DEPTH input, the journey exercised deeply, never the denominator: the gauntlets resolve that from a live registry)'
+- id: u-L31
+  class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: 'Count MARKERS, not the token: only an occurrence labelling a step sequence inside a flow counts; the artifact''s own counting rule, the freeze law, a gate line and your own ledger all match a naive grep and are prose'
+  text:
+  - 'Count MARKERS, not the token: only an occurrence labelling a step sequence inside a flow counts'
+  - the artifact's own counting rule, the freeze law, a gate line and your own ledger are prose
+- id: u-L33
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: Per-external-call resilience present (slow AND down, persona's view)
+  text:
+  - Per-external-call resilience present (slow AND down, persona's view)
+- id: u-L34
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: 'E2) Life-cycle arc coverage (UI-bearing types). Re-derive the `/fabrik-user-test` Phase-1b arc set independently — *first-day · habitual · paying-customer · leaving-user · recovery* — and check each applicable arc has BOTH legs: an entry AND a deliberate exit (paying-customer needs a VOLUNTARY downgrade/cancel, not just involuntary payment-failure recovery; recovery needs the interrupted-journey resume, not just abandoned checkout)'
+  text:
+  - 'E2) Life-cycle arc coverage (UI-bearing types). Re-derive the `/fabrik-user-test` Phase-1b arc set independently — *first-day · habitual · paying-customer · leaving-user · recovery* — and check each applicable arc has BOTH legs: an entry AND a deliberate exit (paying-customer needs a VOLUNTARY downgrade/cancel, not just involuntary payment-failure recovery; recovery needs the interrupted-journey resume, not just abandoned checkout)'
+- id: u-L36
+  class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: 'F) Discipline + exclusions. Microcopy Hot-Spots are outcomes, never literal strings · i18n decisions present when the project declares i18n · the hard exclusions (no file paths / component names / implementation detail) govern FLOW BODIES only — the header, R-notes, Contract inputs and the re-freeze close-out''s Downstream impact table are lifecycle metadata whose entire job is naming entities, fields and consumer docs, and axis G below REQUIRES exactly that; raising them under F contradicts G in the same pass · per-flow length asserted against the NUMBERS, not "within targets" — `/fabrik-flows` sets target ≤30 lines, HARD SPLIT at 50 (`fabrik-flows.md` § Phase 5 — the per-flow length target and its `Length discipline:` clause; grep `hard split at 50` — line anchors drift): a flow over 30 owes a one-line justification; a flow at or over 50 is a DEFECT — split it'
+  text:
+  - 'F) Discipline + exclusions. Microcopy Hot-Spots are outcomes, never literal strings · i18n decisions present when the project declares i18n · the hard exclusions (no file paths / component names / implementation detail) govern FLOW BODIES only — the header, R-notes, Contract inputs and the re-freeze close-out''s Downstream impact table are lifecycle metadata whose entire job is naming entities, fields and consumer docs, and axis G below REQUIRES exactly that; raising them under F contradicts G in the same pass · per-flow length asserted against the NUMBERS, not "within targets" — `/fabrik-flows` sets target ≤30 lines, HARD SPLIT at 50 (`fabrik-flows.md` § Phase 5 — the per-flow length target and its `Length discipline:` clause; grep `hard split at 50` — line anchors drift): a flow over 30 owes a one-line justification; a flow at or over 50 is a DEFECT — split it'
+- id: u-L41
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: G) Cross-artifact truth. No flow contradicts the spec (spot-check the spec's INTENT — the written spec can itself be wrong; surface, don't silently pick a side)
+  text:
+  - G) Cross-artifact truth. No flow contradicts the spec (spot-check the spec's INTENT — the written spec can itself be wrong; surface, don't silently pick a side)
+- id: u-L42
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: The Contract inputs section lists every entity/field/state the journeys imply — an implied field missing from that list is a finding; an existing `docs/data-contract.md` lacking a listed input routes to "contract bump needed."
+  text:
+  - The Contract inputs section lists every entity/field/state the journeys imply — an implied field missing from that list is a finding; an existing `docs/data-contract.md` lacking a listed input routes to "contract bump needed."
+- id: u-L43
+  class: prose
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: After each pass, list what you re-walked (which flows, which criteria, which packs) and what you found, then fix the contract
+  text:
+  - After each pass, list what you re-walked (which flows, which criteria, which packs) and what you found, then fix the contract
+- id: u-L44
+  class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: The loop terminates ONLY when a full, demonstrably-thorough pass CONFIRMS zero (the Termination contract's closing round, md5 unchanged) — that closing round is the only proof
+  text:
+  - The loop terminates ONLY when a full, demonstrably-thorough pass CONFIRMS zero (the Termination contract's closing round, md5 unchanged) — that closing round is the only proof
+- id: u-L45
+  class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: The pass that fixed anything is never the last; run one more
+  text:
+  - The pass that fixed anything is never the last; run one more
+- id: u-L46
+  class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: A pass finding nothing must still enumerate its coverage
+  text:
+  - A pass finding nothing must still enumerate its coverage
+- id: u-L48
+  class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (the downstream consumers must not invent)'
+  baseline: 'Reviewed means consumable as-is:'
+  current: 'Reviewed means consumable as-is:'
+  text:
+  - 'Reviewed means consumable as-is:'
+- id: u-L49
+  class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (the downstream consumers must not invent)'
+  baseline: '`/fabrik-data-contract` can freeze fields from the Contract inputs section without re-deriving journeys'
+  text:
+  - '`/fabrik-data-contract` can freeze fields from the Contract inputs section without re-deriving journeys'
+- id: u-L50
+  class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (the downstream consumers must not invent)'
+  baseline: '`/fabrik-ui-design` (GUI types) can design screens knowing every surface a journey lands on — a journey step landing on an undesignable "somewhere" is not handoff-ready'
+  text:
+  - '`/fabrik-ui-design` (GUI types) can design screens knowing every surface a journey lands on — a journey step landing on an undesignable "somewhere" is not handoff-ready'
+- id: u-L51
+  class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (the downstream consumers must not invent)'
+  baseline: '`/fabrik-user-test` / `/fabrik-service-test` can read the `[PRIMARY PATH]` set as the journeys owed DEPTH without inventing them at gauntlet time — their coverage DENOMINATOR comes from a live registry, and a cert board sourced from a doc is a finding their own grader raises'
+  text:
+  - '`/fabrik-user-test` / `/fabrik-service-test` can read the `[PRIMARY PATH]` set as the journeys owed DEPTH without inventing them at gauntlet time — their coverage DENOMINATOR comes from a live registry, and a cert board sourced from a doc is a finding their own grader raises'
+- id: u-L52
+  class: prose
+  file: render
+  section: '## Phase 2 — Handoff-readiness (the downstream consumers must not invent)'
+  baseline: 'The freeze is real: `Status: FROZEN` + `Version` + `Date` + `Type` + `Journey kinds` header set; the verbatim freeze law present'
+  text:
+  - 'The freeze is real: `Status: FROZEN` + `Version` + `Date` + `Type` + `Journey kinds` header set; the verbatim freeze law present'
+- id: u-L54
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Do not promise "100% coverage" — iterate to the fixed point, then enumerate residual unknowns/assumptions, separating resolved from still-open (each open one with a named resolution step)
+  text:
+  - Do not promise "100% coverage" — iterate to the fixed point, then enumerate residual unknowns/assumptions, separating resolved from still-open (each open one with a named resolution step)
+- id: u-L55
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'Convergence = a full review round (all axes + merge/refute) at `confirmed: 0` — the Termination contract''s closing round, md5-verified (hash before/after the closing round — identical hashes are the proof)'
+  text:
+  - 'Convergence = a full review round (all axes + merge/refute) at `confirmed: 0` — the Termination contract''s closing round, md5-verified (hash before/after the closing round — identical hashes are the proof)'
+- id: u-L56
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Your say-so does not substitute
+  current: Your say-so does not substitute
+  text:
+  - Your say-so does not substitute
+- id: u-L57
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'Closing round at `confirmed: 0`: the FROZEN contract stands'
+  text:
+  - 'Closing round at `confirmed: 0`: the FROZEN contract stands'
+- id: u-L58
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'Add the attestation to its header — `Independently reviewed: v<N> — /fabrik-flows-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger'
+  text:
+  - 'Add the attestation to its header — `Independently reviewed: v<N> — /fabrik-flows-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger'
+- id: u-L59
+  class: ban
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'You edited the contract: editing a FROZEN artifact re-opens it — the run''s first edit bumps `Version`, every later edit stays under that version, and the closing round re-freezes it (the closing round IS the re-freeze convergence): one bump and one row per review run, a run closed `blocked` and resumed included, never a bump per round'
+  text:
+  - 'You edited the contract: editing a FROZEN artifact re-opens it'
+  - 'the run''s first edit bumps `Version`, every later edit stays under that version, and the closing round re-freezes it (the closing round IS the re-freeze convergence): one bump and one row per review run, a run closed `blocked` and resumed included, never a bump per round'
+  pins:
+  - tests/test_flows_review_queue_pass.py::test_one_bump_and_one_row_per_review_run
+- id: u-L60
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'The bump is a Status-flip event: mint its `docs/DECISIONS.md` row staged in the same commit as the artifact (the `/fabrik-flows` freeze law; classify at mint — plain row normally)'
+  text:
+  - 'The bump is a Status-flip event: mint its `docs/DECISIONS.md` row staged in the same commit as the artifact (the `/fabrik-flows` freeze law; classify at mint — plain row normally)'
+- id: u-L61
+  class: ban
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Only then attest
+  text:
+  - Only then attest
+- id: u-L62
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: 'A BLOCKING gap remains (a criterion with no resolvable journey; a second actor whose journey cannot be designed without a product decision): stop, set `Status: DRAFT`, name the blocker, route to `/fabrik-flows`'
+  text:
+  - 'A BLOCKING gap remains (a criterion with no resolvable journey; a second actor whose journey cannot be designed without a product decision): stop, set `Status: DRAFT`, name the blocker, route to `/fabrik-flows`'
+- id: u-L63
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: The FROZEN→DRAFT flip is a Status flip — mint its `docs/DECISIONS.md` row in the same commit (it reverses a readiness claim consumers may have acted on; classify at mint)
+  text:
+  - The FROZEN→DRAFT flip is a Status flip — mint its `docs/DECISIONS.md` row in the same commit (it reverses a readiness claim consumers may have acted on; classify at mint)
+- id: u-L64
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Do NOT attest
+  current: Do NOT attest
+  text:
+  - Do NOT attest
+- id: u-L67
+  class: ban
+  file: render
+  section: '## Convergence & residuals'
+  baseline: A history of rounds is correct and is not drift — only the newest entry is graded — and a contract with NO attestation is silent, since most have never had a twin run
+  text:
+  - A history of rounds is correct and is not drift — only the newest entry is graded — and a contract with NO attestation is silent, since most have never had a twin run
+- id: u-L75
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Do not commit unless the user says so this turn (`git add` is fine)
+  text:
+  - Do not commit unless the user says so this turn (`git add` is fine)
+- id: u-L80
+  class: prose
+  file: render
+  section: '## After the attestation — the panel answers the journey-freeze gate'
+  baseline: 'Like its siblings, this is a design approval gate: the frozen journeys commit every downstream stage to serve them'
+  text:
+  - 'Like its siblings, this is a design approval gate: the frozen journeys commit every downstream stage to serve them'
+- id: u-L81
+  class: prose
+  file: render
+  section: '## After the attestation — the panel answers the journey-freeze gate'
+  baseline: 'Once the closing round (`confirmed: 0`) earns the attestation, the panel answers it; its brief carries the contract, the flow index and any "contract bump needed" findings'
+  text:
+  - 'Once the closing round (`confirmed: 0`) earns the attestation, the panel answers it; its brief carries the contract, the flow index and any "contract bump needed" findings'
+- id: u-L82
+  class: prose
+  file: render
+  baseline: 'On a split, end the turn with this block, written as plain lines, not inside a code fence:'
+  text:
+  - 'On a split, end the turn with this block, written as plain lines, not inside a code fence:'
+- id: u-L84
+  class: prose
+  file: render
+  baseline: The next command is `/fabrik-data-contract` — freeze the fields the journeys surfaced (the Contract inputs section is its evidence list)
+  text:
+  - The next command is `/fabrik-data-contract` — freeze the fields the journeys surfaced (the Contract inputs section is its evidence list)
+- id: u-L85
+  class: prose
+  file: render
+  baseline: On a split, the operator's answer decides; on requested changes, re-open the loop
+  text:
+  - On a split, the operator's answer decides; on requested changes, re-open the loop
+- id: u-L86
+  class: ban
+  file: render
+  baseline: Never hand off on an unattested / `DRAFT` contract
+  text:
+  - Never hand off on an unattested / `DRAFT` contract
+- id: flows-review-r1
+  class: prose
+  file: render
+  baseline: 'Fixed point = a full review round that CONFIRMS zero — the Termination contract''s closing round. This is to `/fabrik-flows` what `/fabrik-spec-review` is to `/fabrik-spec`: the adversarial, INDEPENDENT hardening of an artifact its author already self-converged — the author''s pass cannot see its own blind spots; this one can (the live lesson: a journey gap survived TWO frozen, convergence-verified artifact versions because every verifying pass was run by the artifact''s own author)'
+  clauses: {4: narrative}
+  text:
+  - 'Fixed point = a full review round that CONFIRMS zero — the Termination contract''s closing round. This is to `/fabrik-flows` what `/fabrik-spec-review` is to `/fabrik-spec`: the adversarial, INDEPENDENT hardening of an artifact its author already self-converged. The author''s pass cannot see its own blind spots; this one can'
+- id: flows-review-r2
+  class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
+  text:
+  - 'Never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186)'
+- id: flows-review-r3
+  class: ban
+  file: render
+  section: '## Phase 1 — Adversarial grounding to a fixed point (a class ledger, re-swept per round)'
+  baseline: 'State the count you measured per flow ⏎ A gate whose numbers are re-derived per reviewer is an advisory wearing a gate''s clothes · Mermaid only where genuinely multi-party'
+  text:
+  - State the count you measured per flow
+  - A gate whose numbers are re-derived per reviewer is an advisory wearing a gate's clothes · Mermaid only where genuinely multi-party
+- id: flows-review-r4
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: Close the run record on this path — `blocked --command fabrik-flows-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping
+  text:
+  - Close the run record on this path — `blocked --command fabrik-flows-review --reason "<the gap · what you searched · what is missing>" --feedback "<...>"`; "stop" alone leaves the record `running`, which the Stop hook blocks the turn on, and this disposition is the one that most looks like simply stopping
+- id: flows-review-r5
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: '⚠️ The attestation IS graded — since 2026-08-29, by `check_frozen_chain.py`. It compares the NEWEST `Independently reviewed: v<N>` against the contract''s current `Version:` and WARNs when the contract has moved past its last author-blind pass (`docs/x.md: newest independent review attests v6 but the contract is at v11 — 5 version(s) have had no author-blind pass`)'
+  text:
+  - '`check_frozen_chain.py` grades the attestation (since 2026-08-29): it compares the newest `Independently reviewed: v<N>` against the contract''s current `Version:` and WARNs when it is older (`docs/x.md: newest independent review attests v6 but the contract is at v11 — 5 version(s) have had no author-blind pass`)'
+- id: flows-review-r6
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: The check proves the claim is CURRENT, not that it is TRUE ⏎ Ledger honesty is still on you
+  text:
+  - It proves the claim is CURRENT, not that it is TRUE — ledger honesty is still on you
+- id: flows-review-r7
+  class: ban
+  file: render
+  section: '## Convergence & residuals'
+  baseline: '⚠️ Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed ⏎ COMMIT the artifact — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+  text:
+  - '⚠️ Superseded where it conflicts with CLAUDE.md § EXIT: an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed'
+  - 'COMMIT the artifact — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that'
+- id: flows-review-r8
+  class: prose
+  file: render
+  section: '## Convergence & residuals'
+  baseline: What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28)
+  text:
+  - What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (2026-08-28)
+- id: flows-review-decision-block
+  class: behavioural
+  file: render
+  section: '## After the attestation — the panel answers the journey-freeze gate'
+  baseline: ''
+  text:
+  - 'DECISION NEEDED (ground: gate)'
+  - 'Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → split'
+vanished:
+  L2: {"rule": ["flows-review-r1"]}
+  L3: {"rule": ["u-L3"]}
+  L4: narrative
+  L8: {"rule": ["u-L8"]}
+  L9: {"rule": ["u-L9"]}
+  L10: {"rule": ["u-L10"]}
+  L12: {"rule": ["u-L12"]}
+  L13: {"rule": ["u-L13"]}
+  L17: {"rule": ["u-L17"]}
+  L18: {"rule": ["flows-review-r2"]}
+  L19: {"rule": ["u-L19"]}
+  L25: {"rule": ["u-L25"]}
+  L26: {"rule": ["u-L26"]}
+  L29: {"rule": ["u-L29"]}
+  L30: {"rule": ["u-L30"]}
+  L31: {"rule": ["u-L31"]}
+  L32: narrative
+  L34: {"rule": ["u-L34"]}
+  L35: narrative
+  L36: {"rule": ["u-L36"]}
+  L37: {"rule": ["flows-review-r3"]}
+  L38: narrative
+  L39: narrative
+  L40: {"rule": ["flows-review-r3"]}
+  L41: {"rule": ["u-L41"]}
+  L51: {"rule": ["u-L51"]}
+  L54: {"rule": ["u-L54"]}
+  L59: {"rule": ["u-L59"]}
+  L65: {"rule": ["flows-review-r4"]}
+  L66: {"rule": ["flows-review-r5"]}
+  L68: narrative
+  L69: {"rule": ["flows-review-r6"]}
+  L70: {"rule": ["flows-review-r6"]}
+  L71: narrative
+  L72: narrative
+  L73: narrative
+  L74: narrative
+  L76: {"rule": ["flows-review-r7"]}
+  L77: {"rule": ["flows-review-r7"]}
+  L78: {"rule": ["flows-review-r8"]}
