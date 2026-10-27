@@ -62,6 +62,13 @@ def _hermetic_git(tmp_path, monkeypatch):
     empty.write_text("")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    # core.excludesFile defaults to $XDG_CONFIG_HOME/git/ignore, else $HOME/.config/git/ignore, with no
+    # config file setting it: pin XDG to an empty dir so neither is read
+    (tmp_path / "empty-xdg").mkdir()
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-xdg"))
+    # `git init` copies its template's info/exclude into every repo these tests make
+    (tmp_path / "empty-template").mkdir()
+    monkeypatch.setenv("GIT_TEMPLATE_DIR", str(tmp_path / "empty-template"))
 
 
 @pytest.fixture()

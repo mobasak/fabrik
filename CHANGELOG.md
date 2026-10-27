@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the MCP emitter tests no longer read the box's git ignore or template (2026-10-27)
+
+`tests/test_emit_mcp_project_config.py`'s autouse `_hermetic_git` emptied the global and system git config
+but left two ignore sources open: `core.excludesFile`'s default (`$XDG_CONFIG_HOME/git/ignore`, else
+`$HOME/.config/git/ignore`, read with no config file setting it) and the `git init` template, whose
+`info/exclude` is copied into every repo the tests make. A box-level rule for `.mcp.json` in either turned 7
+of the file's 67 tests red. The fixture now points `XDG_CONFIG_HOME` and `GIT_TEMPLATE_DIR` at empty tmp
+dirs, as `tests/test_emit_mcp_fillins.py` already did for XDG. W-f7772267 (f); a fixture-only hunk under
+intel's plan-3 lock, on the coordinator's ruling.
+
 ### Fixed — compose scalars outside `environment:` deploy exactly or are refused (2026-10-27)
 
 A spec string pasted into a compose scalar outside `environment:` broke or mangled the file: python-api's
