@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 `_format_env` never escaped `$`, so a secret `a$b` was written as `K=a$b` and docker compose delivered
 `a`, through `env_file` and `${K}` interpolation alike. A new codec, `src/fabrik/env_file.py`, now writes
 and reads every Fabrik `.env` to compose's own dotenv grammar. A spec `env:` value keeps its `$` as a
-compose interpolation; every other value is literal, single-quoted or `\$`-escaped. The reader matches
+compose interpolation; in every other value a `$` is literal, single-quoted or `\$`-escaped. The reader matches
 compose on quotes, escapes, ` #` comments and line breaks, and refuses a line compose refuses instead of
 writing a guess back, naming the key and line but never the value. `.env` and `.env.owner` are now
 parsed apart. The hub `from_env` reader drops surrounding quotes and stops the deploy on a malformed

@@ -1115,10 +1115,14 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
         else:
             app_text = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
             owner_text = ""
-        merged = _parse_env(app_text)
-        merged.update(_parse_env(owner_text))
-    except (RuntimeError, OSError, subprocess.TimeoutExpired, ValueError) as e:
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         raise DeployError(f"cannot read {env_path}: {e}") from e
+    merged: dict[str, str] = {}
+    for file_path, text in ((env_path, app_text), (owner_path, owner_text)):
+        try:
+            merged.update(_parse_env(text))
+        except ValueError as e:  # the message names the key and line, never the value
+            raise DeployError(f"cannot read {file_path}: {e}") from None
     return merged
 
 

@@ -49,7 +49,7 @@ fabrik apply spec.yaml              # Full deployment — the orchestrator is th
 | `exceptions.py` | 64 | Typed exceptions (`ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`) |
 | `secrets.py` | 137 | `SecretsManager` — `get()` precedence: env vars → project `.env` → CSPRNG generate (`secrets.choice()`, 32-char alphanumeric). (NB the orchestrator `from_env` path reads `.env` before env vars — the two paths differ.) |
 | `validator.py` | 343 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
-| `../env_file.py` | 131 | The `.env` codec (`format_env`, `parse_env`, `EnvTemplate`) — compose's dotenv grammar for every Fabrik `.env` writer and reader (see Secrets Management) |
+| `../env_file.py` | — | The `.env` codec (`format_env`, `parse_env`, `EnvTemplate`) — compose's dotenv grammar for every Fabrik `.env` writer and reader (see Secrets Management) |
 | `deployer_ssh.py` | — | **`SSHDeployer.deploy(ctx)` (current)** — idempotent `docker compose up -d` over SSH; validates compose for template/docker/git sources; waits for container Up |
 | `infrastructure.py` | 1002 | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` — shape-driven dispatcher invoked between Deploy and Verify; runs postgres (+`DATABASE_URL` inject) → redis (+`REDIS_URL`) → gatus → backrest → glitchtip+DSN → grafana annotation → authelia rules (+ `^/api/` bypass) → meilisearch → prometheus → watchdog; a `depends.postgres`/`depends.postgres_seed`/`depends.redis` beside a false or absent flag is named in the skip reason and logged at WARNING (`depends_contradiction`, W-81524f52) |
 | `verifier.py` | 542 | `DeploymentVerifier.verify(ctx)` — HTTP 200 on the path declared in `spec["health"]["path"]` (see Lesson 32 — was previously hardcoded to `/health` via a silent fallback that masked all non-`/health` deploys as 404s; fixed B23, 2026-04-28), DNS resolves, Authelia-middleware + api-bypass checks. Workers (no HTTP) skip the HTTP probe — the compose healthcheck is the proof (B35). DSN verification lives in the glitchtip registrar, not here; `check_ssl()` exists as a standalone helper, not called by `verify()`. |
@@ -173,9 +173,11 @@ The orchestrator automatically loads secrets from the project's `.env` file duri
 **The `.env` format** (`src/fabrik/env_file.py`, W-2ae286e2). The hub `from_env` reader, the
 deployed `.env`/`.env.owner` writer and reader, and `.env.example` all use one codec built to docker
 compose's dotenv grammar. A spec `env:` value keeps its `$` as a compose interpolation
-(`LOG_LEVEL=${LOG_LEVEL:-INFO}`); every other value — a secret, a registrar value — is literal:
-single-quoted (`API_KEY='a$b'`), or double-quoted with `\$`, `\\`, `\"`, `\n`, `\r`, `\t` escapes when
-it also holds `'`, `\` or a line break. The reader follows compose: single quotes are literal, a
+(`LOG_LEVEL=${LOG_LEVEL:-INFO}`); in every other value — a secret, a registrar value — a `$` is
+literal. A value is written bare unless it holds a space, `#`, a quote, `\`, a TAB, a line break or a
+literal `$`; a literal holding `$` is single-quoted (`API_KEY='a$b'`) when it holds no `'`, `\` or line
+break, and every other quoted value is double-quoted with `\$`, `\\`, `\"`, `\n`, `\r`, `\t` escapes.
+The reader follows compose: single quotes are literal, a
 ` #` ends an unquoted value, text after a closing quote is ignored, and an unterminated quote or a
 second quoted word after the closing quote aborts the read (compose refuses the same file); the error
 names the key and line, never the value, and a malformed hub `.env` stops the deploy. A hand-written template is written back unchanged. The

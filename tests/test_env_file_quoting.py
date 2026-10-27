@@ -199,6 +199,19 @@ def test_env_never_absorbs_the_owner_file(tmp_path: Path) -> None:
     assert merged == {"APP": "ok", "DATABASE_URL_OWNER": "postgres://o:p@h/db"}
 
 
+def test_a_broken_owner_file_is_named_as_the_owner_file(tmp_path: Path) -> None:
+    from fabrik.orchestrator.deployer_ssh import _read_env_file
+    from fabrik.orchestrator.exceptions import DeployError
+
+    (tmp_path / ".env").write_text("APP=ok\n")
+    (tmp_path / ".env.owner").write_text('DATABASE_URL_OWNER="postgres://o:s3cret@h/db\n')
+    with pytest.raises(DeployError) as caught:
+        _read_env_file("/opt/my-app", _stripping_ssh(tmp_path))
+    message = str(caught.value)
+    assert "/opt/my-app/.env.owner" in message and "DATABASE_URL_OWNER at line 1" in message
+    assert "s3cret" not in message
+
+
 @pytest.mark.parametrize(
     ("env", "owner", "expected"),
     [

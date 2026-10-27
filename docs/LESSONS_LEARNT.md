@@ -6,7 +6,7 @@
 - **What happened:** W-2ae286e2 measured docker compose's `.env` grammar in real containers before the
   design (20 cases), and the design still stated five rules compose does not follow. The two critique seats
   each ran their own container probes and found them: compose cuts an unquoted value only at space-hash
-  (not TAB-hash), ignores text after a closing quote, keeps a bare CR, lets single quotes span lines, and
+  (not TAB-hash), ignores text after a closing quote, keeps a CR inside an unquoted value (`K=a<CR>b`), lets single quotes span lines, and
   refuses an unterminated quote. Every one would have been a value written back corrupted on the next
   read-modify-write.
 - **Rule:** when a parser must agree with another tool, list the classes each branch reads (each whitespace
