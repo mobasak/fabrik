@@ -148,7 +148,7 @@ backup:
 - **Domain validation**: Blocks localhost, private IPs, internal TLDs (SSRF prevention)
 - **DNS resolution for SSRF**: `is_private_ip()` resolves hostnames via `socket.getaddrinfo()` before checking private ranges — catches DNS-rebinding attacks (e.g., `internal.corp` → `10.0.0.1`)
 - **Path traversal prevention**: Template paths are validated with `.resolve().relative_to()` to prevent directory escape (e.g., `../../etc/passwd`)
-- **Compose-pasted values**: `health.path` (`spec_loader.HEALTH_PATH_RE`), a non-empty `depends.postgres` (`POSTGRES_IDENT_RE`) and `source.image_port` (an int or ASCII digits, 1-65535) are refused at step 1, because the apply path loads a raw dict and these values are pasted into compose probe URLs, the Traefik port label and the `DATABASE_URL` default (W-ff313a14)
+- **Compose-pasted values**: `health.path` (`spec_loader.HEALTH_PATH_RE`), a non-empty `depends.postgres` (`POSTGRES_IDENT_RE`) and `source.image_port` (an int or ASCII digits, 1-65535) are refused by `SpecValidator.validate`, before DNS or any registrar runs, because the apply path loads a raw dict and these values are pasted into compose probe URLs, the Traefik port label and the `DATABASE_URL` default (W-ff313a14)
 - **HTTPS enforcement**: Health checks only allow `https://` URLs
 - **CSPRNG secrets**: Auto-generated secrets use `secrets` module (32 char alphanumeric)
 - **Rollback safety**: Only resources created in current run are rolled back
