@@ -148,17 +148,21 @@ def _fill_credentials(loaded: dict[str, dict]) -> list[str]:
     donor (operator ruling 2026-10-07, D-641): filling from it re-wrote a revoked Grafana token
     twice while printing OK (01M1A3A698), and a rotated key can never be re-emitted stale when the
     only sources are the places a rotation is written to."""
-    roster: dict[str, dict] = {}
+    servers: object = None
     try:
         data = json.loads(ROSTER_PATH.read_text())
-        roster = data.get("mcpServers") or {}
-    except (OSError, ValueError):
-        roster = {}
+        servers = data.get("mcpServers") if isinstance(data, dict) else None
+    except (OSError, ValueError, RecursionError):  # a deeply nested file overflows json.loads
+        pass
+    # a roster of a wrong shape, at any level, is no donor, never a crash (W-f7772267 (b))
+    roster: dict = servers if isinstance(servers, dict) else {}
     dotenv = _env_file_values(HUB_ENV_PATH)
     unresolved: list[str] = []
     for name, entry in loaded.items():
         env = entry.get("env") or {}
-        donor = (roster.get(name) or {}).get("env") or {}
+        donor_entry = roster.get(name)
+        donor = donor_entry.get("env") if isinstance(donor_entry, dict) else None
+        donor = donor if isinstance(donor, dict) else {}
         for k, v in env.items():
             if not (isinstance(v, str) and _PLACEHOLDER_RE.match(v)):
                 continue
@@ -221,8 +225,12 @@ def _repo_type(repo: Path) -> str | None:
     or no `type:` line). A `type:` line the grammar cannot read returns it raw, so it rules as an unknown type
     (a visible SKIP), never as untyped."""
     py = repo / "project.yaml"
-    if not py.is_file():
+    # only a MISSING file is untyped (W-f7772267 (g)); anything else that is no regular file — a directory, a dangling or
+    # looping link, a FIFO, whose read blocks with no writer — is unreadable and never opened
+    if not (py.exists() or py.is_symlink()):
         return None
+    if not py.is_file():
+        return "(unreadable: not a regular file)"
     try:
         text = py.read_text(encoding="utf-8", errors="replace")
     except (
@@ -233,7 +241,8 @@ def _repo_type(repo: Path) -> str | None:
     if m:
         return m.group(1)
     raw = re.search(r"^type:(.*)$", text, re.M)
-    return f"(unreadable: {raw.group(1).strip()[:40]})" if raw else None
+    # `(unparsed:`, never `(unreadable:`: only an OSError is a file the emitter could not read (W-f7772267 (g))
+    return f"(unparsed: {raw.group(1).strip()[:40]})" if raw else None
 
 
 def _database_url(repo: Path) -> str | None:
@@ -371,7 +380,13 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
         return "SKIP (`.mcp.json` is a symlink — never written through it; make it a plain file)"
     servers = derive_servers(repo, defs)
     if servers is None:
-        return "SKIP"
+        # an unreadable project.yaml is no ruling to apply: a named error, which fails the run (W-f7772267 (g))
+        rtype = _repo_type(repo) or ""
+        return (
+            f"SKIP (error: project.yaml {rtype[1:-1]})"
+            if rtype.startswith("(unreadable:")
+            else "SKIP"
+        )
     payload = json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n"
     if target.is_file() and target.read_text() == payload:
         verdict = "OK"
