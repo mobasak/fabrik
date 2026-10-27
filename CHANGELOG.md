@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — deployed `.env` values reach the container exactly: a secret's `$` is no longer interpolated (2026-10-27)
+
+`_format_env` never escaped `$`, so a secret `a$b` was written as `K=a$b` and docker compose delivered
+`a`, through `env_file` and `${K}` interpolation alike. A new codec, `src/fabrik/env_file.py`, now writes
+and reads every Fabrik `.env` to compose's own dotenv grammar. A spec `env:` value keeps its `$` as a
+compose interpolation; every other value is literal, single-quoted or `\$`-escaped. The reader matches
+compose on quotes, escapes, ` #` comments and line breaks, and refuses an unterminated quote instead of
+writing a guess back. `.env` and `.env.owner` are now parsed apart. The hub `from_env` reader drops
+surrounding quotes, a `from_file` secret loses its trailing newline, and `.env.example` lines are quoted
+so a newline cannot inject a line (W-2ae286e2).
+
 ### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
 
 Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value

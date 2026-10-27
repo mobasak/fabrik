@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A parser built to match a consumer is probed on every character class it branches on (2026-10-27)
+
+- **What happened:** W-2ae286e2 measured docker compose's `.env` grammar in real containers before the
+  design (20 cases), and the design still stated five rules compose does not follow. The two critique seats
+  each ran their own container probes and found them: compose cuts an unquoted value only at space-hash
+  (not TAB-hash), ignores text after a closing quote, keeps a bare CR, lets single quotes span lines, and
+  refuses an unterminated quote. Every one would have been a value written back corrupted on the next
+  read-modify-write.
+- **Rule:** when a parser must agree with another tool, list the classes each branch reads (each whitespace
+  kind, each line terminator, the text after a closing delimiter, end of input inside a delimiter) and run
+  the real tool on one case per class before writing the grammar down. The cases you thought of are the
+  ones you already handle.
+
 ## Hardening one stat call against EACCES means sweeping every stat on the same path (2026-10-27)
 
 - **What happened:** W-f7772267 (k) wrapped `_repo_type`'s `exists()` and the scope check's `mcp_json.is_file()`,

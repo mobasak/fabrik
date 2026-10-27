@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T04:16:02.791829Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f62a2cdc",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: route load_dotenv through fabrik.env_file.parse_env (str() the values), keep tests/orchestrator/test_secrets.py:64-70 green, red-first on an escaped-quote line",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Hub secrets reader src/fabrik/orchestrator/secrets.py:25-48 load_dotenv strips quotes with value.strip().strip(\"\\\"'\") — keeps \\\" and \\$ escapes, never cuts a \" #\" comment — while every other Fabrik .env reader now uses fabrik.env_file.parse_env (W-2ae286e2). Reached only when os.environ lacks the key (config.py loads the hub .env through python-dotenv first)."
+}
