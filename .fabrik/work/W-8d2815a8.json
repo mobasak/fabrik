@@ -17,10 +17,10 @@
     "520374573faa76a21d8efb841dcff1ff020062804eaabc5390fdfc736fa17f57"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-27: 'we will keep our rules of course ... finish them asap and we will rework over them.' — A: keep every rule, finish the remaining units now; rule rework is a later program",
   "owner": "",
   "priority": 2,
   "question": "Should the lean rewrite keep every rule (and accept that most commands shrink only 5–30%), or may it retire rules that a panel judges unneeded, in exchange for real cuts?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should the lean rewrite keep every rule (and accept that most commands shrink only 5–30%), or may it retire rules that a panel judges unneeded, in exchange for real cuts?"
 }
