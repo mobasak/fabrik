@@ -1211,6 +1211,7 @@ class TestTemplatePlaceholderRowsAreNeverStamped:
             "[System Overhaul]",
             "[Item]",
             "_[TBD]_",
+            "[]",
         ],
     )
     def test_placeholder_item_cell_is_never_stamped(self, item):
@@ -1233,6 +1234,8 @@ class TestTemplatePlaceholderRowsAreNeverStamped:
             "[WIP] Fix login",
             "Fix [Feature] parsing",
             "**[x]",
+            "**[x]_",
+            "_[x]**",
         ],
     )
     def test_bracket_near_misses_still_stamp(self, item):

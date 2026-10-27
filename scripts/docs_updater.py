@@ -1372,8 +1372,9 @@ _BACKLOG_SEPARATOR_RE = re.compile(r"^\|?[\s:|-]*-[\s:|-]*\|?$")
 # `**[System Overhaul]**` — is the scaffold template's fill-in-the-blank, never a work
 # item (both template generations ship such rows as live table rows). Emphasis must be
 # balanced: `(?(1)\1)` repeats the opening run, since a plain `\1` never matches when
-# the optional group did not. A link, a reference link, `[[wiki]]` or any text outside
-# the brackets is not a placeholder. Module-level so work.py can import it.
+# the optional group did not. An inline link `[a](x)`, a full reference link `[a][b]`,
+# `[[wiki]]` or any text outside the brackets is not a placeholder; a lone `[Title]` is,
+# whatever it says (0 real items are written that way across the fleet's backlogs).
 _BACKLOG_PLACEHOLDER_ITEM_RE = re.compile(r"^(\*{1,3}|_{1,3})?\[[^\]\n]*\](?(1)\1)$")
 _BACKLOG_TAG_HEADER = "Tag"
 # D5: the hub's own "Now" table names its owner cell `Owner`, never `Tag` (its
