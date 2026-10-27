@@ -1059,15 +1059,17 @@ def _render_agent(src: Path, frags: dict[str, str]) -> str:
 
 
 _NOT_REGULAR = (
-    "not a regular file (a directory, FIFO, socket or device, or a link to one) — remove it by hand, then re-render"
+    "not a regular file (a directory, FIFO, socket, device or symlink) — remove it by hand, then re-render"
 )
 
 
 def _installed_text(inst: Path) -> str | None:
     """An installed KEPT file's text, or None when it is not a regular file: a FIFO there blocks the
     read forever and a directory raises IsADirectoryError, so the gate reports it instead of reading
-    it (W-21f88ec3). The caller has already reported an absent path as MISSING."""
-    if not inst.is_file():
+    it (W-21f88ec3). A symlink is refused too, whatever it points at: the render refuses to write
+    through one (`_preflight`'s `_no_link`), so the gate must not pass it. The caller has already
+    reported an absent path, a dangling link included, as MISSING."""
+    if inst.is_symlink() or not inst.is_file():
         return None
     return inst.read_text(errors="replace")
 

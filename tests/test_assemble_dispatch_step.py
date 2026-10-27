@@ -1055,28 +1055,36 @@ def test_render_refuses_a_fifo_at_a_kept_name(tmp_path, tree):
         kept.unlink(missing_ok=True)  # pytest keeps tmp dirs and nothing else sweeps a FIFO
 
 
-@pytest.mark.parametrize("shape", ["fifo", "directory"])
+@pytest.mark.parametrize("shape", ["fifo", "directory", "symlink"])
 @pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
 def test_the_gate_reports_a_non_regular_file_at_a_kept_name(tmp_path, monkeypatch, capsys, tree, shape):
     """W-21f88ec3: the gate compares every kept name's installed text. A FIFO there blocked the read
-    forever and a directory crashed it with IsADirectoryError; both are now one drift line and exit 1.
-    The ledger and measure passes are the orphan-FIFO test's spies, so the alarm bounds only the
-    installed-tree reads."""
+    forever, a directory crashed it with IsADirectoryError, and a symlink to a byte-identical copy
+    passed although the render refuses to write through it; each is now one drift line and exit 1.
+    The ledger and measure passes are stubbed to their empty results, so nothing slow runs inside the
+    alarm, which wraps the whole check(): its temp render as well as the installed-tree reads."""
     if shape == "fifo" and not hasattr(os, "mkfifo"):
         pytest.skip("no mkfifo on this platform")
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
     kept = _kept_name(tree, d, s, a)
-    kept.unlink()
-    if shape == "fifo":
-        os.mkfifo(kept)
-    else:
-        kept.mkdir()
     monkeypatch.setattr(ac.command_rules, "losses", lambda *args, **kwargs: [])
     monkeypatch.setattr(ac.command_measure, "findings", lambda *args, **kwargs: ([], []))
     monkeypatch.setattr(ac, "OUT", d)
     monkeypatch.setattr(ac, "SKILLS", s)
     monkeypatch.setattr(ac, "AGENTS", a)
+    if shape == "symlink":
+        # the target sits outside every tree the gate walks, under a name no glob matches
+        target = tmp_path / "outside" / f"{kept.name}.target"
+        target.parent.mkdir()
+        kept.rename(target)
+        kept.symlink_to(target)
+    else:
+        kept.unlink()
+        if shape == "fifo":
+            os.mkfifo(kept)
+        else:
+            kept.mkdir()
     try:
         with _within(20, "check()"), pytest.raises(SystemExit) as exc:
             ac.check()
