@@ -150,7 +150,7 @@ class Health(BaseModel):
     @field_validator("start_period")
     @classmethod
     def _blank_start_period_is_unset(cls, v: str | None) -> str | None:
-        # A blank value is truthy in Jinja and would render `start_period:` (YAML null).
+        # A whitespace-only value is truthy in Jinja and would render `start_period:` (YAML null).
         return v.strip() or None if v is not None else None
 
 

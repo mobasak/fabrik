@@ -1560,7 +1560,8 @@ def _assert_deployed_env_present(name: str) -> None:
 
 def _raw_duration(health: dict[str, Any], key: str, default: str) -> object:
     value = health.get(key)
-    return default if value is None or value == "" else value
+    unset = value is None or (isinstance(value, str) and not value.strip())  # as `Health` reads it
+    return default if unset else value
 
 
 def _generate_docker_compose(
@@ -1580,7 +1581,7 @@ def _generate_docker_compose(
     # nonzero otherwise — works in alpine, debian, ubuntu, distroless-busybox.
     health = spec.get("health", {}) if isinstance(spec.get("health"), dict) else {}
     health_path = health.get("path", "/health")
-    # A raw spec dict never passes `Spec`: an absent, null or empty value takes the default (a
+    # A raw spec dict never passes `Spec`: an absent, null or blank value takes the default (a
     # model_dump'd spec carries `start_period: None`), and any other value is written as given so
     # `_validate_compose` refuses a non-string one instead of it being swapped (W-3197a125).
     health_interval = _raw_duration(health, "interval", "30s")

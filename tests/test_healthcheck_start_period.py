@@ -60,7 +60,8 @@ def _render(spec: Spec) -> str:
     return renderer.render(spec, dry_run=True)["compose.yaml"]
 
 
-_SCRATCH = Path(tempfile.mkdtemp(prefix="start-period-render-"))
+# A dry run writes nothing, so the existing system temp dir serves and no directory is left behind.
+_SCRATCH = Path(tempfile.gettempdir())
 # Templates that hardcode their probe and never read the spec's health block, and the companion
 # partial every template includes for `companion_services`.
 FIXED = {"file-worker": "30s"}
@@ -131,14 +132,15 @@ def test_the_docker_source_compose_honours_start_period(health: dict[str, str], 
 
 
 @pytest.mark.parametrize("key", ["interval", "start_period"])
-@pytest.mark.parametrize("bad", [None, 0])
+@pytest.mark.parametrize("bad", [None, "", "  ", 0])
 def test_the_docker_source_compose_hands_a_bad_raw_duration_to_the_gate(
     key: str, bad: object
 ) -> None:
-    """A raw spec dict skips `Spec`: a null is the default, any other value reaches the gate as is."""
+    """A raw spec dict skips `Spec`: an unset value (null, empty or blank, as `Health` reads it)
+    is the default, and any other value reaches the gate as given."""
     compose = _generate_docker_compose("my-app", "img:latest", 8000, "", {"health": {key: bad}})
     hc = yaml.safe_load(compose)["services"]["my-app"]["healthcheck"]
-    if bad is None:
+    if bad != 0:
         assert hc[key] == {"interval": "30s", "start_period": "20s"}[key], compose
     else:
         assert any(f"healthcheck.{key}" in e for e in _validate_compose(compose)), compose
