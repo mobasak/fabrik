@@ -287,6 +287,8 @@ def test_a_marker_the_shell_does_not_read_as_a_heredoc_hides_nothing() -> None:
         "echo `echo <<EOF`\ngit reset --hard",
         'echo "$(echo "<<EOF")"\ngit reset --hard',
         'echo ${x:-"}"}" <<EOF"\ngit reset --hard',
+        'echo ${x:-"}"}" <<EOF" ${y:-"}"}\ngit reset --hard',
+        'echo "$( (true); echo "<<EOF" )"\ngit reset --hard',
     ):
         assert _denied(_run(cmd)), cmd
 
@@ -303,6 +305,7 @@ def test_real_heredoc_spellings_still_hold_data() -> None:
         f'echo "$(date)" && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
         "x=\"$( (true); cat <<'EOF'\ngit reset --hard\nEOF\n)\"",
         f"echo `date` ${{HOME}} && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
+        f"echo $((1+1)) && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
     ):
         assert not _denied(_run(cmd)), cmd
 
