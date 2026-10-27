@@ -1,6 +1,6 @@
 # Review — w-f7772267-mcp-scope-k
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 77710fc4b34a8ad6a3d30f86d61a05ba0a42812b; `git diff HEAD -- scripts/enforcement/check_mcp_scope.py scripts/sysadmin/emit_mcp_project_config.py tests/enforcement/test_check_mcp_scope.py tests/test_emit_mcp_fillins.py` md5 b427970a516bab8adb15ab4d2786961d (12742 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/enforcement/check_mcp_scope.py`, `scripts/sysadmin/emit_mcp_project_config.py`, `tests/enforcement/test_check_mcp_scope.py`, `tests/test_emit_mcp_fillins.py`
 
@@ -134,6 +134,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
 | Pass 1 | native sonnet×2 + haiku×2 | found: 14, new: 14, confirmed: 12, fixed: 12, unexecuted: 0 | method: citation; shape: agent-tool; slices A (check + its test) and B (emitter hunks + fill-ins test), two finders each, box cap 3 so B-haiku went in a second wave; seats: A-sonnet 3/3 · A-haiku 5/7 · B-sonnet 4/4 · B-haiku 4/5 (confirmed/raised, a candidate both raised credits both); every candidate executed by the lead (probe_b.py, probe_a6.py, failing tests); round-zero probe — 20 fix-splice shapes (probe_r0.py); stop: confirmed 12; fix: about +150 -40 lines for 12 confirmed |
+| Pass 2 | native sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation; shape: agent-tool; the round-1 Sonnet seats of slices A and B resumed on pin p2 (digest 8cb377250ce6f5389088d1e856999051) and RE-EXECUTED their own ledgers: A 8/8 HOLDS, B 7/7 HOLDS, each test file re-run whole on the pin (122 passed, the lead's count); /opt re-measured 0 of 62 dirs unsearchable; out-of-hop notes recorded as F15 and F16, a NaN-tail note refuted by mutant M13 (its case goes red when `parse_constant` is removed); stop: closable; fix: none |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -149,7 +150,9 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 
 | Id | Verdict |
 |---|---|
-| F12 | RECORDED — measured (pre-existing, outside the diff: `--json` prints the JSON document and then the human lines on one stdout; no consumer parses it, scripts/final_gate.py runs the check plain; destination a P3 work item filed at this run's close) |
+| F12 | RECORDED — measured (pre-existing, outside the diff: `--json` prints the JSON document and then the human lines on one stdout; no consumer parses it, scripts/final_gate.py runs the check plain; destination W-f7772267's residue item W-23c9d927, priority 3) |
+| F15 | RECORDED — measured (pass 2, out of the bounded hop, pre-existing (h)/(i) design: a no-ruling warning on a mode-000 non-symlink `.mcp.json` names the project.yaml step and the re-emit but no delete step; destination W-23c9d927) |
+| F16 | RECORDED — measured (pass 2, out of the bounded hop: `_load_defs` passes non-string `env` values and a non-string `url`, neither checked before this change and neither crashing; destination W-23c9d927) |
 | F13 | REFUTED (an indented `  type: x` line is a nested YAML key, not the top-level type; `_TYPE_RE` anchors at column 0 on purpose, so untyped is correct) |
 
 ### Verdict grammar — an EXAMPLE, never rows
@@ -172,7 +175,12 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 
 ## Per-phase verdicts
 
-### Phase 1 — W-f7772267 (k) MCP scope check and emitter fill-ins: PENDING the closing pass
+### Phase 1 — W-f7772267 (k) MCP scope check and emitter fill-ins: CONVERGED
+
+Pass 1 confirmed and fixed 12 defects (commit 564ec9f62). Pass 2, the round-1 seats over their own slices,
+re-executed every claim and confirmed 0. Evidence: `scripts/enforcement/check_mcp_scope.py:87` (the guarded root
+loop), `scripts/sysadmin/emit_mcp_project_config.py:204` (the single catalog read), 18 of 18 mutants dead, and the
+live check over /opt unchanged (44 files read, 1 repo warned).
 
 ## Gate
 
@@ -181,8 +189,21 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+ "status": "success",
+ "tier": 2,
+ "passed": 57,
+ "failed": 0,
+ "skipped": 1,
+ "skipped_checks": [
+  "static tier"
+ ],
+ "failures": []
+}
 ```
+
+(`python3 scripts/final_gate.py --check --json`, summary keys verbatim; the full 30 KB output, advisory rows
+included, is in the run's scratch folder as gate-*.json.)
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
 `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>`,
