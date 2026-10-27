@@ -19,5 +19,8 @@
   "priority": 2,
   "score_reason": "UPGRADE: three approaches (collector commits / LEDGERS / split table) the build cannot settle; spec work",
   "status": "open",
+  "tags": [
+    "waits-pause"
+  ],
   "title": "kaizen_collect_v2.py leaves docs/reference/agents/kaizen-log-*.md dirty in the main checkout and relabels an agent-committed week row's date (2026-10-05 -> 2026-10-11), so merge_request.py refuses every worktree merge carrying those logs (fleet 01M4PX76WP, 2026-10-12)"
 }
