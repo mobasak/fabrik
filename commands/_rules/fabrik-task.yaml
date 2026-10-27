@@ -47,9 +47,11 @@ entries:
 - id: ft-durable-is-scratch
   # class: ban
   baseline: '`<durable>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a WSL `/tmp` wipe and the worktree''s removal), never `RUN-SCRATCH:`; one spelling, or phase 5''s `cat` reads a path phase 2 never wrote'
-  current: '`<durable>` is `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, surviving WSL `/tmp` wipe and worktree''s removal), never `RUN-SCRATCH:`: one spelling, or phase 5''s `cat` reads path phase 2 never wrote'
+  current: '`<durable>` is `SCRATCH:` path `start` prints (under the session''s own checkout''s `.tmp/runs/`, which is `<main checkout>/.tmp/runs/` in the main checkout, surviving WSL `/tmp` wipe but not a worktree''s removal), never `RUN-SCRATCH:`: one spelling, or phase 5''s `cat` reads path phase 2 never wrote'
+  changed-by:
+  - D-1288
   text:
-  - '`<durable>` is `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, surviving WSL `/tmp` wipe and worktree''s removal), never `RUN-SCRATCH:`: one spelling, or phase 5''s `cat` reads path phase 2 never wrote'
+  - '`<durable>` is `SCRATCH:` path `start` prints (under the session''s own checkout''s `.tmp/runs/`, which is `<main checkout>/.tmp/runs/` in the main checkout, surviving WSL `/tmp` wipe but not a worktree''s removal), never `RUN-SCRATCH:`: one spelling, or phase 5''s `cat` reads path phase 2 never wrote'
 - id: ft-worktree-scratch-copy
   # class: ban
   baseline: a linked-worktree session, whose Write tool refuses a main-checkout path, changes each file as a copy in its scratchpad (`cp` it from that path first when it exists) and `cp`s the whole copy back after every change, which keeps any content byte for byte; with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp)

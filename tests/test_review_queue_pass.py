@@ -628,18 +628,21 @@ def _clause(text: str, after: str, end: str = ";") -> str:
     return text[i : text.index(end, i) + len(end)]
 
 
-def test_a_worktree_lead_writes_scratch_files_by_cp() -> None:
-    """Rows 1792495473, 1792488144, 1792486681: briefs and notes left in the /tmp scratchpad died on a reboot."""
-    clause = _clause(_norm(CORE), "do so an interrupted pass keeps its pins; ")
-    assert clause == (
-        "a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail"
-        " 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its"
-        " scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears;"
-    )
+def test_a_worktree_lead_writes_scratch_files_directly() -> None:
+    """D-1288: SCRATCH is the worktree's own since D-1268, so the cp-copy workaround of rows 1792495473,
+    1792488144 and 1792486681 is gone and the pins sentence runs straight on to the tree-staging rule."""
     core = _norm(CORE)
-    assert core[core.index(clause) + len(clause) :].startswith(" and a tree"), (
-        "a clause was added after the rule"
-    )
+    assert "do so an interrupted pass keeps its pins; and a tree" in core
+    assert "01M4Y3N9GW" not in core and "refuses that main-checkout" not in core
+
+
+def test_fix_then_dispatch_the_reverifying_seats() -> None:
+    """D-1288 (mail 01M5X8W0M1): `round`'s NOT TERMINAL anchor is the round's RECORD time, so a seat
+    dispatched after the record but before its fix lands reads fresh (D-1268's accepted risk)."""
+    core = _norm(CORE)
+    rule = "**Fix, THEN dispatch the re-verifying seats:**"
+    assert rule in core
+    assert core.index(rule) < core.index("**Record the dispatch BEFORE you send it:**")
 
 
 def test_a_cwd_rooted_tool_runs_after_an_os_chdir(tmp_path: Path) -> None:
@@ -718,4 +721,3 @@ def test_the_lead_creates_each_seat_folder_before_dispatch() -> None:
         " run that same `mkdir -p` first (a no-op once the folder exists);"
     ) in core
     assert "nothing creates it for the seat" not in core
-
