@@ -898,6 +898,33 @@ def _trend_label(rounds: list[Any]) -> str:
     return "confirmed counts" if _confirmed_adopted(rounds) else "findings"
 
 
+def _stale_seat_round(rounds: list[Any]) -> tuple[int, int] | None:
+    """`(k, confirmed)` when every seat the LAST round closed was dispatched at or before round k —
+    the newest EARLIER round that confirmed defects — was recorded, else None (W-128df814, fleet row
+    1792465351: a wave round closing a round-1 seat printed TERMINAL before the fix was re-verified).
+
+    The anchor is the newest confirming round, never round N-1 alone: a quiet stale round between
+    them must not launder the next one. Fails OPEN — None — when the last round carries no
+    `dispatched_at` (no stamp, `--seats 0`, a record older than this field) or the confirming round
+    has no usable `ts`. The signal is the round's RECORD time, not the fix's: a seat dispatched
+    after the record but before the fix landed reads fresh (accepted risk). COBRA (D-253): the
+    cheapest way past it is `dispatch --seats 1` after the fix without reading it — that stamp is
+    the seats a sibling subtracts, and `dispatch --seats 0` adds no batch, so a zero stamp buys
+    nothing."""
+    if len(rounds) < 2 or not isinstance(rounds[-1], dict):
+        return None
+    at = _finite_ts(rounds[-1].get("dispatched_at"))
+    if at is None:
+        return None
+    for i in range(len(rounds) - 2, -1, -1):
+        r = rounds[i]
+        conf = _confirmed(r) if isinstance(r, dict) else None
+        if conf:
+            ts = _finite_ts(r.get("ts"))
+            return (i + 1, conf) if ts is not None and at <= ts else None
+    return None
+
+
 def _round_report(rec: dict[str, Any]) -> str:
     rounds = rec.get("rounds") or []
     classes: dict[str, str] = rec.get("classes") or {}
@@ -947,7 +974,16 @@ def _round_report(rec: dict[str, Any]) -> str:
                 for s in slices
             )
         )
-    terminal = quiet and len(rounds) >= min_rounds and not failing and not vanished
+    stale = _stale_seat_round(rounds)
+    terminal = quiet and len(rounds) >= min_rounds and not failing and not vanished and not stale
+    if quiet and len(rounds) >= min_rounds and stale:
+        k, conf = stale
+        lines.append(
+            f"⛔ NOT TERMINAL — every seat this round closed was dispatched before round {k} "
+            f"RECORDED its {conf} confirmed defect(s), so none of them can have read that round's "
+            "fix; the closing pass owes a seat dispatched after it (`dispatch --seats <n>`, then "
+            "`round`) — W-128df814"
+        )
     if quiet and len(rounds) >= min_rounds and vanished:
         lines.append(
             "⛔ NOT TERMINAL — slice ledger missing this round for ("
@@ -1449,11 +1485,13 @@ def _scrubbed_git_env() -> dict[str, str]:
 
 # A run's persistent scratch (kaizen 01M4V0B03B): the session scratchpad lives under /tmp, which a WSL
 # shutdown clears, and it held everything a resumed run needs beyond this record (phase-2 measure.md,
-# critique briefs, review pins). `start` gives every run a dir under the MAIN checkout's `.tmp/runs/`
-# — seats may read it (never $HOME/.claude*), a linked worktree's run survives `git worktree remove`,
-# and scratch_sweep never touches `.tmp`, so `start` prunes it. COBRA (D-253): the cheapest way to
-# "have scratch" without the outcome is to keep writing to the /tmp scratchpad; the counter is the
-# printed SCRATCH path the command text names, not this code.
+# critique briefs, review pins). `start` gives every run a dir under the `.tmp/runs/` of the checkout it
+# runs in — a linked worktree's own (W-128df814: its session's Write tool refuses the main checkout's
+# path; a plain `git worktree remove` deletes it with the tree) — and seats may read it (never
+# $HOME/.claude*). scratch_sweep never prunes `.tmp`, so `start` prunes every checkout's `.tmp/runs/`
+# (a finished worktree never starts again). COBRA (D-253): the cheapest way to "have scratch" without
+# the outcome is to keep writing to the /tmp scratchpad; the counter is the printed SCRATCH path the
+# command text names, not this code.
 SCRATCH_RETENTION_S = 14 * 86400
 _SCRATCH_EXCLUDE_LINE = "/.tmp/runs/"
 
@@ -1470,16 +1508,20 @@ def _git_out(cwd: Path, *args: str) -> tuple[int, str]:
     return r.returncode, r.stdout.strip()
 
 
-def _scratch_main(repo_root: str) -> Path | None:
-    """The MAIN checkout of `repo_root`'s repository — the parent of its common git dir, so every
-    worktree of one repo shares one scratch root. None when it cannot be resolved."""
-    rc, common = _git_out(
-        Path(repo_root), "rev-parse", "--path-format=absolute", "--git-common-dir"
-    )
-    if rc != 0 or not common:
-        return None
-    common_p = Path(common)
-    return common_p.parent if common_p.name == ".git" else Path(repo_root)
+def _other_checkouts(repo_root: Path) -> list[Path]:
+    """Every OTHER checkout `git worktree list --porcelain` names for `repo_root`'s repository (the
+    main one included when `repo_root` is a linked worktree) — [] when git cannot say."""
+    rc, out = _git_out(repo_root, "worktree", "list", "--porcelain")
+    if rc != 0:
+        return []
+    here = repo_root.resolve()
+    found = []
+    for line in out.splitlines():
+        if line.startswith("worktree "):
+            p = Path(line[len("worktree ") :])
+            if p.resolve() != here:
+                found.append(p)
+    return found
 
 
 def _ensure_scratch_ignored(main: Path) -> str:
@@ -1535,12 +1577,24 @@ def _prune_scratch(root: Path, keep: set[Path], now: float | None = None) -> lis
     dirs. Any doubt skips the dir. Returns NOTE lines."""
     now = time.time() if now is None else now
     notes: list[str] = []
-    if not root.is_dir():
-        return notes
-    for sid_dir in sorted(root.iterdir()):
-        if sid_dir.is_symlink() or not sid_dir.is_dir():
+    # a dir that cannot be listed (another account's tree, a permission-mangled dir, a sibling prune
+    # that removed it mid-walk) is a NOTE, never a raise: `start` prunes every checkout now, and a
+    # raise here cost the run its own scratch (W-128df814 review A-sonnet-1)
+    try:
+        if not root.is_dir():
+            return notes
+        sid_dirs = sorted(root.iterdir())
+    except OSError as exc:
+        return [f"scratch root {root} not pruned ({exc})"]
+    for sid_dir in sid_dirs:
+        try:
+            if sid_dir.is_symlink() or not sid_dir.is_dir():
+                continue
+            runs = sorted(sid_dir.iterdir())
+        except OSError as exc:
+            notes.append(f"scratch {sid_dir} not pruned ({exc})")
             continue
-        for run in sorted(sid_dir.iterdir()):
+        for run in runs:
             try:
                 if run.is_symlink() or not run.is_dir() or run.resolve() in keep:
                     continue
@@ -1595,14 +1649,16 @@ def _make_scratch(
     restart runs in a new session). An explicit `root` skips the repo and its exclude step."""
     notes: list[str] = []
     why = ""
+    others: list[Path] = []
     if root is None:
         if not repo_root:
             return None, []
-        main = _scratch_main(repo_root)
-        if main is None:
-            return None, ["the repo's main checkout did not resolve"]
-        why = _ensure_scratch_ignored(main)
-        root = main / ".tmp" / "runs"
+        # the checkout the session runs in, never the main one: a worktree-isolated session's Write
+        # tool refuses a path outside its own tree (W-128df814, superseding D-836's main-checkout root)
+        here = Path(repo_root)
+        why = _ensure_scratch_ignored(here)
+        root = here / ".tmp" / "runs"
+        others = _other_checkouts(here)
     # a seed's dir is reused only when it lies under THIS root: never another repo's checkout, and
     # never a live checkout while the test seam is on (review closing pass A)
     prev = seed.get("scratch") if seed else None
@@ -1612,6 +1668,10 @@ def _make_scratch(
             kept = Path(prev)
         else:
             notes.append(f"the seed's scratch {prev} is outside {root} — not reused")
+    elif isinstance(prev, str) and prev:
+        # a plain `git worktree remove` deletes ignored files with the tree: say the files are gone
+        # rather than hand back an empty dir at the same name (W-128df814)
+        notes.append(f"the seed's scratch {prev} no longer exists — its files are not carried")
     if why and kept is None:
         return None, [*notes, why]
     if why:
@@ -1628,7 +1688,16 @@ def _make_scratch(
         path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         return None, [f"cannot create {path} ({exc})"]
-    notes += _prune_scratch(root, keep={path.resolve(), *_scratch_referenced()})
+    keep = {path.resolve(), *_scratch_referenced()}
+    notes += _prune_scratch(root, keep=keep)
+    # a finished worktree never starts again, so its own prune never fires: every start prunes every
+    # checkout's runs, else one stale dir pins that tree as `wt-ignored-data` for ever (W-128df814)
+    for other in others:
+        o_root = other / ".tmp" / "runs"
+        # a symlinked `.tmp` or `.tmp/runs` points outside that tree: never pruned through
+        if (other / ".tmp").is_symlink() or o_root.is_symlink():
+            continue
+        notes += _prune_scratch(o_root, keep=keep)
     return path, notes
 
 
@@ -2269,6 +2338,58 @@ def _finite_ts(v: object) -> float | None:
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
         return None
     return float(v)
+
+
+def _stamp_batches(d: dict[str, Any], seats: int) -> list[list[Any]]:
+    """The live stamp's seats as `[dispatch time, n]` batches, oldest first (W-128df814).
+
+    A stamp whose `batches` do not sum to `seats` — one written before batches existed, or a
+    hand-edited one — is ONE batch at the stamp's `ts`: its seats were out at that time at the latest,
+    so a later `dispatch --seats 0` (which re-dates `ts`) can never make them read fresh. A batch time
+    that is not a finite number is kept as None: unknown, which the round report never reads as stale.
+    """
+    raw = d.get("batches")
+    out: list[list[Any]] = []
+    if isinstance(raw, list):
+        for b in raw:
+            if (
+                isinstance(b, list)
+                and len(b) == 2
+                and isinstance(b[1], int)
+                and not isinstance(b[1], bool)
+                and b[1] > 0
+            ):
+                out.append([_finite_ts(b[0]), b[1]])
+            else:
+                out = []
+                break
+    if sum(n for _t, n in out) != seats:
+        out = [[_finite_ts(d.get("ts")), seats]] if seats > 0 else []
+    return out
+
+
+def _consume_batches(batches: list[list[Any]], k: int) -> tuple[float | None, list[list[Any]]]:
+    """Close `k` seats OLDEST batch first: `(dispatch time of the newest batch touched, the batches
+    left)`. Oldest-first is the pessimistic attribution — a partial close cannot say WHICH seats
+    returned, so a stale wave seat closing alone is never credited with a fresh seat's time; when the
+    fresh one returned first instead, the close reads stale once and the next close reads fresh. A
+    touched batch with an unknown time makes the answer None (unknown, never stale)."""
+    left = [list(b) for b in batches]
+    newest: float | None = None
+    unknown = False
+    while k > 0 and left:
+        t, n = left[0]
+        if t is None:
+            unknown = True
+        else:
+            newest = t if newest is None else max(newest, t)
+        take = min(n, k)
+        k -= take
+        if take == n:
+            left.pop(0)
+        else:
+            left[0][1] = n - take
+    return (None if unknown else newest), left
 
 
 def _touch(rec: dict[str, Any]) -> None:
@@ -6720,13 +6841,21 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         prev_disp: dict = _pd if isinstance(_pd, dict) else {}
         n_rounds = len(rec.get("rounds") or [])
         carried = _int0(prev_disp.get("seats")) if prev_disp.get("round") == n_rounds else 0
+        _disp_ts = time.time()  # never `_now`: that local would shadow the module's `_now()` here
+        # W-128df814: each message's seats keep their OWN dispatch time, so a round can tell a seat
+        # sent before the last confirming round (it cannot have read that fix) from one sent after;
+        # `--seats 0` re-dates `ts` but adds no batch — a zero stamp never buys a fresh time
+        batches = (_stamp_batches(prev_disp, carried) if carried else []) + (
+            [[_disp_ts, args.seats]] if args.seats > 0 else []
+        )
         rec["dispatch"] = {
-            "ts": time.time(),
+            "ts": _disp_ts,
             "seats": carried + args.seats,
             "phase": rec.get("phase"),
             "round": n_rounds,
             # a deliberate `dispatch --seats 0` is a KNOWN zero, never "unrecorded" (round 12)
             "released": (carried + args.seats) == 0,
+            "batches": batches,
         }
         fields = _queue(
             rec, outbox, "dispatch", {"seats": rec["dispatch"]["seats"], "phase": rec.get("phase")}
@@ -6966,6 +7095,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # one round and return independently — the first `round` must release only what closed,
         # never the whole accumulated stamp (siblings read 0 while the other tickets' seats ran)
         _remaining = max(_stamped - int(_seats or 0), 0) if _stamped else 0
+        # W-128df814: WHEN the seats this round closes went out — the newest batch they came from,
+        # attributed oldest first. Absent when no stamped seat closes (no stamp, or `--seats 0`): the
+        # round report then keeps its old verdict rather than guessing.
+        _batches = _stamp_batches(_d, _stamped) if _stamped else []
+        _closing = (
+            0
+            if not _stamped or (args.seats is not None and args.seats <= 0)
+            else (min(int(_seats or 0), _stamped))
+        )
+        _dispatched_at, _left = (
+            _consume_batches(_batches, _closing) if _closing else (None, _batches)
+        )
         if args.seats is not None and _stamped and args.seats != _stamped:  # 0 disagrees too
             print(
                 (
@@ -7016,6 +7157,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # reads `rounds[-1].seats` off every fresh running record, and the first draft
                 # wrote seats to the event only — the guard read None everywhere and was inert
                 "seats": _seats,
+                **({} if _dispatched_at is None else {"dispatched_at": _dispatched_at}),
                 # the round's OWN stamp: dispatch_headroom.py dates the fallback reservation by it
                 # — `updated_ts` is a generic last-touch and re-dated a two-hour-old round on a
                 # bare `step` (round-5 finding)
@@ -7049,6 +7191,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             "phase": rec.get("phase"),
             "round": len(rounds),
             "released": _remaining == 0,
+            # the remainder keeps its own dispatch times (W-128df814)
+            "batches": _left if _remaining else [],
         }
         # ROUNDS SINCE THE LAST `step` — the signal job-agent identified. A counter that advances
         # while the phase never moves is either a convergence loop legitimately living inside one
