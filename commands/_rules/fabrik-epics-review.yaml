@@ -1,0 +1,1207 @@
+command: fabrik-epics-review
+baseline_sentences: fabrik-epics-review.baseline.txt
+baseline_sha256: '5221349f077f6eebe15dd585b456005c4a64c296faec677a767adfbb2510ce53'
+entries:
+- id: u-L4
+  class: ban
+  file: render
+  section: '# Cross-Epic Validation — converge the epic set, assign its owners'
+  baseline: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  current: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  text:
+  - 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+- id: u-L6
+  class: prose
+  file: render
+  section: '# Cross-Epic Validation — converge the epic set, assign its owners'
+  baseline: You are the cross-epic (epic-set) review orchestrator — agent-1's session, in the main checkout, the window that will later own the merges
+  current: You are the cross-epic (epic-set) review orchestrator — agent-1's session, in the main checkout, the window that will later own the merges
+  text:
+  - You are the cross-epic (epic-set) review orchestrator — agent-1's session, in the main checkout, the window that will later own the merges
+- id: u-L9
+  class: prose
+  file: render
+  section: '# Cross-Epic Validation — converge the epic set, assign its owners'
+  baseline: It writes no epic content itself; the fixup agents do (Phase 4)
+  current: It writes no epic content itself; the fixup agents do (Phase 4)
+  text:
+  - It writes no epic content itself; the fixup agents do (Phase 4)
+- id: u-L13
+  class: ban
+  file: render
+  section: '# Cross-Epic Validation — converge the epic set, assign its owners'
+  baseline: It halts only on the 3 BLOCKED cases
+  current: It halts only on the 3 BLOCKED cases
+  text:
+  - It halts only on the 3 BLOCKED cases
+- id: u-L16
+  class: ban
+  file: render
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: Every OTHER backticked path is provenance for a decision already stated inline — act on the inline sentence; open the source only if that sentence is insufficient to act on (and if it IS insufficient, that is a defect in THIS command — report it, don't silently absorb an extra read)
+  current: Every OTHER backticked path is provenance for a decision already stated inline — act on the inline sentence; open the source only if that sentence is insufficient to act on (and if it IS insufficient, that is a defect in THIS command — report it, don't silently absorb an extra read)
+  text:
+  - Every OTHER backticked path is provenance for a decision already stated inline — act on the inline sentence; open the source only if that sentence is insufficient to act on (and if it IS insufficient, that is a defect in THIS command — report it, don't silently absorb an extra read)
+- id: u-L27
+  class: prose
+  file: render
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: '`src/fabrik/orchestrator/infrastructure.py` — the applicability matrix, to check `Registrars` ↔ `Shape`'
+  current: '`src/fabrik/orchestrator/infrastructure.py` — the applicability matrix, to check `Registrars` ↔ `Shape`'
+  text:
+  - '`src/fabrik/orchestrator/infrastructure.py` — the applicability matrix, to check `Registrars` ↔ `Shape`'
+- id: u-L28
+  class: ban
+  file: render
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: '`.windsurf/rules/**` — existence check only, to confirm a cited `Rule Packs` entry is real'
+  current: '`.windsurf/rules/**` — existence check only, to confirm a cited `Rule Packs` entry is real'
+  text:
+  - '`.windsurf/rules/**` — existence check only, to confirm a cited `Rule Packs` entry is real'
+- id: u-L30
+  class: prose
+  file: render
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: During fixup — each returned agent's diff + its `final_gate.py --json` output
+  current: During fixup — each returned agent's diff + its `final_gate.py --json` output
+  text:
+  - During fixup — each returned agent's diff + its `final_gate.py --json` output
+- id: u-L36
+  class: ban
+  file: render
+  section: '## Core philosophy'
+  baseline: Read the ticket FILES from disk — never conversation memory. Enumerate with Glob; read every one fresh, every round
+  current: Read the ticket FILES from disk — never conversation memory. Enumerate with Glob; read every one fresh, every round
+  text:
+  - Read the ticket FILES from disk — never conversation memory. Enumerate with Glob; read every one fresh, every round
+- id: u-L37
+  class: prose
+  file: render
+  section: '## Core philosophy'
+  baseline: Every finding is binary + evidenced — PASS/FAIL with the specific `path:line` (or the two contradicting tickets)
+  current: Every finding is binary + evidenced — PASS/FAIL with the specific `path:line` (or the two contradicting tickets)
+  text:
+  - Every finding is binary + evidenced — PASS/FAIL with the specific `path:line` (or the two contradicting tickets)
+- id: u-L41
+  class: prose
+  file: render
+  section: '## Core philosophy'
+  baseline: Surgical fix here; boundary re-cuts route back. A missing Metadata field, a wrong title format, an absent `Owned paths` → a scoped fixup, dispatched and re-reviewed
+  current: Surgical fix here; boundary re-cuts route back. A missing Metadata field, a wrong title format, an absent `Owned paths` → a scoped fixup, dispatched and re-reviewed
+  text:
+  - Surgical fix here; boundary re-cuts route back. A missing Metadata field, a wrong title format, an absent `Owned paths` → a scoped fixup, dispatched and re-reviewed
+- id: u-L43
+  class: ban
+  file: render
+  section: '## Core philosophy'
+  baseline: 'The only cases that PAUSE a finding are the 3 BLOCKED cases (CLAUDE.md § Behavior): 3 consecutive same-test failures on one fixup · missing infra · an unresolvable spec contradiction'
+  current: 'The only cases that PAUSE a finding are the 3 BLOCKED cases (CLAUDE.md § Behavior): 3 consecutive same-test failures on one fixup · missing infra · an unresolvable spec contradiction'
+  text:
+  - 'The only cases that PAUSE a finding are the 3 BLOCKED cases (CLAUDE.md § Behavior): 3 consecutive same-test failures on one fixup · missing infra · an unresolvable spec contradiction'
+- id: u-L45
+  class: prose
+  file: render
+  section: '## Core philosophy'
+  baseline: ⚠️ A missing or corrupt upstream artifact is a ROUTE-BACK, not a halt — hand it to `/fabrik-vision` (the Vision Summary) or `/fabrik-epics` (a ticket, the Infrastructure Decisions file, the graph), which re-emit, and re-enter here
+  current: ⚠️ A missing or corrupt upstream artifact is a ROUTE-BACK, not a halt — hand it to `/fabrik-vision` (the Vision Summary) or `/fabrik-epics` (a ticket, the Infrastructure Decisions file, the graph), which re-emit, and re-enter here
+  text:
+  - ⚠️ A missing or corrupt upstream artifact is a ROUTE-BACK, not a halt — hand it to `/fabrik-vision` (the Vision Summary) or `/fabrik-epics` (a ticket, the Infrastructure Decisions file, the graph), which re-emit, and re-enter here
+- id: u-L63
+  class: prose
+  file: render
+  baseline: '⚠️ Constraints-Digest citation (BINDING): every architecture, tool, or dependency selection in this command cites a row of the upstream CONSTRAINTS DIGEST or states `unconstrained`; a selection that collides with a digest row is DEAD'
+  current: '⚠️ Constraints-Digest citation (BINDING): every architecture, tool, or dependency selection in this command cites a row of the upstream CONSTRAINTS DIGEST or states `unconstrained`; a selection that collides with a digest row is DEAD'
+  text:
+  - '⚠️ Constraints-Digest citation (BINDING): every architecture, tool, or dependency selection in this command cites a row of the upstream CONSTRAINTS DIGEST or states `unconstrained`; a selection that collides with a digest row is DEAD'
+- id: u-L64
+  class: ban
+  file: render
+  baseline: 'If no digest artifact exists upstream, STOP — run the Rule-grounding gate above before proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed'
+  current: 'If no digest artifact exists upstream, STOP — run the Rule-grounding gate above before proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed'
+  text:
+  - 'If no digest artifact exists upstream, STOP — run the Rule-grounding gate above before proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed'
+- id: u-L65
+  class: prose
+  file: render
+  baseline: Read all artifacts. Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph
+  current: Read all artifacts. Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph
+  text:
+  - Read all artifacts. Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision Summary + Infrastructure Decisions + Dependency Graph
+- id: u-L66
+  class: prose
+  file: render
+  baseline: 'If any is missing, do not review — ROUTE BACK (not a halt): state which, hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, or the Infrastructure Decisions FILE), and re-enter here once it re-emits'
+  current: 'If any is missing, do not review — ROUTE BACK (not a halt): state which, hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, or the Infrastructure Decisions FILE), and re-enter here once it re-emits'
+  text:
+  - 'If any is missing, do not review — ROUTE BACK (not a halt): state which, hand to the creating command (`/fabrik-vision` for the Vision Summary; `/fabrik-epics` for the decomposition, a ticket, the graph, or the Infrastructure Decisions FILE), and re-enter here once it re-emits'
+- id: u-L67
+  class: prose
+  file: render
+  baseline: 'State: *"Read the Vision Summary + Infrastructure Decisions and [M] epic tickets; owner set: <names>."*'
+  current: 'State: *"Read the Vision Summary + Infrastructure Decisions and [M] epic tickets; owner set: <names>."*'
+  text:
+  - 'State: *"Read the Vision Summary + Infrastructure Decisions and [M] epic tickets; owner set: <names>."*'
+- id: u-L71
+  class: ban
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: The script is HUB-ONLY (no synced copy), so it is always invoked by its hub path
+  current: The script is HUB-ONLY (no synced copy), so it is always invoked by its hub path
+  text:
+  - The script is HUB-ONLY (no synced copy), so it is always invoked by its hub path
+- id: u-L72
+  class: ban
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: 'Three commands, in this order, and the order is the point: `--check` proves integrity, `--assign` writes the owners, `--check --owners` proves the assignment — so the owner row can never fail on a first pass, and no lens ever runs over an unassigned or broken set'
+  current: 'Three commands, in this order, and the order is the point: `--check` proves integrity, `--assign` writes the owners, `--check --owners` proves the assignment — so the owner row can never fail on a first pass, and no lens ever runs over an unassigned or broken set'
+  text:
+  - 'Three commands, in this order, and the order is the point: `--check` proves integrity, `--assign` writes the owners, `--check --owners` proves the assignment — so the owner row can never fail on a first pass, and no lens ever runs over an unassigned or broken set'
+- id: u-L75
+  class: prose
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: 'PASS (exit 0, `INTEGRITY: PASS`) → 2b'
+  current: 'PASS (exit 0, `INTEGRITY: PASS`) → 2b'
+  text:
+  - 'PASS (exit 0, `INTEGRITY: PASS`) → 2b'
+- id: u-L76
+  class: prose
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: 'FAIL (exit 1, `INTEGRITY: FAIL` + one line per finding) → STOP on the findings'
+  current: 'FAIL (exit 1, `INTEGRITY: FAIL` + one line per finding) → STOP on the findings'
+  text:
+  - 'FAIL (exit 1, `INTEGRITY: FAIL` + one line per finding) → STOP on the findings'
+- id: u-L77
+  class: ban
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: '`--assign` is NEVER invoked over a failing set (it would refuse anyway — exit 1, no file touched — but the refusal is the machinery''s backstop, not your plan)'
+  current: '`--assign` is NEVER invoked over a failing set (it would refuse anyway — exit 1, no file touched — but the refusal is the machinery''s backstop, not your plan)'
+  text:
+  - '`--assign` is NEVER invoked over a failing set (it would refuse anyway — exit 1, no file touched — but the refusal is the machinery''s backstop, not your plan)'
+- id: u-L78
+  class: prose
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: 'Route by cause, off the machine verdict, not a hand diff:'
+  current: 'Route by cause, off the machine verdict, not a hand diff:'
+  text:
+  - 'Route by cause, off the machine verdict, not a hand diff:'
+- id: u-L81
+  class: ban
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: '*no frontmatter / bad title / bad `epic_n` / duplicate `owner:` line / a block list under a scalar field* → `/fabrik-epics` (it must emit the epic-artifact schema)'
+  current: '*no frontmatter / bad title / bad `epic_n` / duplicate `owner:` line / a block list under a scalar field* → `/fabrik-epics` (it must emit the epic-artifact schema)'
+  text:
+  - '*no frontmatter / bad title / bad `epic_n` / duplicate `owner:` line / a block list under a scalar field* → `/fabrik-epics` (it must emit the epic-artifact schema)'
+- id: u-L86
+  class: ban
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: Re-run this gate after any fix — a recreated ticket has never passed integrity
+  current: Re-run this gate after any fix — a recreated ticket has never passed integrity
+  text:
+  - Re-run this gate after any fix — a recreated ticket has never passed integrity
+- id: u-L88
+  class: prose
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: '2b — assign the owners (the operator''s names, agent-1 first):'
+  current: '2b — assign the owners (the operator''s names, agent-1 first):'
+  text:
+  - '2b — assign the owners (the operator''s names, agent-1 first):'
+- id: u-L92
+  class: ban
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: 'It refuses (`ASSIGN: REFUSED`, exit 1, no file touched) when integrity reports any finding OTHER than the owner-membership class `--check --owners` adds (that class is exactly what 2b exists to clear — a set with empty `owner:` fields is assignable, not refused) — an EMPTY `--epics-dir` included (nothing to assign is a refusal, never a vacuous OK)'
+  current: 'It refuses (`ASSIGN: REFUSED`, exit 1, no file touched) when integrity reports any finding OTHER than the owner-membership class `--check --owners` adds (that class is exactly what 2b exists to clear — a set with empty `owner:` fields is assignable, not refused) — an EMPTY `--epics-dir` included (nothing to assign is a refusal, never a vacuous OK)'
+  text:
+  - 'It refuses (`ASSIGN: REFUSED`, exit 1, no file touched) when integrity reports any finding OTHER than the owner-membership class `--check --owners` adds (that class is exactly what 2b exists to clear — a set with empty `owner:` fields is assignable, not refused) — an EMPTY `--epics-dir` included (nothing to assign is a refusal, never a vacuous OK)'
+- id: u-L93
+  class: ban
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: 'A refusal after a PASS at 2a is a defect in the machinery: file it (§ Close-out feedback), never hand-edit `owner:` around it'
+  current: 'A refusal after a PASS at 2a is a defect in the machinery: file it (§ Close-out feedback), never hand-edit `owner:` around it'
+  text:
+  - 'A refusal after a PASS at 2a is a defect in the machinery: file it (§ Close-out feedback), never hand-edit `owner:` around it'
+- id: u-L96
+  class: prose
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: '`--assign` is its own action — it cannot be combined with `--check` or `--json`'
+  current: '`--assign` is its own action — it cannot be combined with `--check` or `--json`'
+  text:
+  - '`--assign` is its own action — it cannot be combined with `--check` or `--json`'
+- id: u-L103
+  class: ban
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: Never edit `owner:` by hand; re-run 2a → 2b → 2c, and if the same finding survives three runs it is BLOCKED case 1
+  current: Never edit `owner:` by hand; re-run 2a → 2b → 2c, and if the same finding survives three runs it is BLOCKED case 1
+  text:
+  - Never edit `owner:` by hand; re-run 2a → 2b → 2c, and if the same finding survives three runs it is BLOCKED case 1
+- id: u-L104
+  class: ban
+  file: render
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: Only after 2c passes does any lens run
+  current: Only after 2c passes does any lens run
+  text:
+  - Only after 2c passes does any lens run
+- id: u-L117
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: Each reviewer commits to a lens before seeing the others; you refute/merge/decide
+  current: Each reviewer commits to a lens before seeing the others; you refute/merge/decide
+  text:
+  - Each reviewer commits to a lens before seeing the others; you refute/merge/decide
+- id: u-L126
+  class: ban
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| No phantom features | epics contain only inventory features | Epic N claims "[name]" absent from the Vision Summary |'
+  current: '| No phantom features | epics contain only inventory features | Epic N claims "[name]" absent from the Vision Summary |'
+  text:
+  - '| No phantom features | epics contain only inventory features | Epic N claims "[name]" absent from the Vision Summary |'
+- id: u-L128
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: 'Epic ticket structure — per ticket:'
+  current: 'Epic ticket structure — per ticket:'
+  text:
+  - 'Epic ticket structure — per ticket:'
+- id: u-L132
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| `### Summary` · `### Scope` (In+Out) | present | missing |'
+  current: '| `### Summary` · `### Scope` (In+Out) | present | missing |'
+  text:
+  - '| `### Summary` · `### Scope` (In+Out) | present | missing |'
+- id: u-L136
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| `### Out of Scope` | present — other epics, vision-level exclusions, or an explicit `none — …` reason | missing, vague, OR cites a non-existent Epic N |'
+  current: '| `### Out of Scope` | present — other epics, vision-level exclusions, or an explicit `none — …` reason | missing, vague, OR cites a non-existent Epic N |'
+  text:
+  - '| `### Out of Scope` | present — other epics, vision-level exclusions, or an explicit `none — …` reason | missing, vague, OR cites a non-existent Epic N |'
+- id: u-L140
+  class: ban
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Dependencies name artifacts | tables/functions/endpoints/env vars named (or explicit `none` for atomic-root / terminal-output epics) | vague only ("Epic 1''s infrastructure") |'
+  current: '| Dependencies name artifacts | tables/functions/endpoints/env vars named (or explicit `none` for atomic-root / terminal-output epics) | vague only ("Epic 1''s infrastructure") |'
+  text:
+  - '| Dependencies name artifacts | tables/functions/endpoints/env vars named (or explicit `none` for atomic-root / terminal-output epics) | vague only ("Epic 1''s infrastructure") |'
+- id: u-L143
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: Dependency graph — cross-reference the graph against every `### Dependencies`
+  current: Dependency graph — cross-reference the graph against every `### Dependencies`
+  text:
+  - Dependency graph — cross-reference the graph against every `### Dependencies`
+- id: u-L145
+  class: ban
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: Terminology is `Phase`, never `Batch` (consistent with `epic_order.py --json`)
+  current: Terminology is `Phase`, never `Batch` (consistent with `epic_order.py --json`)
+  text:
+  - Terminology is `Phase`, never `Batch` (consistent with `epic_order.py --json`)
+- id: u-L148
+  class: ban
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: A surfaced observation, not a hard FAIL — but never unremarked
+  current: A surfaced observation, not a hard FAIL — but never unremarked
+  text:
+  - A surfaced observation, not a hard FAIL — but never unremarked
+- id: u-L151
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| No cycles | DAG validated | Epic A → B → A |'
+  current: '| No cycles | DAG validated | Epic A → B → A |'
+  text:
+  - '| No cycles | DAG validated | Epic A → B → A |'
+- id: u-L152
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Graph matches tickets | every dependency in the graph appears in a `### Dependencies` | Epic N depends on M but the graph omits it |'
+  current: '| Graph matches tickets | every dependency in the graph appears in a `### Dependencies` | Epic N depends on M but the graph omits it |'
+  text:
+  - '| Graph matches tickets | every dependency in the graph appears in a `### Dependencies` | Epic N depends on M but the graph omits it |'
+- id: u-L154
+  class: ban
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Parallel lanes identified | every set of epics with no mutual dependency is marked `Parallel with:` — this row DEFINES the input set the two rows below intersect | a mutually-independent pair left unmarked → the disjointness + migration gates never see it, and the owner loses free parallelism (mega checklist item 79) |'
+  current: '| Parallel lanes identified | every set of epics with no mutual dependency is marked `Parallel with:` — this row DEFINES the input set the two rows below intersect | a mutually-independent pair left unmarked → the disjointness + migration gates never see it, and the owner loses free parallelism (mega checklist item 79) |'
+  text:
+  - '| Parallel lanes identified | every set of epics with no mutual dependency is marked `Parallel with:` — this row DEFINES the input set the two rows below intersect | a mutually-independent pair left unmarked → the disjointness + migration gates never see it, and the owner loses free parallelism (mega checklist item 79) |'
+- id: u-L159
+  class: ban
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| SPLIT-CANDIDATE per critical-path epic | every critical-path epic carries `SPLIT-CANDIDATE: yes (<how>) / no (<why>)` | missing on any — a critical-path epic splittable into a blocking + non-blocking half MUST be split; that is the only way to shorten delivery |'
+  current: '| SPLIT-CANDIDATE per critical-path epic | every critical-path epic carries `SPLIT-CANDIDATE: yes (<how>) / no (<why>)` | missing on any — a critical-path epic splittable into a blocking + non-blocking half MUST be split; that is the only way to shorten delivery |'
+  text:
+  - '| SPLIT-CANDIDATE per critical-path epic | every critical-path epic carries `SPLIT-CANDIDATE: yes (<how>) / no (<why>)` | missing on any — a critical-path epic splittable into a blocking + non-blocking half MUST be split; that is the only way to shorten delivery |'
+- id: u-L162
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: Infrastructure Decisions — read the spec; verify against the tickets
+  current: Infrastructure Decisions — read the spec; verify against the tickets
+  text:
+  - Infrastructure Decisions — read the spec; verify against the tickets
+- id: u-L166
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Tickets reference, not duplicate | epics say "Inherited from Infrastructure Decisions" | Epic N re-defines [decision] differently |'
+  current: '| Tickets reference, not duplicate | epics say "Inherited from Infrastructure Decisions" | Epic N re-defines [decision] differently |'
+  text:
+  - '| Tickets reference, not duplicate | epics say "Inherited from Infrastructure Decisions" | Epic N re-defines [decision] differently |'
+- id: u-L167
+  class: prose
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| No contradictions | consistent across all tickets | Epic N says X, the spec says Y |'
+  current: '| No contradictions | consistent across all tickets | Epic N says X, the spec says Y |'
+  text:
+  - '| No contradictions | consistent across all tickets | Epic N says X, the spec says Y |'
+- id: u-L170
+  class: ban
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: Handoff readiness — each ticket must feed `/fabrik-spec docs/development/epics/<this file>`, the epic-file intake, which reads the ticket's 15-field Metadata as intake rows (every field, plus the derived Watchdog and LLM-gateway rows) and inherits the Vision's fabrik-lib Verdict + Rejected Alternatives without re-running the ladder
+  current: Handoff readiness — each ticket must feed `/fabrik-spec docs/development/epics/<this file>`, the epic-file intake, which reads the ticket's 15-field Metadata as intake rows (every field, plus the derived Watchdog and LLM-gateway rows) and inherits the Vision's fabrik-lib Verdict + Rejected Alternatives without re-running the ladder
+  text:
+  - Handoff readiness — each ticket must feed `/fabrik-spec docs/development/epics/<this file>`, the epic-file intake, which reads the ticket's 15-field Metadata as intake rows (every field, plus the derived Watchdog and LLM-gateway rows) and inherits the Vision's fabrik-lib Verdict + Rejected Alternatives without re-running the ladder
+- id: u-L179
+  class: ban
+  file: render
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Ticket is self-sufficient | the whole corpus chain for one window (`/fabrik-spec <epic file>` → `/fabrik-spec-review` → `/fabrik-features` → `/fabrik-flows` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-plan-review` → `/fabrik-execute-plan`) runs from ONLY this ticket + the Infrastructure Decisions spec | needs context only the Vision Summary carries |'
+  current: '| Ticket is self-sufficient | the whole corpus chain for one window (`/fabrik-spec <epic file>` → `/fabrik-spec-review` → `/fabrik-features` → `/fabrik-flows` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-plan-review` → `/fabrik-execute-plan`) runs from ONLY this ticket + the Infrastructure Decisions spec | needs context only the Vision Summary carries |'
+  text:
+  - '| Ticket is self-sufficient | the whole corpus chain for one window (`/fabrik-spec <epic file>` → `/fabrik-spec-review` → `/fabrik-features` → `/fabrik-flows` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-plan-review` → `/fabrik-execute-plan`) runs from ONLY this ticket + the Infrastructure Decisions spec | needs context only the Vision Summary carries |'
+- id: u-L181
+  class: prose
+  file: render
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: 'Classify every surviving finding, then handle it autonomously — everything short of a BLOCKED case:'
+  current: 'Classify every surviving finding, then handle it autonomously — everything short of a BLOCKED case:'
+  text:
+  - 'Classify every surviving finding, then handle it autonomously — everything short of a BLOCKED case:'
+- id: u-L188
+  class: prose
+  file: render
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: Vision Summary corrupted (lens A's inventory missing/empty) → route to `/fabrik-vision`; do NOT continue
+  current: Vision Summary corrupted (lens A's inventory missing/empty) → route to `/fabrik-vision`; do NOT continue
+  text:
+  - Vision Summary corrupted (lens A's inventory missing/empty) → route to `/fabrik-vision`; do NOT continue
+- id: u-L192
+  class: ban
+  file: render
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: A quiet round alone is still not sufficient — every lens must ALSO be adjudicated (a quiet sample from finders that looked at too little proves nothing)
+  current: A quiet round alone is still not sufficient — every lens must ALSO be adjudicated (a quiet sample from finders that looked at too little proves nothing)
+  text:
+  - A quiet round alone is still not sufficient — every lens must ALSO be adjudicated (a quiet sample from finders that looked at too little proves nothing)
+- id: u-L193
+  class: ban
+  file: render
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: Minimum two full rounds, ALWAYS (the round that first completes the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a fixup is never the last look at the lenses it touched
+  current: Minimum two full rounds, ALWAYS (the round that first completes the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a fixup is never the last look at the lenses it touched
+  text:
+  - Minimum two full rounds, ALWAYS (the round that first completes the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a fixup is never the last look at the lenses it touched
+- id: u-L196
+  class: ban
+  file: render
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: Keep the fragment's Pass Ledger per round (`found:` counts every candidate raised, `confirmed:` only the ones that held)
+  current: Keep the fragment's Pass Ledger per round (`found:` counts every candidate raised, `confirmed:` only the ones that held)
+  text:
+  - Keep the fragment's Pass Ledger per round (`found:` counts every candidate raised, `confirmed:` only the ones that held)
+- id: u-L202
+  class: ban
+  file: render
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: 'Record hashes IN FULL (all 32 hex chars), per round, and let them CHAIN: round N''s `md5(end)` must equal round N+1''s `md5(start)` (a gap means the set changed between reviewed rounds, off the books), and the Phase-5 report''s `Surface:` line carries the final `md5(end)` verbatim'
+  current: 'Record hashes IN FULL (all 32 hex chars), per round, and let them CHAIN: round N''s `md5(end)` must equal round N+1''s `md5(start)` (a gap means the set changed between reviewed rounds, off the books), and the Phase-5 report''s `Surface:` line carries the final `md5(end)` verbatim'
+  text:
+  - 'Record hashes IN FULL (all 32 hex chars), per round, and let them CHAIN: round N''s `md5(end)` must equal round N+1''s `md5(start)` (a gap means the set changed between reviewed rounds, off the books), and the Phase-5 report''s `Surface:` line carries the final `md5(end)` verbatim'
+- id: u-L210
+  class: ban
+  file: render
+  section: '## Phase 5 — Report + hand off'
+  baseline: A report that lives only in chat is invisible to every gate
+  current: A report that lives only in chat is invisible to every gate
+  text:
+  - A report that lives only in chat is invisible to every gate
+- id: u-L221
+  class: prose
+  file: render
+  section: '## Phase 5 — Report + hand off'
+  baseline: Paste its `phases` into the report verbatim
+  current: Paste its `phases` into the report verbatim
+  text:
+  - Paste its `phases` into the report verbatim
+- id: u-L226
+  class: ban
+  file: render
+  section: '## Phase 5 — Report + hand off'
+  baseline: 'It is also the merge owner: finished branches merge into master in `epic_order` phase order, one at a time, through `scripts/merge_request.py merge` (a refused requester brings the base in by merging it into its pushed branch, never a rebase), and it runs the tail after the last merge (`/fabrik-features` REFRESH → `/fabrik-conformance-review` when E ≥ 2 → certification → `/fabrik-deploy-checklist` → `/fabrik-release`)'
+  current: 'It is also the merge owner: finished branches merge into master in `epic_order` phase order, one at a time, through `scripts/merge_request.py merge` (a refused requester brings the base in by merging it into its pushed branch, never a rebase), and it runs the tail after the last merge (`/fabrik-features` REFRESH → `/fabrik-conformance-review` when E ≥ 2 → certification → `/fabrik-deploy-checklist` → `/fabrik-release`)'
+  text:
+  - 'It is also the merge owner: finished branches merge into master in `epic_order` phase order, one at a time, through `scripts/merge_request.py merge` (a refused requester brings the base in by merging it into its pushed branch, never a rebase), and it runs the tail after the last merge (`/fabrik-features` REFRESH → `/fabrik-conformance-review` when E ≥ 2 → certification → `/fabrik-deploy-checklist` → `/fabrik-release`)'
+- id: u-L228
+  class: ban
+  file: render
+  section: '## Phase 5 — Report + hand off'
+  baseline: Epics in the same phase run concurrently, one per named agent; an agent with no Phase-1 epic starts on its first later-phase epic only when that phase opens
+  current: Epics in the same phase run concurrently, one per named agent; an agent with no Phase-1 epic starts on its first later-phase epic only when that phase opens
+  text:
+  - Epics in the same phase run concurrently, one per named agent; an agent with no Phase-1 epic starts on its first later-phase epic only when that phase opens
+- id: ec-after-fabrik-epics-writes-one-file
+  class: prose
+  section: '# Cross-Epic Validation — converge the epic set, assign its owners'
+  baseline: 'After `/fabrik-epics` writes one file per epic, this command reads the whole decomposition and proves it is ready to execute: every feature covered exactly once, no broken or invented dependencies, disjoint parallel lanes, one named owner per epic, each ticket self-sufficient for its window''s corpus chain'
+  current: 'After `/fabrik-epics` writes one file per epic, read the whole decomposition and prove it ready to execute: every feature covered exactly once, no broken or invented dependencies, disjoint parallel lanes, one named owner per epic, each ticket self-sufficient for its window''s corpus chain'
+  text:
+  - 'After `/fabrik-epics` writes one file per epic, read the whole decomposition and prove it ready to execute: every feature covered exactly once, no broken or invented dependencies, disjoint parallel lanes, one named owner per epic, each ticket self-sufficient for its window''s corpus chain'
+- id: ec-reads-budget-the-list-below-is
+  class: prose
+  clauses: {1: narrative}
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: 'Reads budget (the hollow-citation discipline). Every backticked path in this command is one of two things: the list below is the acting set — open these, this run, before you act on anything'
+  current: Reads budget. The list below is the acting set — open these, this run, before you act
+  text:
+  - Reads budget. The list below is the acting set — open these, this run, before you act
+- id: ec-the-vision-summary-docs-superpowers-specs
+  class: prose
+  clauses: {1: narrative}
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: The Vision Summary (`/fabrik-vision`'s persisted output at `docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md`) — its `## Full Feature Inventory` and, in EXISTING mode, its `## Compliance Report`
+  current: The Vision Summary (`/fabrik-vision`'s persisted output at `docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md`) — its `## Full Feature Inventory` and, in EXISTING mode, its `## Compliance Report`
+  text:
+  - The Vision Summary (`/fabrik-vision`'s persisted output at `docs/superpowers/specs/YYYY-MM-DD-<project>-vision.md`) — its `## Full Feature Inventory` and, in EXISTING mode, its `## Compliance Report`
+- id: ec-the-epic-proposal-spec-docs-superpowers
+  class: ban
+  clauses: {2: narrative}
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: The epic-proposal spec — `/fabrik-epics`' persisted `docs/superpowers/specs/YYYY-MM-DD-<project>-epic-proposal.md`; its epic count is Phase 2's `--expected-count` (the file count under `docs/development/epics/` is never that number)
+  current: The epic-proposal spec — `/fabrik-epics`' persisted `docs/superpowers/specs/YYYY-MM-DD-<project>-epic-proposal.md`; its epic count is Phase 2's `--expected-count` (the file count under `docs/development/epics/` is never that number)
+  text:
+  - under `docs/development/epics/` is  never that number)
+  - The epic-proposal spec — `/fabrik-epics`' persisted `docs/superpowers/specs/YYYY-MM-DD-<project>-epic-proposal.md`; its epic count is Phase 2's `--expected-count` (the file count under `docs/development/epics/` is never that number)
+- id: ec-ports-md-a-port-claim-is
+  class: prose
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: '`PORTS.md` — the port-allocation registry (a `Port` claim is checked against it, not eyeballed)'
+  current: '`PORTS.md` — a `Port` claim is checked against it, not eyeballed'
+  text:
+  - '`PORTS.md` — a `Port` claim is checked against it, not eyeballed'
+- id: ec-the-owner-set-from-the-argument
+  class: prose
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: The owner set (from the argument). The operator names this run's agents, comma-separated, agent-1 FIRST — agent-1 is the merge owner and the main-checkout window (the one running this command); agents 2..N are worktree windows
+  current: The owner set (from the argument). The operator names this run's agents, agent-1 FIRST (the merge owner and the main-checkout window); agents 2..N are worktree windows
+  text:
+  - The owner set (from the argument). The operator names this run's agents, agent-1 FIRST (the merge owner and the main-checkout window); agents 2..N are worktree windows
+- id: ec-names-must-match-a-z0-9
+  class: ban
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: Names must match `[a-z0-9-]{1,32}` (`epic_order.py` validates them before touching any file — a bad name is a usage error, exit 2, nothing written)
+  current: Names must match `[a-z0-9-]{1,32}` (`epic_order.py` validates them before touching any file — a bad name is a usage error, exit 2, nothing written)
+  text:
+  - Names must match `[a-z0-9-]{1,32}` (`epic_order.py` validates them before touching any file — a bad name is a usage error, exit 2, nothing written)
+- id: ec-no-names-given-ask-once-the
+  class: ban
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: 'No names given → ask once (the question bar below: the answer materially changes every `owner:` field and is derivable from nothing on disk); never invent a set'
+  current: 'No names given → ask once (the question bar below: the answer materially changes every `owner:` field and is derivable from nothing on disk); never invent a set'
+  text:
+  - disk);  never invent a set
+  - 'No names given → ask once (the question bar below: the answer materially changes every `owner:` field and is derivable from nothing on disk); never invent a set'
+- id: ec-record-the-set-in-order-phase
+  class: prose
+  section: '## Phase 0 — Reads budget, orientation, and the owner set'
+  baseline: Record the set, in order, in the run — Phase 5 carries it into the report and the per-window hand-off
+  current: Record the set, in order — Phase 5 carries it into the report and the hand-off
+  text:
+  - Record the set, in order — Phase 5 carries it into the report and the hand-off
+- id: ec-a-change-to-the-epic-boundaries
+  class: ban
+  section: '## Core philosophy'
+  baseline: A change to the epic boundaries (orphans, duplicates, a wrong split, shared `owned_paths` between parallel epics) → route to `/fabrik-epics` (which re-cuts and re-writes the affected files); this command never re-cuts epics
+  current: A change to the epic boundaries (orphans, duplicates, a wrong split, shared `owned_paths` between parallel epics) → route to `/fabrik-epics`, which re-cuts and re-writes; this command never re-cuts epics
+  text:
+  - re-writes; this command  never re-cuts epics
+  - A change to the epic boundaries (orphans, duplicates, a wrong split, shared `owned_paths` between parallel epics) → route to `/fabrik-epics`, which re-cuts and re-writes; this command never re-cuts epics
+- id: ec-on-any-state-blocked-what-searched
+  class: prose
+  section: '## Core philosophy'
+  baseline: 'On any → state `BLOCKED: <what> — searched: <sources> — missing: <need>`, persist the report `Status: IN-PROGRESS` with its `## BLOCKED:` line filled (the template''s slot under `Status:`, Phase 5), pause THAT finding, continue the rest; when nothing else remains, close the run record with `blocked`'
+  current: 'On any → state `BLOCKED: <what> — searched: <sources> — missing: <need>`, persist the report `Status: IN-PROGRESS` with its `## BLOCKED:` line filled (the template''s slot under `Status:`, Phase 5), pause THAT finding, continue the rest; when nothing else remains, close the run record with `blocked`'
+  text:
+  - 'On any → state `BLOCKED: <what> — searched: <sources> — missing: <need>`, persist the report `Status: IN-PROGRESS` with its `## BLOCKED:` line filled (the template''s slot under `Status:`, Phase 5), pause THAT finding, continue the rest; when nothing else remains, close the run record with `blocked`'
+- id: ec-flavour-aware-staging-a-delta-feature
+  class: ban
+  section: '## Core philosophy'
+  baseline: Flavour-aware staging — a delta-feature epic must pass all four stages (scaffold → implement → `fabrik apply` → `fabrik verify`); a Retrofit epic on an already-deployed service creates no new deploy unit, so it owns no Stage-1/Stage-3 — its Stage-3 equivalent is the gate + the compliance-row flip (`/fabrik-epics` § Success Criteria by flavour) ¶ Validate each epic against the stages its flavour actually owns, never a blanket four
+  current: Flavour-aware staging — a delta-feature epic must pass all four stages (scaffold → implement → `fabrik apply` → `fabrik verify`); a Retrofit epic on an already-deployed service creates no new deploy unit, so it owns no Stage-1/Stage-3 — its Stage-3 equivalent is the gate + the compliance-row flip (`/fabrik-epics` § Success Criteria by flavour); validate each epic against the stages its flavour actually owns, never a blanket four
+  text:
+  - must pass all four stages (scaffold → implement → `fabrik apply` → `fabrik verify`)
+  - actually owns,  never a blanket four
+  - Flavour-aware staging — a delta-feature epic must pass all four stages (scaffold → implement → `fabrik apply` → `fabrik verify`); a Retrofit epic on an already-deployed service creates no new deploy unit, so it owns no Stage-1/Stage-3 — its Stage-3 equivalent is the gate + the compliance-row flip (`/fabrik-epics` § Success Criteria by flavour); validate each epic against the stages its flavour actually owns, never a blanket four
+- id: ec-docs-operations-fabrik-lifecycle-md-covers
+  class: ban
+  section: '## Core philosophy'
+  baseline: '*(deeper, optional: `docs/operations/fabrik-lifecycle.md` — it covers only stages 3–4 and carries no stage model, so it cannot settle this; the flavour rule above does.)*'
+  current: '*(`docs/operations/fabrik-lifecycle.md` covers only stages 3–4 and carries no stage model, so it cannot settle this; the flavour rule above does.)*'
+  text:
+  - only stages 3–4 and carries no stage model, so it cannot settle this
+  - '*(`docs/operations/fabrik-lifecycle.md` covers only stages 3–4 and carries no stage model, so it cannot settle this; the flavour rule above does.)*'
+- id: ec-the-cross-epic-validation-report-structure
+  class: prose
+  section: '## Output contract'
+  baseline: 'Format: the Cross-Epic Validation Report (markdown, structure in Phase 5), PERSISTED to `docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` at the adjudicated exit'
+  current: The Cross-Epic Validation Report (structure in Phase 5), PERSISTED to `docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` at the adjudicated exit
+  text:
+  - The Cross-Epic Validation Report (structure in Phase 5), PERSISTED to `docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` at the adjudicated exit
+- id: ec-structure-bounded-not-token-capped-a
+  class: ban
+  section: '## Output contract'
+  baseline: 'Structure-bounded, NOT token-capped (mega checklist item 93): a PASS/FAIL-row-per-check report is already bounded by "fill this template once", so a numeric budget would only force harmful truncation of exactly the failures the owner most needs to see'
+  current: 'Structure-bounded, NOT token-capped (mega checklist item 93): a PASS/FAIL-row-per-check report is already bounded by "fill this template once", so a numeric budget would only force harmful truncation of exactly the failures the owner most needs to see'
+  text:
+  - only force harmful truncation of exactly the failures the owner most needs to see
+  - 'Structure-bounded, NOT token-capped (mega checklist item 93): a PASS/FAIL-row-per-check report is already bounded by "fill this template once", so a numeric budget would only force harmful truncation of exactly the failures the owner most needs to see'
+- id: ec-the-result-is-the-adjudicated-verdict
+  class: ban
+  section: '## Output contract'
+  baseline: 'Do not add one. Result: the adjudicated verdict — every report lens PASS-with-evidence, with the round ledger, fixup count, any route-backs, the owner set and the per-window next step; never a bare defect list'
+  current: The result is the adjudicated verdict — every report lens PASS-with-evidence, with the round ledger, fixup count, route-backs, owner set and per-window next step; never a bare defect list
+  text:
+  - step;  never a bare defect list
+  - The result is the adjudicated verdict — every report lens PASS-with-evidence, with the round ledger, fixup count, route-backs, owner set and per-window next step; never a bare defect list
+- id: ec-count-mismatch-missing-number-fabrik-epics
+  class: ban
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: '*count mismatch / missing number* (deficit) → `/fabrik-epics` to recreate ONLY the named epic(s); do not discard the rest'
+  current: '*count mismatch / missing number* → `/fabrik-epics` to recreate ONLY the named epic(s); do not discard the rest'
+  text:
+  - to recreate  ONLY the named epic(s)
+  - '*count mismatch / missing number* → `/fabrik-epics` to recreate ONLY the named epic(s); do not discard the rest'
+- id: ec-duplicate-epic-number-the-older-date
+  class: prose
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: '*duplicate epic number* (stale/redundant copy) → the older date-prefix file is stale → `rm` it, then re-enter'
+  current: '*duplicate epic number* (stale/redundant copy) → the older date-prefix file is stale → `rm` it, then re-enter'
+  text:
+  - '*duplicate epic number* (stale/redundant copy) → the older date-prefix file is stale → `rm` it, then re-enter'
+- id: ec-a-missing-or-misspelled-epics-dir
+  class: ban
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: 'A MISSING or misspelled `--epics-dir` is not a refusal at all — it is a usage error (`epic_order: no such dir: <path>`, exit 2, before any file is read): fix the path and re-run, file nothing'
+  current: 'A MISSING or misspelled `--epics-dir` is not a refusal at all — it is a usage error (`epic_order: no such dir: <path>`, exit 2, before any file is read): fix the path and re-run, file nothing'
+  text:
+  - is not a  refusal at all
+  - 'A MISSING or misspelled `--epics-dir` is not a refusal at all — it is a usage error (`epic_order: no such dir: <path>`, exit 2, before any file is read): fix the path and re-run, file nothing'
+- id: ec-so-is-a-first-name-that
+  class: prose
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: 'So is a FIRST name the merge-owner readers would not read back as the owner minted below — `undeclared`, or one opening with `-` (`cannot be the merge owner`, exit 2, before any file is read): put another agent first and re-run (W-390556a1)'
+  current: "So is a FIRST name the merge-owner readers would not read back as the owner minted below — `undeclared`, or one opening with `-` (`cannot be the merge owner`, exit 2, before any file is read): put another agent first and re-run (W-390556a1)"
+  text:
+  - 'So is a FIRST name the merge-owner readers would not read back as the owner minted below — `undeclared`, or one opening with `-` (`cannot be the merge owner`, exit 2, before any file is read): put another agent first and re-run'
+- id: ec-re-run-2b-after-any-route
+  class: prose
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: 'Re-run 2b after any route-back that recreated a file: the recreated ticket carries `owner: ""`'
+  current: 'Re-run 2b after any route-back that recreated a file (the recreated ticket carries `owner: ""`)'
+  text:
+  - 'Re-run 2b after any route-back that recreated a file (the recreated ticket carries `owner: ""`)'
+- id: ec-fail-an-owner-missing-or-outside
+  class: prose
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: FAIL → an epic whose owner is missing or outside the set, or a 2a-class finding that appeared between the two checks (a sibling session edited the tree — it runs several agents)
+  current: FAIL → an owner missing or outside the set, or a 2a-class finding that appeared between the two checks
+  text:
+  - FAIL → an owner missing or outside the set, or a 2a-class finding that appeared between the two checks
+- id: ec-the-set-hash-phase-4-records
+  class: prose
+  section: '## Phase 2 — Step 1.5: ticket-set integrity + owner assignment, in CODE'
+  baseline: The SET hash Phase 4 records at the start of round 1 is taken AFTER 2c — `--assign` edits every epic file, and a hash taken before it would show the assignment as a "fixup" nobody dispatched
+  current: The SET hash Phase 4 records at the start of round 1 is taken AFTER 2c, since `--assign` edits every epic file
+  text:
+  - The SET hash Phase 4 records at the start of round 1 is taken AFTER 2c, since `--assign` edits every epic file
+- id: ec-arm-every-reviewer-first-run-python3
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: 'ARM every reviewer FIRST (an un-armed reviewer measured ~0–22% defect recall): run `python3 /opt/fabrik/scripts/review_rubric.py --changed <the epic files under review>` and inject its output into every reviewer agent''s prompt as the rubric they hunt against ¶ The lenses:'
+  current: 'ARM every reviewer FIRST (an un-armed reviewer measured ~0–22% defect recall): run `python3 /opt/fabrik/scripts/review_rubric.py --changed <the epic files under review>` and inject its output into every reviewer agent''s prompt as the rubric they hunt against'
+  text:
+  - 'ARM every reviewer FIRST (an un-armed reviewer measured ~0–22% defect recall): run `python3 /opt/fabrik/scripts/review_rubric.py --changed <the epic files under review>` and inject its output into every reviewer agent''s prompt as the rubric they hunt against'
+- id: ec-it-carries-1-the-mandatory-core
+  class: ban
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: 'The rubric carries two layers: (1) the mandatory-core floor — `core/35-security-auth` + `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — always injected regardless of glob and never skippable, so the review is never un-armed on the high-blast-radius rules; (2) every pack whose glob matches a changed path (mandate lines only)'
+  current: 'The rubric carries two layers: (1) the mandatory-core floor — `core/35-security-auth` + `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — always injected regardless of glob and never skippable, so the review is never un-armed on the high-blast-radius rules; (2) every pack whose glob matches a changed path (mandate lines only)'
+  text:
+  - never skippable, so the review is never un-armed on the high-blast-radius rules
+  - never un-armed on the high-blast-radius rules
+  - a changed path (mandate lines  only)
+  - 'The rubric carries two layers: (1) the mandatory-core floor — `core/35-security-auth` + `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes — always injected regardless of glob and never skippable, so the review is never un-armed on the high-blast-radius rules; (2) every pack whose glob matches a changed path (mandate lines only)'
+- id: ec-no-workflow-here-the-evaluation-checklist
+  class: ban
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '(No `--workflow` here: this command reviews the chain''s runtime PRODUCTS — epics / artifacts — not command files themselves; the `EVALUATION_CHECKLIST_*` authoring-QA injects only when a review''s subject IS a command file, e.g. `/fabrik-workflow-review`.) The whole rubric is computed fresh by the script; nothing is inherited from the doer'
+  current: &nowf '(No `--workflow` here: this command reviews the chain''s runtime PRODUCTS — epics / artifacts — not command files themselves; the `EVALUATION_CHECKLIST_*` authoring-QA injects only when a review''s subject IS a command file, e.g. `/fabrik-workflow-review`.) The whole rubric is computed fresh by the script; nothing is inherited from the doer'
+  text:
+  - *nowf
+- id: ec-dispatch-native-seats-core-62-using
+  class: prose
+  clauses: {2: narrative}
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: 'Dispatch native seats — two layers (`core/62-using-subagents.md` § Dispatch policy; the pool is OFF, D-181):'
+  current: 'Dispatch native seats — two layers (`core/62-using-subagents.md` § Dispatch policy; the pool is OFF, D-181):'
+  text:
+  - 'Dispatch native seats — two layers (`core/62-using-subagents.md` § Dispatch policy; the pool is OFF, D-181):'
+- id: ec-1-native-fabrik-reviewer-on-opus
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '≥1 native `fabrik-reviewer` on Opus — the authoritative pass ¶ It owns the high-risk seams: the parallel-set disjointness, the single-migration-owner rule, and `Registrars` ↔ `Shape`'
+  current: '≥1 native `fabrik-reviewer` on Opus — the authoritative pass, owning the high-risk seams: parallel-set disjointness, the single-migration-owner rule, and `Registrars` ↔ `Shape`'
+  text:
+  - '≥1 native `fabrik-reviewer` on Opus — the authoritative pass, owning the high-risk seams: parallel-set disjointness, the single-migration-owner rule, and `Registrars` ↔ `Shape`'
+- id: ec-feature-coverage-map-each-feature-of
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: Feature coverage — extract the Vision Summary's `## Full Feature Inventory`; map each feature to the epic claiming it in `### Scope > In:`
+  current: Feature coverage — map each feature of the Vision Summary's `## Full Feature Inventory` to the epic claiming it in `### Scope > In:`
+  text:
+  - Feature coverage — map each feature of the Vision Summary's `## Full Feature Inventory` to the epic claiming it in `### Scope > In:`
+- id: ec-inventory-present-section-present-and-1
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Inventory present | section present AND ≥1 feature | missing/empty → Vision Summary corrupted; route to `/fabrik-vision`, do NOT continue |'
+  current: '| Inventory present | section present AND ≥1 feature | missing/empty → Vision Summary corrupted; route to `/fabrik-vision`, do NOT continue |'
+  text:
+  - '| Inventory present | section present AND ≥1 feature | missing/empty → Vision Summary corrupted; route to `/fabrik-vision`, do NOT continue |'
+- id: ec-every-feature-assigned-all-mapped-numbered
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Every feature assigned | all mapped (counts BOTH numbered delta features `1,2,…` AND EXISTING-mode Retrofit features `R1,R2,…`) | feature #X "[name]" in no epic |'
+  current: '| Every feature assigned | all mapped (numbered delta features `1,2,…` AND EXISTING-mode Retrofit features `R1,R2,…`) | feature #X "[name]" in no epic |'
+  text:
+  - '| Every feature assigned | all mapped (numbered delta features `1,2,…` AND EXISTING-mode Retrofit features `R1,R2,…`) | feature #X "[name]" in no epic |'
+- id: ec-no-feature-in-two-epics-each
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| No feature in two epics | each in exactly one (delta + Retrofit alike) | #X claimed by Epic A and Epic B |'
+  current: '| No feature in two epics | each in exactly one (delta + Retrofit alike) | #X claimed by Epic A and Epic B |'
+  text:
+  - '| No feature in two epics | each in exactly one (delta + Retrofit alike) | #X claimed by Epic A and Epic B |'
+- id: ec-title-format-epic-n-name-exactly
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Title format | `Epic N — [Name]` exactly (em-dash, single spaces; optional `Retrofit:` prefix in `[Name]`) | en-dash/hyphen/missing space/wrong number |'
+  current: '| Title format | `Epic N — [Name]` exactly (em-dash, single spaces; optional `Retrofit:` prefix in `[Name]`) | en-dash/hyphen/missing space/wrong number |'
+  text:
+  - '| Title format | `Epic N — [Name]` exactly (em-dash, single spaces; optional `Retrofit:` prefix in `[Name]`) | en-dash/hyphen/missing space/wrong number |'
+- id: ec-success-criteria-by-flavour-delta-feature
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| `### Success Criteria` — by flavour | delta-feature 5–8; Retrofit 3–5 (`/fabrik-epics` § Success Criteria) | below the per-flavour minimum |'
+  current: '| `### Success Criteria` — by flavour | delta-feature 5–8; Retrofit 3–5 (`/fabrik-epics` § Success Criteria) | below the per-flavour minimum |'
+  text:
+  - '| `### Success Criteria` — by flavour | delta-feature 5–8; Retrofit 3–5 (`/fabrik-epics` § Success Criteria) | below the per-flavour minimum |'
+- id: ec-deploy-gate-level-criterion-delta-fabrik
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| deploy/gate-level criterion | delta: "`fabrik apply` succeeds" or "/health 200". Retrofit (no new deploy unit): `scripts/final_gate.py` success + the Compliance-Report gap moving Partial/Violates → Compliant | neither flavour''s criterion present |'
+  current: '| deploy/gate-level criterion | delta: "`fabrik apply` succeeds" or "/health 200". Retrofit: `scripts/final_gate.py` success + the Compliance-Report gap moving Partial/Violates → Compliant | neither flavour''s criterion present |'
+  text:
+  - '| deploy/gate-level criterion | delta: "`fabrik apply` succeeds" or "/health 200". Retrofit: `scripts/final_gate.py` success + the Compliance-Report gap moving Partial/Violates → Compliant | neither flavour''s criterion present |'
+- id: ec-resilience-criterion-delta-states-what-happens
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| resilience criterion | delta: states what happens when a dependency is down. Retrofit: N/A iff the area is not resilience/external-call related (Title lacks `Resilience` AND Universal categories lacks #5) | absent AND the epic IS resilience-related |'
+  current: '| resilience criterion | delta: states what happens when a dependency is down. Retrofit: N/A iff the area is not resilience/external-call related (Title lacks `Resilience` AND Universal categories lacks #5) | absent AND the epic IS resilience-related |'
+  text:
+  - '| resilience criterion | delta: states what happens when a dependency is down. Retrofit: N/A iff the area is not resilience/external-call related (Title lacks `Resilience` AND Universal categories lacks #5) | absent AND the epic IS resilience-related |'
+- id: ec-dependencies-all-5-sub-bullets-consumes
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| `### Dependencies` — all 5 sub-bullets | `Consumes from prior epics` · `Produces for later epics` · `Depends on` · `Parallel with` · `Owned paths`, each with content or an explicit `none` reason. ⚠️ `Owned paths` is NOT optional and `none` is NOT valid — every epic writes something, and lens C''s disjointness + migration checks intersect exactly this field | any sub-bullet missing/empty, OR `Owned paths` absent or `none` (it makes lens C unrunnable and any `Parallel with:` claim unverifiable) |'
+  current: '| `### Dependencies` — all 5 sub-bullets | `Consumes from prior epics` · `Produces for later epics` · `Depends on` · `Parallel with` · `Owned paths`, each with content or an explicit `none` reason. ⚠️ `Owned paths` is NOT optional and `none` is NOT valid — every epic writes something, and lens C''s disjointness + migration checks intersect exactly this field | any sub-bullet missing/empty, OR `Owned paths` absent or `none` (it makes lens C unrunnable and any `Parallel with:` claim unverifiable) |'
+  text:
+  - '| `### Dependencies` — all 5 sub-bullets | `Consumes from prior epics` · `Produces for later epics` · `Depends on` · `Parallel with` · `Owned paths`, each with content or an explicit `none` reason. ⚠️ `Owned paths` is NOT optional and `none` is NOT valid — every epic writes something, and lens C''s disjointness + migration checks intersect exactly this field | any sub-bullet missing/empty, OR `Owned paths` absent or `none` (it makes lens C unrunnable and any `Parallel with:` claim unverifiable) |'
+- id: ec-typed-frontmatter-body-depends-on-parallel
+  class: ban
+  clauses: {2: narrative}
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Typed frontmatter ↔ body | `depends_on` / `parallel_with` / `owned_paths` in the frontmatter equal the `### Dependencies` sub-bullets `Depends on` / `Parallel with` / `Owned paths` (the three list fields — `owner` lives in the frontmatter only and is Phase 2c''s code verdict, never re-filed here) | frontmatter and body disagree — `epic_order.py` orders by the FRONTMATTER, so the body is what a reader would wrongly trust |'
+  current: '| Typed frontmatter ↔ body | `depends_on` / `parallel_with` / `owned_paths` in the frontmatter equal the `### Dependencies` sub-bullets `Depends on` / `Parallel with` / `Owned paths` (the three list fields — `owner` lives in the frontmatter only and is Phase 2c''s code verdict, never re-filed here) | frontmatter and body disagree — `epic_order.py` orders by the FRONTMATTER |'
+  text:
+  - only and is Phase 2c's code verdict, never re-filed here) | frontmatter and body disagree
+  - never re-filed here) | frontmatter and body disagree
+  - '| Typed frontmatter ↔ body | `depends_on` / `parallel_with` / `owned_paths` in the frontmatter equal the `### Dependencies` sub-bullets `Depends on` / `Parallel with` / `Owned paths` (the three list fields — `owner` lives in the frontmatter only and is Phase 2c''s code verdict, never re-filed here) | frontmatter and body disagree — `epic_order.py` orders by the FRONTMATTER |'
+- id: ec-metadata-structure-only-all-15-rows
+  class: ban
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: &md '| `### Metadata` — structure only | the `### Metadata` section exists with all 15 rows present. ⚠️ Field VALUES are lens E''s authority, not B''s — do not judge them here, or two nominally-orthogonal lenses file the same finding twice and the merge reads one check as two lenses corroborating | section missing, or fewer than 15 rows |'
+  current: *md
+  text:
+  - *md
+- id: ec-entry-point-entry-point-fabrik-spec
+  class: prose
+  clauses: {2: narrative}
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Entry point | `Entry point: /fabrik-spec <this file>` — the window''s first command | missing, or names anything else |'
+  current: '| Entry point | `Entry point: /fabrik-spec <this file>` — the window''s first command | missing, or names anything else |'
+  text:
+  - '| Entry point | `Entry point: /fabrik-spec <this file>` — the window''s first command | missing, or names anything else |'
+- id: ec-fabrik-epics-emits-a-mermaid-diagram
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: 'Graph form: `/fabrik-epics` emits a mermaid diagram with `subgraph "Phase N"` blocks; prose instead → the owner cannot see the shape of their own decomposition → route to `/fabrik-epics`'
+  current: '`/fabrik-epics` emits a mermaid diagram with `subgraph "Phase N"` blocks; prose instead → the owner cannot see the shape of their own decomposition → route to `/fabrik-epics`'
+  text:
+  - '`/fabrik-epics` emits a mermaid diagram with `subgraph "Phase N"` blocks; prose instead → the owner cannot see the shape of their own decomposition → route to `/fabrik-epics`'
+- id: ec-epic-count-sanity-state-the-count
+  class: ban
+  clauses: {3: narrative}
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: 'Epic-count sanity: state the count + a one-line verdict — 3–7 typical; the operator''s stated range is E = 3–20; 10+ ⇒ recommend re-examining boundaries for layer-slicing (likely split by layer, not domain) — re-examined, never re-cut by reflex; 2 ⇒ the vision may not need this workflow'
+  current: 'Epic-count sanity: state the count + a one-line verdict — 3–7 typical; accepted E = 3–20; 10+ ⇒ recommend re-examining boundaries for layer-slicing (likely split by layer, not domain) — re-examined, never re-cut by reflex; 2 ⇒ the vision may not need this workflow'
+  text:
+  - re-examined,  never re-cut by reflex
+  - 'Epic-count sanity: state the count + a one-line verdict — 3–7 typical; accepted E = 3–20; 10+ ⇒ recommend re-examining boundaries for layer-slicing (likely split by layer, not domain) — re-examined, never re-cut by reflex; 2 ⇒ the vision may not need this workflow'
+- id: ec-root-epic-s-identified-1-epic
+  class: prose
+  clauses: {2: narrative}
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Root epic(s) identified | ≥1 epic with no upstream | none — everything depends on something |'
+  current: '| Root epic(s) identified | ≥1 epic with no upstream | none — everything depends on something |'
+  text:
+  - '| Root epic(s) identified | ≥1 epic with no upstream | none — everything depends on something |'
+- id: ec-parallel-epics-have-disjoint-owned-paths
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Parallel epics have DISJOINT `Owned paths` | for every `Parallel with:` pair — and every same-phase pair in `epic_order.py --json`, marked or not — intersect their `Owned paths:` as PATHS yourself (two globs that intersect without either containing the other, e.g. `src/*/handlers.py` against `src/api/*`, is the class Phase 2a''s check cannot see before the code exists) → empty; and the body agrees with the frontmatter 2a checked | A and B are parallel but both write `[glob]` → two agents writing one file is a merge conflict by construction → re-cut the boundary or make it sequential |'
+  current: '| Parallel epics have DISJOINT `Owned paths` | for every `Parallel with:` pair — and every same-phase pair in `epic_order.py --json`, marked or not — intersect their `Owned paths:` as PATHS yourself (two globs that intersect without either containing the other, e.g. `src/*/handlers.py` against `src/api/*`, is the class Phase 2a''s check cannot see before the code exists) → empty; and the body agrees with the frontmatter 2a checked | A and B are parallel but both write `[glob]` → two agents writing one file is a merge conflict by construction → re-cut the boundary or make it sequential |'
+  text:
+  - '| Parallel epics have DISJOINT `Owned paths` | for every `Parallel with:` pair — and every same-phase pair in `epic_order.py --json`, marked or not — intersect their `Owned paths:` as PATHS yourself (two globs that intersect without either containing the other, e.g. `src/*/handlers.py` against `src/api/*`, is the class Phase 2a''s check cannot see before the code exists) → empty; and the body agrees with the frontmatter 2a checked | A and B are parallel but both write `[glob]` → two agents writing one file is a merge conflict by construction → re-cut the boundary or make it sequential |'
+- id: ec-at-most-one-migration-owner-per
+  class: ban
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| At most ONE migration owner per parallel set | only one epic in a set owns `alembic/versions/**` / `db/schema.sql` | two parallel epics own migrations → concurrent Alembic heads race the version table and wedge the deploy (12-Factor XII) → the non-schema epic must `depends-on` the schema epic |'
+  current: '| At most ONE migration owner per parallel set | only one epic in a set owns `alembic/versions/**` / `db/schema.sql` | two parallel epics own migrations → concurrent Alembic heads race the version table and wedge the deploy (12-Factor XII) → the non-schema epic must `depends-on` the schema epic |'
+  text:
+  - only one epic in a set owns `alembic/versions/**` / `db/schema.sql` | two parallel epics own migrations → concurrent Alembic heads race the version table and wedge the deploy (12-Factor XII) → the non-schema epic must `depends-on` the schema epic
+  - epic  must `depends-on` the schema epic
+  - '| At most ONE migration owner per parallel set | only one epic in a set owns `alembic/versions/**` / `db/schema.sql` | two parallel epics own migrations → concurrent Alembic heads race the version table and wedge the deploy (12-Factor XII) → the non-schema epic must `depends-on` the schema epic |'
+- id: ec-produced-artifacts-consumed-every-produces-has
+  class: ban
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Produced artifacts consumed | every `Produces` has a matching `Consumes` — N/A for a single-epic proposal and for terminal-output epics producing end-user output only | A produces X, nobody consumes it, epic count > 1, and X is internal (table/endpoint/env var/queue) |'
+  current: '| Produced artifacts consumed | every `Produces` has a matching `Consumes` — N/A for a single-epic proposal and for terminal-output epics producing end-user output only | A produces X, nobody consumes it, epic count > 1, and X is internal (table/endpoint/env var/queue) |'
+  text:
+  - only | A produces X, nobody consumes it, epic count > 1, and X is internal
+  - '| Produced artifacts consumed | every `Produces` has a matching `Consumes` — N/A for a single-epic proposal and for terminal-output epics producing end-user output only | A produces X, nobody consumes it, epic count > 1, and X is internal (table/endpoint/env var/queue) |'
+- id: ec-graph-is-minimal-every-sequential-pair
+  class: ban
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Graph is MINIMAL | every sequential pair has a stated artifact reason (`Consumes:` names what B takes from A); if epics CAN be parallel they MUST be | B `depends-on` A but consumes nothing → an invented edge lengthening the critical path for free → reclassify to parallel (then it must pass the two gates above) |'
+  current: '| Graph is MINIMAL | every sequential pair has a stated artifact reason (`Consumes:` names what B takes from A); if epics CAN be parallel they MUST be | B `depends-on` A but consumes nothing → an invented edge lengthening the critical path for free → reclassify to parallel (then it must pass the two gates above) |'
+  text:
+  - MUST be | B `depends-on` A but consumes nothing → an invented edge lengthening the critical path for free → reclassify to parallel (then it must pass the two gates above)
+  - must pass the two gates above)
+  - '| Graph is MINIMAL | every sequential pair has a stated artifact reason (`Consumes:` names what B takes from A); if epics CAN be parallel they MUST be | B `depends-on` A but consumes nothing → an invented edge lengthening the critical path for free → reclassify to parallel (then it must pass the two gates above) |'
+- id: ec-deferred-compliance-appendix-existing-mode-only
+  class: ban
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| Deferred Compliance appendix (EXISTING mode only) | if the Compliance Report has any `fix-later` / `accept-as-legacy` row, an appendix lists every one — those rows emit no epic, so the appendix is their only carrier, and `/fabrik-epics` persists it into the Infrastructure Decisions spec''s `## Deferred Compliance (not actioned this run)` section — read it there, not from conversation. N/A in NEW mode or when all rows are `fix-now` | such a row appears in no epic and no appendix → the owner''s deliberate deferral was silently dropped. Route to `/fabrik-epics` naming the cause: present in the Compliance Report but missing from the spec''s section (it didn''t carry them), or deferred by the owner but never surfaced (its compliance-rows step) |'
+  current: '| Deferred Compliance appendix (EXISTING mode only) | if the Compliance Report has any `fix-later` / `accept-as-legacy` row, an appendix lists every one — those rows emit no epic, so the appendix is their only carrier, and `/fabrik-epics` persists it into the Infrastructure Decisions spec''s `## Deferred Compliance (not actioned this run)` section — read it there, not from conversation. N/A in NEW mode or when all rows are `fix-now` | such a row appears in no epic and no appendix → the owner''s deliberate deferral was silently dropped. Route to `/fabrik-epics` naming the cause: present in the Compliance Report but missing from the spec''s section (it didn''t carry them), or deferred by the owner but never surfaced (its compliance-rows step) |'
+  text:
+  - only) | if the Compliance Report has any `fix-later` / `accept-as-legacy` row, an appendix lists every one
+  - only carrier, and `/fabrik-epics` persists it into the Infrastructure Decisions spec's `## Deferred Compliance (not actioned this run)` section
+  - but  never surfaced (its compliance-rows step)
+  - '| Deferred Compliance appendix (EXISTING mode only) | if the Compliance Report has any `fix-later` / `accept-as-legacy` row, an appendix lists every one — those rows emit no epic, so the appendix is their only carrier, and `/fabrik-epics` persists it into the Infrastructure Decisions spec''s `## Deferred Compliance (not actioned this run)` section — read it there, not from conversation. N/A in NEW mode or when all rows are `fix-now` | such a row appears in no epic and no appendix → the owner''s deliberate deferral was silently dropped. Route to `/fabrik-epics` naming the cause: present in the Compliance Report but missing from the spec''s section (it didn''t carry them), or deferred by the owner but never surfaced (its compliance-rows step) |'
+- id: ec-the-entry-point-is-fabrik-spec
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: ⚠️ The entry point is `/fabrik-spec <epic file>`, not a chat brief — a window that specs its epic from conversation loses every Metadata field the intake would have pinned
+  current: ⚠️ The entry point is `/fabrik-spec <epic file>`, not a chat brief — a window that specs its epic from conversation loses every Metadata field the intake would have pinned
+  text:
+  - ⚠️ The entry point is `/fabrik-spec <epic file>`, not a chat brief — a window that specs its epic from conversation loses every Metadata field the intake would have pinned
+- id: ec-port-present-and-not-already-allocated
+  class: prose
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| `Port` | present and not already allocated — verify against `PORTS.md`, don''t eyeball | missing, OR taken in `PORTS.md`, OR two epics claim the same port → route to `/fabrik-epics` (it allocates from `PORTS.md`) |'
+  current: '| `Port` | present and not already allocated — verify against `PORTS.md`, don''t eyeball | missing, OR taken in `PORTS.md`, OR two epics claim the same port → route to `/fabrik-epics` |'
+  text:
+  - '| `Port` | present and not already allocated — verify against `PORTS.md`, don''t eyeball | missing, OR taken in `PORTS.md`, OR two epics claim the same port → route to `/fabrik-epics` |'
+- id: ec-target-vps-vps1-vps2-vps3-missing
+  class: prose
+  clauses: {2: narrative}
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| `target_vps` | `vps1`/`vps2`/`vps3` | missing — the plan cannot pick the DB host |'
+  current: '| `target_vps` | `vps1`/`vps2`/`vps3` | missing — the plan cannot pick the DB host |'
+  text:
+  - '| `target_vps` | `vps1`/`vps2`/`vps3` | missing — the plan cannot pick the DB host |'
+- id: ec-registrars-shape-a-semantic-cross-check
+  class: ban
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| `Registrars` ↔ `Shape` — a SEMANTIC cross-check, not presence | every firing flag has its registrar listed: `needs_database`⇒postgres · `needs_cache`⇒redis · `has_persistent_data`⇒backrest · `has_search_feature`⇒meilisearch · `is_public` AND `spec.domain`⇒gatus · `is_admin_dashboard` AND `spec.domain`⇒authelia · `exposes_metrics` AND `spec.domain`⇒prometheus; plus glitchtip (`shape.kind ∈ {service, worker, wordpress}`), grafana (always) and watchdog (opt-OUT). ⚠️ `has_bearer_api` fires no registrar — only the Authelia `^/api/` bypass (`src/fabrik/orchestrator/infrastructure.py` — the applicability matrix) | the list contradicts `Shape` — e.g. `needs_database: true` but postgres absent. Not a metadata gap — a silently-broken deploy: `fabrik apply` skips the registrar and the service comes up without its database (CLAUDE.md § Spec contract awareness) → route to `/fabrik-epics` |'
+  current: '| `Registrars` ↔ `Shape` — a SEMANTIC cross-check, not presence | every firing flag has its registrar listed: `needs_database`⇒postgres · `needs_cache`⇒redis · `has_persistent_data`⇒backrest · `has_search_feature`⇒meilisearch · `is_public` AND `spec.domain`⇒gatus · `is_admin_dashboard` AND `spec.domain`⇒authelia · `exposes_metrics` AND `spec.domain`⇒prometheus; plus glitchtip (`shape.kind ∈ {service, worker, wordpress}`), grafana (always) and watchdog (opt-OUT). ⚠️ `has_bearer_api` fires no registrar — only the Authelia `^/api/` bypass (`src/fabrik/orchestrator/infrastructure.py` — the applicability matrix) | the list contradicts `Shape` — e.g. `needs_database: true` but postgres absent. Not a metadata gap — a silently-broken deploy: `fabrik apply` skips the registrar and the service comes up without its database (CLAUDE.md § Spec contract awareness) → route to `/fabrik-epics` |'
+  text:
+  - only the Authelia `^/api/` bypass (`src/fabrik/orchestrator/infrastructure.py` — the applicability matrix) | the list contradicts `Shape`
+  - '| `Registrars` ↔ `Shape` — a SEMANTIC cross-check, not presence | every firing flag has its registrar listed: `needs_database`⇒postgres · `needs_cache`⇒redis · `has_persistent_data`⇒backrest · `has_search_feature`⇒meilisearch · `is_public` AND `spec.domain`⇒gatus · `is_admin_dashboard` AND `spec.domain`⇒authelia · `exposes_metrics` AND `spec.domain`⇒prometheus; plus glitchtip (`shape.kind ∈ {service, worker, wordpress}`), grafana (always) and watchdog (opt-OUT). ⚠️ `has_bearer_api` fires no registrar — only the Authelia `^/api/` bypass (`src/fabrik/orchestrator/infrastructure.py` — the applicability matrix) | the list contradicts `Shape` — e.g. `needs_database: true` but postgres absent. Not a metadata gap — a silently-broken deploy: `fabrik apply` skips the registrar and the service comes up without its database (CLAUDE.md § Spec contract awareness) → route to `/fabrik-epics` |'
+- id: ec-the-other-10-fields-present-and
+  class: ban
+  section: '## Phase 3 — Dispatch the cross-epic review — reviewer agents, BOTH mechanisms'
+  baseline: '| the other 10 fields — present and value-shaped (not presence-only) | `Scaffold` · `Shape` · `Concurrency` · `i18n` · `Rule Packs` · `HAS_USER_GUIDE` ∈ {true,false} · `Universal categories` = comma-separated 1–14, verbatim from `/fabrik-epics`'' universal-categories step (a hand-invented list is a FAIL) · `Email` ∈ {transactional, marketing, two-stream, none, N/A} · `Abuse Detection` = `required` (SaaS w/ free tier) or `N/A — <reason>` · `FINANCIALS` = `required` (SaaS launch gate) or `N/A — <reason>` | missing: [name], or present with an off-contract value — a presence-only pass is the same regression this table flags for `Registrars` |'
+  current: '| the other 10 fields — present and value-shaped (not presence-only) | `Scaffold` · `Shape` · `Concurrency` · `i18n` · `Rule Packs` · `HAS_USER_GUIDE` ∈ {true,false} · `Universal categories` = comma-separated 1–14, verbatim from `/fabrik-epics`'' universal-categories step (a hand-invented list is a FAIL) · `Email` ∈ {transactional, marketing, two-stream, none, N/A} · `Abuse Detection` = `required` (SaaS w/ free tier) or `N/A — <reason>` · `FINANCIALS` = `required` (SaaS launch gate) or `N/A — <reason>` | missing: [name], or present with an off-contract value — a presence-only pass is the same regression this table flags for `Registrars` |'
+  text:
+  - only) | `Scaffold` · `Shape` · `Concurrency` · `i18n` · `Rule Packs` · `HAS_USER_GUIDE` ∈ {true,false} · `Universal categories` = comma-separated 1–14, verbatim from `/fabrik-epics`' universal-categories step (a hand-invented list is a FAIL) · `Email` ∈ {transactional, marketing, two-stream, none, N/A} · `Abuse Detection` = `required` (SaaS w/ free tier) or `N/A
+  - only pass is the same regression this table flags for `Registrars`
+  - '| the other 10 fields — present and value-shaped (not presence-only) | `Scaffold` · `Shape` · `Concurrency` · `i18n` · `Rule Packs` · `HAS_USER_GUIDE` ∈ {true,false} · `Universal categories` = comma-separated 1–14, verbatim from `/fabrik-epics`'' universal-categories step (a hand-invented list is a FAIL) · `Email` ∈ {transactional, marketing, two-stream, none, N/A} · `Abuse Detection` = `required` (SaaS w/ free tier) or `N/A — <reason>` · `FINANCIALS` = `required` (SaaS launch gate) or `N/A — <reason>` | missing: [name], or present with an off-contract value — a presence-only pass is the same regression this table flags for `Registrars` |'
+- id: ec-surgical-ticket-fix-a-missing-metadata
+  class: ban
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: 'Surgical ticket fix (a missing Metadata field, a wrong title format, an absent `Owned paths`, an off-contract field value, a body that disagrees with its frontmatter) → a scoped fixup ticket naming the finding''s `path:line` + the required value, dispatched to a native `general-purpose` seat (the pool is OFF, D-181) — one seat per epic file, briefed to touch ONLY that file, so merge all of one file''s findings into ONE seat<!-- POOL OFF (D-181): the pool via `fanout("docs", units, repo=…, project="mega-review", mode="write")`, `mode="write"` load-bearing, one unit per epic file as its `owned_paths` — `fanout` REFUSES with a `ValueError` if two units name the same path --> (two findings on the same epic is the common case) — or a native Opus subagent for a high-risk one (e.g. a migration-owner correction)'
+  current: &surg 'Surgical ticket fix (a missing Metadata field, a wrong title format, an absent `Owned paths`, an off-contract field value, a body that disagrees with its frontmatter) → a scoped fixup ticket naming the finding''s `path:line` + the required value, dispatched to a native `general-purpose` seat (the pool is OFF, D-181) — one seat per epic file, briefed to touch ONLY that file, so merge all of one file''s findings into ONE seat<!-- POOL OFF (D-181): the pool via `fanout("docs", units, repo=…, project="mega-review", mode="write")`, `mode="write"` load-bearing, one unit per epic file as its `owned_paths` — `fanout` REFUSES with a `ValueError` if two units name the same path --> (two findings on the same epic is the common case) — or a native Opus subagent for a high-risk one (e.g. a migration-owner correction)'
+  text:
+  - *surg
+- id: ec-not-a-registrars-shape-mismatch-lens
+  class: prose
+  clauses: {2: {duplicate-of: ec-registrars-shape-a-semantic-cross-check}}
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: ⚠️ NOT a `Registrars`↔`Shape` mismatch — lens E routes that to `/fabrik-epics` (a silently-broken deploy, not a metadata gap) and lens E is the authority on it
+  current: "⚠️ NOT a `Registrars`↔`Shape` mismatch — lens E routes that to `/fabrik-epics`, and lens E is the authority on it"
+  text:
+  - ⚠️ NOT a `Registrars`↔`Shape` mismatch — lens E routes that to `/fabrik-epics`
+- id: ec-a-fixup-never-touches-owner-a
+  class: ban
+  clauses: {2: narrative}
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: ⚠️ A fixup never touches `owner:` — the field is `epic_order.py --assign`'s; a fixup that needs a different owner is a boundary question
+  current: ⚠️ A fixup never touches `owner:` — a fixup that needs a different owner is a boundary question
+  text:
+  - ⚠️ A fixup  never touches `owner:`
+  - ⚠️ A fixup never touches `owner:` — a fixup that needs a different owner is a boundary question
+- id: ec-there-is-no-round-ceiling-the
+  class: ban
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: There is NO round ceiling — while anything is still being raised, the next round is owed; the run loops until the exit holds ¶ The ONLY non-quiet stop is the command's own BLOCKED escalation (a finding surviving 3 consecutive fix attempts → pause that finding, keep looping the rest) — never a self-declared residual
+  current: There is NO round ceiling — while anything is still being raised, the next round is owed; the run loops until the exit holds. The ONLY non-quiet stop is the command's own BLOCKED escalation (a finding surviving 3 consecutive fix attempts → pause that finding, keep looping the rest) — never a self-declared residual
+  text:
+  - ONLY non-quiet stop is the command's own BLOCKED escalation (a finding surviving 3 consecutive fix attempts → pause that finding, keep looping the rest)
+  - rest) —  never a self-declared residual
+  - There is NO round ceiling — while anything is still being raised, the next round is owed; the run loops until the exit holds. The ONLY non-quiet stop is the command's own BLOCKED escalation (a finding surviving 3 consecutive fix attempts → pause that finding, keep looping the rest) — never a self-declared residual
+- id: ec-anti-cheat-the-set-hash-record
+  class: prose
+  clauses: {1: narrative}
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: 'Anti-cheat (mechanical, not vibes) — the SET hash (the same machinery as `/fabrik-plan-review`''s combined-hash rule, for the same reason): record the epic set''s combined hash at the start and end of every round — round 1''s start is taken AFTER Phase 2c:'
+  current: 'Anti-cheat — the SET hash (the same machinery as `/fabrik-plan-review`''s combined-hash rule, for the same reason): record the epic set''s combined hash at the start and end of every round — round 1''s start is taken AFTER Phase 2c:'
+  text:
+  - 'Anti-cheat — the SET hash (the same machinery as `/fabrik-plan-review`''s combined-hash rule, for the same reason): record the epic set''s combined hash at the start and end of every round — round 1''s start is taken AFTER Phase 2c:'
+- id: ec-lc-all-c-is-load-bearing
+  class: ban
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: '(`LC_ALL=C` is load-bearing: locale collation orders `Alpha.md`/`alpha.md` and nested paths differently from byte order, and the gate recomputes this hash in byte order — a locale-sorted hash reads as "never computed".)'
+  current: '(`LC_ALL=C` is load-bearing: locale collation orders `Alpha.md`/`alpha.md` and nested paths differently from byte order, and the gate recomputes this hash in byte order, and a locale-sorted hash reads as "never computed".)'
+  text:
+  - '(`LC_ALL=C` is load-bearing: locale collation orders `Alpha.md`/`alpha.md` and nested paths differently from byte order, and the gate recomputes this hash in byte order, and a locale-sorted hash reads as "never computed".)'
+- id: ec-fixups-edit-epic-files-so-the
+  class: ban
+  clauses: {1: narrative}
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: 'Fixups edit epic files, so a round that changed anything shows a different hash — which is exactly why the exit round must show `md5(start) == md5(end)` on top of its quiet ledger: identical hashes prove the final round was genuinely the closing round (`confirmed: 0`) rather than asserted so'
+  current: 'Fixups edit epic files, so the exit round must show `md5(start) == md5(end)` on top of its quiet ledger: identical hashes prove the final round was genuinely the closing round (`confirmed: 0`) rather than asserted so; a quiet ledger with a moved hash is a round that fixed something and called itself quiet — run the next round'
+  text:
+  - 'must show `md5(start) == md5(end)` on top of its quiet ledger: identical hashes prove the final round was genuinely the closing round (`confirmed: 0`) rather than asserted so'
+  - 'Fixups edit epic files, so the exit round must show `md5(start) == md5(end)` on top of its quiet ledger: identical hashes prove the final round was genuinely the closing round (`confirmed: 0`) rather than asserted so; a quiet ledger with a moved hash is a round that fixed something and called itself quiet — run the next round'
+- id: ec-persist-the-report-first-to-docs
+  class: prose
+  section: '## Phase 5 — Report + hand off'
+  baseline: PERSIST the report FIRST. The report is written to `docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` — the file is the record
+  current: PERSIST the report FIRST to `docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` — the file is the record
+  text:
+  - PERSIST the report FIRST to `docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md` — the file is the record
+- id: ec-the-filename-and-the-h1-are
+  class: prose
+  section: '## Phase 5 — Report + hand off'
+  baseline: '⚠️ The filename and the H1 are a CONTRACT, not a style choice. `check_review_coverage.py` (run by `final_gate` and the Stop hook) routes a report through the cross-epic grammar by exactly two keys — the H1 `# Cross-Epic Validation Report` as the file''s first line (a vision suffix after it is allowed) OR the reserved filename suffix `mega-<slug>-validation-review.md` ¶ The grammar it enforces on the persisted file:'
+  current: "⚠️ The filename and the H1 are a CONTRACT, not a style choice. `check_review_coverage.py` (run by `final_gate` and the Stop hook) routes a report through the cross-epic grammar by exactly two keys — the H1 `# Cross-Epic Validation Report` as the file's first line (a vision suffix after it is allowed) OR the reserved filename suffix `mega-<slug>-validation-review.md`; lose BOTH and the report silently falls through to the ordinary review grammar, and nothing below is enforced"
+  text:
+  - ⚠️ The filename and the H1 are a CONTRACT, not a style choice. `check_review_coverage.py` (run by `final_gate` and the Stop hook) routes a report through the cross-epic grammar by exactly two keys — the H1 `# Cross-Epic Validation Report` as the file's first line (a vision suffix after it is allowed) OR the reserved filename suffix `mega-<slug>-validation-review.md`; lose BOTH and the report silently falls through to the ordinary review grammar
+- id: ec-either-key-alone-still-routes-it
+  class: ban
+  clauses: {2: {duplicate-of: ec-the-filename-and-the-h1-are}}
+  section: '## Phase 5 — Report + hand off'
+  baseline: Either key alone still routes it (the filename key exists precisely so a mega-shaped name can never route weaker, whatever its title says); lose BOTH and the report silently falls through to the ordinary review grammar, and nothing below is enforced
+  current: Either key alone still routes it (the filename key exists precisely so a mega-shaped name can never route weaker, whatever its title says)
+  text:
+  - never route weaker, whatever its title says)
+  - Either key alone still routes it (the filename key exists precisely so a mega-shaped name can never route weaker, whatever its title says)
+- id: ec-a-surface-line-at-column-0
+  class: prose
+  section: '## Phase 5 — Report + hand off'
+  baseline: a `Surface:` line at column 0 carrying the final SET hash from Phase 4's anti-cheat;
+  current: a `Surface:` line at column 0 carrying the final SET hash from Phase 4;
+  text:
+  - a `Surface:` line at column 0 carrying the final SET hash from Phase 4;
+- id: ec-the-per-round-ledger-with-each
+  class: ban
+  section: '## Phase 5 — Report + hand off'
+  baseline: 'the per-round ledger with each round''s start/end hash — the fragment''s Pass Ledger, minimum two rounds, final round `confirmed: 0, fixed: 0` (with `found:` on the row so the mega grammar parses it) and `md5(start) == md5(end)`; that TABLE is the report''s ONLY counter table, and no Pass-style prose counter lives outside it;'
+  current: 'the per-round ledger with each round''s start/end hash — minimum two rounds, final round `confirmed: 0, fixed: 0` (with `found:` on the row) and `md5(start) == md5(end)`; that TABLE is the report''s ONLY counter table, and no Pass-style prose counter lives outside it;'
+  text:
+  - ONLY counter table, and no Pass-style prose counter lives outside it
+  - 'the per-round ledger with each round''s start/end hash — minimum two rounds, final round `confirmed: 0, fixed: 0` (with `found:` on the row) and `md5(start) == md5(end)`; that TABLE is the report''s ONLY counter table, and no Pass-style prose counter lives outside it;'
+- id: ec-every-lens-line-adjudicated-no-pass
+  class: prose
+  section: '## Phase 5 — Report + hand off'
+  baseline: every lens line adjudicated — no `[PASS]`/`[N]`/`[list]` template placeholders may survive into the persisted report (a placeholder is a lens nobody adjudicated wearing a verdict's clothes);
+  current: every lens line adjudicated — no `[PASS]`/`[N]`/`[list]` template placeholders may survive into the persisted report;
+  text:
+  - every lens line adjudicated — no `[PASS]`/`[N]`/`[list]` template placeholders may survive into the persisted report;
+- id: ec-status-in-progress-at-column-0
+  class: ban
+  section: '## Phase 5 — Report + hand off'
+  baseline: '`Status: IN-PROGRESS` at column 0 within the report''s first 10 lines (the template slots it at line 3) is the sanctioned escape for a run interrupted mid-loop or paused on a BLOCKED finding — never a way to ship an unconverged set'
+  current: '`Status: IN-PROGRESS` at column 0 within the report''s first 10 lines (the template slots it at line 3) is the sanctioned escape for a run interrupted mid-loop or paused on a BLOCKED finding — never a way to ship an unconverged set'
+  text:
+  - never a way to ship an unconverged set
+  - '`Status: IN-PROGRESS` at column 0 within the report''s first 10 lines (the template slots it at line 3) is the sanctioned escape for a run interrupted mid-loop or paused on a BLOCKED finding — never a way to ship an unconverged set'
+- id: ec-below-line-10-it-is-ignored
+  class: prose
+  section: '## Phase 5 — Report + hand off'
+  baseline: &bl10 'Below line 10 it is ignored, deliberately: an escape hatch that works from anywhere in the body is quotable from anywhere in the body'
+  current: *bl10
+  text:
+  - *bl10
+- id: ec-cross-epic-validation-report-surface-final
+  class: grammar
+  section: '## Phase 5 — Report + hand off'
+  baseline: '# Cross-Epic Validation Report ⏎ Surface: <final md5(end), FULL 32 hex — from Phase 4''s anti-cheat, never truncated> ⏎ Status: <omit when converged; `Status: IN-PROGRESS` for an interrupted or BLOCKED run — the gate reads this ONLY from the report''s first 10 lines, which is why its slot is here> ⏎ ## BLOCKED: <finding> — attempts: 3 · <what · searched · missing> (only on a Status: IN-PROGRESS report; omit when converged) ⏎  ⏎ Rounds (the fragment''s counters; FULL hashes, chained — round N''s end = round N+1''s start): ⏎ | round | counters | md5(start) → md5(end) | ⏎ |------:|---|---| ⏎ | Pass 1 | found: 7, new: 7, confirmed: 6, fixed: 6, unexecuted: 0 | <32-hex-A> → <32-hex-B> | ⏎ | Pass 2 | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | <32-hex-B> → <32-hex-B> | ⏎  ⏎ ## Feature Coverage: [PASS] — [N] features across [M] epics · orphans: none · duplicates: none ⏎ ## Epic Tickets: [PASS] — per-epic verdict with evidence ⏎ ## Dependency Graph: [PASS] — no cycles · roots: [list] · parallel lanes: [list] (disjoint paths verified) ⏎ Critical path: Epic 1 → Epic 3 → Epic 5 (3 deep) · SPLIT-CANDIDATE stated on each ⏎ ## Infrastructure Decisions: [PASS] — no contradictions, no missing sections ⏎ ## Handoff Readiness: [PASS] — 15-field Metadata complete; Registrars match Shape; ports free in PORTS.md ⏎ ## Overall: PASS · Fixups this run: [N] · Routed back: [none / list] ⏎ ## Recommended Execution Order (topological phases; `⚡` = parallel within a phase) ⏎ Phase 1 (root): Epic 1 ⚡ Epic 2 Phase 2: Epic 3 … ⏎ (single-epic: `Phase 1: Epic 1 — [name] (atomic — no phasing required).`) ⏎ ## Owner set (agent-1 first): alpha, beta, gamma — `epic_order.py --check --owners` PASS over [M] epics ⏎ ## Next per window ⏎ alpha (agent-1, main checkout — this window): /fabrik-spec docs/development/epics/<epic-1 file> ⏎ beta — `CLAUDE_AGENT=beta claude --worktree beta -n beta-<repo>` → /fabrik-spec docs/development/epics/<epic-2 file> ⏎ gamma — `CLAUDE_AGENT=gamma claude --worktree gamma -n gamma-<repo>` → /fabrik-spec docs/development/epics/<epic-3 file> ⏎ Phase 2 (after Phase 1 merges): beta → /fabrik-spec docs/development/epics/<epic-4 file> · …'
+  text:
+  - '# Cross-Epic Validation Report'
+  - '| round | counters | md5(start) → md5(end) |'
+  - '| Pass 1 | found: 7, new: 7, confirmed: 6, fixed: 6, unexecuted: 0 | <32-hex-A> → <32-hex-B> |'
+  - '## Feature Coverage: [PASS] — [N] features across [M] epics · orphans: none · duplicates: none'
+  - '## Epic Tickets: [PASS] — per-epic verdict with evidence'
+  - '## Dependency Graph: [PASS] — no cycles · roots: [list] · parallel lanes: [list] (disjoint paths verified)'
+  - 'Critical path: Epic 1 → Epic 3 → Epic 5 (3 deep) · SPLIT-CANDIDATE stated on each'
+  - '## Infrastructure Decisions: [PASS] — no contradictions, no missing sections'
+  - '## Handoff Readiness: [PASS] — 15-field Metadata complete; Registrars match Shape; ports free in PORTS.md'
+  - '## Recommended Execution Order (topological phases; `⚡` = parallel within a phase)'
+  - '## Next per window'
+  - 'Surface: <final md5(end), FULL 32 hex — from Phase 4''s anti-cheat, never truncated>'
+  - '| Pass 2 | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | <32-hex-B> → <32-hex-B> |'
+  - '## Overall: PASS · Fixups this run: [N] · Routed back: [none / list]'
+  - '## Owner set (agent-1 first): alpha, beta, gamma — `epic_order.py --check --owners` PASS over [M] epics'
+  - 'Status: <omit when converged; `Status: IN-PROGRESS` for an interrupted or BLOCKED run — the gate reads this ONLY from the report''s first 10 lines, which is why its slot is here>'
+  - '## BLOCKED: <finding> — attempts: 3 · <what · searched · missing> (only on a Status: IN-PROGRESS report; omit when converged)'
+  - 'Rounds (the fragment''s counters; FULL hashes, chained — round N''s end = round N+1''s start):'
+  - 'Phase 1 (root): Epic 1 ⚡ Epic 2 Phase 2: Epic 3 …'
+  - '(single-epic: `Phase 1: Epic 1 — [name] (atomic — no phasing required).`)'
+  - 'alpha (agent-1, main checkout — this window): /fabrik-spec docs/development/epics/<epic-1 file>'
+  - 'beta — `CLAUDE_AGENT=beta claude --worktree beta -n beta-<repo>` → /fabrik-spec docs/development/epics/<epic-2 file>'
+  - 'gamma — `CLAUDE_AGENT=gamma claude --worktree gamma -n gamma-<repo>` → /fabrik-spec docs/development/epics/<epic-3 file>'
+  - 'Phase 2 (after Phase 1 merges): beta → /fabrik-spec docs/development/epics/<epic-4 file> · …'
+- id: ec-generate-the-recommended-execution-order-in
+  class: prose
+  clauses: {2: narrative}
+  section: '## Phase 5 — Report + hand off'
+  baseline: '⚠️ Generate the `## Recommended Execution Order` in CODE, do not hand-derive it — the topological phases come from the same script that gated integrity:'
+  current: '⚠️ Generate the `## Recommended Execution Order` in CODE, do not hand-derive it:'
+  text:
+  - '⚠️ Generate the `## Recommended Execution Order` in CODE, do not hand-derive it:'
+- id: ec-owner-set-and-next-per-window
+  class: ban
+  section: '## Phase 5 — Report + hand off'
+  baseline: '`## Owner set` and `## Next per window` are derived the same way: each epic''s `owner:` (read from its frontmatter, never from memory of 2b) joined onto those phases; the owner set is printed in the operator''s order — agent-1 = the first name'
+  current: '`## Owner set` and `## Next per window` are derived the same way: each epic''s `owner:` (read from its frontmatter, never from memory of 2b) joined onto those phases, the owner set in the operator''s order — agent-1 = the first name'
+  text:
+  - never from memory of 2b) joined onto those phases, the owner set in the operator's order
+  - '`## Owner set` and `## Next per window` are derived the same way: each epic''s `owner:` (read from its frontmatter, never from memory of 2b) joined onto those phases, the owner set in the operator''s order — agent-1 = the first name'
+- id: ec-hand-off-every-window-gets-its
+  class: prose
+  clauses: {2: narrative, 3: narrative}
+  section: '## Phase 5 — Report + hand off'
+  baseline: 'Hand off — EVERY window gets its line, none is left to derive its own. At the adjudicated exit, dispatch is not a command that renders instructions; it is the operator opening windows:'
+  current: 'Hand off — EVERY window gets its line, none is left to derive its own:'
+  text:
+  - 'Hand off — EVERY window gets its line, none is left to derive its own:'
+- id: ec-agents-2-n-each-launch-claude
+  class: behavioural
+  section: '## Phase 5 — Report + hand off'
+  baseline: agents 2..N each launch `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` (the session name is `<name>-<repo>` because session names are box-wide — a bare `-n <name>` collides across repos) and run `/fabrik-spec docs/development/epics/<its epic>.md` on their Phase-1 epic; later-phase epics wait for the phase before them to merge, and are named on the same line so nobody re-derives them
+  current: agents 2..N each launch `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` (the session name is `<name>-<repo>` because session names are box-wide — a bare `-n <name>` collides across repos) and run `/fabrik-spec docs/development/epics/<its epic>.md` on their Phase-1 epic; later-phase epics wait for the phase before them to merge, and are named on the same line so nobody re-derives them
+  text:
+  - agents 2..N each launch `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` (the session name is `<name>-<repo>` because session names are box-wide — a bare `-n <name>` collides across repos) and run `/fabrik-spec docs/development/epics/<its epic>.md` on their Phase-1 epic; later-phase epics wait for the phase before them to merge, and are named on the same line so nobody re-derives them
+- id: ec-re-cut-epic-boundaries-or-re
+  class: prose
+  clauses: {2: narrative}
+  section: '## Does NOT'
+  baseline: Re-cut epic boundaries or re-derive the vision — it validates what exists; boundary changes route to `/fabrik-epics`
+  current: Re-cut epic boundaries or re-derive the vision — boundary changes route to `/fabrik-epics`
+  text:
+  - Re-cut epic boundaries or re-derive the vision — boundary changes route to `/fabrik-epics`
+- id: ec-expect-a-paired-review-of-its
+  class: prose
+  section: '## Does NOT'
+  baseline: 'Expect a paired review of its own — this command IS the review twin of `/fabrik-epics`: it has no downstream paired review and self-converges via its own finder loop, which is also why it is not a `type` in `/fabrik-workflow-review`, whose types are the producer doers'
+  current: Expect a paired review of its own — this command IS the review twin of `/fabrik-epics` — it has no downstream paired review and self-converges via its own finder loop, which is also why it is not a `type` in `/fabrik-workflow-review`, whose types are the producer doers
+  text:
+  - Expect a paired review of its own — this command IS the review twin of `/fabrik-epics` — it has no downstream paired review and self-converges via its own finder loop, which is also why it is not a `type` in `/fabrik-workflow-review`, whose types are the producer doers
+- id: ec-stop-and-wait-for-the-owner
+  class: ban
+  section: '## Does NOT'
+  baseline: Stop and wait for the owner on a finding — the operator agreed to the decomposition at `/fabrik-epics`' checkpoint; drift is handled by fixup + re-dispatch + re-review ¶ Only the 3 BLOCKED cases pause a finding
+  current: Stop and wait for the owner on a finding — the operator agreed to the decomposition at `/fabrik-epics`' checkpoint; drift is handled by fixup + re-dispatch + re-review. Only the 3 BLOCKED cases pause a finding
+  text:
+  - Only the 3 BLOCKED cases pause a finding
+  - Stop and wait for the owner on a finding — the operator agreed to the decomposition at `/fabrik-epics`' checkpoint; drift is handled by fixup + re-dispatch + re-review. Only the 3 BLOCKED cases pause a finding
+- id: ec-take-a-ticket-s-word-every
+  class: ban
+  section: '## Does NOT'
+  baseline: Take a ticket's word — every PASS is grounded in the real repo (`PORTS.md`, `infrastructure.py`, the rule packs), never the ticket's own claim
+  current: Take a ticket's word — every PASS is grounded in the real repo (`PORTS.md`, `infrastructure.py`, the rule packs), never the ticket's own claim
+  text:
+  - packs),  never the ticket's own claim
+  - Take a ticket's word — every PASS is grounded in the real repo (`PORTS.md`, `infrastructure.py`, the rule packs), never the ticket's own claim
+- id: ec-start-any-epic-s-own-chain
+  class: ban
+  section: '## Does NOT'
+  baseline: Start any epic's own chain — each window runs `/fabrik-spec` on its owned epic; this command names the dispatch per window and emits the code-generated order, it never runs a window's work
+  current: Start any epic's own chain — each window runs `/fabrik-spec` on its owned epic; this command names the dispatch per window and emits the code-generated order, it never runs a window's work
+  text:
+  - order, it  never runs a window's work
+  - Start any epic's own chain — each window runs `/fabrik-spec` on its owned epic; this command names the dispatch per window and emits the code-generated order, it never runs a window's work
+- id: ec-hand-edit-owner-or-run-assign
+  class: ban
+  section: '## Does NOT'
+  baseline: Hand-edit `owner:`, or run `--assign` over a set that failed `--check` — the assignment is code, its proof is `--check --owners`, and a refusal is a finding to file, not a field to type
+  current: Hand-edit `owner:`, or run `--assign` over a set that failed `--check` — the assignment is code, its proof is `--check --owners`, and a refusal is a finding to file, not a field to type
+  text:
+  - refusal is a finding to file, not a field to type
+  - Hand-edit `owner:`, or run `--assign` over a set that failed `--check` — the assignment is code, its proof is `--check --owners`, and a refusal is a finding to file, not a field to type
+- id: ec-never-re-cut-epics-here
+  class: ban
+  section: '## Phase 4 — Converge to the closing round — fixup, don''t stop'
+  baseline: Never re-cut epics here
+  text:
+  - 'a recreated ticket has never passed integrity and carries `owner: ""`). Never re-cut epics here'
+vanished:
+  L7: {rule: [ec-after-fabrik-epics-writes-one-file]}
+  L10: narrative
+  L11: narrative
+  L15: {rule: [ec-reads-budget-the-list-below-is]}
+  L22: {rule: [ec-the-vision-summary-docs-superpowers-specs]}
+  L25: {rule: [ec-the-epic-proposal-spec-docs-superpowers]}
+  L26: {rule: [ec-ports-md-a-port-claim-is]}
+  L31: {rule: [ec-the-owner-set-from-the-argument]}
+  L32: {rule: [ec-names-must-match-a-z0-9]}
+  L33: {rule: [ec-no-names-given-ask-once-the]}
+  L34: {rule: [ec-record-the-set-in-order-phase]}
+  L42: {rule: [ec-a-change-to-the-epic-boundaries]}
+  L44: {rule: [ec-on-any-state-blocked-what-searched]}
+  L47: {rule: [ec-flavour-aware-staging-a-delta-feature]}
+  L48: {rule: [ec-flavour-aware-staging-a-delta-feature]}
+  L49: {rule: [ec-docs-operations-fabrik-lifecycle-md-covers]}
+  L58: {rule: [ec-the-cross-epic-validation-report-structure]}
+  L59: {rule: [ec-structure-bounded-not-token-capped-a]}
+  L60: {rule: [ec-structure-bounded-not-token-capped-a, ec-the-result-is-the-adjudicated-verdict]}
+  L61: narrative
+  L79: {rule: [ec-count-mismatch-missing-number-fabrik-epics]}
+  L80: {rule: [ec-duplicate-epic-number-the-older-date]}
+  L94: {rule: [ec-a-missing-or-misspelled-epics-dir]}
+  L95: {rule: [ec-so-is-a-first-name-that]}
+  L97: {rule: [ec-re-run-2b-after-any-route]}
+  L102: {rule: [ec-fail-an-owner-missing-or-outside]}
+  L105: {rule: [ec-the-set-hash-phase-4-records]}
+  L107: {rule: [ec-arm-every-reviewer-first-run-python3]}
+  L108: {rule: [ec-it-carries-1-the-mandatory-core]}
+  L109: {rule: [ec-no-workflow-here-the-evaluation-checklist]}
+  L110: narrative
+  L111: {rule: [ec-dispatch-native-seats-core-62-using]}
+  L115: {rule: [ec-1-native-fabrik-reviewer-on-opus]}
+  L116: {rule: [ec-1-native-fabrik-reviewer-on-opus]}
+  L118: narrative
+  L120: {rule: [ec-feature-coverage-map-each-feature-of]}
+  L123: {rule: [ec-inventory-present-section-present-and-1]}
+  L124: {rule: [ec-every-feature-assigned-all-mapped-numbered]}
+  L125: {rule: [ec-no-feature-in-two-epics-each]}
+  L131: {rule: [ec-title-format-epic-n-name-exactly]}
+  L133: {rule: [ec-success-criteria-by-flavour-delta-feature]}
+  L134: {rule: [ec-deploy-gate-level-criterion-delta-fabrik]}
+  L135: {rule: [ec-resilience-criterion-delta-states-what-happens]}
+  L137: {rule: [ec-dependencies-all-5-sub-bullets-consumes]}
+  L138: {rule: [ec-typed-frontmatter-body-depends-on-parallel]}
+  L139: {rule: [ec-metadata-structure-only-all-15-rows]}
+  L141: {rule: [ec-entry-point-entry-point-fabrik-spec]}
+  L144: {rule: [ec-fabrik-epics-emits-a-mermaid-diagram]}
+  L147: {rule: [ec-epic-count-sanity-state-the-count]}
+  L153: {rule: [ec-root-epic-s-identified-1-epic]}
+  L155: {rule: [ec-parallel-epics-have-disjoint-owned-paths]}
+  L156: {rule: [ec-at-most-one-migration-owner-per]}
+  L157: {rule: [ec-produced-artifacts-consumed-every-produces-has]}
+  L160: {rule: [ec-graph-is-minimal-every-sequential-pair]}
+  L168: {rule: [ec-deferred-compliance-appendix-existing-mode-only]}
+  L171: {rule: [ec-the-entry-point-is-fabrik-spec]}
+  L174: {rule: [ec-port-present-and-not-already-allocated]}
+  L175: {rule: [ec-target-vps-vps1-vps2-vps3-missing]}
+  L177: {rule: [ec-registrars-shape-a-semantic-cross-check]}
+  L178: {rule: [ec-the-other-10-fields-present-and]}
+  L182: {rule: [ec-surgical-ticket-fix-a-missing-metadata]}
+  L184: {rule: [ec-not-a-registrars-shape-mismatch-lens]}
+  L185: {rule: [ec-a-fixup-never-touches-owner-a]}
+  L194: {rule: [ec-there-is-no-round-ceiling-the]}
+  L195: {rule: [ec-there-is-no-round-ceiling-the]}
+  L197: {rule: [ec-anti-cheat-the-set-hash-record]}
+  L199: {rule: [ec-lc-all-c-is-load-bearing]}
+  L200: {rule: [ec-fixups-edit-epic-files-so-the]}
+  L201: {rule: [ec-fixups-edit-epic-files-so-the]}
+  L206: {rule: [ec-persist-the-report-first-to-docs]}
+  L207: {rule: [ec-the-filename-and-the-h1-are]}
+  L208: {rule: [ec-either-key-alone-still-routes-it]}
+  L212: {rule: [ec-a-surface-line-at-column-0]}
+  L213: {rule: [ec-the-per-round-ledger-with-each]}
+  L214: {rule: [ec-every-lens-line-adjudicated-no-pass]}
+  L215: {rule: [ec-status-in-progress-at-column-0]}
+  L216: {rule: [ec-below-line-10-it-is-ignored]}
+  L219: {rule: [ec-generate-the-recommended-execution-order-in]}
+  L222: narrative
+  L223: {rule: [ec-owner-set-and-next-per-window]}
+  L224: {rule: [ec-hand-off-every-window-gets-its]}
+  L227: {rule: [ec-agents-2-n-each-launch-claude]}
+  L229: {duplicate-of: u-L45}
+  L231: {rule: [ec-re-cut-epic-boundaries-or-re]}
+  L232: {rule: [ec-expect-a-paired-review-of-its]}
+  L235: {rule: [ec-stop-and-wait-for-the-owner]}
+  L236: {rule: [ec-stop-and-wait-for-the-owner]}
+  L237: {rule: [ec-take-a-ticket-s-word-every]}
+  L239: {rule: [ec-start-any-epic-s-own-chain]}
+  L242: {rule: [ec-hand-edit-owner-or-run-assign]}
