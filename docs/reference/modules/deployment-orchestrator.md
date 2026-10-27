@@ -47,7 +47,7 @@ fabrik apply spec.yaml              # Full deployment — the orchestrator is th
 | `states.py` | 54 | `DeploymentState` enum + `can_transition()` (illegal transitions raise `InvalidStateTransitionError`) |
 | `context.py` | 83 | `DeploymentContext`, `ResourceRecord` — shared state across stages; every rollback-able resource calls `ctx.add_resource(...)` |
 | `exceptions.py` | 64 | Typed exceptions (`ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`) |
-| `secrets.py` | 137 | `SecretsManager` — `get()` precedence: env vars → project `.env` → CSPRNG generate (`secrets.choice()`, 32-char alphanumeric). (NB the orchestrator `from_env` path reads `.env` before env vars — the two paths differ.) |
+| `secrets.py` | 147 | `SecretsManager` — `get()` precedence: env vars → project `.env` → CSPRNG generate (`secrets.choice()`, 32-char alphanumeric). (NB the orchestrator `from_env` path reads `.env` before env vars — the two paths differ.) |
 | `validator.py` | 343 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
 | `../env_file.py` | — | The `.env` codec (`format_env`, `parse_env`, `EnvTemplate`) — compose's dotenv grammar for every Fabrik `.env` writer and reader (see Secrets Management) |
 | `deployer_ssh.py` | — | **`SSHDeployer.deploy(ctx)` (current)** — idempotent `docker compose up -d` over SSH; validates compose for template/docker/git sources; waits for container Up |
@@ -162,7 +162,7 @@ The orchestrator automatically loads secrets from the project's `.env` file duri
 2. Project `.env` file at `/opt/{spec_id}/.env`
 3. Environment variables
 
-(NB `SecretsManager.get()` itself checks env vars FIRST, then `.env`, then CSPRNG-generates — the two code paths order env vs `.env` differently; `secrets.py:87-97`.)
+(NB `SecretsManager.get()` itself checks env vars FIRST, then `.env`, then CSPRNG-generates — the two code paths order env vs `.env` differently; `secrets.py:97-113`.)
 
 **How It Works:**
 1. `fabrik scaffold` auto-detects secrets from `.env.example` and adds them to the spec's `from_env` field
@@ -171,8 +171,9 @@ The orchestrator automatically loads secrets from the project's `.env` file duri
 4. A `from_file` secret is the file's text minus ONE trailing newline (`echo secret > file`)
 
 **The `.env` format** (`src/fabrik/env_file.py`, W-2ae286e2). The hub `from_env` reader, the
-deployed `.env`/`.env.owner` writer and reader, and `.env.example` all use one codec built to docker
-compose's dotenv grammar. A spec `env:` value keeps its `$` as a compose interpolation
+`SecretsManager` read of `<cwd>/.env` (consulted only for a key absent from the environment,
+W-f62a2cdc), the deployed `.env`/`.env.owner` writer and reader, and `.env.example` all use one codec
+built to docker compose's dotenv grammar. A spec `env:` value keeps its `$` as a compose interpolation
 (`LOG_LEVEL=${LOG_LEVEL:-INFO}`); in every other value — a secret, a registrar value — a `$` is
 literal. A value is written bare unless it holds a space, `#`, a quote, `\`, a TAB, a line break or a
 literal `$`; a literal holding `$` is single-quoted (`API_KEY='a$b'`) when it holds no `'`, `\` or line
