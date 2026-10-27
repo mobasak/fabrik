@@ -7,6 +7,7 @@ to produce compose.yaml, Dockerfile, and other deployment files.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,8 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from fabrik.spec_loader import Spec
 from fabrik.version_registry import load_versions
+
+_PORT_RE = re.compile(r"\d{1,5}|\$\{[A-Za-z_][A-Za-z0-9_]*(?::-\d{1,5})?\}")
 
 
 class TemplateRenderer:
@@ -54,32 +57,60 @@ class TemplateRenderer:
 
         # Add custom filters
         self.jinja.filters["compose_env"] = self._compose_env
+        self.jinja.filters["compose_str"] = self._compose_str
+        self.jinja.filters["compose_port"] = self._compose_port
 
     @staticmethod
     def _compose_env(key: object, value: object) -> str:
         """One compose `environment:` list item, `- {{ key | compose_env(value) }}` (W-80aed026).
 
         A plain scalar `KEY=value` mangled values: ` #` started a comment, `: ` made a mapping, a newline
-        broke the list, and a backslash-escaped `"` stayed a backslash. PyYAML's own double-quoted
-        emission round-trips every string compose can hold; ASCII-only, because the deployer writes the
-        file with the locale encoding. `$` is left alone here — render() escapes the secrets layer, while
-        spec env keeps compose interpolation. The error names the key, never the value (it is echoed).
+        broke the list, and a backslash-escaped `"` stayed a backslash. `$` is left alone here — render()
+        escapes the secrets layer, while spec env keeps compose interpolation.
         """
-        text = f"{key}={value}"
+        return TemplateRenderer._compose_str(f"{key}={value}", f"env {key}")
+
+    @staticmethod
+    def _compose_str(value: object, label: str) -> str:
+        """Any spec string compose reads whole, as one double-quoted YAML scalar (W-80aed026, W-ff313a14).
+
+        PyYAML's own double-quoted emission round-trips every string compose can hold; ASCII-only,
+        because the deployer writes the file with the locale encoding. `$` passes through: compose
+        interpolation in a spec value is the spec author's (zitadel's `${ZITADEL_MASTERKEY}` command).
+        The error names the `label`, never the value (render errors are echoed and logged).
+        """
+        text = str(value)
         if "\x00" in text:
-            # runc refuses a container whose env holds a NUL.
-            raise ValueError(f"compose env {key}: the value contains a NUL byte")
+            # runc refuses a container whose env or argv holds a NUL.
+            raise ValueError(f"compose {label}: the value contains a NUL byte")
         try:
             text.encode("utf-8")
         except UnicodeEncodeError:
             # A lone surrogate (os.getenv's surrogateescape) emits as `\uDC80`, which compose rejects.
-            raise ValueError(f"compose env {key}: the value is not valid UTF-8") from None
+            raise ValueError(f"compose {label}: the value is not valid UTF-8") from None
         item = yaml.safe_dump(text, default_style='"', width=sys.maxsize, allow_unicode=False)
         item = item.rstrip("\n")
         if "\n" in item:
             # Tripwire only: with width=sys.maxsize PyYAML never folds a double-quoted scalar.
-            raise ValueError(f"compose env {key}: the YAML emission spans several lines")
+            raise ValueError(f"compose {label}: the YAML emission spans several lines")
         return item
+
+    @staticmethod
+    def _compose_port(value: object, label: str) -> str:
+        """A port pasted into a quoted compose item: a port number or a `${NAME}` / `${NAME:-port}`
+        interpolation, returned unchanged (W-ff313a14).
+
+        That alphabet holds no YAML- or shell-special character, so it stays literal inside the
+        template's own quoted items, where `check_traefik_labels.py` reads the label text. Anything else
+        (` #`, a quote, a word) is refused here: quoted, it would deploy and Traefik would drop the
+        router at runtime. A secret PORT arrives `$$`-escaped and is refused too.
+        """
+        text = str(value)
+        if not _PORT_RE.fullmatch(text):
+            raise ValueError(
+                f"compose {label}: must be a port number or a ${{NAME}} / ${{NAME:-port}} interpolation"
+            )
+        return text
 
     def list_templates(self) -> list[str]:
         """List available templates."""

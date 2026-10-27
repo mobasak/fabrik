@@ -177,24 +177,150 @@ def test_unrepresentable_value_refused(bad: str, layer: str) -> None:
     assert "sec" not in str(exc.value)
 
 
-# A templated env item is exactly `- {{ <key> | compose_env(<value>) }}`. Any other `- ` item whose key — a
-# bare name or a `{{ }}` tag, quoted or not (`- {{ key }}={{ value }}` was the old loop) — is followed by `=`
-# and a `{{` is an env value written by hand. Not env items, so not flagged: a dotted key (a quoted traefik
-# label) and the literal `DATABASE_URL=${DATABASE_URL:-…/{{ depends.postgres }}}` default, whose only tag is
-# the spec's database name — both separate quoting items (W-80aed026's OUT, W-ff313a14).
-_ENV_ITEM_LINE = re.compile(r"^\s*-\s+\{\{[^{}]*\|\s*compose_env\([^{}]*\)\s*\}\}\s*$")
-_TEMPLATED_KV_LINE = re.compile(r"^\s*-\s+[\"']?(?:[A-Za-z_][A-Za-z0-9_]*|\{\{[^{}]*\}\})=.*\{\{")
-_DB_DEFAULT_LINE = re.compile(
-    r"^\s*-\s+DATABASE_URL=\$\{DATABASE_URL:-(?:(?!\{\{).)*\{\{\s*depends\.postgres\s*\}\}\}$"
+# --- W-ff313a14: compose scalars outside `environment:` ------------------------------------------------------
+
+ZITADEL_COMMAND = 'start-from-init --masterkey "${ZITADEL_MASTERKEY}" --tlsMode external'
+
+
+def _service(compose: str, service: str = "demo-svc") -> dict:
+    return yaml.safe_load(compose)["services"][service]
+
+
+@pytest.mark.parametrize(
+    "value", [*TRICKY.values(), ZITADEL_COMMAND, "--port 80"], ids=[*TRICKY, "zitadel", "smoke"]
 )
+def test_image_command_round_trips(value: str) -> None:
+    """The YAML `command` value is the spec string, `$` kept for compose interpolation (zitadel)."""
+    source = {"image": "busybox:1", "image_command": value}
+    compose = _render(_spec("python-api", {}, source=source), {})
+    assert _service(compose)["command"] == value, compose
+
+
+@pytest.mark.parametrize("name", sorted(TRICKY))
+def test_health_test_round_trips(name: str) -> None:
+    test = ["CMD-SHELL", TRICKY[name], "x"]
+    compose = _render(_spec("python-api", {}, health={"test": test}), {})
+    assert _service(compose)["healthcheck"]["test"] == test, compose
+
+
+@pytest.mark.parametrize("template", COMPANION_TEMPLATES)
+def test_companion_command_round_trips(template: str) -> None:
+    """`tojson` wrote a non-BMP character as a JSON surrogate pair, which YAML reads as two lone surrogates."""
+    command = ["node", TRICKY["nonascii"], TRICKY["dquote"], TRICKY["backslash"]]
+    companion = {"id": "demo-svc-worker", "command": command, "memory": "256M"}
+    compose = _render(_spec(template, {}, companion_services=[companion]), {})
+    assert _service(compose, "demo-svc-worker")["command"] == command, compose
+
+
+@pytest.mark.parametrize("port", ["3000", "8", "${APP_PORT}", "${APP_PORT:-3000}"])
+def test_file_api_port_round_trips(port: str) -> None:
+    spec = _spec("file-api", {"PORT": port}, health={"path": "/api/health"})
+    svc = _service(_render(spec, {}))
+    assert svc["healthcheck"]["test"][-1] == f"http://localhost:{port}/api/health"
+    assert f"traefik.http.services.demo-svc.loadbalancer.server.port={port}" in svc["labels"]
+
+
+@pytest.mark.parametrize(
+    "port", ['3000" x', "30 #00", "3000: x", "${A}x", "${A:-x}", "", "123456", "$${A}"]
+)
+def test_file_api_port_refused(port: str) -> None:
+    """Both PORT sites accept only a port number or a compose interpolation; anything else is refused at render."""
+    with pytest.raises(ValueError, match="PORT"):
+        _render(_spec("file-api", {"PORT": port}, health={"path": "/api/health"}), {})
+
+
+_BAD_HEALTH_PATHS = [
+    '/h"x',
+    "/h x",
+    "/h#x",
+    "/h$x",
+    "/h{x}",
+    "/h'x",
+    "/h\\x",
+    "/h`x`",
+    "health",
+    "",
+]
+
+
+@pytest.mark.parametrize("path", _BAD_HEALTH_PATHS)
+def test_health_path_outside_grammar_refused(path: str) -> None:
+    from pydantic import ValidationError
+
+    from fabrik.orchestrator.exceptions import ValidationError as ApplyError
+    from fabrik.orchestrator.validator import SpecValidator
+
+    with pytest.raises(ValidationError, match="health"):
+        _spec("node-api", {}, health={"path": path})
+    raw = {
+        "name": "demo-svc",
+        "template": "node-api",
+        "domain": "demo.vps1.ocoron.com",
+        "health": {"path": path},
+    }
+    with pytest.raises(ApplyError, match="health"):
+        SpecValidator(templates_dir=TEMPLATES).validate(raw)
+
+
+def test_health_path_query_is_shell_quoted() -> None:
+    """`&` and `;` are legal in a health path and are shell syntax, so both CMD-SHELL probes single-quote the URL."""
+    from fabrik.orchestrator.deployer_ssh import _generate_docker_compose
+
+    path = "/health?a=1&b=(2);c"
+    url = f"http://localhost:8000{path}"
+    compose = _render(_spec("python-api", {}, health={"path": path}), {})
+    probe = _service(compose)["healthcheck"]["test"][1]
+    assert probe.count(f"'{url}'") == 2, probe
+    docker = _generate_docker_compose("demo-svc", "busybox:1", 8000, "", {"health": {"path": path}})
+    probe = _service(docker)["healthcheck"]["test"][1]
+    assert f"'{url}'" in probe, probe
+    exec_form = _service(_render(_spec("node-api", {}, health={"path": path}), {}))
+    assert exec_form["healthcheck"]["test"][-1] == f"http://localhost:3000{path}"
+
+
+def test_every_service_spec_passes_the_new_grammars() -> None:
+    from fabrik.spec_loader import load_spec
+
+    specs = sorted((REPO / "specs" / "services").glob("*.yaml"))
+    assert len(specs) >= 60, len(specs)
+    for f in specs:
+        load_spec(f)
+
+
+@pytest.mark.parametrize("name", ["db}x", "a #b", "x-y", "1db", "a" * 64, "d$b", "main\n"])
+def test_depends_postgres_must_be_an_identifier(name: str) -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="postgres"):
+        _spec("python-api", {}, depends={"postgres": name})
+
+
+def test_empty_depends_postgres_still_means_no_database() -> None:
+    compose = _render(_spec("python-api", {}, depends={"postgres": ""}), {})
+    assert "DATABASE_URL" not in _service_env(compose)
+
+
+@pytest.mark.parametrize("template", sorted({*ENV_TEMPLATES, *COMPANION_TEMPLATES}))
+def test_database_url_default_round_trips(template: str) -> None:
+    compose = _render(_spec(template, {}, depends={"postgres": "app_db"}), {})
+    if "DATABASE_URL" not in compose:
+        pytest.skip(f"{template} renders no DATABASE_URL default")
+    want = "${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/app_db}"
+    assert _service_env(compose).get("DATABASE_URL") == want, compose
+
+
+# A templated env item is exactly `- {{ <key> | compose_env(<value>) }}`. Any other `- ` item whose key — names,
+# hyphens and `{{ }}` tags in any mix, quoted or not, the quote closing before or after the `=` (`- {{ key }}=
+# {{ value }}` was the old loop) — is followed by `=` and a `{{` is an env value written by hand. A dotted key (a
+# quoted traefik label) is not an env item, so not flagged; there is no other exemption (W-ff313a14).
+# The tag may hold single braces (the DATABASE_URL default's `'${…:-' ~ … ~ '}'`), never a second tag.
+_IN_TAG = r"(?:(?!\{\{|\}\}).)*"
+_ENV_ITEM_LINE = re.compile(rf"^\s*-\s+\{{\{{{_IN_TAG}\|\s*compose_env\({_IN_TAG}\)\s*\}}\}}\s*$")
+_TEMPLATED_KV_LINE = re.compile(r"^\s*-\s+[\"']?(?:[A-Za-z0-9_-]|\{\{[^{}]*\}\})+[\"']?=.*\{\{")
 
 
 def _unquoted_env_line(line: str) -> bool:
-    return (
-        not _ENV_ITEM_LINE.match(line)
-        and bool(_TEMPLATED_KV_LINE.match(line))
-        and not _DB_DEFAULT_LINE.match(line)
-    )
+    return not _ENV_ITEM_LINE.match(line) and bool(_TEMPLATED_KV_LINE.match(line))
 
 
 @pytest.mark.parametrize(
@@ -215,10 +341,16 @@ def _unquoted_env_line(line: str) -> bool:
         (
             "      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}"
             "@postgres-main:5432/{{ depends.postgres }}}",
-            False,
+            True,
         ),
         ("      - DATABASE_URL={{ depends.postgres }}", True),
         ("      - DATABASE_URL=${DATABASE_URL:-{{ evil }}/{{ depends.postgres }}}", True),
+        ('      - "{{ key }}"={{ value }}', True),
+        ("      - '{{ key }}'={{ value }}", True),
+        ("      - PREFIX_{{ key }}={{ value }}", True),
+        ("      - {{ key }}_SUFFIX={{ value }}", True),
+        ("      - MY-KEY={{ value }}", True),
+        ("      - {{ 'DATABASE_URL' | compose_env('${X:-' ~ depends.postgres ~ '}') }}", False),
     ],
 )
 def test_the_unquoted_env_line_matcher(line: str, unquoted: bool) -> None:
@@ -236,7 +368,45 @@ def test_no_unquoted_env_line() -> None:
             if _unquoted_env_line(line):
                 hits.append(f"{f.relative_to(REPO)}:{n}: {line.strip()}")
             quoted += bool(_ENV_ITEM_LINE.match(line))
-    assert quoted >= 24, quoted  # 9 loops + 15 fixed lines — the guard read the files it claims to
+    # 9 loops + 15 fixed lines + 5 DATABASE_URL defaults — the guard read the files it claims to.
+    assert quoted >= 29, quoted
+    assert not hits, hits
+
+
+# A `command:` or `test:` whose value opens with a raw tag pastes spec text into a YAML scalar unquoted (the old
+# `command: {{ spec.source.image_command }}` and `test: {{ health.test }}`); a tag routed through `compose_str`
+# is the quoted form. A literal value that only embeds a tag (`sh -c "… {{ svc_port }}"`) is not this shape.
+_RAW_SCALAR_TAG_LINE = re.compile(r"^\s*(?:command|test):\s*\[?\s*\{\{(?![^}]*\bcompose_str\b)")
+
+
+@pytest.mark.parametrize(
+    ("line", "raw"),
+    [
+        ("    command: {{ spec.source.image_command }}", True),
+        ("      test: {{ health.test }}", True),
+        ("    command: {{ c.command | tojson | safe }}", True),
+        ("      test: [{{ x | join(', ') }}]", True),
+        (
+            "    command: {{ spec.source.image_command | compose_str('source.image_command') }}",
+            False,
+        ),
+        ("      test: [{{ health.test | map('compose_str', 'health.test') | join(', ') }}]", False),
+        ('    command: sh -c "uvicorn app --port {{ svc_port }}"', False),
+        ('      test: ["CMD", "curl", "-f", "http://localhost:3000{{ health.path }}"]', False),
+    ],
+)
+def test_the_raw_scalar_tag_matcher(line: str, raw: bool) -> None:
+    assert bool(_RAW_SCALAR_TAG_LINE.match(line)) is raw
+
+
+def test_no_raw_command_or_test_tag() -> None:
+    templates = sorted({*TEMPLATES.rglob("*.yaml.j2"), *TEMPLATES.rglob("*.yml.j2")})
+    hits = [
+        f"{f.relative_to(REPO)}:{n}: {line.strip()}"
+        for f in templates
+        for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1)
+        if _RAW_SCALAR_TAG_LINE.match(line)
+    ]
     assert not hits, hits
 
 
@@ -279,9 +449,27 @@ def test_only_compose_templates_read_env(tmp_path: Path) -> None:
         for f in TEMPLATES.rglob("*.j2")
         if _reads_env(renderer, f.read_text(encoding="utf-8"))
     }
-    compose = {r for r in readers if r.endswith(_COMPOSE_NAMES)}
+    compose = {r for r in readers if _is_compose_name(r)}
     assert len(compose) >= len(ENV_TEMPLATES), compose  # the check sees the reads it must
     assert readers == compose, sorted(readers - compose)
+
+
+def _is_compose_name(reader: str) -> bool:
+    return Path(reader).name in _COMPOSE_NAMES
+
+
+@pytest.mark.parametrize(
+    ("reader", "compose"),
+    [
+        ("templates/python-api/compose.yaml.j2", True),
+        ("templates/_partials/_companion_service.yaml.j2", True),
+        ("templates/x/docker-compose.yaml.j2", False),
+        ("templates/x/my_companion_service.yaml.j2", False),
+        ("templates/x/compose.yaml.j2.bak", False),
+    ],
+)
+def test_compose_names_match_exactly(reader: str, compose: bool) -> None:
+    assert _is_compose_name(reader) is compose
 
 
 def _busybox_ready() -> bool:

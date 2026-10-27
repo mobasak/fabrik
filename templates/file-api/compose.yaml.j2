@@ -43,7 +43,7 @@ services:
 
 {% if health %}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:{{ env.get('PORT', '3000') }}{{ health.path }}"]
+      test: ["CMD", "curl", "-f", "http://localhost:{{ env.get('PORT', '3000') | compose_port('PORT') }}{{ health.path }}"]
       interval: {{ health.interval | default('10s') }}
       timeout: {{ health.timeout | default('5s') }}
       retries: {{ health.retries | default(3) }}
@@ -57,7 +57,7 @@ services:
       - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
       - "traefik.http.routers.{{ spec.id }}.tls=true"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
-      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port={{ env.get('PORT', '3000') }}"
+      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port={{ env.get('PORT', '3000') | compose_port('PORT') }}"
 {% endif %}
 
     networks:

@@ -1606,7 +1606,9 @@ def _generate_docker_compose(
     if not health.get("disabled"):
         lines += [
             "    healthcheck:",
-            f'      test: ["CMD-SHELL", "wget -q --spider http://localhost:{port}{health_path} || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
+            # The URL is single-quoted: a health path may hold `&`, `;` or parentheses
+            # (HEALTH_PATH_RE, checked by the apply validator), which the shell would read (W-ff313a14).
+            f'      test: ["CMD-SHELL", "wget -q --spider \'http://localhost:{port}{health_path}\' || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
             f"      interval: {health_interval}",
             "      timeout: 10s",
             "      retries: 3",

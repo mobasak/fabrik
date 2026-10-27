@@ -21,7 +21,7 @@ import yaml
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.orchestrator.exceptions import ValidationError
-from fabrik.spec_loader import merge_template_defaults
+from fabrik.spec_loader import HEALTH_PATH_RE, merge_template_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -336,6 +336,14 @@ class SpecValidator:
                 raise ValidationError("Health must be a mapping", field="health")
             if "path" not in hc:
                 warnings.append("Health missing 'path', using /health")
+            elif not isinstance(hc["path"], str) or not HEALTH_PATH_RE.fullmatch(hc["path"]):
+                # The apply path never builds a `Spec`, and the docker-image deployer pastes this path
+                # into its compose probe raw — the same grammar as `Health.path` (W-ff313a14).
+                raise ValidationError(
+                    "health.path must start with / and hold only URL path and query characters "
+                    "(no quotes, backslash, $, #, backtick, braces or whitespace)",
+                    field="health.path",
+                )
 
         logger.info("Spec validated: %s", spec["name"])
         return warnings
