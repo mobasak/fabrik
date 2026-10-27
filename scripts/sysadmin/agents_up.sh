@@ -244,7 +244,8 @@ for name in sorted(ids):
     if linked(name):
         continue
     sids = [*ids[name], *([binding[name][0]] if name in binding else [])]
-    if not owner_name or not any(holds(f, s) for f in cands for s in sids):
+    # the same rule as the folder choice below: another builder's own-named tree is never this name's
+    if not owner_name or not any(holds(f, s) for f in cands if f not in ids for s in sids):
         no_worktree(name)
         del ids[name]
 

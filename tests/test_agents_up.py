@@ -1715,9 +1715,10 @@ def test_a_pane_starts_where_its_session_lives(tmp_path: Path) -> None:
     _transcript(home, uncapped, DEV1)
     _transcript(home, _wt(repo, "dev2"), DEV2)
     _transcript(home, sub, LONER)
-    _transcript(
-        home, coord, LONER
-    )  # the coordinator's tree also holds loner's session: never a candidate
+    # the coordinator's tree also holds loner's session: never a candidate
+    _transcript(home, coord, LONER)
+    # ghost's session sits only in ANOTHER builder's own-named tree: ghost is still dropped before its stale rows
+    _transcript(home, _wt(repo, "dev2"), STALE1)
     out = _run("--print", str(repo), home=home)
     assert out.returncode == 0, out.stderr
     assert "more than one session id" not in out.stderr, (
