@@ -13,7 +13,7 @@ repos and two template generations. `classify_backlog_row` now skips a row whose
 (balanced emphasis allowed); the `--check` untagged-row advisory inherits it. Re-measured: 82 → 58, the other 58
 byte-identical. The mailed defect this item carried — closed rows stamped because "no backlog uses strikethrough" — no
 longer reproduces: 22 of 23 closed rows skip today and the 23rd is live. Guarded by
-`TestTemplatePlaceholderRowsAreNeverStamped` in `tests/test_docs_updater_adopt.py` (five mutants of the guard killed;
+`TestTemplatePlaceholderRowsAreNeverStamped` in `tests/test_docs_updater_adopt.py` (six mutants of the guard killed;
 it reads the template from disk). W-e89d7983, D-1270.
 
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
