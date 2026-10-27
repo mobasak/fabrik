@@ -13,12 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
-  "tags": [
-    "waits-lean-u01-merge"
-  ],
+  "status": "done",
   "title": "W-128df814 (D-1268) makes four command texts stale once merged — SCRATCH is now the worktree's own; \"fix, THEN dispatch\""
 }
