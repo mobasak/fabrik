@@ -228,6 +228,21 @@ def test_a_descendant_that_left_the_group_cannot_hold_the_budget_open(tmp_path, 
             os.kill(int(pidfile.read_text()), signal.SIGKILL)  # the escapee this test spawned
     assert code is None
     assert elapsed < 1 + fg._GROUP_DRAIN_S + 10, f"the read waited out the escapee: {elapsed:.1f}s"
+    # the killed leader is REAPED before return, never left a zombie child of the gate
+    assert not _zombie_children(), "the runner returned with its killed leader unreaped"
+
+
+def _zombie_children() -> list[int]:
+    """This process's children in state Z (killed, never waited for)."""
+    me, found = os.getpid(), []
+    for stat in Path("/proc").glob("[0-9]*/stat"):
+        try:
+            fields = stat.read_text().rsplit(")", 1)[1].split()
+        except OSError:
+            continue
+        if fields[0] == "Z" and int(fields[1]) == me:
+            found.append(int(stat.parent.name))
+    return found
 
 
 def test_an_interrupt_while_waiting_kills_the_group_and_propagates(tmp_path, monkeypatch):
@@ -301,6 +316,21 @@ def test_a_sigterm_to_the_gate_kills_the_group(tmp_path):
         os.kill(pid, signal.SIGKILL)
     assert not alive, f"the scan outlived the gate's SIGTERM (gate rc {rc})"
     assert rc == 128 + signal.SIGTERM, "the SIGTERM must still end the gate"
+
+
+@pytest.mark.parametrize("caller_handler", [False, True])
+def test_the_sigterm_guard_passes_a_body_exception_through_and_restores_the_handler(caller_handler):
+    """The guard once yielded inside `except ValueError`: a body raising ValueError under a caller's
+    own SIGTERM handler came out as `RuntimeError: generator didn't stop after throw()`."""
+    mine = signal.signal(signal.SIGTERM, (lambda *_: None) if caller_handler else signal.SIG_DFL)
+    try:
+        before = signal.getsignal(signal.SIGTERM)
+        with pytest.raises(ValueError, match="body"):
+            with fg._sigterm_raises():
+                raise ValueError("body")
+        assert signal.getsignal(signal.SIGTERM) is before
+    finally:
+        signal.signal(signal.SIGTERM, mine)
 
 
 def test_the_runner_returns_the_exit_code_and_puts_stdout_before_stderr(tmp_path, monkeypatch):

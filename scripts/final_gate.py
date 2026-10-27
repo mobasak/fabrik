@@ -847,18 +847,17 @@ def _sigterm_raises() -> Iterator[None]:
     """While the wait runs, a SIGTERM raises `SystemExit` instead of ending the process outright, so
     the runner's cleanup runs. Installed only over the DEFAULT disposition and only on the main
     thread (`signal.signal` refuses any other) — a caller's own handler stays the caller's."""
+    previous = None
+    if signal.getsignal(signal.SIGTERM) is signal.SIG_DFL:
+        try:
+            previous = signal.signal(signal.SIGTERM, _raise_exit)
+        except ValueError:  # not the main thread
+            previous = None
     try:
-        if signal.getsignal(signal.SIGTERM) is not signal.SIG_DFL:
-            yield
-            return
-        previous = signal.signal(signal.SIGTERM, _raise_exit)
-    except ValueError:  # not the main thread
-        yield
-        return
-    try:
-        yield
+        yield  # ONE yield, outside every except: a body's own exception passes through unchanged
     finally:
-        signal.signal(signal.SIGTERM, previous)
+        if previous is not None:
+            signal.signal(signal.SIGTERM, previous)
 
 
 def _run_process_group(
@@ -898,9 +897,6 @@ def _run_process_group(
             except subprocess.TimeoutExpired:
                 # a descendant that left the group (`setsid`) still holds the pipes: stop
                 # reading, or the gate waits out that process instead of its own budget
-                for pipe in (proc.stdout, proc.stderr):
-                    if pipe is not None:
-                        pipe.close()
                 out, err = "", ""
         finally:
             _kill_group(proc)

@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3560-3566`)",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3556-3562`)",
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:569-586` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    'a `status: "setup-error"` envelope (`:3541-3558` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
+    'a `status: "setup-error"` envelope (`:3537-3554` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -895,23 +895,23 @@ def test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three()
 _GATE_CITES = {
     ":73": "PROJECT_ROOT = Path.cwd()",
     ":569-586": "WARN_ONLY_CHECKS: set[str] = {",
-    ":1586": "if tier == 3:",
-    ":1603": "return results",
-    ":1703": "return results",
-    "final_gate.py:1824-1834": "if (",
-    ":1471": "elif code == 5:",
-    ":1568": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":3541-3558": "missing = _toolchain_missing(PYTHON)",
-    ":3560-3566": "# Determine tier",
+    ":1582": "if tier == 3:",
+    ":1599": "return results",
+    ":1699": "return results",
+    "final_gate.py:1820-1830": "if (",
+    ":1467": "elif code == 5:",
+    ":1564": "if code != 0 and _PYTEST_EARLY_STOP in out:",
+    ":3537-3554": "missing = _toolchain_missing(PYTHON)",
+    ":3556-3562": "# Determine tier",
 }
 
 
 # A range cite's END line too: a start-only check let a wrong end number pass (review of the +11 move).
 _GATE_CITE_ENDS = {
     ":569-586": "}",
-    "final_gate.py:1824-1834": "):",
-    ":3541-3558": "return 2",
-    ":3560-3566": "tier = 2",
+    "final_gate.py:1820-1830": "):",
+    ":3537-3554": "return 2",
+    ":3556-3562": "tier = 2",
 }
 
 # The hub contract alone says where ruff must RESOLVE (the template's GATE row omits that sentence).
