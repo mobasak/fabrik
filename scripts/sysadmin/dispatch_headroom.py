@@ -32,7 +32,8 @@ that seat count; `--units` then defaults to the slice count.
 
 Every probe fails SOFT and says so: an unreadable /proc, a rotation script that raises, or an
 unidentifiable active account prints the floor with the reason — never a silent 20, and never
-"cool" by default.
+"cool" by default. The one exception is a session on an Anthropic API key (W-3e924ccb, D-1243):
+its seats draw the key, so no plan cap applies — see `_api_key_reading` for when it counts.
 """
 
 from __future__ import annotations
@@ -267,8 +268,8 @@ def _api_key_reading(hold: bool) -> dict:
     (W-3e924ccb, D-1243)? The answer is the posture hook's own `_api_key_free()` — the key and none
     of `_OTHER_AUTH` in THIS process's env, and no stamp or one whose line 2 plainly reads a quota
     tier — CALLED, never copied a third time. Every unknown answers False (plan caps stand): a hook
-    that will not load or raises, and a picture that HOLDS while no regular file sits at the hook's
-    stamp path — the tick may have written its stamp to its tmp fallback
+    that will not load or raises, and a picture that HOLDS — or could not be read, so may hide a
+    hold (`quota()` passes `hold=True` then) — while no regular file sits at the hook's stamp path — the tick may have written its stamp to its tmp fallback
     (`claude_rotate._fleet_exhaustion_stamp`), which the hook never reads, and the hook answers
     'free' when it finds no stamp, so a battery hold there would be exempted.
     The env read is the CALLER's (normally claude's own, this script being a Bash child of it); a
@@ -282,8 +283,19 @@ def _api_key_reading(hold: bool) -> dict:
         if free and hold and not (hook._rotate_state_dir() / "fleet-exhausted").is_file():
             return {
                 "api_key_free": False,
-                "api_key_why": "the picture holds but no stamp sits where the posture hook looks — "
-                "the hold and the exemption read different files; plan caps stand",
+                "api_key_why": "the picture holds (or could not be read) but no stamp sits where "
+                "the posture hook looks — the hold and the exemption read different files; plan "
+                "caps stand",
+            }
+        if not free and (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+            return {
+                "api_key_free": False,
+                "api_key_why": "the API key does not lift the plan caps — "
+                + (
+                    "another credential is set beside it"
+                    if not hook._api_key_session()
+                    else "the hold's stamp is the battery's, or its tier is unknown or unreadable"
+                ),
             }
     except Exception as exc:  # noqa: BLE001 — every failure keeps the plan caps
         return {
@@ -298,7 +310,8 @@ def quota() -> dict:
     """The plan quota (`_plan_quota`) plus whether this session is exempt from it (`api_key_free`,
     `_api_key_reading`): the seat budget skips every plan cap for an exempt session."""
     out = _plan_quota()
-    out.update(_api_key_reading(bool(out.get("hold"))))
+    # a picture that could not be read may hide a hold: it counts as holding for the stamp check
+    out.update(_api_key_reading(bool(out.get("hold")) if out.get("ok") else True))
     return out
 
 
@@ -1184,7 +1197,9 @@ def main(argv: list[str] | None = None) -> int:
             f"{q['eligible']} of {q.get('eligible_raw', q['eligible'])} eligible, hold={q['hold']}, "
             f"api_key_free={q.get('api_key_free')}, drain band {q.get('drain_band')}%"
         )
-    if q.get("api_key_why"):
+    if q.get("api_key_free") is True:
+        print("  api key: exempt — the plan's hold and drain band do not bind these seats")
+    elif q.get("api_key_why"):
         print(f"  api key: {q['api_key_why']}")
     if mix:
         shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())

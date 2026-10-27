@@ -286,6 +286,16 @@ def test_dispatch_headroom_hold_predicate_matches_the_tick(monkeypatch):
 # ── W-3e924ccb: a session on an Anthropic API key is not sized against the PLAN quota ────────────
 
 _BOX = {"ok": True, "mem_available_gb": 64.0, "mem_total_gb": 64.0, "cores": 16, "load1": 0.0}
+_COOL_Q = {
+    "ok": True,
+    "active": "a@x",
+    "hottest_pct": 10.0,
+    "eligible": 1,
+    "eligible_raw": 1,
+    "active_in_band": False,
+    "hold": False,
+    "drain_band": 85.0,
+}
 
 
 def _walled_quota(mod, monkeypatch, tmp_path, line2, *, tier="walled", picture_hot=60.0):
@@ -313,14 +323,22 @@ def test_an_api_key_session_is_not_capped_by_the_plan_wall(
 ):
     """An API-key session's seats draw the key, not the plan (D-1243): at a plain quota-tier stamp
     the budget is the box's — no `quota_cap` at all — and a reason line says why."""
+    import sys
+
     mod = _load()
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
     q = _walled_quota(mod, monkeypatch, tmp_path, line2, tier=tier, picture_hot=picture_hot)
     assert q["api_key_free"] is True, q
     r = mod.budget(4, False, _BOX, q)
     assert "quota_cap" not in r["caps"], r["caps"]
-    assert r["seats"] > 3, r
+    # exactly what a cool, holdless plan picture would allow — not a partial cap
+    assert r["seats"] == mod.budget(4, False, _BOX, _COOL_Q)["seats"] > 3, r
     assert any("Anthropic API key" in line for line in r["reasons"]), r["reasons"]
+    # the hook is loaded under a private name and never registered (critique: Opus 3, Fable C5)
+    assert "_dispatch_headroom_posture_hook" not in sys.modules
+    assert "quota_posture_hook" not in sys.modules or sys.modules["quota_posture_hook"] is not (
+        next(iter(mod._hook_cache.values()))
+    )
 
 
 def test_a_hold_with_no_stamp_where_the_hook_looks_keeps_the_cap(monkeypatch, tmp_path):
@@ -337,15 +355,25 @@ def test_a_hold_with_no_stamp_where_the_hook_looks_keeps_the_cap(monkeypatch, tm
 
 def test_an_api_key_session_skips_the_unknown_quota_floor(monkeypatch, tmp_path):
     """A key session's seats do not depend on the plan picture, so an unreadable picture does not
-    hold it at the floor either (deliberate: Opus critique 4)."""
+    hold it at the floor (deliberate: Opus critique 4) — when the hook's own stamp shows a plain
+    quota tier. An unreadable picture may HIDE a hold (review pass 1: the tick's stamp may sit in
+    its tmp fallback), so with no stamp where the hook looks the floor stands."""
     mod = _load()
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
     _pin(mod, monkeypatch, "not json")
+    (tmp_path / "fleet-exhausted").write_text("0\nwalled\n", encoding="utf-8")
     q = mod.quota()
     assert q["ok"] is False and q["api_key_free"] is True, q
     r = mod.budget(4, False, _BOX, q)
     assert "quota_cap" not in r["caps"] and r["seats"] > 3, r
+
+    (tmp_path / "fleet-exhausted").unlink()
+    q = mod.quota()
+    assert q["ok"] is False and q["api_key_free"] is False, q
+    assert "different files" in q["api_key_why"], q
+    r = mod.budget(4, False, _BOX, q)
+    assert r["caps"]["quota_cap"] == 3 == r["seats"], r
 
 
 @pytest.mark.parametrize(
@@ -363,8 +391,36 @@ def test_battery_or_a_second_credential_keeps_the_wall_cap(monkeypatch, tmp_path
         monkeypatch.setenv(k, v)
     q = _walled_quota(mod, monkeypatch, tmp_path, line2)
     assert q["api_key_free"] is False, q
+    # the operator is told why the key did not lift the cap (review pass 1, Opus F1)
+    why = q.get("api_key_why", "")
+    assert why.startswith("the API key does not lift the plan caps"), q
+    assert ("another credential" in why) is bool(extra), why
     r = mod.budget(1, False, _BOX, q)
     assert r["caps"]["quota_cap"] == 0 and r["seats"] == 0, r
+
+
+@pytest.mark.parametrize(
+    ("line2", "shown"),
+    [
+        ("walled", "api key: exempt"),
+        ("battery", "api key: the API key does not lift the plan caps"),
+    ],
+)
+def test_the_cli_prints_the_exemption_state(monkeypatch, tmp_path, capsys, line2, shown):
+    """The human output names the exemption beside `hold=` (review pass 1: Sonnet F3, Opus F2,
+    Haiku F3), and the `--json` payload carries `quota.api_key_free`."""
+    mod = _load()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
+    q = _walled_quota(mod, monkeypatch, tmp_path, line2)
+    monkeypatch.setattr(mod, "box", lambda: dict(_BOX))
+    monkeypatch.setattr(mod, "quota", lambda: dict(q))
+    monkeypatch.setattr(mod, "siblings", lambda **_k: {"ok": True, "seats": 0, "sessions": 0})
+    assert mod.main(["--units", "1"]) == 0
+    out = capsys.readouterr().out
+    assert f"api_key_free={q['api_key_free']}" in out and shown in out, out
+    assert mod.main(["--units", "1", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["quota"]["api_key_free"] is q["api_key_free"], payload["quota"]
 
 
 @pytest.mark.parametrize("hook_src", [None, "raises"])
