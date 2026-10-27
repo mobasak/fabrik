@@ -364,7 +364,8 @@ def test_queue_window_skips_landed_requests_before_the_limit(world):
 
 def _kind_log(world, fail_queue_on: str = "") -> Path:
     """A leg that appends `<request head> <queue|locked> <start> <stop>`: `queue` when it runs in a
-    queue child (FABRIK_MERGE_TESTS_RECORDS is set there only). With ``fail_queue_on``, a queue leg
+    queue child (FABRIK_MERGE_TESTS_RECORDS is set by `_run_leg` and by `request --pretest`, never
+    by the locked merge). With ``fail_queue_on``, a queue leg
     whose merge adds that file exits 124 — a leg that "timed out", leaving no record."""
     log = world.tmp / "kinds.log"
     script = (
@@ -431,11 +432,15 @@ def test_queue_wall_fits_a_full_leg_then_a_landing(world):
     """The first wave may run the longest leg any base can declare and still be followed by a
     worst-case landing: a wall with no room after it lands nothing (02:48:18, elapsed ~1818 s)."""
     mod = world.mod
-    longest = mod._declared_leg("# merge-test-timeout: 999999\n")
-    assert longest == mod.MERGE_TEST_BUDGET_S
-    build = getattr(mod, "QUEUE_BUILD_S", 0)
-    assert build + longest + mod.LANDING_WORST_S <= mod.QUEUE_WALL_S
-    assert build > 0  # the chain build and the first poll take time too
+    longest = "# merge-test-timeout: 999999\n"
+    assert mod._declared_leg(longest) == mod.MERGE_TEST_BUDGET_S
+    assert hasattr(mod, "_leg_fits"), "no leg-fit guard"
+    now = mod.time.monotonic()
+    assert mod._leg_fits(now, longest)  # at the start: the longest leg, then a landing
+    edge = mod.QUEUE_BUILD_S - mod.LEG_OVERHEAD_S  # what is left for the chain build
+    assert edge > 0
+    assert mod._leg_fits(now - edge + 1, longest)
+    assert not mod._leg_fits(now - edge - 1, longest)
 
 
 def test_queue_starts_no_leg_past_its_wall(world, monkeypatch):
@@ -445,7 +450,8 @@ def test_queue_starts_no_leg_past_its_wall(world, monkeypatch):
     h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
     h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
     m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
-    monkeypatch.setattr(world.mod, "QUEUE_WALL_S", world.mod.LANDING_WORST_S + 100)
+    # a landing fits for 600 s; no default-limit leg ever does
+    monkeypatch.setattr(world.mod, "QUEUE_WALL_S", world.mod.LANDING_WORST_S + 600)
 
     assert _queue(world) == 0
 

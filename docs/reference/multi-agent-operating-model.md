@@ -211,8 +211,8 @@ python3 scripts/merge_request.py merge --queue [--jobs 1] [--max 4]
 #      every record that still matches is reused, so the requests stacked behind a REFUSED one are
 #      rebuilt without it and tested again. A base with no `.fabrik/merge-tests` runs nothing outside
 #      the lock: the queue lands in order. A landing starts only while its worst case still fits the
-#      queue's own wall (QUEUE_WALL_S, 11100 s: a worst-case landing after the longest leg a base
-#      may declare — run it as `rund --timeout 11200 --
+#      queue's own wall (QUEUE_WALL_S, 11100 s = a 7200 s worst-case landing + the 3600 s longest
+#      leg a base may declare + a 300 s chain-build allowance — run it as `rund --timeout 11200 --
 #      /opt/fabrik/scripts/capped_run.sh --timeout 11100 -- python3 scripts/merge_request.py merge
 #      --queue`); past it the queue says so and stops — run it again. Exit: the worst landing's
 #      (0 merged, 1 one refused, 4 one left partial, where it stops). One queue at a time

@@ -790,8 +790,9 @@ class _ScriptedRunner:
 
 def test_a_flaky_red_runs_no_ordered_base_shard(tmp_path, monkeypatch):
     """W-d5d1d394: a red green alone AND in its shard's order was flaky — the base has no verdict of
-    its to compare, so its shard is not re-run there. Tonight's 8-shard leg (tghywjvt) re-ran a
-    whole ~8 min shard on the base for exactly this, beside one master red confirmed alone."""
+    its to compare, so its shard is not re-run there. The 8-shard hub leg of 2026-10-27 started
+    exactly this base run (its ordered confirm passed, 1389 tests in 478 s), beside master reds
+    confirmed alone (W-d5d1d394 measure.md § 6)."""
     monkeypatch.chdir(tmp_path)
     (tmp_path / "tests").mkdir()
     for name in ("test_a.py", "test_b.py"):
@@ -821,3 +822,89 @@ def test_a_flaky_red_runs_no_ordered_base_shard(tmp_path, monkeypatch):
     assert runner.calls[-1] == ["tests/test_a.py"], runner.calls  # the base alone run was the last
     assert len(runner.calls) == 5, runner.calls  # no ordered shard of test_b ran on the base
     assert checkouts.count("B") == 1, checkouts
+
+
+def _two_files(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tests").mkdir()
+    for name in ("test_a.py", "test_b.py"):
+        (tmp_path / "tests" / name).write_text("")
+    checkouts: list[str] = []
+    monkeypatch.setattr(mts, "_checkout", checkouts.append)
+    return checkouts
+
+
+def test_a_red_found_only_in_order_keeps_its_ordered_base_run(tmp_path, monkeypatch):
+    """The half of the W-d5d1d394 rule that stays: a red green alone but red in its shard's order is
+    compared in that order on the base, so one that is red there too reads pre-existing, not NEW."""
+    _two_files(tmp_path, monkeypatch)
+    order_red = ("tests/test_b.py::test_order", "call")
+    runner = _ScriptedRunner(
+        [
+            {order_red: "leftover"},  # the one shard (a, b)
+            {},  # the serial confirm: green alone
+            {order_red: "leftover"},  # the ordered confirm: red in order
+            {order_red: "leftover"},  # the ordered base run: red there too
+        ]
+    )
+
+    new, out = mts.differential(
+        ["tests/test_a.py", "tests/test_b.py"], "M", "B", runner, 1, compare=True
+    )
+
+    assert new == [], out
+    assert any("pre-existing on the base" in line and "test_order" in line for line in out), out
+    assert runner.calls[-1] == ["tests/test_a.py", "tests/test_b.py"], runner.calls
+
+
+def test_a_flaky_red_beside_an_alone_red_runs_no_ordered_base_shard(tmp_path, monkeypatch):
+    """A flaky red and a red confirmed alone in the SAME shard: the alone red is compared alone, and
+    the shard is not re-run in order on the base for the flaky one."""
+    checkouts = _two_files(tmp_path, monkeypatch)
+    master_red = ("tests/test_a.py::test_master", "call")
+    flaky = ("tests/test_b.py::test_flaky", "call")
+    runner = _ScriptedRunner(
+        [
+            {master_red: "boom", flaky: "timing"},  # the one shard (a, b)
+            {master_red: "boom"},  # the serial confirm: the flaky red is green alone
+            {master_red: "boom"},  # the ordered confirm of the shard: the flaky red green in order
+            {master_red: "boom"},  # the base alone run of test_a: the same crash, pre-existing
+            {},  # an ordered base run of the shard, were one (wrongly) started
+        ]
+    )
+
+    new, out = mts.differential(
+        ["tests/test_a.py", "tests/test_b.py"], "M", "B", runner, 1, compare=True
+    )
+
+    assert new == [], out
+    assert any("FLAKY" in line and "test_flaky" in line for line in out), out
+    assert any("pre-existing on the base" in line and "test_master" in line for line in out), out
+    assert runner.calls[-1] == ["tests/test_a.py"], runner.calls  # the base alone run was the last
+    assert checkouts.count("B") == 1, checkouts
+
+
+def test_an_alone_red_keeps_its_alone_base_verdict_beside_an_ordered_red(tmp_path, monkeypatch):
+    """A red confirmed alone and a red found only in order share a shard: the ordered base run answers
+    the ordered red only, so the alone red's base-alone comparison is never overwritten by its
+    in-order crash line there (review W-d5d1d394 pass 1, B-1)."""
+    _two_files(tmp_path, monkeypatch)
+    alone_red = ("tests/test_a.py::test_k", "call")
+    order_red = ("tests/test_b.py::test_k2", "call")
+    runner = _ScriptedRunner(
+        [
+            {alone_red: "A", order_red: "C"},  # the one shard (a, b)
+            {alone_red: "A"},  # the serial confirm: the order red is green alone
+            {order_red: "C"},  # the ordered confirm: the order red is red in order
+            {alone_red: "A"},  # the base alone run of test_a: the same crash, pre-existing
+            {alone_red: "B", order_red: "C"},  # the ordered base run: the alone red crashes otherwise
+        ]
+    )
+
+    new, out = mts.differential(
+        ["tests/test_a.py", "tests/test_b.py"], "M", "B", runner, 1, compare=True
+    )
+
+    assert new == [], out
+    assert any("pre-existing on the base — tests/test_a.py::test_k " in line for line in out), out
+    assert any("pre-existing on the base — tests/test_b.py::test_k2 " in line for line in out), out

@@ -2523,8 +2523,9 @@ QUEUE_POLL_S = 2.0
 # One leg at a time, at the owner script's own width: each leg keeps the per-leg limit
 # (TEST_TIMEOUT_S, or the base's declared one) sized for that width, so two legs at half width
 # each ran twice as long against it — every queue leg died at 1800 s on 2026-10-27 (4-shard shards
-# 603-1643 s; one 8-shard leg's shards 253-842 s). The next leg still runs while the previous
-# request lands. `--jobs N` overlaps legs only where the box has N legs' worth of free CPUs.
+# 603-1643 s; one 8-shard leg's shards 253-842 s). A later leg forks only once the first request
+# lands on a record, so it overlaps that landing, never the first's own leg; `--jobs N` lets N such
+# later legs run at once, each at full width — only where the box has N legs' worth of free CPUs.
 QUEUE_JOBS = 1
 QUEUE_MAX = 4  # requests per pass; each lands within the wall below or waits for the next run
 QUEUE_WAIT_S = 1800  # how long the queue waits for a merge it did not start to finish
@@ -2537,11 +2538,13 @@ LANDING_WORST_S = QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIM
 # The wall also holds the chain build and the first wave: a leg of the longest limit any base may
 # declare (_declared_leg clamps to MERGE_TEST_BUDGET_S) still leaves a worst-case landing. A wall
 # with LANDING_WORST_S + 1800 landed nothing after a wave that used its limit (2026-10-27, elapsed
-# ~1818 s at the check). A leg forks only while it AND a landing after it fit (_leg_fits), so a
-# wall return joins at most one leg, which ends inside the wall. The _live_merge wait before a
-# chain build (up to QUEUE_WAIT_S) is not in QUEUE_BUILD_S: after it the first request may land
-# through its locked leg instead.
+# ~1818 s at the check). A leg forks only while it AND a landing after it fit (_leg_fits), so every
+# leg a wall return joins (one per --jobs slot) ends inside the wall. QUEUE_BUILD_S holds the chain
+# build before the first fork plus LEG_OVERHEAD_S: a child's own setup (its throwaway worktree, the
+# script read) and the leg's outer bound (+60). The _live_merge wait before a chain build (up to
+# QUEUE_WAIT_S) is not in it: after it the first request may land through its locked leg instead.
 QUEUE_BUILD_S = 300
+LEG_OVERHEAD_S = 120
 QUEUE_WALL_S = LANDING_WORST_S + MERGE_TEST_BUDGET_S + QUEUE_BUILD_S
 
 
@@ -2746,10 +2749,10 @@ def _land(msg_id: str) -> int:
 
 
 def _leg_fits(started: float, script: str) -> bool:
-    """A leg forked now may run its whole limit (``_declared_leg``, +60 s for the outer bound) and
-    still be followed by a worst-case landing — else the leg cannot lead to a landing this run, and
-    the wall return would only wait on it."""
-    leg = _declared_leg(script) + 60
+    """A leg forked now may set up, run its whole limit (``_declared_leg``) and its outer bound
+    (LEG_OVERHEAD_S) and still be followed by a worst-case landing — else the leg cannot lead to a
+    landing this run, and the wall return would only wait on it."""
+    leg = _declared_leg(script) + LEG_OVERHEAD_S
     return time.monotonic() - started + leg + LANDING_WORST_S <= QUEUE_WALL_S
 
 
@@ -2808,8 +2811,9 @@ def _queue(args: argparse.Namespace) -> int:
                         if not child.is_alive():
                             child.join()
                             del running[head]
-                    # a later leg forks only once the first request lands on a record: else its
-                    # locked merge runs its own leg, and a queue leg beside it halves both
+                    # a later leg forks only once the first request lands on a record (or has no
+                    # tree to test): else its locked merge runs its own leg, and a queue leg
+                    # beside it halves both
                     first_on_record = first["at"] is None or _record_matches(
                         ctx, first, script, runner
                     )
@@ -2836,8 +2840,9 @@ def _queue(args: argparse.Namespace) -> int:
                             or not _leg_fits(started, script)
                         )
                     ):
-                        # ready to land: tested, reused, untestable, or past the time a leg
-                        # fits (its locked merge then runs its own leg while a landing fits)
+                        # ready to land: its leg is over (green, red or killed), its record is
+                        # reused, it is untestable, or no leg fits any more — without a record
+                        # its locked merge runs its own leg, while a landing fits
                         break
                     time.sleep(QUEUE_POLL_S)
                 if _past_wall(started, len(entries)):
