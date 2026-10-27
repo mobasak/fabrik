@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a rules ledger can mark a line master rewrote: `superseded: D-<n>`, proven from git (2026-10-27)
+
+A lean ledger's baseline is cut at `lean-baseline-2026-10-25`; a line a later reviewed master change rewrote
+vanished from the lean text and read as LOSS (T01d-v6's catalogue L51/L54), and the only remedy was a hand
+baseline re-cut (D-1262). `commands/command_rules.py` now takes `superseded: D-<n>` on a `vanished:` line and
+proves it from git: the D-row names the source file and a one-parent commit that landed on master after the tag
+and removed the line, master's current source no longer holds it, and master's additions since the tag are in
+the ledger's own text. Every git failure is a LOSS naming its cause. W-5dc4163d, D-1283.
+
 ### Fixed — compose scalars outside `environment:` deploy exactly or are refused (2026-10-27)
 
 A spec string pasted into a compose scalar outside `environment:` broke or mangled the file: python-api's

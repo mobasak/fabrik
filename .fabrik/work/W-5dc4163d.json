@@ -3,7 +3,7 @@
   "created": "2026-10-26T19:52:29.025751Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "02b0876f1f305b2b5d54c4e2c8236715d04bed92",
   "id": "W-5dc4163d",
   "impact": "low",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-3",
   "priority": 3,
   "score_reason": "follow-up: makes future master rewrites need no hand baseline re-cut; tooling (infra)",
-  "status": "open",
+  "status": "done",
   "title": "Loader: a vanished label 'superseded: D-NNNN' for a baseline line that a later reviewed master rewrite changed, named by that D-row; refused for any line not changed on master after the lean baseline tag (lean-baseline-2026-10-25). Found when T01d-v6's catalogue L51/L54 (old seat-bullet text, replaced by D-1251/D-1261) read as LOSS under D-1258; hand re-cut used meanwhile"
 }
