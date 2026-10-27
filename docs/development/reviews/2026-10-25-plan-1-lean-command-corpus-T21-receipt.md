@@ -137,6 +137,39 @@ COUNTS: 83 entries read / 81 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong
 - `python3 commands/assemble_commands.py --check`: exit 4 at start (28 own LOSS + `_shared/`), exit 4 at end with `_shared/` LOSS only; DRIFT lines are `DIFFERS`; REPORT `fabrik-user-test: shrank to 26040 words, ceiling 27952`.
 - Reader-test failure set start = end: dispatch_step 13 (same names), `test_assemble_orch_retired` 1, `test_command_measure` 1 + `test_conftest_isolation` 1, `test_thread_anchor` 1; the other groups green (541 and 459 passed). Pre-existing, no git or box service in this clone. The set did not grow.
 
+## Fix round 2 (hub audit)
+
+Findings checked against the baseline line by line (the two reports overlap; pairs counted once). 18 confirmed, 0 refuted, all fixed in `commands/_sources/fabrik-user-test.md` with the ledger carrier text kept identical.
+
+| Finding | Verdict | Fix |
+|---|---|---|
+| L121 `401` / deletion-revokes-access dropped | confirmed | restored "the deletion really revoked access (the old token now 401s)" |
+| L71 hostile persona runs first-day journey | confirmed | restored the parenthetical |
+| L158 "scale up with the matrix", one-account clause | confirmed | restored both |
+| L169 journey-ledger columns | confirmed | restored "milestones passed, UI-vs-system truth checks, where it broke" |
+| L38 "exhaustive" | confirmed | restored, plus the crawler rationale |
+| L140 entitlement + mail-catcher capture | confirmed | restored |
+| L36 "use this, not a hand-rolled login" | confirmed | restored |
+| L1 why the pool-off text is the control; "for re-enable" | confirmed | restored both |
+| L129 "counts as a fix" | confirmed | restored |
+| L137 fix-loop definition | confirmed | restored |
+| L90 "correctness rule, not a preference" | confirmed | restored |
+| L41 "single" | confirmed | restored |
+| L43 "not proof it ran" (was wrongly `narrative`) | confirmed | restored, clause label removed |
+| L109 Playwright MCP can't load extensions | confirmed | restored |
+| L134 "blocks the quiet exit forever" | confirmed | restored |
+| L131 "it passed locally" cases (wrongly `narrative`) | confirmed | restored, clause label removed |
+| L8 team-of-users stance (wrongly `narrative`) | confirmed | restored in the source as new carrier `t21-L8`; vanished label `rule` |
+| L89 master-loader LOSS (clause 1 "The pool CANNOT do this leg (no browser tools)" uncovered) | confirmed | restored the sentence after the Phase 3 browser bullet; new carrier `t21-L89`; vanished label `rule: [t21-L89]` (the old `duplicate-of: t21-L160` was wrong, L160 says "has no browser tools") |
+
+Own-text words: baseline ~5118 → re-ledger 4021 → now ~4150 (estimate: about 130 restored words; the lane forbids the measuring command, so this is not a tool count). The 50% target is retired (D-1257), so no floor table.
+
+Gates: `tests/test_command_rules.py -rP` prints no LOSS line for `fabrik-user-test.yaml` (only `_shared/`; the test still fails on those, as at the start). `assemble_commands.py --check` shows no non-`_shared` LOSS line; the DRIFT lines are `DIFFERS`.
+
+Self-audit: NOT a fresh subagent. This lane cannot dispatch one, so the pass above is the author's line-by-line re-read of the 18 findings against the baseline. It is not an independent zero claim; the hub's author-blind audit pair covers it. No COUNTS line of zeros is claimed for this round.
+
+Reader-test group 1 (agents/dispatch step) re-run after the edits: 14 failed, 151 passed: the 13 `test_assemble_dispatch_step.py` names of the earlier receipt plus `test_agent_definitions.py::test_the_live_box_matches_the_repo_sources` (a live-box comparison of installed agent files; this fix touches no agent file). I did not run that group before the edits in this round, so I cannot show that the extra name is not new; the hub should check it against the branch tip. The other groups were not re-run.
+
 ## LEFT FOR THE HUB
 
 0. Re-run the author-blind audit over the 81 reworded entries; ratchet `_size_ceiling.json` (27952 → ~26040, not edited here).

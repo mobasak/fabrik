@@ -19,7 +19,13 @@ entries:
     class: prose
     baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
     text:
-    - '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments)'
+    - '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  - id: t21-L8
+    file: render
+    class: prose
+    baseline: You test as a team of real users trying to get things done — and one user trying to break it
+    text:
+    - You test as a team of real users trying to get things done — and one user trying to break it
   - id: t21-L7
     file: render
     class: prose
@@ -112,7 +118,7 @@ entries:
     class: prose
     baseline: '`fabrik-lib/ui-verify` — the backbone: `makeAuthedTest` (token-in-storage SPAs), `makeUiAuthedTest(async page => {…real form login…})` for surfaces with NO seedable bearer token (JSON-RPC / cookie / multi-step-modal auth like Tryton `sao` — use this, not a hand-rolled login), `expectNoA11yViolations` (WCAG 2.2 AA), `expectVisualBaseline`, `viewportProjects` (375/768/1440), `walkWizard`, perf via `playwright-lighthouse`'
     text:
-    - '`fabrik-lib/ui-verify` — the backbone: `makeAuthedTest` (token-in-storage SPAs), `makeUiAuthedTest(async page => {…real form login…})` for surfaces with NO seedable bearer token (JSON-RPC / cookie / multi-step-modal auth like Tryton `sao`), `expectNoA11yViolations` (WCAG 2.2 AA), `expectVisualBaseline`, `viewportProjects` (375/768/1440), `walkWizard`, perf via `playwright-lighthouse`'
+    - '`fabrik-lib/ui-verify` — the backbone: `makeAuthedTest` (token-in-storage SPAs), `makeUiAuthedTest(async page => {…real form login…})` for surfaces with NO seedable bearer token (JSON-RPC / cookie / multi-step-modal auth like Tryton `sao` — use this, not a hand-rolled login), `expectNoA11yViolations` (WCAG 2.2 AA), `expectVisualBaseline`, `viewportProjects` (375/768/1440), `walkWizard`, perf via `playwright-lighthouse`'
   - id: t21-L37
     file: render
     class: prose
@@ -124,7 +130,7 @@ entries:
     class: prose
     baseline: '`fabrik-lib/doc-crawl` (+`web-scrape`) — exhaustive page/link discovery for website and doc-site surfaces (sitemap + scoped BFS): the crawler builds the page inventory a human clicker would miss'
     text:
-    - '`fabrik-lib/doc-crawl` (+`web-scrape`) — page/link discovery for website and doc-site surfaces (sitemap + scoped BFS)'
+    - '`fabrik-lib/doc-crawl` (+`web-scrape`) — exhaustive page/link discovery for website and doc-site surfaces (sitemap + scoped BFS): the crawler builds the page inventory a human clicker would miss'
   - id: t21-L39
     file: render
     class: prose
@@ -138,14 +144,13 @@ entries:
     clauses: {2: narrative}
     baseline: 'Prove the STYLING PIPELINE actually ran before trusting a single visual verdict. transdoc had no `postcss.config.js` (never scaffolded), so Tailwind never compiled and the entire product served UNSTYLED HTML — every route test, DOM assertion and axe run passed against it, green throughout'
     text:
-    - 'Prove the STYLING PIPELINE actually ran before trusting a visual verdict: check the config exists AND that a built asset actually contains compiled utility CSS. transdoc had no `postcss.config.js` (never scaffolded), so Tailwind never compiled and the entire product served UNSTYLED HTML'
+    - 'Prove the STYLING PIPELINE actually ran before trusting a single visual verdict: check the config exists AND that a built asset actually contains compiled utility CSS — presence of a config file is not proof it ran. transdoc had no `postcss.config.js` (never scaffolded), so Tailwind never compiled and the entire product served UNSTYLED HTML'
   - id: t21-L43
     file: render
     class: prose
-    clauses: {2: narrative}
     baseline: Check the config exists AND that a built asset actually contains compiled utility CSS — presence of a config file is not proof it ran
     text:
-    - check the config exists AND that a built asset actually contains compiled utility CSS
+    - check the config exists AND that a built asset actually contains compiled utility CSS — presence of a config file is not proof it ran
   - id: t21-L44
     file: render
     class: ban
@@ -227,7 +232,7 @@ entries:
     class: prose
     baseline: 'Each journey: chained in ONE narrative per persona where it makes sense (the hostile user runs the first-day journey too), with session boundaries made real (new context, cookie expiry, second device where the surface supports it)'
     text:
-    - 'Chain each journey in ONE narrative per persona where it makes sense, with session boundaries made real (new context, cookie expiry, second device where the surface supports it)'
+    - 'Chain each journey in ONE narrative per persona where it makes sense (the hostile user runs the first-day journey too), with session boundaries made real (new context, cookie expiry, second device where the surface supports it)'
   - id: t21-L86
     file: render
     class: prose
@@ -241,13 +246,19 @@ entries:
     baseline: 'Browser/device work = native `fabrik-gui` subagents, in PARALLEL — the seats `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <bundles>` prints: one Sonnet driver per flow-bundle plus that bundle''s Haiku mechanical gate and the Opus authoritative re-drive (roles in § Subagents), disjoint scenario ownership (no two agents mutate the same seeded account)'
     text:
     - 'Browser/device work = native `fabrik-gui` subagents, in PARALLEL — the seats `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <bundles>` prints (roles in § Subagents), disjoint scenario ownership (no two agents mutate the same seeded account)'
+  - id: t21-L89
+    file: render
+    class: prose
+    baseline: The pool CANNOT do this leg (no browser tools) — the native-mandate case per `core/62`
+    text:
+    - The pool CANNOT do this leg (no browser tools) — the native-mandate case per `core/62`
   - id: t21-L90
     file: render
     class: ban
     clauses: {2: narrative}
     baseline: ⚠️ PARALLEL agents must NOT drive the shared Playwright MCP browser — this is a correctness rule, not a preference. The Playwright MCP is one browser instance per session; two agents calling `browser_navigate`/`browser_click` concurrently stomp each other's tabs and interleave screenshots
     text:
-    - ⚠️ PARALLEL agents must NOT drive the shared Playwright MCP browser — one instance per session, so concurrent `browser_navigate`/`browser_click` calls stomp each other's tabs
+    - '⚠️ PARALLEL agents must NOT drive the shared Playwright MCP browser — this is a correctness rule, not a preference: one instance per session, so concurrent `browser_navigate`/`browser_click` calls stomp each other''s tabs'
   - id: t21-L91
     file: render
     class: prose
@@ -314,7 +325,7 @@ entries:
     class: prose
     baseline: 'Surface tooling (defer to the packs): web/SaaS/website/docs → Playwright MCP (+ `ui-verify` specs) + `chrome-devtools` `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to use"); mobile RN → Maestro MCP + mobile-mcp on a booted device; extension → the web loop via a Playwright load-extension fixture (Playwright MCP can''t load extensions); desktop → Playwright''s Electron runner'
     text:
-    - 'Surface tooling (defer to the packs): web/SaaS/website/docs → Playwright MCP (+ `ui-verify` specs) + `chrome-devtools` `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to use"); mobile RN → Maestro MCP + mobile-mcp on a booted device; extension → the web loop via a Playwright load-extension fixture; desktop → Playwright''s Electron runner'
+    - 'Surface tooling (defer to the packs): web/SaaS/website/docs → Playwright MCP (+ `ui-verify` specs) + `chrome-devtools` `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to use"); mobile RN → Maestro MCP + mobile-mcp on a booted device; extension → the web loop via a Playwright load-extension fixture (Playwright MCP can''t load extensions); desktop → Playwright''s Electron runner'
   - id: t21-L110
     file: render
     class: prose
@@ -363,7 +374,7 @@ entries:
     class: prose
     baseline: 'UI truth vs SYSTEM truth (the full-stack QC leg): at every journey milestone, verify the layer BENEATH the UI agrees with what the screen claims — the record is really in the DB/API (`GET` it back), the email really sent (`waitForMail`), the entitlement really flipped (`GET /entitlements`), the deletion really revoked access (the old token now 401s)'
     text:
-    - 'UI truth vs SYSTEM truth: at every journey milestone, verify the layer BENEATH the UI agrees with what the screen claims — the record is really in the DB/API (`GET` it back), the email really sent (`waitForMail`), the entitlement really flipped (`GET /entitlements`)'
+    - 'UI truth vs SYSTEM truth: at every journey milestone, verify the layer BENEATH the UI agrees with what the screen claims — the record is really in the DB/API (`GET` it back), the email really sent (`waitForMail`), the entitlement really flipped (`GET /entitlements`), the deletion really revoked access (the old token now 401s)'
   - id: t21-L122
     file: render
     class: prose
@@ -388,7 +399,7 @@ entries:
     class: prose
     baseline: 'FIXED — UI-layer defects (copy, aria, focus, CSS, state wiring, validation display, broken links) AND doc-drift (a `FEATURES.md` row added/corrected counts as a fix — with its Doc Sync Matrix ripples): prove-before-fix (failing spec first → fix → spec green → affected flows re-run), surface gate green after each fix'
     text:
-    - 'FIXED — UI-layer defects (copy, aria, focus, CSS, state wiring, validation display, broken links) AND doc-drift (a `FEATURES.md` row added/corrected, with its Doc Sync Matrix ripples): prove-before-fix (failing spec first → fix → spec green → affected flows re-run), surface gate green after each fix'
+    - 'FIXED — UI-layer defects (copy, aria, focus, CSS, state wiring, validation display, broken links) AND doc-drift (a `FEATURES.md` row added/corrected counts as a fix, with its Doc Sync Matrix ripples): prove-before-fix (failing spec first → fix → spec green → affected flows re-run), surface gate green after each fix'
   - id: t21-L130
     file: render
     class: prose
@@ -399,10 +410,9 @@ entries:
   - id: t21-L131
     file: render
     class: prose
-    clauses: {2: narrative}
     baseline: A spec that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable (one tenant for an isolation bug, a seeded-admin session for a permissions bug, a fast network for a loading-state bug)
     text:
-    - A spec that passes because the environment cannot express the failure has proven nothing
+    - A spec that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable (one tenant for an isolation bug, a seeded-admin session for a permissions bug, a fast network for a loading-state bug)
   - id: t21-L132
     file: render
     class: ban
@@ -414,13 +424,13 @@ entries:
     class: prose
     baseline: 'A refuted rig may NOT be left as a permanently-red committed spec: Phase 5 re-runs treat every red as a finding, so an unrepaired rig blocks the quiet exit forever'
     text:
-    - 'A refuted rig may NOT be left as a permanently-red committed spec: Phase 5 re-runs treat every red as a finding'
+    - 'A refuted rig may NOT be left as a permanently-red committed spec: Phase 5 re-runs treat every red as a finding, so an unrepaired rig blocks the quiet exit forever'
   - id: t21-L137
     file: render
     class: prose
     baseline: 'contract right, code wrong (backend / schema / logic) → `/fabrik-review` the owning module (that command IS the fix loop: finders → refute → prove-before-fix → regression guard);'
     text:
-    - 'contract right, code wrong (backend / schema / logic) → `/fabrik-review` the owning module'
+    - 'contract right, code wrong (backend / schema / logic) → `/fabrik-review` the owning module (that command IS the fix loop: finders → refute → prove-before-fix → regression guard)'
   - id: t21-L139
     file: render
     class: prose
@@ -432,7 +442,7 @@ entries:
     class: ban
     baseline: Never decide a product question inside a test run. Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect + why it is not fixable in the presentation layer) and WIRE/STATE EVIDENCE — the actual response body/key set, or the queried system state beneath the UI (the record `GET` back, the entitlement, the mail-catcher capture), proving the APP violated the contract — never the assertion text alone (the committed repro proves reproducibility; the evidence proves attribution — a red repro can itself be rig-defective)
     text:
-    - Never decide a product question inside a test run. Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect + why it is not a presentation-layer fix) and WIRE/STATE EVIDENCE — the actual response body/key set, or the queried system state beneath the UI (the record `GET` back), proving the APP violated the contract — never the assertion text alone (the committed repro proves reproducibility; the evidence proves attribution — a red repro can itself be rig-defective)
+    - Never decide a product question inside a test run. Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect + why it is not a presentation-layer fix) and WIRE/STATE EVIDENCE — the actual response body/key set, or the queried system state beneath the UI (the record `GET` back, the entitlement, the mail-catcher capture), proving the APP violated the contract — never the assertion text alone (the committed repro proves reproducibility; the evidence proves attribution — a red repro can itself be rig-defective)
   - id: t21-L141
     file: render
     class: prose
@@ -481,7 +491,7 @@ entries:
     class: prose
     baseline: ≥2 parallel native `fabrik-gui` subagents for any gauntlet with ≥2 flows (scale up with the matrix — one per flow-bundle, disjoint scenario ownership, no two agents mutating the same seeded account)
     text:
-    - ≥2 parallel native `fabrik-gui` subagents for any gauntlet with ≥2 flows (one per flow-bundle, disjoint scenario ownership)
+    - ≥2 parallel native `fabrik-gui` subagents for any gauntlet with ≥2 flows (scale up with the matrix — one per flow-bundle, disjoint scenario ownership, no two agents mutating the same seeded account)
   - id: t21-L160
     file: render
     class: ban
@@ -521,11 +531,11 @@ entries:
     class: prose
     baseline: '`docs/development/reviews/YYYY-MM-DD-user-test-<slug>.md`: the Inventory Ledger + coverage fractions (journeys completed / journey set · FEATURES rows verified / total — each with the scenario IDs proving it), the journey ledger (per journey × persona: milestones passed, UI-vs-system truth checks, where it broke), the round ledger (per-round: new-inventory/new-findings/fixes), per-scenario verdicts with evidence paths, FIXED list (spec paths + doc corrections), HANDED-OFF list (owner + repro), REFUTED list (proof), SKIPPED list (reasons), and the persisted-suite inventory'
     text:
-    - '`docs/development/reviews/YYYY-MM-DD-user-test-<slug>.md`: the Inventory Ledger + coverage fractions (journeys completed / journey set · FEATURES rows verified / total — each with the scenario IDs proving it), the journey ledger (per journey × persona), the round ledger (per-round: new-inventory/new-findings/fixes), per-scenario verdicts with evidence paths, FIXED list (spec paths + doc corrections), HANDED-OFF list (owner + repro), REFUTED list (proof), SKIPPED list (reasons), and the persisted-suite inventory'
+    - '`docs/development/reviews/YYYY-MM-DD-user-test-<slug>.md`: the Inventory Ledger + coverage fractions (journeys completed / journey set · FEATURES rows verified / total — each with the scenario IDs proving it), the journey ledger (per journey × persona: milestones passed, UI-vs-system truth checks, where it broke), the round ledger (per-round: new-inventory/new-findings/fixes), per-scenario verdicts with evidence paths, FIXED list (spec paths + doc corrections), HANDED-OFF list (owner + repro), REFUTED list (proof), SKIPPED list (reasons), and the persisted-suite inventory'
 vanished:
   L1: {rule: [t21-L1]}
   L7: {rule: [t21-L7]}
-  L8: narrative
+  L8: {rule: [t21-L8]}
   L10: {rule: [t21-L10]}
   L11: {rule: [t21-L11]}
   L13: {rule: [t21-L13]}
@@ -565,7 +575,7 @@ vanished:
   L71: {rule: [t21-L71]}
   L86: {rule: [t21-L86]}
   L88: {rule: [t21-L88]}
-  L89: {duplicate-of: t21-L160}
+  L89: {rule: [t21-L89]}
   L90: {rule: [t21-L90]}
   L91: {rule: [t21-L91]}
   L92: {rule: [t21-L92]}
