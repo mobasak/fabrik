@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T02:40:39.821314Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5403b1b0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: validate memory/cpu as compose sizes at Spec load (Resources, CompanionService) and Volume.name/path as a volume name and an absolute path, red-first per field; reuse the HEALTH_PATH_RE pattern of refusing at load what sits inside another scalar",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Compose templates still paste volumes (vol.name:vol.path), resources.memory and resources.cpus (inside single quotes), and companion memory raw into YAML scalars; the docker-image writer (deployer_ssh._generate_docker_compose) pastes memory and health interval raw. A quote, \" #\" or \": \" in those spec strings breaks or mangles compose. Found by the W-ff313a14 design critique (Opus)."
+}
