@@ -112,6 +112,15 @@ only reds its ordered confirm found, and no longer overwrites an alone-confirmed
 (supersedes D-1224's jobs, shards and wall figures); follow-ups W-c832e59f (duration-balanced shards) and
 W-17fc722a (load-flaky tests that trigger ordered re-runs).
 
+### Fixed — scripted merge commits carry Agent Provenance Trailers, and `merge` states who gates the merged tree (2026-10-27)
+
+`scripts/merge_request.py merge` wrote one-line merge commits with no trailer block (replayed on the hub's own
+0882afb23), so no `%(trailers)` query could attribute a scripted merge (tryton-crm mail 01M3TZERFR). Both its merge
+commits, the request's and a catch-up's, now end in `Agent-Role: orchestrator`, the owner's `Agent-Name` and an
+`Agent-Context`; a multi-line value refuses, `--no-log` keeps the block parseable under `merge.log=true`, and the
+reflog keeps the subject only. `merge` runs no `final_gate` and now says so after `merged <id> as <sha>`, with the
+owner-test summary; the reply carries the duty line. Decision: D-1274.
+
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
 
 `src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so
