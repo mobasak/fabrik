@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — headless-spawner discovery sees call, tuple and shell argv shapes, never prose (2026-10-27)
+
+`tests/test_hooks_headless_guard.py::_files_that_build_a_claude_p_argv` walked only list literals, so a
+`claude -p` spawner written as a call's positional args, a tuple, or a `bash -c "claude -p …"` string
+escaped the real-tree guard (W-d45c790c). It now finds all three, plus a shell string passed to a
+process-running stdlib call (`os.system`, `subprocess.run`, …). A shell string counts only as an argv
+element; docstrings, messages and parser descriptions are prose. The cloud-drain draft matched every string
+constant and parked the guard under `xfail(strict=True)`, which would also have hidden any new spawner. Both
+are gone, and the guard passes on the real tree with no new declarations. Planted graders: four shapes plus
+one prose file; four mutants of the matcher are each killed. Also rewords the delegated-spawner docstring
+(W-423b9f14).
+
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 
 Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).

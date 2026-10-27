@@ -147,6 +147,32 @@ _UNADOPTED_SPAWNERS = (
 
 
 _CLAUDE_P_WORDS = re.compile(r"\bclaude\s+-p\b")
+# The stdlib callables that run a shell or argv string (subprocess, os, asyncio).
+_PROCESS_CALLS = frozenset(
+    {
+        "run",
+        "Popen",
+        "call",
+        "check_call",
+        "check_output",
+        "getoutput",
+        "getstatusoutput",
+        "system",
+        "popen",
+        "create_subprocess_shell",
+        "create_subprocess_exec",
+    }
+)
+
+
+def _callee_name(node: object) -> str:
+    """`subprocess.run(...)` -> "run", `system(...)` -> "system", anything else -> ""."""
+    import ast
+
+    func = getattr(node, "func", None)
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return func.id if isinstance(func, ast.Name) else ""
 
 
 def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
@@ -172,18 +198,24 @@ def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
             continue
         rel = str(path.relative_to(root))
         for node in ast.walk(tree):
-            if isinstance(node, ast.Constant):
-                if isinstance(node.value, str) and _CLAUDE_P_WORDS.search(node.value):
-                    hits.add(rel)  # a shell string: "claude -p ..."
+            if not isinstance(node, (ast.Call, ast.List, ast.Tuple)):
                 continue
-            if isinstance(node, (ast.Call, ast.Tuple)):
-                # a call's positional args, or a tuple literal: "claude" immediately followed by "-p"
-                seq = node.args if isinstance(node, ast.Call) else node.elts
-                flat = [e.value if isinstance(e, ast.Constant) else None for e in seq]
-                if any(a == "claude" and b == "-p" for a, b in zip(flat, flat[1:])):
+            seq = node.args if isinstance(node, ast.Call) else node.elts
+            flat = [e.value if isinstance(e, ast.Constant) else None for e in seq]
+            # A shell string ("claude -p ...") counts only as an ARGV ELEMENT — a list or tuple
+            # element, or a positional arg of a call that runs a process; anywhere else (a
+            # docstring, a message, a parser description) it is prose: 43 prose mentions under
+            # scripts/ at ab1026f14 would otherwise each read as a spawner (W-d45c790c).
+            runs = not isinstance(node, ast.Call) or _callee_name(node) in _PROCESS_CALLS
+            if runs and any(isinstance(v, str) and _CLAUDE_P_WORDS.search(v) for v in flat):
+                hits.add(rel)
+                continue
+            # "claude" immediately followed by "-p": a call's positional args or a tuple literal
+            if not isinstance(node, ast.List):
+                if any(a == "claude" and b == "-p" for a, b in zip(flat, flat[1:], strict=False)):
                     hits.add(rel)
                 continue
-            if not isinstance(node, ast.List) or not node.elts:
+            if not node.elts:
                 continue
             flat = [e.value for e in node.elts if isinstance(e, ast.Constant)]
             if "-p" not in flat:
@@ -203,6 +235,7 @@ def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
         ),
         pytest.param("ARGV = ('claude', '-p', 'hello')\n", id="tuple-argv"),
         pytest.param("CMD = ['bash', '-c', 'claude -p hello']\n", id="shell-string"),
+        pytest.param("import os\n\nos.system('claude -p hello')\n", id="shell-call"),
     ],
 )
 def test_discovery_finds_a_planted_spawner_in_every_shape(tmp_path: Path, body: str) -> None:
@@ -210,6 +243,20 @@ def test_discovery_finds_a_planted_spawner_in_every_shape(tmp_path: Path, body: 
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts" / "planted.py").write_text(body, encoding="utf-8")
     assert "scripts/planted.py" in _files_that_build_a_claude_p_argv(tmp_path)
+
+
+def test_discovery_ignores_claude_p_prose(tmp_path: Path) -> None:
+    """A docstring, an assigned message and an f-string naming `claude -p` are prose, not an argv:
+    matching them made the real-tree test fail on files that spawn nothing (W-d45c790c)."""
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "prose.py").write_text(
+        '"""Measures `claude -p` cost."""\n'
+        'MSG = "claude -p failed after 3 attempts"\n'
+        'import argparse\nAP = argparse.ArgumentParser("Per-call claude -p cost")\n'
+        'def warn(rc):\n    print(f"claude -p rc={rc}")\n',
+        encoding="utf-8",
+    )
+    assert _files_that_build_a_claude_p_argv(tmp_path) == set()
 
 
 def test_every_declared_spawner_actually_sets_the_flag() -> None:
@@ -262,9 +309,6 @@ def test_every_delegated_spawner_names_a_test_of_its_childs_env() -> None:
         )
 
 
-@pytest.mark.xfail(
-    strict=True, reason="W-d45c790c: undeclared spawners found, listed in commit"
-)
 def test_no_undeclared_headless_spawner_appears() -> None:
     """The list above is hand-kept, so this is what stops it going stale silently.
 
