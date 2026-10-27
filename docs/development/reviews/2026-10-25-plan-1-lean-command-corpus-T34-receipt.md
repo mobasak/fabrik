@@ -67,3 +67,57 @@ Gates, start -> end failure sets (all reds are the `_shared/` LOSS exit 4 or box
 - A floor D-row (about 80% own text after the canonical loader) or a decision that the pool-OFF L182/L112 comment spans and the unlinted L114 carrier may be ruled out of the ban set (that alone would free ~150 words).
 - `ec-a-suspended-fanout-refuses-with-a` has no baseline (L114): decide whether it stays an unlinted carrier.
 - `commands/_size_ceiling.json` ratchet at merge; CHANGELOG, INDEX rows.
+
+## Fix round 2 (hub audit)
+
+Method. Both hub audits (Sonnet 29 findings, Haiku 17) were checked against the baseline unit text (`fabrik-epics-review.baseline.txt`), then every lost or weakened unit was put back **verbatim** (one unit, one baseline line), not reworded. A unit that matches its baseline key no longer vanishes, so its `vanished:` label and its reworded carrier entry were deleted rather than patched. The master loader's D-1258 clause-by-clause check is not in this tree's `commands/command_rules.py` and cannot be fetched here, so it was not run. The hub's `MASTER-LOADER LOSS` list was worked line by line instead (below).
+
+**Findings: 46 reported (29 + 17, overlapping on 17 distinct points) — confirmed 46, refuted 0, fixed 46.** No finding was refuted: each quoted OLD text is in the baseline and was absent or weakened in the live text. Fixes by baseline line:
+
+| Finding(s) | Baseline unit | Fix |
+|---|---|---|
+| A1#3, A2#12 | L2 (SUSPENDED / SPEND / five `fanout`… anchors) | POOL OFF blockquote restored whole; the L112-L114 `<!-- POOL OFF -->` comment restored whole (`fanout("review"…)`, `(no default price cap)`, `set_quality(…)`, `project=` warning, `never hand-roll run_agents + record_run`) |
+| A1#28 | invented live `A suspended fanout REFUSES…` ban | sentence deleted from the live header, carrier `ec-a-suspended-fanout-refuses-with-a` deleted; the suspended-pool text exists only inside the comments it came from |
+| A1#4 | L113 `project=` warning (was `narrative`) | restored inside the comment |
+| A1#5, A2#15 | L12 AUTONOMOUS / no human step / two human gates (was `duplicate-of u-L13`) | restored verbatim |
+| A1#6, A2#17 | L8 `runs the epic set to its lens-adjudicated exit` | restored verbatim |
+| A1#2, A2#11 | L17 `forgetting to check is not; no hard-coded item count here` | restored verbatim |
+| A1#1, A2#6 | L29 six frontmatter field anchors | restored verbatim |
+| A1#29, A2#13 | L23, L24 `read it from disk`, `fix-later`/`accept-as-legacy` | restored verbatim |
+| A1#21 | L39 `This command CAN open PORTS.md, the rule packs, …infrastructure.py` | restored verbatim |
+| (master LOSS) | L21 `They are FILES on disk…`, L19 `written by /fabrik-epics`, L46 `Neither is a human stop` | restored verbatim |
+| (master LOSS) | L51-L56 Input contract (were `duplicate-of`) | `## Input contract` section restored verbatim |
+| A1#14, A2#16 | L69, L70 `Control flow in code, not prose` + what the gate proves | restored verbatim |
+| A1#7, #8, #9, #10, A2#4, #5 | L82-L85 realised-PATHS rule and examples, two predicates, `over every same-phase pair, marked or not`, four graph-disagreement cases | the four bullets restored verbatim |
+| (master LOSS) | L87 `--expected-count` clause chain | restored verbatim |
+| A1#11, A2#8, #9 | L90, L91 `epic_n` order, rotation across phases, idempotence | restored verbatim |
+| A1#12, A2#7 | L98 `docs_updater.py --adopt` convergence | restored verbatim |
+| A1#13, A2#10 | L101 `(and the whole of 2a still holds)` | restored verbatim |
+| A1#26 | L146 `authoritative` | restored verbatim |
+| A1#15 | L158 longest chain / present AND / `Without it nobody knows what gates delivery` | row restored verbatim |
+| A1#16 | L165 watchdog default and its exception | row restored verbatim |
+| A1#25, A2#14 | L176 `a rule-pack violation, not a metadata gap` (was `narrative`) | row restored verbatim |
+| A1#22 | L186 `routed by cause, per lens D` | restored verbatim |
+| (own pass) | L189 parenthetical `persist Status: IN-PROGRESS + ## BLOCKED…` (was `narrative`) | restored verbatim |
+| A1#23 | L190 `single source of the lens set`, L191 `the loop, not the checklist, decides when hunting stops` | restored verbatim |
+| A1#24 | L203, L204 enumerated checks, `typed rather than computed cannot pass`, `bare year` | restored verbatim |
+| (master LOSS) | L211 `…on the persisted file:` | restored verbatim |
+| A1#17, A2#1 | L218 template fence: gamma line, `Phase 2 (after Phase 1 merges)`, `(single-epic: …)` | three lines back, so the fence equals its baseline; the seven formerly `narrative` fence clauses now have text carriers |
+| A1#18, A2#2 | L225 agent-1 launch form | restored verbatim |
+| A1#19, A2#3 | L243 `gate auto-STAGES … REQUIRED (the Stop hook enforces it)` (clauses 2-3 were `narrative`) | restored verbatim |
+| (master LOSS) | L233-L234, L238, L240, L241 (Does NOT: surgical edit / re-creation, conversation memory, pack semantics, blanket 4-stage) | restored verbatim; A1#27 is L240 |
+| A1#20, (master LOSS) | L245-L254 Acceptance criteria (were `rule`/`duplicate-of`) | section restored verbatim, which also returns `and gated green by it` |
+| (master LOSS) | L118 `The lenses:` | relabelled `narrative` (a lead-in, no instruction, no ban word) |
+
+Ledger: 172 → 140 entries; vanished labels 154 → 90 (`rule` 83, `narrative` 6, `duplicate-of` 1). 33 reworded carriers deleted; `ec-cross-epic-validation-report-surface-final` kept with a `text` phrase for each of its seven formerly `narrative` fence lines; `L182` now names only `ec-surgical-ticket-fix-a-missing-metadata`.
+
+Own-text words, baseline → re-ledger → now: 7491 → ~5970 → **~7130 (~95%, estimated)**. The sandbox has no word-count command; the estimate adds the render growth `assemble_commands.py --check` reports for the render (the REPORT line now reads 28246 words, was 27086 at the re-ledger) to the re-ledger figure. **The target is retired (D-1257); this is a restoration round, not a size round.** Floor, by section: Acceptance criteria and Input contract (about 650 words, nine and five baseline lines, every clause a ban clause or an anchor-bearing rule the master loader demands a carrier for); the POOL OFF blockquote and Pool-breadth comment (about 270 words, five suspended-function anchors and two ban clauses); Phase 2 integrity/assign (about 900 words, the `src/app/**` / `libs/**` examples, four graph cases, `epic_n` rotation, idempotence); the five lens tables and the Phase 5 fence (unchanged floor from the earlier rounds).
+
+Gates, this tree, no `.git` (so `tests/test_assemble_dispatch_step.py::test_v7…` cannot run `git ls-files` here):
+- `tests/test_command_rules.py -rP`: 1 failed, 56 passed. The one red is `test_the_live_corpus_has_no_loss`, whose list opens with `_shared/close-chain.yaml`; `ledgers()` lists the command ledgers before `_shared/`, so no `fabrik-epics-review.yaml` LOSS precedes it. `LEDGER fabrik-epics-review.yaml: 140 entries · classes {ban 66, behavioural 1, grammar 1, prose 72} · vanished {duplicate-of 1, narrative 6, rule 83}`.
+- `python3 commands/assemble_commands.py --check`: exit 4; every LOSS line printed is `_shared/` (T01d's files); no `fabrik-epics-review` LOSS line is among the lines the tool did not truncate, and the first line printed is `_shared/close-chain.yaml`. Drift lines are `DIFFERS`/`MISSING` only. `REPORT fabrik-epics-review: shrank to 28246 words, ceiling 29473`.
+- Reader groups (I did **not** run them before my first edit, so there is no start run of my own to diff; compared against the failure counts recorded above): worktree-guard group 163 passed (same); deck group 541 passed, 2 skipped (same); governance group 511 passed (same); command_run group 2 failed, 617 passed (same count); review_receipt group 2 failed (same count), the first red shown is `test_assemble_commands_check_renders_cleanly_in_an_empty_home` (`_shared` LOSS exit 4), the second was cut from the kept output; flip-gate group 15 failed against 14 recorded above. The extra one is not attributable from the output the tool kept, and the likeliest cause is the missing `.git` (`test_v7_the_retired_d191_seat_mix_literal_survives_nowhere` fails on `git ls-files`). None of these tests reads text I changed except `test_assemble_orch_retired.py` (launch form, now restored) and `test_assemble_dispatch_step.py` (dispatch step, untouched).
+
+**Self-audit — NOT a fresh pass.** No subagent can be dispatched from this run, so the zero-counts audit pass the brief asks for did not happen: **fresh passes run: 0.** I did not re-check my own fixes and call the result zero. What I did: restored every flagged unit verbatim (so each is checked by the loader's exact-key match, which found no unclassified vanished line), and read the master-loader LOSS list line by line against the restored text. The hub's author-blind audit pair covers the rest, and it should read in particular the labels that were not flagged and are still the author's: the 83 `rule:` labels, the 6 `narrative` ones (L10, L11, L110, L118, L61, L222), `duplicate-of` L229, and the `clauses:` labels listed in the re-ledger round above that this round did not touch.
+
+COUNTS: no fresh pass ran / entries read 140 (author's own line-by-line over the restored units only, not a fresh audit) / reworded ~70 / weaker not audited / lost not audited / invented not audited / wrong vanished labels not audited
