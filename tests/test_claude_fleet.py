@@ -6002,7 +6002,7 @@ def test_the_weekly_reading_is_recorded_at_both_ends_of_its_range(tmp_path, monk
     monkeypatch.setattr(
         cr,
         "_active_account_walled",
-        lambda accounts, threshold: (
+        lambda accounts, threshold, now=None: (
             False,
             {
                 "email": "edge@ocoron.com",
@@ -6045,7 +6045,7 @@ def test_the_tick_row_still_writes_when_the_weekly_window_is_absent(tmp_path, mo
     monkeypatch.setattr(
         cr,
         "_active_account_walled",
-        lambda accounts, threshold: (
+        lambda accounts, threshold, now=None: (
             False,
             {
                 "email": "weekly-less@ocoron.com",

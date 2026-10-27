@@ -292,6 +292,17 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 
 Candidates: 27 raw raises (20 + 6 + 1 over the three passes) → 14 FIXED (10 distinct defects; 4 raises were second seats on P1-C1, P1-C3 and P1-C4) + 6 REFUTED (P1-R1..R4, P2-R1, P3-R1) + 7 RECORDED (P1-D1, P1-D2, P1-M1, P2-M1, P2-M2, P2-M3, P2-D1). P1-R5 answers the lane's third question for every seat and is no raise.
 
+## Post-close finding (after the receipt commit)
+
+The full touched slice the lead ran after the close (11 test files, 796 tests) went red on c8ec4095d: 3 failed,
+`test_the_weekly_reading_is_recorded_at_both_ends_of_its_range[0.0]`, `[99.0]` and
+`test_the_tick_row_still_writes_when_the_weekly_window_is_absent`. P2-M1's fix passed a third positional argument
+(`now`) to `_active_account_walled`, and those tests stub it with a two-argument lambda; `_tick_row`'s guard swallowed
+the TypeError, so no tick row was written. The closing pass missed it because its brief limited the seats to the ten
+W-010bb0d9 graders ("do not run whole test files"), and the lead closed the review before that slice returned. Fixed
+in the next commit on the branch: both stubs take `now=None`; the three tests fail on c8ec4095d and pass after it.
+That fix is reviewed by its own `/fabrik-review-scoped` run, not by this receipt.
+
 ## Per-phase verdicts
 
 ### Phase 1 — Pass 1, full partitioned pass: FIXED (9 confirmed, all fixed in ab63901a8)
