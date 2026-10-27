@@ -70,3 +70,20 @@ None this round. The fix round deleted the `batch` lookup and its two `scratch_d
 - The decision on deleting the two POOL OFF block comments (~270 words; restore source `docs/reference/subagent-pool-contract.md`) — the largest single cut still open, worth about 9 points.
 - A floor D-row if 88% stands: 65 live rule entries; the ban-verbatim spans of L24, L74, L53 and L56 alone are roughly 555 words (estimate).
 - CHANGELOG, INDEX rows for the new `commands/_rules/` files, D-rows (hub writes at merge).
+
+## Fix round 2 (hub audit)
+
+Scope: `fabrik-repo-review` only (the `fabrik-deploy-plan-review` findings belong to another unit). Audit 1 items 21–25 and audit 2 items 44–54 are one set; the master-loader LOSS (D-1258) named L1 and L67.
+
+Confirmed and fixed (source, ledger, and a carrier entry each):
+- `r24`: "in a worktree, the worktree", "SEATS is Σ slices, no floor padding" and "(a repo or checkout the sync has not reached)" restored verbatim. The per-batch sibling-reservation clock (the 25 minutes) and the oscillation-advisory sentence were labelled narrative but are instructions: restored, carried as a `r24` text phrase, clause-4 `narrative` label removed.
+- `r58`: "same partition and the same persisting class ledger" and "the hop bounds the EXTENT" restored.
+- L67: the three-excuses rule was wrongly `duplicate-of: x-term` (x-term has no such clause). New entry `r67` carries it; L67 is now `rule: [r67]`.
+- L1: the SUSPENDED sentence (`<!-- POOL OFF -->`, "left in place … for re-enable") was wrongly `duplicate-of: x-pool`. Restored inline in the banner with the D-181 operator date; new entry `r00`; L1 is now `rule: [r00]`. `r01` also has the seat list (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose) back inline, so it no longer leans on x-pool.
+- L11/L12 (`r02a`/`r02b`): the valid `SCAFFOLD_TYPES` list, `office-extension` and "13 at D-039" restored; the `narrative` labels removed.
+
+Refuted: none. Left as-is: L21 / `x-floor` (no loader LOSS; the fragment carries the partition rule; the audit marked it unverified), and the asides in items 49, 51, 52 (`r50` superuser example, `r64` "the embedded proof above is what the operator audits"; the `r64` clause-6 `narrative` label stands).
+
+Own-text words: raw source file 2561 before this round, 2777 now. The own-text figure was not re-measured (no shell for it in this run).
+
+Fresh passes: 0. No subagent can be dispatched from this run, so no fresh-reader pass happened. I re-read the changed entries line by line; that is NOT a fresh audit, and the hub's author-blind audit pair covers it. No zero COUNTS line is claimed.
