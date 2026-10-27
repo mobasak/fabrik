@@ -1691,24 +1691,42 @@ def _transcript(home: Path, folder: Path, sid: str) -> None:
 
 AGENT_TREE = "agent-a0123456789abcdef"
 LONER = "7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a7a"
+STALE1 = "9c9c9c9c-9c9c-4c9c-8c9c-9c9c9c9c9c9c"
+STALE2 = "adadadad-adad-4dad-8dad-adadadadadad"
 GHOST = "8b8b8b8b-8b8b-4b8b-8b8b-8b8b8b8b8b8b"
 
 
 def test_a_pane_starts_where_its_session_lives(tmp_path: Path) -> None:
     """B1: a builder whose session sits in another linked worktree starts there, said on stderr, with an `ok` status; a
     builder with no own-named worktree gets that pane too once the repo declares a merge owner; a Claude Code subagent
-    tree (`agent-*`) is taken but flagged; the launch path hands tmux the found folder."""
-    repo = _repo(tmp_path, {DEV1: "infra", DEV2: "dev2", LONER: "loner"}, worktrees=False)
+    tree (`agent-*`) is taken but flagged; the coordinator's own worktree is never a builder's; a worktree-less name no
+    tree holds is dropped before its stale rows can refuse the launch; the launch path hands tmux the found folder."""
+    repo = _repo(
+        tmp_path,
+        {DEV1: "infra", DEV2: "dev2", LONER: "loner", STALE1: "ghost", STALE2: "ghost"},
+        worktrees=False,
+    )
     _worktree(repo, "infra")
     _worktree(repo, "dev2")
     uncapped, sub = _worktree(repo, "infra-uncapped"), _worktree(repo, AGENT_TREE)
+    coord = _worktree(repo, "coordinator")
     _ledger(repo, "coordinator")
     home = _home(tmp_path, transcripts=((repo, DEV1), (repo, DEV2), (repo, LONER)), root_only=True)
     _transcript(home, uncapped, DEV1)
     _transcript(home, _wt(repo, "dev2"), DEV2)
     _transcript(home, sub, LONER)
+    _transcript(
+        home, coord, LONER
+    )  # the coordinator's tree also holds loner's session: never a candidate
     out = _run("--print", str(repo), home=home)
     assert out.returncode == 0, out.stderr
+    assert "more than one session id" not in out.stderr, (
+        out.stderr
+    )  # ghost's two stale rows never read
+    assert (
+        "ghost: .claude/worktrees/ghost is not a linked git worktree in place — no pane"
+        in out.stderr
+    ), out.stderr
     assert _panes(out.stdout) == [
         f"pane dev2 {DEV2} {_wt(repo, 'dev2')} ok",
         f"pane infra {DEV1} {uncapped} ok",
@@ -1761,19 +1779,23 @@ def test_a_session_in_several_trees_keeps_the_named_tree(tmp_path: Path) -> None
         root_only=True,
     )
     _transcript(home, a, DEV1)
-    _transcript(home, b, DEV1)  # dev1: two holders
+    _transcript(home, b, DEV1)
+    _transcript(
+        home, _wt(repo, "dev1"), DEV1
+    )  # dev1: three holders, its own tree among them — still said
     _transcript(home, _wt(repo, "dev1"), DEV2)  # dev2's session sits only in dev1's own-named tree
     _transcript(home, odd, SENT)  # sent's only holder is off the agent-name grammar
     _transcript(home, a, GHOST)  # ghost has no own worktree and no merge owner is declared
     out = _run("--print", str(repo), home=home)
     assert out.returncode == 0, out.stderr
     assert _panes(out.stdout) == [
-        f"pane dev1 {DEV1} {_wt(repo, 'dev1')} no-transcript",
+        f"pane dev1 {DEV1} {_wt(repo, 'dev1')} ok",
         f"pane dev2 {DEV2} {_wt(repo, 'dev2')} no-transcript",
         f"pane sent {SENT} {_wt(repo, 'sent')} no-transcript",
     ], out.stdout
     assert (
-        f"dev1: session {DEV1} sits in more than one worktree (spare-a, spare-b)" in out.stderr
+        f"dev1: session {DEV1} sits in more than one worktree (dev1, spare-a, spare-b)"
+        in out.stderr
     ), out.stderr
     assert (
         "ghost: .claude/worktrees/ghost is not a linked git worktree in place — no pane"

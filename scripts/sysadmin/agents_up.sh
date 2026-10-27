@@ -217,13 +217,6 @@ def no_worktree(name):
     why = "" if owner_name else " (no merge owner is declared, so it is taken as the coordinator)"
     note(f"{name}: .claude/worktrees/{name} is not a linked git worktree in place — no pane; it works in the main checkout{why}")
 
-# A name without its own worktree may still get a pane in the worktree its session lives in (below), but only in a
-# repo that declares its merge owner: with none, such a name is taken as the coordinator and keeps no pane.
-for name in sorted(ids):
-    if not linked(name) and not owner_name:
-        no_worktree(name)
-        del ids[name]
-
 def proj(folder):  # claude files a session under its start folder with every non-alphanumeric character as `-`
     return os.path.join(config, "projects", re.sub(r"[^A-Za-z0-9]", "-", folder))
 
@@ -231,15 +224,29 @@ def proj(folder):  # claude files a session under its start folder with every no
 # folder (CLAUDE_PROJECT_DIR — its hooks, settings and permissions) after the session moves into another worktree, and
 # files the session's transcript under the folder it works in; so the linked worktree whose project folder holds the
 # session is the agent's tree. A candidate's folder name must be an agent name: the mangling above is then one-to-one
-# over the candidates, and a folder name can never break the shell's `read` of the line printed below.
+# over the candidates, and a folder name can never break the shell's `read` of the line printed below. The
+# coordinator's trees (a coordinator name, the merge owner) are never a builder's.
 wtroot = os.path.join(root, ".claude", "worktrees")
 try:
-    cands = sorted(f for f in os.listdir(wtroot) if NAME.fullmatch(f) and linked(f))
+    cands = sorted(
+        f for f in os.listdir(wtroot) if NAME.fullmatch(f) and not coordinator(f) and f != owner_name and linked(f)
+    )
 except OSError:
     cands = []
 
 def holds(folder, sid):
     return os.path.isfile(os.path.join(proj(os.path.join(wtroot, folder)), sid + ".jsonl"))
+
+# A name without its own worktree keeps a pane only in a repo that declares its merge owner (with none it is taken as
+# the coordinator) AND only when a candidate holds one of its sessions; any other is dropped here, before its rows
+# are read, as before W-456aa02a.
+for name in sorted(ids):
+    if linked(name):
+        continue
+    sids = [*ids[name], *([binding[name][0]] if name in binding else [])]
+    if not owner_name or not any(holds(f, s) for f in cands for s in sids):
+        no_worktree(name)
+        del ids[name]
 
 def active_at(name, sid):  # the newest mtime of the session's transcript under the folders its pane can start in
     best = None
@@ -291,7 +298,7 @@ for name in sorted(chosen):
     if len(hits) == 1:
         folder[name] = hits[0]
     else:
-        if len(hits) > 1 and name not in hits:
+        if len(hits) > 1:
             note(f"{name}: session {chosen[name]} sits in more than one worktree ({', '.join(hits)}) — its pane keeps .claude/worktrees/{name}")
         folder[name] = name
 shared = {}

@@ -29,6 +29,7 @@ import errno
 import fcntl
 import json
 import os
+import shlex
 import stat
 import subprocess
 import sys
@@ -195,12 +196,13 @@ def _project_dir_order(sid: str, cwd: str) -> str:
         )  # left = only in the launch tree, right = only in the tree worked in
         cfg = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip()
         agent = (os.environ.get("CLAUDE_AGENT") or "").strip()
+        q = shlex.quote  # every value reaches a command line the agent is told to run
         launch = (
-            f"cd {c[0]} && "
-            + (f"CLAUDE_CONFIG_DIR={cfg} " if cfg else "")
+            f"cd {q(c[0])} && "
+            + (f"CLAUDE_CONFIG_DIR={q(cfg)} " if cfg else "")
             + "claude "
-            + (f"-n {agent} " if agent else "")
-            + f"--resume {sid}"
+            + (f"-n {q(agent)} " if agent else "")
+            + f"--resume {q(sid)}"
         )
         return (
             "## ⚠️ HOOKS LOAD FROM ANOTHER TREE (mechanical check, every prompt)\n"
@@ -322,8 +324,9 @@ def main() -> int:
         order = _feedback_order(sid, cwd)
         if order:
             print(order)
-        # the tree notice is gated on nothing the self-watch reads either (not the `/opt` prefix: a project window
-        # elsewhere has the same defect) and never raises, so the self-watch order below still prints (W-456aa02a)
+        # the tree notice shares only the real-sid and not-headless gates above — not the `/opt` prefix or the watch
+        # binary (a project window elsewhere has the same defect) — and never raises, so the self-watch order below
+        # still prints (W-456aa02a)
         tree = _project_dir_order(sid, cwd)
         if tree:
             print(tree)

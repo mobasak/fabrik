@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -423,6 +424,17 @@ def test_hooks_from_another_tree_are_said(tmp_path):
         CLAUDE_AGENT="infra",
     )
     assert f"cd {work} && CLAUDE_CONFIG_DIR=/cfg claude -n infra --resume {SID}" in out, out
+    # …each value shell-quoted, so a space or a metacharacter never splits or runs the line the agent is told to run
+    out = _run(
+        tmp_path,
+        cwd=str(work),
+        CLAUDE_PROJECT_DIR=str(stale),
+        CLAUDE_CONFIG_DIR="/c f g;x",
+    )
+    assert "CLAUDE_CONFIG_DIR='/c f g;x' claude --resume" in out, out
+    # a window working in the MAIN checkout while launched in a stale linked worktree is told too
+    out = _run(tmp_path, cwd=str(_main), CLAUDE_PROJECT_DIR=str(stale))
+    assert TREE_NOTICE in out and f"you work in `{_main}`" in out, out
 
 
 def test_hooks_from_the_same_tree_say_nothing(tmp_path):
@@ -475,9 +487,14 @@ def test_hooks_from_the_same_tree_say_nothing(tmp_path):
 def test_the_tree_notice_does_not_wait_for_the_self_watch(tmp_path):
     """B7: the notice prints before, and beside, an unarmed self-watch's arm order; and a guard that cannot run git
     (git missing from PATH) is silent while the self-watch order still prints — the guard never costs the window its
-    arm order."""
+    arm order; a git that hangs costs at most the guard's one budget, well inside the hook's 10 s registration, and
+    the arm order still prints."""
     _main, stale, work, _sha = _trees(tmp_path)
-    opt = {"SELFWATCH_OPT_ROOT": str(tmp_path)}
+    # a HOME of the test's own holding the watch binary, so the arm order never depends on this box's ~/.claude
+    home = tmp_path / "home"
+    (home / ".claude" / "bin").mkdir(parents=True)
+    (home / ".claude" / "bin" / "claude-selfwatch.sh").write_text("#!/bin/sh\n")
+    opt = {"SELFWATCH_OPT_ROOT": str(tmp_path), "HOME": str(home)}
     out = _run(tmp_path, cwd=str(work), CLAUDE_PROJECT_DIR=str(stale), **opt)
     assert TREE_NOTICE in out and "SELF-WATCH NOT ARMED" in out, out
     assert out.index(TREE_NOTICE) < out.index("SELF-WATCH NOT ARMED"), out
@@ -485,3 +502,12 @@ def test_the_tree_notice_does_not_wait_for_the_self_watch(tmp_path):
     nogit.mkdir()
     out = _run(tmp_path, cwd=str(work), CLAUDE_PROJECT_DIR=str(stale), PATH=str(nogit), **opt)
     assert TREE_NOTICE not in out and "SELF-WATCH NOT ARMED" in out, out
+    hung = tmp_path / "hung"
+    hung.mkdir()
+    (hung / "git").write_text(f"#!{sys.executable}\nimport time\ntime.sleep(30)\n")
+    (hung / "git").chmod(0o755)
+    t0 = time.monotonic()
+    out = _run(tmp_path, cwd=str(work), CLAUDE_PROJECT_DIR=str(stale), PATH=str(hung), **opt)
+    took = time.monotonic() - t0
+    assert TREE_NOTICE not in out and "SELF-WATCH NOT ARMED" in out, out
+    assert took < _selfwatch._TREE_BUDGET_S + 3 < 10, took

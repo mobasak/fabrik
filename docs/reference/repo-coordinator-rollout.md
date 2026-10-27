@@ -198,9 +198,10 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   load from — after the session moves into another worktree, and files the transcript under the folder it works in;
   so infra's pane, started by name in `worktrees/infra` while infra worked in `infra-uncapped`, ran a tree 1602 commits
   behind for days. A candidate folder must be an agent name (`[a-z0-9][a-z0-9-]{0,31}`); another builder's own-named
-  tree is never taken; a session in several worktrees, or two builders found in one, keep `<name>` (said on stderr,
+  tree and the coordinator's trees (a coordinator name, the declared merge owner) are never taken; a session in several worktrees, or two builders found in one, keep `<name>` (said on stderr,
   the launch continues); a found `agent-*` tree (Claude Code's subagent trees) is flagged. A name with no own worktree
-  takes a found folder only where the repo declares its merge owner. A name with no folder at all gets no pane, said on
+  takes a found folder only where the repo declares its merge owner, and is dropped before its registry rows are read
+  when no candidate holds one of its sessions. A name with no folder at all gets no pane, said on
   stderr, and a repo left with no builder refuses (exit 2). The main checkout is the coordinator's, and a builder
   resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Every pane runs whole — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
