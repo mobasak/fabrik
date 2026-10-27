@@ -162,6 +162,34 @@ RESERVED_NAMES = frozenset(
 # and ``_write_server_lint_config`` excludes these names as vendored — its own code would go unlinted.
 VENDORED_MODULE_NAMES = frozenset({"fastapi_user_auth", "audit_log"})
 
+# Top-level import names of the third-party libraries the scaffolded Python server imports
+# (``_SAAS_SERVER_REQUIREMENTS`` and the python-api requirements, plus alembic/celery). A project whose
+# package bears one of these names would shadow the library — ruff I001 fails and the import breaks.
+# A static list on purpose: an importlib lookup would depend on what the local environment has installed.
+SHADOWABLE_LIBRARY_NAMES = frozenset(
+    {
+        "alembic",
+        "argon2",
+        "asyncpg",
+        "celery",
+        "dotenv",
+        "fastapi",
+        "httpx",
+        "jwt",
+        "prometheus_client",
+        "psycopg",
+        "pydantic",
+        "pydantic_settings",
+        "pytest",
+        "redis",
+        "sentry_sdk",
+        "sqlalchemy",
+        "structlog",
+        "uuid_utils",
+        "uvicorn",
+    }
+)
+
 SCAFFOLD_TYPES = frozenset(
     {
         "python-api",
@@ -788,6 +816,11 @@ def _validate_project_name(name: str) -> None:
         raise ValueError(
             f"Reserved project name: '{name}' — its package would shadow the vendored "
             f"'{_get_package_name(name)}' module (and the lint config would exclude it as vendored)"
+        )
+    if _get_package_name(name) in SHADOWABLE_LIBRARY_NAMES:
+        raise ValueError(
+            f"Reserved project name: '{name}' — its package would shadow the '{_get_package_name(name)}' "
+            "library the scaffolded server imports"
         )
     if len(name) > 50:
         raise ValueError(f"Project name too long: {len(name)} chars (max 50)")
