@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — merge-test shards balanced by recorded per-file duration (2026-10-27)
+
+- `scripts/merge_test_select.py` assigns the merge leg's test files to its 8 shards greedy
+  longest-first by the seconds each file took in earlier merge legs, plus a 0.15 s import cost per
+  file, instead of round-robin. On 2026-10-27 the round-robin shards ran 253 to 842 s.
+- Each merge leg records what its shard run measured in
+  `<git common dir>/fabrik-merge/merge-tests-durations.json`, shared by locked, pretest and queue legs,
+  and prints `shards planned` beside `shards measured`. With no record the split is the old
+  round-robin one. A bad record or a failed save costs only balance, never the verdict. D-1279,
+  W-c832e59f.
+
 ### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
 
 Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value
