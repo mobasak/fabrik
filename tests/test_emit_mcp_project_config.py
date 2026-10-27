@@ -354,7 +354,8 @@ def test_scaffold_helper_emits_mcp_config(tmp_path, defs_file, monkeypatch, caps
         f"spec = importlib.util.spec_from_file_location('emitter', {str(_SCRIPT)!r})\n"
         "m = importlib.util.module_from_spec(spec)\n"
         "spec.loader.exec_module(m)\n"
-        "assert hasattr(m, 'ROSTER_PATH') and hasattr(m, 'HUB_ENV_PATH'), 'emitter renamed its paths'\n"
+        "if not (hasattr(m, 'ROSTER_PATH') and hasattr(m, 'HUB_ENV_PATH')):\n"
+        "    sys.exit('shim: the emitter renamed ROSTER_PATH or HUB_ENV_PATH')\n"
         f"m.ROSTER_PATH = Path({str(tmp_path / 'roster.json')!r})\n"
         f"m.HUB_ENV_PATH = Path({str(hub_env)!r})\n"
         f"sys.exit(m.cli(sys.argv[1:] + ['--defs', {str(defs_file)!r}]))\n",
