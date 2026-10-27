@@ -37,24 +37,29 @@ def load_dotenv(env_path: Path) -> dict[str, str]:
         Dict of key-value pairs; empty when the file does not exist
 
     Raises:
-        ValidationError: the file is not UTF-8 or compose would refuse it (an unterminated quote,
-            a quote after the closing quote). Fail closed: an unread key would be minted over the
-            real secret. The message names the file, key and line or byte offset, never a value.
+        ValidationError: the file cannot be read, is not UTF-8, or compose would refuse it (an
+            unterminated quote, a quote after the closing quote). Fail closed: an unread key would
+            be minted over the real secret. The message names the file, key and line or byte
+            offset, never a value.
     """
     if not env_path.exists():
         return {}
     try:
-        parsed = parse_env(env_path.read_text())
+        # Bytes, decoded as UTF-8 whatever the locale, so the codec sees every \r itself (a text
+        # read's universal newlines would turn a lone \r inside a value into a line break).
+        parsed = parse_env(env_path.read_bytes().decode("utf-8"))
     except UnicodeDecodeError as e:
         # The decoder's own message quotes the offending byte, which may sit inside a secret.
         raise ValidationError(f"cannot read {env_path}: not UTF-8 at byte {e.start}") from None
     except ValueError as e:
         raise ValidationError(f"cannot read {env_path}: {e}") from None
+    except OSError as e:
+        raise ValidationError(f"cannot read {env_path}: {e.strerror or type(e).__name__}") from None
     for key, value in parsed.items():
         if "\n" in value:
             # Legal (compose reads it too), but an unterminated quote swallows the next KEY= line
             # the same way, and that key would then be minted in silence — so say which one.
-            logger.warning("%s: the value of %s spans lines", env_path, key)
+            logger.warning("%s: the value of %s holds a line break", env_path, key)
     return {key: str(value) for key, value in parsed.items()}
 
 

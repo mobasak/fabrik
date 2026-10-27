@@ -742,7 +742,8 @@ Errors during rollback are logged and accumulated — rollback never aborts, alw
    c. Fabrik .env             (/opt/fabrik/.env loaded into os.environ by config.py at import time
                                via python-dotenv — does NOT overwrite existing vars)
 2. <cwd>/.env                 (SecretsManager.dotenv — the .env of the directory `fabrik` runs in, read
-                               with the compose codec; a malformed file stops the deploy)
+                               with the compose codec, only for a key absent from or empty in
+                               os.environ; a malformed file stops a deploy that reads it)
 3. Auto-generate              (CSPRNG 32-char secret if generate_if_missing=True — lowest)
 ```
 

@@ -100,14 +100,29 @@ class TestLoadDotenvComposeGrammar:
         assert result == {"BARE": "a$b", "QUOTED": "x$y", "ESCAPED": "p$q"}
         assert all(type(v) is str for v in result.values())
 
-    def test_malformed_file_raises_naming_path_not_value(self, tmp_path):
+    @pytest.mark.parametrize(
+        "content",
+        ['OK=1\nDB_PASSWORD="s3cretvalue\n', 'OK=1\nDB_PASSWORD="s3cret""value"\n'],
+        ids=["unterminated", "quote-after-close"],
+    )
+    def test_malformed_file_raises_naming_path_not_value(self, tmp_path, content):
         env_file = tmp_path / ".env"
-        env_file.write_text('OK=1\nDB_PASSWORD="s3cretvalue\n')
+        env_file.write_text(content)
         with pytest.raises(ValidationError) as exc:
             load_dotenv(env_file)
         message = str(exc.value)
         assert str(env_file) in message and "DB_PASSWORD" in message
-        assert "s3cretvalue" not in message
+        assert "s3cret" not in message
+
+    def test_carriage_returns_reach_the_codec(self, tmp_path):
+        env_file = tmp_path / ".env"
+        env_file.write_bytes(b"CRLF=v # c\r\nLONE='x\ry'\r\n")
+        assert load_dotenv(env_file) == {"CRLF": "v", "LONE": "x\ry"}
+
+    def test_unreadable_file_raises_validation_error(self, tmp_path):
+        (tmp_path / ".env").mkdir()
+        with pytest.raises(ValidationError, match="cannot read"):
+            load_dotenv(tmp_path / ".env")
 
     def test_non_utf8_file_raises_without_the_byte(self, tmp_path):
         env_file = tmp_path / ".env"
@@ -124,7 +139,7 @@ class TestLoadDotenvComposeGrammar:
         with caplog.at_level(logging.WARNING, logger="fabrik.orchestrator.secrets"):
             result = load_dotenv(env_file)
         assert result == {"DB_PASS": "abc\nAPI_TOKEN=xyz", "OTHER": "1"}
-        assert "DB_PASS" in caplog.text
+        assert len(caplog.records) == 1 and "DB_PASS" in caplog.text
         assert "xyz" not in caplog.text and "abc" not in caplog.text
 
 
