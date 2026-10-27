@@ -1443,6 +1443,15 @@ def _validate_compose(content: str) -> list[str]:
                     '(e.g. test: ["CMD-SHELL", "kill -0 1"]) or omit the block when the image '
                     "declares no HEALTHCHECK"
                 )
+            # Compose takes a duration only as a string ("10s"): an empty template line renders YAML
+            # null, and a bare number an int, and the VPS `compose up` refuses both (W-3197a125).
+            for key in ("interval", "timeout", "start_period", "start_interval"):
+                value = healthcheck.get(key)
+                if key in healthcheck and (not isinstance(value, str) or not value.strip()):
+                    errors.append(
+                        f"Service '{svc_name}': healthcheck.{key} must be a duration string such "
+                        f"as '10s' (got {value!r})"
+                    )
 
     # Network: fabrik external (renamed from `coolify` 2026-05-31; W12 of fleet-hardening plan).
     networks = data.get("networks", {})
@@ -1567,6 +1576,8 @@ def _generate_docker_compose(
     health = spec.get("health", {}) if isinstance(spec.get("health"), dict) else {}
     health_path = health.get("path", "/health")
     health_interval = health.get("interval", "30s")
+    # `or`, not a .get default: a model_dump'd spec carries `start_period: None` (W-3197a125).
+    health_start_period = health.get("start_period") or "20s"
     source = spec.get("source", {}) if isinstance(spec.get("source"), dict) else {}
     image_command = source.get("image_command")
 
@@ -1610,7 +1621,7 @@ def _generate_docker_compose(
             f"      interval: {health_interval}",
             "      timeout: 10s",
             "      retries: 3",
-            "      start_period: 20s",
+            f"      start_period: {health_start_period}",
         ]
     lines += [
         "    networks:",

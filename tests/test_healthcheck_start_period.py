@@ -13,7 +13,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from fabrik.orchestrator.deployer_ssh import _generate_docker_compose
+from fabrik.orchestrator.deployer_ssh import _generate_docker_compose, _validate_compose
 from fabrik.spec_loader import Health, Spec, load_spec
 from fabrik.template_renderer import TemplateRenderer
 
@@ -87,7 +87,10 @@ def test_an_omitted_start_period_keeps_the_template_default(template: str) -> No
     assert periods and set(periods.values()) == {DEFAULTS[template]}, periods
 
 
-@pytest.mark.parametrize(("health", "want"), [({}, "20s"), ({"start_period": "45s"}, "45s")])
+@pytest.mark.parametrize(
+    ("health", "want"),
+    [({}, "20s"), ({"start_period": None}, "20s"), ({"start_period": "45s"}, "45s")],
+)
 def test_the_docker_source_compose_honours_start_period(health: dict[str, str], want: str) -> None:
     compose = _generate_docker_compose("my-app", "img:latest", 8000, "", {"health": health})
     assert _start_periods(compose) == {"my-app": want}, compose
@@ -97,3 +100,35 @@ def test_the_docker_source_compose_honours_start_period(health: dict[str, str], 
 def test_a_non_string_start_period_is_refused(bad: object) -> None:
     with pytest.raises(ValidationError):
         Health.model_validate({"start_period": bad})
+
+
+def _compose_with(healthcheck: dict[str, object]) -> str:
+    """A compose file `_validate_compose` passes on every other check."""
+    return yaml.safe_dump(
+        {
+            "services": {
+                "app": {
+                    "image": "img:1",
+                    "container_name": "app",
+                    "platform": "linux/amd64",
+                    "restart": "unless-stopped",
+                    "deploy": {"resources": {"limits": {"memory": "256M"}}},
+                    "networks": ["fabrik"],
+                    "healthcheck": {"test": ["CMD", "true"], **healthcheck},
+                }
+            },
+            "networks": {"fabrik": {"external": True}},
+        }
+    )
+
+
+def test_the_compose_gate_passes_string_durations_and_an_int_retries() -> None:
+    hc = {"interval": "30s", "timeout": "5s", "start_period": "10s", "retries": 3}
+    assert _validate_compose(_compose_with(hc)) == []
+
+
+@pytest.mark.parametrize("key", ["interval", "timeout", "start_period", "start_interval"])
+@pytest.mark.parametrize("bad", [None, 10, True, ""])
+def test_the_compose_gate_refuses_a_non_string_duration(key: str, bad: object) -> None:
+    errors = _validate_compose(_compose_with({key: bad}))
+    assert any(f"healthcheck.{key}" in e for e in errors), errors

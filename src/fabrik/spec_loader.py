@@ -137,6 +137,8 @@ class Health(BaseModel):
     interval: str = "30s"
     timeout: str = "10s"
     retries: int = 3
+    start_period: str | None = None
+    """Compose ``start_period``; None renders the template's own default (W-3197a125)."""
     disabled: bool = False
     """When true, no HEALTHCHECK is emitted. Use only for images that lack
     shell tooling (e.g. ``traefik/whoami``) where any healthcheck would
