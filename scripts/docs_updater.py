@@ -619,14 +619,15 @@ TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE
 # wearing 47 hats, not 47 defects, so it is NOT in this list. The three added below were measured
 # through the real check: FUNNEL 0/47, AUTOMATION 0/47, API_REFERENCE 1/47 — and that single hit is a
 # TRUE POSITIVE kept deliberately, which is what the gate is for. The remaining candidates need their
-# markers added before they can be watched; measurements and destination are in
-# docs/STRATEGIC_BACKLOG.md. Re-measure before adding any entry; the numbers move.
-# (site-provisioner, 01M2NJGZGV20WP: 7 watched of 26 project-owned docs, and every defect their
-# two-command sweep found that day was in an unwatched one.)
+# markers added before they can be watched. Re-measure before adding any entry; the numbers move.
+# An entry must be a doc the project can edit (not in fabrik_synced_manifest.review_readonly_paths(),
+# so AGENTS.md is out) and may keep where it is (check_structure.py allows its path, so docs/INDEX.md
+# is out); tests/test_docs_updater.py grades both, holding docs/FUNNEL.md and docs/AUTOMATION.md
+# as the named exceptions W-1adf4ed4 decides. D-1272 records why the list stays hand-picked
+# rather than every project doc by default (site-provisioner, 01M2NJGZGV20WP): a date header
+# cannot see content, and the git-date signal lives in fleet_doc_audit.py and /fabrik-release.
 MANUAL_DOCS = [
     "README.md",
-    "AGENTS.md",
-    "docs/INDEX.md",
     "docs/QUICKSTART.md",
     "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING.md",

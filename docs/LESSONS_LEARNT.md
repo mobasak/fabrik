@@ -41,9 +41,10 @@
   named entries' phrases but never read the matching entry's `clauses:` labels. It reported 11 of 185 lines newly lost
   on kaizen's latest cut; both design critiques replayed the real `_lint` and found 0 — every label named the line's
   own lintable entry, whose labels excuse exactly those story clauses (D-1258).
-- **Rule:** measure a proposed check by running the module's own functions on the real corpus (here `losses()` over a
-  real render, base vs new), never a re-implementation; a re-implementation is a second reading and drifts on the
-  first field it forgets.
+- **Rule:** measure a proposed check, or grade a change against one, by running the module's own functions on the real
+  corpus (here `losses()` over a real render, base vs new), never a re-implementation; a re-implementation is a second
+  reading and drifts on the first field it forgets. (W-da101088, 2026-10-27: a test that copied `check_structure.py`'s
+  placement rules disagreed with the gate on 6 of 16 probe paths; it now calls `check_structure.check_structure()`.)
 
 ## A measure built in a worktree must not read the disk (2026-10-25)
 
