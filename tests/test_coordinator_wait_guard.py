@@ -44,6 +44,8 @@ LONG_WAITS = [
     "select x in a b; do sleep 5; done",
     # a nested double `done` must not unbalance the count for a LATER loop
     "for a in 1 2; do for b in 1 2; do echo $a$b; done; done; while true; do sleep 5; done",
+    # untokenisable (an unclosed quote): the regex fallback still sees loop, `do`, sleep
+    "while true; do sleep 5; done; echo 'unterminated",
 ]
 
 
@@ -176,6 +178,8 @@ def test_nested_loops_keep_the_seat_checks(box: dict) -> None:
         "until grep -q x /tmp/f; do :; done",
         "echo 'while true; do sleep 5; done'",
         "cat <<'EOF'\nwhile true; do sleep 5; done\nEOF",
+        # untokenisable prose naming a loop word and a sleep, with no `do` between them
+        'echo "for the record" \'x; sleep 3',
     ],
 )
 def test_a_lone_sleep_or_a_sleepless_loop_is_allowed(box: dict, command: str) -> None:
@@ -196,6 +200,18 @@ def test_short_caps_are_allowed(box: dict, command: str, timeout: int | None) ->
     assert not _denied(_run(box, command, **tool))
 
 
+def test_the_timeout_is_read_strictly(box: dict) -> None:
+    """BASH_DEFAULT_TIMEOUT_MS sets the default a call without its own timeout gets; a timeout that
+    is not a positive number (a bool, a string, zero) falls back to that default."""
+    loop = "while kill -0 1; do sleep 5; done"
+    for junk in (True, "600000", 0, -5):
+        assert _denied(_run(box, loop, timeout=junk)), junk
+    box["env"]["BASH_DEFAULT_TIMEOUT_MS"] = "30000"
+    assert not _denied(_run(box, loop))
+    box["env"]["BASH_DEFAULT_TIMEOUT_MS"] = "300000"
+    assert _denied(_run(box, "python3 scripts/merge_request.py merge"))
+
+
 def test_non_coordinators_are_not_judged(box: dict) -> None:
     cmd = "while kill -0 1; do sleep 10; done"
     assert not _denied(_run(box, cmd, sid=BUILDER, timeout=600000))  # bound, not the merge owner
@@ -206,6 +222,35 @@ def test_non_coordinators_are_not_judged(box: dict) -> None:
 
 
 def test_identity_failure_fails_open(box: dict) -> None:
+    # a worktree of a BARE repo: its common dir is `bare.git`, not `.git`, so there is no main
+    # checkout to judge; the ledger planted beside bare.git must never be read as this repo's
+    _git(
+        box["repo"],
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "x",
+    )
+    bare = box["tmp"] / "bare.git"
+    _git(box["tmp"], "clone", "-q", "--bare", str(box["repo"]), str(bare))
+    wt = box["tmp"] / "bare-wt"
+    _git(bare, "worktree", "add", "-q", "--detach", str(wt))
+    (box["tmp"] / "docs").mkdir()
+    (box["tmp"] / "docs" / "DECISIONS.md").write_text(
+        (box["repo"] / "docs" / "DECISIONS.md").read_text()
+    )
+    with Path(box["env"]["AGENT_IDENTITY_FILE"]).open("a") as fh:
+        row = {"session_id": COORD, "name": "coordinator", "toplevel": str(bare)}
+        fh.write(json.dumps({**row, "at": int(time.time())}) + "\n")
+    box["env"]["CLAUDE_PROJECT_DIR"] = str(wt)
+    assert not _denied(_run(box, "sleep 1", timeout=600000))
+    box["env"]["CLAUDE_PROJECT_DIR"] = str(box["repo"])
+    # no ledger at all
     (box["repo"] / "docs" / "DECISIONS.md").unlink()
     assert not _denied(_run(box, "sleep 1", timeout=600000))
     # a resolver that hangs past quota_stop's 2 s cap: allowed, and the hook stays inside its 5 s budget
