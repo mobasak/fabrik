@@ -1,6 +1,11 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A check that reads list POSITION is satisfied by reordering the list (2026-10-27, W-0b900e92)
+
+**What happened:** the /fabrik-task close compared a receipt's range tip with the LAST `--commit`. A reporter whose receipt and ledger commits honestly came after the reviewed tip was refused, and passed by moving the tip to the end of the list. The same reorder passed an unreviewed code commit listed before the tip.
+**Lesson:** when a check means "covers everything after X", read the order from the data that has one (git ancestry, timestamps), never from the order the caller typed. A workaround a reporter had to use ("I re-ordered the list") is the cobra path itself; replay it against the check before fixing the false refusal, or the fix keeps the hole.
+
 ## A parser built to match a consumer is probed on every character class it branches on (2026-10-27)
 
 - **What happened:** W-2ae286e2 measured docker compose's `.env` grammar in real containers before the

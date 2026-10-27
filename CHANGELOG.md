@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the /fabrik-task close accepts the receipt and ledger commits made after the reviewed tip, and no longer passes an unreviewed commit by list order (2026-10-27)
+
+`command_run.py done --command fabrik-task --review` refused a full-review receipt whenever the receipt and ledger commits (made after the reviewed code tip) were listed in the order made, and passed when the tip was listed last — which also let an unreviewed code commit through when listed before the tip (site-provisioner mail 01M4F5HTPS, W-0b900e92). `task_lane.check_review_receipt` check (d) now reads git: the range tip must be one of the listed commits, and every listed commit after it in ancestry may touch only receipts and ledgers (the close's exclusion set narrowed to `.md`/`.json`, contract and migration paths excluded); the working-tree form anchors on the listed commit containing every other.
+
 ### Fixed — the scaffold-helper emitter test no longer copies the box's live API keys (2026-10-27)
 
 `test_scaffold_helper_emits_mcp_config` ran the real emitter bare, so the catalog's `${EXA_API_KEY}`,
