@@ -176,7 +176,7 @@ Bash and `bypassPermissions`, then with a Bash allow-list — D-1248, D-1249). T
   checkout's `.venv/bin` first on PATH when it exists, so a gate's `python3 -m pytest` has the hub's dependencies
   without a pip install (an editable install from a hub clone would repoint the shared install box-wide).
 
-Once the child has exited, with success or an error, the scrubbed result goes to `<out-dir>/<slug>.md` (printed on
+Once the child has exited on its own, with success or an error, the scrubbed result goes to `<out-dir>/<slug>.md` (printed on
 stdout when that file cannot be written); a timeout writes none. `--jobs` (default 3) runs a batch in parallel; with
 `--pick` each job reserves the key with the most room at its own start, so three jobs spread over the three keys. One
 run is one commit, so a multi-ticket brief is split into one entry per ticket.

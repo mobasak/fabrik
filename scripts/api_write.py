@@ -33,6 +33,11 @@ edits as one commit, scans that commit's diff (binary files included, no diff dr
 ``sk-ant-`` string, and pushes that same commit to ``claude/<slug>`` at the URL it captured from the main checkout
 (never forced). No worktree of the main checkout is made and its refs and index are only read; its objects are
 hardlinked into the git dir (git adds objects, never rewrites one), and the run directory is removed after the run.
+
+A stop signal (SIGTERM, SIGHUP, SIGINT — D-1295, W-d077095a) starts no new job (``not started: runner interrupted``),
+kills every running child's group and settles each killed run ``interrupted`` with source ``run``, committing nothing;
+a child that finished on its own still commits and pushes. Run directories are set aside and removed once every line
+is printed, and the runner exits 128 + the signal number.
 The child's env drops ``GIT_*`` and the SSH agent and puts the main checkout's venv first on PATH when it exists.
 
 Cobra line (D-253): the cheapest abuse left is a GATE — a gate runs code the child wrote (a test file, a rendered
@@ -92,8 +97,8 @@ DUTIES = (
 )
 # A stopped session's background task gets SIGTERM to its whole process group, then SIGKILL about 1.4 s later (Claude
 # Code 2.1.311, measured for W-d077095a); a closed terminal sends SIGHUP, Ctrl-C SIGINT. The children sit in their own
-# sessions, so none of it reaches them: the handler kills them, and everything that keeps money honest (the settle rows,
-# the lines) must land inside that grace.
+# sessions, so none of it reaches them: the handler kills them, and the workers then write each settle row and the
+# runner each line. Nothing waits for that work: a SIGKILL that lands first leaves a run provisioned until settled.
 STOP_SIGNALS = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
 NOT_STARTED = "not started: runner interrupted"
 _STOP = threading.Event()
@@ -139,8 +144,9 @@ def git_env() -> dict[str, str]:
 
 
 def git(*args: str, check: bool = True) -> subprocess.CompletedProcess:
-    """In its own session, so a stop signal sent to the runner's group never kills a push of finished work midway; a
-    call in flight at a stop runs to its end and the job's next stop check refuses."""
+    """In its own session, so a stop signal sent to the runner's group never kills a git call midway: a push of
+    finished work completes, and a call made before the job spends runs to its end, then the job's next stop check
+    refuses."""
     try:
         p = subprocess.run(
             ["git", *args],
@@ -305,7 +311,8 @@ def remote_has(url: str, slug: str) -> bool:
 def run_child(argv: list[str], prompt: str, cwd: Path, env: dict, timeout: int):
     """Run the child in its own process group so a timeout kills every process in it, not only `claude` (a process
     that leaves the group with setsid escapes this kill; only a gate can start one). The child is registered for the
-    stop handler while it runs; returns (rc, stdout, stderr, whether the stop killed it)."""
+    stop handler while it runs; returns (rc, stdout, stderr, whether the stop killed it). A child that exited on its
+    own before the handler's kill landed is not counted as killed: only a SIGKILL death is."""
     proc = subprocess.Popen(
         argv,
         cwd=cwd,
@@ -328,10 +335,24 @@ def run_child(argv: list[str], prompt: str, cwd: Path, env: dict, timeout: int):
             os.killpg(proc.pid, signal.SIGKILL)
             proc.communicate()
             raise
+        except BaseException:  # never leave a paid child running unregistered
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            raise
     finally:
         with _LIVE_LOCK:
             _LIVE.pop(proc.pid, None)
-    return proc.returncode, out, err, proc.pid in _KILLED
+            marked = proc.pid in _KILLED
+            _KILLED.discard(proc.pid)  # a reused pid is never read as killed
+    return proc.returncode, out, err, _killed_by_stop(marked, proc.returncode)
+
+
+def _killed_by_stop(marked: bool, rc: int | None) -> bool:
+    """The handler marks every registered child it signals, but one that had exited (unreaped) is marked too and its
+    work is done: only a mark AND a SIGKILL death mean the stop killed it."""
+    return marked and rc == -signal.SIGKILL
 
 
 def subject_of(result: str, slug: str) -> str:
@@ -396,7 +417,8 @@ def commit_and_push(
 def one(job: dict, a: argparse.Namespace, keys: dict[str, str], main: Path, url: str) -> dict:
     """One write run, end to end. Raises RefusalError only before anything is spent; after the start row every
     outcome lands in the report and a settle row. Once a stop signal landed, a job not yet spending refuses as not
-    started (a refusal raised meanwhile too: the pre-flight's child dies with the runner's group)."""
+    started, and so does a refusal raised meanwhile (a stop sent to the runner's group kills the pre-flight's child;
+    one sent to the runner alone lets the pre-flight run to its own timeout first)."""
     if _STOP.is_set():
         raise ac.RefusalError(1, NOT_STARTED)
     slug, base, gates = job["slug"], job["base"], job["gates"]
@@ -624,32 +646,36 @@ def cmd_run(a: argparse.Namespace) -> int:
             reconfigure(line_buffering=True)
     for s in STOP_SIGNALS:
         signal.signal(s, _on_signal)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as pool:
-        futures = {pool.submit(one, j, a, keys, main, url): j["slug"] for j in jobs}
-        for f in concurrent.futures.as_completed(futures):
-            slug = futures[f]
-            try:
-                r = f.result()
-            except ac.RefusalError as e:
-                print(f"api_write: {slug}: {e}", file=sys.stderr)
-                rc = max(rc, e.code)
-                continue
-            except Exception as e:  # noqa: BLE001 — one job's failure never loses the others' reports
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as pool:
+            futures = {pool.submit(one, j, a, keys, main, url): j["slug"] for j in jobs}
+            for f in concurrent.futures.as_completed(futures):
+                slug = futures[f]
+                try:
+                    r = f.result()
+                except ac.RefusalError as e:
+                    print(f"api_write: {slug}: {e}", file=sys.stderr)
+                    rc = max(rc, e.code)
+                    continue
+                except Exception as e:  # noqa: BLE001 — one job's failure never loses the others' reports
+                    print(
+                        f"api_write: {slug}: failed ({type(e).__name__}: {e}); `api_credit.py status` shows "
+                        "whether it left a run provisioned",
+                        file=sys.stderr,
+                    )
+                    rc = max(rc, 1)
+                    continue
+                cost = "unknown (provisioned)" if r["cost"] is None else f"${r['cost']:.4f}"
+                state = r.get("error") or "ok"
+                pushed = r["pushed"] or "nothing pushed"
                 print(
-                    f"api_write: {slug}: failed ({type(e).__name__}: {e}); `api_credit.py status` shows "
-                    "whether it left a run provisioned",
-                    file=sys.stderr,
+                    f"api_write: {slug} run {r['run']} key {r['key']} cost {cost} {state} · {pushed}"
                 )
-                rc = max(rc, 1)
-                continue
-            cost = "unknown (provisioned)" if r["cost"] is None else f"${r['cost']:.4f}"
-            state = r.get("error") or "ok"
-            pushed = r["pushed"] or "nothing pushed"
-            print(f"api_write: {slug} run {r['run']} key {r['key']} cost {cost} {state} · {pushed}")
-            if r.get("error") or not r["pushed"]:
-                rc = max(rc, 1)
-    for trash in _TRASH:
-        shutil.rmtree(trash, ignore_errors=True)
+                if r.get("error") or not r["pushed"]:
+                    rc = max(rc, 1)
+    finally:  # a print to a hung-up terminal raises: the runs set aside are removed all the same
+        for trash in _TRASH:
+            shutil.rmtree(trash, ignore_errors=True)
     return 128 + _SIGNAL[0] if _SIGNAL else rc
 
 
