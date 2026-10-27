@@ -1101,6 +1101,28 @@ def test_the_gate_reports_a_non_regular_file_at_a_kept_name(tmp_path, monkeypatc
     assert f" - {label}" + (" " if tree == "skills" else ": ") + "not a regular file (" in out, out
 
 
+def test_the_gate_reports_a_symlinked_kept_skill_directory(tmp_path, monkeypatch, capsys):
+    """W-21f88ec3 review: the render refuses to write through a symlinked kept skill DIRECTORY
+    (`_dir_or_absent`), so the gate must not pass one whose SKILL.md is byte-identical."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    kept_dir = _kept_name("skills", d, s, a).parent
+    target = tmp_path / "outside" / kept_dir.name
+    target.parent.mkdir()
+    kept_dir.rename(target)
+    kept_dir.symlink_to(target)
+    monkeypatch.setattr(ac.command_rules, "losses", lambda *args, **kwargs: [])
+    monkeypatch.setattr(ac.command_measure, "findings", lambda *args, **kwargs: ([], []))
+    monkeypatch.setattr(ac, "OUT", d)
+    monkeypatch.setattr(ac, "SKILLS", s)
+    monkeypatch.setattr(ac, "AGENTS", a)
+    with pytest.raises(SystemExit) as exc:
+        ac.check()
+    out = capsys.readouterr().out
+    assert exc.value.code == 1, out
+    assert f" - skills/{kept_dir.name}: the skill directory is a symlink" in out, out
+
+
 def _reversed_glob(monkeypatch, tmp_path):
     """Force every `Path.glob` to yield in REVERSE sorted order: a walk the assembler wraps in
     `sorted()` still runs ascending, an unwrapped walk now runs descending — so a test's order

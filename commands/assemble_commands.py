@@ -1397,6 +1397,13 @@ def check():
             if not inst.exists():
                 drift.append(f"skills/{sd.parent.name}: MISSING SKILL.md in {SKILLS}")
                 continue
+            if inst.parent.is_symlink():
+                # the render refuses to write through a symlinked skill directory (`_dir_or_absent`),
+                # so the gate must not pass one either
+                drift.append(
+                    f"skills/{sd.parent.name}: the skill directory is a symlink — remove it by hand, then re-render"
+                )
+                continue
             have = _installed_text(inst)
             if have is None:
                 drift.append(f"skills/{sd.parent.name}: SKILL.md {_NOT_REGULAR}")
