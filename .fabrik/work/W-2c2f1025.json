@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T05:19:08.828099Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-2c2f1025",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the scaffold-helper test pass --defs/ROSTER/HUB_ENV through, or pin them via env, then prove it red with a poisoned roster; needs intel's lock released or a coordinator ruling",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "test_scaffold_helper_emits_mcp_config reads the live box (mcp_defs.json, the active roster, /opt/fabrik/.env), against its module's 'no test depends on the box's live rosters' (found in W-f7772267 (f) review; file under intel's plan-3 lock)"
+}
