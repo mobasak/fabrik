@@ -3430,6 +3430,66 @@ def _cmd_touch(only: str | None = None) -> int:
     return 0
 
 
+# ── The tick WATCHDOG (W-010bb0d9) ─────────────────────────────────────────────────────────────
+# cron and the quota board both run the tick as `flock -n rotate.lock … --tick`, and flock(1)
+# hands the lock fd to the tick, so a tick that never ends holds the lock for ever and every later
+# tick exits silently: on 2026-10-22 no tick wrote a row or a posture from 18:02 to 01:06. The
+# watchdog bounds one tick's life; the process exit is what closes the inherited lock fd.
+# The bound: the worst LEGITIMATE offline tick is ~1000-1100 s (3 refused pings x (150 s
+# `claude -p ok` + 45 s park confirm) + a 90 s active re-check + probes), an online tick ~2 s, so
+# 1800 s; raise ROTATE_TICK_MAX_S with KEEPALIVE_TIMEOUT or ROTATE_REFRESH_MAX_PER_RUN. The floor
+# keeps a typo from killing real ticks. COBRA: a smaller bound "fixes" a stall by killing the tick
+# that would have ended it, which is why the floor exists and the watchdog never runs the tick's
+# legs itself.
+_TICK_MAX_DEFAULT_S: Final = 1800.0
+_TICK_MAX_FLOOR_S = 600.0
+# Held across the stamp clear → wake transition (the advisory, the battery leg, the posture): an
+# exit between `_clear_stamp` and `_wake_held_sessions` would spend the one transition the relief
+# wake fires on (D-180), so the watchdog waits up to this long for it, then exits regardless.
+_TICK_CRITICAL = threading.Lock()
+_TICK_CRITICAL_WAIT_S = 60.0
+_EXIT = os._exit  # the hard exit, a seam the graders replace
+
+
+def _tick_max_s() -> float:
+    """``ROTATE_TICK_MAX_S``; garbage, non-finite or under ``_TICK_MAX_FLOOR_S`` → 1800."""
+    v = _env_float("ROTATE_TICK_MAX_S", _TICK_MAX_DEFAULT_S)
+    return v if v >= _TICK_MAX_FLOOR_S else _TICK_MAX_DEFAULT_S
+
+
+def _tick_watchdog(limit: float) -> None:
+    """Fired by the tick's Timer when the tick outlives *limit*: wait for the critical section,
+    say so, record the tick's end (so the next tick's resume leg does not read the kill as a box
+    sleep) and exit 0. Every step but the exit swallows its error: the board closes a timed-out
+    tick's stdout pipe, and a `print` into it raised BrokenPipeError and ended this thread with the
+    tick still alive (design critique, executed). Costs, accepted: unflushed buffers are lost and a
+    `_write_json_atomic` staging file may stay; a `claude -p ok` grandchild outlives the exit but
+    holds no lock."""
+    acquired = False
+    try:
+        acquired = _TICK_CRITICAL.acquire(timeout=_TICK_CRITICAL_WAIT_S)
+        line = (
+            f"tick: WATCHDOG — still running after {limit:.0f} s; exiting so rotate.lock frees "
+            "and the next tick runs"
+            + ("" if acquired else " (the critical section never freed)")
+            + "\n"
+        )
+        try:
+            os.write(1, line.encode())
+        except BaseException:  # noqa: BLE001, S110 — a closed pipe must not stop the exit
+            pass
+        try:
+            _write_tick_last_end(_now())
+        except BaseException:  # noqa: BLE001, S110 — nor a failed record
+            pass
+    finally:
+        try:
+            _EXIT(0)
+        finally:  # reached only when a grader's `_EXIT` returns: never strand the lock
+            if acquired:
+                _TICK_CRITICAL.release()
+
+
 def _cmd_tick() -> int:
     """The 5-minute rotation daemon tick. Always exits 0 — ENFORCED by the outer guard
     (closer #11), not just documented. Every decision is one printed line.
@@ -3453,7 +3513,14 @@ def _cmd_tick() -> int:
     _QUOTA_HOT_THIS_TICK = _QUOTA_UNKNOWN
     # the resume wake's inputs (W-75cafe7a): read before anything can raise, acted on last
     start, prev_end = _now(), _read_tick_last_end()
+    # the WATCHDOG (W-010bb0d9) bounds the body — the network legs that can hang; it is cancelled
+    # first thing in the `finally`, so the local battery and resume legs never race it
+    watchdog: threading.Timer | None = None
     try:
+        limit = _tick_max_s()
+        watchdog = threading.Timer(limit, _tick_watchdog, args=(limit,))
+        watchdog.daemon = True
+        watchdog.start()
         fleet_dirs = _fleet_dirs()
         if fleet_dirs:
             return _fleet_tick_inner(fleet_dirs)
@@ -3466,6 +3533,8 @@ def _cmd_tick() -> int:
         print(f"tick: INTERNAL ERROR {type(e).__name__}: {e}")
         return 0
     finally:
+        if watchdog is not None:
+            watchdog.cancel()
         _battery_leg(time.time(), lift=True)
         _resume_leg(start, prev_end)
 
@@ -6395,6 +6464,31 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
     ) + f" · written {age / 60:.0f}m ago"
 
 
+def _hold_not_in_force_clause() -> str:
+    """`` — NOT IN FORCE: …`` when the hooks have stopped enforcing the stamp, else "".
+
+    quota_stop.py (and final_gate_stop.py, mirroring it) treat a stamp as a STALE FLAG once the
+    tick log has not moved for ``QUOTA_STOP_TICK_STALE_S`` (default 900; a missing log counts):
+    every tool call is then allowed with a warning. `--status` kept printing "hold LANE … builders
+    parked" through the whole 2026-10-22 outage while no hook held anything (W-010bb0d9), so the
+    hold line reads the same file and the same bound (quota_stop.py:741-757) and says so."""
+    raw = os.environ.get("QUOTA_STOP_TICK_LOG") or str(Path.home() / ".claude" / "rotate-tick.log")
+    try:
+        bound = float(os.environ.get("QUOTA_STOP_TICK_STALE_S", "900"))
+    except ValueError:
+        bound = 900.0
+    if not math.isfinite(bound):
+        bound = 900.0
+    try:
+        age: float | None = _now() - Path(raw).stat().st_mtime
+    except OSError:
+        age = None
+    if age is not None and age <= bound:
+        return ""
+    when = "no tick log" if age is None else f"the tick has not run for {age / 60:.0f}m"
+    return f" — NOT IN FORCE: {when}, the hooks fail open"
+
+
 def _print_picture(pic: dict) -> None:
     if pic.get("error"):
         print(f"picture: unavailable ({pic['error']}) — the account lines above still hold")
@@ -6420,6 +6514,7 @@ def _print_picture(pic: dict) -> None:
                 if hold
                 else "none"
             )
+            + (_hold_not_in_force_clause() if hold else "")
         )
     parts = []
     for i, email in enumerate(pic["queue"], 1):
@@ -6688,19 +6783,32 @@ def _reading_predates_a_reset(row: object, now: float) -> bool:
     Returns False on anything unparseable — a missing or malformed cache row falls through to
     the ordinary age rule rather than forcing a ping storm.
     """
+    return _rolled_at(row, now) is not None
+
+
+def _window_rolled(w: object, ts: object, now: float) -> bool:
+    """True when the window *w*, read at *ts*, has reset since: ``ts < resets_at_epoch <= now``.
+    False on anything unparseable — the one per-window rule `_rolled_at` and the active account's
+    heat view (:func:`_active_heat_view`) share."""
+    if not isinstance(w, dict) or not isinstance(ts, (int, float)) or isinstance(ts, bool):
+        return False
+    reset = w.get("resets_at_epoch")
+    return isinstance(reset, (int, float)) and not isinstance(reset, bool) and ts < reset <= now
+
+
+def _rolled_at(row: object, now: float) -> float | None:
+    """The latest reset a cached reading predates (its ``five_hour`` or ``seven_day`` window rolled
+    since ``row["ts"]``), or None when neither has — :func:`_ping_slots` compares the refresh
+    stamp against it, so a ping made after the roll does not bypass the cooldown again."""
     if not isinstance(row, dict):
-        return False
+        return None
     ts = row.get("ts")
-    if not isinstance(ts, (int, float)):
-        return False
-    for key in ("five_hour", "seven_day"):
-        w = row.get(key)
-        if not isinstance(w, dict):
-            continue
-        reset = w.get("resets_at_epoch")
-        if isinstance(reset, (int, float)) and ts < reset <= now:
-            return True
-    return False
+    rolls = [
+        float(w["resets_at_epoch"])
+        for w in (row.get("five_hour"), row.get("seven_day"))
+        if isinstance(w, dict) and _window_rolled(w, ts, now)
+    ]
+    return max(rolls) if rolls else None
 
 
 def _ping_slots(groups: dict[str, list[dict]], cache: dict, now: float) -> set[str]:
@@ -6750,9 +6858,12 @@ def _ping_slots(groups: dict[str, list[dict]], cache: dict, now: float) -> set[s
         # above is INERT. `_refresh_ping_due` uses the SAME 60-minute interval as the age gate,
         # so a reading young enough to be called fresh has necessarily been pinged inside the
         # hour — meaning every account this fix newly admits would be vetoed one line later.
-        # Bypassing is bounded: a window rolls once per 5 hours, so this can fire at most once
-        # per account per window, never a ping storm.
-        if not obsolete and not _refresh_ping_due(email, now):
+        # The bypass is ONCE PER ROLL, then a short retry (W-010bb0d9): only a ping that
+        # REFRESHES the cache ends an obsolete reading, and offline every ping fails, so the old
+        # every-tick bypass spent the whole budget (3 x `claude -p ok`, 150 s each) on every tick
+        # of the 2026-10-22 outage. `_obsolete_ping_due` admits it again after
+        # `ROTATE_OBSOLETE_RETRY_S` (600 s), so recovery after an outage waits at most that long.
+        if not (_obsolete_ping_due(email, c, now) if obsolete else _refresh_ping_due(email, now)):
             continue  # this account's own stamp budget says not yet
         # No cached reading at all is the STALEST state there is — it outranks any age. So does
         # a reading the clock calls fresh while the window it measured has already rolled: that
@@ -6774,6 +6885,27 @@ def _refresh_ping_due(email: str, now: float) -> bool:
         return True
     age = now - mtime
     return age >= interval or age < -_CLOCK_SKEW_TOLERANCE_S
+
+
+def _obsolete_ping_due(email: str, cached: object, now: float) -> bool:
+    """The refresh gate for an OBSOLETE reading (W-010bb0d9): due when the account's refresh stamp
+    is absent, predates the latest reset the reading missed (no ping since the roll — the
+    2026-09-06 stall), is future-dated past the skew tolerance (a WSL resume), or is older than
+    ``ROTATE_OBSOLETE_RETRY_S`` (default 600 s; non-positive → the default). It reads the stamp
+    itself, never through :func:`_refresh_ping_due`, whose 60-minute interval is the one this gate
+    shortens. Fail direction: an extra ping (cheap) over a skipped one — a missed refresh after an
+    outage leaves the picker with no successor."""
+    retry = _env_float("ROTATE_OBSOLETE_RETRY_S", 600.0)
+    if retry <= 0:
+        retry = 600.0
+    mtime = _regular_stamp_mtime(_fleet_refresh_stamp(email))
+    if mtime is None:
+        return True
+    rolled = _rolled_at(cached, now)
+    if rolled is not None and mtime < rolled:
+        return True
+    age = now - mtime
+    return age >= retry or age < -_CLOCK_SKEW_TOLERANCE_S
 
 
 def _touch_refresh_stamp(email: str) -> None:
@@ -7134,13 +7266,40 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     )
     if row is None:
         return False, None
-    utils = _row_utils(row)
-    if not _row_has_reading(row):
+    heat = _active_heat_view(row, _now())  # decided on the heat view, the row itself returned
+    utils = _row_utils(heat)
+    if not _row_has_reading(heat):
         return False, row  # no reading → no claim
     # the account's own line walls it only at/above the urgent tier (`_wall_line`, D-855 review)
     return _flip_churn_excluded(
-        utils, row.get("weekly_cap"), _wall_line(row, threshold), active=True
+        utils, heat.get("weekly_cap"), _wall_line(heat, threshold), active=True
     ), row
+
+
+def _active_heat_view(row: dict, now: float) -> dict:
+    """The ACTIVE account's row as its HEAT is judged (W-010bb0d9): a shallow copy in which a
+    CACHED window whose reset has passed since the reading (:func:`_window_rolled`) is None.
+
+    The usage since that reset is unknown, so the old figure is no evidence of heat: on
+    2026-10-22 a cached 93% outlived its 16:20 reset and re-armed the urgent-90 lane at 16:33.
+    None, not 0%: the standby rescue's premise ("an idle account cannot burn",
+    :func:`_flip_candidate_verdict`) does not hold for the account every agent is using. The rows
+    themselves stay as built — nulling them killed that rescue (both design critiques executed
+    it) — so this view is applied only where the active account's heat is decided: here and in
+    :func:`_fleet_active_wall_advisory`. One window rolled and another reading → not hot, and the
+    relief branch lifts the stamp; every window rolled → no reading, and the D-180 blackout rule
+    keeps it."""
+    if row.get("source") != "cache":
+        return row
+    age = _usable_ts(row.get("age_s"))
+    if age is None:
+        return row
+    ts = now - age
+    view = dict(row)
+    for key in ("five_hour", "seven_day"):
+        if _window_rolled(row.get(key), ts, now):
+            view[key] = None
+    return view
 
 
 def _clear_stamp(stamp: Path, *, battery_lift: bool = False) -> bool:
@@ -8200,18 +8359,20 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     51181918 defect class — a raw sliding reset epoch re-fired every tick, mob@ 8x at a steady
     95%). (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
     walled, row = _active_account_walled(accounts, threshold)
+    # the heat view (W-010bb0d9): a cached window that reset since its reading is no heat
+    heat = _active_heat_view(row, now) if row is not None else {}  # {} reads as no reading
     # URGENT tier (operator rule 2026-09-03): the active account's SESSION at/over 90 with no
     # eligible successor is the same emergency as the wall, NINE points earlier (five until D-201
     # moved the flip line 95 -> 98 on 2026-09-08, eight until it moved to 99 on 2026-10-14) — the runway a
     # graceful stop needs. Same latch, same re-arm, one message per episode.
     session_pct = None
-    if row is not None and isinstance(row.get("five_hour"), dict):
-        session_pct = _usable_ts(row["five_hour"].get("utilization"))
+    if isinstance(heat.get("five_hour"), dict):
+        session_pct = _usable_ts(heat["five_hour"].get("utilization"))
     urgent = session_pct is not None and session_pct >= _urgent_drain_pct()
     stamp = _fleet_exhaustion_stamp()
     # The RELIEF WAKE fires only on a real TRANSITION (stamp present → absent) and only with a
     # real reading: `row is None` / both windows `None` is a probe blackout, not relief.
-    reading_ok = _row_has_reading(row)
+    reading_ok = _row_has_reading(heat)
     # the battery lift reads this after the quota leg, so it never wakes the fleet into a wall;
     # COOL (None) only on a real reading — a blackout leaves it `_QUOTA_UNKNOWN` (D-180's rule)
     global _QUOTA_HOT_THIS_TICK
@@ -8335,7 +8496,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     hot = max(
         (
             u
-            for w in (row.get("five_hour"), row.get("seven_day"))
+            for w in (heat.get("five_hour"), heat.get("seven_day"))
             if isinstance(w, dict) and (u := _usable_ts(w.get("utilization"))) is not None
         ),
         default=0.0,
@@ -8456,35 +8617,39 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
         _tick_row(accounts, threshold, now)
     except Exception as exc:  # noqa: BLE001 — the row is telemetry: it must never skip the posture
         print(f"tick: tick row not written — {type(exc).__name__}: {exc}")
-    try:
-        # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
-        # every agent is using) is walled with no auto-relief. A single account crossing the
-        # threshold is a non-event — the flip leg above already re-pointed to a sibling with headroom.
-        _fleet_active_wall_advisory(accounts, now, threshold)
-    finally:
-        # the battery leg runs here too, after the advisory set `_QUOTA_HOT_THIS_TICK` (or raised,
-        # leaving it unknown), so the posture below carries a hold this tick lifted; it never
-        # raises, and `_cmd_tick`'s `finally` call then finds nothing left to do (W-75cafe7a)
-        _battery_leg(time.time(), lift=True)
-        # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip
-        # pointer, and AFTER the advisory and the battery leg so its hold is the stamp THIS tick
-        # left — built before them, every arm or clear reached the posture one tick late
-        # (W-75cafe7a: a battery lift at 00:50 still read band WALL until 00:55). In a `finally`
-        # so an advisory that raises still leaves a posture, and the no-reading path writes too
-        # (band null). A picture error prints one line and never takes the tick down.
+    # the stamp clear → wake transition and the posture run under `_TICK_CRITICAL`, so the
+    # watchdog never exits between a clear and its wake (W-010bb0d9, D-180)
+    with _TICK_CRITICAL:
         try:
-            _pic = _fleet_picture(accounts, _resolve_active(), now)
-            _write_quota_posture(
-                _quota_posture(
-                    accounts,
-                    _pic,
-                    now,
-                    _read_quota_posture(),
-                    hold=_hold_is_wall(_pic.get("hold")),
+            # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the
+            # one every agent is using) is walled with no auto-relief. A single account crossing
+            # the threshold is a non-event — the flip leg above already re-pointed to a sibling.
+            _fleet_active_wall_advisory(accounts, now, threshold)
+        finally:
+            # the battery leg runs here too, after the advisory set `_QUOTA_HOT_THIS_TICK` (or
+            # raised, leaving it unknown), so the posture below carries a hold this tick lifted; it
+            # never raises, and `_cmd_tick`'s `finally` call then finds nothing left to do
+            # (W-75cafe7a)
+            _battery_leg(time.time(), lift=True)
+            # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip
+            # pointer, and AFTER the advisory and the battery leg so its hold is the stamp THIS
+            # tick left — built before them, every arm or clear reached the posture one tick late
+            # (W-75cafe7a: a battery lift at 00:50 still read band WALL until 00:55). In a
+            # `finally` so an advisory that raises still leaves a posture, and the no-reading path
+            # writes too (band null). A picture error prints one line and never takes the tick down.
+            try:
+                _pic = _fleet_picture(accounts, _resolve_active(), now)
+                _write_quota_posture(
+                    _quota_posture(
+                        accounts,
+                        _pic,
+                        now,
+                        _read_quota_posture(),
+                        hold=_hold_is_wall(_pic.get("hold")),
+                    )
                 )
-            )
-        except Exception as exc:  # noqa: BLE001 — never silent, never fatal
-            print(f"tick: quota-posture not written — {type(exc).__name__}: {exc}")
+            except Exception as exc:  # noqa: BLE001 — never silent, never fatal
+                print(f"tick: quota-posture not written — {type(exc).__name__}: {exc}")
     for warn in (
         _fleet_row_warnings(accounts) + _posture_hook_wiring_warnings() + _shared_link_warnings()
     ):
