@@ -2800,9 +2800,9 @@ def _trailer_names(value: str) -> list[str]:
     """The branch names in one `Merged-From` value: a COMMA LIST of `branch (free-text description)`.
 
     Commas split only at parenthesis depth 0, so a description such as `(vendor, wiring)` or
-    `(see, hotfix (x))` never yields a name of its own, and the description is cut at the FIRST
-    ` (`. Only a MATCHED pair nests: an unclosed `(` in one description must not swallow every
-    name after it. Each name is `.strip()`ped (else every item after the first keeps its leading
+    `(see, hotfix (x))` never yields a name of its own, and an item ending in `)` is cut at its
+    FIRST ` (`. A value holding an unclosed `(` names NOBODY: past it no grammar can tell a name
+    from a description word (`feat (wip, hotfix` must not vouch for `hotfix`). Each name is `.strip()`ped (else every item after the first keeps its leading
     space and matches nothing) and compared WHOLE-STRING by the caller — a substring test would let
     one branch's description word mark a different branch merged. Model limits (D-1290): a branch
     whose own name holds a comma cannot be told from two names (none exists here), and a stray `)`
@@ -2815,6 +2815,8 @@ def _trailer_names(value: str) -> list[str]:
         elif ch == ")" and opened:
             matched.add(opened.pop())
             matched.add(i)
+    if opened:
+        return []
     items, depth, cur = [], 0, []
     for i, ch in enumerate(value):
         if ch == "," and depth == 0:
@@ -2835,18 +2837,24 @@ def _trailer_names(value: str) -> list[str]:
     return names
 
 
+def _target_commit(repo: Path, target: str) -> str | None:
+    """`target` resolved to its commit sha, or None — ONE state for every read of one decision."""
+    rc, sha = _git(repo, "rev-parse", "--verify", "-q", f"{target}^{{commit}}")
+    sha = sha.strip()
+    return sha if rc == 0 and re.fullmatch(r"[0-9a-f]{40,64}", sha) else None
+
+
 def _vouch_map(repo: Path, target: str) -> dict[str, int] | None:
     """Each branch a `Merged-From` squash on `target` names → the time up to which it vouches.
 
     `target` is resolved to its commit on every call and the map is cached per COMMIT, so a
     process reads the history once per target state, and a target that moved since — forward, or
-    rewound past a squash — is read afresh, never answered from the old state (D-1290).
+    rewound past a squash — is read afresh, never answered from the old state (D-1290). A caller
+    that pairs the map with other reads passes the resolved sha as `target`, so all of them read
+    the same state.
     """
-    rc, sha = _git(repo, "rev-parse", "--verify", "-q", f"{target}^{{commit}}")
-    sha = sha.strip()
-    if rc != 0 or not re.fullmatch(r"[0-9a-f]{40,64}", sha):
-        return None
-    return _vouch_map_at(repo, sha)
+    sha = _target_commit(repo, target)
+    return None if sha is None else _vouch_map_at(repo, sha)
 
 
 @functools.cache
@@ -2901,12 +2909,13 @@ def _newer_than_vouch(repo: Path, target: str, branch: str, vouch: int) -> int |
     A commit counts by `max(author, committer)` time, so new work reads new whichever clock
     stamped it. Equal seconds do not count: an orchestrator squash may land in the same second as
     the branch's last commit. A merge commit whose every parent after the first is already in
-    `target` is the branch catching up — not work — so a branch that merged its target back after
-    the squash still reads merged; any other merge counts by its own time, since the commits it
-    brought in may be old-dated work `target` never took. Known fail-OPEN (D-1290): work made
-    inside the squash window, a commit whose BOTH dates were set before the vouch, a name
-    re-pointed at older work. Known fail-closed: a branch rebased after its squash (the rebase
-    re-dates its commits).
+    `target` is read as the branch catching up and skipped, so a branch that merged its target
+    back after the squash still reads merged; any other merge counts by its own time, since the
+    commits it brought in may be old-dated work `target` never took. Known fail-OPEN (D-1290): work
+    made inside the squash window, a commit whose BOTH dates were set before the vouch, a name
+    re-pointed at older work, and a catch-up merge that also carries edits of its own (its
+    content is not compared). Known fail-closed: a branch rebased after its squash (the rebase
+    re-dates its commits). Pass `target` as a resolved sha when the vouch was read from one.
     """
     rc, out = _git(repo, "log", "--format=%at%x1f%ct%x1f%P", f"{target}..{branch}")
     if rc != 0:
@@ -2935,10 +2944,11 @@ def _merged_from(repo: Path, target: str, branch: str) -> bool:
     vouches only when no commit of `target..branch` that `_newer_than_vouch` counts is newer than
     it. Every uncertain answer — no vouch, an unreadable log — is `False`, which keeps the worktree.
     """
-    vouch = _squash_vouch(repo, target, branch)
-    if vouch is None:
+    sha = _target_commit(repo, target)
+    vouch = None if sha is None else _squash_vouch(repo, sha, branch)
+    if sha is None or vouch is None:
         return False
-    return _newer_than_vouch(repo, target, branch, vouch) == 0
+    return _newer_than_vouch(repo, sha, branch, vouch) == 0
 
 
 def _sync_source_for(worktree: Path, rel: str) -> Path | None:
@@ -3564,8 +3574,9 @@ def _worktree_chain(
         rc_n, ahead = _git(main_path, "rev-list", "--count", f"{target}..{branch}")
         n = ahead.strip() if rc_n == 0 else "?"
         why = f"not merged into {target} (ahead {n})"
-        vouch = _squash_vouch(main_path, target, branch)
-        newer = None if vouch is None else _newer_than_vouch(main_path, target, branch, vouch)
+        sha = _target_commit(main_path, target)
+        vouch = None if sha is None else _squash_vouch(main_path, sha, branch)
+        newer = None if vouch is None else _newer_than_vouch(main_path, sha, branch, vouch)
         if newer:
             why += f"; {newer} commit(s) newer than the Merged-From squash that names it"
         return "wt-unmerged", why, ""

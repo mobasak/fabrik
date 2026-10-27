@@ -1069,9 +1069,13 @@ def _vouch_repo(tmp_path: Path) -> Path:
     squash(1300, "Merged-From: merges-other (x)")
     branch("precious", 1100)
     _dated(path, 1400, "merge", "-q", "--no-ff", "precious", "-m", "merge precious")
-    # an unclosed `(` in one description does not swallow the names after it
+    # a value with an unclosed `(` names nobody: past it a description word reads like a name
     branch("unbal", 1100)
     squash(1300, "Merged-From: feat2 (wip, unbal (y)")
+    branch("word-not-name", 1100)
+    squash(1300, "Merged-From: feat3 (wip, word-not-name")
+    branch("after-unclosed", 1100)
+    squash(1300, "Merged-From: feat4 (x), after-unclosed (y), feat5 (wip")
     # a value split by the field byte is not the branch's name
     branch("split-value", 1100)
     squash(1300, "Merged-From: split-value\x1fz")
@@ -1109,6 +1113,8 @@ def test_merged_from_trusts_no_stale_vouch(tmp_path: Path) -> None:
             "out-of-order",
             "merges-other",
             "unbal",
+            "word-not-name",
+            "after-unclosed",
         )
     }
     assert verdict == {
@@ -1128,8 +1134,31 @@ def test_merged_from_trusts_no_stale_vouch(tmp_path: Path) -> None:
         "split-value": False,  # the record does not parse, so it never vouches
         "out-of-order": True,  # the 1500 vouch covers the 1300 commit
         "merges-other": False,  # that merge brought in work the target never took
-        "unbal": True,  # only a matched pair nests
+        "unbal": False,  # the value holds an unclosed `(`: it vouches for nobody
+        "word-not-name": False,  # a word after an unclosed `(` is never a name
+        "after-unclosed": False,  # the whole value is unreadable, earlier names included
     }
+
+
+def test_merged_from_reads_one_target_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The vouch and the commit count of one decision read the SAME target commit, never the name."""
+    main = _vouch_repo(tmp_path)
+    mod = _w18_module("w69322546_one_state")
+    seen: list[str] = []
+    real = mod._newer_than_vouch
+
+    def spy(repo: Path, target: str, branch: str, vouch: int) -> int | None:
+        seen.append(target)
+        return real(repo, target, branch, vouch)
+
+    monkeypatch.setattr(mod, "_newer_than_vouch", spy)
+    mod._merged_from(main, "main", "reused-squash")
+    head = subprocess.run(
+        ["git", "-C", str(main), "rev-parse", "main"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    assert seen == [head], seen
 
 
 def test_merged_from_rereads_a_rewound_target(tmp_path: Path) -> None:

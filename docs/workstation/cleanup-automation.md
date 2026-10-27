@@ -180,13 +180,15 @@ ignored files even without `--force`, a worktree holding ignored DATA outside th
 
 **What "merged" means (D-1290).** A branch is merged when it is an ancestor of the main checkout's
 branch, or when a squash commit there (a non-merge commit) names it in a `Merged-From:` trailer AND
-none of its own non-merge commits is newer than that squash. Branch names are reused — hand merges
+none of the commits the main branch lacks is newer than that squash — a merge among them counts by
+its own time unless every parent after its first is already on the main branch (the branch
+catching up). Branch names are reused — hand merges
 once carried `Merged-From: worktree-fleet`, and agent branches gained a wip snapshot after their
 squash — so a trailer vouches for the state it squashed, never for later work: such a branch reads
 `wt-unmerged`, its row saying how many commits are newer than the squash. A merge commit's trailer is
 never read; its parents already answer. The rule is by commit time, so it can be fooled by work made
-during the squash itself or by a commit dated backwards, and it keeps (never removes) a branch
-rebased after its squash.
+during the squash itself, by a commit dated backwards or by a catch-up merge that carries edits of
+its own, and it keeps (never removes) a branch rebased after its squash.
 - **`wt-sync-only`** (added 2026-09-15, widened 2026-10-01) — nothing in the worktree is anyone's work: every untracked or ignored path is the governance sync's output (the current hub bytes, an OLDER version found in a hub commit on its sync-source path, or a file still matching its md5 in the worktree's own `.fabrik/worktree-synced.lock`), a creation copy byte-identical to the main checkout's file, the worktree's own `.claude/settings.local.json`, any symlink (removal unlinks it, never its target), or an IGNORED tool cache by path component (`.venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `.astro`). Never an output directory such as `dist/` or `test-results/`, ignored or not: that is where a report or the one trace of a failing run lands, so such a tree stays `wt-ignored-data` for a human. A TRACKED edit is never judged this way — it stays `wt-dirty`. Removable only under `--include-unmerged`, and then with `--force`: the state is re-read at removal time and any authored path, a stash naming its branch, or ignored data refuses it.
 
 **What it never touches** (hard-coded, printed by `--help` and by every apply run): repo files, except
