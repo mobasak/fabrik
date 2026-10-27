@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T14:21:58.435041Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5763d5f8",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fix each with a test; the cov tests in tests/test_cov_portability.py pin the stub and the layout — update them with the fix",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "portability export/import gaps: README section list names secrets_redacted_keys/ (src/fabrik/portability.py:514-516); a non-UTF-8 state file aborts export with UnicodeDecodeError (:213-223); import_bundle dry_run=False is a stub that returns a success-shaped plan (:572, :636-646); docstring :20 says monitoring/grafana-dashboards/ but :234-238 writes configs/grafana/dashboards/"
+}

@@ -16,5 +16,5 @@
   "owner": "",
   "priority": 3,
   "status": "open",
-  "title": "portability._collect_state calls payload.pop() on any valid JSON (src/fabrik/portability.py:221), so a state file holding a list or scalar aborts export with AttributeError instead of being skipped"
+  "title": "portability._collect_state calls payload.pop('coolify_uuid', None) on any valid JSON (src/fabrik/portability.py:221), so a state file holding a list raises TypeError (list.pop takes an int) and aborts export instead of being skipped"
 }
