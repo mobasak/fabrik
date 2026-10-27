@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the rotation unit restarts itself, and the inotify budget is watched (2026-10-27)
+
+`fabrik-rotate.path` failed at 11:12 on 2026-10-27 (`Result=resources`, "No space left on device") because code-server's file watchers held 523,576 of this user's 524,288 inotify watches; a failed path unit is never restarted, so for most of an hour no builder could be rotated and nothing said so. Every 5-minute rotation tick now spawns `scripts/sysadmin/box_budget_check.py` detached: it restarts the unit when it is enabled and down, and mails the hub coordinator once per episode; it mails once when inotify watches or instances reach 85% of their maximum, or a canary watch is refused. `python3 scripts/sysadmin/box_budget_check.py --report` prints the readings. `rotate_session.py`'s refusal for an unclaimed request names the unit's state and the restart command. The code-server `files.watcherExclude` default is documented in `docs/workstation/vscode-configuration.md` (W-09957e81, D-1294).
+
 ### Fixed — the scaffold-helper emitter test no longer copies the box's live API keys (2026-10-27)
 
 `test_scaffold_helper_emits_mcp_config` ran the real emitter bare, so the catalog's `${EXA_API_KEY}`,
