@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T12:49:50.237656Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-96351dbc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5YHG6SZTZRH8VXX01H0RR30",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: w-0b900e92-receipt-tip"
+}
