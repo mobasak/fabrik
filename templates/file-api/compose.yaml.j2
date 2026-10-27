@@ -47,7 +47,7 @@ services:
       interval: {{ health.interval | default('10s') }}
       timeout: {{ health.timeout | default('5s') }}
       retries: {{ health.retries | default(3) }}
-      start_period: 10s
+      start_period: {{ health.start_period or '10s' }}
 {% endif %}
 
 {% if spec.domain %}
