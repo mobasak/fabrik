@@ -172,52 +172,80 @@ SUBST = "__SUBST__"
 def _strip_heredocs(command: str) -> str:
     """Drop heredoc BODIES (data written to a file), keeping the line that opens them.
 
-    Only a `<<WORD` the shell reads as one opens a body: outside quotes (`'…'`, `"…"`, `$'…'`)
-    and comments, not a `<<<` here-string, not an escaped `<`, not inside an arithmetic
-    `((…))`. Anything else that looks like a marker must hide no line (W-223704c1); a marker
+    Only a `<<WORD` the shell reads as one opens a body: in shell code — top level or inside
+    `$(…)`, quoting reset there as bash resets it — never inside `'…'`, `"…"`, `$'…'`, a
+    comment, a backtick, `${…}` or an arithmetic `((…))`, and never a `<<<` here-string or an
+    escaped `<`. Anything else that looks like a marker hides no line (W-223704c1); a marker
     this walk does not recognise leaves its body IN the scan, the safe direction."""
     out: list[str] = []
     pending: list[str] = []
-    i, n, quote = 0, len(command), ""
+    stack: list[list] = [["sh", 0]]  # [context, open count]; "sh" is shell code
+    i, n = 0, len(command)
     while i < n:
+        ctx = stack[-1]
         c = command[i]
-        if quote:
-            out.append(c)
-            if c == "\\" and quote in ('"', "$'") and i + 1 < n:
-                out.append(command[i + 1])
-                i += 2
-                continue
-            if c == quote[-1]:
-                quote = ""
-            i += 1
-            continue
-        if c == "\\" and i + 1 < n:
+        if c == "\\" and ctx[0] != "'" and i + 1 < n:
             out.append(command[i : i + 2])
             i += 2
             continue
-        if command.startswith("$'", i):
-            quote = "$'"
+        if ctx[0] in ("'", "$'"):
+            if c == "'":
+                stack.pop()
+        elif ctx[0] == "`":
+            if c == "`":
+                stack.pop()
+        elif ctx[0] == "((":
+            ctx[1] += {"(": 1, ")": -1}.get(c, 0)
+            if not ctx[1]:
+                stack.pop()
+        elif command.startswith("$(", i) and not command.startswith("$((", i):
+            stack.append(["sh", 0])
+            out.append("$(")
+            i += 2
+            continue
+        elif command.startswith("${", i):
+            stack.append(["${", 1])
+            out.append("${")
+            i += 2
+            continue
+        elif c == "`":
+            stack.append(["`", 0])
+        elif ctx[0] == '"':
+            if c == '"':
+                stack.pop()
+        elif ctx[0] == "${":
+            if c in ("'", '"'):
+                stack.append([c, 0])
+            else:
+                ctx[1] += {"{": 1, "}": -1}.get(c, 0)
+                if not ctx[1]:
+                    stack.pop()
+        elif command.startswith("$'", i):
+            stack.append(["$'", 0])
             out.append("$'")
             i += 2
             continue
-        if c in ("'", '"'):
-            quote = c
+        elif c in ("'", '"'):
+            stack.append([c, 0])
         elif c == "#" and (i == 0 or command[i - 1] in " \t\n;&|()<>"):
             j = command.find("\n", i)
             j = n if j == -1 else j
             out.append(command[i:j])
             i = j
             continue
-        elif command.startswith("((", i):
-            depth, j = 0, i
-            while j < n:
-                depth += {"(": 1, ")": -1}.get(command[j], 0)
-                j += 1
-                if not depth:
-                    break
-            out.append(command[i:j])
-            i = j
+        elif command.startswith("((", i) or command.startswith("$((", i):
+            k = command.index("((", i) + 2
+            stack.append(["((", 2])
+            out.append(command[i:k])
+            i = k
             continue
+        elif c == "(":
+            ctx[1] += 1
+        elif c == ")":
+            if ctx[1]:
+                ctx[1] -= 1
+            elif len(stack) > 1:
+                stack.pop()
         elif command.startswith("<<<", i):
             out.append("<<<")
             i += 3

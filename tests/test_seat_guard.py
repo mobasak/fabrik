@@ -283,6 +283,9 @@ def test_a_marker_the_shell_does_not_read_as_a_heredoc_hides_nothing() -> None:
         "(( y = 1<<x ))\ngit reset --hard",
         "echo x \\<<EOF\ngit reset --hard",
         "echo $'it\\'s <<EOF'\ngit reset --hard",
+        "echo ${x:-<<EOF}\ngit reset --hard",
+        "echo `echo <<EOF`\ngit reset --hard",
+        'echo "$(echo "<<EOF")"\ngit reset --hard',
     ):
         assert _denied(_run(cmd)), cmd
 
@@ -293,6 +296,11 @@ def test_real_heredoc_spellings_still_hold_data() -> None:
         f"cat > {SCRATCH}/n <<-EOF\n\tpkill -f x\n\tEOF",
         f"cat <<A > {SCRATCH}/a; cat <<'B' > {SCRATCH}/b\ngit reset --hard\nA\npkill -f x\nB",
         f"echo 'it''s' && cat <<EOF > {SCRATCH}/n\ngit reset --hard\nEOF",
+        # the usual commit-message shape: a heredoc inside "$(…)", its body an unbalanced quote
+        f"git -C {SCRATCH}/repo commit -m \"$(cat <<'EOF'\ndon't git reset --hard\nEOF\n)\"",
+        # a closed "$(…)" or an inner subshell returns the walk to the right context
+        f'echo "$(date)" && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
+        "x=\"$( (true); cat <<'EOF'\ngit reset --hard\nEOF\n)\"",
     ):
         assert not _denied(_run(cmd)), cmd
 
