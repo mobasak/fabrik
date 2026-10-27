@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3434-3440`)",
-    "the rows that can never fail — `WARN_ONLY_CHECKS`, `:566-579` — carrying each one's own text",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3560-3566`)",
+    "the rows that can never fail — `WARN_ONLY_CHECKS`, `:569-586` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    'a `status: "setup-error"` envelope (`:3415-3432` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
+    'a `status: "setup-error"` envelope (`:3541-3558` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -893,29 +893,29 @@ def test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three()
 # here instead of the cite in both contracts; the text below names the construct, never a line, so
 # such an edit is visible in review as a change of MEANING.
 _GATE_CITES = {
-    ":71": "PROJECT_ROOT = Path.cwd()",
-    ":566-579": "WARN_ONLY_CHECKS: set[str] = {",
-    ":1426": "if tier == 3:",
-    ":1443": "return results",
-    ":1543": "return results",
-    "final_gate.py:1698-1708": "if (",
-    ":1311": "elif code == 5:",
-    ":1408": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":3415-3432": "missing = _toolchain_missing(PYTHON)",
-    ":3434-3440": "# Determine tier",
+    ":73": "PROJECT_ROOT = Path.cwd()",
+    ":569-586": "WARN_ONLY_CHECKS: set[str] = {",
+    ":1586": "if tier == 3:",
+    ":1603": "return results",
+    ":1703": "return results",
+    "final_gate.py:1824-1834": "if (",
+    ":1471": "elif code == 5:",
+    ":1568": "if code != 0 and _PYTEST_EARLY_STOP in out:",
+    ":3541-3558": "missing = _toolchain_missing(PYTHON)",
+    ":3560-3566": "# Determine tier",
 }
 
 
 # A range cite's END line too: a start-only check let a wrong end number pass (review of the +11 move).
 _GATE_CITE_ENDS = {
-    ":566-579": "}",
-    "final_gate.py:1698-1708": "):",
-    ":3415-3432": "return 2",
-    ":3434-3440": "tier = 2",
+    ":569-586": "}",
+    "final_gate.py:1824-1834": "):",
+    ":3541-3558": "return 2",
+    ":3560-3566": "tier = 2",
 }
 
 # The hub contract alone says where ruff must RESOLVE (the template's GATE row omits that sentence).
-_HUB_ONLY_GATE_CITES = {":82": "RUFF = str(VENV_RUFF)"}
+_HUB_ONLY_GATE_CITES = {":84": "RUFF = str(VENV_RUFF)"}
 
 
 def test_the_gate_rows_line_citations_land_on_what_they_name() -> None:

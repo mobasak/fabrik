@@ -439,6 +439,7 @@ def test_every_green_not_run_row_the_gate_emits_is_summarized():
         "semgrep (NOT INSTALLED)",
         "semgrep (NOT RUN \u2014 not authenticated)",
         f"semgrep (NOT RUN \u2014 timed out after {fg.TIMEOUTS['semgrep']}s)",
+        "semgrep (NOT RUN \u2014 killed by signal 9)",
         "semgrep (diff-sensed skip \u2014 no src/ changes)",
         # W-0bcc5f9e: the opt-in leg's three further not-run rows
         "semgrep (N/A \u2014 no src/ directory)",
@@ -546,6 +547,7 @@ def test_every_semgrep_not_run_path_reaches_the_skipped_roster() -> None:
         "semgrep (NOT INSTALLED)",
         "semgrep (NOT RUN \u2014 not authenticated)",
         f"semgrep (NOT RUN \u2014 timed out after {fg.TIMEOUTS['semgrep']}s)",
+        "semgrep (NOT RUN \u2014 killed by signal 9)",
         "semgrep (diff-sensed skip \u2014 no src/ changes)",
         "semgrep (N/A \u2014 no src/ directory)",
         "semgrep (NOT RUN \u2014 opt-in, not armed)",
@@ -563,7 +565,8 @@ def test_every_semgrep_not_run_path_reaches_the_skipped_roster() -> None:
     # appended with `code == 0` rather than a literal True.
     src = (Path(fg.__file__).read_text(encoding="utf-8")).split("def semgrep_env_with_token")[1]
     block = src.split("# Pytest — CI parity")[0]
-    green_rows = re.findall(r'\(\s*\n?\s*"(semgrep[^"]*)",\s*\n?\s*True', block)
+    # `f?`: the timeout and signal rows are f-strings, which a bare-quote pattern never saw
+    green_rows = re.findall(r'\(\s*\n?\s*f?"(semgrep[^"]*)",\s*\n?\s*True', block)
     assert green_rows, "the semgrep block appends no literal-True rows — did the block move?"
     unmarked = [n for n in green_rows if not any(m in n for m in fg._SKIP_MARKERS)]
     assert not unmarked, f"green semgrep rows the roster cannot see: {unmarked}"

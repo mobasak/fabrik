@@ -47,6 +47,7 @@ import shutil
 import signal
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TypedDict
 
@@ -827,6 +828,39 @@ def semgrep_env_with_token() -> dict[str, str] | None:
     return env
 
 
+_GROUP_DRAIN_S = 10  # seconds to read a killed group's last output before giving up on the pipes
+
+
+def _kill_group(proc: subprocess.Popen[str]) -> None:
+    """SIGKILL the group `proc` leads. Its pid names the group while any member lives; a group with
+    none left is a no-op."""
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(proc.pid, signal.SIGKILL)
+
+
+def _raise_exit(signum: int, _frame: object) -> None:
+    raise SystemExit(128 + signum)
+
+
+@contextlib.contextmanager
+def _sigterm_raises() -> Iterator[None]:
+    """While the wait runs, a SIGTERM raises `SystemExit` instead of ending the process outright, so
+    the runner's cleanup runs. Installed only over the DEFAULT disposition and only on the main
+    thread (`signal.signal` refuses any other) — a caller's own handler stays the caller's."""
+    try:
+        if signal.getsignal(signal.SIGTERM) is not signal.SIG_DFL:
+            yield
+            return
+        previous = signal.signal(signal.SIGTERM, _raise_exit)
+    except ValueError:  # not the main thread
+        yield
+        return
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
 def _run_process_group(
     cmd: list[str], timeout: int, env: dict[str, str] | None = None
 ) -> tuple[int | None, str]:
@@ -835,10 +869,11 @@ def _run_process_group(
 
     `subprocess.run(timeout=)` kills only the DIRECT child. semgrep's CLI is a Python wrapper over
     `semgrep-core`, and a probe of the old leg found the core surviving the wrapper's kill,
-    re-parented to init at ~1.6 GB and ~6 cores until its scan ended (W-0bcc5f9e). The group kill
-    reaps the whole tree — the `check_mutation.py` idiom. stdout comes FIRST: semgrep writes its
-    findings there and pages of rule-deprecation notices to stderr, and a failing or advisory row
-    prints only its first lines."""
+    re-parented to init at ~1.6 GB and ~6 cores until its scan ended (W-0bcc5f9e). So WHATEVER
+    ends the wait — the scan finishing, the budget, a Ctrl-C, a SIGTERM, a caller's exception —
+    the group is killed: anything still in it once the leader is done is an orphan (the
+    `check_mutation.py` idiom). stdout comes FIRST: semgrep writes its findings there and pages of
+    rule-deprecation notices to stderr, and a failing or advisory row prints only its first lines."""
     proc = subprocess.Popen(
         cmd,
         cwd=PROJECT_ROOT,
@@ -850,16 +885,27 @@ def _run_process_group(
         env=env,
         start_new_session=True,
     )
-    code: int | None
-    try:
-        out, err = proc.communicate(timeout=timeout)
-        code = proc.returncode
-    except subprocess.TimeoutExpired:
-        # the leader is unreaped until communicate(), so its pid still names the group here
-        with contextlib.suppress(ProcessLookupError, PermissionError):
-            os.killpg(proc.pid, signal.SIGKILL)
-        out, err = proc.communicate()
-        code = None
+    code: int | None = None
+    out = err = ""
+    with _sigterm_raises():
+        try:
+            out, err = proc.communicate(timeout=timeout)
+            code = proc.returncode
+        except subprocess.TimeoutExpired:
+            _kill_group(proc)
+            try:
+                out, err = proc.communicate(timeout=_GROUP_DRAIN_S)
+            except subprocess.TimeoutExpired:
+                # a descendant that left the group (`setsid`) still holds the pipes: stop
+                # reading, or the gate waits out that process instead of its own budget
+                for pipe in (proc.stdout, proc.stderr):
+                    if pipe is not None:
+                        pipe.close()
+                out, err = "", ""
+        finally:
+            _kill_group(proc)
+            if proc.returncode is None:
+                proc.wait()
     return code, f"{(out or '').strip()}\n{(err or '').strip()}".strip()
 
 
@@ -907,6 +953,8 @@ def _semgrep_row(changed: set[str]) -> tuple[str, bool, str]:
         )
     except FileNotFoundError:
         return ("semgrep (NOT INSTALLED)", True, "(semgrep not installed, skipping)")
+    except OSError as exc:  # on PATH but not runnable, or an argv the kernel refuses (E2BIG)
+        return ("semgrep", False, f"semgrep could not start: {exc}")
     if code is None:
         return (
             f"semgrep (NOT RUN — timed out after {budget}s)",
@@ -914,7 +962,15 @@ def _semgrep_row(changed: set[str]) -> tuple[str, bool, str]:
             f"⚠ semgrep is armed here ({SEMGREP_SENTINEL}) but did not finish inside {budget}s "
             f"over {len(targets)} target(s); the scan was killed, so nothing was checked",
         )
-    if "HTTP 401" in out or "semgrep login" in out.lower():
+    if code < 0:  # killed by a signal — an OOM kill is SIGKILL — before it finished
+        return (
+            f"semgrep (NOT RUN — killed by signal {-code})",
+            True,
+            f"⚠ semgrep is armed here ({SEMGREP_SENTINEL}) but was killed by signal {-code} "
+            "before it finished, so nothing was checked",
+        )
+    # 0 and 1 are a finished scan, whatever its output quotes — only a failed one is unauthenticated
+    if code not in (0, 1) and ("HTTP 401" in out or "semgrep login" in out.lower()):
         return (
             "semgrep (NOT RUN — not authenticated)",
             True,
