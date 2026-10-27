@@ -968,12 +968,23 @@ def test_an_orphan_fifo_never_hangs_the_render_or_the_gate(tmp_path, monkeypatch
     def _hang(signum, frame):
         raise TimeoutError("a read guard let a FIFO through — the render or the gate blocked on it")
 
-    # The alarm bounds the reads a FIFO can block: the render's prune and check()'s orphan walks over
-    # the installed tree. The rule-ledger LOSS pass and the size measure read only the rendered temp
-    # tree and the sources, where no FIFO sits, and on the full lean corpus they take 45-100 s — inside
-    # the alarm they made it fire mid-ledger (exit 4, not 1; kaizen 2026-10-27). Their own tests grade them.
-    monkeypatch.setattr(ac.command_rules, "losses", lambda *a, **k: [])
-    monkeypatch.setattr(ac.command_measure, "findings", lambda *a, **k: ([], []))
+    # The alarm bounds the orphan-position reads: the render's prune and check()'s orphan walks over the
+    # installed trees. The rule-ledger LOSS pass and the size measure read the rendered temp tree, the
+    # sources and tracked repo files, where no FIFO sits, and on the full lean corpus they take 45-105 s —
+    # inside the alarm they made it fire mid-ledger (exit 4, not 1; kaizen 2026-10-27). Their own tests
+    # grade them; these spies return their empty results and refuse an installed tree, so a regression
+    # that hands one to them still goes red here.
+    def _not_installed(empty):
+        def spy(render_dir, *args, **kwargs):
+            assert not any(
+                Path(render_dir).resolve().is_relative_to(t.resolve()) for t in (d, s, a)
+            ), f"a ledger or measure pass was handed the installed tree {render_dir}"
+            return empty
+
+        return spy
+
+    monkeypatch.setattr(ac.command_rules, "losses", _not_installed([]))
+    monkeypatch.setattr(ac.command_measure, "findings", _not_installed(([], [])))
     old = signal.signal(signal.SIGALRM, _hang)
     signal.alarm(20)
     try:
