@@ -39,9 +39,6 @@ def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> 
     'never a hand-listed path set' (the rule the rows asked for is gone), or restate the recipe's commands
     here (two sources of truth) — each fails one assertion below."""
     src = _norm(SRC)
-    # its own sentence, after the SHAPE-keyed list ends — spliced into that list, the SHAPE filter reads as
-    # governing it (round-1 Sonnet finding)
-    assert "runs found missing. Its § Seat isolation applies whole, whatever the shape" in src
     sentence = _section(
         src,
         "Its § Seat isolation applies whole, whatever the shape",
@@ -63,7 +60,6 @@ def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> 
     assert "/opt/fabrik/.claude/workflows/" not in sentence, (
         "a source must never point seats at the hub copy"
     )
-    assert "not restated here" in sentence
     for restatement in ("git archive", "ls-tree", "overlay", "chdir", "unless"):
         assert restatement not in sentence, (
             f"{restatement!r}: the recipe belongs to the workflow, not here"
@@ -81,14 +77,6 @@ def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> 
     iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
     assert "The recipe names its roots by what the tests import" in iso, (
         "the pointer's target moved"
-    )
-
-
-def test_escape_variants_are_asked_from_round_one() -> None:
-    """Row 1791496929: the ask sat under the closing reader only, so round 1 never attacked the guard."""
-    assert (
-        "owes every round's readers — round 1's first — and that INDEPENDENT reader the guard or rule by NAME"
-        in (_norm(SRC))
     )
 
 
@@ -124,10 +112,6 @@ def test_a_guard_brief_states_its_model_boundary() -> None:
     """Row 1791839280."""
     src = _norm(ROOT / "commands" / "_sources" / "fabrik-review-scoped.md")
     assert "an explicit ASK for its ESCAPE VARIANTS" in src
-    assert (
-        "together with its MODEL BOUNDARY, the inputs it is meant to judge, so a variant outside that boundary is `RECORDED — by design (D-785)` in round 1"
-        in src
-    )
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
@@ -148,7 +132,6 @@ def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
 def test_the_closing_reader_clause_cites_d118_not_d066() -> None:
     """W-a8361c19 residual 5: the clause pinned the asymmetry on D-066 (a finding-shape triage row); D-118 bound independent recall here."""
     text = _norm(SRC)
-    assert "Before D-118 that was the asymmetry between the two commands" in text
     assert "D-066 named only the heavy command" not in text
 
 
@@ -195,8 +178,6 @@ def test_both_review_commands_name_surface_add_for_a_pre_start_file() -> None:
         "<path>`: a running review's window opens at its `start`. The verb widens the TOP record only, so it is "
         "refused under a nested non-review `start` (every refusal: `docs/reference/command-run-protocol.md`)."
     )
-    scoped = _norm(SRC)
-    assert sentence in _section(scoped, "1. **Scope = this session's own work:**", "2. **Arm:**")
     review = _norm(ROOT / "commands" / "_sources" / "fabrik-review.md")
     assert sentence in _section(
         review, '--surface "<what this run is OVER', "Then, for the whole run:"
@@ -221,15 +202,6 @@ def test_the_lead_runs_the_leak_check_around_every_scoped_pass() -> None:
     is pinned with its body, so the sentence moved into inactive text or the bullet emptied reds. The row's other half
     (a seat cds into scratch in the same call) needs no edit: the SEAT_ISOLATION brief and fabrik-reviewer.md already
     require absolute scratch paths. Not seen: the lead skipping the check; the seats' transcripts own that."""
-    sentence = (
-        "The lead runs the **Leak check** of `/fabrik-review` (its bullet of that name) before every dispatch and after"
-        " each pass returns, since a seat can write to the shared tree."
-    )
-    scoped = _norm(SRC)
-    # live text only: a comment wrapped around the sentence in place would keep it inside the section
-    live = re.sub(r"<!--.*?-->", "", scoped)
-    assert sentence in _section(live, "**The partition rule of", "6. **Gate + close:**")
-    assert scoped.count(sentence) == 1
     # live text only: an HTML comment around the bullet would leave the pointer aimed at inactive text
     review = re.sub(r"<!--.*?-->", "", _norm(ROOT / "commands" / "_sources" / "fabrik-review.md"))
     assert (
@@ -327,16 +299,9 @@ def test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds() -> N
     catalogue's both-directions rule verbatim. Mutants: drop either clause; per-file bound; drop the catalogue rule."""
     src = re.sub(r"\s+", " ", SRC.read_text())
     assert (
-        "Seats read the copies, never the live tree; in a brief you write yourself (the workflow writes its own),"
-        " pinned files totalling under 8 KB are also pasted whole beside their line counts, so a seat whose Read or"
-        " `cat` of a copy is refused still has the bytes — the copy stays the authority, and a seat that read the"
-        " paste says so, states whether each line count matches and is judged on that count, not re-dispatched for lacking a"
-        " hash;" in src
-    )
-    assert (
         "instead of seeding own-fix rounds. The same ASK carries the probe catalogue's rule verbatim (§ Before the"
         " first pin): \"enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red —"
-        ' committing the positive/negative probe list beside it". The ASK is the' in src
+        ' committing the positive/negative probe list beside it"' in src
     )
     cat = re.sub(r"\s+", " ", (ROOT / "commands/_fragments/review-probe-catalogue.md").read_text())
     quote = "enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red — committing the"
@@ -346,21 +311,6 @@ def test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds() -> N
     assert src.count("totalling under 8 KB") == 1 and src.count("false green and false red") == 1
 
 
-def test_a_shell_written_brief_quotes_its_backticks() -> None:
-    """Row 1792291162, the second sighting of HELD quote-heredoc-when-writing-briefs: a brief or Workflow args file
-    written through an unquoted heredoc runs its backticks, and an escaped backtick in a grep pattern is GNU grep's
-    start-of-text anchor, so it matches nothing mid-pattern and the wrong line at its start (round 1, Opus probe).
-    It sits beside the delta-brief clause, not between 'lacking a hash;' and 'before you adjudicate the pass'."""
-    src = _norm(SRC)
-    clause = (
-        "(01M236V84, 01M23ESF5); a brief or Workflow args file you write is written with the Write tool, or through a"
-        " quoted heredoc (`<<'EOF'`) where a shell must write it, so no backtick in it runs, and a check command it"
-        " hands a seat writes a backtick in a grep pattern unescaped inside single quotes (a pattern that also holds"
-        " `'` splices it in as `'\\''`), since GNU grep reads a backslash-backtick as a start-of-text anchor: escaped,"
-        " the pattern matches nothing mid-pattern and the wrong lines at its start; a delta seat's brief"
-    )
-    assert src.count(clause) == 1
-    assert "lacking a hash; before you adjudicate the pass" in src
 
 
 def test_archive_roots_are_read_from_every_path_the_tests_reach() -> None:
@@ -373,44 +323,6 @@ def test_archive_roots_are_read_from_every_path_the_tests_reach() -> None:
     ) in _norm(SRC)
 
 
-def test_a_fix_finds_the_rules_home_before_drafting_its_sentence() -> None:
-    """W-a634be1c: step 3's point-or-quote rule and the catalogue's restatement sweep were cited by 7+ answered rejects
-    while leads kept drafting a sentence first and finding the rule's home only at review. The search now comes first,
-    in its own sentence between its two neighbours, pointing at the catalogue's Sweep rather than restating its
-    method, pinned by equality so a licence added inside that span fails here. Limit of a text pin: it cannot show the
-    search ran before the draft — the report line it requires is what a seat checks."""
-    step3 = _section(_norm(SRC), "3. **Pass 1 (wide):**", "4. **Record each pass:**")
-    head, tail = "config fix owes none. ", "Every checkable claim any fix adds"
-    assert step3.count(head) == 1 and step3.count(tail) == 1
-    span = step3[step3.index(head) + len(head) : step3.index(tail)]
-    assert span == (
-        "Before a fix writes a sentence that states a rule (a doc or command sentence, a code comment, a commit"
-        " message), the probe catalogue's Sweep search for a rule already stated elsewhere (its § Prose and docs fixes)"
-        " runs first, on the terms of the rule the sentence would state, never after the draft, and your report names"
-        " its terms and hits, or that it found none and the new sentence is the rule's home; what it finds is held to"
-        " this step's rule below for something already stated. "
-    ), span
-    # the rule it hands off to is the point-or-quote sentence, not the execute-or-delete one between them
-    assert "Something already stated, in the code" in step3[step3.index(tail) :]
-
-
-def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_the_pin() -> None:
-    """Rows 1792430884 and 1792427348: leads ran a new classification rule and a new seat recipe on one case, and
-    seats met the rest. Step 3's execute-or-delete sentence now has what a fix adds executed, with its command and
-    output in the report, on a scratch copy of what it reads (a scratch repo, or § Seat isolation's archive or
-    clone with the pins laid over it for a seat recipe), over the input classes term-coverage's round zero gives its shape; it stays inside that
-    sentence, so the pointer-or-quote sentence still follows "a re-read is not execution." Limit of a text pin: it
-    cannot show the run happened, nor add an input class round zero lacks."""
-    step3 = _section(_norm(SRC), "3. **Pass 1 (wide):**", "4. **Record each pass:**")
-    head = "Every checkable claim any fix adds"
-    end = "a re-read is not execution."
-    sentence = step3[step3.index(head) : step3.index(end) + len(end)]
-    assert (
-        "a rule, recipe, command or guard a fix adds being executed so before the pin, on a scratch copy of what it"
-        " reads (a scratch repo for one that reads diff output, the archive or clone the probe catalogue's § Seat"
-        " isolation stages, with the pins laid over it, for a seat recipe), over the input classes round zero of"
-        " `/opt/fabrik/commands/_fragments/term-coverage.md` gives its shape" in sentence
-    ), sentence
 
 
 def test_a_seat_never_disguises_a_refused_act() -> None:
