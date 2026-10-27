@@ -3,7 +3,7 @@
   "created": "2026-10-20T11:08:21.995536Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "7a1aead1dd2210c5976c761b92dd36be806d8018",
   "id": "W-a352701a",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "rare edge: a project named like an imported library",
-  "status": "open",
+  "status": "done",
   "tags": [
     "scaffold"
   ],

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — five cloud-drain fixes graded: .env key grammar, image_command quoting, renderer no-mkdir, library-name shadowing, parity ownership test (2026-10-27)
+
+A `.env` key outside `[A-Za-z_][A-Za-z0-9_.-]*` is refused before any write, and the refusal never prints the key itself. A docker-image `command` is one double-quoted YAML scalar; a NUL in it is a deploy error, and the apply validator refuses a non-string value. Building a `TemplateRenderer` no longer creates directories. A project named after a library a scaffolded project pins (fastapi, httpx, boto3, packaging and the rest) is refused, and a test keeps that list in step with `scaffold.py` and the template requirement files. `verify_prod_parity`'s ownership refusal has a test. Decision D-1299; review `docs/development/reviews/2026-10-27-drain-grade-review.md`.
+
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 
 Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).
