@@ -374,6 +374,23 @@ def test_exposure_survives_a_missing_git_binary(tmp_path, monkeypatch):
     assert kaizen_events.exposure(refresh=True)["commit"] == "unknown"
 
 
+@pytest.mark.parametrize(
+    ("cwd", "want"),
+    [
+        ("/opt/demo", "demo"),
+        ("/opt/demo/.claude/worktrees/x", "demo"),
+        ("/opt", "unknown"),
+        ("/tmp/fabrik-merge-ab12cd34/fabrik", "unknown"),
+    ],
+)
+def test_project_reads_the_opt_name_wherever_the_suite_runs(cwd, want):
+    """`_project`'s `/opt/<name>` rule, proven on fixed paths (resolve is non-strict, so none need
+    exist) — the exposure tests above compare against `THIS_PROJECT`, which is "unknown" in a merge
+    leg's /tmp throwaway, so there they cannot tell a working rule from one that always says
+    "unknown" (W-17fc722a)."""
+    assert kaizen_events._project(cwd) == want
+
+
 def test_exposure_inside_this_repo_reports_the_head_commit(monkeypatch):
     monkeypatch.chdir(REPO)
     exp = kaizen_events.exposure(refresh=True)
@@ -473,8 +490,14 @@ def test_exposure_cwd_pins_the_probes_to_the_callers_directory(tmp_path, monkeyp
     monkeypatch.chdir(REPO)  # the process cwd is THIS repo — the contaminating value
     assert kaizen_events.exposure(refresh=True, cwd=str(other))["commit"] == other_head
     assert kaizen_events.exposure(refresh=True, cwd=str(other))["project"] == UNKNOWN_PROJECT
-    # ...and a pinned answer must never be served from, or poison, the shared cache.
-    assert kaizen_events.exposure(refresh=True)["project"] == THIS_PROJECT
+    # ...and a pinned answer must never be served from, or poison, the shared cache: a pinned call on an
+    # empty cache, then a CACHED read (no refresh — refresh skips the cache), must give this repo's commit.
+    # Compared on the commit, never the project: in a merge leg's /tmp throwaway both read "unknown".
+    kaizen_events.reset_cache()
+    kaizen_events.exposure(cwd=str(other))
+    cached = kaizen_events.exposure()
+    assert cached["commit"] != other_head and cached["commit"] != "unknown", cached
+    assert cached["project"] == THIS_PROJECT
 
 
 UNKNOWN_PROJECT = "unknown"
