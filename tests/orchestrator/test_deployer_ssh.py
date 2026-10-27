@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+import jinja2
 import pytest
 
 from fabrik.orchestrator.context import DeploymentContext
@@ -30,6 +31,7 @@ from fabrik.orchestrator.deployer_ssh import (
     claude_cli_mount_lines,
 )
 from fabrik.orchestrator.exceptions import DeployError
+from fabrik.version_registry import VersionRegistryError
 
 _MKTEMP_PATH = "/tmp/fabrik-Ab3dE5gH9k"
 
@@ -1271,6 +1273,8 @@ class TestDeployTemplateRenderRefusal:
                 "python-api", {"API_TOKEN": "s3cr3t\udc80tail"}, {}, "API_TOKEN", id="not-utf8"
             ),
             pytest.param("python-api", {}, {"LOG_TAG": "s3cr3t\x00tail"}, "LOG_TAG", id="nul-env"),
+            # docusaurus emits no compose `env`, so its NUL reaches the .env.example codec instead
+            pytest.param("docusaurus", {}, {"LOG": "s3cr3t\x00tail"}, "LOG", id="nul-env-example"),
             pytest.param("no-such-template-xyz", {}, {}, "no-such-template-xyz", id="unknown"),
         ],
     )
@@ -1296,6 +1300,47 @@ class TestDeployTemplateRenderRefusal:
         assert "s3cr3t" not in str(err.value)
         mock_ssh.assert_not_called()
         mock_write.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            pytest.param(
+                VersionRegistryError("version registry not found: /x/versions.yaml"),
+                id="version-registry",
+            ),
+            pytest.param(
+                UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+                id="undecodable-template-file",
+            ),
+            pytest.param(
+                jinja2.TemplateSyntaxError("Expected an expression", 1), id="template-syntax"
+            ),
+            pytest.param(
+                jinja2.UndefinedError("'Spec object' has no attribute 'x'"),
+                id="template-undefined",
+            ),
+        ],
+    )
+    def test_a_hub_defect_stays_its_own_exception(self, exc):
+        """A broken registry or template file is the hub's bug: it passes through unmapped, so the
+        orchestrator logs its traceback, the only report naming the broken file."""
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "template"},
+                "template": "python-api",
+                "domain": "my-app.example.com",
+            }
+        )
+        ctx.secrets = {}
+        with (
+            patch("fabrik.template_renderer.TemplateRenderer.render", side_effect=exc),
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            pytest.raises(type(exc)) as err,
+        ):
+            SSHDeployer()._deploy_template(ctx, "my-app", None)
+        assert err.value is exc
+        mock_ssh.assert_not_called()
 
 
 # ======================================================================

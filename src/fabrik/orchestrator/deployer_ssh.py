@@ -669,6 +669,7 @@ class SSHDeployer:
         from fabrik.drivers.ssh import ssh as _ssh
         from fabrik.spec_loader import Spec
         from fabrik.template_renderer import TemplateRenderer
+        from fabrik.version_registry import VersionRegistryError
 
         spec = ctx.spec
 
@@ -701,15 +702,19 @@ class SSHDeployer:
         # A render refusal is the spec's or a secret's (a NUL or non-UTF-8 value, a bad port, a
         # template that does not exist — D-1269), so it is a named DeployError, not an orchestrator
         # traceback (W-c9dcd641). The renderer's messages name a key or a template, never a value.
-        # The try holds the render alone, which writes nothing; a hub defect it meets (a missing
-        # version key, a broken defaults.yaml) is not caught and stays a traceback.
+        # The try holds the render alone, which writes no file. A hub defect stays a traceback, the
+        # only report that names the broken file: the version registry's error and a template
+        # file that will not decode are ValueErrors, so they are re-raised first, and a template's
+        # syntax or undefined-attribute error is a jinja2 error this clause does not name.
         try:
             rendered = TemplateRenderer().render(
                 spec_obj,
                 secrets={k: v for k, v in ctx.secrets.items() if k not in OWNER_ENV_KEYS},
                 dry_run=True,
             )
-        except (ValueError, jinja2.TemplateError) as exc:
+        except (VersionRegistryError, UnicodeDecodeError):
+            raise
+        except (ValueError, jinja2.TemplateNotFound) as exc:
             raise DeployError(f"Template render failed for {name}: {exc}") from exc
         compose_content = rendered["compose.yaml"]
 
