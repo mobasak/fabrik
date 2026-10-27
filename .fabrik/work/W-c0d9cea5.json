@@ -13,7 +13,7 @@
   },
   "next": "emitter_owns asks git for every repo; check_mcp_scope's warning drops 'untyped'; full /fabrik-review (sync path)",
   "note": "",
-  "owner": "",
+  "owner": "infra-3",
   "priority": 1,
   "status": "open",
   "title": "MCP emitter writes credentials into a TYPED repo's .mcp.json that git does not ignore (no rule, a ! negation, or TRACKED); live in trade-intelligence (tracked, holds BRAVE/EXA/FIRECRAWL keys). Split from W-f7772267 (c)"
