@@ -1261,9 +1261,9 @@ class TestDeployGit:
 
 
 class TestDeployTemplateRenderRefusal:
-    """The renderer refuses bad spec or secret input with a ValueError (D-1269) or jinja2's
-    TemplateNotFound; on the template deploy path either one is a named DeployError, raised before
-    any remote call, never an orchestrator 'Unexpected error' traceback."""
+    """A spec naming no template, or a value the renderer refuses with a ValueError (D-1269), is a
+    named DeployError on the template deploy path, raised before any remote call, never an
+    orchestrator 'Unexpected error' traceback; a hub defect passes through as its own exception."""
 
     @pytest.mark.parametrize(
         ("template", "secrets", "env", "names"),
@@ -1276,6 +1276,7 @@ class TestDeployTemplateRenderRefusal:
             # docusaurus emits no compose `env`, so its NUL reaches the .env.example codec instead
             pytest.param("docusaurus", {}, {"LOG": "s3cr3t\x00tail"}, "LOG", id="nul-env-example"),
             pytest.param("no-such-template-xyz", {}, {}, "no-such-template-xyz", id="unknown"),
+            pytest.param("_partials", {}, {}, "_partials", id="not-a-template"),
         ],
     )
     def test_a_render_refusal_is_a_deploy_error(self, template, secrets, env, names):
@@ -1318,6 +1319,12 @@ class TestDeployTemplateRenderRefusal:
             pytest.param(
                 jinja2.UndefinedError("'Spec object' has no attribute 'x'"),
                 id="template-undefined",
+            ),
+            # jinja raises TemplateNotFound for a missing `{% include %}` partial too: the spec's
+            # template exists, so the missing file is the hub's
+            pytest.param(
+                jinja2.TemplateNotFound("_partials/_companion_service.yaml.j2"),
+                id="missing-include",
             ),
         ],
     )

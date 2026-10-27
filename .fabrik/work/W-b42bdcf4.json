@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T08:04:00.182707Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b42bdcf4",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure whether a load_spec-validated dict can still fail Spec(**spec_dict) in production; refuse an over-long or non [A-Za-z0-9._-] template name in the validator before resolve()",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "On the TEMPLATE deploy path, Spec(**spec_dict) and Source(**source_dict) in deployer_ssh._deploy_template sit outside W-c9dcd641's render try, so a pydantic ValidationError (env value a list, None, bad id) escapes as an orchestrator 'Unexpected error' traceback and its input_value prints the env value verbatim; and an over-long spec.template (300 chars) raises a raw OSError ENAMETOOLONG from Path.resolve in TemplateRenderer.template_exists/render and validator.py:265. Found by the W-c9dcd641 review (Opus + Sonnet + Haiku seats)."
+}

@@ -664,8 +664,6 @@ class SSHDeployer:
         existing: dict[str, Any] | None,
     ) -> None:
         """Deploy from a Fabrik template — render compose, SCP to VPS, up."""
-        import jinja2
-
         from fabrik.drivers.ssh import ssh as _ssh
         from fabrik.spec_loader import Spec
         from fabrik.template_renderer import TemplateRenderer
@@ -699,22 +697,29 @@ class SSHDeployer:
         # key among the secrets never reaches compose.yaml (the renderer puts every secret into
         # every service's `environment:`, which would hand the app the owner DSN, D-754): it
         # rides to `.env.owner` through `_build_env` and the writer instead (the Finish review, O1).
-        # A render refusal is the spec's or a secret's (a NUL or non-UTF-8 value, a bad port, a
-        # template that does not exist — D-1269), so it is a named DeployError, not an orchestrator
+        # A render refusal is the spec's or a secret's (a template that is not one, a NUL or
+        # non-UTF-8 value, a bad port — D-1269), so it is a named DeployError, not an orchestrator
         # traceback (W-c9dcd641). The renderer's messages name a key or a template, never a value.
-        # The try holds the render alone, which writes no file. A hub defect stays a traceback, the
-        # only report that names the broken file: the version registry's error and a template
-        # file that will not decode are ValueErrors, so they are re-raised first, and a template's
-        # syntax or undefined-attribute error is a jinja2 error this clause does not name.
+        # A hub defect stays a traceback, the only report that names the broken file: the spec's
+        # template is checked first, so a TemplateNotFound inside the render is a missing include
+        # and is not caught; the version registry's error and a template file that will not decode
+        # are ValueErrors, so they are re-raised first; a template's syntax or undefined-attribute
+        # error is a jinja2 error no clause names. Limit: a bad value in a template's own
+        # defaults.yaml is refused by the same input guards, so it reads as a refusal too.
+        renderer = TemplateRenderer()
+        if not renderer.template_exists(spec_obj.template):
+            raise DeployError(
+                f"Template render failed for {name}: {spec_obj.template!r} is not a template"
+            )
         try:
-            rendered = TemplateRenderer().render(
+            rendered = renderer.render(
                 spec_obj,
                 secrets={k: v for k, v in ctx.secrets.items() if k not in OWNER_ENV_KEYS},
                 dry_run=True,
             )
         except (VersionRegistryError, UnicodeDecodeError):
             raise
-        except (ValueError, jinja2.TemplateNotFound) as exc:
+        except ValueError as exc:
             raise DeployError(f"Template render failed for {name}: {exc}") from exc
         compose_content = rendered["compose.yaml"]
 
