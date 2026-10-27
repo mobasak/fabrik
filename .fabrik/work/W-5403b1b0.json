@@ -19,5 +19,5 @@
   "tags": [
     "fleet"
   ],
-  "title": "Compose templates still paste volumes (vol.name:vol.path), resources.memory and resources.cpus (inside single quotes), and companion memory raw into YAML scalars; the docker-image writer (deployer_ssh._generate_docker_compose) pastes memory and health interval raw. A quote, \" #\" or \": \" in those spec strings breaks or mangles compose. Found by the W-ff313a14 design critique (Opus)."
+  "title": "Compose templates still paste spec strings raw into YAML scalars: volumes (vol.name:vol.path), resources.memory and resources.cpu (inside single quotes), companion memory, spec.domain (traefik Host label; Spec does not validate it — only the apply dict validator does), and health.interval/timeout; the docker-image writer (deployer_ssh._generate_docker_compose) pastes memory and health interval raw. A quote, newline, \" #\" or \": \" breaks or mangles compose (review B-1: interval \"10s\\n retries: 99\" renders a duplicate retries: key that PyYAML accepts). Found by the W-ff313a14 design critique (Opus) and review pass 1 (slice B)."
 }
