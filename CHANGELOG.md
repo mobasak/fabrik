@@ -46,6 +46,15 @@ of the file's 67 tests red. The fixture now points `XDG_CONFIG_HOME` and `GIT_TE
 dirs, as `tests/test_emit_mcp_fillins.py` already did for XDG. W-f7772267 (f); a fixture-only hunk under
 intel's plan-3 lock, on the coordinator's ruling.
 
+### Fixed — a template deploy refusal is a named DeployError, not an "Unexpected error" traceback (2026-10-27)
+
+- `SSHDeployer._deploy_template` (`src/fabrik/orchestrator/deployer_ssh.py`) refuses a spec whose `template` is
+  not exactly one of the renderer's templates before rendering, and maps the renderer's `ValueError` refusals (a
+  NUL or non-UTF-8 secret or env value, a bad port — D-1269) to a `DeployError` naming the app and the key. A hub
+  defect — the version registry, an undecodable template file, a missing include partial, a template syntax or
+  undefined-attribute error — still surfaces as its own exception with its traceback. Grader:
+  `TestDeployTemplateRenderRefusal` in `tests/orchestrator/test_deployer_ssh.py` (D-1289, W-c9dcd641).
+
 ### Fixed — a VPS answer that is not valid UTF-8 no longer crashes a redeploy (2026-10-27)
 
 `fabrik.drivers.ssh` decoded remote output with the hub's locale codec, strictly, before it read the exit code. One
