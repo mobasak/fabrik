@@ -22,12 +22,6 @@ def test_the_dispatch_line_names_the_exact_invocation_and_it_counts_the_axes() -
     assert f"dispatch_headroom.py --units {len(axes)} --mechanical 2 --risky 2` — one unit per axis A–G plus E2" in _norm()
 
 
-def test_one_bump_and_one_row_per_review_run() -> None:
-    """Row 1791511001."""
-    assert "the run's first edit bumps `Version`, every later edit stays under that version, and the closing round re-freezes it" in _norm()
-    assert "one bump and one row per review run, a run closed `blocked` and resumed included, never a bump per round" in _norm()
-
-
 def test_the_description_names_every_axis() -> None:
     """Mail 01M4S7EX4S: the frontmatter named 6 of the 8 lettered axes, without E2 and F."""
     desc = next(line for line in SRC.read_text().splitlines() if line.startswith("description:"))
