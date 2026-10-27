@@ -1064,6 +1064,14 @@ def _vouch_repo(tmp_path: Path) -> Path:
     branch("hotfix", 1100)
     branch("feat", 1100)
     squash(1300, "Merged-From: feat (see, hotfix (x))")
+    # after its squash the branch merges ANOTHER branch's old-dated, never-merged work: not merged
+    path = branch("merges-other", 1100)
+    squash(1300, "Merged-From: merges-other (x)")
+    branch("precious", 1100)
+    _dated(path, 1400, "merge", "-q", "--no-ff", "precious", "-m", "merge precious")
+    # an unclosed `(` in one description does not swallow the names after it
+    branch("unbal", 1100)
+    squash(1300, "Merged-From: feat2 (wip, unbal (y)")
     # a value split by the field byte is not the branch's name
     branch("split-value", 1100)
     squash(1300, "Merged-From: split-value\x1fz")
@@ -1099,6 +1107,8 @@ def test_merged_from_trusts_no_stale_vouch(tmp_path: Path) -> None:
             "feat",
             "split-value",
             "out-of-order",
+            "merges-other",
+            "unbal",
         )
     }
     assert verdict == {
@@ -1117,7 +1127,26 @@ def test_merged_from_trusts_no_stale_vouch(tmp_path: Path) -> None:
         "feat": True,  # the description is cut at its FIRST ` (`
         "split-value": False,  # the record does not parse, so it never vouches
         "out-of-order": True,  # the 1500 vouch covers the 1300 commit
+        "merges-other": False,  # that merge brought in work the target never took
+        "unbal": True,  # only a matched pair nests
     }
+
+
+def test_merged_from_rereads_a_rewound_target(tmp_path: Path) -> None:
+    """A squash dropped from the target after a first read no longer vouches in the same process."""
+    main = _vouch_repo(tmp_path)
+    mod = _w18_module("w69322546_rewind")
+    path = tmp_path / "rewound"
+    _dated(main, 1000, "worktree", "add", "-q", str(path), "-b", "rewound")
+    (path / "r.txt").write_text("r", encoding="utf-8")
+    _dated(path, 1000, "add", "-A")
+    _dated(path, 1100, "commit", "-qm", "rewound work")
+    _dated(
+        main, 1200, "commit", "-q", "--allow-empty", "-m", "squash\n\nMerged-From: rewound (x)\n"
+    )
+    assert mod._merged_from(main, "main", "rewound") is True
+    _dated(main, 1300, "reset", "-q", "--hard", "HEAD~1")
+    assert mod._merged_from(main, "main", "rewound") is False
 
 
 def test_merged_from_reads_the_trailer_log_once_per_sweep(
