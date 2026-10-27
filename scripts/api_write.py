@@ -335,10 +335,14 @@ def run_child(argv: list[str], prompt: str, cwd: Path, env: dict, timeout: int):
             os.killpg(proc.pid, signal.SIGKILL)
             proc.communicate()
             raise
-        except BaseException:  # never leave a paid child running unregistered
+        except BaseException:  # never leave a paid child running unregistered, nor unreaped
             try:
                 os.killpg(proc.pid, signal.SIGKILL)
             except OSError:
+                pass
+            try:
+                proc.wait(timeout=GIT_TIMEOUT_S)
+            except (OSError, subprocess.TimeoutExpired):
                 pass
             raise
     finally:
@@ -418,7 +422,7 @@ def one(job: dict, a: argparse.Namespace, keys: dict[str, str], main: Path, url:
     """One write run, end to end. Raises RefusalError only before anything is spent; after the start row every
     outcome lands in the report and a settle row. Once a stop signal landed, a job not yet spending refuses as not
     started, and so does a refusal raised meanwhile (a stop sent to the runner's group kills the pre-flight's child;
-    one sent to the runner alone lets the pre-flight run to its own timeout first)."""
+    one sent to the runner alone lets the pre-flight run to its end first, its own timeout at most)."""
     if _STOP.is_set():
         raise ac.RefusalError(1, NOT_STARTED)
     slug, base, gates = job["slug"], job["base"], job["gates"]

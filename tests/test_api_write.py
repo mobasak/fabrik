@@ -826,7 +826,8 @@ def test_a_failed_wait_never_leaves_a_paid_child_running(stopped, monkeypatch) -
             dict(os.environ),
             60,
         )
-    assert started[0].wait(timeout=5) == -signal.SIGKILL
+    # reaped by run_child itself (closing pass, NEW-2): no wait here, a zombie would leave returncode None
+    assert started[0].returncode == -signal.SIGKILL
 
 
 def test_a_hung_up_terminal_still_removes_the_runs_set_aside(box: dict) -> None:
