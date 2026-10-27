@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T23:47:39.229229Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c46b96c2",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "check whether the 10 repos already migrated; then apply the same one-bracketed-phrase shape rule infra uses for docs_updater --adopt (W-e89d7983)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "migration runs once per repo; 10 repos may already be past it",
+  "status": "open",
+  "title": "work.py migrate-backlog still turns the OLDER scaffold template's example rows into open junk items: _TEMPLATE_PLACEHOLDER_LINES (scripts/work.py:2318, D-566) lists only the current template's exact lines; 10 repos carry the older rows ('[Specific Trigger]' capital T, '| **L** | [System Overhaul] |'), 20 rows"
+}

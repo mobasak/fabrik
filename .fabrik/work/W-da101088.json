@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T23:47:23.866765Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-da101088",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure which scaffold docs the gate lists vs the 26 emitted; widen the list from the scaffold registry, with a test that every emitted doc is watched or explicitly exempt",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "19 of 26 project docs can go stale with a green gate; one list from the registry",
+  "status": "open",
+  "title": "docs_updater.py staleness gate watches only 7 of 26 project docs (site-provisioner mail 01M2NJGZGV20WP; split from W-e89d7983)"
+}

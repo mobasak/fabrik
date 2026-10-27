@@ -207,8 +207,12 @@ pre/post-install script in the package itself, 174 packages in the tree.
 set, so every scaffold type carries it with no overlay row; the hub and fabrik-lib carry it through the full
 catalog, as before. Since D-1246 it is also in the USER-level set of every account (§ Config topology), so a
 session anywhere on the box — the home folder, an untyped repo — sees it, and the emitter now serves every
-git repo: an untyped one gets the universal set when its `.gitignore` carries the `.mcp.json` line (the file
-inlines credentials), and image-generation is no longer excluded by name. A session sees it once its
+git repo: an untyped one gets the universal set, and image-generation is no longer excluded by name. Every repo,
+typed, untyped or hub, is written only when `git check-ignore` says its `.mcp.json` is ignored (the file inlines
+credentials). A tracked copy is never ignored, skip-worktree included, so such a repo is skipped and
+`check_mcp_scope` warns on it until the file is untracked. Each linked worktree's copy is asked from its own
+worktree, a symlinked `.mcp.json` is never written through, and git never answers from a repo above the one being
+emitted (W-c0d9cea5). A session sees it once its
 repo's `.mcp.json` is re-emitted (or the user-level sync has run) and the window is new.
 
 **What it can reach:** it runs as this OS user with the session's permissions — it can read any file the

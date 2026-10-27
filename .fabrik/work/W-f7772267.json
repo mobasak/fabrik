@@ -19,5 +19,5 @@
   "priority": 3,
   "score_reason": "pre-existing edge-shape fill-ins (a)-(g)",
   "status": "open",
-  "title": "Six low fill-ins split from W-cd40f947: (a) claude_rotate._fleet_dirs() counts the backups folder as an account; (b) _fill_credentials raises AttributeError on a wrong-shape roster; (c) a typed repo without the gitignore line or with a tracked .mcp.json still gets written; (d) emitter --check reports a worktree copy it did not write; (f) hermetic-git test fixtures do not neutralise git's XDG global-ignore fallback; (g) an unreadable project.yaml gives a bare SKIP and exit 0 (found by the W-d095d60b review)"
+  "title": "Low fill-ins left: (f) emitter-test half — its hermetic-git fixture ignores the XDG global-ignore fallback (intel's plan lock owns tests/test_emit_mcp_project_config.py); (k) check_mcp_scope: its unreadable FAIL row names no fix, a no-ruling warning's re-emit fix cannot clear an unknown type, the no-ruling cause text is wrong for an unreadable project.yaml, and a project.yaml linking into a mode-000 directory raises an uncaught PermissionError in audit(); the emitter's _fill_credentials still raises on a non-object entry in its own defs catalog. Done: (a)(f) MR 01M5X55SCK, (h)(i)(j) MR 01M5X7EP6F, (b)(g) branch infra-3-fillins-4; (d) by design (--check predicts the run's verdict); (c) moved to W-c0d9cea5"
 }

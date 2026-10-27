@@ -52,6 +52,51 @@ one green, since no template escapes on its own). They also go red on any non-`F
 wrapped around python-api's companion include. Out of scope and filed as W-80aed026: env values are unquoted YAML scalars, so `"`,
 newlines, `$`, ` #` and `: ` still deploy wrong. W-6eb61fa0.
 
+### Fixed — MCP emitter: a wrong-shape fleet roster is no donor, an unreadable project.yaml is a named failure (2026-10-27)
+
+- `scripts/sysadmin/emit_mcp_project_config.py` (W-f7772267 (b)(g)): `_fill_credentials` treats a roster that is not an object at any level (the file, its `mcpServers`, a server entry, its `env`), or one nested too deep for `json.loads`, as no donor and falls through to the hub `.env`, where it raised `AttributeError` or `RecursionError` and took down the emitter and `check_mcp_scope`, which loads the same defs; in a repo whose `.mcp.json` git ignores, a `project.yaml` the emitter cannot read — unreadable, a directory, a dangling or looping link, a FIFO (never opened, since its read blocks) — now gives `SKIP (error: project.yaml unreadable: <why>)` and exit 1, where it gave a bare `SKIP` at exit 0 or, for a directory or a link, wrote the untyped universal set (a type the roster does not know, and a `type:` line the grammar cannot parse, now labelled `(unparsed: …)`, stay a bare policy `SKIP`). Graders in the new `tests/test_emit_mcp_fillins.py`, kept out of the plan-locked emitter test file. Part (d) — `--check` printing `+N worktree copies` it did not write — is by design: `--check` predicts the real run's verdict, as `test_an_in_repo_alias_of_a_worktree_is_counted_once` pins.
+
+### Fixed — check_mcp_scope: one warning per repo, an unreadable file fails only where a readable one could, a symlinked one names both steps (2026-10-27)
+
+- `scripts/enforcement/check_mcp_scope.py` (W-f7772267 (h)(i)(j)): a repo whose `.mcp.json` git does not ignore AND whose `project.yaml::type` the roster lacks now gets ONE warning naming both causes, and the OK line counts warned repos, not warning rows, and says the files were read rather than that each was graded; an unreadable `.mcp.json` warns instead of failing the gate wherever a readable one could only warn (an untyped repo whose file git does not ignore, a type the roster lacks, an own-agent hub-class repo such as fabrik-lib) and still fails where a ruling the hub enforces applies; a symlinked not-ignored file's fix names the plain-file step after the ignore step; a warning with no servers to name prints no empty `carries` clause. Graders in `tests/enforcement/test_check_mcp_scope.py`, each proven red against a mutant.
+
+### Fixed — claude_rotate no longer counts the backups park root as an account; the MCP-scope tests ignore the user's global git ignore (2026-10-27)
+
+- `scripts/sysadmin/claude_rotate.py::_fleet_dirs` listed `~/.claude-fleet/backups`, the park root `--merge-shared` writes to, so `--status` showed it as a pending-login account ("8 dir(s)" on this box; 7 after). It is now left out like the `active` pointer, and its byte-identical twin `scripts/aro-wake/claude_rotate.py` is copied (W-f7772267 (a)).
+- `tests/enforcement/test_check_mcp_scope.py`'s hermetic-git fixture emptied `GIT_CONFIG_GLOBAL` but left git's default excludes file, `$XDG_CONFIG_HOME/git/ignore` (else `~/.config/git/ignore`), so a box whose global ignore listed `.mcp.json` could decide the tests. The fixture now points `XDG_CONFIG_HOME` at an empty dir. The emitter test file's copy of the fixture waits on its plan lock (W-f7772267 (f)).
+- Graders: `tests/test_claude_rotate_v2.py::test_fleet_dirs_leaves_out_the_backups_park_root` and `tests/enforcement/test_check_mcp_scope.py::test_the_hermetic_fixture_blinds_git_to_the_users_global_ignore`, each watched red first.
+
+### Fixed — MCP emitter writes .mcp.json only where git ignores it, in every repo (2026-10-27)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::emitter_owns` returned True for any hub-class or typed repo without asking git. So the emitter wrote filled exa, brave-search and firecrawl keys into trade-intelligence's tracked `.mcp.json`. Skip-worktree was set, so `git status` hid the change; its only commit holds placeholders, so nothing leaked. It now asks `git check-ignore` for every repo (D-1266, superseding D-1252 in part).
+- A repo whose file git does not ignore gets a ruled SKIP that names both fixes: make `.gitignore` ignore it, and `git rm --cached .mcp.json` if git tracks it. Not ignored means tracked (skip-worktree and assume-unchanged included), no rule, or a later `!`.
+- The review found three more ways credentials reached a committable file, and closed each (D-1267):
+  - Each linked worktree's copy now asks git from its own worktree: `N not ignored` is a ruled skip, `N unanswerable` fails the run.
+  - A symlinked `.mcp.json` is a ruled SKIP, never written through.
+  - Git's discovery stops at the repo's parent, so a broken `.git` dir no longer borrows an enclosing repo's answer.
+- `scripts/enforcement/check_mcp_scope.py` warns on such a repo and says a tracked copy may still hold credentials. A hub-class or typed one is still graded after the warning, as before, so a server outside its ruling stays a failure.
+- Over the 43 repos in `/opt`, one verdict changes: trade-intelligence goes from OK to SKIP until it untracks the file (W-c0d9cea5).
+
+### Added — the nightly chat backup alerts when it fails (W-36687f76, D-1265, 2026-10-27)
+`session-archive.service` failed silently: no `OnFailure=` existed, its `-` steps (sampler, pruner, rotation mail) fail
+with nothing logged, and the archiver exits 0 on a partial night. New `scripts/sysadmin/session_archive_alert.py` mails
+infra (ack required) and the coordinator (ack no): `failed`, run once by the new `session-archive-alert.service` after the
+retries are spent (`OnFailure=` + `RestartMode=direct`, which stops it firing on every retried attempt), with the unit's
+journal tail; and `check`, the unit's `ExecStopPost=-`, which on a successful run reports every step that did not exit 0
+and the archiver's subagent failures, 0 eligible transcripts, a held lock or a missing summary. `TimeoutStartSec=` ends a
+hung archiver; the installer verifies all three units, refuses any verify output and installs the alert unit first.
+Install: the coordinator re-runs `scripts/sysadmin/install_session_archive_timer.sh` from the main checkout after the merge.
+
+### Fixed — a worktree run's scratch is writable; a round of stale seats is never TERMINAL (2026-10-27)
+
+- `scripts/command_run.py start` roots a run's `SCRATCH:` folder in the checkout the session runs in — a linked
+  worktree's own `.tmp/runs/` — because a worktree-isolated session's Write tool refuses the main checkout's path
+  (W-128df814, D-1268, superseding D-836's root). Every `start` now prunes every checkout's `.tmp/runs/`, and a seed
+  whose scratch is gone says so.
+- The dispatch stamp keeps per-message `batches`; `round` records `dispatched_at` (oldest batch first) and prints
+  `⛔ NOT TERMINAL` when every seat it closed went out before the newest confirming round was recorded — fleet's
+  [4, 0, 0] wave round that read TERMINAL before its fixes were re-verified.
+
 ### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
 
 - `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a

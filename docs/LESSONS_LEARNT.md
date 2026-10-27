@@ -1,6 +1,16 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A right-now fix reads the plan locks too, not only a /fabrik-task run (2026-10-27)
+
+- **What happened:** W-d095d60b (a right-now fix under /fabrik-review-scoped) edited
+  `scripts/sysadmin/emit_mcp_project_config.py` and its tests, both owned by intel's active own-scrape plan lock, and
+  merged; nothing read the lock. The next change to the same file, W-c0d9cea5, ran /fabrik-task, whose phase 2 reads
+  `.fabrik/plan-locks/`, and stopped there. The coordinator measured intel's branch: it touches none of the three paths,
+  so nothing conflicted this time.
+- **Rule:** before editing a file, read the plan locks, whatever lane the change took: `status: active` with the path
+  under `owned_paths` is a stop and a message to the coordinator, never a silent edit.
+
 ## A guard that renders in several places is proven one site at a time (2026-10-27, W-ff313a14)
 
 The file-api `PORT` guard sat at two template sites, and its refusal test rendered both at once, so deleting
