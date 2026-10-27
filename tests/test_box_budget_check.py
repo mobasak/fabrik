@@ -286,12 +286,23 @@ def test_a_new_mail_never_overtakes_an_older_queued_one(box, monkeypatch):
 
 def test_the_user_bus_reaches_systemctl_without_touching_this_process(box, monkeypatch, tmp_path):
     """cron has no XDG_RUNTIME_DIR: systemctl gets it in its own environment; os.environ is never written."""
-    run = tmp_path / "run"
-    run.mkdir()
+    import shutil
     import socket
+    import tempfile
 
+    # a short dir: an AF_UNIX path over 107 bytes cannot be bound, and pytest's tmp_path under a deep
+    # --basetemp is longer than that (measured 229 bytes in a review seat's scratch)
+    run = Path(tempfile.mkdtemp(prefix="bb-", dir="/tmp"))
     sock = socket.socket(socket.AF_UNIX)
-    sock.bind(str(run / "bus"))
+    try:
+        sock.bind(str(run / "bus"))
+        _assert_child_gets_the_bus(box, monkeypatch, run)
+    finally:
+        sock.close()
+        shutil.rmtree(run, ignore_errors=True)
+
+
+def _assert_child_gets_the_bus(box, monkeypatch, run):
     monkeypatch.setattr(bb, "_user_run_dir", lambda: run)
     seen = box["tmp"] / "env-seen"
     real = box["tmp"] / "systemctl"
@@ -303,7 +314,6 @@ def test_the_user_bus_reaches_systemctl_without_touching_this_process(box, monke
     monkeypatch.setenv("BOX_BUDGET_SYSTEMCTL", str(wrapper))
     before = dict(os.environ)
     bb.main([])
-    sock.close()
     assert dict(os.environ) == before  # nothing leaks into later tests or callers
     assert set(seen.read_text().split()) == {str(run)}
 
