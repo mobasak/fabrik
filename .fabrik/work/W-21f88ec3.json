@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-27T02:28:38.895646Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "01d6bda631802b06565c92c9590deba7aaf7bc19",
   "id": "W-21f88ec3",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "assemble_commands render()/check() block forever on a FIFO at a KEPT name (OUT/<cmd>.md, SKILLS/<cmd>/SKILL.md, AGENTS/<agent>.md): only orphan positions are is_file()-guarded; agent_drift reads after exists() with no is_file() (assemble_commands.py:1071-1077, :1287, :1356, :1365)"
 }

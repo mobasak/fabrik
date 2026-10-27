@@ -37,6 +37,14 @@ has no exemption. W-ff313a14, D-1276.
   parametrised test proves `_project`'s rule on fixed paths. W-17fc722a; the item's load-only flakes
   remain.
 
+### Fixed — the command assembler refuses a non-regular file at a generated name instead of hanging (2026-10-27)
+
+- `commands/assemble_commands.py`: a FIFO at a name the render writes and the gate compares (a command, a skill
+  wrapper or an agent file) blocked `render()` and `check()` forever, and a directory there crashed `check()` with
+  IsADirectoryError. The render now refuses any non-regular file at those names before its first write, and the
+  gate reports it, a symlink or a symlinked skill directory included, as one drift line and exit 1 (D-1278, W-21f88ec3).
+  Orphan positions are unchanged. An unreadable regular file there is filed as W-335d2f0e.
+
 ### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
 
 Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value
