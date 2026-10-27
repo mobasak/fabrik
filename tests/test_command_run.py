@@ -8653,7 +8653,27 @@ def test_seats_in_flight_matches_the_stop_hook(tmp_path: Path) -> None:
             "prompt": "<task-notification><task-id>a1</task-id><status>completed</status></task-notification>",
         },
     }
+    def run(agent: str, tu: str, resume: bool = False) -> dict:  # W-16617da0: a run is (agent, tu)
+        line = _launch(agent)
+        if resume:
+            line["toolUseResult"] = {"resumedAgentId": agent}
+        line["message"] = {"content": [{"type": "tool_result", "tool_use_id": tu}]}
+        return line
+
+    def note(body: str) -> dict:
+        return {
+            "type": "queue-operation",
+            "operation": "enqueue",
+            "content": f"<task-notification>{body}</task-notification>",
+        }
+
+    late = note("<task-id>a1</task-id><tool-use-id>t1</tool-use-id><status>completed</status>")
+    own = note("<task-id>a1</task-id><tool-use-id>t2</tool-use-id><status>completed</status>")
+    two = note("<task-id>a1</task-id><task-id>b1</task-id><status>stopped</status>")
     cases = {
+        "late-earlier-run": ([run("a1", "t1"), run("a1", "t2", True), late], live),
+        "resumed-own-notice": ([run("a1", "t1"), run("a1", "t2", True), late, own], live),
+        "two-agents-one-notice": ([run("a1", "t1"), run("b1", "t3"), two], live),
         "launch-only": ([_launch("a1")], live),
         "launch-notice": ([_launch("a1"), _notice("a1")], live),
         "attachment-notice": ([_launch("a1"), att], live),
@@ -8673,6 +8693,10 @@ def test_seats_in_flight_matches_the_stop_hook(tmp_path: Path) -> None:
         mine, theirs = cr._hook_seats_in_flight(rec, str(p)), hook._seats_in_flight(rec, str(p))
         assert mine == theirs, (name, mine, theirs)
         seen.add(theirs)
+        expected = {"late-earlier-run": True, "resumed-own-notice": False}
+        expected["two-agents-one-notice"] = False
+        if name in expected:
+            assert mine is expected[name], (name, mine)
     assert seen == {True, False}, seen  # the matrix exercises both verdicts
     assert cr._hook_seats_in_flight(live, str(tmp_path / "nope.jsonl")) is False
 

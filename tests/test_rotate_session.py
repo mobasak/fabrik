@@ -424,6 +424,35 @@ def test_execute_partials_are_recorded_never_retried(world, monkeypatch):
     assert any(k[-1].startswith("You were rotated") for k in _keys(world))
 
 
+def test_seats_running_keys_a_resumed_run_on_its_tool_use_id(world):
+    # W-16617da0: pass 1's notice delivered after the SendMessage resume closes only pass 1, and
+    # the session-end notice naming two agents closes both
+    t = world["transcript"]
+
+    def run(aid, tu, resume=False):
+        tur = {"resumedAgentId": aid} if resume else {"status": "async_launched", "agentId": aid}
+        content = [{"type": "tool_result", "tool_use_id": tu, "content": "x"}]
+        return {"type": "user", "message": {"content": content}, "toolUseResult": tur}
+
+    def note(body):
+        return {
+            "type": "queue-operation",
+            "operation": "enqueue",
+            "content": f"<task-notification>{body}</task-notification>",
+        }
+
+    late = note("<task-id>a1</task-id><tool-use-id>t1</tool-use-id><status>completed</status>")
+    rows = [run("a1", "t1"), run("a1", "t2", resume=True), late]
+    t.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    assert rs.seats_running(t) == {"a1"}
+    own = note("<task-id>a1</task-id><tool-use-id>t2</tool-use-id><status>completed</status>")
+    t.write_text("".join(json.dumps(r) + "\n" for r in (*rows, own)))
+    assert rs.seats_running(t) == set()
+    end = note("<task-id>a1</task-id><task-id>b1</task-id><status>stopped</status>")
+    t.write_text("".join(json.dumps(r) + "\n" for r in (run("a1", "t1"), run("b1", "t3"), end)))
+    assert rs.seats_running(t) == set()
+
+
 def test_seat_reader_parity_and_agents_up_dispatch(world, tmp_path):
     t = world["transcript"]
     launch = {

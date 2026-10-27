@@ -1564,6 +1564,35 @@ def _notified_line(agent_id: str, status: str = "completed") -> dict:
     }
 
 
+# W-16617da0: a run is the (agent id, tool_use_id) of the launch or resume line, and every real
+# notice names that run in <tool-use-id> (measured: 835 of 841 seat runs over three days).
+def _run_line(agent_id: str, tool_use_id: str, resume: bool = False, age_s: float = 60) -> dict:
+    tur = (
+        {"success": True, "resumedAgentId": agent_id}
+        if resume
+        else {"isAsync": True, "status": "async_launched", "agentId": agent_id}
+    )
+    return {
+        "type": "user",
+        "timestamp": _iso(age_s),
+        "message": {
+            "role": "user",
+            "content": [{"type": "tool_result", "tool_use_id": tool_use_id, "content": "x"}],
+        },
+        "toolUseResult": tur,
+    }
+
+
+def _run_notice(agent_id: str, tool_use_id: str, status: str = "completed") -> dict:
+    return {
+        "type": "queue-operation",
+        "operation": "enqueue",
+        "content": f"<task-notification>\n<task-id>{agent_id}</task-id>\n"
+        f"<tool-use-id>{tool_use_id}</tool-use-id>\n<status>{status}</status>\n"
+        "</task-notification>",
+    }
+
+
 def _stamped(**over: object) -> dict:
     stamp = {"ts": time.time() - 60, "seats": 3, "phase": 4, "round": 1, "released": False}
     stamp.update(over)
@@ -1616,6 +1645,50 @@ def test_running_record_stands_down_while_a_dispatched_seat_runs(
 def test_running_record_blocks_once_every_seat_reported(fake_project: Path, tmp_path: Path) -> None:
     lines = [_launch_line("a1b2c3d4e5f60718"), _notified_line("a1b2c3d4e5f60718")]
     out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_done", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+# W-16617da0 (fabrik-lib 01M4TJNA57): pass 1's notice delivered AFTER the SendMessage resume.
+def test_a_late_earlier_run_notice_does_not_close_a_resumed_seat(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    aid = "a1b2c3d4e5f60718"
+    lines = [
+        _run_line(aid, "toolu_launch", age_s=300),
+        _run_line(aid, "toolu_resume", resume=True),
+        _run_notice(aid, "toolu_launch"),  # pass 1 finishing, late
+    ]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_late", _stamped(), lines)
+    assert not _blocks_on_run_record(out), out
+
+
+def test_the_resumed_runs_own_notice_closes_it(fake_project: Path, tmp_path: Path) -> None:
+    aid = "a1b2c3d4e5f60718"
+    lines = [
+        _run_line(aid, "toolu_launch", age_s=300),
+        _run_line(aid, "toolu_resume", resume=True),
+        _run_notice(aid, "toolu_launch"),
+        _run_notice(aid, "toolu_resume"),
+    ]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_own", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+def test_a_notice_naming_two_agents_closes_both(fake_project: Path, tmp_path: Path) -> None:
+    # the session-end form: two ids, one status, no <tool-use-id> (measured live 2026-10-27)
+    end = {
+        "type": "queue-operation",
+        "operation": "enqueue",
+        "content": "<task-notification>\n<task-id>a1b2c3d4e5f60718</task-id>\n"
+        "<task-id>b2c3d4e5f6071829</task-id>\n<status>stopped</status>\n"
+        "<summary>2 background agents didn't finish</summary>\n</task-notification>",
+    }
+    lines = [
+        _run_line("a1b2c3d4e5f60718", "toolu_one"),
+        _run_line("b2c3d4e5f6071829", "toolu_two"),
+        end,
+    ]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_two", _stamped(), lines)
     assert _blocks_on_run_record(out), out
 
 
