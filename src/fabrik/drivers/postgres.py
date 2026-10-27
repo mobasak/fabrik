@@ -56,6 +56,7 @@ from typing import Any
 from fabrik.drivers.backrest import register_postgres_plan, unregister_postgres_plan
 from fabrik.drivers.ssh import scp_to_vps, ssh
 from fabrik.locks_local import file_lock
+from fabrik.spec_loader import POSTGRES_IDENT_RE
 
 logger = logging.getLogger(__name__)
 
@@ -78,15 +79,8 @@ Lives on the VPS at the same path as other registry-style configs
 ``pg_database`` table to surface drift (registry says X exists but DB
 doesn't, or vice-versa). T4-01 G-J4."""
 
-_IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
-"""PostgreSQL identifier validation.
-
-Matches the conservative subset of the SQL standard: leading letter or
-underscore, followed by up to 62 letters / digits / underscores. This is
-deliberately stricter than Postgres's own rules (which allow quoted
-identifiers with arbitrary content) — we never want the driver to need
-to emit a quoted identifier that a shell might unquote.
-"""
+_IDENT_RE = POSTGRES_IDENT_RE
+"""PostgreSQL identifier validation — one rule with ``Depends.postgres`` (W-ff313a14)."""
 
 PASSWORD_ALPHABET = string.ascii_letters + string.digits
 """Alphabet for generated passwords. 62 characters = ~5.95 bits/char."""

@@ -26,6 +26,19 @@
   before the first pin. Decide each catch by what the caller can still know: a file present but unreadable is
   graded, and an entry nobody can search is named. Neither one is a silent `continue`.
 
+## A merge leg runs under umask 002 in a /tmp throwaway; a hub test assumes neither (2026-10-27)
+
+- **What happened:** kaizen's batch was refused by `test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script`,
+  red in the merge leg and green alone (W-17fc722a). The coordinator's shell runs under umask 0002, and every
+  merge leg inherits it and checks out into `tempfile.mkdtemp(prefix="fabrik-merge-")` under /tmp. The test
+  copied the checkout's group-writable modes, which the stub refuses as "writable by others". The same review
+  found B6 red the same way and two kaizen exposure tests that hardcoded "fabrik", which `_project` reads only
+  under `/opt/<name>`. An interactive umask-022 session in `/opt/fabrik` reproduces none of them.
+- **Rule:** a test that writes or copies files a check then judges by mode sets those modes itself, and a
+  test that reads location-derived state derives its expectation from the checkout's path. Reproduce a
+  "red only in the merge" report with `umask 0002` on the TEST PROCESS, not only on the checkout, inside a
+  /tmp worktree, with `FABRIK_MERGE_CHECK=1`.
+
 ## A right-now fix reads the plan locks too, not only a /fabrik-task run (2026-10-27)
 
 - **What happened:** W-d095d60b (a right-now fix under /fabrik-review-scoped) edited
@@ -35,6 +48,13 @@
   so nothing conflicted this time.
 - **Rule:** before editing a file, read the plan locks, whatever lane the change took: `status: active` with the path
   under `owned_paths` is a stop and a message to the coordinator, never a silent edit.
+
+## A guard that renders in several places is proven one site at a time (2026-10-27, W-ff313a14)
+
+The file-api `PORT` guard sat at two template sites, and its refusal test rendered both at once, so deleting
+either guard left the suite green: the other site still raised (review pass 1, C-1, executed by mutants D2/D3).
+The test now renders each site alone (label with no health block, healthcheck with no HTTP exposure) and
+asserts the other site is absent. Apply it to any refusal that more than one template line enforces.
 
 ## A guard over a template language asks that language's parser, never a regex (2026-10-27)
 
@@ -48,15 +68,24 @@
   language's own parser or analyser; a regex re-derives the grammar and drifts on the first form it forgets.
   And replay an item's proposed fix on the real corpus before adopting it.
 
+## A mutation battery proves nothing until each test passes unmutated (2026-10-27)
+
+- **What happened:** W-d5d1d394's review battery reported mutant M8 "killed" by a new test that in fact failed on
+  the unmutated code too — its matcher looked for `test_k:` where the line reads `test_k (call)`. The touched-slice
+  run caught it (1 failed of 899); the battery had read a red as a kill.
+- **Rule:** run every named test on the unmutated copy first and require a pass before a mutant's red counts
+  (`/fabrik-review` rule (4) says so; a hand-rolled battery must carry the BASELINE step itself).
+
 ## A census that re-implements a check must read every field the check reads (2026-10-26)
 
 - **What happened:** W-34d76a7a's MEASURE counted vanished `rule:` labels with a hand-written script that pooled the
   named entries' phrases but never read the matching entry's `clauses:` labels. It reported 11 of 185 lines newly lost
   on kaizen's latest cut; both design critiques replayed the real `_lint` and found 0 — every label named the line's
   own lintable entry, whose labels excuse exactly those story clauses (D-1258).
-- **Rule:** measure a proposed check by running the module's own functions on the real corpus (here `losses()` over a
-  real render, base vs new), never a re-implementation; a re-implementation is a second reading and drifts on the
-  first field it forgets.
+- **Rule:** measure a proposed check, or grade a change against one, by running the module's own functions on the real
+  corpus (here `losses()` over a real render, base vs new), never a re-implementation; a re-implementation is a second
+  reading and drifts on the first field it forgets. (W-da101088, 2026-10-27: a test that copied `check_structure.py`'s
+  placement rules disagreed with the gate on 6 of 16 probe paths; it now calls `check_structure.check_structure()`.)
 
 ## A measure built in a worktree must not read the disk (2026-10-25)
 

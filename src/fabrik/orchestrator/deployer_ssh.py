@@ -1401,6 +1401,15 @@ def _validate_compose(content: str) -> list[str]:
                     '(e.g. test: ["CMD-SHELL", "kill -0 1"]) or omit the block when the image '
                     "declares no HEALTHCHECK"
                 )
+            # Compose takes a duration only as a string ("10s"): an empty template line renders YAML
+            # null, and a bare number an int, and the VPS `compose up` refuses both (W-3197a125).
+            for key in ("interval", "timeout", "start_period", "start_interval"):
+                value = healthcheck.get(key)
+                if key in healthcheck and (not isinstance(value, str) or not value.strip()):
+                    errors.append(
+                        f"Service '{svc_name}': healthcheck.{key} must be a duration string such "
+                        f"as '10s' (got {value!r})"
+                    )
 
     # Network: fabrik external (renamed from `coolify` 2026-05-31; W12 of fleet-hardening plan).
     networks = data.get("networks", {})
@@ -1507,6 +1516,12 @@ def _assert_deployed_env_present(name: str) -> None:
         )
 
 
+def _raw_duration(health: dict[str, Any], key: str, default: str) -> object:
+    value = health.get(key)
+    unset = value is None or (isinstance(value, str) and not value.strip())  # as `Health` reads it
+    return default if unset else value
+
+
 def _generate_docker_compose(
     name: str,
     image: str,
@@ -1524,7 +1539,11 @@ def _generate_docker_compose(
     # nonzero otherwise — works in alpine, debian, ubuntu, distroless-busybox.
     health = spec.get("health", {}) if isinstance(spec.get("health"), dict) else {}
     health_path = health.get("path", "/health")
-    health_interval = health.get("interval", "30s")
+    # A raw spec dict never passes `Spec`: an absent, null or blank value takes the default (a
+    # model_dump'd spec carries `start_period: None`), and any other value is written as given so
+    # `_validate_compose` refuses a non-string one instead of it being swapped (W-3197a125).
+    health_interval = _raw_duration(health, "interval", "30s")
+    health_start_period = _raw_duration(health, "start_period", "20s")
     source = spec.get("source", {}) if isinstance(spec.get("source"), dict) else {}
     image_command = source.get("image_command")
 
@@ -1564,11 +1583,13 @@ def _generate_docker_compose(
     if not health.get("disabled"):
         lines += [
             "    healthcheck:",
-            f'      test: ["CMD-SHELL", "wget -q --spider http://localhost:{port}{health_path} || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
+            # The URL is single-quoted: a health path may hold `&`, `;` or parentheses
+            # (HEALTH_PATH_RE, checked by the apply validator), which the shell would read (W-ff313a14).
+            f'      test: ["CMD-SHELL", "wget -q --spider \'http://localhost:{port}{health_path}\' || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
             f"      interval: {health_interval}",
             "      timeout: 10s",
             "      retries: 3",
-            "      start_period: 20s",
+            f"      start_period: {health_start_period}",
         ]
     lines += [
         "    networks:",

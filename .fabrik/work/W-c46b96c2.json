@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "check whether the 10 repos already migrated; then apply the same one-bracketed-phrase shape rule infra uses for docs_updater --adopt (W-e89d7983)",
-  "note": "",
-  "owner": "infra",
+  "note": "measured 2026-10-27 (infra-3): all 10 repos carrying the older template rows already migrated (9 on 2026-09-27, before D-566; tryton-crm across five runs). migrate-backlog runs once per repo; a filter change would alter no store. Residue (54 junk items in 9 repos) routed to each repo by mail.",
+  "owner": "infra-3",
   "priority": 3,
   "score_reason": "migration runs once per repo; 10 repos may already be past it",
-  "status": "open",
+  "status": "dropped",
   "title": "work.py migrate-backlog still turns the OLDER scaffold template's example rows into open junk items: _TEMPLATE_PLACEHOLDER_LINES (scripts/work.py:2318, D-566) lists only the current template's exact lines; 10 repos carry the older rows ('[Specific Trigger]' capital T, '| **L** | [System Overhaul] |'), 20 rows"
 }

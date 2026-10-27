@@ -567,10 +567,21 @@ def test_rows_for_takes_only_the_parsed_values() -> None:
 # Pre-fix the stub derived its root from `__file__` alone, so every host-leg comparison row read UNVERIFIABLE.
 
 
+def _owner_only_modes(staged: Path) -> None:
+    """Give a staged `health_probe/` the modes a 022 umask gives (dirs 755, files 644), never what the
+    test process or the checkout happened to have. A merge leg runs under umask 002, where a copied or
+    freshly written copy is group-writable, and the stub rightly refuses it as "writable by others", so
+    a test meant to reach the stub's other branches was red only in merge legs (W-17fc722a)."""
+    staged.chmod(0o755)
+    for f in staged.rglob("*"):
+        f.chmod(0o755 if f.is_dir() else 0o644)
+
+
 def _flat_stage(dst_dir: Path) -> Path:
     """The recipe's staging layout: the stub beside a FLAT `health_probe/` copy of the comparator."""
     dst_dir.mkdir(parents=True, exist_ok=True)
     shutil.copytree(REPO / "libs" / "health_probe", dst_dir / "health_probe")
+    _owner_only_modes(dst_dir / "health_probe")
     stub = dst_dir / "verify_prod_parity.py"
     shutil.copy(TEMPLATE, stub)
     return stub
@@ -668,6 +679,7 @@ def test_parity_root_found_but_unusable_module_names_the_cause(
     (stage / "health_probe").mkdir(parents=True)
     (stage / "health_probe" / "__init__.py").write_text("")
     (stage / "health_probe" / "health_probe.py").write_text(body)
+    _owner_only_modes(stage / "health_probe")
     stub = stage / "verify_prod_parity.py"
     shutil.copy(TEMPLATE, stub)
     r = _run_as_documented(stub, "--json", cwd=tmp_path)
@@ -677,24 +689,29 @@ def test_parity_root_found_but_unusable_module_names_the_cause(
     assert cause in detail and "not vendored" not in detail and "row raised" not in detail, detail
 
 
-def test_parity_root_refuses_a_staged_copy_writable_by_others(tmp_path: Path) -> None:
+@pytest.mark.parametrize("mode", [0o777, 0o775], ids=["other-writable", "group-writable"])
+def test_parity_root_refuses_a_staged_copy_writable_by_others(tmp_path: Path, mode: int) -> None:
     """B7 — a shared /tmp lets another local user plant `health_probe/` beside the script: a staged
-    directory writable by group or others is REFUSED, the row is UNVERIFIABLE and the detail says why."""
+    directory writable by group or others is REFUSED, the row is UNVERIFIABLE and the detail says why.
+    The group-only case is its own row: a check narrowed to the other-write bit passes 0777."""
     stub = _flat_stage(tmp_path / "stage")
-    (tmp_path / "stage" / "health_probe").chmod(0o777)
+    (tmp_path / "stage" / "health_probe").chmod(mode)
     r = _run_as_documented(stub, "--json", cwd=tmp_path)
     l0 = _l0(r)
     assert l0["match"] is None, l0
     assert "writable by others" in str(l0["detail"]), l0
 
 
-def test_parity_root_refuses_a_staged_module_file_writable_by_others(tmp_path: Path) -> None:
+@pytest.mark.parametrize("mode", [0o666, 0o664], ids=["other-writable", "group-writable"])
+def test_parity_root_refuses_a_staged_module_file_writable_by_others(
+    tmp_path: Path, mode: int
+) -> None:
     """B8 — the check covers the module FILE, not only its directory: a `health_probe.py` writable by
     group or others inside an owned 0755 directory is REFUSED the same way (round 2 of the scoped review
     reproduced the gap: the directory passed both checks and a 0666 file was loaded and executed)."""
     stub = _flat_stage(tmp_path / "stage")
     (tmp_path / "stage" / "health_probe").chmod(0o755)
-    (tmp_path / "stage" / "health_probe" / "health_probe.py").chmod(0o666)
+    (tmp_path / "stage" / "health_probe" / "health_probe.py").chmod(mode)
     r = _run_as_documented(stub, "--json", cwd=tmp_path)
     l0 = _l0(r)
     assert l0["match"] is None, l0

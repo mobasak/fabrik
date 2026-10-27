@@ -1115,7 +1115,8 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
     conflicts on the five ledgers and key-wise-mergeable work-item files are auto-resolved, and any
     other conflicted path refuses first. Returns the merge commit."""
     res = _run(
-        ["git", *NO_HOOKS, "merge", "--no-ff", "--no-edit", "-q", "-m", message, other],
+        # --no-log: merge.log=true appends a shortlog after -m and the trailer block parses as none
+        ["git", *NO_HOOKS, "merge", "--no-ff", "--no-edit", "--no-log", "-q", "-m", message, other],
         TOOL_TIMEOUT_S,
         cwd=wt,
     )
@@ -1731,7 +1732,16 @@ def _merge_into_base(
                 ctx.notes.append(f"(d) attempt {attempt + 1}: {last} — back to (a)")
                 continue
             res = _run(
-                ["git", "update-ref", "-m", f"merge_request: {message}", HEADS + base, new, old],
+                # the reflog takes the subject: update-ref folds the trailer lines into one line
+                [
+                    "git",
+                    "update-ref",
+                    "-m",
+                    f"merge_request: {message.splitlines()[0]}",
+                    HEADS + base,
+                    new,
+                    old,
+                ],
                 GIT_TIMEOUT_S,
                 cwd=ctx.main,
             )
@@ -2053,8 +2063,51 @@ def _find_merge(ctx: _Ctx, rec: dict) -> str:
     return ""
 
 
+def _signed(ctx: _Ctx, subject: str, context: str) -> str:
+    """``subject`` plus ONE Agent Provenance Trailer paragraph (W-e914202a): the merge is the
+    owner's act, so Agent-Role orchestrator and the owner's Agent-Name — left out, with a note,
+    when the owner is outside the agent-name grammar. A multi-line value refuses: it would end
+    the paragraph or forge a trailer. No Merged-From: scratch_sweep reads it over merge commits,
+    where a reused branch name would read "merged" for ever."""
+    name = _norm(ctx.owner) if ctx.owner.isascii() else ""
+    lines = ["Agent-Role: orchestrator"]
+    if _AGENT_NAME_RE.fullmatch(name):
+        lines.append(f"Agent-Name: {name}")
+    else:
+        note = f"owner {ctx.owner!r} is outside the agent-name grammar — merge signed without Agent-Name"
+        if note not in ctx.notes:  # once per run: a rebuild signs again
+            ctx.notes.append(note)
+    lines.append(f"Agent-Context: {context}")
+    for value in (subject, context):
+        if not value or not _one_line(value):
+            raise RefusedError(f"merge message value {value!r} is not one line — not signed")
+    return "\n".join([subject, "", *lines])
+
+
+# Only what merge itself does: it never sees the requester's gate (`--review` is a path).
+GATE_DUTY = (
+    "gate: merge does not run final_gate — gating the merged result is the caller's duty; "
+    "merge itself runs only the owner tests"
+)
+
+
+def _gate_line(rec: dict) -> str:
+    """GATE_DUTY plus the request merge's owner-test summary (W-e914202a) — recorded by whichever
+    run built it; a catch-up's summary rides its own evidence line."""
+    tests = next(
+        (e[len("tests: ") :] for e in reversed(rec.get("evidence", [])) if e.startswith("tests: ")),
+        f"none recorded (resumed an existing merge {rec.get('merge_sha')})",
+    )
+    return f"{GATE_DUTY}; owner tests of the request merge: {tests}"
+
+
 def _merge_message(ctx: _Ctx, rec: dict) -> str:
-    return f"merge({ctx.owner}): {rec['branch']} — request {rec['id']}, item {rec.get('item') or 'none'}"
+    item = rec.get("item") or "none"
+    return _signed(
+        ctx,
+        f"merge({ctx.owner}): {rec['branch']} — request {rec['id']}, item {item}",
+        f"merge_request.py merged branch {rec['branch']} for request {rec['id']}, item {item}",
+    )
 
 
 def _validate_request(rec: dict) -> None:
@@ -2198,7 +2251,11 @@ def _catch_up(ctx: _Ctx, rec: dict, remote: str) -> None:
     local = _rev(ctx.main, HEADS + rec["base"])
     if _is_ancestor(ctx.main, origin, local):
         return
-    message = f"merge({ctx.owner}): catch up {remote}/{rec['base']} after request {rec['id']}"
+    message = _signed(
+        ctx,
+        f"merge({ctx.owner}): catch up {remote}/{rec['base']} after request {rec['id']}",
+        f"merge_request.py catch-up of {remote}/{rec['base']} after request {rec['id']}",
+    )
     old, new, snap, tests, on_base = _merge_into_base(ctx, rec, origin, message, catch_up=True)
     rec.setdefault("evidence", []).append(
         f"catch-up merge {new} of {remote}/{rec['base']} (tests: {tests})"
@@ -2258,6 +2315,9 @@ def _catch_up_refused(ctx: _Ctx, rec: dict, remote: str, exc: RefusedError) -> s
 
 def _after_cas(ctx: _Ctx, rec: dict, remote: str, resuming: bool) -> None:
     """(e)-(h): every step after the CAS. The merge is committed; nothing here undoes it."""
+    if GATE_DUTY not in rec.get("evidence", []):  # the reply carries it (W-e914202a)
+        rec.setdefault("evidence", []).append(GATE_DUTY)
+        _save(ctx, rec)
     if rec["phase"] == "catchup-refused":
         rec["phase"] = "carried"  # only an explicit resume reaches here: retry the catch-up
     if rec["phase"] == "merged":
@@ -2343,6 +2403,7 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
         for note in ctx.notes:
             print(f"merge_request: {note}", file=sys.stderr)
     print(f"merged {rec['id']} as {rec.get('merge_sha')}")
+    print(_gate_line(rec))
     for line in rec.get("not_carried", []):
         print(f"merge_request: NOT CARRIED — {line}", file=sys.stderr)
     return EXIT_OK
@@ -2520,9 +2581,15 @@ def _resume_stranded(ctx: _Ctx) -> int:
 # design critics executed it, ledger conflicts included). Any other order, or a base moved by code,
 # mismatches and that merge runs its leg as before: never a skip on a tree no leg passed.
 QUEUE_POLL_S = 2.0
-QUEUE_JOBS = 2  # two hub legs at 4 shards each = the 8 shards one leg takes today, on 24 CPUs
-QUEUE_MAX = 4  # 2 waves of ~16 min + 4 locked merges fit the documented 5400 s wrapper (D-1205)
-QUEUE_SHARDS = "4"  # FABRIK_MERGE_SHARDS for a child's selector when the caller set none
+# One leg at a time, at the owner script's own width: each leg keeps the per-leg limit
+# (TEST_TIMEOUT_S, or the base's declared one) sized for that width, so two legs at half width
+# each ran twice as long against it — every queue leg died at 1800 s on 2026-10-27 (4-shard shards
+# 603-1643 s; one 8-shard leg's shards 253-842 s). A later leg forks only once the first request
+# lands on a record (or has no tree to test), so it overlaps that landing, never the first's own
+# leg; `--jobs N` lets N such
+# later legs run at once, each at full width — only where the box has N legs' worth of free CPUs.
+QUEUE_JOBS = 1
+QUEUE_MAX = 4  # requests per pass; each lands within the wall below or waits for the next run
 QUEUE_WAIT_S = 1800  # how long the queue waits for a merge it did not start to finish
 # One landing may first wait QUEUE_WAIT_S for a merge lock another run holds (`_land`), then run a
 # whole locked merge with its own leg (its record did not match): the D-1205 wrapper's 5400 s. The
@@ -2530,7 +2597,17 @@ QUEUE_WAIT_S = 1800  # how long the queue waits for a merge it did not start to 
 # whole worst case still fits, so the wrapper never kills a merge mid-step. A merge's resume of
 # OTHER stranded records is not in it, exactly as it is not in the D-1205 wrapper.
 LANDING_WORST_S = QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIMEOUT_S + 300
-QUEUE_WALL_S = 9000
+# The wall also holds the chain build and the first wave: a leg of the longest limit any base may
+# declare (_declared_leg clamps to MERGE_TEST_BUDGET_S) still leaves a worst-case landing. A wall
+# with LANDING_WORST_S + 1800 landed nothing after a wave that used its limit (2026-10-27, elapsed
+# ~1818 s at the check). A leg forks only while it AND a landing after it fit (_leg_fits), so every
+# leg a wall return joins (one per --jobs slot) ends inside the wall. QUEUE_BUILD_S holds the chain
+# build before the first fork plus LEG_OVERHEAD_S: a child's own setup (its throwaway worktree, the
+# script read) and the leg's outer bound (+60). The _live_merge wait before a chain build (up to
+# QUEUE_WAIT_S) is not in it: after it the first request may land through its locked leg instead.
+QUEUE_BUILD_S = 300
+LEG_OVERHEAD_S = 120
+QUEUE_WALL_S = LANDING_WORST_S + MERGE_TEST_BUDGET_S + QUEUE_BUILD_S
 
 
 @contextlib.contextmanager
@@ -2668,9 +2745,6 @@ def _run_leg(ctx: _Ctx, el: dict, runner: str) -> int:
         f"the queue's leg for {el['id']} timed out or was killed ({{}}) — not a test verdict; its "
         "locked merge runs the leg itself"
     )
-    shards = os.environ.get("FABRIK_MERGE_SHARDS")
-    if shards is None:
-        os.environ["FABRIK_MERGE_SHARDS"] = QUEUE_SHARDS
     saved = os.environ.get("FABRIK_MERGE_TESTS_RECORDS")
     try:
         with tempfile.TemporaryDirectory(prefix="merge-pretest-records-") as private:
@@ -2693,8 +2767,6 @@ def _run_leg(ctx: _Ctx, el: dict, runner: str) -> int:
             os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
         else:
             os.environ["FABRIK_MERGE_TESTS_RECORDS"] = saved
-        if shards is None:
-            os.environ.pop("FABRIK_MERGE_SHARDS", None)
     print(f"merge_request: queue leg {el['id']}: {summary} in {seconds}s", file=sys.stderr)
     return 0
 
@@ -2736,6 +2808,15 @@ def _land(msg_id: str) -> int:
             if "another merge run holds" not in str(exc) or time.monotonic() > deadline:
                 raise
             time.sleep(QUEUE_POLL_S)
+
+
+def _leg_fits(started: float, script: str) -> bool:
+    """A leg forked now may run its whole limit (``_declared_leg``) plus LEG_OVERHEAD_S — its
+    setup (an estimate: no deadline bounds it) and the leg's 60 s outer bound — and still be
+    followed by a worst-case landing; else the leg cannot lead to a landing this run, and the
+    wall return would only wait on it."""
+    leg = _declared_leg(script) + LEG_OVERHEAD_S
+    return time.monotonic() - started + leg + LANDING_WORST_S <= QUEUE_WALL_S
 
 
 def _past_wall(started: float, waiting: int) -> bool:
@@ -2793,6 +2874,12 @@ def _queue(args: argparse.Namespace) -> int:
                         if not child.is_alive():
                             child.join()
                             del running[head]
+                    # a later leg forks only once the first request lands on a record (or has no
+                    # tree to test): else its locked merge runs its own leg, and a queue leg
+                    # beside it halves both
+                    first_on_record = first["at"] is None or _record_matches(
+                        ctx, first, script, runner
+                    )
                     for el in chain:
                         if len(running) >= jobs:
                             break
@@ -2800,15 +2887,26 @@ def _queue(args: argparse.Namespace) -> int:
                             continue
                         if _record_matches(ctx, el, script, runner) or el.get("leg_done"):
                             continue
+                        if (el is not first and not first_on_record) or not _leg_fits(
+                            started, script
+                        ):
+                            break
                         child = fork.Process(target=_leg_child, args=(ctx, el, runner))
                         child.start()
                         running[el["head"]] = child
                         el["leg_done"] = True  # one leg per element per chain build
                     if first["at"] is None or (
                         first["head"] not in running
-                        and (first.get("leg_done") or _record_matches(ctx, first, script, runner))
+                        and (
+                            first.get("leg_done")
+                            or _record_matches(ctx, first, script, runner)
+                            or not _leg_fits(started, script)
+                        )
                     ):
-                        break  # the first request is ready to land: tested, reused, or untestable
+                        # ready to land: its leg is over (green, red or killed), its record is
+                        # reused, it is untestable, or no leg fits any more — without a record
+                        # its locked merge runs its own leg, while a landing fits
+                        break
                     time.sleep(QUEUE_POLL_S)
                 if _past_wall(started, len(entries)):
                     return rc

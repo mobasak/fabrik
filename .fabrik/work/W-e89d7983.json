@@ -3,7 +3,7 @@
   "created": "2026-09-24T23:27:48.616904Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "a9f8a29d1d929cde61a7bab8119bc9598db95988",
   "id": "W-e89d7983",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — three confirmed mailed defects unstarted",
-  "status": "open",
+  "status": "done",
   "tags": [
     "needs-split"
   ],

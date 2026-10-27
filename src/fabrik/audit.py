@@ -162,7 +162,7 @@ def audit_postgres(spec: Any) -> AuditResult:
     if not applicable[0]:
         return AuditResult(status="n/a", detail=applicable[1])
     # The registrar's name rule (depends.postgres wins), validated before any
-    # SQL because depends.postgres carries no pattern at load time.
+    # SQL: a `Spec` checks depends.postgres at load, a raw spec dict does not.
     try:
         db_name = _db_name_for_spec(_spec_to_dict(spec))
         _validate_identifier(db_name, "database")
