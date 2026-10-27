@@ -421,13 +421,23 @@ def _decoding_run(stdout: bytes, stderr: bytes = b"", rc: int = 0):
 def test_an_undecodable_answer_is_a_runtime_error_without_the_bytes(monkeypatch):
     monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
     monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    import traceback
+
+    from fabrik.drivers.ssh import UndecodableAnswerError
+
     with patch("subprocess.run", _decoding_run(b"TOKEN=s3cr\xe9t\n")):
-        with pytest.raises(RuntimeError) as info:
+        with pytest.raises(UndecodableAnswerError) as info:
             ssh("sudo cat /opt/x/.env")
     msg = str(info.value)
+    assert isinstance(info.value, RuntimeError)
     assert "'vps'" in msg and "not valid UTF-8" in msg
     assert "s3cr" not in msg and "0xe9" not in msg and "\\xe9" not in msg
     assert info.value.__cause__ is None and info.value.__context__ is None
+    # nor does the raising frame keep the output alive for a locals-capturing reporter
+    frames = [
+        f for f, _ in traceback.walk_tb(info.value.__traceback__) if f.f_code.co_name == "ssh"
+    ]
+    assert frames and not any("s3cr" in repr(v) for f in frames for v in f.f_locals.values())
 
 
 @pytest.mark.parametrize("call", ["ssh", "scp"])
@@ -438,12 +448,17 @@ def test_undecodable_stderr_never_hides_the_exit_code(call, monkeypatch):
     def go():
         return ssh("cat /opt/x/.env") if call == "ssh" else scp_to_vps("/tmp/a", "/opt/b")
 
-    failed = _decoding_run(b"", b"cat: /opt/x/.env: Datei nicht gefunden \xe9", rc=2)
+    failed = _decoding_run(b"", b"cat: /opt/x/.env: Datei nicht gefunden \xe9 TOKEN=ab\xe9cd", rc=2)
     with patch("subprocess.run", failed):
         with pytest.raises(
             RuntimeError, match=r"failed \(rc=2\): 'cat: /opt/x/\.env: Datei nicht gefunden"
-        ):
+        ) as info:
             go()
+    msg = str(info.value)
+    # the escaped byte is SHOWN, never left as a lone surrogate a UTF-8 log sink cannot encode,
+    # and the secret mask still covers a value holding one
+    assert "\\xe9" in msg and "TOKEN=<redacted>" in msg and "cd" not in msg.split("TOKEN=")[1]
+    msg.encode("utf-8")
     with patch("subprocess.run", _decoding_run(b"ok\n", b"warning: caf\xe9", rc=0)):
         assert go() == ("ok" if call == "ssh" else None)
 

@@ -22,6 +22,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from fabrik.drivers.ssh import UndecodableAnswerError
 from fabrik.env_file import EnvTemplate
 from fabrik.env_file import format_env as _format_env
 from fabrik.env_file import parse_env as _parse_env
@@ -587,6 +588,13 @@ class SSHDeployer:
             )
             try:
                 _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+            except UndecodableAnswerError:
+                # `up --wait` exited 0 — the services are up and healthy — and only its output was not
+                # UTF-8. Rolling back would tear down a healthy deploy (W-5597922e review).
+                logger.warning(
+                    "Redeploy of %s: compose up succeeded but its output was not UTF-8 (not read)",
+                    name,
+                )
             except (RuntimeError, subprocess.TimeoutExpired) as err:
                 logger.error(
                     "Redeploy of %s failed health check; rolling back to %s",
