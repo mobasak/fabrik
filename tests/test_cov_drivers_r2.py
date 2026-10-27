@@ -63,7 +63,11 @@ def test_init_reads_env(monkeypatch, http):
     monkeypatch.setenv("R2_BUCKET", "envbkt")
     monkeypatch.setenv("R2_PUBLIC_URL", "https://pub")
     c = R2Client()
-    assert (c.account_id, c.access_key_id, c.secret_access_key) == ("envacct", "envkey", "envsecret")
+    assert (c.account_id, c.access_key_id, c.secret_access_key) == (
+        "envacct",
+        "envkey",
+        "envsecret",
+    )
     assert c.bucket == "envbkt"
     assert c.public_url == "https://pub"
 

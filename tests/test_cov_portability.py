@@ -62,8 +62,20 @@ def root(tmp_path: Path) -> Path:
 
 @pytest.mark.parametrize(
     "key",
-    ["password", "DB_PASSWORD", "jwt_secret", "api-key", "apiKey", "private_key", "auth", "users",
-     "env", "credentials", "webhook_url", "Token"],
+    [
+        "password",
+        "DB_PASSWORD",
+        "jwt_secret",
+        "api-key",
+        "apiKey",
+        "private_key",
+        "auth",
+        "users",
+        "env",
+        "credentials",
+        "webhook_url",
+        "Token",
+    ],
 )
 def test_key_is_sensitive_true(key):
     assert p._key_is_sensitive(key)
@@ -75,8 +87,12 @@ def test_key_is_sensitive_false(key):
 
 
 def test_redact_sensitive_fields_recurses_dicts_and_lists():
-    obj = {"a": 1, "password": "pw", "repos": [{"uri": "s3://x", "env": ["AWS=1"]}],
-           "auth": {"users": [{"n": "u"}]}}
+    obj = {
+        "a": 1,
+        "password": "pw",
+        "repos": [{"uri": "s3://x", "env": ["AWS=1"]}],
+        "auth": {"users": [{"n": "u"}]},
+    }
     out = p._redact_sensitive_fields(obj)
     assert out["a"] == 1
     assert out["password"] == "REDACTED"
@@ -90,7 +106,13 @@ def test_redact_sensitive_fields_recurses_dicts_and_lists():
 
 
 def test_strip_uuids_removes_keys_and_uuid_shaped_strings():
-    obj = {"uuid": "z", "id": 3, "keep": "ok", "u24": "a" * 24, "l": ["b" * 24, "short", {"server_uuid": 1, "x": 2}]}
+    obj = {
+        "uuid": "z",
+        "id": 3,
+        "keep": "ok",
+        "u24": "a" * 24,
+        "l": ["b" * 24, "short", {"server_uuid": 1, "x": 2}],
+    }
     assert p._strip_uuids(obj) == {"keep": "ok", "u24": None, "l": [None, "short", {"x": 2}]}
 
 
@@ -143,7 +165,10 @@ def test_collect_state_missing_dir(tmp_path):
     assert p._collect_state(tmp_path) == {}
 
 
-@pytest.mark.xfail(strict=True, reason="_collect_state crashes (AttributeError on .pop) when a state file is valid JSON but not an object")
+@pytest.mark.xfail(
+    strict=True,
+    reason="_collect_state crashes (AttributeError on .pop) when a state file is valid JSON but not an object",
+)
 def test_collect_state_non_object_json_does_not_crash(root):
     (root / ".fabrik" / "state" / "list.json").write_text("[1, 2]")
     p._collect_state(root)
@@ -189,8 +214,11 @@ def test_collect_monitoring_remote_skips_none(monkeypatch):
 
     monkeypatch.setattr(p, "_ssh_cat", fake)
     out = p._collect_monitoring_remote()
-    assert set(out) == {"monitoring/prometheus.yml", "monitoring/redis-assignments.json",
-                        "monitoring/postgres-allocations.json"}
+    assert set(out) == {
+        "monitoring/prometheus.yml",
+        "monitoring/redis-assignments.json",
+        "monitoring/postgres-allocations.json",
+    }
     assert out["monitoring/prometheus.yml"].endswith("prometheus.yml")
 
 
@@ -244,8 +272,13 @@ def test_collect_authelia_empty_yaml_document(monkeypatch):
 
 
 def test_collect_backrest_redacts(monkeypatch):
-    raw = json.dumps({"repos": [{"uri": "s3://b", "password": "pw", "env": ["K=V"]}],
-                      "auth": {"users": [{"name": "u", "passwordBcrypt": "h"}]}, "instance": "i"})
+    raw = json.dumps(
+        {
+            "repos": [{"uri": "s3://b", "password": "pw", "env": ["K=V"]}],
+            "auth": {"users": [{"name": "u", "passwordBcrypt": "h"}]},
+            "instance": "i",
+        }
+    )
     monkeypatch.setattr(p, "_ssh_cat", lambda path: raw)
     out = p._collect_backrest()["backrest/config.json"]
     assert "pw" not in out and "K=V" not in out and '"h"' not in out
@@ -297,19 +330,35 @@ def test_add_text_roundtrip():
 
 def test_export_bundle_skip_remote(root, tmp_path):
     out = tmp_path / "deep" / "dir" / "b.tar.gz"
-    res = p.export_bundle(out, fabrik_root=root, skip_remote=True, source_vps="vpsX", include_data=True)
+    res = p.export_bundle(
+        out, fabrik_root=root, skip_remote=True, source_vps="vpsX", include_data=True
+    )
     assert res == out and out.exists()
     files = _members(out)
     assert set(files) == {
-        "manifest.json", "README.md", "secrets-redacted.json",
-        "specs/services/a.yaml", "specs/services/b.yaml", "state/svc.json",
+        "manifest.json",
+        "README.md",
+        "secrets-redacted.json",
+        "specs/services/a.yaml",
+        "specs/services/b.yaml",
+        "state/svc.json",
         "configs/grafana/dashboards/d.json",
     }
     manifest = json.loads(files["manifest.json"])
     assert manifest["source_vps"] == "vpsX" and manifest["include_data"] is True
-    assert manifest["sections"] == {"specs": 2, "state": 1, "monitoring": 1, "authelia": 0,
-                                    "backrest": 0, "secrets_redacted_keys": 3}
-    assert json.loads(files["secrets-redacted.json"]) == {"BAR": "REDACTED", "FOO": "REDACTED", "_OK": "REDACTED"}
+    assert manifest["sections"] == {
+        "specs": 2,
+        "state": 1,
+        "monitoring": 1,
+        "authelia": 0,
+        "backrest": 0,
+        "secrets_redacted_keys": 3,
+    }
+    assert json.loads(files["secrets-redacted.json"]) == {
+        "BAR": "REDACTED",
+        "FOO": "REDACTED",
+        "_OK": "REDACTED",
+    }
     assert "secretvalue" not in "".join(files.values())
     assert "coolify_uuid" not in files["state/svc.json"]
     assert "vpsX" in files["README.md"]
@@ -336,7 +385,9 @@ def test_export_bundle_skip_remote_never_calls_ssh(root, tmp_path, monkeypatch):
 
 
 def test_export_bundle_empty_root(tmp_path):
-    files = _members(p.export_bundle(tmp_path / "b.tar.gz", fabrik_root=tmp_path / "empty", skip_remote=True))
+    files = _members(
+        p.export_bundle(tmp_path / "b.tar.gz", fabrik_root=tmp_path / "empty", skip_remote=True)
+    )
     assert set(files) == {"manifest.json", "README.md", "secrets-redacted.json"}
     assert json.loads(files["secrets-redacted.json"]) == {}
 
@@ -374,8 +425,13 @@ def test_import_real_run_is_stub(root, tmp_path):
 def test_import_dot_prefixed_names_and_legacy_count(tmp_path):
     t = _make_tar(
         tmp_path / "legacy.tar.gz",
-        {"./manifest.json": '{"version": 1}', "./secrets-redacted.json": '{"Z": "R", "A": "R"}',
-         "./specs/services/a.yaml": "x", "./coolify/one.json": "{}", "./coolify/two.json": "{}"},
+        {
+            "./manifest.json": '{"version": 1}',
+            "./secrets-redacted.json": '{"Z": "R", "A": "R"}',
+            "./specs/services/a.yaml": "x",
+            "./coolify/one.json": "{}",
+            "./coolify/two.json": "{}",
+        },
         dirs=("./coolify/sub",),
     )
     plan = p.import_bundle(t)
@@ -386,7 +442,9 @@ def test_import_dot_prefixed_names_and_legacy_count(tmp_path):
 
 
 def test_import_without_manifest_or_secrets(tmp_path):
-    t = _make_tar(tmp_path / "m.tar.gz", {"backrest/config.json": "{}", "authelia/configuration.yml": "a"})
+    t = _make_tar(
+        tmp_path / "m.tar.gz", {"backrest/config.json": "{}", "authelia/configuration.yml": "a"}
+    )
     plan = p.import_bundle(t)
     assert plan["manifest"] is None
     assert plan["secrets_to_repopulate"] == []

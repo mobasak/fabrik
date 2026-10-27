@@ -59,9 +59,7 @@ class FakeClient:
                 return FakeResp(s.fail_list_status, b"list boom")
             prefix = url.split("?prefix=", 1)[1].split("&", 1)[0]
             base = url.split("?", 1)[0]
-            keys = [
-                u[len(base) + 1 :] for u in s.objects if u.startswith(f"{base}/{prefix}")
-            ]
+            keys = [u[len(base) + 1 :] for u in s.objects if u.startswith(f"{base}/{prefix}")]
             xml = "".join(f"<Key>{k}</Key>" for k in keys)
             return FakeResp(200, xml.encode())
         if url in s.objects:
@@ -350,7 +348,9 @@ def test_load_uses_meta_pointer_fast_path(store):
 def test_load_falls_back_to_list_and_picks_highest_step(store):
     pre = "fabrik-gpu-checkpoints/p/r/"
     for step in (2, 10, 9):
-        store.objects[_url(f"{pre}checkpoint-{step:08d}-20260101T000000Z.tar.gz")] = f"s{step}".encode()
+        store.objects[_url(f"{pre}checkpoint-{step:08d}-20260101T000000Z.tar.gz")] = (
+            f"s{step}".encode()
+        )
     payload, meta = gc.load_latest_checkpoint("p", "r")
     assert payload == b"s10"
     assert meta["via"] == "list_fallback"

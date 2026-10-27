@@ -26,16 +26,16 @@ def state_file(tmp_path, monkeypatch):
 
 
 def _mk(sid="s1", **kw):
-    args = dict(
-        provider="runpod",
-        kind="pod-h100",
-        workload="w",
-        resource_type="pod",
-        resource_id="pod-1",
-        gpu_type_id="H100",
-        max_lifetime_hours=4,
-        cost_estimate_usd=12.0,
-    )
+    args = {
+        "provider": "runpod",
+        "kind": "pod-h100",
+        "workload": "w",
+        "resource_type": "pod",
+        "resource_id": "pod-1",
+        "gpu_type_id": "H100",
+        "max_lifetime_hours": 4,
+        "cost_estimate_usd": 12.0,
+    }
     args.update(kw)
     return gpu_state.upsert(sid, **args)
 
@@ -90,7 +90,10 @@ def test_load_preserves_newer_schema(state_file):
     assert "a" in st["sessions"]
 
 
-@pytest.mark.xfail(strict=True, reason="gpu_state.py:81-82 non-dict JSON (list) raises TypeError instead of falling back to empty")
+@pytest.mark.xfail(
+    strict=True,
+    reason="gpu_state.py:81-82 non-dict JSON (list) raises TypeError instead of falling back to empty",
+)
 def test_load_non_dict_json_is_treated_as_corrupt(state_file):
     state_file.parent.mkdir(parents=True)
     state_file.write_text("[1, 2]")
@@ -362,9 +365,7 @@ def test_reconcile_orphans_and_foreign():
 def test_reconcile_tracked_live_not_orphan_or_foreign():
     _mk("a", resource_id="p1")
     _mk("b", resource_type="endpoint", resource_id="e1")
-    rep = gpu_state.reconcile(
-        FakeClient(pods=[{"id": "p1"}], endpoints=[{"id": "e1"}])
-    )
+    rep = gpu_state.reconcile(FakeClient(pods=[{"id": "p1"}], endpoints=[{"id": "e1"}]))
     assert rep["orphan_pods"] == [] and rep["orphan_endpoints"] == []
     assert rep["foreign_count"] == 0
 
