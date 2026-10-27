@@ -94,15 +94,17 @@ project = Path(sys.argv[1])
 real = Path
 orch_mod.Path = lambda *p: project if len(p) == 1 and str(p[0]).startswith("/opt/") else real(*p)
 ctx = DeploymentContext(spec_path=real("test.yaml"))
-DeploymentOrchestrator()._load_secrets(ctx, {"id": "x", "secrets": {"from_env": ["API_KEY"]}})
-print(ctx.secrets["API_KEY"].encode("utf-8").hex())
+secrets = {"from_env": ["API_KEY"], "from_file": {"FILE_KEY": str(project / "token.txt")}}
+DeploymentOrchestrator()._load_secrets(ctx, {"id": "x", "secrets": secrets})
+print(ctx.secrets["API_KEY"].encode("utf-8").hex(), ctx.secrets.get("FILE_KEY", "").encode().hex())
 """
 
 
-def test_utf8_env_is_read_as_utf8_under_an_ascii_locale(tmp_path) -> None:
+def test_utf8_secrets_are_read_as_utf8_under_an_ascii_locale(tmp_path) -> None:
     project = tmp_path / "x"
     project.mkdir()
     (project / ".env").write_bytes("API_KEY=şifre\n".encode())
+    (project / "token.txt").write_bytes("gizli-ğ\n".encode())
     src = Path(orch_mod.__file__).resolve().parents[2]
     env = {k: v for k, v in os.environ.items() if not k.startswith(("LC_", "PYTHON"))}
     env.update(LANG="C", LC_ALL="C", PYTHONCOERCECLOCALE="0", PYTHONPATH=str(src))
@@ -114,4 +116,4 @@ def test_utf8_env_is_read_as_utf8_under_an_ascii_locale(tmp_path) -> None:
         timeout=60,
     )
     assert probe.returncode == 0, probe.stderr[-800:]
-    assert probe.stdout.strip() == "şifre".encode().hex()
+    assert probe.stdout.split() == ["şifre".encode().hex(), "gizli-ğ".encode().hex()]
