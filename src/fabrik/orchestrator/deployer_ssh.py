@@ -22,6 +22,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from fabrik.drivers.ssh import UndecodableAnswerError
 from fabrik.env_file import EnvTemplate
 from fabrik.env_file import format_env as _format_env
 from fabrik.env_file import parse_env as _parse_env
@@ -202,9 +203,10 @@ def app_dir(spec: dict[str, Any] | Spec) -> list[str]:
 
 
 _PS_KEYS = ("Service", "State", "Health", "ExitCode")
-# Everything the ssh driver's subprocess.run can raise (drivers/ssh.py:99): a failed command
-# (RuntimeError), a missing ssh binary or fork failure (OSError), undecodable stdout
-# (UnicodeDecodeError is a ValueError) and the timeout. probe_app RETURNS these, never raises.
+# Everything the ssh driver (`fabrik.drivers.ssh.ssh`) can raise: a failed command or an answer
+# that is not valid UTF-8 (RuntimeError, W-5597922e), a missing ssh binary or fork failure
+# (OSError), a bad host alias or jump setting (SshHostError / JumpConfigError are ValueErrors) and
+# the timeout. probe_app RETURNS these, never raises.
 _SSH_FAILURES = (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired)
 
 # Printed by the remote shell when a compose filename does not exist (_read_compose_from_vps), so
@@ -586,6 +588,13 @@ class SSHDeployer:
             )
             try:
                 _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+            except UndecodableAnswerError:
+                # `up --wait` exited 0 — the services are up and healthy — and only its output was not
+                # UTF-8. Rolling back would tear down a healthy deploy (W-5597922e review).
+                logger.warning(
+                    "Redeploy of %s: compose up succeeded but its output was not UTF-8 (not read)",
+                    name,
+                )
             except (RuntimeError, subprocess.TimeoutExpired) as err:
                 logger.error(
                     "Redeploy of %s failed health check; rolling back to %s",

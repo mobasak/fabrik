@@ -73,6 +73,38 @@ def _one_line(text: str, empty: str = "no stderr") -> str:
     return repr(masked) if masked else empty
 
 
+# Remote output is read as UTF-8 whatever the hub's locale, with `surrogateescape` so the decode itself never
+# raises (`ssh` and `scp_to_vps` pass both): a stray byte used to raise UnicodeDecodeError inside
+# subprocess.run, before the return code was read — hiding a failed command's rc and stderr, crashing a
+# successful one, and slipping past every caller that catches the driver's RuntimeError (W-5597922e). stderr
+# only feeds a message, so its escaped bytes are shown as `\xNN`; stdout is DATA, so an escaped byte there is
+# refused (`_undecodable`), never handed on.
+_REMOTE_ENCODING = "utf-8"
+_REMOTE_ERRORS = "surrogateescape"
+
+
+class UndecodableAnswerError(RuntimeError):
+    """A command that SUCCEEDED (rc 0) answered with stdout that is not valid UTF-8. A RuntimeError, so every
+    caller that handles a failed command handles it; a caller that ignores the output and whose next step is
+    destructive (the redeploy's rollback) catches it first — the remote step itself succeeded."""
+
+
+def _shown(text: str) -> str:
+    """Remote ``text`` with each escaped (undecodable) byte written as ``\\xNN`` (``_one_line``'s ``repr``
+    then doubles the backslash)."""
+    return text.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+
+
+def _undecodable(text: str) -> bool:
+    """True when ``text`` holds a lone surrogate — decoding with ``surrogateescape`` yields one (U+DC80..U+DCFF)
+    for each byte that was not valid UTF-8, and valid UTF-8 never decodes to one."""
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        return True
+    return False
+
+
 def _ssh_host() -> str:
     """Return the SSH host alias, reading ``FABRIK_VPS_SSH_HOST`` at call time.
 
@@ -195,7 +227,8 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
 
     Raises:
         RuntimeError: SSH returned a non-zero exit code. Stderr is included
-            in the exception message for quick diagnosis.
+            in the exception message for quick diagnosis. Also raised, naming
+            no byte, when a successful command's stdout is not valid UTF-8.
         subprocess.TimeoutExpired: The SSH call exceeded ``timeout`` seconds.
         JumpConfigError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
         SshHostError: ``FABRIK_VPS_SSH_HOST`` is not an ssh alias.
@@ -216,6 +249,8 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
             ["ssh", *_jump_opts(jump), host, cmd],
             capture_output=True,
             text=True,
+            encoding=_REMOTE_ENCODING,
+            errors=_REMOTE_ERRORS,
             timeout=timeout,
             check=False,
         )
@@ -236,8 +271,14 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         # forcing a mid-deploy credential rotation) — and on one line (W-9a560686).
         raise RuntimeError(
             f"SSH to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-            f"{_one_line(result.stderr)}"
+            f"{_one_line(_shown(result.stderr))}"
         )
+    if _undecodable(result.stdout):
+        # The output may be a whole .env: the message names no byte, the raise sits outside any except
+        # block of the driver's own (no decode error as __context__), and `result` is dropped first so the
+        # traceback's frame holds no reference to the text either.
+        del result
+        raise UndecodableAnswerError(f"SSH to {host!r}{_via(jump)}: the answer is not valid UTF-8")
     return result.stdout.strip()
 
 
@@ -276,13 +317,15 @@ def scp_to_vps(
         ["scp", *_jump_opts(jump), "--", local_path, f"{host}:{remote_path}"],
         capture_output=True,
         text=True,
+        encoding=_REMOTE_ENCODING,
+        errors=_REMOTE_ERRORS,
         timeout=timeout,
         check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
             f"SCP to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-            f"{_one_line(result.stderr)}"
+            f"{_one_line(_shown(result.stderr))}"
         )
 
 
