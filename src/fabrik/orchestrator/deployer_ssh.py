@@ -22,6 +22,9 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from fabrik.env_file import EnvTemplate
+from fabrik.env_file import format_env as _format_env
+from fabrik.env_file import parse_env as _parse_env
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.exceptions import DeployError, ProvisioningError
 from fabrik.spec_loader import OWNER_ENV_FILE, OWNER_ENV_KEYS, Source, SourceType, Spec
@@ -948,7 +951,9 @@ class SSHDeployer:
             existing_val = merged.get(key)
             if _is_placeholder(value) and existing_val and not _is_placeholder(existing_val):
                 continue  # keep the registrar-injected real value
-            merged[key] = value
+            # A spec value's `$` is a compose interpolation (`${LOG_LEVEL:-INFO}`), written bare;
+            # every other value's `$` is literal and is escaped (fabrik.env_file).
+            merged[key] = EnvTemplate(value) if "$" in value else value
 
         merged.update(overrides or {})
 
@@ -1038,83 +1043,9 @@ def _is_placeholder(value: str) -> bool:
     return "placeholder" in value.lower() or bool(_INTERPOLATION_RE.fullmatch(value))
 
 
-def _closing_quote(value: str) -> int:
-    """Index of the quote closing ``value[0]``, or -1 when unterminated.
-
-    Inside double quotes a backslash escapes the next character (the form
-    ``_format_env`` writes); single quotes have no escapes.
-    """
-    quote, i = value[0], 1
-    while i < len(value):
-        if quote == '"' and value[i] == "\\":
-            i += 2
-            continue
-        if value[i] == quote:
-            return i
-        i += 1
-    return -1
-
-
-def _parse_env(content: str) -> dict[str, str]:
-    """Parse a .env file into a dict, ignoring comments and blank lines."""
-    result: dict[str, str] = {}
-    for line in content.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        # `export KEY=…` (a shell-sourceable .env) is the key KEY — for read_env's
-        # decision and inject_env's merge alike, or the merge writes a second key.
-        if key.startswith("export "):
-            key = key[len("export ") :].strip()
-        # Strip surrounding quotes — and UNESCAPE a double-quoted value, mirroring
-        # `_format_env`'s escaping. Without the unescape the round-trip corrupts:
-        # write escapes `\"` -> read strips the wrapper but leaves the backslashes ->
-        # the next write escapes them AGAIN, so a value grows a backslash per apply.
-        value = value.strip()
-        # A value that OPENS with a quote and is followed by only `# comment`
-        # (`K="v" # note`) is the quoted content; an unterminated quote or any other
-        # tail keeps the rule below.
-        if value[:1] in ("'", '"'):
-            end = _closing_quote(value)
-            if end > 0 and value[end + 1 :].strip()[:1] in ("", "#"):
-                value = value[: end + 1]
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-            quote = value[0]
-            value = value[1:-1]
-            if quote == '"':
-                value = value.replace('\\"', '"').replace("\\\\", "\\")
-        result[key] = value
-    return result
-
-
-def _format_env(env: dict[str, str]) -> str:
-    """Format a dict as .env file content."""
-    lines = []
-    for key, value in sorted(env.items()):
-        # Quote values with spaces or special chars — and ESCAPE when we do.
-        #
-        # The escape is the fix (2026-08-31). The old code wrapped without it:
-        # `value = f'"{value}"'`. A JSON secret contains `"`, so it shipped as
-        # `K="{"a":"b"}"` and Compose read the first inner quote as a NEW VARIABLE
-        # NAME — `failed to read .env: unexpected character '"' in variable name` —
-        # breaking `docker compose build` for EVERY value carrying a quote on the
-        # fleet. Measured live on tryton-crm's CONSUMER_TOKENS: two byte-identical
-        # apply failures.
-        #
-        # The QUOTE TRIGGER is deliberately unchanged. Dropping it for spaces (a
-        # compose env_file reads to end-of-line, so `K=a b` parses) broke
-        # `TestFormatEnv::test_quotes_spaces`, which encodes a real contract: the
-        # file must stay safe for a shell `source`, where a bare `K=a b` word-splits.
-        # Verified live that Compose unescapes correctly: `K="{\"a\":\"b\"}"`
-        # resolves to `{"a":"b"}`. `_parse_env` carries the matching unescape.
-        if any(c in value for c in (" ", "#", "'", '"', "\n")):
-            value = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-        lines.append(f"{key}={value}")
-    return "\n".join(lines) + "\n" if lines else ""
+# The line `_read_env_file` echoes between `.env` and `.env.owner`: no `=`, so a .env parser skips
+# it, and no shell metacharacter (a leading `#` would make it a shell comment), so it needs no quoting.
+_OWNER_SEPARATOR = "__fabrik_env_owner_follows__"
 
 
 def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
@@ -1127,7 +1058,8 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
     :meth:`SSHDeployer._build_env` (the deploy/redeploy merge). ONE probe and ONE
     read, as before the owner split: the probe answers ``present``/``absent`` for ``.env`` on
     its first line and ``owner`` on a second line when ``.env.owner`` exists; the read is then
-    today's ``sudo cat <env>`` alone, or ``sudo sh -c 'cat <env> && echo && cat <owner>'`` —
+    today's ``sudo cat <env>`` alone, or ``sudo sh -c 'cat <env> && echo && echo <separator> && cat
+    <owner>'`` —
     chained with ``&&`` so a failed read of EITHER file is a non-zero exit the ssh driver raises
     on (a ``;`` chain exits with the LAST cat's status and would hand back the owner keys alone
     as the merged view — executed in Phase A's review), and the ``echo`` is a SEPARATOR,
@@ -1136,6 +1068,12 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
     approval panel: the owner key vanished from the parse and the owner DSN rode into
     ``REDIS_URL``'s value, which the next write would have put back into ``.env``). The owner
     file's keys parse LAST, so they win a shared key (a stale copy left in ``.env``).
+
+    The two files are PARSED APART: ``echo <_OWNER_SEPARATOR>`` follows the separator ``echo``
+    and the content is split on that line, because a quoted value may span lines and an unterminated
+    quote in ``.env`` would otherwise read the owner file into an app key — which the next write
+    puts into ``.env`` (W-2ae286e2 critique). An unterminated quote raises (compose refuses the same
+    file), so the read fails closed.
     """
     env_path = f"{path}/.env"
     owner_path = f"{path}/{OWNER_ENV_FILE}"
@@ -1159,13 +1097,33 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
         if first != "present" or len(lines) > 2 or (len(lines) == 2 and lines[1] != "owner"):
             raise DeployError(f"cannot read {env_path}: unexpected probe answer {probe[:40]!r}")
         if len(lines) == 2:
-            cat = f"cat {shlex.quote(env_path)} && echo && cat {shlex.quote(owner_path)}"
+            cat = (
+                f"cat {shlex.quote(env_path)} && echo && echo {_OWNER_SEPARATOR} && "
+                f"cat {shlex.quote(owner_path)}"
+            )
             content = _ssh(f"sudo sh -c {shlex.quote(cat)}", timeout=10)
+            # The separator is matched as a whole LINE, never as `\n<sep>\n`: the ssh driver
+            # strips the output, so an empty `.env` puts it on the first line and an empty
+            # `.env.owner` on the last. The LAST such line wins — the owner file is ours, `.env`
+            # may carry hand-written text.
+            lines = content.split("\n")
+            at = [i for i, ln in enumerate(lines) if ln.rstrip("\r") == _OWNER_SEPARATOR]
+            if not at:
+                raise DeployError(f"cannot read {env_path}: the owner separator is missing")
+            app_text = "\n".join(lines[: at[-1]])
+            owner_text = "\n".join(lines[at[-1] + 1 :])
         else:
-            content = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+            app_text = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+            owner_text = ""
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         raise DeployError(f"cannot read {env_path}: {e}") from e
-    return _parse_env(content)
+    merged: dict[str, str] = {}
+    for file_path, text in ((env_path, app_text), (owner_path, owner_text)):
+        try:
+            merged.update(_parse_env(text))
+        except ValueError as e:  # the message names the key and line, never the value
+            raise DeployError(f"cannot read {file_path}: {e}") from None
+    return merged
 
 
 def _split_env(env: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:

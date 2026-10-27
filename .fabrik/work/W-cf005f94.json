@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "D-1041/D-1042: per repo, one coordinator in VS Code in the main checkout, 3+ builders in tmux via the repo's desktop .bat (W-bb6c9d9a), each in its worktree. Per-repo state and steps: docs/reference/repo-coordinator-rollout-repos.md (W-172faaa3). Once W-a48f253f (the fabrik-lib pilot) is confirmed, web-ecommerce-factory goes FIRST: its coordinator is named wef2-coordinator (agents_up.sh skips only *-coordinator names), which needs a 'supersedes D-198: MERGE OWNER: wef2-coordinator' row in wef's docs/DECISIONS.md; wef1 and wef3 are the builders (wef1 is currently off its worktree-wef1 branch). Then the rest one repo at a time, each mailed its section as a request and tracked to confirmed",
+  "next": "Re-measured live 2026-10-27 (43 /opt repos): fabrik-lib, web-ecommerce-factory, youtube fully rolled out; 38 have no agents (nothing owed until they get some). Left: tryton-crm (4 gaps; brief mail 01M5XVJG4F to agent-1) and brand-identiy-creator (all phases; brief mail 01M5XVJGKF to bic1, inbox 213 unread). Both repos have no live session: the operator must open their coordinator windows (runbook operator step 1) before either can act. Then track both replies to confirmed, write each desktop .bat (runbook The Windows side), close.",
   "note": "",
   "owner": "fleet",
   "priority": 2,

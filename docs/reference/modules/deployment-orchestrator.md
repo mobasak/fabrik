@@ -48,6 +48,7 @@ fabrik apply spec.yaml              # Full deployment — the orchestrator is th
 | `context.py` | 83 | `DeploymentContext`, `ResourceRecord` — shared state across stages; every rollback-able resource calls `ctx.add_resource(...)` |
 | `exceptions.py` | 64 | Typed exceptions (`ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`) |
 | `secrets.py` | 137 | `SecretsManager` — `get()` precedence: env vars → project `.env` → CSPRNG generate (`secrets.choice()`, 32-char alphanumeric). (NB the orchestrator `from_env` path reads `.env` before env vars — the two paths differ.) |
+| `../env_file.py` | — | The `.env` codec (`format_env`, `parse_env`, `EnvTemplate`) — compose's dotenv grammar for every Fabrik `.env` writer and reader (see Secrets Management) |
 | `validator.py` | 387 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
 | `deployer_ssh.py` | — | **`SSHDeployer.deploy(ctx)` (current)** — idempotent `docker compose up -d` over SSH; validates compose for template/docker/git sources; waits for container Up |
 | `infrastructure.py` | 1002 | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` — shape-driven dispatcher invoked between Deploy and Verify; runs postgres (+`DATABASE_URL` inject) → redis (+`REDIS_URL`) → gatus → backrest → glitchtip+DSN → grafana annotation → authelia rules (+ `^/api/` bypass) → meilisearch → prometheus → watchdog; a `depends.postgres`/`depends.postgres_seed`/`depends.redis` beside a false or absent flag is named in the skip reason and logged at WARNING (`depends_contradiction`, W-81524f52) |
@@ -168,6 +169,20 @@ The orchestrator automatically loads secrets from the project's `.env` file duri
 1. `fabrik scaffold` auto-detects secrets from `.env.example` and adds them to the spec's `from_env` field
 2. During deployment, the orchestrator reads from the project's `.env` file before checking system environment variables
 3. Only secrets listed in `spec.secrets.from_env` are loaded from the `.env` file
+4. A `from_file` secret is the file's text minus ONE trailing newline (`echo secret > file`)
+
+**The `.env` format** (`src/fabrik/env_file.py`, W-2ae286e2). The hub `from_env` reader, the
+deployed `.env`/`.env.owner` writer and reader, and `.env.example` all use one codec built to docker
+compose's dotenv grammar. A spec `env:` value keeps its `$` as a compose interpolation
+(`LOG_LEVEL=${LOG_LEVEL:-INFO}`); in every other value — a secret, a registrar value — a `$` is
+literal. A value is written bare unless it holds a space, `#`, a quote, `\`, a TAB, a line break or a
+literal `$`; a literal holding `$` is single-quoted (`API_KEY='a$b'`) when it holds no `'`, `\` or line
+break, and every other quoted value is double-quoted with `\$`, `\\`, `\"`, `\n`, `\r`, `\t` escapes.
+The reader follows compose: single quotes are literal, a
+` #` ends an unquoted value, other text after a closing quote is ignored, and an unterminated quote or
+a quote character after the closing quote aborts the read (compose refuses the same file); the error
+names the key and line, never the value, and a malformed hub `.env` stops the deploy. A hand-written template is written back unchanged. The
+deployed `.env` and `.env.owner` are read in one ssh call and parsed apart.
 
 **Example:**
 ```yaml

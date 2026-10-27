@@ -685,12 +685,16 @@ class TestSSHDeployerReadEnv:
             "OTHER": "1",
         }
 
-    def test_quote_edge_cases_keep_todays_behaviour(self):
-        # single quotes + comment; escaped quote inside; unterminated; non-comment tail
+    def test_quote_edge_cases_read_as_compose_reads_them(self):
+        # single quotes + comment; escaped quote inside; unterminated; text after the closing quote
+        # (W-2ae286e2: compose refuses an unterminated quote and ignores a quote tail, measured)
         assert _parse_env("A='x y' # c") == {"A": "x y"}
         assert _parse_env('B="say \\"hi\\"" # c') == {"B": 'say "hi"'}
-        assert _parse_env('C="unterminated # c') == {"C": '"unterminated # c'}
-        assert _parse_env('D="a" "b"') == {"D": 'a" "b'}
+        with pytest.raises(ValueError, match="unterminated"):
+            _parse_env('C="unterminated # c')
+        assert _parse_env('D="a" junk') == {"D": "a"}
+        with pytest.raises(ValueError, match="after the closing quote"):
+            _parse_env('D="a" "b"')
 
     def test_runs_inside_target_vps_env(self):
         import os
@@ -2290,14 +2294,16 @@ class TestOwnerEnvSplit:
     def test_g2_read_env_merges_both_files_in_one_separated_read(self):
         answers = [
             "present\nowner\n",
-            f"DATABASE_URL={_APP_DSN}\nDATABASE_URL_OWNER=stale\n\nDATABASE_URL_OWNER={_OWNER_DSN}\n",
+            f"DATABASE_URL={_APP_DSN}\nDATABASE_URL_OWNER=stale\n\n__fabrik_env_owner_follows__\n"
+            f"DATABASE_URL_OWNER={_OWNER_DSN}\n",
         ]
         with patch("fabrik.drivers.ssh.ssh", side_effect=answers) as mock_ssh:
             env = SSHDeployer().read_env(self._ctx())
         assert env == {"DATABASE_URL": _APP_DSN, "DATABASE_URL_OWNER": _OWNER_DSN}
         assert mock_ssh.call_count == 2
         assert mock_ssh.call_args_list[1].args[0] == (
-            "sudo sh -c 'cat /opt/my-app/.env && echo && cat /opt/my-app/.env.owner'"
+            "sudo sh -c 'cat /opt/my-app/.env && echo && echo __fabrik_env_owner_follows__ && "
+            "cat /opt/my-app/.env.owner'"
         )
 
     def test_g2_a_failed_two_file_read_raises_never_returns_the_owner_half(self):
@@ -2316,7 +2322,7 @@ class TestOwnerEnvSplit:
             cmds.append(cmd)
             if len(cmds) == 1:
                 return "present\nowner\n"
-            if " && echo && " in cmd:
+            if " && echo && echo " in cmd:
                 raise RuntimeError("SSH to 'vps1' failed (rc=1): cat: .env: Permission denied")
             return f"\nDATABASE_URL_OWNER={_OWNER_DSN}\n"
 
@@ -2326,7 +2332,10 @@ class TestOwnerEnvSplit:
         ):
             SSHDeployer().read_env(self._ctx())
         assert len(cmds) == 2
-        assert cmds[1] == "sudo sh -c 'cat /opt/my-app/.env && echo && cat /opt/my-app/.env.owner'"
+        assert cmds[1] == (
+            "sudo sh -c 'cat /opt/my-app/.env && echo && echo __fabrik_env_owner_follows__ && "
+            "cat /opt/my-app/.env.owner'"
+        )
         assert "; echo;" not in cmds[1] and "&& echo &&" in cmds[1]
 
     def test_g2_bare_present_answer_issues_todays_cat_exactly(self):
@@ -2438,7 +2447,12 @@ class TestOwnerEnvSplit:
         not a different answer."""
         from fabrik.orchestrator.deployer_ssh import _read_env_file
 
-        answers = iter(["present \r\nowner \r\n", "A=1\n\nDATABASE_URL_OWNER=o\n"])
+        answers = iter(
+            [
+                "present \r\nowner \r\n",
+                "A=1\n\n__fabrik_env_owner_follows__\nDATABASE_URL_OWNER=o\n",
+            ]
+        )
         cmds: list[str] = []
 
         def ssh(cmd, timeout=10):
@@ -2450,7 +2464,7 @@ class TestOwnerEnvSplit:
 
     # G7 — every writer goes through the one writer: an existing `.env` carrying the owner key
     # ends up with the key in `.env.owner` (written first) and never in `.env`
-    _MERGED = f"A=1\nDATABASE_URL_OWNER={_OWNER_DSN}\n"
+    _MERGED = f"A=1\n\n__fabrik_env_owner_follows__\nDATABASE_URL_OWNER={_OWNER_DSN}\n"
     _MERGED_DICT = {"A": "1", "DATABASE_URL_OWNER": _OWNER_DSN}
 
     @staticmethod
