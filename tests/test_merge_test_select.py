@@ -768,3 +768,56 @@ def test_the_green_record_is_written_only_on_a_green_merge_check(tmp_path, monke
     rc, out = _run(repo, monkeypatch, capsys)
     assert rc == 0 and "green record not written" in out, out
     assert out.strip().splitlines()[-1].startswith("merge-tests: green"), out
+
+
+class _ScriptedRunner:
+    """Each start takes the next scripted reds; records the files of every run, in order."""
+
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.calls: list[list[str]] = []
+
+    def start(self, files):
+        self.calls.append(list(files))
+        return _FakeRunner._Done(), self.replies.pop(0), None
+
+    def finish(self, _proc, reds, _log):
+        return (1 if reds else 0), dict(reds), "tail"
+
+    def run(self, files):
+        return self.finish(*self.start(files))
+
+
+def test_a_flaky_red_runs_no_ordered_base_shard(tmp_path, monkeypatch):
+    """W-d5d1d394: a red green alone AND in its shard's order was flaky — the base has no verdict of
+    its to compare, so its shard is not re-run there. Tonight's 8-shard leg (tghywjvt) re-ran a
+    whole ~8 min shard on the base for exactly this, beside one master red confirmed alone."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tests").mkdir()
+    for name in ("test_a.py", "test_b.py"):
+        (tmp_path / "tests" / name).write_text("")
+    master_red = ("tests/test_a.py::test_master", "call")
+    flaky = ("tests/test_b.py::test_flaky", "call")
+    checkouts: list[str] = []
+    monkeypatch.setattr(mts, "_checkout", checkouts.append)
+    runner = _ScriptedRunner(
+        [
+            {master_red: "boom"},  # shard of test_a
+            {flaky: "timing"},  # shard of test_b
+            {master_red: "boom"},  # the serial confirm: the flaky red is green alone
+            {},  # the ordered confirm of test_b's shard: green in order too
+            {master_red: "boom"},  # the base alone run of test_a: the same crash, pre-existing
+            {},  # an ordered base run of test_b's shard, were one (wrongly) started
+        ]
+    )
+
+    new, out = mts.differential(
+        ["tests/test_a.py", "tests/test_b.py"], "M", "B", runner, 2, compare=True
+    )
+
+    assert new == []
+    assert any("FLAKY" in line and "test_flaky" in line for line in out), out
+    assert any("pre-existing on the base" in line for line in out), out
+    assert runner.calls[-1] == ["tests/test_a.py"], runner.calls  # the base alone run was the last
+    assert len(runner.calls) == 5, runner.calls  # no ordered shard of test_b ran on the base
+    assert checkouts.count("B") == 1, checkouts
