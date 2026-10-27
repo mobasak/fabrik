@@ -95,22 +95,36 @@ def _ssh_check(cmd: str, *, timeout: int = 30) -> tuple[bool, str]:
     # Best-effort SSH probe. Never raises; returns (ok, stdout|stderr).
     import subprocess
 
-    from fabrik.drivers.ssh import is_alias, jump_args
+    from fabrik.drivers.ssh import (
+        _REMOTE_ENCODING,
+        _REMOTE_ERRORS,
+        _shown,
+        _undecodable,
+        is_alias,
+        jump_args,
+    )
 
     vps = os.getenv("FABRIK_AUDIT_VPS", "vps")
     if not is_alias(vps):  # it lands in ssh's argv (W-6a96f699)
         return False, f"FABRIK_AUDIT_VPS={vps!r} is not an ssh alias — no probe ran"
     try:
+        # Decoded as the driver decodes (D-1286, W-7ac62afc): never a UnicodeDecodeError, the rc always read,
+        # escaped stdout refused because the callers parse it. The driver's one-line masking of failure text
+        # (_one_line) is not adopted: audit's commands carry no secret, and `out` feeds a multi-line error.
         r = subprocess.run(
             ["ssh", *jump_args(vps), vps, cmd],
             capture_output=True,
             text=True,
+            encoding=_REMOTE_ENCODING,
+            errors=_REMOTE_ERRORS,
             timeout=timeout,
             check=False,
         )
         if r.returncode == 0:
+            if _undecodable(r.stdout):
+                return False, "answered (rc 0) but the answer is not valid UTF-8"
             return True, r.stdout.strip()
-        return False, (r.stderr or r.stdout).strip()
+        return False, _shown(r.stderr or r.stdout).strip()
     except Exception as e:  # noqa: BLE001
         return False, f"{type(e).__name__}: {e}"
 

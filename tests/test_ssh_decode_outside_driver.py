@@ -26,27 +26,56 @@ try:
         result = list(audit._ssh_check("sudo docker ps"))
     elif sys.argv[2] == "probe":
         result = vultr_drill._ssh_probe("192.0.2.1", attempts=1, interval=0)
-    else:
+    elif sys.argv[2] == "drill":
         r = vultr_drill._ssh_ozgur_drill("192.0.2.1", "claude -p ok; echo RC=$?")
         result = [r.returncode, next(int(t[3:]) for t in r.stdout.split() if t.startswith("RC="))]
+    elif sys.argv[2] == "smoke":
+        result = vultr_drill._g0_creds_smoke("192.0.2.1")
+    else:
+        import logging
+        from fabrik.drivers import preflight
+        seen = []
+        handler = logging.Handler()
+        handler.emit = lambda record: seen.append(record.getMessage())
+        preflight.logger.addHandler(handler)
+        preflight._advise_if_direct_back("vps", "FABRIK_SSH_JUMP_VPS")
+        result = any("answers again" in m for m in seen)
 except Exception as exc:
     result = ["RAISED", type(exc).__name__]
 print(json.dumps(result))
 """
 
 
-def _run(tmp_path: Path, which: str, stdout: bytes, stderr: bytes = b"", rc: int = 0, lc: str = "C.UTF-8"):
-    (tmp_path / "out").write_bytes(stdout)
-    (tmp_path / "err").write_bytes(stderr)
-    fake = tmp_path / "ssh"
-    fake.write_text(f'#!/bin/sh\ncat "{tmp_path}/out"\ncat "{tmp_path}/err" >&2\nexit {rc}\n')
+def _fake(tmp_path: Path, name: str, stdout: bytes, stderr: bytes, rc: int) -> None:
+    (tmp_path / f"{name}.out").write_bytes(stdout)
+    (tmp_path / f"{name}.err").write_bytes(stderr)
+    fake = tmp_path / name
+    fake.write_text(
+        f'#!/bin/sh\ncat "{tmp_path}/{name}.out"\ncat "{tmp_path}/{name}.err" >&2\nexit {rc}\n'
+    )
     fake.chmod(0o755)
+
+
+def _run(
+    tmp_path: Path,
+    which: str,
+    stdout: bytes,
+    stderr: bytes = b"",
+    rc: int = 0,
+    lc: str = "C.UTF-8",
+    scp: tuple[bytes, int] = (b"", 0),
+):
+    _fake(tmp_path, "ssh", stdout, stderr, rc)
+    _fake(tmp_path, "scp", b"", *scp)
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True, exist_ok=True)
+    (home / ".claude" / ".credentials.json").write_text("{}")
     env = {
         k: v
         for k, v in os.environ.items()
         if not k.startswith(("LC_", "LANG", "PYTHONUTF8", "FABRIK_SSH_JUMP", "FABRIK_AUDIT_VPS"))
     }
-    env.update(LC_ALL=lc, PATH=f"{tmp_path}{os.pathsep}{env.get('PATH', '')}")
+    env.update(LC_ALL=lc, HOME=str(home), PATH=f"{tmp_path}{os.pathsep}{env.get('PATH', '')}")
     run = subprocess.run(
         [sys.executable, "-c", _CHILD, _SRC, which],
         env=env,
@@ -58,7 +87,10 @@ def _run(tmp_path: Path, which: str, stdout: bytes, stderr: bytes = b"", rc: int
 
 
 def test_audit_refuses_an_undecodable_answer(tmp_path) -> None:
-    assert _run(tmp_path, "audit", b"web-1\ncaf\xff\n") == [False, "the answer is not valid UTF-8"]
+    assert _run(tmp_path, "audit", b"web-1\ncaf\xff\n") == [
+        False,
+        "answered (rc 0) but the answer is not valid UTF-8",
+    ]
 
 
 def test_audit_reads_a_valid_answer(tmp_path) -> None:
@@ -79,3 +111,18 @@ def test_drill_probe_never_raises_on_an_undecodable_answer(tmp_path) -> None:
 
 def test_drill_command_reads_rc_past_an_undecodable_byte(tmp_path) -> None:
     assert _run(tmp_path, "drill", b"claude said \xff\nRC=3\n") == [0, 3]
+
+
+def test_drill_scp_reads_rc_past_an_undecodable_stderr(tmp_path) -> None:
+    result = _run(tmp_path, "smoke", b"", scp=(b"lost connection \xff\n", 1))
+    assert result == {"attempted": True, "pass": False, "reason": "scp failed (rc=1)"}
+
+
+def test_drill_rc_token_with_a_glued_byte_reads_as_absent(tmp_path) -> None:
+    result = _run(tmp_path, "smoke", b"RC=0\xff\n")
+    assert result["claude_p_rc"] == 127
+    assert result["pass"] is False
+
+
+def test_preflight_advice_survives_an_undecodable_answer(tmp_path) -> None:
+    assert _run(tmp_path, "advise", b"", b"banner \xff\n") is True
