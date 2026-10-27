@@ -48,7 +48,7 @@ fabrik apply spec.yaml              # Full deployment — the orchestrator is th
 | `context.py` | 83 | `DeploymentContext`, `ResourceRecord` — shared state across stages; every rollback-able resource calls `ctx.add_resource(...)` |
 | `exceptions.py` | 64 | Typed exceptions (`ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`) |
 | `secrets.py` | 137 | `SecretsManager` — `get()` precedence: env vars → project `.env` → CSPRNG generate (`secrets.choice()`, 32-char alphanumeric). (NB the orchestrator `from_env` path reads `.env` before env vars — the two paths differ.) |
-| `validator.py` | 343 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
+| `validator.py` | 387 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
 | `deployer_ssh.py` | — | **`SSHDeployer.deploy(ctx)` (current)** — idempotent `docker compose up -d` over SSH; validates compose for template/docker/git sources; waits for container Up |
 | `infrastructure.py` | 1002 | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` — shape-driven dispatcher invoked between Deploy and Verify; runs postgres (+`DATABASE_URL` inject) → redis (+`REDIS_URL`) → gatus → backrest → glitchtip+DSN → grafana annotation → authelia rules (+ `^/api/` bypass) → meilisearch → prometheus → watchdog; a `depends.postgres`/`depends.postgres_seed`/`depends.redis` beside a false or absent flag is named in the skip reason and logged at WARNING (`depends_contradiction`, W-81524f52) |
 | `verifier.py` | 542 | `DeploymentVerifier.verify(ctx)` — HTTP 200 on the path declared in `spec["health"]["path"]` (see Lesson 32 — was previously hardcoded to `/health` via a silent fallback that masked all non-`/health` deploys as 404s; fixed B23, 2026-04-28), DNS resolves, Authelia-middleware + api-bypass checks. Workers (no HTTP) skip the HTTP probe — the compose healthcheck is the proof (B35). DSN verification lives in the glitchtip registrar, not here; `check_ssl()` exists as a standalone helper, not called by `verify()`. |
@@ -148,6 +148,7 @@ backup:
 - **Domain validation**: Blocks localhost, private IPs, internal TLDs (SSRF prevention)
 - **DNS resolution for SSRF**: `is_private_ip()` resolves hostnames via `socket.getaddrinfo()` before checking private ranges — catches DNS-rebinding attacks (e.g., `internal.corp` → `10.0.0.1`)
 - **Path traversal prevention**: Template paths are validated with `.resolve().relative_to()` to prevent directory escape (e.g., `../../etc/passwd`)
+- **Compose-pasted values**: `health.path` (`spec_loader.HEALTH_PATH_RE`), a non-empty `depends.postgres` (`POSTGRES_IDENT_RE`) and `source.image_port` (an int or ASCII digits, 1-65535) are refused at step 1, because the apply path loads a raw dict and these values are pasted into compose probe URLs, the Traefik port label and the `DATABASE_URL` default (W-ff313a14)
 - **HTTPS enforcement**: Health checks only allow `https://` URLs
 - **CSPRNG secrets**: Auto-generated secrets use `secrets` module (32 char alphanumeric)
 - **Rollback safety**: Only resources created in current run are rolled back
