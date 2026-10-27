@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T10:35:10.231883Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-c547e31f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1287",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after one sync cycle, count semgrep / pass|fail rows in gate_run events; if still 0, move semgrep to a scheduled fleet scan instead (the panel's Cobra check)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "semgrep leg: let .fabrik/run-semgrep name a ruleset (p/security-audit measured 14 s / 79 rules vs --config auto 270-344 s / 1,198 rules on a 2-file diff) and a per-repo blocking opt-in — the proposal's option 3 and option 2's promotion, deferred by D-1287"
+}

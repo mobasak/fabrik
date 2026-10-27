@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A mutant that moves a line is "killed" by a line-citation test, not by behaviour (2026-10-27)
+
+- **What happened:** W-0bcc5f9e's mutation battery ran the semgrep-leg tests together with
+  `test_governance_template_split`, which pins `final_gate.py` line citations. The `no-wait` mutant (drop
+  the killed leader's `proc.wait()`) removed a line, so the citation test went red and the battery read
+  the mutant as killed. A review seat later showed no behaviour test noticed it: the zombie assertion sat on
+  a path where `communicate()` reaps the leader anyway. The same review found a remap "by content" of
+  doc citations faithfully kept six citations that had been wrong before the change.
+- **Rule:** grade a mutant that changes the line count with behaviour tests ONLY, and name the test that
+  killed it; a kill by a citation or line-count test is no kill. And a citation remap proves a cite still
+  points where it pointed — read what it points AT before calling it correct.
+
 ## A parser built to match a consumer is probed on every character class it branches on (2026-10-27)
 
 - **What happened:** W-2ae286e2 measured docker compose's `.env` grammar in real containers before the

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the gate's semgrep leg is opt-in per repo and never leaves semgrep-core running (2026-10-27)
+
+`scripts/final_gate.py`'s semgrep leg hard-coded a 30 s budget against a scan measured at 43-386 s here,
+so it completed in 0 recorded gate runs since 2026-09-14 (762 timeouts), and each timeout killed only the
+`pysemgrep` wrapper, leaving `semgrep-core` (~1.6 GB, ~6 cores) running under init. Per D-1287 the scan now
+runs only where a repo arms `.fabrik/run-semgrep` (the `.fabrik/run-pytest` precedent): budget from
+`TIMEOUTS["semgrep"]`, the changed `src/` files that still exist (any language) or `src/` on an empty diff,
+`--error`, and its own process group killed however the wait ends (finish, budget, Ctrl-C, SIGTERM).
+Findings are an advisory row; a repo with no `src/` gets an N/A row instead of a red one; every not-run
+path is a marked skip. Raised by iterative_image_editor (mail 01M3YY2DGM); W-0bcc5f9e. The change moved
+the `final_gate.py` line citations in `CLAUDE.md:267` and `templates/governance/CLAUDE.md:239`, now
+re-pointed.
+
 ### Fixed — the scaffold-helper emitter test no longer copies the box's live API keys (2026-10-27)
 
 `test_scaffold_helper_emits_mcp_config` ran the real emitter bare, so the catalog's `${EXA_API_KEY}`,

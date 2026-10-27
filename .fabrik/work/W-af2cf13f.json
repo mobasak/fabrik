@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T10:35:08.693477Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-af2cf13f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-point each to a symbol (final_gate.py::<function>) or re-cite by content; CLAUDE.md/template cites are graded by test_governance_template_split._GATE_CITES, the rest by nothing",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "final_gate.py is cited by LINE NUMBER in 14 more files (docs/reference/{certification-denominator,command-evaluation-checklist,plan-lock-lifecycle,prompt-audit-2026-10-05}.md, docs/STRATEGIC_BACKLOG.md, INDEX.md, .pre-commit-config.yaml, scripts/enforcement/{check_certification_coverage,check_plan_lock_release,check_stage_artifacts}.py, tests/enforcement/{test_certification_coverage,test_check_plan_tickets,test_check_review_hygiene,test_plan_lock_release}.py); every final_gate.py edit shifts them and several were wrong before W-0bcc5f9e"
+}
