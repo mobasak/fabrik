@@ -7,17 +7,18 @@ hub, and this runbook is the template for the rest. The model itself (worktrees,
 `docs/reference/multi-agent-operating-model.md`, and the coordinator's jobs are in `templates/governance/CLAUDE.md`
 § Orient, the paragraph opening "The coordinator role". This page covers only how a repo gets there and how its agents are launched.
 
-The repo's own agents do every step: the hub may not edit another repo. The hub sends the brief, builds the
+The repo's own agents do every step except the operator's (§ The operator's steps): the hub may not edit another
+repo. The hub sends the brief, builds the
 launcher, and keeps the hub item open until the repo confirms each phase.
 
 ## Who does what
 
 | Who | Does |
 |---|---|
-| The operator | Opens the repo's coordinator window, closes old builder windows before the first launch, renames windows, answers gates (§ The operator's steps). |
+| The operator | Opens the repo's coordinator window, closes old builder windows before the first launch, renames windows, writes each builder worktree's `.claude/settings.local.json`, answers gates (§ The operator's steps). |
 | The hub coordinator | Runs the pre-flight below, sends the brief to the repo, writes the repo's desktop .bat (§ The Windows side), keeps the hub item open. |
 | The repo's coordinator | Runs phase 5 and then the repo, as the merge owner. Until it exists, an existing builder does phases 1–3. |
-| The repo's builders | Do phases 1–3 through the repo's own gate and review, then work their queue. |
+| The repo's builders | Do phases 1–3 through the repo's own gate and review (step 11's settings file excepted), then work their queue. |
 
 ## Before the first phase: what the hub coordinator reads (read-only)
 
@@ -68,9 +69,12 @@ Written for the operator; nothing here can be done by an agent.
    session mix its transcript and hooks.
 3. **Rename each window** with `/rename <name>` (the coordinator and each builder). Only the operator can, and two
    windows with the same auto-name in one folder collide.
-4. **Double-click `<Repo> Agents.bat`** on the desktop once the hub coordinator has written it. It opens the builders'
+4. **Write each builder worktree's `.claude/settings.local.json`** (phase 3, step 11) from the content boarded for
+   you, before that builder's first pane opens from the grid (step 5). No agent writes it. A builder session
+   already running in its worktree reads the file only when it next starts.
+5. **Double-click `<Repo> Agents.bat`** on the desktop once the hub coordinator has written it. It opens the builders'
    grid; the coordinator stays in VS Code.
-5. **Answer the gates** the coordinator boards: removing a worktree with unmerged work, dropping backlog items, deploys.
+6. **Answer the gates** the coordinator boards: removing a worktree with unmerged work, dropping backlog items, deploys.
 
 ## The phases
 
@@ -145,6 +149,13 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 11. Each builder worktree gets `.claude/settings.local.json` listing the main checkout's `CLAUDE.md` under
     `claudeMdExcludes`, plus the `.venv` symlink setting if the repo shares one venv, plus its `memory` and
     `mcpServers` settings; never copy the main checkout's permission allow-list into it (youtube's adaptation).
+    The operator writes each file (§ The operator's steps, step 4; the gap was reported by web-ecommerce-factory's
+    `wef2` in hub mail `01M5X8DT0Q`). It is a session's own config, so no request from any agent, the coordinator
+    or the hub included, can authorize an agent to write it, for the writer's own worktree or another builder's.
+    The agent doing phases 1–3 sends the content (the step-14 deny entry included, if used) as text: to the repo's
+    coordinator, or, while the repo's coordinator is not open yet, to the hub coordinator in a hub mail (as
+    youtube's rollout report went, hub mail `01M5CGP8FN`). Either receiver boards it for the operator. The agent
+    writes no file, script or template that writes or installs another session's settings.
     Known false alarm: in a worktree that shares the main checkout's `.venv`, the gate's undeclared-imports check
     reports the repo's own editable packages as undeclared, because they resolve to the main checkout's copy (youtube
     01M5CG2QC2, 01M5CG40NV, with infra). It is not a defect of the builder's change: report it to the coordinator,
@@ -158,7 +169,8 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 13. Every charter carries D-943: a builder sends every question, approval, blocker or refused permission to the
     coordinator by `SendMessage`. The coordinator answers from the records, the panel, or (for gates only) the
     operator.
-14. Optional, not used by the hub: deny the AskUserQuestion tool in the builders' worktree settings.
+14. Optional, not used by the hub: deny the AskUserQuestion tool in the builders' worktree settings (the same file
+    as step 11, written the same way).
 15. Sessions launch with `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/active`, which runs every session in auto mode; the
     launcher sets it. Each agent reports any permission prompt it still hits, and the fix is an allow entry in the
     repo's `.claude/settings.json`.
