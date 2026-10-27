@@ -22,7 +22,16 @@ _PINNED = re.compile(
 
 @pytest.mark.parametrize(
     "name",
-    ["httpx", "fastapi", "redis", "sqlalchemy", "prometheus-client", "pydantic-settings", "boto3", "packaging"],
+    [
+        "httpx",
+        "fastapi",
+        "redis",
+        "sqlalchemy",
+        "prometheus-client",
+        "pydantic-settings",
+        "boto3",
+        "packaging",
+    ],
 )
 def test_library_shadowing_name_refused(name):
     with pytest.raises(ValueError, match="Reserved project name") as exc:
@@ -49,5 +58,5 @@ def test_every_pinned_scaffold_requirement_is_a_shadowable_name():
         for n in pinned - _NO_LOWERCASE_IMPORT
         if _IMPORT_NAME.get(n, n.replace("-", "_")) not in SHADOWABLE_LIBRARY_NAMES
     )
-    assert _NO_LOWERCASE_IMPORT <= pinned, "drop a stale _NO_LOWERCASE_IMPORT entry"
+    assert _NO_LOWERCASE_IMPORT.issubset(pinned), "drop a stale _NO_LOWERCASE_IMPORT entry"
     assert missing == [], f"add the import names of {missing} to SHADOWABLE_LIBRARY_NAMES"

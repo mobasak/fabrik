@@ -1618,7 +1618,9 @@ def _generate_docker_compose(
         # inert, and compose still interpolates ${VAR} from the project `.env` after YAML parsing.
         from fabrik.template_renderer import TemplateRenderer
 
-        lines.append(f"    command: {TemplateRenderer._compose_str(image_command, 'image_command')}")
+        lines.append(
+            f"    command: {TemplateRenderer._compose_str(image_command, 'image_command')}"
+        )
     lines += [
         "    deploy:",
         "      resources:",
