@@ -176,8 +176,9 @@ compose's dotenv grammar. A spec `env:` value keeps its `$` as a compose interpo
 (`LOG_LEVEL=${LOG_LEVEL:-INFO}`); every other value — a secret, a registrar value — is literal:
 single-quoted (`API_KEY='a$b'`), or double-quoted with `\$`, `\\`, `\"`, `\n`, `\r`, `\t` escapes when
 it also holds `'`, `\` or a line break. The reader follows compose: single quotes are literal, a
-` #` ends an unquoted value, text after a closing quote is ignored, and an unterminated quote aborts
-the read (compose refuses the same file). A hand-written template is written back unchanged. The
+` #` ends an unquoted value, text after a closing quote is ignored, and an unterminated quote or a
+second quoted word after the closing quote aborts the read (compose refuses the same file); the error
+names the key and line, never the value, and a malformed hub `.env` stops the deploy. A hand-written template is written back unchanged. The
 deployed `.env` and `.env.owner` are read in one ssh call and parsed apart.
 
 **Example:**

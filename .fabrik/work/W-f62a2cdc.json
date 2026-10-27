@@ -19,5 +19,5 @@
   "tags": [
     "fleet"
   ],
-  "title": "Hub secrets reader src/fabrik/orchestrator/secrets.py:25-48 load_dotenv strips quotes with value.strip().strip(\"\\\"'\") — keeps \\\" and \\$ escapes, never cuts a \" #\" comment — while every other Fabrik .env reader now uses fabrik.env_file.parse_env (W-2ae286e2). Reached only when os.environ lacks the key (config.py loads the hub .env through python-dotenv first)."
+  "title": "Hub secrets reader src/fabrik/orchestrator/secrets.py:25-48 load_dotenv strips quotes with value.strip().strip(\"\\\"'\") — keeps \\\" and \\$ escapes, never cuts a \" #\" comment — while the deployed .env writer/reader, the orchestrator from_env reader and .env.example now use fabrik.env_file (W-2ae286e2; spec_generator._parse_env_example reads key names only and scripts/gather_envs.py uses python-dotenv). Reached only when os.environ lacks the key (config.py loads the hub .env through python-dotenv first)."
 }

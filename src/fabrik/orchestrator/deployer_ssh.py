@@ -1102,9 +1102,16 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
                 f"cat {shlex.quote(owner_path)}"
             )
             content = _ssh(f"sudo sh -c {shlex.quote(cat)}", timeout=10)
-            app_text, sep, owner_text = content.partition(f"\n{_OWNER_SEPARATOR}\n")
-            if not sep:
+            # The separator is matched as a whole LINE, never as `\n<sep>\n`: the ssh driver
+            # strips the output, so an empty `.env` puts it on the first line and an empty
+            # `.env.owner` on the last. The LAST such line wins — the owner file is ours, `.env`
+            # may carry hand-written text.
+            lines = content.split("\n")
+            at = [i for i, ln in enumerate(lines) if ln.rstrip("\r") == _OWNER_SEPARATOR]
+            if not at:
                 raise DeployError(f"cannot read {env_path}: the owner separator is missing")
+            app_text = "\n".join(lines[: at[-1]])
+            owner_text = "\n".join(lines[at[-1] + 1 :])
         else:
             app_text = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
             owner_text = ""

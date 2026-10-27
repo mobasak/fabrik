@@ -145,36 +145,83 @@ def test_parse_matches_compose_on_hand_written_lines(text: str, expected: str, k
     assert parsed["NEXT"] == "1"
 
 
-@pytest.mark.parametrize("text", ['K="abc\nJ=1\n', "K='abc\n", 'A=1\nK="x\\"\n'])
-def test_an_unterminated_quote_fails_closed(text: str) -> None:
-    with pytest.raises(ValueError, match="unterminated"):
+@pytest.mark.parametrize(
+    ("text", "why"),
+    [
+        ('K="abc\nJ=1\n', "unterminated"),
+        ("K='abc\n", "unterminated"),
+        ('A=1\nK="x\\"\n', "unterminated"),
+        ('K="a" "b"\n', "after the closing quote"),
+        ("K='a' 'b'\n", "after the closing quote"),
+    ],
+)
+def test_a_line_compose_refuses_fails_closed(text: str, why: str) -> None:
+    with pytest.raises(ValueError, match=why):
         _parse_env(text)
 
 
-def test_env_never_absorbs_the_owner_file(tmp_path: Path) -> None:
-    """An unterminated quote in .env must abort the merged read, never swallow .env.owner.
+def test_a_parse_error_names_key_and_line_never_the_value() -> None:
+    secret = "postgres://own:S3cretPassw0rd@h/db"
+    with pytest.raises(ValueError) as caught:
+        _parse_env(f'A=1\nDATABASE_URL_OWNER="{secret}\n')
+    message = str(caught.value)
+    assert "DATABASE_URL_OWNER" in message and "line 2" in message
+    assert "S3cret" not in message and "postgres" not in message
 
-    The read's own shell text runs through a local ``sh`` with /opt/my-app mapped to tmp_path.
-    """
-    from fabrik.orchestrator.deployer_ssh import _read_env_file
-    from fabrik.orchestrator.exceptions import DeployError
+
+def _stripping_ssh(root: Path):
+    """A fake ssh that runs the reader's own shell text through a local ``sh`` with /opt/my-app
+    mapped to *root*, and strips stdout as the real driver does (drivers/ssh.py ``.strip()``)."""
 
     def fake_ssh(cmd: str, timeout: int = 10) -> str:
         if "echo present" in cmd:
-            return "present\nowner\n"
+            return "present\nowner"
         local = cmd.removeprefix("sudo ").replace("/opt/my-app/", "./")
-        run = subprocess.run(
-            ["sh", "-c", local], cwd=tmp_path, capture_output=True, text=True, check=True
-        )
-        return run.stdout
+        run = subprocess.run(["sh", "-c", local], cwd=root, capture_output=True, text=True)
+        assert run.returncode == 0, run.stderr
+        return run.stdout.strip()
 
+    return fake_ssh
+
+
+def test_env_never_absorbs_the_owner_file(tmp_path: Path) -> None:
+    """An unterminated quote in .env must abort the merged read, never swallow .env.owner."""
+    from fabrik.orchestrator.deployer_ssh import _read_env_file
+    from fabrik.orchestrator.exceptions import DeployError
+
+    ssh = _stripping_ssh(tmp_path)
     (tmp_path / ".env.owner").write_text('DATABASE_URL_OWNER="postgres://o:p@h/db"\n')
     (tmp_path / ".env").write_text('APP="broken\n')
     with pytest.raises(DeployError, match="unterminated"):
-        _read_env_file("/opt/my-app", fake_ssh)
+        _read_env_file("/opt/my-app", ssh)
     (tmp_path / ".env").write_text("APP=ok\nDATABASE_URL_OWNER=stale\n")
-    merged = _read_env_file("/opt/my-app", fake_ssh)
+    merged = _read_env_file("/opt/my-app", ssh)
     assert merged == {"APP": "ok", "DATABASE_URL_OWNER": "postgres://o:p@h/db"}
+
+
+@pytest.mark.parametrize(
+    ("env", "owner", "expected"),
+    [
+        ("", "O=2\n", {"O": "2"}),  # empty .env: the separator is the stripped output's first line
+        ("A=1\n", "", {"A": "1"}),  # empty .env.owner: the separator is its last line
+        ("A=1", "O=2", {"A": "1", "O": "2"}),  # neither file ends in a newline
+        ("\n\n", "\n", {}),  # whitespace only
+        # a hand-written .env value holding the separator line: the LAST one splits
+        (
+            "X='a\n__fabrik_env_owner_follows__\nb'\n",
+            "O=2\n",
+            {"X": "a\n__fabrik_env_owner_follows__\nb", "O": "2"},
+        ),
+    ],
+)
+def test_the_merged_read_survives_the_drivers_strip(
+    tmp_path: Path, env: str, owner: str, expected: dict[str, str]
+) -> None:
+    from fabrik.orchestrator.deployer_ssh import _read_env_file
+
+    (tmp_path / ".env").write_text(env)
+    (tmp_path / ".env.owner").write_text(owner)
+    assert _read_env_file("/opt/my-app", _stripping_ssh(tmp_path)) == expected
 
 
 def test_build_env_escapes_secrets_not_spec_templates() -> None:
@@ -233,6 +280,35 @@ def test_hub_secret_readers_return_the_literal_value(tmp_path, monkeypatch) -> N
     }
     # a secret is literal: a bare `$` in the hub file is not carried as a compose template
     assert all(type(v) is str for v in ctx.secrets.values())
+
+
+def test_a_malformed_hub_env_stops_the_deploy(tmp_path, monkeypatch) -> None:
+    """One bad line used to drop every from_env secret behind a warning; it now refuses, naming
+    the key and line, never the value."""
+    import fabrik.orchestrator as orch
+    from fabrik.orchestrator.context import DeploymentContext
+    from fabrik.orchestrator.exceptions import ValidationError
+
+    project = tmp_path / "opt" / "demo"
+    project.mkdir(parents=True)
+    (project / ".env").write_text('GOOD=1\nTOKEN="s3cret-value\n')
+    real_path = orch.Path
+    monkeypatch.setattr(
+        orch, "Path", lambda p: real_path(str(p).replace("/opt/", f"{tmp_path}/opt/", 1))
+    )
+    o = orch.DeploymentOrchestrator(
+        validator=MagicMock(),
+        secrets_manager=MagicMock(),
+        deployer=MagicMock(),
+        verifier=MagicMock(),
+        rollback_manager=MagicMock(),
+        infrastructure_provisioner=MagicMock(),
+    )
+    ctx = DeploymentContext(spec_path=Path("x.yaml"))
+    spec = {"id": "demo", "secrets": {"from_env": ["GOOD", "TOKEN"]}}
+    with pytest.raises(ValidationError, match="TOKEN at line 2") as caught:
+        o._load_secrets(ctx, spec)
+    assert "s3cret" not in str(caught.value)
 
 
 def test_env_example_lines_are_quoted() -> None:

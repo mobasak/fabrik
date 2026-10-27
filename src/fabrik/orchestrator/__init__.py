@@ -435,11 +435,17 @@ class DeploymentOrchestrator:
             try:
                 # compose's dotenv grammar (quotes, escapes, `export`, ` #` comments) — the same
                 # codec that writes the deployed file; `str()` makes the value a literal secret.
-                for key, value in parse_env(env_file.read_text()).items():
-                    if key in from_env and key not in all_secrets:
-                        all_secrets[key] = str(value)
+                parsed = parse_env(env_file.read_text())
+            except ValueError as e:
+                # Fail closed: one malformed line would otherwise drop EVERY from_env secret
+                # behind a warning and deploy without them. The message names key and line only.
+                raise ValidationError(f"cannot read {env_file}: {e}") from None
             except Exception as e:
                 logger.warning("Failed to read .env file: %s", e)
+                parsed = {}
+            for key, value in parsed.items():
+                if key in from_env and key not in all_secrets:
+                    all_secrets[key] = str(value)
 
         for key in from_env:
             if key not in all_secrets:

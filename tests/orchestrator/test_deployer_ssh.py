@@ -692,7 +692,9 @@ class TestSSHDeployerReadEnv:
         assert _parse_env('B="say \\"hi\\"" # c') == {"B": 'say "hi"'}
         with pytest.raises(ValueError, match="unterminated"):
             _parse_env('C="unterminated # c')
-        assert _parse_env('D="a" "b"') == {"D": "a"}
+        assert _parse_env('D="a" junk') == {"D": "a"}
+        with pytest.raises(ValueError, match="after the closing quote"):
+            _parse_env('D="a" "b"')
 
     def test_runs_inside_target_vps_env(self):
         import os

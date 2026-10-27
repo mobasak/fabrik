@@ -87,17 +87,19 @@ def _read_quoted(text: str, start: int) -> tuple[str, int, bool]:
             dollar = True
         out.append(c)
         i += 1
-    line = text[start:].split("\n", 1)[0]
-    raise ValueError(f"unterminated quoted value {line[:40]!r}")
+    # Never the value in the message: it is a secret, and the error reaches logs and the terminal.
+    raise ValueError("unterminated quoted value")
 
 
 def parse_env(content: str) -> dict[str, str]:
     """Parse ``.env`` content as compose does; a value holding an unescaped ``$`` comes back as an
-    :class:`EnvTemplate`. Raises ``ValueError`` on an unterminated quote (compose refuses the file).
+    :class:`EnvTemplate`. Raises ``ValueError`` — naming the key and line, never the value — on an
+    unterminated quote or a quote character after the closing quote (compose refuses both files).
     """
     result: dict[str, str] = {}
     pos, n = 0, len(content)
     while pos < n:
+        lineno = content.count("\n", 0, pos) + 1
         end = content.find("\n", pos)
         end = n if end < 0 else end
         line = content[pos:end]
@@ -112,9 +114,15 @@ def parse_env(content: str) -> dict[str, str]:
         lead = len(rest) - len(rest.lstrip(" \t"))
         vstart = pos + len(line) - len(rest) + lead
         if vstart < n and content[vstart] in ("'", '"'):
-            value, after, dollar = _read_quoted(content, vstart)
+            try:
+                value, after, dollar = _read_quoted(content, vstart)
+            except ValueError as e:
+                raise ValueError(f"{e} for {key} at line {lineno}") from None
             tail_end = content.find("\n", after)
             tail_end = n if tail_end < 0 else tail_end
+            # Compose ignores `K="v" junk` and `K="v" # c` but refuses a second quoted word.
+            if any(q in content[after:tail_end].split("#", 1)[0] for q in ("'", '"')):
+                raise ValueError(f"a quote after the closing quote for {key} at line {lineno}")
             source = content[vstart:after]
             result[key] = EnvTemplate(value, source) if dollar else value
             pos = tail_end + 1
