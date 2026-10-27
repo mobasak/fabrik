@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a spec's healthcheck `start_period` reaches its compose file, and the deploy gate refuses a null duration (2026-10-27)
+
+`Health` in `src/fabrik/spec_loader.py` had no `start_period` field and ignores unknown keys, so a spec's value was
+dropped at load. The static-site, node-api, chrome-extension and docusaurus compose templates guarded it with
+`if health`, which is true whenever a spec has a `health:` block, and rendered an empty `start_period:` (YAML null):
+`docker compose config` refused 15 of the 66 fleet specs the renderer can render. python-api fell back to 30s over
+seo's declared 10s and youtube's 20s. `Health.start_period` is now an optional field (a blank value counts as unset),
+the seven health-reading templates and the docker-source compose writer fall back to their own default only when it
+is unset, and `_validate_compose` refuses a healthcheck `interval`, `timeout`, `start_period` or `start_interval`
+that is not a non-empty string, locally before SSH. A replay over the 66 rendered specs now finds 0 failing on
+`start_period`. Duration format is still checked only by compose on the VPS (W-f1c945d7). D-1271, W-3197a125.
+
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
 
 `src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so
