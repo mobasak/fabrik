@@ -353,7 +353,7 @@ def test_apply_validator_refuses_a_bad_database_name(name: object) -> None:
         SpecValidator(templates_dir=TEMPLATES).validate(_raw_apply_spec(depends={"postgres": name}))
 
 
-@pytest.mark.parametrize("port", ["80'; id; '", "8080", 0, 65536, True, 8.5])
+@pytest.mark.parametrize("port", ["80'; id; '", "８０８０", "0", " 80", 0, 65536, True, 8.5])
 def test_apply_validator_refuses_a_bad_image_port(port: object) -> None:
     """The docker-image writer pastes `image_port` into its shell probe and traefik label (review A2-2)."""
     from fabrik.orchestrator.exceptions import ValidationError as ApplyError
@@ -373,6 +373,9 @@ def test_apply_validator_keeps_the_legitimate_values() -> None:
     )
     assert SpecValidator(templates_dir=TEMPLATES).validate(raw) is not None
     SpecValidator(templates_dir=TEMPLATES).validate(_raw_apply_spec(depends={"postgres": ""}))
+    # A quoted port is the other spelling the load path's `Source.image_port` coerces (review pass 2).
+    quoted = _raw_apply_spec(source={"type": "docker", "image": "busybox:1", "image_port": "8080"})
+    SpecValidator(templates_dir=TEMPLATES).validate(quoted)
 
 
 @pytest.mark.parametrize("name", ["db}x", "a #b", "x-y", "1db", "a" * 64, "d$b", "main\n"])

@@ -355,8 +355,11 @@ class SpecValidator:
                 "depends.postgres must be a PostgreSQL identifier matching [a-zA-Z_][a-zA-Z0-9_]{0,62}",
                 field="depends.postgres",
             )
+        # An int or an ASCII-digit string, the two spellings `Source.image_port` accepts on the load path.
         source = spec.get("source")
         image_port = source.get("image_port") if isinstance(source, dict) else None
+        if isinstance(image_port, str) and re.fullmatch(r"[0-9]{1,5}", image_port):
+            image_port = int(image_port)
         if image_port is not None and (
             isinstance(image_port, bool)
             or not isinstance(image_port, int)
