@@ -131,7 +131,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 | **ruff** | Lint check (no fix) | 120s | ✅ Yes |
 | **mypy** | Type checking | 300s | ⚠️ Best-effort |
 | **bandit** | Security scanner | 180s | ⚠️ Best-effort |
-| **semgrep** | SAST rules | 30s | ⚠️ Best-effort |
+| **semgrep** | SAST rules (opt-in: `.fabrik/run-semgrep`) | 300s | ⚠️ Advisory — findings never block |
 | **yaml** | YAML syntax | — | ✅ Yes |
 | **json** | JSON syntax | — | ✅ Yes |
 | **sqlfluff** | SQL lint (PostgreSQL dialect) | 180s | ⚠️ If SQL files exist |
@@ -343,7 +343,7 @@ were never at risk.
 
 **The per-check roster (`checks`).** Without it `--json` carried counts plus the names of the FAILURES and the skips only, so a consumer could not ask the question a roster exists for — *did check X run in this tier?* A check that was never registered and a check that ran and passed were equally invisible. `checks` is a list of `{name, outcome}` over every row the run built, in order, with `outcome` one of `pass` · `fail` · `skipped` · `advisory`. Precedence, because two of the rows are both: **`skipped` wins over `advisory`** — it is the more informative half (the check did not run at all) and it is what `skipped_checks` already counts, so the roster and the counts beside it cannot disagree. The kaizen `gate_run` event reads the SAME builder (`_check_roster`), so the two consumers cannot drift into two answers about one run.
 
-⚠️ **Every semgrep not-run path — not installed, not authenticated, timed out, no `src/` changes — is a NAMED skip row**, because the skip roster matches on the ROW NAME: a plain `semgrep` row for a run where semgrep never executed reported `skipped: 0`.
+⚠️ **Every semgrep not-run path — no `src/` directory, not armed, not installed, not authenticated, timed out, no `src/` changes, no changed `src/` file left in the tree — is a NAMED skip row**, because the skip roster matches on the ROW NAME: a plain `semgrep` row for a run where semgrep never executed reported `skipped: 0`. A scan that RAN and found something is `semgrep (advisory — findings, not blocking)`, a warn-only row whose outcome is `advisory`, never `skipped`.
 
 **Why this exists.** A canary sweep gave eight registered checks a real violation each; each printed it and exited 0 — a row identical to a check that genuinely blocks — and four were not even `advisory=True`, so their stdout was discarded. Each was decided on measured evidence — the reasoning is written at each registration in `final_gate.py`:
 
@@ -421,11 +421,18 @@ python -m bandit -ll -x tests/ -r src/
 #### semgrep
 
 ```bash
-# What it checks
-semgrep --config auto src/
+# What it checks — only where the repo armed it (`mkdir -p .fabrik && touch .fabrik/run-semgrep`)
+semgrep --config auto --error <the changed src/ files that still exist>   # or src/ on an empty diff
 ```
 
-**Note:** Requires `semgrep login` for authentication. Skipped if not authenticated.
+**Opt-in, like `.fabrik/run-pytest` (W-0bcc5f9e, D-1287).** One scan measured 43 s (one small file) to
+386 s (the hub's whole `src/`) on this box, at ~1.6 GB and ~6 cores, so the leg never runs by default:
+an unarmed repo gets `semgrep (NOT RUN — opt-in, not armed)` and a repo with no `src/` gets `semgrep (N/A —
+no src/ directory)`. Armed, it reads its budget from `TIMEOUTS["semgrep"]` (300 s), runs in its own
+process group and kills the whole group on expiry (a plain kill left `semgrep-core` running under init),
+and reports a timeout as a skip with ⚠ output. `--error` makes a finding exit 1, which is reported as the
+advisory row; it does not block. Requires `semgrep login` for authentication; skipped if not
+authenticated.
 
 #### sqlfluff
 
@@ -961,7 +968,7 @@ API_KEY = os.getenv('API_KEY')
 | bandit | 180 |
 | sqlfluff | 180 |
 | ruff | 120 |
-| semgrep | 30 (hardcoded at the call site, `final_gate.py:1197`; the `TIMEOUTS["semgrep"]=300` dict entry at `:141` is dead — never read) |
+| semgrep | 300 (read by `_semgrep_row`; the leg runs only where `.fabrik/run-semgrep` is armed) |
 
 ### Max Iterations
 

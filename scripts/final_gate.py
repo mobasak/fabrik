@@ -44,6 +44,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -563,6 +564,7 @@ def _tdb_named_error_lines(out: str) -> list[str]:
 # checks carrying it (check_docker, check_env_contract, check_doc_sprawl --strict,
 # check_lint_ratchet, check_subagent_flywheel) DO fail the gate on a real defect. Blocking
 # is about the exit code; `warn_only` is a claim about the check's contract.
+SEMGREP_FINDINGS_ROW = "semgrep (advisory — findings, not blocking)"
 WARN_ONLY_CHECKS: set[str] = {
     # transdoc finding 1.3 (2026-08-23): a SKIPPED pytest printed `[PASS] pytest`. In a repo
     # with no .github/workflows/ that meant the ENTIRE suite sat outside the completion gate
@@ -576,6 +578,10 @@ WARN_ONLY_CHECKS: set[str] = {
     # must not happen, since an operator reading a green gate has no other way to tell a row that
     # COULD have been red from one that never could (round 3 of the Phase E review).
     "auto-fix scope (advisory)",
+    # A semgrep scan that RAN and found something (`--error` exit 1). Advisory until a repo opts
+    # into blocking: no repo has adjudicated a finding yet, because the leg never completed before
+    # W-0bcc5f9e, and the one sample (iterative_image_editor) was 7 of 7 false positives.
+    SEMGREP_FINDINGS_ROW,
 }
 
 
@@ -819,6 +825,104 @@ def semgrep_env_with_token() -> dict[str, str] | None:
     env = os.environ.copy()
     env["SEMGREP_APP_TOKEN"] = token
     return env
+
+
+def _run_process_group(
+    cmd: list[str], timeout: int, env: dict[str, str] | None = None
+) -> tuple[int | None, str]:
+    """Run `cmd` in its own process group; `(returncode, stdout then stderr)`, or `(None, output)`
+    when the budget expired — never an exit code, which a real exit 124 could otherwise impersonate.
+
+    `subprocess.run(timeout=)` kills only the DIRECT child. semgrep's CLI is a Python wrapper over
+    `semgrep-core`, and a probe of the old leg found the core surviving the wrapper's kill,
+    re-parented to init at ~1.6 GB and ~6 cores until its scan ended (W-0bcc5f9e). The group kill
+    reaps the whole tree — the `check_mutation.py` idiom. stdout comes FIRST: semgrep writes its
+    findings there and pages of rule-deprecation notices to stderr, and a failing or advisory row
+    prints only its first lines."""
+    proc = subprocess.Popen(
+        cmd,
+        cwd=PROJECT_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        start_new_session=True,
+    )
+    code: int | None
+    try:
+        out, err = proc.communicate(timeout=timeout)
+        code = proc.returncode
+    except subprocess.TimeoutExpired:
+        # the leader is unreaped until communicate(), so its pid still names the group here
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        out, err = proc.communicate()
+        code = None
+    return code, f"{(out or '').strip()}\n{(err or '').strip()}".strip()
+
+
+# The semgrep leg is OPT-IN per repo, like `.fabrik/run-pytest` (W-0bcc5f9e, D-1287). Measured on
+# this box: 43 s for one small file, 270-344 s for a 2-file diff of large modules and 386 s for the
+# hub's whole src/, ~1.6 GB and ~6 cores each — on every completion gate of every session, with a
+# budget the same diff lands on both sides of. COBRA: the cheapest way to satisfy "the leg exists"
+# is a repo that arms the sentinel and then always times out; that row is a SKIP with ⚠ output, so
+# `skipped_checks` and `warnings` both name it rather than a green that never scanned.
+SEMGREP_SENTINEL = Path(".fabrik") / "run-semgrep"
+
+
+def _semgrep_row(changed: set[str]) -> tuple[str, bool, str]:
+    """The semgrep leg's one row. Scans the changed `src/` files that still exist (every language:
+    `--config auto` is not Python-only), or the whole `src/` on an empty diff; `--error` so a
+    finding is a non-zero exit, reported advisory (`SEMGREP_FINDINGS_ROW`) until a repo blocks."""
+    if not (PROJECT_ROOT / "src").is_dir():
+        # an empty diff here used to hand semgrep a missing root: rc 2, a RED row
+        return ("semgrep (N/A — no src/ directory)", True, "")
+    if not (PROJECT_ROOT / SEMGREP_SENTINEL).exists():
+        return (
+            "semgrep (NOT RUN — opt-in, not armed)",
+            True,
+            "semgrep runs only where the repo opts in — a scan costs minutes and ~1.6 GB per gate "
+            "run. THIS GREEN ASSERTS NOTHING ABOUT SEMGREP FINDINGS. Run it yourself: "
+            "`semgrep --config auto src/`, or arm the gate with `mkdir -p .fabrik && touch "
+            f"{SEMGREP_SENTINEL}`",
+        )
+    if changed:
+        targets = sorted(
+            p for p in changed if p.startswith("src/") and (PROJECT_ROOT / p).is_file()
+        )
+        if not targets:
+            return (
+                "semgrep (diff-sensed skip — no src/ file left in the diff)",
+                True,
+                "(every changed src/ path is gone from the tree, skipping)",
+            )
+    else:
+        targets = ["src/"]
+    budget = TIMEOUTS["semgrep"]
+    try:
+        code, out = _run_process_group(
+            ["semgrep", "--config", "auto", "--error", *targets], budget, semgrep_env_with_token()
+        )
+    except FileNotFoundError:
+        return ("semgrep (NOT INSTALLED)", True, "(semgrep not installed, skipping)")
+    if code is None:
+        return (
+            f"semgrep (NOT RUN — timed out after {budget}s)",
+            True,
+            f"⚠ semgrep is armed here ({SEMGREP_SENTINEL}) but did not finish inside {budget}s "
+            f"over {len(targets)} target(s); the scan was killed, so nothing was checked",
+        )
+    if "HTTP 401" in out or "semgrep login" in out.lower():
+        return (
+            "semgrep (NOT RUN — not authenticated)",
+            True,
+            "(semgrep not authenticated - run: semgrep login)",
+        )
+    if code == 1:
+        return (SEMGREP_FINDINGS_ROW, True, f"⚠ semgrep findings (advisory):\n{out}")
+    return ("semgrep", code == 0, out if code != 0 else "")
 
 
 def print_header(title: str) -> None:
@@ -1608,44 +1712,10 @@ def run_static_checks(
             )
         )
 
-    # Semgrep (skip if no src/ files changed)
+    # Semgrep (skip if no src/ files changed). T12.3 (01M2606BZ): every not-run path is GREEN, and
+    # `_SKIP_MARKERS` matches on the ROW NAME, so each one `_semgrep_row` returns carries a marker.
     if not changed or _has_path_prefix(changed, "src/"):
-        semgrep_env = semgrep_env_with_token()
-        semgrep_timeout = 30
-        try:
-            result = subprocess.run(
-                ["semgrep", "--config", "auto", "src/"],
-                cwd=PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=semgrep_timeout,
-                env=semgrep_env,
-            )
-            code, out = result.returncode, (result.stdout + result.stderr).strip()
-        except FileNotFoundError:
-            code, out = 1, "Command not found: semgrep"
-        except subprocess.TimeoutExpired:
-            code, out = 0, f"(semgrep timed out after {semgrep_timeout}s, skipping)"
-
-        # T12.3 (01M2606BZ): all four not-run paths below are GREEN and were named plain
-        # "semgrep", and `_SKIP_MARKERS` matches on the ROW NAME — so a run where semgrep never
-        # executed reported `skipped: 0`, which `_summarize_skipped`'s own docstring defines as
-        # the answer to "did every configured check run?". The name now carries the marker, which
-        # is the only thing that reaches the roster.
-        if "Command not found: semgrep" in out:
-            results.append(("semgrep (NOT INSTALLED)", True, "(semgrep not installed, skipping)"))
-        elif "HTTP 401" in out or "semgrep login" in out.lower():
-            results.append(
-                (
-                    "semgrep (NOT RUN — not authenticated)",
-                    True,
-                    "(semgrep not authenticated - run: semgrep login)",
-                )
-            )
-        elif "timed out" in out:
-            results.append((f"semgrep (NOT RUN — timed out after {semgrep_timeout}s)", True, out))
-        else:
-            results.append(("semgrep", code == 0, out if code != 0 else ""))
+        results.append(_semgrep_row(changed))
     else:
         results.append(
             ("semgrep (diff-sensed skip — no src/ changes)", True, "(no src/ changes, skipping)")

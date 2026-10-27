@@ -424,6 +424,9 @@ def test_every_green_not_run_row_the_gate_emits_is_summarized():
         # touch — it ran, it just ran narrower — so it names no skip marker on purpose, and the
         # leg that genuinely did not run emits its own "(SCOPE-NARROWED …)" row beside it.
         - {"auto-fix scope (advisory)"}
+        # The semgrep findings row is the second kind too: the scan RAN and found something, so a
+        # skip marker there would report a completed scan as skipped (W-0bcc5f9e).
+        - {fg.SEMGREP_FINDINGS_ROW}
     ) | {
         fg.EPIC_ORDER_NA,  # T05b: the hub-conditional epic_order row's labelled skip
         "bandit (NOT INSTALLED — skipped)",
@@ -435,8 +438,12 @@ def test_every_green_not_run_row_the_gate_emits_is_summarized():
         # by 01M2606BZ rather than by this list.
         "semgrep (NOT INSTALLED)",
         "semgrep (NOT RUN \u2014 not authenticated)",
-        "semgrep (NOT RUN \u2014 timed out after 30s)",
+        f"semgrep (NOT RUN \u2014 timed out after {fg.TIMEOUTS['semgrep']}s)",
         "semgrep (diff-sensed skip \u2014 no src/ changes)",
+        # W-0bcc5f9e: the opt-in leg's three further not-run rows
+        "semgrep (N/A \u2014 no src/ directory)",
+        "semgrep (NOT RUN \u2014 opt-in, not armed)",
+        "semgrep (diff-sensed skip \u2014 no src/ file left in the diff)",
     }
     unmatched = [n for n in produced if not any(m in n for m in fg._SKIP_MARKERS)]
     assert not unmatched, f"green not-run row names no marker covers: {unmatched}"
@@ -538,8 +545,11 @@ def test_every_semgrep_not_run_path_reaches_the_skipped_roster() -> None:
     for name in (
         "semgrep (NOT INSTALLED)",
         "semgrep (NOT RUN \u2014 not authenticated)",
-        "semgrep (NOT RUN \u2014 timed out after 30s)",
+        f"semgrep (NOT RUN \u2014 timed out after {fg.TIMEOUTS['semgrep']}s)",
         "semgrep (diff-sensed skip \u2014 no src/ changes)",
+        "semgrep (N/A \u2014 no src/ directory)",
+        "semgrep (NOT RUN \u2014 opt-in, not armed)",
+        "semgrep (diff-sensed skip \u2014 no src/ file left in the diff)",
     ):
         assert fg._summarize_skipped([(name, True, "")]) == {
             "skipped": 1,
@@ -557,7 +567,7 @@ def test_every_semgrep_not_run_path_reaches_the_skipped_roster() -> None:
     assert green_rows, "the semgrep block appends no literal-True rows — did the block move?"
     unmarked = [n for n in green_rows if not any(m in n for m in fg._SKIP_MARKERS)]
     assert not unmarked, f"green semgrep rows the roster cannot see: {unmarked}"
-    assert 'results.append(("semgrep", code == 0' in block, (
+    assert 'return ("semgrep", code == 0' in block, (
         "the real-run row must stay unmarked — a marker there would report a check that RAN "
         "as skipped"
     )
