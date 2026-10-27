@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a VPS answer that is not valid UTF-8 no longer crashes a redeploy (2026-10-27)
+
+`fabrik.drivers.ssh` decoded remote output with the hub's locale codec, strictly, before it read the exit code. One
+byte a person typed into a VPS `.env` therefore raised `UnicodeDecodeError`, which the deploy code's `RuntimeError`
+handlers let through: `_read_env_file` passed it on raw, and a redeploy crashed in its `GIT_SHA` update, inside its
+rollback too. The driver now reads output as UTF-8 whatever the locale, without the decode ever raising, and checks
+the exit code first. A failed command keeps its exit code and diagnostic, with any undecodable byte shown as `\xNN`.
+A successful command whose stdout is not valid UTF-8 raises `UndecodableAnswerError` (a `RuntimeError`). Its message
+names the host and none of the output, and nothing in the exception keeps the text. A `.env` read now fails as a
+named `DeployError`, and the `GIT_SHA` update fails open. A redeploy whose `docker compose up --wait` succeeded, with
+only its output unreadable, logs a warning instead of rolling back a healthy deploy. (W-5597922e, D-1286)
+
 ### Fixed — a `.env` line holding a NUL byte or invalid UTF-8 is refused before anything is written (2026-10-27)
 
 The deploy's `.env` writer wrote a NUL byte raw, in any key, value or kept template text, and runc then refused the
