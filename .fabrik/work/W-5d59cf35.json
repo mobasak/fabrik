@@ -17,10 +17,10 @@
     "6bb741c9e127d1c3b56e314fcadc6de24c81e96d18f7850d24f5fc9dd308ce7b"
   ],
   "next": "",
-  "note": "",
+  "note": "first ask all coordinators to pause their agents by knowing a wsl shutdown might happen and they need to remember where they have left, then we can trigger",
   "owner": "",
   "priority": 2,
   "question": "May infra deliberately trigger one more kill wave by re-running wef3's background type-check, so the armed kernel trace names the process sending the shutdown signal?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May infra deliberately trigger one more kill wave by re-running wef3's background type-check, so the armed kernel trace names the process sending the shutdown signal?"
 }
