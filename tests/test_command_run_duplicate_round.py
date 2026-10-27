@@ -361,3 +361,10 @@ def test_an_unreadable_landed_time_is_said_as_unknown(run_dir: Path) -> None:
     p = _cr(run_dir, "round", *BASE, "--own-fix", "0")
     _refused(p, run_dir)
     assert "recorded at an unknown time with these figures" in p.stdout.splitlines()[-1]
+    events = [
+        json.loads(line)
+        for f in (run_dir.parent / "events").glob("*.jsonl")
+        for line in f.read_text(encoding="utf-8").splitlines()
+        if '"round_refused"' in line
+    ]
+    assert [e["age_s"] for e in events] == [None]  # the event stream doc says null, not 0
