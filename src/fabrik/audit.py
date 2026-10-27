@@ -124,7 +124,7 @@ def _ssh_check(cmd: str, *, timeout: int = 30) -> tuple[bool, str]:
             if _undecodable(r.stdout):
                 return False, "answered (rc 0) but the answer is not valid UTF-8"
             return True, r.stdout.strip()
-        return False, _shown(r.stderr or r.stdout).strip()
+        return False, _shown(r.stderr.strip() or r.stdout).strip()
     except Exception as e:  # noqa: BLE001
         return False, f"{type(e).__name__}: {e}"
 

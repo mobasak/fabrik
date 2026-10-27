@@ -13,6 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _SRC = str(Path(__file__).resolve().parents[1] / "src")
 
 _CHILD = """
@@ -76,8 +78,14 @@ def _run(
         if not k.startswith(("LC_", "LANG", "PYTHONUTF8", "FABRIK_SSH_JUMP", "FABRIK_AUDIT_VPS"))
     }
     env.update(LC_ALL=lc, HOME=str(home), PATH=f"{tmp_path}{os.pathsep}{env.get('PATH', '')}")
+    utf8_mode = []
+    if (
+        lc == "C"
+    ):  # a real ASCII locale codec: Python's UTF-8 mode would otherwise switch on under C
+        env.update(PYTHONCOERCECLOCALE="0", PYTHONUTF8="0")
+        utf8_mode = ["-X", "utf8=0"]
     run = subprocess.run(
-        [sys.executable, "-c", _CHILD, _SRC, which],
+        [sys.executable, *utf8_mode, "-c", _CHILD, _SRC, which],
         env=env,
         capture_output=True,
         check=False,
@@ -118,10 +126,25 @@ def test_drill_scp_reads_rc_past_an_undecodable_stderr(tmp_path) -> None:
     assert result == {"attempted": True, "pass": False, "reason": "scp failed (rc=1)"}
 
 
-def test_drill_rc_token_with_a_glued_byte_reads_as_absent(tmp_path) -> None:
-    result = _run(tmp_path, "smoke", b"RC=0\xff\n")
-    assert result["claude_p_rc"] == 127
-    assert result["pass"] is False
+@pytest.mark.parametrize(
+    "token",
+    [
+        pytest.param(b"RC=0\xff", id="glued-byte"),
+        pytest.param("RC=²".encode(), id="superscript"),  # isdigit() True, int() refuses
+        pytest.param("RC=０".encode(), id="fullwidth-zero"),  # int() would read 0: a false pass
+    ],
+)
+def test_drill_rc_token_that_is_not_ascii_digits_reads_as_absent(tmp_path, token) -> None:
+    result = _run(tmp_path, "smoke", token + b"\n")
+    assert isinstance(result, dict), result
+    assert (result["claude_p_rc"], result["pass"]) == (127, False)
+
+
+def test_audit_reads_the_stdout_error_behind_a_blank_stderr(tmp_path) -> None:
+    assert _run(tmp_path, "audit", b"real \xff error\n", b"\n", rc=255) == [
+        False,
+        "real \\xff error",
+    ]
 
 
 def test_preflight_advice_survives_an_undecodable_answer(tmp_path) -> None:
