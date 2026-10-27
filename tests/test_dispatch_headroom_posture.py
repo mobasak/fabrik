@@ -281,3 +281,63 @@ def test_dispatch_headroom_hold_predicate_matches_the_tick(monkeypatch):
     )
     for hold in corpus:
         assert mod._hold_is_wall(hold) is tick._hold_is_wall(hold), hold
+
+
+# ── W-3e924ccb: a session on an Anthropic API key is not sized against the PLAN quota ────────────
+
+_BOX = {"ok": True, "mem_available_gb": 64.0, "mem_total_gb": 64.0, "cores": 16, "load1": 0.0}
+
+
+def _walled_quota(mod, monkeypatch, tmp_path, line2):
+    """`quota()` over a picture whose hold reads `walled` (the picture folds `battery` into it) and
+    a real `fleet-exhausted` stamp whose line 2 is `line2`, in a tmp ROTATE_STATE_DIR."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
+    (tmp_path / "fleet-exhausted").write_text(f"0\n{line2}\n", encoding="utf-8")
+    doc = json.loads(_payload(posture_ts=None))
+    doc["picture"]["hold"] = {"tier": "walled"}
+    _pin(mod, monkeypatch, json.dumps(doc))
+    return mod.quota()
+
+
+def test_an_api_key_session_is_not_capped_by_the_plan_wall(monkeypatch, tmp_path):
+    """An API-key session's seats draw the key, not the plan (D-1243): at a plain `walled` stamp the
+    budget is the box's, not 0, and a reason line says why. Before the fix: SEATS 0."""
+    mod = _load()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
+    q = _walled_quota(mod, monkeypatch, tmp_path, "walled")
+    assert q["api_key_free"] is True, q
+    r = mod.budget(1, False, _BOX, q)
+    assert "quota_cap" not in r["caps"], r["caps"]
+    assert r["seats"] >= 3, r
+    assert any("Anthropic API key" in line for line in r["reasons"]), r["reasons"]
+
+
+@pytest.mark.parametrize(
+    ("line2", "extra"),
+    [
+        ("battery", {}),  # the battery hold protects the box, never plan quota (D-898)
+        ("garbage", {}),  # an unknown tier fails closed
+        ("walled", {"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-x"}),  # a second credential holds
+    ],
+)
+def test_battery_or_a_second_credential_keeps_the_wall_cap(monkeypatch, tmp_path, line2, extra):
+    mod = _load()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
+    for k, v in extra.items():
+        monkeypatch.setenv(k, v)
+    q = _walled_quota(mod, monkeypatch, tmp_path, line2)
+    assert q["api_key_free"] is False, q
+    r = mod.budget(1, False, _BOX, q)
+    assert r["caps"]["quota_cap"] == 0 and r["seats"] == 0, r
+
+
+def test_a_failed_exemption_read_keeps_the_plan_caps(monkeypatch, tmp_path):
+    """The predicate is the posture hook's; if it cannot be loaded or raises, the plan caps stand
+    (fail toward fewer seats, never an over-dispatch on a plan account) and the payload says why."""
+    mod = _load()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
+    monkeypatch.setattr(mod, "_POSTURE_HOOK", tmp_path / "missing.py")
+    q = _walled_quota(mod, monkeypatch, tmp_path, "walled")
+    assert q["api_key_free"] is False and q.get("api_key_why"), q
+    r = mod.budget(1, False, _BOX, q)
+    assert r["seats"] == 0, r
