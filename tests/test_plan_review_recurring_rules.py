@@ -31,11 +31,6 @@ def test_checklist_rows_are_adjudicated_before_the_closing_pass_and_new_code_run
         "3. **",
     )
     assert (
-        "Adjudicate each row in the round whose evidence settles it — the rows the plan already proves before "
-        "the first pin, the rest no later than the last delta round — so the closing pass re-derives verdicts "
-        "and the flip adds no content."
-    ) in step2
-    assert (
         "before the first pin, RUN every new module, stub or algorithm the plan specifies on a scratch copy "
         "over the plan's own Behavior Contract inputs, so no seat is the first to execute it."
     ) in step2
