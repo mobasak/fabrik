@@ -6,8 +6,10 @@ nothing here reaches a provider or GitHub."""
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -42,10 +44,10 @@ with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
 if "stream-json" in sys.argv:
     sys.stdout.write(open(os.environ["FAKE_PREFLIGHT"], encoding="utf-8").read())
     sys.exit(1)
-if "FAKE_GRANDCHILD" in os.environ:  # a process the child starts: a timeout must kill it too
+if "FAKE_GRANDCHILD" in os.environ and "FAST" not in prompt:  # a process the child starts: a kill reaches it too
     subprocess.Popen([sys.executable, "-c", "import sys, time; time.sleep(4); open(sys.argv[1], 'w').write('x')",
                       os.environ["FAKE_GRANDCHILD"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-time.sleep(float(os.environ.get("FAKE_SLEEP", "0")))
+time.sleep(0 if "FAST" in prompt else float(os.environ.get("FAKE_SLEEP", "0")))
 action = os.environ.get("FAKE_ACTION", "edit")
 if action != "none":
     open("made.txt", "w").write(os.environ.get("FAKE_CONTENT", "work\\n"))
@@ -529,3 +531,180 @@ def test_the_default_run_root_is_the_users_cache_not_claude_state(box: dict) -> 
 def test_a_malformed_slug_refuses_before_anything(box: dict, bad: str) -> None:
     p = _run(box, "--key", "can", "--slug", bad, "--task-file", str(_brief(box, "ok")))
     assert p.returncode == 2 and _rows(box) == [] and _calls(box) == []
+
+
+def _module():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import api_write
+
+    return api_write
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGHUP, signal.SIGINT])
+def test_a_group_signal_kills_settles_and_names_every_job(box: dict, sig: signal.Signals) -> None:
+    """W-d077095a, Behaviours 1-3. A stopped Claude Code background task gets SIGTERM to its whole process group and
+    SIGKILL about 1.4 s later (2.1.311, measured); a closed terminal sends SIGHUP and Ctrl-C SIGINT. The children sit
+    in their own sessions, so the signal never reaches them: the runner must kill them, settle the started run as
+    interrupted, start nothing queued, push nothing, remove the run directory and name every job — in a FILE sink
+    (block-buffered unless the runner says otherwise), where the line of a job that finished earlier is already
+    written while the runner still runs, so a SIGKILL cannot take it. f1 finishes at once (FAST), s1 sleeps, s2
+    waits in the queue."""
+    marker = box["tmp"] / "grandchild-alive"
+    box["env"].update(FAKE_SLEEP="30", FAKE_GRANDCHILD=str(marker))
+    fast = _brief(box, "f1")
+    fast.write_text(fast.read_text(encoding="utf-8") + " FAST", encoding="utf-8")
+    batch = box["tmp"] / "batch.json"
+    batch.write_text(
+        json.dumps(
+            [{"slug": "f1", "task_file": str(fast)}]
+            + [{"slug": s, "task_file": str(_brief(box, s))} for s in ("s1", "s2")]
+        ),
+        encoding="utf-8",
+    )
+    sink = box["tmp"] / "runner.log"
+    with open(sink, "w", encoding="utf-8") as fh:
+        p = subprocess.Popen(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "run",
+                "--model",
+                "haiku",
+                "--out-dir",
+                str(box["out"]),
+                "--key",
+                "can",
+                "--batch",
+                str(batch),
+                "--jobs",
+                "1",
+            ],
+            env=box["env"],
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    try:
+        deadline = time.monotonic() + 60
+        while len(_runs(box)) < 2 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert len(_runs(box)) == 2, "the second child never started"
+        time.sleep(0.5)  # s1 is past its own start, sleeping, its grandchild launched
+        early = sink.read_text(encoding="utf-8")
+        assert "api_write: f1 " in early, f"f1's line is still in the runner's buffer: {early!r}"
+        os.killpg(p.pid, sig)  # the harness signals the whole group, never one pid
+        try:
+            rc = p.wait(timeout=1.4)
+        except subprocess.TimeoutExpired:
+            rc = None
+    finally:
+        try:
+            os.killpg(
+                p.pid, signal.SIGKILL
+            )  # the harness's follow-up: whatever is still in the group dies
+        except ProcessLookupError:
+            pass
+        p.wait(timeout=10)
+    log = sink.read_text(encoding="utf-8")
+    assert rc == 128 + sig, f"rc {rc} (None = still running when the SIGKILL came); log:\n{log}"
+    rows = _rows(box)
+    starts = [r for r in rows if r["kind"] == "start"]
+    settles = [r for r in rows if r["kind"] == "settle"]
+    assert len(starts) == 2 and len(settles) == 2, rows
+    s1 = next(s for s in settles if s["run"] == starts[1]["run"])
+    assert s1["subtype"] == "interrupted" and s1["source"] == "run"
+    assert _origin(box, "refs/heads/claude/f1")  # finished before the signal: pushed as normal
+    assert f"api_write: s1 run {starts[1]['run']}" in log and f"interrupted by {sig.name}" in log, (
+        log
+    )
+    assert "s2: not started: runner interrupted" in log, log
+    assert not _origin(box, "refs/heads/claude/s1") and not _origin(box, "refs/heads/claude/s2")
+    assert not any((box["state"] / "api-write").iterdir())
+    note = (box["out"] / "s1.md").read_text(encoding="utf-8")
+    assert f"interrupted by {sig.name}" in note and starts[1]["run"] in note
+    assert len(_runs(box)) == 2  # the queued job's child never ran
+    time.sleep(5)  # past the grandchild's 4 s: a survivor of the kill would have written its marker
+    assert not marker.exists()
+
+
+@pytest.fixture()
+def stopped():
+    """The module's stop state, reset around an in-process test so it never leaks into another."""
+    aw = _module()
+    aw._reset_stop()
+    yield aw
+    aw._reset_stop()
+
+
+def test_a_child_started_after_the_signal_is_killed_at_once(stopped) -> None:
+    """Behaviour 4: a child the worker starts after the handler's snapshot is killed at its registration."""
+    stopped._on_signal(signal.SIGTERM, None)
+    t = time.monotonic()
+    rc, _out, _err, killed = stopped.run_child(
+        [sys.executable, "-c", "import time; time.sleep(30)"], "", Path.cwd(), dict(os.environ), 60
+    )
+    assert killed and rc == -signal.SIGKILL and time.monotonic() - t < 5
+
+
+def test_the_handler_survives_a_reaped_child(stopped) -> None:
+    """Behaviour 5: a child reaped but not yet dropped from the registry has no group left; killpg raises
+    ProcessLookupError, which must not escape the handler (it would abort the runner with no job line)."""
+    gone = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+    gone.wait()
+    gone.returncode = None  # what the registry holds in the window between the reap and the drop
+    live = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True
+    )
+    stopped._LIVE.update({gone.pid: gone, live.pid: live})
+    try:
+        stopped._on_signal(signal.SIGTERM, None)
+        assert live.wait(timeout=5) == -signal.SIGKILL
+    finally:
+        stopped._LIVE.clear()
+        if live.poll() is None:
+            live.kill()
+
+
+def test_a_child_done_before_the_signal_still_pushes(box: dict, stopped, monkeypatch) -> None:
+    """Behaviour 6: a child that exited on its own just before the signal is paid-for, finished work — it settles
+    with its cost, commits and pushes; only a child the HANDLER killed is interrupted."""
+    for k, v in box["env"].items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("GIT_DIR")
+    monkeypatch.setattr(stopped.ac, "preflight", lambda *a, **k: None)
+    done = json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": "SUBJECT: finished before the signal",
+            "total_cost_usd": 0.5,
+            "num_turns": 2,
+        }
+    )
+
+    def finished_then_signalled(argv, prompt, cwd, env, timeout):
+        (cwd / "made.txt").write_text("work\n", encoding="utf-8")
+        stopped._on_signal(
+            signal.SIGTERM, None
+        )  # the signal lands after the child exited on its own
+        return 0, done, "", False
+
+    monkeypatch.setattr(stopped, "run_child", finished_then_signalled)
+    a = argparse.Namespace(
+        model="haiku",
+        force_new=False,
+        pick=False,
+        key="can",
+        budget=5.0,
+        timeout=60,
+        max_turns=5,
+        out_dir=str(box["out"]),
+    )
+    job = {"slug": "d1", "prompt": "make it", "base": "master", "gates": []}
+    keys = stopped.ac.read_keys(stopped.ac.env_file())
+    r = stopped.one(job, a, keys, box["main"], str(box["origin"]))
+    assert r["pushed"] and r.get("error") is None, r
+    assert _origin(box, "refs/heads/claude/d1") == r["pushed"]
+    settle = [x for x in _rows(box) if x["kind"] == "settle"]
+    assert settle and settle[0]["cost"] == 0.5 and settle[0]["subtype"] == "success"
