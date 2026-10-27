@@ -282,6 +282,94 @@ def test_a_symlinked_file_with_an_extra_server_names_the_plain_file_step(check, 
     assert f["fix"].startswith("make `.mcp.json` a plain file, then "), f["fix"]
 
 
+def _not_ignored(d: Path) -> Path:
+    """Turn a fixture dir into a real git repo with no rule for `.mcp.json`: the emitter does not own the file."""
+    (d / ".git").rmdir()
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    return d
+
+
+def test_a_not_ignored_repo_of_unknown_type_is_one_warning_and_ok_counts_repos(
+    check, tmp_path, capsys
+):
+    """W-f7772267 (h): a repo whose `.mcp.json` git does not ignore AND whose type the roster lacks is ONE warning
+    naming both causes, and the OK line counts warned REPOS — fabrik-lib's not-ignored row plus its unruled-server
+    row are still one repo."""
+    _not_ignored(repo(tmp_path, "mystery", "sass-skeleton", ["session-recall", "maestro"]))
+    lib = _not_ignored(repo(tmp_path, "fabrik-lib", None, ["session-recall"]))
+    (lib / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {"github": {"command": "/usr/bin/g"}}})
+    )
+    _not_ignored(repo(tmp_path, "vendor-clone", None, ["session-recall"]))
+    rep = check.audit(tmp_path, HUB, DEFS)
+    (w,) = [w for w in rep["warnings"] if w["repo"] == "mystery"]
+    assert "not ignored by git" in w["reason"] and "no ruling" in w["reason"], w["reason"]
+    # every readable file is counted once, the not-ignored untyped one included (review pass 1)
+    assert rep["checked"] == 3, rep
+    assert check.main(["--root", str(tmp_path), "--hub", str(HUB)]) == 0
+    assert (
+        "OK — 3 .mcp.json file(s)" in (out := capsys.readouterr().out)
+        and "(3 repo(s) warned)" in out
+    )
+
+
+def test_an_unreadable_file_the_emitter_does_not_own_only_warns(check, tmp_path, capsys):
+    """W-f7772267 (i): an untyped repo's `.mcp.json` that git does not ignore is never the hub's to fix, so an
+    unreadable one warns like a readable one; a typed repo's stays a failure, as it was graded before git was asked."""
+    for name, rtype in (("vendor-clone", None), ("typed-api", "python-api")):
+        d = _not_ignored(repo(tmp_path, name, rtype, []))
+        (d / ".mcp.json").write_text("{not json")
+    # a readable file in these repos could only warn — no ruling, an own-agent hub-class file — so an unreadable one
+    # warns too, owned or not (review pass 1); the same file with a ruling the hub enforces fails
+    for name, rtype, ignored in (
+        ("mystery", "sass-skeleton", False),
+        ("mystery-owned", "sass-skeleton", True),
+        ("fabrik-lib", None, False),
+        ("typed-owned", "python-api", True),
+    ):
+        d = _not_ignored(repo(tmp_path, name, rtype, []))
+        if ignored:
+            (d / ".gitignore").write_text(".mcp.json\n")
+        (d / ".mcp.json").write_text("{not json")
+    rep = check.audit(tmp_path, HUB, DEFS)
+    assert [(f["repo"], f["reason"]) for f in rep["failures"]] == [
+        ("typed-api", "unreadable .mcp.json"),
+        ("typed-owned", "unreadable .mcp.json"),
+    ]
+    vendor = next(w for w in rep["warnings"] if w["repo"] == "vendor-clone")
+    assert "not ignored by git" in vendor["reason"] and "unreadable" in vendor["reason"], vendor
+    reasons = {w["repo"]: w["reason"] for w in rep["warnings"]}
+    assert sorted(reasons) == [
+        "fabrik-lib",
+        "mystery",
+        "mystery-owned",
+        "typed-api",
+        "vendor-clone",
+    ]
+    for name in ("mystery", "mystery-owned", "fabrik-lib"):
+        assert "unreadable .mcp.json" in reasons[name], reasons[name]
+    assert "no ruling" in reasons["mystery"] and "not ignored by git" in reasons["mystery"]
+    assert rep["checked"] == 0, rep  # an unreadable file is never counted as checked
+    # a row with no servers to name prints no empty `carries` clause (review pass 1)
+    assert check.main(["--root", str(tmp_path), "--hub", str(HUB)]) == 1
+    out = capsys.readouterr().out
+    assert "WARN vendor-clone:" in out and "carries" not in out, out
+
+
+def test_a_symlinked_not_ignored_file_names_both_steps(check, tmp_path):
+    """W-f7772267 (j): the emitter refuses both a not-ignored and a symlinked `.mcp.json`, so the warning's fix names
+    the ignore step AND the plain-file step before the re-emit."""
+    d = _not_ignored(repo(tmp_path, "linked", None, []))
+    (d / ".mcp.json").unlink()
+    (d / "real.json").write_text(
+        json.dumps({"mcpServers": {"session-recall": DEFS["session-recall"]}})
+    )
+    (d / ".mcp.json").symlink_to("real.json")
+    (w,) = check.audit(tmp_path, HUB, DEFS)["warnings"]
+    assert "git rm --cached .mcp.json" in w["fix"], w["fix"]
+    assert "then make `.mcp.json` a plain file, then python3 " in w["fix"], w["fix"]
+
+
 def test_the_hermetic_fixture_blinds_git_to_the_users_global_ignore(check, tmp_path, monkeypatch):
     """W-f7772267 (f): with `GIT_CONFIG_GLOBAL` emptied git still reads its DEFAULT excludes file,
     `$XDG_CONFIG_HOME/git/ignore`, else `$HOME/.config/git/ignore`. A box whose global ignore lists `.mcp.json` would

@@ -19,6 +19,10 @@ one green, since no template escapes on its own). They also go red on any non-`F
 wrapped around python-api's companion include. Out of scope and filed as W-80aed026: env values are unquoted YAML scalars, so `"`,
 newlines, `$`, ` #` and `: ` still deploy wrong. W-6eb61fa0.
 
+### Fixed — check_mcp_scope: one warning per repo, an unreadable file fails only where a readable one could, a symlinked one names both steps (2026-10-27)
+
+- `scripts/enforcement/check_mcp_scope.py` (W-f7772267 (h)(i)(j)): a repo whose `.mcp.json` git does not ignore AND whose `project.yaml::type` the roster lacks now gets ONE warning naming both causes, and the OK line counts warned repos, not warning rows, and says the files were read rather than that each was graded; an unreadable `.mcp.json` warns instead of failing the gate wherever a readable one could only warn (an untyped repo whose file git does not ignore, a type the roster lacks, an own-agent hub-class repo such as fabrik-lib) and still fails where a ruling the hub enforces applies; a symlinked not-ignored file's fix names the plain-file step after the ignore step; a warning with no servers to name prints no empty `carries` clause. Graders in `tests/enforcement/test_check_mcp_scope.py`, each proven red against a mutant.
+
 ### Fixed — claude_rotate no longer counts the backups park root as an account; the MCP-scope tests ignore the user's global git ignore (2026-10-27)
 
 - `scripts/sysadmin/claude_rotate.py::_fleet_dirs` listed `~/.claude-fleet/backups`, the park root `--merge-shared` writes to, so `--status` showed it as a pending-login account ("8 dir(s)" on this box; 7 after). It is now left out like the `active` pointer, and its byte-identical twin `scripts/aro-wake/claude_rotate.py` is copied (W-f7772267 (a)).
