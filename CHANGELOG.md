@@ -84,6 +84,19 @@ gets 7 of the first 12 wrong. Scoped review 4→5→0. W-27634d4e.
   head before (exit 4), green after; still red with either orphan guard neutered. Filed W-21f88ec3 (a FIFO at a kept
   name still blocks `render()`/`check()`).
 
+### Fixed — `merge --queue` lands again: full-width legs, a wall that fits a landing, no wasted legs (2026-10-27)
+
+On 2026-10-27 two hub queue runs landed nothing: every queue leg died at its 1800 s limit, the queue stopped
+at its wall with 0 landed, and legs forked for later requests held the queue lock 30 more minutes. The queue
+now runs one leg at a time at the owner script's own width (`--jobs` defaults to 1; the `FABRIK_MERGE_SHARDS=4`
+override is gone), its wall is `LANDING_WORST_S + MERGE_TEST_BUDGET_S + QUEUE_BUILD_S` = 11100 s (run it as
+`rund --timeout 11200 -- /opt/fabrik/scripts/capped_run.sh --timeout 11100 -- python3 scripts/merge_request.py
+merge --queue`), a leg forks only while it and a landing after it fit (`_leg_fits`), and no later leg forks
+beside a first request that runs its own locked leg. `merge_test_select.py`'s base ordered re-run now covers
+only reds its ordered confirm found, and no longer overwrites an alone-confirmed red's base verdict. D-1275
+(supersedes D-1224's jobs, shards and wall figures); follow-ups W-c832e59f (duration-balanced shards) and
+W-17fc722a (load-flaky tests that trigger ordered re-runs).
+
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
 
 `src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so

@@ -35,6 +35,14 @@
   language's own parser or analyser; a regex re-derives the grammar and drifts on the first form it forgets.
   And replay an item's proposed fix on the real corpus before adopting it.
 
+## A mutation battery proves nothing until each test passes unmutated (2026-10-27)
+
+- **What happened:** W-d5d1d394's review battery reported mutant M8 "killed" by a new test that in fact failed on
+  the unmutated code too — its matcher looked for `test_k:` where the line reads `test_k (call)`. The touched-slice
+  run caught it (1 failed of 899); the battery had read a red as a kill.
+- **Rule:** run every named test on the unmutated copy first and require a pass before a mutant's red counts
+  (`/fabrik-review` rule (4) says so; a hand-rolled battery must carry the BASELINE step itself).
+
 ## A census that re-implements a check must read every field the check reads (2026-10-26)
 
 - **What happened:** W-34d76a7a's MEASURE counted vanished `rule:` labels with a hand-written script that pooled the
