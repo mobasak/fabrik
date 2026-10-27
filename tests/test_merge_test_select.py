@@ -923,7 +923,7 @@ def _loads(groups, weights):
 def test_balance_puts_the_longest_files_on_the_lightest_shard():
     """Round-robin stacks the two heavy files of a sorted selection on one shard; the balance gives
     each its own, and many near-zero files spread instead of piling on shard 0 (the critiques' probe:
-    200 zero-weight files went 201 on one shard under a bare least-load rule)."""
+    zero-weight files all landed on one shard under a bare least-load rule; here 32 beside 8 heavy)."""
     weights = {"t/a.py": 100.0, "t/b.py": 1.0, "t/c.py": 100.0, "t/d.py": 1.0}
     files = sorted(weights)
     rr = [g for g in (files[i::2] for i in range(2)) if g]
@@ -1094,7 +1094,7 @@ def test_a_garbled_duration_line_is_skipped(tmp_path):
     later.write_text(
         'garbage\n{"f": "tests/test_a.py", "s": 9}\n{"f": "tests/test_b.py", "s": 2}\n'
         '{"f": "tests/test_b.py", "s": "x"}\n{"f": "tests/test_b.py", "s": -1}\n'
-        '{"f": "tests/test_b.py", "s": NaN}\n[1]\n',
+        '{"f": "tests/test_b.py", "s": NaN}\n[1]\n' + "[" * 100000 + "\n",
         encoding="utf-8",
     )
     runner.dur_files += [first, later]
@@ -1156,8 +1156,28 @@ def test_a_shard_run_that_fails_still_saves_what_it_measured(tmp_path, monkeypat
 
     record = tmp_path / "rec" / "d.txt"
     with pytest.raises(mts.LegError, match="exited 4"):
-        mts.differential(["tests/test_a.py"], "M", "B", Runner({}), 1, compare=True, record=record)
+        mts.differential(
+            ["tests/test_a.py"],
+            "M",
+            "B",
+            Runner({}),
+            1,
+            compare=True,
+            weights={"tests/test_a.py": 2.0},
+            record=record,
+        )
     assert json.loads(record.read_text(encoding="utf-8")) == {"tests/test_a.py": 3.0}
+    # planned and measured are both run seconds, no import constant, so they compare
+    out = capsys.readouterr().out
+    assert (
+        "merge-tests: shards planned 2.00\n" in out and "merge-tests: shards measured 3.00\n" in out
+    )
+
+    # the failed run is incomplete: its partial 3.0 never lowers a recorded 9.0
+    record.write_text(json.dumps({"tests/test_a.py": 9.0}), encoding="utf-8")
+    with pytest.raises(mts.LegError, match="exited 4"):
+        mts.differential(["tests/test_a.py"], "M", "B", Runner({}), 1, compare=True, record=record)
+    assert json.loads(record.read_text(encoding="utf-8")) == {"tests/test_a.py": 9.0}
 
     class Broken(Runner):
         def durations(self):

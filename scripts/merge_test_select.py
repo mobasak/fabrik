@@ -303,7 +303,8 @@ def _load_durations(path: Path) -> dict[str, float]:
 def _save_durations(path: Path, measured: dict[str, float], *, complete: bool) -> None:
     """``measured`` over the old record, keys absent from this tree dropped. A complete shard run's
     values replace the old ones; an incomplete one (a shard failed, the others were killed mid-file)
-    only RAISES a recorded value, since a killed file's partial sum would under-weigh it. Two legs
+    never LOWERS a recorded value, since a killed file's partial sum would under-weigh it — a file
+    with no record yet takes that partial sum until a complete run replaces it. Two legs
     saving at once lose one update (last writer wins), never tear the file."""
     old = _load_durations(path)
     merged = (
