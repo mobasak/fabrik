@@ -709,6 +709,11 @@ def test_v2_a_ledger_commit_after_the_reviewed_tip_closes(run_dir: Path, tmp_pat
     r = _close(run_dir, repo, "done", "--evidence", "g", "--commit", c, ledger, late, "--review", REL)
     assert r.returncode == 1, r.stdout + r.stderr
     assert "REFUSED — fabrik-task: --review (d)" in r.stdout and ".fabrik/work/x.py" in r.stdout
+    # a contract file is `.json` under the excluded `.fabrik/work/` row, yet never a ledger (review B1)
+    schema = _edit_commit(repo, ".fabrik/work/x.schema.json", "{}\n")
+    r = _close(run_dir, repo, "done", "--evidence", "g", "--commit", c, ledger, schema, "--review", REL)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "--review (d)" in r.stdout and ".fabrik/work/x.schema.json" in r.stdout
     r = _close(run_dir, repo, "done", "--evidence", "g", "--commit", c, ledger, "--review", REL)
     assert r.returncode == 0, r.stdout + r.stderr
 

@@ -912,13 +912,15 @@ def _later_commit_reasons(
     raises, refuses (fail closed — a close never passes on an unproven commit). An empty commit
     touches nothing and passes."""
     reasons: list[str] = []
+    seen: set[str] = set()
     for c in commits:
         sha = _resolve_commit(root, c)
         if sha is None:
             reasons.append(f"(d) --commit {c} does not resolve to a commit")
             continue
-        if sha == anchor:
+        if sha == anchor or sha in seen:
             continue
+        seen.add(sha)
         r = _git(root, "merge-base", "--is-ancestor", sha, anchor)
         if r is None or r.returncode not in (0, 1):
             reasons.append(
@@ -1003,7 +1005,7 @@ def _working_tree_reasons(root: Path, wt: re.Match[str], last_in: str) -> list[s
     if base is None:
         return [f"(d) the receipt's Surface base {head} does not resolve to a commit — {remedy}"]
     if last is None:
-        return [f"(d) the last --commit {last_in} does not resolve to a commit"]
+        return [f"(d) the anchor --commit {last_in} does not resolve to a commit"]
     try:
         tokens = shlex.split(wt.group("paths"))
     except ValueError as exc:
@@ -1081,9 +1083,11 @@ def check_review_receipt(
         is the working-tree form ``--init`` writes without ``--range`` and the diff of the listed
         commit containing every other (``_working_tree_anchor``) over its paths rebuilds to the
         same bytes (``_working_tree_reasons``; re-anchor with ``review_receipt.py --restamp``
-        after the review's last fix — W-ebbedc88). In both forms every listed commit after that
-        anchor in git ancestry may touch only paths ``exempt`` accepts (``_later_commit_reasons``;
-        ``None`` exempts nothing) — LIST ORDER decides nothing (W-0b900e92: the old "last
+        after the review's last fix — W-ebbedc88). In the range form every listed commit after the
+        tip in git ancestry may touch only paths ``exempt`` accepts (``_later_commit_reasons``;
+        ``None`` exempts nothing); the working-tree anchor contains every listed commit, so
+        ``exempt`` is never consulted there and the rebuild below is the whole check — LIST ORDER
+        decides nothing in either form (W-0b900e92: the old "last
         ``--commit``" rule refused the receipt and ledger commits made after the reviewed tip, and
         passed an unreviewed code commit listed before it).
 

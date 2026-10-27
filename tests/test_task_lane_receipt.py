@@ -920,7 +920,7 @@ def test_a_later_code_commit_refuses_in_either_order(repo: Repo) -> None:
     """An unreviewed code commit after the tip refuses listed last AND listed before the tip —
     the reorder that used to pass."""
     late = _commit_file(repo, "app.py", "x = 4\n", "unreviewed fix")
-    for commits in ([repo.last, late], [late, repo.last]):
+    for commits in ([repo.last, late], [late, repo.last], [repo.last, late, late[:12]]):
         reasons = _check_x(repo, commits)
         _only(reasons, "d")
         assert late[:12] in reasons[0] and "app.py" in reasons[0], reasons
