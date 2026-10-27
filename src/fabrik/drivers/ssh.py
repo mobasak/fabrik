@@ -74,11 +74,13 @@ def _one_line(text: str, empty: str = "no stderr") -> str:
 
 
 # Remote output is read as UTF-8 whatever the hub's locale, with `surrogateescape` so the decode itself never
-# raises: a stray byte used to raise UnicodeDecodeError inside subprocess.run, before the return code was read
-# — hiding a failed command's rc and stderr, crashing a successful one, and slipping past every caller that
-# catches the driver's RuntimeError (W-5597922e). stderr only feeds a message, so its escaped bytes are shown
-# as `\xNN`; stdout is DATA, so an escaped byte there is refused (`_undecodable`), never handed on.
-_REMOTE_TEXT = {"text": True, "encoding": "utf-8", "errors": "surrogateescape"}
+# raises (`ssh` and `scp_to_vps` pass both): a stray byte used to raise UnicodeDecodeError inside
+# subprocess.run, before the return code was read — hiding a failed command's rc and stderr, crashing a
+# successful one, and slipping past every caller that catches the driver's RuntimeError (W-5597922e). stderr
+# only feeds a message, so its escaped bytes are shown as `\xNN`; stdout is DATA, so an escaped byte there is
+# refused (`_undecodable`), never handed on.
+_REMOTE_ENCODING = "utf-8"
+_REMOTE_ERRORS = "surrogateescape"
 
 
 class UndecodableAnswerError(RuntimeError):
@@ -246,9 +248,11 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         result = subprocess.run(
             ["ssh", *_jump_opts(jump), host, cmd],
             capture_output=True,
+            text=True,
+            encoding=_REMOTE_ENCODING,
+            errors=_REMOTE_ERRORS,
             timeout=timeout,
             check=False,
-            **_REMOTE_TEXT,
         )
         timed_out = False
     except subprocess.TimeoutExpired:
@@ -312,9 +316,11 @@ def scp_to_vps(
         # `--`: a local path starting with `-` would otherwise be read as an option (W-894fdc5f)
         ["scp", *_jump_opts(jump), "--", local_path, f"{host}:{remote_path}"],
         capture_output=True,
+        text=True,
+        encoding=_REMOTE_ENCODING,
+        errors=_REMOTE_ERRORS,
         timeout=timeout,
         check=False,
-        **_REMOTE_TEXT,
     )
     if result.returncode != 0:
         raise RuntimeError(
