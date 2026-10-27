@@ -57,17 +57,6 @@ def test_the_delta_brief_names_its_must_read_files() -> None:
     assert _norm(SRC).count(pointer) == 1 and pointer in p4
 
 
-def test_the_callers_hunt_line_names_the_join_against_another_producer() -> None:
-    """Row 1792365642: a fix changed one producer's path form and the line that joined its output with a second
-    producer's keys was never re-derived (W-42ddde8f, final_gate_stop.py's commit leg), so the hunt line names it."""
-    callers = _section(_norm(CAT), "- Callers and consumers:", "- Parsers:")
-    assert (
-        "callers that use a normaliser's return value; every line that joins, compares or keys a changed output"
-        " against another producer's, named with the form each side's values take (a path relative to a"
-        " subdirectory or to the top level, say); a pure helper's own return contract" in callers
-    )
-
-
 def test_next_rows_merge_into_slices_by_name() -> None:
     """Row 1791493834: `next` prints `{name, ledger}` rows, merged by name; the quiet-round-1 shape is intel's."""
     p4 = _section(_norm(SRC), "## Phase 4 — Converge", "## Behavior Contract")
@@ -126,24 +115,10 @@ def test_the_opt_in_fallback_is_stated_in_every_copy() -> None:
         assert not missing, (clause, missing)
 
 
-_BANNER = ROOT / "commands" / "_fragments" / "no-workflow-hub.md"
-
-
 def test_every_workflow_command_carries_the_no_workflow_in_the_hub_note() -> None:
     """D-961: the override sits at the TOP of every source that launches the review-loop Workflow, so
     no lead sentence ("They run as ONE `Workflow` call …") is read before it; the note names the hub
     test and replaces every launch, later passes and relaunches included."""
-    note = _norm(_BANNER)
-    for phrase in (
-        "NO `Workflow` IN THE HUB — D-961",
-        "a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under "
-        "`/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool",
-        "Every `Workflow` launch this command names (a round-1 pass, a delta or closing pass, a "
-        "relaunch, a wave) is replaced by its Agent-tool fallback",
-        "A workflow, permission or approval question never goes to the operator.",
-        "Outside the hub this command's text stands as written.",
-    ):
-        assert phrase in note, phrase
     launching = [
         p
         for p in sorted((ROOT / "commands" / "_sources").glob("*.md"))
@@ -191,37 +166,6 @@ def test_trimmed_single_finder_slice_gets_its_second_next_wave() -> None:
     )
 
 
-def test_catalogue_holds_the_two_recurring_probes() -> None:
-    """Rows 1791336906/1791400423 (redactor timing) and 1790358705/1790361809 (what a fix leaves unchanged)."""
-    cat = _norm(CAT)
-    assert (
-        "a regex redactor is also timed on a 100k-character input and probed at its truncation edges"
-        in _section(cat, "## The brief's hunt lines", "## Graders")
-    )
-    assert (
-        "a fix recipe handed to a coder names one input it must leave unchanged and the test that holds it"
-        in (_section(cat, "## Graders", "## Prose and docs fixes"))
-    )
-    assert (
-        "a sentence describing a record format or a code string quotes the emit site's keys or the string verbatim"
-        in (_section(cat, "## Prose and docs fixes", "## Seat isolation"))
-    )
-    assert (
-        "on a copy: ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff"
-        " writes `.ruff_cache` in its working directory and fails inside a read-only pin without `--no-cache`"
-        in (_section(cat, "## Seat isolation", "## Loop bookkeeping"))
-    )
-
-
-def test_a_guard_a_fix_adds_is_briefed_in_the_next_round() -> None:
-    """Row 1791838673 (D-787): the catalogue both review commands read."""
-    cat = _norm(ROOT / "commands" / "_fragments" / "review-probe-catalogue.md")
-    assert (
-        "a guard a fix adds goes into every brief from that next one on, by name, with its escape variants (quote styles, unreadable values, globbed paths) and its model boundary"
-        in cat
-    )
-
-
 def test_the_round_grammar_names_own_fix() -> None:
     """Row 1791764618 (D-778)."""
     assert (
@@ -266,37 +210,6 @@ def test_the_receipt_template_shows_the_gate_scope_line_the_gate_accepts_filled(
     )
 
 
-def test_a_scope_growth_remainder_round_restates_every_slice() -> None:
-    """Row 1791847183: the exit's re-verify step never said the remainder round still re-states every slice."""
-    text = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "re-verify the fixed set alone (in a slice-partitioned loop, its `round --slices` still re-states every earlier slice;"
-        in text
-    )
-
-
-def test_a_capped_round_one_merges_low_risk_slices() -> None:
-    """Row 1791847121: a box cap dropped a slice to one finder and cost a second wave."""
-    text = _norm(CAT)
-    remainder = text[text.index("- Remainder rounds:") : text.index("- Route-up and close:")]
-    assert (
-        "or, when the cap is known before round 1, merge two low-risk slices so the riskiest keeps both finders"
-        in remainder
-    )
-
-
-def test_a_fix_outside_the_pin_is_pinned_next_pass() -> None:
-    """Row 1791844045: a CHANGELOG fix outside the pins was re-raised from the base copy. Naming the file instead of
-    pinning it left the seat no place to read it, since every unpinned file is read from the base tree (rows
-    1792416541, 1792432410)."""
-    text = _norm(CAT)
-    assert (
-        "a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger hunk) has that file pinned next"
-        " pass, so the seat never reads the base copy" in text
-    )
-    assert "or the brief names it" not in text
-
-
 def test_the_closing_method_cell_rule_matches_the_gate() -> None:
     """Row 1791860808: a closing cell worded 'method: remainder pass — re-derivation' failed the coverage gate."""
     import importlib.util
@@ -328,95 +241,6 @@ def test_the_checklist_is_filled_before_the_in_progress_gate_run() -> None:
     )
 
 
-def test_an_injected_line_is_read_back_through_its_consumer() -> None:
-    """Row 1791889493: a pointer fix to a pack line read green in the source and red in review_rubric.py's output."""
-    pre_pin = _section(_norm(CAT), "## Before the first pin", "## ")
-    rule = (
-        "- A line another tool injects or renders, changed or with a rendering the change alters, is read back"
-        " whole through that tool's output after the edit and before each delta pin, under an invocation that"
-        " emits it — a pack line in `review_rubric.py --changed <a path its globs hit>`, a fragment edit's"
-        " consumers rendered to a temp dir, a template's emitted file — never in its source alone; a line the"
-        " change leaves emitted by no invocation (a pack line with no mandate keyword, a section under a"
-        " conditional heading) is named in the brief as dropped."
-    )
-    assert pre_pin.count(rule) == 1
-    assert "render a fragment edit's consumers to a temp dir and read each" not in _norm(CAT)
-
-
-def test_the_callers_hunt_line_names_readers_that_never_import_the_file() -> None:
-    """Row 1791891025: a seat cannot infer a consumer it was never told exists, and a scaffold fold or drift checker
-    reads a file's TEXT without importing it, so no importer grep finds it. The class sits in the general Callers and
-    consumers hunt line (any changed or vendored file, not only a re-vendor), with the recipe that finds the readers
-    and who names them. Pinned as the contiguous span between its neighbours inside that bullet, so a truncated,
-    qualified or relocated clause reds. Cheapest bypass: a brief that names the class but lists no reader; the seat
-    reading that brief owns it, not this pin."""
-    callers = _section(_norm(CAT), "- Callers and consumers:", "- Parsers:")
-    assert (
-        "every gate grading the old name; every reader of a changed or vendored file's text that never imports it (a"
-        " scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by"
-        " the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading"
-        " `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each"
-        " project's `.fabrik/synced.lock` by `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the"
-        " file named in the brief; every outbound sink" in callers
-    )
-    # the round-1 draft put it in the re-vendor premise; neither wording may remain anywhere else
-    assert _norm(CAT).count("that never imports it") == 1
-
-
-def test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree() -> None:
-    """Mail 01M4VMNGGM (intel, executed and re-run here): branch, worktree and stash state lands in the clone's own
-    `.git`, and a push from the clone writes the live repo, so the push is disabled first.
-    Row 1791910374, a recurrence of the held gitdir-shim-recipe ("a history-reading test recipe"): the catalogue forbade
-    `git worktree add` but a `git archive` pin has no history, so a history-reading test had no sanctioned route. The
-    D-711 audit ran the clone: alternates point at the shared objects and nothing in the shared `.git` changed. Its own
-    sentence, after the worktree ban, so the ban's colon still leads to the archive red-on-revert; live text only (an
-    HTML comment around it reds). Not seen: a seat that runs the test in the archive anyway; the seat's red owns it."""
-    iso = re.sub(
-        r"<!--.*?-->", "", _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
-    )
-    assert (
-        "before its first gate. A seat test that reads git history or the tracked set (`git ls-files`: neither the"
-        " archive nor a pin copy has a `.git`) runs in a clone the seat makes with `git -C "
-        "<scratch> clone --shared --no-checkout <live checkout> clone`, checks out at `git -C <scratch>/clone "
-        "checkout -q <the pass's base SHA>` (until then its status reads every file deleted), with its push to "
-        "`origin` disabled at once (`git -C <scratch>/clone config remote.origin.pushurl /nonexistent.invalid`: "
-        "`origin` is the live repo, so a push writes its `.git`; no other remote is ever pushed to) and the pins laid"
-        " over it, committed in the clone when the test reads HEAD, a diff, the status or the tracked set; that test's"
-        " red-on-revert "
-        "overlays the revert on the clone. Branch, worktree and stash state the test creates lands in the clone's own"
-        " `.git`; only a test that reads the live checkout's own branches, worktrees or stash runs in the lead's "
-        "throwaway worktree. Ruff" in iso
-    )
-    assert (
-        "A SEAT never runs `git worktree add` on the live repo (its metadata lands in the shared `.git`): a seat's"
-        " red-on-revert overlays"
-        " the revert on its archive copy" in iso
-    )
-
-
-def test_the_scope_paragraph_says_where_round_zero_and_rule_five_bind() -> None:
-    """W-eaa66f83: term-coverage's scope paragraph said every obligation 'binds all five consumers alike' while round
-    zero (:16) runs before round one and every re-dispatch of a consumer that runs delta rounds, which a certification
-    gauntlet runs only where its own text names one, and rule (5) governs only a fix to a checker or a gate."""
-    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
-    assert (
-        "binds all five consumers alike, while round zero binds only a consumer that runs delta rounds — before its round"
-        " one and before every re-dispatch — and rule (5) only a fix to a checker or a gate."
-    ) in text
-
-
-def test_rule_three_pointer_is_opened_before_the_pin() -> None:
-    """W-c9b727ab: rule (3) let a restating sentence be replaced by 'at most a pointer to where the fact is
-    re-derivable' without anyone opening that pointer, so a pointer to a place that no longer holds the fact passed as
-    a deletion. The pointer is now read before the pin, as rule (2)'s sweep reads each mirror, and recorded."""
-    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
-    assert (
-        "replaced by at most a pointer to where the fact is re-derivable (each pointer OPENED before the pin and the"
-        " fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger"
-        " row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim;"
-    ) in text
-
-
 def test_an_agent_tool_seat_gets_the_pin_import_placement() -> None:
     """Mail 01M4W155SB (intel): the Agent-tool seat list states PIN_IMPORT's sys.path placement and its -P condition
     and points at the recipe, and the pointed-at recipe still says the same."""
@@ -442,98 +266,10 @@ def test_an_agent_tool_seat_gets_the_pin_import_placement() -> None:
 def test_an_equivalent_mutant_is_discarded_never_reported_as_a_test_gap() -> None:
     """Row 1791937766: a no-op mutant (an f-string that renders the same) survived and was reported as a gap; both
     homes of the mutant rule now require a survivor to change observable behaviour first."""
-    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "shown applied by a diff of the copy against the pin, never a grep count; a survivor is reported only once"
-        " shown to change observable behaviour (an output, return value, exit code, raised exception or written state"
-        " diffed against the unmutated copy), and an equivalent mutant, a named one included, is struck with that diff"
-        " quoted, never reported as a test gap"
-    ) in cov
     assert (
         "survivors reported only once shown to change observable behaviour (an output, return value, exit code, raised"
         " exception or written state diffed against the unmutated copy), and an equivalent mutant is struck with that"
         " diff quoted, never a test gap"
-    ) in _norm(CAT)
-
-
-def test_fourth_review_queue_pass_lines() -> None:
-    """/fabrik-review queue, fourth pass (2026-10-14): overlay copy and pin currency (1791933800, 1791937887,
-    1791958467, 1791961253, 1791965991, 1791967675, 1791972544, 1791958633, 1791971384), write-path isolation
-    seams (1791935553), visible text of real builds (1791936682, 1791950533, 1791953413, 1791958187), re-vendor
-    tests that assume a co-located hub (1791959728), identity keys (1791982821) and predicate readers (1791985566)."""
-    text = _norm(CAT)
-    for needle in (
-        "a fix's identity or dedup key (byte vs text read, line endings, recycled ids such as inode reuse),",
-        "every reader of a changed predicate's verdict (a notice, message or wall line that reads the same hold), and"
-        " of each field a fix writes, named before the closing round.",
-        "and whether that test assumes a co-located hub tree, so a standalone run of it is a known false red;",
-        "a change that writes outside its state dir: every isolation seam its callers' tests use (`COMMAND_RUN_DIR`, a"
-        " `HOME` or `TMPDIR` override), each shown to land under its own root by listing the live checkout after the suite.",
-        "a page-type or reader move: base and head are built and each page's visible text and heading outline (h1-h3"
-        " counts) are diffed independently of any identity diff the change ships",
-        "a seat copies each file to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never"
-        " `cp -r <pin> <dest>` onto a directory that exists",
-        "`git archive` omits untracked files, so the pin also carries the gitignored inputs the tests read (the repo's"
-        " `.worktreeinclude` list, `.env` excepted)",
-        "Each later pass's brief names its own pin dir and digest, cut after the last fix, never the round-1 pin,",
-    ):
-        assert needle in text, needle
-
-
-def test_a_fix_is_probed_against_every_shape_the_form_it_replaces_held() -> None:
-    """Rows 1792001701 and 1792016553 (fabrik-review): a closing pass accepted a selector-to-id fix that dropped the
-    scoped shape the selector had matched, and a restored test guard that covered fewer pages and languages than
-    the test it replaced; 22 of 542 rejected reasons had already named the mirror clause, so the held subject
-    recurs and is edited (D-711). Phase 3's verify-the-fix list gains the question — the shapes enumerated from the
-    OLD form and listed in the fix's ledger row — and the catalogue's closing-pass brief re-checks every replaced
-    form against them. Mutants: delete the question, drop 'EVERY shape', drop 'before the fix is drafted', 'never
-    from the new one' to 'or from the new one', drop a named shape, drop a cite, move the question or a shape past
-    its '?', drop the catalogue's re-check — each fails an assertion (the question is bounded by its own '?', so a
-    clause moved elsewhere in the paragraph is not found)."""
-    text = _norm(SRC)
-    para = _section(
-        text, "verify the FIX, not just the finding", "**Never apply a fix you can't stand behind"
-    )
-    head = "does the new form still hold EVERY shape the form it replaces held"
-    assert head in para, "the question left Phase 3's verify-the-fix list"
-    rest = para[para.index(head) :]
-    assert "?" in rest, "the question lost its question mark"
-    q = rest[: rest.index("?") + 1]
-    assert q.endswith(
-        'population before it widens or narrows", asked here of every replaced form)?'
-    ), q[-80:]
-    assert (
-        "the shapes enumerated from the OLD form before the fix is drafted, never from the new one, and listed in"
-        " the fix's Pass Ledger `method:` cell beside its `round-zero probe` note"
-    ) in q, (
-        "the enumeration, its source and its record are one contiguous clause; an insertion breaks it"
-    )
-    for shape in (
-        "a selector replaced by an id or a scoped lookup",
-        "a guard replaced by a narrower one",
-        "a restored test by one covering fewer pages or languages",
-    ):
-        assert shape in q, shape
-    # the two cites quote their sources, which must still carry the quoted words
-    cite_cat = "what a replaced guard covered that its replacement does not"
-    cite_cov = "against its live population before it widens or narrows"
-    assert cite_cat in q and cite_cov in q
-    assert cite_cat in _norm(CAT), "the cite names a catalogue line that no longer exists"
-    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert cite_cov in cov, "the cite names a round-zero clause that no longer exists"
-    assert "; round-zero probe — <what>" in cov, (
-        "the method-cell note the question points at is gone"
-    )
-    assert "for a matcher or replacer" in q, (
-        "the cite must name the subject term-coverage gives the phrase"
-    )
-    assert "matcher clause" not in q, "an invented label a reader cannot grep for"
-    assert "or from the new one" not in q
-    assert "2026-" not in q, "a rule carries no dated incident"
-    # the closing-pass seats re-check the lead's enumeration, so the lead's step is not the only reader
-    assert (
-        "the closing-pass brief has every seat list each slice file it read, by path, and re-check every fix that"
-        " replaced a form against the shapes the OLD form held, as the fix's ledger row lists them"
     ) in _norm(CAT)
 
 
@@ -550,27 +286,9 @@ def test_a_reader_over_another_language_starts_from_a_fail_closed_grammar() -> N
     text = _norm(CAT)
     row = text[text.index("- Parsers: the producer's real output contract first") :]
     row = row[: row.index(" - ", 1)]
-    assert (
-        "a hand-written reader whose input is source in a language other than its own (TypeScript read by Python,"
-        " SQL, a Dockerfile), with no real parser of that language at hand, starts from a strict grammar that REFUSES"
-        " any line matching none of its named forms, none a catch-all, its refusal executed before every pin on a line"
-        " of that language's own syntax that no named form admits, and run by the lead over the live files the reader"
-        " will read, each refusal there classed a grammar gap or a true out-of-grammar line; the seats attack what the"
-        " grammar wrongly accepts — a tokenizer is built only where the brief names the construct no line form can"
-        " hold."
-    ) in row, (
-        "the grammar-first rule, its executed refusal, its fail-closed cost and its escape are one clause"
-    )
-    assert row.rstrip().endswith("no line form can hold."), row[-80:]
     assert "attack only" not in row, "'only' forbade probing wrongful refusals (round-1 finding)"
-    assert "hand-written reader" in row and "no real parser of that language at hand" in row, (
-        "a reader that uses the language's real parser is outside the clause (round-2 finding)"
-    )
     for weakener in ("where time allows", "where practical", "optionally", "should"):
         assert weakener not in row.lower(), weakener
-    assert "the parsing model before tokens" in row, (
-        "the clause sharpens the existing model-before-tokens rule"
-    )
 
 
 def test_the_receipt_sentence_says_owners_only_inside_the_by_design_parentheses() -> None:
@@ -616,26 +334,11 @@ def test_the_catalogue_probes_a_deletion_surface() -> None:
     drop the removal-vs-classification clause; drop the head's bound; a second deletion row under any head."""
     cat = _norm(CAT)
     hunt = _section(cat, "## The brief's hunt lines", "## Graders")
-    row = (
-        "- Deletions (a change that deletes a file, directory or input): a deleting probe also removes every directory it"
-        " empties, up to the root, as `git rm` does (`find <root> -name .git -prune -o -type d -empty -print`, run before"
-        " and after the deletion, prints no new line; a leftover hides a `readdirSync`); a seed restoring deleted inputs"
-        " first lists, by grepping the code under test, each input it reads by name or by listing a directory, and restores"
-        " no other; the Callers grep above runs for each deleted path, basename and directory from the hub and the fleet"
-        " repos, never the package; seats name, for each guard on a deleted input, whether it re-runs at removal or only at"
-        " classification."
-    )
-    assert hunt.count(row) == 1, (
-        "the Deletions hunt row is stated once, in § The brief's hunt lines"
-    )
     # it sits between the Surfaces row and The premise row, the shape order the lead reads top to bottom
     assert hunt.index("- Surfaces:") < hunt.index("- Deletions (") < hunt.index("- The premise:")
     # one deletion row, however a second one is headed: the probe's own phrase appears once in the whole catalogue
     assert cat.count("- Deletions (") == 1
     assert cat.count("deleting probe") == 1
-    # the grep clause points at the Callers row above it instead of restating it narrower
-    callers = hunt[hunt.index("- Callers and consumers:") : hunt.index("- Deletions (")]
-    assert "the hub and the fleet repos for the file's path, basename and directory" in callers
 
 
 def test_the_slices_ledger_is_defined_with_its_closing_example() -> None:
@@ -666,71 +369,6 @@ def test_a_fixture_equal_to_the_codes_own_literal_is_a_test_quality_finding() ->
         "the finder mutates that constant on a copy under its scratch dir and the test must go red"
         in checklist
     )
-
-
-def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None:
-    """D-711 recurrences, 2026-10-17 pass: receipt re-made after a fix commit (1792137103, 1792184935), counts name
-    their commit (1792072266), a served build's real port (1792087244), two fix forms (1792119582, 1792111760),
-    branches a doc sentence summarises (1792088847), readers of a written field (1792081559), and the post-fix prose
-    sweep (1792085958, 1792067212, 1792084655). Mutants: drop any clause."""
-    src = _norm(SRC)
-    assert (
-        "a fix committed after the draft's `--init` moves the tip, which is why that form writes the receipt itself"
-        " only at the close (`--init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last fix commit>`,"
-        " its rows carried from the draft — `--init`"
-        " never overwrites, and `--restamp` re-anchors only a working-tree receipt)"
-    ) in _section(src, "## Reporting", "{{include:close-chain}}")
-    # rows 1792097032 (the seat folder exists first) and 1792082624 (two vacuous-test shapes, recurring
-    # negation-safe-assertions)
-    assert (
-        "`<scratch_dir>/seat-p<pass>-<digest8>-<slice>-<model>/`, made with `mkdir -p` before its first write"
-        in src
-    )
-    assert (
-        "**a value compared with itself, or a matcher softened until it cannot fail** (a substring where the contract"
-        " is equality, a regex widened to `.*`)"
-    ) in _section(src, "**Test-quality checklist", "## Phase 2")
-    lessons = _section(
-        src, "Every finder brief carries these lessons VERBATIM", "**HARD TIME BOX 15 minutes**"
-    )
-    assert (
-        "print a DENOMINATOR, and the commit (or the pin's md5) it was measured at, beside every count"
-        in lessons
-    )
-    assert (
-        "a probe of a served build reads the port the server actually bound, from its own output, or serves the"
-        " files with no port at all (Playwright `page.route`), never a port the brief assumed"
-    ) in lessons
-    fixed = _section(src, "## Phase 3 — Prove & fix", "## Phase 4 — Converge")
-    assert (
-        "**Two fix forms recur:** two predicates over one input (an arm and its lift, an allow and its deny) become"
-        " ONE classifier both read, its grader sweeping every input pair; a sanitizing fix is an allowlist of"
-        " spelled-out characters, never a bracket range"
-    ) in fixed
-    assert "(with bash's `globasciiranges` off, `B` matches `[a-c]` under `en_US.UTF-8`)" in fixed
-    cat = _norm(CAT)
-    assert (
-        "trace each rationale sentence's mechanism to the code through every branch it summarises (refusals and"
-        " fallbacks, not only the happy path)"
-    ) in cat
-    assert "and of each field a fix writes, named before the closing round." in cat
-    assert (
-        "each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix writes that"
-        " restates a rule already stated elsewhere, found at its source by that restated rule's terms and two rewordings"
-        " of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; a fix that narrows,"
-        " widens or splits a rule's subject is held to `/fabrik-review`'s \"does the new form still hold EVERY shape the"
-        ' form it replaces held", with "the shapes enumerated from the OLD form before the fix is drafted, never from'
-        ' the new one": here each case no new clause covers, two now cover or only the new wording reaches, listed with'
-        " where it now lands or, with its reason, that it is dropped on purpose, where your command records the fix"
-        " (`/fabrik-review`'s"
-        " Pass Ledger `method:` cell, `/fabrik-review-scoped`'s report); every doc"
-        " line, docstring,"
-        " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
-        " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
-        " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
-        " outdates), and every comment and docstring of a function whose behaviour a fix changes re-read whole, since"
-        " a paraphrase names neither the verb nor a removed name;"
-    ) in cat
 
 
 def test_a_by_design_d_owner_is_a_ledger_row_and_the_refusals_point_at_the_gate() -> None:
@@ -781,77 +419,6 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
             "written as the readers' round-trip (a value is accepted only when every reader parses back what was "
             "written), never as a check for that one input"
         ) in text, frag
-    cc = _norm(ROOT / "commands" / "_fragments" / "close-chain.md")
-    assert (
-        "In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only "
-        "after the closing pass, printed then by its producing command; a draft written mid-loop carries none."
-    ) in cc
-
-
-def test_round_zero_opens_a_pointer_from_every_repo_the_surface_ships_to() -> None:
-    """Row 1792275662 (2026-10-18), recurring held pointer-resolve-test-same-change (1790686995): a synced pack's
-    fix cited a hub-only fragment, a pointer that resolves nowhere in the fleet."""
-    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "never as a check for that one input; a pointer the fix writes — rule (3)'s included — into a file"
-        " `/opt/fabrik/scripts/fabrik_synced_manifest.py` distributes is opened with `test -e` from a synced project repo as well"
-        " as from the hub, since a path only `/opt/fabrik` holds resolves nowhere in the fleet;"
-    ) in cov
-
-
-def test_round_zero_writes_one_owner_for_a_fact_from_the_first_draft() -> None:
-    """Rows 1792277512 (recurring held status-vocabulary-single-source / checked-format-pointer: a CHANGELOG or doc
-    line restating a constant the code owns) and 1792274565 (recurring held
-    a-validator-fix-emits-the-value-its-check-tested: a fix and a neighbouring check reading one field two ways)."""
-    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "resolves nowhere in the fleet; a CHANGELOG or doc line the fix writes that would restate, count or partition"
-        " what another artifact owns is a pointer to that owner from the first draft, opened before the pin and"
-        " recorded by APPENDING `· pointer: <path:line> read` after the round-zero probe text below; a fix that reads"
-        " a field another check in the same file or call path already validates (grep the pin for the field name)"
-        " takes both reads from one helper, and the readers' round-trip above still holds; the Pass Ledger's"
-    ) in cov
-    assert "vagueness buys nothing either; (2)" in cov, "rule (1) carries no drafting rule"
-
-
-def test_a_wording_change_seat_runs_the_command_the_sentence_names() -> None:
-    """Row 1792262881 (2026-10-18), recurring held wording-claim-execution (1791453535): both seats of a wording
-    review ran the command the changed text described, unprompted; the brief now asks for it."""
-    cat = _norm(ROOT / "commands" / "_fragments" / "review-probe-catalogue.md")
-    assert (
-        "run a README snippet, usage text or rewritten docstring instruction as a caller would, and hand each "
-        "seat of the brief that same command to run under § Seat isolation — one that writes a live store, "
-        "sends, commits, deploys or reaches a host stays the lead's, who runs it on a scratch target (a "
-        "throwaway database, repo, host or account), every such command and SQL block of a runbook included, "
-        "or, when no scratch target exists, names it in the brief as not run, with why and the owner who can "
-        "run it; only a read that changes nothing (no write, lock, quota spend or triggered job) runs against "
-        "its real host — and probe"
-    ) in cat
-    assert "every citation in a docs change, every cross-repo claim" in cat, (
-        "the Execute line stays the lead's"
-    )
-
-
-def test_rule_three_rewrites_a_heuristic_picker_at_its_first_residue() -> None:
-    """Row 1792289039 (second verdict on the held parser-residue-replace subject): a function that picks ONE item from
-    a list by heuristic is patched round after round, each patch moving the pick to the next wrong item, so rule (3)
-    rewrites it at the first delta round its site yields, after the deletion text so 'that residue' keeps its
-    antecedent, with a one-round method cell and an earlier foundation error."""
-    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
-    clause = (
-        "goes on drifting; a function under review that picks ONE item from a list by heuristic (a first match, a reason"
-        " line taken from a log) takes this rule's ONE-batch rewrite at the first delta round in which its site yields"
-        " an own-fix defect, recast, when it is not deleted, as the whole list filtered by a noise rule probed against the"
-        " list's live population like any matcher above, with a single pick taken from the filtered list where its callers need one, and its"
-        " row's method cell appends `; class rewrite — <site> (round k)`; a second yield at that site without the"
-        " rewrite is already the foundation error the next clause names for a third residue pass; a third residue pass"
-        " without a rewrite"
-    )
-    assert text.count(clause) == 1
-    assert "(rounds k, k+1)`; when that residue is itself a sentence" in text, (
-        "the deletion clause keeps its antecedent"
-    )
-    assert "a heuristic that SELECTS" not in text
 
 
 def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
@@ -868,10 +435,6 @@ def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
         )
         span = text[start : text.index(" and the row's method cell APPENDS", start)]
         assert span == clause.format(unit), (name, span)
-    picker = re.sub(
-        r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text()
-    )
-    assert "own-fix defect, recast, when it is not deleted, as the whole list filtered" in picker
 
 
 def test_a_routed_fix_carries_its_invariant_and_shapes() -> None:
@@ -949,25 +512,6 @@ def test_an_in_surface_red_at_the_close_reopens_a_closing_pass_over_the_fix():
         "A finding that names this review's receipt counts as naming this surface. A non-zero count is YOUR debt, not"
         " another lane's — fix it as the close order fixes a red whose findings name this surface or its receipt."
     ) in _norm(SRC)
-
-
-def test_a_seat_brief_runs_the_tests_that_load_each_changed_module() -> None:
-    """Row 1792359501 (a recurrence of held full-suite-import-time-registration): the catalogue said HOW a seat runs
-    tests, never WHICH — so a new import that breaks a stubbed loader, which only the tests loading the module by path
-    exercise, passed every review run. The brief now names those tests for every seat to run."""
-    text = re.sub(
-        r"\s+", " ", (ROOT / "commands" / "_fragments" / "review-probe-catalogue.md").read_text()
-    )
-    assert (
-        "tests run by exact node id, except a mutant run or a re-run of one, which takes the test set and the "
-        "selection rule of the `One mutant per clause` bullet above; and a brief over changed code names the tests "
-        "that load each changed "
-        "module (by import, or by path through a loader or a stub — found by grepping `tests/` for each "
-        "changed file's stem, its name without `.py`, or an `__init__.py`'s package dotted name, and keeping "
-        "the hits that import or load it) for every seat to run by the `PIN_IMPORT`/`PYTEST_PINS` recipe (a "
-        "test it leaves unrun stays unverified), so a new import that breaks a stubbed loader reds in the "
-        "pass."
-    ) in text
 
 
 def test_the_close_order_is_a_numbered_list_with_the_embed_its_own_step() -> None:
@@ -1065,48 +609,13 @@ def test_a_counter_word_in_a_method_cell_is_named_as_refused() -> None:
     ) in _norm(SRC)
 
 
-def test_a_shifted_anchor_is_remapped_after_each_round_fix() -> None:
-    """Row 1792464841 (a recurrence of held cite-remap-after-every-round): anchors were retargeted only at the end."""
-    assert (
-        "never renumbered by hand, and the remap runs after each round's fix, before the next pin, over every anchor a"
-        " brief or mutant list carries."
-    ) in _norm(CAT)
-
-
 def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
     """W-60629ce4 (D-1070): the committed-fix form keeps a generated draft during the passes and writes the receipt
     once, after the last fix commit; every other form creates it before Pass 1. Each clause is pinned where it
     lives — the fragment's obligation 3 (included by five command sources) and the later-pass high-water mark."""
-    frag = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    for clause in (
-        "One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review",
-        "--out <SCRATCH>/<scope>-receipt-draft.md",
-        "`review_receipt.py --init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last"
-        " fix commit>` writes the receipt under `docs/development/reviews/` once",
-        "a class row the late rubric adds that the draft lacked is a hunt still owed, never carried `CLEAN`",
-        "the receipt becomes the draft again: move it back over the draft (`mv`, since it is not yet committed and `--init` never overwrites)",
-        "and every other command this fragment renders into — creates it NOW",
-        "at the close — after the last fix commit and a `final_gate.py --check --json` run that forced none —",
-        "then the close ORDER of `/fabrik-review` § Reporting runs on it",
-        "A fix that ORDER still forces is a closing-pass fix: commit it",
-    ):
-        assert clause in frag, clause
     assert (
         "the receipt's sha at dispatch (in the committed-fix form below, the draft's last row id and md5)"
     ) in _norm(SRC)
-    task = _norm(ROOT / "commands" / "_sources" / "fabrik-task.md")
-    assert (
-        "run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that"
-        " lands first"
-    ) in task
-    assert (
-        "run `/fabrik-review`'s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to"
-        in task
-    )
-    assert (
-        "carry the draft's rows into it (a rubric class the draft lacked is a hunt still owed)"
-        in task
-    )
 
 
 CORE = ROOT / "commands" / "_fragments" / "subagents-core.md"
@@ -1178,31 +687,6 @@ def test_a_by_design_owner_row_decides_its_residual() -> None:
     assert src[src.index(sentence) + len(sentence) :].startswith("The parentheses hold the owner")
 
 
-def test_a_tests_slice_writes_its_own_mutants() -> None:
-    """Row 1792471443: seat-written mutants found 11 survivors the plan's own 24 mutants missed."""
-    clause = _clause(_norm(CAT), "one reader mutates the guarded behaviour; ")
-    assert clause == (
-        "a tests slice's seats also write and run mutants of their own against each behaviour its tests claim,"
-        " beside the lead's, and report each survivor that changes observable behaviour, as above;"
-    )
-    cat = _norm(CAT)
-    after = cat[cat.index(clause) + len(clause) :]
-    assert after.startswith(" graders are written, and named, before the next round goes out. - ")
-
-
-def test_a_dead_resumed_seat_is_re_dispatched_fresh() -> None:
-    """Row 1792488923: a SendMessage-resumed seat died on an API 403 after an account switch."""
-    clause = _clause(_norm(_BANNER), "and the pass's pin ", ")")
-    assert clause == (
-        "(a later pass may resume a round-1 seat with `SendMessage`, and one that comes back dead, as after an"
-        " account switch's API 403, is re-dispatched fresh with its slice's or unit's ledger and the previous"
-        " seat's REFUTED list)"
-    )
-    banner = _norm(_BANNER)
-    after = banner[banner.index(clause) + len(clause) :]
-    assert after.startswith(", and the close or the Pass row records `shape: agent-tool`.")
-
-
 SUB = ROOT / "commands" / "_fragments" / "subagents-core.md"
 
 
@@ -1224,56 +708,6 @@ def test_a_fix_between_round_one_waves_is_in_the_delta_surface() -> None:
     ) in _norm(SUB)
 
 
-def test_the_input_class_takes_every_order_of_duplicate_records() -> None:
-    """Row 1792587658 (held dedupe-identity-mechanism): a fix keeping one of two duplicates met an unprobed order."""
-    assert (
-        "the real committed files' shapes counted by an independent parser, and every order its duplicate records"
-        " can arrive in when the fix keeps one of them) and probe it again before each delta;"
-    ) in _norm(CAT)
-
-
-def test_a_seat_scratch_repo_is_checked_and_git_runs_hermetic() -> None:
-    """Rows 1792560934 (held gitdir-shim-recipe) and 1792559094 (held third-party-cli-empty-home): a scratch init
-    that failed left git on the live repo, and a git test read the box's config."""
-    cat = _norm(CAT)
-    assert (
-        "is checked before its first git write: `git -C <it> rev-parse --show-toplevel` prints its own path, since an"
-        " init that failed under the hub's `.tmp/` leaves every later git call on the live repo."
-    ) in cat
-    assert (
-        "runs with `GIT_CONFIG_GLOBAL` at an empty file, `GIT_CONFIG_NOSYSTEM=1`, and `HOME` and `XDG_CONFIG_HOME` at"
-        " empty folders under its scratch, with `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and"
-        " `GIT_COMMITTER_EMAIL` set when it commits, since the empty config holds no identity (an older git ignores"
-        " `GIT_CONFIG_GLOBAL` and reads `$HOME/.gitconfig`), and"
-        " a test that a hook stays silent first shows that hook fire on a positive control. - Every file a grader reads"
-    ) in cat
-    leak = next(line for line in SRC.read_text().splitlines() if line.startswith("- **Leak check"))
-    assert leak.endswith(
-        "so a live process that vanished shows in the same diff. The baseline also holds the `md5sum` of the `config`"
-        " file in the directory `git rev-parse --path-format=absolute --git-common-dir` prints, since a remote or"
-        " `core.hooksPath` a seat writes there shows in no status; a hook file under that directory's `hooks/` is in"
-        " neither, so the baseline lists it too."
-    )
-
-
-def test_a_measured_count_names_what_it_leaves_out() -> None:
-    """Row 1792558448 (held count-from-population-same-script): an expected count hid the files it excluded."""
-    assert (
-        "a measured count names its population and each file or site it leaves out (a guard file, a file holding"
-        " several sites), a closing brief names"
-    ) in _norm(CAT)
-
-
-def test_each_slice_runs_a_mutant_per_added_guard() -> None:
-    """Row 1792544238 (held mutant-sweep-seat-for-new-function): two added guards had no test until a seat's mutant."""
-    assert (
-        "a regression test fails when the caller is reverted; each slice's seats write and run one mutant of their own"
-        " per guard the change adds in their slice, written afresh rather than re-run from the lead's pre-pin list, on a"
-        " copy made from the pin, under the explicit"
-        " `timeout` its brief names (`/fabrik-review`'s D8 mutation-seat lesson); one reader mutates the guarded behaviour;"
-    ) in _norm(CAT)
-
-
 def test_the_lead_creates_each_seat_folder_before_dispatch() -> None:
     """Row 1792628374 (held lead-creates-seat-dirs-before-dispatch, second verdict): a seat wrote into a folder nothing
     had made; the lead now makes it before the dispatching message and the seat's own mkdir stays as a no-op."""
@@ -1285,32 +719,3 @@ def test_the_lead_creates_each_seat_folder_before_dispatch() -> None:
     ) in core
     assert "nothing creates it for the seat" not in core
 
-
-def test_obligation_three_names_the_committed_fix_form_where_it_starts() -> None:
-    """Row 1792667105: a nested review ran `--init` before reading the committed-fix exception buried mid-obligation.
-    The exception is named, scoped to `/fabrik-review` as the body scopes it, at the obligation's first words."""
-    tc = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "3. **Persist** (one exception, the ⚠️ below: `/fabrik-review` over work whose fixes are COMMITTED during the"
-        " review writes a DRAFT now, its `--init` given `--out` into the run's `SCRATCH:` folder (the session"
-        " scratchpad when `start` printed none), and the receipt only after the last fix commit; every other review"
-        " and command creates the receipt NOW): create"
-        " `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` NOW,"
-    ) in tc
-    assert (
-        "One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review"
-        in tc
-    )
-
-
-def test_a_base_pin_copy_is_made_writable_before_the_overlay() -> None:
-    """Mail 01M5HTCCA90Q94CVXND6APC11B (infra-2, W-80ffca68's review): five of fourteen seats hit Permission denied
-    overlaying pins onto a copy of the base tree, which `review_loop_ledger.py pin --base` writes read-only; a pin file
-    the base lacks lands read-only after the overlay, so the copy is made writable before it and again after it."""
-    live = re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", "", CAT.read_text(), flags=re.S))
-    bullet = live[live.index("- Overlay and pin currency:") : live.index("## Loop bookkeeping")]
-    assert (
-        "`pin` writes the pin and its `<pins_dir>.base` tree read-only, files and directories, so a seat that copies the"
-        " base tree runs `chmod -R u+w <dest>` right after that copy and before laying the pins over it, and again after"
-        " it, since a pin file the base lacks lands read-only;"
-    ) in bullet

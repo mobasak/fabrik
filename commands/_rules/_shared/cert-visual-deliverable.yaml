@@ -1,0 +1,31 @@
+shared: commands/_fragments/cert-visual-deliverable.md
+baseline_sentences: cert-visual-deliverable.baseline.txt
+baseline_sha256: 400198642d7ad8ecffba790f8c222e7cb3b50e2c20107b67a7807454c30f7678
+entries:
+- id: cvd-u0
+  file: commands/_fragments/cert-visual-deliverable.md
+  baseline: '⚠️ VISUAL-DELIVERABLE QA — if a journey''s deliverable IS a visual artifact, the proof is EYES ON THE RENDERED PIXELS. Structural checks (file exists, format header, HTTP 200, the right hexes in the JSON/CSS, the source SVG''s bytes present inside the composed output) prove the pipeline WIRED the right inputs — they do NOT prove the rendered result looks right (live defect: every structural check green while a logo could be clipped, card text overflowing the bleed, contrast broken, fonts silently falling back — "content-verified is NOT visually QA''d")'
+  class: prose
+  text:
+  - '⚠️ VISUAL-DELIVERABLE QA — if a journey''s deliverable IS a visual artifact, the proof is EYES ON THE RENDERED PIXELS. Structural checks (file exists, format header, HTTP 200, the right hexes in the JSON/CSS, the source SVG''s bytes present inside the composed output) prove the pipeline WIRED the right inputs — they do NOT prove the rendered result looks right (live defect: every structural check green while a logo could be clipped, card text overflowing the bleed, contrast broken, fonts silently falling back — "content-verified is NOT visually QA''d")'
+- id: cvd-u1
+  file: commands/_fragments/cert-visual-deliverable.md
+  baseline: 'For EVERY image/PDF/SVG/favicon/video-frame deliverable: RENDER it (rasterize PDFs + SVGs first), then INSPECT the pixels with vision (`fabrik-gui` subagents have vision; fan them across artifact classes, adjudicate yourself) against the contract/brand: logo integrity/clipping, palette fidelity, typography actually rendering as the specified face (not a fallback), layout defects, contrast on every surface'
+  current: 'For EVERY image/PDF/SVG/favicon/video-frame deliverable: RENDER it (rasterize PDFs + SVGs first), then INSPECT the pixels with vision (`fabrik-gui` subagents have vision; fan them across artifact classes, adjudicate yourself) against the contract/brand: logo integrity/clipping, palette fidelity, typography actually rendering as the specified face (not a fallback), layout defects, contrast on every surface'
+  class: prose
+  text:
+  - 'For EVERY image/PDF/SVG/favicon/video-frame deliverable: RENDER it (rasterize PDFs + SVGs first), then INSPECT the pixels with vision (`fabrik-gui` subagents have vision; fan them across artifact classes, adjudicate yourself) against the contract/brand: logo integrity/clipping, palette fidelity, typography actually rendering as the specified face (not a fallback), layout defects, contrast on every surface'
+- id: cvd-u2
+  file: commands/_fragments/cert-visual-deliverable.md
+  baseline: A deliverable nobody looked at is an UNCHECKED row, not a PASS
+  current: A deliverable nobody looked at is an UNCHECKED row, not a PASS
+  class: prose
+  text:
+  - A deliverable nobody looked at is an UNCHECKED row, not a PASS
+vanished:
+  L1:
+    rule:
+    - cvd-u0
+  L2:
+    rule:
+    - cvd-u1

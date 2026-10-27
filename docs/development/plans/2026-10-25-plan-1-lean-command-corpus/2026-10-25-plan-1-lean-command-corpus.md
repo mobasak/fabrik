@@ -1,6 +1,6 @@
 # Lean command corpus — the rewrite plan set
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** kaizen
 Spec: `docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` (Status: CONVERGED, D-1217, D-1219) · Work item: W-96f36043 (the P0 lean program, D-1216) · Plan decisions: D-1222
 
@@ -120,9 +120,9 @@ Selections against it: a ticket's ledger is the single source of a rule's wordin
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part a | — | ⛓️ | ⬜ | |
-| T01b | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part b | T01a | ⛓️ | ⬜ | |
-| T01c | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part c | T01b | ⛓️ | ⬜ | |
+| T01a | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part a | — | ⛓️ | ✅ | this commit (review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01a-review.md`) |
+| T01b | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part b | T01a | ⛓️ | ✅ | this commit — no-op: step 2 finds 10 phrases, none a migratable pin (4 are path literals read off other files; 6 sit in test functions that also assert on another file, D-1231); zero diff, so no review surface; coder gates green (test_command_rules 35 passed, `--check` exit 0, the four tests 120 passed) |
+| T01c | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part c | T01b | ⛓️ | ✅ | this commit (review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01c-review.md`) |
 | T01d | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — the rewrite | T01c | ⛓️ | ⬜ | |
 | T02 | Lean rewrite of /fabrik-review-scoped (full form) | T01d | ⛓️ | ⬜ | |
 | T03a | Shared fragment term-coverage — ledger and pin migration, part a | T02 | ⛓️ | ⬜ | |
@@ -1098,27 +1098,27 @@ cert-execution               inc  2  read  0  ['fabrik-service-test', 'fabrik-us
 cert-handoff-grammar         inc  2  read  0  ['fabrik-service-test', 'fabrik-user-test']
 cert-visual-deliverable      inc  2  read  0  ['fabrik-service-test', 'fabrik-user-test']
 chat-intake                  inc  2  read  0  ['fabrik-plan-after-chat', 'fabrik-spec']
-close-chain                  inc 39  read  0  
+close-chain                  inc 39  read  0
 close-feedback               inc  0  read  1  ['fabrik-command-improve']
-delegated-reads              inc 23  read  0  
+delegated-reads              inc 23  read  0
 deploy-chain                 inc  5  read  0  ['fabrik-deploy', 'fabrik-deploy-checklist', 'fabrik-deploy-plan', 'fabrik-deploy-plan-review', 'fabrik-deploy-verify']
 design-critique              inc  5  read  0  ['fabrik-flows-review', 'fabrik-plan-review', 'fabrik-spec-review', 'fabrik-task', 'fabrik-ui-design-review']
 design-gate-panel            inc  4  read  0  ['fabrik-flows-review', 'fabrik-plan-review', 'fabrik-spec-review', 'fabrik-ui-design-review']
-grounding-artifact           inc 15  read  0  
+grounding-artifact           inc 15  read  0
 grounding-code               inc  2  read  0  ['fabrik-repo-review', 'fabrik-review']
 grounding-rules              inc  5  read  0  ['fabrik-epics', 'fabrik-epics-review', 'fabrik-plan-after-chat', 'fabrik-spec', 'fabrik-vision']
 injection                    inc  5  read  0  ['fabrik-deploy-checklist', 'fabrik-reverse-engineer', 'fabrik-rivals', 'fabrik-service-test', 'fabrik-user-test']
 judge-panel                  inc  1  read  0  ['fabrik-spec']
-no-workflow-hub              inc  7  read  0  
-orient                       inc 40  read  0  
-questionbar                  inc  8  read  0  
+no-workflow-hub              inc  7  read  0
+orient                       inc 40  read  0
+questionbar                  inc  8  read  0
 repo-identity                inc  2  read  0  ['fabrik-catchup', 'fabrik-upstream']
 review-probe-catalogue       inc  0  read  6  ['fabrik-docs-review', 'fabrik-execute-plan', 'fabrik-plan-review', 'fabrik-review', 'fabrik-review-scoped', 'fabrik-spec-review']
-run-record                   inc 37  read  0  
+run-record                   inc 37  read  0
 scope-growth-exit            inc  1  read  0  ['fabrik-review-scoped']
-subagents-core               inc 21  read  1  
-term-coverage                inc  5  read  3  
-term-edit                    inc 17  read  1  
+subagents-core               inc 21  read  1
+term-coverage                inc  5  read  3
+term-edit                    inc 17  read  1
 test-generation-loop         inc  2  read  2  ['fabrik-generate-tests', 'fabrik-review']
 
 # agent definitions named-by

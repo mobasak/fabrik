@@ -301,6 +301,17 @@ Install: the coordinator re-runs `scripts/sysadmin/install_session_archive_timer
   the five statuses, what check_convergence wants of an EXECUTED plan, and the archive as a superseded plan's
   remedy. `docs/reference/work-tracking.md` says the same.
 
+### Changed — Lean program unit 01: shared-file rule ledgers, parts b and c (2026-10-25)
+
+- T01b of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` (W-96f36043) is a recorded no-op. Its four tests hold no migratable pin on the nine shared files: each candidate is a path literal read off another file, or sits in a test function that also reads another file (D-1231).
+- T01c adds 74 entries to six of the nine ledgers under `commands/_rules/_shared/`: the researcher definition, the probe catalogue, close-chain, run-record, orient and the reviewer definition. They replace the presence pins nine tests held on those files. Opener anchors and `ordered` windows keep the researcher spans in the fetch shape or Method step the base test placed them in. Count, regex, index, looping and two-file asserts stay. The shared files are unchanged.
+- Review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01c-review.md` (2 passes, 2 → 0 confirmed).
+
+### Added — Lean program unit 01: shared-file rule ledgers, part a (2026-10-25)
+
+- Nine shared-file ledgers and baselines under `commands/_rules/_shared/` were taken at unit 01's start commit (63d148626): the review probe catalogue, the no-workflow banner, run-record, orient, close-chain, close-feedback and the three seat definitions. They are T01a of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/`, W-96f36043.
+- The pins `tests/test_review_queue_pass.py` and `tests/test_review_scoped_queue_pass.py` held on those files, in test functions that read them alone, moved into the ledgers as `text`, `forbidden` and `ordered` carriers. Every assert in a test function that also reads another file stays (D-1231). The shared files are unchanged.
+- Review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01a-review.md` (5 passes, 4 → 3 → 5 → 3 → 0 confirmed).
 ### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
 
 - W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In

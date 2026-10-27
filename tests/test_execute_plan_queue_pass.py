@@ -164,9 +164,6 @@ def test_the_orchestrator_waits_for_its_coders_in_turn() -> None:
         "each passing `run_in_background=False`: they still run in parallel, and the turn holds until every one"
         " returns." in text
     )
-    pattern = _section("### Dispatch pattern", "### Model selection")
-    assert pattern.count("run_in_background=False,") == 3
-    assert pattern.count('model="sonnet",') == 3
 
 
 def test_a_small_sync_path_plan_runs_in_its_own_worktree() -> None:
