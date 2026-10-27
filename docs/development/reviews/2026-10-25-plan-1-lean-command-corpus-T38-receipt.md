@@ -282,3 +282,40 @@ Target 2165 words (50% of 4330); now ~3730 (86%). By hand count the strict D-124
 - The author-blind old-vs-new audit of the 33 reworded entries and of the 35 vanished labels; the Sonnet + Haiku pair could not run on this lane.
 - The `_shared/*.yaml` LOSS lines (T01d's unit) that keep gate 1's `test_generate_unchanged_ledgers_pass_on_the_live_corpus` and the `--check` exit at red/4.
 - CHANGELOG, INDEX rows for the new `commands/_rules/` files, D-rows.
+
+## Fix round 2 (hub audit)
+
+Scope: this command only (source, ledger, this receipt). Audit 1 items 11-16 and the whole of Audit 2 are about `/fabrik-repo-review` and were not touched here.
+
+### Findings (Audit 1, items 1-10)
+
+| # | finding | verdict | fix |
+|---|---|---|---|
+| 1 | L7: the `docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md` path gone | confirmed | the whole L7 sentence is back verbatim in the source (after the "Converge this deployment plan" line), as unchanged unit `u-L7` |
+| 2 | L7 labelled `narrative` but holds the `:-` token and the path | confirmed | the label is removed; L7 is a present unit |
+| 3 | c1: date, `<!-- POOL OFF -->`, "for re-enable", D-182 dropped | confirmed | L1 and L2 are back verbatim in the banner as `u-L1`/`u-L2`; the `{2: narrative}` clause label is gone |
+| 4 | c20: "at pre-flight" and the committed-evidence parenthetical dropped | confirmed | L20 restored whole (`the spec, compose, or code moved under it — it is `DRAFT` in fact`, `row(s)` too) |
+| 5 | c31: "the convergence loop's finders attack the amended runbook on precisely this axis" lost | confirmed | restored with "that is exactly what this audit exists to prevent" |
+| 6 | c50: restart-after-init, "the deploy runs the plan's battery AFTER the runbook", the guard-pre-check gloss | confirmed | row 4 restored whole: also `present` after the step ids and `(notarization, signing services)` |
+| 7 | c54: the `--wait` hang defect criterion labelled narrative | confirmed | restored with the tryton-crm parenthetical; `clauses: {2: narrative}` removed |
+| 8 | c56: row 8 scope examples gone | confirmed | the three example lists restored |
+| 9 | c60: `chunk 6b` dropped | confirmed | restored; also `across a WSL shutdown` and `the breadth went to the OpenRouter pool —` in the kept `<!-- POOL OFF -->` comment (the comment is part of the text) |
+| 10 | c72: "the ledger duty's trigger by name" and "classified at mint" dropped | confirmed | L72 parenthetical restored whole |
+
+Also restored, same cause: L17's lifecycle sentence (`/fabrik-deploy`, `CONVERGED`, `BLOCKED` anchors, labelled narrative) and L28's `that re-arms /fabrik-deploy's gate ...` clause; both `clauses:` labels removed. L83 stays `narrative` (no instruction, no anchor: "An uncommitted flip is what the next pre-commit stash cycle silently reverts"). Invented: none found by either audit.
+
+### Words (own text, source file)
+
+Baseline 4330 -> re-ledger ~3730 -> now ~4170 (about 96%). Hand estimate (+~440 restored words); no counter could run on this lane. Per-file floor table: not owed, D-1257 retires the 50% target and every restored clause is a rule or an anchor.
+
+### Gates
+
+- `tests/test_command_rules.py -rP`: same 1 failure as the start (`test_the_live_corpus_has_no_loss`, red on `fabrik-repo-review` and `_shared` LOSS lines); the first LOSS line is `fabrik-repo-review`, so there is none for this ledger. This ledger loads as 81 entries.
+- `commands/assemble_commands.py --check`: exit 4, only `fabrik-task.md` DIFFERS drift and LOSS lines of other units; none for `fabrik-deploy-plan-review`.
+- Groups: worktree-guard/corpus 376 passed; producing-fragments 463 passed; spec-plan-lane 33 passed; flip-gate/agent-definition group red on the same live-box, no-git and `_shared` cases as the start (14 failed). The measure/run group finished 2 failed, 746 passed: `test_command_measure.py::test_check_exit_order_loss_then_ceiling_then_drift` and `test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box`, the same two as at the start. The firecrawl group finished with exit code 0 (all passed).
+
+### Self-audit
+
+No subagent can be dispatched on this lane, so there was NO fresh pass. I re-read each restored span against the baseline line by line (every restored span is the baseline wording, so the reword checks do not apply to it). That is an author re-check, not a fresh one; the hub's author-blind audit pair covers it.
+
+COUNTS (author line-by-line pass, NOT a fresh subagent pass; 0 fresh passes ran): entries read 81 / reworded 31 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0

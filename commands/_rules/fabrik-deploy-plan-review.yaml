@@ -2,19 +2,18 @@ command: fabrik-deploy-plan-review
 baseline_sentences: fabrik-deploy-plan-review.baseline.txt
 baseline_sha256: a3f2addb61a71061130c582b087cd5a50fe422ebea4a97f24a66f1ed0f34fc5a
 entries:
-- id: c1
-  class: prose
+- id: u-L1
   file: render
   baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
-  clauses: {2: narrative}
+  current: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
   text:
-  - '> ⚠️ POOL OFF — D-181: run every fan-out this command names NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose), same unit split, same author-blind rule, same decide/refute/merge by you; skip every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction and flywheel back-fill'
-- id: c2
-  class: prose
+  - '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+- id: u-L2
   file: render
   baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+  current: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
   text:
-  - '> ⚠️ POOL OFF — D-181: run every fan-out this command names NATIVELY with Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose), same unit split, same author-blind rule, same decide/refute/merge by you; skip every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction and flywheel back-fill'
+  - 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
 - id: u-L3
   file: render
   baseline: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
@@ -39,6 +38,12 @@ entries:
   current: Converge this deployment plan to a fixed point — do not stop after one pass
   text:
   - Converge this deployment plan to a fixed point — do not stop after one pass
+- id: u-L7
+  file: render
+  baseline: 'This command exists because a deploy plan''s characteristic defects — a set placeholder silently defeating a compose `:-` fallback, an in-container dev-default port, a missing restart-after-init, a healer racing a migration window — are invisible to the author''s own re-read (each was found live by an independent pass, none by the author; the class definitions live in `docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md`)'
+  current: 'This command exists because a deploy plan''s characteristic defects — a set placeholder silently defeating a compose `:-` fallback, an in-container dev-default port, a missing restart-after-init, a healer racing a migration window — are invisible to the author''s own re-read (each was found live by an independent pass, none by the author; the class definitions live in `docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md`)'
+  text:
+  - 'This command exists because a deploy plan''s characteristic defects — a set placeholder silently defeating a compose `:-` fallback, an in-container dev-default port, a missing restart-after-init, a healer racing a migration window — are invisible to the author''s own re-read (each was found live by an independent pass, none by the author; the class definitions live in `docs/development/reviews/2026-08-10-tryton-crm-deploy-readiness-review.md`)'
 - id: c8
   class: prose
   file: render
@@ -92,9 +97,8 @@ entries:
   file: render
   section: '## Phase 0 — Establish scope + status guard'
   baseline: 'Status guard — this command''s PRODUCT is the `DRAFT → CONVERGED` flip. (Status-literal convention, document-wide: arrows describe TRANSITIONS — the plan FILE always carries only the target literal, e.g. `Status: CONVERGED`, `Status: BLOCKED — <why>`; an arrow written into the file is invisible to every gate regex.) The plan lifecycle it serves is simple by design — every `/fabrik-deploy` dispatch is a FRESH run of a `CONVERGED` plan; a halted deploy arrives here as `BLOCKED`, is amended, and leaves as `CONVERGED` again:'
-  clauses: {3: narrative, 4: narrative}
   text:
-  - 'Status guard — this command''s PRODUCT is the `DRAFT → CONVERGED` flip. (The plan FILE always carries only the target literal, e.g. `Status: CONVERGED`, `Status: BLOCKED — <why>`; an arrow written into the file is invisible to every gate regex.) The plan lifecycle it serves is simple by design:'
+  - 'Status guard — this command''s PRODUCT is the `DRAFT → CONVERGED` flip. (The plan FILE always carries only the target literal, e.g. `Status: CONVERGED`, `Status: BLOCKED — <why>`; an arrow written into the file is invisible to every gate regex.) The plan lifecycle it serves is simple by design — every `/fabrik-deploy` dispatch is a FRESH run of a `CONVERGED` plan; a halted deploy arrives here as `BLOCKED`, is amended, and leaves as `CONVERGED` again:'
 - id: c18
   class: prose
   file: render
@@ -115,7 +119,7 @@ entries:
   section: '## Phase 0 — Establish scope + status guard'
   baseline: 'Otherwise: inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in fact), or carrying a `⛔ PLAN-DEFECT` row `/fabrik-deploy` recorded at pre-flight (the committed evidence — a console BLOCKED print alone proves nothing later): flip back to `DRAFT` and converge again, annotating the consumed defect row(s) `[ADJUDICATED <date> — closed by this re-convergence]` in the re-convergence commit (kept, never deleted — the checks key on UNadjudicated rows)'
   text:
-  - 'Otherwise: inputs changed (spec, compose, code moved under it), or a `⛔ PLAN-DEFECT` row `/fabrik-deploy` recorded: flip back to `DRAFT` and converge again, annotating the consumed defect rows `[ADJUDICATED <date> — closed by this re-convergence]` in the re-convergence commit (kept, never deleted — the checks key on UNadjudicated rows)'
+  - 'Otherwise: inputs changed (the spec, compose, or code moved under it — it is `DRAFT` in fact), or carrying a `⛔ PLAN-DEFECT` row `/fabrik-deploy` recorded at pre-flight (the committed evidence — a console BLOCKED print alone proves nothing later): flip back to `DRAFT` and converge again, annotating the consumed defect row(s) `[ADJUDICATED <date> — closed by this re-convergence]` in the re-convergence commit (kept, never deleted — the checks key on UNadjudicated rows)'
 - id: u-L21
   file: render
   section: '## Phase 0 — Establish scope + status guard'
@@ -171,9 +175,8 @@ entries:
   file: render
   section: '## Phase 0 — Establish scope + status guard'
   baseline: Never flip `EXECUTED` back — that re-arms `/fabrik-deploy`'s gate on a consumed plan, migrations included
-  clauses: {2: narrative}
   text:
-  - Never flip `EXECUTED` back
+  - Never flip `EXECUTED` back — that re-arms `/fabrik-deploy`'s gate on a consumed plan, migrations included
 - id: c29
   class: ban
   file: render
@@ -194,7 +197,7 @@ entries:
   section: '## Phase 0 — Establish scope + status guard'
   baseline: 'The next dispatch runs the amended runbook FROM ITS FIRST STEP — nothing is resumed, so anything the amendment fails to account for WILL re-run: that is exactly what this audit exists to prevent, and the convergence loop''s finders attack the amended runbook on precisely this axis'
   text:
-  - The next dispatch runs the amended runbook FROM ITS FIRST STEP — nothing is resumed, so anything the amendment fails to account for WILL re-run
+  - 'The next dispatch runs the amended runbook FROM ITS FIRST STEP — nothing is resumed, so anything the amendment fails to account for WILL re-run: that is exactly what this audit exists to prevent, and the convergence loop''s finders attack the amended runbook on precisely this axis'
 - id: u-L32
   file: render
   section: '## Phase 0 — Establish scope + status guard'
@@ -321,7 +324,7 @@ entries:
   section: '## Phase 1 — Grounding passes (adversarial, to a fixed point)'
   baseline: '| 4 | Runbook ordering + timing | every step verifiable + rollbackable; stable `S`-prefixed step ids present (`S1`…; amendment inserts like `S5a` are VALID ids — never renumbered; list ordinals are not ids — the deploy ledger joins on them); issuance/init/restart ordering sound (restart-after-init where pools go stale); in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers per `/fabrik-deploy-plan`''s definition — publish/dashboard/paid acts AND ambiguous credentialed acts (notarization, signing services) default to OPERATOR-GATE, the sanctioned build path (cloud `eas build`) does not; an unmarked ambiguous act OR a fused build+credentialed step left unsplit is a finding; every `OPERATOR-GATE` step declares `verify: in-session` or `verify: deferred`, and a deferred one is the runbook''s FINAL step (the deploy runs the plan''s battery AFTER the runbook — except a terminal DEFERRED gate pulls it immediately before itself; undeclared shape, or steps after a deferred gate, is a finding); every step safe to re-run from scratch OR explicitly `NON-RERUNNABLE` with its guard pre-check (detects the already-ran state and skips) — an unguarded one-shot step is a finding |'
   text:
-  - '| 4 | Runbook ordering + timing | every step verifiable + rollbackable; stable `S`-prefixed step ids (`S1`…; amendment inserts like `S5a` are VALID ids — never renumbered; list ordinals are not ids — the deploy ledger joins on them); issuance/init/restart ordering sound; in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers per `/fabrik-deploy-plan`''s definition — publish/dashboard/paid acts AND ambiguous credentialed acts default to OPERATOR-GATE, the sanctioned build path (cloud `eas build`) does not; an unmarked ambiguous act OR a fused build+credentialed step left unsplit is a finding; every `OPERATOR-GATE` step declares `verify: in-session` or `verify: deferred`, and a deferred one is the runbook''s FINAL step (except a terminal DEFERRED gate pulls it immediately before itself; undeclared shape, or steps after a deferred gate, is a finding); every step safe to re-run from scratch OR explicitly `NON-RERUNNABLE` with its guard pre-check — an unguarded one-shot step is a finding |'
+  - '| 4 | Runbook ordering + timing | every step verifiable + rollbackable; stable `S`-prefixed step ids present (`S1`…; amendment inserts like `S5a` are VALID ids — never renumbered; list ordinals are not ids — the deploy ledger joins on them); issuance/init/restart ordering sound (restart-after-init where pools go stale); in-container exec overrides explicit; heavy-step timeouts declared; OPERATOR-GATE markers per `/fabrik-deploy-plan`''s definition — publish/dashboard/paid acts AND ambiguous credentialed acts (notarization, signing services) default to OPERATOR-GATE, the sanctioned build path (cloud `eas build`) does not; an unmarked ambiguous act OR a fused build+credentialed step left unsplit is a finding; every `OPERATOR-GATE` step declares `verify: in-session` or `verify: deferred`, and a deferred one is the runbook''s FINAL step (the deploy runs the plan''s battery AFTER the runbook — except a terminal DEFERRED gate pulls it immediately before itself; undeclared shape, or steps after a deferred gate, is a finding); every step safe to re-run from scratch OR explicitly `NON-RERUNNABLE` with its guard pre-check (detects the already-ran state and skips) — an unguarded one-shot step is a finding |'
 - id: c51
   class: ban
   file: render
@@ -349,9 +352,8 @@ entries:
   file: render
   section: '## Phase 1 — Grounding passes (adversarial, to a fixed point)'
   baseline: '| 9 | COLD START | the plan NAMES every first-boot init the service needs (DB schema/module init, first-run migrations, seed users) and PROVES what INVOKES it at path:line or runbook step id — an image whose entrypoint scans no init dir plus a registrar that creates an EMPTY DB is a `--wait` hang, not a deploy (live: tryton-crm — the triad modeled init''s CONSEQUENCES everywhere and its INVOKER nowhere); `needs_database: true` with no init step requires an explicit "no init required because <reason>" |'
-  clauses: {2: narrative}
   text:
-  - '| 9 | COLD START | the plan NAMES every first-boot init the service needs (DB schema/module init, first-run migrations, seed users) and PROVES what INVOKES it at path:line or runbook step id; `needs_database: true` with no init step requires an explicit "no init required because <reason>" |'
+  - '| 9 | COLD START | the plan NAMES every first-boot init the service needs (DB schema/module init, first-run migrations, seed users) and PROVES what INVOKES it at path:line or runbook step id — an image whose entrypoint scans no init dir plus a registrar that creates an EMPTY DB is a `--wait` hang, not a deploy (live: tryton-crm — the triad modeled init''s CONSEQUENCES everywhere and its INVOKER nowhere); `needs_database: true` with no init step requires an explicit "no init required because <reason>" |'
 - id: c55
   class: prose
   file: render
@@ -366,7 +368,7 @@ entries:
   section: '## Phase 1 — Grounding passes (adversarial, to a fixed point)'
   baseline: '| 8 | Standing recurrence sweep | fail-open/fail-closed defaults (a healing window failing open, a guard a caller swallows) · cost/quota limits (build minutes, API quota a runbook step can exhaust) · boundary/sentinel/prefix traps (route prefixes, placeholder sentinels, off-by-one windows) · behavior-without-a-test (a runbook step whose verification cannot fail) |'
   text:
-  - '| 8 | Standing recurrence sweep | fail-open/fail-closed defaults · cost/quota limits · boundary/sentinel/prefix traps · behavior-without-a-test (a runbook step whose verification cannot fail) |'
+  - '| 8 | Standing recurrence sweep | fail-open/fail-closed defaults (a healing window failing open, a guard a caller swallows) · cost/quota limits (build minutes, API quota a runbook step can exhaust) · boundary/sentinel/prefix traps (route prefixes, placeholder sentinels, off-by-one windows) · behavior-without-a-test (a runbook step whose verification cannot fail) |'
 - id: c57
   class: ban
   file: render
@@ -394,10 +396,10 @@ entries:
   section: '## Phase 1 — Grounding passes (adversarial, to a fixed point)'
   baseline: 'EVERY round ALSO dispatches at least one native Opus finder as the authoritative pass. The seats run as ONE `Workflow` call on the review-loop script (`<repo root>/.claude/workflows/fabrik-review-loop.js`, chunk 6b — `<repo root>` is the session''s own checkout — `git rev-parse --show-toplevel` from its working directory, so in a worktree the worktree, never the main checkout; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt''s Pass row (or, with no receipt, the close''s `--evidence`) notes `shape: agent-tool`): each unit a slice `{name, files, scope: "<the class or section>", models: ["sonnet"]}`, the riskiest unit — the first, when none stands out, so every round keeps its Opus finder — `models: ["sonnet", "opus"]`, and one refuter per unit executes every candidate; `scratch_dir` (this run''s `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing), and `pins_dir`, `pin_manifest` and `digest` as `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir> <the units'' files>` printed them, go into the `Workflow` call''s `args` (`pins_dir` goes under the run''s `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed no line that begins `SCRATCH:`).<!-- POOL OFF (D-181): the breadth went to the OpenRouter pool — `fanout("review", units, mode="read_only")`, auto-recorded, `set_quality` back-filled per unit --> Two slices are ADDITIONALLY native-only: anything needing live SSH probes, and the secrets-flow class (secret-adjacent content never goes to pool APIs)'
   text:
-  - 'EVERY round ALSO dispatches at least one native Opus finder as the authoritative pass. The seats run as ONE `Workflow` call on the review-loop script (`<repo root>/.claude/workflows/fabrik-review-loop.js`, `<repo root>` is the session''s own checkout — `git rev-parse --show-toplevel` from its working directory, so in a worktree the worktree, never the main checkout; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt''s Pass row (or, with no receipt, the close''s `--evidence`) notes `shape: agent-tool`): each unit a slice `{name, files, scope: "<the class or section>", models: ["sonnet"]}`, the riskiest unit'
+  - 'EVERY round ALSO dispatches at least one native Opus finder as the authoritative pass. The seats run as ONE `Workflow` call on the review-loop script (`<repo root>/.claude/workflows/fabrik-review-loop.js`, chunk 6b — `<repo root>` is the session''s own checkout — `git rev-parse --show-toplevel` from its working directory, so in a worktree the worktree, never the main checkout; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt''s Pass row (or, with no receipt, the close''s `--evidence`) notes `shape: agent-tool`): each unit a slice `{name, files, scope: "<the class or section>", models: ["sonnet"]}`, the riskiest unit'
   - 'the first, when none stands out, so every round keeps its Opus finder'
   - '`models: ["sonnet", "opus"]`, and one refuter per unit executes every candidate'
-  - '`scratch_dir` (this run''s `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing), and `pins_dir`, `pin_manifest` and `digest` as `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir> <the units'' files>` printed them, go into the `Workflow` call''s `args` (`pins_dir` goes under the run''s `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk (D-836) — or the session scratchpad when `start` printed no line that begins `SCRATCH:`).<!-- POOL OFF (D-181):'
+  - '`scratch_dir` (this run''s `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing), and `pins_dir`, `pin_manifest` and `digest` as `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir> <the units'' files>` printed them, go into the `Workflow` call''s `args` (`pins_dir` goes under the run''s `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed no line that begins `SCRATCH:`).<!-- POOL OFF (D-181): the breadth went to the OpenRouter pool —'
   - '`fanout("review", units, mode="read_only")`, auto-recorded, `set_quality` back-filled per unit --> Two slices are ADDITIONALLY native-only: anything needing live SSH probes, and the secrets-flow class (secret-adjacent content never goes to pool APIs)'
 - id: u-L61
   file: render
@@ -468,7 +470,7 @@ entries:
   section: '## Phase 3 — Flip + persist + hand off'
   baseline: 'The flip is a Status flip — mint its `docs/DECISIONS.md` row in the SAME flip commit (the ledger duty''s trigger by name: which deploy plan converged, for which service/target, after how many rounds; classified at mint — normally reversible, a plan re-opens by flip-back; the flip-BACKS themselves are incident/evidence records carried by the plan''s own ⛔ ledger and immediate commits — not decisions, no row)'
   text:
-  - 'The flip is a Status flip — mint its `docs/DECISIONS.md` row in the SAME flip commit (which deploy plan converged, for which service/target, after how many rounds; normally reversible; the flip-BACKS are incident/evidence records, no row)'
+  - 'The flip is a Status flip — mint its `docs/DECISIONS.md` row in the SAME flip commit (the ledger duty''s trigger by name: which deploy plan converged, for which service/target, after how many rounds; classified at mint — normally reversible, a plan re-opens by flip-back; the flip-BACKS themselves are incident/evidence records carried by the plan''s own ⛔ ledger and immediate commits — not decisions, no row)'
 - id: u-L73
   file: render
   section: '## Phase 3 — Flip + persist + hand off'
@@ -570,16 +572,9 @@ entries:
   text:
   - 'DECISION NEEDED (ground: gate) ⏎ - Question: Do you approve this converged deploy plan for execution? ⏎ - Why it is yours: Gate 2 — the deploy triad''s human approval gate; no agent deploys without it. ⏎ - Options: A — approve, and the operator dispatches /fabrik-deploy <plan> · B — request changes, and the plan re-opens on your feedback. ⏎ - Recommendation: A, once the Phase verdicts, the Class verdicts and the fenced final_gate.py runs above are all green.'
 vanished:
-  L1:
-    rule:
-    - c1
-  L2:
-    rule:
-    - c2
   L5:
     rule:
     - c5
-  L7: narrative
   L8:
     rule:
     - c8
