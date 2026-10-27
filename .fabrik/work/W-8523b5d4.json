@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T23:47:24.337941Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-8523b5d4",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: read the rule against site-provisioner's case and reword so the complete API reference is kept",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "one rule's wording; affects projects with an API reference doc",
+  "status": "open",
+  "title": "Rule pack .windsurf/rules/core/40-documentation.md retires the only complete API reference (site-provisioner mail 01M2NXHVCS9WYJ; split from W-e89d7983) — rule wording"
+}
