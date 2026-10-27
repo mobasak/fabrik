@@ -14,6 +14,30 @@
   the real tool on one case per class before writing the grammar down. The cases you thought of are the
   ones you already handle.
 
+## A closing pass that runs only the new graders cannot see a signature break in an old stub (2026-10-27)
+
+- **What happened:** W-010bb0d9's review pass 2 threaded a third positional argument (`now`) into
+  `_active_account_walled`. The closing pass's brief limited each seat to the ten new graders to fit a 10-minute box,
+  and the lead closed the review while the full touched slice was still running. That slice then failed 3 tests whose
+  two-argument lambda stubs of the function raised TypeError twice per tick: swallowed by `_tick_row`'s guard (no tick
+  row), and from the advisory up to `_cmd_tick`'s outer guard (`tick: INTERNAL ERROR`; the advisory's `finally` still
+  wrote the posture).
+- **Rule:** a fix that changes a signature greps every stub and monkeypatch of the name (`"_name"` in the tests) in the
+  same round, and the review closes only after the FULL touched slice has run green on the closing pin — a
+  selection of the new graders is a probe, never the exit evidence.
+
+## `Timer.cancel()` does not stop a Timer that has already fired (2026-10-27)
+
+- **What happened:** W-010bb0d9 bounded the rotation tick with a `threading.Timer` watchdog and cancelled it "first thing in
+  the `finally`", with a comment saying the finally's legs therefore never raced it. Three review seats found that a Timer
+  firing as the body ended is already inside its function: `cancel()` is a no-op there, and the watchdog then exited the
+  process between a stamp clear and its wake. The same pass found `os._exit` dropping every block-buffered `print` of the
+  hung tick from cron's log file, and a Timer interval of `1e300` killing the Timer's own thread with an OverflowError.
+- **Rule:** a watchdog that ends a process needs a HANDSHAKE, not a cancel: the main thread marks the work done under the
+  lock the watchdog takes, and the watchdog re-reads that mark after it gets the lock. Flush buffered stdout (bounded)
+  before `os._exit`, bound the interval above as well as below, and grade the handshake by firing the real watchdog with
+  the arguments the code gave the Timer after the work returned.
+
 ## Hardening one stat call against EACCES means sweeping every stat on the same path (2026-10-27)
 
 - **What happened:** W-f7772267 (k) wrapped `_repo_type`'s `exists()` and the scope check's `mcp_json.is_file()`,

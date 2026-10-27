@@ -6002,7 +6002,7 @@ def test_the_weekly_reading_is_recorded_at_both_ends_of_its_range(tmp_path, monk
     monkeypatch.setattr(
         cr,
         "_active_account_walled",
-        lambda accounts, threshold: (
+        lambda accounts, threshold, now=None: (
             False,
             {
                 "email": "edge@ocoron.com",
@@ -6045,7 +6045,7 @@ def test_the_tick_row_still_writes_when_the_weekly_window_is_absent(tmp_path, mo
     monkeypatch.setattr(
         cr,
         "_active_account_walled",
-        lambda accounts, threshold: (
+        lambda accounts, threshold, now=None: (
             False,
             {
                 "email": "weekly-less@ocoron.com",
@@ -10097,3 +10097,405 @@ def test_a_resume_wake_row_does_not_end_a_wall_episode(tmp_path, monkeypatch):
     assert "a@x" in before
     cr._ledger_append({"event": "resume-wake", "ts": FLEET_NOW - 60, "reason": "resume"})
     assert cr._open_wall_rows(FLEET_NOW)[0] == before
+
+
+# ── W-010bb0d9: the tick's OFFLINE path ─────────────────────────────────────────────────────────
+# 2026-10-22: the internet dropped ~16:05 and every later reading was cached. sarp's 5h window reset
+# at 16:20 but its cached 93% kept counting as hot, so the urgent-90 advisory RE-FIRED at 16:33 and
+# parked 16 armed sessions until a hand-run tick at 01:06; offline ticks spent the whole ping budget
+# every run, and nothing bounded how long one tick could hold `rotate.lock`.
+
+
+def _cache_window(util, reset):
+    return {"utilization": util, "resets_at_epoch": reset}
+
+
+def test_a_rolled_cached_window_is_no_heat_but_the_standby_rescue_stands(tmp_path, monkeypatch):
+    """The ACTIVE account's cached window whose reset has passed is no reading for its heat — the
+    usage since the reset is unknown — while the account rows stay as built, so a rolled cached
+    STANDBY is still the 0% flip candidate `_flip_candidate_verdict` rescues (both critiques
+    executed that nulling the row instead killed that rescue)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    for slug in ("seo", "youtube", "intel"):
+        _fleet_creds(fleet, slug, f"tok-{slug}", age_s=9 * 3600.0)  # stale token: cache only
+    _fake_oauth(monkeypatch)
+    now = FLEET_NOW
+    cr._write_json_atomic(
+        cr._usage_cache_path(),
+        {
+            "sarp@ocoron.com": {
+                "ts": now - 1800,
+                "five_hour": _cache_window(99.0, now - 600),  # rolled 10 min ago
+                "seven_day": _cache_window(25.0, now + 86400),
+            },
+            "ob@ocoron.com": {
+                "ts": now - 1800,
+                "five_hour": _cache_window(87.0, now - 48),  # rolled 48 s ago
+                "seven_day": _cache_window(40.0, now + 86400),
+            },
+        },
+    )
+    _point(fleet, "seo")
+    rows, _pending = cr._fleet_account_rows(cr._fleet_dirs())
+    by = {r["email"]: r for r in rows}
+    assert by["sarp@ocoron.com"]["source"] == "cache"
+    assert by["sarp@ocoron.com"]["five_hour"]["utilization"] == 99.0, "the row is left as built"
+    walled, row = cr._active_account_walled(rows, 98.0)
+    assert walled is False, "a cached 99% from before the reset is not a wall"
+    assert row is by["sarp@ocoron.com"], "the caller still gets the row itself"
+    slug, utils, reason = cr._flip_candidate_verdict(by["ob@ocoron.com"], 98.0)
+    assert reason is None and utils["five_hour"] == 0.0, (slug, utils, reason)
+
+
+def test_the_heat_view_reads_the_readings_own_time_not_a_later_clock(tmp_path, monkeypatch):
+    """A tick's pings take minutes, so the advisory's clock runs later than the one the rows were
+    built on. A reading taken 60 s before its reset must read as rolled at ANY later clock —
+    rebuilding its time from `age_s` slid it past the reset (review pass 1, executed)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    for slug in ("seo", "youtube", "intel"):
+        _fleet_creds(fleet, slug, f"tok-{slug}", age_s=9 * 3600.0)
+    _fake_oauth(monkeypatch)
+    now = FLEET_NOW
+    cr._write_json_atomic(
+        cr._usage_cache_path(),
+        {
+            "sarp@ocoron.com": {
+                "ts": now - 660,  # read 60 s before the reset at now - 600
+                "five_hour": _cache_window(93.0, now - 600),
+                "seven_day": _cache_window(25.0, now + 86400),
+            }
+        },
+    )
+    rows, _pending = cr._fleet_account_rows(cr._fleet_dirs())
+    row = next(r for r in rows if r["email"] == "sarp@ocoron.com")
+    assert row["cached_at"] == now - 660
+    assert cr._active_heat_view(row, now + 300)["five_hour"] is None
+    assert cr._active_heat_view({**row, "cached_at": now - 300}, now)["five_hour"] is not None, (
+        "a reading taken after the reset still counts"
+    )
+    # the walled verdict reads the CALLER's clock, so it and the advisory's heat agree (pass 2)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "seo")
+    hot = {**row, "five_hour": _cache_window(99.0, now + 100), "cached_at": now - 100}
+    assert cr._active_account_walled([hot], 98.0)[0] is True, "live at the module clock"
+    assert cr._active_account_walled([hot], 98.0, now + 200)[0] is False, "the caller's clock"
+
+
+def test_the_tick_holds_the_critical_section_across_the_hold_legs(monkeypatch):
+    """`_fleet_tick_inner` runs the advisory, the battery leg and the posture write under
+    `_TICK_CRITICAL`, so the watchdog never exits between a stamp clear and its wake (D-180)."""
+    seen: dict[str, bool] = {}
+
+    def spy(name):
+        def fn(*a, **k):
+            seen[name] = cr._TICK_CRITICAL.locked()
+
+        return fn
+
+    for name in (
+        "_fleet_flip_leg",
+        "_tick_row",
+        "_chain_expiry_push",
+        "_ledger_rotate",
+    ):
+        monkeypatch.setattr(cr, name, lambda *a, **k: None)
+    monkeypatch.setattr(cr, "_fleet_account_rows", lambda dirs, **k: ([], []))
+    monkeypatch.setattr(cr, "_fleet_active_wall_advisory", spy("advisory"))
+    monkeypatch.setattr(cr, "_battery_leg", spy("battery"))
+    monkeypatch.setattr(cr, "_fleet_picture", lambda *a, **k: {})
+    monkeypatch.setattr(cr, "_read_quota_posture", lambda: None)
+    monkeypatch.setattr(cr, "_quota_posture", lambda *a, **k: {})
+    monkeypatch.setattr(cr, "_write_quota_posture", spy("posture"))
+    monkeypatch.setattr(cr, "_fleet_row_warnings", lambda a: [])
+    monkeypatch.setattr(cr, "_posture_hook_wiring_warnings", lambda: [])
+    monkeypatch.setattr(cr, "_shared_link_warnings", lambda: [])
+    monkeypatch.setattr(cr, "_resolve_active", lambda: None)
+    assert cr._fleet_tick_inner([]) == 0
+    assert seen == {"advisory": True, "battery": True, "posture": True}, seen
+    assert not cr._TICK_CRITICAL.locked()
+
+
+def _offline_advisory(tmp_path, monkeypatch, row, *, promise):
+    """Drive the real advisory, offline, against a one-account fleet with an urgent-90 stamp
+    already standing (armed an hour ago, its promise due). Returns (stamp, ledger rows, wakes)."""
+    state = tmp_path / "state"
+    state.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: state)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda *a, **k: None)
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: None)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "_battery_low", lambda: False)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: row["slugs"][0])
+    ledger: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", ledger.append)
+    wakes: list[tuple] = []
+    monkeypatch.setattr(cr, "_wake_held_sessions", lambda *a, **k: wakes.append(a))
+    stamp = state / "fleet-exhausted"
+    stamp.write_text(cr._stamp_body(str(int(promise)), "urgent-90"))
+    os.utime(stamp, (FLEET_NOW - 3600, FLEET_NOW - 3600))
+    cr._fleet_active_wall_advisory([row], FLEET_NOW, threshold=98.0)
+    return stamp, ledger, wakes
+
+
+def _cached_row(five_hour, seven_day):
+    return {
+        "email": "sarp@ocoron.com",
+        "slugs": ["seo"],
+        "source": "cache",
+        "age_s": 3000.0,  # read 50 min before FLEET_NOW
+        "cached_at": FLEET_NOW - 3000.0,
+        "weekly_cap": None,
+        "cap_walled": False,
+        "five_hour": five_hour,
+        "seven_day": seven_day,
+    }
+
+
+def test_offline_tick_does_not_rearm_the_lane_on_a_rolled_cached_reading(tmp_path, monkeypatch):
+    """The 2026-10-22 replay: the active account cached at 93% with its 5h reset passed and its
+    weekly current — the urgent condition is over, so the standing urgent-90 stamp is cleared
+    (relief) and no new fleet-active-wall row is written."""
+    row = _cached_row(_cache_window(93.0, FLEET_NOW - 780), _cache_window(25.0, FLEET_NOW + 86400))
+    stamp, ledger, wakes = _offline_advisory(tmp_path, monkeypatch, row, promise=FLEET_NOW - 600)
+    assert not [e for e in ledger if e.get("event") == "fleet-active-wall"], ledger
+    assert not stamp.exists(), "a LANE armed on a window that has since reset must lift"
+    assert wakes, "the lift wakes the held sessions (their self-watch waits for the link)"
+    assert row["five_hour"]["utilization"] == 93.0, "the advisory never edits the row"
+
+
+def test_offline_tick_keeps_the_stamp_when_every_cached_window_rolled(
+    tmp_path, monkeypatch, capsys
+):
+    """Every cached window rolled → no reading at all → the D-180 blackout rule: the stamp is KEPT,
+    and nothing re-arms on the stale numbers either."""
+    row = _cached_row(_cache_window(93.0, FLEET_NOW - 780), _cache_window(99.0, FLEET_NOW - 60))
+    stamp, ledger, wakes = _offline_advisory(tmp_path, monkeypatch, row, promise=FLEET_NOW - 600)
+    assert stamp.exists(), "a blackout is not relief"
+    assert not [e for e in ledger if e.get("event") == "fleet-active-wall"], ledger
+    assert not wakes
+    assert "stamp KEPT — no reading this tick" in capsys.readouterr().out
+
+
+def test_an_obsolete_reading_is_retried_on_the_short_cooldown(tmp_path, monkeypatch):
+    """An obsolete reading bypasses the hourly cooldown once per roll, then retries every
+    `ROTATE_OBSOLETE_RETRY_S` (600 s): offline, a failed ping never refreshes the cache, and the
+    old every-tick bypass spent 3 x 150 s of `claude -p ok` on each tick."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    (tmp_path / "state").mkdir()
+    monkeypatch.setattr(cr, "_refresh_ping_due", lambda email, n: False)  # the hourly gate says no
+    now = FLEET_NOW
+
+    def slots(roll_ago, stamp_ago):
+        email = f"r{roll_ago}-{stamp_ago}@test"
+        cache = {
+            email: {
+                "ts": now - 900,
+                "five_hour": _cache_window(87.0, now - roll_ago),
+                "seven_day": _cache_window(40.0, now + 86400),
+            }
+        }
+        if stamp_ago is not None:
+            p = cr._fleet_refresh_stamp(email)
+            p.write_text("")
+            os.utime(p, (now - stamp_ago, now - stamp_ago))
+        return cr._ping_slots({email: [{"mtime": now - 10}]}, cache, now) == {email}
+
+    assert slots(48, None), "never pinged since the roll → bypass"
+    assert slots(48, 300), "the stamp predates the roll → bypass (the 2026-09-06 stall)"
+    assert not slots(480, 30), "pinged 30 s ago, after the roll → wait"
+    assert not slots(800, 599), "still inside the 600 s retry"
+    assert slots(800, 600), "exactly 600 s → due (`>=`)"
+    assert slots(800, 700), "the retry has elapsed → due"
+    assert not slots(480, 480), "a stamp AT the roll is not before it → the retry rule"
+    assert slots(48, -3600), "a future-dated stamp (a WSL resume) never blocks the retry"
+    monkeypatch.setenv("ROTATE_OBSOLETE_RETRY_S", "100")
+    assert slots(850, 150), "the env override shortens the retry"
+    monkeypatch.setenv("ROTATE_OBSOLETE_RETRY_S", "0")
+    assert not slots(870, 150), "a non-positive override reads the 600 s default"
+
+
+@pytest.mark.parametrize("sink", ["closed-pipe", "log-file"])
+def test_a_hung_tick_exits_at_the_watchdog_bound(tmp_path, sink):
+    """A REAL tick process run as cron and the board run it — `flock -n rotate.lock … --tick` —
+    whose body hangs, still exits rc 0 at the bound, records its end and FREES the lock. Its
+    stdout is either the board's pipe, closed by the board's 180 s timeout (the watchdog's own line
+    meets EPIPE), or cron's log file, which must keep the `tick:` lines printed before the hang."""
+    import fcntl
+
+    state = tmp_path / "state"
+    state.mkdir()
+    lock = tmp_path / "rotate.lock"
+    child = tmp_path / "hung_tick.py"
+    module = REPO / "scripts" / "sysadmin" / "claude_rotate.py"
+    child.write_text(
+        "import importlib.util, sys, time\n"
+        f"spec = importlib.util.spec_from_file_location('cr', {str(module)!r})\n"
+        "cr = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(cr)\n"
+        "cr._TICK_MAX_FLOOR_S = 0.0\n"
+        "print('tick: before the hang')\n"
+        "cr._fleet_dirs = lambda: time.sleep(60) or []\n"
+        "sys.exit(cr._cmd_tick())\n"
+    )
+    env = {
+        **os.environ,
+        "ROTATE_STATE_DIR": str(state),
+        "CLAUDE_FLEET_ROOT": str(tmp_path / "fleet"),
+        "ROTATE_TICK_MAX_S": "1",
+    }
+    out = tmp_path / "rotate-tick.log"
+    started = time.monotonic()
+    with out.open("wb") as log:
+        proc = subprocess.Popen(
+            ["flock", "-n", str(lock), sys.executable, str(child)],
+            stdout=subprocess.PIPE if sink == "closed-pipe" else log,
+            stderr=subprocess.DEVNULL,
+            env=env,
+        )
+        if proc.stdout is not None:
+            proc.stdout.close()
+        try:
+            rc = proc.wait(timeout=20)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+    assert rc == 0
+    assert time.monotonic() - started < 20
+    assert (state / "tick-last-end").is_file(), "the killed tick records its end"
+    with lock.open("w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises BlockingIOError while held
+    if sink == "log-file":
+        text = out.read_text()
+        assert "tick: before the hang" in text and "tick: WATCHDOG" in text, text
+        assert text.index("tick: before the hang") < text.index("tick: WATCHDOG"), text
+
+
+def test_the_watchdog_waits_for_the_critical_section_and_parses_its_bound(tmp_path, monkeypatch):
+    """The watchdog never exits inside the stamp clear→wake transition (it waits for
+    `_TICK_CRITICAL`), a finished tick cancels it, and an unusable bound reads the default."""
+    exits: list[int] = []
+    ends: list[float] = []
+    monkeypatch.setattr(cr, "_EXIT", exits.append)
+    monkeypatch.setattr(cr, "_TICK_CRITICAL_WAIT_S", 5.0)
+    monkeypatch.setattr(cr, "_write_tick_last_end", lambda now: ends.append(now) or True)
+    cr._TICK_CRITICAL.acquire()
+    t = threading.Thread(target=cr._tick_watchdog, args=(1800.0,), daemon=True)
+    try:
+        t.start()
+        time.sleep(0.3)
+        assert exits == [], "it waits while the transition holds the lock"
+    finally:
+        cr._TICK_CRITICAL.release()
+    t.join(5)
+    assert exits == [0]
+
+    # a watchdog that fired as the body ended finds the tick done and stands down, lock released
+    done = threading.Event()
+    done.set()
+    ends.clear()
+    cr._tick_watchdog(1800.0, done)
+    assert exits == [0], "no second exit: it stood down"
+    assert ends == [], "nor a tick end recorded for a tick that finished on its own"
+    assert cr._TICK_CRITICAL.acquire(blocking=False), "and released the lock"
+    cr._TICK_CRITICAL.release()
+
+    for raw, want in [
+        (None, 1800.0),
+        ("garbage", 1800.0),
+        ("nan", 1800.0),
+        ("inf", 1800.0),
+        ("599", 1800.0),
+        ("600", 600.0),
+        ("2400", 2400.0),
+        ("86400", 86400.0),
+        ("86401", 1800.0),
+        ("1e300", 1800.0),  # finite, but it overflowed the Timer and bounded nothing
+    ]:
+        if raw is None:
+            monkeypatch.delenv("ROTATE_TICK_MAX_S", raising=False)
+        else:
+            monkeypatch.setenv("ROTATE_TICK_MAX_S", raw)
+        assert cr._tick_max_s() == want, raw
+    monkeypatch.delenv("ROTATE_TICK_MAX_S", raising=False)
+
+    timers: list[dict] = []
+
+    class FakeTimer:
+        def __init__(self, interval, fn, args=()):
+            self.rec = {
+                "interval": interval,
+                "fn": fn,
+                "args": args,
+                "started": False,
+                "cancelled": False,
+            }
+            timers.append(self.rec)
+            self.daemon = False
+
+        def start(self):
+            self.rec["started"] = True
+            self.rec["daemon"] = self.daemon
+
+        def cancel(self):
+            self.rec["cancelled"] = True
+
+    monkeypatch.setattr(cr.threading, "Timer", FakeTimer)
+    monkeypatch.setattr(cr, "_fleet_dirs", lambda: [tmp_path / "acct"])
+    monkeypatch.setattr(cr, "_fleet_tick_inner", lambda dirs: 0)
+    monkeypatch.setattr(cr, "_battery_leg", lambda *a, **k: None)
+    monkeypatch.setattr(cr, "_resume_leg", lambda *a, **k: None)
+    assert cr._cmd_tick() == 0
+    assert len(timers) == 1, timers
+    assert timers[0]["interval"] == 1800.0 and timers[0]["fn"] is cr._tick_watchdog
+    assert timers[0]["started"] and timers[0]["daemon"] and timers[0]["cancelled"], timers
+    # the Timer fired anyway, as the body ended (cancel cannot stop a fired Timer): the finally
+    # set `done`, so the real watchdog stands down — no exit, no tick end (review pass 2)
+    exits.clear()
+    ends.clear()
+    timers[0]["fn"](*timers[0]["args"])
+    assert exits == [] and ends == [], (exits, ends)
+
+
+def test_status_says_a_stale_hold_is_not_in_force(tmp_path, monkeypatch, capsys):
+    """`--status` printed "hold LANE … builders parked" for hours after every hook had failed open
+    on the stale tick log; the hold line now says so, by the same file and bound quota_stop.py reads."""
+    log = tmp_path / "rotate-tick.log"
+    log.write_text("tick\n")
+    monkeypatch.setenv("QUOTA_STOP_TICK_LOG", str(log))
+    monkeypatch.delenv("QUOTA_STOP_TICK_STALE_S", raising=False)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    monkeypatch.setattr(cr, "_read_quota_posture", lambda: None)
+    pic = {
+        "accounts": [],
+        "queue": [],
+        "next_relief": None,
+        "last_flip": None,
+        "hold": {"since": FLEET_NOW - 7200, "resume_promised": None, "tier": "urgent-90"},
+    }
+
+    os.utime(log, (FLEET_NOW - 1800, FLEET_NOW - 1800))
+    cr._print_picture(pic)
+    hold = next(x for x in capsys.readouterr().out.splitlines() if x.startswith("picture: hold"))
+    assert "NOT IN FORCE" in hold and "30m" in hold and "hooks fail open" in hold, hold
+
+    os.utime(log, (FLEET_NOW - 60, FLEET_NOW - 60))
+    cr._print_picture(pic)
+    hold = next(x for x in capsys.readouterr().out.splitlines() if x.startswith("picture: hold"))
+    assert "NOT IN FORCE" not in hold, hold
+
+    def hold_line() -> str:
+        cr._print_picture(pic)
+        return next(
+            x for x in capsys.readouterr().out.splitlines() if x.startswith("picture: hold")
+        )
+
+    os.utime(log, (FLEET_NOW - 900, FLEET_NOW - 900))
+    assert "NOT IN FORCE" not in hold_line(), "exactly at the bound the hook still holds"
+    monkeypatch.setenv("QUOTA_STOP_TICK_STALE_S", "garbage")
+    os.utime(log, (FLEET_NOW - 901, FLEET_NOW - 901))
+    assert "NOT IN FORCE" in hold_line(), "a garbage bound reads 900, as quota_stop.py does"
+    log.unlink()
+    assert "NOT IN FORCE: no tick log" in hold_line(), "a missing log is stale to the hook too"
+    pic["hold"] = None
+    assert hold_line() == "picture: hold none", "no hold, no clause"

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -1864,8 +1865,15 @@ def test_the_2026_09_06_stall_an_account_seconds_past_reset_gets_a_refresh_slot(
     groups = {e: [{"mtime": now - 10}] for e in emails}
     cache = {e: _cache_row(now - 300, now + 3600) for e in emails}  # all fresh, none rolled
     cache["ob@test"] = _cache_row(now - 300, now - 48)  # rolled 48s ago
-    # every account pinged 5 minutes ago => _refresh_ping_due is False for ALL of them
+    # every account pinged 5 minutes ago => _refresh_ping_due is False for ALL of them; the stamps
+    # are REAL, so the obsolete gate (W-010bb0d9) is proven on "pinged before the roll", not on
+    # an absent stamp
     monkeypatch.setattr(cr, "_refresh_ping_due", lambda email, n: False)
+    (tmp_path / "state").mkdir(exist_ok=True)
+    for e in emails:
+        stamp = cr._fleet_refresh_stamp(e)
+        stamp.write_text("")
+        os.utime(stamp, (now - 300, now - 300))
     slots = cr._ping_slots(groups, cache, now)
     assert slots == {"ob@test"}, (
         f"the just-reset account must get the refresh slot, and only it; got {slots}"

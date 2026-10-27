@@ -25,6 +25,17 @@ and `scripts/sysadmin/selfwatch_check.py` prints `HOOKS LOAD FROM ANOTHER TREE` 
 launch folder is a different linked worktree of the repo it works in (W-456aa02a, D-1284). The rule and its edge cases:
 `docs/reference/repo-coordinator-rollout.md` and `docs/workstation/hooks-index.md`.
 
+### Fixed — the rotation tick's offline path: a stale cached reading no longer re-arms the quota lane, and no tick holds the lock for hours (2026-10-27)
+
+On 2026-10-22 the internet dropped, a cached 93% outlived its 5-hour reset and re-armed the urgent-90 lane, offline
+ticks spent the whole refresh-ping budget on every run, and for seven hours no tick wrote a row or a posture
+(W-010bb0d9, D-1285). `scripts/sysadmin/claude_rotate.py` (and its byte-identical `scripts/aro-wake/` copy) now reads
+a cached window whose reset has passed as no heat for the ACTIVE account (the rows themselves are untouched, so a
+rolled standby still reads 0% to the picker), lets an obsolete reading jump the hourly ping cooldown once per roll and
+then every `ROTATE_OBSOLETE_RETRY_S` (600 s), bounds each tick with a watchdog (`ROTATE_TICK_MAX_S`, 1800 s) that
+stands down when the tick already finished and otherwise exits, freeing `rotate.lock`, and has `--status` say a hold is
+NOT IN FORCE once the tick log is stale. Follow-up W-5443db87: the quota board's tick timeout kills only `flock`.
+
 ### Fixed — the MCP emitter tests no longer read the box's git ignore or template (2026-10-27)
 
 `tests/test_emit_mcp_project_config.py`'s autouse `_hermetic_git` emptied the global and system git config
