@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the docs staleness check stops watching AGENTS.md and docs/INDEX.md (2026-10-27)
+
+- `scripts/docs_updater.py::MANUAL_DOCS`, the docs whose `**Last Updated:**` header the advisory staleness check
+  reads, drops `AGENTS.md` (hub-synced, so no project can refresh it) and `docs/INDEX.md` (a path
+  `check_structure.py` already warns is misplaced). Fleet-wide that removes 51 rows nobody could clear and changes
+  no other row. The opt-out list proposed in site-provisioner's mail 01M2NJGZGV20WP is rejected; D-1272 says why.
+- `tests/test_docs_updater.py` grades the two rules: no watched doc is read-only for a project, and none is one
+  `check_structure.check_structure()` flags, except `docs/FUNNEL.md` and `docs/AUTOMATION.md`, which W-1adf4ed4
+  decides. W-da101088.
+
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
 
 `src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so
