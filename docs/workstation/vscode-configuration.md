@@ -113,6 +113,38 @@ Baseline measured 2026-07-26, **before** these settings: `vscode-server` on WSL 
 - **Type acquisition / update polling / telemetry** — background network + CPU with zero value on
   an AI-driven workstation (updates are applied deliberately, not polled).
 
+### code-server — the same excludes, plus the agent trees (hub default since 2026-10-27)
+
+The operator's coordinator windows run in **code-server** (VS Code in the browser, inside WSL), whose
+user settings are a separate file: `~/.local/share/code-server/User/settings.json`. Its file watcher
+draws on the **per-user inotify watch budget** (`/proc/sys/fs/inotify/max_user_watches`, 524,288 on
+this box), which every other watcher of this user shares, the systemd user manager's path units
+included. On 2026-10-27 code-server's three watcher processes held 523,576 of the 524,288 watches,
+because it watched every file under `/opt`, the ~90 builder worktrees under `.claude/worktrees/`
+among them. `fabrik-rotate.path` failed at 11:12 with `Failed to enter waiting state: No space left
+on device` (result `resources`), and no builder could be rotated until it was restarted (W-09957e81).
+With the list below and a window reload, the watches fell to 290,735, and to ~14,600 once the
+windows were reopened.
+
+The hub default for code-server, kept in that file:
+
+```jsonc
+"files.watcherExclude": {
+    "**/.claude/worktrees/**": true,
+    "**/node_modules/**": true,
+    "**/.tmp/**": true,
+    "**/.venv/**": true,
+    "**/.git/objects/**": true
+}
+```
+
+`.claude/worktrees` and `.tmp` are the two the VS Code list above lacks; they are the agent trees and
+run scratch, which change constantly and are never edited by hand in the editor. A ballooned watcher
+never shrinks in place: reload the window after an edit. The 5-minute rotation tick watches the
+budget (`scripts/sysadmin/box_budget_check.py`, AMBER at 85%: one mail to the coordinator per
+episode) and restarts a failed `fabrik-rotate.path`; `python3 scripts/sysadmin/box_budget_check.py
+--report` prints the readings and the top holders on demand.
+
 ---
 
 ## 4. Pre-existing settings kept (context, not changed by this pass)
