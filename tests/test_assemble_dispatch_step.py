@@ -1084,7 +1084,13 @@ def test_the_gate_reports_a_non_regular_file_at_a_kept_name(tmp_path, monkeypatc
         if shape == "fifo":
             kept.unlink(missing_ok=True)
     out = capsys.readouterr().out
+    label = {
+        "commands": kept.name,
+        "skills": f"skills/{kept.parent.name}: SKILL.md",
+        "agents": f"agents/{kept.name}",
+    }[tree]
     assert exc.value.code == 1 and out.count("not a regular file") == 1, out
+    assert f" - {label}" + (" " if tree == "skills" else ": ") + "not a regular file (" in out, out
 
 
 def _reversed_glob(monkeypatch, tmp_path):

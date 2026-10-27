@@ -1058,6 +1058,20 @@ def _render_agent(src: Path, frags: dict[str, str]) -> str:
     return BANNER + text
 
 
+_NOT_REGULAR = (
+    "not a regular file (a directory, FIFO, socket or device, or a link to one) — remove it by hand, then re-render"
+)
+
+
+def _installed_text(inst: Path) -> str | None:
+    """An installed KEPT file's text, or None when it is not a regular file: a FIFO there blocks the
+    read forever and a directory raises IsADirectoryError, so the gate reports it instead of reading
+    it (W-21f88ec3). The caller has already reported an absent path as MISSING."""
+    if not inst.is_file():
+        return None
+    return inst.read_text(errors="replace")
+
+
 def agent_drift(dest: Path) -> list[str]:
     """Installed agent definitions vs a fresh render — the check that makes the repo CANONICAL.
 
@@ -1074,7 +1088,11 @@ def agent_drift(dest: Path) -> list[str]:
             continue
         # an INSTALLED file: read with errors="replace" like every other installed-tree read, so a
         # corrupted agent definition is reported as drift instead of killing the read-only gate
-        want, have = _render_agent(src, frags), live.read_text(errors="replace")
+        have = _installed_text(live)
+        if have is None:
+            drift.append(f"agents/{src.name}: {_NOT_REGULAR}")
+            continue
+        want = _render_agent(src, frags)
         if want != have:
             drift.append(f"agents/{src.name}: {_differs(want, have)}")
     return drift
@@ -1144,10 +1162,21 @@ def _preflight(
                 "(no file was written)"
             )
 
+    def _regular_or_absent(p: Path, leaf: str) -> None:
+        # a KEPT name is opened for write: a FIFO there blocks until a reader comes, a socket or a
+        # device fails or writes somewhere else — refuse every non-regular type (W-21f88ec3). The
+        # orphan walks keep `_file_or_absent`: an orphan FIFO is the prune's to leave in place.
+        _file_or_absent(p, leaf)
+        if p.exists() and not p.is_file():
+            raise SystemExit(
+                f"{p} is not a regular file (a FIFO, socket or device) where the {leaf} belongs — "
+                "remove it, then re-render (no file was written)"
+            )
+
     _tree(dest, "commands tree")
     _tree(agents_dest, "agents tree")
     for f in files:
-        _file_or_absent(f, "command file" if f.parent == dest else "agent file")
+        _regular_or_absent(f, "command file" if f.parent == dest else "agent file")
     # the prune loops read every `*.md` entry of each tree — a DIRECTORY wearing that name breaks
     # them after the writes; refuse it up front (a symlink there is an orphan the prune unlinks)
     for tree in (dest, agents_dest):
@@ -1160,7 +1189,7 @@ def _preflight(
         _tree(skills_dest, "skills tree")
         for name in names:
             _dir_or_absent(skills_dest / name, "skill directory")
-            _file_or_absent(skills_dest / name / "SKILL.md", "SKILL.md wrapper")
+            _regular_or_absent(skills_dest / name / "SKILL.md", "SKILL.md wrapper")
         if skills_dest.is_dir():
             for entry in sorted(skills_dest.glob("*/SKILL.md")):
                 if entry.is_symlink() or entry.parent.is_symlink():
@@ -1353,7 +1382,11 @@ def check():
             if not inst.exists():
                 drift.append(f"{f.name}: MISSING in {OUT}")
                 continue
-            want, have = f.read_text(), inst.read_text(errors="replace")
+            have = _installed_text(inst)
+            if have is None:
+                drift.append(f"{f.name}: {_NOT_REGULAR}")
+                continue
+            want = f.read_text()
             if have != want:
                 drift.append(f"{f.name}: {_differs(want, have)}")
         # every command must ALSO have an in-sync SKILL.md
@@ -1362,7 +1395,11 @@ def check():
             if not inst.exists():
                 drift.append(f"skills/{sd.parent.name}: MISSING SKILL.md in {SKILLS}")
                 continue
-            want, have = sd.read_text(), inst.read_text(errors="replace")
+            have = _installed_text(inst)
+            if have is None:
+                drift.append(f"skills/{sd.parent.name}: SKILL.md {_NOT_REGULAR}")
+                continue
+            want = sd.read_text()
             if have != want:
                 drift.append(f"skills/{sd.parent.name}: SKILL.md {_differs(want, have)}")
         # orphan detection: an installed GENERATED command/skill whose _source is gone
