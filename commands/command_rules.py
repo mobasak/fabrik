@@ -19,6 +19,7 @@ import ast
 import hashlib
 import os
 import re
+import subprocess
 import unicodedata
 from collections import Counter
 from pathlib import Path
@@ -488,20 +489,28 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         if ent["id"] in ids:
             raise LedgerError(f"retired {ent['id']}: also a live entry")
         retired.add(ent["id"])
+    src_name = Path(name).name if shared else f"{name}.md"
     for key, label in (data.get("vanished") or {}).items():
         if not isinstance(key, str) or not re.fullmatch(r"L[1-9]\d*", key):
             raise LedgerError(f"vanished key {key!r} is not a baseline line (L<n>)")
         if label == "narrative":
+            continue
+        if isinstance(label, dict) and set(label) == {"superseded"} and isinstance(label["superseded"], str):
+            # W-5dc4163d: the row must name this ledger's source; `_superseded_proof` proves the rest from git
+            row = rows.get(label["superseded"]) if re.fullmatch(r"D-[0-9]+", label["superseded"]) else None
+            if row is None or not re.search(rf"(?<![\w-]){re.escape(src_name)}(?![\w-]|\.\w)", row):
+                raise LedgerError(f"vanished {key}: superseded {label['superseded']!r} is not a D-row in docs/DECISIONS.md naming {src_name}")
             continue
         if isinstance(label, dict) and set(label) == {"rule"} and _strs(label["rule"]):
             named = label["rule"]
         elif isinstance(label, dict) and set(label) == {"duplicate-of"} and isinstance(label["duplicate-of"], str):
             named = [label["duplicate-of"]]
         else:
-            raise LedgerError(f"vanished {key}: label {label!r} is not rule: [ids], duplicate-of: id or narrative")
+            raise LedgerError(f"vanished {key}: label {label!r} is not rule: [ids], duplicate-of: id, superseded: D-<n> or narrative")
         if bad := [n for n in named if n not in ids or n in retired]:
             raise LedgerError(f"vanished {key}: names unknown or retired id(s) {bad}")
     data["_ids"] = ids
+    data["_rows"] = rows  # `_superseded_proof` reads the named row's commits
     return data
 
 
@@ -858,6 +867,16 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
             loss.append(f"LOSS {name} {e['id']}: `ordered` entries out of order or missing")
     for n in gone:
         loss += [f"LOSS {name}: baseline L{n} {msg}" for msg in _vanished_proof(baseline[n - 1], labels.get(f"L{n}"), ledger["_ids"], scopes)]
+        label = labels.get(f"L{n}")
+        if isinstance(label, dict) and "superseded" in label:
+            d = label["superseded"]
+            try:
+                rel = own_path.resolve().relative_to(root.resolve()).as_posix()
+            except ValueError:
+                loss.append(f"LOSS {name}: baseline L{n} superseded by {d}: its source {own_path} is outside the repo, so no commit can be read")
+                continue
+            proof = _superseded_proof(baseline[n - 1], d, ledger["_rows"][d], root, rel, own, "shared" in ledger)
+            loss += [f"LOSS {name}: baseline L{n} {msg}" for msg in proof]
     return loss
 
 
@@ -870,8 +889,8 @@ def _vanished_proof(line: str, label: object, ids: dict[str, dict], scopes: dict
     carrier's own entry). A named entry whose file or section is missing is already a LOSS: nothing more here.
     COBRA (D-253): the cheapest pass left is an equal-baseline entry labelling every non-ban clause `narrative`
     — D-1236's own residue, which the author-blind audit pair reads."""
-    if not isinstance(label, dict):
-        return []  # unlabelled and `narrative` lines are `_check`'s own reads above
+    if not isinstance(label, dict) or "superseded" in label:
+        return []  # unlabelled and `narrative` lines are `_check`'s own reads above; `superseded` is `_superseded_proof`'s
     named = label.get("rule") or [label["duplicate-of"]]
     if any(i not in scopes for i in named):
         return []
@@ -882,6 +901,104 @@ def _vanished_proof(line: str, label: object, ids: dict[str, dict], scopes: dict
     probe = {"id": "", "class": "ban", "baseline": unit, "text": [ph for i in named for ph in ids[i].get("text") or []]}
     how = f"rule {named}" if "rule" in label else f"duplicate-of {named[0]}"
     return [f"vanished as {how} — lint {lint} — {msg}" for lint, msg in _lint(probe, "\n\n".join(scopes[i] for i in named), "")]
+
+
+# W-5dc4163d: the tag every lean ledger's baseline is cut at, and a commit token in a D-row — the SHA half of `_ID`,
+# bounded so a W-item's hex (`W-47d58d2c`) is never read as a commit
+LEAN_BASELINE_TAG = "lean-baseline-2026-10-25"
+_SHA = re.compile(r"(?<![\w-])(?=[0-9]*[a-f])(?=[a-f]*[0-9])[0-9a-f]{7,64}(?![\w-])")
+_GIT_CONTEXT = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES")
+
+
+class _GitUnreadableError(Exception):
+    """Git could not answer: the label is a LOSS naming the cause, never a pass."""
+
+
+def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess:
+    """``git -C root …``. An enclosing repo never answers (the ceiling is root's parent), an inherited git context (a
+    hook's GIT_DIR) never redirects it, and no replace ref substitutes an object."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_CONTEXT}
+    env["GIT_CEILING_DIRECTORIES"] = str(root.resolve().parent)
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    try:
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, timeout=30, env=env)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise _GitUnreadableError(f"git {args[0]} failed ({type(exc).__name__})") from exc
+
+
+def _git(root: Path, *args: str) -> bytes:
+    """The command's stdout; any non-zero exit raises ``_GitUnreadableError``."""
+    r = _run_git(root, *args)
+    if r.returncode != 0:
+        raise _GitUnreadableError(f"git {args[0]} exited {r.returncode}")
+    return r.stdout
+
+
+def _git_yes(root: Path, *args: str) -> bool:
+    """A yes/no git question (`merge-base --is-ancestor`, `rev-parse --verify -q`): exit 0 is yes, 1 is no, and any
+    other exit raises — so a git failure never reads as a "no" a guard would pass on."""
+    r = _run_git(root, *args)
+    if r.returncode not in (0, 1):
+        raise _GitUnreadableError(f"git {args[0]} exited {r.returncode}")
+    return r.returncode == 0
+
+
+def _superseded_proof(line: str, d: str, row: str, root: Path, rel: str, own: str, shared: bool) -> list[str]:
+    """W-5dc4163d: a vanished line labelled `superseded: D-n` is carried only when master changed it after the lean
+    baseline tag. Master's current source (`origin/master`, else `master`) must hold the file and no longer hold the
+    line; the D-row must name a commit with one parent, not an ancestor of LEAN_BASELINE_TAG, an ancestor of master,
+    whose parent holds the line and which removed it; and master's replacement is carried: every unit master's current
+    source holds that the tag's source lacked (the whole file — a replacement may move headings) is in the ledger's own
+    text. (load_ledger already required the row to name the source.) Every git failure is a LOSS naming its cause.
+    COBRA (D-253): the cheapest pass left is a row naming a one-parent commit that a merged lean slice made on master,
+    its replacement in the lean text — the counter is the reviewed D-row itself, and `summary()` prints the
+    `superseded` split the audit pair reads."""
+
+    def text(ref: str) -> str | None:
+        if not _git(root, "ls-tree", "--name-only", ref, "--", rel).strip():
+            return None  # the path is absent at this commit
+        t = _git(root, "show", f"{ref}:{rel}").decode("utf-8", errors="replace")
+        return t if shared else own_text(t)
+
+    try:  # with discovery stopped at root's parent, a repo found here is root's own
+        if not _git_yes(root, "rev-parse", "--verify", "-q", f"{LEAN_BASELINE_TAG}^{{commit}}"):
+            return [f"superseded by {d}: the tag {LEAN_BASELINE_TAG} is not in the history at {root}"]
+        master = next((m for m in ("origin/master", "master") if _git_yes(root, "rev-parse", "--verify", "-q", f"{m}^{{commit}}")), None)
+        if master is None:
+            return [f"superseded by {d}: no master ref (origin/master or master) at {root}"]
+        now = text(master)
+        if now is None:
+            return [f"superseded by {d}: master no longer holds {rel}, so its replacement cannot be read"]
+        if vanished([line], now) != [1]:
+            return [f"superseded by {d}: master's current {rel} still holds this line — {line[:120]}"]
+        removed = False
+        for tok in dict.fromkeys(_SHA.findall(row)):
+            if not _git_yes(root, "rev-parse", "--verify", "-q", f"{tok}^{{commit}}"):
+                continue  # not a commit here, or an ambiguous short sha
+            c = _git(root, "rev-parse", "--verify", "-q", f"{tok}^{{commit}}").decode().strip()
+            if len(_git(root, "rev-list", "--parents", "-n", "1", c).split()) != 2:
+                continue  # a merge's diff spans a whole branch; a root commit has no before
+            if _git_yes(root, "merge-base", "--is-ancestor", c, LEAN_BASELINE_TAG) or not _git_yes(root, "merge-base", "--is-ancestor", c, master):
+                continue  # not a change that landed on master after the tag
+            before, after = text(f"{c}^"), text(c)
+            if before is not None and vanished([line], before) == [] and (after is None or vanished([line], after) == [1]):
+                removed = True
+                break
+        if not removed:
+            return [f"superseded by {d}: no commit {d} names removed this line on master after {LEAN_BASELINE_TAG} — {line[:120]}"]
+        at_tag = text(LEAN_BASELINE_TAG)
+    except _GitUnreadableError as exc:
+        return [f"superseded by {d}: no git history readable at {root} ({exc})"]
+    left = Counter(keys(at_tag or ""))
+    added = []
+    for k in keys(now):
+        if left[k]:
+            left[k] -= 1
+        else:
+            added.append(k)
+    if missing := [added[i - 1] for i in vanished(added, own)]:
+        return [f"superseded by {d}: master's replacement is not in the ledger's own text — {m[:120]}" for m in missing]
+    return []
 
 
 def ledgers(rules: Path | None = None) -> list[Path]:

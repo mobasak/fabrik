@@ -319,7 +319,7 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   removing `**`/`__` outside backticks and dropping trailing periods and the spaces before them
   (so a second normalisation is a no-op; only a comment that STARTS its line is a comment, so an
   inline `<!-- … -->` in a code span stays text). A reworded or moved rule
-  therefore vanishes and must be classified as `rule: [ids]`, `duplicate-of: id` or `narrative`
+  therefore vanishes and must be classified as `rule: [ids]`, `duplicate-of: id`, `superseded: D-<n>` or `narrative`
   in the ledger's `vanished:` map, keyed `L<n>` by baseline line. A `rule:` or `duplicate-of:` label
   is a claim the check proves (W-34d76a7a): a named entry that the lints read and whose `baseline` is
   that line carries it, or else the line owes the ledger lints A, B and D over the named entries' `text`
@@ -328,6 +328,13 @@ logger) must name the script the entry's `text` carrier names. `losses()` never 
   The carrier is whatever file the named entry
   names (`commands/_agents/` included), not necessarily the command's own; a renamed heading takes
   `narrative`. An entry's `current` must be a whole unit under its `section`.
+  A line that a reviewed master change rewrote after the lean baseline tag takes `superseded: D-<n>` instead
+  (W-5dc4163d), proven from git by `command_rules._superseded_proof`: the D-row names the ledger's source file
+  (checked at load) and a one-parent commit that is not an ancestor of `lean-baseline-2026-10-25`, is an ancestor of
+  master (`origin/master`, else `master`), and whose parent holds the line while it does not; master's current
+  source still exists and no longer holds the line; and every unit master's current source holds that the tag's
+  source lacked — the whole file, since a replacement may move headings — is in the ledger's own text. Anything
+  else is a LOSS line `baseline L<n> superseded by D-<n>: …` naming the cause, a tree without git history included.
 - **Changed on purpose** (§ The rule test step 8): an entry's `changed-by:` lists each D-row that
   changed it; every id must be a row in `docs/DECISIONS.md`.
 - **Ledger lints** (D-1236, read per D-1238 points 1-2 and D-1240): they run in the command check
