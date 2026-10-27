@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the docs staleness check stops watching docs/FUNNEL.md and docs/AUTOMATION.md (2026-10-27)
+
+- `scripts/docs_updater.py::MANUAL_DOCS` drops `docs/FUNNEL.md` and `docs/AUTOMATION.md`, site-provisioner's own docs
+  at a path `check_structure.py` warns is misplaced; registering them would have made both names legal in every repo.
+  No staleness row changes today; D-1273 says why and what the drop gives up.
+- `tests/test_docs_updater.py` drops the `_MISPLACED_PENDING` exception: no watched doc may be one
+  `check_structure.check_structure()` flags, and the dropped-docs staleness test covers both docs. W-1adf4ed4.
+
 ### Fixed — the docs staleness check stops watching AGENTS.md and docs/INDEX.md (2026-10-27)
 
 - `scripts/docs_updater.py::MANUAL_DOCS`, the docs whose `**Last Updated:**` header the advisory staleness check
