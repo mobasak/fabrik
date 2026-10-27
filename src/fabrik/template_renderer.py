@@ -79,7 +79,8 @@ class TemplateRenderer:
         """Any spec string compose reads whole, as one double-quoted YAML scalar (W-80aed026, W-ff313a14).
 
         PyYAML's own double-quoted emission round-trips every string compose can hold; ASCII-only,
-        because the deployer writes the file with the locale encoding. `$` passes through: compose
+        chosen when the deployer still wrote the file with the locale encoding (it writes UTF-8 since
+        W-8495d72f; ASCII stays readable under any decoder). `$` passes through: compose
         interpolation in a spec value is the spec author's (zitadel's `${ZITADEL_MASTERKEY}` command).
         The error names the `label`, never the value (render errors are echoed and logged).
         """

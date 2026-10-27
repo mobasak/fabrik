@@ -1146,10 +1146,19 @@ def _write_env_files(
     :func:`_env_writer_for` for the ``/opt/<name>`` apps.
     """
     app, owner = _split_env(merged)
+    # Both halves are formatted before the first write, so a line the codec refuses (a NUL, a lone
+    # surrogate — W-8495d72f) leaves both files as they were; the try holds no write, whose own
+    # ValueError (a filename outside the app dir) is not a codec refusal.
+    content: dict[str, str] = {}
+    for filename, half in ((OWNER_ENV_FILE, owner), (".env", app)):
+        try:
+            content[filename] = _format_env(half)
+        except ValueError as e:  # the message names the key, never the value
+            raise DeployError(f"cannot write {path}/{filename}: {e}") from None
     if owner:
-        write(path, OWNER_ENV_FILE, _format_env(owner))
+        write(path, OWNER_ENV_FILE, content[OWNER_ENV_FILE])
         logger.info("env: %d owner key(s) kept in %s for %s", len(owner), OWNER_ENV_FILE, path)
-    write(path, ".env", _format_env(app))
+    write(path, ".env", content[".env"])
 
 
 def _env_writer_for(name: str) -> Callable[[str, str, str], None]:
@@ -1217,7 +1226,10 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     safe_name = filename.replace("/", "-")
     fd, tmp_local = tempfile.mkstemp(prefix=f"fabrik-{safe_name}-")
     try:
-        with os.fdopen(fd, "w") as f:
+        # UTF-8 whatever the hub's locale: the codec's refusals (env_file.format_env_line) promise
+        # that a line passing them is writable, and a locale codec (LC_ALL=C → ASCII) broke that
+        # mid-write, after .env.owner was already on the VPS (W-8495d72f review).
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
         # The remote temp file is made by `mktemp` (a random name, O_EXCL, mode 0600) BEFORE scp
         # writes into it. A pid-derived name was predictable: a local VPS user could pre-create it

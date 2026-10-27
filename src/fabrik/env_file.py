@@ -19,8 +19,18 @@ literal); that is how a secret read from a file is made literal on purpose.
 
 from __future__ import annotations
 
+import re
+
 _DQ_ESCAPES = {"n": "\n", "r": "\r", "t": "\t", "\\": "\\", '"': '"', "$": "$"}
 _QUOTE_TRIGGERS = (" ", "#", "'", '"', "\n", "\r", "\t", "\\")
+_KEY_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _shown_key(key: str) -> str:
+    """The key as an error message may print it. A key from a broken line is whatever precedes its
+    first ``=`` — ``postgres://u:pw@h/db?x="y`` reads as key ``postgres://u:pw@h/db?x`` — so only a
+    plain variable name is printed; anything else is "a malformed key" (W-8495d72f review)."""
+    return key if _KEY_NAME.fullmatch(key) else "a malformed key"
 
 
 class EnvTemplate(str):
@@ -56,7 +66,19 @@ def format_value(value: str) -> str:
 
 
 def format_env_line(key: str, value: str) -> str:
-    return f"{key}={format_value(value)}"
+    """One ``KEY=value`` line. Raises ``ValueError`` — naming the key (:func:`_shown_key`), never
+    the value — when the line holds a NUL byte (runc refuses the container; dotenv has no escape for
+    it) or is not UTF-8 (a lone surrogate the writer cannot encode), the refusals D-1269 makes for
+    compose ``environment:``. The EMITTED line is checked, so the key and a kept template ``source``
+    are covered with the value."""
+    line = f"{key}={format_value(value)}"
+    if "\x00" in line:
+        raise ValueError(f"the .env line for {_shown_key(key)} contains a NUL byte")
+    try:
+        line.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError(f"the .env line for {_shown_key(key)} is not valid UTF-8") from None
+    return line
 
 
 def format_env(env: dict[str, str]) -> str:
@@ -117,7 +139,7 @@ def parse_env(content: str) -> dict[str, str]:
             try:
                 value, after, dollar = _read_quoted(content, vstart)
             except ValueError as e:
-                raise ValueError(f"{e} for {key} at line {lineno}") from None
+                raise ValueError(f"{e} for {_shown_key(key)} at line {lineno}") from None
             tail_end = content.find("\n", after)
             tail_end = n if tail_end < 0 else tail_end
             # Compose ignores `K="v" junk` and `K="v" # c` and refuses a quote in the tail, which
@@ -125,7 +147,9 @@ def parse_env(content: str) -> dict[str, str]:
             # reader still reads as `v` (W-2ae286e2 review, recorded: leniency, the quoted content
             # is kept).
             if any(q in content[after:tail_end].split("#", 1)[0] for q in ("'", '"')):
-                raise ValueError(f"a quote after the closing quote for {key} at line {lineno}")
+                raise ValueError(
+                    f"a quote after the closing quote for {_shown_key(key)} at line {lineno}"
+                )
             source = content[vstart:after]
             result[key] = EnvTemplate(value, source) if dollar else value
             pos = tail_end + 1

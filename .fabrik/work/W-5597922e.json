@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T06:17:45.261493Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5597922e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "map a decode failure in _read_env_file to DeployError('cannot read <file>: not valid UTF-8') naming the file, never the bytes; grader drives _read_env_file over a stub returning a decode error",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "A .env on the VPS holding a non-UTF-8 byte makes _read_env_file raise a raw UnicodeDecodeError (drivers/ssh.py runs ssh with text=True, strict decode); its except at deployer_ssh.py:~1118 lists RuntimeError/OSError/TimeoutExpired only, so the ValueError subclass escapes _persist_git_sha's fail-open handler and crashes a redeploy, including inside its rollback. Found by the W-8495d72f review (Opus seat)."
+}

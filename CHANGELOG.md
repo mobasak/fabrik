@@ -24,6 +24,17 @@ of the file's 67 tests red. The fixture now points `XDG_CONFIG_HOME` and `GIT_TE
 dirs, as `tests/test_emit_mcp_fillins.py` already did for XDG. W-f7772267 (f); a fixture-only hunk under
 intel's plan-3 lock, on the coordinator's ruling.
 
+### Fixed — a `.env` line holding a NUL byte or invalid UTF-8 is refused before anything is written (2026-10-27)
+
+The deploy's `.env` writer wrote a NUL byte raw, in any key, value or kept template text, and runc then refused the
+container, after the file was already on the VPS. A lone surrogate was written raw too, and the writer crashed
+partway through. `fabrik.env_file.format_env_line` now refuses either, checking the line it is about to write. The
+error names the key and never the value. `_write_env_files` formats `.env.owner` and `.env` before writing either,
+so a refusal leaves both files as they were and is raised as a `DeployError` naming the file. A redeploy's
+`GIT_SHA` update keeps failing open. Two more fixes came out of the review. An error message prints a key only when
+it is a plain variable name: a key read from a broken line can hold a secret. The VPS file writer now writes
+UTF-8 whatever the hub's locale, where it used to crash under `LC_ALL=C`. (W-8495d72f, D-1282)
+
 ### Fixed — the hub's secrets reader reads `.env` as compose does and refuses a malformed file (2026-10-27)
 
 `SecretsManager`, which `fabrik apply` asks for a secret the environment lacks, read `<cwd>/.env` with its own
