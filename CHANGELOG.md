@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the orphan-FIFO assembler test no longer times out inside the rule-ledger pass (2026-10-27)
+
+- `tests/test_assemble_dispatch_step.py::test_an_orphan_fifo_never_hangs_the_render_or_the_gate`: its 20 s alarm
+  wrapped `check()`'s rule-ledger LOSS pass, which takes 45-105 s on the lean corpus, so on the lean batch head the
+  alarm fired mid-ledger and `check()` exited 4, not 1 (kaizen finding; blocked batch MR 01M5X49M0S). The ledger and
+  measure passes are now spies in that test: they return their empty results and refuse an installed tree, so the
+  alarm bounds only the orphan-position reads and a pass handed the installed tree still goes red. Red on the batch
+  head before (exit 4), green after; still red with either orphan guard neutered. Filed W-21f88ec3 (a FIFO at a kept
+  name still blocks `render()`/`check()`).
+
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
 
 `src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so
