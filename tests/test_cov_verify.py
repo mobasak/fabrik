@@ -92,7 +92,9 @@ def test_get_check_config_without_postconditions_key(tmp_path):
     assert c._get_check_config("a") == {}
 
 
-@pytest.mark.xfail(strict=True, reason="`postconditions:` with null value crashes with AttributeError")
+@pytest.mark.xfail(
+    strict=True, reason="`postconditions:` with null value crashes with AttributeError"
+)
 def test_null_postconditions_section_is_tolerated(tmp_path):
     c = make_checker(tmp_path, "postconditions:\n")
     assert c.run_all() == []
@@ -233,7 +235,7 @@ def test_ssl_skip_without_domain(tmp_path):
 
 
 def test_ssl_pass_reports_days_remaining(tmp_path, monkeypatch):
-    ctx = patch_tls(monkeypatch, {"notAfter": ssl_date(60) })
+    ctx = patch_tls(monkeypatch, {"notAfter": ssl_date(60)})
     r = make_checker(tmp_path, SSL_SPEC).check_ssl()
     assert r.result == CheckResult.PASS
     assert r.details["domain"] == "x.test"
@@ -451,7 +453,9 @@ def test_run_all_dispatches_each_check_type(tmp_path, monkeypatch):
         "  c: {check: dns_lookup}\n  d: {check: registrars_present}\n",
     )
     for meth in ("check_http", "check_ssl", "check_dns", "check_registrars"):
-        monkeypatch.setattr(c, meth, lambda name, m=meth: result_of(f"{m}:{name}", CheckResult.PASS))
+        monkeypatch.setattr(
+            c, meth, lambda name, m=meth: result_of(f"{m}:{name}", CheckResult.PASS)
+        )
     res = c.run_all()
     assert [r.name for r in res] == [
         "check_http:a",
