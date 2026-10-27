@@ -168,6 +168,26 @@ Gates: `python3 -m pytest -q tests/test_command_rules.py -rP` → 32 passed, 3 s
 - COUNTS: 79 entries read / 30 reworded / 0 weaker / 0 lost / 0 invented / 0 wrong vanished labels. Earlier passes fixed: L3 relabelled narrative (was a duplicate-of that covered one of its three failure modes); r15 and r25 restored to baseline units; r24 split from L64 so its `docs/...` anchors sit in a narrative-labelled clause.
 - Gates, start -> end: `test_command_rules.py` 1 failed/56 passed at start (the LOSS); the reader-test groups started at 14 failed/100 passed (dispatch_step, orch_retired: installed-corpus and git-grep), 2 failed/556 passed (`test_command_measure::test_check_exit_order...`, `test_conftest_isolation`), the rest green. End figures below.
 
+## Fix round 2 (hub audit)
+
+Findings: Sonnet 18 + Haiku 20, overlapping; all checked against the baseline text. **Confirmed and fixed: all of them** (none refuted; every OLD quote is in the baseline). Fix per finding, each restored verbatim:
+- r36 / L98 (Sonnet 1, Haiku 18-19): `references … as binding UI truth, its screen-building phases each running the Build Verification Loop to its closing round` restored.
+- r24b / L64 (S2, H15): both path anchors and `mechanically checkable … during the build loop` restored; L62/L63 (the loader's three LOSS lines) restored verbatim as r24 / new r24a (L63 relabelled `rule: r24a`, was `duplicate-of r24`, S8); L77 clause 2 (`it reverses a readiness claim…`) restored in r29.
+- r17 (S3, H11): `a state listed on one screen and forgotten on its twin` restored.
+- r11 / L30 (S4, H9): the `a contract naming a component that isn't real is a defect` clause, `actually`, `connected`, `the contract leans on` restored; the narrative label removed.
+- r23 (S5, H14): `is followed` and the `dangling reference` clause restored; narrative label removed.
+- L4, L7, L8 (S6, H2): the three-layer list and `do not conflate them` restored in the source; new entry `ui-design-review-layers` carries them (label `rule`). L3 (S7): defect list restored, new entry `ui-design-review-defects`, label `rule`. L5/L6/L10 restored with the `#1` list so `This command is #1` no longer dangles (S18, H1: `(THIS)` back).
+- Frontmatter `description` (S9, H20): the `/design-review` and Build Verification Loop distinctions restored.
+- r4, r5, r6, surface-pack, r7, r8, r26, r19, r33, r14, r18, r30 (S10-S17, H3-H8, H10, H12, H13, H16, H17): each restored verbatim to its baseline wording; their `clauses` narrative labels (r7) removed.
+
+Own-text words: baseline 2875 → re-ledger 2278 → now about 2,650 by estimate; `own_text` could not be run in this lane (no shell beyond the listed gates). The loader's REPORT line (`shrank to 25298 words`) is the corpus total, not this file. The 50% target is retired (D-1257).
+
+Fresh passes: **0.** No subagent can be dispatched in this lane, so no fresh-reader pass ran; the hub's author-blind audit pair covers it. My own line-by-line check of each restored entry against its baseline line is not a fresh pass and no zeros are claimed.
+
+COUNTS: not claimed — no fresh pass ran.
+
+Gate: `tests/test_command_rules.py` shows 1 failed / 56 passed; the failure is `cr.losses(...) == []` over all ledgers (717 items, first `design-review.yaml design-review-r3`), which is other units' LOSS under this tree's loader. This lane cannot lay master's loader (no git), so this ledger's own LOSS lines are listed in the next run's output below.
+
 ## LEFT FOR THE HUB (re-ledger)
 
 - Ratchet `commands/_size_ceiling.json` (report line: `shrank to 24901 words`); `CHANGELOG.md`, `INDEX.md`, any D-row for the 79% floor.
