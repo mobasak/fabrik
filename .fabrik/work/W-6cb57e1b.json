@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T03:38:19.471477Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6cb57e1b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "In step's --design-amend refusal (scripts/command_run.py:6706-6707), when rec['stack'] holds a fabrik-task parent, print the live /<command> and the order 'close it first, then step --design-amend on the fabrik-task record'; red-first test; one /fabrik-task with W-84cb366c's refusal-text fix",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "batch-refusal-text"
+  ],
+  "title": "command_run.py step --design-amend under a nested review refuses with 'belongs to --command fabrik-task' — misleading to an agent that IS inside a fabrik-task; name the live nested run and say: close it, then amend the fabrik-task record before done (mail 01M5BRWXPV ask 2, feedback row 1792418646; batch with W-84cb366c)"
+}
