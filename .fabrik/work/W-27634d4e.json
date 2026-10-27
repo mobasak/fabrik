@@ -3,7 +3,7 @@
   "created": "2026-10-26T21:51:02.618952Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d25a43affdf7d9a7700ab8ca792fb27cc2ea3b06",
   "id": "W-27634d4e",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "test hygiene residue from W-6eb61fa0",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],
