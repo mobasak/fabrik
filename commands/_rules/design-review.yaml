@@ -30,6 +30,13 @@ entries:
   current: 'Dispatch step (D-191): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition'
   text:
   - 'Dispatch step (D-191): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition'
+- id: u-L7
+  class: prose
+  file: render
+  baseline: You conduct world-class design reviews following the rigorous standards of top Silicon Valley companies like Stripe, Airbnb, and Linear
+  current: You conduct world-class design reviews following the rigorous standards of top Silicon Valley companies like Stripe, Airbnb, and Linear
+  text:
+  - You conduct world-class design reviews following the rigorous standards of top Silicon Valley companies like Stripe, Airbnb, and Linear
 - id: u-L8
   class: grammar
   file: render
@@ -76,9 +83,9 @@ entries:
   class: prose
   file: render
   baseline: '⚠️ MODEL FLOOR — at least the authoritative seat runs on Opus (`model: "opus"`): the visual/UX/a11y judgement is high-stakes and this native browser-driven pass is the review''s authoritative Opus eyes'
-  current: '⚠️ MODEL FLOOR — at least the authoritative seat runs on Opus (`model: "opus"`): the visual/UX/a11y judgement is high-stakes'
+  current: '⚠️ MODEL FLOOR — at least the authoritative seat runs on Opus (`model: "opus"`): the visual/UX/a11y judgement is high-stakes and this native browser-driven pass is the review''s authoritative Opus eyes'
   text:
-  - '⚠️ MODEL FLOOR — at least the authoritative seat runs on Opus (`model: "opus"`): the visual/UX/a11y judgement is high-stakes'
+  - '⚠️ MODEL FLOOR — at least the authoritative seat runs on Opus (`model: "opus"`): the visual/UX/a11y judgement is high-stakes and this native browser-driven pass is the review''s authoritative Opus eyes'
 - id: u-L20
   class: ban
   file: render
@@ -90,10 +97,9 @@ entries:
   class: ban
   file: render
   baseline: '⚠️ CONVERGENCE — this review is a LOOP, not a one-shot; its exit is the Termination contract below (`term-edit`): a design is "done" ONLY at the closing round — the closing pass, the round-1 seats over their own axes, CONFIRMING zero findings (no Blockers / High-Priority / Medium findings confirmed by execution against the running screen), the reviewed surface''s md5 unchanged'
-  current: '⚠️ CONVERGENCE — its exit is the Termination contract below (`term-edit`): a design is "done" ONLY at the closing round — the closing pass, the round-1 seats over their own axes, CONFIRMING zero findings (no Blockers / High-Priority / Medium findings confirmed by execution against the running screen), the reviewed surface''s md5 unchanged'
-  clauses: {2: narrative}
+  current: '⚠️ CONVERGENCE — this review is a LOOP, not a one-shot; its exit is the Termination contract below (`term-edit`): a design is "done" ONLY at the closing round — the closing pass, the round-1 seats over their own axes, CONFIRMING zero findings (no Blockers / High-Priority / Medium findings confirmed by execution against the running screen), the reviewed surface''s md5 unchanged'
   text:
-  - '⚠️ CONVERGENCE — its exit is the Termination contract below (`term-edit`): a design is "done" ONLY at the closing round — the closing pass, the round-1 seats over their own axes, CONFIRMING zero findings (no Blockers / High-Priority / Medium findings confirmed by execution against the running screen), the reviewed surface''s md5 unchanged'
+  - '⚠️ CONVERGENCE — this review is a LOOP, not a one-shot; its exit is the Termination contract below (`term-edit`): a design is "done" ONLY at the closing round — the closing pass, the round-1 seats over their own axes, CONFIRMING zero findings (no Blockers / High-Priority / Medium findings confirmed by execution against the running screen), the reviewed surface''s md5 unchanged'
 - id: u-L22
   class: ban
   file: render
@@ -129,6 +135,13 @@ entries:
   current: ⚠️ GROUNDING GATE (BINDING — validate against the RUNNING screen + the frozen contracts, not the diff)
   text:
   - ⚠️ GROUNDING GATE (BINDING — validate against the RUNNING screen + the frozen contracts, not the diff)
+- id: u-L28
+  class: prose
+  file: render
+  baseline: A design review runs against a project that already has screens, a design system, and a frozen `docs/ui-design.md` + `docs/data-contract.md` — so the dominant defect is a critique or a fix asserted from the diff or from memory that the actually-rendered screen contradicts
+  current: A design review runs against a project that already has screens, a design system, and a frozen `docs/ui-design.md` + `docs/data-contract.md` — so the dominant defect is a critique or a fix asserted from the diff or from memory that the actually-rendered screen contradicts
+  text:
+  - A design review runs against a project that already has screens, a design system, and a frozen `docs/ui-design.md` + `docs/data-contract.md` — so the dominant defect is a critique or a fix asserted from the diff or from memory that the actually-rendered screen contradicts
 - id: u-L29
   class: ban
   file: render
@@ -214,16 +227,16 @@ entries:
   class: prose
   file: render
   baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
-  current: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (mechanism revised by D-182), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments)'
+  current: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
   text:
-  - '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (mechanism revised by D-182), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments)'
+  - '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
 - id: design-review-r3
   class: ban
   file: render
   baseline: ⚠️ FAN-OUT — dispatch the `design-review` seats `dispatch_headroom.py --units <screens>` prints — one Sonnet seat per SCREEN/route under review plus the Haiku mechanical seat(s) and the Opus authoritative seat — all in a single message so they drive their screens in parallel (screens are independent — the same shape `/fabrik-ui-design`'s Build Verification Loop already uses for `fabrik-gui`); the screen count is the PARTITION and `dispatch_headroom.py --units <screens>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — never a token one (D-191) — the Sonnet seat drives the screen, the Haiku mechanical seat runs that screen's AUTOMATED checks (the axe scan, contrast, token lint — grep-shaped, no judgement), the Opus authoritative seat re-drives the highest-risk screen and owns the visual/UX judgement
-  current: ⚠️ FAN-OUT — dispatch the `design-review` seats `dispatch_headroom.py --units <screens>` prints — one Sonnet seat per SCREEN/route under review plus the Haiku mechanical seat(s) and the Opus authoritative seat — all in a single message so they drive their screens in parallel (screens are independent — the same shape `/fabrik-ui-design`'s Build Verification Loop already uses for `fabrik-gui`); the screen count is the PARTITION — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — never a token one (D-191) — the Sonnet seat drives the screen, the Haiku mechanical seat runs that screen's AUTOMATED checks, the Opus authoritative seat re-drives the highest-risk screen and owns the visual/UX judgement
+  current: ⚠️ FAN-OUT — dispatch the `design-review` seats `dispatch_headroom.py --units <screens>` prints — one Sonnet seat per SCREEN/route under review plus the Haiku mechanical seat(s) and the Opus authoritative seat — all in a single message so they drive their screens in parallel (screens are independent — the same shape `/fabrik-ui-design`'s Build Verification Loop already uses for `fabrik-gui`); the screen count is the PARTITION and `dispatch_headroom.py --units <screens>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — never a token one (D-191) — the Sonnet seat drives the screen, the Haiku mechanical seat runs that screen's AUTOMATED checks (the axe scan, contrast, token lint — grep-shaped, no judgement), the Opus authoritative seat re-drives the highest-risk screen and owns the visual/UX judgement
   text:
-  - ⚠️ FAN-OUT — dispatch the `design-review` seats `dispatch_headroom.py --units <screens>` prints — one Sonnet seat per SCREEN/route under review plus the Haiku mechanical seat(s) and the Opus authoritative seat — all in a single message so they drive their screens in parallel (screens are independent — the same shape `/fabrik-ui-design`'s Build Verification Loop already uses for `fabrik-gui`); the screen count is the PARTITION — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — never a token one (D-191) — the Sonnet seat drives the screen, the Haiku mechanical seat runs that screen's AUTOMATED checks, the Opus authoritative seat re-drives the highest-risk screen and owns the visual/UX judgement
+  - ⚠️ FAN-OUT — dispatch the `design-review` seats `dispatch_headroom.py --units <screens>` prints — one Sonnet seat per SCREEN/route under review plus the Haiku mechanical seat(s) and the Opus authoritative seat — all in a single message so they drive their screens in parallel (screens are independent — the same shape `/fabrik-ui-design`'s Build Verification Loop already uses for `fabrik-gui`); the screen count is the PARTITION and `dispatch_headroom.py --units <screens>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — never a token one (D-191) — the Sonnet seat drives the screen, the Haiku mechanical seat runs that screen's AUTOMATED checks (the axe scan, contrast, token lint — grep-shaped, no judgement), the Opus authoritative seat re-drives the highest-risk screen and owns the visual/UX judgement
 - id: design-review-r4
   class: ban
   file: render
@@ -232,12 +245,10 @@ entries:
   text:
   - '(When run inside `/fabrik-ui-design`''s Build Verification Loop, that loop drives the re-review to this closing round.) Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
 vanished:
-  L1: {"rule": ["design-review-r1"]}  # clauses narrative: ['(D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control)', '(left in place, or in `<!-- POOL OFF -->` comments, for re-enable)']
+  L1: {"rule": ["design-review-r1"]}
   L6: narrative
-  L7: narrative
   L19: {"rule": ["u-L19"]}
   L20: {"rule": ["u-L20"]}
   L21: {"rule": ["u-L21"]}
-  L28: narrative
-  L18: {"rule": ["design-review-r3"]}  # clauses narrative: ["(screens are independent — the same shape `/fabrik-ui-design`'s Build Verification Loop already uses for `fabrik-gui`)"]
+  L18: {"rule": ["design-review-r3"]}
   L26: {"rule": ["design-review-r4"]}

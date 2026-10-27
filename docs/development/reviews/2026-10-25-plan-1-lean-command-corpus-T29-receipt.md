@@ -77,4 +77,26 @@ Gates (this lane): `tests/test_command_rules.py` → 56 passed / 1 failed, the f
 - Author-blind audit pair over the 5 reworded entries; confirm `u-L28` as narrative and the `u-L21` clause-2 narrative label.
 - Floor D-row for `/design-review` (~89%); ceiling ratchet at merge; `pins:` on `u-L29`/`u-L30` names a deleted test.
 
+## Fix round 2 (hub audit)
+
+Findings (two reports, overlapping pairs treated as one), each checked against the baseline line:
+
+- CONFIRMED + fixed — r3 Haiku parenthetical `(the axe scan, contrast, token lint — grep-shaped, no judgement)` (both audits): restored verbatim.
+- CONFIRMED + fixed — r3 clause `the screen count is the PARTITION and `dispatch_headroom.py --units <screens>` prints the seats` (Haiku audit): anchor restored.
+- CONFIRMED + fixed — `u-L19` rationale `and this native browser-driven pass is the review's authoritative Opus eyes` (both): restored.
+- CONFIRMED + fixed — `u-L21` `this review is a LOOP, not a one-shot;` (both): restored; the `clauses: {2: narrative}` label is gone.
+- CONFIRMED + fixed — L28 `so the dominant defect is a critique or a fix asserted from the diff or from memory…` was mislabelled narrative: restored whole as entry `u-L28`; `vanished: L28` removed.
+- CONFIRMED + fixed — L1 parenthetical `(D-181; … SPEND: this text is the control)` and `, for re-enable`: restored in r1; the narrative clause labels are gone.
+- CONFIRMED + fixed — L7 persona `You conduct world-class design reviews…` is the review standard, not narrative: restored as its own line and entry `u-L7`; `vanished: L7` removed. L6 stays narrative (neither audit contested it).
+- The L18 `(screens are independent — …)` aside was never dropped (still in the source); its stale narrative comment is removed.
+- REFUTED: none.
+
+Own-text words: baseline 1348 → re-ledger ~1206 → now ~1346 (hand arithmetic: about +140 restored words; no word-count run is permitted in this lane). The 50% target is retired (D-1257), so no per-file floor table.
+
+Gates: `tests/test_command_rules.py` → 56 passed / 1 failed, the failure being other ledgers' and `_shared` LOSS (zero LOSS lines naming `design-review.yaml`); `--check` exit 4, no `design-review.yaml` LOSS line in the output. The reader-test runs were not repeated: this round edits one command's own text and ledger only.
+
+Fresh self-audit: NOT done by a fresh subagent — this lane cannot dispatch one, so the hub's author-blind audit pair covers it. The pass below was line by line by the author and is not a zero claim.
+
+COUNTS: entries read 34 / reworded 0 / weaker unaudited / lost unaudited / invented unaudited / wrong vanished labels unaudited (0 fresh passes ran; every entry's `text` now equals its baseline, so the only open question is the L6 persona label)
+
 - Floor note specific to this command: the `allowed-tools` frontmatter line (a ~110-word MCP tool list) and the three `!`-fenced git blocks are unledgered runtime wiring and count in the words.
