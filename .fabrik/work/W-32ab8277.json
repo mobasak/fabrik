@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T12:11:06.161470Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-32ab8277",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1296",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one sentence in the coordinator paragraph: long runs go to the background; end the turn and let the notification wake you; never a foreground sleep/poll loop; keep both copies byte-identical (test_governance_template_split); governance-sync path, full /fabrik-review",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "operator ruling for every coordinator; one rule sentence in a synced contract",
+  "status": "open",
+  "title": "Operator D-1296: no coordinator (any repo, existing and future) blocks its turn on a long wait — add the rule to the coordinator paragraph in CLAUDE.md and templates/governance/CLAUDE.md (byte-identical, D-888) so every repo's coordinator gets it by sync"
+}
