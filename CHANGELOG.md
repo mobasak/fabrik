@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the command assembler refuses a non-regular file at a generated name instead of hanging (2026-10-27)
+
+- `commands/assemble_commands.py`: a FIFO at a name the render writes and the gate compares (a command, a skill
+  wrapper or an agent file) blocked `render()` and `check()` forever, and a directory there crashed `check()` with
+  IsADirectoryError. The render now refuses any non-regular file at those names before its first write, and the
+  gate reports it, a symlink or a symlinked skill directory included, as one drift line and exit 1 (D-1278, W-21f88ec3).
+  Orphan positions are unchanged. An unreadable regular file there is filed as W-335d2f0e.
+
 ### Fixed — the orphan-FIFO assembler test no longer times out inside the rule-ledger pass (2026-10-27)
 
 - `tests/test_assemble_dispatch_step.py::test_an_orphan_fifo_never_hangs_the_render_or_the_gate`: its 20 s alarm
