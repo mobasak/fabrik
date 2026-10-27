@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — package ssh/scp calls outside the driver no longer crash on a non-UTF-8 answer (2026-10-27)
+
+- `fabrik audit`'s ssh probe, the DR drill's ssh/scp helpers (`src/fabrik/orchestrator/vultr_drill.py`) and the
+  preflight's direct-path advisory decode remote output as the ssh driver does (UTF-8 with `surrogateescape`, exit
+  code first — D-1286), so a stray byte no longer raises `UnicodeDecodeError`, reports a successful audit probe as
+  failed, or fails a spoke drill whose bootstrap passed. The audit refuses an answer that is not valid UTF-8 by
+  name; the drill's `RC=` reader takes ASCII digits only. Grader: `tests/test_ssh_decode_outside_driver.py`
+  (D-1298, W-7ac62afc).
+
 ### Fixed — a VPS answer that is not valid UTF-8 no longer crashes a redeploy (2026-10-27)
 
 `fabrik.drivers.ssh` decoded remote output with the hub's locale codec, strictly, before it read the exit code. One
