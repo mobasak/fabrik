@@ -15,7 +15,7 @@
   },
   "next": "infra: /fabrik-task on scripts/sysadmin/claude_rotate.py (--tick offline path) + quota_posture_hook.py readers; regression test with a mocked network failure",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-2",
   "priority": 1,
   "score_reason": "a stale hold parked every builder for 8 h after an outage although quota was fresh; one offline-path fix in the tick",
   "status": "open",

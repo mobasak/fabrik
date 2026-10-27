@@ -4,6 +4,395 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
+
+Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).
+
+### Fixed — command texts follow the worktree-own scratch root (2026-10-27)
+
+`/fabrik-task` now says a run's `SCRATCH:` folder sits under the session's own checkout and does not survive a worktree's removal. The subagents fragment drops the worktree lead's `cp` workaround, which D-1268 made unnecessary, and gains a "fix, THEN pin and dispatch the re-verifying seats" rule, because `round` reads a round as fresh once its newest stamp postdates the last confirming round (D-1288, infra mail 01M5X8W0M1).
+
+### Fixed — the scaffold-helper emitter test no longer copies the box's live API keys (2026-10-27)
+
+`test_scaffold_helper_emits_mcp_config` ran the real emitter bare, so the catalog's `${EXA_API_KEY}`,
+`${BRAVE_API_KEY}` and `${FIRECRAWL_API_KEY}` were filled from the box's roster or `/opt/fabrik/.env`: its pass
+depended on box state, and every run left live keys in pytest's tmp dirs. It now points `scaffold.FABRIK_ROOT`
+at a tmp root whose emitter is a shim. The shim loads the real emitter and aims its roster and hub `.env` at the
+test's files, then adds `--defs`. It refuses any argv but `--repo <repo>`, so a helper that dropped `--repo`
+fails instead of sweeping the live `/opt`. A new assertion checks that exa's key is the test's own.
+W-2c2f1025; a one-test hunk under intel's plan-3 lock, on the coordinator's ruling.
+
+### Fixed — a Merged-From trailer no longer vouches for a reused branch name's later work (2026-10-27)
+
+`scripts/scratch_sweep.py` read any `Merged-From: <branch>` trailer on the main checkout's branch as proof the branch
+was merged, for ever. Branch names are reused — hand merges carried `Merged-From: worktree-fleet` and
+`worktree-intel`, and two agent branches gained a wip snapshot after their squash — so four live branches with 20,
+47, 1 and 1 unmerged commits read merged, and a clean worktree on one would classify `wt-removable`. Now a merge
+commit's trailer is never read (its parents decide), and a squash's trailer vouches only when no commit of the
+branch is newer than the squash; the refusal row names the newer commits. The trailer log is read once per target
+commit per run. Live census after the fix: the 54 truly squash-merged branches still read merged, the 4 stale ones
+unmerged (W-69322546, D-1290). The rule and its edges: `docs/workstation/cleanup-automation.md`.
+
+### Fixed — a builder's pane starts where its session lives, and a window on another tree's hooks is told (2026-10-27)
+
+Claude Code keeps the folder a pane started in as the window's `CLAUDE_PROJECT_DIR`, where its hooks, settings and
+permissions load from, even after the session moves into another worktree. `scripts/sysadmin/agents_up.sh` started
+every builder in `.claude/worktrees/<name>`, so infra's window ran the hooks of `worktrees/infra` (1602 commits behind)
+and fleet's those of `worktrees/fleet` (702 behind) — why the rotation stand-down never reached infra (W-2fb8b1a1). A
+pane now starts in the one linked worktree whose project folder holds the builder's session, else `<name>` as before,
+and `scripts/sysadmin/selfwatch_check.py` prints `HOOKS LOAD FROM ANOTHER TREE` on every prompt of a window whose
+launch folder is a different linked worktree of the repo it works in (W-456aa02a, D-1284). The rule and its edge cases:
+`docs/reference/repo-coordinator-rollout.md` and `docs/workstation/hooks-index.md`.
+
+### Fixed — the rotation tick's offline path: a stale cached reading no longer re-arms the quota lane, and no tick holds the lock for hours (2026-10-27)
+
+On 2026-10-22 the internet dropped, a cached 93% outlived its 5-hour reset and re-armed the urgent-90 lane, offline
+ticks spent the whole refresh-ping budget on every run, and for seven hours no tick wrote a row or a posture
+(W-010bb0d9, D-1285). `scripts/sysadmin/claude_rotate.py` (and its byte-identical `scripts/aro-wake/` copy) now reads
+a cached window whose reset has passed as no heat for the ACTIVE account (the rows themselves are untouched, so a
+rolled standby still reads 0% to the picker), lets an obsolete reading jump the hourly ping cooldown once per roll and
+then every `ROTATE_OBSOLETE_RETRY_S` (600 s), bounds each tick with a watchdog (`ROTATE_TICK_MAX_S`, 1800 s) that
+stands down when the tick already finished and otherwise exits, freeing `rotate.lock`, and has `--status` say a hold is
+NOT IN FORCE once the tick log is stale. Follow-up W-5443db87: the quota board's tick timeout kills only `flock`.
+
+### Fixed — the MCP emitter tests no longer read the box's git ignore or template (2026-10-27)
+
+`tests/test_emit_mcp_project_config.py`'s autouse `_hermetic_git` emptied the global and system git config
+but left two ignore sources open: `core.excludesFile`'s default (`$XDG_CONFIG_HOME/git/ignore`, else
+`$HOME/.config/git/ignore`, read with no config file setting it) and the `git init` template, whose
+`info/exclude` is copied into every repo the tests make. A box-level rule for `.mcp.json` in either turned 7
+of the file's 67 tests red. The fixture now points `XDG_CONFIG_HOME` and `GIT_TEMPLATE_DIR` at empty tmp
+dirs, as `tests/test_emit_mcp_fillins.py` already did for XDG. W-f7772267 (f); a fixture-only hunk under
+intel's plan-3 lock, on the coordinator's ruling.
+
+### Fixed — a template deploy refusal is a named DeployError, not an "Unexpected error" traceback (2026-10-27)
+
+- `SSHDeployer._deploy_template` (`src/fabrik/orchestrator/deployer_ssh.py`) refuses a spec whose `template` is
+  not exactly one of the renderer's templates before rendering, and maps the renderer's `ValueError` refusals (a
+  NUL or non-UTF-8 secret or env value, a bad port — D-1269) to a `DeployError` naming the app and the key. A hub
+  defect — the version registry, an undecodable template file, a missing include partial, a template syntax or
+  undefined-attribute error — still surfaces as its own exception with its traceback. Grader:
+  `TestDeployTemplateRenderRefusal` in `tests/orchestrator/test_deployer_ssh.py` (D-1289, W-c9dcd641).
+
+### Fixed — a VPS answer that is not valid UTF-8 no longer crashes a redeploy (2026-10-27)
+
+`fabrik.drivers.ssh` decoded remote output with the hub's locale codec, strictly, before it read the exit code. One
+byte a person typed into a VPS `.env` therefore raised `UnicodeDecodeError`, which the deploy code's `RuntimeError`
+handlers let through: `_read_env_file` passed it on raw, and a redeploy crashed in its `GIT_SHA` update, inside its
+rollback too. The driver now reads output as UTF-8 whatever the locale, without the decode ever raising, and checks
+the exit code first. A failed command keeps its exit code and diagnostic, with any undecodable byte shown as `\xNN`.
+A successful command whose stdout is not valid UTF-8 raises `UndecodableAnswerError` (a `RuntimeError`). Its message
+names the host and none of the output, and nothing in the exception keeps the text. A `.env` read now fails as a
+named `DeployError`, and the `GIT_SHA` update fails open. A redeploy whose `docker compose up --wait` succeeded, with
+only its output unreadable, logs a warning instead of rolling back a healthy deploy. (W-5597922e, D-1286)
+
+### Fixed — a `.env` line holding a NUL byte or invalid UTF-8 is refused before anything is written (2026-10-27)
+
+The deploy's `.env` writer wrote a NUL byte raw, in any key, value or kept template text, and runc then refused the
+container, after the file was already on the VPS. A lone surrogate was written raw too, and the writer crashed
+partway through. `fabrik.env_file.format_env_line` now refuses either, checking the line it is about to write. The
+error names the key and never the value. `_write_env_files` formats `.env.owner` and `.env` before writing either,
+so a refusal leaves both files as they were and is raised as a `DeployError` naming the file. A redeploy's
+`GIT_SHA` update keeps failing open. Two more fixes came out of the review. An error message prints a key only when
+it is a plain variable name: a key read from a broken line can hold a secret. The VPS file writer now writes
+UTF-8 whatever the hub's locale, where it used to crash under `LC_ALL=C`. (W-8495d72f, D-1282)
+
+### Fixed — the hub's secrets reader reads `.env` as compose does and refuses a malformed file (2026-10-27)
+
+`SecretsManager`, which `fabrik apply` asks for a secret the environment lacks, read `<cwd>/.env` with its own
+parser: an inline ` # comment` stayed in the value (34 values measured across the hub and 22 project `.env`
+files), `\"` and `\$` stayed two characters, and an unterminated quote was read leniently, so a key
+python-dotenv had skipped was read wrong or minted over the real secret. It now uses the `.env` codec
+(`src/fabrik/env_file.py`, D-1277), returns plain literals, decodes as UTF-8 whatever the locale, and raises
+`ValidationError` on a file it cannot read — naming the file, key and line or byte offset, never a value. A
+value holding a line break logs a warning naming its key. 11 new tests in `tests/orchestrator/test_secrets.py`
+(W-f62a2cdc, D-1281).
+
+### Fixed — deployed `.env` values reach the container exactly: a secret's `$` is no longer interpolated (2026-10-27)
+
+`_format_env` never escaped `$`, so a secret `a$b` was written as `K=a$b` and docker compose delivered
+`a`, through `env_file` and `${K}` interpolation alike. A new codec, `src/fabrik/env_file.py`, now writes
+and reads every Fabrik `.env` to compose's own dotenv grammar. A spec `env:` value keeps its `$` as a
+compose interpolation; in every other value a `$` is literal, single-quoted or `\$`-escaped. The reader matches
+compose on quotes, escapes, ` #` comments and line breaks, and refuses an unterminated quote or a quote after the closing
+quote (compose refuses both) instead of writing a guess back, naming the key and line but never the value. `.env` and `.env.owner` are now
+parsed apart. The hub `from_env` reader drops surrounding quotes and stops the deploy on a malformed
+file, a `from_file` secret loses its trailing newline, and `.env.example` lines are quoted so a newline
+cannot inject a line (W-2ae286e2).
+### Added — a rules ledger can mark a line master rewrote: `superseded: D-<n>`, proven from git (2026-10-27)
+
+A lean ledger's baseline is cut at `lean-baseline-2026-10-25`; a line a later reviewed master change rewrote
+vanished from the lean text and read as LOSS (T01d-v6's catalogue L51/L54), and the only remedy was a hand
+baseline re-cut (D-1262). `commands/command_rules.py` now takes `superseded: D-<n>` on a `vanished:` line and
+proves it from git: the D-row names the source file and a one-parent commit that landed on master after the tag
+and removed the line, master's current source no longer holds it, and master's additions since the tag are in
+the ledger's own text. Every git failure is a LOSS naming its cause. W-5dc4163d, D-1283.
+
+### Fixed — compose scalars outside `environment:` deploy exactly or are refused (2026-10-27)
+
+A spec string pasted into a compose scalar outside `environment:` broke or mangled the file: python-api's
+`command: {{ image_command }}` lost everything after ` #`, `test: {{ health.test }}` printed a Python list
+repr, file-api's `PORT` sat raw inside the healthcheck item and the Traefik port label, `health.path` sat
+inside double-quoted probe items and two CMD-SHELL probes, a companion `command` wrote a non-BMP character as a
+JSON surrogate pair, and `depends.postgres` sat inside the `${DATABASE_URL:-…}` default, where a `}` closed the
+interpolation. Now `compose_str` (`src/fabrik/template_renderer.py`) quotes `image_command`, `health.test` items
+and companion `command` items; `compose_port` admits only an ASCII port 1-65535 or a `${NAME}` /
+`${NAME:-port}` interpolation; `Health.path` (`HEALTH_PATH_RE`) and `Depends.postgres` (`POSTGRES_IDENT_RE`,
+now also the postgres driver's rule) are refused at `Spec` load, and the apply-path validator refuses the same
+two plus an `image_port` that is not an integer port; both CMD-SHELL probes single-quote the URL; the
+DATABASE_URL defaults go through `compose_env`, so the env-line guard in `tests/test_compose_env_quoting.py`
+has no exemption. W-ff313a14, D-1276.
+
+### Fixed — parity-root and kaizen exposure tests no longer red only inside a merge leg (2026-10-27)
+
+- `tests/test_scaffold_deploy_contract.py`: a new `_owner_only_modes` gives each staged `health_probe/`
+  copy the modes a 022 umask gives (dirs 755, files 644), in `_flat_stage` and in B6. Before this, the
+  modes were inherited: a merge leg runs under umask 002, where the copy is group-writable, and the stub
+  rightly refuses it as "writable by others". So
+  `test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script` and both cases of
+  `test_parity_root_found_but_unusable_module_names_the_cause` were red in a merge leg and green alone.
+  The first refused kaizen's batch on 2026-10-27. B7 and B8 gain a group-writable row each, so the
+  refusal of a group-writable copy keeps a test now that no test meets it by accident.
+- `tests/test_kaizen_events.py`: the exposure tests expect the project that the `/opt/<name>` rule gives
+  this checkout. That is "fabrik" under `/opt/fabrik` and "unknown" in a merge leg's `/tmp` throwaway,
+  where two tests failed on a hardcoded "fabrik". The cache check now reads the cache it claims to
+  guard (it called `refresh=True`, which skips the cache read) and compares commits, both ways: a pinned
+  call on a warm cache is not served from it, and a pinned call does not poison it. A new
+  parametrised test proves `_project`'s rule on fixed paths. W-17fc722a; the item's load-only flakes
+  remain.
+
+### Fixed — the command assembler refuses a non-regular file at a generated name instead of hanging (2026-10-27)
+
+- `commands/assemble_commands.py`: a FIFO at a name the render writes and the gate compares (a command, a skill
+  wrapper or an agent file) blocked `render()` and `check()` forever, and a directory there crashed `check()` with
+  IsADirectoryError. The render now refuses any non-regular file at those names before its first write, and the
+  gate reports it, a symlink or a symlinked skill directory included, as one drift line and exit 1 (D-1278, W-21f88ec3).
+  Orphan positions are unchanged. An unreadable regular file there is filed as W-335d2f0e.
+
+### Changed — merge-test shards balanced by recorded per-file duration (2026-10-27)
+
+- `scripts/merge_test_select.py` assigns the merge leg's test files to its 8 shards greedy
+  longest-first by the seconds each file took in earlier merge legs, plus a 0.15 s import cost per
+  file, instead of round-robin. On 2026-10-27 the round-robin shards ran 253 to 842 s.
+- Each merge leg records what its shard run measured in
+  `<git common dir>/fabrik-merge/merge-tests-durations.txt`, shared by locked, pretest and queue legs,
+  and prints `shards planned` beside `shards measured`. With no record the split is the old
+  round-robin one. A bad record or a failed save costs only balance, never the verdict. D-1279,
+  W-c832e59f.
+
+### Fixed — `command_run.py round` refuses a blind retry instead of recording it as a second round (2026-10-27)
+
+A lead who piped `round … 2>&1 | tail -1` saw no confirmation, re-ran the call, and the record gained a
+duplicate round (34 retry-shaped pairs in 505 real runs, measured 2026-10-27 06:45 +0300); worse, a
+retried quiet round 1 printed `✅ TERMINAL VERDICT` with no closing pass run. `round` now refuses, rc 2 and nothing recorded, a call that repeats the
+last round when that round closed seats and nothing has run since — no live stamp, no newer seat
+transcript. It prints the landed round's verdict, then the refusal as the last line, and emits one
+`round_refused` event. A new seat pass is stamped first; a pass the lead ran alone types `round --seats 0`.
+The rule and its edges: `docs/reference/command-run-protocol.md` (the `round` row); the decision: D-1280.
+
+### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
+
+Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value
+deployed wrong: a `"` arrived as a literal `\"` (the old `env_escape` filter added a backslash nothing
+removed), a newline broke the list in file-api and file-worker (no filter there) and became a literal `\n`
+elsewhere, ` #` cut the value off as a comment, `: ` turned the item into a mapping, and a `$` in a secret was
+compose-interpolated (`p$ss` deployed as `p`). `src/fabrik/template_renderer.py` now has a `compose_env`
+filter (it replaces `env_escape`) that writes each item as PyYAML's ASCII double-quoted scalar and refuses a
+NUL or a lone surrogate before anything reaches the VPS, naming the key only. `render()` doubles `$` in a new
+copy of the secrets, while spec `env:` keeps `${VAR}` interpolation, which 20+ specs rely on. All 9 env loops
+and the 15 fixed `env.get` lines in the 8 compose templates use it. Measured over all 69 fleet specs: the 66 the
+renderer can render parse to identical environments before and after, so only secrets carrying those
+characters change, and they now deploy as written. Guarded by `tests/test_compose_env_quoting.py` (159 tests;
+91 red on the old code, a docker-run test reading the started container's env byte for byte, and guards that
+every templated env line goes through the filter and that only compose templates read `env`). D-row in
+`docs/DECISIONS.md` (W-80aed026). Still open, filed: other unquoted compose fields (W-ff313a14), `.env`
+`$` quoting and readers (W-2ae286e2), an invalid healthcheck `start_period` in three templates (W-3197a125).
+
+### Fixed — `--adopt` no longer stamps the scaffold template's example backlog rows as owned work (2026-10-27)
+
+`scripts/docs_updater.py --adopt` tagged an owner on every untagged row of a STRATEGIC_BACKLOG.md work table, and the
+scaffold template ships its examples (`[Feature/Refactor]`, `[System Overhaul]`, `[Small hardening/refactor]`) as live
+table rows, so 24 of the 82 stamps `--adopt` would write across the 27 fleet backlogs were those placeholders, in 12
+repos and two template generations. `classify_backlog_row` now skips a row whose `Item` cell is one bracketed phrase
+(balanced emphasis allowed); the `--check` untagged-row advisory inherits it. Re-measured: 82 → 58, the other 58
+byte-identical. The mailed defect this item carried — closed rows stamped because "no backlog uses strikethrough" — no
+longer reproduces: 22 of 23 closed rows skip today and the 23rd is live. Guarded by
+`TestTemplatePlaceholderRowsAreNeverStamped` in `tests/test_docs_updater_adopt.py` (six mutants of the guard killed;
+it reads the template from disk). W-e89d7983, D-1270.
+
+### Fixed — a spec's healthcheck `start_period` reaches its compose file, and the deploy gate refuses a null duration (2026-10-27)
+
+`Health` in `src/fabrik/spec_loader.py` had no `start_period` field and ignores unknown keys, so a spec's value was
+dropped at load. The static-site, node-api, chrome-extension and docusaurus compose templates guarded it with
+`if health`, which is true whenever a spec has a `health:` block, and rendered an empty `start_period:` (YAML null):
+`docker compose config` refused 15 of the 66 fleet specs the renderer can render. python-api fell back to 30s over
+seo's declared 10s and youtube's 20s. `Health.start_period` is now an optional field (a blank value counts as unset),
+the seven health-reading templates and the docker-source compose writer fall back to their own default only when it
+is unset, and `_validate_compose` refuses a healthcheck `interval`, `timeout`, `start_period` or `start_interval`
+that is not a non-empty string, locally before SSH. A replay over the 66 rendered specs now finds 0 failing on
+`start_period`. Duration format is still checked only by compose on the VPS (W-f1c945d7). D-1271, W-3197a125.
+
+### Fixed — the template-escape guard reads Jinja's parse tree, not a span regex (2026-10-27)
+
+`tests/test_template_renderer_no_html_escape.py` scanned `{{ }}`/`{% %}` spans with a regex, so an unbalanced `{{` in a
+comment or raw block could swallow and hide a later escape, a `}}` inside a string or dict literal ended a span early,
+and `|| e` in plain JS could read as a filter. The scan now walks the renderer environment's own parse tree: every
+`e`/`escape`/`forceescape`/`xmlattr`/`urlize` filter (pipe, `{% filter %}` and `{% set | %}` forms), a `map` that names
+an escape filter or a name known only at render time, and any `{% autoescape %}` block that is not a falsy constant.
+`tojson` stays unflagged: its JSON string escapes decode in every JSON or YAML reader. 23 probe rows; the old regex
+gets 7 of the first 12 wrong. Scoped review 4→5→0. W-27634d4e.
+
+### Fixed — the docs staleness check stops watching docs/FUNNEL.md and docs/AUTOMATION.md (2026-10-27)
+
+- `scripts/docs_updater.py::MANUAL_DOCS` drops `docs/FUNNEL.md` and `docs/AUTOMATION.md`, site-provisioner's own docs
+  at a path `check_structure.py` warns is misplaced; registering them would have made both names legal in every repo.
+  No staleness row changes today; D-1273 says why and what the drop gives up.
+- `tests/test_docs_updater.py` drops the `_MISPLACED_PENDING` exception: no watched doc may be one
+  `check_structure.check_structure()` flags, and the dropped-docs staleness test covers both docs. W-1adf4ed4.
+
+### Fixed — the docs staleness check stops watching AGENTS.md and docs/INDEX.md (2026-10-27)
+
+- `scripts/docs_updater.py::MANUAL_DOCS`, the docs whose `**Last Updated:**` header the advisory staleness check
+  reads, drops `AGENTS.md` (hub-synced, so no project can refresh it) and `docs/INDEX.md` (a path
+  `check_structure.py` already warns is misplaced). Fleet-wide that removes 51 rows nobody could clear and changes
+  no other row. The opt-out list proposed in site-provisioner's mail 01M2NJGZGV20WP is rejected; D-1272 says why.
+- `tests/test_docs_updater.py` grades the two rules: no watched doc is read-only for a project, and none is one
+  `check_structure.check_structure()` flags, except `docs/FUNNEL.md` and `docs/AUTOMATION.md`, which W-1adf4ed4
+  decides. W-da101088.
+
+### Fixed — the orphan-FIFO assembler test no longer times out inside the rule-ledger pass (2026-10-27)
+
+- `tests/test_assemble_dispatch_step.py::test_an_orphan_fifo_never_hangs_the_render_or_the_gate`: its 20 s alarm
+  wrapped `check()`'s rule-ledger LOSS pass, which takes 45-105 s on the lean corpus, so on the lean batch head the
+  alarm fired mid-ledger and `check()` exited 4, not 1 (kaizen finding; blocked batch MR 01M5X49M0S). The ledger and
+  measure passes are now spies in that test: they return their empty results and refuse an installed tree, so the
+  alarm bounds only the orphan-position reads and a pass handed the installed tree still goes red. Red on the batch
+  head before (exit 4), green after; still red with either orphan guard neutered. Filed W-21f88ec3 (a FIFO at a kept
+  name still blocks `render()`/`check()`).
+
+### Fixed — `merge --queue` lands again: full-width legs, a wall that fits a landing, no wasted legs (2026-10-27)
+
+On 2026-10-27 two hub queue runs landed nothing: every queue leg died at its 1800 s limit, the queue stopped
+at its wall with 0 landed, and legs forked for later requests held the queue lock 30 more minutes. The queue
+now runs one leg at a time at the owner script's own width (`--jobs` defaults to 1; the `FABRIK_MERGE_SHARDS=4`
+override is gone), its wall is `LANDING_WORST_S + MERGE_TEST_BUDGET_S + QUEUE_BUILD_S` = 11100 s (run it as
+`rund --timeout 11200 -- /opt/fabrik/scripts/capped_run.sh --timeout 11100 -- python3 scripts/merge_request.py
+merge --queue`), a leg forks only while it and a landing after it fit (`_leg_fits`), and no later leg forks
+beside a first request that runs its own locked leg. `merge_test_select.py`'s base ordered re-run now covers
+only reds its ordered confirm found, and no longer overwrites an alone-confirmed red's base verdict. D-1275
+(supersedes D-1224's jobs, shards and wall figures); follow-ups W-c832e59f (duration-balanced shards) and
+W-17fc722a (load-flaky tests that trigger ordered re-runs).
+
+### Fixed — scripted merge commits carry Agent Provenance Trailers, and `merge` states who gates the merged tree (2026-10-27)
+
+`scripts/merge_request.py merge` wrote one-line merge commits with no trailer block (replayed on the hub's own
+0882afb23), so no `%(trailers)` query could attribute a scripted merge (tryton-crm mail 01M3TZERFR). Both its merge
+commits, the request's and a catch-up's, now end in `Agent-Role: orchestrator`, the owner's `Agent-Name` and an
+`Agent-Context`; a multi-line value refuses, `--no-log` keeps the block parseable under `merge.log=true`, and the
+reflog keeps the subject only. `merge` runs no `final_gate` and now says so after `merged <id> as <sha>`, with the
+owner-test summary; the reply carries the duty line. Decision: D-1274.
+
+### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
+
+`src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so
+everything it renders for a template-sourced deploy was HTML-escaped. The seven compose templates that write each env
+value and secret into `environment:` (plus the companion-service partial) turned `&`, `<`, `>`, `'` and `"` into
+entities, so a secret `p&ss` would have deployed as `p&amp;ss`. Measured over the 66 specs the renderer can render,
+only one output differed: `specs/services/zitadel.yaml` renders `--masterkey &#34;${ZITADEL_MASTERKEY}&#34;`, but
+zitadel deploys from its docker source, which never calls this renderer, so no deployed file changes today. No template
+emits HTML, so autoescape is now off (the same choice `scaffold.py`'s docusaurus emitter already states). Guarded by
+`tests/test_template_renderer_no_html_escape.py`: 14 tests, 13 red on the old code (the template-escape scan is the
+one green, since no template escapes on its own). They also go red on any non-`False` `autoescape` (a
+`select_autoescape` callable included), on an `| e` added to the companion partial, and on a `{% filter escape %}`
+wrapped around python-api's companion include. Out of scope and filed as W-80aed026: env values are unquoted YAML scalars, so `"`,
+newlines, `$`, ` #` and `: ` still deploy wrong. W-6eb61fa0.
+
+### Fixed — MCP scope check: every row names the steps that clear it, and no unreadable path crashes it or slips past (2026-10-27)
+
+- `scripts/enforcement/check_mcp_scope.py` (W-f7772267 (k)): an unreadable `.mcp.json` failure now names its fix (delete it, then re-emit; the emitter reads the old file first). A no-ruling warning names its real cause (an unreadable project.yaml, an unparsable `type:` line, or a type the roster does not rule). Its fix puts the project.yaml step before the re-emit, since the emitter skips a repo with no ruling. Python 3.12 raises on EACCES, so a directory or link this user cannot search is now a warning naming it, never a traceback or a silent skip. A `.mcp.json` linking into such a directory is graded as present and unreadable. A deeply nested file is unreadable, never a RecursionError.
+- `scripts/sysadmin/emit_mcp_project_config.py`: `_load_defs` reads only the catalog it was given. A missing, unreadable or unparsable `--defs`, a NaN constant, an empty or wrong `mcpServers`, and an entry whose `env`, `command` or `args` has the wrong type each stop the run with a message naming the file and the entry. None of them falls back silently to `mcp_defs.json`. `_repo_type` reads a project.yaml that links into a mode-000 directory as unreadable. Graders: `tests/enforcement/test_check_mcp_scope.py`, `tests/test_emit_mcp_fillins.py`.
+
+### Fixed — MCP emitter: a wrong-shape fleet roster is no donor, an unreadable project.yaml is a named failure (2026-10-27)
+
+- `scripts/sysadmin/emit_mcp_project_config.py` (W-f7772267 (b)(g)): `_fill_credentials` treats a roster that is not an object at any level (the file, its `mcpServers`, a server entry, its `env`), or one nested too deep for `json.loads`, as no donor and falls through to the hub `.env`, where it raised `AttributeError` or `RecursionError` and took down the emitter and `check_mcp_scope`, which loads the same defs; in a repo whose `.mcp.json` git ignores, a `project.yaml` the emitter cannot read — unreadable, a directory, a dangling or looping link, a FIFO (never opened, since its read blocks) — now gives `SKIP (error: project.yaml unreadable: <why>)` and exit 1, where it gave a bare `SKIP` at exit 0 or, for a directory or a link, wrote the untyped universal set (a type the roster does not know, and a `type:` line the grammar cannot parse, now labelled `(unparsed: …)`, stay a bare policy `SKIP`). Graders in the new `tests/test_emit_mcp_fillins.py`, kept out of the plan-locked emitter test file. Part (d) — `--check` printing `+N worktree copies` it did not write — is by design: `--check` predicts the real run's verdict, as `test_an_in_repo_alias_of_a_worktree_is_counted_once` pins.
+
+### Fixed — check_mcp_scope: one warning per repo, an unreadable file fails only where a readable one could, a symlinked one names both steps (2026-10-27)
+
+- `scripts/enforcement/check_mcp_scope.py` (W-f7772267 (h)(i)(j)): a repo whose `.mcp.json` git does not ignore AND whose `project.yaml::type` the roster lacks now gets ONE warning naming both causes, and the OK line counts warned repos, not warning rows, and says the files were read rather than that each was graded; an unreadable `.mcp.json` warns instead of failing the gate wherever a readable one could only warn (an untyped repo whose file git does not ignore, a type the roster lacks, an own-agent hub-class repo such as fabrik-lib) and still fails where a ruling the hub enforces applies; a symlinked not-ignored file's fix names the plain-file step after the ignore step; a warning with no servers to name prints no empty `carries` clause. Graders in `tests/enforcement/test_check_mcp_scope.py`, each proven red against a mutant.
+
+### Fixed — claude_rotate no longer counts the backups park root as an account; the MCP-scope tests ignore the user's global git ignore (2026-10-27)
+
+- `scripts/sysadmin/claude_rotate.py::_fleet_dirs` listed `~/.claude-fleet/backups`, the park root `--merge-shared` writes to, so `--status` showed it as a pending-login account ("8 dir(s)" on this box; 7 after). It is now left out like the `active` pointer, and its byte-identical twin `scripts/aro-wake/claude_rotate.py` is copied (W-f7772267 (a)).
+- `tests/enforcement/test_check_mcp_scope.py`'s hermetic-git fixture emptied `GIT_CONFIG_GLOBAL` but left git's default excludes file, `$XDG_CONFIG_HOME/git/ignore` (else `~/.config/git/ignore`), so a box whose global ignore listed `.mcp.json` could decide the tests. The fixture now points `XDG_CONFIG_HOME` at an empty dir. The emitter test file's copy of the fixture waits on its plan lock (W-f7772267 (f)).
+- Graders: `tests/test_claude_rotate_v2.py::test_fleet_dirs_leaves_out_the_backups_park_root` and `tests/enforcement/test_check_mcp_scope.py::test_the_hermetic_fixture_blinds_git_to_the_users_global_ignore`, each watched red first.
+
+### Fixed — MCP emitter writes .mcp.json only where git ignores it, in every repo (2026-10-27)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::emitter_owns` returned True for any hub-class or typed repo without asking git. So the emitter wrote filled exa, brave-search and firecrawl keys into trade-intelligence's tracked `.mcp.json`. Skip-worktree was set, so `git status` hid the change; its only commit holds placeholders, so nothing leaked. It now asks `git check-ignore` for every repo (D-1266, superseding D-1252 in part).
+- A repo whose file git does not ignore gets a ruled SKIP that names both fixes: make `.gitignore` ignore it, and `git rm --cached .mcp.json` if git tracks it. Not ignored means tracked (skip-worktree and assume-unchanged included), no rule, or a later `!`.
+- The review found three more ways credentials reached a committable file, and closed each (D-1267):
+  - Each linked worktree's copy now asks git from its own worktree: `N not ignored` is a ruled skip, `N unanswerable` fails the run.
+  - A symlinked `.mcp.json` is a ruled SKIP, never written through.
+  - Git's discovery stops at the repo's parent, so a broken `.git` dir no longer borrows an enclosing repo's answer.
+- `scripts/enforcement/check_mcp_scope.py` warns on such a repo and says a tracked copy may still hold credentials. A hub-class or typed one is still graded after the warning, as before, so a server outside its ruling stays a failure.
+- Over the 43 repos in `/opt`, one verdict changes: trade-intelligence goes from OK to SKIP until it untracks the file (W-c0d9cea5).
+
+### Added — the nightly chat backup alerts when it fails (W-36687f76, D-1265, 2026-10-27)
+`session-archive.service` failed silently: no `OnFailure=` existed, its `-` steps (sampler, pruner, rotation mail) fail
+with nothing logged, and the archiver exits 0 on a partial night. New `scripts/sysadmin/session_archive_alert.py` mails
+infra (ack required) and the coordinator (ack no): `failed`, run once by the new `session-archive-alert.service` after the
+retries are spent (`OnFailure=` + `RestartMode=direct`, which stops it firing on every retried attempt), with the unit's
+journal tail; and `check`, the unit's `ExecStopPost=-`, which on a successful run reports every step that did not exit 0
+and the archiver's subagent failures, 0 eligible transcripts, a held lock or a missing summary. `TimeoutStartSec=` ends a
+hung archiver; the installer verifies all three units, refuses any verify output and installs the alert unit first.
+Install: the coordinator re-runs `scripts/sysadmin/install_session_archive_timer.sh` from the main checkout after the merge.
+
+### Fixed — a worktree run's scratch is writable; a round of stale seats is never TERMINAL (2026-10-27)
+
+- `scripts/command_run.py start` roots a run's `SCRATCH:` folder in the checkout the session runs in — a linked
+  worktree's own `.tmp/runs/` — because a worktree-isolated session's Write tool refuses the main checkout's path
+  (W-128df814, D-1268, superseding D-836's root). Every `start` now prunes every checkout's `.tmp/runs/`, and a seed
+  whose scratch is gone says so.
+- The dispatch stamp keeps per-message `batches`; `round` records `dispatched_at` (oldest batch first) and prints
+  `⛔ NOT TERMINAL` when every seat it closed went out before the newest confirming round was recorded — fleet's
+  [4, 0, 0] wave round that read TERMINAL before its fixes were re-verified.
+
+### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
+
+- `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a
+  settings path, so the first live batch's children could only read and plan (a fix round ended with a plan and no
+  commit). Clones now go under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`, `~` expanded), and a
+  relative root, or one under a `.claude` or `.claude-*` directory (symlinks resolved, case ignored), is refused
+  before spending; a live Haiku smoke wrote, edited and pushed. The default
+  `--timeout` rises from 3600 to 10800 s, since a re-ledger round runs past an hour and a timed-out run pushes nothing
+  (W-174b8543, W-15bb59ea).
+
+### Fixed — MCP emitter no longer puts DATABASE_URL on a command line, and exits 1 when a repo fails (2026-10-26)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::_uri_connects` handed the resolved `DATABASE_URL` (password included) to its psycopg probe child as `argv[1]`. Any local user could read it in `ps` and `/proc/<pid>/cmdline` while the probe ran, which is every emission for a repo whose ruled set includes postgres-pro and whose `.env` has a URL. The URI now goes over stdin, and the child decodes it as UTF-8.
+- The script exited 0 even when a repo's emission failed. It now exits 1 when any verdict is `_failed`:
+  - an exception (`SKIP (error: …)`)
+  - a worktree copy left unread or unwritten (`N unreadable`, `N unwritable`)
+  - git unable to say whether `.mcp.json` is ignored, which is where a mistyped `--repo` lands
+- A ruled SKIP, such as an unknown repo type or an untyped repo git does not ignore, still exits 0. A run over `/opt` on 2026-10-26 (43 repos) had no failing verdict (W-d095d60b, split from W-cd40f947).
+- Graders in `tests/test_emit_mcp_project_config.py`:
+  - `::test_the_uri_probe_hands_the_child_the_uri_and_never_its_argv` runs the real probe child against a stub psycopg that records its own cmdline.
+  - `::test_the_script_exits_1_when_a_repo_or_a_copy_fails_and_0_on_a_ruled_skip` runs the script as a process.
+  - `::test_failed_reads_the_verdict_only` covers which verdicts fail.
+  - Each went red on its mutant in a throwaway worktree: the probe back on argv, `__main__` ignoring the exit code, `_failed` blind to copy failures.
+
+### Fixed — The Stop hook no longer reads a numbered findings list as an operator menu; class-8 drift lines say why (D-1264, 2026-10-27)
+- `.claude/hooks/final_gate_stop.py`: the D2 menu check read a `?` anywhere after a numbered list's start as the
+  hand-off cue, so a findings list reported while review seats were out blocked the turn whenever one item asked
+  a question. A numbered list's `?` is now read after the list, unless most of its items ask or its last item
+  does; inline code inside the items is blanked first; choice words (pick, prefer, your call …) still hand off
+  from anywhere, and lettered lists keep the old rule. Over the 54 texts the hook had blocked as D2, 7 stop
+  firing, every one a findings list; no real operator menu is lost. Mail 01M5B996F3.
+- `scripts/work.py`: `status` and `sync --check` print a class-8 line with the plan's Status line (printable, at
+  most 60 characters; `unreadable (…)` or `missing (no Status: line in its first 4000 characters)` otherwise),
+  the five statuses, what check_convergence wants of an EXECUTED plan, and the archive as a superseded plan's
+  remedy. `docs/reference/work-tracking.md` says the same.
+
 ### Changed — Lean program unit 01: shared-file rule ledgers, parts b and c (2026-10-25)
 
 - T01b of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` (W-96f36043) is a recorded no-op. Its four tests hold no migratable pin on the nine shared files: each candidate is a path literal read off another file, or sits in a test function that also reads another file (D-1231).
@@ -15,6 +404,90 @@ All notable changes to this project will be documented in this file.
 - Nine shared-file ledgers and baselines under `commands/_rules/_shared/` were taken at unit 01's start commit (63d148626): the review probe catalogue, the no-workflow banner, run-record, orient, close-chain, close-feedback and the three seat definitions. They are T01a of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/`, W-96f36043.
 - The pins `tests/test_review_queue_pass.py` and `tests/test_review_scoped_queue_pass.py` held on those files, in test functions that read them alone, moved into the ledgers as `text`, `forbidden` and `ordered` carriers. Every assert in a test function that also reads another file stays (D-1231). The shared files are unchanged.
 - Review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01a-review.md` (5 passes, 4 → 3 → 5 → 3 → 0 confirmed).
+### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
+
+- W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In
+  `.windsurf/rules/core/ocoron-design-system.md`, Kalite Pusulası's brand never carries the Ocoron name. Naming rule 4 now
+  covers standalone brands (Atelier Rebul and Kalite Pusulası): their product surfaces and marketing carry no Ocoron
+  branding, and rules 1-3 do not apply to them. Rule 5 and the Branded House line make the same exception. Kalite
+  Pusulası's site may name Ocoron Dış Ticaret Limited Şirketi only as the KVKK data controller on its legal page;
+  its invoices and contracts still name the entity. The Brand Map row no longer says it awaits a ruling.
+
+### Changed — rea is in every account's user-level MCP set and every git repo (W-b29a4f40, D-1252, 2026-10-26)
+- `claude_rotate.py --sync-mcp/--sync-shared` (and its aro-wake twin) takes `rea` from the catalog (`USER_CATALOG_SERVERS`
+  over `scripts/sysadmin/mcp_defs.json`) whatever the source roster holds, and writes every account dir and `~/.claude.json`
+  (through a symlink; an absent one is left absent; a broken link is a SKIP). A catalog entry that is missing, has nothing
+  to launch or carries a `${VAR}` refuses the sync at rc 2 before any write. The `active` pointer and the `backups` park
+  root are no longer synced as accounts, so a healthy sync exits 0; `--new-dir backups` is refused.
+- `emit_mcp_project_config.py` serves every git repo: an untyped one gets the universal set when `git check-ignore` says
+  its `.mcp.json` is ignored; an unknown or unreadable `type:` stays a visible SKIP; image-generation is no longer excluded.
+  `check_mcp_scope.py` reads the same ownership predicate (`emitter_owns`) and skips only a directory that is untyped,
+  not hub-class and outside git (a typed or hub directory is graded wherever it sits — the liveness canary's fixture);
+  an unreadable `project.yaml` is an unknown type, a warning, never a crash.
+- Live: 8/8 account `.claude.json` files and 44/44 /opt git repos carry `rea`; rn-kit-sandbox, image-generation and
+  fabrik-dr-store got their first `.mcp.json`.
+### Fixed — a vanished `rule:`/`duplicate-of:` label must be carried by the entries it names (D-1258) (2026-10-26)
+
+- `commands/command_rules.py`: a vanished baseline line labelled onto entries is now proven — by a lintable named entry whose baseline is that line, or else by the D-1236 lints A, B and D over the named entries' pooled phrases and sections — and each failure is a LOSS `baseline L<n> vanished as rule [ids] — lint <X>`; until now any live id passed. Graders in `tests/test_command_rules.py` (two old pins that accepted an unrelated rule label now expect the LOSS); `docs/reference/command-corpus-check.md` states the rule. W-34d76a7a.
+
+### Added — the `provenance` clause label in the rule ledgers (D-1255, D-1256) (2026-10-26)
+
+- `commands/command_rules.py`: a clause labelled `provenance` is measured by lint B without its parentheticals of ids alone (D-row, W-item, ISO date, SHA, `§` pointer); the label is refused on a ban clause and on a clause with no such parenthetical, and `summary()` prints the provenance count. See the **Ledger lints** bullet of `docs/reference/command-corpus-check.md` (W-0c38115e).
+
+### Fixed — Ocoron brand guide: the legal entity is Ocoron Dış Ticaret Limited Şirketi; Kalite Pusulası added (2026-10-26)
+
+- W-c0080a4b, D-1250, an operator order relayed from web-ecommerce-factory. In
+  `.windsurf/rules/core/ocoron-design-system.md`, rule 5 and the Brand Map named "Teknokent LLC"; both now name
+  "Ocoron Dış Ticaret Limited Şirketi". Rule 5 now says that name also goes on the legal pages: the terms of service and
+  the privacy policy, which names the KVKK data controller. The Brand Map gains Kalite Pusulası (kalitepusulasi.com) as
+  an Ocoron brand; how it fits naming rules 1-3 waits on the brand owner. `mobile-app/89-mobile-launch-checklist.md`
+  now says "a Turkish LLC in a Teknokent zone", replacing "a Turkish Teknokent LLC".
+
+### Added — the API-key write lane: disposable writers on the prepaid keys (2026-10-26)
+
+`scripts/api_write.py run` takes a cloud-dispatch brief (`--slug` + `--task-file` [+ `--base`, `--gate`], or a `--batch` of `{"slug", "task_file", "base", "gates"}`) and runs it with `claude -p --safe-mode --restricted --permission-mode dontAsk` on an API key with Read, Edit, Write, Glob and Grep only, plus `Bash(<gate>)` per exact gate string (D-1251; a glob over a command's options was shown to admit `--basetemp`, `--output` and `-F`). The runner owns git: it checks out `claude/<slug>` at `origin/<base>` in a plain local clone of the main checkout under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`, see the Fixed entry above), and after a clean exit refuses a clone whose `.git/config` changed, commits the edits as one trailered commit with hooks and fsmonitor off, refuses a diff holding a key, and pushes the explicit refspec to the captured URL (never forced). Every outcome after the start row settles in `api-credit.jsonl` under the same $200-per-key cap (`lane: write`); the clone is deleted. `--jobs` runs a batch in parallel and `--pick` spreads it across the keys; an existing `origin` branch or a missing base refuses before spending, and a timeout kills the child's whole process group. `api_credit.py` gains `main_checkout()`, `reserve()` and a pre-flight that takes the lane's argv and tool set; its behaviour is unchanged. Docs: `docs/workstation/api-credit.md` § The write lane (D-1247, W-174b8543).
+
+### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
+
+A session whose env carries `ANTHROPIC_API_KEY` and none of the credentials that could replace it
+(a plan OAuth token, `ANTHROPIC_AUTH_TOKEN`, a Bedrock/Vertex/Foundry switch) draws no plan quota,
+so the hold no longer binds it while the fleet-exhausted stamp plainly reads `walled` or
+`urgent-90`: `.claude/hooks/quota_stop.py` turns its deny into an allow (a stderr note in the
+verbose transcript), `scripts/sysadmin/quota_posture_hook.py` skips its RED deny and AMBER notice
+and replaces the prompt line's CHECKPOINT clause with one naming the exemption, and
+`.claude/hooks/final_gate_stop.py` keeps the session's Stop causes armed instead of yielding. The
+battery hold (D-898) and any unknown stamp still hold it. Today this serves a window launched by
+hand on a key; `scripts/api_credit.py` children run `--safe-mode` and never run hooks. W-effb7141.
+
+### Changed — every repo's sessions get the REA reverse-engineering tools (W-7e29c9b9, 2026-10-26)
+
+- `scripts/sysadmin/emit_mcp_project_config.py`: `rea` joins the universal set (D-1239, superseding D-1199's
+  hub-class-only grant), so every /opt repo's emitted `.mcp.json` carries it. The emitter now also refreshes
+  each linked worktree's EXISTING copy (`<repo>/.claude/worktrees/*/.mcp.json`), which `.worktreeinclude`
+  copies only at creation — none of the 214 real worktree copies had `rea` (it skips a symlinked file or
+  worktree directory: `/opt/fabrik/.claude/worktrees/fabrik-lib` points at fabrik-lib itself, and a copy it
+  cannot read is reported without blocking the rest). Re-emitted: 255 of 255 distinct files carry it
+  (41 repo roots, 214 worktree copies). `docs/workstation/mcp-roster.md` (row with the measured ~235 MB per window,
+  universal table, § REA), the quota dashboard's label and `INDEX.md` updated.
+
+### Changed — review probe catalogue: a seat's pytest run takes an allow-list of arguments, not a deny-list (2026-10-26)
+
+`commands/_fragments/review-probe-catalogue.md` § Seat isolation, bullet "A pins-only copy is not a test tree": a seat passes pytest only paths and node ids inside the staged tree, `-q`/`-v`, `-s`, `-x`, `-r<chars>`, `--tb`, `-p no:cacheprovider`, `--co` (never a result) and, in a mutant run, one `--deselect` per environment-bound test by its full node id (it matches by prefix); it sets no environment variable beyond those the recipe, term-coverage rule (4) and § Seat isolation name (a conftest may read one to skip tests, as the hub's reads `FABRIK_MERGE_CHECK`), passes no `@file` argument file, and writes no pytest config or conftest beyond the pins, their reverts and mutants and the recipe's `__file__` print. The old deny-list missed `-o pythonpath`, `-o filterwarnings`/`xfail_strict`, `--config-file`, `-p no:warnings`, `--runxfail`, `--import-mode` and `PYTHONPATH`, each shown to change the verdict or the imports on pytest 9.0.2; `-o timeout` is now barred too (the config's own timeout is the hang guard), and `--ignore` of a conftest is gone from the examples because it does not drop the conftest. The base-copy removal now reads "wherever it sits". `tests/test_seat_recipe_readable.py` re-pinned (W-47d58d2c).
+
+### Changed — cloud dispatch: a cloud run draws the account's weekly plan and is refused at its wall (2026-10-26)
+
+`docs/workstation/cloud-dispatch.md`'s billing bullet now records that cloud runs spend the account's weekly plan usage and are refused at its wall (16 lean runs, `usage_limit_reached` / `seven_day` `rejected`), so the $250 credit is not capacity on top of the plan, and the intro, `--pick`, the credit guard and `--allow-plan-usage` point at it; the credit's own drawdown stays open (D-1237, W-b00d9d72; follow-up W-87078932).
+
+### Changed — cloud dispatch: the $250 credit is spent before plan usage; expiry 2026-11-05 (2026-10-25)
+
+`docs/workstation/cloud-dispatch.md`'s billing bullet now follows the operator's claude.ai usage page (the credit is a separate pool, applied first; usage credits are overage, off), each account's `credit.expires` in `.fabrik/cloud-routines.json` moves to 2026-11-05, and the walled-account probe on can is recorded (W-b00d9d72, D-1232).
+
+### Added — the canonical D-1236 ledger lints, read per D-1238 and D-1240 (2026-10-26)
+
+- `commands/command_rules.py` gains an optional per-entry `class:` and `clauses:`, and four lints that run in the
+  command check, each a LOSS line naming the ledger, the entry and the lint. The rules are in
+  `docs/reference/command-corpus-check.md` § Rule ledger and size ceiling. The one canonical loader for the lean
+  program (W-9cd8653d, D-1245).
 
 ### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
 

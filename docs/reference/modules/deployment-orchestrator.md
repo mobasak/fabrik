@@ -47,8 +47,9 @@ fabrik apply spec.yaml              # Full deployment — the orchestrator is th
 | `states.py` | 54 | `DeploymentState` enum + `can_transition()` (illegal transitions raise `InvalidStateTransitionError`) |
 | `context.py` | 83 | `DeploymentContext`, `ResourceRecord` — shared state across stages; every rollback-able resource calls `ctx.add_resource(...)` |
 | `exceptions.py` | 64 | Typed exceptions (`ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`) |
-| `secrets.py` | 137 | `SecretsManager` — `get()` precedence: env vars → project `.env` → CSPRNG generate (`secrets.choice()`, 32-char alphanumeric). (NB the orchestrator `from_env` path reads `.env` before env vars — the two paths differ.) |
-| `validator.py` | 343 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
+| `secrets.py` | 152 | `SecretsManager` — `get()` precedence: env vars → project `.env` → CSPRNG generate (`secrets.choice()`, 32-char alphanumeric). (NB the orchestrator `from_env` path reads `.env` before env vars — the two paths differ.) |
+| `../env_file.py` | — | The `.env` codec (`format_env`, `parse_env`, `EnvTemplate`) — compose's dotenv grammar for every Fabrik `.env` writer and reader (see Secrets Management) |
+| `validator.py` | 387 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
 | `deployer_ssh.py` | — | **`SSHDeployer.deploy(ctx)` (current)** — idempotent `docker compose up -d` over SSH; validates compose for template/docker/git sources; waits for container Up |
 | `infrastructure.py` | 1002 | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` — shape-driven dispatcher invoked between Deploy and Verify; runs postgres (+`DATABASE_URL` inject) → redis (+`REDIS_URL`) → gatus → backrest → glitchtip+DSN → grafana annotation → authelia rules (+ `^/api/` bypass) → meilisearch → prometheus → watchdog; a `depends.postgres`/`depends.postgres_seed`/`depends.redis` beside a false or absent flag is named in the skip reason and logged at WARNING (`depends_contradiction`, W-81524f52) |
 | `verifier.py` | 542 | `DeploymentVerifier.verify(ctx)` — HTTP 200 on the path declared in `spec["health"]["path"]` (see Lesson 32 — was previously hardcoded to `/health` via a silent fallback that masked all non-`/health` deploys as 404s; fixed B23, 2026-04-28), DNS resolves, Authelia-middleware + api-bypass checks. Workers (no HTTP) skip the HTTP probe — the compose healthcheck is the proof (B35). DSN verification lives in the glitchtip registrar, not here; `check_ssl()` exists as a standalone helper, not called by `verify()`. |
@@ -148,6 +149,7 @@ backup:
 - **Domain validation**: Blocks localhost, private IPs, internal TLDs (SSRF prevention)
 - **DNS resolution for SSRF**: `is_private_ip()` resolves hostnames via `socket.getaddrinfo()` before checking private ranges — catches DNS-rebinding attacks (e.g., `internal.corp` → `10.0.0.1`)
 - **Path traversal prevention**: Template paths are validated with `.resolve().relative_to()` to prevent directory escape (e.g., `../../etc/passwd`)
+- **Compose-pasted values**: `health.path` (`spec_loader.HEALTH_PATH_RE`), a non-empty `depends.postgres` (`POSTGRES_IDENT_RE`) and `source.image_port` (an int or ASCII digits, 1-65535) are refused by `SpecValidator.validate`, which runs before any DNS record is created or registrar runs (`orchestrator/__init__.py:151`), because the apply path loads a raw dict and these values are pasted into compose probe URLs, the Traefik port label and the `DATABASE_URL` default (W-ff313a14)
 - **HTTPS enforcement**: Health checks only allow `https://` URLs
 - **CSPRNG secrets**: Auto-generated secrets use `secrets` module (32 char alphanumeric)
 - **Rollback safety**: Only resources created in current run are rolled back
@@ -161,12 +163,27 @@ The orchestrator automatically loads secrets from the project's `.env` file duri
 2. Project `.env` file at `/opt/{spec_id}/.env`
 3. Environment variables
 
-(NB `SecretsManager.get()` itself checks env vars FIRST, then `.env`, then CSPRNG-generates — the two code paths order env vs `.env` differently; `secrets.py:87-97`.)
+(NB `SecretsManager.get()` itself checks env vars FIRST, then `.env`, then CSPRNG-generates — the two code paths order env vs `.env` differently; `secrets.py:102-118`.)
 
 **How It Works:**
 1. `fabrik scaffold` auto-detects secrets from `.env.example` and adds them to the spec's `from_env` field
 2. During deployment, the orchestrator reads from the project's `.env` file before checking system environment variables
 3. Only secrets listed in `spec.secrets.from_env` are loaded from the `.env` file
+4. A `from_file` secret is the file's text minus ONE trailing newline (`echo secret > file`)
+
+**The `.env` format** (`src/fabrik/env_file.py`, W-2ae286e2). The hub `from_env` reader, the
+`SecretsManager` read of `<cwd>/.env` (consulted only for a key absent from, or empty in, the
+environment, W-f62a2cdc), the deployed `.env`/`.env.owner` writer and reader, and `.env.example` all use one codec
+built to docker compose's dotenv grammar. A spec `env:` value keeps its `$` as a compose interpolation
+(`LOG_LEVEL=${LOG_LEVEL:-INFO}`); in every other value — a secret, a registrar value — a `$` is
+literal. A value is written bare unless it holds a space, `#`, a quote, `\`, a TAB, a line break or a
+literal `$`; a literal holding `$` is single-quoted (`API_KEY='a$b'`) when it holds no `'`, `\` or line
+break, and every other quoted value is double-quoted with `\$`, `\\`, `\"`, `\n`, `\r`, `\t` escapes.
+The reader follows compose: single quotes are literal, a
+` #` ends an unquoted value, other text after a closing quote is ignored, and an unterminated quote or
+a quote character after the closing quote aborts the read (compose refuses the same file); the error
+names the key and line, never the value, and a malformed hub `.env` stops the deploy. A hand-written template is written back unchanged. The
+deployed `.env` and `.env.owner` are read in one ssh call and parsed apart.
 
 **Example:**
 ```yaml

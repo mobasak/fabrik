@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T18:16:42.045862Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c9ff0788",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5WP7H1119N7ZA1XS0BVAANM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-174b8543-run-root"
+}

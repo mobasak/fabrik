@@ -1883,7 +1883,10 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     assert "seat transcript(s) since" not in p.stderr
     time.sleep(1.1)
     (sub / "agent-t5.jsonl").touch()
-    p = _cr(run_dir, "round", "--findings", "0")
+    # a figure of its own: the same figures after a seated round with nothing new since are a
+    # blind retry, refused unrecorded (W-fe322585) — and a refusal prints no nudge either way
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert p.returncode == 0, p.stdout + p.stderr
     assert "seat transcript(s) since" not in p.stderr
     # the OTHER live giant shape (round 17: 151 of 1,011 long seat lines): the envelope stamp
     # PRECEDES a giant `toolUseResult` — dated from the line's head; stamped, closed, touched →
@@ -1908,7 +1911,8 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     p = _cr(run_dir, "round", "--seats", "1", "--findings", "0")
     time.sleep(1.1)
     (sub / "agent-t7.jsonl").touch()
-    p = _cr(run_dir, "round", "--findings", "0")
+    p = _cr(run_dir, "round", "--findings", "1")  # its own figure (W-fe322585, above)
+    assert p.returncode == 0, p.stdout + p.stderr
     assert "seat transcript(s) since" not in p.stderr
     # a TORN giant line (mid-flush, no newline) whose tail ends in a nested OLD stamp is "skipped"
     # — dated by mtime, so a LIVE seat still counts (round-16 Opus: the sentinel fired before the
@@ -1977,7 +1981,9 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
         "confusion: none · waste: none · change: none · filed: none — surfaces exercised: y",
     )
     assert p.returncode == 0, p.stderr
-    p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
+    # its own figure: the parent's last round closed a seat and repeats otherwise (W-fe322585)
+    p = _cr(run_dir, "round", "--findings", "1", "--classes-swept", "a")
+    assert p.returncode == 0, p.stdout + p.stderr
     assert "seat transcript(s) since" not in p.stderr
     # round-12 Opus: a STAMPED seat still flushing after its close must not re-fire the nudge on
     # the next empty round — the count is by the seat's in-window last line, not the file mtime

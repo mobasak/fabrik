@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T21:40:48.752353Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "d3a846c98487cd11b6ef1f0d2607501fe267b192",
+  "id": "W-80aed026",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: emit each env item as a quoted scalar (e.g. tojson of KEY=value, $ doubled) in the 7 compose templates + _companion_service partial, retire env_escape, red-first test over \" \\n $ # : values",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "a deployed secret containing a quote, a dollar sign, ' #' or ': ' corrupts silently in compose env; one quoting function in the renderer plus a test",
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Compose env values are written as unquoted YAML plain scalars (- KEY=value), so values deploy wrong: env_escape turns a \" into a literal \\\" (no YAML/compose unescape), a newline breaks the list in file-api/file-worker (no env_escape there) and becomes a literal \\n elsewhere, $ is compose-interpolated, ' #' starts a comment and ': ' a mapping; python-api's raw command:/health.test scalars share it. Found by the W-6eb61fa0 review (pre-existing, independent of autoescape)."
+}

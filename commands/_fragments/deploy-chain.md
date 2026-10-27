@@ -1,8 +1,8 @@
 ## The deploy chain — ORDER and REPO (this block is shared by every command in it)
 
-Six steps, one operator gate, two repos. **Run each step where its row says** — a step run in the wrong
-repo either cannot see its inputs (a project has no fleet creds, no `fabrik` CLI, no spec) or writes its
-output where the next step will never read it. Every command below ends by naming the next one.
+Six steps, one operator gate, two repos. **Run each step where its row says** — in the wrong repo a step cannot see its inputs (no
+fleet creds, no `fabrik` CLI, no spec) or writes its output where the next step will never read it. Every
+command below ends by naming the next one.
 
 | # | command | runs in | produces / consumes |
 |---|---|---|---|
@@ -15,7 +15,5 @@ output where the next step will never read it. Every command below ends by namin
 | 6 | `/fabrik-deploy-verify` | the **HUB** (VPS surfaces; store surfaces hand back at Phase 0 with the provenance verdict) | `DEPLOY CONFIRMED` / `VERIFICATION FAILED` / `UNVERIFIED` — executes the FROZEN contract, one leg per site |
 
 Upstream of step 1: `/fabrik-features` REFRESH (the shipped inventory the contract cross-checks) → end-to-end
-certification (`/fabrik-user-test` · `/fabrik-service-test`). **The contract freezes on the CERTIFIED build** —
-certification produces fixes, and fixes move exactly what the contract freezes (routes, env set, migration head,
-compose services), so a freeze before the gauntlets forces a re-freeze after them (operator ruling 2026-09-03,
-D-096, supersedes the D-091 position). A version BUMP of the contract after step 6 re-runs step 6 only.
+certification (`/fabrik-user-test` · `/fabrik-service-test`). **The contract freezes on the CERTIFIED build** — certification produces fixes, and fixes move exactly what the contract freezes (routes, env set, migration head, compose services), so a freeze before the gauntlets forces a re-freeze after them (operator ruling 2026-09-03, D-096, supersedes the D-091 position). A version BUMP of the contract after step 6
+re-runs step 6 only.

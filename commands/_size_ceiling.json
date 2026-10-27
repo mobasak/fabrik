@@ -62,7 +62,7 @@
     },
     "total": 90623
    },
-   "render": 23890
+   "render": 23275
   },
   "fabrik-catchup": {
    "agents": [
@@ -96,7 +96,7 @@
     },
     "total": 63605
    },
-   "render": 10859
+   "render": 10365
   },
   "fabrik-command-improve": {
    "agents": [
@@ -136,7 +136,7 @@
     },
     "total": 54832
    },
-   "render": 23127
+   "render": 22353
   },
   "fabrik-conformance-review": {
    "agents": [
@@ -195,7 +195,7 @@
     },
     "total": 45171
    },
-   "render": 25182
+   "render": 24226
   },
   "fabrik-data-contract": {
    "agents": [
@@ -259,7 +259,7 @@
     },
     "total": 86701
    },
-   "render": 24925
+   "render": 24321
   },
   "fabrik-decommission": {
    "agents": [
@@ -287,7 +287,7 @@
     },
     "total": 30981
    },
-   "render": 10903
+   "render": 10357
   },
   "fabrik-deploy": {
    "agents": [
@@ -316,7 +316,7 @@
     },
     "total": 29867
    },
-   "render": 13010
+   "render": 12424
   },
   "fabrik-deploy-checklist": {
    "agents": [
@@ -383,7 +383,7 @@
     },
     "total": 99198
    },
-   "render": 26312
+   "render": 25477
   },
   "fabrik-deploy-plan": {
    "agents": [
@@ -412,7 +412,7 @@
     },
     "total": 29867
    },
-   "render": 12894
+   "render": 12444
   },
   "fabrik-deploy-plan-review": {
    "agents": [
@@ -469,7 +469,7 @@
     },
     "total": 76048
    },
-   "render": 21818
+   "render": 21256
   },
   "fabrik-deploy-verify": {
    "agents": [
@@ -505,7 +505,7 @@
     },
     "total": 42087
    },
-   "render": 15812
+   "render": 15114
   },
   "fabrik-doc-converge": {
    "agents": [
@@ -576,7 +576,7 @@
     },
     "total": 110980
    },
-   "render": 23721
+   "render": 23139
   },
   "fabrik-docs-review": {
    "agents": [
@@ -639,7 +639,7 @@
     },
     "total": 86934
    },
-   "render": 31111
+   "render": 30208
   },
   "fabrik-epics": {
    "agents": [
@@ -696,7 +696,7 @@
     },
     "total": 69615
    },
-   "render": 24511
+   "render": 24031
   },
   "fabrik-epics-review": {
    "agents": [
@@ -763,7 +763,7 @@
     },
     "total": 96546
    },
-   "render": 29473
+   "render": 28905
   },
   "fabrik-execute-plan": {
    "agents": [
@@ -816,7 +816,7 @@
     },
     "total": 80698
    },
-   "render": 41771
+   "render": 40595
   },
   "fabrik-features": {
    "agents": [
@@ -883,7 +883,7 @@
     },
     "total": 105879
    },
-   "render": 23948
+   "render": 23226
   },
   "fabrik-flows": {
    "agents": [
@@ -947,7 +947,7 @@
     },
     "total": 86163
    },
-   "render": 24261
+   "render": 23557
   },
   "fabrik-flows-review": {
    "agents": [
@@ -1013,7 +1013,7 @@
     },
     "total": 86581
    },
-   "render": 25826
+   "render": 25238
   },
   "fabrik-generate-tests": {
    "agents": [
@@ -1050,7 +1050,7 @@
     },
     "total": 43677
    },
-   "render": 14451
+   "render": 13984
   },
   "fabrik-plan-after-chat": {
    "agents": [
@@ -1116,7 +1116,7 @@
     },
     "total": 98870
    },
-   "render": 29364
+   "render": 28822
   },
   "fabrik-plan-review": {
    "agents": [
@@ -1187,7 +1187,7 @@
     },
     "total": 92719
    },
-   "render": 38164
+   "render": 37032
   },
   "fabrik-release": {
    "agents": [
@@ -1218,7 +1218,7 @@
     },
     "total": 40201
    },
-   "render": 10251
+   "render": 9601
   },
   "fabrik-repo-review": {
    "agents": [
@@ -1283,7 +1283,7 @@
     },
     "total": 46213
    },
-   "render": 25512
+   "render": 24805
   },
   "fabrik-reverse-engineer": {
    "agents": [
@@ -1312,7 +1312,7 @@
     },
     "total": 33717
    },
-   "render": 8477
+   "render": 8310
   },
   "fabrik-review": {
    "agents": [
@@ -1382,7 +1382,7 @@
     },
     "total": 62177
    },
-   "render": 42655
+   "render": 41614
   },
   "fabrik-review-scoped": {
    "agents": [
@@ -1428,7 +1428,7 @@
     },
     "total": 38370
    },
-   "render": 35901
+   "render": 34650
   },
   "fabrik-rivals": {
    "agents": [
@@ -1483,7 +1483,7 @@
     },
     "total": 90748
    },
-   "render": 20132
+   "render": 19341
   },
   "fabrik-rules-review": {
    "agents": [
@@ -1547,7 +1547,7 @@
     },
     "total": 86089
    },
-   "render": 23955
+   "render": 23352
   },
   "fabrik-service-test": {
    "agents": [
@@ -1597,7 +1597,7 @@
     },
     "total": 59546
    },
-   "render": 25150
+   "render": 24232
   },
   "fabrik-spec": {
    "agents": [
@@ -1659,7 +1659,7 @@
     },
     "total": 61180
    },
-   "render": 39240
+   "render": 38272
   },
   "fabrik-spec-review": {
    "agents": [
@@ -1730,7 +1730,7 @@
     },
     "total": 93060
    },
-   "render": 35549
+   "render": 34309
   },
   "fabrik-task": {
    "agents": [
@@ -1763,7 +1763,7 @@
     },
     "total": 52484
    },
-   "render": 11646
+   "render": 11045
   },
   "fabrik-ui-design": {
    "agents": [
@@ -1821,7 +1821,7 @@
     },
     "total": 126286
    },
-   "render": 21616
+   "render": 21060
   },
   "fabrik-ui-design-review": {
    "agents": [
@@ -1891,7 +1891,7 @@
     },
     "total": 128808
    },
-   "render": 26263
+   "render": 25675
   },
   "fabrik-upstream": {
    "agents": [
@@ -1927,7 +1927,7 @@
     },
     "total": 33508
    },
-   "render": 16072
+   "render": 15603
   },
   "fabrik-user-test": {
    "agents": [
@@ -1977,7 +1977,7 @@
     },
     "total": 48471
    },
-   "render": 27952
+   "render": 26986
   },
   "fabrik-vision": {
    "agents": [
@@ -2052,7 +2052,7 @@
     },
     "total": 124926
    },
-   "render": 33303
+   "render": 32374
   },
   "fabrik-workflow-review": {
    "agents": [
@@ -2115,7 +2115,7 @@
     },
     "total": 89890
    },
-   "render": 23128
+   "render": 22561
   },
   "hibernate": {
    "agents": [],
@@ -2141,7 +2141,7 @@
     },
     "total": 30079
    },
-   "render": 4987
+   "render": 4798
   }
  },
  "retired": {}

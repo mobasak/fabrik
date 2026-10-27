@@ -7,14 +7,22 @@ to produce compose.yaml, Dockerfile, and other deployment files.
 
 from __future__ import annotations
 
+import re
+import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
+from fabrik.env_file import EnvTemplate, format_env_line
 from fabrik.spec_loader import Spec
 from fabrik.version_registry import load_versions
+
+# ASCII digits only: `\d` matches every Unicode decimal digit (`３０００`, `٣٠٠٠`).
+_PORT_RE = re.compile(
+    r"(?P<port>[0-9]{1,5})|\$\{[A-Za-z_][A-Za-z0-9_]*(?::-(?P<default>[0-9]{1,5}))?\}"
+)
 
 
 class TemplateRenderer:
@@ -40,24 +48,77 @@ class TemplateRenderer:
         self.templates_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Set up Jinja2 environment
-        self.jinja = Environment(
+        # Set up Jinja2 environment. No template here emits HTML (compose YAML, Dockerfiles, JS,
+        # JSON, nginx conf, markdown), so nothing is HTML-escaped: the old
+        # select_autoescape(["yaml", "yml", "j2"]) matched every `*.j2` name and deployed a secret
+        # `p&ss` as `p&amp;ss` (W-6eb61fa0; tests/test_template_renderer_no_html_escape.py).
+        self.jinja = Environment(  # nosec B701 — not HTML: compose, Dockerfile, JS, JSON, conf output
             loader=FileSystemLoader(str(self.templates_dir)),
-            autoescape=select_autoescape(["yaml", "yml", "j2"]),
+            autoescape=False,  # noqa: S701 — not HTML: compose, Dockerfile, JS, JSON, conf output
             trim_blocks=True,
             lstrip_blocks=True,
         )
 
         # Add custom filters
-        self.jinja.filters["env_escape"] = self._env_escape
+        self.jinja.filters["compose_env"] = self._compose_env
+        self.jinja.filters["compose_str"] = self._compose_str
+        self.jinja.filters["compose_port"] = self._compose_port
 
     @staticmethod
-    def _env_escape(value: str) -> str:
-        """Escape value for use in environment variables."""
-        if isinstance(value, str):
-            # Escape quotes and special chars
-            return value.replace('"', '\\"').replace("\n", "\\n")
-        return str(value)
+    def _compose_env(key: object, value: object) -> str:
+        """One compose `environment:` list item, `- {{ key | compose_env(value) }}` (W-80aed026).
+
+        A plain scalar `KEY=value` mangled values: ` #` started a comment, `: ` made a mapping, a newline
+        broke the list, and a backslash-escaped `"` stayed a backslash. `$` is left alone here — render()
+        escapes the secrets layer, while spec env keeps compose interpolation.
+        """
+        return TemplateRenderer._compose_str(f"{key}={value}", f"env {key}")
+
+    @staticmethod
+    def _compose_str(value: object, label: str) -> str:
+        """Any spec string compose reads whole, as one double-quoted YAML scalar (W-80aed026, W-ff313a14).
+
+        PyYAML's own double-quoted emission round-trips every string compose can hold; ASCII-only,
+        chosen when the deployer still wrote the file with the locale encoding (it writes UTF-8 since
+        W-8495d72f; ASCII stays readable under any decoder). `$` passes through: compose
+        interpolation in a spec value is the spec author's (zitadel's `${ZITADEL_MASTERKEY}` command).
+        The error names the `label`, never the value (render errors are echoed and logged).
+        """
+        text = str(value)
+        if "\x00" in text:
+            # runc refuses a container whose env or argv holds a NUL.
+            raise ValueError(f"compose {label}: the value contains a NUL byte")
+        try:
+            text.encode("utf-8")
+        except UnicodeEncodeError:
+            # A lone surrogate (os.getenv's surrogateescape) emits as `\uDC80`, which compose rejects.
+            raise ValueError(f"compose {label}: the value is not valid UTF-8") from None
+        item = yaml.safe_dump(text, default_style='"', width=sys.maxsize, allow_unicode=False)
+        item = item.rstrip("\n")
+        if "\n" in item:
+            # Tripwire only: with width=sys.maxsize PyYAML never folds a double-quoted scalar.
+            raise ValueError(f"compose {label}: the YAML emission spans several lines")
+        return item
+
+    @staticmethod
+    def _compose_port(value: object, label: str) -> str:
+        """A port pasted into a quoted compose item: a port number or a `${NAME}` / `${NAME:-port}`
+        interpolation, returned unchanged (W-ff313a14).
+
+        That alphabet holds no YAML- or shell-special character, so it stays literal inside the
+        template's own quoted items, where `check_traefik_labels.py` reads the label text. Anything else
+        (` #`, a quote, a word) is refused here: quoted, it would deploy and Traefik would drop the
+        router at runtime. A secret PORT arrives `$$`-escaped and is refused too.
+        """
+        text = str(value)
+        match = _PORT_RE.fullmatch(text)
+        port = (match.group("port") or match.group("default")) if match else None
+        if match is None or (port is not None and not 1 <= int(port) <= 65535):
+            raise ValueError(
+                f"compose {label}: must be a port number (1-65535) or a ${{NAME}} / ${{NAME:-port}}"
+                " interpolation"
+            )
+        return text
 
     def list_templates(self) -> list[str]:
         """List available templates."""
@@ -123,8 +184,12 @@ class TemplateRenderer:
             with open(defaults_path, encoding="utf-8") as f:
                 defaults = yaml.safe_load(f) or {}
 
-        # Merge environment: defaults < spec.env < secrets
-        env_vars = {**defaults.get("env", {}), **spec.env, **secrets}
+        # Merge environment: defaults < spec.env < secrets. A secret is a literal value, so its `$` is
+        # doubled for compose (`$$` reads as one `$`); spec env keeps `${VAR}` interpolation on purpose.
+        # Only compose templates read `env` (tests/test_compose_env_quoting.py), and the caller's
+        # mapping is never mutated.
+        literal_secrets = {k: str(v).replace("$", "$$") for k, v in secrets.items()}
+        env_vars = {**defaults.get("env", {}), **spec.env, **literal_secrets}
 
         # Build render context
         context = {
@@ -182,9 +247,11 @@ class TemplateRenderer:
             env_example_lines.append(f"{key}=")
         env_example_lines.append("")
         env_example_lines.append("# Application environment variables")
+        # Quoted by the deployed-.env codec, so a value holding a newline stays one line; a spec
+        # value's `$` is a compose interpolation and is kept (fabrik.env_file).
         for key, value in spec.env.items():
             if key not in spec.secrets.required:
-                env_example_lines.append(f"{key}={value}")
+                env_example_lines.append(format_env_line(key, EnvTemplate(str(value))))
         # transdoc finding 1.10 (2026-08-23): .env.example is generated purely from what the
         # spec DECLARES, so a database-backed project shipped Paddle/iyzico/Resend/B2 entries
         # while omitting the two variables the app cannot start without. A shape that needs a

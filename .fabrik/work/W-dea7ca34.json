@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T09:31:01.357846Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-dea7ca34",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Y8M077W64QWYPJ40CJDDBE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please redeploy the bhdtrade-forms relay (services/quote-forms) from web-ecommerce-factory trunk."
+}

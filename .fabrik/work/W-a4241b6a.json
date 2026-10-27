@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T23:54:58.947115Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-a4241b6a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per key: declare it (and read it) or delete it from the 6 specs, then set Health model_config extra=\"forbid\" with a grader over every spec",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "specs/services health: keys the Health model does not declare are silently dropped at load (no extra=\"forbid\"): health.port in job-agent, proposal-creator, seo, trading-core, translator and triggered-content-orchestration is read by nothing — the class that hid start_period (W-3197a125)"
+}

@@ -15,7 +15,7 @@
   },
   "next": "measure: find where kaizen_collect_v2.py writes the log rows (its week-row key and date cell); decide commit-its-own-write vs write-only-to-a-ledger; merge_request's dirty-tree check vs a machine writer",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen collect dirties main and blocks every worktree merge",
   "status": "open",

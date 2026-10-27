@@ -19,6 +19,8 @@ import ast
 import hashlib
 import os
 import re
+import subprocess
+import unicodedata
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -230,7 +232,13 @@ def write_baseline(text: str, out: Path) -> str:
 
 # ── ledgers ───────────────────────────────────────────────────────────────────────────────────
 _TOP = {"command", "shared", "baseline_sentences", "baseline_sha256", "entries", "retired", "vanished"}
-_ENTRY = {"id", "file", "section", "baseline", "current", "text", "ordered", "forbidden", "enforced", "pins", "changed-by"}
+_ENTRY = {"id", "file", "section", "baseline", "current", "text", "ordered", "forbidden", "enforced", "pins", "changed-by", "class", "clauses"}
+_CLASSES = ("ban", "grammar", "behavioural", "prose")
+# D-1236 lint A, D-1238 point 2: the ban words are never/must/only/refuse (refuses/refused/refusal), any
+# case; "not" and "stays" are not ban words. A clause holding one binds whatever the entry's `class:`.
+_BAN = re.compile(r"(?i)(?<!\w)(?:never|must|only|refus(?:e|es|ed|al))(?!\w)")
+_EMPH1 = re.compile(r"(?<!\w)_+(?=\w)|(?<=\w)_+(?!\w)")  # single-underscore emphasis: _NOT_, _never_
+_WORD = re.compile(r"\w+(?:['’]\w+)*")
 _CARRIERS = ("text", "ordered", "forbidden", "enforced")
 _REFUSAL = re.compile(r"\b(?:returncode|exit_code)\s*(?:!=\s*0\b|==\s*[1-9]\d*)")
 
@@ -430,6 +438,17 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         # matches every unit; a `forbidden` phrase is matched raw, so "**" is a legitimate absence pin
         if "text" in e and not all(normalise(p) for p in e["text"]):
             raise LedgerError(f"entry {e['id']}: a `text` phrase normalises to nothing, so it matches every text")
+        if "class" in e and e["class"] not in _CLASSES:
+            raise LedgerError(f"entry {e['id']}: `class` is not one of {'|'.join(_CLASSES)}")
+        if "clauses" in e:
+            cl = e["clauses"]
+            ok = isinstance(cl, dict) and bool(cl) and all(
+                re.fullmatch(r"[1-9][0-9]*", str(k))  # ASCII: `int()` reads `1٠` as 10, `str()` keeps it apart
+                and (v in ("narrative", "provenance") or (isinstance(v, dict) and set(v) == {"duplicate-of"} and isinstance(v["duplicate-of"], str)))
+                for k, v in cl.items()
+            ) and len({str(k) for k in cl}) == len(cl)  # `1:` and `"1":` name one clause: never two labels for it
+            if not ok:
+                raise LedgerError(f"entry {e['id']}: `clauses` is not {{<n>: narrative | provenance | duplicate-of: id}}")
         for c in ("file", "section", "baseline", "current", "enforced"):
             if c in e and not isinstance(e[c], str):
                 raise LedgerError(f"entry {e['id']}: `{c}` is not a string")
@@ -451,6 +470,8 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         files = {ids[o].get("file") or "render" for o in order if o in ids}
         if any(o not in ids for o in order) or len(files | {e.get("file") or "render"}) > 1:
             raise LedgerError(f"entry {e['id']}: `ordered` names an unknown id or spans files")
+    for e in ids.values():
+        _check_clauses(e, ids)
     rows = _decision_rows(root)
     for e in ids.values():
         _changed_by(e, rows, "entry")
@@ -468,21 +489,304 @@ def load_ledger(path: Path, root: Path) -> dict[str, Any]:
         if ent["id"] in ids:
             raise LedgerError(f"retired {ent['id']}: also a live entry")
         retired.add(ent["id"])
+    src_name = Path(name).name if shared else f"{name}.md"
     for key, label in (data.get("vanished") or {}).items():
         if not isinstance(key, str) or not re.fullmatch(r"L[1-9]\d*", key):
             raise LedgerError(f"vanished key {key!r} is not a baseline line (L<n>)")
         if label == "narrative":
+            continue
+        if isinstance(label, dict) and set(label) == {"superseded"} and isinstance(label["superseded"], str):
+            # W-5dc4163d: the row must name this ledger's source; `_superseded_proof` proves the rest from git
+            row = rows.get(label["superseded"]) if re.fullmatch(r"D-[0-9]+", label["superseded"]) else None
+            if row is None or not re.search(rf"(?<![\w-]){re.escape(src_name)}(?![\w-]|\.\w)", row):
+                raise LedgerError(f"vanished {key}: superseded {label['superseded']!r} is not a D-row in docs/DECISIONS.md naming {src_name}")
             continue
         if isinstance(label, dict) and set(label) == {"rule"} and _strs(label["rule"]):
             named = label["rule"]
         elif isinstance(label, dict) and set(label) == {"duplicate-of"} and isinstance(label["duplicate-of"], str):
             named = [label["duplicate-of"]]
         else:
-            raise LedgerError(f"vanished {key}: label {label!r} is not rule: [ids], duplicate-of: id or narrative")
+            raise LedgerError(f"vanished {key}: label {label!r} is not rule: [ids], duplicate-of: id, superseded: D-<n> or narrative")
         if bad := [n for n in named if n not in ids or n in retired]:
             raise LedgerError(f"vanished {key}: names unknown or retired id(s) {bad}")
     data["_ids"] = ids
+    data["_rows"] = rows  # `_superseded_proof` reads the named row's commits
     return data
+
+
+def _deemph(s: str) -> str:
+    """``s`` with single-underscore emphasis dropped outside code — the code spans `_mask_code` reads, so a lone
+    backtick never turns the prose after it into code."""
+    out, last = [], 0
+    for m in _CODE.finditer(s):
+        out += [_EMPH1.sub("", s[last : m.start()]), m.group(0)]
+        last = m.end()
+    return "".join(out) + _EMPH1.sub("", s[last:])
+
+
+def _words(s: str) -> list[str]:
+    """Normalised lowercase words (curly apostrophes read straight, single-underscore emphasis dropped)."""
+    return _WORD.findall(_deemph(normalise(s)).lower().replace("’", "'"))
+
+
+def _has_run(hay: list[str], needle: list[str]) -> bool:
+    n = len(needle)
+    return bool(n) and any(hay[i : i + n] == needle for i in range(len(hay) - n + 1))
+
+
+def _ban_hits(s: str) -> list[re.Match]:
+    """The ban words of ``_deemph(s)`` outside code spans (an identifier like `never-route` bans nothing);
+    the match positions index ``_deemph(s)``, since a masked span keeps its length."""
+    return list(_BAN.finditer(_mask_code(_deemph(s))))
+
+
+def _is_ban(baseline: object) -> bool:
+    return isinstance(baseline, str) and bool(_ban_hits(baseline))
+
+
+def entry_class(e: dict) -> str:
+    """The entry's class: its `class:` field, else `ban` when its baseline holds a ban word, else `prose`.
+    Total on malformed YAML (an invalid `class:` falls back to inference; `load_ledger` is what refuses it).
+    The class only adds: a ban-bearing clause binds in every class (D-1238), grammar/behavioural bind every clause."""
+    c = e.get("class")
+    if isinstance(c, str) and c in _CLASSES:
+        return c
+    return "ban" if _is_ban(e.get("baseline")) else "prose"
+
+
+_CODE = re.compile(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)", re.S)  # CommonMark: a run closes only on a run of its length
+
+
+def _mask_code(s: str) -> str:
+    """``s`` with every code span overwritten by `x` (same length, so positions hold): what the clause split,
+    the ban words and the ban span read; a lone backtick is literal text, never an opener."""
+    return _CODE.sub(lambda m: "x" * len(m.group(0)), s)
+
+
+def _depths(masked: str) -> list[int]:
+    """How many MATCHED parenthesis pairs enclose each character of a code-masked string: a stray `(` or `)`
+    pairs with nothing, so it never swallows the text after it nor unprotects a balanced aside beside it."""
+    out, stack = [0] * len(masked), []
+    for i, ch in enumerate(masked):
+        if ch == "(":
+            stack.append(i)
+        elif ch == ")" and stack:
+            a = stack.pop()
+            for k in range(a, i + 1):
+                out[k] += 1
+    return out
+
+
+def _clauses(baseline: str) -> list[str]:
+    """Split at `;`, a spaced `—` `–` `--` or an unspaced `—`; never inside a code span or a balanced
+    parenthetical, so a `(…; …)` aside stays inside its clause (D-1240)."""
+    masked = _mask_code(baseline)
+    depth = _depths(masked)
+    out, last, i = [], 0, 0
+    while i < len(masked):
+        ch = masked[i]
+        sep = 1 if ch in ";—" else next((len(s) for s in (" — ", " – ", " -- ") if masked.startswith(s, i)), 0)
+        if sep and not depth[i]:
+            out.append(baseline[last:i])
+            last = i = i + sep
+            continue
+        i += 1
+    out.append(baseline[last:])
+    return [c.strip() for c in out if c.strip()]
+
+
+def _baseline_clauses(baseline: str) -> list[str]:
+    """The clauses the lints and `clauses:` keys count: a fenced unit (lines joined by " ⏎ ") splits at its
+    lines only, since its `;` and `—` sit in code and comments a parser reads whole."""
+    if _FENCE_JOIN in baseline:
+        return [ln.strip() for ln in baseline.split(_FENCE_JOIN.strip()) if ln.strip()]
+    return _clauses(baseline)
+
+
+# ── D-1240: the two readings the loader applies, one function each, changed only by a D-row ──
+# order matters: a path or file name is tried before a number, so `0/5/0` is one anchor, never `0` + `/5/0`
+_ANCHOR = re.compile(r"`[^`]+`|[\w.-]*/[\w./-]+|\b[\w-]+\.(?:py|md|json|jsonl|sh|ya?ml|js|ts|toml)\b|(?<![\w.])\d[\d.,]*\b")
+_STEM = re.compile(r"(?<!\w)[^\W\d_]{4,}(?!\w)")  # a letters-only word (any script), never a run inside a token
+STEM_RECALL = 0.7  # D-1240: the share of a clause's content stems one phrase must hold
+STEM_CAP = 8  # D-1240: only the clause's first 8 content stems count
+
+
+def _anchors(clause: str) -> set[str]:
+    """What no rewording may drop: backticked tokens, numbers, paths, file names and the ban words."""
+    found = {normalise(m.group(0)).lower() for m in _ANCHOR.finditer(clause)}
+    found |= {m.group(0).lower() for m in _ban_hits(clause)}
+    return {a for a in found if a}
+
+
+def _whole(s: str) -> str:
+    """A regex for ``s`` standing whole: a word boundary is demanded only at an edge that is a word character,
+    so `0/5/0`, `` `x` `` or `(see D-9)` match where they stand (anchors, the C count and D all read it)."""
+    lead = r"(?<!\w)" if re.match(r"\w", s) else ""
+    tail = r"(?!\w)" if re.search(r"\w$", s) else ""
+    return lead + re.escape(s) + tail
+
+
+def _holds(low: str, anchor: str) -> bool:
+    return bool(re.search(_whole(anchor), low))
+
+
+def _stems(text: str) -> list[str]:
+    """Content stems in order: letters-only words of 4+ letters, cut to 5, first occurrence kept."""
+    return list(dict.fromkeys(w[:5] for w in _STEM.findall(unicodedata.normalize("NFC", _deemph(text)).lower())))
+
+
+def _covered(clause: str, phrases: list[str]) -> bool:
+    """D-1240 (settling D-1238 point 3): ONE phrase holds every anchor of the clause AND at least
+    STEM_RECALL of its first STEM_CAP content stems — per phrase, never pooled, so extra carrier words earn
+    nothing. COBRA (D-253): the cheapest pass is a phrase padded with the clause's vocabulary; the cap and the
+    per-phrase rule bound it, the anchors stop a stub, and the author-blind audit pair reads old against new."""
+    want = _stems(clause)[:STEM_CAP]
+    anchors = _anchors(clause)
+    if not want and not anchors:  # nothing to measure ("Do it now"): the clause's own words, whole, in one phrase
+        words = _words(clause)
+        return not words or any(_has_run(_words(ph), words) for ph in phrases)  # a wordless clause carries nothing
+    for ph in phrases:
+        # as written OR de-emphasised: a code anchor (`_X_ROW`) keeps its underscores, a ban word (_never_) drops them
+        forms = (normalise(ph).lower(), normalise(_deemph(ph)).lower())
+        if not all(any(_holds(f, a) for f in forms) for a in anchors):
+            continue
+        held = set(_stems(ph))
+        if not want or sum(s in held for s in want) >= STEM_RECALL * len(want):
+            return True
+    return False
+
+
+# D-1255: one id token — a D-row, a W-item, an ISO date, a SHA of 7-64 hex holding a letter AND a digit (so neither a
+# hex-letter word like `defaced` nor a bare number like `1234567`, which stays an anchor, is a SHA), or a `§`
+# pointer to a section number or ONE word (a heading of more words is words); ASCII digits only
+_ID = r"(?:D-[0-9]+|W-[0-9a-f]+|[0-9]{4}-[0-9]{2}-[0-9]{2}|(?=[0-9]*[a-f])(?=[a-f]*[0-9])[0-9a-f]{7,64}|§ ?(?:[0-9]+(?:\.[0-9]+)*|[^\W\d_]+))"
+_PROVENANCE = re.compile(rf"(?<![\w)\]])\( *{_ID}(?:[ ,;/·]+{_ID})* *\)")  # an aside, never a call's `f(…)`
+
+
+def _strip_provenance(clause: str) -> str:
+    """``clause`` without its parentheticals of ids alone (D-1255, the `provenance` label): what such a clause
+    still owes a carrier. Read on the code-masked text, so a `(D-1)` inside a code span is code, never provenance.
+    COBRA (D-253): the cheapest abuse is labelling an operative id `provenance`; the id-only regex leaves every
+    other word in the clause, whose stems and anchors B still measures, and a ban clause takes no label at all."""
+    spans = [m.span() for m in _PROVENANCE.finditer(_mask_code(clause))]
+    for a, b in reversed(spans):
+        clause = clause[:a] + clause[b:]
+    return clause
+
+
+def _ban_span(clause: str, m: re.Match) -> str:
+    """D-1240: a ban clause is verbatim from its ban word to the end of its `;`/`—` clause or the sentence
+    end, whichever comes first; a `,` or `(` does not end it (``clause`` is already one `;`/`—` clause). The
+    sentence is the one `units()` cuts, by the same ``_split_prose``, so the two can never disagree; a
+    parenthetical opened after the ban word runs on to its close (D-1240: it stays verbatim)."""
+    sentences = _split_prose(clause[m.start() :])
+    span, i = (sentences[0] if sentences else ""), 1
+    while i < len(sentences) and _mask_code(span).count("(") > _mask_code(span).count(")"):
+        span, i = f"{span} {sentences[i]}", i + 1
+    return span
+
+
+def _check_clauses(e: dict, ids: dict[str, dict]) -> None:
+    cl = e.get("clauses")
+    if not cl:
+        return
+    parts = _baseline_clauses(e["baseline"]) if isinstance(e.get("baseline"), str) else []
+    if not parts:
+        raise LedgerError(f"entry {e['id']}: `clauses` needs a `baseline`")
+    for k, v in cl.items():
+        n = int(k)
+        if n > len(parts):
+            raise LedgerError(f"entry {e['id']}: `clauses` key {n} is past the baseline's {len(parts)} clause(s)")
+        if _is_ban(parts[n - 1]):  # D-1238 point 1: a ban-bearing clause is never narrative, provenance or a duplicate
+            raise LedgerError(f"entry {e['id']}: clause {n} holds a ban word and cannot be labelled")
+        if v == "provenance":
+            if _strip_provenance(parts[n - 1]) == parts[n - 1]:
+                raise LedgerError(f"entry {e['id']}: clause {n} holds no parenthetical of ids alone and cannot be provenance")
+        elif v != "narrative":
+            tgt = ids.get(v["duplicate-of"])
+            if tgt is None or tgt is e:
+                raise LedgerError(f"entry {e['id']}: clause {n} is a duplicate-of unknown id {v['duplicate-of']!r}")
+            if not _covered(parts[n - 1], tgt.get("text") or []):
+                raise LedgerError(f"entry {e['id']}: clause {n} is a duplicate-of {tgt['id']}, whose `text` does not cover it")
+
+
+def _paras(scope: str) -> list[str]:
+    """Blank-line paragraphs, with every fence marker line a break of its own: an odd backtick run must not flip
+    code parity for the prose beside it."""
+    # a marker line is the run plus an info string and nothing else: "```code``` Never push" is prose
+    return re.split(r"\n\s*\n|^[ \t]*(?:`{3,}|~{3,})[^`~\n]*$", scope, flags=re.M)
+
+
+def _verbatim(span: str, paras: list[str]) -> bool:
+    """``span`` stands in one live paragraph as written: whitespace and emphasis normalised, case folded
+    (D-1238 matches ban words in any case), punctuation and word boundaries kept."""
+    want = normalise(_deemph(span.replace(_FENCE_JOIN, " "))).casefold()
+    return bool(want) and any(_holds(p, want) for p in paras)
+
+
+def _lintable(e: dict) -> bool:
+    """Entries written under D-1236 only: a `class:` or `clauses:`, or a ban-word baseline (D-1238).
+    A legacy prose entry with none of these is never newly failed; `pins:` predates D-1236 and opts nothing in."""
+    return isinstance(e.get("baseline"), str) and bool(e.get("class") or e.get("clauses") or _is_ban(e["baseline"]))
+
+
+def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
+    """D-1236 lints on one entry (``scope`` the live text under its section, ``text`` its whole file):
+    ``(lint, message)`` pairs. A: every (ban word, next word) pair of a ban-bearing clause is in a text phrase.
+    B: each clause is covered by one text phrase (``_covered``, D-1240) or labelled in `clauses:`; a
+    `provenance` clause is measured without its parentheticals of ids alone (D-1255).
+    C (class prose only, the carriers D-1236 lets be reworded): a text phrase is >=6 whitespace words and
+    appears once as a whole in its FILE (a phrase equal to the whole `current` unit is exempt: `_check` proves
+    that unit live). D: a ban-bearing clause stands
+    verbatim in the live section from its ban word on (``_ban_span``, D-1240), and in classes grammar and
+    behavioural every unlabelled clause does. COBRA (D-253): the cheapest abuse is a stub carrier, then a
+    reworded clause; A and B read the immutable `baseline`, C and D the live file, and the author-blind audit
+    pair reads each reworded entry. The cheapest pass left is a `duplicate-of` label to a live id whose text
+    covers the clause (checked at load), or a baseline with no ban word left unclassified, which is the
+    decision's own scope."""
+    if not _lintable(e):
+        return []
+    out: list[tuple[str, str]] = []
+    phrases = e.get("text") or []
+    cur = normalise(e["current"]) if e.get("current") else None
+    file_paras = [normalise(p) for p in _paras(text)]
+    cls = entry_class(e)
+    # C binds the carriers D-1236 lets be reworded (prose); a ban/grammar/behavioural pin is held by A, B and D
+    for ph in phrases if cls == "prose" else []:
+        whole_unit = cur is not None and normalise(ph) == cur  # exempt from the minimum only, never uniqueness
+        if not whole_unit and len([w for w in normalise(ph).split() if re.search(r"[^\W_]", w)]) < 6:
+            out.append(("C", f"text phrase under 6 words — {ph[:80]}"))
+        elif (n := sum(len(re.findall(_whole(normalise(ph.replace(_FENCE_JOIN, " "))), p)) for p in file_paras)) != 1:
+            out.append(("C", f"text phrase appears {n}x in its file, need exactly once — {ph[:80]}"))
+    labels = {str(k): v for k, v in (e.get("clauses") or {}).items()}
+    pw = [_words(p) for p in phrases]
+    live = [normalise(_deemph(p)).casefold() for p in _paras(scope)]
+    for n, clause in enumerate(_baseline_clauses(e["baseline"]), 1):
+        if not _words(clause):
+            continue  # punctuation only: no word to carry
+        dc = _deemph(clause)
+        bans = _ban_hits(clause)
+        for m in bans:
+            nxt = _words(dc[m.end() :])[:1]
+            need = [m.group(0).lower()] + nxt
+            if not any(_has_run(w, need) for w in pw):
+                out.append(("A", f"clause {n}: ban word {m.group(0)!r} (with the word after it) is in no text phrase"))
+        reach = -1  # each ban word's span, unless an earlier ban word's span already holds it
+        for m in bans:
+            if m.start() < reach:
+                continue
+            span = _ban_span(dc, m)
+            reach = m.start() + len(span)
+            if not _verbatim(span, live):
+                out.append(("D", f"clause {n}: not verbatim in the live text from its ban word — {span[:80]}"))
+        if str(n) in labels and labels[str(n)] != "provenance":
+            continue
+        owed = _strip_provenance(clause) if str(n) in labels else clause  # D-1255: its id-only asides owe nothing
+        if not _covered(owed, phrases):  # a wordless remainder is covered (`_covered`)
+            out.append(("B", f"baseline clause {n} is covered by no text phrase and is not classified — {clause[:80]}"))
+        elif cls in ("grammar", "behavioural") and not bans and not _verbatim(dc, live):
+            out.append(("D", f"class {cls}: clause {n} is not verbatim in the live text — {clause[:80]}"))
+    return out
 
 
 def _resolve(entry: dict, ledger: dict, render_dir: Path, root: Path) -> Path:
@@ -510,10 +814,14 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
     own = own if "shared" in ledger else own_text(own)
     loss: list[str] = []
     labels = ledger.get("vanished") or {}
-    for n in vanished(baseline, own):
+    gone = vanished(baseline, own)
+    for n in gone:
         if f"L{n}" not in labels:
             loss.append(f"LOSS {name}: baseline L{n} vanished, unclassified — {baseline[n - 1][:120]}")
+        elif labels[f"L{n}"] == "narrative" and _is_ban(baseline[n - 1].split(" ¦ ", 1)[-1]):  # D-1238 point 1; the unit, never its heading key
+            loss.append(f"LOSS {name}: baseline L{n} holds a ban word and cannot vanish as narrative — {baseline[n - 1][:120]}")
     positions: dict[str, int] = {}
+    scopes: dict[str, str] = {}  # each resolved entry's live section, for the vanished-label proof below
     for e in ledger["_ids"].values():
         f = _resolve(e, ledger, render_dir, root)
         if not f.is_file():
@@ -529,6 +837,9 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
             loss.append(f"LOSS {name} {e['id']}: section {e['section']!r} missing")
             continue
         scope, start = found
+        scopes[e["id"]] = scope
+        for lint, msg in _lint(e, scope, text):
+            loss.append(f"LOSS {name} {e['id']}: lint {lint} — {msg}")
         where = "under its section" if e.get("section") else "in its file"
         cur = e.get("current")
         if cur:
@@ -554,7 +865,140 @@ def _check(ledger: dict, path: Path, render_dir: Path, root: Path, src_dir: Path
         at = [p for p in seq if p is not None]
         if seq and (len(at) < len(seq) or at != sorted(at)):
             loss.append(f"LOSS {name} {e['id']}: `ordered` entries out of order or missing")
+    for n in gone:
+        loss += [f"LOSS {name}: baseline L{n} {msg}" for msg in _vanished_proof(baseline[n - 1], labels.get(f"L{n}"), ledger["_ids"], scopes)]
+        label = labels.get(f"L{n}")
+        if isinstance(label, dict) and "superseded" in label:
+            d = label["superseded"]
+            try:
+                rel = own_path.resolve().relative_to(root.resolve()).as_posix()
+            except ValueError:
+                loss.append(f"LOSS {name}: baseline L{n} superseded by {d}: its source {own_path} is outside the repo, so no commit can be read")
+                continue
+            proof = _superseded_proof(baseline[n - 1], d, ledger["_rows"][d], root, rel, own, "shared" in ledger)
+            loss += [f"LOSS {name}: baseline L{n} {msg}" for msg in proof]
     return loss
+
+
+def _vanished_proof(line: str, label: object, ids: dict[str, dict], scopes: dict[str, str]) -> list[str]:
+    """W-34d76a7a: a vanished line labelled `rule:`/`duplicate-of:` owes what an entry's own baseline owes
+    (D-1236, D-1238, D-1240) — never just a live id. Proven by a named `_lintable` entry whose baseline IS the
+    line (its own lints already cover or classify every clause under D-1236, so nothing prints twice), else by `_lint` over a probe: the
+    line's unit as baseline, the named entries' phrases pooled (`_covered` stays per phrase) and their sections
+    joined by a blank line (so no ban span reads across two sections), classed `ban` (C stays with each
+    carrier's own entry). A named entry whose file or section is missing is already a LOSS: nothing more here.
+    COBRA (D-253): the cheapest pass left is an equal-baseline entry labelling every non-ban clause `narrative`
+    — D-1236's own residue, which the author-blind audit pair reads."""
+    if not isinstance(label, dict) or "superseded" in label:
+        return []  # unlabelled and `narrative` lines are `_check`'s own reads above; `superseded` is `_superseded_proof`'s
+    named = label.get("rule") or [label["duplicate-of"]]
+    if any(i not in scopes for i in named):
+        return []
+    unit = line.split(" ¦ ", 1)[-1]
+    same = _deemph(normalise(unit))
+    if any(_lintable(ids[i]) and _deemph(normalise(ids[i]["baseline"])) == same for i in named):
+        return []
+    probe = {"id": "", "class": "ban", "baseline": unit, "text": [ph for i in named for ph in ids[i].get("text") or []]}
+    how = f"rule {named}" if "rule" in label else f"duplicate-of {named[0]}"
+    return [f"vanished as {how} — lint {lint} — {msg}" for lint, msg in _lint(probe, "\n\n".join(scopes[i] for i in named), "")]
+
+
+# W-5dc4163d: the tag every lean ledger's baseline is cut at, and a commit token in a D-row — the SHA half of `_ID`,
+# bounded so a W-item's hex (`W-47d58d2c`) is never read as a commit
+LEAN_BASELINE_TAG = "lean-baseline-2026-10-25"
+_SHA = re.compile(r"(?<![\w-])(?=[0-9]*[a-f])(?=[a-f]*[0-9])[0-9a-f]{7,64}(?![\w-])")
+_GIT_CONTEXT = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES")
+
+
+class _GitUnreadableError(Exception):
+    """Git could not answer: the label is a LOSS naming the cause, never a pass."""
+
+
+def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess:
+    """``git -C root …``. An enclosing repo never answers (the ceiling is root's parent), an inherited git context (a
+    hook's GIT_DIR) never redirects it, and no replace ref substitutes an object."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_CONTEXT}
+    env["GIT_CEILING_DIRECTORIES"] = str(root.resolve().parent)
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    try:
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, timeout=30, env=env)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise _GitUnreadableError(f"git {args[0]} failed ({type(exc).__name__})") from exc
+
+
+def _git(root: Path, *args: str) -> bytes:
+    """The command's stdout; any non-zero exit raises ``_GitUnreadableError``."""
+    r = _run_git(root, *args)
+    if r.returncode != 0:
+        raise _GitUnreadableError(f"git {args[0]} exited {r.returncode}")
+    return r.stdout
+
+
+def _git_yes(root: Path, *args: str) -> bool:
+    """A yes/no git question (`merge-base --is-ancestor`, `rev-parse --verify -q`): exit 0 is yes, 1 is no, and any
+    other exit raises — so a git failure never reads as a "no" a guard would pass on."""
+    r = _run_git(root, *args)
+    if r.returncode not in (0, 1):
+        raise _GitUnreadableError(f"git {args[0]} exited {r.returncode}")
+    return r.returncode == 0
+
+
+def _superseded_proof(line: str, d: str, row: str, root: Path, rel: str, own: str, shared: bool) -> list[str]:
+    """W-5dc4163d: a vanished line labelled `superseded: D-n` is carried only when master changed it after the lean
+    baseline tag. Master's current source (`origin/master`, else `master`) must hold the file and no longer hold the
+    line; the D-row must name a commit with one parent, not an ancestor of LEAN_BASELINE_TAG, an ancestor of master,
+    whose parent holds the line and which removed it; and master's replacement is carried: every unit master's current
+    source holds that the tag's source lacked (the whole file — a replacement may move headings) is in the ledger's own
+    text. (load_ledger already required the row to name the source.) Every git failure is a LOSS naming its cause.
+    COBRA (D-253): the cheapest pass left is a row naming a one-parent commit that a merged lean slice made on master,
+    its replacement in the lean text — the counter is the reviewed D-row itself, and `summary()` prints the
+    `superseded` split the audit pair reads."""
+
+    def text(ref: str) -> str | None:
+        if not _git(root, "ls-tree", "--name-only", ref, "--", rel).strip():
+            return None  # the path is absent at this commit
+        t = _git(root, "show", f"{ref}:{rel}").decode("utf-8", errors="replace")
+        return t if shared else own_text(t)
+
+    try:  # with discovery stopped at root's parent, a repo found here is root's own
+        if not _git_yes(root, "rev-parse", "--verify", "-q", f"{LEAN_BASELINE_TAG}^{{commit}}"):
+            return [f"superseded by {d}: the tag {LEAN_BASELINE_TAG} is not in the history at {root}"]
+        master = next((m for m in ("origin/master", "master") if _git_yes(root, "rev-parse", "--verify", "-q", f"{m}^{{commit}}")), None)
+        if master is None:
+            return [f"superseded by {d}: no master ref (origin/master or master) at {root}"]
+        now = text(master)
+        if now is None:
+            return [f"superseded by {d}: master no longer holds {rel}, so its replacement cannot be read"]
+        if vanished([line], now) != [1]:
+            return [f"superseded by {d}: master's current {rel} still holds this line — {line[:120]}"]
+        removed = False
+        for tok in dict.fromkeys(_SHA.findall(row)):
+            if not _git_yes(root, "rev-parse", "--verify", "-q", f"{tok}^{{commit}}"):
+                continue  # not a commit here, or an ambiguous short sha
+            c = _git(root, "rev-parse", "--verify", "-q", f"{tok}^{{commit}}").decode().strip()
+            if len(_git(root, "rev-list", "--parents", "-n", "1", c).split()) != 2:
+                continue  # a merge's diff spans a whole branch; a root commit has no before
+            if _git_yes(root, "merge-base", "--is-ancestor", c, LEAN_BASELINE_TAG) or not _git_yes(root, "merge-base", "--is-ancestor", c, master):
+                continue  # not a change that landed on master after the tag
+            before, after = text(f"{c}^"), text(c)
+            if before is not None and vanished([line], before) == [] and (after is None or vanished([line], after) == [1]):
+                removed = True
+                break
+        if not removed:
+            return [f"superseded by {d}: no commit {d} names removed this line on master after {LEAN_BASELINE_TAG} — {line[:120]}"]
+        at_tag = text(LEAN_BASELINE_TAG)
+    except _GitUnreadableError as exc:
+        return [f"superseded by {d}: no git history readable at {root} ({exc})"]
+    left = Counter(keys(at_tag or ""))
+    added = []
+    for k in keys(now):
+        if left[k]:
+            left[k] -= 1
+        else:
+            added.append(k)
+    if missing := [added[i - 1] for i in vanished(added, own)]:
+        return [f"superseded by {d}: master's replacement is not in the ledger's own text — {m[:120]}" for m in missing]
+    return []
 
 
 def ledgers(rules: Path | None = None) -> list[Path]:
@@ -597,8 +1041,8 @@ def losses(render_dir: Path, root: Path, src_dir: Path, rules: Path | None = Non
 
 
 def summary(rules: Path | None = None) -> list[str]:
-    """One line per ledger — entry count and the vanished-label split — never raising (kaizen's
-    ledger-size trigger and the classifier seats read it)."""
+    """One line per ledger — entry count, the class and vanished-label splits and the `provenance` clause count —
+    never raising (kaizen's ledger-size trigger, the classifier seats and the audit pair read it)."""
     lines = []
     try:
         paths = ledgers(rules)
@@ -614,7 +1058,13 @@ def summary(rules: Path | None = None) -> list[str]:
                 v if isinstance(v, str) else (next(iter(v)) if isinstance(v, dict) and v else "?")
                 for v in (van.values() if isinstance(van, dict) else [])
             )
-            lines.append(f"LEDGER {path.name}: {n} entries · vanished {dict(sorted(split.items()))}")
+            cls = Counter(entry_class(x) for x in entries if isinstance(x, dict)) if isinstance(entries, list) else {}
+            prov = sum(  # D-1255: every receipt prints the provenance count; the audit pair reads each one
+                list(cl.values()).count("provenance")
+                for x in (entries if isinstance(entries, list) else [])
+                if isinstance(x, dict) and isinstance(cl := x.get("clauses"), dict)
+            )
+            lines.append(f"LEDGER {path.name}: {n} entries · classes {dict(sorted(cls.items()))} · vanished {dict(sorted(split.items()))} · provenance {prov}")
         except Exception as exc:  # noqa: BLE001 — a report line, never a crash
             lines.append(f"LEDGER {path.name}: unreadable — {type(exc).__name__}")
     return lines

@@ -18,6 +18,7 @@ from fabrik.drivers.preflight import (
     verify_host_reachable,
 )
 from fabrik.drivers.ssh import JumpConfigError, _ssh_host
+from fabrik.env_file import parse_env
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer_ssh import SSHDeployer, _host_env, app_dir
 from fabrik.orchestrator.destroyer import _http_status
@@ -432,16 +433,19 @@ class DeploymentOrchestrator:
         env_file = project_path / ".env"
         if env_file.exists():
             try:
-                for line in env_file.read_text().splitlines():
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        key, value = line.split("=", 1)
-                        key = key.strip()
-                        value = value.strip()
-                        if key in from_env and key not in all_secrets:
-                            all_secrets[key] = value
+                # compose's dotenv grammar (quotes, escapes, `export`, ` #` comments) — the same
+                # codec that writes the deployed file; `str()` makes the value a literal secret.
+                parsed = parse_env(env_file.read_text())
+            except ValueError as e:
+                # Fail closed: one malformed line would otherwise drop EVERY from_env secret
+                # behind a warning and deploy without them. The message names key and line only.
+                raise ValidationError(f"cannot read {env_file}: {e}") from None
             except Exception as e:
                 logger.warning("Failed to read .env file: %s", e)
+                parsed = {}
+            for key, value in parsed.items():
+                if key in from_env and key not in all_secrets:
+                    all_secrets[key] = str(value)
 
         for key in from_env:
             if key not in all_secrets:
@@ -455,7 +459,9 @@ class DeploymentOrchestrator:
         for env_var, file_path in from_file.items():
             if env_var not in all_secrets:
                 try:
-                    all_secrets[env_var] = Path(file_path).read_text()
+                    # One trailing newline is the file's, not the secret's (`echo secret > file`;
+                    # read_text already turns CRLF into LF); any other whitespace is kept.
+                    all_secrets[env_var] = Path(file_path).read_text().removesuffix("\n")
                 except FileNotFoundError:
                     logger.warning("File not found for secret %s: %s", env_var, file_path)
                 except Exception as e:

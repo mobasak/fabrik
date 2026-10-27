@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -1864,8 +1865,15 @@ def test_the_2026_09_06_stall_an_account_seconds_past_reset_gets_a_refresh_slot(
     groups = {e: [{"mtime": now - 10}] for e in emails}
     cache = {e: _cache_row(now - 300, now + 3600) for e in emails}  # all fresh, none rolled
     cache["ob@test"] = _cache_row(now - 300, now - 48)  # rolled 48s ago
-    # every account pinged 5 minutes ago => _refresh_ping_due is False for ALL of them
+    # every account pinged 5 minutes ago => _refresh_ping_due is False for ALL of them; the stamps
+    # are REAL, so the obsolete gate (W-010bb0d9) is proven on "pinged before the roll", not on
+    # an absent stamp
     monkeypatch.setattr(cr, "_refresh_ping_due", lambda email, n: False)
+    (tmp_path / "state").mkdir(exist_ok=True)
+    for e in emails:
+        stamp = cr._fleet_refresh_stamp(e)
+        stamp.write_text("")
+        os.utime(stamp, (now - 300, now - 300))
     slots = cr._ping_slots(groups, cache, now)
     assert slots == {"ob@test"}, (
         f"the just-reset account must get the refresh slot, and only it; got {slots}"
@@ -3182,3 +3190,13 @@ def test_each_picture_row_carries_its_own_flip_line(monkeypatch):
     pic = cr._fleet_picture(rows, "act", NOW)
     trips = {r["email"]: r["trip"] for r in pic["accounts"]}
     assert trips == {"act@ocoron.com": cr._rotate_threshold(), "ob@ocoron.com": 98.0}, trips
+
+
+def test_fleet_dirs_leaves_out_the_backups_park_root(tmp_path, monkeypatch):
+    """W-f7772267 (a): `backups` is the fleet's park root (`--merge-shared` parks copies there, `--new-dir backups` is
+    refused), never an account, so `_fleet_dirs` must not list it: it read as a phantom pending-login account on
+    `--status` beside the real ones. The `active` pointer stays out too, and every real account dir stays in."""
+    root = _mk_fleet(tmp_path, monkeypatch, slugs=("alpha", "beta"))
+    (root / cr._PARK_ROOT_NAME / "tasks-merged-from").mkdir(parents=True)
+    (root / cr._ACTIVE_POINTER_NAME).symlink_to(root / "alpha", target_is_directory=True)
+    assert [d.name for d in cr._fleet_dirs()] == ["alpha", "beta"]

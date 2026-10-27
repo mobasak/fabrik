@@ -1,0 +1,26 @@
+{
+  "block_digest": "dcaaed5131ebf4d251dbf9a4f8533e0c2247b0b4a4a4ce054b9705c012d5e444",
+  "blocked_by": [],
+  "created": "2026-10-27T08:42:19.668922Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-8f957e4b",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "6c818dc98bb8a36c78557a45109f8706884b8dd31cf1f1f948591ecd5f34164e"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you restart the rotation unit? Run `systemctl --user reset-failed fabrik-rotate.path && systemctl --user start fabrik-rotate.path`, then confirm with `bash /opt/fabrik/scripts/sysadmin/install_rotate_unit.sh --check`.",
+  "status": "awaiting-operator",
+  "title": "Will you restart the rotation unit? Run `systemctl --user reset-failed fabrik-rotate.path && systemctl --user start fabrik-rotate.path`, then confirm with `bash /opt/fabrik/scripts/sysadmin/install_rotate_unit.sh --check`."
+}

@@ -39,9 +39,6 @@ def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> 
     'never a hand-listed path set' (the rule the rows asked for is gone), or restate the recipe's commands
     here (two sources of truth) — each fails one assertion below."""
     src = _norm(SRC)
-    # its own sentence, after the SHAPE-keyed list ends — spliced into that list, the SHAPE filter reads as
-    # governing it (round-1 Sonnet finding)
-    assert "runs found missing. Its § Seat isolation applies whole, whatever the shape" in src
     sentence = _section(
         src,
         "Its § Seat isolation applies whole, whatever the shape",
@@ -63,7 +60,6 @@ def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> 
     assert "/opt/fabrik/.claude/workflows/" not in sentence, (
         "a source must never point seats at the hub copy"
     )
-    assert "not restated here" in sentence
     for restatement in ("git archive", "ls-tree", "overlay", "chdir", "unless"):
         assert restatement not in sentence, (
             f"{restatement!r}: the recipe belongs to the workflow, not here"
@@ -81,14 +77,6 @@ def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> 
     iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
     assert "The recipe names its roots by what the tests import" in iso, (
         "the pointer's target moved"
-    )
-
-
-def test_escape_variants_are_asked_from_round_one() -> None:
-    """Row 1791496929: the ask sat under the closing reader only, so round 1 never attacked the guard."""
-    assert (
-        "owes every round's readers — round 1's first — and that INDEPENDENT reader the guard or rule by NAME"
-        in (_norm(SRC))
     )
 
 
@@ -124,10 +112,6 @@ def test_a_guard_brief_states_its_model_boundary() -> None:
     """Row 1791839280."""
     src = _norm(ROOT / "commands" / "_sources" / "fabrik-review-scoped.md")
     assert "an explicit ASK for its ESCAPE VARIANTS" in src
-    assert (
-        "together with its MODEL BOUNDARY, the inputs it is meant to judge, so a variant outside that boundary is `RECORDED — by design (D-785)` in round 1"
-        in src
-    )
     import sys
 
     sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
@@ -148,7 +132,6 @@ def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
 def test_the_closing_reader_clause_cites_d118_not_d066() -> None:
     """W-a8361c19 residual 5: the clause pinned the asymmetry on D-066 (a finding-shape triage row); D-118 bound independent recall here."""
     text = _norm(SRC)
-    assert "Before D-118 that was the asymmetry between the two commands" in text
     assert "D-066 named only the heavy command" not in text
 
 
@@ -195,8 +178,6 @@ def test_both_review_commands_name_surface_add_for_a_pre_start_file() -> None:
         "<path>`: a running review's window opens at its `start`. The verb widens the TOP record only, so it is "
         "refused under a nested non-review `start` (every refusal: `docs/reference/command-run-protocol.md`)."
     )
-    scoped = _norm(SRC)
-    assert sentence in _section(scoped, "1. **Scope = this session's own work:**", "2. **Arm:**")
     review = _norm(ROOT / "commands" / "_sources" / "fabrik-review.md")
     assert sentence in _section(
         review, '--surface "<what this run is OVER', "Then, for the whole run:"
@@ -221,15 +202,6 @@ def test_the_lead_runs_the_leak_check_around_every_scoped_pass() -> None:
     is pinned with its body, so the sentence moved into inactive text or the bullet emptied reds. The row's other half
     (a seat cds into scratch in the same call) needs no edit: the SEAT_ISOLATION brief and fabrik-reviewer.md already
     require absolute scratch paths. Not seen: the lead skipping the check; the seats' transcripts own that."""
-    sentence = (
-        "The lead runs the **Leak check** of `/fabrik-review` (its bullet of that name) before every dispatch and after"
-        " each pass returns, since a seat can write to the shared tree."
-    )
-    scoped = _norm(SRC)
-    # live text only: a comment wrapped around the sentence in place would keep it inside the section
-    live = re.sub(r"<!--.*?-->", "", scoped)
-    assert sentence in _section(live, "**The partition rule of", "6. **Gate + close:**")
-    assert scoped.count(sentence) == 1
     # live text only: an HTML comment around the bullet would leave the pointer aimed at inactive text
     review = re.sub(r"<!--.*?-->", "", _norm(ROOT / "commands" / "_sources" / "fabrik-review.md"))
     assert (
@@ -261,10 +233,6 @@ def test_term_edit_pin_clause_does_not_license_a_mid_window_edit() -> None:
     files' in 14 of its 17 includers. Panel split (Opus parity, Fable reword); the repo's own rule against copying
     a fragment's rule into another settles it as a reword that states WHEN."""
     te = _norm(ROOT / "commands" / "_fragments" / "term-edit.md")
-    assert (
-        "never touch the pin while its seats run (the seats read the pin; you edit the working tree once every seat"
-        " has returned and you have read the pass)" in te
-    )
     assert "(the seats read the pin; you edit the working tree)" not in te
 
 
@@ -331,16 +299,9 @@ def test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds() -> N
     catalogue's both-directions rule verbatim. Mutants: drop either clause; per-file bound; drop the catalogue rule."""
     src = re.sub(r"\s+", " ", SRC.read_text())
     assert (
-        "Seats read the copies, never the live tree; in a brief you write yourself (the workflow writes its own),"
-        " pinned files totalling under 8 KB are also pasted whole beside their line counts, so a seat whose Read or"
-        " `cat` of a copy is refused still has the bytes — the copy stays the authority, and a seat that read the"
-        " paste says so, states whether each line count matches and is judged on that count, not re-dispatched for lacking a"
-        " hash;" in src
-    )
-    assert (
         "instead of seeding own-fix rounds. The same ASK carries the probe catalogue's rule verbatim (§ Before the"
         " first pin): \"enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red —"
-        ' committing the positive/negative probe list beside it". The ASK is the' in src
+        ' committing the positive/negative probe list beside it"' in src
     )
     cat = re.sub(r"\s+", " ", (ROOT / "commands/_fragments/review-probe-catalogue.md").read_text())
     quote = "enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red — committing the"
@@ -350,78 +311,6 @@ def test_a_small_pin_is_pasted_inline_and_the_escape_ask_hunts_false_reds() -> N
     assert src.count("totalling under 8 KB") == 1 and src.count("false green and false red") == 1
 
 
-def test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_import_brief_is_isolated_too() -> (
-    None
-):
-    """Rows 1792082763 and 1792081436 (fleet), the 15th and 16th on this subject: the command pointed at the
-    workflow's PIN_IMPORT/PYTEST_PINS recipe but never told a lead writing a brief by hand to send seats to it,
-    so a fleet brief used `--rootdir=<copy>` and imported the live checkout's package, and seats retried
-    importing a pinned script. § Seat isolation also bound only briefs that RUN TESTS, not ones that import
-    pinned code. Mutants: drop the sentence; drop 'or imports pinned code' from the catalogue header or the
-    command; rename a placeholder inside PIN_IMPORT or PYTEST_PINS, or let PIN_IMPORT stop deriving ROOTS."""
-    cat = _norm(CAT)
-    iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
-    assert (
-        "A brief the lead writes itself tells each seat to read and follow `PIN_IMPORT` — and `PYTEST_PINS` when"
-        " it runs pytest — in `.claude/workflows/fabrik-review-loop.js`, and gives the values that recipe's"
-        " `${args.base_sha}` and `${args.pins_dir}` stand for (and `${args.base_pin_dir}` when the lead wrote a"
-        " base copy) and the seat's own folder as `SCRATCH`; the seat derives `ROOTS` as the recipe says, plus the roots this"
-        " section's next sentence has the brief add, and the brief carries no import or pytest recipe of the"
-        " lead's own" in iso
-    )
-    assert (
-        "§ Seat isolation excepted: it applies whole in every brief that runs tests or imports pinned code"
-        in cat
-    )
-    assert (
-        "Its § Seat isolation applies whole, whatever the shape, in every brief that runs tests or imports pinned"
-        " code:" in _norm(SRC)
-    )
-    js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text().splitlines()
-    starts = {
-        name: next(n for n, line in enumerate(js) if line.startswith(f"const {name} = "))
-        for name in ("PIN_IMPORT", "PYTEST_PINS", "BASE_PIN")
-    }
-    # each recipe is one `const` line; BASE_PIN's ternary carries its text on the line after it
-    consts = {name: js[n] for name, n in starts.items()}
-    consts["BASE_PIN"] += js[starts["BASE_PIN"] + 1]
-    # each placeholder the sentence names, read inside the constant that carries it — the same tokens appear in
-    # other constants of the file, so a whole-file check stays green when the recipe drops one (round-1 finding);
-    # ROOTS is read where the archive step uses it, since its prose mention survives a dropped use (round 2)
-    for name, tokens in (
-        (
-            "PIN_IMPORT",
-            (
-                "${BASE_PIN}",
-                "${args.pins_dir}",
-                "SCRATCH/arch.tar ${args.base_sha} ROOTS",
-                "ROOTS every",
-            ),
-        ),
-        ("PYTEST_PINS", ("${args.base_sha}",)),
-        ("BASE_PIN", ("args.base_pin_dir", "cp -r ${args.base_pin_dir} SCRATCH/arch")),
-    ):
-        for token in tokens:
-            assert token in consts[name], (
-                f"{name} lost {token!r}, which the catalogue sentence names"
-            )
-
-
-def test_a_shell_written_brief_quotes_its_backticks() -> None:
-    """Row 1792291162, the second sighting of HELD quote-heredoc-when-writing-briefs: a brief or Workflow args file
-    written through an unquoted heredoc runs its backticks, and an escaped backtick in a grep pattern is GNU grep's
-    start-of-text anchor, so it matches nothing mid-pattern and the wrong line at its start (round 1, Opus probe).
-    It sits beside the delta-brief clause, not between 'lacking a hash;' and 'before you adjudicate the pass'."""
-    src = _norm(SRC)
-    clause = (
-        "(01M236V84, 01M23ESF5); a brief or Workflow args file you write is written with the Write tool, or through a"
-        " quoted heredoc (`<<'EOF'`) where a shell must write it, so no backtick in it runs, and a check command it"
-        " hands a seat writes a backtick in a grep pattern unescaped inside single quotes (a pattern that also holds"
-        " `'` splices it in as `'\\''`), since GNU grep reads a backslash-backtick as a start-of-text anchor: escaped,"
-        " the pattern matches nothing mid-pattern and the wrong lines at its start; a delta seat's brief"
-    )
-    assert src.count(clause) == 1
-    assert "lacking a hash; before you adjudicate the pass" in src
 
 
 def test_archive_roots_are_read_from_every_path_the_tests_reach() -> None:
@@ -434,147 +323,6 @@ def test_archive_roots_are_read_from_every_path_the_tests_reach() -> None:
     ) in _norm(SRC)
 
 
-def test_a_mutant_is_killed_against_whole_test_files_after_each_fix() -> None:
-    """Row 1792406410: a mutation runner's `-k` filter cut before a fix added a test never ran that test, so a
-    re-run mutant read as killed or surviving on a stale selection. W-33b84ff0: rows 1792401243, 1792273324,
-    1792034388, 1791852372 and 1791939536 found a new script's or a fix's guards untested over several closing passes
-    while the bullet asked one mutant per clause only, so it now asks one per guard it adds or alters, quoting
-    term-coverage rule (4)'s removed-guard proof rather than restating it. The whole bullet is pinned by equality, so
-    an added licence or a negation fails here, and the quote is checked against rule (4)'s own text."""
-    tc = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    rule4 = tc[tc.index("(4) **A GRADER IS PROVEN") : tc.index("(5) **A GRADER OBSERVES")]
-    assert (
-        "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an expression inside it"
-        in rule4
-    )
-    pin = _section(_norm(CAT), "## Before the first pin", "## The brief's hunt lines")
-    assert (
-        pin.count("- One mutant per clause") == 1 and pin.count("- Run the repo's structural") == 1
-    )
-    bullet = _section(pin, "- One mutant per clause", "- Run the repo's structural").strip()
-    assert bullet == (
-        "- One mutant per clause the edit states and one per guard it adds or alters (that guard removed —"
-        ' term-coverage rule (4): "each grader is proven it CAN fail by REMOVING THE GUARD, never by breaking an'
-        ' expression inside it"), written as a literal before/after (an ordering claim names its mutant); re-run every prior mutant and the reproducing probe after each fix (a seat re-running a delta'
-        " brief's mutant ids too) against every test file the change touched or added, collected again after the fix"
-        " with no selection that leaves a test out (`-k`, node ids, `--lf`, `--deselect`, `-m`, `--ignore`) beyond"
-        " term-coverage rule (4)'s environment-bound deselection (§ Seat isolation's exact node ids are for a seat's"
-        " other test runs); probe each new grader with its mutant."
-    ), bullet
-
-
-def test_a_fix_finds_the_rules_home_before_drafting_its_sentence() -> None:
-    """W-a634be1c: step 3's point-or-quote rule and the catalogue's restatement sweep were cited by 7+ answered rejects
-    while leads kept drafting a sentence first and finding the rule's home only at review. The search now comes first,
-    in its own sentence between its two neighbours, pointing at the catalogue's Sweep rather than restating its
-    method, pinned by equality so a licence added inside that span fails here. Limit of a text pin: it cannot show the
-    search ran before the draft — the report line it requires is what a seat checks."""
-    step3 = _section(_norm(SRC), "3. **Pass 1 (wide):**", "4. **Record each pass:**")
-    head, tail = "config fix owes none. ", "Every checkable claim any fix adds"
-    assert step3.count(head) == 1 and step3.count(tail) == 1
-    span = step3[step3.index(head) + len(head) : step3.index(tail)]
-    assert span == (
-        "Before a fix writes a sentence that states a rule (a doc or command sentence, a code comment, a commit"
-        " message), the probe catalogue's Sweep search for a rule already stated elsewhere (its § Prose and docs fixes)"
-        " runs first, on the terms of the rule the sentence would state, never after the draft, and your report names"
-        " its terms and hits, or that it found none and the new sentence is the rule's home; what it finds is held to"
-        " this step's rule below for something already stated. "
-    ), span
-    # the rule it hands off to is the point-or-quote sentence, not the execute-or-delete one between them
-    assert "Something already stated, in the code" in step3[step3.index(tail) :]
-
-
-def test_a_delta_brief_carries_the_bounded_hops_reader_run_inputs() -> None:
-    """W-e2ff8f36: D-1047's reader run (a reader passing on the previous round's pin and failing on it with only the fix
-    hunks applied) had no inputs in any brief. § Seat isolation now names them, has the lead state that the two pins
-    differ by the round's fix alone (committed or not), and runs each reader once on each pin by the seat's archive
-    recipe, pinned whole by equality; both review commands point at it; step 4's own-fix pin diff waits on the same
-    check. The `unverified` route the bullet sends a barred reader to is checked to sit in § Loop bookkeeping."""
-    cat = _norm(CAT)
-    iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
-    assert iso.count("- A delta brief also names") == 1
-    bullet = iso[iso.index("- A delta brief also names") : iso.index("- No `uv`/`pip`")].strip()
-    assert bullet == (
-        "- A delta brief also names the previous pass's `base_sha` (for the working-tree pin "
-        "`/fabrik-review-scoped` step 5 takes, the HEAD its `MANIFEST.json` records as `base_sha`, read back, "
-        "never verified, since no md5 manifest covers it, and null in a repo with no commit; for any other "
-        "pin the brief names the commit itself, since one taken `--base` records that commit (else its "
-        "`--from` ref) and one written before `base_sha` was recorded has none) and pins_dir, for the bounded "
-        "hop's reader run (a reader passing on the previous round's pin and failing on it with only the fix "
-        "hunks applied). The lead first diffs the two pins' files (`diff -r -x change.diff -x 'MANIFEST*' "
-        "<previous pins_dir> <this pins_dir>`) and the two `base_sha`s (`git diff --name-only <previous "
-        "base_sha> <this base_sha>`), and states in the brief that the difference is the round's fix alone, "
-        "committed or not, naming any other hunk or path, which leaves every reader it touches `unverified` "
-        "(each `Only in` line, a path one pin holds and the other does not, is named too, and classed from "
-        "`git diff --name-status <previous base_sha> <this base_sha>` for what the fix committed and `git "
-        "status --short --untracked-files=all --ignored -- <path>` for what it did not (a fix can be both), "
-        "since a removed path cannot be pinned and `change.diff` carries no entry for it: a path the fix "
-        "added, modified, removed or renamed is the fix's own, and its readers run on both pins, a removal or "
-        "rename whose old path this pass's `base_sha` still holds leaving those readers `unverified`; any "
-        "other path pinned in only one pass is another path; a directory line covers every listed path under "
-        "it; a fix's own path's readers are the tests the `tests/` grep above finds and, for a document, the "
-        "citers the heading-or-term grep below finds, and an importer outside `tests/` is named and left "
-        "`unverified`); the seat then runs each reader once on each pin by the `PIN_IMPORT`/`PYTEST_PINS` "
-        "recipe with that pin's own `base_sha`, and greps a heading or term another section cites over each "
-        "pin's tree, where its citers live; a reader the pre-pin section keeps the lead's (\"one that writes a "
-        "live store, sends, commits, deploys or reaches a host\") takes § Loop bookkeeping's `unverified` "
-        "route; and a reader that fails on the previous pin is no evidence of a break, and is `RECORDED` with "
-        "its destination."
-    ), bullet
-    pre = _section(cat, "## Before the first pin", "## The brief's hunt lines")
-    assert (
-        "one that writes a live store, sends, commits, deploys or reaches a host stays the lead's"
-        in pre
-    )
-    ledger = (ROOT / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
-    row = ledger[ledger.index("| D-1051 |") :]
-    row = row[: row.index("\n")]
-    assert (
-        "§ Loop bookkeeping's `unverified` route" in row
-        and "§ Seat isolation's existing `unverified`" not in row
-    )
-    assert iso.index("The brief names the fix as `git show <sha>`") < iso.index(
-        "- A delta brief also names"
-    )
-    route = "a refuter that needs a forbidden surface marks it `unverified` naming the surface, and the lead executes it"
-    assert route in cat[cat.index("## Loop bookkeeping") :]
-    assert "git apply" not in bullet
-    src = _norm(SRC)
-    pointer = (
-        "A delta pass's brief also names the previous pass's `base_sha` and pins_dir, as the probe catalogue's § Seat"
-        " isolation says."
-    )
-    assert src.count(pointer) == 1
-    step5 = _section(src, "5. **Loop:**", "6. **Gate + close:**")
-    assert pointer in step5
-    step4 = _section(src, "4. **Record each pass:**", "5. **Loop:**")
-    assert (
-        "shown by diffing that round's pin against the next pass's pin once the lead has stated the difference is that"
-        " round's fix alone, as the probe catalogue's § Seat isolation says, or for a broken reader by"
-        in step4
-    )
-
-
-def test_a_rule_or_recipe_a_fix_adds_runs_over_round_zeros_input_classes_before_the_pin() -> None:
-    """Rows 1792430884 and 1792427348: leads ran a new classification rule and a new seat recipe on one case, and
-    seats met the rest. Step 3's execute-or-delete sentence now has what a fix adds executed, with its command and
-    output in the report, on a scratch copy of what it reads (a scratch repo, or § Seat isolation's archive or
-    clone with the pins laid over it for a seat recipe), over the input classes term-coverage's round zero gives its shape; it stays inside that
-    sentence, so the pointer-or-quote sentence still follows "a re-read is not execution." Limit of a text pin: it
-    cannot show the run happened, nor add an input class round zero lacks."""
-    step3 = _section(_norm(SRC), "3. **Pass 1 (wide):**", "4. **Record each pass:**")
-    head = "Every checkable claim any fix adds"
-    end = "a re-read is not execution."
-    sentence = step3[step3.index(head) : step3.index(end) + len(end)]
-    assert (
-        "a rule, recipe, command or guard a fix adds being executed so before the pin, on a scratch copy of what it"
-        " reads (a scratch repo for one that reads diff output, the archive or clone the probe catalogue's § Seat"
-        " isolation stages, with the pins laid over it, for a seat recipe), over the input classes round zero of"
-        " `/opt/fabrik/commands/_fragments/term-coverage.md` gives its shape" in sentence
-    ), sentence
-    zero = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert "**Round zero — the orchestrator's OWN pre-pin probe" in zero
-    assert "the fix's own INPUT space is enumerated and executed before the pin" in zero
 
 
 def test_a_seat_never_disguises_a_refused_act() -> None:
@@ -629,72 +377,15 @@ def test_a_probed_count_is_never_replaced_by_a_seats_re_derivation() -> None:
     cov = re.sub(r"\s+", " ", (frag / "term-coverage.md").read_text())
     edit = re.sub(r"\s+", " ", (frag / "term-edit.md").read_text())
     assert (
-        "never replaced by a finder's own re-derivation: a finder that re-derives the claim, as the closing pass does,"
-        " and gets a different answer raises the difference as a candidate." in cov
-    )
-    assert (
         "never replaced by a seat's own re-derivation: a seat that re-derives the claim, as this fragment's RE-DERIVE"
         " rule asks, and gets a different answer raises the difference as a candidate." in edit
+    )
+    assert (
+        "never replaced by a finder's own re-derivation: a finder that re-derives the claim, as the closing pass does,"
+        " and gets a different answer raises the difference as a candidate." in cov
     )
     for text in (cov, edit):
         assert (
             "never re-derived by a finder" not in text and "never re-derived by a seat" not in text
         )
 
-
-def test_a_fix_reshaping_a_rule_subject_lists_the_old_cases_before_drafting() -> None:
-    """Row 1792730405 (a recurrence of held fix-narrowed-input-strands-defensive-guards): a round-1 fix split a rule's
-    subject, and the cases the new wording no longer covered cost the next two rounds. The Sweep bullet, read before
-    the draft, quotes /fabrik-review's replaced-form question and its enumeration rule verbatim, and names the record
-    each command keeps the list in."""
-    cat = re.sub(r"\s+", " ", CAT.read_text())
-    question = "does the new form still hold EVERY shape the form it replaces held"
-    quote = (
-        "the shapes enumerated from the OLD form before the fix is drafted, never from the new one"
-    )
-    assert (
-        "held to `/fabrik-review-scoped` step 3's rule for what is already stated; a fix that narrows, widens or splits"
-        " a rule's subject is held to `/fabrik-review`'s \""
-        + question
-        + '", with "'
-        + quote
-        + '": here each case'
-        " no new clause covers, two now cover or only the new wording reaches, listed with where it now lands or, with"
-        " its reason, that it is dropped on purpose, where your command records the fix (`/fabrik-review`'s Pass Ledger `method:` cell,"
-        " `/fabrik-review-scoped`'s report);"
-    ) in cat
-    review = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text())
-    assert question in review and quote in review
-
-
-def test_a_committed_surface_is_pinned_from_its_commit_by_its_shape() -> None:
-    """Rows 1792829562, 1792779119, 1792774372: three leads pinned a surface they had already committed with step 5's
-    working-tree recipe and got an empty change.diff, because the --from/--base rule lives only in the catalogue's
-    § Seat isolation, which a docs-only brief need not load. Step 5 now quotes that clause whole, adds the two shapes
-    it leaves out (a merge as the last commit; a surface partly committed, which `pin --from` refuses or misreads) and
-    names the base_sha such a pin records; the quote must stay word-for-word the catalogue's."""
-    rule = (
-        "a fix already committed is pinned with `--from <its last commit>`, plus `--base <the commit before the fix>`"
-        " when it spans several, since a working-tree pin of a committed surface prints each file `UNCHANGED` with"
-        " only a header line in its `change.diff`, and `--base` without `--from` pins the working tree, a sibling's"
-        " later commit or uncommitted edit included."
-    )
-    assert (
-        "so committing the surface leaves a pin taken before the commit valid, and an untracked file counts like a"
-        " tracked one; a working-tree pin taken after the commit is the one that goes wrong. A surface already"
-        " committed when you pin it — a docs-only change included — is pinned as the probe catalogue's § Seat"
-        ' isolation says: "'
-        + rule
-        + '" A last commit that is a merge counts as several (`--from` alone diffs against its first parent). A'
-        " surface partly committed and partly not (an untracked file included) is a shape `--from` cannot pin"
-        " — it refuses a path absent at that commit and takes a file's committed bytes, not its uncommitted edit —"
-        " so it is pinned from the working tree with `--base <the commit before the fix>`, its `change.diff` then"
-        " carrying any sibling commit to those files too. Either way the brief's `base_sha` is the one that pin"
-        " records (its `--base`, else its `--from` ref), read back from it, not a fresh `git rev-parse HEAD`. Seats"
-        " read the copies"
-    ) in _norm(SRC)
-    assert (
-        "`base_sha` = `git rev-parse HEAD` at that moment (a surface already committed takes its pin's own"
-        " `base_sha`, below), then"
-    ) in _norm(SRC)
-    assert rule in _norm(CAT)

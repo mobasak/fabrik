@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T08:53:58.013038Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-09957e81",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "code-server files.watcherExclude for **/.claude/worktrees/**, **/.tmp/**, **/node_modules/**, **/.git/objects/** (operator settings), plus an alert when fabrik-rotate.path is not active (install_rotate_unit.sh --check in the rotation tick or watchdog); measure watches before and after",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a silent box-wide stall of all rotations; one watcher-exclude list plus a liveness check",
+  "status": "open",
+  "title": "Rotation unit fabrik-rotate.path died 2026-10-27 11:12 with ENOSPC: code-server's three file-watcher processes hold 523k of 524,288 inotify watches (281k/145k/96k), so no path unit can add a watch and every builder rotation stalls silently"
+}

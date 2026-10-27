@@ -73,24 +73,10 @@ def test_the_opt_in_fallback_is_stated_in_every_copy() -> None:
         assert not missing, (clause, missing)
 
 
-_BANNER = ROOT / "commands" / "_fragments" / "no-workflow-hub.md"
-
-
 def test_every_workflow_command_carries_the_no_workflow_in_the_hub_note() -> None:
     """D-961: the override sits at the TOP of every source that launches the review-loop Workflow, so
     no lead sentence ("They run as ONE `Workflow` call …") is read before it; the note names the hub
     test and replaces every launch, later passes and relaunches included."""
-    note = _norm(_BANNER)
-    for phrase in (
-        "NO `Workflow` IN THE HUB — D-961",
-        "a session whose `git rev-parse --show-toplevel` is `/opt/fabrik` or a worktree under "
-        "`/opt/fabrik/.claude/worktrees/` — never call the `Workflow` tool",
-        "Every `Workflow` launch this command names (a round-1 pass, a delta or closing pass, a "
-        "relaunch, a wave) is replaced by its Agent-tool fallback",
-        "A workflow, permission or approval question never goes to the operator.",
-        "Outside the hub this command's text stands as written.",
-    ):
-        assert phrase in note, phrase
     launching = [
         p
         for p in sorted((ROOT / "commands" / "_sources").glob("*.md"))
@@ -144,15 +130,6 @@ def test_the_receipt_template_shows_the_gate_scope_line_the_gate_accepts_filled(
     )
 
 
-def test_a_scope_growth_remainder_round_restates_every_slice() -> None:
-    """Row 1791847183: the exit's re-verify step never said the remainder round still re-states every slice."""
-    text = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "re-verify the fixed set alone (in a slice-partitioned loop, its `round --slices` still re-states every earlier slice;"
-        in text
-    )
-
-
 def test_the_closing_method_cell_rule_matches_the_gate() -> None:
     """Row 1791860808: a closing cell worded 'method: remainder pass — re-derivation' failed the coverage gate."""
     import importlib.util
@@ -172,29 +149,6 @@ def test_the_closing_method_cell_rule_matches_the_gate() -> None:
     )
 
 
-def test_the_scope_paragraph_says_where_round_zero_and_rule_five_bind() -> None:
-    """W-eaa66f83: term-coverage's scope paragraph said every obligation 'binds all five consumers alike' while round
-    zero (:16) runs before round one and every re-dispatch of a consumer that runs delta rounds, which a certification
-    gauntlet runs only where its own text names one, and rule (5) governs only a fix to a checker or a gate."""
-    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
-    assert (
-        "binds all five consumers alike, while round zero binds only a consumer that runs delta rounds — before its round"
-        " one and before every re-dispatch — and rule (5) only a fix to a checker or a gate."
-    ) in text
-
-
-def test_rule_three_pointer_is_opened_before_the_pin() -> None:
-    """W-c9b727ab: rule (3) let a restating sentence be replaced by 'at most a pointer to where the fact is
-    re-derivable' without anyone opening that pointer, so a pointer to a place that no longer holds the fact passed as
-    a deletion. The pointer is now read before the pin, as rule (2)'s sweep reads each mirror, and recorded."""
-    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
-    assert (
-        "replaced by at most a pointer to where the fact is re-derivable (each pointer OPENED before the pin and the"
-        " fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger"
-        " row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim;"
-    ) in text
-
-
 def test_an_agent_tool_seat_gets_the_pin_import_placement() -> None:
     """Mail 01M4W155SB (intel): the Agent-tool seat list states PIN_IMPORT's sys.path placement and its -P condition
     and points at the recipe, and the pointed-at recipe still says the same."""
@@ -212,46 +166,10 @@ def test_an_agent_tool_seat_gets_the_pin_import_placement() -> None:
 def test_an_equivalent_mutant_is_discarded_never_reported_as_a_test_gap() -> None:
     """Row 1791937766: a no-op mutant (an f-string that renders the same) survived and was reported as a gap; both
     homes of the mutant rule now require a survivor to change observable behaviour first."""
-    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "shown applied by a diff of the copy against the pin, never a grep count; a survivor is reported only once"
-        " shown to change observable behaviour (an output, return value, exit code, raised exception or written state"
-        " diffed against the unmutated copy), and an equivalent mutant, a named one included, is struck with that diff"
-        " quoted, never reported as a test gap"
-    ) in cov
     assert (
         "survivors reported only once shown to change observable behaviour (an output, return value, exit code, raised"
         " exception or written state diffed against the unmutated copy), and an equivalent mutant is struck with that"
         " diff quoted, never a test gap"
-    ) in _norm(CAT)
-
-
-def test_a_fix_is_probed_against_every_shape_the_form_it_replaces_held() -> None:
-    """Rows 1792001701 and 1792016553 (fabrik-review): the replaced-form question, its enumeration rule, its three
-    shapes and its two cites are ledger entries (rq-replaced-form-*) carried by the question's own unit; what stays
-    here is the absence of a dated incident in the question and the cites' quoted sources in the catalogue and
-    term-coverage, which the ledger cannot read in another file."""
-    text = _norm(SRC)
-    para = _section(
-        text, "verify the FIX, not just the finding", "**Never apply a fix you can't stand behind"
-    )
-    head = "does the new form still hold EVERY shape the form it replaces held"
-    rest = para[para.index(head) :]
-    q = rest[: rest.index("?") + 1]
-    assert "2026-" not in q, "a rule carries no dated incident"
-    # the two cites quote their sources, which must still carry the quoted words
-    cite_cat = "what a replaced guard covered that its replacement does not"
-    cite_cov = "against its live population before it widens or narrows"
-    assert cite_cat in _norm(CAT), "the cite names a catalogue line that no longer exists"
-    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert cite_cov in cov, "the cite names a round-zero clause that no longer exists"
-    assert "; round-zero probe — <what>" in cov, (
-        "the method-cell note the question points at is gone"
-    )
-    # the closing-pass seats re-check the lead's enumeration, so the lead's step is not the only reader
-    assert (
-        "the closing-pass brief has every seat list each slice file it read, by path, and re-check every fix that"
-        " replaced a form against the shapes the OLD form held, as the fix's ledger row lists them"
     ) in _norm(CAT)
 
 
@@ -296,38 +214,6 @@ def test_the_catalogue_probes_a_deletion_surface() -> None:
     assert cat.count("deleting probe") == 1
 
 
-def test_the_fourth_pass_answers_its_recurring_subjects_in_their_homes() -> None:
-    """D-711 recurrences, 2026-10-17 pass: receipt re-made after a fix commit (1792137103, 1792184935), counts name
-    their commit (1792072266), a served build's real port (1792087244), two fix forms (1792119582, 1792111760),
-    branches a doc sentence summarises (1792088847), readers of a written field (1792081559), and the post-fix prose
-    sweep (1792085958, 1792067212, 1792084655). Mutants: drop any clause. The review-source clauses are ledger entries (rq-committed-fix-draft-init-moves-the-tip,
-    rq-seat-folder-made-with-mkdir-first, rq-vacuous-test-value-compared-with-itself, rq-brief-lessons-denominator-and-bound-port,
-    rq-two-fix-forms-recur); the catalogue clauses stay here."""
-    cat = _norm(CAT)
-    assert (
-        "trace each rationale sentence's mechanism to the code through every branch it summarises (refusals and"
-        " fallbacks, not only the happy path)"
-    ) in cat
-    assert "and of each field a fix writes, named before the closing round." in cat
-    assert (
-        "each quote a fix writes re-read against its source verbatim before the pin; each sentence a fix writes that"
-        " restates a rule already stated elsewhere, found at its source by that restated rule's terms and two rewordings"
-        " of them and then held to `/fabrik-review-scoped` step 3's rule for what is already stated; a fix that narrows,"
-        " widens or splits a rule's subject is held to `/fabrik-review`'s \"does the new form still hold EVERY shape the"
-        ' form it replaces held", with "the shapes enumerated from the OLD form before the fix is drafted, never from'
-        ' the new one": here each case no new clause covers, two now cover or only the new wording reaches, listed with'
-        " where it now lands or, with its reason, that it is dropped on purpose, where your command records the fix"
-        " (`/fabrik-review`'s"
-        " Pass Ledger `method:` cell, `/fabrik-review-scoped`'s report); every doc"
-        " line, docstring,"
-        " comment and `Raises` section stating an outcome a fix changes (when a function raises or deletes, a module that no"
-        " longer exists), found by grepping its verb and each removed name across the WHOLE file, not only its hunks,"
-        " in the round the fix lands (a `Raises` section phrased by its rule, never an enumeration that the next fix"
-        " outdates), and every comment and docstring of a function whose behaviour a fix changes re-read whole, since"
-        " a paraphrase names neither the verb nor a removed name;"
-    ) in cat
-
-
 def test_a_by_design_d_owner_is_a_ledger_row_and_the_refusals_point_at_the_gate() -> None:
     """Mail 01M4YS0EZV (W-91ef9165): infra's 66ed34d47 (D-876) made check_review_coverage V5 refuse a by-design
     D-nnn absent from the checkout's ledger. Phase 2's bullet, where the grammar is defined, now says the D-owner
@@ -359,59 +245,6 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
             "written as the readers' round-trip (a value is accepted only when every reader parses back what was "
             "written), never as a check for that one input"
         ) in text, frag
-    cc = _norm(ROOT / "commands" / "_fragments" / "close-chain.md")
-    assert (
-        "In a command that runs a review loop, a mutant or test count reaches the D-row or `CHANGELOG.md` only "
-        "after the closing pass, printed then by its producing command; a draft written mid-loop carries none."
-    ) in cc
-
-
-def test_round_zero_opens_a_pointer_from_every_repo_the_surface_ships_to() -> None:
-    """Row 1792275662 (2026-10-18), recurring held pointer-resolve-test-same-change (1790686995): a synced pack's
-    fix cited a hub-only fragment, a pointer that resolves nowhere in the fleet."""
-    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "never as a check for that one input; a pointer the fix writes — rule (3)'s included — into a file"
-        " `/opt/fabrik/scripts/fabrik_synced_manifest.py` distributes is opened with `test -e` from a synced project repo as well"
-        " as from the hub, since a path only `/opt/fabrik` holds resolves nowhere in the fleet;"
-    ) in cov
-
-
-def test_round_zero_writes_one_owner_for_a_fact_from_the_first_draft() -> None:
-    """Rows 1792277512 (recurring held status-vocabulary-single-source / checked-format-pointer: a CHANGELOG or doc
-    line restating a constant the code owns) and 1792274565 (recurring held
-    a-validator-fix-emits-the-value-its-check-tested: a fix and a neighbouring check reading one field two ways)."""
-    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "resolves nowhere in the fleet; a CHANGELOG or doc line the fix writes that would restate, count or partition"
-        " what another artifact owns is a pointer to that owner from the first draft, opened before the pin and"
-        " recorded by APPENDING `· pointer: <path:line> read` after the round-zero probe text below; a fix that reads"
-        " a field another check in the same file or call path already validates (grep the pin for the field name)"
-        " takes both reads from one helper, and the readers' round-trip above still holds; the Pass Ledger's"
-    ) in cov
-    assert "vagueness buys nothing either; (2)" in cov, "rule (1) carries no drafting rule"
-
-
-def test_rule_three_rewrites_a_heuristic_picker_at_its_first_residue() -> None:
-    """Row 1792289039 (second verdict on the held parser-residue-replace subject): a function that picks ONE item from
-    a list by heuristic is patched round after round, each patch moving the pick to the next wrong item, so rule (3)
-    rewrites it at the first delta round its site yields, after the deletion text so 'that residue' keeps its
-    antecedent, with a one-round method cell and an earlier foundation error."""
-    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
-    clause = (
-        "goes on drifting; a function under review that picks ONE item from a list by heuristic (a first match, a reason"
-        " line taken from a log) takes this rule's ONE-batch rewrite at the first delta round in which its site yields"
-        " an own-fix defect, recast, when it is not deleted, as the whole list filtered by a noise rule probed against the"
-        " list's live population like any matcher above, with a single pick taken from the filtered list where its callers need one, and its"
-        " row's method cell appends `; class rewrite — <site> (round k)`; a second yield at that site without the"
-        " rewrite is already the foundation error the next clause names for a third residue pass; a third residue pass"
-        " without a rewrite"
-    )
-    assert text.count(clause) == 1
-    assert "(rounds k, k+1)`; when that residue is itself a sentence" in text, (
-        "the deletion clause keeps its antecedent"
-    )
-    assert "a heuristic that SELECTS" not in text
 
 
 def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
@@ -428,10 +261,6 @@ def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
         )
         span = text[start : text.index(" and the row's method cell APPENDS", start)]
         assert span == clause.format(unit), (name, span)
-    picker = re.sub(
-        r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text()
-    )
-    assert "own-fix defect, recast, when it is not deleted, as the whole list filtered" in picker
 
 
 def test_both_review_commands_carry_the_seat_isolation_sentence_verbatim() -> None:
@@ -502,39 +331,6 @@ def test_a_counter_word_in_a_method_cell_is_named_as_refused() -> None:
     assert not crc._row_refusals(row + "seats: A-sonnet 3/4 |")
 
 
-def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
-    """W-60629ce4 (D-1070): the committed-fix form keeps a generated draft during the passes and writes the receipt
-    once, after the last fix commit; every other form creates it before Pass 1. Each clause is pinned where it
-    lives — the fragment's obligation 3 (included by five command sources) and the later-pass high-water mark."""
-    frag = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    for clause in (
-        "One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review",
-        "--out <SCRATCH>/<scope>-receipt-draft.md",
-        "`review_receipt.py --init --lane --changed <every path in base..last> --scope <slug> --range <base>..<last"
-        " fix commit>` writes the receipt under `docs/development/reviews/` once",
-        "a class row the late rubric adds that the draft lacked is a hunt still owed, never carried `CLEAN`",
-        "the receipt becomes the draft again: move it back over the draft (`mv`, since it is not yet committed and `--init` never overwrites)",
-        "and every other command this fragment renders into — creates it NOW",
-        "at the close — after the last fix commit and a `final_gate.py --check --json` run that forced none —",
-        "then the close ORDER of `/fabrik-review` § Reporting runs on it",
-        "A fix that ORDER still forces is a closing-pass fix: commit it",
-    ):
-        assert clause in frag, clause
-    task = _norm(ROOT / "commands" / "_sources" / "fabrik-task.md")
-    assert (
-        "run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that"
-        " lands first"
-    ) in task
-    assert (
-        "run `/fabrik-review`'s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to"
-        in task
-    )
-    assert (
-        "carry the draft's rows into it (a rubric class the draft lacked is a hunt still owed)"
-        in task
-    )
-
-
 CORE = ROOT / "commands" / "_fragments" / "subagents-core.md"
 
 
@@ -545,18 +341,26 @@ def _clause(text: str, after: str, end: str = ";") -> str:
     return text[i : text.index(end, i) + len(end)]
 
 
-def test_a_worktree_lead_writes_scratch_files_by_cp() -> None:
-    """Rows 1792495473, 1792488144, 1792486681: briefs and notes left in the /tmp scratchpad died on a reboot."""
-    clause = _clause(_norm(CORE), "do so an interrupted pass keeps its pins; ")
-    assert clause == (
-        "a lead in a linked worktree, whose Write tool refuses that main-checkout `SCRATCH:` folder (mail"
-        " 01M4Y3N9GW), writes each brief, fix list, note or draft there by a Bash `cp` of the copy it wrote in its"
-        " scratchpad, and never leaves the only copy in the scratchpad, which a reboot clears;"
-    )
+def test_a_worktree_lead_writes_scratch_files_directly() -> None:
+    """D-1288: SCRATCH is the worktree's own since D-1268, so the cp-copy workaround of rows 1792495473,
+    1792488144 and 1792486681 is gone and the pins sentence runs straight on to the tree-staging rule."""
     core = _norm(CORE)
-    assert core[core.index(clause) + len(clause) :].startswith(" and a tree"), (
-        "a clause was added after the rule"
-    )
+    assert "do so an interrupted pass keeps its pins; and a tree" in core
+    assert "01M4Y3N9GW" not in core and "refuses that main-checkout" not in core
+    # a reworded reintroduction of the workaround (review pass 1, C4)
+    assert "a reboot clears" not in core and "by a Bash `cp`" not in core
+
+
+def test_fix_then_dispatch_the_reverifying_seats() -> None:
+    """D-1288 (mail 01M5X8W0M1): `round`'s NOT TERMINAL anchor is the round's RECORD time, so a seat
+    dispatched, or a pin cut, after the record but before its fix lands reads fresh (D-1268's accepted risk)."""
+    core = _norm(CORE)
+    rule = "**Fix, THEN pin and dispatch the re-verifying seats:**"
+    record = "**Record the dispatch BEFORE you send it:**"
+    assert rule in core
+    # the why stays with the rule, right before the dispatch stamp (review pass 1, C3)
+    assert "whether or not the fix has landed or is in the pin its seats read" in core
+    assert 0 < core.index(record) - core.index(rule) < 400
 
 
 def test_a_cwd_rooted_tool_runs_after_an_os_chdir(tmp_path: Path) -> None:
@@ -615,23 +419,6 @@ def test_a_fix_between_round_one_waves_is_in_the_delta_surface() -> None:
     ) in _norm(SUB)
 
 
-def test_a_seat_scratch_repo_is_checked_and_git_runs_hermetic() -> None:
-    """Rows 1792560934 (held gitdir-shim-recipe) and 1792559094 (held third-party-cli-empty-home): a scratch init
-    that failed left git on the live repo, and a git test read the box's config."""
-    cat = _norm(CAT)
-    assert (
-        "is checked before its first git write: `git -C <it> rev-parse --show-toplevel` prints its own path, since an"
-        " init that failed under the hub's `.tmp/` leaves every later git call on the live repo."
-    ) in cat
-    assert (
-        "runs with `GIT_CONFIG_GLOBAL` at an empty file, `GIT_CONFIG_NOSYSTEM=1`, and `HOME` and `XDG_CONFIG_HOME` at"
-        " empty folders under its scratch, with `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and"
-        " `GIT_COMMITTER_EMAIL` set when it commits, since the empty config holds no identity (an older git ignores"
-        " `GIT_CONFIG_GLOBAL` and reads `$HOME/.gitconfig`), and"
-        " a test that a hook stays silent first shows that hook fire on a positive control. - Every file a grader reads"
-    ) in cat
-
-
 def test_the_lead_creates_each_seat_folder_before_dispatch() -> None:
     """Row 1792628374 (held lead-creates-seat-dirs-before-dispatch, second verdict): a seat wrote into a folder nothing
     had made; the lead now makes it before the dispatching message and the seat's own mkdir stays as a no-op."""
@@ -642,20 +429,3 @@ def test_the_lead_creates_each_seat_folder_before_dispatch() -> None:
         " run that same `mkdir -p` first (a no-op once the folder exists);"
     ) in core
     assert "nothing creates it for the seat" not in core
-
-
-def test_obligation_three_names_the_committed_fix_form_where_it_starts() -> None:
-    """Row 1792667105: a nested review ran `--init` before reading the committed-fix exception buried mid-obligation.
-    The exception is named, scoped to `/fabrik-review` as the body scopes it, at the obligation's first words."""
-    tc = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert (
-        "3. **Persist** (one exception, the ⚠️ below: `/fabrik-review` over work whose fixes are COMMITTED during the"
-        " review writes a DRAFT now, its `--init` given `--out` into the run's `SCRATCH:` folder (the session"
-        " scratchpad when `start` printed none), and the receipt only after the last fix commit; every other review"
-        " and command creates the receipt NOW): create"
-        " `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` NOW,"
-    ) in tc
-    assert (
-        "One form makes it later — `/fabrik-review` over work whose review FIXES are COMMITTED during the review"
-        in tc
-    )

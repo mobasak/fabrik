@@ -1,6 +1,129 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A parser built to match a consumer is probed on every character class it branches on (2026-10-27)
+
+- **What happened:** W-2ae286e2 measured docker compose's `.env` grammar in real containers before the
+  design (20 cases), and the design still stated five rules compose does not follow. The two critique seats
+  each ran their own container probes and found them: compose cuts an unquoted value only at space-hash
+  (not TAB-hash), ignores text after a closing quote, keeps a CR inside an unquoted value (`K=a<CR>b`), lets single quotes span lines, and
+  refuses an unterminated quote. Every one would have been a value written back corrupted on the next
+  read-modify-write.
+- **Rule:** when a parser must agree with another tool, list the classes each branch reads (each whitespace
+  kind, each line terminator, the text after a closing delimiter, end of input inside a delimiter) and run
+  the real tool on one case per class before writing the grammar down. The cases you thought of are the
+  ones you already handle.
+
+## A closing pass that runs only the new graders cannot see a signature break in an old stub (2026-10-27)
+
+- **What happened:** W-010bb0d9's review pass 2 threaded a third positional argument (`now`) into
+  `_active_account_walled`. The closing pass's brief limited each seat to the ten new graders to fit a 10-minute box,
+  and the lead closed the review while the full touched slice was still running. That slice then failed 3 tests whose
+  two-argument lambda stubs of the function raised TypeError twice per tick: swallowed by `_tick_row`'s guard (no tick
+  row), and from the advisory up to `_cmd_tick`'s outer guard (`tick: INTERNAL ERROR`; the advisory's `finally` still
+  wrote the posture).
+- **Rule:** a fix that changes a signature greps every stub and monkeypatch of the name (`"_name"` in the tests) in the
+  same round, and the review closes only after the FULL touched slice has run green on the closing pin — a
+  selection of the new graders is a probe, never the exit evidence.
+
+## `Timer.cancel()` does not stop a Timer that has already fired (2026-10-27)
+
+- **What happened:** W-010bb0d9 bounded the rotation tick with a `threading.Timer` watchdog and cancelled it "first thing in
+  the `finally`", with a comment saying the finally's legs therefore never raced it. Three review seats found that a Timer
+  firing as the body ended is already inside its function: `cancel()` is a no-op there, and the watchdog then exited the
+  process between a stamp clear and its wake. The same pass found `os._exit` dropping every block-buffered `print` of the
+  hung tick from cron's log file, and a Timer interval of `1e300` killing the Timer's own thread with an OverflowError.
+- **Rule:** a watchdog that ends a process needs a HANDSHAKE, not a cancel: the main thread marks the work done under the
+  lock the watchdog takes, and the watchdog re-reads that mark after it gets the lock. Flush buffered stdout (bounded)
+  before `os._exit`, bound the interval above as well as below, and grade the handshake by firing the real watchdog with
+  the arguments the code gave the Timer after the work returned.
+
+## A cache added for cost is keyed on the STATE it reads, never on the name that points at it (2026-10-27, W-69322546)
+
+- **What happened:** review round 1 of the Merged-From vouch fix cached the target's trailer map on `(repo, target)`
+  to stop a full-history `git log` per unmerged branch. Round 2 found that `scratch_sweep.py` classifies and then
+  RE-CHECKS at removal in the same process, so a target rewound past a squash between the two still answered from
+  the plan-time map — the re-check existed to catch exactly that change. The same round found that skipping every
+  merge commit on the branch side, to stop a merged-back branch reading unmerged, also skipped a merge that brought
+  in another branch's never-merged work.
+- **Rule:** before caching a read, grep for every caller that reads it twice in one process and ask what the second
+  read is FOR; key the cache on the resolved state (here the target's commit), so a moved ref is a cache miss. And a
+  filter added to drop one harmless shape (a merge of the target) is written as the test for that shape (every extra
+  parent already in the target), never as "drop the whole kind".
+
+## Hardening one stat call against EACCES means sweeping every stat on the same path (2026-10-27)
+
+- **What happened:** W-f7772267 (k) wrapped `_repo_type`'s `exists()` and the scope check's `mcp_json.is_file()`,
+  because Python 3.12's pathlib RAISES `PermissionError` there when the path runs through a directory this user cannot
+  search. Pass 1 of the review found the same raise one line earlier (`is_dir()` on a root entry linking into such a
+  directory) and one line later (`--defs` in such a directory). It also found that the first fix's `continue` silently
+  skipped a searchable repo whose `.mcp.json` links into one.
+- **Rule:** when one filesystem call is hardened against an error class, list every `stat`-family call on the same
+  path (`is_dir`, `is_file`, `exists`, `is_symlink`, `read_text`) and probe each with a link into a mode-000 directory
+  before the first pin. Decide each catch by what the caller can still know: a file present but unreadable is
+  graded, and an entry nobody can search is named. Neither one is a silent `continue`.
+
+## A merge leg runs under umask 002 in a /tmp throwaway; a hub test assumes neither (2026-10-27)
+
+- **What happened:** kaizen's batch was refused by `test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script`,
+  red in the merge leg and green alone (W-17fc722a). The coordinator's shell runs under umask 0002, and every
+  merge leg inherits it and checks out into `tempfile.mkdtemp(prefix="fabrik-merge-")` under /tmp. The test
+  copied the checkout's group-writable modes, which the stub refuses as "writable by others". The same review
+  found B6 red the same way and two kaizen exposure tests that hardcoded "fabrik", which `_project` reads only
+  under `/opt/<name>`. An interactive umask-022 session in `/opt/fabrik` reproduces none of them.
+- **Rule:** a test that writes or copies files a check then judges by mode sets those modes itself, and a
+  test that reads location-derived state derives its expectation from the checkout's path. Reproduce a
+  "red only in the merge" report with `umask 0002` on the TEST PROCESS, not only on the checkout, inside a
+  /tmp worktree, with `FABRIK_MERGE_CHECK=1`.
+
+## A right-now fix reads the plan locks too, not only a /fabrik-task run (2026-10-27)
+
+- **What happened:** W-d095d60b (a right-now fix under /fabrik-review-scoped) edited
+  `scripts/sysadmin/emit_mcp_project_config.py` and its tests, both owned by intel's active own-scrape plan lock, and
+  merged; nothing read the lock. The next change to the same file, W-c0d9cea5, ran /fabrik-task, whose phase 2 reads
+  `.fabrik/plan-locks/`, and stopped there. The coordinator measured intel's branch: it touches none of the three paths,
+  so nothing conflicted this time.
+- **Rule:** before editing a file, read the plan locks, whatever lane the change took: `status: active` with the path
+  under `owned_paths` is a stop and a message to the coordinator, never a silent edit.
+
+## A guard that renders in several places is proven one site at a time (2026-10-27, W-ff313a14)
+
+The file-api `PORT` guard sat at two template sites, and its refusal test rendered both at once, so deleting
+either guard left the suite green: the other site still raised (review pass 1, C-1, executed by mutants D2/D3).
+The test now renders each site alone (label with no health block, healthcheck with no HTTP exposure) and
+asserts the other site is absent. Apply it to any refusal that more than one template line enforces.
+
+## A guard over a template language asks that language's parser, never a regex (2026-10-27)
+
+- **What happened:** W-80aed026's grader needed "only compose templates read `env`". The first regex missed
+  `{{ env }}` and `env | tojson`; the widened one (review round 1) missed whitespace control `{{-env}}` and
+  arithmetic `x-env`, both real reads Jinja renders — two review rounds on one matcher. `jinja2.meta
+  .find_undeclared_variables` over the renderer's own environment answered every case, a template-local
+  `set env` included. The same review measured the item's own proposed fix (double every `$`) against the
+  fleet's specs first and refuted it: 20+ specs put `${VAR}` in `env:` on purpose (D-1269).
+- **Rule:** when a guard asks what code in some language DOES (reads a name, quotes a value), call that
+  language's own parser or analyser; a regex re-derives the grammar and drifts on the first form it forgets.
+  And replay an item's proposed fix on the real corpus before adopting it.
+
+## A mutation battery proves nothing until each test passes unmutated (2026-10-27)
+
+- **What happened:** W-d5d1d394's review battery reported mutant M8 "killed" by a new test that in fact failed on
+  the unmutated code too — its matcher looked for `test_k:` where the line reads `test_k (call)`. The touched-slice
+  run caught it (1 failed of 899); the battery had read a red as a kill.
+- **Rule:** run every named test on the unmutated copy first and require a pass before a mutant's red counts
+  (`/fabrik-review` rule (4) says so; a hand-rolled battery must carry the BASELINE step itself).
+
+## A census that re-implements a check must read every field the check reads (2026-10-26)
+
+- **What happened:** W-34d76a7a's MEASURE counted vanished `rule:` labels with a hand-written script that pooled the
+  named entries' phrases but never read the matching entry's `clauses:` labels. It reported 11 of 185 lines newly lost
+  on kaizen's latest cut; both design critiques replayed the real `_lint` and found 0 — every label named the line's
+  own lintable entry, whose labels excuse exactly those story clauses (D-1258).
+- **Rule:** measure a proposed check, or grade a change against one, by running the module's own functions on the real
+  corpus (here `losses()` over a real render, base vs new), never a re-implementation; a re-implementation is a second
+  reading and drifts on the first field it forgets. (W-da101088, 2026-10-27: a test that copied `check_structure.py`'s
+  placement rules disagreed with the gate on 6 of 16 probe paths; it now calls `check_structure.check_structure()`.)
+
 ## A measure built in a worktree must not read the disk (2026-10-25)
 
 - **What happened:** slice C's size measure (D-1226) counted a path when the file existed. Its baseline was built in a
@@ -7835,3 +7958,31 @@ document.
   duration. (2) Bind each to the record. (3) Mutate each binding on a copy and watch a named grader fail before
   calling it covered; an option-shaped value (`-R`) is the probe for any field passed to git.
 - **Where it lives.** `scripts/merge_request.py::_pretested`, `_pretest`, `tests/test_merge_request_pretest.py`.
+
+## A "still held" test proves one guard only when every other guard on the path is open (2026-10-26)
+
+- **What happened.** W-effb7141 added cases to `test_a_plan_session_is_still_held_at_the_wall` for a key
+  beside `ANTHROPIC_AUTH_TOKEN` and the Bedrock/Vertex/Foundry switches. Run against the code before the
+  fix, all four passed. The test wrote a pre-tier stamp (`1`), and the tier rule already held that stamp, so
+  the env predicate under test was never reached. Re-cut on a plain `walled` stamp, all four went red on the
+  old code.
+- **Mechanism.** An expected "deny" has many causes. A test asserting one is satisfied by whichever guard
+  fires first, so it grades the guard it meant to grade only when its fixture opens every other guard.
+- **How to apply.** For a held/denied/refused assertion, build the fixture the subject would otherwise PASS
+  (here: a key session on a plain quota tier), then change exactly the one input under test. Prove it red
+  on the pre-fix code; a red-first run is the only check that catches a fixture held by the wrong guard.
+- **Where it lives.** `tests/test_quota_stop_hook.py::test_a_plan_session_is_still_held_at_the_wall`.
+
+## A hook "that does nothing" for one window may not be the hook that window runs — read the hook child's CLAUDE_PROJECT_DIR (2026-10-27)
+
+- **What happened.** The Stop hook kept ordering infra to claim mail at every rotation boundary although the
+  stand-down for exactly that case had been on master for three days (W-2fb8b1a1). Every replay of the hook from
+  infra's own Bash stood the mail down. A /proc poll of a REAL Stop showed the hook child running
+  `worktrees/infra/.claude/hooks/final_gate_stop.py`, 1602 commits behind the tree infra worked in.
+- **Mechanism.** Claude Code loads hooks, settings and permissions from `CLAUDE_PROJECT_DIR`, the folder the window
+  was LAUNCHED in, and keeps it after the session moves into another worktree. A replay run from your own shell uses
+  the hook in your cwd, so it can never reproduce the stale copy.
+- **How to apply.** When a merged hook fix does not take in one window, poll `/proc/*/environ` of that window's
+  hook children during a real Stop (no strace on this box) and compare `CLAUDE_PROJECT_DIR` with the cwd. Since
+  W-456aa02a the user-level `selfwatch_check.py` says so on every prompt.
+- **Where it lives.** `scripts/sysadmin/selfwatch_check.py::_project_dir_order`, `scripts/sysadmin/agents_up.sh` (D-1284).

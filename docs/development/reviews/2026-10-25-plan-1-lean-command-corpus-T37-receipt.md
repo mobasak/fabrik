@@ -1,0 +1,52 @@
+# T37 receipt — /fabrik-deploy-verify (light form)
+
+Cloud worker `lean-t22-t37`, D-1236 rule. Author labels — audit owed (no Sonnet/Haiku classification seats in this clone).
+
+- **Start commit:** `8ac547a6139658fed456bb3f3f069596856d6316` (`kaizen-lean-u01`; T22 `8932976` sits on top and does not touch this command). Baseline `commands/_rules/fabrik-deploy-verify.baseline.txt`, sha256 `5b0ed90993a0f1dafbbc38690219d43ef21f614c6150ddd9d3c1283236463838`, 139 keys.
+- **Own text, words (`command_rules.own_text`):** 4583 → 3162 (69.0% of baseline; the ticket text says 4577, the re-measured baseline is 4583).
+- **Floor (target ≤50% missed):** ~1,500 of the 3,162 words are held verbatim by kept behavioural tests and grammar: the Output fence (311 words, parsed by the run record and the close), the container-leg and host-leg recipe strings that `tests/test_check_command_corpus.py::test_deploy_verify_recipe_stages_a_fresh_comparator_where_the_stub_reads_it` asserts byte for byte (including the one-line private-clone command), the "A site the contract has no rows for" paragraph (four asserted phrases), the `## Phase 6 — Parity` / `## Phase 1b — Identity` headings, `_REGISTRAR_ORDER`, `UNVERIFIED`, `executable file not found`, `scaffolded before 2026-09-02`, and the 12-row registrar table (each row names a flag, a registrar and a verifying probe). The remaining prose is rewritten to its operative clauses; further cuts would drop a backticked token or a NEVER/MUST/only clause. Proposed floor for the hub D-row: 69%.
+- **Ledger:** `commands/_rules/fabrik-deploy-verify.yaml` — 104 entries: 83 reworded or new (`r-NN`), 21 generated unchanged (`u-L<n>`). By class (YAML `# class:` comment): prose 56, ban 27, behavioural 19, grammar 2. Every reworded entry carries its whole new unit as the `text` carrier.
+- **Vanished:** 107 baseline units. Labels: rule 102, narrative 5 (L21 the aspirational store-routing note, L74 the RESILIENCE_TEMPLATE mirror pointer, L108 the tryton-crm example, L111 the container-env gloss, L134 the former top-3 smoke aside). Author labels — audit owed.
+- **Pins deleted** (`tests/test_deploy_checklist_queue_pass.py`): `test_the_runner_names_a_refused_merge` (a presence pin on the merge-step text of this command; the exit-64 sentence is the `text` carrier of the entry beginning "Never re-derive the verdict" and is also pinned by the kept `test_check_command_corpus.py` recipe test for the `--verdict` call). The `VERIFY` path constant and the stale docstring lines went with it.
+- **Gates:** `pytest tests/test_command_rules.py tests/test_deploy_checklist_queue_pass.py -rP` — 34 passed, 3 skipped, zero LOSS, `LEDGER fabrik-deploy-verify.yaml: 104 entries · vanished {'narrative': 5, 'rule': 102}`. `assemble_commands.py --check` — exit 1, only `MISSING`/`DIFFERS` DRIFT lines, no LOSS, no ceiling line; `REPORT fabrik-deploy-verify: shrank to 11601 words, ceiling 15812`.
+- **Reader-test run** (same 36 files as T22): failure set at start = 47, at end = 47, identical (no new red, none fixed); the pre-existing reds are listed in the T22 receipt and come from the clone lacking box services and deps.
+- **LEFT FOR THE HUB:** `commands/_size_ceiling.json` ratchet (11601 words); `CHANGELOG.md`, `INDEX.md` rows for the two new `commands/_rules/` files; the author-blind audit pair over the 83 reworded entries; the floor D-row; the 47-red set on a box with services.
+
+## Fix round 1 (cloud worker `lean-t22-t37-fix`)
+
+Two author-blind audits (Sonnet 75 findings over both commands, Haiku 95, overlapping) were checked against `lean-baseline-2026-10-25`. The verify share: Sonnet 35–75, Haiku 41–95.
+
+- **Confirmed and fixed: every verify finding (0 refuted).** Restored in the source and in each entry's `current`/`text`: the decommission twin / `/fabrik-deploy` / direct `fabrik apply` anchors, "no file mutation at all", the 0-of-760 story, "authored and FROZEN", trigger-not-execute `§ Deploy`, the fabrik-catchup exception "not a violation of it" (r-01..r-05); the NOT-RUN honest-token and "never manufacture n/a rows" bans, "yourself", the `fabrik apply` reruns clause, "the harness auto-compacts … rather than exhausting the checklist against a dead host" (r-07, r-09, r-10); `Mode:` tolerance, "Read it; never assume it", "cannot climb above `UNVERIFIED`", "not a defect to hunt", "in the vendor console … a `dig` cannot answer" (r-12, r-18, r-20, r-21); the DNS sibling discriminator, `PORTS.md`:28, example domains/IPs/dates, the dead-sibling ban "Never use … as siblings", `fabrik apply` gap, "never report it as a verdict either way", the designated-sibling void rule, "only a probe run THIS session counts", the wildcard `dig` evidence, "do not stop at DNS", "let Phase 2's HTTPS result … carry the PASS/FAIL", the vps1 unchanged-behaviour rule (r-22..r-29); "only this phase proves it is true of this build", `deployer_ssh.py:331`, the `git rev-parse` source, "never a rollback performed" (r-30, r-31, r-35); RESILIENCE_TEMPLATE:307 and "never dependency-asserting", `specs/services/<id>.yaml`, `CLAUDE.md` § Health endpoint, "if reachable", `/readyz` informational (r-37..r-43); the `inject_env` path/line/grep anchors and "not the sole source", `_REGISTRAR_ORDER` grep and lookup-by-name, the `meilisearch` lesson, "three", "by the registrar", the watchdog rule path, "from this run", "do not re-probe separately", "yourself", §11 obligation, "entirely" (r-45..r-60); the fabrik-catchup trap path and fleet SSH path, "clearly infra-side (application-side)", `libs/health_probe`, `container_name`, "does NOT contain it", long-lived-container and absolute-path cautions, the `httpx`/`.env` leg-deps consequence, "the same UNVERIFIABLE leg, but", `_COMPARISON_KEYS`, the retired-rule rationale, "worse" rationale, `N` corpus definition, the Layer-4 / spec corpus #24 requirement (r-62..r-82).
+- **Wrong `vanished:` labels fixed:** L7 → r-04; L29 → `r-18-x1`; L34 → `r-22-x1`; L44/L45 → `r-29`/`r-29-x1`; L48 → `r-30-x1`; L108 (DB-free bridge) → `u-L107-x1` instead of `narrative`; L134 → `r-82-x1` instead of `narrative`.
+- **New entries:** split-off sentences of reworded units (`<id>-x<k>`). No invented rule.
+- **Gates:** `pytest tests/test_command_rules.py` 32 passed / 3 skipped, zero LOSS (`LEDGER fabrik-deploy-verify.yaml: 112 entries · vanished {narrative 3, rule 104}`); `assemble_commands.py --check` exit 1, only `DIFFERS`/`MISSING` drift, no LOSS. `test_deploy_verify_verdict.py` still cannot import (`httpx` absent in the clone), as before.
+- **Words (own text):** baseline 4583 → first cut 3162 → after fix 3928.
+
+## Re-ledger round (cloud worker `lean-t22-t37-grp-rl-run`, canonical loader, D-1236/D-1238/D-1240/D-1245)
+
+- **Loader:** swapped in as its own first commit (commands/command_rules.py, tests/test_command_rules.py, docs/reference/command-corpus-check.md; never edited after).
+- **Own text, words:** baseline 4583 → fix round 3928 → now 4322 (94% of baseline).
+- **LOSS (own ledger):** 65 → 0 (`assemble_commands.py --check` prints none for this ledger; the remaining LOSS lines are the `_shared/*.yaml` ledgers, T01d's).
+- **Ledger:** 128 entries (64 generated unchanged `u-L<n>`, 64 reworded `r-<n>`); classes and `clauses:` keys are real keys. Reworded/total = 64/128.
+- **Floor (why not ≤50%):** the loader covers a clause only when ONE phrase holds all its anchors (backticked tokens, numbers, paths) and ≥70% of its first 8 content stems, and a ban-word clause stays verbatim to the end of its `;`/`—` clause or sentence. Measured on the baseline: T370. A grammatical rewrite cannot go below the clause-by-clause minimum (further stopword/tail removal measured at ~85–94%); only a word-bag text reaches the mechanical floor, which this worker did not ship because it would read as noise to the agent. Clauses over their minimum are those whose ban span or anchors sit inside parentheticals/recipes (the Phase-6 stage/run recipes, the VERDICT line, the termination-contract sentence, the `must`/`only`/`never` clauses), which D-1240 holds verbatim; the removable rest (narrative: 760-companies, 'many specs', the 0/5/0 measurement, example lists) was labelled `narrative` and deleted.
+- **Self-audit:** one author-blind Sonnet pass over baseline, rewrite and ledger found T371 findings; all fixed (restored dropped clauses, relabelled L7). COUNTS: T372.
+- **LEFT FOR THE HUB:** `_size_ceiling.json` ratchet, CHANGELOG/INDEX, the author-blind pair, the floor D-row, shared-file LOSS (T01d).
+
+## Fix round 2 (hub audit, cloud worker `lean-t22-t37-rl-fix`)
+
+Two author-blind hub audits (Sonnet, Haiku; overlapping) refuted the round-1 zeros. Every finding was checked against `lean-baseline-2026-10-25:commands/_sources/fabrik-deploy-verify.md`.
+
+- **Confirmed and fixed:** r-90, r-12, r-21 (and Haiku's L21 label), r-119, r-43, r-45, r-125 restored in the source and each carrier.
+- **Refuted:** none. Findings that cite only dropped evidence or an example (e.g. ledger `text` carriers attached to a neighbouring unit) were treated as low and, where they held an instruction or a number, restored anyway.
+- **Pass-1 extras restored:** r-12 (`is the one exception`), r-22 (`if given`), r-37 (`transient … from this box`).
+- **Own-text words:** baseline 4583 → re-ledger 4322 → now 4385 (96% of baseline; over the 50% floor because the loader's one-phrase anchor + 70%-stem test and verbatim ban clauses hold the text).
+- **Gates:** `pytest tests/test_command_rules.py -rP` — no LOSS line for this ledger (the one failing test reports `_shared/*.yaml` LOSS only, another unit's). `assemble_commands.py --check` not re-run in this environment.
+- **Fresh self-audit:** 2 fresh subagent passes (never the author). Pass 1 found 6 WEAKER items across both commands (checklist r-52, r-91, r-2; verify r-12, r-22, r-37), all restored. Pass 2 (new subagent) found nothing.
+- **Last fresh pass:** `COUNTS: entries read 234 / reworded 95 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0` (both commands combined; 2 fresh passes ran).
+
+## Nits round (hub)
+
+- **verify r-15:** restored `in the verdict table` in source and in the ledger entry's `text`.
+- **verify L4:** repointed the vanished label from r-4 to r-5 (the content survives in r-5's `text`).
+- **verify r-3:** untouched (the `0 of its 760 companies` narrative label was refuted).
+- **Own-text words:** +4 (`in the verdict table`). The zero-counts self-audit was not a fresh subagent (none could be dispatched); the hub's author-blind audit pair covers it.

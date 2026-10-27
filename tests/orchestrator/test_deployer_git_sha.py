@@ -269,3 +269,24 @@ def test_unreadable_sha_leaves_env_alone(answer, caplog) -> None:
     assert vps.writes == []
     assert any("compose up" in c for c in vps.calls)
     assert "GIT_SHA" in caplog.text
+
+
+def test_a_successful_up_with_an_undecodable_answer_is_not_rolled_back(caplog) -> None:
+    """W-5597922e review: `up --wait` exited 0 (healthy) and only its stdout was not UTF-8 — the driver's
+    UndecodableAnswerError must not send a healthy deploy into the reset-rebuild rollback."""
+    from fabrik.drivers.ssh import UndecodableAnswerError
+
+    class _UndecodableUp(_Vps):
+        def ssh(self, cmd: str, timeout: int = 0) -> str:
+            out = super().ssh(cmd, timeout)
+            if "compose up" in cmd:
+                raise UndecodableAnswerError("SSH to 'vps': the answer is not valid UTF-8")
+            return out
+
+    vps = _UndecodableUp("GIT_SHA=" + OLD + "\n")
+    p = _patched(vps)
+    with p[0], p[1], p[2], p[3], p[7]:
+        SSHDeployer().redeploy("my-app", source_type="git")
+    assert not any("git reset --hard" in c for c in vps.calls), vps.calls
+    assert [_parse_env(w)["GIT_SHA"] for w in vps.writes] == [NEW]
+    assert "compose up succeeded but its output was not UTF-8" in caplog.text

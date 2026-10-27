@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T17:10:53.713293Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-2eb1cbeb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5WHWARQT36XSHJ8R9YTBRMX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-174b8543-api-write-lane"
+}

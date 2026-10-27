@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-25T02:22:56.819309Z",
   "creator": "infra-2",
-  "evidence": "",
+  "evidence": "c1280ac4ca42c87b9bc09b4c1ebc614a90da96d8",
   "id": "W-ff2639c8",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "lean-residue"
   ],

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T22:14:19.517789Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-2910f8a9",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "parse the unit files with systemd's own grammar (or systemd-analyze calendar/timespan); add the three shapes as passing cases",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "test strictness only; false failures, never false passes",
+  "status": "open",
+  "title": "Session-archive units-wiring test is stricter than systemd: rejects equivalent daily schedules (OnCalendar=*-*-* 00:00:00, reset-then-daily), misses 'Key = value' lines with spaces, cannot parse compound spans like '1h 30min' — false failures only (from W-36687f76, D-1265)"
+}
