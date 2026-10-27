@@ -268,6 +268,35 @@ def test_heredoc_bodies_are_data() -> None:
     assert _denied(_run(body2))  # the line AFTER the terminator is a command again
 
 
+def test_a_marker_the_shell_does_not_read_as_a_heredoc_hides_nothing() -> None:
+    """W-223704c1: only an unquoted, uncommented `<<WORD` opens a body; anything else that
+    looks like one (quoted text, a comment, a here-string, an arithmetic shift, an escaped
+    `<`) must leave the following lines in the scan."""
+    for cmd in (
+        "echo 'x <<EOF'\ngit -C /opt/fabrik commit -m y",
+        'echo "see <<EOF"\ngit reset --hard',
+        "echo 'a\n<<EOF'\ngit reset --hard",
+        "echo x # <<EOF\ngit reset --hard",
+        "# <<EOF\npkill -f x",
+        "cat <<<EOF\ngit reset --hard",
+        "echo $((1<<x))\ngit reset --hard",
+        "(( y = 1<<x ))\ngit reset --hard",
+        "echo x \\<<EOF\ngit reset --hard",
+        "echo $'it\\'s <<EOF'\ngit reset --hard",
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_real_heredoc_spellings_still_hold_data() -> None:
+    for cmd in (
+        f'cat > {SCRATCH}/n <<"EOF"\ngit reset --hard\nEOF',
+        f"cat > {SCRATCH}/n <<-EOF\n\tpkill -f x\n\tEOF",
+        f"cat <<A > {SCRATCH}/a; cat <<'B' > {SCRATCH}/b\ngit reset --hard\nA\npkill -f x\nB",
+        f"echo 'it''s' && cat <<EOF > {SCRATCH}/n\ngit reset --hard\nEOF",
+    ):
+        assert not _denied(_run(cmd)), cmd
+
+
 def test_explicit_git_dir_and_work_tree_in_scratch_pass() -> None:
     cmd = f"git --git-dir={SCRATCH}/r/.git --work-tree={SCRATCH}/r reset --hard"
     assert not _denied(_run(cmd))  # cwd /opt/fabrik is irrelevant when both are given

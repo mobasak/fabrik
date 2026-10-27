@@ -60,8 +60,7 @@ the resolver is capped at 2 s inside this hook's 5 s budget, and every identity 
 Measured before the rule (3 days, 1619 coordinator foreground calls): a timeout over 120 s fired 457
 times, 242 of them truly long; "any sleep" fired 19 times with none long, so a sleep outside a loop
 is allowed. A detached ``nohup … &`` sleep loop is denied too, deliberately: run_in_background is its
-tool. Stated limits: a sleep inside ``$(…)`` or a function body called in a loop counts at depth 0,
-and a quoted ``<<WORD`` hides the lines after it from the scan (a tokenizer defect, filed apart).
+tool. Stated limit: a sleep inside ``$(…)`` or a function body called in a loop counts at depth 0.
 ⚠️ COBRA (D-253): the cheapest ways past it are (a) a chain of foreground calls each ≤ 120 s, or a busy
 loop with no ``sleep`` — each call still returns within 120 s, so the next prompt reaches the session;
 (b) unbinding, or binding another name — a recorded same-user act (``force: true``); (c) a wait inside
@@ -144,7 +143,7 @@ def _tokens(command: str) -> list[str]:
         raise _UnparseableError(str(exc)) from exc
 
 
-_HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+_HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 _OP_ORDER = (
     "&&",
     "||",
@@ -171,17 +170,78 @@ SUBST = "__SUBST__"
 
 
 def _strip_heredocs(command: str) -> str:
-    """Drop heredoc BODIES (data written to a file), keeping the line that opens them."""
+    """Drop heredoc BODIES (data written to a file), keeping the line that opens them.
+
+    Only a `<<WORD` the shell reads as one opens a body: outside quotes (`'…'`, `"…"`, `$'…'`)
+    and comments, not a `<<<` here-string, not an escaped `<`, not inside an arithmetic
+    `((…))`. Anything else that looks like a marker must hide no line (W-223704c1); a marker
+    this walk does not recognise leaves its body IN the scan, the safe direction."""
     out: list[str] = []
     pending: list[str] = []
-    for line in command.split("\n"):
-        if pending:
-            if line.strip("\t ") == pending[0]:
-                pending.pop(0)
+    i, n, quote = 0, len(command), ""
+    while i < n:
+        c = command[i]
+        if quote:
+            out.append(c)
+            if c == "\\" and quote in ('"', "$'") and i + 1 < n:
+                out.append(command[i + 1])
+                i += 2
+                continue
+            if c == quote[-1]:
+                quote = ""
+            i += 1
             continue
-        out.append(line)
-        pending.extend(m.group(2) for m in _HEREDOC.finditer(line))
-    return "\n".join(out)
+        if c == "\\" and i + 1 < n:
+            out.append(command[i : i + 2])
+            i += 2
+            continue
+        if command.startswith("$'", i):
+            quote = "$'"
+            out.append("$'")
+            i += 2
+            continue
+        if c in ("'", '"'):
+            quote = c
+        elif c == "#" and (i == 0 or command[i - 1] in " \t\n;&|()<>"):
+            j = command.find("\n", i)
+            j = n if j == -1 else j
+            out.append(command[i:j])
+            i = j
+            continue
+        elif command.startswith("((", i):
+            depth, j = 0, i
+            while j < n:
+                depth += {"(": 1, ")": -1}.get(command[j], 0)
+                j += 1
+                if not depth:
+                    break
+            out.append(command[i:j])
+            i = j
+            continue
+        elif command.startswith("<<<", i):
+            out.append("<<<")
+            i += 3
+            continue
+        elif command.startswith("<<", i):
+            m = _HEREDOC.match(command, i)
+            if m:
+                pending.append(m.group(2))
+                out.append(m.group(0))
+                i = m.end()
+                continue
+        elif c == "\n" and pending:
+            out.append(c)
+            i += 1
+            while pending and i < n:
+                j = command.find("\n", i)
+                end = n if j == -1 else j
+                if command[i:end].strip("\t ") == pending[0]:
+                    pending.pop(0)
+                i = end + 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def _strip_comments(command: str) -> str:

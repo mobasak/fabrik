@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — seat_guard: a `<<WORD` the shell never reads as a heredoc no longer hides the lines after it (2026-10-27)
+
+`.claude/hooks/seat_guard.py`'s `_strip_heredocs` dropped every line after any `<<WORD` match, so `echo 'x <<EOF'` followed by `git -C /opt/fabrik commit -m y` on the next line passed a review seat's git-write check, and the same shape hid a coordinator's sleep loop from the D-1296 wait guard (W-223704c1, found by the Fable critique of W-e57d2481). The strip now walks the whole command with quote state and opens a body only on a marker outside `'…'`, `"…"`, `$'…'` and comments, and never on a `<<<` here-string, an escaped `<` or an arithmetic `((…))`. A marker it does not recognise leaves its body in the scan, the safe direction. Graders: `test_a_marker_the_shell_does_not_read_as_a_heredoc_hides_nothing` (ten shapes, each one hid the next line on the old code), `test_real_heredoc_spellings_still_hold_data`, and a quoted-marker sleep loop in `test_coordinator_wait_guard.py`'s `LONG_WAITS`. The module docstring drops the stated limit.
+
 ### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
 
 `.claude/hooks/seat_guard.py` now enforces D-1296 for the lead of the session bound as its repo's merge owner. A foreground Bash call is denied when its tool timeout exceeds 120 s, or when it runs a `sleep` inside a while/until/for/select loop under a timeout over 60 s. The deny tells the coordinator to re-run with `run_in_background: true` and end the turn, not block on the output. Identity comes from `quota_stop.py`, loaded by file path; every identity doubt allows. Measured first: the hub coordinator held 736 minutes of foreground waits in one day, and a plain "any sleep" rule was rejected (19 fires on coordinator sessions in 3 days, none long). W-e57d2481.
