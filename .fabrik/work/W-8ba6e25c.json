@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "Do the remaining work: The ruling was never sent back to web-ecommerce-factory: the thread got no reply, the correction mail 01M3WZJA6 is still unread in the inbox and D-497 does not cover it, and the reply now depends only on W-2fc93899, which is open and has no owner.",
+  "next": "UPGRADED to /fabrik-spec 2026-10-27 (tradeoffs: phrase rule vs every non-negated pre-cutover receipt vs explicit list); seed ~/.claude/state/command-runs/seeds/80344d07-90d3-4512-8b98-db7aceadb4b6-a57c21c2e403bc3a.md; coordinator asked to re-score; 01M3WZJA6 still unanswered",
   "note": "",
   "owner": "infra",
   "priority": 1,
