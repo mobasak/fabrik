@@ -1197,7 +1197,7 @@ def check_review_receipt(
         if tip is None or tip not in listed:
             reasons.append(
                 f"(d) the receipt's range tip {m.group(1)} (→ {tip}) is not one of the --commit "
-                f"values ({', '.join(f'{c} (→ {s})' for c, s in zip(commits, listed))})"
+                f"values ({', '.join(f'{c} (→ {s})' for c, s in zip(commits, listed, strict=True))})"
             )
         else:
             reasons.extend(_later_commit_reasons(root, tip, commits, exempt))
