@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T11:54:16.658416Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-9e459227",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1295",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "port D-1295's handler (stop event, registered child killed, settle interrupted source run, line-buffered stdout, rc 128+signum) to api_credit.py cmd_run; grade with a group signal + SIGKILL at +1.4 s",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "api_credit.py run dies on SIGTERM/SIGHUP like api_write.py did: its single own-session claude child runs on unsettled when a stopped session signals the runner's group (D-1295 named it OUT)"
+}

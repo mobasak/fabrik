@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the API write lane settles and names every job on a stop signal (2026-10-27)
+
+`scripts/api_write.py` now handles SIGTERM, SIGHUP and SIGINT (D-1295, W-d077095a). A stopped session sends SIGTERM
+to the task's process group and SIGKILL ~1.4 s later; the runner used to die on the default action while its
+own-session `claude` children ran on unsettled. Now every running child's group is killed, the run settles
+`interrupted` (settleable from the console at once), nothing partial is pushed, a queued job reports `not started`, a
+child that finished first still pushes, lines are line-buffered so a log file keeps them, and the runner exits
+128 + signum. Graded by real group-signal tests; 8 of 8 mutants killed.
+
 ### Fixed — command texts follow the worktree-own scratch root (2026-10-27)
 
 `/fabrik-task` now says a run's `SCRATCH:` folder sits under the session's own checkout and does not survive a worktree's removal. The subagents fragment drops the worktree lead's `cp` workaround, which D-1268 made unnecessary, and gains a "fix, THEN pin and dispatch the re-verifying seats" rule, because `round` reads a round as fresh once its newest stamp postdates the last confirming round (D-1288, infra mail 01M5X8W0M1).
