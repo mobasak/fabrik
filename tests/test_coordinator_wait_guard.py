@@ -46,6 +46,10 @@ LONG_WAITS = [
     "for a in 1 2; do for b in 1 2; do echo $a$b; done; done; while true; do sleep 5; done",
     # untokenisable (an unclosed quote): the regex fallback still sees loop, `do`, sleep
     "while true; do sleep 5; done; echo 'unterminated",
+    # a stray `done` first must clamp at 0, never hide the loop after it
+    "done; while true; do sleep 5; done",
+    # the `function NAME {` form: the name is no keyword
+    "function f { while true; do sleep 5; done; }; f",
 ]
 
 
@@ -144,8 +148,9 @@ def test_a_sleep_loop_is_denied_in_many_spellings(box: dict, command: str) -> No
 def test_nested_loops_keep_the_seat_checks(box: dict) -> None:
     """The loop count never raises inside the scan: a seat's git write inside a nested loop is still
     denied by the SEAT check (an exception there would have failed the whole guard open)."""
-    # three `done`s for two loops: a malformed close must clamp, never raise
-    cmd = "for a in 1 2; do for b in 1 2; do git -C /opt/fabrik commit -m x; done; done; done"
+    # three `done`s for two loops, all BEFORE the git write: the stray close is counted (clamped,
+    # never raising) before the seat check reaches the commit
+    cmd = "for a in 1 2; do for b in 1 2; do :; done; done; done; git -C /opt/fabrik commit -m x"
     payload = {
         "session_id": "sid-seat",
         "cwd": str(box["repo"]),
@@ -201,15 +206,36 @@ def test_short_caps_are_allowed(box: dict, command: str, timeout: int | None) ->
 
 
 def test_the_timeout_is_read_strictly(box: dict) -> None:
-    """BASH_DEFAULT_TIMEOUT_MS sets the default a call without its own timeout gets; a timeout that
-    is not a positive number (a bool, a string, zero) falls back to that default."""
+    """One strict parse for the tool's timeout and BASH_DEFAULT_TIMEOUT_MS: a positive number or a
+    plain ASCII digit string counts; anything else (bool, zero, negative, NaN, inf, `²`, text) is no
+    value and falls to the next source — and nothing raises, so the guard never fails open by error."""
     loop = "while kill -0 1; do sleep 5; done"
-    for junk in (True, "600000", 0, -5):
+    plain = "python3 scripts/merge_request.py merge"
+    # junk tool timeouts fall to the default 120000: a loop is denied, a plain call is not
+    for junk in (True, 0, -5, float("nan"), float("inf"), "abc", "1.5", "²"):
         assert _denied(_run(box, loop, timeout=junk)), junk
+        assert not _denied(_run(box, plain, timeout=junk)), junk
+    # a digit string counts as its number; a huge int is over every cap and never raises
+    for big in ("150000", " 600000 ", 10**400):
+        out = _run(box, plain, timeout=big)
+        assert out is not None and _denied(out), big
+    # the strict edges, one past each cap
+    assert _denied(_run(box, plain, timeout=120001))
+    assert _denied(_run(box, loop, timeout=60001))
+    # the deny text states the exact seconds
+    out = _run(box, loop, timeout=90000)
+    assert out is not None and "90 s" in out["permissionDecisionReason"]
+    out = _run(box, plain, timeout=120000.5)
+    assert out is not None and "120.0005 s" in out["permissionDecisionReason"]
+    # junk env values are no default either: the Bash tool's own 120000 applies
+    for junk_env in ("²", "abc", "0", "1.5", "9" * 5000):
+        box["env"]["BASH_DEFAULT_TIMEOUT_MS"] = junk_env
+        assert not _denied(_run(box, plain)), junk_env
+        assert _denied(_run(box, loop)), junk_env
     box["env"]["BASH_DEFAULT_TIMEOUT_MS"] = "30000"
     assert not _denied(_run(box, loop))
     box["env"]["BASH_DEFAULT_TIMEOUT_MS"] = "300000"
-    assert _denied(_run(box, "python3 scripts/merge_request.py merge"))
+    assert _denied(_run(box, plain))
 
 
 def test_non_coordinators_are_not_judged(box: dict) -> None:

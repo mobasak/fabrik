@@ -1095,25 +1095,48 @@ def _track_loops(raw: list[str], ctx: dict) -> None:
     wait = ctx.get("wait")
     if wait is None:
         return
-    for tok in raw:
+    i = 0
+    while i < len(raw):
+        tok = raw[i]
+        if tok == "function":  # `function NAME { while …` — the name is no keyword
+            i += 2
+            continue
         if tok not in _LOOP_LEAD:
             break
         if tok in _LOOP_OPEN:
             wait["depth"] += 1
         elif tok == "done":
             wait["depth"] = max(0, wait["depth"] - 1)
+        i += 1
+
+
+_MS_TEXT = re.compile(
+    r"[0-9]{1,15}"
+)  # ASCII digits only: str.isdigit() takes "²", which int() refuses
+_MS_CAP = 1e15  # any larger value is still "over every cap"; caps an int too big for a float
+
+
+def _ms(value: object) -> float | None:
+    """A positive millisecond count from a number or a plain digit string, else None. Never raises:
+    a bool, NaN, inf, a negative, a non-ASCII digit or an over-long string is no value at all."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return float(min(value, int(_MS_CAP))) if value > 0 else None
+    if isinstance(value, float):
+        return min(value, _MS_CAP) if math.isfinite(value) and value > 0 else None
+    if isinstance(value, str) and _MS_TEXT.fullmatch(value.strip()):
+        return float(value.strip()) if int(value.strip()) > 0 else None
+    return None
 
 
 def _timeout_ms(tool_input: dict) -> float:
-    """The call's effective timeout: its own number, else BASH_DEFAULT_TIMEOUT_MS, else 120000."""
-    value = tool_input.get("timeout")
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        if math.isfinite(value) and value > 0:
-            return float(value)
-    env = os.environ.get("BASH_DEFAULT_TIMEOUT_MS", "")
-    if env.isdigit() and int(env) > 0:
-        return float(env)
-    return float(_DEFAULT_TIMEOUT_MS)
+    """The call's effective timeout: its own value, else BASH_DEFAULT_TIMEOUT_MS, else 120000."""
+    return (
+        _ms(tool_input.get("timeout"))
+        or _ms(os.environ.get("BASH_DEFAULT_TIMEOUT_MS", ""))
+        or float(_DEFAULT_TIMEOUT_MS)
+    )
 
 
 def _coordinator(payload: dict) -> str:
@@ -1152,7 +1175,7 @@ def _wait_reason(payload: dict, wait: dict) -> str:
     if not isinstance(tool_input, dict) or tool_input.get("run_in_background") is True:
         return ""
     ms = _timeout_ms(tool_input)
-    secs = f"{ms / 1000:g} s"
+    secs = f"{ms / 1000:.15g} s"  # exact: `:g` printed 120000.5 ms as "120 s, over 120 s"
     if ms > WAIT_LONG_MS:
         rule = f"its timeout is {secs}, over {WAIT_LONG_MS // 1000} s"
     elif ms > WAIT_LOOP_MS and wait.get("sleep_in_loop"):
