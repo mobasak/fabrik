@@ -3435,14 +3435,17 @@ def _cmd_touch(only: str | None = None) -> int:
 # hands the lock fd to the tick, so a tick that never ends holds the lock for ever and every later
 # tick exits silently: on 2026-10-22 no tick wrote a row or a posture from 18:02 to 01:06. The
 # watchdog bounds one tick's life; the process exit is what closes the inherited lock fd.
-# The bound: the worst LEGITIMATE offline tick is ~1000-1100 s (3 refused pings x (150 s
-# `claude -p ok` + 45 s park confirm) + a 90 s active re-check + probes), an online tick ~2 s, so
-# 1800 s; raise ROTATE_TICK_MAX_S with KEEPALIVE_TIMEOUT or ROTATE_REFRESH_MAX_PER_RUN. The floor
-# keeps a typo from killing real ticks. COBRA: a smaller bound "fixes" a stall by killing the tick
-# that would have ended it, which is why the floor exists and the watchdog never runs the tick's
-# legs itself.
+# The bound: the worst LEGITIMATE offline tick is ~1000-1100 s — 3 refused pings x (150 s
+# `claude -p ok` + a 45 s park confirm) = 585 s, a 90 s active re-check (45 s probe + its confirm),
+# and the flip leg's probed pick at up to 90 s per candidate (4 siblings ≈ 360 s) — an online tick
+# ~2 s, so 1800 s; raise ROTATE_TICK_MAX_S with KEEPALIVE_TIMEOUT or ROTATE_REFRESH_MAX_PER_RUN.
+# The floor keeps a typo from killing real ticks; the ceiling (a day) keeps a giant value from
+# overflowing the Timer, whose thread then dies and bounds nothing (review pass 1, executed).
+# COBRA: a smaller bound "fixes" a stall by killing the tick that would have ended it, which is
+# why the floor exists and the watchdog never runs the tick's legs itself.
 _TICK_MAX_DEFAULT_S: Final = 1800.0
 _TICK_MAX_FLOOR_S = 600.0
+_TICK_MAX_CEILING_S: Final = 86400.0
 # Held across the stamp clear → wake transition (the advisory, the battery leg, the posture): an
 # exit between `_clear_stamp` and `_wake_held_sessions` would spend the one transition the relief
 # wake fires on (D-180), so the watchdog waits up to this long for it, then exits regardless.
@@ -3452,22 +3455,47 @@ _EXIT = os._exit  # the hard exit, a seam the graders replace
 
 
 def _tick_max_s() -> float:
-    """``ROTATE_TICK_MAX_S``; garbage, non-finite or under ``_TICK_MAX_FLOOR_S`` → 1800."""
+    """``ROTATE_TICK_MAX_S``; garbage, non-finite, under ``_TICK_MAX_FLOOR_S`` or over
+    ``_TICK_MAX_CEILING_S`` → 1800."""
     v = _env_float("ROTATE_TICK_MAX_S", _TICK_MAX_DEFAULT_S)
-    return v if v >= _TICK_MAX_FLOOR_S else _TICK_MAX_DEFAULT_S
+    return v if _TICK_MAX_FLOOR_S <= v <= _TICK_MAX_CEILING_S else _TICK_MAX_DEFAULT_S
 
 
-def _tick_watchdog(limit: float) -> None:
+def _flush_stdout_bounded(timeout: float = 5.0) -> None:
+    """Flush Python's stdout buffer before a hard exit, from a helper thread joined for at most
+    *timeout* seconds: cron's stdout is a FILE, block-buffered, so `os._exit` would drop every
+    `tick:` line the hung tick printed — the evidence of where it hung (review pass 1, executed);
+    a pipe whose reader stopped reading must not hang the exit instead."""
+
+    def flush() -> None:
+        with contextlib.suppress(Exception):
+            sys.stdout.flush()
+
+    t = threading.Thread(target=flush, daemon=True)
+    t.start()
+    t.join(timeout)
+
+
+def _tick_watchdog(limit: float, done: threading.Event | None = None) -> None:
     """Fired by the tick's Timer when the tick outlives *limit*: wait for the critical section,
-    say so, record the tick's end (so the next tick's resume leg does not read the kill as a box
-    sleep) and exit 0. Every step but the exit swallows its error: the board closes a timed-out
-    tick's stdout pipe, and a `print` into it raised BrokenPipeError and ended this thread with the
-    tick still alive (design critique, executed). Costs, accepted: unflushed buffers are lost and a
-    `_write_json_atomic` staging file may stay; a `claude -p ok` grandchild outlives the exit but
-    holds no lock."""
-    acquired = False
+    stand down if the tick's body has already finished (*done*, set by `_cmd_tick`'s `finally`
+    under the lock), else say so, record the tick's end (so the next tick's resume leg does not
+    read the kill as a box sleep) and exit 0. Every step but the exit swallows its error: the
+    board closes a timed-out tick's stdout pipe, and a `print` into it raised BrokenPipeError and
+    ended this thread with the tick still alive (design critique, executed). Costs, accepted: a
+    `_write_json_atomic` staging file may stay, and a `claude -p ok` grandchild outlives the exit
+    but holds no lock."""
+    acquired = stand_down = False
     try:
         acquired = _TICK_CRITICAL.acquire(timeout=_TICK_CRITICAL_WAIT_S)
+        # the body finished as the Timer fired: the `finally` legs are the tick's own
+        stand_down = done is not None and done.is_set()
+        if stand_down:
+            return
+        try:
+            _flush_stdout_bounded()
+        except BaseException:  # noqa: BLE001, S110 — nothing before the exit may stop it
+            pass
         line = (
             f"tick: WATCHDOG — still running after {limit:.0f} s; exiting so rotate.lock frees "
             "and the next tick runs"
@@ -3484,8 +3512,9 @@ def _tick_watchdog(limit: float) -> None:
             pass
     finally:
         try:
-            _EXIT(0)
-        finally:  # reached only when a grader's `_EXIT` returns: never strand the lock
+            if not stand_down:
+                _EXIT(0)
+        finally:  # reached on the stand-down, or when a grader's `_EXIT` returns
             if acquired:
                 _TICK_CRITICAL.release()
 
@@ -3513,12 +3542,15 @@ def _cmd_tick() -> int:
     _QUOTA_HOT_THIS_TICK = _QUOTA_UNKNOWN
     # the resume wake's inputs (W-75cafe7a): read before anything can raise, acted on last
     start, prev_end = _now(), _read_tick_last_end()
-    # the WATCHDOG (W-010bb0d9) bounds the body — the network legs that can hang; it is cancelled
-    # first thing in the `finally`, so the local battery and resume legs never race it
+    # the WATCHDOG (W-010bb0d9) bounds the body — the network legs that can hang. The `finally`
+    # marks the body done under `_TICK_CRITICAL` before its local legs run: `cancel()` cannot stop a
+    # Timer that has already fired, so a watchdog that fired as the body ended finds `done` set and
+    # stands down instead of exiting inside the battery lift's clear→wake (review pass 1)
     watchdog: threading.Timer | None = None
+    done = threading.Event()
     try:
         limit = _tick_max_s()
-        watchdog = threading.Timer(limit, _tick_watchdog, args=(limit,))
+        watchdog = threading.Timer(limit, _tick_watchdog, args=(limit, done))
         watchdog.daemon = True
         watchdog.start()
         fleet_dirs = _fleet_dirs()
@@ -3534,7 +3566,9 @@ def _cmd_tick() -> int:
         return 0
     finally:
         if watchdog is not None:
-            watchdog.cancel()
+            with _TICK_CRITICAL:  # a watchdog already past its Timer waits here, then stands down
+                done.set()
+                watchdog.cancel()
         _battery_leg(time.time(), lift=True)
         _resume_leg(start, prev_end)
 
@@ -5250,6 +5284,9 @@ def _fleet_account_rows(
                     row["model_windows"] = c["model_windows"]
                 row["source"] = "cache"
                 row["age_s"] = max(0.0, now - float(c["ts"]))
+                # the reading's own time, for `_active_heat_view`: rebuilding it from `age_s` at a
+                # later `now` slid it by the tick's duration and missed a reset (review pass 1)
+                row["cached_at"] = float(c["ts"])
         # walled BY ITS CAP — a READABLE figure at or over the cap, the verdict's own cap arm;
         # an UNREADABLE figure is no reading here as it is for the pick (the relief writer alone
         # refuses to promise from it — `_weekly_blocked`), so the flag, the warning, the verdict
@@ -7291,10 +7328,9 @@ def _active_heat_view(row: dict, now: float) -> dict:
     keeps it."""
     if row.get("source") != "cache":
         return row
-    age = _usable_ts(row.get("age_s"))
-    if age is None:
-        return row
-    ts = now - age
+    ts = _usable_ts(row.get("cached_at"))  # the reading's own time, set by `_fleet_account_rows`
+    if ts is None:
+        return row  # no reading time: judge the row as it is (the pre-change behaviour)
     view = dict(row)
     for key in ("five_hour", "seven_day"):
         if _window_rolled(row.get(key), ts, now):
