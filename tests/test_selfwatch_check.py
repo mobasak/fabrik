@@ -40,6 +40,8 @@ def _run(tmp_path: Path, cwd: str = "/opt/anything", sid: str = SID, **env: str)
     # the kaizen window runs this suite too: its CLAUDE_AGENT would print the feedback-watch
     # order and fail the "armed is silent" grader there alone (design critique, Fable #3)
     e.pop("CLAUDE_AGENT", None)
+    # a window launched in another tree would print the tree notice into every other grader (W-456aa02a)
+    e.pop("CLAUDE_PROJECT_DIR", None)
     (tmp_path / "identity.jsonl").write_text("")
     e["AGENT_IDENTITY_FILE"] = str(tmp_path / "identity.jsonl")
     e.update(env)  # …but a test that SETS it must win (the first draft popped it after merging)
@@ -359,3 +361,127 @@ def test_a_held_lock_without_read_permission_still_reads_armed(tmp_path, monkeyp
     finally:
         lock.chmod(0o644)
         os.close(fd)
+
+
+# --- W-456aa02a: the window whose hooks load from another tree is told so, every prompt ----------------------------
+# Claude Code keeps the folder a window was LAUNCHED in as its project folder (CLAUDE_PROJECT_DIR: hooks, settings,
+# permissions) after the session moves into another worktree. infra's window ran `worktrees/infra`'s hooks, 1602
+# commits behind the tree it worked in, for days, and nothing said so. This hook runs from the hub's main checkout at
+# user level for every window, so a stale tree's own copies can never silence it.
+
+TREE_NOTICE = "## ⚠️ HOOKS LOAD FROM ANOTHER TREE"
+
+
+def _git(*args: str, cwd: Path) -> str:
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    return subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+        cwd=cwd,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _trees(tmp_path: Path) -> tuple[Path, Path, Path, str]:
+    """A main checkout with two linked worktrees under `.claude/worktrees/`: `stale` at the first commit, `work` two
+    commits ahead of it. Returns (main, stale, work, stale's short sha)."""
+    main = (tmp_path / "repo").resolve()
+    main.mkdir()
+    _git("init", "-q", cwd=main)
+    _git("commit", "-q", "--allow-empty", "-m", "one", cwd=main)
+    stale_sha = _git("rev-parse", "--short", "HEAD", cwd=main)
+    wts = main / ".claude" / "worktrees"
+    _git("worktree", "add", "-q", "--detach", str(wts / "stale"), cwd=main)
+    _git("worktree", "add", "-q", "-b", "w", str(wts / "work"), cwd=main)
+    work = wts / "work"
+    _git("commit", "-q", "--allow-empty", "-m", "two", cwd=work)
+    _git("commit", "-q", "--allow-empty", "-m", "three", cwd=work)
+    return main, wts / "stale", work, stale_sha
+
+
+def test_hooks_from_another_tree_are_said(tmp_path):
+    """B5: a cwd in one linked worktree with CLAUDE_PROJECT_DIR another of the same repo → the notice names the tree the
+    hooks load from, the tree worked in, the stale tree's head and both counts, and the remedy the reader can act on;
+    an inherited GIT_DIR (a hook or IDE env) never redirects the decision."""
+    _main, stale, work, sha = _trees(tmp_path)
+    for extra in ({}, {"GIT_DIR": str(_main / ".git")}):
+        out = _run(tmp_path, cwd=str(work), CLAUDE_PROJECT_DIR=str(stale), **extra)
+        assert TREE_NOTICE in out, (extra, out)
+        assert f"load from `{stale}`" in out and f"you work in `{work}`" in out, out
+        assert f"at {sha}" in out, out
+        assert "your tree has 2 commit(s) it lacks, and it has 0 yours lacks" in out, out
+        assert "Tell your coordinator ONCE" in out and "Never `cd` back" in out, out
+        assert f"--resume {SID}" in out, out
+    # the hand relaunch carries the config dir and the agent name when this window has them
+    out = _run(
+        tmp_path,
+        cwd=str(work),
+        CLAUDE_PROJECT_DIR=str(stale),
+        CLAUDE_CONFIG_DIR="/cfg",
+        CLAUDE_AGENT="infra",
+    )
+    assert f"cd {work} && CLAUDE_CONFIG_DIR=/cfg claude -n infra --resume {SID}" in out, out
+
+
+def test_hooks_from_the_same_tree_say_nothing(tmp_path):
+    """B6: no notice when the trees match (a trailing slash or a symlink to the same tree included), when the window
+    was launched in the main checkout, across two repos, with no CLAUDE_PROJECT_DIR, or when the tree worked in is a
+    probe worktree outside `.claude/worktrees/`."""
+    main, stale, work, _sha = _trees(tmp_path)
+    link = tmp_path / "link-to-work"
+    link.symlink_to(work)
+    other = (tmp_path / "other").resolve()
+    other.mkdir()
+    _git("init", "-q", cwd=other)
+    _git("commit", "-q", "--allow-empty", "-m", "x", cwd=other)
+    probe = (tmp_path / "probe").resolve()
+    _git("worktree", "add", "-q", "--detach", str(probe), cwd=main)
+    cases = {
+        "same tree, trailing slash": (str(work), str(work) + "/"),
+        "same tree, via a symlink": (str(work), str(link)),
+        "a subfolder of the same tree": (str(work / ".claude"), str(work)),
+        "launched in the main checkout": (str(work), str(main)),
+        "another repo": (str(work), str(other)),
+        "a probe tree outside worktrees/": (str(probe), str(stale)),
+    }
+    (work / ".claude").mkdir(exist_ok=True)
+    for why, (cwd, proj) in cases.items():
+        assert TREE_NOTICE not in _run(tmp_path, cwd=cwd, CLAUDE_PROJECT_DIR=proj), why
+    assert TREE_NOTICE not in _run(tmp_path, cwd=str(work)), "unset"
+    # a LINKED worktree of another repo is decided as another repo up front — never by a cross-repo git error
+    other_wt = other / ".claude" / "worktrees" / "x"
+    _git("worktree", "add", "-q", "--detach", str(other_wt), cwd=other)
+    env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PROJECT_DIR", "CLAUDE_AGENT")}
+    proc = subprocess.run(
+        [sys.executable, str(HOOK)],
+        input=json.dumps({"session_id": SID, "cwd": str(work)}),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={
+            **env,
+            "CLAUDE_PROJECT_DIR": str(other_wt),
+            "CLAUDE_SOUND_LOCKDIR": str(tmp_path / "locks"),
+        },
+    )
+    assert TREE_NOTICE not in proc.stdout and "tree notice skipped" not in proc.stderr, (
+        proc.stdout,
+        proc.stderr,
+    )
+
+
+def test_the_tree_notice_does_not_wait_for_the_self_watch(tmp_path):
+    """B7: the notice prints before, and beside, an unarmed self-watch's arm order; and a guard that cannot run git
+    (git missing from PATH) is silent while the self-watch order still prints — the guard never costs the window its
+    arm order."""
+    _main, stale, work, _sha = _trees(tmp_path)
+    opt = {"SELFWATCH_OPT_ROOT": str(tmp_path)}
+    out = _run(tmp_path, cwd=str(work), CLAUDE_PROJECT_DIR=str(stale), **opt)
+    assert TREE_NOTICE in out and "SELF-WATCH NOT ARMED" in out, out
+    assert out.index(TREE_NOTICE) < out.index("SELF-WATCH NOT ARMED"), out
+    nogit = tmp_path / "nogit"
+    nogit.mkdir()
+    out = _run(tmp_path, cwd=str(work), CLAUDE_PROJECT_DIR=str(stale), PATH=str(nogit), **opt)
+    assert TREE_NOTICE not in out and "SELF-WATCH NOT ARMED" in out, out

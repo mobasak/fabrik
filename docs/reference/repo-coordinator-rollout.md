@@ -191,11 +191,18 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   refuses the launch.
 - Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id> "<wake prompt>"` (the prompt is the
   session's first turn: re-arm the self-watch, then carry on; the `hibernate.py woke --self <id>` step joins it with
-  W-6e656dac T01a's lift-only woke) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in the builder's worktree,
-  `.claude/worktrees/<name>`, when that folder is a linked git worktree in place (it holds a `.git` file, and no part
-  of its path is a symlink). A name with no such worktree gets no pane, said on stderr, and a repo left with no builder
-  refuses (exit 2). The main checkout is the coordinator's, and a builder resumed there would edit main's tree and read
-  main's `CLAUDE.md` (W-6c7c3292).
+  W-6e656dac T01a's lift-only woke) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
+  git worktree in place under `.claude/worktrees/` (it holds a `.git` file, and no part of its path is a symlink): the
+  one whose claude project folder holds the builder's session, else `.claude/worktrees/<name>` (W-456aa02a). Claude Code
+  keeps the folder a pane STARTED in as the window's `CLAUDE_PROJECT_DIR` — where its hooks, settings and permissions
+  load from — after the session moves into another worktree, and files the transcript under the folder it works in;
+  so infra's pane, started by name in `worktrees/infra` while infra worked in `infra-uncapped`, ran a tree 1602 commits
+  behind for days. A candidate folder must be an agent name (`[a-z0-9][a-z0-9-]{0,31}`); another builder's own-named
+  tree is never taken; a session in several worktrees, or two builders found in one, keep `<name>` (said on stderr,
+  the launch continues); a found `agent-*` tree (Claude Code's subagent trees) is flagged. A name with no own worktree
+  takes a found folder only where the repo declares its merge owner. A name with no folder at all gets no pane, said on
+  stderr, and a repo left with no builder refuses (exit 2). The main checkout is the coordinator's, and a builder
+  resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Every pane runs whole — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
   `fabrik-agents.slice`, with `MemorySwapMax=0` and `TasksMax` (`FABRIK_AGENT_TASKS_MAX`, default 1024) and no
   `MemoryMax` of its own (W-56b3f90d, then W-6e656dac L5: `FABRIK_AGENT_MEM_MAX` is retired — a set value is warned
