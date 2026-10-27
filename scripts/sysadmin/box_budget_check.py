@@ -121,20 +121,29 @@ def _log(line: str) -> None:
             fh.write(f"{stamp} box-budget: {line}\n")
 
 
+def _user_run_dir() -> Path:
+    return Path(f"/run/user/{os.getuid()}")
+
+
+def _systemctl_env() -> dict[str, str]:
+    """This process's environment plus the user bus: cron carries no XDG_RUNTIME_DIR, and without it
+    `systemctl --user` answers "Failed to connect to bus" (measured; the agents_up.sh:413-416 idiom).
+    Built for the child only — this process's own environment is never written."""
+    env = dict(os.environ)
+    run = _user_run_dir()
+    if not env.get("XDG_RUNTIME_DIR") and (run / "bus").is_socket():
+        env["XDG_RUNTIME_DIR"] = str(run)
+    return env
+
+
 def _systemctl(*args: str) -> subprocess.CompletedProcess[str] | None:
     cmd = [os.environ.get("BOX_BUDGET_SYSTEMCTL", "systemctl"), "--user", *args]
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=SYSTEMCTL_TIMEOUT_S)
+        return subprocess.run(
+            cmd, capture_output=True, text=True, timeout=SYSTEMCTL_TIMEOUT_S, env=_systemctl_env()
+        )
     except (OSError, subprocess.SubprocessError):
         return None
-
-
-def _user_bus() -> None:
-    # cron carries no XDG_RUNTIME_DIR, and without it `systemctl --user` answers "Failed to connect to
-    # bus" (measured); the agents_up.sh:413-416 idiom
-    run = Path(f"/run/user/{os.getuid()}")
-    if not os.environ.get("XDG_RUNTIME_DIR") and (run / "bus").is_socket():
-        os.environ["XDG_RUNTIME_DIR"] = str(run)
 
 
 # ── readings ──────────────────────────────────────────────────────────────────────────────────────
@@ -342,10 +351,13 @@ def _mail(subject: str, body: str, ack: str) -> bool:
 
 
 def _send(ep: dict[str, object], subject: str, body: str, ack: str) -> None:
-    """Mail now; a send that fails is QUEUED on the episode, so a later run retries it whatever the unit reads then."""
-    if not _mail(subject, body, ack):
-        queued = ep.get("unsent")
-        ep["unsent"] = [*(queued if isinstance(queued, list) else []), [subject, body, ack]]
+    """Mail now; a send that fails is QUEUED on the episode, so a later run retries it whatever the unit reads then.
+
+    Behind a non-empty queue the mail is queued without a send, so the coordinator reads them in order."""
+    queued = ep.get("unsent")
+    queued = queued if isinstance(queued, list) else []
+    if queued or not _mail(subject, body, ack):
+        ep["unsent"] = [*queued, [subject, body, ack]]
 
 
 def _flush(ep: dict[str, object]) -> None:
@@ -486,7 +498,6 @@ def main(argv: list[str] | None = None) -> int:
     if args not in ([], ["--report"]):
         print("usage: box_budget_check.py [--report]", file=sys.stderr)
         return 2
-    _user_bus()
     if args == ["--report"]:
         return report()
     lock_path = _state_path().with_name(f".{_state_path().name}.lock")

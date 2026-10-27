@@ -83,7 +83,7 @@ def box(tmp_path, monkeypatch):
     }.items():
         monkeypatch.setenv(k, str(v))
     monkeypatch.setattr(bb, "_canary", lambda: "ok")
-    # main() exports XDG_RUNTIME_DIR when it is unset (cron); recorded here, it is restored after each test
+    # every box test runs as cron does, with no XDG_RUNTIME_DIR (the checker supplies systemctl's own)
     monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
     now = [1_000_000.0]
     monkeypatch.setattr(bb, "_now", lambda: now[0])
@@ -266,6 +266,46 @@ def test_an_episode_never_closes_with_a_mail_still_queued(box, monkeypatch):
     bb.main([])
     sent = [m["body"] for m in mails(box)]
     assert "recovered" in sent[-2] and "restarted it" in sent[-1]
+
+
+def test_a_new_mail_never_overtakes_an_older_queued_one(box, monkeypatch):
+    set_unit(box, "failed", result="resources", start_ok=False)
+    bb.main([])
+    set_unit(box, "active")
+    monkeypatch.setenv("FAKE_MAIL_RC", "1")
+    box["now"][0] += 3601
+    bb.main([])  # the recovered mail fails: queued
+    attempts = len(mails(box))
+    set_unit(box, "failed", result="resources")
+    bb.main([])  # the queue's head fails again: the new episode's mail waits behind it, unsent
+    assert len(mails(box)) == attempts + 1  # one attempt (the head), never the newer mail
+    ep = json.loads((box["tmp"] / "state" / "box-budget.json").read_text())["unit"]
+    assert [m[0].split(" — ")[0] for m in ep["unsent"]][0].endswith("recovered")
+    assert "restarted it" in ep["unsent"][1][0]
+
+
+def test_the_user_bus_reaches_systemctl_without_touching_this_process(box, monkeypatch, tmp_path):
+    """cron has no XDG_RUNTIME_DIR: systemctl gets it in its own environment; os.environ is never written."""
+    run = tmp_path / "run"
+    run.mkdir()
+    import socket
+
+    sock = socket.socket(socket.AF_UNIX)
+    sock.bind(str(run / "bus"))
+    monkeypatch.setattr(bb, "_user_run_dir", lambda: run)
+    seen = box["tmp"] / "env-seen"
+    real = box["tmp"] / "systemctl"
+    wrapper = box["tmp"] / "systemctl-env"
+    wrapper.write_text(
+        f'#!/bin/sh\nprintf "%s\\n" "$XDG_RUNTIME_DIR" >> {seen}\nexec {real} "$@"\n'
+    )
+    wrapper.chmod(0o755)
+    monkeypatch.setenv("BOX_BUDGET_SYSTEMCTL", str(wrapper))
+    before = dict(os.environ)
+    bb.main([])
+    sock.close()
+    assert dict(os.environ) == before  # nothing leaks into later tests or callers
+    assert set(seen.read_text().split()) == {str(run)}
 
 
 def test_a_raising_leg_keeps_the_other_legs_mail_recorded(box, monkeypatch):
@@ -452,7 +492,9 @@ def test_the_canary_maps_each_errno_and_closes_its_fd(monkeypatch, init, add, er
 def test_the_real_canary_answers_ok_on_this_box_and_creates_nothing(tmp_path, monkeypatch):
     state = tmp_path / "absent" / "box-budget.json"
     monkeypatch.setenv("BOX_BUDGET_STATE", str(state))
-    assert bb._canary() == "ok"  # this box's budget is far from full (measured 14,598 of 524,288)
+    # the real libc call answers (never `unknown`) whatever this host's budget reads; the errno
+    # mapping itself is graded by the fake-libc test above
+    assert bb._canary() in ("ok", "watches", "instances")
     assert not state.parent.exists()  # it watches `/`, so `--report` creates no state dir
 
 
@@ -478,7 +520,9 @@ def test_script_runs_as_a_subprocess_with_a_bare_env(box):
         [sys.executable, str(SCRIPT)], env=_bare_env(), capture_output=True, text=True, timeout=60
     )
     assert r.returncode == 0 and r.stdout == "" and r.stderr == ""
-    assert "restart held" in log(box) and len(mails(box)) == 1
+    # the child runs the REAL canary: on a host whose budget is exhausted it adds one inotify mail
+    unit = [m for m in mails(box) if "fabrik-rotate.path" in m["body"].splitlines()[0]]
+    assert "restart held" in log(box) and len(unit) == 1 and "restarted it" in unit[0]["body"]
     assert (box["tmp"] / "state" / ".box-budget.json.lock").exists()
 
 
