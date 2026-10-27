@@ -7935,3 +7935,17 @@ document.
   (here: a key session on a plain quota tier), then change exactly the one input under test. Prove it red
   on the pre-fix code; a red-first run is the only check that catches a fixture held by the wrong guard.
 - **Where it lives.** `tests/test_quota_stop_hook.py::test_a_plan_session_is_still_held_at_the_wall`.
+
+## A hook "that does nothing" for one window may not be the hook that window runs — read the hook child's CLAUDE_PROJECT_DIR (2026-10-27)
+
+- **What happened.** The Stop hook kept ordering infra to claim mail at every rotation boundary although the
+  stand-down for exactly that case had been on master for three days (W-2fb8b1a1). Every replay of the hook from
+  infra's own Bash stood the mail down. A /proc poll of a REAL Stop showed the hook child running
+  `worktrees/infra/.claude/hooks/final_gate_stop.py`, 1602 commits behind the tree infra worked in.
+- **Mechanism.** Claude Code loads hooks, settings and permissions from `CLAUDE_PROJECT_DIR`, the folder the window
+  was LAUNCHED in, and keeps it after the session moves into another worktree. A replay run from your own shell uses
+  the hook in your cwd, so it can never reproduce the stale copy.
+- **How to apply.** When a merged hook fix does not take in one window, poll `/proc/*/environ` of that window's
+  hook children during a real Stop (no strace on this box) and compare `CLAUDE_PROJECT_DIR` with the cwd. Since
+  W-456aa02a the user-level `selfwatch_check.py` says so on every prompt.
+- **Where it lives.** `scripts/sysadmin/selfwatch_check.py::_project_dir_order`, `scripts/sysadmin/agents_up.sh` (D-1284).

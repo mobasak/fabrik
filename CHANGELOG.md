@@ -14,6 +14,17 @@ test's files, then adds `--defs`. It refuses any argv but `--repo <repo>`, so a 
 fails instead of sweeping the live `/opt`. A new assertion checks that exa's key is the test's own.
 W-2c2f1025; a one-test hunk under intel's plan-3 lock, on the coordinator's ruling.
 
+### Fixed — a builder's pane starts where its session lives, and a window on another tree's hooks is told (2026-10-27)
+
+Claude Code keeps the folder a pane started in as the window's `CLAUDE_PROJECT_DIR`, where its hooks, settings and
+permissions load from, even after the session moves into another worktree. `scripts/sysadmin/agents_up.sh` started
+every builder in `.claude/worktrees/<name>`, so infra's window ran the hooks of `worktrees/infra` (1602 commits behind)
+and fleet's those of `worktrees/fleet` (702 behind) — why the rotation stand-down never reached infra (W-2fb8b1a1). A
+pane now starts in the one linked worktree whose project folder holds the builder's session, else `<name>` as before,
+and `scripts/sysadmin/selfwatch_check.py` prints `HOOKS LOAD FROM ANOTHER TREE` on every prompt of a window whose
+launch folder is a different linked worktree of the repo it works in (W-456aa02a, D-1284). The rule and its edge cases:
+`docs/reference/repo-coordinator-rollout.md` and `docs/workstation/hooks-index.md`.
+
 ### Fixed — the MCP emitter tests no longer read the box's git ignore or template (2026-10-27)
 
 `tests/test_emit_mcp_project_config.py`'s autouse `_hermetic_git` emptied the global and system git config
