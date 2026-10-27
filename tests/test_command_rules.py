@@ -1243,9 +1243,21 @@ MASTER_SRC = SOURCE.replace("Stop at the pin.", "Stop at the pinned base.")  # m
 LEAN_SRC = MASTER_SRC.replace("Run the probe on a copy. ", "")  # the lean side cuts another line on its branch
 
 
+_GIT_ENV = {
+    "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+    "GIT_AUTHOR_DATE": "2026-10-27T00:00:00Z", "GIT_COMMITTER_DATE": "2026-10-27T00:00:00Z",  # same shas every run
+    "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",  # no box signing, hooks or default-branch config
+}  # fmt: skip
+
+
 def _git(root: Path, *args: str) -> str:
-    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True, env=env).stdout.strip()
+    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True, env={**os.environ, **_GIT_ENV}).stdout.strip()
+
+
+def _short(sha: str, n: int = 9) -> str:
+    """The shortest prefix of ``sha`` from ``n`` chars that holds a letter AND a digit — the only shape a D-row's
+    commit token takes (`command_rules._SHA`), so no fixture sha reads as a plain number."""
+    return next(sha[:k] for k in range(n, len(sha) + 1) if re.search("[a-f]", sha[:k]) and re.search("[0-9]", sha[:k]))
 
 
 def _commit(t: dict[str, Path], text: str, msg: str) -> str:
@@ -1296,13 +1308,71 @@ PIN, PROBE = _line("Stop at the pin"), _line("Run the probe")
 
 def test_superseded_carried_by_the_master_commit_its_row_names(tmp_path: Path) -> None:
     t, s = _history(tmp_path)
-    lost = _superseded(t, {"D-0002": f"master rewrote demo.md in {s['master']}", "D-0003": f"lean cut demo.md ({s['lean'][:9]})"},
+    lost = _superseded(t, {"D-0002": f"master rewrote demo.md in {s['master']}", "D-0003": f"lean cut demo.md ({_short(s['lean'])})"},
                        {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
     assert lost == [], lost
-    # a short sha in the row is enough
-    lost = _superseded(t, {"D-0002": f"demo.md · {s['master'][:9]}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    # a short sha in the row is enough; tokens that do not qualify (a merge, a branch cut) are skipped, never fatal
+    lost = _superseded(t, {"D-0002": f"demo.md · {_short(s['merge'])} {_short(s['lean'])} {_short(s['master'])}"},
+                       {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
     assert lost == [], lost
     assert any("'superseded': 1" in x for x in cr.summary(t["rules"])), cr.summary(t["rules"])
+
+
+def test_superseded_ignores_an_inherited_git_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    t, s = _history(tmp_path / "repo")
+    other = tmp_path / "other"
+    other.mkdir()
+    _git(other, "init", "-q", "-b", "master")  # a hook's GIT_DIR pointing elsewhere never answers for the root
+    # a replace ref swapping master's blob for the OLD text would make master read as still holding the line
+    old = tmp_path / "old.md"
+    old.write_text(SOURCE, encoding="utf-8")
+    blob = _git(t["root"], "hash-object", "-w", str(old))
+    _git(t["root"], "replace", _git(t["root"], "rev-parse", "master:src/demo.md"), blob)
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert lost == [], lost
+
+
+def test_superseded_in_a_shared_ledger(tmp_path: Path) -> None:
+    t, s = _history(tmp_path)
+    pin = next(i for i, k in enumerate(cr.keys(SOURCE), 1) if "Stop at the pin" in k)  # a shared source is read raw
+    probe = next(i for i, k in enumerate(cr.keys(SOURCE), 1) if "Run the probe" in k)
+    (t["root"] / "docs" / "DECISIONS.md").write_text(f"| D-0002 | 2026-10-27 | x | demo.md {s['master']} | y | z |\n", encoding="utf-8")
+    base = t["rules"] / "_shared" / "demo.baseline.txt"
+    data = {"shared": "src/demo.md", "baseline_sentences": base.name, "baseline_sha256": cr.write_baseline(SOURCE, base),
+            "entries": [{"id": "S1", "section": "## Scope", "text": ["Never stage a sibling's file"]}],
+            "vanished": {f"L{pin}": {"superseded": "D-0002"}, f"L{probe}": "narrative"}}
+    (t["rules"] / "_shared" / "demo.yaml").write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    assert _losses(t) == [], _losses(t)
+
+
+def test_superseded_refused_when_master_still_holds_the_line_or_lost_the_file(tmp_path: Path) -> None:
+    t, s = _history(tmp_path)
+    _git(t["root"], "checkout", "-q", "master")
+    _commit(t, SOURCE.replace("Run the probe on a copy. ", ""), "master restores the pin line")  # master holds L{PIN} again
+    _git(t["root"], "checkout", "-q", "lean")
+    (t["src"] / "demo.md").write_text(LEAN_SRC, encoding="utf-8")
+    lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert len(lost) == 1 and "still holds this line" in lost[0], lost
+    t, s = _history(tmp_path / "renamed")
+    _git(t["root"], "checkout", "-q", "master")
+    _git(t["root"], "mv", "src/demo.md", "src/other.md")
+    _git(t["root"], "commit", "-q", "-m", "master renames the source")
+    _git(t["root"], "checkout", "-q", "lean")
+    (t["src"] / "demo.md").write_text(LEAN_SRC, encoding="utf-8")
+    lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert len(lost) == 1 and "master no longer holds src/demo.md" in lost[0], lost
+
+
+def test_superseded_refused_for_a_commit_whose_parent_already_lacked_the_line(tmp_path: Path) -> None:
+    t, s = _history(tmp_path)
+    _git(t["root"], "checkout", "-q", "master")  # after the merge master already lacks "Run the probe on a copy."
+    later = _commit(t, MASTER_SRC.replace("Run the probe on a copy. ", "").replace("2. Push it.", "2. Push it now."), "later")
+    _git(t["root"], "checkout", "-q", "lean")
+    (t["src"] / "demo.md").write_text(LEAN_SRC.replace("2. Push it.", "2. Push it now."), encoding="utf-8")
+    lost = _superseded(t, {"D-0002": f"demo.md {later}"},
+                       {f"L{PIN}": "narrative", f"L{PROBE}": {"superseded": "D-0002"}, f"L{_line('Push it')}": "narrative"})
+    assert len(lost) == 1 and "no commit D-0002 names removed this line on master" in lost[0], lost
 
 
 def test_superseded_refused_for_a_branch_cut_or_a_merge(tmp_path: Path) -> None:
@@ -1318,7 +1388,7 @@ def test_superseded_refused_for_a_pre_tag_commit_or_one_not_removing_the_line(tm
         lost = _superseded(t, {"D-0002": f"demo.md {sha}"}, {f"L{PIN}": "narrative", f"L{PROBE}": {"superseded": "D-0002"}})
         assert len(lost) == 1 and "no commit D-0002 names removed this line on master" in lost[0], lost
     # a W-item's hex is never read as a commit, even when it is one's prefix
-    lost = _superseded(t, {"D-0002": f"demo.md W-{s['master'][:8]}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    lost = _superseded(t, {"D-0002": f"demo.md W-{_short(s['master'], 8)}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
     assert len(lost) == 1 and "no commit D-0002 names removed this line on master" in lost[0], lost
 
 
@@ -1326,6 +1396,15 @@ def test_superseded_refused_when_masters_replacement_is_not_carried(tmp_path: Pa
     t, s = _history(tmp_path, own=LEAN_SRC.replace("Stop at the pinned base.", "Stop."))
     lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
     assert len(lost) == 1 and "master's replacement" in lost[0] and "Stop at the pinned base" in lost[0], lost
+    # master later moves its replacement under another heading: it is still owed, wherever it now sits
+    moved = MASTER_SRC.replace("Run the probe on a copy. ", "").replace("Stop at the pinned base.", "").replace("2. Push it.", "2. Push it.\n\nStop at the pinned base.")
+    t, s = _history(tmp_path / "moved", own=LEAN_SRC.replace("Stop at the pinned base.", ""))
+    _git(t["root"], "checkout", "-q", "master")
+    _commit(t, moved, "master moves the rewrite under Close")
+    _git(t["root"], "checkout", "-q", "lean")
+    (t["src"] / "demo.md").write_text(LEAN_SRC.replace("Stop at the pinned base.", ""), encoding="utf-8")
+    lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert len(lost) == 1 and "master's replacement" in lost[0] and "## Close" in lost[0], lost
 
 
 def test_superseded_label_shape_row_and_mixing(tmp_path: Path) -> None:
@@ -1333,8 +1412,11 @@ def test_superseded_label_shape_row_and_mixing(tmp_path: Path) -> None:
     for label in ({"superseded": "D-9999"}, {"superseded": "1251"}, {"superseded": ["D-0002"]}, {"superseded": "D-0002", "rule": ["R1"]}):
         lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": label, f"L{PROBE}": "narrative"})
         assert len(lost) == 1 and "malformed" in lost[0], (label, lost)
-    lost = _superseded(t, {"D-0002": f"another.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
-    assert len(lost) == 1 and "malformed" in lost[0] and "demo.md" in lost[0], lost
+    for names in ("another.md", "ademo.md", "demo.md.bak"):  # the source by name, never a longer name holding it
+        lost = _superseded(t, {"D-0002": f"{names} {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+        assert len(lost) == 1 and "malformed" in lost[0] and "demo.md" in lost[0], (names, lost)
+    lost = _superseded(t, {"D-0002": f"master rewrote demo.md. See {s['master']}."}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert lost == [], lost  # a sentence ending on the name still names it
     # mixed with a failing `rule:` label: both LOSS lines print, neither hides the other
     lost = _superseded(t, {"D-0002": f"demo.md {s['lean']}"}, {f"L{PIN}": {"rule": ["R1"]}, f"L{PROBE}": {"superseded": "D-0002"}})
     assert any("vanished as rule ['R1']" in x for x in lost) and any("superseded by D-0002" in x for x in lost), lost
@@ -1347,3 +1429,21 @@ def test_superseded_fails_closed_without_git_history(tmp_path: Path) -> None:
     (t["src"] / "demo.md").write_text(LEAN_SRC, encoding="utf-8")
     lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
     assert len(lost) == 1 and "no git history readable" in lost[0], lost
+    # a repo with no master ref, and one with no baseline tag: each a LOSS naming it
+    t, s = _history(tmp_path / "trunk")
+    _git(t["root"], "branch", "-m", "master", "trunk")
+    lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert len(lost) == 1 and "no master ref" in lost[0], lost
+    t, s = _history(tmp_path / "untagged")
+    _git(t["root"], "tag", "-d", cr.LEAN_BASELINE_TAG)
+    lost = _superseded(t, {"D-0002": f"demo.md {s['master']}"}, {f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    assert len(lost) == 1 and f"the tag {cr.LEAN_BASELINE_TAG} is not in the history" in lost[0], lost
+    # a command source outside the repo root: no commit of the root can name it
+    t, s = _history(tmp_path / "inside")
+    outside = tmp_path / "outside-src"
+    outside.mkdir()
+    (outside / "demo.md").write_text(LEAN_SRC, encoding="utf-8")
+    (t["root"] / "docs" / "DECISIONS.md").write_text(f"| D-0002 | 2026-10-27 | x | demo.md {s['master']} | y | z |\n", encoding="utf-8")
+    _ledger(t, [ENTRY], baseline_from=SOURCE, vanished={f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
+    lost = cr.losses(t["out"], t["root"], outside, rules=t["rules"])
+    assert len(lost) == 1 and "is outside the repo" in lost[0], lost
