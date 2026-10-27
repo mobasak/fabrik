@@ -83,12 +83,14 @@ def test_an_armed_diff_scans_only_its_src_files_that_still_exist(repo, monkeypat
     and NO extension filter: `--config auto` scans TypeScript and the rest as well as Python."""
     (repo / "src" / "a.py").write_text("x = 1\n")
     (repo / "src" / "b.ts").write_text("let x = 1;\n")
+    (repo / "docs").mkdir()
+    (repo / "docs" / "x.md").write_text("# x\n")  # exists, so only the src/ test can drop it
     runner = _arm_runner(monkeypatch, _Runner((0, "")))
     name, ok, _ = fg._semgrep_row({"src/a.py", "src/b.ts", "src/gone.py", "docs/x.md"})
     assert (name, ok) == ("semgrep", True)
     ((cmd, timeout),) = runner.calls
-    assert cmd[-2:] == ["src/a.py", "src/b.ts"]
     assert "--error" in cmd, "without --error a scan with findings exits 0 and reads as a pass"
+    assert cmd[cmd.index("--error") + 1 :] == ["src/a.py", "src/b.ts"]
     assert timeout == fg.TIMEOUTS["semgrep"]
 
 
