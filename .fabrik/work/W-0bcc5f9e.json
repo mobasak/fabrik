@@ -16,7 +16,7 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-3",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — gate semgrep leg never runs fleet-wide: false green in a gate",
   "status": "open",
