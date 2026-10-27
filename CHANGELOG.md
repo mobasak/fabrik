@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Coordinators never block on a long wait; self-healing row for an unkillable worker child (2026-10-27)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`, coordinator job (5): a merge, queue, test leg or API run goes to the background and the turn ends until its notification wakes it, never a foreground sleep, poll loop or long `runwait` (operator ruling D-1296, W-32ab8277).
+- `docs/reference/long-command-monitoring.md`: the key rule and the long-suite example now say the foreground `runwait` is builder-only (infra mail 01M5YP378Z).
+- `.windsurf/rules/core/self-healing.md`: row 12, a fork-pool child left in uninterruptible kernel sleep after SIGKILL (for example a kernel netlink wedge) is held against the live-child cap, counted and logged, never replaced; one deduplicated alert per episode; the operator restarts the kernel (youtube mail 01M5C99YXS, W-07231796).
+
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 
 Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).

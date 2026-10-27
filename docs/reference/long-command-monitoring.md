@@ -41,7 +41,7 @@ scripts/runls --running                  # see everything in flight
 scripts/runk $(scripts/runlast)
 ```
 
-**Key rule for agents:** never block on a foreground long command. If you need the result before continuing, use `runwait <job> <bounded-seconds>` so the wall-clock cost is bounded.
+**Key rule for agents:** never block on a foreground long command. If you need the result before continuing, use `runwait <job> <bounded-seconds>` so the wall-clock cost is bounded. A coordinator (the merge owner) never waits in the foreground at all: it runs the job with `run_in_background`, ends its turn and is woken by the completion notification (D-1296), so the `runwait` examples below are builder-only.
 
 ---
 
@@ -245,7 +245,7 @@ scripts/runc --quiet $(scripts/runlast)    # RUNNING? check log:
 scripts/runtail $(scripts/runlast)
 ```
 
-**Run a long test suite, only fail if it actually fails:**
+**Run a long test suite, only fail if it actually fails (builder-only; a coordinator backgrounds it, D-1296):**
 ```bash
 scripts/rund --name pytest --timeout 600 -- pytest -x
 scripts/runwait $(scripts/runlast) 600
