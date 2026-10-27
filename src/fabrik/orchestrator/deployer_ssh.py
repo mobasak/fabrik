@@ -202,9 +202,10 @@ def app_dir(spec: dict[str, Any] | Spec) -> list[str]:
 
 
 _PS_KEYS = ("Service", "State", "Health", "ExitCode")
-# Everything the ssh driver's subprocess.run can raise (drivers/ssh.py:99): a failed command
-# (RuntimeError), a missing ssh binary or fork failure (OSError), undecodable stdout
-# (UnicodeDecodeError is a ValueError) and the timeout. probe_app RETURNS these, never raises.
+# Everything the ssh driver (`fabrik.drivers.ssh.ssh`) can raise: a failed command or an answer
+# that is not valid UTF-8 (RuntimeError, W-5597922e), a missing ssh binary or fork failure
+# (OSError), a bad host alias or jump setting (SshHostError / JumpConfigError are ValueErrors) and
+# the timeout. probe_app RETURNS these, never raises.
 _SSH_FAILURES = (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired)
 
 # Printed by the remote shell when a compose filename does not exist (_read_compose_from_vps), so

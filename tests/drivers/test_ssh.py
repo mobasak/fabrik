@@ -397,3 +397,113 @@ def test_ssh_and_scp_failures_carry_stderr_on_one_line(call, monkeypatch):
     msg = str(info.value)
     assert len(msg.splitlines()) == 1 and "TOKEN=<redacted>\\r\\nINJECTED" in msg, repr(msg)
     assert "hunter2secret" not in msg and "café" in msg
+
+
+# W-5597922e: subprocess.run(text=True) decoded strictly with the LOCALE codec, before the driver read
+# the return code, so a byte a person typed into a VPS .env raised UnicodeDecodeError (a ValueError the
+# RuntimeError-catching callers let through), carrying the byte and, in `.object`, the whole output.
+def _decoding_run(stdout: bytes, stderr: bytes = b"", rc: int = 0):
+    """A `subprocess.run` stand-in that decodes as subprocess does: `text`/`encoding`/`errors`, else the
+    locale codec — so the driver's own decode choice is what the test exercises."""
+    import locale
+
+    def run(argv, **kw):
+        out, err = stdout, stderr
+        if kw.get("text") or kw.get("encoding") or kw.get("errors"):
+            codec = kw.get("encoding") or locale.getpreferredencoding(False)
+            errors = kw.get("errors") or "strict"
+            out, err = stdout.decode(codec, errors), stderr.decode(codec, errors)
+        return subprocess.CompletedProcess(argv, rc, out, err)
+
+    return run
+
+
+def test_an_undecodable_answer_is_a_runtime_error_without_the_bytes(monkeypatch):
+    monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    with patch("subprocess.run", _decoding_run(b"TOKEN=s3cr\xe9t\n")):
+        with pytest.raises(RuntimeError) as info:
+            ssh("sudo cat /opt/x/.env")
+    msg = str(info.value)
+    assert "'vps'" in msg and "not valid UTF-8" in msg
+    assert "s3cr" not in msg and "0xe9" not in msg and "\\xe9" not in msg
+    assert info.value.__cause__ is None and info.value.__context__ is None
+
+
+@pytest.mark.parametrize("call", ["ssh", "scp"])
+def test_undecodable_stderr_never_hides_the_exit_code(call, monkeypatch):
+    monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+
+    def go():
+        return ssh("cat /opt/x/.env") if call == "ssh" else scp_to_vps("/tmp/a", "/opt/b")
+
+    failed = _decoding_run(b"", b"cat: /opt/x/.env: Datei nicht gefunden \xe9", rc=2)
+    with patch("subprocess.run", failed):
+        with pytest.raises(
+            RuntimeError, match=r"failed \(rc=2\): 'cat: /opt/x/\.env: Datei nicht gefunden"
+        ):
+            go()
+    with patch("subprocess.run", _decoding_run(b"ok\n", b"warning: caf\xe9", rc=0)):
+        assert go() == ("ok" if call == "ssh" else None)
+
+
+_LOCALE_PROBE = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from fabrik.drivers.ssh import ssh
+sys.stdout.buffer.write(ssh("cat /opt/x/name").encode("utf-8"))
+"""
+
+
+def test_utf8_output_decodes_under_an_ascii_locale(tmp_path):
+    """The real driver, in a child Python whose locale codec is ASCII, over a fake `ssh` first on PATH."""
+    import os
+    import sys
+    from pathlib import Path
+
+    fake = tmp_path / "ssh"
+    fake.write_text("#!/bin/sh\nprintf 'caf\\303\\251\\n'\n")
+    fake.chmod(0o755)
+    src = str(Path(__file__).resolve().parents[2] / "src")
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith(("LC_", "LANG", "PYTHONUTF8", "FABRIK_SSH_JUMP_"))
+    }
+    env.update(
+        LC_ALL="C",
+        PYTHONCOERCECLOCALE="0",
+        PYTHONUTF8="0",
+        FABRIK_VPS_SSH_HOST="vps",
+        PATH=f"{tmp_path}{os.pathsep}{env.get('PATH', '')}",
+    )
+    run = subprocess.run(
+        [sys.executable, "-X", "utf8=0", "-c", _LOCALE_PROBE, src],
+        env=env,
+        capture_output=True,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr.decode("utf-8", "replace")[-500:]
+    assert run.stdout.decode("utf-8") == "café"
+
+
+def test_an_undecodable_env_read_fails_the_read_and_persist_stays_open(monkeypatch, caplog):
+    from fabrik.orchestrator import deployer_ssh
+    from fabrik.orchestrator.exceptions import DeployError
+
+    monkeypatch.setenv("FABRIK_VPS_SSH_HOST", "vps")
+    monkeypatch.delenv("FABRIK_SSH_JUMP_VPS", raising=False)
+    probe, cat = _decoding_run(b"present\n"), _decoding_run(b"TOKEN=s3cr\xe9t\n")
+
+    def run(argv, **kw):
+        return (probe if "echo present" in argv[-1] else cat)(argv, **kw)
+
+    writes: list[str] = []
+    monkeypatch.setattr(deployer_ssh, "_write_file_to_vps", lambda *a: writes.append(a[1]))
+    with patch("subprocess.run", run):
+        with pytest.raises(DeployError, match=r"cannot read /opt/x/\.env: .*not valid UTF-8"):
+            deployer_ssh._read_env_file("/opt/x", ssh)
+        deployer_ssh._persist_git_sha("x", "a" * 40, ssh)
+    assert writes == []
+    assert "GIT_SHA not updated for x" in caplog.text and "s3cr" not in caplog.text

@@ -73,6 +73,28 @@ def _one_line(text: str, empty: str = "no stderr") -> str:
     return repr(masked) if masked else empty
 
 
+# Remote output is read as UTF-8 whatever the hub's locale, with `surrogateescape` so the decode itself never
+# raises: a stray byte used to raise UnicodeDecodeError inside subprocess.run, before the return code was read
+# — hiding a failed command's rc and stderr, crashing a successful one, and slipping past every caller that
+# catches the driver's RuntimeError (W-5597922e). stderr only feeds a message, so its escaped bytes are shown
+# as `\xNN`; stdout is DATA, so an escaped byte there is refused (`_undecodable`), never handed on.
+_REMOTE_TEXT = {"text": True, "encoding": "utf-8", "errors": "surrogateescape"}
+
+
+def _shown(text: str) -> str:
+    """Remote ``text`` with each escaped (undecodable) byte written as ``\\xNN``."""
+    return text.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+
+
+def _undecodable(text: str) -> bool:
+    """True when ``text`` carries a byte that was not valid UTF-8 (a ``surrogateescape`` code point)."""
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        return True
+    return False
+
+
 def _ssh_host() -> str:
     """Return the SSH host alias, reading ``FABRIK_VPS_SSH_HOST`` at call time.
 
@@ -195,7 +217,8 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
 
     Raises:
         RuntimeError: SSH returned a non-zero exit code. Stderr is included
-            in the exception message for quick diagnosis.
+            in the exception message for quick diagnosis. Also raised, naming
+            no byte, when a successful command's stdout is not valid UTF-8.
         subprocess.TimeoutExpired: The SSH call exceeded ``timeout`` seconds.
         JumpConfigError: ``FABRIK_SSH_JUMP_<ALIAS>`` is set to a non-ProxyJump value.
         SshHostError: ``FABRIK_VPS_SSH_HOST`` is not an ssh alias.
@@ -215,9 +238,9 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         result = subprocess.run(
             ["ssh", *_jump_opts(jump), host, cmd],
             capture_output=True,
-            text=True,
             timeout=timeout,
             check=False,
+            **_REMOTE_TEXT,
         )
         timed_out = False
     except subprocess.TimeoutExpired:
@@ -236,8 +259,11 @@ def ssh(cmd: str, timeout: int = 60, dry_run: bool = False) -> str:
         # forcing a mid-deploy credential rotation) — and on one line (W-9a560686).
         raise RuntimeError(
             f"SSH to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-            f"{_one_line(result.stderr)}"
+            f"{_one_line(_shown(result.stderr))}"
         )
+    if _undecodable(result.stdout):
+        # Raised outside any except block and naming no byte: the output may be a whole .env.
+        raise RuntimeError(f"SSH to {host!r}{_via(jump)}: the answer is not valid UTF-8")
     return result.stdout.strip()
 
 
@@ -275,14 +301,14 @@ def scp_to_vps(
         # `--`: a local path starting with `-` would otherwise be read as an option (W-894fdc5f)
         ["scp", *_jump_opts(jump), "--", local_path, f"{host}:{remote_path}"],
         capture_output=True,
-        text=True,
         timeout=timeout,
         check=False,
+        **_REMOTE_TEXT,
     )
     if result.returncode != 0:
         raise RuntimeError(
             f"SCP to {host!r}{_via(jump)} failed (rc={result.returncode}): "
-            f"{_one_line(result.stderr)}"
+            f"{_one_line(_shown(result.stderr))}"
         )
 
 
