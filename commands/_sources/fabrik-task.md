@@ -171,6 +171,8 @@ Invoke review phase 0 already picked — at v1 always `/fabrik-review-scoped` (v
 
 Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none.
 
+*(v2)* Seats still out at a turn end meet the Stop hook's uncommitted-work block (three times, then it warns through), so a review that will outlive the turn is dispatched only after the build is committed through phase 5 step 5's capture line, a full `/fabrik-review` then taking the after-commit `--range` form; one that finishes inside the turn may still review BEFORE commit.
+
 Give its seat briefs phase-2 `design.md` path and phase-0 declaration, plus three questions: *does change ESCAPE declared files? did it add mechanism declaration said `no` to? can you name second approach whose merits build cannot settle (an equivalent implementation is not one)?* `yes` to first or third is that seat's UPGRADE verdict — take it; `yes` to second corrects D-row (name mechanism there), never the lane (D-315).
 
 Declared file left UNTOUCHED is padding (guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in D-row — never an UPGRADE, which would strand the run.
@@ -195,6 +197,8 @@ mkdir -p <durable> \
   && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \
   && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1
 ```
+
+A linked worktree's isolation guard refuses that chained line, so a worktree session runs it as plain calls: `mkdir -p <durable>`; the commit, which must exit 0; `git log -5 --format='%H %s' -F --grep '<a fragment of the subject holding no apostrophe>'`, where the ONE line whose subject is exactly yours names the sha (a newer sibling whose subject contains yours prints above it; no such line, or two, stops the capture); then `printf '%s\n' <that sha> >> <durable>/commit.sha`.
 
 6. § EXIT's push ladder (never `--force`), then close — capture file, not post-ladder `HEAD` read, is what names YOUR commit:
 
