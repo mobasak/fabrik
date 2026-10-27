@@ -19,6 +19,33 @@ one green, since no template escapes on its own). They also go red on any non-`F
 wrapped around python-api's companion include. Out of scope and filed as W-80aed026: env values are unquoted YAML scalars, so `"`,
 newlines, `$`, ` #` and `: ` still deploy wrong. W-6eb61fa0.
 
+### Fixed — claude_rotate no longer counts the backups park root as an account; the MCP-scope tests ignore the user's global git ignore (2026-10-27)
+
+- `scripts/sysadmin/claude_rotate.py::_fleet_dirs` listed `~/.claude-fleet/backups`, the park root `--merge-shared` writes to, so `--status` showed it as a pending-login account ("8 dir(s)" on this box; 7 after). It is now left out like the `active` pointer, and its byte-identical twin `scripts/aro-wake/claude_rotate.py` is copied (W-f7772267 (a)).
+- `tests/enforcement/test_check_mcp_scope.py`'s hermetic-git fixture emptied `GIT_CONFIG_GLOBAL` but left git's default excludes file, `$XDG_CONFIG_HOME/git/ignore` (else `~/.config/git/ignore`), so a box whose global ignore listed `.mcp.json` could decide the tests. The fixture now points `XDG_CONFIG_HOME` at an empty dir. The emitter test file's copy of the fixture waits on its plan lock (W-f7772267 (f)).
+- Graders: `tests/test_claude_rotate_v2.py::test_fleet_dirs_leaves_out_the_backups_park_root` and `tests/enforcement/test_check_mcp_scope.py::test_the_hermetic_fixture_blinds_git_to_the_users_global_ignore`, each watched red first.
+
+### Fixed — MCP emitter writes .mcp.json only where git ignores it, in every repo (2026-10-27)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::emitter_owns` returned True for any hub-class or typed repo without asking git. So the emitter wrote filled exa, brave-search and firecrawl keys into trade-intelligence's tracked `.mcp.json`. Skip-worktree was set, so `git status` hid the change; its only commit holds placeholders, so nothing leaked. It now asks `git check-ignore` for every repo (D-1266, superseding D-1252 in part).
+- A repo whose file git does not ignore gets a ruled SKIP that names both fixes: make `.gitignore` ignore it, and `git rm --cached .mcp.json` if git tracks it. Not ignored means tracked (skip-worktree and assume-unchanged included), no rule, or a later `!`.
+- The review found three more ways credentials reached a committable file, and closed each (D-1267):
+  - Each linked worktree's copy now asks git from its own worktree: `N not ignored` is a ruled skip, `N unanswerable` fails the run.
+  - A symlinked `.mcp.json` is a ruled SKIP, never written through.
+  - Git's discovery stops at the repo's parent, so a broken `.git` dir no longer borrows an enclosing repo's answer.
+- `scripts/enforcement/check_mcp_scope.py` warns on such a repo and says a tracked copy may still hold credentials. A hub-class or typed one is still graded after the warning, as before, so a server outside its ruling stays a failure.
+- Over the 43 repos in `/opt`, one verdict changes: trade-intelligence goes from OK to SKIP until it untracks the file (W-c0d9cea5).
+
+### Added — the nightly chat backup alerts when it fails (W-36687f76, D-1265, 2026-10-27)
+`session-archive.service` failed silently: no `OnFailure=` existed, its `-` steps (sampler, pruner, rotation mail) fail
+with nothing logged, and the archiver exits 0 on a partial night. New `scripts/sysadmin/session_archive_alert.py` mails
+infra (ack required) and the coordinator (ack no): `failed`, run once by the new `session-archive-alert.service` after the
+retries are spent (`OnFailure=` + `RestartMode=direct`, which stops it firing on every retried attempt), with the unit's
+journal tail; and `check`, the unit's `ExecStopPost=-`, which on a successful run reports every step that did not exit 0
+and the archiver's subagent failures, 0 eligible transcripts, a held lock or a missing summary. `TimeoutStartSec=` ends a
+hung archiver; the installer verifies all three units, refuses any verify output and installs the alert unit first.
+Install: the coordinator re-runs `scripts/sysadmin/install_session_archive_timer.sh` from the main checkout after the merge.
+
 ### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
 
 - `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a

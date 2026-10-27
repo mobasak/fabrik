@@ -3182,3 +3182,13 @@ def test_each_picture_row_carries_its_own_flip_line(monkeypatch):
     pic = cr._fleet_picture(rows, "act", NOW)
     trips = {r["email"]: r["trip"] for r in pic["accounts"]}
     assert trips == {"act@ocoron.com": cr._rotate_threshold(), "ob@ocoron.com": 98.0}, trips
+
+
+def test_fleet_dirs_leaves_out_the_backups_park_root(tmp_path, monkeypatch):
+    """W-f7772267 (a): `backups` is the fleet's park root (`--merge-shared` parks copies there, `--new-dir backups` is
+    refused), never an account, so `_fleet_dirs` must not list it: it read as a phantom pending-login account on
+    `--status` beside the real ones. The `active` pointer stays out too, and every real account dir stays in."""
+    root = _mk_fleet(tmp_path, monkeypatch, slugs=("alpha", "beta"))
+    (root / cr._PARK_ROOT_NAME / "tasks-merged-from").mkdir(parents=True)
+    (root / cr._ACTIVE_POINTER_NAME).symlink_to(root / "alpha", target_is_directory=True)
+    assert [d.name for d in cr._fleet_dirs()] == ["alpha", "beta"]
