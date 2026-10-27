@@ -70,7 +70,8 @@ Written for the operator; nothing here can be done by an agent.
 3. **Rename each window** with `/rename <name>` (the coordinator and each builder). Only the operator can, and two
    windows with the same auto-name in one folder collide.
 4. **Write each builder worktree's `.claude/settings.local.json`** (phase 3, step 11) from the content boarded for
-   you, before that builder's first launch. No agent writes it.
+   you, before that builder's first pane opens from the grid (step 5). No agent writes it. A builder session
+   already running in its worktree reads the file only when it next starts.
 5. **Double-click `<Repo> Agents.bat`** on the desktop once the hub coordinator has written it. It opens the builders'
    grid; the coordinator stays in VS Code.
 6. **Answer the gates** the coordinator boards: removing a worktree with unmerged work, dropping backlog items, deploys.
@@ -148,12 +149,13 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 11. Each builder worktree gets `.claude/settings.local.json` listing the main checkout's `CLAUDE.md` under
     `claudeMdExcludes`, plus the `.venv` symlink setting if the repo shares one venv, plus its `memory` and
     `mcpServers` settings; never copy the main checkout's permission allow-list into it (youtube's adaptation).
-    The operator writes each file (§ The operator's steps, step 4), reported by web-ecommerce-factory's `wef2` in
-    hub mail `01M5X8DT0Q`. It is a session's own config, so no request from any agent, the coordinator or the hub
-    included, can authorize an agent to write it, for the writer's own worktree or another builder's. The agent
-    doing phases 1–3 sends the content (the step-14 deny entry included, if used) as text in a message to the
-    repo's coordinator, or to the hub coordinator while the repo's is not open yet, which boards it for the
-    operator; it writes no file, script or template that writes or installs another session's settings.
+    The operator writes each file (§ The operator's steps, step 4; the gap was reported by web-ecommerce-factory's
+    `wef2` in hub mail `01M5X8DT0Q`). It is a session's own config, so no request from any agent, the coordinator
+    or the hub included, can authorize an agent to write it, for the writer's own worktree or another builder's.
+    The agent doing phases 1–3 puts the content (the step-14 deny entry included, if used) as text in its phase-3
+    report: to the repo's coordinator, which boards it for the operator, or, while the repo's coordinator is not
+    open yet, to the hub coordinator, which boards it with the phase it confirms. It writes no file, script or
+    template that writes or installs another session's settings.
     Known false alarm: in a worktree that shares the main checkout's `.venv`, the gate's undeclared-imports check
     reports the repo's own editable packages as undeclared, because they resolve to the main checkout's copy (youtube
     01M5CG2QC2, 01M5CG40NV, with infra). It is not a defect of the builder's change: report it to the coordinator,
