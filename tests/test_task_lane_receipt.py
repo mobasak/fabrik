@@ -997,9 +997,10 @@ def test_a_failing_anchor_probe_refuses(wt: Repo, monkeypatch, mode: str) -> Non
 def test_an_unresolvable_later_commit_refuses(repo: Repo) -> None:
     """A listed value that names no commit refuses, beside a tip that resolves; an unresolvable
     tip never matches an unresolvable listed value (review C-sonnet 3, 7)."""
-    reasons = _check_x(repo, [repo.last, "0" * 40])
-    _only(reasons, "d")
-    assert "does not resolve" in reasons[0], reasons
+    for commits in ([repo.last, "0" * 40], [repo.last, "0" * 40, "0" * 40]):
+        reasons = _check_x(repo, commits)
+        _only(reasons, "d")
+        assert "does not resolve" in reasons[0], reasons
     repo.write(repo.text().replace(f"range tip {repo.last}", "range tip ?", 1))
     reasons = _check_x(repo, ["0" * 40])
     _only(reasons, "d")

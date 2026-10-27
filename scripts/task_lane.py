@@ -913,7 +913,8 @@ def _later_commit_reasons(
     touches nothing and passes."""
     reasons: list[str] = []
     seen: set[str] = set()
-    for c in commits:
+    # one reason per listed value, resolvable or not (review AH2; A-haiku pass 2)
+    for c in dict.fromkeys(commits):
         sha = _resolve_commit(root, c)
         if sha is None:
             reasons.append(f"(d) --commit {c} does not resolve to a commit")
