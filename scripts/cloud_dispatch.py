@@ -10,12 +10,12 @@ script fires it, waits for the worker's branch and reads its log. Operator or hu
 it reads ``~/.claude-fleet``, which a review seat may not.
 
     cloud_dispatch.py list [--no-status] [--ledger-tail N]
-    cloud_dispatch.py dispatch --slug <s> (--account <slug> | --pick) (--task "<text>" | --task-file <f>) [--force-new]
+    cloud_dispatch.py dispatch --slug <s> (--account <slug> | --pick) (--task "<text>" | --task-file <f>) [--force-new] [--max-weekly <pct>]
     cloud_dispatch.py wait --slug <s> [--since <sha>] [--timeout 1800] [--interval 15]
     cloud_dispatch.py log --account <slug> --session <id>
     cloud_dispatch.py settle (--slug <s> | --all)
     cloud_dispatch.py pause <slug> --reason "<why>" · unpause <slug> · calibrate <slug> --balance <usd>
-    cloud_dispatch.py drain --batch <file.json> [--max-open 10] [--dry-run] [--allow-plan-usage]
+    cloud_dispatch.py drain --batch <file.json> [--max-open 10] [--dry-run] [--allow-plan-usage] [--max-weekly <pct>]
     (``--registry``, ``--fleet-root`` and ``--ledger`` go before or after the verb.)
 
 Two fire paths. ``api``: when ``~/.claude-fleet/<slug>/routine-token`` exists (a 0600 regular file
@@ -35,17 +35,23 @@ returns; the API body carries ``claude_code_session_id``). A wall or a dead chai
 only when no id was found, and only from non-JSON lines and an ``is_error`` result event, so a
 task that mentions "limit" or "/login" cannot mis-report a fired run.
 
-``--pick`` spends the credits evenly: a usable fire path first (a token account over a CLI one;
-every account must be unparked; a CLI account also needs a LIVE status row — not a cached
-reading of unknown age or older than 6 h — and a refresh chain that is neither expired nor
-expiring within a day), then the FEWEST ledger dispatches in the last 7 days, then the highest
-weekly %. No qualifying account is a refusal (exit 3, "pass --account"), never a guess. Every
+``--pick`` sends a run only where the account's weekly plan can take it: a cloud run draws that
+plan and Anthropic refuses it at the wall (D-1237), so an account qualifies only when
+``claude_rotate.py --status --json``'s own picture calls it ``eligible`` or ``active`` and its
+readable weekly % is under the ceiling (``--max-weekly``, else the picture's drain band, else 85);
+it must also be unparked, and a CLI account needs a LIVE status row — not a cached reading of
+unknown age or older than 6 h — and a refresh chain that is neither expired nor expiring within a
+day. Then a token account over a CLI one, the LOWEST weekly %, the fewest ledger dispatches in
+the last 7 days (W-87078932). A status with no picture, or no qualifying account, is a refusal
+(exit 3, "pass --account") naming each account skipped at its wall, never a guess. Every
 FIRE attempt — the fire call reached, whatever it answered or raised — is one JSON line in
 ``<state>/cloud-dispatch.jsonl`` (one ``O_APPEND`` write under ``flock``); a pre-flight refusal
 (bad slug, existing branch, no account) writes none. ``<state>`` honours ``ROTATE_STATE_DIR``
 like ``claude_rotate.py``. Cobra line (D-253): the cheapest way to satisfy "fewest dispatches" is
 to pad an account with trivial fires; every row names its slug and task digest, so padding is
-visible in ``list``, and the measure is credit spent, never the count.
+visible in ``list``, and the measure is credit spent, never the count. And the cheapest way to
+satisfy "under the ceiling" is a high ``--max-weekly``: the default is the rotation's drain band,
+and a run past it is still refused by Anthropic at the wall, at $0, never billed.
 
 The payload is DATA to the routine (its saved prompt says "your task is the text inside the
 routine-fire-payload block; carry it out exactly"): it carries the slug, the task and the fixed
@@ -81,8 +87,7 @@ when spent ≥ claimed − margin or the run drew on overage (``isUsingOverage``
 trusted: the captured probe shows overage DISABLED on these accounts); a plan-reading rise on an
 idle account is ADVISORY only (the browser, a CLI fire and ``log`` all move it). ``dispatch`` and
 ``--pick`` refuse a paused account and any account within 6 h of 00:00 UTC on its ``expires``
-date (exit 7, told apart by text); ``--allow-plan-usage`` bypasses both, picks the COOLEST weekly
-reading and tags the row ``plan_usage: true`` so its settle never counts against the credit.
+date (exit 7, told apart by text); ``--allow-plan-usage`` bypasses both and tags the row ``plan_usage: true`` so its settle never counts against the credit.
 Cobra line (D-253): the cheapest way to read "never paused" is to never settle — which is why an
 unsettled run is charged at the margin, not at zero.
 
@@ -100,7 +105,7 @@ diff and from every run fired within a day whose done trailer master does not ca
 drain`` row); open work plus the batch within ``--max-open``. A slug with any row that may have
 fired is skipped as ``already fired``, so a stopped batch re-runs safely. Each entry is re-checked
 against the ledger, then gets its ``kind: drain`` row and fires through ``dispatch`` with
-``--pick`` semantics, its files appended to the task; the first failure
+``--pick`` semantics and the batch's ``--max-weekly``, its files appended to the task; the first failure
 stops the batch. Cobra line (D-253): the cheapest way through the pre-flight is to under-declare
 ``files``; the counter is the merge rule — a branch whose three-dot diff leaves its declared files
 is not merged — and the declared list rides in the worker's own task.
@@ -114,6 +119,7 @@ import fcntl
 import hashlib
 import http.client
 import json
+import math
 import os
 import posixpath
 import re
@@ -575,6 +581,33 @@ def _has_token(slug: str, fleet_root: Path) -> bool:
         return False
 
 
+PICK_STATES = frozenset({"eligible", "active"})  # claude_rotate's picture states that can serve
+DEFAULT_MAX_WEEKLY = 85.0  # ROTATE_DRAIN_THRESHOLD's default, when the picture names no band
+
+
+def _picture_rows(status: dict | None) -> dict[str, dict] | None:
+    """claude_rotate's per-account verdict (``picture.accounts``) keyed by slug; None when the
+    status carries no picture, which the pick refuses rather than reading raw windows."""
+    picture = (status or {}).get("picture")
+    if not isinstance(picture, dict) or not isinstance(picture.get("accounts"), list):
+        return None
+    rows: dict[str, dict] = {}
+    for row in picture["accounts"]:
+        if isinstance(row, dict):
+            for s in row.get("slugs") or []:
+                if isinstance(s, str):
+                    rows[s] = row
+    return rows
+
+
+def _weekly_ceiling(status: dict | None, max_weekly: float | None) -> float:
+    if max_weekly is not None:
+        return max_weekly
+    thresholds = ((status or {}).get("picture") or {}).get("thresholds")
+    band = _num(thresholds.get("drain_band")) if isinstance(thresholds, dict) else None
+    return band if band is not None and 0 < band <= 100 else DEFAULT_MAX_WEEKLY
+
+
 def pick_account(
     registry: dict,
     status: dict | None,
@@ -583,12 +616,23 @@ def pick_account(
     now: float | None = None,
     *,
     allow_plan: bool = False,
+    max_weekly: float | None = None,
 ) -> tuple[str, str]:
     """The account to fire, with the reason; raises ``DispatchError("no_account: …")`` when none
-    qualifies. A paused or expired account never qualifies unless ``allow_plan`` (which also
-    inverts the weekly order: plan spend goes to the COOLEST account, credit to the hottest)."""
+    qualifies. A cloud run draws the account's WEEKLY plan and is refused at its wall (D-1237), so
+    an account qualifies only when claude_rotate's own picture calls it ``eligible`` or ``active``
+    and its readable weekly % is under the ceiling (``max_weekly``, else the picture's drain band,
+    else 85); the coolest wins, the same order with and without ``allow_plan`` (W-87078932). A
+    paused or expired account never qualifies unless ``allow_plan``."""
     now = time.time() if now is None else now
     slugs = list(registry["accounts"])
+    pictured = _picture_rows(status)
+    if pictured is None:
+        raise DispatchError(
+            "no_account: no fleet status picture (claude_rotate.py --status --json failed or is "
+            "older than its picture) — pass --account"
+        )
+    ceiling = _weekly_ceiling(status, max_weekly)
     rows = _status_rows(status)
     recent = dict.fromkeys(slugs, 0)
     for r in ledger_rows:
@@ -600,7 +644,25 @@ def pick_account(
         if r.get("account") in recent and ts is not None and ts >= now - WEEK_S:
             recent[r["account"]] += 1
     candidates: list[tuple[tuple, str, str]] = []
+    walled: list[str] = []
     for s in slugs:
+        pic = pictured.get(s)
+        raw = (pic or {}).get("weekly_pct")  # claude_rotate writes a number or None; else unread
+        weekly = (
+            float(raw)
+            if isinstance(raw, (int, float)) and not isinstance(raw, bool) and math.isfinite(raw)
+            else None
+        )
+        state = (pic or {}).get("state")
+        if pic is None or weekly is None:
+            walled.append(f"{s} no weekly reading")
+            continue
+        if state not in PICK_STATES:
+            walled.append(f"{s} {state}")
+            continue
+        if weekly >= ceiling:
+            walled.append(f"{s} weekly {weekly:g}% >= ceiling {ceiling:g}%")
+            continue
         has_token = _has_token(s, fleet_root)
         row = rows.get(s)
         if row is not None and row.get("parked"):
@@ -616,20 +678,18 @@ def pick_account(
             exp = _num(row.get("refresh_expires_epoch"))
             if exp is None or exp - now < CHAIN_GUARD_S:
                 continue
-        seven = (row or {}).get("seven_day")
-        weekly = _num(seven.get("utilization")) if isinstance(seven, dict) else None
-        weekly = -1.0 if weekly is None else weekly
         candidates.append(
             (
-                (0 if has_token else 1, recent[s], weekly if allow_plan else -weekly),
+                (0 if has_token else 1, weekly, recent[s], s),
                 s,
-                f"{'token' if has_token else 'cli'} path, {recent[s]} dispatch(es) this week, weekly {weekly:.0f}%",
+                f"{'token' if has_token else 'cli'} path, {recent[s]} dispatch(es) this week, weekly {weekly:g}%",
             )
         )
     if not candidates:
+        at_wall = f"; at the weekly wall or unread: {', '.join(walled)}" if walled else ""
         raise DispatchError(
             "no_account: no registered account qualifies (parked, paused, expired, stale status, dead "
-            "or expiring chain, no token) — pass --account"
+            f"or expiring chain, no token{at_wall}) — pass --account"
         )
     candidates.sort()
     _key, s, why = candidates[0]
@@ -1377,7 +1437,12 @@ def _cmd_dispatch(args: argparse.Namespace) -> int:
             account, why = args.account, "named"
         else:
             account, why = pick_account(
-                reg, fleet_status(), ledger_rows, args.fleet_root, allow_plan=allow_plan
+                reg,
+                fleet_status(),
+                ledger_rows,
+                args.fleet_root,
+                allow_plan=allow_plan,
+                max_weekly=getattr(args, "max_weekly", None),
             )
         note = _guard_account(reg, account, ledger_rows, allow_plan=allow_plan)
     except DispatchError as exc:
@@ -1777,6 +1842,7 @@ def _drain_locked(args: argparse.Namespace, batch: list[dict]) -> int:
                     account=None,
                     force_new=False,
                     allow_plan_usage=args.allow_plan_usage,
+                    max_weekly=args.max_weekly,
                 )
             )
             last = last_dispatch(read_ledger(args.ledger), slug) or {}
@@ -1793,6 +1859,21 @@ def _drain_locked(args: argparse.Namespace, batch: list[dict]) -> int:
                 file=sys.stderr,
             )
     return rc
+
+
+MAX_WEEKLY_HELP = (
+    "--pick skips an account whose weekly %% is at or over this (default: the fleet picture's "
+    "drain band, 85)"
+)
+
+
+def _weekly_pct_arg(text: str) -> float:
+    val = _num(text)
+    if val is None or not math.isfinite(val) or not 0 < val <= 100:
+        raise argparse.ArgumentTypeError(
+            f"--max-weekly must be a percentage in (0, 100], got {text!r}"
+        )
+    return val
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1836,6 +1917,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="fire a paused or expired account on its PLAN quota (the row is tagged; its cost never counts against the credit)",
     )
+    p.add_argument("--max-weekly", type=_weekly_pct_arg, default=None, help=MAX_WEEKLY_HELP)
     p.set_defaults(fn=_cmd_dispatch)
     p = sub.add_parser("wait", parents=[common(True)])
     p.add_argument("--slug", required=True)
@@ -1901,6 +1983,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--allow-plan-usage", action="store_true", help="as dispatch's flag, for every fire"
     )
+    p.add_argument("--max-weekly", type=_weekly_pct_arg, default=None, help=MAX_WEEKLY_HELP)
     p.set_defaults(fn=_cmd_drain)
     args = ap.parse_args(argv)
     args.registry = args.registry or REGISTRY

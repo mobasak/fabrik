@@ -18,7 +18,7 @@ python3 scripts/cloud_dispatch.py wait --slug fix-mail-tests --timeout 1800   # 
 python3 scripts/cloud_dispatch.py log --account mob --session cse_01…
 python3 scripts/cloud_dispatch.py settle --slug fix-mail-tests   # or --all: ledger the run's cost; pause on exhaustion
 python3 scripts/cloud_dispatch.py pause can --reason "…" · unpause can · calibrate can --balance 212.40
-python3 scripts/cloud_dispatch.py drain --batch batch.json [--max-open 10] [--dry-run] [--allow-plan-usage]   # § Draining a batch
+python3 scripts/cloud_dispatch.py drain --batch batch.json [--max-open 10] [--dry-run] [--allow-plan-usage] [--max-weekly 45]   # § Draining a batch
 ```
 
 1. `dispatch` renders the payload — `TASK slug <s>.`, the task, then the fixed rules (not a hub
@@ -84,7 +84,8 @@ but 401 and 429 — is skipped as `already fired`, forever: re-running a stopped
 an entry twice, and a task whose run failed is re-run under a new slug. Each remaining entry is
 re-checked against the ledger just before it fires (a sibling may have fired it since the
 pre-flight), gets a `kind: drain` ledger row, and fires through `dispatch` by `--pick`, with
-`Files you may change: …` appended to its task; `--allow-plan-usage` is passed to every fire. The
+`Files you may change: …` appended to its task; `--allow-plan-usage` and `--max-weekly` are passed
+to every fire. The
 first failure stops the batch and exits with that fire's code, after the earlier entries have
 fired and been ledgered. A pre-flight refusal prints only its reason; once the pre-flight passes,
 stderr gets one line per entry, printed even when the batch stops: `fired`, `fired? (<status> —
@@ -114,15 +115,25 @@ Edit → Add another trigger → API → Generate token (shown once); save it as
 
 ## `--pick`
 
-Spend the four credits evenly: a usable path first (token accounts before CLI ones; no account may
-be parked, paused or expired, and a CLI account's refresh chain must be neither expired nor expiring
-within a day), then the **fewest ledger dispatches in the last 7 days**, then the highest weekly %
-(the LOWEST under `--allow-plan-usage`: plan spend goes to the coolest account). A status row that
-is a cached reading older than 6 h does not qualify its account, and when no account qualifies the
-dispatch is REFUSED (exit 3, `no_account` — pass `--account`), never guessed. The weekly reading
-comes from `claude_rotate.py --status --json` — a live probe; `list --no-status` skips it. Ranking the
-highest weekly % first sends runs toward Anthropic's weekly wall, where they are refused (the billing
-bullet below); W-87078932 is filed to reverse it.
+A run goes only where the account's weekly plan can take it, since a cloud run draws that plan and
+is refused at its wall (the billing bullet below; W-87078932, D-row in `docs/DECISIONS.md`). The
+pick reads `claude_rotate.py --status --json` — a live probe — and its `picture`, the rotation
+tick's own verdict per account. An account qualifies only when:
+
+- its picture `state` is `eligible` or `active` (every walled, exhausted, unreadable,
+  over-threshold or unavailable state is out);
+- its `weekly_pct` is a number under the ceiling: `--max-weekly <pct>` on `dispatch` or `drain`,
+  else the picture's `thresholds.drain_band` (85 by default). The coordinator sets the ceiling for
+  the account the hub sessions run on (45 on ozgurbasak, 2026-10-27);
+- it is not parked, paused or expired, and a CLI account's status row is live (or a cached reading
+  no older than 6 h) with a refresh chain neither expired nor expiring within a day.
+
+The rest rank token accounts before CLI ones, then the **lowest weekly %**, then the fewest ledger
+dispatches in the last 7 days — the same order with and without `--allow-plan-usage`. A status with
+no picture, or no qualifying account, REFUSES the dispatch (exit 3, `no_account` — pass `--account`),
+naming each account skipped at its wall; it never guesses. A batch puts every fire on the coolest
+account, because a run's draw shows minutes later; six runs moved ozgurbasak 33% → 34% on
+2026-10-27, so the ceiling, not the batch size, bounds what a drain spends.
 
 ## The credit guard
 
@@ -168,8 +179,8 @@ billing bullet under § What the worker cannot do, and what it costs).
   blind). `pause <slug> --reason` / `unpause <slug>` by hand.
 - **Refusals** (exit 7): `dispatch`/`--pick` refuse a paused account and any account within 6 h of
   00:00 UTC on its `credit.expires` date (Anthropic's day, never this box's).
-  `--allow-plan-usage` bypasses both, tags the row `plan_usage: true`, picks the coolest weekly
-  reading and prints that it spends plan quota. It skips the guard's refusals for that fire only;
+  `--allow-plan-usage` bypasses both, tags the row `plan_usage: true` and prints that it spends
+  plan quota. It skips the guard's refusals for that fire only;
   every cloud run draws plan quota either way (the billing bullet under § What the worker cannot do,
   and what it costs).
 - `list` prints per account `credit: spent · left · N unsettled · expires (in d) · PAUSED since

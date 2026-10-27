@@ -499,10 +499,18 @@ def test_a_fire_without_a_session_id_exits_1_and_records_the_attempt_as_unparsed
 # --- Behaviour 5: --pick --------------------------------------------------------------------------
 
 
-def _status(*rows):
+def _status(*rows, states=None, drain_band=85.0):
+    """Raw rows plus claude_rotate's `picture` view (state + weekly_pct per account), the part
+    pick_account reads for the weekly wall (W-87078932). A state defaults to `eligible`, or
+    `weekly-exhausted` at 100%; `states={slug: state}` overrides it."""
     out = []
+    pic = []
     for slug, weekly, parked, expires_in_days, *rest in rows:
         source, age = (rest + ["live", None])[:2] if rest else ("live", None)
+        state = (states or {}).get(slug) or (
+            "weekly-exhausted" if weekly is not None and weekly >= 100 else "eligible"
+        )
+        pic.append({"slugs": [slug], "state": state, "weekly_pct": weekly})
         out.append(
             {
                 "email": f"{slug}@ocoron.com",
@@ -518,7 +526,11 @@ def _status(*rows):
                 else 1_000_000.0 + expires_in_days * 86400,
             }
         )
-    return {"accounts": out, "active": "ob"}
+    return {
+        "accounts": out,
+        "active": "ob",
+        "picture": {"accounts": pic, "thresholds": {"trip": 99.0, "drain_band": drain_band}},
+    }
 
 
 def _reg(*slugs):
@@ -529,9 +541,9 @@ def _rows(**counts):
     return [{"account": s, "ts": 999_000.0} for s, n in counts.items() for _ in range(n)]
 
 
-def test_pick_prefers_a_token_account_then_the_fewest_dispatches_this_week(tmp_path):
+def test_pick_prefers_a_token_account_then_the_coolest_week(tmp_path):
     fleet = _fleet(tmp_path, "ob", "can", "mob", token_for="mob")
-    status = _status(("ob", 14.0, False, 30), ("can", 100.0, False, 30), ("mob", 99.0, False, 30))
+    status = _status(("ob", 14.0, False, 30), ("can", 100.0, False, 30), ("mob", 50.0, False, 30))
     slug, reason = cd.pick_account(
         _reg("ob", "can", "mob"), status, _rows(mob=5, can=1), fleet, now=1_000_000.0
     )
@@ -540,34 +552,34 @@ def test_pick_prefers_a_token_account_then_the_fewest_dispatches_this_week(tmp_p
     slug, reason = cd.pick_account(
         _reg("ob", "can", "mob"), status, _rows(mob=5, can=1), fleet, now=1_000_000.0
     )
-    assert slug == "ob" and "0 dispatch" in reason  # fewest this week wins over weekly %
+    assert slug == "ob" and "0 dispatch" in reason and "weekly 14%" in reason
 
 
-def test_pick_skips_parked_stale_expired_and_expiring_rows_and_breaks_ties_by_weekly(tmp_path):
+def test_pick_skips_parked_stale_expired_and_expiring_rows(tmp_path):
     fleet = _fleet(tmp_path, "ob", "can", "mob", "sarp", "x", "y", "z")
-    status = _status(
-        ("ob", 14.0, False, 30),
-        ("can", 100.0, False, 0.5),
-        ("mob", 99.0, False, 30),
-        ("sarp", 95.0, True, 3),
-        ("x", 50.0, False, -1),
-        ("y", 100.0, False, 30, "cache", 234_458.0),
-        ("z", 100.0, False, 30, "cache", None),
+    status = _status(  # every skipped row is COOLER than the two that qualify
+        ("ob", 80.0, False, 30),
+        ("can", 10.0, False, 0.5),
+        ("mob", 60.0, False, 30),
+        ("sarp", 5.0, True, 3),
+        ("x", 3.0, False, -1),
+        ("y", 2.0, False, 30, "cache", 234_458.0),
+        ("z", 1.0, False, 30, "cache", None),
     )
     slug, reason = cd.pick_account(
         _reg("ob", "can", "mob", "sarp", "x", "y", "z"), status, [], fleet, now=1_000_000.0
     )
     assert slug == "mob", (
         reason
-    )  # can expires within a day, sarp parked, x expired, y stale, z unknown age, mob hotter than ob
-    assert "99" in reason
+    )  # can expires within a day, sarp parked, x expired, y stale, z unknown age, mob cooler than ob
+    assert "60" in reason
 
 
 def test_pick_never_takes_a_parked_account_even_with_a_token_or_fewer_dispatches(tmp_path):
     fleet = _fleet(tmp_path, "ob", "sarp", token_for="sarp")
-    status = _status(("ob", 14.0, False, 30), ("sarp", 99.0, True, 30))
+    status = _status(("ob", 14.0, False, 30), ("sarp", 5.0, True, 30))
     slug, _ = cd.pick_account(_reg("ob", "sarp"), status, _rows(ob=3), fleet, now=1_000_000.0)
-    assert slug == "ob"  # sarp has a token, fewer dispatches and a hotter week, and is parked
+    assert slug == "ob"  # sarp has a token, fewer dispatches and a cooler week, and is parked
 
 
 def test_pick_fails_closed_when_no_account_qualifies(tmp_path, monkeypatch, capsys, quiet_remote):
@@ -577,10 +589,9 @@ def test_pick_fails_closed_when_no_account_qualifies(tmp_path, monkeypatch, caps
     assert "no_account" in str(exc.value) and "--account" in str(exc.value)
     with pytest.raises(cd.DispatchError):
         cd.pick_account(_reg("ob"), None, [], fleet, now=1_000_000.0)
-    assert (
-        cd.pick_account(_reg("ob"), _status(("ob", None, False, 30)), [], fleet, now=1_000_000.0)[0]
-        == "ob"
-    )
+    with pytest.raises(cd.DispatchError) as exc:  # no readable weekly figure: never picked blind
+        cd.pick_account(_reg("ob"), _status(("ob", None, False, 30)), [], fleet, now=1_000_000.0)
+    assert "ob no weekly reading" in str(exc.value)
     monkeypatch.setattr(cd, "fleet_status", lambda: None)
     args = _args(tmp_path, fleet)
     args[args.index("--account")] = "--pick"
@@ -605,6 +616,133 @@ def test_pick_survives_malformed_status_and_ledger_rows(tmp_path):
         )[0]
         == "ob"
     )
+
+
+_WALLED_STATES = (
+    "cap-walled",
+    "weekly-unreadable",
+    "weekly-exhausted",
+    "session-exhausted",
+    "over-threshold",
+    "unavailable",
+    "something-new",
+)
+
+
+@pytest.mark.parametrize("allow_plan", [False, True])
+@pytest.mark.parametrize("state", _WALLED_STATES)
+def test_pick_takes_only_eligible_or_active_accounts_in_both_modes(tmp_path, state, allow_plan):
+    """W-87078932: the rotation tick's own verdict decides; every other state is out, even when
+    it is the coolest account with a token and no dispatches (mob at 100% won both modes live)."""
+    fleet = _fleet(tmp_path, "ob", "mob", token_for="mob")
+    tok = fleet / "ob" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    status = _status(("ob", 60.0, False, 30), ("mob", 5.0, False, 30), states={"mob": state})
+    slug, _ = cd.pick_account(
+        _reg("ob", "mob"), status, _rows(ob=9), fleet, now=1_000_000.0, allow_plan=allow_plan
+    )
+    assert slug == "ob"
+    status = _status(("ob", 60.0, False, 30), ("mob", 5.0, False, 30), states={"mob": "active"})
+    assert (
+        cd.pick_account(
+            _reg("ob", "mob"), status, _rows(ob=9), fleet, now=1_000_000.0, allow_plan=allow_plan
+        )[0]
+        == "mob"
+    )
+
+
+def test_pick_skips_an_account_at_or_over_the_weekly_ceiling(tmp_path):
+    fleet = _fleet(tmp_path, "ob", "mob", token_for="mob")
+    tok = fleet / "ob" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    reg = _reg("ob", "mob")
+    # the default ceiling is the picture's drain band, at its edge exactly
+    status = _status(("ob", 84.9, False, 30), ("mob", 85.0, False, 30))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    # a published band of 90 admits an 86% account that the default 85 would skip
+    status = _status(("ob", 86.0, False, 30), ("mob", 95.0, False, 30), drain_band=90.0)
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    status = _status(("ob", 50.0, False, 30), ("mob", 40.0, False, 30))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0, max_weekly=45.0)[0] == "mob"
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0, max_weekly=40.0)
+    assert "mob weekly 40% >= ceiling 40%" in str(exc.value)
+    status = _status(("ob", 50.0, False, 30), ("mob", 40.0, False, 30))
+    status["picture"]["accounts"][1]["weekly_pct"] = "40"  # not a number: no reading
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    del status["picture"]["thresholds"]  # no band published: the documented 85
+    status["picture"]["accounts"][0]["weekly_pct"] = 85.0
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "ob weekly 85% >= ceiling 85%" in str(exc.value)
+
+
+def test_pick_ranks_the_coolest_week_above_the_dispatch_count(tmp_path):
+    fleet = _fleet(tmp_path, "ob", "mob", token_for="mob")
+    tok = fleet / "ob" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    status = _status(("ob", 70.0, False, 30), ("mob", 20.0, False, 30))
+    for allow_plan in (False, True):
+        slug, why = cd.pick_account(
+            _reg("ob", "mob"),
+            status,
+            _rows(mob=12),
+            fleet,
+            now=1_000_000.0,
+            allow_plan=allow_plan,
+        )
+        assert slug == "mob" and "12 dispatch(es)" in why and "weekly 20%" in why
+
+
+def test_pick_refuses_without_a_picture_and_names_each_skip(tmp_path):
+    fleet = _fleet(tmp_path, "ob", "mob", "can", token_for="mob")
+    reg = _reg("ob", "mob", "can")
+    status = _status(("ob", 10.0, False, 30), ("mob", 10.0, False, 30))
+    del status["picture"]
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert str(exc.value).startswith("no_account: no fleet status picture")
+    assert "--account" in str(exc.value)
+    status = _status(
+        ("ob", 10.0, False, 30), ("mob", 100.0, False, 30), states={"ob": "cap-walled"}
+    )
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    msg = str(exc.value)
+    assert msg.startswith("no_account:") and "--account" in msg
+    assert (
+        "ob cap-walled" in msg and "mob weekly-exhausted" in msg and "can no weekly reading" in msg
+    )
+
+
+def test_a_live_status_snapshot_picks_the_only_account_with_room(tmp_path):
+    """The 2026-10-27 15:30 picture, as claude_rotate wrote it: three walled accounts and the
+    active one at 33%. The old order took mob (100%) in both modes."""
+    fleet = _fleet(tmp_path, "ob", "ozgurbasak", "can", "mob", token_for="ob")
+    for s in ("ozgurbasak", "can", "mob"):
+        tok = fleet / s / "routine-token"
+        tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+        os.chmod(tok, 0o600)
+    status = _status(
+        ("can", 99.0, False, 30),
+        ("mob", 100.0, False, 30),
+        ("ob", 100.0, False, 30),
+        ("ozgurbasak", 33.0, False, 30),
+        states={"can": "cap-walled", "ozgurbasak": "active"},
+    )
+    reg = _reg("ob", "ozgurbasak", "can", "mob")
+    rows = _rows(ozgurbasak=12, mob=9, ob=1)
+    for allow_plan in (False, True):
+        assert (
+            cd.pick_account(reg, status, rows, fleet, now=1_000_000.0, allow_plan=allow_plan)[0]
+            == "ozgurbasak"
+        )
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, rows, fleet, now=1_000_000.0, max_weekly=30.0)
+    assert "ozgurbasak weekly 33% >= ceiling 30%" in str(exc.value)
 
 
 # --- Behaviour 6: wait + the branch guard ---------------------------------------------------------
@@ -1293,7 +1431,7 @@ def test_dispatch_and_pick_refuse_a_paused_account(monkeypatch, tmp_path, capsys
         lambda u, h, b: (200, '{"claude_code_session_id": "cse_01XYZABCDE"}', {}),
     )
     monkeypatch.setattr(
-        cd, "fleet_status", lambda: _status(("ob", 14.0, False, 30), ("can", 50.0, False, 30))
+        cd, "fleet_status", lambda: _status(("ob", 50.0, False, 30), ("can", 14.0, False, 30))
     )
     assert (
         cd.main(
@@ -1311,7 +1449,7 @@ def test_dispatch_and_pick_refuse_a_paused_account(monkeypatch, tmp_path, capsys
         == 7
     )
     assert "paused" in capsys.readouterr().err
-    # can would WIN the pick on every other key (token path too, hotter weekly): the pause removes it
+    # can would WIN the pick on every other key (token path too, cooler weekly): the pause removes it
     tok = fleet / "can" / "routine-token"
     tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
     os.chmod(tok, 0o600)
@@ -1325,14 +1463,15 @@ def test_dispatch_and_pick_refuse_a_paused_account(monkeypatch, tmp_path, capsys
     assert cd.pick_account(registry, status, rows, fleet, now=1_000_000.0)[0] == "ob"
     assert (
         cd.pick_account(registry, status, rows, fleet, now=1_000_000.0, allow_plan=True)[0] == "can"
-    ), "the flag ignores the pause and takes the COOLEST weekly reading"
+    ), "the flag ignores the pause; the coolest weekly reading wins in both modes"
     # an expired account is out of the pick the same way (6 h before 00:00 UTC of its date)
     registry["accounts"]["ob"]["credit"]["expires"] = "2026-11-04"
     registry["accounts"]["can"]["credit"]["expires"] = "2026-12-01"
     at_wall = cd.expiry_epoch("2026-11-04") - cd.EXPIRY_GUARD_S
     cd.append_ledger(ledger, {"kind": "unpause", "account": "can", "ts": 2.0})
     rows = cd.read_ledger(ledger)
-    status = _status(("ob", 50.0, False, 30, "live", 0), ("can", 14.0, False, 30, "live", 0))
+    # ob is the COOLER account, so only its expiry can hand the pick to can
+    status = _status(("ob", 14.0, False, 30, "live", 0), ("can", 50.0, False, 30, "live", 0))
     assert cd.pick_account(registry, status, rows, fleet, now=at_wall)[0] == "can"
     assert cd.pick_account(registry, status, rows, fleet, now=at_wall - 1)[0] == "ob"
 
@@ -1877,6 +2016,22 @@ def test_a_task_file_is_read_and_carried_with_its_files(tmp_path, monkeypatch):
     entry = {"slug": "a", "task_file": str(brief), "files": ["s/a.py"]}
     assert _drain(tmp_path, _batch(tmp_path, [entry])) == 0
     assert fired[0].task == "fix the thing\n\nFiles you may change: s/a.py\n"
+
+
+def test_drain_passes_the_weekly_ceiling_to_every_fire(tmp_path, monkeypatch):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a"), _e("b")]), "--max-weekly", "45") == 0
+    assert [ns.max_weekly for ns in fired] == [45.0, 45.0]
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("c")], name="b2.json")) == 0
+    assert fired[0].max_weekly is None  # no flag: the picture's drain band decides
+
+
+@pytest.mark.parametrize("bad", ["0", "-5", "100.5", "nan", "x"])
+def test_a_weekly_ceiling_outside_0_to_100_is_refused_at_parse(tmp_path, bad, capsys):
+    with pytest.raises(SystemExit):
+        cd.main(["dispatch", "--slug", "s", "--pick", "--task", "t", "--max-weekly", bad])
+    assert "--max-weekly" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("max_open", ["0", "-1"])
