@@ -518,6 +518,7 @@ def _status(*rows, states=None, drain_band=85.0, extra=None):
                 "weekly_pct": weekly,
                 "source": source,
                 "age_s": age,
+                "session_pct": 10.0,  # the tick never calls a row with no 5h reading eligible
                 **(extra or {}).get(slug, {}),
             }
         )
@@ -767,6 +768,9 @@ def _two_token_fleet(tmp_path):
     "extra, needle",
     [
         ({"weekly_cap": 40, "session_pct": 10.0, "trip": 99.0}, "hub weekly 42% >= cap 40%"),
+        ({"weekly_cap": 42, "session_pct": 10.0, "trip": 99.0}, "hub weekly 42% >= cap 42%"),
+        ({"weekly_cap": 99, "session_pct": None, "trip": 99.0}, "hub no session reading"),
+        ({"weekly_cap": 99, "session_pct": "x", "trip": 99.0}, "hub no session reading"),
         ({"weekly_cap": 99, "session_pct": 99.0, "trip": 99.0}, "hub session 99% spent"),
         ({"weekly_cap": 99, "session_pct": 100.0, "trip": None}, "hub session 100% spent"),
     ],
@@ -822,6 +826,12 @@ def test_a_stale_cached_reading_is_no_reading_for_a_token_account_too(tmp_path):
     assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
     status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30, "cache", 3600.0))
     assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "hub"  # fresh cache
+    edge = float(cd.STALE_STATUS_S)  # "no more than 6 h": the edge itself is still fresh
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30, "cache", edge))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "hub"
+    for bad_age in (float("nan"), -1.0, "60", True):  # an age that is no number is no age
+        status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30, "cache", bad_age))
+        assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob", bad_age
 
 
 @pytest.mark.parametrize("state", [["eligible"], {"a": 1}, None, 7])

@@ -620,13 +620,14 @@ def _pct(raw: object) -> float | None:
 def _picture_wall(pic: dict, ceiling: float) -> str | None:
     """Why this picture row may not take a cloud run, or None. The tick names the ACTIVE account
     ``active`` before any wall test (claude_rotate.py, the picture's state ladder), so its own cap
-    and session trip are re-applied here; a cached reading older than STALE_STATUS_S is no reading
-    for a token account either (a token fire never refreshes it)."""
+    and session trip are re-applied here — with no session reading as no budget, as the tick's own
+    verdict reads it for every other account; a cached reading older than STALE_STATUS_S (or of no
+    readable age) is no reading for a token account either (a token fire never refreshes it)."""
     state = pic.get("state")
     weekly = _pct(pic.get("weekly_pct"))
     if weekly is None:
         return "no weekly reading"
-    age = _num(pic.get("age_s"))
+    age = _pct(pic.get("age_s"))
     if pic.get("source") != "live" and (age is None or age > STALE_STATUS_S):
         return f"{pic.get('source') or 'no'} reading, age {'unknown' if age is None else f'{age / 3600:.0f} h'}"
     if not isinstance(state, str) or state not in PICK_STATES:
@@ -635,7 +636,9 @@ def _picture_wall(pic: dict, ceiling: float) -> str | None:
     if cap is not None and weekly >= cap:
         return f"weekly {weekly:g}% >= cap {cap:g}%"
     session, trip = _pct(pic.get("session_pct")), _pct(pic.get("trip"))
-    if session is not None and session >= min(trip if trip is not None else 100.0, 100.0):
+    if session is None:
+        return "no session reading"
+    if session >= min(trip if trip is not None else 100.0, 100.0):
         return f"session {session:g}% spent"
     if weekly >= ceiling:
         return f"weekly {weekly:g}% >= ceiling {ceiling:g}%"
@@ -662,10 +665,12 @@ def pick_account(
 ) -> tuple[str, str]:
     """The account to fire, with the reason; raises ``DispatchError("no_account: …")`` when none
     qualifies. A cloud run draws the account's WEEKLY plan and is refused at its wall (D-1237), so
-    an account qualifies only when claude_rotate's own picture calls it ``eligible`` or ``active``
-    and its readable weekly % is under the ceiling (``max_weekly``, else the picture's drain band,
-    else 85); the coolest wins, the same order with and without ``allow_plan`` (W-87078932). A
-    paused or expired account never qualifies unless ``allow_plan``."""
+    an account qualifies only when claude_rotate's own picture calls it ``eligible`` or ``active``,
+    its weekly % is a reading no older than STALE_STATUS_S, it is under its own weekly cap and
+    session trip (:func:`_picture_wall`), and its weekly % is under the ceiling (``max_weekly``,
+    else the picture's drain band, else 85); the coolest wins, the same order with and without
+    ``allow_plan`` (W-87078932). A paused or expired account never qualifies unless
+    ``allow_plan``."""
     now = time.time() if now is None else now
     slugs = list(registry["accounts"])
     pictured = _picture_rows(status)
