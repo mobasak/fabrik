@@ -432,10 +432,15 @@ class DeploymentOrchestrator:
         project_path = Path(f"/opt/{spec.get('id', spec.get('name'))}")
         env_file = project_path / ".env"
         if env_file.exists():
+            bad_offset: int | None = None
             try:
                 # compose's dotenv grammar (quotes, escapes, `export`, ` #` comments) — the same
                 # codec that writes the deployed file; `str()` makes the value a literal secret.
                 parsed = parse_env(env_file.read_text())
+            except UnicodeDecodeError as e:
+                # str(e) quotes the offending byte(s) of a secrets file; keep the offset only. The
+                # raise happens below, outside this handler, so `__context__` holds no payload either.
+                bad_offset = e.start
             except ValueError as e:
                 # Fail closed: one malformed line would otherwise drop EVERY from_env secret
                 # behind a warning and deploy without them. The message names key and line only.
@@ -443,6 +448,10 @@ class DeploymentOrchestrator:
             except Exception as e:
                 logger.warning("Failed to read .env file: %s", e)
                 parsed = {}
+            if bad_offset is not None:
+                raise ValidationError(
+                    f"cannot read {env_file}: not valid UTF-8 at byte offset {bad_offset}"
+                ) from None
             for key, value in parsed.items():
                 if key in from_env and key not in all_secrets:
                     all_secrets[key] = str(value)
