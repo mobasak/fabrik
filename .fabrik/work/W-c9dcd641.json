@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T06:03:36.493455Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c9dcd641",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "map ValueError from render() around deployer_ssh.py:690 to DeployError naming the render step; grader drives _deploy_template with a NUL secret",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "On the TEMPLATE deploy path, D-1269's render-time ValueError (template_renderer.py:87/:91 compose_env NUL or non-UTF-8 refusal, and :253 .env.example) is raised by render() at deployer_ssh.py:690 with nothing mapping it, so a NUL secret reaches the orchestrator's broad except Exception (orchestrator/__init__.py:251) as an 'Unexpected error' traceback instead of a named DeployError. Found by the W-8495d72f critique (Fable seat)."
+}
