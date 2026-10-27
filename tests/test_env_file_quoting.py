@@ -380,7 +380,9 @@ def test_an_unwritable_line_is_refused_naming_the_key_never_the_value(key: str, 
         ),
     ],
 )
-def test_an_unwritable_value_writes_no_env_file(merged: dict[str, str], file: str, key: str) -> None:
+def test_an_unwritable_value_writes_no_env_file(
+    merged: dict[str, str], file: str, key: str
+) -> None:
     """Either half holding a NUL stops the writer before its FIRST write, naming that half's file."""
     from fabrik.orchestrator.deployer_ssh import _write_env_files
     from fabrik.orchestrator.exceptions import DeployError
