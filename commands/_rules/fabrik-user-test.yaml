@@ -1,0 +1,629 @@
+command: fabrik-user-test
+baseline_sentences: fabrik-user-test.baseline.txt
+baseline_sha256: "3bacf2603b6c4d46391a57b92c72be569565a1f344d3f8515ce11095619f2c47"
+entries:
+  - id: u-L2
+    file: render
+    class: prose
+    baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+    text:
+    - 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+  - id: u-L9
+    file: render
+    class: prose
+    baseline: 'You are the orchestrator: subagents drive the browser/device; you own the inventory, the journeys, refute/merge, fix-or-handoff, and convergence'
+    text:
+    - 'You are the orchestrator: subagents drive the browser/device; you own the inventory, the journeys, refute/merge, fix-or-handoff, and convergence'
+  - id: t21-L1
+    file: render
+    class: prose
+    baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+    text:
+    - '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  - id: t21-L8
+    file: render
+    class: prose
+    baseline: You test as a team of real users trying to get things done — and one user trying to break it
+    text:
+    - You test as a team of real users trying to get things done — and one user trying to break it
+  - id: t21-L7
+    file: render
+    class: prose
+    baseline: 'Your mandate is the end-to-end user experience: not "do the screens render" but "can every kind of real user complete every real journey, and does the SYSTEM actually do what the UI claims at each step"'
+    text:
+    - 'Your mandate is the end-to-end user experience: not "do the screens render" but "can every kind of real user complete every real journey, and does the SYSTEM actually do what the UI claims at each step"'
+  - id: t21-L10
+    file: render
+    class: prose
+    baseline: Optimize for COVERAGE first, then DEPTH
+    text:
+    - Optimize for COVERAGE first, then DEPTH; coverage is a reconciled number against discovered denominators — never a feeling
+  - id: t21-L11
+    file: render
+    class: ban
+    baseline: Coverage is a reconciled number against discovered denominators — never a feeling
+    text:
+    - Optimize for COVERAGE first, then DEPTH; coverage is a reconciled number against discovered denominators — never a feeling
+  - id: t21-L13
+    file: render
+    class: prose
+    baseline: 'Surface check — EVIDENCE-based, `type` is a hint not the verdict. `project.yaml::type` records which scaffold *generated* the project, not what surfaces it *has today*'
+    text:
+    - 'Surface check — EVIDENCE-based, `type` (`project.yaml::type`, the generating scaffold) is a hint not the verdict'
+  - id: t21-L15
+    file: render
+    class: prose
+    clauses: {2: narrative}
+    baseline: 'A headless `type` with GUI evidence → proceed AND emit a finding that `project.yaml::type` is stale (or the project is a hybrid) — the mismatch is itself worth reporting'
+    text:
+    - 'A headless `type` with GUI evidence → proceed AND emit a finding that `project.yaml::type` is stale (or the project is a hybrid)'
+  - id: t21-L19
+    file: render
+    class: prose
+    baseline: '`docs/data-contract.md` (FROZEN) — every field: type, required, validation bounds, enums, PII class'
+    text:
+    - '`docs/data-contract.md` (FROZEN) — every field: type, required, validation bounds, enums, PII class; boundary values for form tests come FROM here, never invented'
+  - id: t21-L20
+    file: render
+    class: ban
+    baseline: Boundary values for form tests come FROM here, never invented
+    text:
+    - '`docs/data-contract.md` (FROZEN) — every field: type, required, validation bounds, enums, PII class; boundary values for form tests come FROM here, never invented'
+  - id: t21-L21
+    file: render
+    class: prose
+    baseline: '`docs/FEATURES.md` (thin/stale? run `/fabrik-features` first — it converges the CROSS-CHECK; the denominator is the live registry) + the route/nav inventory (grep the router / sidebar config / manifest) — anything shipped but absent from `ui-design.md` is STILL in scope (and is itself a doc-drift finding)'
+    text:
+    - '`docs/FEATURES.md` (thin/stale? run `/fabrik-features` first — it converges the CROSS-CHECK; the denominator is the live registry) + the route/nav inventory (grep the router / sidebar config / manifest); anything shipped but absent from `ui-design.md` is STILL in scope and is itself a doc-drift finding'
+  - id: t21-L26
+    file: render
+    class: prose
+    baseline: 'For authed apps, `fabrik-lib/api-smoke-test` runs first as the backend preflight — but preflight the backend the GUI *actually calls* (a vendored client like sao talks to its own JSON-RPC, not necessarily the repo''s own FastAPI), a dead one fails fast here, not 40 screenshots later'
+    text:
+    - 'For authed apps `fabrik-lib/api-smoke-test` runs first as the backend preflight, but preflight the backend the GUI *actually calls* (a vendored client like sao has its own JSON-RPC), a dead one fails fast here, not 40 screenshots later'
+  - id: t21-L27
+    file: render
+    class: prose
+    baseline: A bounded orchestrator feasibility probe is EXPECTED here — before the Phase-0 obligations (anchor → rubric → persist the review file) and before delegating, YOU may drive the surface once to confirm it is reachable and how login works
+    text:
+    - 'A bounded orchestrator feasibility probe is EXPECTED here: before the Phase-0 obligations (anchor → rubric → persist the review file) and before delegating, YOU may drive the surface once to confirm it is reachable and how login works. That probe is not a violation of "the orchestrator does not drive" (Phase 3) — the *gauntlet rounds* are the part that must be delegated'
+  - id: t21-L28
+    file: render
+    class: ban
+    clauses: {1: narrative, 3: narrative}
+    baseline: 'That probe is not a violation of "the orchestrator does not drive" (Phase 3) — the *gauntlet rounds* are the part that must be delegated; scoping a checklist for a surface you have not confirmed you can reach is not possible'
+    text:
+    - 'A bounded orchestrator feasibility probe is EXPECTED here: before the Phase-0 obligations (anchor → rubric → persist the review file) and before delegating, YOU may drive the surface once to confirm it is reachable and how login works. That probe is not a violation of "the orchestrator does not drive" (Phase 3) — the *gauntlet rounds* are the part that must be delegated'
+  - id: t21-L29
+    file: render
+    class: prose
+    baseline: ⚠️ RECORD how you started it — `<board>/runtime.md` — before any round runs. This command STANDS UP a long-lived service that every later round re-drives, and the service does NOT auto-reload
+    text:
+    - '⚠️ RECORD how you started it — `<board>/runtime.md` — before any round runs: this command STANDS UP a long-lived service that does NOT auto-reload, so write the exact start command, every env var it needs, the port, and the git SHA it was started from; a round that restarts the backend UPDATES that file'
+  - id: t21-L31
+    file: render
+    class: prose
+    baseline: Write the exact start command, every env var it needs, the port, and the git SHA it was started from; a round that restarts the backend UPDATES that file
+    text:
+    - '⚠️ RECORD how you started it — `<board>/runtime.md` — before any round runs: this command STANDS UP a long-lived service that does NOT auto-reload, so write the exact start command, every env var it needs, the port, and the git SHA it was started from; a round that restarts the backend UPDATES that file'
+  - id: t21-L32
+    file: render
+    class: ban
+    clauses: {2: narrative}
+    baseline: Cheap, and it is not only about time — job-agent's 6-round certification produced three near-false findings from stale-server reads (a fail-open that looked unfixed, two endpoints that looked still-broken after the fix landed, and a round that opened against a backend predating its own headline fix by ~9 minutes)
+    text:
+    - Cheap, and it is not only about time
+  - id: t21-L36
+    file: render
+    class: prose
+    baseline: '`fabrik-lib/ui-verify` — the backbone: `makeAuthedTest` (token-in-storage SPAs), `makeUiAuthedTest(async page => {…real form login…})` for surfaces with NO seedable bearer token (JSON-RPC / cookie / multi-step-modal auth like Tryton `sao` — use this, not a hand-rolled login), `expectNoA11yViolations` (WCAG 2.2 AA), `expectVisualBaseline`, `viewportProjects` (375/768/1440), `walkWizard`, perf via `playwright-lighthouse`'
+    text:
+    - '`fabrik-lib/ui-verify` — the backbone: `makeAuthedTest` (token-in-storage SPAs), `makeUiAuthedTest(async page => {…real form login…})` for surfaces with NO seedable bearer token (JSON-RPC / cookie / multi-step-modal auth like Tryton `sao` — use this, not a hand-rolled login), `expectNoA11yViolations` (WCAG 2.2 AA), `expectVisualBaseline`, `viewportProjects` (375/768/1440), `walkWizard`, perf via `playwright-lighthouse`'
+  - id: t21-L37
+    file: render
+    class: prose
+    baseline: Missing → vendor via the `create-ui-verify` seeder (exclude `.tmp/`/`test-results/`/`node_modules` on copy)
+    text:
+    - missing → vendor via the `create-ui-verify` seeder (exclude `.tmp/`/`test-results/`/`node_modules` on copy)
+  - id: t21-L38
+    file: render
+    class: prose
+    baseline: '`fabrik-lib/doc-crawl` (+`web-scrape`) — exhaustive page/link discovery for website and doc-site surfaces (sitemap + scoped BFS): the crawler builds the page inventory a human clicker would miss'
+    text:
+    - '`fabrik-lib/doc-crawl` (+`web-scrape`) — exhaustive page/link discovery for website and doc-site surfaces (sitemap + scoped BFS): the crawler builds the page inventory a human clicker would miss'
+  - id: t21-L39
+    file: render
+    class: prose
+    clauses: {2: narrative}
+    baseline: 'App surfaces with a server-driven nav (an authed SPA whose menu tree comes from the backend, like sao): walk the NAV TREE, don''t crawl links — doc-crawl is for link-based sites, not menu-driven apps'
+    text:
+    - 'App surfaces with a server-driven nav (an authed SPA whose menu tree comes from the backend, like sao): walk the NAV TREE, don''t crawl links'
+  - id: t21-L41
+    file: render
+    class: ban
+    clauses: {2: narrative}
+    baseline: 'Prove the STYLING PIPELINE actually ran before trusting a single visual verdict. transdoc had no `postcss.config.js` (never scaffolded), so Tailwind never compiled and the entire product served UNSTYLED HTML — every route test, DOM assertion and axe run passed against it, green throughout'
+    text:
+    - 'Prove the STYLING PIPELINE actually ran before trusting a single visual verdict: check the config exists AND that a built asset actually contains compiled utility CSS — presence of a config file is not proof it ran. transdoc had no `postcss.config.js` (never scaffolded), so Tailwind never compiled and the entire product served UNSTYLED HTML'
+  - id: t21-L43
+    file: render
+    class: prose
+    baseline: Check the config exists AND that a built asset actually contains compiled utility CSS — presence of a config file is not proof it ran
+    text:
+    - check the config exists AND that a built asset actually contains compiled utility CSS — presence of a config file is not proof it ran
+  - id: t21-L44
+    file: render
+    class: ban
+    clauses: {2: narrative}
+    baseline: 'axe has NO rule for a clickable `div`, and it is the most common React a11y defect. transdoc''s dropzone — the product''s PRIMARY action — was a `div` with `onClick`, no `tabIndex`, no `role`, no key handler: two independent 30/40-tab traversals never reached it, with a11y green the whole way'
+    text:
+    - 'axe has NO rule for a clickable `div`, the most common React a11y defect: a `div` with `onClick`, no `tabIndex`, no `role`, no key handler: two independent 30/40-tab traversals never reached it, with a11y green the whole way'
+  - id: t21-L45
+    file: render
+    class: prose
+    baseline: Grep the source for `onClick` on a non-interactive element; the DOM check cannot see it
+    text:
+    - grep the source for `onClick` on a non-interactive element; the DOM check cannot see it
+  - id: t21-L48
+    file: render
+    class: prose
+    clauses: {2: narrative}
+    baseline: 'Enumerate every interactive element and every reachable page via ALL FOUR discovery modes — each mode catches what the others miss (multi-modal sweep):'
+    text:
+    - Enumerate every interactive element and every reachable page via ALL FOUR discovery modes
+  - id: t21-L49
+    file: render
+    class: prose
+    baseline: 'Feature-driven (FEATURES.md is a TESTED contract, not prose): every row of `docs/FEATURES.md` becomes inventory — the row''s Endpoint/Module column tells you where it lives'
+    text:
+    - 'Feature-driven (FEATURES.md is a TESTED contract, not prose): every row of `docs/FEATURES.md` becomes inventory (the row''s Endpoint/Module column tells you where it lives)'
+  - id: t21-L50
+    file: render
+    class: prose
+    baseline: 'Bidirectional reconciliation is mandatory: a shipped capability with no FEATURES row = doc-drift finding (add the row); a FEATURES row the gauntlet proves missing or broken = either a defect (fix/handoff) or a stale row (correct the doc)'
+    text:
+    - 'Bidirectional reconciliation is mandatory: a shipped capability with no FEATURES row = doc-drift finding (add the row); a FEATURES row the gauntlet proves missing or broken = a defect (fix/handoff) or a stale row (correct the doc)'
+  - id: t21-L57
+    file: render
+    class: ban
+    clauses: {1: narrative}
+    baseline: A flow is one task; a journey is a user's LIFE with the product — flows chained across sessions, where the cross-flow state is exactly where products break (onboarding flags that never clear, carts lost at login, an email verify that lands in a different browser, an entitlement that unlocks in the DB but not the UI)
+    text:
+    - A journey is a user's LIFE with the product — flows chained across sessions, where the cross-flow state is exactly where products break (onboarding flags that never clear, carts lost at login, an email verify that lands in a different browser, an entitlement that unlocks in the DB but not the UI)
+  - id: t21-L59
+    file: render
+    class: prose
+    baseline: First-day journey — discover → sign up → verify (real email loop) → onboard → reach the product's core value once
+    text:
+    - First-day journey — discover → sign up → verify (real email loop) → onboard → reach the product's core value once; every friction is a finding
+  - id: t21-L60
+    file: render
+    class: prose
+    clauses: {1: narrative}
+    baseline: (The make-or-break arc; every friction is a finding.)
+    text:
+    - First-day journey — discover → sign up → verify (real email loop) → onboard → reach the product's core value once; every friction is a finding
+  - id: t21-L66
+    file: render
+    class: prose
+    baseline: 'B2B / internal-tool variant (admin-provisioned products — ERPs, back-offices): when the product has no self-serve signup, no paywall, no self-service deletion (users are provisioned by an operator), do NOT report a bogus "SKIPPED ×3" and do NOT invent flows that don''t exist — run the same three arcs with the actor changed from *the user* to *an operator*:'
+    text:
+    - 'B2B / internal-tool variant (admin-provisioned products — ERPs, back-offices): with no self-serve signup, no paywall, no self-service deletion, do NOT report a bogus "SKIPPED ×3" and do NOT invent flows that don''t exist — run the same three arcs with the actor changed from the user to an *operator*'
+  - id: t21-L67
+    file: render
+    class: prose
+    baseline: '*first-day* → operator provisions a user; that user logs in for the first time (set-password / invite link) and reaches the product''s core value once'
+    text:
+    - '*first-day* → operator provisions a user; that user logs in for the first time (set-password / invite link) and reaches the product''s core value once'
+  - id: t21-L68
+    file: render
+    class: prose
+    baseline: '*paying-customer* → entitlement/role change: operator grants a role or module; verify the UI unlocks it end-to-end, and that revoking it re-locks'
+    text:
+    - '*paying-customer* → entitlement/role change: operator grants a role or module; verify the UI unlocks it end-to-end, and that revoking it re-locks'
+  - id: t21-L69
+    file: render
+    class: ban
+    baseline: '*leaving-user* → operator deactivates the user; verify access is revoked AND their records survive (an ERP must never lose a departed user''s data)'
+    text:
+    - '*leaving-user* → operator deactivates the user; verify access is revoked AND their records survive (an ERP must never lose a departed user''s data)'
+  - id: t21-L71
+    file: render
+    class: prose
+    baseline: 'Each journey: chained in ONE narrative per persona where it makes sense (the hostile user runs the first-day journey too), with session boundaries made real (new context, cookie expiry, second device where the surface supports it)'
+    text:
+    - 'Chain each journey in ONE narrative per persona where it makes sense (the hostile user runs the first-day journey too), with session boundaries made real (new context, cookie expiry, second device where the surface supports it)'
+  - id: t21-L86
+    file: render
+    class: prose
+    clauses: {2: narrative}
+    baseline: Pool-check the matrix for holes (see Subagents) before dispatch — a hole found now is cheap
+    text:
+    - Pool-check the matrix for holes (see Subagents) before dispatch
+  - id: t21-L88
+    file: render
+    class: prose
+    baseline: 'Browser/device work = native `fabrik-gui` subagents, in PARALLEL — the seats `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <bundles>` prints: one Sonnet driver per flow-bundle plus that bundle''s Haiku mechanical gate and the Opus authoritative re-drive (roles in § Subagents), disjoint scenario ownership (no two agents mutate the same seeded account)'
+    text:
+    - 'Browser/device work = native `fabrik-gui` subagents, in PARALLEL — the seats `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <bundles>` prints (roles in § Subagents), disjoint scenario ownership (no two agents mutate the same seeded account)'
+  - id: t21-L89
+    file: render
+    class: prose
+    baseline: The pool CANNOT do this leg (no browser tools) — the native-mandate case per `core/62`
+    text:
+    - The pool CANNOT do this leg (no browser tools) — the native-mandate case per `core/62`
+  - id: t21-L90
+    file: render
+    class: ban
+    clauses: {2: narrative}
+    baseline: ⚠️ PARALLEL agents must NOT drive the shared Playwright MCP browser — this is a correctness rule, not a preference. The Playwright MCP is one browser instance per session; two agents calling `browser_navigate`/`browser_click` concurrently stomp each other's tabs and interleave screenshots
+    text:
+    - '⚠️ PARALLEL agents must NOT drive the shared Playwright MCP browser — this is a correctness rule, not a preference: one instance per session, so concurrent `browser_navigate`/`browser_click` calls stomp each other''s tabs'
+  - id: t21-L91
+    file: render
+    class: prose
+    baseline: 'So each parallel agent authors and runs its OWN Playwright spec (`npx playwright test <its-spec>` — via `ui-verify`''s `makeAuthedTest`/`makeUiAuthedTest`), which spawns an isolated browser per run AND satisfies "persist as you go" for free (the artifact IS the suite)'
+    text:
+    - 'So each parallel agent authors and runs its OWN Playwright spec (`npx playwright test <its-spec>` — via `ui-verify`''s `makeAuthedTest`/`makeUiAuthedTest`)'
+  - id: t21-L92
+    file: render
+    class: prose
+    baseline: Reserve the MCP browser for a single interactive/exploratory agent, or a serial round
+    text:
+    - reserve the MCP browser for a single interactive/exploratory agent, or a serial round
+  - id: t21-L93
+    file: render
+    class: prose
+    baseline: ⚠️ Each parallel agent writes artifacts to its OWN output dir — run with `--output=test-results/<agent-prefix>` and screenshot to `test-results/<agent-prefix>/…`
+    text:
+    - ⚠️ Each parallel agent writes artifacts to its OWN output dir — `--output=test-results/<agent-prefix>` and screenshots to `test-results/<agent-prefix>/…`, because the test runner wipes its output directory at the start of every run
+  - id: t21-L97
+    file: render
+    class: prose
+    clauses: {2: narrative}
+    baseline: '⚠️ COPY evidence into the board''s `evidence/` dir BEFORE recording any path — the scoping rule above is necessary and NOT sufficient. The wipe takes the whole output ROOT, so one agent running the bare default erases every sibling''s nested dir, including the careful ones: a guard that depends on unanimous compliance is not a guard (job-agent, 2026-08-27 — two agents reported screenshots taken, then `File does not exist` on the same path; one deliverable dir was gone before its report was read)'
+    text:
+    - '⚠️ COPY evidence into the board''s `evidence/` dir BEFORE recording any path — the scoping rule above is necessary and NOT sufficient: one agent running the bare default erases every sibling''s nested dir'
+  - id: t21-L99
+    file: render
+    class: prose
+    baseline: Copy first (`cp <shot> <board>/evidence/<TC>-<slug>.png`), record the BOARD path, and the graded artifact stops depending on any runner's scratch dir
+    text:
+    - Copy first (`cp <shot> <board>/evidence/<TC>-<slug>.png`) and record the BOARD path
+  - id: t21-L100
+    file: render
+    class: ban
+    baseline: A GUI agent that must REBUILD to verify its own fix (an a11y or style defect it is fixing) shares one mutable build target with every sibling — `extension/.output/chrome-mv3` and its equivalents
+    text:
+    - A GUI agent that must REBUILD to verify its own fix (an a11y or style defect it is fixing) shares one mutable build target with every sibling — `extension/.output/chrome-mv3` and its equivalents
+  - id: t21-L102
+    file: render
+    class: ban
+    baseline: Either serialize that agent (finish the parallel round, then rebuild-and-verify alone) or give it its own build output dir; never rebuild a shared target while siblings are mid-run
+    text:
+    - serialize that agent (finish the parallel round, then rebuild-and-verify alone) or give it its own build output dir; never rebuild a shared target while siblings are mid-run
+  - id: t21-L103
+    file: render
+    class: prose
+    baseline: ⚠️ Under a dev server, HYDRATION outruns `load` — a click between them silently does nothing. The element is in the DOM and the handler is not attached yet, so the click lands on inert HTML and the assertion fails as if the feature were broken
+    text:
+    - ⚠️ Under a dev server, HYDRATION outruns `load` — a click between them silently does nothing
+  - id: t21-L105
+    file: render
+    class: ban
+    baseline: Poll for a hydration signal (a `data-hydrated` attribute, an enabled control, or the first state change the page owns) — never `waitForLoadState('load')` alone
+    text:
+    - poll for a hydration signal (a `data-hydrated` attribute, an enabled control, or the first state change the page owns) — never `waitForLoadState('load')` alone
+  - id: t21-L108
+    file: render
+    class: prose
+    baseline: Give each concurrent runner its own build output dir before concluding anything about a test
+    text:
+    - Give each concurrent runner its own build output dir before concluding anything about a test
+  - id: t21-L109
+    file: render
+    class: prose
+    baseline: 'Surface tooling (defer to the packs): web/SaaS/website/docs → Playwright MCP (+ `ui-verify` specs) + `chrome-devtools` `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to use"); mobile RN → Maestro MCP + mobile-mcp on a booted device; extension → the web loop via a Playwright load-extension fixture (Playwright MCP can''t load extensions); desktop → Playwright''s Electron runner'
+    text:
+    - 'Surface tooling (defer to the packs): web/SaaS/website/docs → Playwright MCP (+ `ui-verify` specs) + `chrome-devtools` `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to use"); mobile RN → Maestro MCP + mobile-mcp on a booted device; extension → the web loop via a Playwright load-extension fixture (Playwright MCP can''t load extensions); desktop → Playwright''s Electron runner'
+  - id: t21-L110
+    file: render
+    class: prose
+    baseline: 'Engine policy: Chromium is the gauntlet engine'
+    text:
+    - 'Engine policy: Chromium is the gauntlet engine'
+  - id: t21-L111
+    file: render
+    class: ban
+    clauses: {3: narrative}
+    baseline: Public-facing web surfaces additionally run the `ui-verify` WebKit smoke tier (happy paths + key-screen visuals + forms — every iPhone visitor is WebKit); admin/internal dashboards and extensions are Chromium-only; Firefox is tested nowhere (deliberate — Chromium+WebKit bracket the divergence spectrum)
+    text:
+    - 'public-facing web surfaces additionally run the `ui-verify` WebKit smoke tier (happy paths + key-screen visuals + forms); admin/internal dashboards and extensions are Chromium-only; Firefox is tested nowhere'
+  - id: t21-L113
+    file: render
+    class: prose
+    baseline: 'Every NEW or CHANGED surface — a screen, window, mobile menu, extension popup, modal, empty/error state appearing for the first time in this run, or re-rendered after a fix — gets at least one VISION inspection (the agent Reads the image and judges it): layout sanity, clipping/overlap, both themes, real fonts vs fallback, obvious visual breakage'
+    text:
+    - 'Every NEW or CHANGED surface (a screen, window, mobile menu, extension popup, modal, empty/error state appearing for the first time in this run, or re-rendered after a fix) gets at least one VISION inspection (the agent Reads the image and judges it): layout sanity, clipping/overlap, both themes, real fonts vs fallback, obvious visual breakage'
+  - id: t21-L114
+    file: render
+    class: ban
+    baseline: 'The tools cannot do this for you: `axe` reads the a11y tree, not pixels; `toHaveScreenshot` only diffs against a baseline — a baseline established without a vision look enshrines an unjudged render forever (first-run baselines are self-fulfilling)'
+    text:
+    - 'The tools cannot do this for you: `axe` reads the a11y tree, not pixels, and `toHaveScreenshot` only diffs against a baseline — a baseline established without a vision look enshrines an unjudged render forever'
+  - id: t21-L115
+    file: render
+    class: prose
+    baseline: Steady-state re-runs may lean on the visual-diff; first appearances may not
+    text:
+    - steady-state re-runs may lean on the visual-diff, first appearances may not
+  - id: t21-L116
+    file: render
+    class: ban
+    baseline: 'Know your surface''s FAILURE CHANNELS before asserting silence. Many UIs surface failures on MULTIPLE channels (a modal for server faults, an inline toast/infobar for client-side checks) — a checker that knows only one reports the other as "silent failure" (live false-CONFIRMED: a `position:fixed` modal has `offsetParent === null`, which read as "no dialog")'
+    text:
+    - 'Know your surface''s FAILURE CHANNELS before asserting silence (a modal for server faults, an inline toast/infobar for client-side checks): a checker that knows only one reports the other as "silent failure" (live false-CONFIRMED: a `position:fixed` modal has `offsetParent === null`, which read as "no dialog")'
+  - id: t21-L117
+    file: render
+    class: ban
+    baseline: Enumerate the surface's real channels first; an absence claim is only as good as the channel list it checked
+    text:
+    - so enumerate the real channels first; an absence claim is only as good as the channel list it checked
+  - id: t21-L121
+    file: render
+    class: prose
+    baseline: 'UI truth vs SYSTEM truth (the full-stack QC leg): at every journey milestone, verify the layer BENEATH the UI agrees with what the screen claims — the record is really in the DB/API (`GET` it back), the email really sent (`waitForMail`), the entitlement really flipped (`GET /entitlements`), the deletion really revoked access (the old token now 401s)'
+    text:
+    - 'UI truth vs SYSTEM truth: at every journey milestone, verify the layer BENEATH the UI agrees with what the screen claims — the record is really in the DB/API (`GET` it back), the email really sent (`waitForMail`), the entitlement really flipped (`GET /entitlements`), the deletion really revoked access (the old token now 401s)'
+  - id: t21-L122
+    file: render
+    class: prose
+    baseline: A green screen over a missing side-effect is a CONFIRMED defect (fail-open class) — and so is the inverse (side-effect happened, UI says nothing)
+    text:
+    - A green screen over a missing side-effect is a CONFIRMED defect (fail-open class) — and so is the inverse (side-effect happened, UI says nothing); `api-smoke-test` seams and the app's own API are the probes, so never assert system truth from the UI alone
+  - id: t21-L123
+    file: render
+    class: ban
+    baseline: '`api-smoke-test` seams and the app''s own API are the probes; never assert system truth from the UI alone'
+    text:
+    - A green screen over a missing side-effect is a CONFIRMED defect (fail-open class) — and so is the inverse (side-effect happened, UI says nothing); `api-smoke-test` seams and the app's own API are the probes, so never assert system truth from the UI alone
+  - id: t21-L127
+    file: render
+    class: ban
+    clauses: {4: narrative}
+    baseline: 'A red test/spec is a SYMPTOM with at least two causes — the app is wrong, or the RIG is wrong (the spec''s OWN assertions/selectors/fixtures/driver, as opposed to the app under test) — and an assertion message never distinguishes them: refute the rig first (one schema/selector/contract lookup + the ACTUAL rendered state or response) before any row survives as an app finding — a rig reading a key/selector that doesn''t exist produces failures identical to a real defect, and "fixing" correct code into agreeing with a broken rig is the most expensive outcome this phase exists to prevent'
+    text:
+    - 'A red test/spec is a SYMPTOM with at least two causes — the app is wrong, or the RIG is wrong (the spec''s OWN assertions/selectors/fixtures/driver) — and an assertion message never distinguishes them: refute the rig first (one schema/selector/contract lookup + the ACTUAL rendered state or response) before any row survives as an app finding'
+  - id: t21-L129
+    file: render
+    class: prose
+    baseline: 'FIXED — UI-layer defects (copy, aria, focus, CSS, state wiring, validation display, broken links) AND doc-drift (a `FEATURES.md` row added/corrected counts as a fix — with its Doc Sync Matrix ripples): prove-before-fix (failing spec first → fix → spec green → affected flows re-run), surface gate green after each fix'
+    text:
+    - 'FIXED — UI-layer defects (copy, aria, focus, CSS, state wiring, validation display, broken links) AND doc-drift (a `FEATURES.md` row added/corrected counts as a fix, with its Doc Sync Matrix ripples): prove-before-fix (failing spec first → fix → spec green → affected flows re-run), surface gate green after each fix'
+  - id: t21-L130
+    file: render
+    class: prose
+    clauses: {2: narrative}
+    baseline: 'Mechanical path-gate: if the fix''s diff touches ANY file outside the presentation layer or the test harness/spec layer (i.e. it touches backend handlers, models, migrations, schema), the row is AUTO-RECLASSIFIED to the code-wrong route — no judgment call, the diff decides'
+    text:
+    - 'Mechanical path-gate: if the fix''s diff touches ANY file outside the presentation layer or the test harness/spec layer (backend handlers, models, migrations, schema), the row is AUTO-RECLASSIFIED to the code-wrong route — no judgment call, the diff decides'
+  - id: t21-L131
+    file: render
+    class: prose
+    baseline: A spec that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable (one tenant for an isolation bug, a seeded-admin session for a permissions bug, a fast network for a loading-state bug)
+    text:
+    - A spec that passes because the environment cannot express the failure has proven nothing — "it passed locally" is not evidence when local is the one place the bug is unreachable (one tenant for an isolation bug, a seeded-admin session for a permissions bug, a fast network for a loading-state bug)
+  - id: t21-L132
+    file: render
+    class: ban
+    baseline: Reach for the missing constraint in a throwaway/ephemeral instance you own; never degrade shared or paid infrastructure to manufacture a red
+    text:
+    - reach for the missing constraint in a throwaway/ephemeral instance you own; never degrade shared or paid infrastructure to manufacture a red
+  - id: t21-L134
+    file: render
+    class: prose
+    baseline: 'A refuted rig may NOT be left as a permanently-red committed spec: Phase 5 re-runs treat every red as a finding, so an unrepaired rig blocks the quiet exit forever'
+    text:
+    - 'A refuted rig may NOT be left as a permanently-red committed spec: Phase 5 re-runs treat every red as a finding, so an unrepaired rig blocks the quiet exit forever'
+  - id: t21-L137
+    file: render
+    class: prose
+    baseline: 'contract right, code wrong (backend / schema / logic) → `/fabrik-review` the owning module (that command IS the fix loop: finders → refute → prove-before-fix → regression guard);'
+    text:
+    - 'contract right, code wrong (backend / schema / logic) → `/fabrik-review` the owning module (that command IS the fix loop: finders → refute → prove-before-fix → regression guard)'
+  - id: t21-L139
+    file: render
+    class: prose
+    baseline: 'the design is wrong or MISSING — a journey cannot complete because a screen/field/endpoint doesn''t exist, or the frozen contract itself is wrong → that is NEW WORK: `/fabrik-spec` → contract re-freeze → `/fabrik-plan-after-chat` → `/fabrik-execute-plan`'
+    text:
+    - 'the design is wrong or MISSING (a journey cannot complete because a screen/field/endpoint doesn''t exist, or the frozen contract itself is wrong) → NEW WORK: `/fabrik-spec` → contract re-freeze → `/fabrik-plan-after-chat` → `/fabrik-execute-plan`'
+  - id: t21-L140
+    file: render
+    class: ban
+    baseline: Never decide a product question inside a test run. Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect + why it is not fixable in the presentation layer) and WIRE/STATE EVIDENCE — the actual response body/key set, or the queried system state beneath the UI (the record `GET` back, the entitlement, the mail-catcher capture), proving the APP violated the contract — never the assertion text alone (the committed repro proves reproducibility; the evidence proves attribution — a red repro can itself be rig-defective)
+    text:
+    - Never decide a product question inside a test run. Every code-wrong row carries a one-line ownership justification (the file it believes owns the defect + why it is not a presentation-layer fix) and WIRE/STATE EVIDENCE — the actual response body/key set, or the queried system state beneath the UI (the record `GET` back, the entitlement, the mail-catcher capture), proving the APP violated the contract — never the assertion text alone (the committed repro proves reproducibility; the evidence proves attribution — a red repro can itself be rig-defective)
+  - id: t21-L141
+    file: render
+    class: prose
+    baseline: 'Ledger freshness before routing: the ledger is the prior report''s `HANDOFF … OPEN` rows + its `## RESUME` block'
+    text:
+    - 'Ledger freshness before routing: the ledger is the prior report''s `HANDOFF … OPEN` rows + its `## RESUME` block'
+  - id: t21-L142
+    file: render
+    class: ban
+    baseline: 'Before routing any OPEN row: (a) `git log --oneline --since=<row-timestamp> -- <owning paths>` plus `git status --porcelain <owning paths>` to catch landed or still-uncommitted fixes, then (b) re-run the row''s repro — its current color decides, not the ledger''s (a row owned by a sibling repo can ONLY be freshness-checked this way)'
+    text:
+    - 'before routing any OPEN row, run `git log --oneline --since=<row-timestamp> -- <owning paths>` plus `git status --porcelain <owning paths>` to catch landed or uncommitted fixes, then re-run the row''s repro — its current color decides, not the ledger''s (a row owned by a sibling repo can ONLY be freshness-checked this way)'
+  - id: t21-L143
+    file: render
+    class: ban
+    baseline: An already-fixed or closed-but-never-flipped row becomes a ticket doing nothing
+    text:
+    - an already-fixed or closed-but-never-flipped row becomes a ticket doing nothing
+  - id: t21-L144
+    file: render
+    class: prose
+    baseline: Every handoff ships a committed RED repro spec (it fails today; the fix inherits it as its proof)
+    text:
+    - Every handoff ships a committed RED repro spec (it fails today; the fix inherits it as its proof) + a HANDED-OFF row naming the route and the owner
+  - id: t21-L145
+    file: render
+    class: prose
+    baseline: a HANDED-OFF row naming the route and the owner
+    text:
+    - Every handoff ships a committed RED repro spec (it fails today; the fix inherits it as its proof) + a HANDED-OFF row naming the route and the owner
+  - id: t21-L146
+    file: render
+    class: ban
+    clauses: {4: narrative}
+    baseline: '`/fabrik-release` enforces these rows by SEVERITY (its § Precondition, the real contract): an open P0/P1 row, a `NOT-QUIET` ledger, or an untouched `DESIGN-GAP` BLOCKS the release; open P2/P3 rows surface as ⚠ WARN for the operator''s explicit accept — never silently passed — that gate is what stops a handoff from rotting'
+    text:
+    - '`/fabrik-release` enforces these rows by SEVERITY (its § Precondition): an open P0/P1 row, a `NOT-QUIET` ledger, or an untouched `DESIGN-GAP` BLOCKS the release; open P2/P3 rows surface as ⚠ WARN for the operator''s explicit accept — never silently passed'
+  - id: t21-L156
+    file: render
+    class: prose
+    baseline: Solo-testing is a contract violation, not a style choice. The orchestrator that drives the browser itself serializes the gauntlet, exhausts its own context on screenshots, and loses the independent-eyes recall this command exists for
+    text:
+    - 'Solo-testing is a contract violation, not a style choice: the orchestrator that drives the browser itself serializes the gauntlet and loses the independent-eyes recall this command exists for'
+  - id: t21-L158
+    file: render
+    class: prose
+    baseline: ≥2 parallel native `fabrik-gui` subagents for any gauntlet with ≥2 flows (scale up with the matrix — one per flow-bundle, disjoint scenario ownership, no two agents mutating the same seeded account)
+    text:
+    - ≥2 parallel native `fabrik-gui` subagents for any gauntlet with ≥2 flows (scale up with the matrix — one per flow-bundle, disjoint scenario ownership, no two agents mutating the same seeded account)
+  - id: t21-L160
+    file: render
+    class: ban
+    clauses: {2: {duplicate-of: u-L2}, 3: narrative}
+    baseline: Native is the ONLY option for browser/device legs (the pool has no browser tools — the native-mandate case per `core/62`); they record nothing to the flywheel — accepted
+    text:
+    - Native is the ONLY option for browser/device legs (the pool has no browser tools — the native-mandate case per `core/62`)
+  - id: t21-L162
+    file: render
+    class: prose
+    clauses: {2: narrative}
+    baseline: STRIP tokens/cookies/signed URLs from crawler output and from console/network captures before ANY seat sees them, and REDACT live credential material from COMMITTED evidence — a committed token outlives every session
+    text:
+    - STRIP tokens/cookies/signed URLs from crawler output and from console/network captures before ANY seat sees them, and REDACT live credential material from COMMITTED evidence
+  - id: t21-L165
+    file: render
+    class: prose
+    baseline: YOU dispatch and judge — you do not drive (except the bounded Phase-0 feasibility probe, which is expected)
+    text:
+    - YOU dispatch and judge — you do not drive (except the bounded Phase-0 feasibility probe)
+  - id: t21-L166
+    file: render
+    class: prose
+    clauses: {1: {duplicate-of: u-L9}}
+    baseline: The orchestrator owns inventory, refute/merge, fix decisions, and convergence; a round where the orchestrator personally clicked through screens instead of dispatching is a defective round — redo it with subagents
+    text:
+    - A round where the orchestrator personally clicked through screens instead of dispatching is a defective round — redo it with subagents
+  - id: t21-L168
+    file: render
+    class: ban
+    clauses: {2: narrative}
+    baseline: 'Fixture-grade SEEDED DATA in a live tenant is a FINDING, never scenery: a seeder under `scripts/**`/`tests/**` that mutated a REAL database with self-disclaiming data ("approximation, NOT a customs declaration") passes every mechanical gate green — hunt for it explicitly (live: tryton-crm, 24/42 products mis-coded by a name-prefix heuristic under a CONVERGED plan)'
+    text:
+    - 'Fixture-grade SEEDED DATA in a live tenant is a FINDING, never scenery: a seeder under `scripts/**`/`tests/**` that mutated a REAL database with self-disclaiming data ("approximation, NOT a customs declaration") passes every mechanical gate green — hunt for it explicitly'
+  - id: t21-L169
+    file: render
+    class: prose
+    baseline: '`docs/development/reviews/YYYY-MM-DD-user-test-<slug>.md`: the Inventory Ledger + coverage fractions (journeys completed / journey set · FEATURES rows verified / total — each with the scenario IDs proving it), the journey ledger (per journey × persona: milestones passed, UI-vs-system truth checks, where it broke), the round ledger (per-round: new-inventory/new-findings/fixes), per-scenario verdicts with evidence paths, FIXED list (spec paths + doc corrections), HANDED-OFF list (owner + repro), REFUTED list (proof), SKIPPED list (reasons), and the persisted-suite inventory'
+    text:
+    - '`docs/development/reviews/YYYY-MM-DD-user-test-<slug>.md`: the Inventory Ledger + coverage fractions (journeys completed / journey set · FEATURES rows verified / total — each with the scenario IDs proving it), the journey ledger (per journey × persona: milestones passed, UI-vs-system truth checks, where it broke), the round ledger (per-round: new-inventory/new-findings/fixes), per-scenario verdicts with evidence paths, FIXED list (spec paths + doc corrections), HANDED-OFF list (owner + repro), REFUTED list (proof), SKIPPED list (reasons), and the persisted-suite inventory'
+vanished:
+  L1: {rule: [t21-L1]}
+  L7: {rule: [t21-L7]}
+  L8: {rule: [t21-L8]}
+  L10: {rule: [t21-L10]}
+  L11: {rule: [t21-L11]}
+  L13: {rule: [t21-L13]}
+  L15: {rule: [t21-L15]}
+  L19: {rule: [t21-L19]}
+  L20: {rule: [t21-L20]}
+  L21: {rule: [t21-L21]}
+  L26: {rule: [t21-L26]}
+  L27: {rule: [t21-L27]}
+  L28: {rule: [t21-L28]}
+  L29: {rule: [t21-L29]}
+  L30: narrative
+  L31: {rule: [t21-L31]}
+  L32: {rule: [t21-L32]}
+  L33: narrative
+  L36: {rule: [t21-L36]}
+  L37: {rule: [t21-L37]}
+  L38: {rule: [t21-L38]}
+  L39: {rule: [t21-L39]}
+  L40: narrative
+  L41: {rule: [t21-L41]}
+  L42: narrative
+  L43: {rule: [t21-L43]}
+  L44: {rule: [t21-L44]}
+  L45: {rule: [t21-L45]}
+  L47: narrative
+  L48: {rule: [t21-L48]}
+  L49: {rule: [t21-L49]}
+  L50: {rule: [t21-L50]}
+  L57: {rule: [t21-L57]}
+  L59: {rule: [t21-L59]}
+  L60: {rule: [t21-L60]}
+  L66: {rule: [t21-L66]}
+  L67: {rule: [t21-L67]}
+  L68: {rule: [t21-L68]}
+  L69: {rule: [t21-L69]}
+  L71: {rule: [t21-L71]}
+  L86: {rule: [t21-L86]}
+  L88: {rule: [t21-L88]}
+  L89: {rule: [t21-L89]}
+  L90: {rule: [t21-L90]}
+  L91: {rule: [t21-L91]}
+  L92: {rule: [t21-L92]}
+  L93: {rule: [t21-L93]}
+  L94: narrative
+  L95: narrative
+  L97: {rule: [t21-L97]}
+  L99: {rule: [t21-L99]}
+  L100: {rule: [t21-L100]}
+  L101: narrative
+  L102: {rule: [t21-L102]}
+  L103: {rule: [t21-L103]}
+  L104: narrative
+  L105: {rule: [t21-L105]}
+  L106: narrative
+  L107: narrative
+  L108: {rule: [t21-L108]}
+  L109: {rule: [t21-L109]}
+  L110: {rule: [t21-L110]}
+  L111: {rule: [t21-L111]}
+  L113: {rule: [t21-L113]}
+  L114: {rule: [t21-L114]}
+  L115: {rule: [t21-L115]}
+  L116: {rule: [t21-L116]}
+  L117: {rule: [t21-L117]}
+  L121: {rule: [t21-L121]}
+  L122: {rule: [t21-L122]}
+  L123: {rule: [t21-L123]}
+  L127: {rule: [t21-L127]}
+  L129: {rule: [t21-L129]}
+  L130: {rule: [t21-L130]}
+  L131: {rule: [t21-L131]}
+  L132: {rule: [t21-L132]}
+  L134: {rule: [t21-L134]}
+  L137: {rule: [t21-L137]}
+  L139: {rule: [t21-L139]}
+  L140: {rule: [t21-L140]}
+  L141: {rule: [t21-L141]}
+  L142: {rule: [t21-L142]}
+  L143: {rule: [t21-L143]}
+  L144: {rule: [t21-L144]}
+  L145: {rule: [t21-L145]}
+  L146: {rule: [t21-L146]}
+  L156: {rule: [t21-L156]}
+  L158: {rule: [t21-L158]}
+  L160: {rule: [t21-L160]}
+  L162: {rule: [t21-L162]}
+  L165: {rule: [t21-L165]}
+  L166: {rule: [t21-L166]}
+  L168: {rule: [t21-L168]}
+  L169: {rule: [t21-L169]}
