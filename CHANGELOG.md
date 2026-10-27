@@ -19,6 +19,24 @@ two plus an `image_port` that is not an integer port; both CMD-SHELL probes sing
 DATABASE_URL defaults go through `compose_env`, so the env-line guard in `tests/test_compose_env_quoting.py`
 has no exemption. W-ff313a14, D-1276.
 
+### Fixed — parity-root and kaizen exposure tests no longer red only inside a merge leg (2026-10-27)
+
+- `tests/test_scaffold_deploy_contract.py`: a new `_owner_only_modes` gives each staged `health_probe/`
+  copy the modes a 022 umask gives (dirs 755, files 644), in `_flat_stage` and in B6. Before this, the
+  modes were inherited: a merge leg runs under umask 002, where the copy is group-writable, and the stub
+  rightly refuses it as "writable by others". So
+  `test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script` and both cases of
+  `test_parity_root_found_but_unusable_module_names_the_cause` were red in a merge leg and green alone.
+  The first refused kaizen's batch on 2026-10-27. B7 and B8 gain a group-writable row each, so the
+  refusal of a group-writable copy keeps a test now that no test meets it by accident.
+- `tests/test_kaizen_events.py`: the exposure tests expect the project that the `/opt/<name>` rule gives
+  this checkout. That is "fabrik" under `/opt/fabrik` and "unknown" in a merge leg's `/tmp` throwaway,
+  where two tests failed on a hardcoded "fabrik". The cache check now reads the cache it claims to
+  guard (it called `refresh=True`, which skips the cache read) and compares commits, both ways: a pinned
+  call on a warm cache is not served from it, and a pinned call does not poison it. A new
+  parametrised test proves `_project`'s rule on fixed paths. W-17fc722a; the item's load-only flakes
+  remain.
+
 ### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
 
 Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value
