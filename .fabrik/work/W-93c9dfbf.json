@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "/fabrik-task: probe compose 2.40.3 on tail words (letters, -, =, #, $, whitespace kinds) and refuse every tail compose refuses, red-first, or record the measured grammar",
+  "next": "/fabrik-task: probe compose 2.40.3 on tail words (letters, -, =, #, $, whitespace kinds) and refuse every tail compose refuses, red-first, or record the measured grammar; then reword CHANGELOG (W-2ae286e2 entry), docs/reference/modules/deployment-orchestrator.md § Secrets Management and the env_file.py tail comment to say a quote after the closing quote AND BEFORE ANY # is refused (D-1277 already says so)",
   "note": "",
   "owner": "",
   "priority": 3,
