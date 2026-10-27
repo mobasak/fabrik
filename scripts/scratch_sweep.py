@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import functools
 import glob as globmod
 import hashlib
 import json
@@ -2795,48 +2796,82 @@ def _parse_worktree_porcelain(out: str) -> list[dict]:
     return entries
 
 
-def _squash_vouch(repo: Path, target: str, branch: str) -> int | None:
-    """The time up to which a `Merged-From` squash on `target` vouches for `branch`, or None.
+def _trailer_names(value: str) -> list[str]:
+    """The branch names in one `Merged-From` value: a COMMA LIST of `branch (free-text description)`.
 
-    The trailer is a COMMA LIST of `branch (free-text description)` entries, so each item is
-    `.strip()`ped (without it every item after the first keeps its leading space and matches
-    nothing), the trailing ` (…)` description is removed, and the comparison is WHOLE-STRING — a
-    substring test would let one branch's description word mark a different branch merged.
-    `separator=,` joins two trailer lines on one commit into that list, and `\\x1e` opens each
-    commit's record, so a record whose times do not parse is skipped — it never vouches — instead
-    of failing the read for every branch.
+    Commas split only at parenthesis depth 0, so a description such as `(vendor, wiring)` or
+    `(see, hotfix (x))` never yields a name of its own, and the description is cut at the FIRST
+    ` (`. Each name is `.strip()`ped (else every item after the first keeps its leading space and
+    matches nothing) and compared WHOLE-STRING by the caller — a substring test would let one
+    branch's description word mark a different branch merged. A branch whose own name holds a
+    comma cannot be told from two names; none exists here (D-1290).
+    """
+    items, depth, cur = [], 0, []
+    for ch in value:
+        if ch == "," and depth == 0:
+            items.append("".join(cur))
+            cur = []
+            continue
+        depth += ch == "("
+        depth -= ch == ")" and depth > 0
+        cur.append(ch)
+    items.append("".join(cur))
+    names = []
+    for item in items:
+        name = item.strip()
+        if " (" in name and name.endswith(")"):
+            name = name[: name.index(" (")].strip()
+        if name:
+            names.append(name)
+    return names
 
-    `--no-merges` (W-69322546): a merge commit's parents already say what it took, and the
-    caller's `merge-base --is-ancestor` arm is the truth for it — hand merges carry reused names
+
+@functools.cache
+def _vouch_map(repo: Path, target: str) -> dict[str, int] | None:
+    """Each branch a `Merged-From` squash on `target` names → the time up to which it vouches.
+
+    One `git log` per sweep, cached: a target that moves mid-sweep can only leave a vouch missing
+    or OLDER, which reads unmerged and keeps the worktree. `-z` ends each commit's record with NUL
+    (a commit message cannot hold one), `separator=,` joins two trailer lines on one commit, and a
+    record whose fields or times do not parse is skipped — it never vouches — instead of failing
+    the read for every branch.
+
+    `--no-merges` (D-1290): a merge commit's parents already say what it took, and the caller's
+    `merge-base --is-ancestor` arm is the truth for it — hand merges carry reused names
     (`Merged-From: worktree-fleet`), which read merged for ever otherwise. A squash's vouch is
     `min(author, committer)` time: an amend or a rebase of the target moves only the committer
-    date forward, past work the squash never took. The NEWEST vouch wins (a re-squash covers it).
+    date forward, past work the squash never took. That reading also refuses a hand squash that
+    kept its first commit's author date (`commit -C`, `rebase -i`), which no date can tell from an
+    amend — it fails closed. The NEWEST vouch wins (a re-squash covers the work before it).
     """
     rc, out = _git(
         repo,
         "log",
+        "-z",
         "--no-merges",
-        "--format=%x1e%at%x1f%ct%x1f%(trailers:key=Merged-From,valueonly,separator=%x2c)",
+        "--format=%at%x1f%ct%x1f%(trailers:key=Merged-From,valueonly,separator=%x2c)",
         target,
     )
     if rc != 0:
         return None
-    vouch: int | None = None
-    for record in out.split("\x1e"):
-        fields = record.strip("\n").split("\x1f")
+    vouches: dict[str, int] = {}
+    for record in out.split("\0"):
+        fields = record.split("\x1f")
         if len(fields) != 3 or not fields[2].strip():
             continue
-        try:
-            when = min(int(fields[0]), int(fields[1]))
-        except ValueError:
+        if not (fields[0].isdigit() and fields[1].isdigit()):
             continue
-        for item in fields[2].split(","):
-            name = item.strip()
-            if name.endswith(")") and " (" in name:
-                name = name[: name.rindex(" (")].strip()
-            if name and name == branch and (vouch is None or when > vouch):
-                vouch = when
-    return vouch
+        when = min(int(fields[0]), int(fields[1]))
+        for name in _trailer_names(fields[2]):
+            if when > vouches.get(name, -1):
+                vouches[name] = when
+    return vouches
+
+
+def _squash_vouch(repo: Path, target: str, branch: str) -> int | None:
+    """The time up to which a `Merged-From` squash on `target` vouches for `branch`, or None."""
+    vouches = _vouch_map(repo, target)
+    return None if vouches is None else vouches.get(branch)
 
 
 def _newer_than_vouch(repo: Path, target: str, branch: str, vouch: int) -> int | None:
@@ -2844,10 +2879,13 @@ def _newer_than_vouch(repo: Path, target: str, branch: str, vouch: int) -> int |
 
     A commit counts by `max(author, committer)` time, so new work reads new whichever clock
     stamped it. Equal seconds do not count: an orchestrator squash may land in the same second as
-    the branch's last commit. Known fail-open (D-row of W-69322546): work made inside the squash
-    window, a commit whose BOTH dates were set before the vouch, a name re-pointed at older work.
+    the branch's last commit. A merge commit is not work (`--no-merges`): a branch that merged its
+    target back after the squash still reads merged — its non-merge commits still count. Known
+    fail-OPEN (D-1290): work made inside the squash window, a commit whose BOTH dates were set
+    before the vouch, a name re-pointed at older work. Known fail-closed: a branch rebased after
+    its squash (the rebase re-dates its commits).
     """
-    rc, out = _git(repo, "log", "--format=%at%x1f%ct", f"{target}..{branch}")
+    rc, out = _git(repo, "log", "--no-merges", "--format=%at%x1f%ct", f"{target}..{branch}")
     if rc != 0:
         return None
     newer = 0

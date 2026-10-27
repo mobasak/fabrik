@@ -976,21 +976,30 @@ def _vouch_repo(tmp_path: Path) -> Path:
     """One branch per vouch shape; the main checkout keeps the squash and merge commits."""
     main = tmp_path / "vouch"
     main.mkdir()
-    _git(main, "init", "-q", "-b", "main")
-    _git(main, "config", "user.email", "t@t")
-    _git(main, "config", "user.name", "t")
+
+    def git(repo: Path, *args: str) -> None:  # a setup step that fails stops here, never later
+        _dated(repo, 1000, *args)
+
+    git(main, "init", "-q", "-b", "main")
+    git(main, "config", "user.email", "t@t")
+    git(main, "config", "user.name", "t")
     (main / "a.txt").write_text("base", encoding="utf-8")
-    _git(main, "add", "-A")
+    git(main, "add", "-A")
     _dated(main, 1000, "commit", "-qm", "base")
 
     def branch(name: str, *stamps: int) -> Path:
         path = tmp_path / name
-        _git(main, "worktree", "add", "-q", str(path), "-b", name)
+        git(main, "worktree", "add", "-q", str(path), "-b", name)
         for i, when in enumerate(stamps):
             (path / f"{name}-{i}.txt").write_text(str(when), encoding="utf-8")
-            _git(path, "add", "-A")
+            git(path, "add", "-A")
             _dated(path, when, "commit", "-qm", f"{name} {i}")
         return path
+
+    def work(path: Path, when: int, committed: int | None = None) -> None:
+        (path / f"late-{when}.txt").write_text(str(when), encoding="utf-8")
+        git(path, "add", "-A")
+        _dated(path, when, "commit", "-qm", f"work at {when}", committed=committed)
 
     def squash(when: int, trailer: str, committed: int | None = None) -> None:
         _dated(
@@ -1004,7 +1013,7 @@ def _vouch_repo(tmp_path: Path) -> Path:
             committed=committed,
         )
 
-    # a merge commit of `branch~1` carries the trailer: its parents say z2 was never taken
+    # a merge commit of `branch~1` carries the trailer: its parents say the 1200 commit was never taken
     branch("reused-merge", 1100, 1200)
     _dated(
         main,
@@ -1019,15 +1028,11 @@ def _vouch_repo(tmp_path: Path) -> Path:
     # squashed at 1300, then the reused name gains a commit at 1400
     path = branch("reused-squash", 1100)
     squash(1300, "Merged-From: reused-squash (x)")
-    (path / "late.txt").write_text("late", encoding="utf-8")
-    _git(path, "add", "-A")
-    _dated(path, 1400, "commit", "-qm", "wip: snapshot after the squash")
+    work(path, 1400)
     # squashed, gained a commit, squashed again: the newest vouch covers it
     path = branch("resquashed", 1100)
     squash(1200, "Merged-From: resquashed (first)")
-    (path / "more.txt").write_text("more", encoding="utf-8")
-    _git(path, "add", "-A")
-    _dated(path, 1300, "commit", "-qm", "more")
+    work(path, 1300)
     squash(1400, "Merged-From: resquashed (second)")
     # the squash lands in the same second as the branch's last commit
     branch("same-second", 1500)
@@ -1035,20 +1040,38 @@ def _vouch_repo(tmp_path: Path) -> Path:
     # a squash authored at 1200 whose committer date an amend moved to 1900: the work at 1600 is new
     path = branch("amended", 1100)
     squash(1200, "Merged-From: amended (x)", committed=1900)
-    (path / "new.txt").write_text("new", encoding="utf-8")
-    _git(path, "add", "-A")
-    _dated(path, 1600, "commit", "-qm", "new work after the squash")
+    work(path, 1600)
     # new work authored after the squash, committed on a slower clock: its author date counts
     path = branch("slow-clock", 1100)
     squash(1800, "Merged-From: slow-clock (x)")
-    (path / "slow.txt").write_text("slow", encoding="utf-8")
-    _git(path, "add", "-A")
-    _dated(path, 1850, "commit", "-qm", "authored after the squash", committed=1750)
+    work(path, 1850, committed=1750)
     # one commit, two trailer lines: both names are vouched
     branch("two-lines", 1100)
     squash(1700, "Merged-From: other-branch (x)\nMerged-From: two-lines (y)")
     # a trailer naming a branch that has no ref
     squash(1800, "Merged-From: ghost-branch (gone)")
+    # squashed, then its owner merged the target back in with no work of its own: still merged
+    path = branch("merged-back", 1100)
+    squash(1200, "Merged-From: merged-back (x)")
+    _dated(path, 1300, "merge", "-q", "--no-ff", "main", "-m", "sync with main")
+    # a trailer value carrying the record bytes forges no vouch for `victim`, whose work is unmerged
+    path = branch("victim", 1100)
+    squash(1200, "Merged-From: decoy (x)\x1e9999999999\x1f9999999999\x1fvictim")
+    work(path, 1400)
+    # a comma inside a description names no branch; a name only inside a description is not vouched
+    branch("comma-desc", 1100)
+    squash(1200, "Merged-From: comma-desc (vendor, wiring), other-branch (y)")
+    branch("hotfix", 1100)
+    branch("feat", 1100)
+    squash(1300, "Merged-From: feat (see, hotfix (x))")
+    # a value split by the field byte is not the branch's name
+    branch("split-value", 1100)
+    squash(1300, "Merged-From: split-value\x1fz")
+    # the later squash in the log carries OLDER dates: the newest vouch by time still wins
+    path = branch("out-of-order", 1100)
+    work(path, 1300)
+    squash(1500, "Merged-From: out-of-order (a)")
+    squash(1150, "Merged-From: out-of-order (b)")
     for meta in (main / ".git" / "worktrees").iterdir():
         os.utime(meta / "gitdir", (NOW, NOW))
     return main
@@ -1069,10 +1092,17 @@ def test_merged_from_trusts_no_stale_vouch(tmp_path: Path) -> None:
             "slow-clock",
             "two-lines",
             "ghost-branch",
+            "merged-back",
+            "victim",
+            "comma-desc",
+            "hotfix",
+            "feat",
+            "split-value",
+            "out-of-order",
         )
     }
     assert verdict == {
-        "reused-merge": False,  # a merge's parents decide, and z2 is not among them
+        "reused-merge": False,  # a merge's parents decide, and the 1200 commit is not among them
         "reused-squash": False,  # a commit newer than the squash
         "resquashed": True,  # the newest vouch covers the later commit
         "same-second": True,  # the tie vouches (strictly-later rule)
@@ -1080,7 +1110,34 @@ def test_merged_from_trusts_no_stale_vouch(tmp_path: Path) -> None:
         "slow-clock": False,  # a branch commit counts by its later date
         "two-lines": True,  # the second trailer line is read too
         "ghost-branch": False,  # `git log main..ghost-branch` fails: not merged
+        "merged-back": True,  # a merge of the target is not work
+        "victim": False,  # the forged record is skipped, never parsed as a vouch
+        "comma-desc": True,  # the comma sits inside the description
+        "hotfix": False,  # named only inside `feat`'s description
+        "feat": True,  # the description is cut at its FIRST ` (`
+        "split-value": False,  # the record does not parse, so it never vouches
+        "out-of-order": True,  # the 1500 vouch covers the 1300 commit
     }
+
+
+def test_merged_from_reads_the_trailer_log_once_per_sweep(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every branch's verdict, and the refusal text, share ONE scan of the target's history."""
+    main = _vouch_repo(tmp_path)
+    mod = _w18_module("w69322546_once")
+    real, scans = mod._git, []
+
+    def counting(repo: Path, *args: str, **kw: int) -> tuple[int, str]:
+        if args[:1] == ("log",) and any("trailers:key=Merged-From" in a for a in args):
+            scans.append(args)
+        return real(repo, *args, **kw)
+
+    monkeypatch.setattr(mod, "_git", counting)
+    for b in ("reused-squash", "resquashed", "victim", "comma-desc"):
+        mod._merged_from(main, "main", b)
+        mod._squash_vouch(main, "main", b)
+    assert len(scans) == 1, scans
 
 
 def test_worktree_reason_names_a_stale_vouch(tmp_path: Path) -> None:
