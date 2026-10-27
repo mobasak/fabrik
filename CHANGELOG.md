@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `command_run.py round` refuses a blind retry instead of recording it as a second round (2026-10-27)
+
+A lead who piped `round … 2>&1 | tail -1` saw no confirmation, re-ran the call, and the record gained a
+duplicate round; worse, a retried quiet round 1 printed `✅ TERMINAL VERDICT` with no closing pass run (34
+such pairs in 505 measured runs). `round` now refuses, rc 2 and nothing recorded, a call that repeats the
+last round when that round closed seats and nothing has run since — no live stamp, no newer seat
+transcript. It prints the landed round's verdict, then the refusal as the last line, and emits one
+`round_refused` event. A new seat pass is stamped first; a pass the lead ran alone types `round --seats 0`.
+The rule and its edges: `docs/reference/command-run-protocol.md` (the `round` row); the decision: D-1280.
+
 ### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
 
 Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value
