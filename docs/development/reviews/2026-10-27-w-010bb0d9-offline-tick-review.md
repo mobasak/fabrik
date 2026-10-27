@@ -297,9 +297,11 @@ Candidates: 27 raw raises (20 + 6 + 1 over the three passes) → 14 FIXED (10 di
 The full touched slice the lead ran after the close (11 test files, 796 tests) went red on c8ec4095d: 3 failed,
 `test_the_weekly_reading_is_recorded_at_both_ends_of_its_range[0.0]`, `[99.0]` and
 `test_the_tick_row_still_writes_when_the_weekly_window_is_absent`. P2-M1's fix passed a third positional argument
-(`now`) to `_active_account_walled`, and those tests stub it with a two-argument lambda; `_tick_row`'s guard swallowed
-the TypeError, so no tick row was written. The closing pass missed it because its brief limited the seats to the ten
-W-010bb0d9 graders ("do not run whole test files"), and the lead closed the review before that slice returned. Fixed
+(`now`) to `_active_account_walled`, and those tests stub it with a two-argument lambda, which raised TypeError twice
+per tick: `_tick_row`'s guard swallowed it (no tick row was written), and from `_fleet_active_wall_advisory` it reached
+`_cmd_tick`'s outer guard (`tick: INTERNAL ERROR`, the posture write skipped). The closing pass missed it because its
+brief limited the seats to the ten W-010bb0d9 graders ("HARD TIME BOX 10 minutes — do not run the whole test files."),
+and the lead closed the review before that slice returned. Fixed
 in the next commit on the branch: both stubs take `now=None`; the three tests fail on c8ec4095d and pass after it.
 That fix is reviewed by its own `/fabrik-review-scoped` run, not by this receipt.
 

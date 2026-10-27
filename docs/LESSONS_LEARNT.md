@@ -6,7 +6,8 @@
 - **What happened:** W-010bb0d9's review pass 2 threaded a third positional argument (`now`) into
   `_active_account_walled`. The closing pass's brief limited each seat to the ten new graders to fit a 10-minute box,
   and the lead closed the review while the full touched slice was still running. That slice then failed 3 tests whose
-  two-argument lambda stubs of the function raised TypeError, swallowed by `_tick_row`'s guard.
+  two-argument lambda stubs of the function raised TypeError twice per tick: swallowed by `_tick_row`'s guard (no tick
+  row), and from the advisory up to `_cmd_tick`'s outer guard (`tick: INTERNAL ERROR`, the posture write skipped).
 - **Rule:** a fix that changes a signature greps every stub and monkeypatch of the name (`"_name"` in the tests) in the
   same round, and the review closes only after the FULL touched slice has run green on the closing pin — a
   selection of the new graders is a probe, never the exit evidence.
