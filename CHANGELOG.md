@@ -7,13 +7,18 @@ All notable changes to this project will be documented in this file.
 ### Fixed — headless-spawner discovery sees call, tuple and shell argv shapes, never prose (2026-10-27)
 
 `tests/test_hooks_headless_guard.py::_files_that_build_a_claude_p_argv` walked only list literals, so a
-`claude -p` spawner written as a call's positional args, a tuple, or a `bash -c "claude -p …"` string
-escaped the real-tree guard (W-d45c790c). It now finds all three, plus a shell string passed to a
-process-running stdlib call (`os.system`, `subprocess.run`, …). A shell string counts only as an argv
-element; docstrings, messages and parser descriptions are prose. The cloud-drain draft matched every string
-constant and parked the guard under `xfail(strict=True)`, which would also have hidden any new spawner. Both
-are gone, and the guard passes on the real tree with no new declarations. Planted graders: four shapes plus
-one prose file; four mutants of the matcher are each killed. Also rewords the delegated-spawner docstring
+`claude -p` spawner written as a tuple, as a process call's positional args, or as a shell string escaped
+the real-tree guard (W-d45c790c). One argv rule now covers lists, tuples and the args of a process-running
+call (`_runs_a_process`: `subprocess`/`os`/`pty`/`asyncio` spawners, an ambiguous name such as `run` only on
+its module): the first element names claude and `-p` is among the elements. A shell string matching
+`claude -p`, a literal, an f-string's literal parts or the left side of `+`/`%`, counts as a process call's
+arg or as the element after `-c`. Everywhere else it is prose: docstrings, messages, help tables,
+`asyncio.run`, a method named `run`. The skip list now reads the path relative to the root, so a checkout
+under a directory named `tests` no longer scans nothing. The real-tree test also asserts that every known
+spawner is still found. The cloud draft of this fix (c94564cc3) matched every string constant and so parked
+that test under `xfail(strict=True)`, which would also have hidden any new spawner. This change lands
+neither, and the test passes on the real tree with no new declarations. Graders: 13 planted shapes and 14
+prose cases; 15 matcher mutants are each killed. Also rewords the delegated-spawner docstring
 (W-423b9f14).
 
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)

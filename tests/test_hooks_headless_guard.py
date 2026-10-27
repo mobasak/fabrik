@@ -147,7 +147,11 @@ _UNADOPTED_SPAWNERS = (
 
 
 _CLAUDE_P_WORDS = re.compile(r"\bclaude\s+-p\b")
-# The stdlib callables that run a shell or argv string (subprocess, os, asyncio).
+# The stdlib callables that start a process from an argv or a shell string (subprocess, os,
+# asyncio, pty). A name that is also a common method name elsewhere — `run`, `call`, `popen`,
+# `system`, `spawn` — counts on an attribute only when the object is the module itself, so
+# `asyncio.run(...)` or `self.run(...)` is not a spawn; a bare name (`from subprocess import run`)
+# counts.
 _PROCESS_CALLS = frozenset(
     {
         "run",
@@ -159,35 +163,77 @@ _PROCESS_CALLS = frozenset(
         "getstatusoutput",
         "system",
         "popen",
+        "spawn",
+        "execl",
+        "execlp",
+        "execv",
+        "execvp",
+        "spawnl",
+        "spawnlp",
         "create_subprocess_shell",
         "create_subprocess_exec",
     }
 )
+_AMBIGUOUS_CALLS = frozenset({"run", "call", "popen", "system", "spawn"})
+_PROCESS_MODULES = frozenset({"subprocess", "os", "pty"})  # asyncio.run runs a coroutine
 
 
-def _callee_name(node: object) -> str:
-    """`subprocess.run(...)` -> "run", `system(...)` -> "system", anything else -> ""."""
+def _runs_a_process(node: object) -> bool:
+    """True for a call of a `_PROCESS_CALLS` name: bare, or on its module for an ambiguous name."""
     import ast
 
     func = getattr(node, "func", None)
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return func.id if isinstance(func, ast.Name) else ""
+    if isinstance(func, ast.Name):
+        return func.id in _PROCESS_CALLS
+    if not isinstance(func, ast.Attribute) or func.attr not in _PROCESS_CALLS:
+        return False
+    if func.attr not in _AMBIGUOUS_CALLS:
+        return True
+    return isinstance(func.value, ast.Name) and func.value.id in _PROCESS_MODULES
+
+
+def _literal_text(node: object) -> str | None:
+    """The string a node spells: a str constant, an f-string's literal parts (each `{…}` read as
+    `{}`), or the left operand of `+`/`%`; anything else -> None."""
+    import ast
+
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, str) else None
+    if isinstance(node, ast.JoinedStr):
+        return "".join(
+            v.value if isinstance(v, ast.Constant) and isinstance(v.value, str) else "{}"
+            for v in node.values
+        )
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Mod)):
+        return _literal_text(node.left)
+    return None
 
 
 def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
     """Production files under `scripts/` that construct a `claude -p` argv, however they spell it.
 
-    ⚠️ Walks EVERY list literal, not just a call's first argument — `claude_broker.py` assigns
-    `argv = [str(_ENTRYPOINT), "-p", …]` and passes the NAME to `subprocess.run`, so a matcher
-    keyed on call arguments could not see it, which is exactly how it stayed undeclared through
-    two rounds of this review. Test files are excluded: their spawns are fixtures.
+    ⚠️ Walks EVERY list and tuple literal, not just a call's first argument — `claude_broker.py`
+    assigns `argv = [str(_ENTRYPOINT), "-p", …]` and passes the NAME to `subprocess.run`, so a
+    matcher keyed on call arguments could not see it, which is exactly how it stayed undeclared
+    through two rounds of this review. Test files are excluded: their spawns are fixtures.
+
+    Two shapes count (W-d45c790c), in a list or tuple literal or in the positional args of a
+    process-running call (`_runs_a_process`): an ARGV — the first element names claude (or
+    `_ENTRYPOINT`) and `-p` is one of the elements — and a SHELL STRING matching `claude -p`,
+    which counts as a process call's positional arg or as the element right after `-c` in a
+    list or tuple. Anywhere else such a string is prose (a docstring, a message, a help table):
+    43 string constants under scripts/ at ab1026f14 name `claude -p`, 12 of them in 7 files
+    that spawn nothing. Not seen, by design: keyword args, a NAME holding the command, argv
+    built by `+`/splat/append, bytes, `--print`, flags between `claude` and `-p` inside a
+    shell string, and aliased or computed callees.
     """
     import ast
 
     hits: set[str] = set()
     for path in sorted((root / "scripts").rglob("*.py")):
-        parts = path.parts
+        # parts relative to the root: an absolute path under a directory named `tests` or
+        # `archived` would otherwise skip every file and pass on nothing
+        parts = path.relative_to(root).parts
         if any(x in parts for x in ("kilo-benchmarks", ".archive", "archived", "tests")):
             continue
         if path.name.startswith("test_"):
@@ -198,31 +244,26 @@ def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
             continue
         rel = str(path.relative_to(root))
         for node in ast.walk(tree):
-            if not isinstance(node, (ast.Call, ast.List, ast.Tuple)):
+            if isinstance(node, ast.Call):
+                if not _runs_a_process(node):
+                    continue
+                seq = node.args
+            elif isinstance(node, (ast.List, ast.Tuple)):
+                seq = node.elts
+            else:
                 continue
-            seq = node.args if isinstance(node, ast.Call) else node.elts
-            flat = [e.value if isinstance(e, ast.Constant) else None for e in seq]
-            # A shell string ("claude -p ...") counts only as an ARGV ELEMENT — a list or tuple
-            # element, or a positional arg of a call that runs a process; anywhere else (a
-            # docstring, a message, a parser description) it is prose: 43 prose mentions under
-            # scripts/ at ab1026f14 would otherwise each read as a spawner (W-d45c790c).
-            runs = not isinstance(node, ast.Call) or _callee_name(node) in _PROCESS_CALLS
-            if runs and any(isinstance(v, str) and _CLAUDE_P_WORDS.search(v) for v in flat):
+            if not seq:
+                continue
+            texts = [_literal_text(e) for e in seq]
+            head = ast.unparse(seq[0])
+            if "-p" in texts and ("claude" in head.lower() or "_ENTRYPOINT" in head):
                 hits.add(rel)
                 continue
-            # "claude" immediately followed by "-p": a call's positional args or a tuple literal
-            if not isinstance(node, ast.List):
-                if any(a == "claude" and b == "-p" for a, b in zip(flat, flat[1:], strict=False)):
+            for i, text in enumerate(texts):
+                shell = isinstance(node, ast.Call) or (i > 0 and texts[i - 1] == "-c")
+                if text and shell and _CLAUDE_P_WORDS.search(text):
                     hits.add(rel)
-                continue
-            if not node.elts:
-                continue
-            flat = [e.value for e in node.elts if isinstance(e, ast.Constant)]
-            if "-p" not in flat:
-                continue
-            head = ast.unparse(node.elts[0])
-            if "claude" in head.lower() or "_ENTRYPOINT" in head:
-                hits.add(rel)
+                    break
     return hits
 
 
@@ -234,8 +275,35 @@ def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
             id="call-args",
         ),
         pytest.param("ARGV = ('claude', '-p', 'hello')\n", id="tuple-argv"),
+        pytest.param("ARGV = ('claude', '--model', 'm', '-p')\n", id="tuple-flag-before-p"),
+        pytest.param(
+            "import asyncio\n\nasync def go(x):\n    await asyncio.create_subprocess_exec(CLAUDE_BIN, '-p', x)\n",
+            id="call-name-head",
+        ),
         pytest.param("CMD = ['bash', '-c', 'claude -p hello']\n", id="shell-string"),
         pytest.param("import os\n\nos.system('claude -p hello')\n", id="shell-call"),
+        pytest.param("import os\n\nos.system('claude\\t-p hello')\n", id="shell-call-tab"),
+        pytest.param(
+            "import subprocess\n\nsubprocess.run('claude -p x', shell=True)\n", id="subprocess-run"
+        ),
+        pytest.param(
+            "import subprocess\n\nsubprocess.check_output('claude -p x', shell=True)\n",
+            id="subprocess-check-output",
+        ),
+        pytest.param(
+            "from subprocess import Popen\n\nPopen('claude -p x', shell=True)\n",
+            id="bare-name-callee",
+        ),
+        pytest.param(
+            "import asyncio\n\nasync def go():\n    await asyncio.create_subprocess_shell('claude -p x')\n",
+            id="asyncio-shell",
+        ),
+        pytest.param(
+            "import os\n\ndef go(x):\n    os.system(f'claude -p {x}')\n", id="fstring-shell"
+        ),
+        pytest.param(
+            "import os\n\ndef go(x):\n    os.system('claude -p ' + x)\n", id="concat-shell"
+        ),
     ],
 )
 def test_discovery_finds_a_planted_spawner_in_every_shape(tmp_path: Path, body: str) -> None:
@@ -245,18 +313,50 @@ def test_discovery_finds_a_planted_spawner_in_every_shape(tmp_path: Path, body: 
     assert "scripts/planted.py" in _files_that_build_a_claude_p_argv(tmp_path)
 
 
-def test_discovery_ignores_claude_p_prose(tmp_path: Path) -> None:
-    """A docstring, an assigned message and an f-string naming `claude -p` are prose, not an argv:
-    matching them made the real-tree test fail on files that spawn nothing (W-d45c790c)."""
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param('"""Measures `claude -p` cost."""\n', id="docstring"),
+        pytest.param('MSG = "claude -p failed after 3 attempts"\n', id="assigned-message"),
+        pytest.param(
+            'import argparse\nAP = argparse.ArgumentParser("Per-call claude -p cost")\n',
+            id="parser-description",
+        ),
+        pytest.param('def warn(rc):\n    print(f"claude -p rc={rc}")\n', id="fstring-message"),
+        pytest.param('MSGS = ("claude -p failed", "retrying")\n', id="message-tuple"),
+        pytest.param('HELP = ["Use claude -p to run it", "or not"]\n', id="help-list"),
+        pytest.param(
+            'def f(a, b):\n    pass\n\nf("claude", "-p")\n', id="pair-in-non-process-call"
+        ),
+        pytest.param('import asyncio\n\nasyncio.run("claude -p is down")\n', id="asyncio-run"),
+        pytest.param(
+            'class A:\n    def go(self):\n        self.run("claude -p summary")\n', id="method-run"
+        ),
+        pytest.param(
+            'import subprocess\n\nsubprocess.run(["vcs", "commit", "-m", "claude -p fix"])\n',
+            id="message-arg-not-after-c",
+        ),
+        pytest.param("import os\n\nos.system('myclaude -p x')\n", id="other-binary"),
+        pytest.param("import os\n\nos.system('claude -px')\n", id="other-flag"),
+        pytest.param("ARGV = ['claude', '--version']\n", id="claude-without-p"),
+        pytest.param("ARGV = ['ls', '-p']\n", id="p-without-claude"),
+    ],
+)
+def test_discovery_ignores_claude_p_prose(tmp_path: Path, body: str) -> None:
+    """A string naming `claude -p` outside an argv or a process call's args is prose, as is a
+    pair in a call that runs nothing: matching them made the real-tree test fail on files that
+    spawn nothing (W-d45c790c)."""
     (tmp_path / "scripts").mkdir()
-    (tmp_path / "scripts" / "prose.py").write_text(
-        '"""Measures `claude -p` cost."""\n'
-        'MSG = "claude -p failed after 3 attempts"\n'
-        'import argparse\nAP = argparse.ArgumentParser("Per-call claude -p cost")\n'
-        'def warn(rc):\n    print(f"claude -p rc={rc}")\n',
-        encoding="utf-8",
-    )
+    (tmp_path / "scripts" / "prose.py").write_text(body, encoding="utf-8")
     assert _files_that_build_a_claude_p_argv(tmp_path) == set()
+
+
+def test_discovery_scans_a_checkout_under_a_directory_named_tests(tmp_path: Path) -> None:
+    """The skip list is matched on the path RELATIVE to the root, never on the absolute path."""
+    root = tmp_path / "tests" / "checkout"
+    (root / "scripts").mkdir(parents=True)
+    (root / "scripts" / "planted.py").write_text("ARGV = ['claude', '-p', 'x']\n", encoding="utf-8")
+    assert _files_that_build_a_claude_p_argv(root) == {"scripts/planted.py"}
 
 
 def test_every_declared_spawner_actually_sets_the_flag() -> None:
@@ -293,8 +393,8 @@ def test_every_declared_spawner_actually_sets_the_flag() -> None:
 def test_every_delegated_spawner_names_a_test_of_its_childs_env() -> None:
     """Each delegated spawner's row names a grading test that exists, once, at module level — a pointer
     check only (a rename, a deletion, a same-name def shadowing it). What that test asserts is graded by
-    running it, unless it carries a skip or xfail marker (it then passes as skipped and the pointer stays
-    green); a deleted assert or a test moved into a class are review-owned, as is any edit to it: a static read of its asserts was
+    running it, unless it carries a skip marker (it then reports as skipped and the pointer stays green)
+    or an xfail one (it then reports as xfailed); a deleted assert or a test moved into a class are review-owned, as is any edit to it: a static read of its asserts was
     tried and each tightening opened new escapes (an early return, the wrong record, a reversed compare),
     so it was deleted (W-174b8543 review rounds 2-3)."""
     import ast
@@ -324,6 +424,11 @@ def test_no_undeclared_headless_spawner_appears() -> None:
         f"a `claude -p` spawner appeared that neither declares FABRIK_HEADLESS nor is filed as "
         f"unadopted: {sorted(surprises)}. Add the flag to its env, or add it to "
         f"_UNADOPTED_SPAWNERS with a backlog row."
+    )
+    missing = known - found
+    assert not missing, (
+        f"the discovery no longer sees a known spawner: {sorted(missing)} — every file in the three "
+        "lists is found today (W-d45c790c), so a miss is a matcher regression, not a fix"
     )
     assert _DECLARED_SPAWNERS[2] in found, (
         "the discovery no longer sees claude_broker.py — it was invisible to two earlier "
