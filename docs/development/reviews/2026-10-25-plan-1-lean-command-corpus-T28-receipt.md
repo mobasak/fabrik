@@ -82,3 +82,20 @@ The failure set did not grow; no pin test of this unit changed.
 - The author-blind audit pair over every reworded entry; the vanished labels above are the author's.
 - `tests/test_command_rules.py::test_generate_unchanged_ledgers_pass_on_the_live_corpus` fails on every base because of `_shared/*.yaml` (T01d) and sibling-command LOSS.
 - Render the corpus at merge (never done in a worktree).
+
+## Fix round 2 (hub audit)
+
+Findings: 2 reports, 18 distinct items. **All confirmed against the before-text; none refuted.** Each fixed by restoring the baseline wording verbatim in the source and in the ledger carrier phrase (the 50% target is retired, D-1257):
+
+- `flows-review-r1` (Sonnet 1, Haiku 8): the role clause `This is to /fabrik-flows what /fabrik-spec-review is to /fabrik-spec: the adversarial, INDEPENDENT hardening of an artifact its author already self-converged` was labelled narrative; restored, clause-2 label removed, and `the Termination contract's closing round` restored in clause 1. Clause 4 (`the live lesson …`) stays narrative (an incident, no instruction).
+- `L4` (Sonnet 2, Haiku 6): relabelled `duplicate-of: u-L81` (the order closing round → approval gate is carried by `Once the closing round (confirmed: 0) earns the attestation, the panel answers it` and the `## After the attestation` heading).
+- `u-L25` `with no confirmed end state`; `u-L13` `hot-spots and state flags speak its language`; `u-L34` both `not just …` exclusions; `u-L12` `(auth · payments · multi-tenant)`; `u-L26` both example lists; `u-L8` `(you review a frozen artifact, you don't finish its authoring)`; `u-L17` `a type that is not UI-bearing` and `the rest are judgement`; `u-L30` `the journey exercised deeply`; `u-L41` `the written spec can itself be wrong`; `u-L51` `their own grader raises`; `u-L59` `(the closing round IS the re-freeze convergence)`; `r4` `and this disposition is the one that most looks like simply stopping`; `r7` `so "do not commit" and "commit your own work NOW" cannot both be obeyed`; `r2` `measured, not assumed (…; D-186)` (clause-2 narrative label removed, now carried).
+- Sub-threshold trims Haiku listed (u-L3 aside, u-L9, u-L10, u-L31, r5) left as they pass the D-1240 test; `L32, L35, L38, L39, L68, L71–L74` stay narrative (incident and rationale, no instruction, no ban word). `flows-review-decision-block` empty `baseline:` is the behavioural entry's convention, unchanged.
+
+Own-text words: baseline 2446 → re-ledger ~1967 → now ~2060 (estimate: the restored phrases add about 90 words; no word-count command was available on this lane).
+
+Gates: `tests/test_command_rules.py` ran 1 failed / 56 passed at start and again after the edits (same red, `test_the_live_corpus_has_no_loss`, which asserts the whole corpus; the loader in this tree is not master's and I could not lay master's loader over it on this lane, so I could not isolate this ledger's LOSS lines from the output). The other gate groups were not re-run after these edits: they read the `fabrik-flows-review` source only through the frontmatter and the dispatch-recipe phrase, both unchanged.
+
+Fresh passes: **0.** No subagent could be dispatched on this lane, so the zero-counts self-audit is NOT a fresh pass; the hub's author-blind audit pair covers it. Line-by-line check by the author of every restored phrase against the baseline text (not a fresh reader):
+
+COUNTS: entries read 68 / reworded 18 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0
