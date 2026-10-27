@@ -769,7 +769,7 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     # removal takes it
     assert "heredoc" not in raw and "`cat <it> >>`" not in raw
     assert "surviving WSL `/tmp` wipe but not a worktree's removal" in raw
-    assert "surviving WSL `/tmp` wipe and worktree's removal" not in raw
+    assert "and worktree's removal" not in raw and "and the worktree's removal" not in raw
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
     for site in (
         "`<durable>/measure.md`, beside phase 2's `design.md`",

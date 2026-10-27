@@ -634,15 +634,20 @@ def test_a_worktree_lead_writes_scratch_files_directly() -> None:
     core = _norm(CORE)
     assert "do so an interrupted pass keeps its pins; and a tree" in core
     assert "01M4Y3N9GW" not in core and "refuses that main-checkout" not in core
+    # a reworded reintroduction of the workaround (review pass 1, C4)
+    assert "a reboot clears" not in core and "by a Bash `cp`" not in core
 
 
 def test_fix_then_dispatch_the_reverifying_seats() -> None:
     """D-1288 (mail 01M5X8W0M1): `round`'s NOT TERMINAL anchor is the round's RECORD time, so a seat
-    dispatched after the record but before its fix lands reads fresh (D-1268's accepted risk)."""
+    dispatched, or a pin cut, after the record but before its fix lands reads fresh (D-1268's accepted risk)."""
     core = _norm(CORE)
-    rule = "**Fix, THEN dispatch the re-verifying seats:**"
+    rule = "**Fix, THEN pin and dispatch the re-verifying seats:**"
+    record = "**Record the dispatch BEFORE you send it:**"
     assert rule in core
-    assert core.index(rule) < core.index("**Record the dispatch BEFORE you send it:**")
+    # the why stays with the rule, right before the dispatch stamp (review pass 1, C3)
+    assert "whether or not the fix has landed or is in the pin its seats read" in core
+    assert 0 < core.index(record) - core.index(rule) < 400
 
 
 def test_a_cwd_rooted_tool_runs_after_an_os_chdir(tmp_path: Path) -> None:
