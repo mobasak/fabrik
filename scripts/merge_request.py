@@ -1115,7 +1115,8 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
     conflicts on the five ledgers and key-wise-mergeable work-item files are auto-resolved, and any
     other conflicted path refuses first. Returns the merge commit."""
     res = _run(
-        ["git", *NO_HOOKS, "merge", "--no-ff", "--no-edit", "-q", "-m", message, other],
+        # --no-log: merge.log=true appends a shortlog after -m and the trailer block parses as none
+        ["git", *NO_HOOKS, "merge", "--no-ff", "--no-edit", "--no-log", "-q", "-m", message, other],
         TOOL_TIMEOUT_S,
         cwd=wt,
     )
@@ -1731,7 +1732,16 @@ def _merge_into_base(
                 ctx.notes.append(f"(d) attempt {attempt + 1}: {last} — back to (a)")
                 continue
             res = _run(
-                ["git", "update-ref", "-m", f"merge_request: {message}", HEADS + base, new, old],
+                # the reflog takes the subject: update-ref folds the trailer lines into one line
+                [
+                    "git",
+                    "update-ref",
+                    "-m",
+                    f"merge_request: {message.splitlines()[0]}",
+                    HEADS + base,
+                    new,
+                    old,
+                ],
                 GIT_TIMEOUT_S,
                 cwd=ctx.main,
             )
@@ -2053,8 +2063,55 @@ def _find_merge(ctx: _Ctx, rec: dict) -> str:
     return ""
 
 
+def _signed(ctx: _Ctx, subject: str, context: str) -> str:
+    """``subject`` plus ONE Agent Provenance Trailer paragraph (W-e914202a): the merge is the
+    owner's act, so Agent-Role orchestrator and the owner's Agent-Name — left out, with a note,
+    when the owner is outside the agent-name grammar. A multi-line value refuses: it would end
+    the paragraph or forge a trailer. No Merged-From: scratch_sweep reads it over merge commits,
+    where a reused branch name would read "merged" for ever."""
+    name = _norm(ctx.owner) if ctx.owner.isascii() else ""
+    lines = ["Agent-Role: orchestrator"]
+    if _AGENT_NAME_RE.fullmatch(name):
+        lines.append(f"Agent-Name: {name}")
+    else:
+        note = f"owner {ctx.owner!r} is outside the agent-name grammar — merge signed without Agent-Name"
+        if note not in ctx.notes:  # once per run: a rebuild signs again
+            ctx.notes.append(note)
+    lines.append(f"Agent-Context: {context}")
+    for value in (subject, context):
+        if not value or not _one_line(value):
+            raise RefusedError(f"merge message value {value!r} is not one line — not signed")
+    return "\n".join([subject, "", *lines])
+
+
+GATE_DUTY = (
+    "gate: merge does not run final_gate — gating the merged result is the caller's duty; "
+    "the requester's completion gate ran on the branch tip"
+)
+
+
+def _gate_line(rec: dict) -> str:
+    """GATE_DUTY plus the owner-test summary this run recorded (W-e914202a)."""
+    tests = ""
+    for line in reversed(rec.get("evidence", [])):
+        if line.startswith("tests: "):
+            tests = line[len("tests: ") :]
+            break
+        m = re.search(r"\(tests: (.*)\)$", line) if line.startswith("catch-up merge ") else None
+        if m:
+            tests = m.group(1)
+            break
+    tests = tests or f"none recorded (resumed an existing merge {rec.get('merge_sha')})"
+    return f"{GATE_DUTY}; owner tests this run: {tests}"
+
+
 def _merge_message(ctx: _Ctx, rec: dict) -> str:
-    return f"merge({ctx.owner}): {rec['branch']} — request {rec['id']}, item {rec.get('item') or 'none'}"
+    item = rec.get("item") or "none"
+    return _signed(
+        ctx,
+        f"merge({ctx.owner}): {rec['branch']} — request {rec['id']}, item {item}",
+        f"merge_request.py merged branch {rec['branch']} for request {rec['id']}, item {item}",
+    )
 
 
 def _validate_request(rec: dict) -> None:
@@ -2198,7 +2255,11 @@ def _catch_up(ctx: _Ctx, rec: dict, remote: str) -> None:
     local = _rev(ctx.main, HEADS + rec["base"])
     if _is_ancestor(ctx.main, origin, local):
         return
-    message = f"merge({ctx.owner}): catch up {remote}/{rec['base']} after request {rec['id']}"
+    message = _signed(
+        ctx,
+        f"merge({ctx.owner}): catch up {remote}/{rec['base']} after request {rec['id']}",
+        f"merge_request.py catch-up of {remote}/{rec['base']} after request {rec['id']}",
+    )
     old, new, snap, tests, on_base = _merge_into_base(ctx, rec, origin, message, catch_up=True)
     rec.setdefault("evidence", []).append(
         f"catch-up merge {new} of {remote}/{rec['base']} (tests: {tests})"
@@ -2258,6 +2319,9 @@ def _catch_up_refused(ctx: _Ctx, rec: dict, remote: str, exc: RefusedError) -> s
 
 def _after_cas(ctx: _Ctx, rec: dict, remote: str, resuming: bool) -> None:
     """(e)-(h): every step after the CAS. The merge is committed; nothing here undoes it."""
+    if GATE_DUTY not in rec.get("evidence", []):  # the reply carries it (W-e914202a)
+        rec.setdefault("evidence", []).append(GATE_DUTY)
+        _save(ctx, rec)
     if rec["phase"] == "catchup-refused":
         rec["phase"] = "carried"  # only an explicit resume reaches here: retry the catch-up
     if rec["phase"] == "merged":
@@ -2343,6 +2407,7 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
         for note in ctx.notes:
             print(f"merge_request: {note}", file=sys.stderr)
     print(f"merged {rec['id']} as {rec.get('merge_sha')}")
+    print(_gate_line(rec))
     for line in rec.get("not_carried", []):
         print(f"merge_request: NOT CARRIED — {line}", file=sys.stderr)
     return EXIT_OK
