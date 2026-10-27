@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command texts follow the worktree-own scratch root (2026-10-27)
+
+`/fabrik-task` now says a run's `SCRATCH:` folder sits under the session's own checkout and does not survive a worktree's removal. The subagents fragment drops the worktree lead's `cp` workaround, which D-1268 made unnecessary, and gains a "fix, THEN pin and dispatch the re-verifying seats" rule, because `round` reads a round as fresh once its newest stamp postdates the last confirming round (D-1288, infra mail 01M5X8W0M1).
+
 ### Fixed — the scaffold-helper emitter test no longer copies the box's live API keys (2026-10-27)
 
 `test_scaffold_helper_emits_mcp_config` ran the real emitter bare, so the catalog's `${EXA_API_KEY}`,

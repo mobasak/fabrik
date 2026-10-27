@@ -20,7 +20,7 @@ Lane v2 replaces file count with module tests, adding every *(v2)*-tagged mechan
 
 `handoff` is record's third sanctioned terminal (`AGENT_CLOSED_STATES`): UPGRADE uses it.
 
-`<durable>` is `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, surviving WSL `/tmp` wipe and worktree's removal), never `RUN-SCRATCH:`: one spelling, or phase 5's `cat` reads path phase 2 never wrote.
+`<durable>` is `SCRATCH:` path `start` prints (under the session's own checkout's `.tmp/runs/`, which is `<main checkout>/.tmp/runs/` in the main checkout and inside the worktree itself in a worktree session, surviving WSL `/tmp` wipe but not a worktree's removal), never `RUN-SCRATCH:`: one spelling, or phase 5's `cat` reads path phase 2 never wrote.
 
 Linked-worktree session, whose Write tool refuses a main-checkout path, changes each file as a copy in its scratchpad (`cp` it from that path first when it exists) and `cp`s the whole copy back after every change, which keeps any content byte for byte; with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp).
 

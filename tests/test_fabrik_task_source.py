@@ -764,10 +764,12 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     raw = _source_text()
     # mail 01M4Z8X2JE: `<run-scratch>` read as the disposable `RUN-SCRATCH:` folder the sweeper removes
     assert "<run-scratch>" not in raw
-    # D-984: the Write tool refuses a main-checkout path from a linked worktree; a scratchpad copy cp'd back whole
-    # keeps every byte (a heredoc stops at a content line equal to its delimiter; `cat >>` of a revised copy
-    # duplicates it)
+    # D-984's heredoc and `cat >>` bans (a heredoc stops at a content line equal to its delimiter; `cat >>` of a
+    # revised copy duplicates it); D-1288: SCRATCH is the session's own checkout's since D-1268, so a worktree's
+    # removal takes it
     assert "heredoc" not in raw and "`cat <it> >>`" not in raw
+    assert "surviving WSL `/tmp` wipe but not a worktree's removal" in raw
+    assert "and worktree's removal" not in raw and "and the worktree's removal" not in raw
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
     for site in (
         "`<durable>/measure.md`, beside phase 2's `design.md`",
