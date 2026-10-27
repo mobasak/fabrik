@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T10:42:28.857925Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3ffb8969",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after youtube confirms the migration, remove the two 'archive' rows at scripts/enforcement/check_plan_lock_release.py:253-258 and :271, red-first test, full /fabrik-review (enforcement path); optionally add a check that flags a plans/archive/ directory",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Drop the youtube-only plans/archive/ carve-out in check_plan_lock_release.py once youtube has moved its plans to plans/archived/ (mail 01M5ED7TKE)"
+}
