@@ -236,7 +236,7 @@ first get the base's `.worktreeinclude` set copied in from the main checkout, so
 is there as in a worktree, never over a file the tree tracks — D-610; the hub's own merge-tests runs
 `scripts/merge_test_select.py`, W-4e756979: the tests that name a changed path — its file, module,
 import or directory — plus every test whose text says `ls-files`, in 8 shards balanced by the
-per-file seconds each merge leg records in `<git common dir>/fabrik-merge/merge-tests-durations.json`
+per-file seconds each merge leg records in `<git common dir>/fabrik-merge/merge-tests-durations.txt`
 (no record: the round-robin split, W-c832e59f); it refuses a red that
 is new against the base (green, absent, or failing with another crash line there) and a run it
 could not finish, never one of master's own reds; outside a merge check it never checks out or

@@ -50,7 +50,8 @@ SHARDS = 8
 # so files whose tests are near-instant spread across shards instead of piling on the first
 IMPORT_S = 0.15
 # per-file run seconds the merge leg measured, shared by every leg of the repo (W-c832e59f)
-DURATIONS_FILE = "merge-tests-durations.json"
+# (JSON in a `.txt`: `merge_request.py` globs `fabrik-merge/*.json` as its merge records)
+DURATIONS_FILE = "merge-tests-durations.txt"
 # ledgers and work items change on nearly every branch and are named by hundreds of tests; their own
 # graders (decision ids, the store) run in final_gate, so keying on them would select the suite
 SKIP = re.compile(
@@ -78,7 +79,8 @@ _ADDRESS = re.compile(r"\bat 0x[0-9a-fA-F]+\b")
 _TMPNAME = re.compile(r"(?<=/)tmp[a-z0-9_]{8}(?![\w-])|(?<![\w./-])tmp[a-z0-9_]{8}(?=/)")
 # a record line naming no id: the leg refused without a verdict, so the base-alone run measures nothing
 _LEG_MARK = "#leg-failed"
-# The recording plugin: one JSON line per failed report (a collection error's id is the file).
+# The recording plugin: one JSON line per failed report (a collection error's id is the file), and
+# under FABRIK_MERGE_TESTS_DUR one line per report's duration, passed or failed (W-c832e59f).
 _PLUGIN = """
 import json, os
 
@@ -98,8 +100,11 @@ def pytest_runtest_logreport(report):
         _write(report, report.when)
     dur = os.environ.get("FABRIK_MERGE_TESTS_DUR")
     if dur:
-        with open(dur, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"f": report.nodeid.split("::")[0], "s": report.duration}) + "\\n")
+        try:  # advisory: a lost duration costs balance, never the run (an error here is INTERNALERROR)
+            with open(dur, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"f": report.nodeid.split("::")[0], "s": report.duration}) + "\\n")
+        except OSError:
+            pass
 
 def pytest_collectreport(report):
     if report.failed:
@@ -269,9 +274,15 @@ def _durations_path() -> Path:
 
 
 def _seconds(value: object) -> float | None:
+    """A finite, non-negative number of seconds, else None (a bool, a string, NaN, inf, a negative,
+    or an int too large for a float are all no duration)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value) if math.isfinite(value) and value >= 0 else None
+    try:
+        s = float(value)
+    except OverflowError:
+        return None
+    return s if math.isfinite(s) and s >= 0 else None
 
 
 def _load_durations(path: Path) -> dict[str, float]:
@@ -280,8 +291,8 @@ def _load_durations(path: Path) -> dict[str, float]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        print(f"merge-tests: duration record ignored ({type(exc).__name__}: {exc})")
+    except (OSError, ValueError, RecursionError) as exc:  # ValueError covers UnicodeDecodeError
+        print(f"merge-tests: duration record ignored ({type(exc).__name__}: {exc})"[:300])
         return {}
     if not isinstance(data, dict):
         print(f"merge-tests: duration record ignored (a {type(data).__name__}, not an object)")
@@ -289,42 +300,52 @@ def _load_durations(path: Path) -> dict[str, float]:
     return {k: s for k, v in data.items() if isinstance(k, str) and (s := _seconds(v)) is not None}
 
 
-def _save_durations(path: Path, measured: dict[str, float]) -> None:
-    """``measured`` over the old record, new values replacing old, keys absent from this tree dropped.
-    Two legs saving at once lose one update (last writer wins), never tear the file."""
-    merged = {**_load_durations(path), **measured}
+def _save_durations(path: Path, measured: dict[str, float], *, complete: bool) -> None:
+    """``measured`` over the old record, keys absent from this tree dropped. A complete shard run's
+    values replace the old ones; an incomplete one (a shard failed, the others were killed mid-file)
+    only RAISES a recorded value, since a killed file's partial sum would under-weigh it. Two legs
+    saving at once lose one update (last writer wins), never tear the file."""
+    old = _load_durations(path)
+    merged = (
+        {**old, **measured}
+        if complete
+        else {**old, **{k: max(v, old.get(k, 0.0)) for k, v in measured.items()}}
+    )
     keep = {k: round(v, 3) for k, v in sorted(merged.items()) if Path(k).is_file()}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                json.dump(keep, fh, indent=0)
-            os.replace(tmp, path)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
-    except OSError as exc:  # the verdict stands; the next leg only splits less evenly
-        print(f"merge-tests: duration record not written ({exc})")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(keep, fh, indent=0)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def _run_weights(files: list[str], weights: dict[str, float]) -> dict[str, float]:
+    """Each file's run seconds as the balance counts them: its recorded value, an unrecorded file the
+    median of the recorded files here, 0 when none is."""
+    known = [weights[f] for f in files if f in weights]
+    default = statistics.median(known) if known else 0.0
+    return {f: weights.get(f, default) for f in files}
 
 
 def balance(files: list[str], shards: int, weights: dict[str, float]) -> list[list[str]]:
     """``files`` split into at most ``shards`` groups by weight, heaviest first to the least-loaded
-    group (ties: lowest index); each group in name order, empties dropped. A file
-    weighs its recorded seconds — an unrecorded one the median of the recorded files here, 0 when none
-    is — plus IMPORT_S. With equal weights this is ``files[i::shards]`` exactly (file k lands on group
-    k mod shards), so a repo with no record keeps today's split.
+    group (ties: lowest index); each group in name order, empties dropped. A file weighs its
+    ``_run_weights`` seconds plus IMPORT_S. With equal weights this is ``files[i::shards]`` exactly
+    (file k lands on group k mod shards), so a repo with no record keeps today's split.
 
     Cobra (D-253): a balance over stale or empty weights is balanced on paper only — every merge leg
     rewrites the record from its own shard run and prints planned beside measured, so the gap shows."""
-    known = [weights[f] for f in files if f in weights]
-    default = statistics.median(known) if known else 0.0
+    run = _run_weights(files, weights)
     load = [0.0] * max(1, shards)
     groups: list[list[str]] = [[] for _ in load]
-    for f in sorted(files, key=lambda f: (-weights.get(f, default), f)):
+    for f in sorted(files, key=lambda f: (-run[f], f)):
         i = min(range(len(load)), key=lambda j: (load[j], j))
         groups[i].append(f)
-        load[i] += weights.get(f, default) + IMPORT_S
+        load[i] += run[f] + IMPORT_S
     return [sorted(g) for g in groups if g]
 
 
@@ -415,7 +436,7 @@ class _Runner:
                 try:
                     d = json.loads(line)
                     f, s = d["f"], _seconds(d["s"])
-                except (ValueError, KeyError, TypeError):
+                except (ValueError, KeyError, TypeError, RecursionError):
                     continue
                 if isinstance(f, str) and s is not None:
                     run[f] = run.get(f, 0.0) + s
@@ -461,6 +482,24 @@ def _parallel(runner: _Runner, groups: list[list[str]], what: str) -> dict:
     return reds
 
 
+def _record_durations(
+    runner: _Runner, groups: list[list[str]], record: Path, *, complete: bool
+) -> None:
+    """Save the shard run's measured seconds and print them per shard. Advisory end to end: any error
+    here prints one line and never replaces the leg's verdict or the error the shard run raised."""
+    try:
+        measured = runner.durations()
+        if not measured:
+            return
+        _save_durations(record, measured, complete=complete)
+        print(
+            "merge-tests: shards measured "
+            + " ".join(f"{sum(measured.get(f, 0.0) for f in g):.2f}" for g in groups)
+        )
+    except Exception as exc:  # noqa: BLE001 — the record steers only the next split
+        print(f"merge-tests: duration record not written ({type(exc).__name__}: {exc})"[:300])
+
+
 def _one_line(msg: str, width: int) -> str:
     return " ".join(msg.split())[:width]
 
@@ -487,18 +526,19 @@ def differential(
         return [], out
     weights = weights or {}
     groups = balance(files, shards, weights)
-    if any(f in weights for f in files):
-        planned = [sum(weights.get(f, 0.0) + IMPORT_S for f in g) for g in groups]
-        print("merge-tests: shards planned " + " ".join(f"{s:.1f}" for s in planned))
+    if any(f in weights for f in files):  # run seconds, as `shards measured` prints them
+        run = _run_weights(files, weights)
+        print(
+            "merge-tests: shards planned "
+            + " ".join(f"{sum(run[f] for f in g):.2f}" for g in groups)
+        )
+    complete = False
     try:
         first = _parallel(runner, groups, "shard")
+        complete = True
     finally:
         if record is not None:
-            measured = runner.durations()
-            if measured:
-                _save_durations(record, measured)
-                ran = [sum(measured.get(f, 0.0) for f in g) for g in groups]
-                print("merge-tests: shards measured " + " ".join(f"{s:.1f}" for s in ran))
+            _record_durations(runner, groups, record, complete=complete)
     if not first:
         return [], out
     group_of = {key: next((g for g in groups if key[0].split("::")[0] in g), None) for key in first}

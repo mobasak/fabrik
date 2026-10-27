@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
   longest-first by the seconds each file took in earlier merge legs, plus a 0.15 s import cost per
   file, instead of round-robin. On 2026-10-27 the round-robin shards ran 253 to 842 s.
 - Each merge leg records what its shard run measured in
-  `<git common dir>/fabrik-merge/merge-tests-durations.json`, shared by locked, pretest and queue legs,
+  `<git common dir>/fabrik-merge/merge-tests-durations.txt`, shared by locked, pretest and queue legs,
   and prints `shards planned` beside `shards measured`. With no record the split is the old
   round-robin one. A bad record or a failed save costs only balance, never the verdict. D-1279,
   W-c832e59f.

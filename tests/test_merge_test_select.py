@@ -953,21 +953,26 @@ def test_balance_without_a_record_is_the_round_robin_split(n_files, shards):
 
 
 def test_balance_weighs_an_unrecorded_file_at_the_median_of_the_recorded():
-    """`b` is unrecorded among a=10, c=30, d=30: at the median (30) it leads the order and pairs
-    with `d`; at a bare import constant it would trail and pair with `c` instead."""
-    weights = {"t/a.py": 10.0, "t/c.py": 30.0, "t/d.py": 30.0}
-    assert mts.balance(["t/a.py", "t/b.py", "t/c.py", "t/d.py"], 2, weights) == [
-        ["t/b.py", "t/d.py"],
-        ["t/a.py", "t/c.py"],
-    ]
+    """`b` is unrecorded among a=10, c=20, d=60: it weighs their median, 20 — not the max (60), the
+    mean (30) or nothing (0) — and the balance places it by that weight."""
+    weights = {"t/a.py": 10.0, "t/c.py": 20.0, "t/d.py": 60.0}
+    files = ["t/a.py", "t/b.py", "t/c.py", "t/d.py"]
+    assert mts._run_weights(files, weights)["t/b.py"] == 20.0
+    assert mts._run_weights(files, {}) == dict.fromkeys(
+        files, 0.0
+    )  # nothing recorded: equal weights
+    assert mts.balance(files, 2, weights) == [["t/d.py"], ["t/a.py", "t/b.py", "t/c.py"]]
 
 
 def test_balance_is_deterministic_and_drops_empty_shards():
-    weights = {"t/x.py": 5.0, "t/y.py": 5.0, "t/a.py": 7.0}
-    files = ["t/a.py", "t/x.py", "t/y.py"]
-    one, two = mts.balance(files, 8, weights), mts.balance(files, 8, weights)
-    assert one == two and len(one) == 3 and all(one), one
-    assert all(g == sorted(g) for g in mts.balance(sorted(weights), 2, weights))
+    weights = {f"t/f{i}.py": float(i % 5) for i in range(13)}
+    files = sorted(weights)
+    want = mts.balance(files, 4, weights)
+    for perm in (files[::-1], files[1::2] + files[::2]):  # the input order never changes the split
+        assert mts.balance(perm, 4, weights) == want, perm
+    assert len(want) <= 4 and all(g == sorted(g) for g in want), want
+    sparse = mts.balance(["t/a.py", "t/x.py", "t/y.py"], 8, {"t/x.py": 5.0, "t/a.py": 7.0})
+    assert len(sparse) == 3 and all(sparse), sparse  # more shards than files: no empty group
 
 
 _DUR_BASE = {
@@ -978,7 +983,7 @@ _DUR_BASE = {
 
 
 def _durations_record(repo: Path) -> Path:
-    return repo / ".git" / "fabrik-merge" / "merge-tests-durations.json"
+    return repo / ".git" / "fabrik-merge" / "merge-tests-durations.txt"
 
 
 def test_a_leg_records_durations_and_the_next_leg_splits_by_them(tmp_path, monkeypatch, capsys):
@@ -990,7 +995,11 @@ def test_a_leg_records_durations_and_the_next_leg_splits_by_them(tmp_path, monke
     assert set(rec) == {"tests/test_one.py", "tests/test_two.py"}, rec
     assert rec["tests/test_one.py"] >= 0.2 > rec["tests/test_two.py"], rec
     assert "merge-tests: shards measured" in out and "shards planned" not in out, out
+    # never a `*.json` there: merge_request.py globs fabrik-merge/*.json as its merge records
+    assert not list(_durations_record(repo).parent.glob("*.json")), out
 
+    # this second leg checks that a record is read and planned from; the split itself is
+    # test_a_merge_legs_shards_follow_the_recorded_durations's (two files spread the same either way)
     _git(repo, "checkout", "-qb", "feat2")
     _write(repo, {"library_x.py": "VALUE = 1  # touched again\n"})
     _git(repo, "commit", "-qam", "change 2")
@@ -1001,13 +1010,22 @@ def test_a_leg_records_durations_and_the_next_leg_splits_by_them(tmp_path, monke
     planned = [line for line in out.splitlines() if line.startswith("merge-tests: shards planned")]
     assert len(planned) == 1, out
     loads = [float(x) for x in planned[0].split("planned ", 1)[1].split()]
-    assert max(loads) >= 0.2 + mts.IMPORT_S, planned  # test_one's shard carries its recorded time
+    # test_one's shard carries its recorded run seconds (printed to 2 places, the record to 3)
+    assert max(loads) >= rec["tests/test_one.py"] - 0.01, (planned, rec)
 
 
 @pytest.mark.parametrize(
-    "text", ["{not json", "[1, 2]", '{"tests/test_one.py": "slow", "tests/test_two.py": -1}']
+    ("text", "said"),
+    [
+        ("{not json", True),
+        ("[1, 2]", True),
+        ("[" * 100000, True),  # too deep for json: RecursionError, not a leg failure
+        ('{"tests/test_one.py": "slow", "tests/test_two.py": -1}', False),
+        ('{"tests/test_one.py": true, "tests/test_two.py": NaN}', False),
+        ('{"tests/test_one.py": Infinity, "tests/test_two.py": ' + "9" * 400 + "}", False),
+    ],
 )
-def test_a_bad_duration_record_is_ignored_not_fatal(tmp_path, monkeypatch, capsys, text):
+def test_a_bad_duration_record_is_ignored_not_fatal(tmp_path, monkeypatch, capsys, text, said):
     repo = _repo(tmp_path, _DUR_BASE)
     _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
     _durations_record(repo).parent.mkdir(parents=True, exist_ok=True)
@@ -1015,8 +1033,54 @@ def test_a_bad_duration_record_is_ignored_not_fatal(tmp_path, monkeypatch, capsy
     rc, out = _run(repo, monkeypatch, capsys)
     assert rc == 0 and out.strip().splitlines()[-1].startswith("merge-tests: green"), out
     assert "shards planned" not in out, out  # nothing usable was recorded: today's split
-    if not text.startswith('{"'):
-        assert "duration record ignored" in out, out
+    assert ("duration record ignored" in out) is said, out
+
+
+def test_an_unreadable_duration_record_is_ignored_not_fatal(tmp_path, capsys):
+    rec = tmp_path / "d.txt"
+    rec.write_bytes(b'{"tests/test_a.py": 1, "\xff": 2}')
+    assert mts._load_durations(rec) == {}
+    assert "duration record ignored (UnicodeDecodeError" in capsys.readouterr().out
+
+
+def test_a_save_merges_over_the_old_record_and_drops_files_gone_from_the_tree(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tests").mkdir()
+    for name in ("test_a.py", "test_b.py"):
+        (tmp_path / "tests" / name).write_text("")
+    rec = tmp_path / "rec.txt"
+    rec.write_text(
+        json.dumps({"tests/test_a.py": 9.0, "tests/test_b.py": 4.0, "tests/test_gone.py": 7.0}),
+        encoding="utf-8",
+    )
+    mts._save_durations(rec, {"tests/test_a.py": 1.0}, complete=True)
+    # a's new value replaces the old, b (not run this leg) keeps its own, a deleted file is dropped
+    assert json.loads(rec.read_text(encoding="utf-8")) == {
+        "tests/test_a.py": 1.0,
+        "tests/test_b.py": 4.0,
+    }
+    mts._save_durations(rec, {"tests/test_a.py": 0.5, "tests/test_b.py": 6.0}, complete=False)
+    # an incomplete shard run only raises a value: a killed file's partial sum never lowers it
+    assert json.loads(rec.read_text(encoding="utf-8")) == {
+        "tests/test_a.py": 1.0,
+        "tests/test_b.py": 6.0,
+    }
+
+
+def test_a_failed_duration_append_never_fails_the_test_run(tmp_path, monkeypatch):
+    """The plugin's duration line is advisory: an unwritable FABRIK_MERGE_TESTS_DUR (here a
+    directory) must not raise inside the pytest hook, which pytest turns into INTERNALERROR."""
+    plugin: dict = {}
+    exec(mts._PLUGIN, plugin)  # noqa: S102 — the plugin source the leg writes, run as pytest would
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_DUR", str(tmp_path))
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_REC", str(tmp_path / "rec.jsonl"))
+
+    class Report:
+        nodeid, failed, when, duration = "tests/test_a.py::test_a", False, "call", 0.1
+
+    plugin["pytest_runtest_logreport"](Report())  # no exception
 
 
 def test_a_garbled_duration_line_is_skipped(tmp_path):
@@ -1028,7 +1092,9 @@ def test_a_garbled_duration_line_is_skipped(tmp_path):
     )
     later = tmp_path / "dur-2.jsonl"
     later.write_text(
-        'garbage\n{"f": "tests/test_a.py", "s": 9}\n{"f": "tests/test_b.py", "s": 2}\n',
+        'garbage\n{"f": "tests/test_a.py", "s": 9}\n{"f": "tests/test_b.py", "s": 2}\n'
+        '{"f": "tests/test_b.py", "s": "x"}\n{"f": "tests/test_b.py", "s": -1}\n'
+        '{"f": "tests/test_b.py", "s": NaN}\n[1]\n',
         encoding="utf-8",
     )
     runner.dur_files += [first, later]
@@ -1074,7 +1140,7 @@ def test_a_merge_legs_shards_follow_the_recorded_durations(tmp_path, monkeypatch
     assert max(float(x) for x in planned.split("planned ", 1)[1].split()) < 6, planned
 
 
-def test_a_shard_run_that_fails_still_saves_what_it_measured(tmp_path, monkeypatch):
+def test_a_shard_run_that_fails_still_saves_what_it_measured(tmp_path, monkeypatch, capsys):
     """The save sits in a `finally` around the shard run: a shard exiting 4 is a leg failure, and the
     files that did run still teach the next leg their cost."""
     monkeypatch.chdir(tmp_path)
@@ -1088,10 +1154,19 @@ def test_a_shard_run_that_fails_still_saves_what_it_measured(tmp_path, monkeypat
         def durations(self):
             return {"tests/test_a.py": 3.0}
 
-    record = tmp_path / "rec" / "d.json"
+    record = tmp_path / "rec" / "d.txt"
     with pytest.raises(mts.LegError, match="exited 4"):
         mts.differential(["tests/test_a.py"], "M", "B", Runner({}), 1, compare=True, record=record)
     assert json.loads(record.read_text(encoding="utf-8")) == {"tests/test_a.py": 3.0}
+
+    class Broken(Runner):
+        def durations(self):
+            raise RuntimeError("boom in the recording")
+
+    # a recording that itself fails never replaces the shard run's own error
+    with pytest.raises(mts.LegError, match="exited 4"):
+        mts.differential(["tests/test_a.py"], "M", "B", Broken({}), 1, compare=True, record=record)
+    assert "duration record not written (RuntimeError" in capsys.readouterr().out
 
 
 def test_the_duration_record_ignores_the_records_override(tmp_path, monkeypatch, capsys):
