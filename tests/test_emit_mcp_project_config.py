@@ -62,6 +62,9 @@ def _hermetic_git(tmp_path, monkeypatch):
     empty.write_text("")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    # git's global-ignore fallback is $XDG_CONFIG_HOME/git/ignore, read even when GIT_CONFIG_GLOBAL is empty
+    (tmp_path / "empty-xdg").mkdir()
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-xdg"))
 
 
 @pytest.fixture()
