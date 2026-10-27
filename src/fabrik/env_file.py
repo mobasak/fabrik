@@ -24,6 +24,8 @@ import re
 _DQ_ESCAPES = {"n": "\n", "r": "\r", "t": "\t", "\\": "\\", '"': '"', "$": "$"}
 _QUOTE_TRIGGERS = (" ", "#", "'", '"', "\n", "\r", "\t", "\\")
 _KEY_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# The key grammar docker compose's .env parser accepts for a variable name.
+_ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
 
 
 def _shown_key(key: str) -> str:
@@ -70,7 +72,8 @@ def format_env_line(key: str, value: str) -> str:
     the value — when the line holds a NUL byte (runc refuses the container; dotenv has no escape for
     it) or is not UTF-8 (a lone surrogate the writer cannot encode), the refusals D-1269 makes for
     compose ``environment:``. The EMITTED line is checked, so the key and a kept template ``source``
-    are covered with the value."""
+    are covered with the value. A key outside compose's variable-name grammar is refused too
+    (W-aa69894d): a newline, ``=``, space or ``#`` in it would inject or corrupt lines."""
     line = f"{key}={format_value(value)}"
     if "\x00" in line:
         raise ValueError(f"the .env line for {_shown_key(key)} contains a NUL byte")
@@ -78,6 +81,9 @@ def format_env_line(key: str, value: str) -> str:
         line.encode("utf-8")
     except UnicodeEncodeError:
         raise ValueError(f"the .env line for {_shown_key(key)} is not valid UTF-8") from None
+    if not _ENV_KEY.fullmatch(key):
+        # Never the key itself: a key read back from a broken VPS line can hold a password.
+        raise ValueError(f"the .env key {_shown_key(key)} is not a valid variable name")
     return line
 
 
