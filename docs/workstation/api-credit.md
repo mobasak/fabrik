@@ -176,10 +176,21 @@ Bash and `bypassPermissions`, then with a Bash allow-list — D-1248, D-1249). T
   checkout's `.venv/bin` first on PATH when it exists, so a gate's `python3 -m pytest` has the hub's dependencies
   without a pip install (an editable install from a hub clone would repoint the shared install box-wide).
 
-Once the child has exited, with success or an error, the scrubbed result goes to `<out-dir>/<slug>.md` (printed on
+Once the child has exited on its own, with success or an error, the scrubbed result goes to `<out-dir>/<slug>.md` (printed on
 stdout when that file cannot be written); a timeout writes none. `--jobs` (default 3) runs a batch in parallel; with
 `--pick` each job reserves the key with the most room at its own start, so three jobs spread over the three keys. One
 run is one commit, so a multi-ticket brief is split into one entry per ticket.
+
+**A stop signal** (D-1295, W-d077095a). A stopped Claude Code background task gets SIGTERM to its whole process group,
+then SIGKILL about 1.4 s later (2.1.311, measured); the children sit in their own sessions, so neither reaches them.
+SIGTERM, SIGHUP and SIGINT therefore run one handler: no new job starts (a queued one reports `not started: runner
+interrupted` and writes no start row), the process group of every running child is killed, and each killed run settles
+`interrupted` with source `run` — so `api_credit.py settle` takes its console figure at once — writes the interruption
+and its run id to `<out-dir>/<slug>.md`, and commits and pushes nothing. A child that finished on its own before the
+signal still commits and pushes; the runner's git runs in its own session, so the group signal never cuts that push.
+Stdout and stderr are line-buffered, so a log file keeps every line through the SIGKILL, and the runner exits 128 plus
+the signal number. A SIGKILL sent straight to the runner, with no SIGTERM first, is still not caught: its children
+run on and its runs stay provisioned, as above.
 
 **What remains** (D-253): the cheapest abuse left is a gate, which runs code the child wrote (a test file, a rendered
 source) as this user, outside every fence above (the git dir and the hardlinked objects included) — so gates come
