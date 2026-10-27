@@ -114,15 +114,27 @@ class TestLoadDotenvComposeGrammar:
         assert str(env_file) in message and "DB_PASSWORD" in message
         assert "s3cret" not in message
 
-    def test_carriage_returns_reach_the_codec(self, tmp_path):
+    def test_carriage_returns_end_lines(self, tmp_path):
         env_file = tmp_path / ".env"
-        env_file.write_bytes(b"CRLF=v # c\r\nLONE='x\ry'\r\n")
-        assert load_dotenv(env_file) == {"CRLF": "v", "LONE": "x\ry"}
+        env_file.write_bytes(b'CRLF=v # c\r\nA="x"\rB=2\nPEM="l1\r\nl2"\n')
+        assert load_dotenv(env_file) == {"CRLF": "v", "A": "x", "B": "2", "PEM": "l1\nl2"}
 
     def test_unreadable_file_raises_validation_error(self, tmp_path):
         (tmp_path / ".env").mkdir()
         with pytest.raises(ValidationError, match="cannot read"):
             load_dotenv(tmp_path / ".env")
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+    def test_unenterable_folder_raises_validation_error(self, tmp_path):
+        locked = tmp_path / "locked"
+        locked.mkdir()
+        (locked / ".env").write_text("A=1\n")
+        locked.chmod(0o600)
+        try:
+            with pytest.raises(ValidationError, match="cannot read"):
+                load_dotenv(locked / ".env")
+        finally:
+            locked.chmod(0o700)
 
     def test_non_utf8_file_raises_without_the_byte(self, tmp_path):
         env_file = tmp_path / ".env"

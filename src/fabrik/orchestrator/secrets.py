@@ -42,12 +42,12 @@ def load_dotenv(env_path: Path) -> dict[str, str]:
             be minted over the real secret. The message names the file, key and line or byte
             offset, never a value.
     """
-    if not env_path.exists():
-        return {}
     try:
-        # Bytes, decoded as UTF-8 whatever the locale, so the codec sees every \r itself (a text
-        # read's universal newlines would turn a lone \r inside a value into a line break).
-        parsed = parse_env(env_path.read_bytes().decode("utf-8"))
+        # UTF-8 whatever the locale. Universal newlines stay, as before: a lone \r ends a line
+        # (so a stray one after a quoted value cannot hide the next key) and CRLF reads as LF.
+        parsed = parse_env(env_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
     except UnicodeDecodeError as e:
         # The decoder's own message quotes the offending byte, which may sit inside a secret.
         raise ValidationError(f"cannot read {env_path}: not UTF-8 at byte {e.start}") from None
