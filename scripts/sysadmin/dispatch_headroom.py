@@ -310,8 +310,10 @@ def quota() -> dict:
     """The plan quota (`_plan_quota`) plus whether this session is exempt from it (`api_key_free`,
     `_api_key_reading`): the seat budget skips every plan cap for an exempt session."""
     out = _plan_quota()
-    # a picture that could not be read may hide a hold: it counts as holding for the stamp check
-    out.update(_api_key_reading(bool(out.get("hold")) if out.get("ok") else True))
+    # a picture that could not be read — or that claude_rotate itself failed to build — may hide
+    # a hold: it counts as holding for the stamp check
+    unread = not out.get("ok") or bool(out.get("picture_error"))
+    out.update(_api_key_reading(True if unread else bool(out.get("hold"))))
     return out
 
 
@@ -363,6 +365,8 @@ def _plan_quota() -> dict:
             "eligible_raw": eligible_raw,
             "active_in_band": bool(act.get("in_drain_band")) if act else None,
             "hold": _hold_is_wall(pic.get("hold")),
+            # `claude_rotate._safe_picture` degrades to `hold: None` without reading the stamp
+            "picture_error": bool(pic.get("error")),
             "drain_band": band,
         }
         # ⚠️ The posture WINS when it is fresh, and that is the point: the seat budget and the

@@ -376,6 +376,22 @@ def test_an_api_key_session_skips_the_unknown_quota_floor(monkeypatch, tmp_path)
     assert r["caps"]["quota_cap"] == 3 == r["seats"], r
 
 
+def test_a_degraded_picture_counts_as_unread(monkeypatch, tmp_path):
+    """`claude_rotate._safe_picture` degrades a failed picture build to `{"error": …, "hold": None}`
+    without reading the stamp, so `ok` stays True and `hold` False — a tmp-fallback stamp would be
+    exempted. It counts as unread: no stamp where the hook looks → not exempt (review pass 2)."""
+    mod = _load()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
+    degraded = {"picture": {"error": "KeyError: x", "active": None, "accounts": [], "hold": None}}
+    _pin(mod, monkeypatch, json.dumps(degraded))
+    q = mod.quota()
+    assert q["api_key_free"] is False and "different files" in q.get("api_key_why", ""), q
+    assert q["ok"] is True and q["picture_error"] is True, q
+    (tmp_path / "fleet-exhausted").write_text("0\nwalled\n", encoding="utf-8")
+    assert mod.quota()["api_key_free"] is True
+
+
 @pytest.mark.parametrize(
     ("line2", "extra"),
     [
