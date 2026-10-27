@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A merge leg runs under umask 002 in a /tmp throwaway; a hub test assumes neither (2026-10-27)
+
+- **What happened:** kaizen's batch was refused by `test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script`,
+  red in the merge leg and green alone (W-17fc722a). The coordinator's shell runs under umask 0002, and every
+  merge leg inherits it and checks out into `tempfile.mkdtemp(prefix="fabrik-merge-")` under /tmp. The test
+  copied the checkout's group-writable modes, which the stub refuses as "writable by others". The same review
+  found B6 red the same way and two kaizen exposure tests that hardcoded "fabrik", which `_project` reads only
+  under `/opt/<name>`. An interactive umask-022 session in `/opt/fabrik` reproduces none of them.
+- **Rule:** a test that writes or copies files a check then judges by mode sets those modes itself, and a
+  test that reads location-derived state derives its expectation from the checkout's path. Reproduce a
+  "red only in the merge" report with `umask 0002` on the TEST PROCESS, not only on the checkout, inside a
+  /tmp worktree, with `FABRIK_MERGE_CHECK=1`.
+
 ## A right-now fix reads the plan locks too, not only a /fabrik-task run (2026-10-27)
 
 - **What happened:** W-d095d60b (a right-now fix under /fabrik-review-scoped) edited
