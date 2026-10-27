@@ -22,6 +22,18 @@ every templated env line goes through the filter and that only compose templates
 `docs/DECISIONS.md` (W-80aed026). Still open, filed: other unquoted compose fields (W-ff313a14), `.env`
 `$` quoting and readers (W-2ae286e2), an invalid healthcheck `start_period` in three templates (W-3197a125).
 
+### Fixed — `--adopt` no longer stamps the scaffold template's example backlog rows as owned work (2026-10-27)
+
+`scripts/docs_updater.py --adopt` tagged an owner on every untagged row of a STRATEGIC_BACKLOG.md work table, and the
+scaffold template ships its examples (`[Feature/Refactor]`, `[System Overhaul]`, `[Small hardening/refactor]`) as live
+table rows, so 24 of the 82 stamps `--adopt` would write across the 27 fleet backlogs were those placeholders, in 12
+repos and two template generations. `classify_backlog_row` now skips a row whose `Item` cell is one bracketed phrase
+(balanced emphasis allowed); the `--check` untagged-row advisory inherits it. Re-measured: 82 → 58, the other 58
+byte-identical. The mailed defect this item carried — closed rows stamped because "no backlog uses strikethrough" — no
+longer reproduces: 22 of 23 closed rows skip today and the 23rd is live. Guarded by
+`TestTemplatePlaceholderRowsAreNeverStamped` in `tests/test_docs_updater_adopt.py` (six mutants of the guard killed;
+it reads the template from disk). W-e89d7983, D-1270.
+
 ### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
 
 `src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so

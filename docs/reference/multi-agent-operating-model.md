@@ -138,7 +138,9 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   PLANS markers, stamps `**Owner:**` on every open unowned plan round-robin, tags every untagged
   work-item row of `STRATEGIC_BACKLOG.md` in its own shape (the cell under a header opening
   `Owner`/`Tag` when it is empty — an occupied one, or an `Item` that already opens with a tag, is
-  left alone · else the `Item` cell; never a bullet or a table with neither column — W-77e00147),
+  left alone · else the `Item` cell; never a bullet or a table with neither column — W-77e00147 — and
+  never an `Item` that is only one bracketed phrase, as the template's placeholders are (`[Feature/Refactor]`)
+  — W-e89d7983),
   appends the `MERGE OWNER: <first name>` ledger row (the
   row with the HIGHEST D-id whose `what` cell opens with `MERGE OWNER:`, optionally after a
   `supersedes D-NNN:` prefix — the label always the exact upper-case `MERGE OWNER:`, bold allowed (`**MERGE OWNER:**` or
