@@ -50,6 +50,7 @@ LONG_WAITS = [
     "done; while true; do sleep 5; done",
     # the `function NAME {` form: the name is no keyword
     "function f { while true; do sleep 5; done; }; f",
+    "function f() { while true; do sleep 5; done; }; f",
 ]
 
 
@@ -216,9 +217,15 @@ def test_the_timeout_is_read_strictly(box: dict) -> None:
         assert _denied(_run(box, loop, timeout=junk)), junk
         assert not _denied(_run(box, plain, timeout=junk)), junk
     # a digit string counts as its number; a huge int is over every cap and never raises
-    for big in ("150000", " 600000 ", 10**400):
+    # a digit string of ANY length agrees with the int of the same value: past the cap is over it
+    for big in ("150000", " 600000 ", "000150000", 10**400, "1" + "0" * 15, "9" * 5000):
         out = _run(box, plain, timeout=big)
         assert out is not None and _denied(out), big
+    # a value past the cap is reported as capped, never as a number the call did not ask for
+    out = _run(box, plain, timeout=10**400)
+    assert out is not None and "over 1000000000000 s" in out["permissionDecisionReason"]
+    out = _run(box, plain, timeout=150000)
+    assert out is not None and "over 150 s" not in out["permissionDecisionReason"]
     # the strict edges, one past each cap
     assert _denied(_run(box, plain, timeout=120001))
     assert _denied(_run(box, loop, timeout=60001))
@@ -228,13 +235,17 @@ def test_the_timeout_is_read_strictly(box: dict) -> None:
     out = _run(box, plain, timeout=120000.5)
     assert out is not None and "120.0005 s" in out["permissionDecisionReason"]
     # junk env values are no default either: the Bash tool's own 120000 applies
-    for junk_env in ("²", "abc", "0", "1.5", "9" * 5000):
+    for junk_env in ("²", "abc", "0", "0000", "1.5", ""):
         box["env"]["BASH_DEFAULT_TIMEOUT_MS"] = junk_env
         assert not _denied(_run(box, plain)), junk_env
         assert _denied(_run(box, loop)), junk_env
     box["env"]["BASH_DEFAULT_TIMEOUT_MS"] = "30000"
     assert not _denied(_run(box, loop))
     box["env"]["BASH_DEFAULT_TIMEOUT_MS"] = "300000"
+    assert _denied(_run(box, plain))
+    box["env"]["BASH_DEFAULT_TIMEOUT_MS"] = (
+        "9" * 5000
+    )  # a default past every cap: each call can hold the turn
     assert _denied(_run(box, plain))
 
 

@@ -1110,15 +1110,14 @@ def _track_loops(raw: list[str], ctx: dict) -> None:
         i += 1
 
 
-_MS_TEXT = re.compile(
-    r"[0-9]{1,15}"
-)  # ASCII digits only: str.isdigit() takes "²", which int() refuses
+_MS_TEXT = re.compile(r"[0-9]+")  # ASCII digits only: str.isdigit() takes "²", which int() refuses
 _MS_CAP = 1e15  # any larger value is still "over every cap"; caps an int too big for a float
 
 
 def _ms(value: object) -> float | None:
     """A positive millisecond count from a number or a plain digit string, else None. Never raises:
-    a bool, NaN, inf, a negative, a non-ASCII digit or an over-long string is no value at all."""
+    a bool, NaN, inf, zero, a negative or a non-ASCII digit is no value at all; a number or digit
+    string past `_MS_CAP` reads as the cap, so a long string and a big int agree (both over it)."""
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
@@ -1126,7 +1125,12 @@ def _ms(value: object) -> float | None:
     if isinstance(value, float):
         return min(value, _MS_CAP) if math.isfinite(value) and value > 0 else None
     if isinstance(value, str) and _MS_TEXT.fullmatch(value.strip()):
-        return float(value.strip()) if int(value.strip()) > 0 else None
+        digits = value.strip().lstrip(
+            "0"
+        )  # never int() a long string: Python refuses > 4300 digits
+        if not digits:
+            return None
+        return _MS_CAP if len(digits) > 15 else min(float(digits), _MS_CAP)
     return None
 
 
@@ -1175,7 +1179,8 @@ def _wait_reason(payload: dict, wait: dict) -> str:
     if not isinstance(tool_input, dict) or tool_input.get("run_in_background") is True:
         return ""
     ms = _timeout_ms(tool_input)
-    secs = f"{ms / 1000:.15g} s"  # exact: `:g` printed 120000.5 ms as "120 s, over 120 s"
+    # exact: `:g` printed 120000.5 ms as "120 s, over 120 s"; a capped value says it was capped
+    secs = ("over " if ms >= _MS_CAP else "") + f"{ms / 1000:.15g} s"
     if ms > WAIT_LONG_MS:
         rule = f"its timeout is {secs}, over {WAIT_LONG_MS // 1000} s"
     elif ms > WAIT_LOOP_MS and wait.get("sleep_in_loop"):
