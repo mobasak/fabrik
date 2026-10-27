@@ -288,28 +288,64 @@ def test_dispatch_headroom_hold_predicate_matches_the_tick(monkeypatch):
 _BOX = {"ok": True, "mem_available_gb": 64.0, "mem_total_gb": 64.0, "cores": 16, "load1": 0.0}
 
 
-def _walled_quota(mod, monkeypatch, tmp_path, line2):
-    """`quota()` over a picture whose hold reads `walled` (the picture folds `battery` into it) and
-    a real `fleet-exhausted` stamp whose line 2 is `line2`, in a tmp ROTATE_STATE_DIR."""
+def _walled_quota(mod, monkeypatch, tmp_path, line2, *, tier="walled", picture_hot=60.0):
+    """`quota()` over a picture whose hold reads `tier` (the picture folds `battery` into `walled`)
+    and a real `fleet-exhausted` stamp whose line 2 is `line2` (None: no stamp at all), in a tmp
+    ROTATE_STATE_DIR."""
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
-    (tmp_path / "fleet-exhausted").write_text(f"0\n{line2}\n", encoding="utf-8")
-    doc = json.loads(_payload(posture_ts=None))
-    doc["picture"]["hold"] = {"tier": "walled"}
+    if line2 is not None:
+        (tmp_path / "fleet-exhausted").write_text(f"0\n{line2}\n", encoding="utf-8")
+    doc = json.loads(_payload(posture_ts=None, picture_hot=picture_hot))
+    doc["picture"]["hold"] = {"tier": tier}
     _pin(mod, monkeypatch, json.dumps(doc))
     return mod.quota()
 
 
-def test_an_api_key_session_is_not_capped_by_the_plan_wall(monkeypatch, tmp_path):
-    """An API-key session's seats draw the key, not the plan (D-1243): at a plain `walled` stamp the
-    budget is the box's, not 0, and a reason line says why. Before the fix: SEATS 0."""
+@pytest.mark.parametrize(
+    ("line2", "tier", "picture_hot"),
+    [
+        ("walled", "walled", 60.0),  # the wall: base caps at 0
+        ("urgent-90", "urgent-90", 92.0),  # the lane in the drain band: base holds the floor of 3
+    ],
+)
+def test_an_api_key_session_is_not_capped_by_the_plan_wall(
+    monkeypatch, tmp_path, line2, tier, picture_hot
+):
+    """An API-key session's seats draw the key, not the plan (D-1243): at a plain quota-tier stamp
+    the budget is the box's — no `quota_cap` at all — and a reason line says why."""
     mod = _load()
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
-    q = _walled_quota(mod, monkeypatch, tmp_path, "walled")
+    q = _walled_quota(mod, monkeypatch, tmp_path, line2, tier=tier, picture_hot=picture_hot)
     assert q["api_key_free"] is True, q
-    r = mod.budget(1, False, _BOX, q)
+    r = mod.budget(4, False, _BOX, q)
     assert "quota_cap" not in r["caps"], r["caps"]
-    assert r["seats"] >= 3, r
+    assert r["seats"] > 3, r
     assert any("Anthropic API key" in line for line in r["reasons"]), r["reasons"]
+
+
+def test_a_hold_with_no_stamp_where_the_hook_looks_keeps_the_cap(monkeypatch, tmp_path):
+    """The picture's hold can come from the tick's TMP fallback stamp
+    (`claude_rotate._fleet_exhaustion_stamp`), which the hook never reads — and the hook answers
+    'free' when it finds no stamp. A hold the hook cannot see is never exempted."""
+    mod = _load()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
+    q = _walled_quota(mod, monkeypatch, tmp_path, None)
+    assert q["api_key_free"] is False and "different files" in q.get("api_key_why", ""), q
+    r = mod.budget(1, False, _BOX, q)
+    assert r["caps"]["quota_cap"] == 0 and r["seats"] == 0, r
+
+
+def test_an_api_key_session_skips_the_unknown_quota_floor(monkeypatch, tmp_path):
+    """A key session's seats do not depend on the plan picture, so an unreadable picture does not
+    hold it at the floor either (deliberate: Opus critique 4)."""
+    mod = _load()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
+    _pin(mod, monkeypatch, "not json")
+    q = mod.quota()
+    assert q["ok"] is False and q["api_key_free"] is True, q
+    r = mod.budget(4, False, _BOX, q)
+    assert "quota_cap" not in r["caps"] and r["seats"] > 3, r
 
 
 @pytest.mark.parametrize(
@@ -331,12 +367,21 @@ def test_battery_or_a_second_credential_keeps_the_wall_cap(monkeypatch, tmp_path
     assert r["caps"]["quota_cap"] == 0 and r["seats"] == 0, r
 
 
-def test_a_failed_exemption_read_keeps_the_plan_caps(monkeypatch, tmp_path):
+@pytest.mark.parametrize("hook_src", [None, "raises"])
+def test_a_failed_exemption_read_keeps_the_plan_caps(monkeypatch, tmp_path, hook_src):
     """The predicate is the posture hook's; if it cannot be loaded or raises, the plan caps stand
     (fail toward fewer seats, never an over-dispatch on a plan account) and the payload says why."""
     mod = _load()
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api03-x")
-    monkeypatch.setattr(mod, "_POSTURE_HOOK", tmp_path / "missing.py")
+    hook = tmp_path / "hook.py"
+    if hook_src == "raises":
+        hook.write_text(
+            "from pathlib import Path\n"
+            "def _rotate_state_dir():\n    return Path('/nonexistent')\n"
+            "def _api_key_free():\n    raise RuntimeError('boom')\n",
+            encoding="utf-8",
+        )
+    monkeypatch.setattr(mod, "_POSTURE_HOOK", hook)
     q = _walled_quota(mod, monkeypatch, tmp_path, "walled")
     assert q["api_key_free"] is False and q.get("api_key_why"), q
     r = mod.budget(1, False, _BOX, q)
