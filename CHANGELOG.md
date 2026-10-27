@@ -22,6 +22,17 @@ test's files, then adds `--defs`. It refuses any argv but `--repo <repo>`, so a 
 fails instead of sweeping the live `/opt`. A new assertion checks that exa's key is the test's own.
 W-2c2f1025; a one-test hunk under intel's plan-3 lock, on the coordinator's ruling.
 
+### Fixed — a Merged-From trailer no longer vouches for a reused branch name's later work (2026-10-27)
+
+`scripts/scratch_sweep.py` read any `Merged-From: <branch>` trailer on the main checkout's branch as proof the branch
+was merged, for ever. Branch names are reused — hand merges carried `Merged-From: worktree-fleet` and
+`worktree-intel`, and two agent branches gained a wip snapshot after their squash — so four live branches with 20,
+47, 1 and 1 unmerged commits read merged, and a clean worktree on one would classify `wt-removable`. Now a merge
+commit's trailer is never read (its parents decide), and a squash's trailer vouches only when no commit of the
+branch is newer than the squash; the refusal row names the newer commits. The trailer log is read once per target
+commit per run. Live census after the fix: the 54 truly squash-merged branches still read merged, the 4 stale ones
+unmerged (W-69322546, D-1290). The rule and its edges: `docs/workstation/cleanup-automation.md`.
+
 ### Fixed — a builder's pane starts where its session lives, and a window on another tree's hooks is told (2026-10-27)
 
 Claude Code keeps the folder a pane started in as the window's `CLAUDE_PROJECT_DIR`, where its hooks, settings and

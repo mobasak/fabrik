@@ -38,6 +38,19 @@
   before `os._exit`, bound the interval above as well as below, and grade the handshake by firing the real watchdog with
   the arguments the code gave the Timer after the work returned.
 
+## A cache added for cost is keyed on the STATE it reads, never on the name that points at it (2026-10-27, W-69322546)
+
+- **What happened:** review round 1 of the Merged-From vouch fix cached the target's trailer map on `(repo, target)`
+  to stop a full-history `git log` per unmerged branch. Round 2 found that `scratch_sweep.py` classifies and then
+  RE-CHECKS at removal in the same process, so a target rewound past a squash between the two still answered from
+  the plan-time map — the re-check existed to catch exactly that change. The same round found that skipping every
+  merge commit on the branch side, to stop a merged-back branch reading unmerged, also skipped a merge that brought
+  in another branch's never-merged work.
+- **Rule:** before caching a read, grep for every caller that reads it twice in one process and ask what the second
+  read is FOR; key the cache on the resolved state (here the target's commit), so a moved ref is a cache miss. And a
+  filter added to drop one harmless shape (a merge of the target) is written as the test for that shape (every extra
+  parent already in the target), never as "drop the whole kind".
+
 ## Hardening one stat call against EACCES means sweeping every stat on the same path (2026-10-27)
 
 - **What happened:** W-f7772267 (k) wrapped `_repo_type`'s `exists()` and the scope check's `mcp_json.is_file()`,
