@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T04:28:50.885000Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-335d2f0e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1278",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: chmod 000 a kept command, skill wrapper and agent file in temp trees; decide refuse-in-preflight (os.access W_OK/R_OK) vs report-in-check; red-first graders per position",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "assemble_commands render()/check() traceback on an UNREADABLE regular file at a kept name (mode 000): check() raises PermissionError at its kept reads, and render() passes _preflight (type-only), writes the agents tree, then raises on the command write — a half-written tree against _preflight's 'untouched trees' promise (W-21f88ec3 review residue, D-1278)"
+}
