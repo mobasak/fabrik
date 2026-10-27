@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## `Timer.cancel()` does not stop a Timer that has already fired (2026-10-27)
+
+- **What happened:** W-010bb0d9 bounded the rotation tick with a `threading.Timer` watchdog and cancelled it "first thing in
+  the `finally`", with a comment saying the finally's legs therefore never raced it. Three review seats found that a Timer
+  firing as the body ended is already inside its function: `cancel()` is a no-op there, and the watchdog then exited the
+  process between a stamp clear and its wake. The same pass found `os._exit` dropping every block-buffered `print` of the
+  hung tick from cron's log file, and a Timer interval of `1e300` killing the Timer's own thread with an OverflowError.
+- **Rule:** a watchdog that ends a process needs a HANDSHAKE, not a cancel: the main thread marks the work done under the
+  lock the watchdog takes, and the watchdog re-reads that mark after it gets the lock. Flush buffered stdout (bounded)
+  before `os._exit`, bound the interval above as well as below, and grade the handshake by firing the real watchdog with
+  the arguments the code gave the Timer after the work returned.
+
 ## Hardening one stat call against EACCES means sweeping every stat on the same path (2026-10-27)
 
 - **What happened:** W-f7772267 (k) wrapped `_repo_type`'s `exists()` and the scope check's `mcp_json.is_file()`,
