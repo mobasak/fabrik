@@ -18,7 +18,10 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 from fabrik.spec_loader import Spec
 from fabrik.version_registry import load_versions
 
-_PORT_RE = re.compile(r"\d{1,5}|\$\{[A-Za-z_][A-Za-z0-9_]*(?::-\d{1,5})?\}")
+# ASCII digits only: `\d` matches every Unicode decimal digit (`３０００`, `٣٠٠٠`).
+_PORT_RE = re.compile(
+    r"(?P<port>[0-9]{1,5})|\$\{[A-Za-z_][A-Za-z0-9_]*(?::-(?P<default>[0-9]{1,5}))?\}"
+)
 
 
 class TemplateRenderer:
@@ -106,9 +109,12 @@ class TemplateRenderer:
         router at runtime. A secret PORT arrives `$$`-escaped and is refused too.
         """
         text = str(value)
-        if not _PORT_RE.fullmatch(text):
+        match = _PORT_RE.fullmatch(text)
+        port = (match.group("port") or match.group("default")) if match else None
+        if match is None or (port is not None and not 1 <= int(port) <= 65535):
             raise ValueError(
-                f"compose {label}: must be a port number or a ${{NAME}} / ${{NAME:-port}} interpolation"
+                f"compose {label}: must be a port number (1-65535) or a ${{NAME}} / ${{NAME:-port}}"
+                " interpolation"
             )
         return text
 

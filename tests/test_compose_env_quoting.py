@@ -212,7 +212,9 @@ def test_companion_command_round_trips(template: str) -> None:
     assert _service(compose, "demo-svc-worker")["command"] == command, compose
 
 
-@pytest.mark.parametrize("port", ["3000", "8", "${APP_PORT}", "${APP_PORT:-3000}"])
+@pytest.mark.parametrize(
+    "port", ["3000", "8", "1", "65535", "${APP_PORT}", "${APP_PORT:-3000}", "${APP_PORT:-65535}"]
+)
 def test_file_api_port_round_trips(port: str) -> None:
     spec = _spec("file-api", {"PORT": port}, health={"path": "/api/health"})
     svc = _service(_render(spec, {}))
@@ -221,7 +223,27 @@ def test_file_api_port_round_trips(port: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "port", ['3000" x', "30 #00", "3000: x", "${A}x", "${A:-x}", "", "123456", "$${A}"]
+    "port",
+    [
+        '3000" x',
+        "30 #00",
+        "3000: x",
+        "${A}x",
+        "${A:-x}",
+        "",
+        "123456",
+        "$${A}",
+        # Unicode decimal digits that a `\d` pattern admits (review A-1), and the range edges (A-2).
+        "３０００",
+        "٣٠٠٠",
+        "${A:-٣}",
+        "0",
+        "00000",
+        "65536",
+        "99999",
+        "${A:-0}",
+        "${A:-65536}",
+    ],
 )
 def test_file_api_port_refused(port: str) -> None:
     """Both PORT sites accept only a port number or a compose interpolation; anything else is refused at render."""
@@ -300,13 +322,16 @@ def test_empty_depends_postgres_still_means_no_database() -> None:
     assert "DATABASE_URL" not in _service_env(compose)
 
 
-@pytest.mark.parametrize("template", sorted({*ENV_TEMPLATES, *COMPANION_TEMPLATES}))
-def test_database_url_default_round_trips(template: str) -> None:
-    compose = _render(_spec(template, {}, depends={"postgres": "app_db"}), {})
-    if "DATABASE_URL" not in compose:
-        pytest.skip(f"{template} renders no DATABASE_URL default")
+def test_database_url_default_round_trips() -> None:
     want = "${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/app_db}"
-    assert _service_env(compose).get("DATABASE_URL") == want, compose
+    rendered = []
+    for template in sorted({*ENV_TEMPLATES, *COMPANION_TEMPLATES}):
+        compose = _render(_spec(template, {}, depends={"postgres": "app_db"}), {})
+        if "DATABASE_URL" in compose:
+            rendered.append(template)
+            assert _service_env(compose).get("DATABASE_URL") == want, (template, compose)
+    # chrome-extension, node-api, python-api, saas-skeleton — the four with a DATABASE_URL default line.
+    assert len(rendered) >= 4, rendered
 
 
 # A templated env item is exactly `- {{ <key> | compose_env(<value>) }}`. Any other `- ` item whose key — names,
