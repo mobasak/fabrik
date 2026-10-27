@@ -56,7 +56,18 @@ def format_value(value: str) -> str:
 
 
 def format_env_line(key: str, value: str) -> str:
-    return f"{key}={format_value(value)}"
+    """One ``KEY=value`` line. Raises ``ValueError`` — naming the key, never the value — when the line
+    holds a NUL byte (runc refuses the container; dotenv has no escape for it) or is not UTF-8 (a lone
+    surrogate the writer cannot encode), the refusals D-1269 makes for compose ``environment:``. The
+    EMITTED line is checked, so the key and a kept template ``source`` are covered with the value."""
+    line = f"{key}={format_value(value)}"
+    if "\x00" in line:
+        raise ValueError(f"the .env line for {key!r} contains a NUL byte")
+    try:
+        line.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError(f"the .env line for {key!r} is not valid UTF-8") from None
+    return line
 
 
 def format_env(env: dict[str, str]) -> str:

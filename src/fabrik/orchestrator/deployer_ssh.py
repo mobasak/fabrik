@@ -1146,10 +1146,19 @@ def _write_env_files(
     :func:`_env_writer_for` for the ``/opt/<name>`` apps.
     """
     app, owner = _split_env(merged)
+    # Both halves are formatted before the first write, so a line the codec refuses (a NUL, a lone
+    # surrogate — W-8495d72f) leaves both files as they were; the try holds no write, whose own
+    # ValueError (a filename outside the app dir) is not a codec refusal.
+    content: dict[str, str] = {}
+    for filename, half in ((OWNER_ENV_FILE, owner), (".env", app)):
+        try:
+            content[filename] = _format_env(half)
+        except ValueError as e:  # the message names the key, never the value
+            raise DeployError(f"cannot write {path}/{filename}: {e}") from None
     if owner:
-        write(path, OWNER_ENV_FILE, _format_env(owner))
+        write(path, OWNER_ENV_FILE, content[OWNER_ENV_FILE])
         logger.info("env: %d owner key(s) kept in %s for %s", len(owner), OWNER_ENV_FILE, path)
-    write(path, ".env", _format_env(app))
+    write(path, ".env", content[".env"])
 
 
 def _env_writer_for(name: str) -> Callable[[str, str, str], None]:

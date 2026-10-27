@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from fabrik.env_file import EnvTemplate, format_env_line
 from fabrik.orchestrator.deployer_ssh import _format_env, _parse_env
 
 IMAGE = "python:3.12-slim"
@@ -342,3 +343,63 @@ def test_env_example_lines_are_quoted() -> None:
     assert not any(line.startswith("INJECTED=") for line in example.splitlines())
     assert "LOG_LEVEL=${LOG_LEVEL:-INFO}" in example.splitlines()
     assert _parse_env(example)["MOTD"] == "hello\nINJECTED=1"
+
+
+# W-8495d72f: runc refuses a container whose environment holds a NUL ("invalid environment variable
+# K: contains nul byte"), compose's dotenv has no escape for one, and a lone surrogate crashes the VPS
+# writer mid-write — so the codec refuses both before any .env is written, as D-1269 does for compose.
+UNWRITABLE = [
+    pytest.param("K", "s3cret\x00", id="plain"),
+    pytest.param("K", "s3 cret\x00", id="double-quoted"),
+    pytest.param("K", "s3cret$\x00", id="single-quoted-dollar"),
+    pytest.param("K", EnvTemplate("${X}s3cret\x00"), id="template"),
+    pytest.param("K", EnvTemplate("clean", "s3cret\x00"), id="template-source-only"),
+    pytest.param("K\x00", "s3cret", id="key"),
+    pytest.param("K", "s3cret\udc80", id="lone-surrogate"),
+]
+
+
+@pytest.mark.parametrize(("key", "value"), UNWRITABLE)
+def test_an_unwritable_line_is_refused_naming_the_key_never_the_value(key: str, value: str) -> None:
+    with pytest.raises(ValueError) as caught:
+        format_env_line(key, value)
+    message = str(caught.value)
+    assert repr(key) in message and "s3cret" not in message
+    with pytest.raises(ValueError):
+        _format_env({"A": "ok", key: value})
+
+
+@pytest.mark.parametrize(
+    ("merged", "file", "key"),
+    [
+        ({"DATABASE_URL_OWNER": "postgres://o:p@h/db", "APP": "s3cret\x00"}, ".env", "APP"),
+        (
+            {"DATABASE_URL_OWNER": "postgres://o:s3cret\x00@h/db", "APP": "ok"},
+            ".env.owner",
+            "DATABASE_URL_OWNER",
+        ),
+    ],
+)
+def test_an_unwritable_value_writes_no_env_file(merged: dict[str, str], file: str, key: str) -> None:
+    """Either half holding a NUL stops the writer before its FIRST write, naming that half's file."""
+    from fabrik.orchestrator.deployer_ssh import _write_env_files
+    from fabrik.orchestrator.exceptions import DeployError
+
+    writes: list[str] = []
+    with pytest.raises(DeployError) as caught:
+        _write_env_files("/opt/my-app", merged, lambda path, name, content: writes.append(name))
+    assert writes == []
+    message = str(caught.value)
+    assert f"/opt/my-app/{file}:" in message and repr(key) in message and "s3cret" not in message
+
+
+def test_git_sha_persist_fails_open_on_a_nul_value(monkeypatch, caplog) -> None:
+    """The redeploy's GIT_SHA write keeps failing OPEN: logged, nothing written, no traceback."""
+    from fabrik.orchestrator import deployer_ssh
+
+    writes: list[str] = []
+    monkeypatch.setattr(deployer_ssh, "_read_env_file", lambda path, ssh: {"APP": "s3cret\x00"})
+    monkeypatch.setattr(deployer_ssh, "_write_file_to_vps", lambda *a: writes.append(a[1]))
+    deployer_ssh._persist_git_sha("my-app", "a" * 40, None)
+    assert writes == []
+    assert "GIT_SHA not updated for my-app" in caplog.text and "'APP'" in caplog.text
