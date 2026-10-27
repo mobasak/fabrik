@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-12T02:01:46.086242Z",
   "creator": "infra",
-  "effort": "low",
+  "effort": "high",
   "evidence": "",
   "id": "W-6c06c35d",
   "impact": "high",
@@ -16,8 +16,8 @@
   "next": "measure: find where kaizen_collect_v2.py writes the log rows (its week-row key and date cell); decide commit-its-own-write vs write-only-to-a-ledger; merge_request's dirty-tree check vs a machine writer",
   "note": "",
   "owner": "infra-2",
-  "priority": 1,
-  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen collect dirties main and blocks every worktree merge",
+  "priority": 2,
+  "score_reason": "UPGRADE: three approaches (collector commits / LEDGERS / split table) the build cannot settle; spec work",
   "status": "open",
   "title": "kaizen_collect_v2.py leaves docs/reference/agents/kaizen-log-*.md dirty in the main checkout and relabels an agent-committed week row's date (2026-10-05 -> 2026-10-11), so merge_request.py refuses every worktree merge carrying those logs (fleet 01M4PX76WP, 2026-10-12)"
 }

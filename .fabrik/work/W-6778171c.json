@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T12:53:41.827587Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6778171c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one-line /fabrik-task, red-first test that a dirty kaizen log no longer refuses a merge",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "the two dirty logs block worktree merges today; one LEDGERS line",
+  "status": "open",
+  "title": "Quick relief for W-6c06c35d: add docs/reference/agents/kaizen-log-*.md to merge_request.py LEDGERS (one line; _merge3 is a real 3-way merge) so the dirty kaizen logs stop refusing merges"
+}
