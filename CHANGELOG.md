@@ -12,6 +12,10 @@ Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the 
 
 `/fabrik-task` now says a run's `SCRATCH:` folder sits under the session's own checkout and does not survive a worktree's removal. The subagents fragment drops the worktree lead's `cp` workaround, which D-1268 made unnecessary, and gains a "fix, THEN pin and dispatch the re-verifying seats" rule, because `round` reads a round as fresh once its newest stamp postdates the last confirming round (D-1288, infra mail 01M5X8W0M1).
 
+### Fixed — the /fabrik-task close accepts the receipt and ledger commits made after the reviewed tip, and no longer passes an unreviewed commit by list order (2026-10-27)
+
+`command_run.py done --command fabrik-task --review` refused a full-review receipt whenever the receipt and ledger commits (made after the reviewed code tip) were listed in the order made, and passed when the tip was listed last — which also let an unreviewed code commit through when listed before the tip (site-provisioner mail 01M4F5HTPS, W-0b900e92). `task_lane.check_review_receipt` check (d) now reads git: the range tip must be one of the listed commits, and every listed commit after it in ancestry may touch only receipts and ledgers (the close's exclusion set narrowed to `.md`/`.json`, contract and migration paths excluded); the working-tree form anchors on the listed commit containing every other.
+
 ### Fixed — the scaffold-helper emitter test no longer copies the box's live API keys (2026-10-27)
 
 `test_scaffold_helper_emits_mcp_config` ran the real emitter bare, so the catalog's `${EXA_API_KEY}`,

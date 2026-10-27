@@ -669,6 +669,59 @@ def test_v2_a_valid_full_review_receipt_buys_the_contract_close(
     assert _rows(run_dir)[-1]["upgrade"] == "contract"
 
 
+def test_v2_a_ledger_commit_after_the_reviewed_tip_closes(run_dir: Path, tmp_path: Path) -> None:
+    """W-0b900e92 (site-provisioner 01M4F5HTPS): a receipt over the code commit, followed by the
+    CHANGELOG commit made after the review, closes `done` with both listed in the order made; a
+    later `.py` under an excluded prefix row (`.fabrik/work/`) is not a ledger and refuses."""
+    import sys
+
+    from tests.test_review_receipt import _complete
+    from tests.test_task_lane_receipt import RECEIPT_SCRIPT, REL
+
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py` and `api/openapi.yaml`")
+    base = _git(repo, "rev-parse", "HEAD")
+    c = _edit_commit(repo, "api/openapi.yaml", "openapi: 3.1.1\n")
+    out = repo / REL
+    made = subprocess.run(
+        [
+            sys.executable,
+            str(RECEIPT_SCRIPT),
+            "--init",
+            "--project-root",
+            str(repo),
+            "--out",
+            str(out),
+            "--changed",
+            "api/openapi.yaml",
+            "--range",
+            f"{base}..{c}",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert made.returncode == 0, made.stderr
+    out.write_text(_complete(out.read_text(encoding="utf-8")), encoding="utf-8")
+    ledger = _edit_commit(repo, "CHANGELOG.md", "## [Unreleased]\n")
+    late = _edit_commit(repo, ".fabrik/work/x.py", "x = 1\n")
+    r = _close(
+        run_dir, repo, "done", "--evidence", "g", "--commit", c, ledger, late, "--review", REL
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "REFUSED — fabrik-task: --review (d)" in r.stdout and ".fabrik/work/x.py" in r.stdout
+    # a contract file is `.json` under the excluded `.fabrik/work/` row, yet never a ledger (review B1)
+    schema = _edit_commit(repo, ".fabrik/work/x.schema.json", "{}\n")
+    r = _close(
+        run_dir, repo, "done", "--evidence", "g", "--commit", c, ledger, schema, "--review", REL
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "--review (d)" in r.stdout and ".fabrik/work/x.schema.json" in r.stdout
+    r = _close(run_dir, repo, "done", "--evidence", "g", "--commit", c, ledger, "--review", REL)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
 def test_v2_the_row_carries_from_downgrade_and_the_evidence_upgrade_token(
     run_dir: Path, tmp_path: Path
 ) -> None:

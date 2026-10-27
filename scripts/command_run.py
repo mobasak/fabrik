@@ -5979,7 +5979,20 @@ def _task_close_v2(
                 "--review <a CONVERGED full /fabrik-review receipt over these commits>; "
                 "`blocked` closes without one"
             ), {}
-        reasons = tl.check_review_receipt(Path(review), resolved, root=rp)
+        # The commits a receipt may be followed by (W-0b900e92): the close's exclusion set narrowed
+        # to receipts and ledgers (`.md`/`.json`), contract and migration paths carved back out as
+        # `measure_close` does — a `.py` under a Doc Sync prefix row still refuses after the tip.
+        reasons = tl.check_review_receipt(
+            Path(review),
+            resolved,
+            root=rp,
+            exempt=lambda p: (
+                _task_excluded(p, excl)
+                and p.endswith((".md", ".json"))
+                and not tl.contract_hit(p)
+                and not tl.is_migration(p)
+            ),
+        )
         if reasons:
             return _refuse("REFUSED — fabrik-task: --review " + "; ".join(reasons)), {}
     paths = sorted(set(cv.oversized_mini))
