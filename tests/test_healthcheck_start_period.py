@@ -7,6 +7,7 @@ refuses, and python-api fell back to 30s over the value seo and youtube declared
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -54,7 +55,24 @@ def _spec(template: str, health: dict[str, object] | None) -> Spec:
 
 
 def _render(spec: Spec) -> str:
-    return TemplateRenderer().render(spec, dry_run=True)["compose.yaml"]
+    # Explicit dirs: the no-argument renderer mkdirs under the repo root (W-7c497bab).
+    renderer = TemplateRenderer(templates_dir=REPO / "templates", output_dir=_SCRATCH)
+    return renderer.render(spec, dry_run=True)["compose.yaml"]
+
+
+_SCRATCH = Path(tempfile.mkdtemp(prefix="start-period-render-"))
+# Templates that hardcode their probe and never read the spec's health block, and the companion
+# partial every template includes for `companion_services`.
+FIXED = {"file-worker": "30s"}
+COMPANION = "10s"
+
+
+def _expected(spec: Spec) -> dict[str, str]:
+    """The start_period each healthchecked service of `spec` must render."""
+    declared = spec.health.start_period if spec.health else None
+    main = FIXED.get(spec.template) or declared or DEFAULTS[spec.template]
+    companions = {c.id for c in spec.companion_services}
+    return {"main": main, **dict.fromkeys(companions, COMPANION)}
 
 
 FLEET_SPECS = sorted(
@@ -70,9 +88,15 @@ def test_the_populations_are_not_empty() -> None:
 
 
 @pytest.mark.parametrize("path", FLEET_SPECS, ids=lambda p: p.stem)
-def test_every_fleet_spec_renders_a_string_start_period(path: Path) -> None:
-    for name, value in _start_periods(_render(load_spec(path))).items():
-        assert isinstance(value, str) and value, f"{name}: start_period={value!r}"
+def test_every_fleet_spec_renders_its_declared_or_default_start_period(path: Path) -> None:
+    spec = load_spec(path)
+    periods = _start_periods(_render(spec))
+    if not periods:  # python-api omits the healthcheck for `health: {disabled: true}`
+        assert spec.health and spec.health.disabled, f"{path.name}: no healthcheck rendered"
+        return
+    want = _expected(spec)
+    for name, value in periods.items():
+        assert value == want.get(name, want["main"]), f"{name}: start_period={value!r}"
 
 
 @pytest.mark.parametrize("template", sorted(DEFAULTS))
@@ -81,19 +105,43 @@ def test_a_declared_start_period_reaches_the_file(template: str) -> None:
     assert periods and set(periods.values()) == {"17s"}, periods
 
 
+@pytest.mark.parametrize(
+    "unset", [{}, {"start_period": None}, {"start_period": ""}, {"start_period": "  "}]
+)
 @pytest.mark.parametrize("template", sorted(DEFAULTS))
-def test_an_omitted_start_period_keeps_the_template_default(template: str) -> None:
-    periods = _start_periods(_render(_spec(template, {"path": "/health"})))
+def test_an_omitted_start_period_keeps_the_template_default(
+    template: str, unset: dict[str, object]
+) -> None:
+    periods = _start_periods(_render(_spec(template, {"path": "/health", **unset})))
     assert periods and set(periods.values()) == {DEFAULTS[template]}, periods
 
 
 @pytest.mark.parametrize(
     ("health", "want"),
-    [({}, "20s"), ({"start_period": None}, "20s"), ({"start_period": "45s"}, "45s")],
+    [
+        ({}, "20s"),
+        ({"start_period": None}, "20s"),
+        ({"start_period": ""}, "20s"),
+        ({"start_period": "45s"}, "45s"),
+    ],
 )
 def test_the_docker_source_compose_honours_start_period(health: dict[str, str], want: str) -> None:
     compose = _generate_docker_compose("my-app", "img:latest", 8000, "", {"health": health})
     assert _start_periods(compose) == {"my-app": want}, compose
+
+
+@pytest.mark.parametrize("key", ["interval", "start_period"])
+@pytest.mark.parametrize("bad", [None, 0])
+def test_the_docker_source_compose_hands_a_bad_raw_duration_to_the_gate(
+    key: str, bad: object
+) -> None:
+    """A raw spec dict skips `Spec`: a null is the default, any other value reaches the gate as is."""
+    compose = _generate_docker_compose("my-app", "img:latest", 8000, "", {"health": {key: bad}})
+    hc = yaml.safe_load(compose)["services"]["my-app"]["healthcheck"]
+    if bad is None:
+        assert hc[key] == {"interval": "30s", "start_period": "20s"}[key], compose
+    else:
+        assert any(f"healthcheck.{key}" in e for e in _validate_compose(compose)), compose
 
 
 @pytest.mark.parametrize("bad", [10, 1.5, True])
@@ -128,7 +176,7 @@ def test_the_compose_gate_passes_string_durations_and_an_int_retries() -> None:
 
 
 @pytest.mark.parametrize("key", ["interval", "timeout", "start_period", "start_interval"])
-@pytest.mark.parametrize("bad", [None, 10, True, ""])
-def test_the_compose_gate_refuses_a_non_string_duration(key: str, bad: object) -> None:
+@pytest.mark.parametrize("bad", [None, 10, True, "", "  "])
+def test_the_compose_gate_refuses_a_non_string_or_blank_duration(key: str, bad: object) -> None:
     errors = _validate_compose(_compose_with({key: bad}))
     assert any(f"healthcheck.{key}" in e for e in errors), errors
