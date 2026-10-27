@@ -701,15 +701,19 @@ class SSHDeployer:
         # non-UTF-8 value, a bad port — D-1269), so it is a named DeployError, not an orchestrator
         # traceback (W-c9dcd641). The renderer's messages name a key or a template, never a value.
         # A hub defect stays a traceback, the only report that names the broken file: the spec's
-        # template is checked first, so a TemplateNotFound inside the render is a missing include
-        # and is not caught; the version registry's error and a template file that will not decode
-        # are ValueErrors, so they are re-raised first; a template's syntax or undefined-attribute
-        # error is a jinja2 error no clause names. Limit: a bad value in a template's own
-        # defaults.yaml is refused by the same input guards, so it reads as a refusal too.
+        # template must be exactly one of list_templates() (a path that only resolves to one, such
+        # as `a/../python-api`, is refused here, since jinja's loader refuses it), so a
+        # TemplateNotFound inside the render is a missing include and is not caught; the version
+        # registry's error and a template file that will not decode are ValueErrors, so they are
+        # re-raised first; a template's syntax or undefined-attribute error is a jinja2 error no
+        # clause names. Limits: a template directory that lost its compose.yaml.j2 is refused like
+        # a misspelt name (the message names the file it looked for), and a bad value in a
+        # template's own defaults.yaml is refused by the same input guards as a spec value.
         renderer = TemplateRenderer()
-        if not renderer.template_exists(spec_obj.template):
+        if spec_obj.template not in renderer.list_templates():
             raise DeployError(
                 f"Template render failed for {name}: {spec_obj.template!r} is not a template"
+                f" (no {spec_obj.template!r}/compose.yaml.j2 in {renderer.templates_dir.name}/)"
             )
         try:
             rendered = renderer.render(
