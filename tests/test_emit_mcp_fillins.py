@@ -128,3 +128,86 @@ def test_a_project_yaml_that_is_no_readable_file_is_a_named_failure(tmp_path, de
     (line,) = emitter.main(argv)
     assert line.startswith("odd-yaml: SKIP (error: project.yaml unreadable"), line
     assert emitter.cli(argv) == 1
+
+
+_NO_SERVERS = "hold no non-empty `mcpServers` object"
+
+
+@pytest.mark.parametrize(
+    "catalog, tail",
+    [
+        ({"mcpServers": {"exa": "not an object"}}, "wrong shape: exa"),
+        (
+            {"mcpServers": {"exa": {"command": "exa", "env": ["not", "an", "object"]}}},
+            "wrong shape: exa.env",
+        ),
+        ({"mcpServers": {"exa": {"command": "exa", "env": 7}}}, "wrong shape: exa.env"),
+        ({"mcpServers": {"exa": {"command": 5}}}, "wrong shape: exa.command"),
+        ({"mcpServers": {"exa": {"command": "exa", "args": 5}}}, "wrong shape: exa.args"),
+        ({"mcpServers": {"exa": {"command": "exa", "args": [1]}}}, "wrong shape: exa.args"),
+        ([{"mcpServers": {}}], _NO_SERVERS),
+        ({"mcpServers": ["exa"]}, _NO_SERVERS),
+        ({"mcpServers": {}}, _NO_SERVERS),
+        ({}, _NO_SERVERS),
+        ("{not json", None),
+        ('{"mcpServers": {"exa": {"command": "exa", "timeout": NaN}}}', None),
+        ("absent", None),
+        ("locked", None),
+    ],
+    ids=[
+        "entry-string",
+        "env-list",
+        "env-int",
+        "command-int",
+        "args-int",
+        "args-int-item",
+        "top-list",
+        "servers-list",
+        "servers-empty",
+        "servers-missing",
+        "unparsable",
+        "nan-constant",
+        "absent",
+        "locked-dir",
+    ],
+)
+def test_a_wrong_shape_catalog_is_a_named_abort(tmp_path, catalog, tail):
+    """(k), review pass 1: the emitter's own server catalog of a wrong shape — and an explicit `--defs` it cannot read
+    at all, a missing file or one in a directory this user cannot search included — is a SystemExit naming the file
+    and the entry, which check_mcp_scope prints as one FAIL line: never an AttributeError, a JSONDecodeError or a
+    PermissionError traceback, and never a silent fall-back to mcp_defs.json (the run would emit the default servers
+    while the operator named another catalog)."""
+    p = tmp_path / "defs.json"
+    locked = tmp_path / "locked"
+    if catalog == "locked":
+        locked.mkdir()
+        p = locked / "defs.json"
+        p.write_text(json.dumps({"mcpServers": {"exa": {"command": "exa"}}}))
+        locked.chmod(0)
+    elif catalog != "absent":
+        p.write_text(catalog if isinstance(catalog, str) else json.dumps(catalog))
+    try:
+        if catalog == "locked" and os.access(locked, os.X_OK):
+            pytest.skip("running as a user who can search a mode-000 directory")
+        with pytest.raises(SystemExit) as exc:
+            emitter._load_defs(str(p))
+    finally:
+        if catalog == "locked":
+            locked.chmod(0o755)
+    msg = str(exc.value)
+    assert msg.startswith(f"emit_mcp: server definitions {p} "), msg
+    assert msg.endswith(tail) if tail else "could not be read as JSON" in msg, msg
+
+
+def test_a_well_formed_catalog_of_every_entry_shape_loads(tmp_path):
+    """The mirror: the shapes the committed catalog carries — a stdio entry with args and env, a `type: http` entry
+    with only a url, an entry with `"env": null`, one with no args — all still load."""
+    p = tmp_path / "defs.json"
+    servers = {
+        "stdio": {"type": "stdio", "command": "x", "args": ["-y", "pkg"], "env": {"K": "v"}},
+        "remote": {"type": "http", "url": "http://localhost:1/mcp"},
+        "null-env": {"command": "x", "env": None},
+        "bare": {"command": "x"},
+    }
+    p.write_text(json.dumps({"mcpServers": servers}))
+    assert emitter._load_defs(str(p)) == servers

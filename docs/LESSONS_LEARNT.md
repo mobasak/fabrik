@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Hardening one stat call against EACCES means sweeping every stat on the same path (2026-10-27)
+
+- **What happened:** W-f7772267 (k) wrapped `_repo_type`'s `exists()` and the scope check's `mcp_json.is_file()`,
+  because Python 3.12's pathlib RAISES `PermissionError` there when the path runs through a directory this user cannot
+  search. Pass 1 of the review found the same raise one line earlier (`is_dir()` on a root entry linking into such a
+  directory) and one line later (`--defs` in such a directory). It also found that the first fix's `continue` silently
+  skipped a searchable repo whose `.mcp.json` links into one.
+- **Rule:** when one filesystem call is hardened against an error class, list every `stat`-family call on the same
+  path (`is_dir`, `is_file`, `exists`, `is_symlink`, `read_text`) and probe each with a link into a mode-000 directory
+  before the first pin. Decide each catch by what the caller can still know: a file present but unreadable is
+  graded, and an entry nobody can search is named. Neither one is a silent `continue`.
+
 ## A right-now fix reads the plan locks too, not only a /fabrik-task run (2026-10-27)
 
 - **What happened:** W-d095d60b (a right-now fix under /fabrik-review-scoped) edited

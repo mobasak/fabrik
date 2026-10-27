@@ -387,3 +387,161 @@ def test_the_hermetic_fixture_blinds_git_to_the_users_global_ignore(check, tmp_p
     subprocess.run(["git", "init", "-q", str(d)], check=True)
     rep = check.audit(tmp_path, HUB, DEFS)
     assert [w["repo"] for w in rep["warnings"]] == ["vendor-clone"], rep
+
+
+def test_an_unreadable_file_failure_names_its_fix(check, tmp_path, capsys):
+    """W-f7772267 (k): an unreadable `.mcp.json` the hub enforces fails with the steps that clear it — the emitter
+    reads the old file before it writes, so a mode-000 one fails the re-emit and goes first — and the FAIL line
+    prints them."""
+    d = repo(tmp_path, "typed-api", "python-api", [])
+    (d / ".mcp.json").write_text("{not json")
+    (f,) = check.audit(tmp_path, HUB, DEFS)["failures"]
+    assert f["fix"].startswith("delete the unreadable `.mcp.json`, then python3 "), f
+    assert check.main(["--root", str(tmp_path), "--hub", str(HUB)]) == 1
+    assert "FAIL typed-api: unreadable .mcp.json — delete the unreadable" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "shape, cause, step",
+    [
+        ("unknown", "the roster rules no `type: sass-skeleton`", "set project.yaml's `type:`"),
+        ("unparsed", "a `type:` line the emitter cannot parse", "set project.yaml's `type:`"),
+        (
+            "mode-000",
+            "unreadable project.yaml (Permission denied)",
+            "make project.yaml a readable file",
+        ),
+        (
+            "locked-dir",
+            "unreadable project.yaml (Permission denied)",
+            "make project.yaml a readable file",
+        ),
+    ],
+)
+def test_a_no_ruling_warning_names_its_cause_and_a_fix_that_clears_it(
+    check, tmp_path, shape, cause, step
+):
+    """W-f7772267 (k): the emitter SKIPs a repo with no ruling, so a bare re-emit clears nothing — the fix names the
+    project.yaml step first — and an unreadable project.yaml is not "a type the roster does not know". A project.yaml
+    linking into a mode-000 directory is the same unreadable file, never an uncaught PermissionError (Python 3.12's
+    `Path.exists()` raises on EACCES)."""
+    d = repo(tmp_path, "mystery", "python-api", ["session-recall", "maestro"])
+    py = d / "project.yaml"
+    locked = tmp_path / "locked"
+    if shape == "unknown":
+        py.write_text("type: sass-skeleton\n")
+    elif shape == "unparsed":
+        py.write_text('type: "python api"\n')
+    elif shape == "mode-000":
+        py.chmod(0)
+    else:
+        locked.mkdir()
+        py.rename(locked / "project.yaml")
+        py.symlink_to(locked / "project.yaml")
+        locked.chmod(0)
+    try:
+        if (
+            shape == "mode-000"
+            and os.access(py, os.R_OK)
+            or shape == "locked-dir"
+            and os.access(locked, os.R_OK)
+        ):
+            pytest.skip("running as a user who can read a mode-000 path")
+        rep = check.audit(tmp_path, HUB, DEFS)
+    finally:
+        if shape == "mode-000":
+            py.chmod(0o644)
+        if shape == "locked-dir":
+            locked.chmod(0o755)
+    assert rep["failures"] == [], rep
+    # the locked dir sits under the root too, so it is its own unsearchable-dir warning
+    assert sorted(w["repo"] for w in rep["warnings"]) == sorted(
+        ["mystery"] + (["locked"] if shape == "locked-dir" else [])
+    )
+    (w,) = [w for w in rep["warnings"] if w["repo"] == "mystery"]
+    assert cause in w["reason"] and "roster does not know" not in w["reason"], w["reason"]
+    assert w["fix"].startswith(step) and ", then python3 " in w["fix"], w["fix"]
+
+
+def test_a_not_ignored_repo_with_no_ruling_names_every_step_in_order(check, tmp_path):
+    """W-f7772267 (k), review pass 1: the emitter skips a not-ignored file AND a repo with no ruling, so the one warning
+    names the ignore step, then the project.yaml step, then the single re-emit that ends it."""
+    d = _not_ignored(repo(tmp_path, "mystery", "sass-skeleton", ["maestro"]))
+    (w,) = check.audit(tmp_path, HUB, DEFS)["warnings"]
+    steps = w["fix"].split(", then ")
+    assert (
+        steps[0].startswith("make .gitignore ignore `.mcp.json`") and "git rm --cached" in steps[0]
+    ), steps
+    assert steps[1].startswith("set project.yaml's `type:`"), steps
+    assert steps[-1] == f"python3 {HUB / check.EMITTER_REL} --repo {d}" and len(steps) == 3, steps
+
+
+def test_entries_this_user_cannot_search_never_crash_and_a_locked_link_is_unreadable(
+    check, tmp_path, capsys
+):
+    """W-f7772267 (k), review pass 1: Python 3.12's `is_dir()`/`is_file()` RAISE on EACCES. A root entry linking into a
+    dir this user cannot search, and a dir it cannot search, are each one warning naming the dir (any `.mcp.json`
+    there is ungraded), never a traceback and never a silent skip; a searchable repo whose `.mcp.json` links into such
+    a dir holds a PRESENT, unreadable file, graded like a mode-000 one — a failure whose fix deletes the link, never a
+    plain-file step before the delete."""
+    locked = tmp_path / "zz-locked"
+    locked.mkdir()
+    (tmp_path / "linked-root").symlink_to(locked / "repo")
+    (locked / "real.json").write_text(json.dumps({"mcpServers": {"maestro": DEFS["maestro"]}}))
+    shut = repo(tmp_path, "shut-api", "python-api", ["maestro"])
+    d = repo(tmp_path, "typed-api", "python-api", [])
+    (d / ".mcp.json").unlink()
+    (d / ".mcp.json").symlink_to(locked / "real.json")
+    shut.chmod(0)
+    locked.chmod(0)
+    try:
+        if os.access(locked, os.X_OK):
+            pytest.skip("running as a user who can search a mode-000 directory")
+        rep = check.audit(tmp_path, HUB, DEFS)
+        rc = check.main(["--root", str(tmp_path), "--hub", str(HUB)])
+    finally:
+        locked.chmod(0o755)
+        shut.chmod(0o755)
+    assert [(f["repo"], f["reason"]) for f in rep["failures"]] == [
+        ("typed-api", "unreadable .mcp.json")
+    ], rep
+    assert rep["failures"][0]["fix"] == (
+        f"delete the unreadable `.mcp.json`, then python3 {HUB / check.EMITTER_REL} --repo {d}"
+    )
+    assert [(w["repo"], w["fix"]) for w in rep["warnings"]] == [
+        (name, f"make {tmp_path / name} searchable by this user, or move it out of {tmp_path}")
+        for name in ("linked-root", "shut-api", "zz-locked")
+    ], rep
+    assert rep["checked"] == 0, rep
+    out = capsys.readouterr().out
+    assert rc == 1 and "FAIL typed-api: unreadable .mcp.json — delete the unreadable" in out, out
+    assert "WARN shut-api: this user cannot search it" in out, out
+
+
+def test_a_deeply_nested_file_is_unreadable_never_a_traceback(check, tmp_path):
+    """W-f7772267 (k), review pass 1: `json.loads` raises RecursionError, which is no ValueError, on a deeply nested
+    `.mcp.json`; the gate reads it as unreadable, as the emitter does its roster and catalog."""
+    d = repo(tmp_path, "deep-api", "python-api", [])
+    (d / ".mcp.json").write_text("[" * 100_000)
+    rep = check.audit(tmp_path, HUB, DEFS)
+    assert [(f["repo"], f["reason"]) for f in rep["failures"]] == [
+        ("deep-api", "unreadable .mcp.json")
+    ], rep
+
+
+def test_a_not_ignored_unreadable_file_names_the_same_steps_on_both_rows(check, tmp_path):
+    """W-f7772267 (k), review pass 1: a typed repo whose unreadable `.mcp.json` git does not ignore gets a failure and
+    a not-ignored warning; both name the ignore step, the delete, then the one re-emit, so neither row's fix stops
+    at a re-emit that cannot read the file."""
+    d = _not_ignored(repo(tmp_path, "typed-api", "python-api", []))
+    (d / ".mcp.json").write_text("{not json")
+    rep = check.audit(tmp_path, HUB, DEFS)
+    (f,) = rep["failures"]
+    (w,) = rep["warnings"]
+    steps = f["fix"].split(", then ")
+    assert (
+        steps[0].startswith("make .gitignore ignore")
+        and steps[1] == "delete the unreadable `.mcp.json`"
+    ), steps
+    assert steps[-1] == f"python3 {HUB / check.EMITTER_REL} --repo {d}" and len(steps) == 3, steps
+    assert w["fix"] == f["fix"], (w, f)
