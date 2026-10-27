@@ -113,7 +113,7 @@ Baseline measured 2026-07-26, **before** these settings: `vscode-server` on WSL 
 - **Type acquisition / update polling / telemetry** — background network + CPU with zero value on
   an AI-driven workstation (updates are applied deliberately, not polled).
 
-### code-server — the same excludes, plus the agent trees (hub default since 2026-10-27)
+### code-server — five excludes, the agent trees among them (hub default since 2026-10-27)
 
 The operator's coordinator windows run in **code-server** (VS Code in the browser, inside WSL), whose
 user settings are a separate file: `~/.local/share/code-server/User/settings.json`. Its file watcher
@@ -138,11 +138,13 @@ The hub default for code-server, kept in that file:
 }
 ```
 
-`.claude/worktrees` and `.tmp` are the two the VS Code list above lacks; they are the agent trees and
-run scratch, which change constantly and are never edited by hand in the editor. A ballooned watcher
+This is a shorter list than the VS Code one above, not a superset of it: `.claude/worktrees` and
+`.tmp` are the two it has that the VS Code list lacks — the agent trees and run scratch, which change
+constantly and are never edited by hand in the editor. A ballooned watcher
 never shrinks in place: reload the window after an edit. The 5-minute rotation tick watches the
-budget (`scripts/sysadmin/box_budget_check.py`, AMBER at 85%: one mail to the coordinator per
-episode, or when a canary watch is refused) and restarts a failed `fabrik-rotate.path`, logging to
+budget (`scripts/sysadmin/box_budget_check.py`: one mail to the coordinator per episode at 85% of the
+watches or the instances, and once more if a canary watch or instance is refused) and restarts a
+failed `fabrik-rotate.path`, logging to
 `~/.claude/state/box-budget.log`; `python3 scripts/sysadmin/box_budget_check.py --report` prints the
 readings and the top holders on demand. This list is documented, not enforced: the alert is the guard.
 

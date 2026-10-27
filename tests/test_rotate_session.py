@@ -1510,6 +1510,11 @@ def test_w05021a03_stale_unclaimed_request_is_permanent(world, capsys, monkeypat
     assert rs.request("dev1", "/opt/x", None, "manual") == 1
     last = _rows(world)[-1]
     assert "fabrik-rotate.path is ActiveState=failed Result=resources" in last["reason"]
+    assert f"`{restart}`" in last["reason"]  # quoted: a pasted reason runs nothing past the command
+    # an empty Result (a unit systemd does not have) prints no dangling `Result=`
+    fake.write_text("#!/bin/sh\nprintf 'ActiveState=inactive\\nResult=\\n'\n")
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "fabrik-rotate.path is ActiveState=inactive (" in _rows(world)[-1]["reason"]
 
 
 def test_w05021a03_no_binding_yet_names_the_rebind(world, capsys):

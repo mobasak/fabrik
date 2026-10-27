@@ -3,7 +3,7 @@
 
 ## A detached child still holds its parent's caller's pipe (2026-10-27, W-09957e81)
 
-- **What happened:** the first design spawned the inotify checker from the rotation tick with `start_new_session=True` and inherited stdout, so its lines would land in the cron tick log. Both critique seats found the second caller: the quota board runs the same tick with `subprocess.run(capture_output=True)`, and a grandchild that inherits that pipe keeps it open, so the board waits for the child's whole life (a probe showed a parent waiting 3 s for a detached grandchild). A new session does not close inherited file descriptors.
+- **What happened:** the first design spawned the inotify checker from the rotation tick with `start_new_session=True` and inherited stdout, so its lines would land in the cron tick log. Both critique seats found the second caller: the quota board runs the same tick with `subprocess.run(capture_output=True)`, and a grandchild that inherits that pipe keeps it open, so the board waits for the child's whole life (the Opus critique seat's probe: a parent's `capture_output` read waited 3.05 s for a detached grandchild sleeping 3 s). A new session does not close inherited file descriptors.
 - **Rule:** before spawning from a function, list every caller of that function and how each one reads its output; a detached child gets `stdin`/`stdout`/`stderr` = `DEVNULL` and writes its own log, and the test drives the real `capture_output` reader and asserts it returns before the child exits.
 
 ## A parser built to match a consumer is probed on every character class it branches on (2026-10-27)

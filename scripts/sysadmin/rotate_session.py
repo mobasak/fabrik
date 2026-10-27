@@ -766,7 +766,8 @@ def _rotate_unit_state() -> str:
     vals = dict(ln.split("=", 1) for ln in r.stdout.splitlines() if "=" in ln)
     if r.returncode != 0 or not vals.get("ActiveState"):
         return "unknown"
-    return f"ActiveState={vals['ActiveState']} Result={vals.get('Result', '')}"
+    result = vals.get("Result", "")
+    return f"ActiveState={vals['ActiveState']}" + (f" Result={result}" if result else "")
 
 
 def _pending() -> bool:
@@ -794,10 +795,10 @@ def _pending() -> bool:
                 raise CheckFailedError(
                     "pending",
                     f"{left.name} has waited {int(age)} s unclaimed — fabrik-rotate.path is "
-                    f"{_rotate_unit_state()} (scripts/sysadmin/install_rotate_unit.sh --check); restart it: "
-                    "systemctl --user reset-failed fabrik-rotate.path fabrik-rotate.service && "
-                    "systemctl --user start fabrik-rotate.path; a full inotify budget fails it with "
-                    "Result=resources: python3 scripts/sysadmin/box_budget_check.py --report",
+                    f"{_rotate_unit_state()} (scripts/sysadmin/install_rotate_unit.sh --check). Restart it: "
+                    "`systemctl --user reset-failed fabrik-rotate.path fabrik-rotate.service && "
+                    "systemctl --user start fabrik-rotate.path`. A full inotify budget fails it with "
+                    "Result=resources: `python3 scripts/sysadmin/box_budget_check.py --report`.",
                     transient=False,
                 )
     if any(d.glob("*.json")) or any(d.glob("*.claimed")) or any(d.glob(".*.tmp")):

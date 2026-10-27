@@ -3249,7 +3249,9 @@ def test_tick_spawns_box_budget_check_from_the_opt_seam(tmp_path, monkeypatch, c
 def test_the_tick_board_pipe_is_not_held_by_the_child(tmp_path, monkeypatch):
     """The quota board's `subprocess.run(capture_output=True)` returns while the child still runs."""
     opt = Path(os.environ["FABRIK_OPT_DIR"])
-    _box_script(opt, "import time\ntime.sleep(5)\n")
+    # the child outlives the reader by far: a bound well under its sleep and well over a loaded
+    # box's interpreter start plus the module import (measured ~1.3 s idle) separates the two
+    _box_script(opt, "import time\ntime.sleep(30)\n")
     driver = tmp_path / "driver.py"
     driver.write_text(
         "import importlib.util, sys\n"
@@ -3261,7 +3263,7 @@ def test_the_tick_board_pipe_is_not_held_by_the_child(tmp_path, monkeypatch):
     r = subprocess.run([sys.executable, str(driver)], capture_output=True, text=True, timeout=30,
                        env={**os.environ})
     assert r.returncode == 0, r.stderr
-    assert __import__("time").monotonic() - t0 < 4, "the reader waited for the detached child"
+    assert __import__("time").monotonic() - t0 < 15, "the reader waited for the detached child"
     assert "box-budget check spawned" in r.stdout
 
 
@@ -3282,4 +3284,12 @@ def test_box_budget_leg_never_raises_and_runs_from_the_tick_finally(tmp_path, mo
         cr, "_collect_statuses", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
     )
     assert cr._cmd_tick() == 0
-    assert called == [1], "a tick that raises still spawns the checker (the finally)"
+    assert called == [1], "a tick that raises still spawns the checker"
+    # an exception `_cmd_tick`'s own `except Exception` does not catch reaches only a `finally`:
+    # a leg placed after that `except` would be skipped here
+    monkeypatch.setattr(
+        cr, "_collect_statuses", lambda: (_ for _ in ()).throw(KeyboardInterrupt())
+    )
+    with pytest.raises(KeyboardInterrupt):
+        cr._cmd_tick()
+    assert called == [1, 1], "the leg sits in the tick's finally"

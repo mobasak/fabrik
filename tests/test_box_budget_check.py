@@ -54,7 +54,7 @@ sys.exit(4)
 FAKE_MAIL = """import json, os, sys
 rec = os.environ["FAKE_MAIL_LOG"]
 with open(rec, "a") as f:
-    f.write(json.dumps({"argv": sys.argv[1:], "body": sys.stdin.read()}) + "\\n")
+    f.write(json.dumps({"argv": sys.argv[1:], "body": sys.stdin.buffer.read().decode("utf-8")}) + "\\n")
 sys.exit(int(os.environ.get("FAKE_MAIL_RC", "0")))
 """
 
@@ -83,6 +83,8 @@ def box(tmp_path, monkeypatch):
     }.items():
         monkeypatch.setenv(k, str(v))
     monkeypatch.setattr(bb, "_canary", lambda: "ok")
+    # main() exports XDG_RUNTIME_DIR when it is unset (cron); recorded here, it is restored after each test
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
     now = [1_000_000.0]
     monkeypatch.setattr(bb, "_now", lambda: now[0])
     world = {"tmp": tmp_path, "proc": proc, "now": now, "st": st}
@@ -200,7 +202,7 @@ def test_failed_restart_escalates_and_recovers_once(box):
 @pytest.mark.parametrize(
     ("active", "enabled", "note"),
     [
-        ("active", "enabled", ""),
+        ("active", "enabled", None),
         ("failed", "disabled", "left alone"),
         ("inactive", "masked", "left alone"),
         ("activating", "enabled", "transitional"),
@@ -212,7 +214,82 @@ def test_unit_states_left_alone(box, active, enabled, note):
     bb.main([])
     assert not [c for c in calls(box) if c.split()[0] in ("reset-failed", "start")]
     assert mails(box) == []
-    assert note in log(box)
+    if note is None:
+        assert "fabrik-rotate.path" not in log(box)  # a healthy unit with no episode logs nothing
+    else:
+        assert note in log(box)
+
+
+def test_an_enabled_runtime_unit_is_healed_too(box):
+    set_unit(box, "failed", enabled="enabled-runtime", result="resources")
+    bb.main([])
+    assert "start fabrik-rotate.path" in calls(box) and len(mails(box)) == 1
+
+
+def test_a_healed_episode_retries_its_failed_mail_while_the_unit_stays_up(box, monkeypatch):
+    """The heal held, so the unit reads active from the next run on: only the queue can still send it."""
+    set_unit(box, "failed", result="resources")
+    monkeypatch.setenv("FAKE_MAIL_RC", "1")
+    bb.main([])
+    assert len(mails(box)) == 1  # the failed attempt
+    monkeypatch.setenv("FAKE_MAIL_RC", "0")
+    box["now"][0] += 300
+    bb.main([])  # the unit is active now (the fake's start healed it)
+    sent = mails(box)
+    assert len(sent) == 2 and "restarted it" in sent[1]["body"]
+    box["now"][0] += 300
+    bb.main([])
+    assert len(mails(box)) == 2  # sent once, never again
+    # and the episode closes after its hour, its queue empty
+    box["now"][0] += 3601
+    bb.main([])
+    assert "unit" not in json.loads((box["tmp"] / "state" / "box-budget.json").read_text())
+
+
+def test_an_episode_never_closes_with_a_mail_still_queued(box, monkeypatch):
+    """The queue holds the episode open past its hour; a recovered mail that fails is queued too."""
+    set_unit(box, "failed", result="resources", start_ok=False)
+    bb.main([])  # down, restart failed: ack-required mail sent
+    set_unit(box, "active")
+    monkeypatch.setenv("FAKE_MAIL_RC", "1")
+    box["now"][0] += 3601
+    bb.main([])  # an hour of health: the recovered mail fails, so the episode stays
+    ep = json.loads((box["tmp"] / "state" / "box-budget.json").read_text())["unit"]
+    assert ep["state"] == "recovered" and len(ep["unsent"]) == 1
+    box["now"][0] += 3601
+    bb.main([])  # still failing: still open, the one mail still queued (never doubled)
+    ep = json.loads((box["tmp"] / "state" / "box-budget.json").read_text())["unit"]
+    assert len(ep["unsent"]) == 1
+    # the unit dies again before the recovered mail got out: that mail goes first, then a new episode's
+    monkeypatch.setenv("FAKE_MAIL_RC", "0")
+    set_unit(box, "failed", result="resources")
+    bb.main([])
+    sent = [m["body"] for m in mails(box)]
+    assert "recovered" in sent[-2] and "restarted it" in sent[-1]
+
+
+def test_a_raising_leg_keeps_the_other_legs_mail_recorded(box, monkeypatch):
+    set_unit(box, "failed", result="resources")
+
+    def boom(state, reading):
+        raise KeyError("inotify")
+
+    monkeypatch.setattr(bb, "inotify_leg", boom)
+    bb.main([])
+    set_unit(box, "failed", result="resources")
+    box["now"][0] += 300
+    bb.main([])
+    assert len(mails(box)) == 1  # the unit leg's mail was saved before the inotify leg raised
+    assert "INTERNAL ERROR in boom KeyError" in log(box)
+
+
+def test_a_record_without_last_bad_is_no_episode(box):
+    state = box["tmp"] / "state" / "box-budget.json"
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(json.dumps({"unit": {"state": "healed"}}))
+    set_unit(box, "failed", result="resources")
+    bb.main([])
+    assert len(mails(box)) == 1  # a hand-edited record cannot silence the next death
 
 
 def test_unreadable_systemctl_does_nothing(box, monkeypatch):
@@ -252,6 +329,30 @@ def test_inotify_amber_once_with_hysteresis_and_canary(box, monkeypatch):
     assert len(mails(box)) == 3 and "ENOSPC" in mails(box)[2]["body"]
 
 
+def test_an_amber_episode_escalates_once_when_the_budget_runs_out(box, monkeypatch):
+    holder(box, 4242, 870)
+    bb.main([])
+    assert len(mails(box)) == 1 and "at 87%" in mails(box)[0]["body"]
+    monkeypatch.setattr(bb, "_canary", lambda: "watches")
+    bb.main([])
+    assert len(mails(box)) == 2 and "exhausted" in mails(box)[1]["body"]
+    bb.main([])
+    assert len(mails(box)) == 2  # exhausted is the worst level: no third mail
+    monkeypatch.setattr(bb, "_canary", lambda: "ok")
+    bb.main([])  # back to plain AMBER: still the same episode, no mail
+    assert len(mails(box)) == 2
+
+
+def test_an_unknown_canary_never_pins_an_episode_open(box, monkeypatch):
+    holder(box, 4242, 870)
+    bb.main([])
+    assert len(mails(box)) == 1
+    monkeypatch.setattr(bb, "_canary", lambda: "unknown")
+    (box["proc"] / "sys" / "fs" / "inotify" / "max_user_watches").write_text("100000\n")
+    bb.main([])  # ~1%: the scan alone closes it
+    assert "inotify" not in json.loads((box["tmp"] / "state" / "box-budget.json").read_text())
+
+
 def test_instance_ratio_ranks_holders_by_instances(box):
     holder(box, 7001, 5, instances=9, cmd="many-instances")
     holder(box, 7002, 50, instances=1, cmd="many-watches")
@@ -275,9 +376,8 @@ def test_failed_send_retries_corrupt_state_and_log_only(box, monkeypatch, capsys
     set_unit(box, "failed", result="resources")
     monkeypatch.setenv("FAKE_MAIL_RC", "1")
     bb.main([])
-    assert not (box["tmp"] / "state" / "box-budget.json").exists() or "unit" not in json.loads(
-        (box["tmp"] / "state" / "box-budget.json").read_text()
-    )
+    ep = json.loads((box["tmp"] / "state" / "box-budget.json").read_text())["unit"]
+    assert len(ep["unsent"]) == 1  # the episode is recorded, its mail queued for the next run
     monkeypatch.setenv("FAKE_MAIL_RC", "0")
     set_unit(box, "failed", result="resources")
     bb.main([])  # retried: this time it lands
@@ -308,15 +408,55 @@ def test_report_exit_codes_and_no_side_effects(box, monkeypatch, capsys):
 
             shutil.rmtree(d)
     assert bb.main(["--report"]) == 1  # nothing readable: unknown
+    holder(box, 4243, 100)
+    monkeypatch.setenv("BOX_BUDGET_SYSTEMCTL", str(box["tmp"] / "absent-systemctl"))
+    assert bb.main(["--report"]) == 1  # systemctl cannot be asked: unknown, never "ok"
     assert bb.main(["--bogus"]) == 2
+    assert not (box["tmp"] / "state").exists()  # --report created nothing, the state dir included
 
 
-def test_the_real_canary_answers_ok_on_this_box(tmp_path, monkeypatch):
-    monkeypatch.setenv("BOX_BUDGET_STATE", str(tmp_path / "s.json"))
-    assert bb._canary() in ("ok", "watches", "instances", "unknown")
+class _FakeLibc:
+    def __init__(self, init, add):
+        self.init, self.add, self.fd = init, add, None
+
+    def inotify_init1(self, flags):
+        if self.init < 0:
+            return -1
+        self.fd = os.open(os.devnull, os.O_RDONLY)
+        return self.fd
+
+    def inotify_add_watch(self, fd, path, mask):
+        return self.add
 
 
-def test_script_runs_as_a_subprocess_with_a_bare_env(box):
+@pytest.mark.parametrize(
+    ("init", "add", "err", "want"),
+    [
+        (0, 1, 0, "ok"),
+        (-1, 0, 24, "instances"),  # EMFILE
+        (-1, 0, 12, "unknown"),  # ENOMEM: not a budget answer
+        (0, -1, 28, "watches"),  # ENOSPC
+        (0, -1, 13, "unknown"),  # EACCES
+    ],
+)
+def test_the_canary_maps_each_errno_and_closes_its_fd(monkeypatch, init, add, err, want):
+    fake = _FakeLibc(init, add)
+    monkeypatch.setattr(bb.ctypes, "CDLL", lambda *a, **kw: fake)
+    monkeypatch.setattr(bb.ctypes, "get_errno", lambda: err)
+    assert bb._canary() == want
+    if fake.fd is not None:
+        with pytest.raises(OSError):
+            os.fstat(fake.fd)  # closed on every path
+
+
+def test_the_real_canary_answers_ok_on_this_box_and_creates_nothing(tmp_path, monkeypatch):
+    state = tmp_path / "absent" / "box-budget.json"
+    monkeypatch.setenv("BOX_BUDGET_STATE", str(state))
+    assert bb._canary() == "ok"  # this box's budget is far from full (measured 14,598 of 524,288)
+    assert not state.parent.exists()  # it watches `/`, so `--report` creates no state dir
+
+
+def _bare_env(extra=None):
     env = {k: os.environ[k] for k in ("PATH", "HOME") if k in os.environ}
     for k in (
         "BOX_BUDGET_SYSTEMCTL",
@@ -328,8 +468,28 @@ def test_script_runs_as_a_subprocess_with_a_bare_env(box):
         "BOX_BUDGET_LOG",
     ):
         env[k] = os.environ[k]
+    env.update(extra or {})
+    return env
+
+
+def test_script_runs_as_a_subprocess_with_a_bare_env(box):
+    set_unit(box, "failed", result="resources")
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT)], env=_bare_env(), capture_output=True, text=True, timeout=60
+    )
+    assert r.returncode == 0 and r.stdout == "" and r.stderr == ""
+    assert "restart held" in log(box) and len(mails(box)) == 1
+    assert (box["tmp"] / "state" / ".box-budget.json.lock").exists()
+
+
+def test_a_c_locale_cannot_crash_the_log_or_the_mail(box):
+    """cron's LANG=C without coercion: an em dash or a non-ASCII command line must still log and mail."""
+    holder(box, 4242, 870, cmd="node /opt/çalışma/watcher")
+    set_unit(box, "failed", result="resources")
+    env = _bare_env({"LC_ALL": "C", "LANG": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONUTF8": "0"})
     r = subprocess.run(
         [sys.executable, str(SCRIPT)], env=env, capture_output=True, text=True, timeout=60
     )
-    assert r.returncode == 0 and r.stdout == "" and r.stderr == ""
-    assert "box-budget:" not in r.stdout
+    assert r.returncode == 0 and r.stderr == ""
+    assert "INTERNAL ERROR" not in log(box)
+    assert len(mails(box)) == 2 and any("çalışma" in m["body"] for m in mails(box))
