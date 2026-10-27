@@ -1153,9 +1153,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "enforcement")
 import check_structure  # noqa: E402
 import fabrik_synced_manifest  # noqa: E402
 
-# docs/<name> entries check_structure.py warns about that stay watched until W-1adf4ed4 decides them.
-_MISPLACED_PENDING = frozenset({"docs/FUNNEL.md", "docs/AUTOMATION.md"})
-
 
 def _not_the_projects_to_edit(entries: list[str]) -> list[str]:
     # This tree's own synced set, never the main checkout's (the function's default root).
@@ -1191,7 +1188,7 @@ def test_the_readonly_guard_catches_every_synced_doc(synced: str) -> None:
 
 
 def test_no_watched_doc_is_one_governance_misplaces() -> None:
-    assert sorted(_misplaced(du.MANUAL_DOCS)) == sorted(_MISPLACED_PENDING)
+    assert _misplaced(du.MANUAL_DOCS) == []
 
 
 @pytest.mark.parametrize(
@@ -1221,7 +1218,7 @@ def test_the_misplaced_guard_passes_a_doc_governance_allows(placed: str) -> None
 
 def test_staleness_skips_the_dropped_docs_and_still_runs(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "docs").mkdir()
-    for rel in ("AGENTS.md", "docs/INDEX.md", "docs/QUICKSTART.md"):
+    for rel in ("AGENTS.md", "docs/INDEX.md", "docs/FUNNEL.md", "docs/AUTOMATION.md", "docs/QUICKSTART.md"):
         (tmp_path / rel).write_text("# no marker\n")
     (tmp_path / "docs/CONFIGURATION.md").write_text("**Last Updated:** 2000-01-01\n")
     monkeypatch.setattr(du, "PROJECT_ROOT", tmp_path)
