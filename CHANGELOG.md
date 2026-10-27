@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cloud_dispatch --pick never sends a run to an account at its weekly wall (2026-10-27)
+
+`scripts/cloud_dispatch.py`'s `--pick` (and every `drain` fire) now takes only an account the rotation tick's own status picture calls `eligible` or `active`, with a fresh finite weekly reading, under its own weekly cap and session trip, and under a weekly ceiling: the new `--max-weekly <pct>` (default the picture's drain band, 85). The coolest account wins in both modes; a refusal names each account skipped and why. Before, the 2026-10-27 drain sent 3 of 6 runs to an account at 100% (all refused at $0). W-87078932, D-1300.
+
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 
 Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).

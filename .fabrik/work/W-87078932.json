@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-26T10:49:35.805785Z",
   "creator": "infra-3",
-  "evidence": "",
+  "evidence": "1d700c3791e5bfd8ceb505a403684411fc630487",
   "id": "W-87078932",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "cloud-dispatch"
   ],

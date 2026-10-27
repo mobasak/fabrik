@@ -117,7 +117,7 @@ Edit → Add another trigger → API → Generate token (shown once); save it as
 ## `--pick`
 
 A run goes only where the account's weekly plan can take it, since a cloud run draws that plan and
-is refused at its wall (the billing bullet below; W-87078932, D-row in `docs/DECISIONS.md`). The
+is refused at its wall (the billing bullet below; W-87078932, D-1300 in `docs/DECISIONS.md`). The
 pick reads `claude_rotate.py --status --json` — a live probe — and its `picture`, the rotation
 tick's own verdict per account. An account qualifies only when:
 
