@@ -480,9 +480,11 @@ entries:
   # class: prose
   section: '## Phase 4 — REVIEW'
   baseline: A full `/fabrik-review` over committed work runs after phase 5 step 5 on a draft in `<durable>`, its receipt made once, after the last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a scoped one needs none
-  current: Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
+  current: Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), its `--range` tip one of the `--commit` values that only receipt and ledger commits follow (check (d)), and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
+  changed-by:
+  - D-1336
   text:
-  - Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
+  - Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), its `--range` tip one of the `--commit` values that only receipt and ledger commits follow (check (d)), and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
 - id: ft-review-seat-questions
   # class: ban
   section: '## Phase 4 — REVIEW'

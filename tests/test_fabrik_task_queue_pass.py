@@ -47,10 +47,20 @@ def test_the_third_review_question_excludes_an_equivalent_implementation() -> No
     assert "the declaration said did not exist" not in phase4
 
 
-def test_the_receipt_range_tip_is_the_last_commit() -> None:
-    """S5 (receipt close): task_lane.py check (d) refuses unless the range tip is the LAST --commit."""
+def test_the_receipt_range_tip_is_the_last_commit_and_check_d_is_looser() -> None:
+    """S5 (receipt close): the lane's recipe makes the tip the LAST --commit (a ban clause the lean
+    ledger keeps verbatim); D-1291's check (d) takes any listed commit that only receipts and ledgers
+    follow, so the text says never to reorder the list (D-1336)."""
     close = _section("## Phase 5", "## UPGRADE")
     assert "Its range tip must be the LAST `--commit` (`task_lane.py` check (d))" in close
+    assert (
+        "Check (d) itself is looser than that order: it takes any listed commit as the tip when every"
+        " listed commit after it carries only receipts and ledgers, and list order decides nothing,"
+        " so never reorder the `--commit` list to pass it." in close
+    )
+    phase4 = _section("## Phase 4", "## Phase 5")
+    assert "that commit its `--range` tip" not in phase4
+    assert "its `--range` tip one of the `--commit` values" in phase4
     assert "never captured or passed to `--commit`" in close
     # review_receipt.py requires --changed and --out/--scope; the tip is the last captured sha (round 1).
     assert (
