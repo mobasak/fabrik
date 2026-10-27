@@ -20,7 +20,8 @@
   "score_reason": "operator ask, fleet-wide (every repo): a major; waits on the fabrik-lib pilot",
   "status": "open",
   "tags": [
-    "operator-ask"
+    "operator-ask",
+    "waits-repo-replies"
   ],
   "title": "Operator ruling D-1036: roll the coordinator model out to every repo — per repo: a coordinator window in the main checkout, charters for coordinator and builders, builders in worktrees, agents_up launcher entry (.bat + WT profile), full autonomy (agents ask their coordinator, never the operator); after the fabrik-lib pilot proves out"
 }

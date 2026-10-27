@@ -3,7 +3,7 @@
   "created": "2026-10-27T00:38:28.178656Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "99792396e14a4371033e4110d08dd7a49536bd3b",
   "id": "W-d5d1d394",
   "impact": "high",
   "kind": "backlog",
@@ -18,9 +18,6 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "every multi-request merge burns 1-2.5 h and lands nothing; three constants and one ordering check",
-  "status": "open",
-  "tags": [
-    "waits-merge-01m5xn5sdr"
-  ],
+  "status": "done",
   "title": "merge --queue lands nothing: QUEUE_JOBS=2 x QUEUE_SHARDS=4 halves leg width so legs exceed the 1800 s limit (603-1643 s shards); QUEUE_WALL_S 9000 leaves 1800 s after LANDING_WORST_S 7200 so the wall check fires before any landing; legs start after the wall can no longer fit a landing (two runs 2026-10-27, 0 landed of 9)"
 }
