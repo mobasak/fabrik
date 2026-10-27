@@ -16,8 +16,9 @@ All notable changes to this project will be documented in this file.
   refusal of a group-writable copy keeps a test now that no test meets it by accident.
 - `tests/test_kaizen_events.py`: the exposure tests expect the project that the `/opt/<name>` rule gives
   this checkout. That is "fabrik" under `/opt/fabrik` and "unknown" in a merge leg's `/tmp` throwaway,
-  where two tests failed on a hardcoded "fabrik". The cache-poisoning check now reads the cache it
-  claims to guard (it called `refresh=True`, which skips the cache) and compares commits. A new
+  where two tests failed on a hardcoded "fabrik". The cache check now reads the cache it claims to
+  guard (it called `refresh=True`, which skips the cache read) and compares commits, both ways: a pinned
+  call on a warm cache is not served from it, and a pinned call does not poison it. A new
   parametrised test proves `_project`'s rule on fixed paths. W-17fc722a; the item's load-only flakes
   remain.
 

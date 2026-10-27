@@ -490,9 +490,13 @@ def test_exposure_cwd_pins_the_probes_to_the_callers_directory(tmp_path, monkeyp
     monkeypatch.chdir(REPO)  # the process cwd is THIS repo — the contaminating value
     assert kaizen_events.exposure(refresh=True, cwd=str(other))["commit"] == other_head
     assert kaizen_events.exposure(refresh=True, cwd=str(other))["project"] == UNKNOWN_PROJECT
-    # ...and a pinned answer must never be served from, or poison, the shared cache: a pinned call on an
-    # empty cache, then a CACHED read (no refresh — refresh skips the cache), must give this repo's commit.
-    # Compared on the commit, never the project: in a merge leg's /tmp throwaway both read "unknown".
+    # ...and a pinned answer must never be served from, or poison, the shared cache. Every call below skips
+    # `refresh` (refresh skips the cache READ), and each is compared on the commit, never the project: in a
+    # merge leg's /tmp throwaway both projects read "unknown". Served from: a warm cache, then a pinned call.
+    kaizen_events.reset_cache()
+    kaizen_events.exposure()
+    assert kaizen_events.exposure(cwd=str(other))["commit"] == other_head
+    # Poison: a pinned call on an empty cache, then a cached read must give this repo's commit.
     kaizen_events.reset_cache()
     kaizen_events.exposure(cwd=str(other))
     cached = kaizen_events.exposure()
