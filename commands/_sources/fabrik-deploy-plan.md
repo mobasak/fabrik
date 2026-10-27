@@ -102,7 +102,7 @@ inside them.
    repo itself has none) and dispatch against the LIVE registry
    (`/opt/fabrik/src/fabrik/scaffold.py::SCAFFOLD_TYPES` — 12 types). Hub-side runs verify the table
    below against it (on divergence the REGISTRY wins: proceed on the registry and record the divergence
-   in the plan's `## Self-audit` — or, on a plan-less ending like the LEGACY verdict, in your report); a project-side run that cannot reach the hub
+   in the plan's `## Self-audit` — or, on a plan-less ending like the LEGACY verdict, in your report — the stale table is a corpus defect for the operator); a project-side run that cannot reach the hub
    tree proceeds on the table and says so:
 
    | `type` | Surface | Plan shape |
@@ -137,7 +137,7 @@ Name the target VPS and defend it with data, not vibes: current memory headroom 
 `redis-main` wants vps1 — a spoke pays the WireGuard round-trip per query), latency to its users, and the
 service's own `resources.memory` claim against what remains. Record the decision as `target_vps: <vps>` +
 its `docs/DECISIONS.md` row IN THIS AUTHORING COMMIT (an architecture/scope choice per the ledger
-duty — the row names the chosen target, the data that defended it, and the rejected alternative;
+duty — the row names the chosen target, the data that defended it, and the rejected alternative, so an abandoned DRAFT still leaves the ruling findable;
 classified at mint, normally reversible) +
 the evidence block. A spoke target must note the mesh addressing consequence (`10.99.0.1:<port>`, never
 `postgres-main`).
@@ -178,7 +178,7 @@ The section that catches deploy-breakers. For `specs/services/<id>.yaml` + the r
   on a FIRST deploy there is no image anywhere at plan time and the probe is a runbook VERIFY step after
   the build, never a Phase-2 proof. A third-party image (tryton-crm's `trytond`: no dotenv) or a Node
   image (no `python` at all) fails this; the plan then carries the fix as a runbook step — the dep added
-  to that service's Dockerfile, or the contract re-frozen with those rows sited on the hub/host leg.
+  to that service's Dockerfile, or the contract re-frozen with those rows sited on the hub/host leg — so the first verify run's container leg resolves instead of reading UNVERIFIABLE for every row.
 
 ## Phase 3 — Infra prerequisites `[hub-side]` (VPS)
 
@@ -241,7 +241,7 @@ be bracketed as explicit runbook steps, **labeled `window-open` / `window-heartb
 (the labels make the bracket auditable — the review's re-entry audit and the halt protocol key on them), **authored in their EXECUTABLE root form** — EXECUTABLE means every
 angle-bracket token below is SUBSTITUTED at authoring time: `<plan-stem>` is THIS plan file's
 basename without `.md` (e.g. `2026-08-10-plan-deploy-tryton-crm`), `<alias>`/`<ISO-8601-UTC>`
-likewise (a literal placeholder surviving into the plan is a defect) — the dir is
+likewise (a literal placeholder surviving into the plan is a defect — the stem guards are self-consistent, so a literal `<plan-stem>` passes every behavioral test yet shares one identity with every other plan that kept it: mutual window theft by construction) — the dir is
 root-owned and the fleet SSH user is not root, and the alias for `target_vps: vps1` is `vps` (no
 `vps1` alias exists; `vps2`/`vps3` literal) — so the open step is
 `ssh <alias> "sudo bash -c 'mkdir -p /run/fabrik-autoheal &&
@@ -249,13 +249,13 @@ printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner
 touch /run/fabrik-autoheal/pause'"` (**OWNER FIRST, pause second — deliberate ordering**: a
 half-landed open then leaves OUR stem-verifiable owner with no pause — repairable by re-running the
 full open ONCE — while a `pause` with NO owner is always someone ELSE's: the healer's own header
-documents the operator's bare-`touch`-no-owner contract) and every
+documents the operator's bare-`touch`-no-owner contract, so no repair path ever writes over or removes an ownerless pause) and every
 heartbeat step is the STEM-GUARDED variant —
 `ssh <alias> "sudo bash -c '[ -f /run/fabrik-autoheal/pause ] &&
 [ -f /run/fabrik-autoheal/pause.owner ] &&
 grep -q \"^<plan-stem> \" /run/fabrik-autoheal/pause.owner && touch /run/fabrik-autoheal/pause &&
 printf \"%s %s\n\" <plan-stem> <ISO-8601-UTC> > /run/fabrik-autoheal/pause.owner ||
-echo OWNERSHIP-LOST'"` — the guard proves BOTH files live before refreshing, so an
+echo OWNERSHIP-LOST'"` — the guard proves BOTH files live before refreshing (a heartbeat that silently re-created a vanished pause would hide that the healer was LIVE during the gap), so an
 `OWNERSHIP-LOST` heartbeat means the window is no longer intact — ours taken, or the pause gone —
 and the sensitive step STOPS while the deploy's fresh two-file probe disambiguates (theft → the
 halt protocol; vanished → the deploy's full re-open procedure); NEVER re-take a lost
@@ -300,10 +300,10 @@ call through the real API proving pools/queues are live post-init), a queue-drai
 the service has workers, companion-service reachability (each compose sibling probed from the app
 container), ACME/cert diagnostics for a new domain (the acme log read BEFORE the TLS test, so a
 cert-pending state isn't misread as a routing failure), and same-origin routing probes where routing is
-nontrivial. Store surfaces: artifact installability + a first-run smoke on the built artifact. (The battery is AUTHORED here; `/fabrik-deploy` runs it at deploy time, after the runbook (exception: Phase 4's DEFERRED gate); hub-side for VPS, project-side for stores.)
+nontrivial. Store surfaces: artifact installability + a first-run smoke on the built artifact. (The battery is AUTHORED here; `/fabrik-deploy` runs it at deploy time — after the runbook, EXCEPT when the runbook's terminal step is a DEFERRED gate, where it runs immediately before that gate (nothing can run after it); hub-side for VPS, project-side for stores.)
 
 **The battery is NOT the parity contract, and neither replaces the other.** The battery proves the DEPLOY
-works; the contract — `scripts/verify_prod_parity.py`,
+works (write path, queue drain, companions, routing); the contract — `scripts/verify_prod_parity.py`,
 `FROZEN v<N>` per the precondition — proves PROD CONTAINS what was built, and `/fabrik-deploy-verify`
 executes it AFTER the deploy, one leg per site (hub · container in `<container_leg_service>` · host).
 The plan never runs the contract itself; it names, in its header, the contract version and the container
@@ -316,7 +316,7 @@ silent upgrade.
 Not "monitoring exists" — WHAT actually watches this surface, verified: the Gatus endpoint (with a
 certificate-expiry condition for a new cert domain — the M2 class), the Prometheus scrape, alert routes.
 And the M3 class for data: which Backrest plan ACTUALLY covers this service's volumes — read the plan's
-real path list live. State RPO/RTO —
+real path list live; a per-service plan pointed at an unused directory is a paper backup. State RPO/RTO —
 derived from the schedule/retention values read live, never asserted from memory. Store surfaces
 (`[anywhere]`): crash reporting wired + rollout-halt mechanics named.
 
@@ -355,8 +355,8 @@ later `CONVERGED` flip) hard-check them:
   configs, the plan file itself);
 - `## Behavior Contract` — one row per **user-observable** post-deploy behavior, each with the check that
   proves it (`Given` the deploy ran, `When` <probe>, `Then` <observable>). For a deploy this is the
-  verification battery stated as behaviors rather than commands. ⚠️ **Omitting it fails the gate**, and the failure is discovered at gate time rather than at
-  authoring time: `check_test_proposal.evaluate_plan` refuses any new plan without the section. It is NOT enforced by `check_plan_quality` (whose `Behavior Contract` pillar is
+  verification battery stated as behaviors rather than commands: the route answers through Traefik, the health endpoint reports its real dependencies, the scheduled job fires once, the rollback restores the prior tag. ⚠️ **Omitting it fails the gate**, and the failure is discovered at gate time rather than at
+  authoring time: `check_test_proposal.evaluate_plan` refuses any new plan without the section — *"missing a `## Behavior Contract` section — enumerate a test per user-observable behavior, not a single One-Test Rule"*. It is NOT enforced by `check_plan_quality` (whose `Behavior Contract` pillar is
   spine-only, gated on `## Ticket Board`), so grepping that gate alone suggests a deploy monolith is
   exempt. It is not.
 - `## Evidence` — the fenced probe outputs backing each section's claims;

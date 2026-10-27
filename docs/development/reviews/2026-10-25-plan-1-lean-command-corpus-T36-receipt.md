@@ -63,3 +63,18 @@ None deleted. T36's Touches list no test file; `tests/test_check_command_corpus.
 - Run the author-blind audit pair over the 11 reworded entries (old against new) and the Sonnet + Haiku classification of the vanished lines.
 - Ratchet `commands/_size_ceiling.json` at merge; CHANGELOG and INDEX rows for the two `commands/_rules/` files.
 - A cut to 50% needs a D-row lowering the ban-clause rule (whole parenthetical bound to a ban word inside it) or a floor D-row (live rule count x words per rule): at the D-1240 reading this file sits near 90-95%.
+
+## Fix round 2 (hub audit)
+
+Findings confirmed and fixed by restoring the before-text (source, entry `current`/`text`, and the `clauses:` narrative tags removed where the clause is a rule):
+
+- rw-L88: restored "so no repair path ever writes over or removes an ownerless pause" (the ban object), plus the heartbeat-recreation rationale and the "mutual window theft by construction" clause.
+- rw-L118 (both reports): restored the gate's quoted message with its `## Behavior Contract` anchor; the `clauses: {2,3: narrative}` tag was wrong and is removed.
+- u-L102: restored "a per-service plan pointed at an unused directory is a paper backup" (the M3 failure criterion); tag removed.
+- rw-L40 ("the stale table is a corpus defect for the operator"), u-L55 ("so an abandoned DRAFT still leaves the ruling findable"), u-L70 (the container-leg goal; tag removed), rw-L117 (the four behaviour examples), u-L98 (the parenthetical scope): restored.
+- rw-L97 (Haiku): restored the full "EXCEPT when the runbook's terminal step is a DEFERRED gate, where it runs immediately before that gate (nothing can run after it)".
+- Haiku's "vanished label names its own id" (L4, L21, L25, L40, L55, L70, L88, L98): not changed. The unit was reworded or restored in the entry of that id, and the master loader (D-1258) expects the `rule:` label to name it; I judge this correct bookkeeping.
+
+Refuted: none otherwise. Own-text words: not re-measured, because this run's sandbox allows no ad-hoc python. The restored text adds roughly 250 words back to the re-ledger text, so it now sits near the baseline.
+
+Fresh subagent passes run: 0. This run cannot dispatch a subagent; the hub's author-blind audit pair covers it. I checked each finding against the before-text line by line; that is not a fresh pass, so I claim no zeros.
