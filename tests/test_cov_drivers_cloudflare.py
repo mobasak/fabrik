@@ -103,7 +103,7 @@ def test_request_error_joins_messages():
 def test_request_error_without_message_uses_str():
     body = {"success": False, "errors": [{"code": 7}]}
     cf = make_client(Recorder({("GET", "/client/v4/x"): body}))
-    with pytest.raises(Exception, match="code"):
+    with pytest.raises(Exception, match=r"^Cloudflare API error: \{'code': 7\}$"):
         cf._request("GET", "/x")
 
 

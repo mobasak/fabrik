@@ -82,7 +82,9 @@ def test_init_explicit_overrides_env(monkeypatch, http):
 def test_init_requires_credentials(http, missing):
     kwargs = {"account_id": "a", "access_key_id": "k", "secret_access_key": "s"}
     kwargs.pop(missing)
-    with pytest.raises(ValueError, match="required"):
+    with pytest.raises(
+        ValueError, match=r"^R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY required$"
+    ):
         R2Client(**kwargs)
 
 
