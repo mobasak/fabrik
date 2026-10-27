@@ -11,7 +11,8 @@ to the task's process group and SIGKILL ~1.4 s later; the runner used to die on 
 own-session `claude` children ran on unsettled. Now every running child's group is killed, the run settles
 `interrupted` (settleable from the console at once), nothing partial is pushed, a queued job reports `not started`, a
 child that finished first still pushes, lines are line-buffered so a log file keeps them, and the runner exits
-128 + signum. Graded by real group-signal tests; 8 of 8 mutants killed.
+128 + signum. Graded by real group-signal tests and one grader per guard, each shown red by its own mutant
+(the review receipt lists them).
 
 ### Fixed — command texts follow the worktree-own scratch root (2026-10-27)
 
