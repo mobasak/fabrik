@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the scaffold-helper emitter test no longer copies the box's live API keys (2026-10-27)
+
+`test_scaffold_helper_emits_mcp_config` ran the real emitter bare, so the catalog's `${EXA_API_KEY}`,
+`${BRAVE_API_KEY}` and `${FIRECRAWL_API_KEY}` were filled from the box's roster or `/opt/fabrik/.env`: its pass
+depended on box state, and every run left live keys in pytest's tmp dirs. It now points `scaffold.FABRIK_ROOT`
+at a tmp root whose emitter is a shim. The shim loads the real emitter and aims its roster and hub `.env` at the
+test's files, then adds `--defs`. It refuses any argv but `--repo <repo>`, so a helper that dropped `--repo`
+fails instead of sweeping the live `/opt`. A new assertion checks that exa's key is the test's own.
+W-2c2f1025; a one-test hunk under intel's plan-3 lock, on the coordinator's ruling.
+
 ### Fixed — the MCP emitter tests no longer read the box's git ignore or template (2026-10-27)
 
 `tests/test_emit_mcp_project_config.py`'s autouse `_hermetic_git` emptied the global and system git config
