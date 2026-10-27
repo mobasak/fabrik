@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "send A1 per the runbook, mail brand-identiy-creator's coordinator for the uuidv7 branch, run section 1 probes, then run the WSL window under the answered W-4d452199",
+  "next": "waits on brand-identiy-creator: A1 sent 2026-10-07 (01M4BYYKG4) still unclaimed; follow-up to its coordinator 01M5Y7AYGY 2026-10-27; no uuidv7 branch, 28 files still name pg_uuidv7. Section 1 probes are hub (vps1) reads, held by W-45521ff3's classifier gate. Resume when bic replies with a branch.",
   "note": "",
   "owner": "fleet",
   "priority": 3,
