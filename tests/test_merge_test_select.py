@@ -87,7 +87,9 @@ def test_import_patterns_crlf_backslash_continuation():
 
 
 def test_normalise_relative_default_tempdir():
-    assert mts.normalise("missing tmpk3j9_2xq/out.txt") == mts.normalise("missing tmpzz81_q0a/out.txt")
+    assert mts.normalise("missing tmpk3j9_2xq/out.txt") == mts.normalise(
+        "missing tmpzz81_q0a/out.txt"
+    )
     assert mts.normalise("missing tmpfiles_old/out") != mts.normalise("missing tmpfiles_new/out")
 
 
@@ -897,7 +899,7 @@ def test_an_alone_red_keeps_its_alone_base_verdict_beside_an_ordered_red(tmp_pat
             {alone_red: "A"},  # the serial confirm: the order red is green alone
             {order_red: "C"},  # the ordered confirm: the order red is red in order
             {alone_red: "A"},  # the base alone run of test_a: the same crash, pre-existing
-            {alone_red: "B", order_red: "C"},  # the ordered base run: the alone red crashes otherwise
+            {alone_red: "B", order_red: "C"},  # the ordered base run: another crash for test_k
         ]
     )
 
