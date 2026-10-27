@@ -1173,7 +1173,8 @@ def check_review_receipt(
             "— a contract or new-source hit owes the full review"
         )
 
-    # (d) one header Surface field; its range tip is the run's last commit.
+    # (d) one header Surface field; its range tip is one of the run's commits, and every later
+    # listed commit carries only exempt paths (W-0b900e92).
     surfaces = _SURFACE_FIELD.findall(zone)
     m = _RANGE_TIP.search(surfaces[0]) if len(surfaces) == 1 else None
     if not commits:

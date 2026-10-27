@@ -555,11 +555,11 @@ def test_a_command_token_with_trailing_text_is_refused(repo: Repo) -> None:
     _only(_check(repo, REL, [repo.last]), "c")
 
 
-# ── (d) the range tip resolves to the last --commit ───────────────────────────────────────
+# ── (d) the range tip resolves to one of the --commit values ──────────────────────────────
 
 
-def test_a_range_tip_that_is_not_the_last_commit_is_refused_by_check_d_alone(repo: Repo) -> None:
-    """The receipt ends at ``last``; the close's last ``--commit`` is ``first``."""
+def test_a_range_tip_absent_from_the_commits_is_refused_by_check_d_alone(repo: Repo) -> None:
+    """The receipt ends at ``last``; no ``--commit`` value is ``last``."""
     _only(_check(repo, REL, [repo.seed, repo.first]), "d")
 
 
@@ -944,6 +944,82 @@ def test_without_an_exempt_rule_a_later_commit_refuses(repo: Repo) -> None:
     _git(repo.root, "commit", "-q", "-m", "mixed")
     mixed = _git(repo.root, "rev-parse", "HEAD")
     _only(_check_x(repo, [repo.last, lc, mixed]), "d")
+
+
+def _failing(tl, verb: str, mode: str):
+    """`_git` with one verb failing: no answer (a timeout or OSError) or git's own rc 128."""
+    real = tl._git
+
+    def flaky(root, *args):
+        if not (args and args[0] == verb):
+            return real(root, *args)
+        if mode == "none":
+            return None
+        return subprocess.CompletedProcess(["git", *args], 128, b"", b"fatal: probe")
+
+    return flaky
+
+
+@pytest.mark.parametrize("mode", ["none", "rc128"])
+@pytest.mark.parametrize(
+    ("verb", "says"),
+    [
+        ("merge-base", "cannot be checked"),
+        ("diff-tree", "cannot be read"),
+        ("rev-list", "cannot be read"),
+    ],
+)
+def test_a_failing_git_probe_refuses(
+    repo: Repo, monkeypatch, verb: str, says: str, mode: str
+) -> None:
+    """Every probe failing — no answer or a nonzero rc — refuses the later commit: fail closed,
+    never an exempt pass (review C-haiku-1/-2, C-sonnet 1, 3)."""
+    tl = _module()
+    lc = _commit_file(repo, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    monkeypatch.setattr(tl, "_git", _failing(tl, verb, mode))
+    reasons = _check_x(repo, [repo.last, lc])
+    _only(reasons, "d")
+    assert says in reasons[0], reasons
+
+
+@pytest.mark.parametrize("mode", ["none", "rc128"])
+def test_a_failing_anchor_probe_refuses(wt: Repo, monkeypatch, mode: str) -> None:
+    """The working-tree anchor's ancestry probe fails closed too (review C-sonnet 2)."""
+    tip = _commit_all(wt.root, "the reviewed change")
+    lc = _commit_file(wt, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    tl = _module()
+    monkeypatch.setattr(tl, "_git", _failing(tl, "merge-base", mode))
+    reasons = _check_x(wt, [tip, lc])
+    _only(reasons, "d")
+    assert "cannot be checked" in reasons[0], reasons
+
+
+def test_an_unresolvable_later_commit_refuses(repo: Repo) -> None:
+    """A listed value that names no commit refuses, beside a tip that resolves; an unresolvable
+    tip never matches an unresolvable listed value (review C-sonnet 3, 7)."""
+    reasons = _check_x(repo, [repo.last, "0" * 40])
+    _only(reasons, "d")
+    assert "does not resolve" in reasons[0], reasons
+    repo.write(repo.text().replace(f"range tip {repo.last}", "range tip ?", 1))
+    reasons = _check_x(repo, ["0" * 40])
+    _only(reasons, "d")
+    assert "range tip ?" in reasons[0], reasons
+
+
+def test_a_rename_onto_a_ledger_name_and_a_root_commit_refuse(repo: Repo) -> None:
+    """Both halves of a rename are read (`--no-renames`: code renamed onto an exempt name still
+    shows the code path), and a root commit is read against the empty tree (`--root`: without it
+    a root commit prints nothing and would pass) — review C-sonnet 4."""
+    _git(repo.root, "mv", "app.py", "CHANGELOG.md")
+    _git(repo.root, "commit", "-q", "-m", "rename code onto a ledger name")
+    moved = _git(repo.root, "rev-parse", "HEAD")
+    reasons = _check_x(repo, [repo.last, moved])
+    _only(reasons, "d")
+    assert "app.py" in reasons[0], reasons
+    root = _git(repo.root, "commit-tree", f"{repo.seed}^{{tree}}", "-m", "unrelated root")
+    reasons = _check_x(repo, [repo.last, root])
+    _only(reasons, "d")
+    assert "app.py" in reasons[0], reasons
 
 
 def test_a_later_merge_is_read_against_its_first_parent(repo: Repo) -> None:
