@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T04:43:11.162790Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-93c9dfbf",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: probe compose 2.40.3 on tail words (letters, -, =, #, $, whitespace kinds) and refuse every tail compose refuses, red-first, or record the measured grammar",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "fabrik.env_file.parse_env reads some tail words after a closing quote that docker compose refuses (K=\"v\" x#c, K='v' x#') as the quoted content v and a later write normalises the file; only a quote in the tail is refused today. Leniency, no value is altered; found at the W-2ae286e2 review scope-growth stop."
+}
