@@ -3,7 +3,7 @@
   "created": "2026-10-20T23:27:12.927443Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "95f9b319293d5a9d1fc32f1d1094a107087ff02b",
   "id": "W-0780f072",
   "impact": "high",
   "kind": "task",
@@ -17,8 +17,9 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
+  "resolved_by": "W-75cafe7a",
   "score_reason": "another repo's agents misread the quota wall after every 5h reset; a bug in the posture hook",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5b0kzqa3n51ejv1tp8atm2h"
   ],
