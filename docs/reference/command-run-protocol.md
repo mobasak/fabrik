@@ -202,7 +202,9 @@ See `docs/reference/command-corpus-check.md` § Predicate 5.
 Each mutating verb appends one typed event to the kaizen stream
 (`docs/workstation/kaizen-event-stream.md`): `start` → `run_open`, `step` → `phase`, `round` →
 `round`, `done`/`blocked` → `run_close`. A **refused** close and an already-closed no-op emit
-nothing — they are not mutations. Neither does a close whose record could not be persisted
+nothing — they are not mutations. One refusal does emit: a `round` refused as a blind retry appends
+`round_refused` (the `round` row above), so the stream that counted the duplicated rounds can count
+the refusals that replaced them. Neither does a close whose record could not be persisted
 (`NOT CLOSED`, rc 1): it prints no FEEDBACK line, writes no ledger row and drops its queued
 `run_close` — the retry is the mutation. `line` and `status` are readers and emit nothing.
 

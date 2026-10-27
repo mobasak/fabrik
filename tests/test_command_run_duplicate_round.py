@@ -26,13 +26,22 @@ TERMINAL = "✅ TERMINAL VERDICT"
 BASE = ("--findings", "3", "--confirmed", "2", "--classes-swept", "a,b", "--classes-new", "x")
 
 
-def _cr(run_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _transcript(run_dir: Path) -> Path:
+    """The session transcript the seat count reads beside — present and empty: a session whose
+    transcript cannot be found is never refused (its seats may sit elsewhere)."""
+    return run_dir.parent / "transcript.jsonl"
+
+
+def _cr(run_dir: Path, *args: str, transcript: bool = True) -> subprocess.CompletedProcess[str]:
+    if transcript and not _transcript(run_dir).exists():
+        _transcript(run_dir).parent.mkdir(parents=True, exist_ok=True)
+        _transcript(run_dir).write_text("", encoding="utf-8")
     env = {
         "PATH": "/usr/bin:/bin",
         "COMMAND_RUN_DIR": str(run_dir),
         "KAIZEN_EVENTS_DIR": str(run_dir.parent / "events"),
         "COMMAND_RUN_ACCOUNT_FILE": str(run_dir.parent / "no-marker"),
-        "COMMAND_RUN_TRANSCRIPT": str(run_dir.parent / "no-transcript.jsonl"),
+        "COMMAND_RUN_TRANSCRIPT": str(_transcript(run_dir)),
         "CLAUDE_SESSION_ID": "s1",
         "FABRIK_SCRATCH_SWEEP": "0",
     }
@@ -88,10 +97,20 @@ def test_a_blind_retry_of_a_stamped_round_is_refused(run_dir: Path) -> None:
     _refused(p, run_dir)
     # the landed round's verdict — what the hidden output lost — is printed above the refusal
     assert "ROUND 1" in p.stdout
-    # the refusal names both honest ways to record a new pass, and the stamp is not consumed again
+    # the refusal names both honest ways to record a new pass
     assert "dispatch --seats" in p.stdout.splitlines()[-1]
     assert "round --seats 0" in p.stdout.splitlines()[-1]
-    assert _rec(run_dir)["dispatch"]["seats"] == 0
+    # a caller reading stderr alone (stdout to /dev/null) sees it too
+    assert REFUSED in p.stderr
+
+
+def test_slices_decide_when_stated_on_both_sides(tmp_path: Path) -> None:
+    d = tmp_path / "runs"
+    _start(d)
+    _ok(_cr(d, "dispatch", "--seats", "2"))
+    _ok(_cr(d, "round", *BASE, "--own-fix", "0", "--slices", "A:1/2"))
+    _refused(_cr(d, "round", *BASE, "--own-fix", "0", "--slices", "A:1/2"), d)
+    _recorded(_cr(d, "round", *BASE, "--own-fix", "0", "--slices", "A:2/2"), d)
 
 
 def test_a_retried_round_one_never_prints_terminal(tmp_path: Path) -> None:
@@ -213,7 +232,7 @@ def test_the_named_escapes_record_and_a_zero_dispatch_does_not(tmp_path: Path) -
     _refused(_cr(d, "round", *BASE, "--own-fix", "0"), d)
     d = fresh()  # a seat transcript newer than the last round: something ran, unstamped
     time.sleep(1.1)  # the seat line's whole-second stamp must clear the round's sub-second ts
-    sub = d.parent / "no-transcript" / "subagents"
+    sub = d.parent / "transcript" / "subagents"
     sub.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
     line = {
@@ -261,12 +280,9 @@ def test_a_refusal_emits_its_event_and_moves_nothing(run_dir: Path) -> None:
     assert [e["n"] for e in events if e.get("event") == "round"] == [1]
 
 
-def test_an_unfinished_seat_count_records_rather_than_refuses(
-    run_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The seat scan that could not complete may have missed a seat that ran: the guard fails toward
-    recording. Unreachable from data through the CLI, so the module runs in-process with the scan
-    made to raise."""
+def _inproc(run_dir: Path, monkeypatch: pytest.MonkeyPatch):
+    """The script loaded in-process on the same seams `_cr` uses, for failure paths no CLI input
+    reaches."""
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("command_run_dup_ut", SCRIPT)
@@ -277,17 +293,71 @@ def test_an_unfinished_seat_count_records_rather_than_refuses(
         "COMMAND_RUN_DIR": str(run_dir),
         "KAIZEN_EVENTS_DIR": str(run_dir.parent / "events"),
         "COMMAND_RUN_ACCOUNT_FILE": str(run_dir.parent / "no-marker"),
-        "COMMAND_RUN_TRANSCRIPT": str(run_dir.parent / "no-transcript.jsonl"),
+        "COMMAND_RUN_TRANSCRIPT": str(_transcript(run_dir)),
         "CLAUDE_SESSION_ID": "s1",
         "FABRIK_SCRATCH_SWEEP": "0",
     }.items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
     monkeypatch.chdir(run_dir.parent)
+    return mod
 
-    def _boom(*_a: object, **_k: object) -> list:
-        raise OSError("seat dir unreadable")
 
+def _boom(*_a: object, **_k: object) -> list:
+    raise OSError("unreadable")
+
+
+def test_an_unfinished_seat_count_records_rather_than_refuses(
+    run_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The seat scan that could not complete may have missed a seat that ran: the guard fails toward
+    recording. Unreachable from data through the CLI, so the module runs in-process with the scan
+    made to raise."""
+    mod = _inproc(run_dir, monkeypatch)
     monkeypatch.setattr(mod, "_seat_transcripts", _boom)
     assert mod.main(["round", *BASE, "--own-fix", "0"]) == 0
     assert len(_rec(run_dir)["rounds"]) == 2
+
+
+def test_a_missing_session_transcript_records_rather_than_refuses(tmp_path: Path) -> None:
+    """No transcript, no evidence either way: its seat directory may sit elsewhere (round-1 review,
+    both slice-A seats — a real seat pass typed with the same count was refused)."""
+    d = tmp_path / "runs"
+    _ok(
+        _cr(
+            d,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "3",
+            "--terminal",
+            "t",
+            transcript=False,
+        )
+    )
+    _ok(_cr(d, "dispatch", "--seats", "3", transcript=False))
+    _ok(_cr(d, "round", *BASE, transcript=False))
+    p = _cr(d, "round", *BASE, "--seats", "3", transcript=False)
+    _recorded(p, d)
+    assert not _transcript(d).exists()
+
+
+def test_a_report_that_raises_never_swallows_the_refusal(
+    run_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    mod = _inproc(run_dir, monkeypatch)
+    monkeypatch.setattr(mod, "_round_report", _boom)
+    assert mod.main(["round", *BASE, "--own-fix", "0"]) == 2
+    assert capsys.readouterr().out.splitlines()[-1].startswith(REFUSED)
+    assert len(_rec(run_dir)["rounds"]) == 1
+
+
+def test_an_unreadable_landed_time_is_said_as_unknown(run_dir: Path) -> None:
+    rp = run_dir / "s1.json"
+    rec = json.loads(rp.read_text(encoding="utf-8"))
+    rec["rounds"][-1]["ts"] = "not-a-time"
+    rp.write_text(json.dumps(rec), encoding="utf-8")
+    p = _cr(run_dir, "round", *BASE, "--own-fix", "0")
+    _refused(p, run_dir)
+    assert "recorded at an unknown time with these figures" in p.stdout.splitlines()[-1]

@@ -3484,8 +3484,11 @@ def _unstamped_seat_count(sid: str, rec: dict[str, Any], rounds: list) -> tuple[
     an incomplete count as "something ran" — it fails toward recording. A `step` writes no timestamp
     the window reads, so it never narrows it. Counted by the seat's last line, not the file's mtime
     (round-12 Opus: a stamped seat still flushing after its close re-fired the nudge on the next,
-    empty round); an UNREADABLE transcript ("skipped") has only its mtime to date it and counts."""
+    empty round); an UNREADABLE transcript ("skipped") has only its mtime to date it and counts.
+    A session transcript that cannot be found leaves the count incomplete too: its seat directory
+    may sit elsewhere, so no seat seen there is not evidence that none ran."""
     n = 0
+    complete = True
     try:
         since = max(
             [_finite_ts(r.get("ts")) or 0.0 for r in rounds if isinstance(r, dict)]
@@ -3495,6 +3498,7 @@ def _unstamped_seat_count(sid: str, rec: dict[str, Any], rounds: list) -> tuple[
             ]
         )
         tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
+        complete = tp is not None and tp.is_file()
         if tp is not None:
             for q in _seat_transcripts(tp, since):
                 e = _seat_last_epoch(q)
@@ -3505,7 +3509,7 @@ def _unstamped_seat_count(sid: str, rec: dict[str, Any], rounds: list) -> tuple[
         # advisory for the nudge — it may never void the round (a non-numeric `started_epoch`
         # voided one, silently); for the refusal an unfinished count means "do not refuse"
         return n, False
-    return n, True
+    return n, complete
 
 
 def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, float] | str | None:
@@ -7111,9 +7115,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             if _counted and not _n_seen:
                 _landed = _int0(_last.get("n")) or len(rounds)
                 _at = _finite_ts(_last.get("ts"))
-                _age = max(0, int(time.time() - _at)) if _at is not None else 0
+                _age = max(0, int(time.time() - _at)) if _at is not None else None
                 msg = (
-                    f"REFUSED — round {_landed} was already recorded {_age}s ago with these "
+                    f"REFUSED — round {_landed} was already recorded "
+                    + (f"{_age}s ago" if _age is not None else "at an unknown time")
+                    + " with these "
                     "figures (verdict above); no round was recorded. A new seat pass is stamped "
                     "first (`dispatch --seats <n>`, then `round`); a pass you ran alone types "
                     "`round --seats 0`."
@@ -7121,7 +7127,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 sys.stderr.write(f"[command_run] {msg}\n")
                 _ev = _queue(rec, outbox, "round_refused", {"n": _landed, "age_s": _age})
                 _ev["persisted"] = save(sid, rec)
-                print(_round_report(rec))
+                # the verdict is a courtesy; a report that raises must never swallow the refusal
+                # (main()'s outer handler would turn it into a silent rc 0)
+                with contextlib.suppress(Exception):
+                    print(_round_report(rec))
                 print(msg)
                 return 2
         # W-93a9d22a: a FULL close typed while the stamp's seats are verifiably still out is a
