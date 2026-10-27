@@ -148,10 +148,10 @@ _UNADOPTED_SPAWNERS = (
 
 _CLAUDE_P_WORDS = re.compile(r"\bclaude\s+-p\b")
 # The stdlib callables that start a process from an argv or a shell string (subprocess, os,
-# asyncio, pty). A name that is also a common method name elsewhere — `run`, `call`, `popen`,
-# `system`, `spawn` — counts on an attribute only when the object is the module itself, so
-# `asyncio.run(...)` or `self.run(...)` is not a spawn; a bare name (`from subprocess import run`)
-# counts.
+# asyncio, pty). A name that is also a common method name elsewhere — `_AMBIGUOUS_CALLS` —
+# counts on an attribute only when the object is bound to a process module, so `asyncio.run(...)`
+# or `self.run(...)` is not a spawn, and bare only when imported from one
+# (`from subprocess import run`); see `_runs_a_process`.
 _PROCESS_CALLS = frozenset(
     {
         "run",
@@ -174,22 +174,80 @@ _PROCESS_CALLS = frozenset(
         "create_subprocess_exec",
     }
 )
-_AMBIGUOUS_CALLS = frozenset({"run", "call", "popen", "system", "spawn"})
+_AMBIGUOUS_CALLS = frozenset(
+    {
+        "run",
+        "call",
+        "popen",
+        "system",
+        "spawn",
+        "execl",
+        "execlp",
+        "execv",
+        "execvp",
+        "spawnl",
+        "spawnlp",
+    }
+)
+# Each process-call name on the module that defines it — a literal, NOT derived from
+# `_PROCESS_CALLS`, so the one-grader-per-name test cannot lose a name with the set.
+_PROCESS_CALL_MODULE = {
+    "run": "subprocess",
+    "Popen": "subprocess",
+    "call": "subprocess",
+    "check_call": "subprocess",
+    "check_output": "subprocess",
+    "getoutput": "subprocess",
+    "getstatusoutput": "subprocess",
+    "system": "os",
+    "popen": "os",
+    "execl": "os",
+    "execlp": "os",
+    "execv": "os",
+    "execvp": "os",
+    "spawnl": "os",
+    "spawnlp": "os",
+    "spawn": "pty",
+    "create_subprocess_shell": "asyncio",
+    "create_subprocess_exec": "asyncio",
+}
 _PROCESS_MODULES = frozenset({"subprocess", "os", "pty"})  # asyncio.run runs a coroutine
+_SHELL_FLAG = re.compile(r"-[A-Za-z]*c")  # `-c`, `-lc`, `-ec`: the next element is the command
 
 
-def _runs_a_process(node: object) -> bool:
-    """True for a call of a `_PROCESS_CALLS` name: bare, or on its module for an ambiguous name."""
+def _process_names(tree: object) -> tuple[set[str], set[str]]:
+    """(the names a file binds to a process module, the ambiguous callables it imports from one)."""
+    import ast
+
+    modules, bare = set(_PROCESS_MODULES), set()
+    for node in ast.walk(tree):  # type: ignore[arg-type]
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                if a.name in _PROCESS_MODULES:
+                    modules.add(a.asname or a.name)
+        elif isinstance(node, ast.ImportFrom) and node.module in _PROCESS_MODULES:
+            for a in node.names:
+                if a.name in _AMBIGUOUS_CALLS:
+                    bare.add(a.asname or a.name)
+    return modules, bare
+
+
+def _runs_a_process(node: object, modules: set[str], bare: set[str]) -> bool:
+    """True for a call of a `_PROCESS_CALLS` name. An ambiguous name (`run`, `call`, …) counts on
+    a name bound to a process module (`subprocess.run`, `sp.run` after `import subprocess as
+    sp`) or bare when imported from one (`from subprocess import run`); a local `def run` does not."""
     import ast
 
     func = getattr(node, "func", None)
     if isinstance(func, ast.Name):
+        if func.id in _AMBIGUOUS_CALLS:
+            return func.id in bare
         return func.id in _PROCESS_CALLS
     if not isinstance(func, ast.Attribute) or func.attr not in _PROCESS_CALLS:
         return False
     if func.attr not in _AMBIGUOUS_CALLS:
         return True
-    return isinstance(func.value, ast.Name) and func.value.id in _PROCESS_MODULES
+    return isinstance(func.value, ast.Name) and func.value.id in modules
 
 
 def _literal_text(node: object) -> str | None:
@@ -218,14 +276,16 @@ def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
     through two rounds of this review. Test files are excluded: their spawns are fixtures.
 
     Two shapes count (W-d45c790c), in a list or tuple literal or in the positional args of a
-    process-running call (`_runs_a_process`): an ARGV — the first element names claude (or
-    `_ENTRYPOINT`) and `-p` is one of the elements — and a SHELL STRING matching `claude -p`,
-    which counts as a process call's positional arg or as the element right after `-c` in a
-    list or tuple. Anywhere else such a string is prose (a docstring, a message, a help table):
+    process-running call (`_runs_a_process`): an ARGV — an element names claude (or
+    `_ENTRYPOINT`) and `-p` is a later element, so `timeout 60 claude -p` and
+    `os.spawnlp(mode, "claude", …)` count — and a SHELL STRING matching `claude -p`, which
+    counts as a process call's positional arg or as the element right after a shell flag
+    (`-c`, `-lc`, `-ec`) in a list or tuple. Anywhere else such a string is prose (a docstring, a message, a help table):
     43 string constants under scripts/ at ab1026f14 name `claude -p`, 12 of them in 7 files
     that spawn nothing. Not seen, by design: keyword args, a NAME holding the command, argv
     built by `+`/splat/append, bytes, `--print`, flags between `claude` and `-p` inside a
-    shell string, and aliased or computed callees.
+    shell string, a remote command (`ssh host "claude -p"`), and an aliased callable
+    (`run as r`) or a computed one (`getattr(...)`, `self.subprocess.run`).
     """
     import ast
 
@@ -243,9 +303,10 @@ def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
         except (SyntaxError, OSError):
             continue
         rel = str(path.relative_to(root))
+        modules, bare = _process_names(tree)
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
-                if not _runs_a_process(node):
+                if not _runs_a_process(node, modules, bare):
                     continue
                 seq = node.args
             elif isinstance(node, (ast.List, ast.Tuple)):
@@ -255,12 +316,16 @@ def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
             if not seq:
                 continue
             texts = [_literal_text(e) for e in seq]
-            head = ast.unparse(seq[0])
-            if "-p" in texts and ("claude" in head.lower() or "_ENTRYPOINT" in head):
+            names = [ast.unparse(e) for e in seq]
+            if any(
+                ("claude" in n.lower() or "_ENTRYPOINT" in n) and "-p" in texts[i + 1 :]
+                for i, n in enumerate(names)
+            ):
                 hits.add(rel)
                 continue
             for i, text in enumerate(texts):
-                shell = isinstance(node, ast.Call) or (i > 0 and texts[i - 1] == "-c")
+                prev = texts[i - 1] if i > 0 else None
+                shell = isinstance(node, ast.Call) or bool(prev and _SHELL_FLAG.fullmatch(prev))
                 if text and shell and _CLAUDE_P_WORDS.search(text):
                     hits.add(rel)
                     break
@@ -281,6 +346,19 @@ def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
             id="call-name-head",
         ),
         pytest.param("CMD = ['bash', '-c', 'claude -p hello']\n", id="shell-string"),
+        pytest.param("CMD = ['bash', '-lc', 'claude -p hello']\n", id="shell-flag-cluster"),
+        pytest.param("ARGV = ('timeout', '60', 'claude', '-p')\n", id="wrapped-argv"),
+        pytest.param(
+            "import os\n\nos.spawnlp(os.P_WAIT, 'claude', 'claude', '-p', 'x')\n",
+            id="spawn-mode-first",
+        ),
+        pytest.param(
+            "import subprocess as sp\n\nsp.run('claude -p x', shell=True)\n", id="module-alias"
+        ),
+        pytest.param(
+            "from subprocess import run\n\nrun('claude -p x', shell=True)\n",
+            id="bare-ambiguous-imported",
+        ),
         pytest.param("import os\n\nos.system('claude -p hello')\n", id="shell-call"),
         pytest.param("import os\n\nos.system('claude\\t-p hello')\n", id="shell-call-tab"),
         pytest.param(
@@ -340,6 +418,10 @@ def test_discovery_finds_a_planted_spawner_in_every_shape(tmp_path: Path, body: 
         pytest.param("import os\n\nos.system('claude -px')\n", id="other-flag"),
         pytest.param("ARGV = ['claude', '--version']\n", id="claude-without-p"),
         pytest.param("ARGV = ['ls', '-p']\n", id="p-without-claude"),
+        pytest.param("ARGV = ['mkdir', '-p', '.claude']\n", id="p-before-claude"),
+        pytest.param(
+            'def run(m):\n    return m\n\nrun("claude -p done")\n', id="local-def-named-run"
+        ),
     ],
 )
 def test_discovery_ignores_claude_p_prose(tmp_path: Path, body: str) -> None:
@@ -348,6 +430,30 @@ def test_discovery_ignores_claude_p_prose(tmp_path: Path, body: str) -> None:
     spawn nothing (W-d45c790c)."""
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts" / "prose.py").write_text(body, encoding="utf-8")
+    assert _files_that_build_a_claude_p_argv(tmp_path) == set()
+
+
+@pytest.mark.parametrize("name", sorted(_PROCESS_CALL_MODULE))
+def test_every_process_call_name_is_discovered_on_its_module(tmp_path: Path, name: str) -> None:
+    """One planted spawn per `_PROCESS_CALLS` name, so dropping a name from the set turns red."""
+    mod = _PROCESS_CALL_MODULE[name]
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "planted.py").write_text(
+        f"import {mod}\n\n{mod}.{name}('claude -p x')\n", encoding="utf-8"
+    )
+    assert _files_that_build_a_claude_p_argv(tmp_path) == {"scripts/planted.py"}
+
+
+def test_the_per_name_table_covers_every_process_call() -> None:
+    assert set(_PROCESS_CALL_MODULE) == _PROCESS_CALLS
+
+
+def test_an_exec_name_on_any_other_object_is_not_a_spawn(tmp_path: Path) -> None:
+    """`execv` and its kin are `os` functions; a method of the same name elsewhere is not one."""
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "prose.py").write_text(
+        'class E:\n    def go(self):\n        self.execv("claude -p note")\n', encoding="utf-8"
+    )
     assert _files_that_build_a_claude_p_argv(tmp_path) == set()
 
 
