@@ -95,10 +95,9 @@ entries:
   class: prose
   file: render
   section: '## Phase 0 — Establish scope + mode'
-  baseline: 'Inputs: the `/fabrik-spec` design doc (goal, chosen approach, the product''s core workflow) and `docs/data-contract.md` (the frozen fields — screens render these)'
-  current: 'Inputs: the `/fabrik-spec` design doc (goal, chosen approach) and `docs/data-contract.md` (the frozen fields)'
-  text:
-  - 'Inputs: the `/fabrik-spec` design doc (goal, chosen approach) and `docs/data-contract.md` (the frozen fields)'
+  baseline: &a17 'Inputs: the `/fabrik-spec` design doc (goal, chosen approach, the product''s core workflow) and `docs/data-contract.md` (the frozen fields — screens render these)'
+  current: *a17
+  text: [*a17]
 - id: u-L18
   class: prose
   file: render
@@ -138,10 +137,9 @@ entries:
   class: prose
   file: render
   section: '## Phase 1 — Establish the DESIGN SYSTEM (FORCED FIRST — blocks Phase 2)'
-  baseline: 'Reference them as the source of truth; do NOT recreate them. Record: which system, any project-specific token overrides (accent, logo), and — when the project uses decorative/ambient motion — which copy-and-own sources it draws on (e.g. reactbits.dev), per `design-system-template.md` § Motion Language → "Decorative motion (carve-out)" (do not restate the rule here)'
-  current: 'Reference them as the source of truth; do NOT recreate them. Record: which system, any project-specific token overrides (accent, logo), and — when the project uses decorative/ambient motion — which copy-and-own sources it draws on, per `design-system-template.md` § Motion Language → "Decorative motion (carve-out)" (do not restate the rule here)'
-  text:
-  - 'Reference them as the source of truth; do NOT recreate them. Record: which system, any project-specific token overrides (accent, logo), and — when the project uses decorative/ambient motion — which copy-and-own sources it draws on, per `design-system-template.md` § Motion Language → "Decorative motion (carve-out)" (do not restate the rule here)'
+  baseline: &a24 'Reference them as the source of truth; do NOT recreate them. Record: which system, any project-specific token overrides (accent, logo), and — when the project uses decorative/ambient motion — which copy-and-own sources it draws on (e.g. reactbits.dev), per `design-system-template.md` § Motion Language → "Decorative motion (carve-out)" (do not restate the rule here)'
+  current: *a24
+  text: [*a24]
 - id: u-L25
   class: prose
   file: render
@@ -213,10 +211,9 @@ entries:
   class: prose
   file: render
   section: '## Phase 1 — Establish the DESIGN SYSTEM (FORCED FIRST — blocks Phase 2)'
-  baseline: For the component set itself, drive the connected shadcn MCP (`mcp__shadcn__search_items_in_registries` to find the real component, `mcp__shadcn__view_items_in_registries` for its API, `mcp__shadcn__get_audit_checklist` before finalizing) rather than naming components from memory
-  current: For the component set itself, drive the connected shadcn MCP (`mcp__shadcn__search_items_in_registries` to find the real component, `mcp__shadcn__view_items_in_registries`, `mcp__shadcn__get_audit_checklist`) rather than naming components from memory
-  text:
-  - For the component set itself, drive the connected shadcn MCP (`mcp__shadcn__search_items_in_registries` to find the real component, `mcp__shadcn__view_items_in_registries`, `mcp__shadcn__get_audit_checklist`) rather than naming components from memory
+  baseline: &a34 For the component set itself, drive the connected shadcn MCP (`mcp__shadcn__search_items_in_registries` to find the real component, `mcp__shadcn__view_items_in_registries` for its API, `mcp__shadcn__get_audit_checklist` before finalizing) rather than naming components from memory
+  current: *a34
+  text: [*a34]
 - id: u-L35
   class: prose
   file: render
@@ -230,10 +227,9 @@ entries:
   class: prose
   file: render
   section: '## Phase 2 — Screen inventory'
-  baseline: 'Enumerate every screen the product has or needs, grounded in the spec''s workflow + the surface''s page/ screen-inventory pack (template pages: landing/login/signup/dashboard/settings/billing… + the product-specific core screens the spec implies)'
-  current: 'Enumerate every screen the product has or needs, grounded in the spec''s workflow + the surface''s page/ screen-inventory pack (template pages: landing/login/signup/dashboard/settings/billing…)'
-  text:
-  - 'Enumerate every screen the product has or needs, grounded in the spec''s workflow + the surface''s page/ screen-inventory pack (template pages: landing/login/signup/dashboard/settings/billing…)'
+  baseline: &a37 'Enumerate every screen the product has or needs, grounded in the spec''s workflow + the surface''s page/ screen-inventory pack (template pages: landing/login/signup/dashboard/settings/billing… + the product-specific core screens the spec implies)'
+  current: *a37
+  text: [*a37]
 - id: u-L38
   class: prose
   file: render
@@ -245,11 +241,9 @@ entries:
   class: prose
   file: render
   section: '## Phase 3 — User flows (minimal-click — the lean/logical core)'
-  baseline: 'For each key task the product exists to do (from the spec), design the flow as an ordered path and give it a click budget — "lean, minimal-clicks, not confusing, logical" is decided HERE, once, up front, instead of improvised per ticket:'
-  current: 'For each key task the product exists to do (from the spec), design the flow as an ordered path and give it a click budget:'
-  text:
-  - 'For each key task the product exists to do (from the spec), design the flow as an ordered path and give it a click budget:'
-  clauses: {2: narrative}
+  baseline: &a40 'For each key task the product exists to do (from the spec), design the flow as an ordered path and give it a click budget — "lean, minimal-clicks, not confusing, logical" is decided HERE, once, up front, instead of improvised per ticket:'
+  current: *a40
+  text: [*a40]
 - id: u-L42
   class: prose
   file: render
@@ -560,10 +554,9 @@ entries:
   file: render
   section: '### Each pass, per screen'
   baseline: 'Gate it (CI, red-on-fail) — web: `@axe-core/playwright` (WCAG 2.2 AA → `violations == []`) + `toHaveScreenshot` (byte-stable in the Playwright Docker image) + a performance / Core-Web-Vitals budget via the `chrome-devtools` MCP (`lighthouse_audit` for LCP/CLS/INP + `performance_analyze_insight`) — a slow or janky screen fails "easy to use," so perf is a gate, not a nicety; mobile: `eslint-plugin-react-native-a11y`'
-  current: 'Gate it (CI, red-on-fail) — web: `@axe-core/playwright` (WCAG 2.2 AA → `violations == []`) + `toHaveScreenshot` (byte-stable in the Playwright Docker image) + a performance / Core-Web-Vitals budget via the `chrome-devtools` MCP (`lighthouse_audit` for LCP/CLS/INP + `performance_analyze_insight`); mobile: `eslint-plugin-react-native-a11y`'
+  current: 'Gate it (CI, red-on-fail) — web: `@axe-core/playwright` (WCAG 2.2 AA → `violations == []`) + `toHaveScreenshot` (byte-stable in the Playwright Docker image) + a performance / Core-Web-Vitals budget via the `chrome-devtools` MCP (`lighthouse_audit` for LCP/CLS/INP + `performance_analyze_insight`) — a slow or janky screen fails "easy to use," so perf is a gate, not a nicety; mobile: `eslint-plugin-react-native-a11y`'
   text:
-  - 'Gate it (CI, red-on-fail) — web: `@axe-core/playwright` (WCAG 2.2 AA → `violations == []`) + `toHaveScreenshot` (byte-stable in the Playwright Docker image) + a performance / Core-Web-Vitals budget via the `chrome-devtools` MCP (`lighthouse_audit` for LCP/CLS/INP + `performance_analyze_insight`); mobile: `eslint-plugin-react-native-a11y`'
-  clauses: {3: narrative}
+  - 'Gate it (CI, red-on-fail) — web: `@axe-core/playwright` (WCAG 2.2 AA → `violations == []`) + `toHaveScreenshot` (byte-stable in the Playwright Docker image) + a performance / Core-Web-Vitals budget via the `chrome-devtools` MCP (`lighthouse_audit` for LCP/CLS/INP + `performance_analyze_insight`) — a slow or janky screen fails "easy to use," so perf is a gate, not a nicety; mobile: `eslint-plugin-react-native-a11y`'
 - id: u-L99
   class: prose
   file: render
@@ -625,19 +618,17 @@ entries:
   file: render
   section: '## Guardrails — never'
   baseline: Assume Traycer is the only planner — the contract feeds Traycer OR `/fabrik-plan-after-chat`
-  current: Assume Traycer is the only planner
+  current: Assume Traycer is the only planner — the contract feeds Traycer OR `/fabrik-plan-after-chat`
   text:
-  - Assume Traycer is the only planner
-  clauses: {2: narrative}
+  - Assume Traycer is the only planner — the contract feeds Traycer OR `/fabrik-plan-after-chat`
 - id: u-L113
   class: prose
   file: render
   section: '## Guardrails — never'
   baseline: Produce pixel mockups — this artifact is a lean text screen+flow contract; visual detail lives in the design system
-  current: Produce pixel mockups
+  current: Produce pixel mockups — this artifact is a lean text screen+flow contract; visual detail lives in the design system
   text:
-  - Produce pixel mockups
-  clauses: {2: narrative, 3: narrative}
+  - Produce pixel mockups — this artifact is a lean text screen+flow contract; visual detail lives in the design system
 - id: u-L115
   class: ban
   file: render
@@ -659,18 +650,16 @@ entries:
   file: render
   section: '## Subagents — design-time AND build-time are NATIVE while the pool is OFF (D-181/D-182); parallel per screen'
   baseline: Design-time (Phases 2 + 5 — native seats; the pool is OFF, D-181). The per-screen contract (map each screen's regions → design-system components → the `docs/data-contract.md` fields it renders) and the backfill screen-inventory read (parse real routes/components at `path:line`) are gradeable, per-screen, embarrassingly parallel work → one native `general-purpose` seat per screen (Sonnet) plus the Haiku mechanical seats the dispatch step prints (D-191), each briefed on ONE screen's route/component files and its `docs/data-contract.md` slice; you reconcile the returned contracts
-  current: 'Design-time (Phases 2 + 5 — native seats; the pool is OFF, D-181). The per-screen contract and the backfill screen-inventory read (parse real routes/components at `path:line`): one native `general-purpose` seat per screen (Sonnet) plus the Haiku mechanical seats the dispatch step prints (D-191), each briefed on ONE screen''s route/component files and its `docs/data-contract.md` slice; you reconcile the returned contracts'
+  current: 'Design-time (Phases 2 + 5 — native seats; the pool is OFF, D-181). The per-screen contract (map each screen''s regions → design-system components → the `docs/data-contract.md` fields it renders) and the backfill screen-inventory read (parse real routes/components at `path:line`): one native `general-purpose` seat per screen (Sonnet) plus the Haiku mechanical seats the dispatch step prints (D-191), each briefed on ONE screen''s route/component files and its `docs/data-contract.md` slice; you reconcile the returned contracts'
   text:
-  - 'Design-time (Phases 2 + 5 — native seats; the pool is OFF, D-181). The per-screen contract and the backfill screen-inventory read (parse real routes/components at `path:line`): one native `general-purpose` seat per screen (Sonnet) plus the Haiku mechanical seats the dispatch step prints (D-191), each briefed on ONE screen''s route/component files and its `docs/data-contract.md` slice; you reconcile the returned contracts'
+  - 'Design-time (Phases 2 + 5 — native seats; the pool is OFF, D-181). The per-screen contract (map each screen''s regions → design-system components → the `docs/data-contract.md` fields it renders) and the backfill screen-inventory read (parse real routes/components at `path:line`): one native `general-purpose` seat per screen (Sonnet) plus the Haiku mechanical seats the dispatch step prints (D-191), each briefed on ONE screen''s route/component files and its `docs/data-contract.md` slice; you reconcile the returned contracts'
 - id: u-L122
   class: ban
   file: render
   section: '## Subagents — design-time AND build-time are NATIVE while the pool is OFF (D-181/D-182); parallel per screen'
-  baseline: 'Nothing records to the flywheel.<!-- POOL OFF (D-181): → `fanout` one unit per screen (recipe in `62-using-subagents.md` § Dispatch policy): `fanout("docs", [{"task": …, "owned_paths": [<screen''s route/component files>]}, …], mode="write", repo=REPO, project="ui-design")` — disjoint `owned_paths` per screen (or `mode="read_only"` with the screen''s data-contract slice inlined); `fanout` auto-records each unit UNSCORED → back-fill `set_quality(r.agent_id, score, project="ui-design", task_type="docs", model=r.model)`; guard the import (`try: from libs.subagents import fanout, set_quality / except ImportError: …`). --> Secrets carve-out (the repo-review/rules-review/service-test class): a route/component file can carry an inline key (a Stripe publishable, a Maps key, a forgotten test token) — never inline secret-material content into a pool unit; a screen whose files carry one gets the NATIVE read, or the excerpt is redacted first. The UX judgment — flows, click budgets, IA, and the design-system CREATE/ADOPT call — stays yours (Opus), never a pool worker'
-  current: 'Nothing records to the flywheel; secrets carve-out — never inline secret-material content into a pool unit; a screen whose files carry one gets the NATIVE read, or the excerpt is redacted first; the UX judgment — flows, click budgets, IA, and the design-system CREATE/ADOPT call — stays yours (Opus), never a pool worker'
-  text:
-  - 'Nothing records to the flywheel; secrets carve-out — never inline secret-material content into a pool unit; a screen whose files carry one gets the NATIVE read, or the excerpt is redacted first; the UX judgment — flows, click budgets, IA, and the design-system CREATE/ADOPT call — stays yours (Opus), never a pool worker'
-  clauses: {1: narrative, 2: narrative, 3: narrative, 4: narrative}
+  baseline: &a122 'Nothing records to the flywheel.<!-- POOL OFF (D-181): → `fanout` one unit per screen (recipe in `62-using-subagents.md` § Dispatch policy): `fanout("docs", [{"task": …, "owned_paths": [<screen''s route/component files>]}, …], mode="write", repo=REPO, project="ui-design")` — disjoint `owned_paths` per screen (or `mode="read_only"` with the screen''s data-contract slice inlined); `fanout` auto-records each unit UNSCORED → back-fill `set_quality(r.agent_id, score, project="ui-design", task_type="docs", model=r.model)`; guard the import (`try: from libs.subagents import fanout, set_quality / except ImportError: …`). --> Secrets carve-out (the repo-review/rules-review/service-test class): a route/component file can carry an inline key (a Stripe publishable, a Maps key, a forgotten test token) — never inline secret-material content into a pool unit; a screen whose files carry one gets the NATIVE read, or the excerpt is redacted first. The UX judgment — flows, click budgets, IA, and the design-system CREATE/ADOPT call — stays yours (Opus), never a pool worker'
+  current: &c122 'Nothing records to the flywheel.<!-- POOL OFF (D-181): → `fanout` one unit per screen (recipe in `62-using-subagents.md` § Dispatch policy): `fanout("docs", [{"task": …, "owned_paths": [<screen''s route/component files>]}, …], mode="write", repo=REPO, project="ui-design")` — disjoint `owned_paths` per screen (or `mode="read_only"` with the screen''s data-contract slice inlined); `fanout` auto-records each unit UNSCORED → back-fill `set_quality(r.agent_id, score, project="ui-design", task_type="docs", model=r.model)`; guard the import (`try: from libs.subagents import fanout, set_quality / except ImportError: …`). --> Secrets carve-out (the repo-review/rules-review/service-test class): a route/component file can carry an inline key (a Stripe publishable, a Maps key, a forgotten test token) — never inline secret-material content into a pool unit; a screen whose files carry one gets the NATIVE read, or the excerpt is redacted first; the UX judgment — flows, click budgets, IA, and the design-system CREATE/ADOPT call — stays yours (Opus), never a pool worker'
+  text: [*c122]
 - id: u-L124
   class: prose
   file: render
@@ -683,10 +672,9 @@ entries:
   file: render
   section: '## Subagents — design-time AND build-time are NATIVE while the pool is OFF (D-181/D-182); parallel per screen'
   baseline: 'Model tier the native work: Opus for the UX/design-review judgment + the decide/refute/merge you own; Haiku/Sonnet for the mechanical passes (reading the a11y tree, checking design-token compliance, screenshot diffing) — don''t spend Opus on a pixel-diff'
-  current: 'Model tier the native work: Opus for the UX/design-review judgment + the decide/refute/merge you own; Haiku/Sonnet for the mechanical passes (reading the a11y tree, checking design-token compliance, screenshot diffing)'
+  current: 'Model tier the native work: Opus for the UX/design-review judgment + the decide/refute/merge you own; Haiku/Sonnet for the mechanical passes (reading the a11y tree, checking design-token compliance, screenshot diffing) — don''t spend Opus on a pixel-diff'
   text:
-  - 'Model tier the native work: Opus for the UX/design-review judgment + the decide/refute/merge you own; Haiku/Sonnet for the mechanical passes (reading the a11y tree, checking design-token compliance, screenshot diffing)'
-  clauses: {3: narrative}
+  - 'Model tier the native work: Opus for the UX/design-review judgment + the decide/refute/merge you own; Haiku/Sonnet for the mechanical passes (reading the a11y tree, checking design-token compliance, screenshot diffing) — don''t spend Opus on a pixel-diff'
 - id: u-L131
   class: prose
   file: render
@@ -766,10 +754,9 @@ entries:
   file: render
   section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
   baseline: 'Until that review attests the new version, `check_frozen_chain.py` prints `<artifact>: newest independent review attests v<M> but the contract is at v<N> — … re-run the review twin or drop the claim` for a contract that carries an earlier attestation — the expected state after this run, not a regression'
-  current: 'Until that review attests the new version, `check_frozen_chain.py` prints `<artifact>: newest independent review attests v<M> but the contract is at v<N> — … re-run the review twin or drop the claim` for a contract that carries an earlier attestation'
+  current: 'Until that review attests the new version, `check_frozen_chain.py` prints `<artifact>: newest independent review attests v<M> but the contract is at v<N> — … re-run the review twin or drop the claim` for a contract that carries an earlier attestation — the expected state after this run, not a regression'
   text:
-  - 'Until that review attests the new version, `check_frozen_chain.py` prints `<artifact>: newest independent review attests v<M> but the contract is at v<N> — … re-run the review twin or drop the claim` for a contract that carries an earlier attestation'
-  clauses: {2: narrative}
+  - 'Until that review attests the new version, `check_frozen_chain.py` prints `<artifact>: newest independent review attests v<M> but the contract is at v<N> — … re-run the review twin or drop the claim` for a contract that carries an earlier attestation — the expected state after this run, not a regression'
   pins:
   - tests/test_ui_design_queue_pass.py::test_re_freeze_close_out_sweeps_mirrors_and_names_the_review_gate
 - id: u-L144
@@ -784,10 +771,9 @@ entries:
 - id: ui-design-r1
   class: prose
   file: render
-  baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
-  current: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
-  text:
-  - '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  baseline: &ar1 '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  current: *ar1
+  text: [*ar1]
 - id: ui-design-r2
   class: ban
   file: render
@@ -809,19 +795,17 @@ entries:
   file: render
   section: '## Build Verification Loop (mandated per screen — iterate to a NO-OP)'
   baseline: 'It is a SECOND, build-time loop — do not conflate it with the design-convergence contract at the top of this command: that one froze `docs/ui-design.md` (the *truth*, at design time); THIS one proves the *built* UI matches that truth (at build time), once per screen, with its own Pass Ledger'
-  current: 'It is a SECOND, build-time loop — do not conflate it with the design-convergence contract at the top of this command: THIS one proves the *built* UI matches that truth (at build time), once per screen, with its own Pass Ledger'
+  current: 'It is a SECOND, build-time loop — do not conflate it with the design-convergence contract at the top of this command: that one froze `docs/ui-design.md` (the *truth*, at design time); THIS one proves the *built* UI matches that truth (at build time), once per screen, with its own Pass Ledger'
   text:
-  - 'It is a SECOND, build-time loop — do not conflate it with the design-convergence contract at the top of this command: THIS one proves the *built* UI matches that truth (at build time), once per screen, with its own Pass Ledger'
-  clauses: {2: narrative}
+  - 'It is a SECOND, build-time loop — do not conflate it with the design-convergence contract at the top of this command: that one froze `docs/ui-design.md` (the *truth*, at design time); THIS one proves the *built* UI matches that truth (at build time), once per screen, with its own Pass Ledger'
 - id: ui-design-r5
   class: prose
   file: render
   section: '## Subagents — design-time AND build-time are NATIVE while the pool is OFF (D-181/D-182); parallel per screen'
-  baseline: Build-time (the Build Verification Loop — NATIVE, no pool). Driving a running screen needs the browser MCPs (Playwright / Maestro / mobile-mcp / chrome-devtools / shadcn), which have no pool equivalent — so this is native `fabrik-gui`, dispatched one agent per screen IN PARALLEL — sized, stamped and closed per § Subagents below (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <screens>` → `python3 scripts/command_run.py dispatch --seats <n>` → `round --seats <n>`) — (screens are independent → verify them concurrently, don't serialize)
-  current: Build-time (the Build Verification Loop — NATIVE, no pool). Driving a running screen needs the browser MCPs (Playwright / Maestro / mobile-mcp / chrome-devtools / shadcn), which have no pool equivalent — so this is native `fabrik-gui`, dispatched one agent per screen IN PARALLEL — sized, stamped and closed per § Subagents below (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <screens>` → `python3 scripts/command_run.py dispatch --seats <n>` → `round --seats <n>`)
+  baseline: &ar5 Build-time (the Build Verification Loop — NATIVE, no pool). Driving a running screen needs the browser MCPs (Playwright / Maestro / mobile-mcp / chrome-devtools / shadcn), which have no pool equivalent — so this is native `fabrik-gui`, dispatched one agent per screen IN PARALLEL — sized, stamped and closed per § Subagents below (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <screens>` → `python3 scripts/command_run.py dispatch --seats <n>` → `round --seats <n>`) — (screens are independent → verify them concurrently, don't serialize)
+  current: Build-time (the Build Verification Loop — NATIVE, no pool). Driving a running screen needs the browser MCPs (Playwright / Maestro / mobile-mcp / chrome-devtools / shadcn), which have no pool equivalent — so this is native `fabrik-gui`, dispatched one agent per screen IN PARALLEL — sized, stamped and closed per § Subagents below (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <screens>` → `python3 scripts/command_run.py dispatch --seats <n>` → `round --seats <n>`) — (screens are independent → verify them concurrently, don't serialize)
   text:
-  - Build-time (the Build Verification Loop — NATIVE, no pool). Driving a running screen needs the browser MCPs (Playwright / Maestro / mobile-mcp / chrome-devtools / shadcn), which have no pool equivalent — so this is native `fabrik-gui`, dispatched one agent per screen IN PARALLEL — sized, stamped and closed per § Subagents below (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <screens>` → `python3 scripts/command_run.py dispatch --seats <n>` → `round --seats <n>`)
-  clauses: {4: narrative}
+  - Build-time (the Build Verification Loop — NATIVE, no pool). Driving a running screen needs the browser MCPs (Playwright / Maestro / mobile-mcp / chrome-devtools / shadcn), which have no pool equivalent — so this is native `fabrik-gui`, dispatched one agent per screen IN PARALLEL — sized, stamped and closed per § Subagents below (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <screens>` → `python3 scripts/command_run.py dispatch --seats <n>` → `round --seats <n>`) — (screens are independent → verify them concurrently, don't serialize)
 - id: ui-design-r6
   class: prose
   file: render
@@ -830,6 +814,83 @@ entries:
   current: 'Before any planner (Traycer or `/fabrik-plan-after-chat`) consumes the contract, run `/fabrik-ui-design-review` on it: the independent, adversarial second pass that re-grounds every screen/flow/field against the spec, `docs/data-contract.md`, the design system, and the surface pack, and converges to its own closing round (`confirmed: 0`, md5 unchanged), like `/fabrik-spec-review`'
   text:
   - 'Before any planner (Traycer or `/fabrik-plan-after-chat`) consumes the contract, run `/fabrik-ui-design-review` on it: the independent, adversarial second pass that re-grounds every screen/flow/field against the spec, `docs/data-contract.md`, the design system, and the surface pack, and converges to its own closing round (`confirmed: 0`, md5 unchanged), like `/fabrik-spec-review`'
+- id: u-L78
+  class: prose
+  file: render
+  section: '## Phase 7 — Freeze + hand off'
+  baseline: &a78 '`docs/ui-design.md` is a committed, project-owned file'
+  current: *a78
+  text: [*a78]
+- id: u-L90
+  class: ban
+  file: render
+  section: '### ⚠️ Termination contract — READ FIRST (the rule agents skip)'
+  baseline: &a90 'Declaring a screen done while the last pass changed pixels — or skipping the confirming pass because "it looks fine" — is the exact failure this contract exists to stop'
+  current: *a90
+  text: [*a90]
+- id: u-L109
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: &a109 Invent a bespoke component/pattern where the design system has one — compose the system's primitives
+  current: *a109
+  text: [*a109]
+- id: u-L110
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: &a110 Ship a flow over its click budget — redesign it; minimal-click is the contract, not an aspiration
+  current: *a110
+  text: [*a110]
+- id: u-L111
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: &a111 'Put a field on a screen that isn''t in `docs/data-contract.md` — reconcile it in the data contract first'
+  current: *a111
+  text: [*a111]
+- id: u-L114
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: &a114 'Ship a built screen whose Build Verification Loop hasn''t reached its closing pass (gate-green + `/design-review` clean, the ledger''s `found: 0, fixed: 0`) — that is the UI analogue of skipping `/fabrik-review`, and it is not allowed'
+  current: *a114
+  text: [*a114]
+- id: u-L117
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: &a117 Hand off to planning while the contract is still `DRAFT`
+  current: *a117
+  text: [*a117]
+- id: u-L118
+  class: ban
+  file: render
+  section: '## Guardrails — never'
+  baseline: &a118 Hand off to planning on a `FROZEN` contract that has NOT yet passed `/fabrik-ui-design-review` — the independent review is a required gate, not optional
+  current: *a118
+  text: [*a118]
+- id: u-L120
+  class: prose
+  file: render
+  section: '## Subagents — design-time AND build-time are NATIVE while the pool is OFF (D-181/D-182); parallel per screen'
+  baseline: &a120 'Two subagent regimes — keep them distinct:'
+  current: *a120
+  text: [*a120]
+- id: u-L125
+  class: ban
+  file: render
+  section: '## Subagents — design-time AND build-time are NATIVE while the pool is OFF (D-181/D-182); parallel per screen'
+  baseline: &a125 Native subagents produce no `AgentResult` → they record nothing (by nature); `scripts/enforcement/check_subagent_flywheel.py` stands down entirely while the pool is OFF (D-182)
+  current: *a125
+  text: [*a125]
+- id: u-L134
+  class: prose
+  file: render
+  section: '## Re-freeze close-out (runs ONLY when this run was a version bump N→N+1 on an already-FROZEN artifact)'
+  baseline: &a134 'The frozen 2-contract chain (`flows.md` → `data-contract.md` → `ui-design.md` [→ `design-system.md`]) has seams nothing else owns: your bump leaves every downstream consumer frozen against a version that no longer exists'
+  current: *a134
+  text: [*a134]
 vanished:
   L1: {"rule": ["ui-design-r1"]}
   L6: {"rule": ["u-L6"]}
@@ -848,29 +909,18 @@ vanished:
   L75: {"rule": ["ui-design-r2"]}
   L76: {"rule": ["ui-design-r2"]}
   L77: {"rule": ["ui-design-r3"]}
-  L78: narrative
   L84: {"rule": ["ui-design-r4"]}
-  L90: {"duplicate-of": "u-L87"}
   L96: narrative
   L98: {"rule": ["u-L98"]}
   L106: {"duplicate-of": "u-L10"}
-  L109: {"duplicate-of": "u-L51"}
-  L110: {"duplicate-of": "u-L42"}
-  L111: {"duplicate-of": "u-L56"}
   L112: {"rule": ["u-L112"]}
   L113: {"rule": ["u-L113"]}
-  L114: {"duplicate-of": "u-L86"}
   L115: {"rule": ["u-L115"]}
-  L117: {"duplicate-of": "u-L11"}
-  L118: {"duplicate-of": "u-L11"}
-  L120: narrative
   L121: {"rule": ["u-L121"]}
   L122: {"rule": ["u-L122"]}
   L123: {"rule": ["ui-design-r5"]}
-  L125: {"duplicate-of": "u-L3"}
   L126: {"rule": ["u-L126"]}
   L128: narrative
   L129: {"rule": ["ui-design-r6"]}
   L130: narrative
-  L134: narrative
   L143: {"rule": ["u-L143"]}

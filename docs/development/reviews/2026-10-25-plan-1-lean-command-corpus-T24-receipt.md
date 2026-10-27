@@ -145,3 +145,20 @@ COUNTS: 111 entries read / 27 reworded / 0 weaker / 0 lost / 0 invented / 0 wron
 - `CHANGELOG.md`, `INDEX.md` rows, any D-row for the floor above.
 - The author-blind audit pair over the 27 reworded entries and the 3 new `narrative` deletions (L96, L128, L134), plus the two judgement labels named in the self-audit.
 - Re-grade under master's loader after T01d lands; render the corpus at merge.
+
+## Fix round 2 (hub audit)
+
+Two author-blind auditors (Sonnet 17 items, Haiku 19 items, overlapping) refuted the zeros; the master loader (D-1258) also named 14 LOSS lines on L90, L109–L111, L114, L117, L118, L125. Every finding was checked against the before-text: **all confirmed, none refuted.** Fixed by restoring the lost wording in `commands/_sources/fabrik-ui-design.md` and carrying it in `commands/_rules/fabrik-ui-design.yaml`:
+
+- Un-weakened (qualifier/anchor/phrase restored verbatim): u-L34 ("for its API", "before finalizing"), u-L37 ("+ the product-specific core screens the spec implies"), u-L17 ("the product's core workflow", "screens render these"), u-L24 ("e.g. reactbits.dev"), u-L40 ("decided HERE, once, up front, instead of improvised per ticket"), u-L98 ("perf is a gate, not a nicety"), u-L112 (`/fabrik-plan-after-chat`), u-L113 ("visual detail lives in the design system"), u-L121 (the region → component → `docs/data-contract.md` field map), u-L126 ("don't spend Opus on a pixel-diff"), u-L143 ("the expected state after this run, not a regression"), ui-design-r1 ("this text is the control"), ui-design-r4 (`docs/ui-design.md`, "that one froze"), ui-design-r5 ("verify them concurrently, don't serialize").
+- u-L122: the suspended `<!-- POOL OFF (D-181) -->` re-enable recipe and the secrets-carve-out class are back (the r1 header says suspended instructions stay in those comments for re-enable). The break before "the UX judgment" stays a `;` (the `. The` form would split the unit).
+- Wrong `vanished:` labels removed by restoring the text as its own entry: u-L78 (was narrative), u-L90 (was duplicate-of u-L87; the "it looks fine" excuse was uncarried), u-L109, u-L110, u-L111, u-L114, u-L117, u-L118 (were duplicate-of; clauses uncarried), u-L120 ("keep them distinct", was narrative), u-L125 (`AgentResult`, full script path, "stands down entirely"), u-L134 (the 2-contract chain that defines "DOWNSTREAM frozen consumer"). `vanished:` keeps L106 duplicate-of u-L10 (unchanged), L96/L128/L130 narrative (no instruction in them), and `rule` rows pointing at an entry that now carries the rule.
+- Invented: none found by either auditor; none added.
+
+Own-text words: baseline 4368 → re-ledger 3695 → now ≈4250. The "now" figure is an estimate (3695 plus the words restored, tallied edit by edit); I had no shell to run the `own_text` word count. The 50% target is retired (D-1257), so no floor table.
+
+Gates: `tests/test_command_rules.py -rP` prints no LOSS line naming `fabrik-ui-design.yaml` (`LEDGER fabrik-ui-design.yaml: 122 entries`; its one failure is the live-corpus test, still red on other units' and `_shared` LOSS). `assemble_commands.py --check` shows no LOSS for this ledger either. The skill-router/ui-design queue batch is 282 passed and the final-gate/frontend-design batch is 402 passed, 2 skipped, the same counts as in the re-ledger round. I did not run the other batches, which do not read this command's text.
+
+Fresh passes run: **0.** I cannot dispatch a subagent in this lane, so the zero-counts self-audit was NOT a fresh subagent. I did the pass by hand, entry by entry against the before-text; that re-check of my own fixes backs no zero claim, and the hub's author-blind audit pair covers it.
+
+COUNTS: entries read 122 / reworded 20 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0 (hand pass by the author, not a fresh reader)
