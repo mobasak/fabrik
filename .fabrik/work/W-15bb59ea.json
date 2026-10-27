@@ -3,7 +3,7 @@
   "created": "2026-10-26T17:31:46.007524Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "cd91946464967c454023555690c31d2bde979fa3",
   "id": "W-15bb59ea",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "lean P0: a timed-out API job loses its whole spend; one constant + test",
-  "status": "open",
+  "status": "done",
   "title": "api_write.py DEFAULT_TIMEOUT_S is 3600 s; a lean re-ledger at up to 400 turns can exceed an hour, and a timed-out job commits and pushes NOTHING — raise the default to 10800 (found by infra-2 firing the first API batch)"
 }

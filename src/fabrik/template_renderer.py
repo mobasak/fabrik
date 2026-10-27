@@ -7,6 +7,7 @@ to produce compose.yaml, Dockerfile, and other deployment files.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -52,15 +53,33 @@ class TemplateRenderer:
         )
 
         # Add custom filters
-        self.jinja.filters["env_escape"] = self._env_escape
+        self.jinja.filters["compose_env"] = self._compose_env
 
     @staticmethod
-    def _env_escape(value: str) -> str:
-        """Escape value for use in environment variables."""
-        if isinstance(value, str):
-            # Escape quotes and special chars
-            return value.replace('"', '\\"').replace("\n", "\\n")
-        return str(value)
+    def _compose_env(key: object, value: object) -> str:
+        """One compose `environment:` list item, `- {{ key | compose_env(value) }}` (W-80aed026).
+
+        A plain scalar `KEY=value` mangled values: ` #` started a comment, `: ` made a mapping, a newline
+        broke the list, and a backslash-escaped `"` stayed a backslash. PyYAML's own double-quoted
+        emission round-trips every string compose can hold; ASCII-only, because the deployer writes the
+        file with the locale encoding. `$` is left alone here — render() escapes the secrets layer, while
+        spec env keeps compose interpolation. The error names the key, never the value (it is echoed).
+        """
+        text = f"{key}={value}"
+        if "\x00" in text:
+            # runc refuses a container whose env holds a NUL.
+            raise ValueError(f"compose env {key}: the value contains a NUL byte")
+        try:
+            text.encode("utf-8")
+        except UnicodeEncodeError:
+            # A lone surrogate (os.getenv's surrogateescape) emits as `\uDC80`, which compose rejects.
+            raise ValueError(f"compose env {key}: the value is not valid UTF-8") from None
+        item = yaml.safe_dump(text, default_style='"', width=sys.maxsize, allow_unicode=False)
+        item = item.rstrip("\n")
+        if "\n" in item:
+            # Tripwire only: with width=sys.maxsize PyYAML never folds a double-quoted scalar.
+            raise ValueError(f"compose env {key}: the YAML emission spans several lines")
+        return item
 
     def list_templates(self) -> list[str]:
         """List available templates."""
@@ -126,8 +145,12 @@ class TemplateRenderer:
             with open(defaults_path, encoding="utf-8") as f:
                 defaults = yaml.safe_load(f) or {}
 
-        # Merge environment: defaults < spec.env < secrets
-        env_vars = {**defaults.get("env", {}), **spec.env, **secrets}
+        # Merge environment: defaults < spec.env < secrets. A secret is a literal value, so its `$` is
+        # doubled for compose (`$$` reads as one `$`); spec env keeps `${VAR}` interpolation on purpose.
+        # Only compose templates read `env` (tests/test_compose_env_quoting.py), and the caller's
+        # mapping is never mutated.
+        literal_secrets = {k: str(v).replace("$", "$$") for k, v in secrets.items()}
+        env_vars = {**defaults.get("env", {}), **spec.env, **literal_secrets}
 
         # Build render context
         context = {

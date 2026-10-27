@@ -148,17 +148,21 @@ def _fill_credentials(loaded: dict[str, dict]) -> list[str]:
     donor (operator ruling 2026-10-07, D-641): filling from it re-wrote a revoked Grafana token
     twice while printing OK (01M1A3A698), and a rotated key can never be re-emitted stale when the
     only sources are the places a rotation is written to."""
-    roster: dict[str, dict] = {}
+    servers: object = None
     try:
         data = json.loads(ROSTER_PATH.read_text())
-        roster = data.get("mcpServers") or {}
-    except (OSError, ValueError):
-        roster = {}
+        servers = data.get("mcpServers") if isinstance(data, dict) else None
+    except (OSError, ValueError, RecursionError):  # a deeply nested file overflows json.loads
+        pass
+    # a roster of a wrong shape, at any level, is no donor, never a crash (W-f7772267 (b))
+    roster: dict = servers if isinstance(servers, dict) else {}
     dotenv = _env_file_values(HUB_ENV_PATH)
     unresolved: list[str] = []
     for name, entry in loaded.items():
         env = entry.get("env") or {}
-        donor = (roster.get(name) or {}).get("env") or {}
+        donor_entry = roster.get(name)
+        donor = donor_entry.get("env") if isinstance(donor_entry, dict) else None
+        donor = donor if isinstance(donor, dict) else {}
         for k, v in env.items():
             if not (isinstance(v, str) and _PLACEHOLDER_RE.match(v)):
                 continue
@@ -184,6 +188,10 @@ def _is_credential(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip()) and "${" not in value
 
 
+def _no_constant(name: str) -> object:
+    raise ValueError(f"{name} is not JSON")
+
+
 def _load_defs(defs_arg: str | None) -> dict[str, dict]:
     """The server DEFINITIONS: `--defs`, else the hand-curated `mcp_defs.json` beside this script
     (the STATIC catalog heads the chain — BLOCKER regression, author-blind review 2026-08-30: the
@@ -191,20 +199,35 @@ def _load_defs(defs_arg: str | None) -> dict[str, dict]:
     postgres-pro from every repo). Credentials are then filled by `_fill_credentials`; an
     unresolved one FAILS the run naming the key — never a silent placeholder, never the prior
     output."""
-    candidates = ([Path(defs_arg)] if defs_arg else []) + [
-        Path(__file__).resolve().parent / "mcp_defs.json",
-    ]
-    loaded: dict[str, dict] | None = None
-    for p in candidates:
-        if not p.is_file():
+    # an explicit --defs is the ONLY catalog read: one it cannot use is a named abort, never a silent fall-back to
+    # mcp_defs.json; every read, parse or shape fault is a SystemExit, which check_mcp_scope prints (W-f7772267 (k))
+    p = Path(defs_arg) if defs_arg else Path(__file__).resolve().parent / "mcp_defs.json"
+    try:
+        # NaN/Infinity parse in Python but are no JSON: emitted verbatim, they would make every .mcp.json unreadable
+        data = json.loads(p.read_text(), parse_constant=_no_constant)
+    except (OSError, ValueError, RecursionError) as e:
+        raise SystemExit(
+            f"emit_mcp: server definitions {p} could not be read as JSON — {e}"
+        ) from None
+    servers = data.get("mcpServers") if isinstance(data, dict) else None
+    if not isinstance(servers, dict) or not servers:
+        raise SystemExit(f"emit_mcp: server definitions {p} hold no non-empty `mcpServers` object")
+    bad = []
+    for n, e in servers.items():
+        if not isinstance(e, dict):
+            bad.append(n)
             continue
-        data = json.loads(p.read_text())
-        servers = data.get("mcpServers")
-        if isinstance(servers, dict) and servers:
-            loaded = json.loads(json.dumps(servers))  # deep copy
-            break
-    if loaded is None:
-        raise SystemExit("emit_mcp: no server definitions source found (pass --defs)")
+        bad += [f"{n}.env"] if e.get("env") is not None and not isinstance(e["env"], dict) else []
+        bad += [f"{n}.command"] if "command" in e and not isinstance(e["command"], str) else []
+        args = e.get("args", [])
+        bad += (
+            [f"{n}.args"]
+            if not (isinstance(args, list) and all(isinstance(a, str) for a in args))
+            else []
+        )
+    if bad:
+        raise SystemExit(f"emit_mcp: server definitions {p} — wrong shape: {', '.join(bad)}")
+    loaded: dict[str, dict] = json.loads(json.dumps(servers))  # deep copy
     unresolved = _fill_credentials(loaded)
     if unresolved:
         raise SystemExit(
@@ -221,9 +244,14 @@ def _repo_type(repo: Path) -> str | None:
     or no `type:` line). A `type:` line the grammar cannot read returns it raw, so it rules as an unknown type
     (a visible SKIP), never as untyped."""
     py = repo / "project.yaml"
-    if not py.is_file():
-        return None
+    # only a MISSING file is untyped (W-f7772267 (g)); anything else that is no regular file — a directory, a dangling or
+    # looping link, a FIFO, whose read blocks with no writer — is unreadable and never opened
     try:
+        # Python 3.12's exists()/is_file() RAISE on EACCES — a link into a mode-000 directory (W-f7772267 (k))
+        if not (py.exists() or py.is_symlink()):
+            return None
+        if not py.is_file():
+            return "(unreadable: not a regular file)"
         text = py.read_text(encoding="utf-8", errors="replace")
     except (
         OSError
@@ -233,7 +261,8 @@ def _repo_type(repo: Path) -> str | None:
     if m:
         return m.group(1)
     raw = re.search(r"^type:(.*)$", text, re.M)
-    return f"(unreadable: {raw.group(1).strip()[:40]})" if raw else None
+    # `(unparsed:`, never `(unreadable:`: only an OSError is a file the emitter could not read (W-f7772267 (g))
+    return f"(unparsed: {raw.group(1).strip()[:40]})" if raw else None
 
 
 def _database_url(repo: Path) -> str | None:
@@ -371,7 +400,13 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
         return "SKIP (`.mcp.json` is a symlink — never written through it; make it a plain file)"
     servers = derive_servers(repo, defs)
     if servers is None:
-        return "SKIP"
+        # an unreadable project.yaml is no ruling to apply: a named error, which fails the run (W-f7772267 (g))
+        rtype = _repo_type(repo) or ""
+        return (
+            f"SKIP (error: project.yaml {rtype[1:-1]})"
+            if rtype.startswith("(unreadable:")
+            else "SKIP"
+        )
     payload = json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n"
     if target.is_file() and target.read_text() == payload:
         verdict = "OK"

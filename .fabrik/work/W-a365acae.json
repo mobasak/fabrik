@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T04:05:12.969754Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-a365acae",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5XJH47PTT9SB1CDS2ZBB5AR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-3-staleness-list"
+}

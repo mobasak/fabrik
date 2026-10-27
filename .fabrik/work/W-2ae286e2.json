@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T22:46:47.281269Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2ae286e2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: quote (single-quote or escape) $ in _format_env with a docker-compose-run red-first test, parse the hub .env with the same dotenv rules compose uses, and quote template_renderer's .env.example lines (a spec env value with a newline injects lines there — W-80aed026 review A-3)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Deployed .env values are still interpolated and mis-read: _format_env (deployer_ssh.py:1114) never quotes $, so a secret consumed through ${KEY} in spec env (e.g. evolution-api DATABASE_CONNECTION_URI: ${DATABASE_URL}) or through env_file only (.env.owner) loses everything after a $; and the naive hub .env reader for from_env (orchestrator/__init__.py:435-442) keeps surrounding quotes, while from_file keeps a trailing newline. Found by the W-80aed026 design critiques."
+}

@@ -137,6 +137,8 @@ class Health(BaseModel):
     interval: str = "30s"
     timeout: str = "10s"
     retries: int = 3
+    start_period: str | None = None
+    """Compose ``start_period``; None renders the template's own default (W-3197a125)."""
     disabled: bool = False
     """When true, no HEALTHCHECK is emitted. Use only for images that lack
     shell tooling (e.g. ``traefik/whoami``) where any healthcheck would
@@ -144,6 +146,12 @@ class Health(BaseModel):
     test: list[str] | None = None
     """Custom HEALTHCHECK test command (docker-compose ``test`` form).
     Overrides the default wget/curl probe when set."""
+
+    @field_validator("start_period")
+    @classmethod
+    def _blank_start_period_is_unset(cls, v: str | None) -> str | None:
+        # A whitespace-only value is truthy in Jinja and would render `start_period:` (YAML null).
+        return v.strip() or None if v is not None else None
 
 
 class Volume(BaseModel):

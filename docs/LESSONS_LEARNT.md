@@ -1,6 +1,18 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Hardening one stat call against EACCES means sweeping every stat on the same path (2026-10-27)
+
+- **What happened:** W-f7772267 (k) wrapped `_repo_type`'s `exists()` and the scope check's `mcp_json.is_file()`,
+  because Python 3.12's pathlib RAISES `PermissionError` there when the path runs through a directory this user cannot
+  search. Pass 1 of the review found the same raise one line earlier (`is_dir()` on a root entry linking into such a
+  directory) and one line later (`--defs` in such a directory). It also found that the first fix's `continue` silently
+  skipped a searchable repo whose `.mcp.json` links into one.
+- **Rule:** when one filesystem call is hardened against an error class, list every `stat`-family call on the same
+  path (`is_dir`, `is_file`, `exists`, `is_symlink`, `read_text`) and probe each with a link into a mode-000 directory
+  before the first pin. Decide each catch by what the caller can still know: a file present but unreadable is
+  graded, and an entry nobody can search is named. Neither one is a silent `continue`.
+
 ## A right-now fix reads the plan locks too, not only a /fabrik-task run (2026-10-27)
 
 - **What happened:** W-d095d60b (a right-now fix under /fabrik-review-scoped) edited
@@ -11,15 +23,36 @@
 - **Rule:** before editing a file, read the plan locks, whatever lane the change took: `status: active` with the path
   under `owned_paths` is a stop and a message to the coordinator, never a silent edit.
 
+## A guard over a template language asks that language's parser, never a regex (2026-10-27)
+
+- **What happened:** W-80aed026's grader needed "only compose templates read `env`". The first regex missed
+  `{{ env }}` and `env | tojson`; the widened one (review round 1) missed whitespace control `{{-env}}` and
+  arithmetic `x-env`, both real reads Jinja renders — two review rounds on one matcher. `jinja2.meta
+  .find_undeclared_variables` over the renderer's own environment answered every case, a template-local
+  `set env` included. The same review measured the item's own proposed fix (double every `$`) against the
+  fleet's specs first and refuted it: 20+ specs put `${VAR}` in `env:` on purpose (D-1269).
+- **Rule:** when a guard asks what code in some language DOES (reads a name, quotes a value), call that
+  language's own parser or analyser; a regex re-derives the grammar and drifts on the first form it forgets.
+  And replay an item's proposed fix on the real corpus before adopting it.
+
+## A mutation battery proves nothing until each test passes unmutated (2026-10-27)
+
+- **What happened:** W-d5d1d394's review battery reported mutant M8 "killed" by a new test that in fact failed on
+  the unmutated code too — its matcher looked for `test_k:` where the line reads `test_k (call)`. The touched-slice
+  run caught it (1 failed of 899); the battery had read a red as a kill.
+- **Rule:** run every named test on the unmutated copy first and require a pass before a mutant's red counts
+  (`/fabrik-review` rule (4) says so; a hand-rolled battery must carry the BASELINE step itself).
+
 ## A census that re-implements a check must read every field the check reads (2026-10-26)
 
 - **What happened:** W-34d76a7a's MEASURE counted vanished `rule:` labels with a hand-written script that pooled the
   named entries' phrases but never read the matching entry's `clauses:` labels. It reported 11 of 185 lines newly lost
   on kaizen's latest cut; both design critiques replayed the real `_lint` and found 0 — every label named the line's
   own lintable entry, whose labels excuse exactly those story clauses (D-1258).
-- **Rule:** measure a proposed check by running the module's own functions on the real corpus (here `losses()` over a
-  real render, base vs new), never a re-implementation; a re-implementation is a second reading and drifts on the
-  first field it forgets.
+- **Rule:** measure a proposed check, or grade a change against one, by running the module's own functions on the real
+  corpus (here `losses()` over a real render, base vs new), never a re-implementation; a re-implementation is a second
+  reading and drifts on the first field it forgets. (W-da101088, 2026-10-27: a test that copied `check_structure.py`'s
+  placement rules disagreed with the gate on 6 of 16 probe paths; it now calls `check_structure.check_structure()`.)
 
 ## A measure built in a worktree must not read the disk (2026-10-25)
 

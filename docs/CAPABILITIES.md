@@ -100,6 +100,7 @@
 ## script
 - [scripts/agent_status.py](../INDEX.md) (owner: infra): Every hub worker's NOW, DONE and NEXT — or, with --json --all, every repo's agents — read from records that already exist.
 - [scripts/api_credit.py](../INDEX.md) (owner: infra): Spend the three prepaid Anthropic API credits through capped, read-only headless runs (D-1196, W-894f994f).
+- [scripts/api_write.py](../INDEX.md) (owner: infra): The API-key WRITE lane: disposable headless writers on the three prepaid keys (D-1247, D-1248, D-1251, W-174b8543).
 - [scripts/aro-wake/claude_rotate.py](../INDEX.md) (owner: infra): NB: this file is vendored BYTE-IDENTICAL into scripts/sysadmin/ and scripts/aro-wake/
 - [scripts/audit_all_projects.py](../INDEX.md) (owner: infra): Deep audit all /opt projects for Fabrik scaffold compliance (v2).
 - [scripts/audit_all_registrars.py](../INDEX.md) (owner: infra): T4-04 G-G5 — hourly drift audit across all 9 registrars × all specs.
@@ -297,6 +298,7 @@
 - [scripts/sysadmin/rules_currency_watch.py](../INDEX.md) (owner: infra): Rules-pack version-pin tripwire (operator question 2026-09-01: "what will happen
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): Version injection for the rules corpus (D-062 — no version literals in packs).
 - [scripts/sysadmin/selfwatch_check.py](../INDEX.md) (owner: infra): UserPromptSubmit (USER level — every window, every project) — is this session's self-watch ARMED?
+- [scripts/sysadmin/session_archive_alert.py](../INDEX.md) (owner: infra): session_archive_alert — mail infra and the coordinator when the nightly chat backup fails (W-36687f76).
 - [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): stop_mine — the promoted research miner (spec 2026-09-23-stop-and-compaction-enforcement-design
 - [scripts/sysadmin/transcript_size_check.py](../INDEX.md) (owner: infra): transcript_size_check — the ROTATE advisories (C.1.3 of the session-history retention plan, D-736; the
 - [scripts/sysadmin/user_hook_gate.py](../INDEX.md) (owner: infra): USER-level hook gate: run a hub hook for every window UNLESS the project already wires it.
