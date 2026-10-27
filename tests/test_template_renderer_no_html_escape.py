@@ -112,10 +112,13 @@ _ESCAPE_FILTERS = {"e", "escape", "forceescape", "xmlattr", "urlize"}
 def _escapes_by_filter(n: nodes.Filter) -> bool:
     if n.name in _ESCAPE_FILTERS:
         return True
-    # `map("e")` applies the filter named by its first argument; a name not known here is flagged.
-    if n.name == "map" and n.args:
-        first = n.args[0]
-        return not isinstance(first, nodes.Const) or first.value in _ESCAPE_FILTERS
+    # `map("e")` applies the filter its positional arguments name, `map("map", "e")` included, so any
+    # escape name among them is flagged, and so is a name only known at render time (`map(name)`,
+    # `map(*names)`); a constant name outside `_ESCAPE_FILTERS` (`map("upper")`) is not.
+    if n.name == "map":
+        return n.dyn_args is not None or any(
+            not isinstance(a, nodes.Const) or a.value in _ESCAPE_FILTERS for a in n.args
+        )
     return False
 
 
@@ -125,8 +128,9 @@ def _escapes(source: str) -> list[str]:
     A regex over `{{ }}`/`{% %}` spans misread comments, `{% raw %}` blocks and a `}}`/`%}` inside a
     string or dict literal; the parser does not. `nodes.Filter` covers the pipe form, `{% filter %}`
     blocks and `{% set x | e %}`; an `{% autoescape %}` block is a scoped eval-context modifier, flagged
-    unless its value is a constant false. Not modelled: a file the scan below does not read, reached
-    through `{% include %}`/`{% import %}` (today every such tag names `_partials/`, which it reads).
+    unless its value is a falsy constant (`false`, `0`, `none`, `""`) — `not true` is flagged too. Not modelled: a file the scan below does not read, reached
+    through `{% include %}`/`{% import %}` (today every such tag in the files it reads names
+    `_partials/`, which it reads).
     """
     tree = TemplateRenderer().jinja.parse(source)
     hits = [f"{n.lineno}: |{n.name}" for n in tree.find_all(nodes.Filter) if _escapes_by_filter(n)]
@@ -155,6 +159,8 @@ def _escapes(source: str) -> list[str]:
         # A filter applied by name, and the built-ins that escape internally.
         ('{{ xs | map("e") | join }}', True),
         ("{{ xs | map(name) | join }}", True),
+        ("{{ xs | map(*names) | join }}", True),
+        ('{{ [xs] | map("map", "e") | map("join") | join }}', True),
         ("{{ {'a': x} | xmlattr }}", True),
         ("{{ x | urlize }}", True),
         ("{% autoescape flag %}{{ x }}{% endautoescape %}", True),
