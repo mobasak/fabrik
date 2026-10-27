@@ -2524,7 +2524,8 @@ QUEUE_POLL_S = 2.0
 # (TEST_TIMEOUT_S, or the base's declared one) sized for that width, so two legs at half width
 # each ran twice as long against it — every queue leg died at 1800 s on 2026-10-27 (4-shard shards
 # 603-1643 s; one 8-shard leg's shards 253-842 s). A later leg forks only once the first request
-# lands on a record, so it overlaps that landing, never the first's own leg; `--jobs N` lets N such
+# lands on a record (or has no tree to test), so it overlaps that landing, never the first's own
+# leg; `--jobs N` lets N such
 # later legs run at once, each at full width — only where the box has N legs' worth of free CPUs.
 QUEUE_JOBS = 1
 QUEUE_MAX = 4  # requests per pass; each lands within the wall below or waits for the next run
@@ -2749,9 +2750,10 @@ def _land(msg_id: str) -> int:
 
 
 def _leg_fits(started: float, script: str) -> bool:
-    """A leg forked now may set up, run its whole limit (``_declared_leg``) and its outer bound
-    (LEG_OVERHEAD_S) and still be followed by a worst-case landing — else the leg cannot lead to a
-    landing this run, and the wall return would only wait on it."""
+    """A leg forked now may run its whole limit (``_declared_leg``) plus LEG_OVERHEAD_S — its
+    setup (an estimate: no deadline bounds it) and the leg's 60 s outer bound — and still be
+    followed by a worst-case landing; else the leg cannot lead to a landing this run, and the
+    wall return would only wait on it."""
     leg = _declared_leg(script) + LEG_OVERHEAD_S
     return time.monotonic() - started + leg + LANDING_WORST_S <= QUEUE_WALL_S
 

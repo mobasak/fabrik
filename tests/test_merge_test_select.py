@@ -792,7 +792,7 @@ def test_a_flaky_red_runs_no_ordered_base_shard(tmp_path, monkeypatch):
     """W-d5d1d394: a red green alone AND in its shard's order was flaky — the base has no verdict of
     its to compare, so its shard is not re-run there. The 8-shard hub leg of 2026-10-27 started
     exactly this base run (its ordered confirm passed, 1389 tests in 478 s), beside master reds
-    confirmed alone (W-d5d1d394 measure.md § 6)."""
+    confirmed alone (W-d5d1d394 design.md, cause (2))."""
     monkeypatch.chdir(tmp_path)
     (tmp_path / "tests").mkdir()
     for name in ("test_a.py", "test_b.py"):

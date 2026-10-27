@@ -424,7 +424,8 @@ def test_queue_default_runs_one_leg_at_a_time(world):
 
     legs = sorted((t0, t1) for _, t0, t1 in _legs(log))
     assert len(legs) == 3
-    assert all(a[1] <= b[0] for a, b in zip(legs, legs[1:])), legs  # never two at once
+    # never two at once
+    assert all(a[1] <= b[0] for a, b in zip(legs, legs[1:], strict=False)), legs
     assert all(_record(world, m)["outcome"] == "merged" for m in sends)
 
 
