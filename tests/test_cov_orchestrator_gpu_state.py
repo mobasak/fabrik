@@ -92,6 +92,7 @@ def test_load_preserves_newer_schema(state_file):
 
 @pytest.mark.xfail(
     strict=True,
+    raises=TypeError,
     reason="gpu_state.py:81-82 non-dict JSON (list) raises TypeError instead of falling back to empty",
 )
 def test_load_non_dict_json_is_treated_as_corrupt(state_file):
@@ -214,10 +215,18 @@ def test_pause_resume_cycle():
 
 def test_pause_twice_latest_wins(monkeypatch):
     _mk()
+    ticks = iter([datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 2, tzinfo=UTC)])
+
+    class SteppingClock:
+        @staticmethod
+        def now(tz=None):
+            return next(ticks)
+
+    monkeypatch.setattr(gpu_state, "datetime", SteppingClock)
     gpu_state.mark_paused("s1")
-    first = gpu_state.get_session("s1")["paused_at"]
     gpu_state.mark_paused("s1")
-    assert gpu_state.get_session("s1")["paused_at"] >= first
+    # Two distinct instants, so a first-pause-wins regression keeps the 1st and fails here.
+    assert gpu_state.get_session("s1")["paused_at"] == "2026-01-02T00:00:00+00:00"
 
 
 def test_record_actual_cost():

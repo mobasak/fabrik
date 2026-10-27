@@ -15,13 +15,17 @@ def ok(result):
 
 
 def make_client(handler, account_id="acc1", token="tok"):
+    # Swap only the transport: base URL and headers stay the production client's, so a wrong
+    # API version or a dropped Authorization header reaches the handler and fails the test.
     cf = CloudflareClient(api_token=token, account_id=account_id)
-    cf._client.close()
+    real = cf._client
     cf._client = httpx.Client(
-        base_url=BASE,
+        base_url=real.base_url,
         transport=httpx.MockTransport(handler),
-        headers={"Authorization": f"Bearer {token}"},
+        headers=real.headers,
+        timeout=real.timeout,
     )
+    real.close()
     return cf
 
 
@@ -369,6 +373,7 @@ def test_ensure_record_name_already_qualified_not_doubled():
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="cloudflare.py:296 name.endswith(domain) treats label 'myappa.com' as already qualified",
 )
 def test_ensure_record_label_ending_with_domain_text_is_still_subdomain():
@@ -381,6 +386,28 @@ def test_ensure_record_label_ending_with_domain_text_is_still_subdomain():
     )
     make_client(rec).ensure_record("a.com", "A", "myappa.com", "1.1.1.1")
     assert rec.calls[2][3]["name"] == "myappa.com.a.com"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="cloudflare.py:335 name.endswith(domain) treats label 'myappa.com' as already qualified",
+)
+def test_delete_record_by_name_label_ending_with_domain_text_is_still_subdomain():
+    rec = Recorder({ZONES: ok([{"id": "z"}]), RECS: ok([])})
+    out = make_client(rec).delete_record_by_name("a.com", "A", "myappa.com")
+    assert out["name"] == "myappa.com.a.com"
+
+
+def test_requests_carry_the_production_bearer_header():
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers.get("authorization"))
+        return httpx.Response(200, json=ok([{"id": "z"}]))
+
+    make_client(handler, token="sekret").get_zone_id("a.com")
+    assert seen and set(seen) == {"Bearer sekret"}
 
 
 def test_ensure_record_zone_missing_propagates():

@@ -82,6 +82,8 @@ def store(monkeypatch):
 def creds(monkeypatch, tmp_path):
     for v in _CRED_VARS:
         monkeypatch.delenv(v, raising=False)
+    # python-dotenv's load_dotenv reads nothing when this is set in the caller's shell.
+    monkeypatch.delenv("PYTHON_DOTENV_DISABLED", raising=False)
     monkeypatch.setattr(gc, "SYSADMIN_ENV", tmp_path / "missing.env")
     monkeypatch.setenv("B2_KEY_ID", "kid")
     monkeypatch.setenv("B2_APPLICATION_KEY", "secret")
@@ -420,7 +422,7 @@ def test_tarball_extras_default_empty():
 
 
 def test_read_tarball_garbage_raises():
-    with pytest.raises(Exception):  # noqa: B017 - gzip.BadGzipFile / OSError
+    with pytest.raises(OSError, match="Not a gzipped file"):  # gzip.BadGzipFile
         gc.read_checkpoint_from_tarball(b"not a tarball")
 
 

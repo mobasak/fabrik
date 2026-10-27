@@ -142,6 +142,35 @@ def test_sign_signature_depends_on_secret(http, monkeypatch):
     assert a != b
 
 
+def test_sign_matches_the_aws_published_sigv4_example(http, monkeypatch):
+    # Known answer from AWS's SigV4 documentation, "Example: GET Object" at
+    # https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sig-v4-header-based-auth.html —
+    # an independent value, so a wrong key derivation or canonical request turns this red where
+    # the shape/determinism tests above stay green.
+    class FixedDT:
+        @staticmethod
+        def now(tz=None):
+            from datetime import datetime
+
+            return datetime(2013, 5, 24, 0, 0, 0, tzinfo=tz)
+
+    monkeypatch.setattr(r2, "datetime", FixedDT)
+    c = R2Client("acct", "AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+    c.region = "us-east-1"
+    empty_sha = hashlib.sha256(b"").hexdigest()
+    h = c._sign(
+        "GET",
+        "/test.txt",
+        {"host": "examplebucket.s3.amazonaws.com", "range": "bytes=0-9"},
+        payload_hash=empty_sha,
+    )
+    assert h["Authorization"] == (
+        "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, "
+        "SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, "
+        "Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41"
+    )
+
+
 # --- health -----------------------------------------------------------------
 
 
@@ -227,7 +256,11 @@ def test_presigned_content_type_changes_signature(client, monkeypatch):
     assert a != b
 
 
-@pytest.mark.xfail(strict=True, reason="object key is not percent-encoded in the presigned path")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="object key is not percent-encoded in the presigned path",
+)
 def test_presigned_key_with_space_is_encoded(client):
     url = client.generate_presigned_url("my file.txt")
     assert " " not in url
@@ -337,7 +370,9 @@ def test_list_objects_http_error(client, http):
 
 
 @pytest.mark.xfail(
-    strict=True, reason="URL uses urlencode ('+') but signature uses quote ('%20') for spaces"
+    strict=True,
+    raises=AssertionError,
+    reason="URL uses urlencode ('+') but signature uses quote ('%20') for spaces",
 )
 def test_list_objects_url_query_matches_signed_query(client, http):
     http.get.return_value = _resp(200, text="")

@@ -163,13 +163,21 @@ def test_validate_compose_matches_linter():
     assert validate_compose(GOOD).valid is True
 
 
-@pytest.mark.xfail(strict=True, reason="image: null crashes with AttributeError (None.lower())")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AttributeError,
+    reason="image: null crashes with AttributeError (None.lower())",
+)
 def test_null_image_does_not_crash(linter):
     r = linter.lint("services:\n  app:\n    image:\n    container_name: a\n    restart: always\n")
     assert r.valid is True
 
 
-@pytest.mark.xfail(strict=True, reason="services: null crashes with AttributeError (None.items())")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AttributeError,
+    reason="services: null crashes with AttributeError (None.items())",
+)
 def test_null_services_reported_not_crash(linter):
     r = linter.lint("services:\n")
-    assert r.valid is False or r.valid is True  # must return a LintResult, not raise
+    assert r.valid is False  # a null services block is reported invalid, never raised

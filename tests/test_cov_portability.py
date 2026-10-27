@@ -167,7 +167,8 @@ def test_collect_state_missing_dir(tmp_path):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="_collect_state crashes (AttributeError on .pop) when a state file is valid JSON but not an object",
+    raises=TypeError,
+    reason="_collect_state crashes (TypeError from list.pop(str)) when a state file is valid JSON but not an object",
 )
 def test_collect_state_non_object_json_does_not_crash(root):
     (root / ".fabrik" / "state" / "list.json").write_text("[1, 2]")
