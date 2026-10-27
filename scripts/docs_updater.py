@@ -616,14 +616,14 @@ TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE
 # clean zero while the entry would fire everywhere. Measured both ways 2026-09-17: `PORTS.md` has the
 # marker in 47 of 47 repos (proxy says "safe to arm") and fires "Stale doc (93 days old)" in 47 of 47
 # (the real check), because the scaffolder seeded one date fleet-wide. That is ONE seeding artifact
-# wearing 47 hats, not 47 defects, so it is NOT in this list. The three added below were measured
-# through the real check: FUNNEL 0/47, AUTOMATION 0/47, API_REFERENCE 1/47 — and that single hit is a
-# TRUE POSITIVE kept deliberately, which is what the gate is for. The remaining candidates need their
-# markers added before they can be watched. Re-measure before adding any entry; the numbers move.
+# wearing 47 hats, not 47 defects, so it is NOT in this list. API_REFERENCE was added through the
+# real check (1/47 — a TRUE POSITIVE kept deliberately, which is what the gate is for). The remaining
+# candidates need their markers added before they can be watched. Re-measure before adding any
+# entry; the numbers move.
 # An entry must be a doc the project can edit (not in fabrik_synced_manifest.review_readonly_paths(),
 # so AGENTS.md is out) and may keep where it is (check_structure.py allows its path, so docs/INDEX.md
-# is out); tests/test_docs_updater.py grades both, holding docs/FUNNEL.md and docs/AUTOMATION.md
-# as the named exceptions W-1adf4ed4 decides. D-1272 records why the list stays hand-picked
+# is out, and so are docs/FUNNEL.md and docs/AUTOMATION.md, one repo's own docs — D-1273);
+# tests/test_docs_updater.py grades both. D-1272 records why the list stays hand-picked
 # rather than every project doc by default (site-provisioner, 01M2NJGZGV20WP): a date header
 # cannot see content, and the git-date signal lives in fleet_doc_audit.py and /fabrik-release.
 MANUAL_DOCS = [
@@ -633,8 +633,6 @@ MANUAL_DOCS = [
     "docs/TROUBLESHOOTING.md",
     "docs/BUSINESS_MODEL.md",
     "docs/API_REFERENCE.md",
-    "docs/FUNNEL.md",
-    "docs/AUTOMATION.md",
 ]
 
 # Placeholder markers that indicate incomplete stubs

@@ -1153,9 +1153,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "enforcement")
 import check_structure  # noqa: E402
 import fabrik_synced_manifest  # noqa: E402
 
-# docs/<name> entries check_structure.py warns about that stay watched until W-1adf4ed4 decides them.
-_MISPLACED_PENDING = frozenset({"docs/FUNNEL.md", "docs/AUTOMATION.md"})
-
 
 def _not_the_projects_to_edit(entries: list[str]) -> list[str]:
     # This tree's own synced set, never the main checkout's (the function's default root).
@@ -1191,7 +1188,7 @@ def test_the_readonly_guard_catches_every_synced_doc(synced: str) -> None:
 
 
 def test_no_watched_doc_is_one_governance_misplaces() -> None:
-    assert sorted(_misplaced(du.MANUAL_DOCS)) == sorted(_MISPLACED_PENDING)
+    assert _misplaced(du.MANUAL_DOCS) == []
 
 
 @pytest.mark.parametrize(
