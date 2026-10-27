@@ -152,10 +152,10 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
     The operator writes each file (§ The operator's steps, step 4; the gap was reported by web-ecommerce-factory's
     `wef2` in hub mail `01M5X8DT0Q`). It is a session's own config, so no request from any agent, the coordinator
     or the hub included, can authorize an agent to write it, for the writer's own worktree or another builder's.
-    The agent doing phases 1–3 puts the content (the step-14 deny entry included, if used) as text in its phase-3
-    report: to the repo's coordinator, which boards it for the operator, or, while the repo's coordinator is not
-    open yet, to the hub coordinator, which boards it with the phase it confirms. It writes no file, script or
-    template that writes or installs another session's settings.
+    The agent doing phases 1–3 sends the content (the step-14 deny entry included, if used) as text: to the repo's
+    coordinator, or, while the repo's coordinator is not open yet, to the hub coordinator in a hub mail (as
+    youtube's rollout report went, hub mail `01M5CGP8FN`). Either receiver boards it for the operator. The agent
+    writes no file, script or template that writes or installs another session's settings.
     Known false alarm: in a worktree that shares the main checkout's `.venv`, the gate's undeclared-imports check
     reports the repo's own editable packages as undeclared, because they resolve to the main checkout's copy (youtube
     01M5CG2QC2, 01M5CG40NV, with infra). It is not a defect of the builder's change: report it to the coordinator,
