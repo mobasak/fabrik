@@ -2797,18 +2797,20 @@ def _parse_worktree_porcelain(out: str) -> list[dict]:
 
 
 def _trailer_names(value: str) -> list[str]:
-    """The branch names in one `Merged-From` value: a COMMA LIST of `branch (free-text description)`.
+    """The branch names in one `Merged-From` value: a COMMA LIST of `branch (description)`.
 
     Commas split only at parenthesis depth 0, so a description such as `(vendor, wiring)` or
     `(see, hotfix (x))` never yields a name of its own, and an item ending in `)` is cut at its
     FIRST ` (`. A value holding an unclosed `(` names NOBODY: past it no grammar can tell a name
-    from a description word (`feat (wip, hotfix` must not vouch for `hotfix`). Each name is `.strip()`ped (else every item after the first keeps its leading
-    space and matches nothing) and compared WHOLE-STRING by the caller — a substring test would let
-    one branch's description word mark a different branch merged. Model limits (D-1290): a branch
+    from a description word (`feat (wip, hotfix` must not vouch for `hotfix`). Each name is
+    `.strip()`ped (else every item after the first keeps its leading space and matches nothing)
+    and compared WHOLE-STRING by the caller — a substring test would let one branch's
+    description word mark a different branch merged. Model limits (D-1290): a branch
     whose own name holds a comma cannot be told from two names (none exists here), and a stray `)`
     in a description (`(smile :), b (x))`) can close it early and make its later text a name.
     """
-    matched, opened = set(), []
+    matched: set[int] = set()
+    opened: list[int] = []
     for i, ch in enumerate(value):
         if ch == "(":
             opened.append(i)
@@ -2817,7 +2819,9 @@ def _trailer_names(value: str) -> list[str]:
             matched.add(i)
     if opened:
         return []
-    items, depth, cur = [], 0, []
+    items: list[str] = []
+    cur: list[str] = []
+    depth = 0
     for i, ch in enumerate(value):
         if ch == "," and depth == 0:
             items.append("".join(cur))
@@ -3576,7 +3580,11 @@ def _worktree_chain(
         why = f"not merged into {target} (ahead {n})"
         sha = _target_commit(main_path, target)
         vouch = None if sha is None else _squash_vouch(main_path, sha, branch)
-        newer = None if vouch is None else _newer_than_vouch(main_path, sha, branch, vouch)
+        newer = (
+            None
+            if sha is None or vouch is None
+            else _newer_than_vouch(main_path, sha, branch, vouch)
+        )
         if newer:
             why += f"; {newer} commit(s) newer than the Merged-From squash that names it"
         return "wt-unmerged", why, ""

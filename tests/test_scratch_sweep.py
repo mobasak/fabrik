@@ -1147,18 +1147,24 @@ def test_merged_from_reads_one_target_state(
     main = _vouch_repo(tmp_path)
     mod = _w18_module("w69322546_one_state")
     seen: list[str] = []
-    real = mod._newer_than_vouch
+    seen_vouch: list[str] = []
+    real, real_vouch = mod._newer_than_vouch, mod._squash_vouch
 
     def spy(repo: Path, target: str, branch: str, vouch: int) -> int | None:
         seen.append(target)
         return real(repo, target, branch, vouch)
 
+    def spy_vouch(repo: Path, target: str, branch: str) -> int | None:
+        seen_vouch.append(target)
+        return real_vouch(repo, target, branch)
+
     monkeypatch.setattr(mod, "_newer_than_vouch", spy)
+    monkeypatch.setattr(mod, "_squash_vouch", spy_vouch)
     mod._merged_from(main, "main", "reused-squash")
     head = subprocess.run(
         ["git", "-C", str(main), "rev-parse", "main"], capture_output=True, text=True, check=True
     ).stdout.strip()
-    assert seen == [head], seen
+    assert (seen_vouch, seen) == ([head], [head]), (seen_vouch, seen)
 
 
 def test_merged_from_rereads_a_rewound_target(tmp_path: Path) -> None:
