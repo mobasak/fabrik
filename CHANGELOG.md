@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a heavy test file runs in pieces across the merge leg's shards (2026-10-28)
+
+The hub's merge-time test leg (`scripts/merge_test_select.py`) no longer lets one file set every merge's wall time. On
+master's last 20 merges the leg's slowest shard was 1,462 s on all 20, because `tests/test_assemble_dispatch_step.py`
+(a tree grader, selected by every non-ledger change) was always placed whole. A selected file heavier than its
+selection's per-shard share and 60 s now runs as node units: each test weighed by its recorded seconds once a leg has
+recorded them, else contiguous equal-count groups. Reds, the alone confirm, the base comparison and the duration record
+resolve node units (a test the base does not collect is NEW; a base that cannot collect the file runs it whole). Simulated
+over those 20 merges with the selector's own select/balance and recorded seconds: 1,462 s → 678-929 s. Measured on a real merge (master's bb6412ec9, the hub leg run three times in a shared clone, the box loaded by review seats): master's selector 2,542 s wall (slowest shard 1,792 s); the new one 1,037 s (equal-count groups, slowest shard 1,022 s) and 1,365 s (node-weighted, shards 769-890 s; the rest of the wall is the confirm and base re-runs of master's own pre-existing reds, which vary run to run).
+W-231f4695, W-3ba57940; D-1312.
+
 ### Fixed — an API-key session is not sized against the plan quota (2026-10-28)
 
 `dispatch_headroom.py` printed SEATS 0 at the fleet wall, and held the floor in the drain band, for a session running on an Anthropic API key, whose seats draw the key, not the plan. It now calls the posture hook's own D-1243 predicate and skips every plan-quota cap when it answers True; a battery stamp, a second credential, a predicate that fails, or a hold with no stamp where the hook looks keep the caps (D-1303, W-3e924ccb).
