@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T18:42:09.007329Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-cdaa7813",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M61EJFK1N3DANC0QCCVSXH8N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: kaizen-lean-t46"
+}
