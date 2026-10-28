@@ -368,6 +368,11 @@ def test_check_exit_order_loss_then_ceiling_then_drift(tmp_path: Path, monkeypat
     monkeypatch.setattr(ac, "OUT", inst)
     monkeypatch.setattr(ac, "SKILLS", skills)
     monkeypatch.setattr(ac, "AGENTS", agents)
+    # No rule ledgers for steps 1-3: the live 63-ledger LOSS pass took minutes per check() (W-bda24c48)
+    # and grades nothing here; step 4 re-points RULES at a broken ledger, and the live corpus's own
+    # LOSS and ceiling state are test_command_rules.py::test_the_live_corpus_has_no_loss and
+    # test_live_corpus_within_ceiling below.
+    monkeypatch.setattr(ac.command_rules, "RULES", tmp_path / "none")
     ceiling = tmp_path / "ceiling.json"
     monkeypatch.setattr(ac.command_measure, "CEILING", ceiling)
     ac.ratchet_cli()

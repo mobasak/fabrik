@@ -630,7 +630,8 @@ def _gate_at(monkeypatch, d, s, a):
 
 
 def _installed(tmp_path, monkeypatch):
-    """A clean install rendered into scratch trees, with `check()` pointed at them."""
+    """A clean install rendered into scratch trees, with `check()` pointed at them and its LOSS and
+    measure passes stubbed by `_gate_at` — never use it to grade those passes."""
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
     _gate_at(monkeypatch, d, s, a)
