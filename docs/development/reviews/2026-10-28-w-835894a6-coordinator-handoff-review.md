@@ -1,6 +1,6 @@
 # Review — w-835894a6-coordinator-handoff
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 00e6e2fc1d908eb8e92ea7297907caae37fa14fa; range tip 00e6e2fc1d908eb8e92ea7297907caae37fa14fa; `git diff 3655be5c1..00e6e2fc1d908eb8e92ea7297907caae37fa14fa -- .claude/hooks/session_orient.py tests/test_session_orient_hook.py docs/workstation/hooks-index.md CHANGELOG.md docs/DECISIONS.md docs/LESSONS_LEARNT.md` md5 8b260eef972855418a84a5d94f4f2253 (51312 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/hooks/session_orient.py`, `tests/test_session_orient_hook.py`, `docs/workstation/hooks-index.md`, `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/LESSONS_LEARNT.md`
 **Lane:** fabrik-task
@@ -201,7 +201,7 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 
 `final_gate.py --check --json`, pasted verbatim (check_convergence reads the fenced
 `"status": "success"`). Close order per `/fabrik-review` § Reporting: run it while this receipt reads
-`Status: CONVERGED`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
+`Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
 {
