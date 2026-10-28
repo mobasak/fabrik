@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra-3",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Stop hook's feedback rung pushes a new /fabrik-command-improve after ROTATE-DUE says start no new item"
 }
