@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T17:14:38.686562Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-53f246f3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-28-plan-1-dynamic-builders/2026-10-28-plan-1-dynamic-builders.md",
+    "spec": ""
+  },
+  "next": "make the bus path injectable (or skip with a reason when absent); match -n/--name only as a flag token before the prompt argument and strip ' (deleted)' from the cwd readlink, each with a grader",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "agents_up.sh residue from the W-b9ad80ae wave-2 review: (a) test_the_bus_is_found_without_xdg_and_a_refused_slice_refuses asserts the XDG export only when /run/user/<uid>/bus is a socket, so it is trivially green on a host without a user bus; (b) named_running matches ' -n <name> ' anywhere in a claude's args (prompt text included) and ignores a ' (deleted)' cwd suffix"
+}
