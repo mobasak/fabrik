@@ -1,6 +1,6 @@
 # Plan — dynamic disposable builder agents (W-b9ad80ae)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 
 **Owner:** infra-3
 
@@ -534,6 +534,8 @@ Packs matching 8 changed path(s) (5):
 The hand-written tabbed launcher T05 replaces was read this run at `/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop/terminal agents/All Agents (tabbed).bat` (its first line `@echo off`, its last line one `start "" wt.exe -M -w new new-tab … ; new-tab … attach -t fabrik-2 ; …`) — the format T05 generates, with `-w fabrik-agents` in place of `-w new`.
 
 External facts: inherited from the spec's § External dependencies (`docs/superpowers/specs/2026-10-28-dynamic-builders-design.md:370-385`, all fetched 2026-10-28, re-verified by the spec review's fact slices); none re-researched — the spec is today's.
+
+Execution start (2026-10-28, session 5dc345b8): baseline `8a981474a` (master merged in), `final_gate.py --lean --check --json` → `success`, no red checks; `.claude/settings.json` carries `permissions.allow`. The lock overlap scan found one other active lock on an owned path — `2026-10-22-plan-1-fabrik-deck` (fleet) on `docs/workstation/hooks-index.md`; the lock owner cleared T04's agent_role.py row on the coordinator's ruling (D-1309), and this plan's lock records the file as shared.
 
 ## Self-audit
 
