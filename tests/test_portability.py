@@ -213,7 +213,8 @@ class TestSensitiveFieldRedaction:
             assert not portability._key_is_sensitive(k), f"false-positive: {k}"
 
 
-# Built at runtime so the repo's detect-private-key hook never sees an armour line.
+# Built at runtime so the repo's detect-private-key hook never sees the armour
+# spellings it blocks (fixed, exact-case header strings, single-spaced).
 _PK = "PRIVATE" + " KEY"
 _PEM_BODY = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7"
 
@@ -284,6 +285,7 @@ class TestPrivateKeyRedaction:
             "BEGIN " * 8_000,
             "-----END PRIVATE " * 8_000,
             "----- BEGIN " + "a " * 50_000,
+            "-" * 20_000,  # an open-ended dash prefix is retried at every dash (~5 s)
         ):
             start = time.perf_counter()
             portability._redact_sensitive_fields({"blob": value})

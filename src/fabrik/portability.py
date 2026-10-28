@@ -93,13 +93,14 @@ _SENSITIVE_KEY_PATTERNS = (
 )
 
 # A PEM/OpenSSH/PGP/SSH2 private-key armour line (BEGIN or END), anywhere in a
-# value: four or more dashes, then up to four label words before PRIVATE KEY
-# (the longest real label, SSH2 ENCRYPTED, has two), any whitespace between
-# words (a re-wrapped value splits them), any case. CERTIFICATE and PUBLIC KEY
-# armour never matches. The {0,4} bound keeps the search linear: an unbounded
-# word loop re-scans to the end of the value from every BEGIN/END.
+# value: four dashes (the last four of a five-dash armour), then up to four
+# label words before PRIVATE KEY (the longest real label, SSH2 ENCRYPTED, has
+# two), any whitespace between words (a re-wrapped value splits them), any
+# case. CERTIFICATE and PUBLIC KEY armour never matches. Both bounds keep the
+# search linear: an open-ended word loop re-scans to the end of the value from
+# every BEGIN/END, and an open-ended dash run is retried from every dash.
 _PEM_PRIVATE_RE = re.compile(
-    r"-{4,}\s*(?:BEGIN|END)\s+(?:[^\s-]+\s+){0,4}PRIVATE\s+KEY", re.IGNORECASE
+    r"-{4}\s*(?:BEGIN|END)\s+(?:[^\s-]+\s+){0,4}PRIVATE\s+KEY", re.IGNORECASE
 )
 
 
@@ -123,13 +124,14 @@ def _redact_sensitive_fields(obj: Any) -> Any:
     "this string looks like a secret" on values, which avoids false
     positives on URLs, paths, etc. — with ONE value-level exception: a
     str/bytes value or mapping key carrying a private-key armour line
-    (:data:`_PEM_PRIVATE_RE`) is redacted (such a key becomes
-    ``"REDACTED"`` too), because invariant 3 promises no private keys and
-    an armour line is never a URL or path. A key-text test cannot see a key
-    with no armour line (a bare base64 body, a JWK, a PuTTY file) under a
-    name no pattern matches. A mapping key that is not a string (YAML ints,
-    bools, nulls, ``!!binary``) cannot spell a sensitive name, so its value
-    is redacted (fail closed) and the key kept with its type. Any container
+    (:data:`_PEM_PRIVATE_RE`) is redacted (such a key, str or bytes, becomes
+    the str ``"REDACTED"`` too), because invariant 3 promises no private
+    keys and an armour line is never a URL or path. A key-text test cannot
+    see a key with no armour line (a bare base64 body, a JWK, a PuTTY file)
+    under a name no pattern matches. Any other mapping key that is not a
+    string (YAML ints, bools, nulls, ``!!binary``) cannot spell a sensitive
+    name, so its value is redacted (fail closed) and the key kept with its
+    type. Any container
     other than a dict or list (YAML ``!!set``, ``!!omap``, ``!!pairs``) is
     replaced whole, since its entries are never walked.
     """
