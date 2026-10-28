@@ -1312,7 +1312,7 @@
     },
     "total": 33717
    },
-   "render": 8310
+   "render": 8244
   },
   "fabrik-review": {
    "agents": [
@@ -1382,7 +1382,7 @@
     },
     "total": 62177
    },
-   "render": 41614
+   "render": 41171
   },
   "fabrik-review-scoped": {
    "agents": [
@@ -1927,7 +1927,7 @@
     },
     "total": 33508
    },
-   "render": 15603
+   "render": 15095
   },
   "fabrik-user-test": {
    "agents": [
@@ -2115,7 +2115,7 @@
     },
     "total": 89890
    },
-   "render": 22561
+   "render": 22415
   },
   "hibernate": {
    "agents": [],
