@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A delegated installer's exit code says nothing about what it wrote (2026-10-28, W-d6726a65)
+
+**What happened:** the setup script's archive step runs `install_session_archive_timer.sh` instead of copying its units. Both design critics executed it on stub `systemctl`: with `daemon-reload` failing it exits 1 after writing all three units and prints nothing, so undo lines built from "what this script wrote" would have missed every unit. The same pass found `systemctl --user cat` shows the DISK unit while the loaded one (`show -p OnFailure`) was empty on this box.
+
+**Lesson:** when a step delegates writes to another program, rebuild the undo set by re-reading every target after it returns, whatever its exit code, and verify the state the consumer reads (the loaded unit), not the file you can see.
+
 ## A check that reads list POSITION is satisfied by reordering the list (2026-10-27, W-0b900e92)
 
 **What happened:** the /fabrik-task close compared a receipt's range tip with the LAST `--commit`. A reporter whose receipt and ledger commits honestly came after the reviewed tip was refused, and passed by moving the tip to the end of the list. The same reorder passed an unreviewed code commit listed before the tip.

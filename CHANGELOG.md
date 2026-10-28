@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Operator one-time setup script: hooks, tab wrapper, editor key and archive timer in one reviewed run (2026-10-28)
+
+`scripts/sysadmin/operator_setup.py` (W-d6726a65, D-1311) collects the settings steps Claude Code's safety check refuses agents into one script the operator runs once: a dry run diffs every change; `--apply` backs each file up, runs the session-archive installer first, writes the rest atomically, verifies (the archive from the loaded unit), and prints undo lines. `docs/workstation/operator-setup.md`.
+
 ### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
 
 `.claude/hooks/seat_guard.py` now enforces D-1296 for the lead of the session bound as its repo's merge owner. A foreground Bash call is denied when its tool timeout exceeds 120 s, or when it runs a `sleep` inside a while/until/for/select loop under a timeout over 60 s. The deny tells the coordinator to re-run with `run_in_background: true` and end the turn, not block on the output. Identity comes from `quota_stop.py`, loaded by file path; every identity doubt allows. Measured first: the hub coordinator held 736 minutes of foreground waits in one day, and a plain "any sleep" rule was rejected (19 fires on coordinator sessions in 3 days, none long). W-e57d2481.

@@ -3,7 +3,7 @@
 The operator's requirement 1.1 (`docs/reference/operator-agent-requirements.md`): the operator does the one-time
 steps only the operator can do, once, and the coordinators do the rest. Claude Code's safety check refuses agents the
 settings-file, home-dir and user-systemd writes below, so they are collected in ONE script the operator runs
-(W-d6726a65, D-DRAFT).
+(W-d6726a65, D-1311).
 
 ## The run
 
