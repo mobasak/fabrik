@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — operator_setup.py's undo puts the archive timer's link back as it was (2026-10-29)
+
+- `scripts/sysadmin/operator_setup.py`: the archive step's undo no longer runs `systemctl --user disable`, which on systemd 255 also deletes an alias the operator made to the timer. It restores only the persistent `timers.target.wants` link the installer's `enable` added or rewrote, by absolute path when the unit dir is outside HOME; a non-symlink at that path is refused at planning. The two windows in which an operator's save can still be overwritten are documented as accepted residue (`docs/workstation/operator-setup.md`). W-88173de4, D-1317.
+
 ### Fixed — the Lint Ratchet is green again on master (2026-10-28)
 
 `.claude/hooks/session_orient.py:950` called `"�".encode("utf-8")` (U+FFFD), which ruff flags as UP012; that one error raised the repo-wide ruff count from 0 to 1 and turned every branch's `final_gate` Lint Ratchet red. It now calls `.encode()`, which yields the same bytes in every locale (W-82034f59).

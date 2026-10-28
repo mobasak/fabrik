@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Probe a guard on COMBINED states, not each state alone (2026-10-29, W-88173de4)
+
+**What happened:** a design probe showed that an alias alone reads `indirect` and is deleted by `systemctl disable`, so the design refused every `is-enabled` word but four measured ones, and two design critiques passed it. A review reader combined two states, an alias plus a runtime enable: the word read `enabled-runtime`, inside the allow-list, and the alias was still deleted.
+
+**Lesson:** a guard keyed on one classifier output partitions the states only as finely as that output does. When the harm comes from a property the classifier can mask, probe each harmful property combined with every allowed value before trusting the guard, or key the fix on the harm itself (here: restore exactly the link the installer changed), which needs no classifier.
+
 ## A delegated installer's exit code says nothing about what it wrote (2026-10-28, W-d6726a65)
 
 **What happened:** the setup script's archive step runs `install_session_archive_timer.sh` instead of copying its units. Both design critics executed it on stub `systemctl`: with `daemon-reload` failing it exits 1 after writing all three units and prints nothing, so undo lines built from "what this script wrote" would have missed every unit. The same pass found `systemctl --user cat` shows the DISK unit while the loaded one (`show -p OnFailure`) was empty on this box.
