@@ -53,22 +53,20 @@ binds by `CLAUDE_AGENT` only — no identity-store row until `whoami_agent.py --
 
 ## Install
 
-After the change is merged to master (the wrapper calls the main checkout's router):
+After the change is merged to master (the wrapper calls the main checkout's router), the operator's one-time setup
+script installs the wrapper and sets `claudeCode.claudeProcessWrapper` in both the VS Code Machine and the code-server
+User `settings.json` (the Fabrik Deck's panes, W-42d1ccb5) — `operator-setup.md`:
 
 ```bash
-mkdir -p ~/.claude/bin/backups
-cp ~/.claude/bin/claude-agent-wrapper.sh ~/.claude/bin/backups/claude-agent-wrapper.sh.$(date +%Y%m%d-%H%M%S)
-cp /opt/fabrik/scripts/sysadmin/claude-agent-wrapper.sh ~/.claude/bin/claude-agent-wrapper.sh
-chmod 755 ~/.claude/bin/claude-agent-wrapper.sh
+python3 /opt/fabrik/scripts/sysadmin/operator_setup.py --apply
 ```
-
-`~/.vscode-server/data/Machine/settings.json` is unchanged — it already names the wrapper. A code-server pane (the
-Fabrik Deck, W-42d1ccb5) sets the same key in its own User `settings.json`.
 
 ## Rollback
 
 - **Fast:** add `"CLAUDE_TAB_ROUTER": "off"` to `claudeCode.environmentVariables` — every tab launches plain.
-- **Full:** copy the newest `~/.claude/bin/backups/claude-agent-wrapper.sh.*` back over `~/.claude/bin/claude-agent-wrapper.sh`.
+- **Full:** run the undo line `operator_setup.py --apply` printed for the wrapper (its backup is under
+  `~/.local/state/fabrik/operator-setup-<timestamp>/`); an older hand install kept its copy in
+  `~/.claude/bin/backups/claude-agent-wrapper.sh.*`.
 
 ## Acceptance (the operator)
 
@@ -88,4 +86,5 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/sysadmin/claude_tab_router.py`
+- `scripts/sysadmin/operator_setup.py`
 <!-- END related-scripts -->

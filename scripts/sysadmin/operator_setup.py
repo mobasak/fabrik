@@ -228,7 +228,7 @@ def _guard() -> str | None:
         print(f"HUB OVERRIDE {override} in effect", file=sys.stderr)
     hub = Path(override or DEFAULT_HUB).resolve()
     want = hub / "scripts" / "sysadmin"
-    if HERE != want:
+    if want != HERE:
         return f"this copy is in {HERE}; run it from the hub main checkout: {want / 'operator_setup.py'}"
     try:
         head = (hub / ".git" / "HEAD").read_text(encoding="utf-8").strip()

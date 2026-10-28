@@ -123,7 +123,7 @@ def test_apply_backs_up_every_changed_file_first(tmp_path):
         assert (home / rel).read_bytes() == data, f"{rel} not restored"
     assert not (home / created).exists(), "a created file survived its restore line"
     after = {k: v for k, v in _digest(home).items() if not k.startswith(".local/state")}
-    assert after == {k: v for k, v in before.items()}, "the restore lines changed a mode or left a change behind"
+    assert after == before,"the restore lines changed a mode or left a change behind"
 
 
 def test_apply_installs_missing_hooks_and_keeps_other_keys(tmp_path):
@@ -207,9 +207,9 @@ def test_apply_outside_the_hub_checkout_refuses(tmp_path):
     for f in COPIED:
         shutil.copy2(SYSADMIN / f, evil / "scripts" / "sysadmin-evil" / f)
     cases = {
-        "worktree copy": dict(hub=_hub(tmp_path), script=SYSADMIN / "operator_setup.py"),
-        "sysadmin- sibling": dict(hub=evil, script=evil / "scripts" / "sysadmin-evil" / "operator_setup.py"),
-        "hub off master": dict(hub=_hub(tmp_path / "branch", head="ref: refs/heads/feature\n"), script=None),
+        "worktree copy": {"hub": _hub(tmp_path), "script": SYSADMIN / "operator_setup.py"},
+        "sysadmin- sibling": {"hub": evil, "script": evil / "scripts" / "sysadmin-evil" / "operator_setup.py"},
+        "hub off master": {"hub": _hub(tmp_path / "branch", head="ref: refs/heads/feature\n"), "script": None},
     }
     for label, c in cases.items():
         r = _run(home, c["hub"], "--apply", script=c["script"])
