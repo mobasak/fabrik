@@ -310,6 +310,7 @@ def test_real_heredoc_spellings_still_hold_data() -> None:
         # a closed `case` (and a word merely ending in "case") leaves `)` closing "$(…)" again
         f'x="$(case a in a) :;; esac)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
         f'x="$(echo showcase)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
+        f'x="$(cases a)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
     ):
         assert not _denied(_run(cmd)), cmd
 
@@ -327,6 +328,13 @@ def test_review_round_one_markers_hide_nothing() -> None:
         # each shape below passes the word-boundary rule, so only its own clause decides
         "echo $[1<<n ]\ngit reset --hard",
         'echo "$(case $x in a) echo " <<EOF ";; esac)"\ngit reset --hard',
+        # review round 2: `case`/`esac` are keywords only at command position (`echo case` is an
+        # argument), else a `)` that closes "$(…)" was held open and a data `<<EOF` hid line 2
+        "echo ${x:-$(echo case) <<EOF }\ngit reset --hard",
+        "echo ${x:-$(grep -c case f) <<EOF }\ngit reset --hard",
+        'x="$(case a in a) echo esac;; b) echo " <<EOF ";; esac)"\ngit reset --hard',
+        'x="$(if true; then case a in a) echo " <<EOF ";; esac; fi)"\ngit reset --hard',
+        'echo "$(echo case)<<EOF\n"\ngit reset --hard',
     ):
         assert _denied(_run(cmd)), cmd
 

@@ -169,14 +169,25 @@ _OP_ORDER = (
 SUBST = "__SUBST__"
 
 
+_KEYWORD_LEADS = frozenset({"if", "elif", "then", "else", "do", "while", "until", "!", "{", "time"})
+
+
 def _word_at(command: str, i: int, word: str) -> bool:
-    """`word` stands alone at i — a shell keyword, not part of `showcase` or `esacs`."""
+    """`word` is a shell KEYWORD at i: a whole word (not part of `showcase` or `esacs`) at
+    command position — the start, after `;` `&` `|` `(` or a newline, or after a keyword that
+    leads a command (`then case …`). bash reads `echo case` as an argument, never a keyword."""
     j = i + len(word)
-    return (
-        command.startswith(word, i)
-        and (i == 0 or command[i - 1] in " \t\n;&|(")
-        and (j == len(command) or command[j] in " \t\n;&|)")
-    )
+    if not command.startswith(word, i) or (j < len(command) and command[j] not in " \t\n;&|)"):
+        return False
+    k = i
+    while k and command[k - 1] in " \t":
+        k -= 1
+    if not k or command[k - 1] in "\n;&|(":
+        return True
+    m = k
+    while m and command[m - 1] not in " \t\n;&|()":
+        m -= 1
+    return command[m:k] in _KEYWORD_LEADS
 
 
 def _strip_heredocs(command: str) -> str:
