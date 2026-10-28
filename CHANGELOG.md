@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Coverage tests for eight more fabrik modules, graded from the batch-5 drain branches (2026-10-28)
+
+Eight hermetic test files from the cloud drain branches (`claude/cov-*`) landed after a full `/fabrik-review` (`docs/development/reviews/2026-10-28-drain-grade-5-review.md`): deploy_validator, drivers locks, modal_provider, preflight, seo and supabase, orchestrator vultr_drill, and verify. Grading fixed the modal_provider path helper, whose class attribute shadowed `PurePath.root` and which rewrote its segments in `__new__`, where Python 3.12 ignores them. The review fixed 17 defects over three passes (confirmed 16 → 1 → 0). Graders that could not fail now fail: a health-check negative, the exempt-type set spelled out, the unreadable-file order pinned, the lock steps pinned whole. The seo timeout test now fails instead of hanging. Supabase select/order encoding, key choice and `completed_at` are asserted, the drill isolation flags (`--skip-mesh`, `--skip-services`, `--skip-local-b2-check`) are pinned, and the public-DNS gate needs an exact answer. Bugs the strict xfails pin: W-cd7799f7 (preflight whitespace output, latent), W-43c1a36a (vultr_drill `kept_for_debug` with no server), W-4cbae5ab (verify null sections). Recorded for later: W-f7855cfc (three production defects) and W-8377cd0c (coverage survivors).
+
 ### Fixed — an API-key session is not sized against the plan quota (2026-10-28)
 
 `dispatch_headroom.py` printed SEATS 0 at the fleet wall, and held the floor in the drain band, for a session running on an Anthropic API key, whose seats draw the key, not the plan. It now calls the posture hook's own D-1243 predicate and skips every plan-quota cap when it answers True; a battery stamp, a second credential, a predicate that fails, or a hold with no stamp where the hook looks keep the caps (D-1303, W-3e924ccb).
