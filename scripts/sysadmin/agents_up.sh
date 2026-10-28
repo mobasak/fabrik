@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_up.py
-# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side in one tmux window (D-1031). Also: agents_up.sh rotate-session <name> [--compact FOCUS] [--trigger T] (W-f975fee0).
+# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side, four per tmux window (D-1031). Also: agents_up.sh --window <n> <repo>. Also: agents_up.sh rotate-session <name> [--compact FOCUS] [--trigger T] (W-f975fee0).
 #
 # Every repo's launcher (W-66e2f6a7 retired ~/bin/hub-up). The builders come from the repo's own registry,
 # <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), when it has one, and otherwise from the identity
@@ -19,6 +19,15 @@
 # builder `pane <name> <sid> <folder> <status>`, `cap <name> <TasksMax>` (or `cap <name> uncapped`) and `run <name>
 # <command>`. --detach builds the grid (or finds it up) and never attaches (the boot sweep and cron have no terminal);
 # a caller with no terminal on stdin/stdout detaches the same way and says so (W-1961cc42).
+#
+# Window layout (W-b9ad80ae D4): four panes per window — `agents` holds the first four builders, `agents-2` the next four,
+# `agents-3` the next, and so on (a pane that cannot be created is said and the next builder takes its slot). Each
+# overflow window `agents-<k>` is shown in its own tmux session `<S>+<k>`, grouped with the base session `<S>`, so a
+# separate terminal tab can attach it; `+` is outside the base-name alphabet, so such a session is this repo's by
+# construction. A new grid start kills every stale `<S>+<k>` first. `agents_up.sh --window <n> <repo>` (n >= 2) waits
+# (FABRIK_AGENTS_WINDOW_WAIT_S, 120 s) while the grid is absent or a live builder is still building it
+# (`@agents_up_building` holds that builder's PID), then attaches `=<S>+<n>`; with no window `agents-<n>` it says so and
+# attaches `=<S>`, creating nothing.
 #
 # Every pane runs WHOLE — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
 # fabrik-agents.slice, with MemorySwapMax=0 and TasksMax ($FABRIK_AGENT_TASKS_MAX, 1024) and NO MemoryMax of its own
@@ -90,14 +99,26 @@ fi
 print=0
 detach=0
 panecmd=0
+winn=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --print) print=1; shift ;;
     --detach) detach=1; shift ;;
     --pane-cmd) panecmd=1; shift ;;
+    --window)
+      # n is an integer >= 2: window 1 is `agents` itself, attached by a plain launch (W-b9ad80ae D5)
+      if [ $# -lt 2 ] || ! [[ "$2" =~ ^[0-9]{1,6}$ ]] || [ "$((10#$2))" -lt 2 ]; then
+        echo "usage: agents_up.sh --window <n> <repo>   (n is an integer, 2 or more)" >&2
+        exit 2
+      fi
+      winn="$((10#$2))"; shift 2 ;;
     *) break ;;
   esac
 done
+if [ -n "$winn" ] && { [ "$print" = 1 ] || [ "$detach" = 1 ] || [ "$panecmd" = 1 ]; }; then
+  echo "agents_up: --window is its own mode: it takes none of --print, --detach and --pane-cmd" >&2
+  exit 2
+fi
 # the name a pane may carry, and the ids a first prompt may name (all reach a shell command string)
 NAME_RE='^[a-z0-9][a-z0-9-]{0,31}$'
 SID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
@@ -139,7 +160,7 @@ if [ "$panecmd" = 1 ]; then
   set -- "$pane_repo"
 fi
 if [ $# -ne 1 ] || [ -z "$1" ]; then
-  echo "usage: agents_up.sh [--print] [--detach] <repo>" >&2
+  echo "usage: agents_up.sh [--print] [--detach] <repo>   |   agents_up.sh --window <n> <repo>" >&2
   exit 2
 fi
 if [ ! -d "$1" ]; then
@@ -745,14 +766,65 @@ adoptable() {  # every pane of the session carries an @agent that names one of t
   done <<< "$panes"
 }
 
-if tmux has-session -t "=$S" 2>/dev/null; then
-  owned_here || exit 2
-  echo "agents_up: the $S grid is already up — leaving it as it is; a registry change takes effect after: tmux kill-session -t =$S" >&2
-else
+
+# --- windows of four and the grouped overflow sessions (W-b9ad80ae D4, D5) ---------------------------------------------
+# A grid holds four panes per window: `agents`, then `agents-2`, `agents-3`, ... Every window this script creates is
+# captured by its id (`-P -F '#{window_id}'`), never found again by name: tmux resolves a window NAME target loosely, so
+# with only `agents-2` present both `-t =s:agents` and `-t =s:=agents` select `agents-2`. An existing window is found by
+# an EXACT name match over list-windows. The overflow window `agents-<k>` is shown in its own session `<S>+<k>`, grouped
+# with `<S>` (`new-session -t`), so each Windows Terminal tab attaches its own session. `+` is outside the base-name
+# alphabet [A-Za-z0-9_-], so `<S>+<k>` is this repo's by construction and can never be another repo's base session.
+PER_WINDOW=4
+tmux_group() {  # $1 = session name: its group, empty when it has none (a session is grouped once a member joins it)
+  tmux display-message -p -t "=$1:" '#{session_group}' 2>/dev/null
+}
+find_window() {  # $1 = exact window name: its id, or nothing
+  tmux list-windows -t "=$S" -F '#{window_id} #{window_name}' 2>/dev/null | awk -v n="$1" '$2 == n { print $1; exit }'
+}
+overflow_sessions() {  # every session named <S>+<digits>
+  local n
+  while IFS= read -r n; do
+    [[ "$n" == "$S+"* && "${n#"$S+"}" =~ ^[0-9]+$ ]] && printf '%s\n' "$n"
+  done < <(tmux list-sessions -F '#{session_name}' 2>/dev/null)
+  return 0
+}
+ensure_overflow() {  # $1 = k, $2 = the id of window agents-<k>: <S>+<k> in <S>'s group, its current window agents-<k>
+  local name="$S+$1" base og
+  base="$(tmux_group "$S")"
+  if tmux has-session -t "=$name" 2>/dev/null; then
+    og="$(tmux_group "$name")"
+    if [ -z "$og" ] || [ "$og" != "$base" ]; then tmux kill-session -t "=$name" >/dev/null 2>&1; fi
+  fi
+  if ! tmux has-session -t "=$name" 2>/dev/null && ! tmux new-session -d -t "=$S" -s "$name"; then
+    # a second --window run created it first: use it when it is grouped with <S>
+    base="$(tmux_group "$S")"
+    og="$(tmux_group "$name")"
+    if [ -z "$og" ] || [ "$og" != "$base" ]; then
+      echo "agents_up: could not create the tmux session $name for window agents-$1" >&2
+      return 1
+    fi
+  fi
+  tmux select-window -t "=$name:$2" >/dev/null
+}
+kill_hint() {  # the relaunch hint: the base session and every overflow session
+  local h="tmux kill-session -t =$S" n
+  while IFS= read -r n; do [ -n "$n" ] && h="$h; tmux kill-session -t =$n"; done < <(overflow_sessions)
+  printf '%s' "$h"
+}
+
+# The new grid. For four builders or fewer it is one window `agents`, even-horizontal, @agent on each pane. `@agents_up_building`
+# holds this process's PID from the new-session (chained with `\;` in the SAME tmux invocation, before the root is
+# recorded) to the end, so a `--window` poll never sees the session without it; it is unset at the end AND by an EXIT trap,
+# and counts only while the PID is alive. Cobra (D-253): the cheapest way past it is a flag that never clears — the PID
+# test makes a builder that died mid-build read "not building".
+start_grid() {
+  local name sid folder new dir st cmd out wid pid k n placed=0 raced=0 pane0=""
+  local -a wins=()
   check_spawn_vars
   slice_ceiling
-  first=1
-  raced=0
+  # none can be grouped with a base session that does not exist yet; a stale member of an old group keeps old windows and
+  # claude processes alive (a member survives the killing of its base)
+  while IFS= read -r n; do tmux kill-session -t "=$n" >/dev/null 2>&1; done < <(overflow_sessions)
   while read -r name sid folder new; do
     dir="$(dir_of "$folder")"
     [ -n "$dir" ] || continue
@@ -760,8 +832,8 @@ else
     newer_unbound "$name" "$sid" "$dir"
     [ "$st" = no-transcript ] && [ "$new" != 1 ] && echo "agents_up: $name: no transcript for session $sid under $(proj_of "$dir") — the pane will try anyway" >&2
     cmd="$(cmd_of "$name" "$sid" "$st" "$new")"
-    if [ "$first" = 1 ]; then
-      if ! tmux new-session -d -s "$S" -n "$W" -c "$dir" -x 240 -y 60 "$cmd"; then
+    if [ "$placed" = 0 ]; then
+      if ! out="$(tmux new-session -d -s "$S" -n "$W" -c "$dir" -x 240 -y 60 -P -F '#{window_id} #{pane_id}' "$cmd" \; set-option -t "=$S:" @agents_up_building "$$")"; then
         # a second launch racing this one built the grid first: attach to it (if it is this repo's) rather than fail
         if tmux has-session -t "=$S" 2>/dev/null; then
           owned_here || exit 2
@@ -770,34 +842,103 @@ else
         fi
         exit 1
       fi
+      trap 'tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1' EXIT
+      read -r wid pid <<< "$out"
+      if ! [[ "$wid" =~ ^@[0-9]+$ && "$pid" =~ ^%[0-9]+$ ]]; then
+        echo "agents_up: tmux gave no window and pane id for $S's first pane ('$out') — not continuing" >&2
+        exit 1
+      fi
+      wins+=("$wid")
+      pane0="$pid"
       tmux set-option -t "=$S:" @agents_up_root "$ROOT" >/dev/null ||
         echo "agents_up: could not record the root on $S — a relaunch cannot confirm this grid is this repo's and will attach it with a warning" >&2
-      first=0
-    elif ! tmux split-window -t "=$S:$W" -c "$dir" "$cmd"; then
-      echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
-      continue
+    elif [ $((placed % PER_WINDOW)) = 0 ]; then
+      k=$((placed / PER_WINDOW + 1))
+      out="$(tmux new-window -d -t "=$S:" -n "agents-$k" -c "$dir" -P -F '#{window_id} #{pane_id}' "$cmd")" || out=""
+      read -r wid pid <<< "$out"
+      if ! [[ "$wid" =~ ^@[0-9]+$ && "$pid" =~ ^%[0-9]+$ ]]; then
+        echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
+        continue
+      fi
+      wins+=("$wid")
+    else
+      wid="${wins[$((${#wins[@]} - 1))]}"
+      pid="$(tmux split-window -t "$wid" -c "$dir" -P -F '#{pane_id}' "$cmd")" || pid=""
+      if ! [[ "$pid" =~ ^%[0-9]+$ ]]; then
+        echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
+        continue
+      fi
     fi
-    tmux select-layout -t "=$S:$W" even-horizontal >/dev/null
-    tmux set -p -t "=$S:$W" @agent "$name"
+    wid="${wins[$((${#wins[@]} - 1))]}"
+    tmux select-layout -t "$wid" even-horizontal >/dev/null
+    tmux set -p -t "$pid" @agent "$name"
+    placed=$((placed + 1))
   done <<< "$AGENTS"
   # every resolved worktree went away between the resolve and here: no session was made, so there is nothing to select or attach
-  if [ "$first" = 1 ] && [ "$raced" = 0 ]; then
+  if [ "$placed" = 0 ] && [ "$raced" = 0 ]; then
     echo "agents_up: every builder's worktree went away between resolve and launch — nothing launched" >&2
     exit 2
   fi
   # a launch that lost the race leaves the other launch's grid as that launch arranges it
-  [ "$raced" = 1 ] || tmux select-pane -t "=$S:$W.0"
+  [ "$raced" = 1 ] && return 0
+  for ((k = 2; k <= ${#wins[@]}; k++)); do
+    ensure_overflow "$k" "${wins[$((k - 1))]}" || echo "agents_up: window agents-$k stays in $S (attach it with: $SELF --window $k $ROOT)" >&2
+  done
+  # <S>'s own current window is tab 1's `agents`, whatever the overflow sessions selected
+  tmux select-window -t "=$S:${wins[0]}" >/dev/null
+  tmux select-pane -t "$pane0"
+  tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1
+  trap - EXIT
+}
+
+# --window <n> <repo>: attach the session showing window agents-<n>. Waits (every 2 s, up to FABRIK_AGENTS_WINDOW_WAIT_S,
+# 120) while the grid is absent or a LIVE builder is still building it; a flag whose PID is dead, or no flag, is a grid
+# that is not being built.
+window_mode() {
+  local wait_s="${FABRIK_AGENTS_WINDOW_WAIT_S:-120}" waited=0 b wid
+  [[ "$wait_s" =~ ^[0-9]{1,6}$ ]] || bad_arg "bad FABRIK_AGENTS_WINDOW_WAIT_S '$wait_s' (whole seconds)"
+  while :; do
+    if tmux has-session -t "=$S" 2>/dev/null; then
+      b="$(tmux show-options -t "=$S:" -v @agents_up_building 2>/dev/null)"
+      { [[ "$b" =~ ^[0-9]+$ ]] && kill -0 "$b" 2>/dev/null; } || break
+    fi
+    if [ "$waited" -ge "$((10#$wait_s))" ]; then
+      echo "agents_up: the $S grid was not ready within $wait_s s" >&2
+      exit 2
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  owned_here || exit 2
+  wid="$(find_window "agents-$winn")"
+  if [ -n "$wid" ]; then
+    ensure_overflow "$winn" "$wid" || exit 2
+    ATT="$S+$winn"
+  else
+    echo "agents_up: the $S grid has no window agents-$winn now — showing its current window" >&2
+    if tmux has-session -t "=$S+$winn" 2>/dev/null; then tmux kill-session -t "=$S+$winn" >/dev/null 2>&1; fi
+  fi
+}
+
+ATT="$S"
+if [ -n "$winn" ]; then
+  window_mode
+elif tmux has-session -t "=$S" 2>/dev/null; then
+  owned_here || exit 2
+  echo "agents_up: the $S grid is already up — leaving it as it is; a registry change takes effect after: $(kill_hint)" >&2
+else
+  start_grid
 fi
 tmux source-file "$HOME/.tmux.conf" 2>/dev/null
 # --detach (the boot sweep, cron: no terminal) stops here; so does any caller with no terminal, which says so
 if [ "$detach" = 1 ]; then
-  echo "agents_up: --detach — the $S grid is up, not attaching (attach with: tmux attach -t =$S)" >&2
+  echo "agents_up: --detach — the $S grid is up, not attaching (attach with: tmux attach -t =$ATT)" >&2
   exit 0
 fi
 # run from inside tmux (a hub pane), attaching would nest; switch the client instead
-[ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$S"
+[ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$ATT"
 if [ ! -t 0 ] || [ ! -t 1 ]; then
-  echo "agents_up: no terminal on stdin/stdout, so there is nothing to attach — the $S grid is up and left detached (attach with: tmux attach -t =$S)" >&2
+  echo "agents_up: no terminal on stdin/stdout, so there is nothing to attach — the $S grid is up and left detached (attach with: tmux attach -t =$ATT)" >&2
   exit 0
 fi
-exec tmux attach -t "=$S"
+exec tmux attach -t "=$ATT"
