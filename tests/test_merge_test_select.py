@@ -1098,8 +1098,12 @@ def test_a_garbled_duration_line_is_skipped(tmp_path):
         encoding="utf-8",
     )
     runner.dur_files += [first, later]
-    # the first run holding a file wins; a torn or garbage line is skipped
-    assert runner.durations() == {"tests/test_a.py": 2.0, "tests/test_b.py": 2.0}
+    # only the first `runs` runs count (the shard run; a later confirm run never does), a torn or
+    # garbage line is skipped, and a file in several of those runs (a split file) is summed
+    assert runner.durations(1) == {"tests/test_a.py": 2.0}
+    assert runner.totals == [2.0]
+    assert runner.durations(2) == {"tests/test_a.py": 11.0, "tests/test_b.py": 2.0}
+    assert runner.totals == [2.0, 11.0]
 
 
 def test_a_duration_record_that_cannot_be_written_keeps_the_verdict(tmp_path, monkeypatch, capsys):
@@ -1151,7 +1155,8 @@ def test_a_shard_run_that_fails_still_saves_what_it_measured(tmp_path, monkeypat
         def finish(self, _proc, _files, _log):
             return 4, {}, "usage error"
 
-        def durations(self):
+        def durations(self, runs, nodes_of=frozenset()):
+            self.totals = [3.0]
             return {"tests/test_a.py": 3.0}
 
     record = tmp_path / "rec" / "d.txt"
@@ -1180,7 +1185,7 @@ def test_a_shard_run_that_fails_still_saves_what_it_measured(tmp_path, monkeypat
     assert json.loads(record.read_text(encoding="utf-8")) == {"tests/test_a.py": 9.0}
 
     class Broken(Runner):
-        def durations(self):
+        def durations(self, runs, nodes_of=frozenset()):
             raise RuntimeError("boom in the recording")
 
     # a recording that itself fails never replaces the shard run's own error
@@ -1202,3 +1207,367 @@ def test_the_duration_record_ignores_the_records_override(tmp_path, monkeypatch,
     assert rc == 0, out
     assert _durations_record(repo).is_file(), out
     assert not list(private.glob("*durations*")), list(private.iterdir())
+
+
+# --- W-231f4695 / W-3ba57940: a heavy file runs as node groups across the shards ---------------
+# Measured 2026-10-28: tests/test_assemble_dispatch_step.py (1,462 s, a tree grader) set the wall of
+# 20 of master's last 20 merge legs, because balance() places files whole.
+
+
+def _heavy_repo(tmp_path: Path, heavy: str, weights: dict[str, float]) -> Path:
+    repo = _repo(
+        tmp_path,
+        {
+            "library_x.py": "VALUE = 1\n",
+            "tests/test_heavy.py": heavy,
+            "tests/test_light.py": "import library_x\n\ndef test_light():\n    pass\n",
+        },
+    )
+    rec = _durations_record(repo)
+    rec.parent.mkdir(parents=True)
+    rec.write_text(json.dumps(weights), encoding="utf-8")
+    return repo
+
+
+def _pid_heavy(log: Path, n: int = 4, body: str = "pass") -> str:
+    """``n`` tests that each append their process id to ``log``, then run ``body``."""
+    tests = "".join(
+        f"\ndef test_{c}():\n    open({str(log)!r}, 'a').write(f'{{os.getpid()}}\\n')\n    {body}\n"
+        for c in "abcdefgh"[:n]
+    )
+    return "import os, library_x\n" + tests
+
+
+_HEAVY = {"tests/test_heavy.py": 100, "tests/test_light.py": 0.1}
+
+
+def test_a_heavy_file_runs_as_node_groups_across_shards(tmp_path, monkeypatch, capsys):
+    log = tmp_path / "pids.log"
+    repo = _heavy_repo(tmp_path, _pid_heavy(log), _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "merge-tests: split tests/test_heavy.py into 2 node group(s)" in out, out
+    pids = log.read_text().split()
+    assert len(pids) == 4 and len(set(pids)) == 2, pids  # every test ran once, in two processes
+
+
+def test_a_light_file_is_never_split():
+    def collect(f):
+        raise AssertionError(f"collected {f}")  # a file within its share is never collected
+
+    files = ["tests/test_a.py", "tests/test_b.py"]
+    # within its share (two 100 s files over two shards), and over its share but under SPLIT_MIN_S
+    for weights in (dict.fromkeys(files, 100.0), {files[0]: 10.0, files[1]: 0.1}):
+        units, _weights, split = mts._split_heavy(files, weights, 2, collect)
+        assert units == files and split == {}, (weights, units, split)
+    # one shard: nothing to spread over
+    units, _weights, split = mts._split_heavy(files, {files[0]: 100.0, files[1]: 0.1}, 1, collect)
+    assert units == files and split == {}, (units, split)
+
+
+def test_a_split_files_red_is_re_run_by_its_node_id():
+    reds = {("tests/h.py::test_a[x y]", "call"): "m", ("tests/w.py::test_b", "call"): "m"}
+    assert mts._reruns(reds, {"tests/h.py"}) == ["tests/h.py::test_a[x y]", "tests/w.py"]
+    # in the file's collection order, not by name; a split file's module-level error re-runs the file
+    reds = {("tests/h.py::b", "call"): "m", ("tests/h.py::a", "call"): "m"}
+    assert mts._reruns(reds, {"tests/h.py"}, {"tests/h.py::b": 0, "tests/h.py::a": 1}) == [
+        "tests/h.py::b",
+        "tests/h.py::a",
+    ]
+    assert mts._reruns({("tests/h.py", "collect"): "m"}, {"tests/h.py"}) == ["tests/h.py"]
+
+
+def test_a_shard_of_node_ids_owns_its_reds_and_its_files_module_error():
+    members = ["tests/h.py::a", "tests/h.py::b[x y]", "tests/w.py"]
+    for nid in ("tests/h.py::a", "tests/h.py::b[x y]", "tests/w.py::t", "tests/h.py"):
+        assert mts._owns(members, nid), nid
+    for nid in ("tests/h.py::c", "tests/h.py2", "tests/v.py::t"):
+        assert not mts._owns(members, nid), nid
+
+
+def test_the_base_side_keeps_only_what_the_base_can_run(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tests").mkdir()
+    for name in ("h.py", "w.py"):
+        (tmp_path / "tests" / name).write_text("")
+    split = {"tests/h.py": []}
+    monkeypatch.setattr(mts, "_collect", lambda f: ["tests/h.py::a"])
+    units = ["tests/h.py::a", "tests/h.py::new", "tests/gone.py", "tests/w.py", "tests/h.py::a"]
+    # a node the base lacks and a file the base lacks are dropped; nothing twice
+    assert mts._on_base(units, split) == ["tests/h.py::a", "tests/w.py"]
+    # a base that will not collect the file runs it whole (a pre-existing red must stay pre-existing)
+    monkeypatch.setattr(mts, "_collect", lambda f: None)
+    assert mts._on_base(["tests/h.py::a", "tests/h.py::b"], split) == ["tests/h.py"]
+
+
+class _Proc:
+    def __init__(self, rc: int, out: str) -> None:
+        self.returncode, self.stdout = rc, out
+
+
+@pytest.mark.parametrize(
+    ("result", "want"),
+    [
+        (
+            _Proc(
+                0, "t.py::a\nt.py::b[x y]\nt.py::a\nother.py::c\n\n2 tests collected\nt.py::zz\n"
+            ),
+            ["t.py::a", "t.py::b[x y]"],
+        ),
+        (_Proc(2, "t.py::a\nt.py::b\n"), None),
+        (subprocess.TimeoutExpired("pytest", 1), None),
+        (OSError("no python"), None),
+        (UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"), None),
+    ],
+)
+def test_collect_reads_ids_up_to_the_blank_line_and_fails_to_none(monkeypatch, result, want):
+    def run(argv, **kw):
+        assert kw.get("errors") == "replace"  # a conftest's raw bytes never raise
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+    monkeypatch.setattr(mts.subprocess, "run", run)
+    assert mts._collect("t.py") == want
+
+
+def test_only_split_files_record_node_seconds_and_a_silent_shard_keeps_its_place(tmp_path):
+    runner = mts._Runner(tmp_path)
+    d1 = tmp_path / "d1.jsonl"
+    d1.write_text(
+        '{"f": "tests/a.py", "id": "tests/a.py::x", "s": 1}\n'
+        '{"f": "tests/b.py", "id": "tests/b.py::y", "s": 2}\n',
+        encoding="utf-8",
+    )
+    runner.dur_files += [tmp_path / "never-written.jsonl", d1]
+    got = runner.durations(2, frozenset({"tests/a.py"}))
+    assert got == {"tests/a.py": 1.0, "tests/b.py": 2.0, "tests/a.py::x": 1.0}, got
+    assert runner.totals == [0.0, 3.0], runner.totals
+
+
+def test_a_complete_run_replaces_a_split_files_node_keys(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "h.py").write_text("")
+    rec = tmp_path / "d.txt"
+    rec.write_text(json.dumps({"tests/h.py": 9, "tests/h.py::old": 5, "tests/h.py::a": 1}))
+    mts._save_durations(rec, {"tests/h.py": 3, "tests/h.py::a": 2}, complete=True)
+    assert json.loads(rec.read_text()) == {"tests/h.py": 3, "tests/h.py::a": 2}
+    # a complete leg that ran the file whole keeps none of its old node keys (review pass 2)
+    mts._save_durations(rec, {"tests/h.py": 4}, complete=True)
+    assert json.loads(rec.read_text()) == {"tests/h.py": 4}
+    # an incomplete run never drops a node key: it may not have reached that test
+    rec.write_text(json.dumps({"tests/h.py::old": 5, "tests/h.py::a": 1}))
+    mts._save_durations(rec, {"tests/h.py::a": 2}, complete=False)
+    assert json.loads(rec.read_text()) == {"tests/h.py::a": 2, "tests/h.py::old": 5}
+
+
+@pytest.mark.parametrize(
+    "ids",
+    [
+        None,
+        [],
+        ["tests/test_heavy.py::test_a"],
+    ],
+)
+def test_a_file_that_will_not_collect_cleanly_stays_whole(ids, capsys):
+    units, _weights, split = mts._split_heavy(
+        ["tests/test_heavy.py", "tests/test_light.py"], dict(_HEAVY), 2, lambda f: ids
+    )
+    assert "tests/test_heavy.py" in units and split == {}, (units, split)
+    assert "merge-tests: tests/test_heavy.py kept whole (" in capsys.readouterr().out
+
+
+def test_a_split_file_is_balanced_by_its_recorded_node_seconds():
+    ids = [f"tests/test_heavy.py::test_{c}" for c in "abcde"]
+    # the file ran 64 s; three nodes recorded 60 s; d and e (unrecorded) share the 4 s left over —
+    # never the recorded median (1 s here, 340 s on the hub's heaviest file: phantom load)
+    weights = {"tests/test_heavy.py": 64.0, "tests/test_light.py": 0.1}
+    weights.update({ids[0]: 58.0, ids[1]: 1.0, ids[2]: 1.0})
+    units, uw, split = mts._split_heavy(
+        ["tests/test_heavy.py", "tests/test_light.py"], weights, 2, lambda f: ids
+    )
+    assert split["tests/test_heavy.py"] == [(i,) for i in ids], split
+    assert uw[(ids[3],)] == uw[(ids[4],)] == 2.0, uw
+    groups = mts.balance(units, 2, uw)
+    assert [(ids[0],)] in groups, groups  # the slow test runs alone; the rest share the other shard
+
+
+def test_equal_count_groups_are_contiguous_slices_weighed_by_the_files_share():
+    ids = [f"tests/test_heavy.py::test_{c}" for c in "abcdefg"]
+    units, uw, split = mts._split_heavy(
+        ["tests/test_heavy.py", "tests/test_light.py"], dict(_HEAVY), 3, lambda f: ids
+    )
+    groups = split["tests/test_heavy.py"]
+    assert groups == [tuple(ids[0:2]), tuple(ids[2:4]), tuple(ids[4:7])], groups
+    assert [uw[g] for g in groups] == [100 / 3] * 3, uw
+
+
+def test_node_ids_that_differ_between_two_collections_keep_the_file_whole(capsys):
+    calls = iter([["t.py::a[1]", "t.py::b[1]"], ["t.py::a[2]", "t.py::b[2]"]])
+    units, _uw, split = mts._split_heavy(
+        ["t.py", "u.py"], {"t.py": 100, "u.py": 0.1}, 2, lambda f: next(calls)
+    )
+    assert "t.py" in units and split == {}, (units, split)
+    assert (
+        "t.py kept whole (its node ids differ between two collections)" in capsys.readouterr().out
+    )
+    # a second collection that fails is said as such, never as differing ids (review pass 2)
+    calls = iter([["t.py::a", "t.py::b"], None])
+    units, _uw, split = mts._split_heavy(
+        ["t.py", "u.py"], {"t.py": 100, "u.py": 0.1}, 2, lambda f: next(calls)
+    )
+    assert "t.py" in units and split == {}, (units, split)
+    assert "t.py kept whole (its second collection failed)" in capsys.readouterr().out
+
+
+def test_a_leg_runs_each_shards_nodes_in_the_files_order(tmp_path, monkeypatch, capsys):
+    # defined z, y, x, w: by name a shard would run w before x; the file's order is z, y, x, w
+    log = tmp_path / "order.log"
+    heavy = "import os, library_x\n" + "".join(
+        f"\ndef test_{c}():\n    open({str(log)!r}, 'a').write(f'{{os.getpid()}} {c}\\n')\n"
+        for c in "zyxw"
+    )
+    ids = [f"tests/test_heavy.py::test_{c}" for c in "zyxw"]
+    repo = _heavy_repo(tmp_path, heavy, {**_HEAVY, **dict.fromkeys(ids, 1.0)})
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "into 4 node(s) by their recorded seconds" in out, out
+    by_pid: dict[str, list[str]] = {}
+    for line in log.read_text().splitlines():
+        pid, name = line.split()
+        by_pid.setdefault(pid, []).append(name)
+    assert len(by_pid) == 2, by_pid
+    for names in by_pid.values():
+        assert names == sorted(names, key="zyxw".index), by_pid
+
+
+def test_a_shard_runs_a_split_files_nodes_in_collection_order():
+    rank = {"tests/t.py::b": 1, "tests/t.py::a[z]": 0, "tests/u.py::x": 0}
+    got = mts._argv([("tests/t.py::b",), "tests/s.py", ("tests/t.py::a[z]",)], rank)
+    assert got == ["tests/s.py", "tests/t.py::a[z]", "tests/t.py::b"], got
+
+
+def test_a_leg_records_a_split_files_node_seconds_and_the_next_leg_uses_them(
+    tmp_path, monkeypatch, capsys
+):
+    log = tmp_path / "pids.log"
+    heavy = _pid_heavy(log) + "\ndef test_slow():\n    __import__('time').sleep(0.5)\n"
+    repo = _heavy_repo(tmp_path, heavy, _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "into 2 node group(s)" in out, out
+    rec = json.loads(_durations_record(repo).read_text(encoding="utf-8"))
+    # relative, not a sub-second ceiling: a loaded box may stall test_a's setup (review pass 1)
+    slow, quick = rec["tests/test_heavy.py::test_slow"], rec["tests/test_heavy.py::test_a"]
+    assert slow >= 0.5 and slow > quick, rec
+    # the fixture's file runs in milliseconds; keep it heavy (its real 1,462 s twin is) and keep the
+    # node seconds the leg just recorded
+    rec["tests/test_heavy.py"] = 100
+    _durations_record(repo).write_text(json.dumps(rec), encoding="utf-8")
+
+    _git(repo, "checkout", "-qb", "feat2")
+    _write(repo, {"library_x.py": "VALUE = 1  # touched again\n"})
+    _git(repo, "commit", "-qam", "change 2")
+    _git(repo, "checkout", "-q", "master")
+    _git(repo, "merge", "--no-ff", "-q", "-m", "merge 2", "feat2")
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "split tests/test_heavy.py into 5 node(s) by their recorded seconds" in out, out
+
+
+def test_a_parametrized_id_with_a_space_is_split_and_run(tmp_path, monkeypatch, capsys):
+    # 17 of the 89 ids of the hub's heaviest file hold a space in their brackets (critiques, 2026-10-28)
+    log = tmp_path / "pids.log"
+    heavy = (
+        "import os, pytest, library_x\n\n"
+        "@pytest.mark.parametrize('w', ['a b', 'c d', 'e f', 'g h'])\n"
+        f"def test_p(w):\n    open({str(log)!r}, 'a').write(f'{{os.getpid()}}\\n')\n"
+    )
+    repo = _heavy_repo(tmp_path, heavy, _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "split tests/test_heavy.py into 2 node group(s)" in out, out
+    pids = log.read_text().split()
+    assert len(pids) == 4 and len(set(pids)) == 2, pids
+
+
+def _coupled(tests: str) -> str:
+    """test_w sets a module flag that makes test_x red when the two share a process (an order red)."""
+    bodies = {
+        "w": "    global SEEN\n    SEEN = True\n",
+        "x": "    assert not SEEN, 'run after test_w'\n",
+    }
+    return "SEEN = False\n" + "".join(
+        f"\ndef test_{c}():\n{bodies.get(c, '    pass' + chr(10))}" for c in tests
+    )
+
+
+def test_an_order_red_in_a_split_group_the_base_lacks_a_node_of_still_gets_a_verdict(
+    tmp_path, monkeypatch, capsys
+):
+    # the ordered base run re-runs the merge's group on the base, which lacks test_new: passed it,
+    # pytest exits 4 and the leg had no verdict (review pass 1, B-sonnet)
+    repo = _heavy_repo(tmp_path, _coupled("wxabc"), _HEAVY)
+    _merge(repo, {"tests/test_heavy.py": _coupled("wnxabc")})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert "split tests/test_heavy.py into 2 node group(s)" in out, out
+    assert "LEG FAILED" not in out, out
+    assert rc == 0, out
+    assert "pre-existing on the base — tests/test_heavy.py::test_x (call)" in out, out
+
+
+def test_a_new_failing_test_added_inside_a_split_file_is_refused_as_new(
+    tmp_path, monkeypatch, capsys
+):
+    # the base lacks the new node id: passed it, pytest exits 4 and the leg would read "no verdict"
+    log = tmp_path / "pids.log"
+    repo = _heavy_repo(tmp_path, _pid_heavy(log), _HEAVY)
+    added = _pid_heavy(log) + "\ndef test_added():\n    assert False, 'new and red'\n"
+    _merge(repo, {"tests/test_heavy.py": added})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1, out
+    assert "split tests/test_heavy.py into 2 node group(s)" in out, out
+    assert "merge-tests: NEW red — tests/test_heavy.py::test_added (call)" in out, out
+    assert "LEG FAILED" not in out, out
+
+
+def test_a_new_red_inside_a_split_file_is_refused(tmp_path, monkeypatch, capsys):
+    log = tmp_path / "pids.log"
+    heavy = _pid_heavy(log) + "\ndef test_value():\n    assert library_x.VALUE == 1\n"
+    repo = _heavy_repo(tmp_path, heavy, _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 2\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1, out
+    assert "split tests/test_heavy.py into 2 node group(s)" in out, out
+    assert "merge-tests: NEW red — tests/test_heavy.py::test_value (call)" in out, out
+    assert "red outside the selected files" not in out, out
+
+
+def test_a_pre_existing_red_inside_a_split_file_is_not_refused(tmp_path, monkeypatch, capsys):
+    log = tmp_path / "pids.log"
+    heavy = _pid_heavy(log) + "\ndef test_broken():\n    assert False, 'master is red here'\n"
+    repo = _heavy_repo(tmp_path, heavy, _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "split tests/test_heavy.py into 2 node group(s)" in out, out
+    assert "pre-existing on the base — tests/test_heavy.py::test_broken (call)" in out, out
+
+
+def test_a_split_files_duration_is_the_sum_of_its_groups(tmp_path, monkeypatch, capsys):
+    log = tmp_path / "pids.log"
+    repo = _heavy_repo(tmp_path, _pid_heavy(log, body="__import__('time').sleep(0.2)"), _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "split tests/test_heavy.py into 2 node group(s)" in out, out
+    rec = json.loads(_durations_record(repo).read_text(encoding="utf-8"))
+    # four 0.2 s tests in two groups: the first group alone would record ~0.4
+    assert rec["tests/test_heavy.py"] >= 0.75, rec
+    # the measured line is per shard RUN: a per-file sum would print a split file's seconds on no shard
+    measured = next(ln for ln in out.splitlines() if "shards measured" in ln)
+    loads = [float(x) for x in measured.split("measured ", 1)[1].split()]
+    assert len(loads) == 2 and min(loads) >= 0.35, measured
