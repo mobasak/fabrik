@@ -3,7 +3,7 @@
   "created": "2026-10-28T18:22:04.660261Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "607433f55e192d41f4848c1b73ad69b21b9cb5dc",
   "id": "W-bda24c48",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "HIGH: operator ask 'why merge so slow this is absurd'; LOW effort: one test file's fixtures",
-  "status": "open",
+  "status": "done",
   "title": "Cut tests/test_assemble_dispatch_step.py's own cost: 11 of 89 nodes (the ac.check() tests: symlinked-orphan, corrupted-installed-file, generated-orphan, non-utf8-stray, malformed-orphan-position) hold ~1,950 of 1,976 s, up to 340 s each; one 340 s node is now the merge leg's floor (infra, follow-up of W-231f4695)"
 }
