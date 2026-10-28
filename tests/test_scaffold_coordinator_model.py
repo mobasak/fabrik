@@ -159,7 +159,7 @@ def test_an_init_failure_warns_and_writes_nothing(
         stub.write_text(_STUBS[work_py])
     monkeypatch.setattr(scaffold, "_work_py", lambda: stub if work_py != "missing" else None)
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
-    out = capsys.readouterr().out
+    out = capsys.readouterr().err
     assert f"WARNING: coordinator model not emitted: {reason}" in out  # the cause, not any warning
     assert "Coordinator: open it as" not in out  # no launch line after a failure
     _untouched(repo, before)
@@ -179,7 +179,7 @@ def test_a_timed_out_init_warns_and_writes_nothing(
 
     monkeypatch.setattr(scaffold.subprocess, "run", timeout)
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
-    assert "WARNING: coordinator model not emitted: Command" in capsys.readouterr().out
+    assert "WARNING: coordinator model not emitted: Command" in capsys.readouterr().err
     _untouched(repo, before)
 
 
@@ -191,7 +191,7 @@ def test_a_missing_template_warns_and_writes_nothing(
     monkeypatch.setattr(scaffold, "_COORDINATOR_CHARTER", Path("docs") / "agents" / "NOPE.md")
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
     assert "WARNING: coordinator model not emitted: templates/scaffold/docs/agents/NOPE.md" in (
-        capsys.readouterr().out
+        capsys.readouterr().err
     )
     _untouched(repo, before)
 
@@ -203,7 +203,7 @@ def test_a_ledger_without_one_d000_row_warns_and_writes_nothing(
     ledger = repo / "docs" / "DECISIONS.md"
     ledger.write_text("# Decisions\n")
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
-    assert "exactly one D-000 row" in capsys.readouterr().out
+    assert "exactly one D-000 row" in capsys.readouterr().err
     _untouched(repo, "# Decisions\n")
 
 
@@ -213,7 +213,7 @@ def test_a_missing_ledger_warns_and_does_not_raise(
     repo = _bare_repo(tmp_path, ledger=False)
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
     assert "WARNING: coordinator model not emitted: docs/DECISIONS.md was not seeded" in (
-        capsys.readouterr().out
+        capsys.readouterr().err
     )
     assert not (repo / ".fabrik").exists()
     assert not (repo / "docs" / "reference").exists()
@@ -230,7 +230,7 @@ def test_a_read_only_ledger_warns_and_writes_nothing(
         scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
     finally:
         ledger.chmod(0o644)
-    assert "Permission denied" in capsys.readouterr().out
+    assert "Permission denied" in capsys.readouterr().err
     _untouched(repo, before)
     assert not (repo / ".fabrik").exists() and not (repo / "docs" / "reference").exists()
 
@@ -250,7 +250,7 @@ def test_a_charter_write_failure_restores_the_ledger(
     monkeypatch.setattr(Path, "write_text", failing)
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
     monkeypatch.undo()
-    assert "disk full (probe)" in capsys.readouterr().out
+    assert "disk full (probe)" in capsys.readouterr().err
     _untouched(repo, before)  # the ledger row written first is taken back
     assert not (repo / ".fabrik").exists() and not (repo / "docs" / "reference").exists()
 
@@ -266,7 +266,7 @@ def test_a_pre_existing_store_and_charter_dir_survive_a_failure(
     stub.write_text(_STUBS["exit2"])
     monkeypatch.setattr(scaffold, "_work_py", lambda: stub)
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
-    assert "work.py init exited 2" in capsys.readouterr().out
+    assert "work.py init exited 2" in capsys.readouterr().err
     assert (repo / ".fabrik" / "work" / "keep.json").exists()
     assert (repo / "docs" / "reference" / "agents").is_dir()
 
@@ -286,5 +286,5 @@ def test_a_deeply_nested_config_warns_and_does_not_raise(
     )
     monkeypatch.setattr(scaffold, "_work_py", lambda: stub)
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
-    assert "WARNING: coordinator model not emitted" in capsys.readouterr().out
+    assert "WARNING: coordinator model not emitted" in capsys.readouterr().err
     _untouched(repo, before)

@@ -9003,7 +9003,9 @@ def _emit_coordinator_model(project_dir: Path, name: str, today: str) -> None:
     byte-compares the config to work.py's own writer."""
 
     def warn(why: str) -> None:
-        print(f"WARNING: coordinator model not emitted: {why}")
+        # stderr, like the launch line below: a caller that scaffolds a probe and prints JSON on stdout
+        # (scripts/enforcement/check_pack_reachability.py) must not get operator text inside it
+        print(f"WARNING: coordinator model not emitted: {why}", file=sys.stderr)
 
     ledger = project_dir / "docs" / "DECISIONS.md"
     store = project_dir / ".fabrik" / "work"
@@ -9095,7 +9097,8 @@ def _emit_coordinator_model(project_dir: Path, name: str, today: str) -> None:
             shutil.rmtree(path, ignore_errors=True)
         return warn(str(exc) or type(exc).__name__)
     print(
-        f"Coordinator: open it as `CLAUDE_AGENT={COORDINATOR_NAME} claude -n {name}-coordinator` in {project_dir}"
+        f"Coordinator: open it as `CLAUDE_AGENT={COORDINATOR_NAME} claude -n {name}-coordinator` in {project_dir}",
+        file=sys.stderr,
     )
 
 
