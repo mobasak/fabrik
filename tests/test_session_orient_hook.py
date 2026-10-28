@@ -1915,6 +1915,14 @@ def test_session_start_re_records_a_resumed_session_under_its_process(tmp_path: 
     stub.write_text("def refresh(top=None):\n    raise RuntimeError('boom')\n", encoding="utf-8")
     rc, out = _run(repo, tmp_path, json.dumps(payload), env)
     assert rc == 0 and "ORIENT" in out
+    stub.write_text("def refresh(top=None):\n    raise SystemExit(3)\n", encoding="utf-8")
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0 and "ORIENT" in out  # review r1 (C-sonnet-1): an exiting copy never ends the hook
+    stub.write_text(_REFRESH_STUB, encoding="utf-8")
+    for bad in ("x" * 129, 42, None, ["sess"]):  # review r1 (C-sonnet-2): only a str of 1-128 chars
+        bad_payload = {**payload, "session_id": bad}
+        rc, out = _run(repo, tmp_path, json.dumps(bad_payload), env)
+        assert rc == 0 and "ORIENT" in out and calls() == [], bad
     stub.unlink()  # a repo without the script
     rc, out = _run(repo, tmp_path, json.dumps(payload), env)
     assert rc == 0 and "ORIENT" in out and calls() == []

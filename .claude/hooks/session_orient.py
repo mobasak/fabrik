@@ -1020,7 +1020,7 @@ def _refresh_binding(layout: tuple[str, str, str], raw_sid: object) -> None:
         if callable(refresh):
             os.environ["CLAUDE_CODE_SESSION_ID"] = raw_sid
             refresh(top=common)
-    except Exception:
+    except (Exception, SystemExit):  # a project copy that exits must not end the hook (review r1, C-sonnet-1)
         pass
     finally:
         if had:

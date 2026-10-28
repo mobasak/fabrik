@@ -478,10 +478,12 @@ def refresh(top: str | None = None) -> str:
     second git runs inside its 10 s budget.
 
     It writes ONE row only when this session's LAST row in this scope names a valid name that is
-    still the newest row of that name here (nobody re-took it), this window's process is known
-    (`same_window`'s rule in `_bind_locked`), and that row's process is not alive — one test for
-    both "already recorded under this window" and "the sid is live in another process" (left
-    alone: a row here would strand that window at its next /clear). Every other case, a busy store lock (ONE try) and
+    also the name of the session's last row overall (what `resolve_agent_name` returns — a row here
+    must never flip it back to an older name), still the newest row of that name here (nobody
+    re-took it), this window's process is known (`same_window`'s rule in `_bind_locked`), and no
+    row of the session carries a live process — one test for both "already recorded under this
+    window" and "the sid is live in another process" (left alone: a row here would strand that
+    window at its next /clear). No store file at all writes nothing and creates nothing. Every other case, a busy store lock (ONE try) and
     any error write nothing. COBRA (D-253): the cheapest way to make a /clear re-bind pass without
     the outcome is a refresh for any name; this re-records only the session's own name, and
     planting a row by hand was already possible (the store is the lane's trust root, D-1209).
@@ -497,16 +499,24 @@ def refresh(top: str | None = None) -> str:
         if me_pid is None or me_start is None or claude_pid not in ("", str(me_pid)):
             return ""
         path = store_path()
+        if not path.is_file():
+            return ""  # nothing bound anywhere: never create the state dir or a lock file for it
         with _locked(path, attempts=1) as (locked, _why):
             if not locked:
                 return ""  # a refresh recurs at the next SessionStart; an unserialized one may be trimmed away
+            rows = _rows(path)
+            ours = [r for r in rows if r.get("session_id") == sid]
+            # its process lives — this window (already recorded) or another one, on ANY row of the sid:
+            # a later row under a process since gone does not make an earlier live one dead
+            if any(_pid_alive_same_start(r) for r in ours):
+                return ""
             # scope matched by REALPATH, as the lane's `_scoped_rows` reads it: the hook passes its
             # realpath'd common dir while `bind` stores `git rev-parse`'s string; the new row copies
             # the last row's own string, so every string-keyed reader sees the binding's scope
             want = os.path.realpath(scope)
             real: dict[str, str] = {}
             here = []
-            for r in _rows(path):
+            for r in rows:
                 t = r.get("toplevel")
                 if isinstance(t, str) and os.path.isabs(t):
                     if t not in real:
@@ -520,10 +530,10 @@ def refresh(top: str | None = None) -> str:
             name = str(last.get("name") or "")
             if not _NAME_RE.fullmatch(name):
                 return ""
+            if str(ours[-1].get("name") or "") != name:
+                return ""  # the session resolves to another name now: a row here would flip it back
             if [r for r in here if str(r.get("name") or "") == name][-1] is not last:
                 return ""  # re-taken since: a refresh would silently take it back
-            if _pid_alive_same_start(last):
-                return ""  # its process lives: this window (already recorded) or another one
             _append_row(
                 path,
                 {

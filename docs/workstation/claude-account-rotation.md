@@ -140,7 +140,7 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   The synced PreToolUse hook `quota_stop.py` turns the `walled` tier
   into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
   instruction (commit + push, close the run record, end the turn); reads, the git checkpoint and
-  read verbs (never `git grep`; through `git -C`, the read verbs only), the record tools,
+  read verbs (never `git grep`; through `git -C /opt/<repo>`, the read verbs only), the record tools,
   `Monitor` and `TaskStop` stay open. At `urgent-90` it runs the LANE (W-18f559d9,
   D-1113): the bound merge owner of a `coordinator_mode` repo and the bound owner of an open P0
   item CONTINUE with a CHECKPOINT nudge — killing their in-flight seats would be the premature

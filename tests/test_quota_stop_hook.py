@@ -792,10 +792,13 @@ def test_reason_names_the_wall_block_and_the_resume_verb():
     # `_reason`'s own validator admits 80 chars: a 7-char `abc-123` read 966 while an 80-char sid
     # read 1039 (review code-S2); a real 36-char UUID sits between. Every admitted sid must fit.
     uuid_sid = "1970a0ff-baa3-401b-ba52-fb0c5de43261"
-    for sid in (uuid_sid, "a" * 80):
-        with_sid = hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0, sid=sid)[1]
-        assert f"selfwatch_arm.sh {sid}" in with_sid
-        assert len(with_sid) < 1000, (len(sid), len(with_sid))
+    # every built-in held tool, the longest name included (W-a77742db review r1, B-haiku-1: the pin
+    # read Edit alone while NotebookEdit crossed 1,000)
+    for tool in ("Edit", "Write", "MultiEdit", "NotebookEdit", "Agent", "Workflow"):
+        for sid in (uuid_sid, "a" * 80):
+            with_sid = hook.decide(tool, None, stamp_exists=True, tick_age_s=10.0, sid=sid)[1]
+            assert f"selfwatch_arm.sh {sid}" in with_sid
+            assert len(with_sid) < 1000, (tool, len(sid), len(with_sid))
 
 
 def test_the_hold_text_refuses_a_malformed_sid():
@@ -2012,7 +2015,7 @@ def test_a_window_resumed_into_a_new_process_rebinds_after_clear(
     process the lane holds the re-bind (the incident, replayed); once whoami's `refresh()` — what
     SessionStart runs on the resume — has re-recorded the session under this process, the real
     lane `main()` lets the /clear successor re-bind its name, even with the host's btime drifted
-    past the refresh row (Behaviour 6: WSL2's btime moves forward with each sleep)."""
+    past the refresh row (the design's Behaviour 6: WSL2's btime moves forward with each sleep)."""
     monkeypatch.delenv("CLAUDE_PID", raising=False)
     monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
     lane.bind("old-sid", "coordinator", pid=9000, pid_start=5)  # the process before the resume
@@ -2052,8 +2055,8 @@ def test_the_hold_texts_promise_only_the_git_verbs_that_pass(lane):
     wall_msg = reason()
     assert lane_msg != wall_msg  # both tiers were read
     sample = {
-        "add": "git add -- a.py",
-        "commit": "git commit -m 'x' -- a.py",
+        "add -- <paths>": "git add -- a.py",
+        "commit -- <paths>": "git commit -m 'x' -- a.py",
         "push": "git push",
         "fetch": "git fetch",
         "status": "git status",
@@ -2065,7 +2068,7 @@ def test_the_hold_texts_promise_only_the_git_verbs_that_pass(lane):
     }
     read_verbs = ("status", "diff", "log", "show", "rev-parse")
     # the wall's one message is pinned under 1,000 chars, so it carries the short true form
-    assert "Reads, git," not in wall_msg and "Reads, git checkpoint verbs," in wall_msg, wall_msg
+    assert "Reads, git," not in wall_msg and "Reads, git checkpoints," in wall_msg, wall_msg
     for msg in (lane_msg, hook.__doc__ or ""):
         assert "Reads, git," not in msg and "git checkpointing" not in msg, msg
         verbs = _re.search(r"git checkpoint and read verbs with their plain flags \(([^;)]*)", msg)
@@ -2078,11 +2081,16 @@ def test_the_hold_texts_promise_only_the_git_verbs_that_pass(lane):
             assert _at_lane(sample[verb]) == "allow", verb
         for tool in [t.strip() for t in reads.group(1).split(",")] + ["stat"]:
             assert hook._bash_allowed(f"{tool} a.txt"), tool
-        assert "through git -C <repo>, the read verbs only" in msg, msg
+        assert "through git -C /opt/<repo>, the read verbs only" in msg, msg
     for verb in read_verbs:
         assert hook._bash_allowed(sample[verb].replace("git ", "git -C /opt/fabrik ", 1)), verb
-    for verb in ("add", "commit", "push", "fetch"):
+        # review r1 (B-haiku-3): only an /opt repo relocates
+        assert not hook._bash_allowed(sample[verb].replace("git ", "git -C /tmp/x ", 1)), verb
+    for verb in ("add -- <paths>", "commit -- <paths>", "push", "fetch"):
         assert not hook._bash_allowed(sample[verb].replace("git ", "git -C /opt/fabrik ", 1)), verb
     for cmd in ("git grep x", "git -C /opt/fabrik grep x", "git grep -Ols x"):
         assert not hook._bash_allowed(cmd), cmd
         assert _at_lane(cmd) == "deny", cmd
+    # review r1 (B-sonnet-2): the shapes the texts no longer promise stay held
+    for cmd in ("git add .", "git commit -m 'x'"):
+        assert not hook._bash_allowed(cmd), cmd

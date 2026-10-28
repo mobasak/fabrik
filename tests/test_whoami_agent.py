@@ -923,3 +923,70 @@ def test_refresh_never_takes_back_a_name_re_taken_since(store, monkeypatch):
     )
     assert m.refresh() == "agent-2"
     assert m._rows(store)[-1]["toplevel"] == m._toplevel()
+
+
+def test_refresh_never_changes_what_the_session_resolves_to(store, monkeypatch):
+    """Review round 1 (A-haiku-1): the session's LAST row overall decides its name
+    (`resolve_agent_name`); a session forced to another name in another repo must not get its old
+    name here re-recorded as its newest row, or its identity flips. A refresh writes only the name
+    the session resolves to now."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    store.write_text(
+        _bound_elsewhere(m, name="alpha")
+        + "\n"
+        + _bound_elsewhere(m, name="beta", top="/elsewhere/.git")
+        + "\n",
+        encoding="utf-8",
+    )
+    assert m.resolve_agent_name() == "beta"
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+    assert m.resolve_agent_name() == "beta"
+
+
+def test_refresh_leaves_a_session_live_in_another_process_alone(store, monkeypatch):
+    """Review round 1 (A-haiku-5): the sid is live in another process even when that process's row
+    is not the sid's last one (a later `--force` re-bind under a process since gone); any live row
+    of this sid under another process leaves it alone."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    other = os.getppid()
+    store.write_text(
+        _bound_elsewhere(m, pid=other, start=m._pid_start(other)) + "\n" + _bound_elsewhere(m) + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+
+
+def test_refresh_with_no_store_creates_nothing(tmp_path, monkeypatch):
+    """Review round 1 (A-sonnet-2): every SessionStart in every repo calls refresh; with nothing
+    ever bound there is no store, and refresh must not create its directory or a lock file."""
+    store = tmp_path / "state" / "agent-identity.jsonl"
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(store))
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-alpha")
+    m = _mod()
+    _own_process(m, monkeypatch)
+    assert m.refresh(top="/some/repo/.git") == ""
+    assert not (tmp_path / "state").exists()
+
+
+def test_refresh_matches_the_scope_by_realpath_and_never_by_an_empty_one(store, monkeypatch, tmp_path):
+    """Review round 1 (A-sonnet-1, A-haiku-2): the hook passes a realpath'd common dir while `bind`
+    stored git's string — a symlinked spelling of the same repo is the same scope, and the new row
+    keeps the binding's own spelling; an empty scope is never this one, even where the store holds
+    a row whose scope is the current directory (realpath("") is the cwd)."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    real = tmp_path / "repo-real" / ".git"
+    real.mkdir(parents=True)
+    link = tmp_path / "repo-link"
+    link.symlink_to(tmp_path / "repo-real")
+    store.write_text(_bound_elsewhere(m, top=str(link / ".git")) + "\n", encoding="utf-8")
+    assert m.refresh(top=str(real)) == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == str(link / ".git")
+    monkeypatch.chdir(tmp_path)
+    store.write_text(_bound_elsewhere(m, top=os.path.realpath(".")) + "\n", encoding="utf-8")
+    before = store.read_bytes()
+    assert m.refresh(top="") == "" and store.read_bytes() == before
