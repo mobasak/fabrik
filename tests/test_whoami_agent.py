@@ -32,6 +32,7 @@ U2 = "2c2c2c2c-2c2c-4c2c-8c2c-2c2c2c2c2c2c"
 U3 = "3d3d3d3d-3d3d-4d3d-8d3d-3d3d3d3d3d3d"
 U4 = "4e4e4e4e-4e4e-4e4e-8e4e-4e4e4e4e4e4e"
 U5 = "5f5f5f5f-5f5f-4f5f-8f5f-5f5f5f5f5f5f"
+U6 = "6a6a6a6a-6a6a-4a6a-8a6a-6a6a6a6a6a6a"
 
 
 def _mod():
@@ -328,6 +329,8 @@ def test_no_argument_can_set_the_session_id(store):
         ("--as", "agent-2", "--session-id", U1),
         ("--session-id", U1),
         ("--who", "--session-id", U1),
+        ("--session", U1),
+        ("--as", "agent-2", "--session", U1),
     ):
         r = subprocess.run(
             [sys.executable, str(WHOAMI), *argv],
@@ -944,8 +947,9 @@ def test_a_spawner_holding_the_agents_lock_binds_a_fresh_id_with_no_pid(store, t
 
 
 def test_the_lock_proof_accepts_every_legitimate_holder(store, tmp_path):
-    """Five legitimate callers of the guard's class pass it: the main checkout, a subdirectory, a trailing slash, a
-    LINKED worktree (one repo, one lock, one scope), and a read-only descriptor — each binds at rc 0."""
+    """Six legitimate callers of the guard's class pass it: the main checkout, a subdirectory, a trailing slash, a
+    LINKED worktree (one repo, one lock, one scope), a read-only descriptor, and a dup() of the holding descriptor
+    (the same open file description) — each binds at rc 0."""
     repo = _spawn_repo(tmp_path)
     git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t"]
     subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "x"], check=True, env=_clean_env())
@@ -966,6 +970,13 @@ def test_the_lock_proof_accepts_every_legitimate_holder(store, tmp_path):
             r = _spawned(name, sid, where, fd, pass_fds=(fd,))
         assert r.returncode == 0, (name, where, r.stderr)
         assert _store_rows(store)[-1]["toplevel"] == str(repo / ".git"), (name, where)
+    with _held(_lock_of(repo)) as fd:
+        dup = os.dup(fd)
+        try:
+            r = _spawned("b-6", U6, repo, dup, pass_fds=(dup,))
+        finally:
+            os.close(dup)
+    assert r.returncode == 0, ("dup", r.stderr)
 
 
 def test_no_descriptor_another_file_or_an_unheld_lock_refuses(store, tmp_path):
@@ -985,36 +996,150 @@ def test_no_descriptor_another_file_or_an_unheld_lock_refuses(store, tmp_path):
         r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
     finally:
         os.close(fd)
-    assert r.returncode == 2 and "nobody holds" in r.stderr, r.stderr
+    assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
     assert _store_rows(store) == []
+
+
+def _lock_lines(pid: object, fd: int) -> list[str]:
+    """The `lock:` lines `/proc/<pid>/fdinfo/<fd>` lists — the locks THAT open file description owns."""
+    text = Path(f"/proc/{pid}/fdinfo/{fd}").read_text(encoding="utf-8")
+    return [ln for ln in text.splitlines() if ln.startswith("lock:")]
 
 
 def test_an_unlocked_descriptor_on_the_lock_refuses_whoever_holds_it(store, tmp_path):
-    """A descriptor OPEN on the lock but not locked is no proof: while another process holds the lock the passed copy
-    cannot take it (c), and while nobody holds it the fresh probe succeeds (b) — and is released, never kept."""
+    """A descriptor OPEN on the lock but not locked is no proof, whether ANOTHER process holds the lock EX or nobody
+    does — and the proof leaves every lock state exactly as it found it (it takes, converts and releases nothing)."""
     repo = _spawn_repo(tmp_path)
     lock = _lock_of(repo)
-    with _other_process_holds(lock):
+    code = (
+        "import fcntl, os, sys\n"
+        "fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o600)\n"
+        "fcntl.flock(fd, fcntl.LOCK_EX)\n"
+        "print(fd, flush=True)\n"
+        "sys.stdin.read()\n"
+    )
+    child = subprocess.Popen(
+        [sys.executable, "-c", code, str(lock)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert child.stdout is not None
+        cfd = int(child.stdout.readline().strip())
         fd = os.open(str(lock), os.O_RDWR)
         try:
+            holder_before, mine_before = _lock_lines(child.pid, cfd), _lock_lines("self", fd)
             r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+            assert _lock_lines(child.pid, cfd) == holder_before and len(holder_before) == 1
+            assert _lock_lines("self", fd) == mine_before == []
         finally:
             os.close(fd)
-    assert r.returncode == 2 and "does not hold it" in r.stderr, r.stderr
+    finally:
+        assert child.stdin is not None
+        child.stdin.close()
+        child.wait(timeout=10)
+    assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
     fd = os.open(str(lock), os.O_RDWR)
     try:
         r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+        assert _lock_lines("self", fd) == []
     finally:
         os.close(fd)
-    assert r.returncode == 2 and "nobody holds" in r.stderr, r.stderr
+    assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
     assert _store_rows(store) == []
     probe = os.open(str(lock), os.O_RDWR)
     try:
-        fcntl.flock(
-            probe, fcntl.LOCK_EX | fcntl.LOCK_NB
-        )  # raises if the refusal left the lock held
+        fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises if a refusal left the lock held
     finally:
         os.close(probe)
+
+
+def test_a_shared_or_posix_lock_is_no_proof(store, tmp_path):
+    """Only an EXCLUSIVE flock on the passed description proves the caller: a LOCK_SH holder is refused and keeps its
+    shared lock unchanged (never upgraded, never dropped); a POSIX `lockf` lock — a different lock family — is
+    refused too."""
+    repo = _spawn_repo(tmp_path)
+    lock = _lock_of(repo)
+    fd = os.open(str(lock), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH)
+        before = _lock_lines("self", fd)
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+        assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
+        assert _lock_lines("self", fd) == before and " READ " in before[0], before
+    finally:
+        os.close(fd)
+    fd = os.open(str(lock), os.O_RDWR)
+    try:
+        fcntl.lockf(fd, fcntl.LOCK_EX)
+        assert "POSIX" in _lock_lines("self", fd)[0]
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+        assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
+        # A POSIX lock is the PROCESS's, so a child's fdinfo never lists the parent's: grade the proof
+        # in-process too, where the `POSIX  ADVISORY  WRITE` line IS listed and must not pass for a flock.
+        m = _mod()
+        assert "does not hold an exclusive flock" in m._caller_proof(str(repo / ".git"), fd)
+    finally:
+        os.close(fd)
+    assert _store_rows(store) == []
+
+
+def test_a_symlinked_agents_lock_is_refused(store, tmp_path):
+    """The lock is the literal `<common dir>/fabrik-agents.lock`: a symlink there, even one whose target the caller
+    holds EX, is refused — a realpath() comparison accepted it."""
+    repo = _spawn_repo(tmp_path)
+    target = tmp_path / "elsewhere.lock"
+    target.write_text("", encoding="utf-8")
+    _lock_of(repo).symlink_to(target)
+    with _held(_lock_of(repo)) as fd:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+    assert r.returncode == 2 and "symlink" in r.stderr, r.stderr
+    assert _store_rows(store) == []
+
+
+def test_abbreviated_spawner_flags_are_refused(store, tmp_path):
+    """No argparse prefix matching: `--spawn`/`--session`/`--rep`/`--lock` were each accepted as the full flag and
+    bound at rc 0 with a held lock."""
+    repo = _spawn_repo(tmp_path)
+    full = {"--spawned": "b-1", "--session-id": U1, "--repo": str(repo), "--lock-fd": None}
+    short = {
+        "--spawned": "--spawn",
+        "--session-id": "--session",
+        "--repo": "--rep",
+        "--lock-fd": "--lock",
+    }
+    with _held(_lock_of(repo)) as fd:
+        for flag, abbrev in short.items():
+            argv: list[str] = []
+            for f, v in full.items():
+                argv += [abbrev if f == flag else f, str(fd) if v is None else v]
+            r = subprocess.run(
+                [sys.executable, str(WHOAMI), *argv],
+                capture_output=True,
+                text=True,
+                env=_clean_env(),
+                pass_fds=(fd,),
+                timeout=30,
+            )
+            assert r.returncode == 2, (abbrev, r.stdout, r.stderr)
+    assert _store_rows(store) == []
+
+
+def test_a_git_failure_is_not_reported_as_not_a_repo(store, tmp_path):
+    """git missing from PATH is an unexpected failure (exit 3, naming it); git refusing the directory is exit 2
+    carrying git's own message — never a fixed "not a repo" that hides, say, a dubious-ownership refusal."""
+    repo = _spawn_repo(tmp_path)
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+    with _held(_lock_of(repo)) as fd:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,), env=_clean_env(PATH=str(empty)))
+    assert r.returncode == 3 and "git" in r.stderr, r.stderr
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    r = _spawned("b-1", U1, plain, 97, env=_clean_env(GIT_CEILING_DIRECTORIES=str(tmp_path)))
+    assert r.returncode == 2 and "fatal:" in r.stderr, r.stderr
+    assert _store_rows(store) == []
 
 
 def test_a_known_or_malformed_session_id_is_refused(store, tmp_path):
@@ -1071,9 +1196,21 @@ def test_a_live_holder_refuses_with_1_and_a_crash_exits_3(store, tmp_path, monke
         monkeypatch.setattr(m, "_rows", boom)
         argv = ["whoami_agent.py", "--spawned", "b-3", "--session-id", U3, "--repo", str(repo)]
         assert m.main([*argv, "--lock-fd", str(fd)]) == 3
-    # --as keeps its old shape: the exception reaches the `__main__` catch-all (exit 1), never a 3
-    with pytest.raises(RuntimeError):
-        m.main(["whoami_agent.py", "--as", "agent-2"])
+        # The same through the real CLI: a store that is a DIRECTORY makes the append raise. --spawned exits 3;
+        # --as keeps its `__main__` catch-all and exits 1.
+        broken = tmp_path / "store-is-a-dir"
+        broken.mkdir()
+        env = _clean_env(AGENT_IDENTITY_FILE=str(broken))
+        r = _spawned("b-4", U4, repo, fd, pass_fds=(fd,), env=env)
+        assert r.returncode == 3 and "crashed" in r.stderr, r.stderr
+    r = subprocess.run(
+        [sys.executable, str(WHOAMI), "--as", "agent-2"],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+    assert r.returncode == 1, (r.stdout, r.stderr)
 
 
 def test_an_inherited_git_dir_never_redirects_the_spawned_scope(store, tmp_path):

@@ -32,6 +32,7 @@ import fcntl
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -83,11 +84,13 @@ def session_id() -> str:
 
     ONE exception, bounded by a lock: the spawner-only ``--spawned`` binding (`bind_spawned`) takes a
     NEW session's id as an argument, because the session it names does not exist yet. It is
-    refused unless the caller passes a descriptor that HOLDS ``<git common dir>/fabrik-agents.lock``
-    (`_caller_proof`), and it only binds an id no row has ever carried — it can never re-name a
-    session that already exists. COBRA (D-253): the cheapest bypass is a caller that takes that
-    lock itself and passes it; accepted, because only the hub's own tooling (``agents_spawn.py``,
-    ``rotate_session.py``) takes the agents lock, and the row it writes carries ``spawned: true``
+    refused unless the caller passes a descriptor whose own open file description holds an
+    EXCLUSIVE flock on ``<git common dir>/fabrik-agents.lock`` (`_caller_proof`), and it only binds
+    an id no row the store still holds carries, so it cannot re-name a session the store knows.
+    COBRA (D-253): the cheapest bypass is a caller that takes that lock itself and passes it;
+    accepted, because the lock is hub tooling's alone — the plan adds its takers, the spawner
+    ``agents_spawn.py add`` (T06) and the rotation's registry re-point in ``rotate_session.py``
+    (T07); at this commit nothing takes it yet — and the row it writes carries ``spawned: true``
     and a null pid, so it is visible as a spawner's row and reserves the name against nobody.
     """
     return (os.environ.get("CLAUDE_CODE_SESSION_ID") or "").strip()
@@ -201,9 +204,11 @@ def _toplevel(cwd: str | None = None) -> str:
     (``docs/workstation/session-recall.md:43``: a session that changes cwd is RE-FILED mid-session,
     and ``EnterWorktree`` moves it into ``<repo>/.claude/worktrees/<name>``).
     """
-    env = None
     if cwd is not None:
-        env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
+        try:
+            return _scope_of(cwd)[0]
+        except (OSError, subprocess.SubprocessError):
+            return ""
     try:
         out = subprocess.run(
             ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
@@ -211,12 +216,32 @@ def _toplevel(cwd: str | None = None) -> str:
             text=True,
             timeout=10,
             check=False,
-            cwd=cwd,
-            env=env,
         )
         return out.stdout.strip() if out.returncode == 0 else ""
     except (OSError, subprocess.SubprocessError):
         return ""
+
+
+def _scope_of(repo: str) -> tuple[str, str]:
+    """(`repo`'s git common dir, "") or ("", git's own first stderr line) — the STRICT read the spawned
+    bind uses. git runs in `repo` with its location variables removed. A git that cannot RUN (absent,
+    or past its 10 s timeout) RAISES, so the spawned path reports it as unexpected (exit 3) rather
+    than as "not a repo"; a git that runs and refuses (not a repo, dubious ownership) is the caller's
+    to read, so its own words are returned."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
+    out = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+        cwd=repo,
+        env=env,
+    )
+    if out.returncode == 0 and out.stdout.strip():
+        return out.stdout.strip(), ""
+    lines = out.stderr.strip().splitlines()
+    return "", (lines[0] if lines else f"git rev-parse exited {out.returncode}")
 
 
 @contextlib.contextmanager
@@ -492,48 +517,60 @@ def _store_row(path: Path, rows: list[dict], row: dict, top: str, name: str) -> 
         _append_row(path, row)
 
 
-def _caller_proof(top: str, fd: int) -> str:
-    """Empty when descriptor `fd` HOLDS `<top>/fabrik-agents.lock`, else the condition that failed.
+def _holds_exclusive_flock(fdinfo: str) -> bool:
+    """True when an fdinfo text lists an EXCLUSIVE flock owned by its open file description.
 
-    The order is load-bearing (plan-review pass 2, A-N1): (a) the descriptor is open on exactly that
-    file; (b) a FRESH open of it cannot take the lock (EWOULDBLOCK) — so somebody holds it, and a
-    success means nobody does, which is released at once and refused; (c) only then may the PASSED
-    descriptor take it, a no-op for the open file description that already holds it and a refusal
-    for an unlocked copy while another process holds it. Checking (c) first passed a caller that
-    merely opened the file while nobody held it. The passed descriptor is never unlocked here: its
-    lock is the CALLER's, held across the whole spawn.
+    Each ``lock:`` line reads ``lock:\\t1: FLOCK  ADVISORY  WRITE <pid> <dev>:<ino> 0 EOF``; a shared
+    flock says ``READ`` and a POSIX (``lockf``/``fcntl``) lock says ``POSIX``. The fields are compared
+    as TOKENS: a substring test for ``WRITE`` would also accept a POSIX write lock.
     """
-    expected = os.path.realpath(os.path.join(top, AGENTS_LOCK))
+    for line in fdinfo.splitlines():
+        if not line.startswith("lock:"):
+            continue
+        if line.split()[2:5] == ["FLOCK", "ADVISORY", "WRITE"]:
+            return True
+    return False
+
+
+def _caller_proof(top: str, fd: int) -> str:
+    """Empty when descriptor `fd` proves the caller holds the agents lock, else the condition that failed.
+
+    Two checks, and neither takes, converts or releases any lock: (a) `fd` is open on exactly
+    ``<top>/fabrik-agents.lock`` — the literal path, which must not be a symlink, compared against
+    ``readlink /proc/self/fd/<fd>`` and never realpath()'d first (a symlink there would point the
+    proof at any file the caller can lock); (b) ``/proc/self/fdinfo/<fd>`` lists an EXCLUSIVE flock,
+    which the kernel lists only for the open file description that owns it (a dup() of the holder
+    shares it; a second, unlocked open of the same file lists nothing).
+
+    Probing with flock was REJECTED (review pass 1): a fresh-open probe followed by a flock on the
+    passed descriptor raced (a holder releasing between the two let an unlocked copy TAKE the lock,
+    pass, and leave it held), and the flock on the passed descriptor changed the caller's own lock —
+    it silently upgraded a shared holder to exclusive, or dropped it when the conversion failed.
+    Reading fdinfo observes the lock without touching it: no window, no side effect.
+    """
+    expected = os.path.join(top, AGENTS_LOCK)
     try:
         held = os.readlink(f"/proc/self/fd/{fd}")
     except (OSError, ValueError):
         return f"--lock-fd {fd} is not an open descriptor"
+    try:
+        is_link = stat.S_ISLNK(os.lstat(expected).st_mode)
+    except OSError:
+        is_link = False  # absent: the comparison below names the file the descriptor IS open on
+    if is_link:
+        return (
+            f"the agents lock {expected!r} is a symlink — only the literal file proves the caller"
+        )
     if held != expected:
         return f"--lock-fd {fd} is open on {held!r}, not the agents lock {expected!r}"
     try:
-        probe = os.open(expected, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        info = Path(f"/proc/self/fdinfo/{fd}").read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
-        return f"the agents lock {expected!r} could not be opened ({exc.strerror or exc})"
-    try:
-        fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        pass  # somebody holds it — (c) decides whether it is the caller
-    except OSError as exc:
-        os.close(probe)
-        return f"the agents lock {expected!r} could not be probed ({exc.strerror or exc})"
-    else:
-        with contextlib.suppress(OSError):
-            fcntl.flock(probe, fcntl.LOCK_UN)
-        os.close(probe)
+        return f"/proc/self/fdinfo/{fd} could not be read ({exc.strerror or exc}): lock unproven"
+    if not _holds_exclusive_flock(info):
         return (
-            f"nobody holds the agents lock {expected!r} — the caller must hold it across the spawn"
-        )
-    os.close(probe)
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        return (
-            f"--lock-fd {fd} is open on the agents lock but does not hold it — another process does"
+            f"--lock-fd {fd} is open on the agents lock but does not hold an exclusive flock on it "
+            "(a shared or POSIX lock, or none, is no proof)"
         )
     return ""
 
@@ -549,9 +586,15 @@ def bind_spawned(name: str, sid: str, repo: str, lock_fd: int) -> tuple[int, str
         return 2, (
             f"whoami_agent: refused — {name!r} is not a valid agent name (^[a-z0-9-]{{1,32}}$)."
         )
-    top = _toplevel(cwd=repo)
+    if not os.path.isdir(repo):
+        return 2, f"whoami_agent: refused — --repo {repo!r} is not a directory."
+    try:
+        top, git_err = _scope_of(repo)
+    except (OSError, subprocess.SubprocessError) as exc:
+        # git absent or hung is not the caller's input: main() reports it as exit 3.
+        raise RuntimeError(f"git could not run in {repo!r}: {type(exc).__name__}: {exc}") from exc
     if not top:
-        return 2, f"whoami_agent: refused — --repo {repo!r} is not inside a git repository."
+        return 2, f"whoami_agent: refused — git could not read --repo {repo!r}: {git_err}"
     why = _caller_proof(top, lock_fd)
     if why:
         return 2, (
@@ -580,7 +623,7 @@ def _bind_spawned_locked(
     if any(str(r.get("session_id")) == sid for r in rows):
         return 2, (
             f"whoami_agent: refused — session id {sid!r} is already in the identity store; "
-            "--spawned binds only a FRESH id, never a session that already exists."
+            "--spawned binds only a FRESH id, never one of a session the store knows."
         )
     for r in rows:
         if str(r.get("name") or "") != name or str(r.get("toplevel") or "") != top:
@@ -612,6 +655,8 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
         prog="whoami_agent.py",
         description="Bind THIS live session to an agent name, or print the resolved name.",
+        # No prefix matching: `--spawn … --session … --rep … --lock …` bound at rc 0 (review pass 1).
+        allow_abbrev=False,
     )
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--as", dest="name", help="the agent name to bind this session to")
