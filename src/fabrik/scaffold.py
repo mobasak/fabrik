@@ -9007,7 +9007,14 @@ def _emit_coordinator_model(project_dir: Path, name: str, today: str) -> None:
 
     ledger = project_dir / "docs" / "DECISIONS.md"
     store = project_dir / ".fabrik" / "work"
-    store_existed = store.exists()
+    charter = project_dir / "docs" / "reference" / "agents" / f"{COORDINATOR_NAME}.md"
+    # what this call may create, outermost first, so a failure removes exactly what it made
+    created = [
+        p for p in (store.parent, store, charter.parent.parent, charter.parent) if not p.exists()
+    ]
+    charter_existed = charter.exists()
+    text: str | None = None
+    ledger_written = False
     try:
         if not ledger.is_file():
             return warn("docs/DECISIONS.md was not seeded, so no MERGE OWNER row")
@@ -9064,19 +9071,28 @@ def _emit_coordinator_model(project_dir: Path, name: str, today: str) -> None:
             f"docs/reference/operator-agent-requirements.md) | `docs/reference/agents/{COORDINATOR_NAME}.md`; "
             f"`.fabrik/work/config.json` |\n"
         )
-        charter = project_dir / "docs" / "reference" / "agents" / f"{COORDINATOR_NAME}.md"
+        ledger_written = (
+            True  # set first: a write that fails part-way still needs the original back
+        )
+        ledger.write_text(text.replace("| D-000 |", row + "| D-000 |", 1), encoding="utf-8")
         charter.parent.mkdir(parents=True, exist_ok=True)
         charter.write_text(charter_text, encoding="utf-8")
-        ledger.write_text(text.replace("| D-000 |", row + "| D-000 |", 1), encoding="utf-8")
     except (
         _CoordinatorEmitError,
         OSError,
         UnicodeError,
         ValueError,
+        RecursionError,  # json.loads on a deeply nested config
         subprocess.SubprocessError,
     ) as exc:
-        if not store_existed:
-            shutil.rmtree(store, ignore_errors=True)
+        if ledger_written and text is not None:
+            with contextlib.suppress(OSError):
+                ledger.write_text(text, encoding="utf-8")
+        if not charter_existed:
+            with contextlib.suppress(OSError):
+                charter.unlink()
+        for path in reversed(created):  # innermost first
+            shutil.rmtree(path, ignore_errors=True)
         return warn(str(exc) or type(exc).__name__)
     print(
         f"Coordinator: open it as `CLAUDE_AGENT={COORDINATOR_NAME} claude -n {name}-coordinator` in {project_dir}"

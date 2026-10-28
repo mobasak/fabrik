@@ -217,3 +217,74 @@ def test_a_missing_ledger_warns_and_does_not_raise(
     )
     assert not (repo / ".fabrik").exists()
     assert not (repo / "docs" / "reference").exists()
+
+
+def test_a_read_only_ledger_warns_and_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _bare_repo(tmp_path)
+    ledger = repo / "docs" / "DECISIONS.md"
+    before = ledger.read_text()
+    ledger.chmod(0o444)
+    try:
+        scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
+    finally:
+        ledger.chmod(0o644)
+    assert "Permission denied" in capsys.readouterr().out
+    _untouched(repo, before)
+    assert not (repo / ".fabrik").exists() and not (repo / "docs" / "reference").exists()
+
+
+def test_a_charter_write_failure_restores_the_ledger(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _bare_repo(tmp_path)
+    before = (repo / "docs" / "DECISIONS.md").read_text()
+    real_write = Path.write_text
+
+    def failing(self: Path, *a: object, **kw: object) -> int:
+        if self.name == "coordinator.md":
+            raise OSError("disk full (probe)")
+        return real_write(self, *a, **kw)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "write_text", failing)
+    scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
+    monkeypatch.undo()
+    assert "disk full (probe)" in capsys.readouterr().out
+    _untouched(repo, before)  # the ledger row written first is taken back
+    assert not (repo / ".fabrik").exists() and not (repo / "docs" / "reference").exists()
+
+
+def test_a_pre_existing_store_and_charter_dir_survive_a_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _bare_repo(tmp_path)
+    (repo / ".fabrik" / "work").mkdir(parents=True)
+    (repo / ".fabrik" / "work" / "keep.json").write_text("{}")
+    (repo / "docs" / "reference" / "agents").mkdir(parents=True)
+    stub = tmp_path / "stub_work.py"
+    stub.write_text(_STUBS["exit2"])
+    monkeypatch.setattr(scaffold, "_work_py", lambda: stub)
+    scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
+    assert "work.py init exited 2" in capsys.readouterr().out
+    assert (repo / ".fabrik" / "work" / "keep.json").exists()
+    assert (repo / "docs" / "reference" / "agents").is_dir()
+
+
+def test_a_deeply_nested_config_warns_and_does_not_raise(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _bare_repo(tmp_path)
+    before = (repo / "docs" / "DECISIONS.md").read_text()
+    stub = tmp_path / "stub_work.py"
+    stub.write_text(
+        "import sys, pathlib\n"
+        "repo = pathlib.Path(sys.argv[sys.argv.index('--repo') + 1])\n"
+        "d = repo / '.fabrik' / 'work'\n"
+        "d.mkdir(parents=True)\n"
+        "(d / 'config.json').write_text('[' * 100000 + ']' * 100000)\n"
+    )
+    monkeypatch.setattr(scaffold, "_work_py", lambda: stub)
+    scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
+    assert "WARNING: coordinator model not emitted" in capsys.readouterr().out
+    _untouched(repo, before)
