@@ -213,6 +213,111 @@ class TestSensitiveFieldRedaction:
             assert not portability._key_is_sensitive(k), f"false-positive: {k}"
 
 
+_PEM_BODY = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7"
+
+
+class TestPrivateKeyRedaction:
+    """W-fc5aee9a: invariant 3 (NO private keys) holds whatever the key is called."""
+
+    def test_redactor_removes_pem_private_key_under_any_key(self):
+        pem = f"-----BEGIN PRIVATE KEY-----\n{_PEM_BODY}\n-----END PRIVATE KEY-----\n"
+        sample = {
+            "identity_providers": {
+                "oidc": {"jwks": [{"key_id": "main", "algorithm": "RS256", "material": pem}]}
+            }
+        }
+        out = portability._redact_sensitive_fields(sample)
+        jwk = out["identity_providers"]["oidc"]["jwks"][0]
+        assert jwk["material"] == "REDACTED"
+        assert jwk["key_id"] == "main"
+        assert jwk["algorithm"] == "RS256"
+        assert _PEM_BODY not in json.dumps(out)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "-----BEGIN PRIVATE KEY-----\nX\n-----END PRIVATE KEY-----",
+            "-----BEGIN ENCRYPTED PRIVATE KEY-----\nX",
+            "-----BEGIN RSA PRIVATE KEY-----\nX",
+            "-----BEGIN EC PRIVATE KEY-----\nX",
+            "-----BEGIN DSA PRIVATE KEY-----\nX",
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nX",
+            "-----BEGIN PGP PRIVATE KEY BLOCK-----\nX",
+            "---- BEGIN SSH2 ENCRYPTED PRIVATE KEY ----\nX",
+            "----- BEGIN PRIVATE KEY -----\nX",
+            "-----BEGIN  RSA  PRIVATE  KEY-----\nX",
+            "-----BEGIN\tPRIVATE\tKEY-----\nX",
+            "-----BEGIN RSA PRIVATE\nKEY-----\nX",
+            "-----begin private key-----\nx",
+            "X\n-----END PRIVATE KEY-----",
+            "prefix text -----BEGIN PRIVATE KEY----- X",
+            b"-----BEGIN PRIVATE KEY-----\nX",
+        ],
+    )
+    def test_redactor_pem_spellings(self, value):
+        out = portability._redact_sensitive_fields({"blob": value, "list": ["ok", value]})
+        assert out == {"blob": "REDACTED", "list": ["ok", "REDACTED"]}
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----",
+            "-----BEGIN PUBLIC KEY-----\nX\n-----END PUBLIC KEY-----",
+            "-----BEGIN RSA PUBLIC KEY-----\nX",
+            "https://auth.example.com/.well-known/jwks.json",
+        ],
+    )
+    def test_redactor_keeps_public_pem(self, value):
+        assert portability._redact_sensitive_fields({"blob": value}) == {"blob": value}
+
+    def test_key_is_sensitive_bare_key(self):
+        sample = {
+            "a": {"key": f"-----BEGIN PRIVATE KEY-----\n{_PEM_BODY}"},
+            "b": {"key": {"kty": "RSA", "d": "c2VjcmV0"}},
+            "c": {"key": _PEM_BODY},
+        }
+        out = portability._redact_sensitive_fields(sample)
+        assert out == {"a": {"key": "REDACTED"}, "b": {"key": "REDACTED"}, "c": {"key": "REDACTED"}}
+        assert portability._key_is_sensitive("key")
+        assert portability._key_is_sensitive("KEY")
+        for k in ("keyring", "key_id", "monkey"):
+            assert not portability._key_is_sensitive(k), f"false-positive: {k}"
+
+    def test_redactor_backrest_priv_keys(self):
+        sample = {
+            "multihost": {"identity": {"keyid": "k1", "ed25519priv": "QUJD"}},
+            "sync": {"privkey": True, "peer": "vps2"},
+        }
+        out = portability._redact_sensitive_fields(sample)
+        assert out["multihost"] == "REDACTED"
+        assert out["sync"] == {"privkey": "REDACTED", "peer": "vps2"}
+        assert portability._key_is_sensitive("ed25519priv")
+
+    @pytest.mark.parametrize(
+        "doc",
+        ["a:\n  1: x\n", "a:\n  yes: x\n", "a:\n  null: x\n", "a:\n  !!binary aGk=: x\n"],
+    )
+    def test_redactor_non_string_keys(self, doc, caplog):
+        import yaml
+
+        parsed = yaml.safe_load(doc)
+        (orig_key,) = parsed["a"]
+        assert not isinstance(orig_key, str)
+        with caplog.at_level("WARNING", logger="fabrik.portability"):
+            out = portability._redact_sensitive_fields(parsed)
+        (new_key,) = out["a"]
+        assert type(new_key) is type(orig_key)
+        assert out["a"][new_key] == "REDACTED"
+        assert "non-string" in caplog.text
+
+    def test_collect_authelia_keeps_section_with_non_string_key(self, monkeypatch):
+        raw = "server:\n  port: 9091\nrules:\n  1: hunter2\n"
+        monkeypatch.setattr(portability, "_ssh_cat", lambda path: raw)
+        out = portability._collect_authelia()["authelia/configuration.yml"]
+        assert "9091" in out
+        assert "hunter2" not in out
+
+
 class TestCollectAuthelia:
     def test_live_bind_mount_path_probed_first_and_read(self, monkeypatch):
         live = "/opt/authelia/config/configuration.yml"
