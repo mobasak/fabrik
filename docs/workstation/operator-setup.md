@@ -32,10 +32,8 @@ outside the hub main checkout or with it off master. A second `--apply` changes 
 The whole plan is built before anything is written, and a planning refusal writes nothing: a target that is a symlink
 or sits outside HOME, an account `settings.json` the installer cannot parse or that repeats a key, an editor settings
 file that is not plain JSON (comments, a trailing comma, a BOM, a duplicate key, the nested `claudeCode` form — the key
-to add by hand is printed), an unreachable user systemd manager, linger off for the archive step (it prints
-`loginctl enable-linger <user>`), and a timer whose `systemctl --user is-enabled` word is not `enabled`,
-`enabled-runtime`, `disabled` or `not-found` — `indirect` (an alias you made to the unit, which the undo's `disable`
-would delete), `masked`, `linked` and the rest have no undo that restores them, so change those by hand. The ssh step also refuses a `~/.ssh/config` writable by group or others or owned by
+to add by hand is printed), an unreachable user systemd manager, and linger off for the archive step (it prints
+`loginctl enable-linger <user>`). The ssh step also refuses a `~/.ssh/config` writable by group or others or owned by
 another user than you or root (ssh itself refuses such a file, but `-G -F` skips that check), a config it cannot read or
 ssh will not parse, a write into a `~/.ssh` that cannot take it (a file, a dangling symlink, mode 0500, or a missing `~/.ssh` in a HOME you
 cannot write — a config already in place needs no write and is no refusal), a HOME that
@@ -44,8 +42,10 @@ so on stderr — it exists for the tests' scratch HOME, and an operator who sets
 above the first section wins over anything after it, so the step prints the value ssh resolves; move that line below the
 first section, or tighten it there. A host alias that reaches github.com under another `Host` name is not covered. A
 file edited after planning is not overwritten: it is re-read before the backups
-and again right before its own write, and the run stops there. A save landing in the instant between that re-read
-and the replace is the one exception: no portable compare-and-swap on a path exists (accepted residue, W-88173de4). Once `--apply` has made its backup dir, a later stop —
+and again right before its own write, and the run stops there. Two exceptions are accepted (W-88173de4), since no
+portable compare-and-swap on a path exists: a save landing between that last re-read and the replace (the new
+file's write and flush included), and a save to one of the three archive units, which are re-read before the backups
+only — the installer then overwrites them. Once `--apply` has made its backup dir, a later stop —
 the archive installer failing, a backup that does not read back, or that re-read — leaves the backups and whatever was already written, and prints the
 undo lines for exactly that.
 
@@ -57,9 +57,10 @@ mid-edit.
 
 `--apply` copies every file it changes into `~/.local/state/fabrik/operator-setup-<timestamp>/` (mode 0700) first and
 prints one undo line per file — `cp -p <backup> "$HOME"/<path>` for a file that existed, `rm -f "$HOME"/<path>` for one
-it created. When the archive installer ran, the lines open with `systemctl --user disable session-archive.timer` and
-`systemctl --user stop session-archive.timer` for whichever of the two the timer was not before (a unit cannot be
-disabled once its file is gone), and end with `systemctl --user daemon-reload`. The archive installer runs FIRST, so
+it created. When the archive installer ran, the lines open with `systemctl --user stop session-archive.timer` when the timer was
+not active before, and `rm -f "$HOME"/.config/systemd/user/timers.target.wants/session-archive.timer` when that link
+— the one the installer's `enable` adds — was not there before (never `systemctl --user disable`, which would also
+delete an alias you made to the unit; W-88173de4), and end with `systemctl --user daemon-reload`. The archive installer runs FIRST, so
 when it fails the other steps are unwritten and the undo lines name the units it changed. Any parent directory a step
 has to create (`~/.ssh`, `~/.claude/bin`) is made 0700 and left in place, empty, by the undo. The tab router's fast rollback stays
 `"CLAUDE_TAB_ROUTER": "off"` in `claudeCode.environmentVariables`.
