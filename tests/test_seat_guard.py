@@ -306,6 +306,10 @@ def test_real_heredoc_spellings_still_hold_data() -> None:
         "x=\"$( (true); cat <<'EOF'\ngit reset --hard\nEOF\n)\"",
         f"echo `date` ${{HOME}} && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
         f"echo $((1+1)) && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
+        f"echo $[1+1] && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
+        # a closed `case` (and a word merely ending in "case") leaves `)` closing "$(…)" again
+        f'x="$(case a in a) :;; esac)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
+        f'x="$(echo showcase)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
     ):
         assert not _denied(_run(cmd)), cmd
 
@@ -320,6 +324,9 @@ def test_review_round_one_markers_hide_nothing() -> None:
         f"cat > {SCRATCH}/n <<E-OF\nx\nE-OF\ngit reset --hard",
         f"cat > {SCRATCH}/n <<EOF-\nx\nEOF-\ngit reset --hard",
         f"cat > {SCRATCH}/n <<-EOF\n\tbody\n\tEOF\ngit reset --hard",
+        # each shape below passes the word-boundary rule, so only its own clause decides
+        "echo $[1<<n ]\ngit reset --hard",
+        'echo "$(case $x in a) echo " <<EOF ";; esac)"\ngit reset --hard',
     ):
         assert _denied(_run(cmd)), cmd
 
