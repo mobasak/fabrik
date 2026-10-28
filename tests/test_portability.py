@@ -599,6 +599,39 @@ class TestMonitoringRedaction:
     def test_url_userinfo_in_a_mapping_key_is_redacted(self):
         out = portability._redact_sensitive_fields({"https://u:pw@h.example": 1})
         assert out == {"https://REDACTED@h.example": 1}
+        # A sensitive key loses its userinfo too, not only its value.
+        out = portability._redact_sensitive_fields({"https://u:pw@h/token": 1})
+        assert out == {"https://REDACTED@h/token": "REDACTED"}
+
+    @pytest.mark.parametrize(
+        "doc",
+        [
+            '1: a\n"1": b\n',  # a plain typed key and a quoted key of the same text
+            "on: a\n'on': b\n",
+            "https://a:1@h: first\nhttps://b:2@h: second\n",  # equal once redacted
+        ],
+    )
+    def test_no_mapping_entry_is_lost(self, monkeypatch, doc):
+        import yaml
+
+        out = self._remote(monkeypatch, {"prometheus.yml": doc})
+        if out:
+            # Both entries survive (typed keys keep their type, so they stay distinct)…
+            assert len(yaml.safe_load(out["monitoring/prometheus.yml"])) == 2
+        else:
+            # …or the file is omitted: never one entry silently overwriting another.
+            assert out == {}
+
+    def test_a_parse_error_never_logs_the_source_line(self, monkeypatch, caplog):
+        docs = (
+            "x: &a 1\ncreds: {password: LOGLEAK1, copy: *a}\n",
+            'password: "LOGLEAK2\nx: [\n',
+        )
+        with caplog.at_level("WARNING", logger="fabrik.portability"):
+            for doc in docs:
+                assert self._remote(monkeypatch, {"prometheus.yml": doc}) == {}
+        assert "omitting" in caplog.text
+        assert "LOGLEAK" not in caplog.text
 
     def test_authorization_policy_is_kept(self):
         sample = {
@@ -627,12 +660,26 @@ class TestMonitoringRedaction:
             "proxy_connect_header",
             "Authorization",
             "Proxy-Authorization",
+            "x-authorization",
+            "api-authorization",
+            "authorizations",
             "endpoint_params",
             "shoutrrrUrl",
             "command",
         ):
             assert portability._key_is_sensitive(k), f"missed sensitive key: {k}"
-        for k in ("monkey", "hotkey", "keyring", "key_id", "template", "commander", "url", "to"):
+        for k in (
+            "monkey",
+            "hotkey",
+            "keyring",
+            "key_id",
+            "template",
+            "commander",
+            "url",
+            "to",
+            "authorization_policy",
+            "authorization_policies",
+        ):
             assert not portability._key_is_sensitive(k), f"false-positive: {k}"
 
 

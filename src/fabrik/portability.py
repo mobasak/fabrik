@@ -89,8 +89,8 @@ _SENSITIVE_KEY_PATTERNS = (
     re.compile(r"[_-]key$|(?-i:[a-z0-9]Key)$", re.IGNORECASE),
     re.compile(r"api[_-]?url$", re.IGNORECASE),  # Alertmanager slack_api_url, slack api_url
     re.compile(r"headers?$", re.IGNORECASE),  # remote_write/read headers, proxy_connect_header
-    # Authorization block/header, Proxy-Authorization; Authelia authorization_policy is kept.
-    re.compile(r"^(?:proxy[_-])?authorization$", re.IGNORECASE),
+    # Authorization block/header names; Authelia authorization_policy/_policies are kept.
+    re.compile(r"authoriz(?!ation[_-]?polic)", re.IGNORECASE),
     re.compile(r"^endpoint[_-]?params$", re.IGNORECASE),  # Prometheus oauth2.endpoint_params
     re.compile(r"shoutrrr[_-]?url$", re.IGNORECASE),  # Backrest hooks[].actionShoutrrr
     re.compile(r"^command$", re.IGNORECASE),  # Backrest hooks[].actionCommand (a shell line)
@@ -123,6 +123,10 @@ _PEM_PRIVATE_RE = re.compile(
 _URL_USERINFO_RE = re.compile(r"://[^/\s?#]*@")
 
 
+class _ConfigShapeError(ValueError):
+    """A config this module refuses to bundle; its message never quotes the config."""
+
+
 def _key_is_sensitive(key: str) -> bool:
     """Match a key name against the conservative sensitive-pattern list."""
     return any(p.search(key) for p in _SENSITIVE_KEY_PATTERNS)
@@ -150,28 +154,33 @@ def _redact_sensitive_fields(obj: Any) -> Any:
     keys and an armour line is never a URL or path. A key-text test cannot
     see a key with no armour line (a bare base64 body, a JWK, a PuTTY file)
     under a name no pattern matches. Any other mapping key that is not a
-    string (YAML ints, bools, nulls, ``!!binary``, or a :class:`_PlainScalar`
-    such a type would have resolved to) cannot spell a sensitive
+    string (YAML ints, bools, nulls, ``!!binary``) cannot spell a sensitive
     name, so its value is redacted (fail closed) and the key kept with its
     type. Any container
     other than a dict or list (YAML ``!!set``, ``!!omap``, ``!!pairs``) is
-    replaced whole, since its entries are never walked.
+    replaced whole, since its entries are never walked. Two keys that redact
+    to the same key raise :class:`_ConfigShapeError` rather than lose an entry.
     """
     if isinstance(obj, dict):
         out: dict[Any, Any] = {}
         for k, v in obj.items():
             if _is_private_key_text(k):
-                out["REDACTED"] = "REDACTED"
-            elif not isinstance(k, str) or getattr(k, "yaml_typed", False):
+                new_key, new_value = "REDACTED", "REDACTED"
+            elif not isinstance(k, str):
                 logger.warning(
                     "portability: redacting the value under a non-string %s mapping key",
                     type(k).__name__,
                 )
-                out[k] = "REDACTED"
+                new_key, new_value = k, "REDACTED"
             elif _key_is_sensitive(k):
-                out[k] = "REDACTED"
+                new_key, new_value = _redact_url_userinfo(k), "REDACTED"
             else:
-                out[_redact_url_userinfo(k)] = _redact_sensitive_fields(v)
+                new_key, new_value = _redact_url_userinfo(k), _redact_sensitive_fields(v)
+            if new_key in out:
+                # Two keys redacted to one: refuse rather than drop an entry
+                # (the config collectors then omit the file).
+                raise _ConfigShapeError("two mapping keys redact to the same key")
+            out[new_key] = new_value
         return out
     if isinstance(obj, list):
         return [_redact_sensitive_fields(item) for item in obj]
@@ -330,14 +339,7 @@ _YAML_STR_TAG = "tag:yaml.org,2002:str"
 
 
 class _PlainScalar(str):
-    """A plain (unquoted, untagged) YAML scalar, kept as its source text.
-
-    ``yaml_typed`` is True when PyYAML would have resolved the text to a
-    non-str type (an int, bool, null, timestamp …), so the redactor still
-    treats such a mapping key as a non-string key.
-    """
-
-    yaml_typed: bool = False
+    """A plain (unquoted, untagged) YAML scalar value, kept as its source text."""
 
 
 class _VerbatimLoader(yaml.SafeLoader):
@@ -346,31 +348,40 @@ class _VerbatimLoader(yaml.SafeLoader):
     Typed resolution would rewrite what the operator wrote: PyYAML reads
     ``17:00`` as 1020, ``on`` as True, ``010`` as 8 and ``1.10`` as 1.1, and
     re-emitting those (quoted, or in normal form) changes what the Go parser
-    restoring the copy decodes. A plain scalar whose tag is the implicit one
+    restoring the copy decodes. A plain VALUE whose tag is the implicit one
     becomes a :class:`_PlainScalar` holding its exact text, which
-    :class:`_BlockDumper` writes back plain. An explicitly tagged scalar
+    :class:`_BlockDumper` writes back plain. Mapping KEYS are constructed as
+    SafeLoader does, so ``1`` and ``"1"`` stay distinct keys and a typed key
+    keeps the redactor's non-string-key rule. An explicitly tagged scalar
     (``!!str 123``, ``!!binary``) is constructed as SafeLoader does, and an
     unknown tag still raises. An alias, merge keys included, is refused: the
     redactor matches key names, so ``other: *pw`` would copy a secret out from
     under its sensitive key (fail closed — the file is omitted).
     """
 
+    def __init__(self, stream: Any) -> None:
+        super().__init__(stream)
+        self._key_node_ids: set[int] = set()
+
     def compose_node(self, parent: Any, index: Any) -> Any:
         if self.check_event(yaml.AliasEvent):
-            raise yaml.composer.ComposerError(
-                None, None, "YAML aliases are refused", self.peek_event().start_mark
-            )
+            # No mark: PyYAML prints a mark with a snippet of the source line.
+            raise yaml.composer.ComposerError(None, None, "YAML aliases are refused", None)
         return super().compose_node(parent, index)
+
+    def construct_mapping(self, node: Any, deep: bool = False) -> Any:
+        self.flatten_mapping(node)  # merged keys first, so they are known as keys too
+        self._key_node_ids.update(id(key_node) for key_node, _ in node.value)
+        return super().construct_mapping(node, deep=deep)
 
     def construct_object(self, node: Any, deep: bool = False) -> Any:
         if (
             isinstance(node, yaml.ScalarNode)
             and node.style is None
+            and id(node) not in self._key_node_ids
             and node.tag == self.resolve(yaml.ScalarNode, node.value, (True, False))
         ):
-            scalar = _PlainScalar(node.value)
-            scalar.yaml_typed = node.tag != _YAML_STR_TAG
-            return scalar
+            return _PlainScalar(node.value)
         return super().construct_object(node, deep=deep)
 
 
@@ -409,9 +420,11 @@ def _redact_config_text(rel: str, raw: str) -> str | None:
             if parsed is None:
                 parsed = {}
         else:
-            raise ValueError("no parser for this file type")
+            raise _ConfigShapeError("no parser for this file type")
         if not isinstance(parsed, (dict, list)):
-            raise ValueError(f"top level is a {type(parsed).__name__}, not a mapping or list")
+            raise _ConfigShapeError(
+                f"top level is a {type(parsed).__name__}, not a mapping or list"
+            )
         redacted = _redact_sensitive_fields(parsed)
         if rel.endswith(".json"):
             return json.dumps(redacted, indent=2, sort_keys=True)
@@ -427,9 +440,25 @@ def _redact_config_text(rel: str, raw: str) -> str | None:
             "portability: %s parse/redact failed (%s); omitting from bundle to avoid "
             "plaintext-secret leak",
             rel,
-            exc,
+            _config_error_text(exc),
         )
         return None
+
+
+def _config_error_text(exc: Exception) -> str:
+    """Describe a config parse/redact failure WITHOUT quoting the config: a
+    PyYAML mark prints a snippet of the source line, and other exceptions may
+    carry the data they choked on, so only fixed problem texts and a line
+    number are kept."""
+    if isinstance(exc, yaml.MarkedYAMLError):
+        mark = exc.problem_mark
+        where = f" at line {mark.line + 1}" if mark is not None else ""
+        return f"{type(exc).__name__}: {exc.problem}{where}"
+    if isinstance(exc, json.JSONDecodeError):
+        return f"JSONDecodeError: {exc.msg} at line {exc.lineno}"
+    if isinstance(exc, _ConfigShapeError):
+        return str(exc)
+    return type(exc).__name__
 
 
 def _collect_monitoring_remote() -> dict[str, str]:
