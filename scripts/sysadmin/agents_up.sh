@@ -104,8 +104,11 @@ SID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 ITEM_RE='^W-[0-9a-f]{8}$'
 bad_arg() { echo "agents_up: $1" >&2; exit 2; }
 # the first prompt's coordinator and item sentences name ONE builder (W-b9ad80ae PO1, PO2): --pane-cmd's flags, or the
-# FABRIK_SPAWN_* variables a caller that cannot pass flags (a cold start through --detach) sets; those are checked by
-# spawn_vars_ok only when a new=1 prompt is built for the builder FABRIK_SPAWN_NAME names, so a stale one stops nothing else
+# FABRIK_SPAWN_* variables a caller that cannot pass flags (a cold start through --detach) sets. check_spawn_vars (over
+# the resolved set, only the new=1 row FABRIK_SPAWN_NAME names) runs at exactly three places, each where a first prompt
+# can be built and before that path's first output line or side effect: the top of the --print block, the new-grid branch
+# (before slice_ceiling and the first tmux call) and --pane-cmd (before slice_ceiling). Never on the grid-already-up
+# attach path, which builds no pane: a stale malformed variable stops nothing else.
 SP_NAME="${FABRIK_SPAWN_NAME:-}"
 SP_COORD="${FABRIK_SPAWN_COORDINATOR:-}"
 SP_ITEM="${FABRIK_SPAWN_ITEM:-}"
@@ -556,6 +559,11 @@ spawn_vars_ok() {  # $1 = name, $2 = new: the FABRIK_SPAWN_* values matter only 
   [ -z "$SP_ITEM" ] || [[ "$SP_ITEM" =~ $ITEM_RE ]] || bad_arg "FABRIK_SPAWN_ITEM '$SP_ITEM' is not a work item id (W- and 8 lowercase hex)"
 }
 
+check_spawn_vars() {  # the whole resolved set; see the call sites in the header comment
+  local name sid folder new
+  while read -r name sid folder new; do spawn_vars_ok "$name" "$new"; done <<< "$AGENTS"
+}
+
 first_prompt() {  # $1 = name, $2 = session id: a spawned builder's first turn, ONE line, nothing in it for a shell to read
   local coord item
   coord="the repo's merge owner (\`decisions.py --merge-owner\`)"
@@ -631,11 +639,8 @@ cap_of() {  # $1 = name
   if [ "$CAPPED" = 1 ]; then echo "cap $1 $TASKS_MAX"; else echo "cap $1 uncapped"; fi
 }
 
-# every refusal a launch can raise is decided BEFORE its first output line or side effect: the FABRIK_SPAWN_* values are
-# checked once over the whole resolved set (only the new=1 row FABRIK_SPAWN_NAME names carries them)
-while read -r name sid folder new; do spawn_vars_ok "$name" "$new"; done <<< "$AGENTS"
-
 if [ "$print" = 1 ]; then
+  check_spawn_vars
   echo "session $S"
   [ "$CAPPED" = 1 ] && echo "slice $SLICE MemoryHigh=$SLICE_HIGH MemoryMax=$SLICE_MAX"
   while read -r name sid folder new; do
@@ -688,6 +693,7 @@ if [ "$panecmd" = 1 ]; then
   done <<< "$AGENTS"
   [ "$found" = 1 ] || bad_arg "$SP_NAME with session $pane_sid is not a builder the resolver gives $ROOT"
   # the same cap rules as the grid, last: a refused request never writes the slice property
+  check_spawn_vars
   slice_ceiling
   printf '%s\n' "$pane_line"
   exit 0
@@ -743,6 +749,7 @@ if tmux has-session -t "=$S" 2>/dev/null; then
   owned_here || exit 2
   echo "agents_up: the $S grid is already up — leaving it as it is; a registry change takes effect after: tmux kill-session -t =$S" >&2
 else
+  check_spawn_vars
   slice_ceiling
   first=1
   raced=0

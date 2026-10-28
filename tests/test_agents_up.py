@@ -2385,7 +2385,8 @@ def test_a_malformed_spawn_variable_refuses_before_a_grid_is_started(tmp_path: P
         out = _run("--detach", str(repo), home=home, **env)
         assert out.returncode == 2 and var in out.stderr, (var, out.stderr)
         log = home / "tmux.log"
-        assert not log.exists() or log.read_text(encoding="utf-8") == "", (var, _log(home))
+        # the only tmux call allowed is the read-only has-session probe that decides new-grid vs attach: no session made
+        assert not log.exists() or set(_log(home)) <= {"has-session -t =shop"}, (var, _log(home))
         assert not (home / "systemctl.log").exists() or "set-property" not in (home / "systemctl.log").read_text(
             encoding="utf-8"
         ), var
@@ -2420,3 +2421,17 @@ def test_pane_cmd_is_its_own_mode(tmp_path: Path) -> None:
         out = _run(flag, "--pane-cmd", str(repo), "b2", B2, "--new", home=home, AGENT_IDENTITY_FILE=str(store))
         assert out.returncode == 2 and out.stdout == "", (flag, out.stdout)
         assert "its own mode" in out.stderr, (flag, out.stderr)
+
+
+def test_a_stale_spawn_variable_never_stops_an_attach_to_an_up_grid(tmp_path: Path) -> None:
+    """Pass 3: the FABRIK_SPAWN_* check runs only where a first prompt can be built. With the grid ALREADY UP (this
+    repo's recorded root) an attach builds no pane and no prompt, so a malformed ITEM or COORDINATOR naming a new builder
+    stops nothing — `--detach` attaches (rc 0), and no pane is made."""
+    repo, store = _mixed_repo(tmp_path)
+    home = _tmux_home(tmp_path, repo, has=True, owner=str(repo))
+    for var, value in (("FABRIK_SPAWN_ITEM", "nope"), ("FABRIK_SPAWN_COORDINATOR", "x y")):
+        out = _run(
+            "--detach", str(repo), home=home, FABRIK_SPAWN_NAME="b3", AGENT_IDENTITY_FILE=str(store), **{var: value}
+        )
+        assert out.returncode == 0 and "grid is already up" in out.stderr, (var, out.stderr)
+    assert not any(ln.startswith(("new-session", "split-window")) for ln in _log(home)), _log(home)
