@@ -206,10 +206,13 @@ def _strip_heredocs(command: str) -> str:
 
     The walk is trusted only when it ends where bash ends: top level, nothing left open, no body
     pending. A walk that lost bash's place — a `case` pattern's `)`, a spelling it misreads —
-    never ends there, and the command is returned whole: every line stays in the scan, the safe
-    direction. Two `case` pattern `)` can take the walk out of bash's quoting and back with a
-    clean end, so a `case` word left outside the bodies voids a strip too (an over-scan). Stated limit: a body is data even where bash runs it as code — an unquoted
-    body's `$(…)`, or a heredoc fed to a shell (`bash <<EOF`) — W-b0aab70a."""
+    mostly ends elsewhere, and then the command is returned whole: every line stays in the scan,
+    the safe direction. Two `case` pattern `)` can lose it and find it again with a clean end, so
+    a `case` word left outside the bodies voids a strip too (an over-scan).
+
+    Stated limits: a body is data even where bash runs it as code — an unquoted body's `$(…)`, or
+    a heredoc fed to a shell (`bash <<EOF`), W-b0aab70a; a `case` spelled across a
+    backslash-newline escapes the `case` check, W-0508ae26."""
     out: list[str] = []
     pending: list[tuple[str, bool]] = []  # (delimiter, `<<-` strips leading tabs)
     stack: list[list] = [["sh", 0]]  # [context, open count]; "sh" is shell code
