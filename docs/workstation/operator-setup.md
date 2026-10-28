@@ -35,9 +35,10 @@ file that is not plain JSON (comments, a trailing comma, a BOM, a duplicate key,
 to add by hand is printed), an unreachable user systemd manager, and linger off for the archive step (it prints
 `loginctl enable-linger <user>`). The ssh step also refuses a `~/.ssh/config` writable by group or others or owned by
 another user than you or root (ssh itself refuses such a file, but `-G -F` skips that check), a config it cannot read or
-ssh will not parse, a `~/.ssh` that is not a directory you can write (a file, a dangling symlink, mode 0500), a HOME that
-is not your passwd home (ssh reads `~` from passwd, never `$HOME`; only the tests set `OPERATOR_SETUP_SSH_HOME=1` to
-stand a scratch HOME in), and a looser setting the block cannot override: a global `ServerAliveInterval` or an `Include`
+ssh will not parse, a write into a `~/.ssh` that cannot take it (a file, a dangling symlink, mode 0500, or a missing `~/.ssh` in a HOME you
+cannot write — a config already in place needs no write and is no refusal), a HOME that
+is not your passwd home (ssh reads `~` from passwd, never `$HOME`; `OPERATOR_SETUP_SSH_HOME=1` lifts this check and says
+so on stderr — it exists for the tests' scratch HOME, and an operator who sets it gets a config ssh never reads), and a looser setting the block cannot override: a global `ServerAliveInterval` or an `Include`
 above the first section wins over anything after it, so the step prints the value ssh resolves; move that line below the
 first section, or tighten it there. A host alias that reaches github.com under another `Host` name is not covered. A
 file edited after planning is never overwritten: it is re-read before the backups

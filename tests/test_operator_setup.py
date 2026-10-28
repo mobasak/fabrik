@@ -602,8 +602,19 @@ def test_ssh_keepalive_planned_applied_and_verified(tmp_path):
         r = _run(h, hub)
         assert r.returncode == 0 and "== ssh:" not in r.stdout, (label, r.stdout + r.stderr)
         assert c.read_bytes() == body
-    # a looser one is not: an interval over 15 s, or interval x count over 60 s — the block is planned above it
-    for label, interval, count in (("interval-30", 30, 1), ("product-90", 10, 9)):
+    # in place needs no write, so a read-only ~/.ssh holding it is no refusal
+    if os.getuid() != 0:
+        h = _home(tmp_path / "in-place-read-only-dir")
+        c = h / SSH_CONFIG
+        c.write_bytes(b"Host github.com\n    ServerAliveInterval 10\n    ServerAliveCountMax 3\n")
+        c.chmod(0o600)
+        (h / ".ssh").chmod(0o500)
+        r = _run(h, hub)
+        (h / ".ssh").chmod(0o700)
+        assert r.returncode == 0 and "== ssh:" not in r.stdout, r.stdout + r.stderr
+    # a looser one is not: an interval over 15 s, interval x count over 60 s, or a count of 0 — the block is
+    # planned above it
+    for label, interval, count in (("interval-30", 30, 1), ("product-90", 10, 9), ("count-0", 15, 0)):
         h = _home(tmp_path / label)
         c = h / SSH_CONFIG
         c.write_bytes(f"Host github.com\n    ServerAliveInterval {interval}\n    ServerAliveCountMax {count}\n".encode())
@@ -642,11 +653,17 @@ def test_ssh_keepalive_refusals_write_nothing(tmp_path):
         assert not _manager_writes(h), (label, _calls(h))
     # a ~/.ssh the write would fail in, or a config it cannot read: refused at planning, never a traceback mid-apply
     # after the other steps are written
-    for label in ("ssh-dir-read-only", "ssh-dir-is-a-file", "ssh-dir-dangling-link", "config-unreadable"):
+    labels = ["ssh-dir-is-a-file", "ssh-dir-dangling-link"]
+    if os.getuid() != 0:  # root writes through any mode and reads any file
+        labels += ["ssh-dir-read-only", "no-ssh-dir-home-read-only", "config-unreadable"]
+    for label in labels:
         h = _home(tmp_path / label)
         d = h / ".ssh"
         if label == "ssh-dir-read-only":
             d.chmod(0o500)
+        elif label == "no-ssh-dir-home-read-only":  # ~/.ssh would be created in a HOME this user cannot write
+            d.rmdir()
+            h.chmod(0o500)
         elif label == "ssh-dir-is-a-file":
             d.rmdir()
             d.write_text("not a dir\n")
@@ -661,6 +678,8 @@ def test_ssh_keepalive_refusals_write_nothing(tmp_path):
         after = _digest(h) if before is not None else None
         if label == "ssh-dir-read-only":
             d.chmod(0o700)  # after the digest, so pytest can clean the tree up
+        if label == "no-ssh-dir-home-read-only":
+            h.chmod(0o700)
         assert r.returncode == 1 and "Nothing was written" in r.stderr and "Traceback" not in r.stderr, (label, r.stderr)
         assert "wrote " not in r.stdout, (label, r.stdout)
         assert after == before, f"{label}: something was written"
@@ -673,6 +692,7 @@ def test_ssh_keepalive_refusals_write_nothing(tmp_path):
         assert _digest(h) == before
 
 
+@pytest.mark.skipif(os.getuid() == 0, reason="a root-owned config is accepted, as ssh accepts it")
 def test_ssh_config_owned_by_another_user_refused(tmp_path, monkeypatch):
     # ssh refuses a config another (non-root) user owns, so it is never "in place"; the owner is read before any
     # ssh runs, so this in-process run (where the fleet guard refuses ssh) reaches it by giving the process another uid

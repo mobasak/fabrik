@@ -348,11 +348,7 @@ def plan_ssh(home: Path) -> list[Change]:
             raise PlanError(f"HOME ({home}) is not the passwd home ssh reads ({pw}) — run it with your own HOME")
     path = home / ".ssh" / "config"
     rel = _rel(home, path)
-    sshdir = path.parent  # a write into it must not fail after the other steps are written
-    if sshdir.is_symlink() and not sshdir.exists():
-        raise PlanError(f"{sshdir} is a dangling symlink — refused; fix it by hand")
-    if sshdir.exists() and (not sshdir.is_dir() or not os.access(sshdir, os.W_OK | os.X_OK)):
-        raise PlanError(f"{sshdir} is not a directory this user can write — chmod 700 it and run again")
+    sshdir = path.parent
     try:
         data, mode = _read(path)
     except OSError as exc:  # unreadable, or a component that is not a directory
@@ -363,7 +359,16 @@ def plan_ssh(home: Path) -> list[Change]:
                             "such a config; chmod 600 it and run again")
     current = data or b""
     if _keepalive_ok(_ssh_resolves(current)):
-        return []
+        return []  # nothing to write, so the directory needs nothing either
+    # a write is planned: where it lands must take it, or the run stops after the other steps are written
+    if sshdir.is_symlink() and not sshdir.exists():
+        raise PlanError(f"{sshdir} is a dangling symlink — refused; fix it by hand")
+    nearest = sshdir
+    while not nearest.exists():  # ~/.ssh absent: the directory it would be created in
+        nearest = nearest.parent
+    if not nearest.is_dir() or not os.access(nearest, os.W_OK | os.X_OK):
+        raise PlanError(f"{nearest} is not a directory this user can write, so {path} cannot be written — "
+                        "fix its mode (chmod 700) and run again")
     nl = b"\r\n" if b"\r\n" in current else b"\n"
     block = nl.join(line.encode("utf-8") for line in SSH_BLOCK) + nl
     section = SSH_SECTION.search(current)
