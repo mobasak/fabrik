@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 The hub's merge-test leg ran past `merge_request.py`'s 1800 s default even on the base copy (exit 124),
 so every merge that selected the full suite was refused. `.fabrik/merge-tests` now carries
 `# merge-test-timeout: 2700` (read from the base only, clamped to the 3600 s budget), with its costs
-stated beside it: a rebuild after a failed CAS gets what is left of the budget (at least 900 s), and
+stated beside it: a rebuild after a failed CAS gets what is left of the budget (as little as ~900 s, after a first leg that used its full 2700 s), and
 `merge --queue` forks a leg only in its first 1080 s. `tests/test_merge_request_pretest.py::test_the_hub_declares_its_own_longer_leg` pins it
 (W-418c9d9f, D-1310; follow-up W-3ba57940 cuts the slow shard).
 
