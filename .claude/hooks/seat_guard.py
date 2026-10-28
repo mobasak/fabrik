@@ -143,7 +143,25 @@ def _tokens(command: str) -> list[str]:
         raise _UnparseableError(str(exc)) from exc
 
 
-_HEREDOC = re.compile(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+# `<<WORD`: WORD is one whole shell word (bash reads `<<E-OF` as E-OF, never E); quotes and
+# backslashes in it are removed for the terminator (`<<'EOF'`, `<<\EOF`, `<<EO'F'` end at EOF)
+_HEREDOC = re.compile(r"""<<(-?)[ \t]*((?:[^\s;&|()<>'"\\]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)""")
+_DELIM_QUOTING = re.compile(r'''\\(.)|'([^']*)'|"((?:[^"\\]|\\.)*)"''')
+
+
+def _unquote(m: re.Match) -> str:
+    if m.group(1) is not None:  # \x
+        return m.group(1)
+    if m.group(2) is not None:  # '…' — literal
+        return m.group(2)
+    return re.sub(r'\\([\\"$`])', r"\1", m.group(3))  # "…" — only \\ \" \$ \` escape
+
+
+def _heredoc_word(word: str) -> str:
+    """The terminator a `<<WORD` waits for: WORD with its quoting removed."""
+    return _DELIM_QUOTING.sub(_unquote, word)
+
+
 _OP_ORDER = (
     "&&",
     "||",
@@ -196,8 +214,8 @@ def _strip_heredocs(command: str) -> str:
     Only a `<<WORD` the shell reads as one opens a body: in shell code — top level or inside
     `$(…)`, quoting reset there as bash resets it, a `case` pattern's `)` not closing it —
     never inside `'…'`, `"…"`, `$'…'`, a comment, a backtick, `${…}` or an arithmetic `((…))`
-    or `$[…]`, never a `<<<` here-string or an escaped `<`, and only when WORD ends at a word
-    boundary (`<<E-OF` is not cut to `E`). Anything else that looks like a marker hides no line
+    or `$[…]`, never a `<<<` here-string or an escaped `<`; WORD is the whole shell word, its
+    quoting removed (`<<E-OF` waits for E-OF, `<<\\EOF` for EOF). Anything else that looks like a marker hides no line
     (W-223704c1), and a body ends only on bash's terminator — the exact line, leading tabs
     stripped for `<<-` alone. A marker this walk does not recognise leaves its body IN the scan,
     the safe direction. Stated limit: a body is data even where bash runs it as code — an unquoted
@@ -286,8 +304,8 @@ def _strip_heredocs(command: str) -> str:
             continue
         elif command.startswith("<<", i):
             m = _HEREDOC.match(command, i)
-            if m and (m.end() == n or command[m.end()] in " \t\n;&|()<>"):
-                pending.append((m.group(3), m.group(1) == "-"))
+            if m:
+                pending.append((_heredoc_word(m.group(2)), m.group(1) == "-"))
                 out.append(m.group(0))
                 i = m.end()
                 continue

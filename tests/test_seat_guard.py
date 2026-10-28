@@ -335,8 +335,33 @@ def test_review_round_one_markers_hide_nothing() -> None:
         'x="$(case a in a) echo esac;; b) echo " <<EOF ";; esac)"\ngit reset --hard',
         'x="$(if true; then case a in a) echo " <<EOF ";; esac; fi)"\ngit reset --hard',
         'echo "$(echo case)<<EOF\n"\ngit reset --hard',
+        # review round 2: the delimiter is the whole shell word, quoting removed — an opener read
+        # as an identifier left its body in the scan, where an inner `<<Z` hid the line after it
+        f"cat > {SCRATCH}/n <<E-OF\n<<Z\nE-OF\ngit reset --hard\nZ",
+        f"cat > {SCRATCH}/n <<\\EOF\n <<Z\nEOF\ngit reset --hard\nZ",
+        f"cat > {SCRATCH}/n <<E'OF'\nx\nEOF\ngit reset --hard",
     ):
         assert _denied(_run(cmd)), cmd
+
+
+def test_strip_heredocs_drops_each_body_and_keeps_what_follows() -> None:
+    """Review round 2 (B-haiku-7): the hook swallows a scanner exception, so an allow assertion
+    through `_run` passes even when `_strip_heredocs` crashes. Graded here directly."""
+    spec = importlib.util.spec_from_file_location("seat_guard_strip", HOOK)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for cmd, word in (
+        ("cat <<E-OF\nBODY\nE-OF\nAFTER", "E-OF"),
+        ("cat <<\\EOF\nBODY\nEOF\nAFTER", "EOF"),
+        ("cat <<E'OF'\nBODY\nEOF\nAFTER", "EOF"),
+        ('cat <<"a b"\nBODY\na b\nAFTER', "a b"),
+        ('cat <<"a\\"b"\nBODY\na"b\nAFTER', 'a"b'),
+        ("cat <<-EOF\n\tBODY\n\tEOF\nAFTER", "EOF"),
+    ):
+        out = mod._strip_heredocs(cmd)
+        assert "BODY" not in out and out.endswith("\nAFTER"), (cmd, out)
+        assert mod._heredoc_word(cmd.split("<<", 1)[1].split("\n", 1)[0].lstrip("-")) == word
 
 
 def test_a_line_that_only_looks_like_the_terminator_keeps_the_body_data() -> None:
