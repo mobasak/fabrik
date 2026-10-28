@@ -1,7 +1,8 @@
 """Behavior Contract — `scripts/sysadmin/operator_setup.py` (W-d6726a65, operator requirement 1.1).
 
-The operator runs the script once. Every test drives a copy of it by subprocess from a scratch hub
-checkout (`<tmp>/hub/scripts/sysadmin/`, the script's only allowed home for `--apply`) against a
+The operator runs the script once. Every test drives a copy of it from a scratch hub checkout — by
+subprocess, except the in-process interleavings in `test_settings_key_set_and_unparseable_file_refused`
+(an edit, a symlink or an interrupt between planning and writing), which load that same copy — (`<tmp>/hub/scripts/sysadmin/`, the script's only allowed home for `--apply`) against a
 scratch HOME, so no test reads or writes the real account dirs, the installed wrapper or the editor
 settings. `systemctl --user`, `loginctl` and `systemd-analyze --user` ignore HOME and would reach the
 operator's real user manager, so every run puts the stateful stubs below first on PATH; their state
@@ -10,8 +11,10 @@ lives in `<tmp>/stub-state/`, outside the scratch HOME, and every call is logged
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -19,16 +22,23 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
 SYSADMIN = REPO / "scripts" / "sysadmin"
 COPIED = ("operator_setup.py", "claude-agent-wrapper.sh", "install_user_hooks.py", "install_session_archive_timer.sh")
 UNITS = ("session-archive-alert.service", "session-archive.service", "session-archive.timer")
 UNIT_DIR = ".config/systemd/user"
 
-# The stub user manager: `enable --now` flips the timer to enabled+active, `daemon-reload` loads the
-# installed archive unit (so `show -p OnFailure` reads the LOADED value), and a flag file in the state dir
-# makes `daemon-reload` fail (`fail-daemon-reload`), cuts the bus (`nobus`), fails `show` alone (`show-error`),
-# makes `enable` a silent no-op (`enable-noop`) or turns linger off (`linger-off`).
+# The stub user manager, modelled on systemd 255's answers (stdout, exit code, silent stderr — systemctl-is-enabled.c,
+# systemctl-is-active.c, systemctl-show.c at v255): `is-enabled` reads `enabled` (`not-found`, exit 4, when the timer
+# file is absent), `is-active` reads `active` on its own, `enable --now` sets both, `disable` clears `enabled`, `stop`
+# clears `active`, and `daemon-reload` loads the installed archive unit, so `show -p OnFailure` reads the LOADED
+# value. A flag file in the state dir makes `daemon-reload` fail (`fail-daemon-reload`), cuts the bus (`nobus`), fails
+# `show` alone (`show-error`), adds a second OnFailure= unit (`extra-onfailure`), makes `enable` a silent no-op
+# (`enable-noop`), makes `enable` overwrite the file named in `edit-during` (an editor saving mid-run), makes
+# `systemd-analyze verify` speak (`verify-noise`, the installer then refuses before any write) or turns linger off
+# (`linger-off`).
 STUBS = {
     "systemctl": r"""#!/usr/bin/env bash
 s="${STUB_STATE:?}"
@@ -37,13 +47,18 @@ if [ -e "$s/nobus" ]; then echo "Failed to connect to bus: No medium found" >&2;
 [ "$1" = "--user" ] && shift
 cfg="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 case "$1" in
-  is-enabled) if [ -e "$s/enabled" ]; then echo enabled; else echo disabled; exit 1; fi ;;
-  is-active) if [ -e "$s/enabled" ]; then echo active; else echo inactive; exit 3; fi ;;
+  is-enabled) if [ ! -e "$cfg/$2" ]; then echo not-found; exit 4; fi
+              if [ -e "$s/enabled" ]; then echo enabled; else echo disabled; exit 1; fi ;;
+  is-active) if [ -e "$s/active" ]; then echo active; else echo inactive; exit 3; fi ;;
   show) if [ -e "$s/show-error" ]; then echo "Failed to get properties: Access denied" >&2; exit 1; fi
-        if [ -e "$s/loaded" ]; then sed -n 's/^OnFailure=//p' "$s/loaded" | tail -n 1; else echo; fi ;;
+        if [ -e "$s/loaded" ]; then v=$(sed -n 's/^OnFailure=//p' "$s/loaded" | tail -n 1); else v=; fi
+        if [ -e "$s/extra-onfailure" ]; then v="$v other-alert.service"; fi
+        echo "$v" ;;
   daemon-reload) [ -e "$s/fail-daemon-reload" ] && exit 1; cp "$cfg/session-archive.service" "$s/loaded" ;;
-  enable) [ -e "$s/enable-noop" ] || touch "$s/enabled" ;;
+  enable) [ -e "$s/edit-during" ] && printf '{"edited": true}\n' > "$(cat "$s/edit-during")"
+          [ -e "$s/enable-noop" ] || touch "$s/enabled" "$s/active" ;;
   disable) rm -f "$s/enabled" ;;
+  stop) rm -f "$s/active" ;;
   list-timers) : ;;
   *) echo "stub systemctl: unexpected $*" >&2; exit 1 ;;
 esac
@@ -54,6 +69,7 @@ if [ -e "$STUB_STATE/linger-off" ]; then echo Linger=no; else echo Linger=yes; f
 """,
     "systemd-analyze": r"""#!/usr/bin/env bash
 printf 'systemd-analyze %s\n' "$*" >> "${STUB_STATE:?}/calls.log"
+if [ -e "$STUB_STATE/verify-noise" ]; then echo "session-archive.service:3: Unknown key name 'Bogus'"; fi
 """,
 }
 KEY = "claudeCode.claudeProcessWrapper"
@@ -99,6 +115,7 @@ def _home(tmp_path: Path) -> Path:
     state.mkdir()
     stubs.mkdir()
     (state / "enabled").touch()
+    (state / "active").touch()
     (state / "loaded").write_text("[Service]\n")
     for name, body in STUBS.items():
         (stubs / name).write_text(body)
@@ -122,11 +139,16 @@ def _calls(home: Path) -> list[str]:
 
 
 def _manager_writes(home: Path) -> list[str]:
-    return [c for c in _calls(home) if c.startswith("systemctl --user ") and c.split()[2] in ("daemon-reload", "enable", "disable")]
+    return [c for c in _calls(home) if c.startswith("systemctl --user ") and c.split()[2] in ("daemon-reload", "enable", "disable", "stop")]
 
 
-def _run(home: Path, hub: Path, *args: str, script: Path | None = None) -> subprocess.CompletedProcess:
+def _restore(out: str) -> list[str]:
+    return [ln for ln in out.splitlines() if ln.startswith(("cp -p ", "rm ", "systemctl "))]
+
+
+def _run(home: Path, hub: Path, *args: str, script: Path | None = None, **extra: str) -> subprocess.CompletedProcess:
     env = _env(home)
+    env.update(extra)
     env["OPERATOR_SETUP_HUB"] = str(hub)
     script = script or hub / "scripts" / "sysadmin" / "operator_setup.py"
     return subprocess.run([sys.executable, str(script), *args], env=env, capture_output=True, text=True, timeout=60)
@@ -251,18 +273,66 @@ def test_apply_installs_the_wrapper_and_the_archive_timer(tmp_path):
     # unwritten, and the restore lines name exactly the units it changed
     h = _home(tmp_path / "reload-fails")
     (h.parent / "stub-state" / "fail-daemon-reload").touch()
-    wrapper_before = (h / ".claude" / "bin" / "claude-agent-wrapper.sh").read_bytes()
+    steps_1_to_3 = (
+        ".claude/settings.json",
+        ".claude-fleet/api-can/settings.json",
+        ".claude/bin/claude-agent-wrapper.sh",
+        ".local/share/code-server/User/settings.json",
+    )
+    untouched = {rel: (h / rel).read_bytes() for rel in steps_1_to_3}
     r = _run(h, hub, "--apply")
     assert r.returncode == 1, r.stdout + r.stderr
-    assert (h / ".claude" / "bin" / "claude-agent-wrapper.sh").read_bytes() == wrapper_before, "step 2 ran after a failed installer"
+    for rel, data in untouched.items():
+        assert (h / rel).read_bytes() == data, f"{rel} was written after a failed installer"
+    assert not (h / ".vscode-server/data/Machine/settings.json").exists(), "step 3 created a file after a failed installer"
     named = sorted(ln.split("/")[-1].strip("'\"") for ln in r.stdout.splitlines() if ln.startswith(("cp -p ", "rm ")))
     assert named == ["session-archive-alert.service", "session-archive.service"], r.stdout
-    # the installer exits 0 but the timer never got enabled: the run's verify reads the manager and fails it
+    # the installer refuses before writing anything (its verify speaks): no file joins the undo lines
+    h = _home(tmp_path / "verify-noise")
+    (h.parent / "stub-state" / "verify-noise").touch()
+    r = _run(h, hub, "--apply")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert not [ln for ln in _restore(r.stdout) if not ln.startswith("systemctl ")], r.stdout
+    # the installer exits 0 but the timer never got enabled: the run's verify reads the manager and fails it;
+    # the undo lines disable the timer BEFORE the unit files go, since a removed unit cannot be disabled
     h = _home(tmp_path / "enable-noop")
     (h.parent / "stub-state" / "enabled").unlink()
     (h.parent / "stub-state" / "enable-noop").touch()
     r = _run(h, hub, "--apply")
     assert r.returncode == 1 and "VERIFY FAILED — archive" in r.stderr, r.stdout + r.stderr
+    undo = _restore(r.stdout)
+    assert undo[0] == "systemctl --user disable session-archive.timer", r.stdout
+    assert "systemctl --user stop session-archive.timer" not in undo, "a timer that was active is stopped by the undo"
+    assert undo[-1] == "systemctl --user daemon-reload", r.stdout
+    # a fresh box (no unit installed, the timer not-found): installed whole; the undo disables and stops it first
+    h = _home(tmp_path / "fresh")
+    for u in ("session-archive.service", "session-archive.timer"):
+        (h / UNIT_DIR / u).unlink()
+    for f in ("enabled", "active"):
+        (h.parent / "stub-state" / f).unlink()
+    r = _run(h, hub, "--apply")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert all((h / UNIT_DIR / u).read_bytes() == (SYSADMIN / "systemd" / u).read_bytes() for u in UNITS)
+    undo = _restore(r.stdout)
+    assert undo[:2] == ["systemctl --user disable session-archive.timer", "systemctl --user stop session-archive.timer"], r.stdout
+    # an editor saving its settings while the installer runs: never overwritten, the run stops
+    h = _home(tmp_path / "edit-during")
+    cs = h / ".local/share/code-server/User/settings.json"
+    (h.parent / "stub-state" / "edit-during").write_text(str(cs))
+    r = _run(h, hub, "--apply")
+    assert r.returncode == 1 and "changed since it was planned" in r.stderr, r.stdout + r.stderr
+    assert cs.read_text() == '{"edited": true}\n', "an editor's mid-run save was overwritten"
+    # a wrapper with the right bytes but the wrong mode is repaired, and the dry run says so
+    h = _home(tmp_path / "wrapper-mode")
+    w = h / ".claude" / "bin" / "claude-agent-wrapper.sh"
+    shutil.copy(SYSADMIN / "claude-agent-wrapper.sh", w)
+    w.chmod(0o644)
+    r = _run(h, hub)
+    assert "== wrapper: .claude/bin/claude-agent-wrapper.sh" in r.stdout and "mode 644 -> 755" in r.stdout, r.stdout
+    # a unit dir spelled with `..` resolves outside the backup dir's tree: refused
+    h = _home(tmp_path / "dotdot")
+    r = _run(h, hub, XDG_CONFIG_HOME=f"{h}/../home/.config")
+    assert r.returncode == 1 and "Nothing was written" in r.stderr, r.stdout + r.stderr
 
 
 def test_settings_key_set_and_unparseable_file_refused(tmp_path, monkeypatch):
@@ -280,12 +350,14 @@ def test_settings_key_set_and_unparseable_file_refused(tmp_path, monkeypatch):
         "nested": '{"claudeCode": {"claudeProcessWrapper": "/x"}}\n',
         "list": "[1, 2]\n",
     }
-    for case in (*bad_machine, "account jsonc", "symlink"):
+    for case in (*bad_machine, "account jsonc", "account duplicate", "symlink"):
         h2 = _home(tmp_path / case.replace(" ", "-"))
         if case in bad_machine:
             (h2 / ".vscode-server/data/Machine/settings.json").write_text(bad_machine[case])
         elif case == "account jsonc":
             (h2 / ".claude-fleet/api-can/settings.json").write_text('{\n  // c\n  "theme": "dark"\n}\n')
+        elif case == "account duplicate":  # the installer would keep the last value and drop the other silently
+            (h2 / ".claude-fleet/api-can/settings.json").write_text('{"theme": "dark", "theme": "light"}\n')
         else:
             acct = h2 / ".claude-fleet" / "api-can" / "settings.json"
             real = h2 / "real-settings.json"
@@ -306,6 +378,7 @@ def test_settings_key_set_and_unparseable_file_refused(tmp_path, monkeypatch):
     mod = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, "operator_setup", mod)  # @dataclass resolves its module by name
     spec.loader.exec_module(mod)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)  # the subprocess env strips it; so must this one
     for k, v in _env(h3).items():
         monkeypatch.setenv(k, v)
     changes = mod.plan(h3)
@@ -313,6 +386,46 @@ def test_settings_key_set_and_unparseable_file_refused(tmp_path, monkeypatch):
     before = _digest(h3)
     assert mod.apply(h3, changes) == 1
     assert _digest(h3) == before, "a file edited after planning was overwritten, or a backup was made"
+    # a target that turns into a symlink after planning: a refusal, not a traceback
+    h4 = _home(tmp_path / "late-symlink")
+    for k, v in _env(h4).items():
+        monkeypatch.setenv(k, v)
+    p4 = mod.plan(h4)
+    cs = h4 / ".local/share/code-server/User/settings.json"
+    real = h4 / "real-cs.json"
+    cs.rename(real)
+    cs.symlink_to(real)
+    assert mod.apply(h4, p4) == 1
+    assert any(b.startswith("vscode: ") and "is a symlink" in b for b in mod.verify(h4)), "verify raised or passed"
+    # the installer interrupted after writing the units: the undo lines still name every unit it wrote
+    h5 = _home(tmp_path / "interrupt")
+    for k, v in _env(h5).items():
+        monkeypatch.setenv(k, v)
+    p5 = mod.plan(h5)
+
+    def dies_after_writing(argv, *a, **k):
+        for u in UNITS:
+            shutil.copy(SYSADMIN / "systemd" / u, h5 / UNIT_DIR / u)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(mod.subprocess, "run", dies_after_writing)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), pytest.raises(KeyboardInterrupt):
+        mod.apply(h5, p5)
+    named = sorted(ln.split("/")[-1].strip("'\"") for ln in out.getvalue().splitlines() if ln.startswith(("cp -p ", "rm ")))
+    assert named == ["session-archive-alert.service", "session-archive.service"], out.getvalue()
+    monkeypatch.undo()
+    # a source unit that changes between planning and the installer run (a hub pull): nothing written
+    h6 = _home(tmp_path / "source-moved")
+    for k, v in _env(h6).items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setitem(sys.modules, "operator_setup", mod)
+    p6 = mod.plan(h6)
+    src = hub / "scripts" / "sysadmin" / "systemd" / "session-archive.service"
+    src.write_bytes(src.read_bytes() + b"# pulled\n")
+    before = _digest(h6)
+    assert mod.apply(h6, p6) == 1
+    assert _digest(h6) == before, "a hub pull since planning still reached the installer, or a backup was made"
 
 
 def test_apply_outside_the_hub_checkout_refuses(tmp_path):
@@ -346,12 +459,21 @@ def test_second_apply_is_a_no_op(tmp_path):
     # equal unit files are not "in place" when the manager disagrees: an unreloaded unit, a disabled timer
     state = home.parent / "stub-state"
     loaded = (state / "loaded").read_bytes()
-    for breaks, why in (("loaded", "loaded OnFailure=(empty)"), ("enabled", "timer disabled")):
+    for breaks, why in (
+        ("loaded", "loaded OnFailure=(empty)"),
+        ("enabled", "timer disabled"),
+        ("active", "timer inactive"),
+    ):
         if breaks == "loaded":
             (state / "loaded").write_text("[Service]\n")
         else:
-            (state / "enabled").unlink()
+            (state / breaks).unlink()
         r = _run(home, hub)
         assert r.returncode == 0 and "== archive: installer run (" in r.stdout and why in r.stdout, (breaks, r.stdout)
         (state / "loaded").write_bytes(loaded)
         (state / "enabled").touch()
+        (state / "active").touch()
+    # a second OnFailure= unit (a drop-in) beside the alert one still reads as in place
+    (state / "extra-onfailure").touch()
+    r = _run(home, hub)
+    assert r.returncode == 0 and "Nothing to do" in r.stdout, r.stdout

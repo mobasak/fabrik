@@ -18,20 +18,24 @@ The four steps:
 
 | step | what it changes |
 |---|---|
-| `hooks` | the user-level hook entries in every account dir (`~/.claude` and each `~/.claude-fleet/<slug>` holding a `.claude.json`) — the bytes are `install_user_hooks.py`'s own output, computed on a scratch copy of HOME |
+| `hooks` | the user-level hook entries in every account dir `install_user_hooks.py` targets (its `_targets()`) — the bytes are that installer's own output, computed on a scratch copy of HOME |
 | `wrapper` | `~/.claude/bin/claude-agent-wrapper.sh` — a copy of `scripts/sysadmin/claude-agent-wrapper.sh` (the tab router's wrapper, `claude-tab-router.md`), mode 0755 |
 | `vscode` | `claudeCode.claudeProcessWrapper` in `~/.local/share/code-server/User/settings.json` and `~/.vscode-server/data/Machine/settings.json`, every other key kept; an editor that is not installed (no parent dir) is skipped |
 | `archive` | the nightly chat backup's three systemd user units (`session-archive.service`, its timer and its failure alert, W-36687f76) — the script diffs and backs them up, then runs `scripts/sysadmin/install_session_archive_timer.sh` once, which verifies, installs and enables them (`session-history-retention.md`) |
 
-Exit codes: 0 done or nothing to do · 1 a refusal (nothing written) or a failed verification · 2 `--apply` outside the
-hub main checkout or with it off master. A second `--apply` changes nothing and exits 0.
+Exit codes: 0 done or nothing to do · 1 a refusal, a failed archive installer or a failed verification · 2 `--apply`
+outside the hub main checkout or with it off master. A second `--apply` changes nothing and exits 0.
 
 ## What it refuses
 
-The whole plan is built before anything is written, and any refusal writes nothing: a target that is a symlink, an
-account `settings.json` the installer cannot parse, an editor settings file that is not plain JSON (comments, a
-trailing comma, a BOM, a duplicate key, the nested `claudeCode` form — the key to add by hand is printed), linger off
-for the archive step (it prints `loginctl enable-linger <user>`), and a file edited between planning and writing.
+The whole plan is built before anything is written, and a planning refusal writes nothing: a target that is a symlink
+or sits outside HOME, an account `settings.json` the installer cannot parse or that repeats a key, an editor settings
+file that is not plain JSON (comments, a trailing comma, a BOM, a duplicate key, the nested `claudeCode` form — the key
+to add by hand is printed), an unreachable user systemd manager, and linger off for the archive step (it prints
+`loginctl enable-linger <user>`). A file edited after planning is never overwritten: it is re-read before the backups
+and again right before its own write, and the run stops there. Once `--apply` has made its backup dir, a later stop —
+the archive installer failing, or that re-read — leaves the backups and whatever was already written, and prints the
+undo lines for exactly that.
 
 `--apply`'s guard proves the script's location (`/opt/fabrik/scripts/sysadmin/`) and that the main checkout is on
 master — not that the tree is clean; the wrapper it installs runs in every chat tab, so run it after a merge, never
@@ -41,9 +45,10 @@ mid-edit.
 
 `--apply` copies every file it changes into `~/.local/state/fabrik/operator-setup-<timestamp>/` (mode 0700) first and
 prints one undo line per file — `cp -p <backup> "$HOME"/<path>` for a file that existed, `rm -f "$HOME"/<path>` for one
-it created — and, when the archive installer ran, `systemctl --user daemon-reload` last (preceded by
-`systemctl --user disable --now session-archive.timer` when the timer was not enabled before). The archive installer
-runs FIRST, so when it fails nothing else has been written and its undo lines name the units it changed. The tab router's fast rollback stays
+it created. When the archive installer ran, the lines open with `systemctl --user disable session-archive.timer` and
+`systemctl --user stop session-archive.timer` for whichever of the two the timer was not before (a unit cannot be
+disabled once its file is gone), and end with `systemctl --user daemon-reload`. The archive installer runs FIRST, so
+when it fails the other steps are unwritten and the undo lines name the units it changed. The tab router's fast rollback stays
 `"CLAUDE_TAB_ROUTER": "off"` in `claudeCode.environmentVariables`.
 
 ## Not in it

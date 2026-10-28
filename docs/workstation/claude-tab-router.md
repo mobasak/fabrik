@@ -54,17 +54,20 @@ binds by `CLAUDE_AGENT` only — no identity-store row until `whoami_agent.py --
 ## Install
 
 After the change is merged to master (the wrapper calls the main checkout's router), the operator's one-time setup
-script installs the wrapper and sets `claudeCode.claudeProcessWrapper` in both the VS Code Machine and the code-server
-User `settings.json` (the Fabrik Deck's panes, W-42d1ccb5) — `operator-setup.md`:
+script installs the wrapper and sets `claudeCode.claudeProcessWrapper` in the VS Code Machine and the code-server User
+`settings.json` (the Fabrik Deck's panes, W-42d1ccb5) of each editor installed. The same run also does its other steps
+(the user hooks and the archive timer) and refuses as a whole when one of them cannot plan, so read its dry run first —
+`operator-setup.md`:
 
 ```bash
+python3 /opt/fabrik/scripts/sysadmin/operator_setup.py           # dry run
 python3 /opt/fabrik/scripts/sysadmin/operator_setup.py --apply
 ```
 
 ## Rollback
 
 - **Fast:** add `"CLAUDE_TAB_ROUTER": "off"` to `claudeCode.environmentVariables` — every tab launches plain.
-- **Full:** run the undo line `operator_setup.py --apply` printed for the wrapper (its backup is under
+- **Full:** run the wrapper's undo line from the list `operator_setup.py --apply` printed (its backup is under
   `~/.local/state/fabrik/operator-setup-<timestamp>/`); an older hand install kept its copy in
   `~/.claude/bin/backups/claude-agent-wrapper.sh.*`.
 

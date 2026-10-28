@@ -84,7 +84,7 @@ class Plan:
     changes: list[Change]
     archive_run: str | None = None  # why the archive installer must run; None when the archive is in place
     archive_sources: dict[str, bytes] | None = None
-    timer_was_enabled: bool = True
+    timer_was: tuple[bool, bool] = (True, True)  # the timer (enabled, active) when planned
 
 
 def _home() -> Path:
@@ -93,9 +93,12 @@ def _home() -> Path:
 
 def _rel(home: Path, path: Path) -> str:
     try:
-        return str(path.relative_to(home))
+        rel = path.relative_to(home)
     except ValueError:
         raise PlanError(f"{path} is outside HOME ({home}) — refused") from None
+    if ".." in rel.parts:  # `relative_to` is lexical: `<home>/../x` passes it and escapes the backup dir
+        raise PlanError(f"{path} climbs out of HOME through `..` — refused")
+    return str(rel)
 
 
 def _read(path: Path) -> tuple[bytes | None, int | None]:
@@ -139,8 +142,11 @@ def plan_hooks(home: Path) -> list[Change]:
         rel = _rel(home, target)
         data, mode = _read(target)
         if data is not None:
-            try:  # the installer's own read (install_user_hooks.run): it skips a file it cannot parse
-                json.loads(data.decode("utf-8") or "{}")
+            try:  # the installer's own read (install_user_hooks.run): it skips a file it cannot parse, and keeps
+                # only the last of a duplicated key, so a duplicate is refused here as plan_vscode refuses it
+                json.loads(data.decode("utf-8") or "{}", object_pairs_hook=_no_duplicates)
+            except DuplicateKeyError as exc:
+                raise PlanError(f"{target} has a {exc} — the installer would keep only the last; fix it by hand") from None
             except (UnicodeDecodeError, ValueError) as exc:
                 raise PlanError(f"{target} does not parse as JSON ({exc}) — the installer would skip it; fix it by hand") from None
         live[rel] = (data, mode)
@@ -178,11 +184,15 @@ def plan_wrapper(home: Path) -> list[Change]:
     return [Change("wrapper", dst, _rel(home, dst), data, mode, src, 0o755)]
 
 
+class DuplicateKeyError(ValueError):
+    """A JSON object naming one key twice; `json` would keep the last value silently."""
+
+
 def _no_duplicates(pairs: list[tuple[str, object]]) -> dict:
     keys = [k for k, _ in pairs]
     dup = sorted({k for k in keys if keys.count(k) > 1})
     if dup:
-        raise ValueError(f"duplicate key(s) {dup}")
+        raise DuplicateKeyError(f"duplicate key(s) {dup}")
     return dict(pairs)
 
 
@@ -249,8 +259,8 @@ def _unit_dir(home: Path) -> Path:
     return base / "systemd" / "user"
 
 
-def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes], bool]:
-    """(unit Changes, why the installer must run or None, the source bytes planned, timer enabled at plan)."""
+def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes], tuple[bool, bool]]:
+    """(unit Changes, why the installer must run or None, the source bytes planned, the timer (enabled, active))."""
     dest = _unit_dir(home)
     sources = {name: (HERE / "systemd" / name).read_bytes() for name in ARCHIVE_UNITS}
     changes = []
@@ -263,14 +273,14 @@ def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes]
     enabled = _systemctl("is-enabled", ARCHIVE_TIMER, word=True)
     active = _systemctl("is-active", ARCHIVE_TIMER, word=True)
     why = [f"{len(changes)} unit(s) differ"] if changes else []
-    if loaded != ARCHIVE_ALERT:
+    if ARCHIVE_ALERT not in loaded.split():  # `--value` lists every OnFailure= unit, a drop-in's included
         why.append(f"loaded OnFailure={loaded or '(empty)'}")
     if enabled != "enabled":
         why.append(f"timer {enabled}")
     if active != "active":
         why.append(f"timer {active}")
     if not why:
-        return [], None, sources, True
+        return [], None, sources, (True, True)
     user = pwd.getpwuid(os.getuid()).pw_name  # the installer's `id -un`
     try:
         r = subprocess.run(["loginctl", "show-user", user, "-p", "Linger"], capture_output=True, text=True, timeout=30)
@@ -280,12 +290,12 @@ def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes]
         said = r.stdout.strip() or r.stderr.strip() or "no answer"
         raise PlanError(f"linger is off for {user} ({said}); the archive timer needs it — run once: "
                         f"loginctl enable-linger {user}")
-    return changes, ", ".join(why), sources, enabled == "enabled"
+    return changes, ", ".join(why), sources, (enabled == "enabled", active == "active")
 
 
 def plan(home: Path) -> Plan:
-    archive, why, sources, enabled = plan_archive(home)
-    return Plan(plan_hooks(home) + plan_wrapper(home) + plan_vscode(home) + archive, why, sources, enabled)
+    archive, why, sources, was = plan_archive(home)
+    return Plan(plan_hooks(home) + plan_wrapper(home) + plan_vscode(home) + archive, why, sources, was)
 
 
 def _show(changes: list[Change]) -> None:
@@ -345,22 +355,26 @@ def _write_atomic(c: Change) -> None:
         raise
 
 
-def _restore_lines(backup: Path | None, done: list[Change], ran: bool, timer_was_enabled: bool) -> list[str]:
+def _restore_lines(backup: Path | None, done: list[Change], ran: bool, timer_was: tuple[bool, bool]) -> list[str]:
     lines = []
+    if ran:  # FIRST: a timer cannot be disabled once its unit file is gone; each half undoes only what it changed
+        if not timer_was[0]:
+            lines.append(f"systemctl --user disable {ARCHIVE_TIMER}")
+        if not timer_was[1]:
+            lines.append(f"systemctl --user stop {ARCHIVE_TIMER}")
     for c in done:
         target = '"$HOME"/' + shlex.quote(c.rel)
         if c.before is None:
             lines.append(f"rm -f {target}")
         else:
             lines.append(f"cp -p {shlex.quote(str(backup / c.rel))} {target}")
-    if ran:  # what `enable --now` and the reload did is not a file the lines above can put back
-        if not timer_was_enabled:
-            lines.append(f"systemctl --user disable --now {ARCHIVE_TIMER}")
+    if ran:  # LAST: the manager re-reads the restored unit files
         lines.append("systemctl --user daemon-reload")
     return lines
 
 
 def _changed(c: Change) -> bool:
+    """True when the target no longer holds the bytes planned for it."""
     try:
         return _read(c.path)[0] != c.before
     except PlanError:  # it became a symlink or a non-file: changed, and its undo line restores the bytes
@@ -368,11 +382,13 @@ def _changed(c: Change) -> bool:
 
 
 def _run_archive_installer(p: Plan, done: list[Change]) -> int:
-    """Run the installer once; every unit it changed joins `done`, whatever it returns — it can die after
-    writing all three without a word (daemon-reload failing under `set -e`, measured)."""
+    """Run the installer once; every unit it changed joins `done`, whatever happens — it can die after
+    writing all three without a word (daemon-reload failing under `set -e`, measured), or be interrupted."""
     print(f"running {HERE / ARCHIVE_INSTALLER} ({p.archive_run})", flush=True)
-    rc = subprocess.run(["bash", str(HERE / ARCHIVE_INSTALLER)]).returncode
-    done.extend(c for c in p.changes if c.step == "archive" and _changed(c))
+    try:
+        rc = subprocess.run(["bash", str(HERE / ARCHIVE_INSTALLER)]).returncode
+    finally:
+        done.extend(c for c in p.changes if c.step == "archive" and _changed(c))
     print(f"installer exit {rc}", flush=True)
     return rc
 
@@ -380,8 +396,13 @@ def _run_archive_installer(p: Plan, done: list[Change]) -> int:
 def apply(home: Path, p: Plan) -> int:
     changes = p.changes
     for c in changes:  # a file edited since it was planned is never overwritten
-        if _read(c.path)[0] != c.before:
+        if _changed(c):
             print(f"operator_setup: {c.path} changed since it was planned — nothing written; run again", file=sys.stderr)
+            return 1
+    for name, planned in (p.archive_sources or {}).items() if p.archive_run else ():  # a hub pull since planning
+        if (HERE / "systemd" / name).read_bytes() != planned:
+            print(f"operator_setup: {HERE / 'systemd' / name} changed since it was planned — nothing written; run again",
+                  file=sys.stderr)
             return 1
     backup = None
     if changes:
@@ -389,7 +410,7 @@ def apply(home: Path, p: Plan) -> int:
         root.mkdir(parents=True, exist_ok=True)
         backup = root / f"operator-setup-{time.strftime('%Y%m%d-%H%M%S')}"
         try:
-            backup.mkdir()
+            backup.mkdir(mode=0o700)
         except FileExistsError:
             print(f"operator_setup: {backup} already exists — nothing written; run again in a second", file=sys.stderr)
             return 1
@@ -408,11 +429,6 @@ def apply(home: Path, p: Plan) -> int:
     ran = False
     try:
         if p.archive_run:  # FIRST: a systemd refusal then leaves steps 1-3 unwritten
-            for name, planned in (p.archive_sources or {}).items():  # a hub pull since planning: undiffed bytes
-                if (HERE / "systemd" / name).read_bytes() != planned:
-                    print(f"operator_setup: {HERE / 'systemd' / name} changed since it was planned — nothing written",
-                          file=sys.stderr)
-                    return 1
             ran = True
             rc = _run_archive_installer(p, done)
             if rc:
@@ -421,12 +437,16 @@ def apply(home: Path, p: Plan) -> int:
         for c in changes:
             if c.step == "archive":
                 continue  # the installer wrote these
+            if _changed(c):  # an editor that saved while the installer ran: its save stands, the run stops
+                print(f"operator_setup: {c.path} changed since it was planned — not overwritten; the run stopped here",
+                      file=sys.stderr)
+                return 1
             _write_atomic(c)
             done.append(c)
             print(f"wrote {c.rel} ({c.step})")
     finally:
         print(f"\nBackup: {backup or 'none (no file to change)'}")
-        lines = _restore_lines(backup, done, ran, p.timer_was_enabled)
+        lines = _restore_lines(backup, done, ran, p.timer_was)
         if lines:
             print("To undo, run:")
             for line in lines:
@@ -442,18 +462,31 @@ def verify(home: Path) -> list[str]:
     if rc != 0:
         bad.append("hooks: install_user_hooks.py --check failed:\n" + out.getvalue())
     wrapper = home / ".claude" / "bin" / "claude-agent-wrapper.sh"
+    for step, check in (("wrapper", lambda: _verify_wrapper(wrapper)), ("vscode", lambda: _verify_vscode(home)),
+                        ("archive", lambda: _verify_archive(home))):
+        try:
+            why = check()
+        except PlanError as exc:
+            why = str(exc)
+        if why:
+            bad.append(f"{step}: {why}")
+    return bad
+
+
+def _verify_wrapper(wrapper: Path) -> str | None:
     data, mode = _read(wrapper)
     if data != (HERE / "claude-agent-wrapper.sh").read_bytes() or mode != 0o755:
-        bad.append(f"wrapper: {wrapper} does not match {HERE / 'claude-agent-wrapper.sh'} at mode 0755")
-    if plan_vscode(home):
-        bad.append(f"vscode: {KEY} is still not set")
-    try:
-        _changes, why, _sources, _enabled = plan_archive(home)
-    except PlanError as exc:
-        why = str(exc)
-    if why:
-        bad.append(f"archive: not in place ({why})")
-    return bad
+        return f"{wrapper} does not match {HERE / 'claude-agent-wrapper.sh'} at mode 0755"
+    return None
+
+
+def _verify_vscode(home: Path) -> str | None:
+    return f"{KEY} is still not set" if plan_vscode(home) else None
+
+
+def _verify_archive(home: Path) -> str | None:
+    _changes, why, _sources, _was = plan_archive(home)
+    return f"not in place ({why})" if why else None
 
 
 def run(argv: list[str] | None = None) -> int:
