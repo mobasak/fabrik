@@ -102,11 +102,11 @@ def _bare_repo(tmp_path: Path, *, ledger: bool = True) -> Path:
 
 
 @pytest.mark.parametrize(
-    "work_py",
+    ("work_py", "reason"),
     [
-        "missing",  # no script at all
-        "exit2",  # init refuses
-        "empty",  # rc 0 but no distributor recorded
+        ("missing", "the hub's scripts/work.py was not found"),  # no script at all
+        ("exit2", "work.py init exited 2"),  # init refuses
+        ("empty", "work.py init recorded distributor ''"),  # rc 0, no distributor
     ],
 )
 def test_an_init_failure_warns_and_does_not_raise(
@@ -114,6 +114,7 @@ def test_an_init_failure_warns_and_does_not_raise(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     work_py: str,
+    reason: str,
 ) -> None:
     repo = _bare_repo(tmp_path)
     stub = tmp_path / "stub_work.py"
@@ -129,7 +130,11 @@ def test_an_init_failure_warns_and_does_not_raise(
         )
     monkeypatch.setattr(scaffold, "_work_py", lambda: stub if work_py != "missing" else None)
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
-    assert "WARNING: coordinator model" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert f"WARNING: coordinator model not emitted: {reason}" in out  # the cause, not any warning
+    if work_py != "missing":
+        cfg = repo / ".fabrik" / "work" / "config.json"
+        assert not cfg.exists() or "coordinator_mode" not in cfg.read_text()  # keys never added
 
 
 def test_a_missing_ledger_warns_and_does_not_raise(
@@ -137,4 +142,7 @@ def test_a_missing_ledger_warns_and_does_not_raise(
 ) -> None:
     repo = _bare_repo(tmp_path, ledger=False)
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
-    assert "WARNING: coordinator model" in capsys.readouterr().out
+    assert "WARNING: coordinator model not emitted: docs/DECISIONS.md was not seeded" in (
+        capsys.readouterr().out
+    )
+    assert not (repo / ".fabrik").exists()
