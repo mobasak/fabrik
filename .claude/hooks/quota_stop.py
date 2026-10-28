@@ -40,7 +40,7 @@ hard stop at a real wall.
 While the stamp stands the rule is DEFAULT-DENY: every tool that can change the world is held —
 Edit/Write/MultiEdit/NotebookEdit, MCP editors (serena replace/insert/rename, browser clicks),
 Agent/Workflow dispatch, and any Bash that is not ONE simple checkpoint or read command — with one instruction — commit + push your own work with
-explicit pathspecs, close your run record, stop. Reads (the Read, Grep and Glob tools, and Bash cat, head, tail, grep, ls, wc and stat), the git checkpoint and read verbs with their plain flags (add -- <paths>, commit -- <paths>, push, fetch, status, diff, log, show, rev-parse and reset HEAD -- <paths>; through git -C /opt/<repo>, the read verbs only), `command_run.py`, `mail.py`,
+explicit pathspecs, close your run record, stop. Reads (the Read, Grep and Glob tools, and Bash cat, head, tail, grep, ls, wc and stat), the git checkpoint and read verbs with their plain flags (add -- <paths>, commit -m <msg> -- <paths>, push, fetch, status, diff, log, show, rev-parse and reset HEAD -- <paths>; through git -C /opt/<repo>, the read verbs only), `command_run.py`, `mail.py`,
 `thread_anchor.py`, `Monitor`, the exact self-watch arm (`bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh <sid>`,
 D-356) and `TaskStop` stay allowed, so a session can finish
 cleanly and the Stop hook's commit-and-push law can be met. The block lifts when the tick clears the
@@ -1379,7 +1379,7 @@ def _literal_sid(sid: str | None) -> str:
 # `git grep` stays held — the Grep tool already reads any path, and `git grep -O<pager>` runs a program.
 _HELD_READS = (
     "Reads (the Read, Grep and Glob tools, and Bash cat, head, tail, grep, ls, wc and stat), the git checkpoint and "
-    "read verbs with their plain flags (add -- <paths>, commit -- <paths>, push, fetch, status, diff, log, show, "
+    "read verbs with their plain flags (add -- <paths>, commit -m <msg> -- <paths>, push, fetch, status, diff, log, show, "
     "rev-parse and reset HEAD -- <paths>; through git -C /opt/<repo>, the read verbs only)"
 )
 # The wall's one message is pinned under 1,000 chars at the longest admitted sid for every built-in held tool

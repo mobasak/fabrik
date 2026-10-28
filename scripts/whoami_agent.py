@@ -478,12 +478,13 @@ def refresh(top: str | None = None) -> str:
     second git runs inside its 10 s budget.
 
     It writes ONE row only when this session's LAST row in this scope names a valid name that is
-    also the name of the session's last row overall (what `resolve_agent_name` returns — a row here
-    must never flip it back to an older name), still the newest row of that name here (nobody
-    re-took it), this window's process is known (`same_window`'s rule in `_bind_locked`), and no
-    row of the session carries a live process — one test for both "already recorded under this
-    window" and "the sid is live in another process" (left alone: a row here would strand that
-    window at its next /clear). No store file at all writes nothing and creates nothing. Every other case, a busy store lock (ONE try) and
+    also the name of the session's last row overall (a row here must never flip the session back
+    to an older name; an invalid-name last row refuses), still the newest row of that name here
+    (nobody re-took it), this window's process is known (`same_window`'s rule in `_bind_locked`),
+    and no row of the session carries a live process other than this window's own row in another
+    repo — one test for both "already recorded under this window" and "the sid is live in another
+    process" (left alone: a row here would strand that window at its next /clear). No store file
+    at all writes nothing and creates nothing. Every other case, a busy store lock (ONE try) and
     any error write nothing. COBRA (D-253): the cheapest way to make a /clear re-bind pass without
     the outcome is a refresh for any name; this re-records only the session's own name, and
     planting a row by hand was already possible (the store is the lane's trust root, D-1209).
@@ -506,14 +507,24 @@ def refresh(top: str | None = None) -> str:
                 return ""  # a refresh recurs at the next SessionStart; an unserialized one may be trimmed away
             rows = _rows(path)
             ours = [r for r in rows if r.get("session_id") == sid]
-            # its process lives — this window (already recorded) or another one, on ANY row of the sid:
-            # a later row under a process since gone does not make an earlier live one dead
-            if any(_pid_alive_same_start(r) for r in ours):
-                return ""
             # scope matched by REALPATH, as the lane's `_scoped_rows` reads it: the hook passes its
             # realpath'd common dir while `bind` stores `git rev-parse`'s string; the new row copies
             # the last row's own string, so every string-keyed reader sees the binding's scope
             want = os.path.realpath(scope)
+
+            def this_window_elsewhere(r: dict) -> bool:
+                t = r.get("toplevel")
+                return (
+                    _as_int(r.get("pid")) == me_pid
+                    and _as_int(r.get("pid_start")) == me_start
+                    and not (isinstance(t, str) and os.path.isabs(t) and os.path.realpath(t) == want)
+                )
+
+            # a live process on ANY row of the sid — another window, or this one already recorded
+            # here — leaves it alone (a later row under a process since gone does not make an earlier
+            # live one dead); this window's own row in ANOTHER repo says nothing about this one
+            if any(_pid_alive_same_start(r) and not this_window_elsewhere(r) for r in ours):
+                return ""
             real: dict[str, str] = {}
             here = []
             for r in rows:

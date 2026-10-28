@@ -960,6 +960,23 @@ def test_refresh_leaves_a_session_live_in_another_process_alone(store, monkeypat
     assert m.refresh() == "" and store.read_bytes() == before
 
 
+def test_refresh_is_not_blocked_by_this_windows_own_row_in_another_repo(store, monkeypatch):
+    """Review round 2 (A-haiku-p2-1): the live-process refusal is about ANOTHER process holding the
+    session; this window's own live row in another repo is not that, and must not block the row
+    here (the lane here keys on a row of this process in this repo)."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(
+        _bound_elsewhere(m) + "\n" + _holder(m, pid, start, sid="sid-alpha").replace(
+            json.dumps(m._toplevel()), json.dumps("/elsewhere/.git")
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert m.refresh() == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == m._toplevel()
+
+
 def test_refresh_with_no_store_creates_nothing(tmp_path, monkeypatch):
     """Review round 1 (A-sonnet-2): every SessionStart in every repo calls refresh; with nothing
     ever bound there is no store, and refresh must not create its directory or a lock file."""

@@ -2056,7 +2056,7 @@ def test_the_hold_texts_promise_only_the_git_verbs_that_pass(lane):
     assert lane_msg != wall_msg  # both tiers were read
     sample = {
         "add -- <paths>": "git add -- a.py",
-        "commit -- <paths>": "git commit -m 'x' -- a.py",
+        "commit -m <msg> -- <paths>": "git commit -m 'x' -- a.py",
         "push": "git push",
         "fetch": "git fetch",
         "status": "git status",
@@ -2086,11 +2086,11 @@ def test_the_hold_texts_promise_only_the_git_verbs_that_pass(lane):
         assert hook._bash_allowed(sample[verb].replace("git ", "git -C /opt/fabrik ", 1)), verb
         # review r1 (B-haiku-3): only an /opt repo relocates
         assert not hook._bash_allowed(sample[verb].replace("git ", "git -C /tmp/x ", 1)), verb
-    for verb in ("add -- <paths>", "commit -- <paths>", "push", "fetch"):
+    for verb in ("add -- <paths>", "commit -m <msg> -- <paths>", "push", "fetch"):
         assert not hook._bash_allowed(sample[verb].replace("git ", "git -C /opt/fabrik ", 1)), verb
     for cmd in ("git grep x", "git -C /opt/fabrik grep x", "git grep -Ols x"):
         assert not hook._bash_allowed(cmd), cmd
         assert _at_lane(cmd) == "deny", cmd
     # review r1 (B-sonnet-2): the shapes the texts no longer promise stay held
-    for cmd in ("git add .", "git commit -m 'x'"):
+    for cmd in ("git add .", "git commit -m 'x'", "git commit -- a.py"):  # + review r2 (B-sonnet-2)
         assert not hook._bash_allowed(cmd), cmd
