@@ -19,6 +19,9 @@ All notable changes to this project will be documented in this file.
 - `tests/test_command_rules.py`: a cost guard (red on base), an identity test against the uncached functions,
   a fresh-list test for `units()`, exact lint C counts, and an autouse fixture that empties the caches.
 
+### Added — New repos are born coordinator-ready (2026-10-28)
+
+`fabrik scaffold` now puts the coordinator model into a new repo's initial commit: a `MERGE OWNER: coordinator` row in `docs/DECISIONS.md`, the work store made by the hub's `work.py init` with `coordinator_mode`, `queue_floor` 1 and `autonomy` on, and a coordinator charter at `docs/reference/agents/coordinator.md` that names the repo's real path and how to launch and bind the window. Builders stay the spawn verb's (W-b9ad80ae). A failure prints one WARNING with its cause and leaves the repo as before, never breaking the scaffold. D-1305, W-a02d1c86.
 ### Fixed — vps1 rotation step 3a re-owns GlitchTip's schema one object per transaction (2026-10-28)
 
 - The operator's run of `scripts/sysadmin/vps1_pg_scoped_logins.py` stopped at step 3a with "out of shared memory": the re-own of GlitchTip's log partitions ran in ONE transaction and overflowed `max_locks_per_transaction`. Step 3a now commits after every object, waits at most 5 s (`lock_timeout`) for a busy table instead of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, skips what `glitchtip` already owns so a re-run locks only the leftovers, tolerates a partition dropped mid-run, and gets its own 1800 s ssh bound. The runbook (`docs/reference/vps1-postgres-admin-rotation-runbook.md`) quotes the same block, tested to stay identical, and its rollback row now also revokes `postgres_exporter`'s CONNECT grants. Graders run the real SQL on a local PostgreSQL 16 cluster with a 100-slot lock table.

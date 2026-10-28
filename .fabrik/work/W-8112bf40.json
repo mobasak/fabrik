@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:53:48.908934Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8112bf40",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Record config.json and coordinator.md as created-or-backed-up at entry and restore both in the except path; add the empty-store case to tests/test_scaffold_coordinator_model.py (haiku seat probe_r3.py P4)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "low"
+  ],
+  "title": "scaffold _emit_coordinator_model rollback misses a config.json it wrote into a store dir that pre-existed without one (src/fabrik/scaffold.py, the created list tracks directories only): with .fabrik/work/ present but empty, init succeeds, then a ledger or charter write failure leaves the coordinator keys while the ledger has no D-001 row; a pre-existing coordinator.md is also overwritten without restore. Outside the fresh-scaffold boundary (no scaffold path makes .fabrik/work before the emit); W-a02d1c86 scoped review round 3 residue, RECORDED after the scope-growth stop"
+}

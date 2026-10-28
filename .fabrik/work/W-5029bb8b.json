@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T22:22:07.077647Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5029bb8b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "either err=True on those echoes (scaffold, fleet) or redirect_stdout(sys.stderr) around create_project in scripts/enforcement/pack_layout_audit.py _scaffold_and_walk (synced, infra); add a --json test over python-api with the real scaffolder, red first",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "a default create_project still writes text to stdout, so check_pack_reachability.py --json (and pack_layout_audit --json) emits non-JSON for python-api, python-api-gpu and chrome-extension: the click.echo offline hints at src/fabrik/scaffold.py ~2361 and ~7840 (plus ~2105, ~2138-2145, ~2389/2393, ~9308) go to stdout; the merge test scaffolds only file-worker and saas-skeleton, so it never sees it"
+}
