@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — New repos are born coordinator-ready (2026-10-28)
+
+`fabrik scaffold` now puts the coordinator model into a new repo's initial commit: a `MERGE OWNER: coordinator` row in `docs/DECISIONS.md`, the work store made by the hub's `work.py init` with `coordinator_mode`, `queue_floor` 1 and `autonomy` on, and a coordinator charter at `docs/reference/agents/coordinator.md` that names the repo's real path and how to launch and bind the window. Builders stay the spawn verb's (W-b9ad80ae). A failure prints one WARNING with its cause and leaves the repo as before, never breaking the scaffold. D-1305, W-a02d1c86.
+
 ### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
 
 `.claude/hooks/seat_guard.py` now enforces D-1296 for the lead of the session bound as its repo's merge owner. A foreground Bash call is denied when its tool timeout exceeds 120 s, or when it runs a `sleep` inside a while/until/for/select loop under a timeout over 60 s. The deny tells the coordinator to re-run with `run_in_background: true` and end the turn, not block on the output. Identity comes from `quota_stop.py`, loaded by file path; every identity doubt allows. Measured first: the hub coordinator held 736 minutes of foreground waits in one day, and a plain "any sleep" rule was rejected (19 fires on coordinator sessions in 3 days, none long). W-e57d2481.
