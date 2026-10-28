@@ -162,34 +162,6 @@ def test_a_trimmed_round_one_sweeps_its_unread_slices_before_any_delta_pass() ->
     assert "re-sweeps them next round" not in sc and "the next round sweeps them first" not in te
 
 
-def test_recorded_measured_carries_a_routed_out_of_round_defect() -> None:
-    """Row 1790952423: receipts file a real out-of-hop or post-stop defect as RECORDED — measured, which the old
-    definition ('making no code or doc claim') forbade; Phase 3's disposition list agrees."""
-    t = _norm(SRC)
-    assert (
-        "executed and shown TRUE but not a defect this round fixes: a prevalence figure, or a real defect "
-        "outside the round's bounded hop or past the scope-growth stop, its named destination in the reason "
-        "(`term-coverage` D4). It never enters `unexecuted:`."
-    ) in t
-    assert (
-        "or it is `RECORDED — by design` with its owning row named, or — outside the round's bounded hop — "
-        "`RECORDED — measured` with its destination."
-    ) in t
-    assert "making no code or doc claim" not in t
-
-
-def test_the_decision_row_lands_after_the_code_with_its_id_reserved_before_the_close() -> None:
-    """Rows 1790187513, 1790232519: close-chain commits code first and the ledgers through the private index;
-    `--reserve-id` holds the id durably, so it is reserved before the close."""
-    t = _norm(SRC)
-    assert (
-        "mint its `docs/DECISIONS.md` row in the same change as the fix, classified at mint, its id reserved "
-        "(`decisions.py --reserve-id`) before the close and the row committed after the code (close-chain's "
-        "private-index step) —"
-    ) in t
-    assert "staged in the fix commit" not in t
-
-
 def test_a_synced_path_matching_its_lock_entry_is_a_sync_write_never_reverted(
     tmp_path: Path,
 ) -> None:
@@ -198,12 +170,6 @@ def test_a_synced_path_matching_its_lock_entry_is_a_sync_write_never_reverted(
     import hashlib
     import json
 
-    t = _norm(SRC)
-    assert (
-        "A synced path whose md5 equals its entry in the project's `.fabrik/synced.lock` is a sync's own write, "
-        "not an edit: never revert it, and review only the repo's own files against it; with no lock, the rule "
-        "above applies."
-    ) in t
     chk = [
         sys.executable,
         str(REPO / "scripts" / "enforcement" / "check_synced_unmodified.py"),
@@ -226,19 +192,6 @@ def test_a_synced_path_matching_its_lock_entry_is_a_sync_write_never_reverted(
     assert subprocess.run(chk, capture_output=True, text=True, check=False).returncode == 1, (
         "a local edit reds"
     )
-
-
-def test_the_gate_scope_sentence_states_the_ruff_scope_and_points_at_the_reference() -> None:
-    """Row 1790907152: code pushed before the review is never linted by the ruff leg (staged + unpushed only);
-    the rest of the gate's scoping is CLAUDE.md's to state, so this sentence no longer restates it."""
-    t = _norm(SRC)
-    assert (
-        "`final_gate` takes no surface argument and scopes each check its own way (CLAUDE.md § Completion "
-        "Contract 2); its ruff leg lints only staged changes and unpushed commits, so code pushed before the "
-        "review is linted by running ruff on its paths by hand. On a shared tree a check that reads beyond your "
-        "change can red on another lane's work, and"
-    ) in t
-    assert "every other check reads whole directories" not in t
 
 
 def test_the_gate_writes_and_lints_only_staged_and_unpushed_work(tmp_path: Path) -> None:

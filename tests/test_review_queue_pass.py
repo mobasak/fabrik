@@ -21,50 +21,8 @@ def _section(text: str, start: str, end: str) -> str:
 
 
 def test_phase_one_points_at_the_probe_catalogue() -> None:
-    """The catalogue's rows were asked of /fabrik-review too; Phase 1 names it by its hub path."""
-    p1 = _section(_norm(SRC), "## Phase 1 — Independent finders", "**Run the review-hygiene check")
-    assert (
-        "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE"
-        in p1
-    )
+    """The catalogue's rows were asked of /fabrik-review too; Phase 1 names it by its hub path (ledger entry rq-phase1-points-at-probe-catalogue)."""
     assert CAT.exists()
-
-
-def test_agent_tool_shape_covers_a_review_the_operator_did_not_invoke() -> None:
-    """Row 1791755835: Workflow runs only on the operator's opt-in, so a hook- or caller-started review uses Agent."""
-    assert (
-        "or the operator did not invoke this review (the tool runs only on their explicit opt-in)"
-        in _norm(SRC)
-    )
-
-
-def test_a_failed_refuters_candidates_are_executed_by_the_lead() -> None:
-    """Rows 1791418194, 1791410409: a NO RESULT refuter is never a re-dispatch of the whole pass."""
-    p2 = _section(_norm(SRC), "## Phase 2 — EXECUTE", "## Phase 3")
-    assert "every candidate of a slice whose refuter failed or read `NO RESULT`" in p2
-    assert "never a re-dispatch of the pass" in p2
-
-
-def test_the_delta_brief_names_its_must_read_files() -> None:
-    """Rows 1791506864, 1791478572: the fix diff's files and the previous pass's gap files, by path."""
-    p4 = _section(_norm(SRC), "## Phase 4 — Converge", "## Behavior Contract")
-    assert (
-        "The brief lists that file set by path as must-read, with every file the previous pass left as a `gap`."
-        in p4
-    )
-    # W-e2ff8f36: the bounded hop's reader run takes the previous pass's pin; the inputs live in § Seat isolation.
-    pointer = "It also names the previous pass's `base_sha` and pins_dir, as the probe catalogue's § Seat isolation says."
-    assert _norm(SRC).count(pointer) == 1 and pointer in p4
-
-
-def test_next_rows_merge_into_slices_by_name() -> None:
-    """Row 1791493834: `next` prints `{name, ledger}` rows, merged by name; the quiet-round-1 shape is intel's."""
-    p4 = _section(_norm(SRC), "## Phase 4 — Converge", "## Behavior Contract")
-    assert (
-        "(it prints `{name, ledger}` rows: each `ledger` goes on the `args.slices` entry of the same `name`, "
-        "which keeps its `files`)" in p4
-    )
-    assert "a fresh hunt of their own slice" not in p4
 
 
 def test_next_prints_name_and_ledger_rows_and_nothing_for_no_ids(tmp_path, capsys) -> None:
@@ -140,46 +98,8 @@ def test_every_workflow_command_carries_the_no_workflow_in_the_hub_note() -> Non
     assert "in the hub, re-dispatch its `Agent` seats over the same ledger" in cat
 
 
-def test_a_refuter_that_returns_nothing_is_not_re_dispatched_as_a_finder() -> None:
-    """C6 of the review: the FAILED-seat re-dispatch rule names finders; a refuter's candidates go to Phase 2."""
-    text = _norm(SRC)
-    assert (
-        "A finder that returns nothing is a FAILED seat (re-dispatch it), never a clean round; a refuter"
-        in text
-    )
-    assert "A seat that returns nothing is a FAILED seat" not in text
-
-
-def test_close_order_stages_before_the_in_progress_gate() -> None:
-    """Row 1791508831: the gate's ruff leg lints staged changes only, so an unstaged fix is linted by nothing."""
-    assert (
-        "Close in this ORDER:** 1. Stage your own files (the gate's ruff leg lints only staged changes"
-        in _norm(SRC)
-    )
-
-
-def test_trimmed_single_finder_slice_gets_its_second_next_wave() -> None:
-    """Row 1791511465 and intel 01M4F7QT11: the remedy sits beside Phase 1's unread-slice rule."""
-    assert (
-        "named unread, as that line says (a slice it left with one finder gets its second in the next wave)"
-        in (_norm(SRC))
-    )
-
-
-def test_the_round_grammar_names_own_fix() -> None:
-    """Row 1791764618 (D-778)."""
-    assert (
-        "--own-fix <how many of those confirmed defects lie in text this review added in an earlier round>"
-        in _norm(SRC)
-    )
-
-
 def test_a_callers_plan_flip_follows_the_post_flip_gate_run() -> None:
     """Row 1791828832 (D-778): the reason is check_convergence's own skip."""
-    assert (
-        "A caller that flips its plan to `EXECUTED` flips it only after that post-flip run is embedded: a red post-flip run sends the receipt back to `IN-PROGRESS`"
-        in _norm(SRC)
-    )
     conv = (ROOT / "scripts" / "enforcement" / "check_convergence.py").read_text()
     assert re.search(r"if _receipt_in_progress\(rtext\):\s+continue", conv)
 
@@ -221,7 +141,6 @@ def test_the_closing_method_cell_rule_matches_the_gate() -> None:
     mod = importlib.util.module_from_spec(spec)
     sys.modules["crc_for_queue_pass"] = mod
     spec.loader.exec_module(mod)
-    assert "Write the closing row's method cell as `method: re-derivation`" in _norm(SRC)
     assert mod._REDERIVATION_ROW.search(
         "| Pass 3 | sonnet×1 | found: 0 | method: re-derivation — closing pass |"
     )
@@ -230,28 +149,9 @@ def test_the_closing_method_cell_rule_matches_the_gate() -> None:
     )
 
 
-def test_the_checklist_is_filled_before_the_in_progress_gate_run() -> None:
-    """Row 1791869394: an empty checklist passed the IN-PROGRESS run and reddened only after the flip."""
-    text = _norm(SRC)
-    fill = "Fill every Coverage Checklist and Pass Ledger row before the close: the IN-PROGRESS run below skips both convergence checkers"
-    assert fill in text
-    assert text.index(fill) < text.index("Close in this ORDER:** 1. Stage your own files")
-    assert (
-        "an untracked receipt is skipped outright until it is staged, whatever its Status" in text
-    )
-
-
 def test_an_agent_tool_seat_gets_the_pin_import_placement() -> None:
     """Mail 01M4W155SB (intel): the Agent-tool seat list states PIN_IMPORT's sys.path placement and its -P condition
     and points at the recipe, and the pointed-at recipe still says the same."""
-    assert (
-        "never `sys.path.insert` the live tree, puts the directory that holds the top-level import name"
-        " (`<extract>/src` for `import fabrik`) at the index of the first entry ending in `site-packages` or"
-        " `dist-packages` (at the end when there is none), never at index 0, where a package named like a stdlib"
-        " module shadows the stdlib, runs every probe as `python -P -B` with any PYTHONPATH entries dropped from"
-        " sys.path (without `-P` the working directory, the live repo, sits ahead of the extract) — `PIN_IMPORT` in"
-        " `.claude/workflows/fabrik-review-loop.js` is the recipe"
-    ) in _norm(SRC)
     js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text(encoding="utf-8")
     recipe = js[js.index("const PIN_IMPORT") : js.index("const SEAT_ISOLATION")]
     assert (
@@ -291,33 +191,6 @@ def test_a_reader_over_another_language_starts_from_a_fail_closed_grammar() -> N
         assert weakener not in row.lower(), weakener
 
 
-def test_the_receipt_sentence_says_owners_only_inside_the_by_design_parentheses() -> None:
-    """Row 1792029250 (infra, the coordinator-role whole-plan review): one gate round-trip on by-design rows,
-    because the receipt-time sentence of the Residual section repeated the owner-and-round rule without the
-    owners-only / reason-after rule Phase 2's bullet states 240 lines earlier; the third verdict on the by-design
-    grammar (two earlier rows were routed to the receipt skeleton, infra's code), so the text is edited (D-711).
-    The clause is a POINTER in the rule's own words ("and nothing else … the reason follows them"), never a third
-    wording — term-edit.md:21 already carries a second. Mutants: delete the clause, drop 'and nothing else', drop
-    'the reason follows them', drop the Phase 2 pointer, move the clause after `Pass N`, move the by-design bullet
-    out of Phase 2 — each fails an assertion."""
-    text = _norm(SRC)
-    residual = text[text.index("**Every candidate that did not enter `confirmed:` is rowed") :]
-    sentence = residual[: residual.index("That section is NOT a parking lot")]
-    assert (
-        "(or a `D-nnn` with no round token) and nothing else inside the parentheses — the reason follows them, as"
-        " Phase 2's `by design` bullet shows; the gate refuses an absent owner"
-    ) in sentence, (
-        "the receipt-time sentence must carry the owners-only rule as a pointer to Phase 2"
-    )
-    assert "owners only" not in sentence, (
-        "a third wording of the rule (round-1 finding); point, do not restate"
-    )
-    # the pointer's target is INSIDE Phase 2 and still states the rule it points at
-    phase2 = _section(text, "## Phase 2 — EXECUTE", "## Phase 3")
-    assert "The parentheses hold the owner and nothing else" in phase2
-    assert "a reason inside them, `(D-432: <why>)`, is refused as an absent owner" in phase2
-
-
 def test_the_catalogue_probes_a_deletion_surface() -> None:
     """Rows 1792031092 and 1792030357 (kaizen, 2026-10-15), the third and fourth sightings of the held deletion-probe
     subject 1790199460 (a whole-tree grep for deletions, HELD 2026-10-08; the review-scoped queue held the
@@ -341,47 +214,11 @@ def test_the_catalogue_probes_a_deletion_surface() -> None:
     assert cat.count("deleting probe") == 1
 
 
-def test_the_slices_ledger_is_defined_with_its_closing_example() -> None:
-    """Row 1792065733, the third verdict on the subject: the round line named `<verified>/<claims>` without saying what
-    either counts, so a closing seat that verified one claim did not know to record `A:1/1`."""
-    text = _norm(SRC)
-    rule = (
-        "`<claims>` counts the claims in that slice's ledger and `<verified>` those its owning seats re-ran to"
-        " `DEFECT_ABSENT`, so a closing pass that found its slice's one claim absent records `A:1/1`, and the terminal"
-        " needs every slice at n/n"
-    )
-    assert rule in text
-    i = text.index("**Record the pass before you decide:**")
-    assert i < text.index(rule) < text.index("Its TERMINAL verdict", i)
-
-
-def test_a_fixture_equal_to_the_codes_own_literal_is_a_test_quality_finding() -> None:
-    """Row 1792054051, a recurrence of held watched-fail-first-real-fixture: a test whose expected value is the code's
-    own constant is green whatever the constant says; the checklist names it and the mutation that exposes it."""
-    text = _norm(SRC)
-    checklist = _section(
-        text, "**Test-quality checklist", "Flag any of these as a test-quality finding."
-    )
-    assert "**a fixture that IS the code's own constant**" in checklist
-    # the qualifier is the rule: a test importing a constant for any other reason is not the defect
-    assert "read from the very constant whose VALUE is the behaviour under test" in checklist
-    assert (
-        "the finder mutates that constant on a copy under its scratch dir and the test must go red"
-        in checklist
-    )
-
-
 def test_a_by_design_d_owner_is_a_ledger_row_and_the_refusals_point_at_the_gate() -> None:
     """Mail 01M4YS0EZV (W-91ef9165): infra's 66ed34d47 (D-876) made check_review_coverage V5 refuse a by-design
     D-nnn absent from the checkout's ledger. Phase 2's bullet, where the grammar is defined, now says the D-owner
     is a row of that ledger; the Reporting paragraph points at the gate's own messages instead of listing a subset
     (a three-item list missed three refusals and the ledger check's fail-open)."""
-    text = re.sub(r"\s+", " ", SRC.read_text())
-    assert "or a row of this checkout's `docs/DECISIONS.md`, which takes no round token." in text
-    assert (
-        "the gate refuses an absent owner, and the messages of `check_review_coverage.py::_residual_errors` name"
-        " every other licence it refuses (it checks a `D-nnn` only against a ledger with readable `| D-n |` rows)."
-    ) in text
     gate = (ROOT / "scripts" / "enforcement" / "check_review_coverage.py").read_text()
     assert "def _residual_errors(" in gate, "the pointer names a function the gate defines"
 
@@ -401,17 +238,6 @@ def test_briefs_durable_unchanged_slices_said_guards_round_trip_counts_from_rece
     closing-pass-unchanged-surface), 1792255300 (a guard written for the one bad input, recurring held
     denylist-to-allowlist-convergence), 1792247279 (mid-loop counts in a D-row, recurring held
     changelog-figure-before-close and changelog-test-count-from-pytest)."""
-    review = _norm(SRC)
-    assert (
-        "or the session scratchpad when `start` printed no line that begins `SCRATCH:`, and so do the briefs and fix lists the "
-        "lead writes for each pass, so a resumed review has them (the seats' candidates, verdicts, notes and "
-        "`files_read` are already in the pass files there); only the seats' copies go under"
-    ) in review
-    assert (
-        "When the fix diff leaves a slice's files untouched, the closing-pass brief says so, naming each file's md5 "
-        "in both passes' pin manifests, so its seats open those files and re-execute their ledger without "
-        "re-proving byte identity."
-    ) in review
     for frag in ("term-coverage", "term-edit"):
         text = _norm(ROOT / "commands" / "_fragments" / f"{frag}.md")
         assert (
@@ -435,23 +261,6 @@ def test_rule_three_rewrite_first_asks_whether_the_branch_can_go() -> None:
         )
         span = text[start : text.index(" and the row's method cell APPENDS", start)]
         assert span == clause.format(unit), (name, span)
-
-
-def test_a_routed_fix_carries_its_invariant_and_shapes() -> None:
-    """Row 1792291617, a recurrence of held reproduction-verbatim-in-fix-brief (1791058267): the lead routed a fix to
-    a coder as a patch, and the coder's version held for the reported shape only. The fix list now carries the
-    invariant, the shapes the replaced form held and the reproduction, right after the shapes are enumerated."""
-    text = _norm(SRC)
-    start = text.index("asked here of every replaced form)?") + len(
-        "asked here of every replaced form)?"
-    )
-    end = text.find("A **wrong fix to a real finding is itself a defect**", start)
-    assert end != -1, "the wrong-fix sentence still follows"
-    assert text[start:end].strip() == (
-        "A fix the lead hands to a coder subagent to implement is written in the pass's fix list as the invariant it"
-        " must hold plus those shapes and the reproduction it answers (for a PLAUSIBLE survivor fixed defensively,"
-        " its failure scenario), never as the patch alone."
-    )
 
 
 def test_both_review_commands_carry_the_seat_isolation_sentence_verbatim() -> None:
@@ -485,42 +294,9 @@ def test_both_review_commands_carry_the_seat_isolation_sentence_verbatim() -> No
     assert "it is not restated here" not in flat["fabrik-review"]
 
 
-def test_the_gate_runs_before_the_closing_pin_so_a_gate_fix_is_reviewed() -> None:
-    """Row 1792335517, the second sighting of held final-gate-before-closing-pass: a fix final_gate forced landed
-    after the closing seats had read the surface."""
-    text = _norm(SRC)
-    sentence = (
-        "Before the pin of every pass that follows a fix (any of them may be the closing pass), stage your own files"
-        " and run `final_gate.py --check --json` too, so a fix the gate forces is in the surface that pass's seats read;"
-        " a red outside the surface forces no fix (measure it as the `GATE-SCOPE` paragraph below does, and pin"
-        " unchanged). Close in this ORDER:** 1. Stage your own files"
-    )
-    assert sentence in text
-
-
-def test_an_in_surface_red_at_the_close_reopens_a_closing_pass_over_the_fix():
-    """W-c71703cb: a fix forced by the post-flip gate run is read by a new closing pass, never shipped unreviewed."""
-    assert (
-        "embed THAT run in place of the first (a red whose findings name this surface or its receipt is yours: flip"
-        " back to `IN-PROGRESS`, fix it, run a new closing pass unless the fix edits the receipt alone, and repeat the"
-        " order;"
-    ) in _norm(SRC)
-    assert "or its receipt is fixed as the post-flip run's is). 3. THEN flip the Status" in _norm(
-        SRC
-    )
-    assert (
-        "A finding that names this review's receipt counts as naming this surface. A non-zero count is YOUR debt, not"
-        " another lane's — fix it as the close order fixes a red whose findings name this surface or its receipt."
-    ) in _norm(SRC)
-
-
 def test_the_close_order_is_a_numbered_list_with_the_embed_its_own_step() -> None:
-    """Rows 1792410448, 1792405487: the embed step sat mid-sentence and was skipped; the order is now four items."""
-    text = _section(
-        _norm(SRC),
-        "Close in this ORDER:**",
-        "A `CONVERGED` receipt with nothing embedded is refused",
-    )
+    """Rows 1792410448, 1792405487: the embed step sat mid-sentence and was skipped; the order is now four items.
+    The four steps' text is ledger entries (rq-close-order-four-steps-*, ordered); the list shape is raw text."""
     raw = SRC.read_text()
     block = raw[
         raw.index("Close in this ORDER:**") : raw.index(
@@ -529,55 +305,6 @@ def test_the_close_order_is_a_numbered_list_with_the_embed_its_own_step() -> Non
     ]
     items = [line[:3] for line in block.splitlines() if line[:1].isdigit()]
     assert items == ["1. ", "2. ", "3. ", "4. "], items
-    assert " 1. Stage your own files" in text
-    assert " 2. Embed that JSON in a fence" in text
-    assert " 3. THEN flip the Status to `CONVERGED`." in text
-    assert (
-        " 4. THEN run the gate once more" in text and "embed THAT run in place of the first" in text
-    )
-
-
-def test_a_duplicate_raise_of_a_confirmed_defect_is_not_a_residual_row() -> None:
-    """Row 1792427611: the Residual sentence read literally took a second seat's raise of a confirmed defect."""
-    residual = _section(
-        _norm(SRC),
-        "**Every candidate that did not enter `confirmed:` is rowed",
-        "Pre-existing issues",
-    )
-    assert (
-        "A second seat's raise, in the same pass, of a defect another candidate of that pass confirmed by execution is"
-        " named in that defect's disposition row and counted under its terminal state, never rowed here; a later"
-        " pass's raise of a defect an earlier pass fixed is a fresh candidate, executed."
-    ) in residual
-
-
-def test_a_seat_proposed_behaviour_change_is_probed_against_its_bound() -> None:
-    """Row 1792455454 (a recurrence of held refuter-run-proposed-fix): a seat's suggested change was applied unprobed."""
-    p3 = _section(
-        _norm(SRC), "**A real finding does not make the obvious fix correct", "no performative"
-    )
-    assert (
-        "for a behaviour change a seat proposed, does a probe on a copy show the change still holds the bound it"
-        " claims to protect?"
-    ) in p3
-
-
-def test_a_later_pass_brief_carries_the_environment_earlier_seats_set() -> None:
-    """Row 1792447814 (a recurrence of held closing-pass-kaizen-state-dir): seats rediscovered env every pass."""
-    p4 = _section(_norm(SRC), "## Phase 4 — Converge", "**The round in which you made a fix")
-    assert (
-        "It carries, too, every environment value an earlier pass's seats set before their probes ran (a state"
-        " directory, `COMMAND_RUN_DIR`, a `transcripts_dir` source), copied from their `MACHINERY:` notes"
-    ) in p4
-
-
-def test_a_generated_script_names_each_root_only_path_as_a_referent() -> None:
-    """Row 1792415591 (a recurrence of held copy-create-privilege-chain): finders checked only the work-dir token."""
-    p1 = _section(_norm(SRC), "## Phase 1 — Independent finders", "## Phase 2")
-    assert (
-        "for a **generated script**, every path it touches that only root may write, so its privilege is checked"
-        " path by path, never at the work-dir token alone."
-    ) in p1
 
 
 def test_a_counter_word_in_a_method_cell_is_named_as_refused() -> None:
@@ -602,20 +329,6 @@ def test_a_counter_word_in_a_method_cell_is_named_as_refused() -> None:
         old_grammar + "CONFIRMED: two by A-sonnet |"
     )  # the _label_exempt carve-out
     assert not crc._row_refusals(row + "seats: A-sonnet 3/4 |")
-    assert (
-        "a `confirmed:` or `unexecuted:` outside the counter cell, `Confirmed: 2` included, gets a row whose counters"
-        " state `confirmed:` refused by `check_review_coverage.py`'s token rule, `_row_refusals` — only an ALL-CAPS"
-        " prose label on a row with no `confirmed:` counter is exempt, `_label_exempt`"
-    ) in _norm(SRC)
-
-
-def test_a_review_whose_fixes_are_committed_makes_its_receipt_once() -> None:
-    """W-60629ce4 (D-1070): the committed-fix form keeps a generated draft during the passes and writes the receipt
-    once, after the last fix commit; every other form creates it before Pass 1. Each clause is pinned where it
-    lives — the fragment's obligation 3 (included by five command sources) and the later-pass high-water mark."""
-    assert (
-        "the receipt's sha at dispatch (in the committed-fix form below, the draft's last row id and md5)"
-    ) in _norm(SRC)
 
 
 CORE = ROOT / "commands" / "_fragments" / "subagents-core.md"
@@ -696,16 +409,6 @@ def test_a_by_design_owner_row_decides_its_residual() -> None:
 
 
 SUB = ROOT / "commands" / "_fragments" / "subagents-core.md"
-
-
-def test_the_example_ledger_names_the_file_loops_seat_mix() -> None:
-    """Row 1792607399: the example Pass rows named an Opus finder the file loop no longer seats (D-344)."""
-    text = _norm(SRC)
-    assert "| Pass 1 | sonnet×3 + haiku×3 | found: 5," in text
-    assert "| Pass 2 | sonnet×1 + haiku×1 | found: 2," in text
-    assert "| Pass 3 | sonnet×3 + haiku×3 | found: 1," in text
-    assert "Note pass 3: the finders raised one FRESH candidate" in text
-    assert "opus×1 + sonnet×3" not in text
 
 
 def test_a_fix_between_round_one_waves_is_in_the_delta_surface() -> None:

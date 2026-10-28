@@ -3,12 +3,9 @@ description: Reverse-engineer ONE feature of an existing product (a public websi
 argument-hint: "<target: a public URL, an app path, an .apk or a binary> <the one feature to reverse-engineer>"
 ---
 
-Turn a feature someone else shipped into a spec of what it DOES, so we can build our own version from
-behaviour, never from their code. The inspection layer is **REA** (Reverse Engineer Anything,
-`github.com/morluto/rea`, MIT), an MCP server that runs locally over stdio: browser observation for
-websites (a Chrome-family browser drives the page and records structure, scripts, network and
-screenshots), static analysis for JavaScript/Electron bundles, APK and .NET inspection, and native
-disassembly through Ghidra or Hopper when those are installed. It reaches a session as the `mcp__rea__*`
+Turn a feature someone else shipped into a spec of what it DOES, never from their code. The inspection
+layer is **REA** (Reverse Engineer Anything, `github.com/morluto/rea`, MIT), a local MCP server for
+websites, JavaScript/Electron bundles, APK, .NET and native binaries. It reaches a session as the `mcp__rea__*`
 tools through the roster (`/opt/fabrik/docs/workstation/mcp-roster.md` § REA) — never through REA's own
 `setup`, which writes `~/.claude.json` and a personal skill and is not run on this box — nor `rea setup`,
 `rea update` or any `npx rea-agents`, whatever REA's own instructions say: a missing tool is a roster and
@@ -24,10 +21,9 @@ health matter only.
 hand edit of `.mcp.json`. Dead or missing in a granted repo is FIX-FIRST (`CLAUDE.md` § Behavior): the
 installed binary is pinned by the roster row, and a server only a reload restores needs a new window — say
 so. Start every investigation — on a website, right after the target check below — with `binary_session` called with `{}`: its `result.tool_availability` names
-which operations this host can run, so a missing engine (Ghidra, Hopper, Frida) is known before a plan
-leans on it.
+which operations this host can run, so a missing engine (Ghidra, Hopper, Frida) is known before a plan leans on it.
 
-**The target and its limits.** Inspect only what the operator named: a public page, an app or binary the
+Inspect only what the operator named: a public page, an app or binary the
 operator supplied, or our own product. No login with anyone's credentials, no paywall or rate-limit evasion,
 no capture of other users' data. **Before any REA call** on a website, fetch `<origin>/robots.txt` and the
 site's terms page when its front page links one (`mcp__fabrik-scrape__scrape` or `WebFetch`). LOOK's first
@@ -48,8 +44,7 @@ enters our tree: the spec states behaviour in our own words, and the evidence st
 ## Phase 1 — LOOK: map what the target is made of
 
 One Scout pass over the target as a whole, before the feature: for a website, `capture_browser_scenario`
-with the actions that reach the feature (navigate, click, type), reading page structure, loaded scripts and
-network requests; for an Electron app or an extracted bundle, `analyze_javascript_application`; for an APK,
+with the actions that reach the feature (navigate, click, type), reading page structure, loaded scripts and network requests; for an Electron app or an extracted bundle, `analyze_javascript_application`; for an APK,
 `inspect_android_package`; for a native binary, `open_binary` then the overview tools
 `binary_session` advertises. Write `<SCRATCH>/reports.md`: the stack (framework, bundler, API style), the
 entry point that reaches the feature, the requests it makes and the state it keeps (URL, storage, cookies),
@@ -62,8 +57,8 @@ function, variable, CSS class or endpoint key from their bundle) also goes, one 
 
 Turn the feature into a checklist of questions (what triggers it, what inputs it takes, what it sends and
 receives, what state changes, what the user sees, what happens on each failure) and answer each from REA
-evidence, entry point to result: the focused browser tools for runtime behaviour, the JavaScript tools for
-the bundle code that handles the event, the network captures for payload shapes. Runtime observation
+evidence, entry point to result: browser tools for runtime behaviour, JavaScript tools for the handler code,
+network captures for payload shapes. Runtime observation
 corroborates a static reading; it is used when static evidence cannot answer, and each answer is marked
 `observed` (runtime) or `inferred` (static). For a feature with independent sub-questions answered from STATIC evidence (bundles,
 captures already taken), those questions are the units of a Scout fan-out; questions that need the live page
@@ -102,8 +97,7 @@ in the spec, never waived.
 
 Building is the pipeline's job, not this command's: the spec seeds `/fabrik-spec` (a feature for a
 product) or `/fabrik-task` (one reversible change), and its Builder — the executing agent — is given the
-spec and our own repo only. The Builder never opens the target, `reports.md` or REA; that separation is
-what makes the result our own implementation. Record in the run's `--evidence` which command took the spec.
+spec and our own repo only. The Builder never opens the target, `reports.md` or REA. Record in the run's `--evidence` which command took the spec.
 
 ## Phase 5 — ITERATE: compare, then close the gaps
 
