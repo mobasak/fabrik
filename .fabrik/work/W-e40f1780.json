@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T17:25:37.215064Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e40f1780",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "token waste on parked windows",
+  "status": "open",
+  "title": "A parked agent (operator pause) keeps waking: each feedback-queue rise fires its feedback watch and the Stop hook's feedback and mail rungs block every turn end 3 times (kaizen 2026-10-28: 13 watch wakes and 7 rounds of 3 blocks in ~2 h on a 400k context, all no-op). Add a parked state that the watch arm and those Stop rungs honour."
+}
