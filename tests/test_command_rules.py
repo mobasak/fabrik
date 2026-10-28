@@ -1522,6 +1522,8 @@ def test_lint_c_counts_a_phrase_per_paragraph_over_the_whole_file() -> None:
     assert c(f"## A\n\n{once} and {once}, then {once}") == [f"text phrase appears 3x in its file, need exactly once — {once}"]
     assert c(f"## A\n\n{once}") == []
     assert c(f"## A\n\n{once}\n\n## B\n\n{once.capitalize()}") == []  # the count is case-sensitive
+    split = "## A\n\nrun the tests before\n\nyou push"  # a phrase across a paragraph break is not in the file
+    assert c(split) == [f"text phrase appears 0x in its file, need exactly once — {once}"]
     # a `current`-equal phrase whose pattern normalises to nothing: the empty pattern counts per paragraph
     empty = {"id": "R", "class": "prose", "baseline": "x", "current": " ⏎ ", "text": [" ⏎ "]}
     assert c("ab\n\ncd", empty) == ["text phrase appears 6x in its file, need exactly once —  ⏎ "]
