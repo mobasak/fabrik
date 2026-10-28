@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -799,6 +800,7 @@ _HANDOFF_STALE_S = 24 * 3600
 _HANDOFF_READ_BYTES = 64 * 1024
 _HANDOFF_SOURCES = ("startup", "clear")  # compact/resume/fork keep the old context
 _HANDOFF_WARN_BYTES = 4000
+_CLOCK_AHEAD_S = 300  # a handoff dated further ahead than this is skew or a hand edit: stale
 
 
 def _age(seconds: float) -> str:
@@ -837,8 +839,40 @@ def _cut_utf8(text: str, room: int) -> str:
     return text.encode("utf-8")[: max(0, room)].decode("utf-8", errors="ignore")
 
 
+def _handoff_fresh(st: os.stat_result) -> float | None:
+    """The file's age in seconds when it is current, or None when it is stale: older than
+    `_HANDOFF_STALE_S`, or dated more than `_CLOCK_AHEAD_S` in the future (clock skew or a hand
+    `touch`, which would otherwise never age)."""
+    age = time.time() - st.st_mtime
+    if age > _HANDOFF_STALE_S or age < -_CLOCK_AHEAD_S:
+        return None
+    return max(0.0, age)
+
+
+def _delivered_to(mark: Path, mtime_ns: int) -> tuple[str, float] | None:
+    """(sid, at) of the delivery mark when it names THIS version of the handoff, else None — an
+    unreadable, malformed or non-finite mark is no mark (it can never hide the handoff)."""
+    got = _read_regular(mark, 4096)
+    if got is None:
+        return None
+    try:
+        seen = json.loads(got[0].decode("utf-8", errors="replace"))
+    except ValueError:
+        return None
+    if not isinstance(seen, dict) or seen.get("mtime_ns") != mtime_ns:
+        return None
+    sid, at = seen.get("sid"), seen.get("at")
+    if not isinstance(sid, str) or not sid or isinstance(at, bool):
+        return None
+    if not isinstance(at, (int, float)) or not math.isfinite(at):
+        return None
+    return sid, float(at)
+
+
 def _handoff_block(common: str, name: str, sid: str, room: int) -> str:
-    """The HANDOFF block for `name`, at most `room` UTF-8 bytes, or "" when there is none."""
+    """The HANDOFF block for `name`, at most `room` UTF-8 bytes, or "" when there is none. The
+    delivery mark is written only when the WHOLE text was printed — a cut or a pointer delivered
+    nothing, so the next session must still see it as new."""
     if not common or room <= 0:
         return ""
     folder = Path(common) / _HANDOFF_DIR
@@ -847,7 +881,8 @@ def _handoff_block(common: str, name: str, sid: str, room: int) -> str:
     if not name:
         waiting = []
         for p in sorted(folder.glob("*.md")):
-            if _AGENT_NAME_RE.fullmatch(p.stem) and _read_regular(p, 0) is not None:
+            got = _read_regular(p, 0) if _AGENT_NAME_RE.fullmatch(p.stem) else None
+            if got is not None and _handoff_fresh(got[1]) is not None:
                 waiting.append(f"`{p.stem}` (`{p}`)")
         if not waiting:
             return ""
@@ -862,43 +897,36 @@ def _handoff_block(common: str, name: str, sid: str, room: int) -> str:
     if got is None:
         return ""
     raw, st = got
-    age = time.time() - st.st_mtime
-    if age > _HANDOFF_STALE_S:
+    text = raw.decode("utf-8", errors="replace").strip()
+    if not text:
+        return ""
+    age = _handoff_fresh(st)
+    if age is None:
         return _fits(
-            f"\n## HANDOFF for `{name}` is STALE (written {_age(age)} ago) — not printed; read"
-            f" `{path}` only if it still applies, and write a fresh one at your next rotation.\n",
+            f"\n## HANDOFF for `{name}` is STALE (written {_age(time.time() - st.st_mtime)} ago) —"
+            f" not printed; read `{path}` only if it still applies, and write a fresh one at your"
+            " next rotation.\n",
             room,
         )
     mark = folder / f"{name}.delivered"
-    seen = None
-    got_mark = _read_regular(mark, 4096)
-    if got_mark is not None:
-        with contextlib.suppress(ValueError):
-            seen = json.loads(got_mark[0].decode("utf-8", errors="replace"))
-    if (
-        isinstance(seen, dict)
-        and seen.get("mtime_ns") == st.st_mtime_ns
-        and isinstance(seen.get("sid"), str)
-        and seen["sid"] != sid
-        and isinstance(seen.get("at"), (int, float))
-    ):
+    seen = _delivered_to(mark, st.st_mtime_ns)
+    if seen is not None and seen[0] != sid:
         head = (
-            f"\n## HANDOFF for `{name}` ALREADY DELIVERED to session {seen['sid']}"
-            f" {_age(time.time() - seen['at'])} ago — history, not current state; that session"
+            f"\n## HANDOFF for `{name}` ALREADY DELIVERED to session {seen[0]}"
+            f" {_age(time.time() - seen[1])} ago — history, not current state; that session"
             f" wrote no newer handoff (written {_age(age)} ago — `{path}`)\n"
         )
     else:
         head = f"\n## HANDOFF for `{name}` (written {_age(age)} ago — `{path}`)\n"
-        if sid:
+    whole = head + text + "\n"
+    if len(whole.encode("utf-8")) <= room:
+        if seen is None and sid:
             with contextlib.suppress(OSError):
                 tmp = folder / f".{name}.delivered.{os.getpid()}"
                 fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
                 with os.fdopen(fd, "w", encoding="utf-8") as fh:
                     json.dump({"sid": sid, "at": time.time(), "mtime_ns": st.st_mtime_ns}, fh)
                 os.replace(tmp, mark)
-    text = raw.decode("utf-8", errors="replace").strip() + "\n"
-    whole = head + text
-    if len(whole.encode("utf-8")) <= room:
         return whole
     cut = f"\n… cut to fit the hook output cap — the whole text is `{path}`\n"
     keep = room - len(head.encode("utf-8")) - len(cut.encode("utf-8"))
@@ -914,7 +942,8 @@ def _handoff_write(name: str) -> int:
     if not _AGENT_NAME_RE.fullmatch(name):
         print(f"handoff: {name!r} is not an agent name ([a-z0-9-]{{1,32}})", file=sys.stderr)
         return 2
-    text = sys.stdin.read()
+    # bytes, decoded with replacement: a C locale or a stray byte must refuse nothing and crash nothing
+    text = sys.stdin.buffer.read().decode("utf-8", errors="replace")
     if not text.strip():
         print("handoff: empty text — nothing written", file=sys.stderr)
         return 2
@@ -930,16 +959,20 @@ def _handoff_write(name: str) -> int:
     if path.is_symlink() or (path.exists() and not path.is_file()):
         print(f"handoff: {path} is not a regular file — refused", file=sys.stderr)
         return 2
+    tmp = folder / f".{name}.{os.getpid()}.tmp"
     try:
         folder.mkdir(mode=0o700, exist_ok=True)
-        tmp = folder / f".{name}.{os.getpid()}.tmp"
+        with contextlib.suppress(FileNotFoundError):
+            tmp.unlink()  # a leftover from a killed writer of the same pid
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(text if text.endswith("\n") else text + "\n")
+        with os.fdopen(fd, "wb") as fh:
+            fh.write((text if text.endswith("\n") else text + "\n").encode("utf-8"))
         os.replace(tmp, path)
         with contextlib.suppress(FileNotFoundError):
             (folder / f"{name}.delivered").unlink()
-    except OSError as exc:
+    except Exception as exc:  # never a traceback, never a leftover temp file
+        with contextlib.suppress(OSError):
+            tmp.unlink()
         print(f"handoff: write failed: {exc}", file=sys.stderr)
         return 1
     print(path)
@@ -1118,7 +1151,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] == "--handoff-write":
+    if sys.argv[1:2] == ["--handoff-write"]:  # a missing name must refuse, never run the hook
+        if len(sys.argv) != 3:
+            print("usage: session_orient.py --handoff-write <agent-name> < text", file=sys.stderr)
+            sys.exit(2)
         sys.exit(_handoff_write(sys.argv[2]))
     try:
         sys.exit(main())

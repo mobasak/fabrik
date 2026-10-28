@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added — Rotation handoff file printed by the SessionStart hook (2026-10-28)
 
-- `.claude/hooks/session_orient.py --handoff-write <name>` stores a session's handoff (stdin) at `<git common dir>/fabrik-handoff/<name>.md`; on startup or `/clear` the hook prints it after ORIENT to the session `CLAUDE_AGENT` names, within the whole-stdout cap, with STALE and ALREADY DELIVERED labels, never headless. Inert until a handoff is written (W-835894a6, D-1302).
+- `.claude/hooks/session_orient.py --handoff-write <name>` stores a session's handoff (stdin) at `<git common dir>/fabrik-handoff/<name>.md`; on startup or `/clear` the hook prints it after ORIENT to the session `CLAUDE_AGENT` (else its whoami binding) names, within what the whole-stdout cap leaves after ORIENT, with STALE and ALREADY DELIVERED labels, never headless. Inert until a handoff is written (W-835894a6, D-1302).
 
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 
