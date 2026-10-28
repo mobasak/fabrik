@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A resumed, then /cleared window re-binds its own name at the quota lane (2026-10-28)
+
+- The SessionStart hook now re-records a bound session under the claude process it runs in (`scripts/whoami_agent.py::refresh`), and the lane's window test in `.claude/hooks/quota_stop.py` no longer demands a row "written this boot" (WSL's boot time drifts forward with sleep); the hold texts name the git verbs that really pass and keep `git grep` held (W-a77742db, D-1307). Windows already live need one `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force` each.
+
 ### Added — Rotation handoff file printed by the SessionStart hook (2026-10-28)
 
 - `.claude/hooks/session_orient.py --handoff-write <name>` stores a session's handoff (stdin) at `<git common dir>/fabrik-handoff/<name>.md`; on startup or `/clear` the hook prints it after ORIENT to the session `CLAUDE_AGENT` (else its whoami binding) names, within what the whole-stdout cap leaves after ORIENT, with STALE and ALREADY DELIVERED labels, never headless. Inert until a handoff is written (W-835894a6, D-1302).
