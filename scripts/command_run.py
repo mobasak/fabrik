@@ -3576,7 +3576,7 @@ _HOOK_SEAT_STAMP_FRESH_S = 25 * 60
 
 _HOOK_SEAT_TAIL_BYTES = 8 * 1024 * 1024
 
-_HOOK_NOTIFY_RE = re.compile(r"<task-id>([^<\s]+)</task-id>.*?<status>([^<\s]+)</status>", re.S)
+_HOOK_NOTIFY_RE = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)
 
 _HOOK_CLOCK_SKEW_TOLERANCE_S = 60.0
 
@@ -3637,7 +3637,7 @@ def _hook_seats_in_flight(rec: dict, transcript_path: str) -> bool:
         lines = raw.splitlines()
         if size > _HOOK_SEAT_TAIL_BYTES and lines:
             lines = lines[1:]  # the first line of a mid-file slice is almost surely partial
-        running: set[str] = set()
+        running: set[tuple[str, str | None]] = set()
         now = time.time()
         for line in lines:
             if not any(k in line for k in ("async_launched", "resumedAgentId", "<task-id>")):
@@ -3669,7 +3669,20 @@ def _hook_seats_in_flight(rec: dict, transcript_path: str) -> bool:
                         and aid
                         and _hook_line_age_s(obj, now) <= _HOOK_SEAT_STAMP_FRESH_S
                     ):
-                        running.add(aid)
+                        # W-16617da0: a run is (agent id, this line's tool_use_id) — a resumed seat is a new run
+                        msg = obj.get("message")
+                        blocks = msg.get("content") if isinstance(msg, dict) else None
+                        tu_id = None
+                        if isinstance(blocks, list):
+                            for b in blocks:
+                                if isinstance(b, dict) and b.get("type") == "tool_result":
+                                    tu_id = (
+                                        b.get("tool_use_id")
+                                        if isinstance(b.get("tool_use_id"), str)
+                                        else None
+                                    )
+                                    break
+                        running.add((aid, tu_id))
                 origin = obj.get("origin")
                 content = (obj.get("message") or {}).get("content")
                 if isinstance(origin, dict) and origin.get("kind") == "task-notification":
@@ -3693,9 +3706,22 @@ def _hook_seats_in_flight(rec: dict, transcript_path: str) -> bool:
             elif kind != "user":
                 continue
             if isinstance(text, str):
-                for aid, status in _HOOK_NOTIFY_RE.findall(text):
-                    if status not in ("running", "in_progress"):
-                        running.discard(aid)
+                # W-16617da0: each notice block is read from its HEADER only (before <summary>/<result>), so
+                # a seat's quoted result never names an id. One id with a <tool-use-id> closes that run (and a
+                # run whose launch id was unreadable); any other block — the session-end form names several
+                # ids and no tool-use id — closes every run of each id it names.
+                for block in _HOOK_NOTIFY_RE.findall(text) or [text]:
+                    head = re.split(r"<summary>|<result>", block, maxsplit=1)[0]
+                    st = re.search(r"<status>([^<\s]+)</status>", head)
+                    if not st or st.group(1) in ("running", "in_progress"):
+                        continue
+                    ids = re.findall(r"<task-id>([^<\s]+)</task-id>", head)
+                    tu = re.search(r"<tool-use-id>([^<\s]+)</tool-use-id>", head)
+                    for aid in ids:
+                        if tu and len(ids) == 1:
+                            running -= {(aid, tu.group(1)), (aid, None)}
+                        else:
+                            running = {r for r in running if r[0] != aid}
         return bool(running)
     except Exception:
         return False

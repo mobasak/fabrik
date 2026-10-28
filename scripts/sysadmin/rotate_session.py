@@ -111,9 +111,7 @@ OPTIONAL = {"stale_text", "operator_ok"}  # --stale-input discard (W-ee19169d): 
 TRIGGERS = ("ctx", "mb", "unrelated", "compact", "manual", "lift")
 _NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
 _PANE = re.compile(r"%[0-9]{1,6}")
-_NOTIFY = re.compile(
-    r"<task-id>([^<\s]+)</task-id>.*?<status>([^<\s]+)</status>", re.S
-)  # the Stop hook's forms
+_NOTIFY = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)  # the Stop hook's forms
 
 
 # W-05021a03: `request`'s exit names whether asking again can pass. TRANSIENT clears by itself (the session finishes its
@@ -584,7 +582,7 @@ def _idle_row_check(rows: list[dict]) -> float:
 def seats_running(path: Path) -> set[str]:
     """Background Agent / review-workflow seats launched in the tail with no task-notification closing them. Mirrors the
     Stop hook's forms (final_gate_stop._seats_in_flight) without its stamp precondition; an unreadable tail raises."""
-    running: set[str] = set()
+    running: set[tuple[str, str | None]] = set()
     for obj in _tail_rows(path, SEAT_TAIL):
         kind, text = obj.get("type"), None
         if kind == "user":
@@ -597,7 +595,20 @@ def seats_running(path: Path) -> set[str]:
                     )
                 aid = aid or tur.get("resumedAgentId")
                 if isinstance(aid, str) and aid:
-                    running.add(aid)
+                    # W-16617da0: a run is (agent id, this line's tool_use_id) — a resumed seat is a new run
+                    msg = obj.get("message")
+                    blocks = msg.get("content") if isinstance(msg, dict) else None
+                    tu_id = None
+                    if isinstance(blocks, list):
+                        for b in blocks:
+                            if isinstance(b, dict) and b.get("type") == "tool_result":
+                                tu_id = (
+                                    b.get("tool_use_id")
+                                    if isinstance(b.get("tool_use_id"), str)
+                                    else None
+                                )
+                                break
+                    running.add((aid, tu_id))
             origin = obj.get("origin")
             content = (
                 (obj.get("message") or {}).get("content")
@@ -622,10 +633,23 @@ def seats_running(path: Path) -> set[str]:
             ):
                 text = att.get("prompt") if isinstance(att.get("prompt"), str) else None
         if text:
-            for aid, status in _NOTIFY.findall(text):
-                if status not in ("running", "in_progress"):
-                    running.discard(aid)
-    return running
+            # W-16617da0: each notice block is read from its HEADER only (before <summary>/<result>), so
+            # a seat's quoted result never names an id. One id with a <tool-use-id> closes that run (and a
+            # run whose launch id was unreadable); any other block — the session-end form names several
+            # ids and no tool-use id — closes every run of each id it names.
+            for block in _NOTIFY.findall(text) or [text]:
+                head = re.split(r"<summary>|<result>", block, maxsplit=1)[0]
+                st = re.search(r"<status>([^<\s]+)</status>", head)
+                if not st or st.group(1) in ("running", "in_progress"):
+                    continue
+                ids = re.findall(r"<task-id>([^<\s]+)</task-id>", head)
+                tu = re.search(r"<tool-use-id>([^<\s]+)</tool-use-id>", head)
+                for aid in ids:
+                    if tu and len(ids) == 1:
+                        running -= {(aid, tu.group(1)), (aid, None)}
+                    else:
+                        running = {r for r in running if r[0] != aid}
+    return {r[0] for r in running}
 
 
 def screen_ok(screen: str) -> bool:

@@ -1692,6 +1692,54 @@ def test_a_notice_naming_two_agents_closes_both(fake_project: Path, tmp_path: Pa
     assert _blocks_on_run_record(out), out
 
 
+def test_a_two_agent_notice_with_a_tool_use_id_still_closes_both(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    # several ids: the one tool-use id cannot name every run, so each named agent closes whole
+    end = {
+        "type": "queue-operation",
+        "operation": "enqueue",
+        "content": "<task-notification>\n<task-id>a1b2c3d4e5f60718</task-id>\n"
+        "<task-id>b2c3d4e5f6071829</task-id>\n<tool-use-id>toolu_other</tool-use-id>\n"
+        "<status>stopped</status>\n</task-notification>",
+    }
+    lines = [
+        _run_line("a1b2c3d4e5f60718", "toolu_one"),
+        _run_line("b2c3d4e5f6071829", "toolu_two"),
+        end,
+    ]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_two_tu", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+def test_an_id_bearing_notice_closes_a_launch_whose_id_was_unreadable(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    aid = "a1b2c3d4e5f60718"
+    lines = [_launch_line(aid), _run_notice(aid, "toolu_launch")]  # launch line carries no tool_use_id
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_noid", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+def test_a_task_id_quoted_in_a_result_closes_nothing(fake_project: Path, tmp_path: Path) -> None:
+    # a1's notice quotes b1's id in its <result>; only the header names the run it closes
+    quoting = {
+        "type": "queue-operation",
+        "operation": "enqueue",
+        "content": "<task-notification>\n<task-id>a1b2c3d4e5f60718</task-id>\n"
+        "<tool-use-id>toolu_one</tool-use-id>\n<status>completed</status>\n"
+        "<summary>done</summary>\n<result>seat b1 still runs: <task-id>b2c3d4e5f6071829</task-id>"
+        "</result>\n</task-notification>",
+    }
+    lines = [
+        _run_line("a1b2c3d4e5f60718", "toolu_one"),
+        _run_line("b2c3d4e5f6071829", "toolu_two"),
+        quoting,
+    ]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_quote", _stamped(), lines)
+    assert not _blocks_on_run_record(out), out
+
+
 @pytest.mark.parametrize(
     "over",
     [
