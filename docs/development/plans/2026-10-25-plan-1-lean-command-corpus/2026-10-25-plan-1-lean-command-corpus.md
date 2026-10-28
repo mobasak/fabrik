@@ -123,60 +123,60 @@ Selections against it: a ticket's ledger is the single source of a rule's wordin
 | T01a | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part a | — | ⛓️ | ✅ | this commit (review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01a-review.md`) |
 | T01b | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part b | T01a | ⛓️ | ✅ | this commit — no-op: step 2 finds 10 phrases, none a migratable pin (4 are path literals read off other files; 6 sit in test functions that also assert on another file, D-1231); zero diff, so no review surface; coder gates green (test_command_rules 35 passed, `--check` exit 0, the four tests 120 passed) |
 | T01c | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — ledger and pin migration, part c | T01b | ⛓️ | ✅ | this commit (review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01c-review.md`) |
-| T01d | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — the rewrite | T01c | ⛓️ | ⬜ | |
-| T02 | Lean rewrite of /fabrik-review-scoped (full form) | T01d | ⛓️ | ⬜ | |
-| T03a | Shared fragment term-coverage — ledger and pin migration, part a | T02 | ⛓️ | ⬜ | |
-| T03b | Shared fragment term-coverage — ledger and pin migration, part b | T03a | ⛓️ | ⬜ | |
-| T03c | Shared fragment term-coverage — the rewrite | T03b | ⛓️ | ⬜ | |
-| T04a | Shared fragment term-edit — ledger and pin migration, part a | T03c | ⛓️ | ⬜ | |
-| T04b | Shared fragment term-edit — ledger and pin migration, part b | T04a | ⛓️ | ⬜ | |
-| T04c | Shared fragment term-edit — the rewrite | T04b | ⛓️ | ⬜ | |
-| T05a | Shared fragments: subagents-core and the grounding, intake and test-loop fragments — ledger and pin migration, part a | T04c | ⛓️ | ⬜ | |
-| T05b | Shared fragments: subagents-core and the grounding, intake and test-loop fragments — ledger and pin migration, part b | T05a | ⛓️ | ⬜ | |
-| T05c | Shared fragments: subagents-core and the grounding, intake and test-loop fragments — the rewrite | T05b | ⛓️ | ⬜ | |
-| T06 | Shared fragments: design, deploy and certification fragments plus the design-review seat | T05c | ⛓️ | ⬜ | |
-| T07a | Lean rewrite of /fabrik-review (full form) — ledger and pin migration, part a | T06 | ⛓️ | ⬜ | |
-| T07b | Lean rewrite of /fabrik-review (full form) — ledger and pin migration, part b | T07a | ⛓️ | ⬜ | |
-| T07c | Lean rewrite of /fabrik-review (full form) — the rewrite | T07b | ⛓️ | ⬜ | |
-| T08 | Lean rewrite of /fabrik-task (full form) | T07c | ⛓️ | ⬜ | |
-| T09 | Lean rewrite of /fabrik-execute-plan (full form) | T08 | ⛓️ | ⬜ | |
-| T10 | Lean rewrite of /fabrik-command-improve (full form) | T09 | ⛓️ | ⬜ | |
-| T11 | Lean rewrite of /fabrik-spec (light form) | T10 | ⛓️ | ⬜ | |
-| T12 | Lean rewrite of /fabrik-plan-review (light form) | T11 | ⛓️ | ⬜ | |
-| T13 | Lean rewrite of /fabrik-plan-after-chat (light form) | T12 | ⛓️ | ⬜ | |
-| T14 | Lean rewrite of /fabrik-spec-review (light form) | T13 | ⛓️ | ⬜ | |
-| T15 | Lean rewrite of /fabrik-data-contract (light form) | T14 | ⛓️ | ⬜ | |
-| T16 | Lean rewrite of /fabrik-docs-review (light form) | T15 | ⛓️ | ⬜ | |
-| T17 | Lean rewrite of /fabrik-conformance-review (light form) | T16 | ⛓️ | ⬜ | |
-| T18 | Lean rewrite of /fabrik-catchup (light form) | T17 | ⛓️ | ⬜ | |
-| T19 | Lean rewrite of /fabrik-features (light form) | T18 | ⛓️ | ⬜ | |
-| T20 | Lean rewrite of /fabrik-doc-converge (light form) | T19 | ⛓️ | ⬜ | |
-| T21 | Lean rewrite of /fabrik-user-test (light form) | T20 | ⛓️ | ⬜ | |
-| T22 | Lean rewrite of /fabrik-deploy-checklist (light form) | T21 | ⛓️ | ⬜ | |
-| T23 | Lean rewrite of /fabrik-ui-design-review (light form) | T22 | ⛓️ | ⬜ | |
-| T24 | Lean rewrite of /fabrik-ui-design (light form) | T23 | ⛓️ | ⬜ | |
-| T25 | Lean rewrite of /fabrik-flows (light form) | T24 | ⛓️ | ⬜ | |
-| T26 | Lean rewrite of /fabrik-service-test (light form) | T25 | ⛓️ | ⬜ | |
-| T27 | Lean rewrite of /hibernate (light form) | T26 | ⛓️ | ⬜ | |
-| T28 | Lean rewrite of /fabrik-flows-review (light form) | T27 | ⛓️ | ⬜ | |
-| T29 | Lean rewrite of /design-review (light form) | T28 | ⛓️ | ⬜ | |
-| T30 | Lean rewrite of /fabrik-upstream (light form) | T29 | ⛓️ | ⬜ | |
-| T31 | Lean rewrite of /fabrik-release (light form) | T30 | ⛓️ | ⬜ | |
-| T32 | Lean rewrite of /fabrik-vision (light form) | T31 | ⛓️ | ⬜ | |
-| T33 | Lean rewrite of /fabrik-epics (light form) | T32 | ⛓️ | ⬜ | |
-| T34 | Lean rewrite of /fabrik-epics-review (light form) | T33 | ⛓️ | ⬜ | |
-| T35 | Lean rewrite of /fabrik-deploy (light form) | T34 | ⛓️ | ⬜ | |
-| T36 | Lean rewrite of /fabrik-deploy-plan (light form) | T35 | ⛓️ | ⬜ | |
-| T37 | Lean rewrite of /fabrik-deploy-verify (light form) | T36 | ⛓️ | ⬜ | |
-| T38 | Lean rewrite of /fabrik-deploy-plan-review (light form) | T37 | ⛓️ | ⬜ | |
-| T39 | Lean rewrite of /fabrik-repo-review (light form) | T38 | ⛓️ | ⬜ | |
-| T40 | Lean rewrite of /fabrik-rivals (light form) | T39 | ⛓️ | ⬜ | |
-| T41 | Lean rewrite of /fabrik-decommission (light form) | T40 | ⛓️ | ⬜ | |
-| T42 | Lean rewrite of /fabrik-generate-tests (light form) | T41 | ⛓️ | ⬜ | |
-| T43 | Lean rewrite of /fabrik-rules-review (light form) | T42 | ⛓️ | ⬜ | |
-| T44 | Lean rewrite of /fabrik-reverse-engineer (light form) | T43 | ⛓️ | ⬜ | |
-| T45 | Lean rewrite of /fabrik-workflow-review (light form) | T44 | ⛓️ | ⬜ | |
-| T46 | Integration: close-out evidence, whole-plan gates and the review receipt | T45 | ⛓️ | ⬜ | |
+| T01d | Pilot shared files: the fragments and seat definitions /fabrik-review-scoped shares — the rewrite | T01c | ⛓️ | ✅ | 39705f1e8 (v6 round 2; merged in 25efdde57, request 01M5Y18P31) |
+| T02 | Lean rewrite of /fabrik-review-scoped (full form) | T01d | ⛓️ | ✅ | 75d77e30c (merged in 25efdde57) |
+| T03a | Shared fragment term-coverage — ledger and pin migration, part a | T02 | ⛓️ | ✅ | e1990cbcd + af86145f3 (one unit, merged in 25efdde57) |
+| T03b | Shared fragment term-coverage — ledger and pin migration, part b | T03a | ⛓️ | ✅ | e1990cbcd (with T03a) |
+| T03c | Shared fragment term-coverage — the rewrite | T03b | ⛓️ | ✅ | e1990cbcd + af86145f3 (with T03a) |
+| T04a | Shared fragment term-edit — ledger and pin migration, part a | T03c | ⛓️ | ✅ | 3e04b1c03 (one unit, merged in 25efdde57) |
+| T04b | Shared fragment term-edit — ledger and pin migration, part b | T04a | ⛓️ | ✅ | 3e04b1c03 (with T04a) |
+| T04c | Shared fragment term-edit — the rewrite | T04b | ⛓️ | ✅ | 3e04b1c03 (with T04a) |
+| T05a | Shared fragments: subagents-core and the grounding, intake and test-loop fragments — ledger and pin migration, part a | T04c | ⛓️ | 🔴 | not run — never started before D-1259's KILL (no new rewrite unit starts); its ten fragments stay unledgered (see the T46 receipt) |
+| T05b | Shared fragments: subagents-core and the grounding, intake and test-loop fragments — ledger and pin migration, part b | T05a | ⛓️ | 🔴 | not run — never started before D-1259's KILL (no new rewrite unit starts); its ten fragments stay unledgered (see the T46 receipt) |
+| T05c | Shared fragments: subagents-core and the grounding, intake and test-loop fragments — the rewrite | T05b | ⛓️ | 🔴 | not run — never started before D-1259's KILL (no new rewrite unit starts); its ten fragments stay unledgered (see the T46 receipt) |
+| T06 | Shared fragments: design, deploy and certification fragments plus the design-review seat | T05c | ⛓️ | ✅ | 2d39e79f6 (merged in 25efdde57) |
+| T07a | Lean rewrite of /fabrik-review (full form) — ledger and pin migration, part a | T06 | ⛓️ | ✅ | 725ada4e3 (one re-ledgered unit, merged in ceadce76c, request 01M616HSC5) |
+| T07b | Lean rewrite of /fabrik-review (full form) — ledger and pin migration, part b | T07a | ⛓️ | ✅ | 725ada4e3 (with T07a) |
+| T07c | Lean rewrite of /fabrik-review (full form) — the rewrite | T07b | ⛓️ | ✅ | 725ada4e3 (with T07a) |
+| T08 | Lean rewrite of /fabrik-task (full form) | T07c | ⛓️ | ✅ | 635d8b84c (merged in 25efdde57) |
+| T09 | Lean rewrite of /fabrik-execute-plan (full form) | T08 | ⛓️ | ✅ | e43d632ce (merged in 25efdde57) |
+| T10 | Lean rewrite of /fabrik-command-improve (full form) | T09 | ⛓️ | ✅ | dc18c684e (merged in 25efdde57) |
+| T11 | Lean rewrite of /fabrik-spec (light form) | T10 | ⛓️ | ✅ | c8caa4594 (T11-T14+T19 group, merged in 25efdde57) |
+| T12 | Lean rewrite of /fabrik-plan-review (light form) | T11 | ⛓️ | ✅ | c8caa4594 (group) |
+| T13 | Lean rewrite of /fabrik-plan-after-chat (light form) | T12 | ⛓️ | ✅ | c8caa4594 (group) |
+| T14 | Lean rewrite of /fabrik-spec-review (light form) | T13 | ⛓️ | ✅ | c8caa4594 (group) |
+| T15 | Lean rewrite of /fabrik-data-contract (light form) | T14 | ⛓️ | ✅ | b706a64c2 |
+| T16 | Lean rewrite of /fabrik-docs-review (light form) | T15 | ⛓️ | ✅ | 48cc94dbf |
+| T17 | Lean rewrite of /fabrik-conformance-review (light form) | T16 | ⛓️ | ✅ | 9bf848f66 |
+| T18 | Lean rewrite of /fabrik-catchup (light form) | T17 | ⛓️ | ✅ | 98abe99de |
+| T19 | Lean rewrite of /fabrik-features (light form) | T18 | ⛓️ | ✅ | c8caa4594 (group) |
+| T20 | Lean rewrite of /fabrik-doc-converge (light form) | T19 | ⛓️ | ✅ | 224505d19 |
+| T21 | Lean rewrite of /fabrik-user-test (light form) | T20 | ⛓️ | ✅ | cd686e29b (last-round fix, D-1293; merged in b6cd13757, request 01M5YN03Z0) |
+| T22 | Lean rewrite of /fabrik-deploy-checklist (light form) | T21 | ⛓️ | ✅ | d32058f04 (with T37) |
+| T23 | Lean rewrite of /fabrik-ui-design-review (light form) | T22 | ⛓️ | ✅ | 53e6ad007 (T23/T24/T28/T29 last-round group, D-1293; merged in b6cd13757) |
+| T24 | Lean rewrite of /fabrik-ui-design (light form) | T23 | ⛓️ | ✅ | 53e6ad007 (group) |
+| T25 | Lean rewrite of /fabrik-flows (light form) | T24 | ⛓️ | ✅ | 9d6bc25e4 |
+| T26 | Lean rewrite of /fabrik-service-test (light form) | T25 | ⛓️ | ✅ | 27550f79c (last-round fix, D-1293; merged in b6cd13757) |
+| T27 | Lean rewrite of /hibernate (light form) | T26 | ⛓️ | ✅ | 8c9b10d68 |
+| T28 | Lean rewrite of /fabrik-flows-review (light form) | T27 | ⛓️ | ✅ | 53e6ad007 (group) |
+| T29 | Lean rewrite of /design-review (light form) | T28 | ⛓️ | ✅ | 53e6ad007 (group) |
+| T30 | Lean rewrite of /fabrik-upstream (light form) | T29 | ⛓️ | ✅ | 7ad772087 (merged in ceadce76c) |
+| T31 | Lean rewrite of /fabrik-release (light form) | T30 | ⛓️ | ✅ | 91f7ccf01 |
+| T32 | Lean rewrite of /fabrik-vision (light form) | T31 | ⛓️ | ✅ | 870259375 |
+| T33 | Lean rewrite of /fabrik-epics (light form) | T32 | ⛓️ | ✅ | a5eaca80f (last-round fix, D-1293) |
+| T34 | Lean rewrite of /fabrik-epics-review (light form) | T33 | ⛓️ | ✅ | 422ce1bc2 (last-round fix, D-1293) |
+| T35 | Lean rewrite of /fabrik-deploy (light form) | T34 | ⛓️ | ✅ | cc9ea7c14 |
+| T36 | Lean rewrite of /fabrik-deploy-plan (light form) | T35 | ⛓️ | ✅ | aedf62e76 (last-round fix, D-1293) |
+| T37 | Lean rewrite of /fabrik-deploy-verify (light form) | T36 | ⛓️ | ✅ | d32058f04 (with T22) |
+| T38 | Lean rewrite of /fabrik-deploy-plan-review (light form) | T37 | ⛓️ | ✅ | 008f3f290 (last-round fix, D-1293) |
+| T39 | Lean rewrite of /fabrik-repo-review (light form) | T38 | ⛓️ | ✅ | 7033823f0 (last-round fix, D-1293) |
+| T40 | Lean rewrite of /fabrik-rivals (light form) | T39 | ⛓️ | ✅ | d544359c6 |
+| T41 | Lean rewrite of /fabrik-decommission (light form) | T40 | ⛓️ | ✅ | f4e1b39a7 |
+| T42 | Lean rewrite of /fabrik-generate-tests (light form) | T41 | ⛓️ | ✅ | 1d515ba94 |
+| T43 | Lean rewrite of /fabrik-rules-review (light form) | T42 | ⛓️ | ✅ | 8c910e36f |
+| T44 | Lean rewrite of /fabrik-reverse-engineer (light form) | T43 | ⛓️ | ✅ | 0bae1ef5b (merged in ceadce76c) |
+| T45 | Lean rewrite of /fabrik-workflow-review (light form) | T44 | ⛓️ | ✅ | 46baae093 (merged in ceadce76c) |
+| T46 | Integration: close-out evidence, whole-plan gates and the review receipt | T45 | ⛓️ | ✅ | this commit (receipt: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md`) |
 
 ## Merge Order
 
