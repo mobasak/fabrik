@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — vps1 rotation step 3a re-owns GlitchTip's schema one object per transaction (2026-10-28)
+
+- The operator's run of `scripts/sysadmin/vps1_pg_scoped_logins.py` stopped at step 3a with "out of shared memory": the re-own of GlitchTip's log partitions ran in ONE transaction and overflowed `max_locks_per_transaction`. Step 3a now commits after every object, waits at most 5 s (`lock_timeout`) for a busy table instead of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, skips what `glitchtip` already owns so a re-run locks only the leftovers, tolerates a partition dropped mid-run, and gets its own 1800 s ssh bound. The runbook (`docs/reference/vps1-postgres-admin-rotation-runbook.md`) quotes the same block, tested to stay identical, and its rollback row now also revokes `postgres_exporter`'s CONNECT grants. Graders run the real SQL on a local PostgreSQL 16 cluster with a 100-slot lock table.
+
 ### Fixed — the Lint Ratchet is green again on master (2026-10-28)
 
 `.claude/hooks/session_orient.py:950` called `"�".encode("utf-8")` (U+FFFD), which ruff flags as UP012; that one error raised the repo-wide ruff count from 0 to 1 and turned every branch's `final_gate` Lint Ratchet red. It now calls `.encode()`, which yields the same bytes in every locale (W-82034f59).
