@@ -145,16 +145,20 @@ def _tokens(command: str) -> list[str]:
 
 # `<<WORD`: WORD is one whole shell word (bash reads `<<E-OF` as E-OF, never E); quotes and
 # backslashes in it are removed for the terminator (`<<'EOF'`, `<<\EOF`, `<<EO'F'` end at EOF)
-_HEREDOC = re.compile(r"""<<(-?)[ \t]*((?:[^\s;&|()<>'"\\]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)""")
-_DELIM_QUOTING = re.compile(r'''\\(.)|'([^']*)'|"((?:[^"\\]|\\.)*)"''')
+_HEREDOC = re.compile(
+    r"""<<(-?)[ \t]*((?:\$'(?:[^'\\]|\\.)*'|[^\s;&|()<>'"\\]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)"""
+)
+_DELIM_QUOTING = re.compile(r'''\$'((?:[^'\\]|\\.)*)'|\\(.)|'([^']*)'|"((?:[^"\\]|\\.)*)"''')
 
 
 def _unquote(m: re.Match) -> str:
-    if m.group(1) is not None:  # \x
-        return m.group(1)
-    if m.group(2) is not None:  # '…' — literal
+    if m.group(1) is not None:  # $'…' — \' and \\ are the escapes a terminator needs
+        return re.sub(r"\\(['\\\\])", r"\1", m.group(1))
+    if m.group(2) is not None:  # \x
         return m.group(2)
-    return re.sub(r'\\([\\"$`])', r"\1", m.group(3))  # "…" — only \\ \" \$ \` escape
+    if m.group(3) is not None:  # '…' — literal
+        return m.group(3)
+    return re.sub(r'\\([\\"$`])', r"\1", m.group(4))  # "…" — only \\ \" \$ \` escape
 
 
 def _heredoc_word(word: str) -> str:
@@ -187,42 +191,24 @@ _OP_ORDER = (
 SUBST = "__SUBST__"
 
 
-_KEYWORD_LEADS = frozenset({"if", "elif", "then", "else", "do", "while", "until", "!", "{", "time"})
-
-
-def _word_at(command: str, i: int, word: str) -> bool:
-    """`word` is a shell KEYWORD at i: a whole word (not part of `showcase` or `esacs`) at
-    command position — the start, after `;` `&` `|` `(` or a newline, or after a keyword that
-    leads a command (`then case …`). bash reads `echo case` as an argument, never a keyword."""
-    j = i + len(word)
-    if not command.startswith(word, i) or (j < len(command) and command[j] not in " \t\n;&|)"):
-        return False
-    k = i
-    while k and command[k - 1] in " \t":
-        k -= 1
-    if not k or command[k - 1] in "\n;&|(":
-        return True
-    m = k
-    while m and command[m - 1] not in " \t\n;&|()":
-        m -= 1
-    return command[m:k] in _KEYWORD_LEADS
-
-
 def _strip_heredocs(command: str) -> str:
     """Drop heredoc BODIES (data written to a file), keeping the line that opens them.
 
     Only a `<<WORD` the shell reads as one opens a body: in shell code — top level or inside
-    `$(…)`, quoting reset there as bash resets it, a `case` pattern's `)` not closing it —
-    never inside `'…'`, `"…"`, `$'…'`, a comment, a backtick, `${…}` or an arithmetic `((…))`
-    or `$[…]`, never a `<<<` here-string or an escaped `<`; WORD is the whole shell word, its
-    quoting removed (`<<E-OF` waits for E-OF, `<<\\EOF` for EOF). Anything else that looks like a marker hides no line
-    (W-223704c1), and a body ends only on bash's terminator — the exact line, leading tabs
-    stripped for `<<-` alone. A marker this walk does not recognise leaves its body IN the scan,
-    the safe direction. Stated limit: a body is data even where bash runs it as code — an unquoted
+    `$(…)`, quoting reset there as bash resets it — never inside `'…'`, `"…"`, `$'…'`, a
+    comment, a backtick, `${…}` or an arithmetic `((…))` or `$[…]`, never a `<<<` here-string
+    or an escaped `<`. WORD is the whole shell word with its quoting removed (`<<E-OF` waits for
+    E-OF; `<<\\EOF`, `<<E'OF'` and `<<$'EOF'` for EOF), and a body ends only on bash's
+    terminator — the exact line, leading tabs stripped for `<<-` alone (W-223704c1).
+
+    The walk is trusted only when it ends where bash ends: top level, nothing left open, no body
+    pending. A walk that lost bash's place — a `case` pattern's `)`, a spelling it misreads —
+    never ends there, and the command is returned whole: every line stays in the scan, the safe
+    direction. Stated limit: a body is data even where bash runs it as code — an unquoted
     body's `$(…)`, or a heredoc fed to a shell (`bash <<EOF`) — W-b0aab70a."""
     out: list[str] = []
     pending: list[tuple[str, bool]] = []  # (delimiter, `<<-` strips leading tabs)
-    stack: list[list] = [["sh", 0, 0]]  # [context, open count(, open cases)]; "sh" is code
+    stack: list[list] = [["sh", 0]]  # [context, open count]; "sh" is shell code
     i, n = 0, len(command)
     while i < n:
         ctx = stack[-1]
@@ -242,7 +228,7 @@ def _strip_heredocs(command: str) -> str:
             if not ctx[1]:
                 stack.pop()
         elif command.startswith("$(", i) and not command.startswith("$((", i):
-            stack.append(["sh", 0, 0])
+            stack.append(["sh", 0])
             out.append("$(")
             i += 2
             continue
@@ -287,16 +273,12 @@ def _strip_heredocs(command: str) -> str:
             out.append("$[")
             i += 2
             continue
-        elif _word_at(command, i, "case"):
-            ctx[2] += 1
-        elif _word_at(command, i, "esac") and ctx[2]:
-            ctx[2] -= 1
         elif c == "(":
             ctx[1] += 1
         elif c == ")":
             if ctx[1]:
                 ctx[1] -= 1
-            elif not ctx[2] and len(stack) > 1:  # in an open `case`, `)` ends a pattern
+            elif len(stack) > 1:
                 stack.pop()
         elif command.startswith("<<<", i):
             out.append("<<<")
@@ -323,6 +305,10 @@ def _strip_heredocs(command: str) -> str:
             continue
         out.append(c)
         i += 1
+    # a walk that does not end where bash ends — top level, nothing open, no body pending —
+    # has lost bash's place (a `case` pattern's `)`, a spelling it misreads): trust none of it
+    if pending or stack != [["sh", 0]]:
+        return command
     return "".join(out)
 
 

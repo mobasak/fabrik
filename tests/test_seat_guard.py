@@ -307,6 +307,7 @@ def test_real_heredoc_spellings_still_hold_data() -> None:
         f"echo `date` ${{HOME}} && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
         f"echo $((1+1)) && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
         f"echo $[1+1] && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
+        f"echo $[1<<n ] && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
         # a closed `case` (and a word merely ending in "case") leaves `)` closing "$(…)" again
         f'x="$(case a in a) :;; esac)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
         f'x="$(echo showcase)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
@@ -340,8 +341,34 @@ def test_review_round_one_markers_hide_nothing() -> None:
         f"cat > {SCRATCH}/n <<E-OF\n<<Z\nE-OF\ngit reset --hard\nZ",
         f"cat > {SCRATCH}/n <<\\EOF\n <<Z\nEOF\ngit reset --hard\nZ",
         f"cat > {SCRATCH}/n <<E'OF'\nx\nEOF\ngit reset --hard",
+        # review round 3: a keyword word as an argument, a nested or empty-bodied case, `$'…'`
+        # and a backslash-newline in the word — the walk loses bash's place, so it trusts none
+        'echo "$(echo then case)<<EOF\n"\ngit reset --hard',
+        "echo ${x:-$(echo do case) <<EOF }\ngit reset --hard",
+        'echo "$(case $x in a) case $y in b) :;; esac;; c) echo "<<EOF";; esac)"\ngit reset --hard',
+        'echo "$(case a in a) esac)<<EOF\n"\ngit reset --hard',
+        f"cat > {SCRATCH}/n <<$'EOF'\nx\nEOF\ngit reset --hard",
+        f"cat > {SCRATCH}/n <<E\\\nF\nx\nEF\ngit reset --hard",
     ):
         assert _denied(_run(cmd)), cmd
+
+
+def test_a_walk_that_does_not_end_where_bash_ends_strips_nothing() -> None:
+    """Review round 3 (rule 3 rewrite): the case/esac keyword tracking was deleted; instead a walk
+    left inside a quote or an unclosed `$(…)`, or with a body still pending, returns the command
+    whole — graded on `_strip_heredocs` directly, since the hook swallows a scanner exception."""
+    spec = importlib.util.spec_from_file_location("seat_guard_net", HOOK)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for cmd in (
+        'echo "$(case a in a) echo "<<EOF";; esac)"\nAFTER',  # lost in a quote
+        "x=$(cat <<EOF\nAFTER",  # an unclosed $( and a pending body
+        "cat <<EOF\nBODY\nAFTER",  # a body bash's terminator never ends
+        'cat <<EOF\nBODY\nEOF\necho "open',  # every body closed, but the walk ends in a quote
+    ):
+        assert mod._strip_heredocs(cmd) == cmd, cmd
+    assert mod._strip_heredocs("cat <<EOF\nBODY\nEOF\nAFTER") == "cat <<EOF\nAFTER"
 
 
 def test_strip_heredocs_drops_each_body_and_keeps_what_follows() -> None:
@@ -357,6 +384,8 @@ def test_strip_heredocs_drops_each_body_and_keeps_what_follows() -> None:
         ("cat <<E'OF'\nBODY\nEOF\nAFTER", "EOF"),
         ('cat <<"a b"\nBODY\na b\nAFTER', "a b"),
         ('cat <<"a\\"b"\nBODY\na"b\nAFTER', 'a"b'),
+        ("cat <<$'EOF'\nBODY\nEOF\nAFTER", "EOF"),
+        ("cat <<$'E\\'F'\nBODY\nE'F\nAFTER", "E'F"),
         ("cat <<-EOF\n\tBODY\n\tEOF\nAFTER", "EOF"),
     ):
         out = mod._strip_heredocs(cmd)
