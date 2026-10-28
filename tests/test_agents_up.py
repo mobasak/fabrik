@@ -85,10 +85,14 @@ def _home(
     (home / ".local" / "bin").mkdir(parents=True, exist_ok=True)
     _meminfo(home, 27)
     ps = home / ".local" / "bin" / "ps"
-    # answers only the launcher's exact question: every claude process, full width (-ww)
+    # answers only the launcher's exact question: every claude process, full width (-ww), pid first. A line that
+    # carries no pid of its own (`<digits> <args>`) is given an unused one.
+    numbered = "\n".join(
+        ln if re.match(r"\d+ ", ln) else f"{9000 + i} {ln}" for i, ln in enumerate(ps_lines.splitlines())
+    )
     ps.write_text(
-        '#!/bin/sh\n[ "$*" = "-ww -C claude -o args=" ] || exit 1\n'
-        f"cat <<'EOF'\n{ps_lines}\nEOF\n",
+        '#!/bin/sh\n[ "$*" = "-ww -C claude -o pid=,args=" ] || exit 1\n'
+        f"cat <<'EOF'\n{numbered}\nEOF\n",
         encoding="utf-8",
     )
     ps.chmod(0o755)
@@ -190,10 +194,16 @@ def test_print_lists_one_pane_per_builder_without_the_coordinator(tmp_path: Path
         f"pane fabrik-lib-sentinel {SENT} {_wt(repo, 'fabrik-lib-sentinel')} ok",
     ], out.stdout
     run = [ln for ln in out.stdout.splitlines() if ln.startswith("run fabrik-lib-dev1 ")]
+    # the inner command: claude resumes with the suppression and the wake prompt as ONE single-quoted word each
     assert (
         len(run) == 1
-        and f'claude -n fabrik-lib-dev1 --resume {DEV1} "You were relaunched' in run[0]
+        and f"claude -n fabrik-lib-dev1 --resume {DEV1} --settings '{SETTINGS}' 'You were relaunched"
+        in _inner(run[0])
     ), out.stdout
+    # the suppression: skillOverrides.auto-mode-setup=off and no spinner tips, and the survey off in the pane's env
+    cfg = json.loads(SETTINGS)
+    assert cfg == {"skillOverrides": {"auto-mode-setup": "off"}, "spinnerTipsEnabled": False}
+    assert "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1" in run[0], run[0]
 
 
 def test_a_running_session_is_never_resumed_twice(tmp_path: Path) -> None:
@@ -290,6 +300,8 @@ def test_each_pane_carries_its_own_environment(tmp_path: Path) -> None:
     assert seen["CLAUDE_CONFIG_DIR"] == f"{home}/.claude-fleet/active", got.stdout
     assert seen["CLAUDE_QUOTA_HOME"] == f"{home}/.claude-fleet/active", got.stdout
     assert seen["CLAUDE_AGENT"] == "dev1" and seen["HOME"] == str(home), got.stdout
+    # the one variable added to the allow-list: the feedback survey is off in every pane (W-b9ad80ae D3)
+    assert seen["CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY"] == "1", got.stdout
     assert seen["TERM"] == "tmux-256color" and seen["PATH"].startswith(f"{home}/.local/bin:"), (
         got.stdout
     )
@@ -329,7 +341,6 @@ def test_a_malformed_registry_refuses_the_launch(tmp_path: Path) -> None:
         "name-33-chars": (json.dumps({DEV1: "a" * 33}), "is not an agent name"),
         "empty-name": (json.dumps({DEV1: ""}), "is not an agent name"),
         "name-not-a-string": (json.dumps({DEV1: 7}), "is not an agent name"),
-        "no-builders": (json.dumps({COORD: "fabrik-lib-coordinator"}), "names no builder"),
         # fabrik-lib's registry writer only ever ADDS a row, so a changed session id leaves the old one behind
         "two-ids-one-name": (json.dumps({DEV1: "dev1", DEV2: "dev1"}), "more than one session id"),
         "repeated-key": (
@@ -344,6 +355,12 @@ def test_a_malformed_registry_refuses_the_launch(tmp_path: Path) -> None:
         assert out.returncode == 2, (label, out.stdout, out.stderr)
         assert "pane " not in out.stdout, (label, out.stdout)
         assert reason in out.stderr and "Traceback" not in out.stderr, (label, out.stderr)
+    # a registry that names only a coordinator is not malformed — it is EMPTY: exit 3, "nothing to launch" (W-b9ad80ae D4)
+    empty = _run(
+        "--print", str(_repo(tmp_path / "no-builders", {COORD: "fabrik-lib-coordinator"})), home=home
+    )
+    assert empty.returncode == 3 and "names no builder" in empty.stderr, (empty.stdout, empty.stderr)
+    assert "pane " not in empty.stdout, empty.stdout
     # the length bound is a bound, not a refusal: 32 characters is a name
     ok = _run("--print", str(_repo(tmp_path / "len32", {DEV1: "a" * 32})), home=home)
     assert ok.returncode == 0 and f"pane {'a' * 32} {DEV1} " in ok.stdout, (ok.stdout, ok.stderr)
@@ -1015,6 +1032,8 @@ def test_a_missing_binding_and_a_newer_unbound_session_are_said(tmp_path: Path) 
 
 
 OOM_LINE = "echo 200 > /proc/self/oom_score_adj 2>/dev/null; "
+# the probed suppression (W-b9ad80ae T02, live on claude 2.1.312): one JSON constant on every claude call
+SETTINGS = '{"skillOverrides":{"auto-mode-setup":"off"},"spinnerTipsEnabled":false}'
 
 
 def _inner(run_line: str) -> str:
@@ -1197,10 +1216,11 @@ def test_the_merge_owner_gets_no_pane(tmp_path: Path) -> None:
 
 
 def test_no_worktree_builder_refuses(tmp_path: Path) -> None:
-    """Bindings but no worktree: nothing to launch, exit 2 — the main checkout is never a builder's pane."""
+    """Bindings but no worktree: nothing to launch, exit 3 (not the 2 of a refusal) — the main checkout is never a
+    builder's pane."""
     repo, store = _bound_repo(tmp_path, worktrees=())
     out = _run("--print", str(repo), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(store))
-    assert out.returncode == 2 and "pane " not in out.stdout, out.stdout
+    assert out.returncode == 3 and "pane " not in out.stdout, out.stdout
     assert "has no builder with its own worktree" in out.stderr, out.stderr
 
 
@@ -1569,8 +1589,10 @@ def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_p
         stdin=subprocess.DEVNULL,
     )
     args = re.findall(r"^ARG<(.*)>$", got.stdout, flags=re.M)
-    assert args[:4] == ["-n", "dev1", "--resume", DEV1] and len(args) == 5, got.stdout
-    prompt = args[4]
+    assert args[:6] == ["-n", "dev1", "--resume", DEV1, "--settings", SETTINGS] and len(args) == 7, (
+        got.stdout
+    )
+    prompt = args[6]
     assert f"selfwatch_arm.sh {DEV1}" in prompt, prompt
     assert "hibernate.py woke" not in prompt and "seed" not in prompt, prompt
     assert "carry on as usual" in prompt, prompt
@@ -1825,3 +1847,287 @@ def test_two_builders_in_one_tree_fall_back(tmp_path: Path) -> None:
     assert (
         f"dev1, dev2: sessions {DEV1}, {DEV2} both sit in .claude/worktrees/shared" in out.stderr
     ), out.stderr
+
+
+# --- W-b9ad80ae T02: the spawned launch path (`--pane-cmd`, `--session-id`, suppression, exit 3, running by name) ---
+
+
+def _spawn_repo(tmp: Path, spawned: bool = True) -> tuple[Path, Path, str]:
+    """A registry-less repo whose builders b2 and b3 are bound by the SPAWNER (`spawned: true`, null pid — T01), with
+    worktrees and no transcript yet. Returns (root, store, scope)."""
+    repo, _ = _bound_repo(tmp)
+    scope = str(repo / ".git")
+    rows = [
+        {**_bind(sid, name, scope, NOW), "pid": None, "force": False, **({"spawned": True} if spawned else {})}
+        for sid, name in ((B2, "b2"), (B3, "b3"))
+    ]
+    return repo, _store(tmp, rows, "spawn.jsonl"), scope
+
+
+def _fake_claude(home: Path) -> None:
+    fake = home / ".local" / "bin" / "claude"
+    fake.write_text('#!/bin/sh\nprintf "ARG<%s>\\n" "$@"\n', encoding="utf-8")
+    fake.chmod(0o755)
+
+
+def _argv(home: Path, command: str) -> list[str]:
+    """Execute a pane command with a fake `claude` that prints its argv; the claude arguments it received."""
+    got = subprocess.run(
+        ["/bin/sh", "-c", command],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        stdin=subprocess.DEVNULL,
+    )
+    return re.findall(r"^ARG<(.*)>$", got.stdout, flags=re.M)
+
+
+def _runs(stdout: str) -> dict[str, str]:
+    return {ln.split()[1]: _inner(ln) for ln in stdout.splitlines() if ln.startswith("run ")}
+
+
+def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path: Path) -> None:
+    """D2 (W-14219e6f point 13, B14): a builder bound by the spawner (`spawned: true`) whose session has no transcript in
+    ANY project folder launches `--session-id` with the first prompt; with the transcript under any other folder, with a
+    later non-spawned row (its own re-bind), or with no `spawned` flag at all it resumes."""
+    repo, store, scope = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    runs = _runs(out.stdout)
+    assert (
+        f"claude -n b2 --session-id {B2} --settings '{SETTINGS}' 'You were started by agents_up" in runs["b2"]
+    ), runs["b2"]
+    assert "--resume" not in runs["b2"].split("; rc=")[0], runs["b2"]
+    assert f"--session-id {B3}" in runs["b3"], runs["b3"]
+    assert "no transcript for session" not in out.stderr, out.stderr  # a new session has none, by design
+    # the transcript sits under a project folder the pane does not start in (the session moved): resume, never reuse the id
+    _transcript(home, tmp_path / "somewhere" / "else", B2)
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    runs = _runs(out.stdout)
+    assert f"claude -n b2 --resume {B2} --settings" in runs["b2"], runs["b2"]
+    assert f"--session-id {B3}" in runs["b3"], runs["b3"]  # the other builder is unaffected
+    # the builder's own re-bind is the LAST row (no `spawned`, a pid): the next launch resumes
+    rows = [json.loads(ln) for ln in store.read_text(encoding="utf-8").splitlines()]
+    rebound = _store(tmp_path, [*rows, _bind(B3, "b3", scope, NOW + 5)], "rebound.jsonl")
+    out = _run("--print", str(repo), home=_home(tmp_path / "h2"), AGENT_IDENTITY_FILE=str(rebound))
+    runs = _runs(out.stdout)
+    assert f"--session-id {B2}" in runs["b2"] and f"claude -n b3 --resume {B3}" in runs["b3"], out.stdout
+    # a binding with no `spawned` flag (every ordinary builder) never takes --session-id, transcript or not
+    plain_repo, plain_store, _ = _spawn_repo(tmp_path / "plain", spawned=False)
+    out = _run("--print", str(plain_repo), home=_home(tmp_path / "plain"), AGENT_IDENTITY_FILE=str(plain_store))
+    assert "--session-id" not in out.stdout and f"claude -n b2 --resume {B2}" in out.stdout, out.stdout
+
+
+def test_pane_cmd_prints_one_command_for_a_resolved_new_builder(tmp_path: Path) -> None:
+    """D1: `--pane-cmd <repo> <name> <sid> --new` prints exactly the one command the grid would run — `--session-id`, the
+    first prompt, the suppression — and `--new` asserts the RESOLVER's own <new>: a sid with a transcript, a sid that is
+    not spawner-bound, a pair the resolver never printed, or a name it dropped exit 2 with the reason and print nothing."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    env = {"AGENT_IDENTITY_FILE": str(store)}
+    out = _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, **env)
+    assert out.returncode == 0, out.stderr
+    assert len(out.stdout.splitlines()) == 1, out.stdout
+    inner = _inner("run b2 " + out.stdout.strip())
+    assert f"claude -n b2 --session-id {B2} --settings '{SETTINGS}' '" in inner, inner
+    assert "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1" in out.stdout and "CLAUDE_AGENT=b2" in out.stdout
+    # without --new either form prints; here the same new session, so the same command
+    again = _run("--pane-cmd", str(repo), "b2", B2, home=home, **env)
+    assert again.returncode == 0 and again.stdout == out.stdout, again.stderr
+    # --new on a sid with a transcript (anywhere): refused, with the transcript named as the reason
+    _transcript(home, tmp_path / "elsewhere", B3)
+    for args, reason in (
+        (("b3", B3, "--new"), f"{B3} has a transcript — not a new session"),
+        (("b2", DEV1, "--new"), f"b2 with session {DEV1} is not a builder the resolver gives"),
+        (("b9", B2, "--new"), f"b9 with session {B2} is not a builder the resolver gives"),
+        (("b1", B1, "--new"), "is not a builder the resolver gives"),  # b1 has no worktree: dropped
+    ):
+        bad = _run("--pane-cmd", str(repo), *args, home=home, **env)
+        assert bad.returncode == 2 and bad.stdout == "", (args, bad.stdout, bad.stderr)
+        assert reason in bad.stderr, (args, bad.stderr)
+    # a builder that is not spawner-bound: --new is refused, the plain form still prints its resume command
+    prepo, pstore, _ = _spawn_repo(tmp_path / "plain", spawned=False)
+    penv = {"AGENT_IDENTITY_FILE": str(pstore)}
+    phome = _home(tmp_path / "plain")
+    bad = _run("--pane-cmd", str(prepo), "b2", B2, "--new", home=phome, **penv)
+    assert bad.returncode == 2 and bad.stdout == "", bad.stdout
+    assert f"{B2} is not a spawner-bound session" in bad.stderr, bad.stderr
+    ok = _run("--pane-cmd", str(prepo), "b2", B2, home=phome, **penv)
+    assert ok.returncode == 0 and f"claude -n b2 --resume {B2}" in _inner("run b2 " + ok.stdout.strip())
+    # a resolver refusal refuses with its own message and code
+    nothing = _run("--pane-cmd", str(tmp_path / "gone"), "b2", B2, home=home, **env)
+    assert nothing.returncode == 2 and "is not a directory" in nothing.stderr, nothing.stderr
+    for bad_argv in (("b2",), ("b2", B2, "--new", "--bogus"), ("B2", B2), ("b2", "not-a-uuid")):
+        r = _run("--pane-cmd", str(repo), *bad_argv, home=home, **env)
+        assert r.returncode == 2 and r.stdout == "", (bad_argv, r.stdout, r.stderr)
+
+
+def test_the_first_prompt_reaches_claude_byte_for_byte(tmp_path: Path) -> None:
+    """B7: the first prompt is passed through `squote`, never placed inside the inner double quotes, so its backtick,
+    double quotes and `$` reach claude exactly as written — in a capped pane (nested scope quotes) and an uncapped one.
+    The command is EXECUTED by /bin/sh against a fake claude printing its argv."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    _fake_claude(home)
+    env = {"AGENT_IDENTITY_FILE": str(store)}
+    for label in ("capped", "uncapped"):
+        if label == "uncapped":
+            (home / "manager-down").write_text("", encoding="utf-8")
+        out = _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, **env)
+        assert out.returncode == 0, (label, out.stderr)
+        args = _argv(home, out.stdout.strip())
+        assert args[:5] == ["-n", "b2", "--session-id", B2, "--settings"] and args[5] == SETTINGS, (label, args)
+        assert len(args) == 7, (label, args)
+        prompt = args[6]
+        # the merge-owner default sentence carries backticks, the quoted rule carries double quotes, the name carries a `$`
+        assert "`decisions.py --merge-owner`" in prompt, (label, prompt)
+        assert '"Every question goes to your coordinator by SendMessage - never to the operator."' in prompt, prompt
+        assert "($CLAUDE_AGENT)" in prompt, (label, prompt)  # literal: not expanded by the pane's shell
+        for part in (
+            f"selfwatch_arm.sh {B2} in the background",
+            "whoami_agent.py --as b2 --force",
+            "python3 scripts/work.py next",
+            "docs/reference/agents/builder.md",
+        ):
+            assert part in prompt, (label, part, prompt)
+        assert "\n" not in prompt and "Your item is" not in prompt, (label, prompt)
+
+
+def test_the_first_prompt_names_this_builders_coordinator_and_item_only(tmp_path: Path) -> None:
+    """PO1/PO2: `--coordinator` and `--item` fill the first prompt's two sentences; a `--print` start reads the same from
+    FABRIK_SPAWN_NAME/_COORDINATOR/_ITEM and applies them ONLY to the builder named; a malformed name or id exits 2."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    _fake_claude(home)
+    env = {"AGENT_IDENTITY_FILE": str(store)}
+    out = _run(
+        "--pane-cmd", str(repo), "b2", B2, "--new", "--coordinator", "coord-a", "--item", "W-1a2b3c4d", home=home, **env
+    )
+    assert out.returncode == 0, out.stderr
+    prompt = _argv(home, out.stdout.strip())[6]
+    assert "Your coordinator is coord-a." in prompt and "Your item is W-1a2b3c4d." in prompt, prompt
+    assert "merge-owner" not in prompt, prompt
+    # the resolver path: only the builder FABRIK_SPAWN_NAME names gets the two sentences
+    pr = _run(
+        "--print",
+        str(repo),
+        home=home,
+        FABRIK_SPAWN_NAME="b2",
+        FABRIK_SPAWN_COORDINATOR="coord-a",
+        FABRIK_SPAWN_ITEM="W-1a2b3c4d",
+        **env,
+    )
+    assert pr.returncode == 0, pr.stderr
+    runs = {ln.split()[1]: ln for ln in pr.stdout.splitlines() if ln.startswith("run ")}
+    b2, b3 = _argv(home, runs["b2"].split(" ", 2)[2])[6], _argv(home, runs["b3"].split(" ", 2)[2])[6]
+    assert "Your coordinator is coord-a." in b2 and "Your item is W-1a2b3c4d." in b2, b2
+    assert "coord-a" not in b3 and "Your item is" not in b3 and "merge-owner" in b3, b3
+    # malformed: a name with a space, an upper-case name, an item that is no W- id, a flag with no value; same for the env
+    for argv in (
+        ("--coordinator", "x y"),
+        ("--coordinator", "Coord"),
+        ("--coordinator", "a;b"),
+        ("--item", "W-1a2b3c4"),
+        ("--item", "w-1a2b3c4d"),
+        ("--item", "W-1A2B3C4D"),
+        ("--coordinator",),
+    ):
+        bad = _run("--pane-cmd", str(repo), "b2", B2, "--new", *argv, home=home, **env)
+        assert bad.returncode == 2 and bad.stdout == "", (argv, bad.stdout, bad.stderr)
+    for var, value in (("FABRIK_SPAWN_COORDINATOR", "x y"), ("FABRIK_SPAWN_ITEM", "nope"), ("FABRIK_SPAWN_NAME", "B 2")):
+        bad = _run("--print", str(repo), home=home, **{var: value}, **env)
+        assert bad.returncode == 2 and "pane " not in bad.stdout, (var, bad.stdout, bad.stderr)
+
+
+def test_an_empty_repo_exits_3_and_an_unreadable_store_exits_2(tmp_path: Path) -> None:
+    """D4/B5: exit 3 is "nothing to launch" — a registry naming only a coordinator, or bindings with no builder worktree
+    — and never a refusal: a malformed registry row, an unreadable ledger, and an identity store that exists but cannot
+    be read in a repo with no registry (reading no builders would look like an empty repo) all stay 2."""
+    home = _home(tmp_path)
+    only_coord = _repo(
+        tmp_path / "c", {COORD: "fabrik-lib-coordinator", "1a1a1a1a-1a1a-4a1a-8a1a-1a1a1a1a1a1a": "coordinator"}
+    )
+    assert _run("--print", str(only_coord), home=home).returncode == 3
+    repo, store = _bound_repo(tmp_path / "nowt", worktrees=())
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 3 and "has no builder with its own worktree" in out.stderr, out.stderr
+    # a merge owner covering every bound worktree leaves no builder either: 3
+    owned, ostore = _bound_repo(tmp_path / "owned", worktrees=("b2",))
+    _ledger(owned, "b2")
+    assert _run("--print", str(owned), home=home, AGENT_IDENTITY_FILE=str(ostore)).returncode == 3
+    # a registry-less repo: the store is a directory / unreadable
+    bare, _ = _bound_repo(tmp_path / "bare")
+    directory = tmp_path / "store-dir"
+    directory.mkdir()
+    out = _run("--print", str(bare), home=home, AGENT_IDENTITY_FILE=str(directory))
+    assert out.returncode == 2 and "refusing rather than reading no builders" in out.stderr, out.stderr
+    unreadable = _store(tmp_path, [], "locked.jsonl")
+    os.chmod(unreadable, 0)
+    try:
+        out = _run("--print", str(bare), home=home, AGENT_IDENTITY_FILE=str(unreadable))
+    finally:
+        os.chmod(unreadable, 0o644)
+    assert out.returncode == 2 and "refusing rather than reading no builders" in out.stderr, (out.returncode, out.stderr)
+    assert "pane " not in out.stdout
+    # the same broken store in a repo WITH a registry still falls back to the registry (rc 0), as before
+    reg = _repo(tmp_path / "reg", {DEV1: "dev1"})
+    out = _run(
+        "--print",
+        str(reg),
+        home=_home(tmp_path / "reg", transcripts=((reg, DEV1),)),
+        AGENT_IDENTITY_FILE=str(directory),
+    )
+    assert out.returncode == 0 and _panes(out.stdout), out.stderr
+
+
+def test_a_grid_whose_worktrees_all_vanish_before_launch_exits_2(tmp_path: Path) -> None:
+    """Folded residue: every resolved worktree removed between the resolve and the launch leaves no session to select or
+    attach — it says so and exits 2, never an `attach` to nothing. (The fake tmux's has-session removes the worktrees'
+    `.git` files, the one call that runs between the resolver and the first `dir_of`.)"""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    gits = [_wt(repo, n) / ".git" for n in ("dev1", "dev2")]
+    tmux = home / ".local" / "bin" / "tmux"
+    needle = 'has-session) [ -f "$HOME/tmux-has" ] ;;'
+    assert needle in FAKE_TMUX
+    tmux.write_text(
+        FAKE_TMUX.replace(needle, "has-session) rm -f " + " ".join(f"'{g}'" for g in gits) + '; [ -f "$HOME/tmux-has" ] ;;'),
+        encoding="utf-8",
+    )
+    out = _run(str(repo), home=home, tty=True)
+    assert out.returncode == 2, (out.stdout, out.stderr)
+    assert "every builder's worktree went away between resolve and launch — nothing launched" in out.stderr, out.stderr
+    log = _log(home)
+    assert not any(ln.startswith(("new-session", "select-pane", "attach", "switch-client")) for ln in log), log
+
+
+def test_a_claude_started_by_name_in_the_panes_folder_is_running(tmp_path: Path) -> None:
+    """D9 (B4): a spawned pane's claude carries `-n <name>` and no `--resume`, so the process is matched by name AND cwd:
+    `-n infra-2` in infra-2's worktree (or below it) reads running; `-n infra` elsewhere does not read as infra; the name
+    `infra` never matches `-n infra-2` (grep -w would: `-` is a boundary); the same name with its cwd elsewhere is not it."""
+    repo = _repo(tmp_path, {DEV1: "infra", DEV2: "infra-2"})
+    ps = "4001 claude -n infra\n4002 claude -n infra-2 --settings x\n4003 /x/claude -n infra-3"
+    home = _home(tmp_path, ps_lines=ps, transcripts=((repo, DEV1), (repo, DEV2)))
+    proc = home / "proc"
+    for pid, cwd in (("4001", tmp_path / "elsewhere"), ("4002", _wt(repo, "infra-2") / "sub"), ("4003", _wt(repo, "infra-2"))):
+        (proc / pid).mkdir()
+        (proc / pid / "cwd").symlink_to(cwd)
+    out = _run("--print", str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [
+        f"pane infra {DEV1} {_wt(repo, 'infra')} ok",
+        f"pane infra-2 {DEV2} {_wt(repo, 'infra-2')} running",
+    ], out.stdout
+    # infra-2's process moving out of its folder, and a process with no readable cwd, are not a running infra-2
+    (proc / "4002" / "cwd").unlink()
+    (proc / "4002" / "cwd").symlink_to(tmp_path / "elsewhere")
+    (proc / "4003" / "cwd").unlink()
+    out = _run("--print", str(repo), home=home)
+    assert [p.rsplit(" ", 1)[1] for p in _panes(out.stdout)] == ["ok", "ok"], out.stdout
+    # a folder that merely SHARES the prefix is not "below" it
+    (proc / "4002" / "cwd").unlink()
+    (proc / "4002" / "cwd").symlink_to(Path(str(_wt(repo, "infra-2")) + "-x"))
+    out = _run("--print", str(repo), home=home)
+    assert [p.rsplit(" ", 1)[1] for p in _panes(out.stdout)] == ["ok", "ok"], out.stdout
