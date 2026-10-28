@@ -12,9 +12,11 @@ Invariants and touchpoints:
 5. **Precedence (plan-review pass 2, record-only).** The lock comes first, so a registry that is missing AND a git failure resolving the lock returns `refused:agents lock unavailable`, not `absent`.
 6. The comment at `:305` is replaced by one naming the lock and its other holders (`agents_spawn.py add|remove`).
 
+Note (panel PF3): this ticket's lock can still return `refused:agents lock busy`, after which the rotation flow continues (`:1188-1194`); the stale row is healed by `add`/`remove` (`heal_registry`, T08b), which the seam row below proves.
+
 DO-NOT: change the outcome strings callers already read (`repointed`, `current`, `no-entry`, `absent`, the existing `refused:` reasons, `:257-319`), the rotation flow around the call (`:1188-1194`), or `resolve()` (`:467-482`, which filters the base session and so reads grouped windows once).
 
-Depends: T06
+Depends: T06, T08b
 Parallel: ⚡
 Complexity: native
 Gate: /opt/fabrik/scripts/capped_run.sh -- /opt/fabrik/.venv/bin/python -m pytest tests/test_rotate_session.py tests/test_agents_spawn.py -q
@@ -30,6 +32,7 @@ Docs: docs/workstation/session-history-retention.md — the sentence describing 
 - **Given** a competing writer that takes the lock and rewrites the registry after the rotation's first read would have happened, **When** both finish, **Then** both changes hold, because the rotation's lock precedes its first lstat and read (scripts/sysadmin/rotate_session.py:258-277; plan-review pass 1, A4)
 - **Given** the agents lock held past the bound with `ROTATE_WAIT_S=1`, **When** the rotation re-points, **Then** the outcome is `refused:agents lock busy` and the registry is byte-identical (scripts/sysadmin/rotate_session.py:219-224; plan-review pass 1, A14)
 - **Given** `agents_spawn.py` missing from the script directory, or `lock_path` raising, **When** the rotation re-points, **Then** the outcome is `refused:agents lock unavailable`, no exception escapes, and the registry is byte-identical (scripts/sysadmin/rotate_session.py:253-256; plan-review pass 1, A5)
+- **Given** a rotation refused `agents lock busy` that left the registry row on the old id, **When** the next `add` runs, **Then** the row names the live pane's id (seam test with T08b's `heal_registry`; panel PF3)
 - **Given** `agents_spawn.lock_path(<repo>)`, **When** rotate_session resolves the lock from `<repo>/.fabrik/session-agents.json`, **Then** both name the same file (seam test; spec § The delta D2)
 
 ## Context Files
