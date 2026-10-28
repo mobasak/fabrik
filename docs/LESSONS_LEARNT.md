@@ -6,6 +6,29 @@
 **What happened:** the /fabrik-task close compared a receipt's range tip with the LAST `--commit`. A reporter whose receipt and ledger commits honestly came after the reviewed tip was refused, and passed by moving the tip to the end of the list. The same reorder passed an unreviewed code commit listed before the tip.
 **Lesson:** when a check means "covers everything after X", read the order from the data that has one (git ancestry, timestamps), never from the order the caller typed. A workaround a reporter had to use ("I re-ordered the list") is the cobra path itself; replay it against the check before fixing the false refusal, or the fix keeps the hole.
 
+## A child in its own session is safe from your timeout and invisible to your stopper (2026-10-27)
+
+- **What happened:** `api_write.py` started each paid `claude` child with `start_new_session=True` so a timeout
+  could kill the child's whole tree. The same choice took the children out of the reach of every stop signal sent
+  to the runner's group. Claude Code stops a background task with SIGTERM to that group, then SIGKILL about 1.4 s
+  later. The runner died on the default action, and six paid children ran on with no settle row and no log line
+  (W-d077095a). A test that passed with SIGKILL arriving after the runner exited still lost every line in
+  production, because a file sink is block-buffered.
+- **Rule:** a supervisor that puts children in their own session owns their death. Handle every catchable stop
+  signal, kill the registered groups, and finish everything that keeps money honest (ledger rows, flushed lines)
+  inside the grace the sender gives. Measure that grace, then grade it with a real signal sent to the GROUP, a
+  file sink and a SIGKILL at the end of the grace.
+
+## A guard's test case must reach the guarded branch, or its mutant survives (2026-10-27)
+
+- **What happened:** W-e57d2481's coordinator wait guard copies quota_stop's `common.name == ".git"`
+  check. Its test used a `--separate-git-dir` checkout as the "not `.git`" case and passed green. The
+  mutation pass showed the guard could be deleted with the test still green: `_git_common` returns
+  `None` for that layout, so the case never reached the guard. A worktree of a bare repo (common dir
+  `bare.git`) does reach it, and with the guard removed the hook read a ledger planted beside `bare.git`.
+- **Rule:** a negative case is proved only when its mutant dies. Before trusting one, print the value
+  the guard tests for that fixture; if an earlier branch already returns, the case is testing that branch.
+
 ## A parser built to match a consumer is probed on every character class it branches on (2026-10-27)
 
 - **What happened:** W-2ae286e2 measured docker compose's `.env` grammar in real containers before the

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: blocked",
   "owner": "coordinator",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "branch: infra-rotate-heal"
 }

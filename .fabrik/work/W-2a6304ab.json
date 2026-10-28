@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T13:06:49.030597Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2a6304ab",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "format both .env halves (or the whole env mapping) before the first VPS write in every deploy path, with a test that a refused key writes nothing",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "A .env refusal fires after compose.yaml is already on the VPS: _deploy_docker (and the template/git paths) write compose.yaml before _write_env_files formats the .env, so a refused line (NUL, non-UTF-8, and since W-aa69894d a bad key, e.g. one read back from a broken VPS line) leaves the new compose beside the old .env until the next up. Found by the fleet-drain-grade /fabrik-review pass 1 (slice A)."
+}

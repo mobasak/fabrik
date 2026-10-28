@@ -3,7 +3,7 @@
   "created": "2026-10-26T10:49:35.805785Z",
   "creator": "infra-3",
   "effort": "low",
-  "evidence": "",
+  "evidence": "1d700c3791e5bfd8ceb505a403684411fc630487",
   "id": "W-87078932",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "cloud --pick sent 3 paid runs to a weekly-walled account (refused at $0, re-fired); ranks dispatch count before weekly headroom; one sort key",
-  "status": "open",
+  "status": "done",
   "tags": [
     "cloud-dispatch"
   ],

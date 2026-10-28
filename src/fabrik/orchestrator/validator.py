@@ -368,6 +368,12 @@ class SpecValidator:
             raise ValidationError(
                 "source.image_port must be an integer port (1-65535)", field="source.image_port"
             )
+        # `Source.image_command` is a str; a list here would reach the compose as its repr (W-4b977f21).
+        image_command = source.get("image_command") if isinstance(source, dict) else None
+        if image_command is not None and not isinstance(image_command, str):
+            raise ValidationError(
+                "source.image_command must be a string", field="source.image_command"
+            )
 
         logger.info("Spec validated: %s", spec["name"])
         return warnings

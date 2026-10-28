@@ -4,9 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
+
+`.claude/hooks/seat_guard.py` now enforces D-1296 for the lead of the session bound as its repo's merge owner. A foreground Bash call is denied when its tool timeout exceeds 120 s, or when it runs a `sleep` inside a while/until/for/select loop under a timeout over 60 s. The deny tells the coordinator to re-run with `run_in_background: true` and end the turn, not block on the output. Identity comes from `quota_stop.py`, loaded by file path; every identity doubt allows. Measured first: the hub coordinator held 736 minutes of foreground waits in one day, and a plain "any sleep" rule was rejected (19 fires on coordinator sessions in 3 days, none long). W-e57d2481.
+
+### Fixed — cloud_dispatch --pick never sends a run to an account at its weekly wall (2026-10-27)
+
+`scripts/cloud_dispatch.py`'s `--pick` (and every `drain` fire) now takes only an account the rotation tick's own status picture calls `eligible` or `active`, with a fresh finite weekly reading, under its own weekly cap and session trip, and under a weekly ceiling: the new `--max-weekly <pct>` (default the picture's drain band, 85). The coolest account wins in both modes; a refusal names each account skipped and why. Before, the 2026-10-27 drain sent 3 of 6 runs to an account at 100% (all refused at $0). W-87078932, D-1300.
+
+### Fixed — five cloud-drain fixes graded: .env key grammar, image_command quoting, renderer no-mkdir, library-name shadowing, parity ownership test (2026-10-27)
+
+A `.env` key outside `[A-Za-z_][A-Za-z0-9_.-]*` is refused before any write, and the refusal never prints the key itself. A docker-image `command` is one double-quoted YAML scalar; a NUL in it is a deploy error, and the apply validator refuses a non-string value. Building a `TemplateRenderer` no longer creates directories. A project named after a library a scaffolded project pins (fastapi, httpx, boto3, packaging and the rest) is refused, and a test keeps that list in step with `scaffold.py` and the template requirement files. `verify_prod_parity`'s ownership refusal has a test. Decision D-1299; review `docs/development/reviews/2026-10-27-drain-grade-review.md`.
+
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 
 Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).
+
+### Fixed — the API write lane settles and names every job on a stop signal (2026-10-27)
+
+`scripts/api_write.py` now handles SIGTERM, SIGHUP and SIGINT (D-1295, W-d077095a). A stopped session sends SIGTERM
+to the task's process group and SIGKILL ~1.4 s later; the runner used to die on the default action while its
+own-session `claude` children ran on unsettled. Now every running child's group is killed, the run settles
+`interrupted` (settleable from the console at once), nothing partial is pushed, a queued job reports `not started`, a
+child that finished first still pushes, lines are line-buffered so a log file keeps them, and the runner exits
+128 + signum. Graded by real group-signal tests and one grader per guard, each shown red by its own mutant
+(the review receipt lists them).
 
 ### Fixed — command texts follow the worktree-own scratch root (2026-10-27)
 
@@ -77,6 +99,15 @@ intel's plan-3 lock, on the coordinator's ruling.
   defect — the version registry, an undecodable template file, a missing include partial, a template syntax or
   undefined-attribute error — still surfaces as its own exception with its traceback. Grader:
   `TestDeployTemplateRenderRefusal` in `tests/orchestrator/test_deployer_ssh.py` (D-1289, W-c9dcd641).
+
+### Fixed — package ssh/scp calls outside the driver no longer crash on a non-UTF-8 answer (2026-10-27)
+
+- `fabrik audit`'s ssh probe, the DR drill's ssh/scp helpers (`src/fabrik/orchestrator/vultr_drill.py`) and the
+  preflight's direct-path advisory decode remote output as the ssh driver does (UTF-8 with `surrogateescape`, exit
+  code first — D-1286), so a stray byte no longer raises `UnicodeDecodeError`, reports a successful audit probe as
+  failed, or fails a spoke drill whose bootstrap passed. The audit refuses an answer that is not valid UTF-8 by
+  name; the drill's `RC=` reader takes ASCII digits only. Grader: `tests/test_ssh_decode_outside_driver.py`
+  (D-1298, W-7ac62afc).
 
 ### Fixed — a VPS answer that is not valid UTF-8 no longer crashes a redeploy (2026-10-27)
 
