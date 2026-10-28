@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T16:03:21.050886Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-97d63bad",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M61AHCCR4QPXMV791JJ47N1S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-835894a6-coordinator-handoff"
+}

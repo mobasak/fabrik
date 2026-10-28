@@ -1,6 +1,23 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A stub guard keyed on a marker accepts whatever else carries the marker (2026-10-28, W-bda24c48)
+
+**What happened:** to stop 11 tests paying a 169 s LOSS pass, a spy replaced it and accepted only "check()'s temp render", identified by the `_agents` subdirectory only the render holds. Review round 1 found the source tree `commands/` holds `_agents` too, so a check() handing the pass its own sources stayed green. It also found that a neutral rename of the temp dir false-redded every test. The next two identity rules each failed once more: "the last render" false-redded a check() rendering twice, and "any render this test made" accepted an earlier call's deleted temp dir.
+
+**Lesson:** identify the object a guard accepts by recording its producer (wrap the function that creates it, scoped to the call under test), never by a property you believe only it has. Then mutate the caller with every other value of the right type, including its siblings, its sources and its own earlier output.
+
+## A delegated installer's exit code says nothing about what it wrote (2026-10-28, W-d6726a65)
+
+**What happened:** the setup script's archive step runs `install_session_archive_timer.sh` instead of copying its units. Both design critics executed it on stub `systemctl`: with `daemon-reload` failing it exits 1 after writing all three units and prints nothing, so undo lines built from "what this script wrote" would have missed every unit. The same pass found `systemctl --user cat` shows the DISK unit while the loaded one (`show -p OnFailure`) was empty on this box.
+
+**Lesson:** when a step delegates writes to another program, rebuild the undo set by re-reading every target after it returns, whatever its exit code, and verify the state the consumer reads (the loaded unit), not the file you can see.
+
+## A guard keyed on "written this boot" expires on WSL, and a fix closed as "already done" may not be (2026-10-28, W-a77742db)
+
+**What happened:** the quota lane's /clear re-bind (D-1209) demanded an identity row written under this claude process "this boot" (`at >= btime`). On WSL2 `btime` is now minus uptime, and uptime stops while the host sleeps, so btime moved 69,421 s forward in a day and the clause came to refuse a live window's own row. Earlier the same day the item had been closed as "resolved by D-1209" from a passing test; the routed mail showed the refusal happening after D-1209 was live. And one mutant "survived" because its `-k` selected a neighbouring test, not the grader that held the guard.
+**Lesson:** never anchor a liveness or freshness check on `/proc/stat` btime (or anything derived from uptime) on WSL; key on what identifies the thing itself (pid + start tick). Before closing an item as already fixed, replay its REPORTED incident on the current code; a green test of the fix's own case is not that replay. A survivor counts as a test gap only once its `-k` names the test that actually contains the assertion.
+
 ## A check that reads list POSITION is satisfied by reordering the list (2026-10-27, W-0b900e92)
 
 **What happened:** the /fabrik-task close compared a receipt's range tip with the LAST `--commit`. A reporter whose receipt and ledger commits honestly came after the reviewed tip was refused, and passed by moving the tip to the end of the list. The same reorder passed an unreviewed code commit listed before the tip.
@@ -8014,3 +8031,9 @@ document.
   hook children during a real Stop (no strace on this box) and compare `CLAUDE_PROJECT_DIR` with the cwd. Since
   W-456aa02a the user-level `selfwatch_check.py` says so on every prompt.
 - **Where it lives.** `scripts/sysadmin/selfwatch_check.py::_project_dir_order`, `scripts/sysadmin/agents_up.sh` (D-1284).
+
+## A probe of a cwd-keyed writer runs FROM the throwaway repo, or it writes the real one (2026-10-28)
+
+**What happened:** testing W-835894a6's `--handoff-write`, a live probe meant for a throwaway repo was run as a plain Bash call from the infra-2 worktree. The writer resolves its target from the cwd's git common dir, so it wrote the REAL hub file `/opt/fabrik/.git/fabrik-handoff/coordinator.md` — the path the coordinator's next `/clear` would print — with probe text. It was removed within a minute and the folder verified empty.
+**Why:** a tool keyed on its cwd has no separate "target" argument to aim; the Bash tool's cwd is the session's checkout, not the probe's folder named in the command.
+**How to apply:** run every probe of a cwd-keyed writer through a launcher that sets `cwd=` to the throwaway repo and ASSERTS the printed path sits under it before anything else runs (the live probe did this on its second try); list the real target folder before and after.

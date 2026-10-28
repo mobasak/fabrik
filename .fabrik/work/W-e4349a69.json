@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T15:42:07.103252Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-e4349a69",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M619MX4R02ANRNQD574H11DX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-3-headroom-apikey"
+}

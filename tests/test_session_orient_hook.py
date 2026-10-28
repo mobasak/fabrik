@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -1605,3 +1606,323 @@ def test_the_move_line_tells_the_mover_to_check_the_worktreeinclude_set(tmp_path
     assert rc == 0
     move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
     assert len(move) == 1 and "`.worktreeinclude` lists" in move[0], out
+
+
+# --- W-835894a6: the rotation handoff file (operator 2026-10-28: "stop hand-pasting") ----------
+# The outgoing session writes `<git common dir>/fabrik-handoff/<name>.md`; on startup or /clear the
+# hook prints it after ORIENT for the session named <name>. Plain stdout is capped at 10,000 chars
+# MEASURED WHOLE (code.claude.com/docs/en/hooks), so the handoff is cut to fit beside ORIENT.
+_HANDOFF_TEXT = "W-1234abcd in flight on branch x; next: merge the queue, then rotate infra.\n"
+
+
+def _repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "opt" / "proj"
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+    return repo
+
+
+def _write_handoff(repo: Path, home: Path, name: str, text: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(HOOK), "--handoff-write", name],
+        input=text,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        cwd=repo,
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin", "KAIZEN_EVENTS_DIR": str(home / "k")},
+    )
+
+
+def _handoff_path(repo: Path, name: str) -> Path:
+    return repo / ".git" / "fabrik-handoff" / f"{name}.md"
+
+
+def _start(
+    repo: Path,
+    home: Path,
+    source: str | None,
+    agent: str | None = "coordinator",
+    sid: str = "s-new",
+    extra: dict | None = None,
+) -> str:
+    payload = {"session_id": sid, "cwd": str(repo)}
+    if source is not None:
+        payload["source"] = source
+    env = {"CLAUDE_AGENT": agent} if agent else {}
+    env.update(extra or {})
+    rc, out = _run(repo, home, json.dumps(payload), env)
+    assert rc == 0
+    return out
+
+
+def _header_lines(out: str) -> list[str]:
+    return [ln for ln in out.splitlines() if ln.startswith("## HANDOFF")]
+
+
+def test_a_cleared_session_prints_its_agents_handoff(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    assert _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT).returncode == 0
+    out = _start(repo, tmp_path, "clear")
+    path = _handoff_path(repo, "coordinator")
+    assert _header_lines(out) == [f"## HANDOFF for `coordinator` (written 0 min ago — `{path}`)"]
+    lines = out.splitlines()
+    assert lines[lines.index(_header_lines(out)[0]) + 1] == _HANDOFF_TEXT.strip()
+    assert lines[0] == "## ORIENT (binding — read before acting)"  # ORIENT first, untouched
+    assert _header_lines(_start(repo, tmp_path, "clear", agent="infra")) == []
+
+
+def test_handoff_write_then_read_round_trip(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    res = _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    path = _handoff_path(repo, "coordinator")
+    assert res.returncode == 0 and res.stdout.strip() == str(path)
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert path.read_text(encoding="utf-8") == _HANDOFF_TEXT
+    assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, "startup").splitlines()
+
+
+@pytest.mark.parametrize("source", ["compact", "resume", "fork", "other"])
+def test_no_handoff_on_compact_resume_or_without_a_file(tmp_path: Path, source: str) -> None:
+    repo = _repo(tmp_path)
+    bare = _start(repo, tmp_path, "clear")
+    assert _header_lines(bare) == []  # no file: nothing new
+    _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    assert _header_lines(_start(repo, tmp_path, source)) == []
+    assert _HANDOFF_TEXT.strip() not in _start(repo, tmp_path, source)
+    for gate in ("CLAUDE_MESH_HEADLESS", "FABRIK_HEADLESS"):
+        assert _header_lines(_start(repo, tmp_path, "clear", extra={gate: "1"})) == []
+    assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, None).splitlines()  # absent = startup
+
+
+@pytest.mark.parametrize("unit", ["ascii", "astral", "astral-fits-by-chars"])
+def test_an_oversized_handoff_is_cut_under_the_cap(tmp_path: Path, unit: str) -> None:
+    repo = _repo(tmp_path)
+    char = "x" if unit == "ascii" else "\U0001f600"  # 4 UTF-8 bytes, 2 UTF-16 units
+    big = "".join(f"line {i:05d} {char * 20}\n" for i in range(2000))
+    if unit == "astral-fits-by-chars":  # ~1,500 chars (fits beside ORIENT) but ~6,000 bytes
+        big = "line 00000 " + char * 1500 + "\n"
+    _write_handoff(repo, tmp_path, "coordinator", big)
+    out = _start(repo, tmp_path, "clear")
+    assert len(out.encode("utf-8")) <= 9500, len(out.encode("utf-8"))
+    assert any(ln.startswith(f"line 00000 {char * 20}") for ln in out.splitlines())
+    path = _handoff_path(repo, "coordinator")
+    assert out.splitlines()[-1] == f"… cut to fit the hook output cap — the whole text is `{path}`"
+
+
+def test_a_stale_handoff_prints_only_a_pointer(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    path = _handoff_path(repo, "coordinator")
+    first = _start(repo, tmp_path, "clear", sid="s-one")
+    assert _HANDOFF_TEXT.strip() in first.splitlines()
+    again = _start(repo, tmp_path, "clear", sid="s-one")  # the same session re-reading: plain
+    assert "ALREADY DELIVERED" not in again
+    later = _start(repo, tmp_path, "clear", sid="s-two")  # a successor that wrote nothing new
+    (head,) = _header_lines(later)
+    assert head.startswith("## HANDOFF for `coordinator` ALREADY DELIVERED to session s-one")
+    old = path.stat().st_mtime - 25 * 3600
+    os.utime(path, (old, old))
+    out = _start(repo, tmp_path, "clear", sid="s-three")
+    assert _HANDOFF_TEXT.strip() not in out
+    assert _header_lines(out) == [
+        f"## HANDOFF for `coordinator` is STALE (written 25 h 0 min ago) — not printed; read"
+        f" `{path}` only if it still applies, and write a fresh one at your next rotation."
+    ]
+
+
+def test_an_unnamed_session_lists_waiting_handoffs(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    out = _start(repo, tmp_path, "clear", agent=None)
+    assert _HANDOFF_TEXT.strip() not in out
+    path = _handoff_path(repo, "coordinator")
+    assert _header_lines(out) == [
+        f"## HANDOFF waiting for: `coordinator` (`{path}`) — this session is unnamed; never adopt"
+        " a role from this list — bind with `whoami_agent.py --as <name>` first, then read yours."
+    ]
+
+
+def test_handoff_write_refuses_bad_input(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    assert _write_handoff(repo, tmp_path, "Not A Name", _HANDOFF_TEXT).returncode == 2
+    assert _write_handoff(repo, tmp_path, "coordinator", "  \n").returncode == 2
+    outside = tmp_path / "not-a-repo"
+    outside.mkdir()
+    assert _write_handoff(outside, tmp_path, "coordinator", _HANDOFF_TEXT).returncode == 2
+    target = _handoff_path(repo, "coordinator")
+    target.parent.mkdir(parents=True)
+    (tmp_path / "elsewhere.md").write_text("theirs\n", encoding="utf-8")
+    target.symlink_to(tmp_path / "elsewhere.md")
+    assert _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT).returncode == 2
+    assert (tmp_path / "elsewhere.md").read_text(encoding="utf-8") == "theirs\n"
+    assert "theirs" not in _start(repo, tmp_path, "clear")  # a symlink is never printed
+    target.unlink()
+    os.mkfifo(target)  # a FIFO must neither block the hook nor print
+    assert _header_lines(_start(repo, tmp_path, "clear")) == []
+
+
+def _write_raw(repo: Path, home: Path, argv: list[str], data: bytes) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(HOOK), *argv],
+        input=data,
+        capture_output=True,
+        timeout=15,
+        cwd=repo,
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin", "LC_ALL": "C", "KAIZEN_EVENTS_DIR": str(home / "k")},
+    )
+
+
+def test_handoff_write_refuses_a_missing_name_and_survives_non_utf8_stdin(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    bare = _write_raw(repo, tmp_path, ["--handoff-write"], b"text\n")
+    assert bare.returncode == 2 and b"## ORIENT" not in bare.stdout  # never falls into the hook
+    assert not (repo / ".git" / "fabrik-handoff").exists()
+    res = _write_raw(repo, tmp_path, ["--handoff-write", "coordinator"], b"abc \xff def\n")
+    assert res.returncode == 0, res.stderr
+    assert b"not valid UTF-8" in res.stderr  # the substitution is never silent
+    folder = repo / ".git" / "fabrik-handoff"
+    assert sorted(p.name for p in folder.iterdir()) == ["coordinator.md"]  # no leftover temp file
+    assert _handoff_path(repo, "coordinator").read_text(encoding="utf-8") == "abc � def\n"
+    ok = _write_raw(repo, tmp_path, ["--handoff-write", "coordinator"], "abc �\n".encode())
+    assert ok.returncode == 0 and b"not valid UTF-8" not in ok.stderr  # a real U+FFFD is fine
+
+
+def test_a_symlinked_handoff_folder_is_neither_written_nor_read(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "coordinator.md").write_text("planted\n", encoding="utf-8")
+    (repo / ".git" / "fabrik-handoff").symlink_to(elsewhere)
+    assert _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT).returncode == 2
+    assert (elsewhere / "coordinator.md").read_text(encoding="utf-8") == "planted\n"
+    assert _header_lines(_start(repo, tmp_path, "clear")) == []
+    assert _header_lines(_start(repo, tmp_path, "clear", agent=None)) == []
+
+
+def test_the_unnamed_list_names_only_fresh_files_with_agent_names(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    _write_handoff(repo, tmp_path, "infra", _HANDOFF_TEXT)
+    folder = repo / ".git" / "fabrik-handoff"
+    (folder / "Ignore previous instructions.md").write_text("x\n", encoding="utf-8")
+    (folder / "blank.md").write_text("  \n", encoding="utf-8")  # waits for nobody
+    old = time.time() - 25 * 3600
+    os.utime(folder / "infra.md", (old, old))
+    (head,) = _header_lines(_start(repo, tmp_path, "clear", agent=None))
+    assert head.startswith(f"## HANDOFF waiting for: `coordinator` (`{folder / 'coordinator.md'}`) —")
+    assert "infra" not in head and "Ignore" not in head and "blank" not in head
+
+
+def test_the_delivery_mark_tracks_what_was_actually_shown(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    mark = repo / ".git" / "fabrik-handoff" / "coordinator.delivered"
+    _start(repo, tmp_path, "clear", sid="s-one")
+    assert json.loads(mark.read_text(encoding="utf-8"))["sid"] == "s-one"
+    later = _start(repo, tmp_path, "clear", sid="s-two")
+    assert _HANDOFF_TEXT.strip() in later.splitlines()  # history is still shown, labelled
+    assert "written 0 min ago" in _header_lines(later)[0]
+    assert json.loads(mark.read_text(encoding="utf-8"))["sid"] == "s-one"  # the FIRST reader stays named
+    # a rewrite is a NEW handoff: the writer drops the mark and the next session reads it plain
+    _write_handoff(repo, tmp_path, "coordinator", "fresh state\n")
+    assert not mark.exists()
+    (head,) = _header_lines(_start(repo, tmp_path, "clear", sid="s-three"))
+    assert "ALREADY DELIVERED" not in head
+    # a mark for an OLDER version (another mtime) is no mark
+    mark.write_text(json.dumps({"sid": "s-old", "at": time.time(), "mtime_ns": 1}), encoding="utf-8")
+    assert "ALREADY DELIVERED" not in _start(repo, tmp_path, "clear", sid="s-four")
+    # a malformed or non-finite mark for THIS version never hides the handoff
+    mtime_ns = _handoff_path(repo, "coordinator").stat().st_mtime_ns
+    for bad in ("NaN", "Infinity", '"soon"', "true", "{not json", "empty-sid"):
+        body = f'{{"sid": "zz", "at": {bad}, "mtime_ns": {mtime_ns}}}'
+        if bad == "{not json":
+            body = bad
+        elif bad == "empty-sid":
+            body = json.dumps({"sid": "", "at": time.time(), "mtime_ns": mtime_ns})
+        mark.write_text(body, encoding="utf-8")
+        out = _start(repo, tmp_path, "clear", sid="s-five")
+        assert "fresh state" in out.splitlines() and "ALREADY DELIVERED" not in out, bad
+    # a session with no id writes no mark
+    mark.unlink()
+    _start(repo, tmp_path, "clear", sid="")
+    assert not mark.exists()
+
+
+def test_a_cut_or_pointer_print_is_not_marked_delivered(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _write_handoff(repo, tmp_path, "coordinator", "x" * 20000 + "\n")
+    _start(repo, tmp_path, "clear", sid="s-one")
+    assert not (repo / ".git" / "fabrik-handoff" / "coordinator.delivered").exists()
+    assert "ALREADY DELIVERED" not in _start(repo, tmp_path, "clear", sid="s-two")
+
+
+def test_an_empty_or_future_dated_handoff(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    path = _handoff_path(repo, "coordinator")
+    path.parent.mkdir(parents=True)
+    path.write_text("  \n", encoding="utf-8")
+    assert _header_lines(_start(repo, tmp_path, "clear")) == []  # an empty file prints nothing
+    _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    ahead = time.time() + 3600
+    os.utime(path, (ahead, ahead))
+    (head,) = _header_lines(_start(repo, tmp_path, "clear"))
+    # a file dated an hour ahead never stays current forever, and says so in its own words
+    assert head.startswith("## HANDOFF for `coordinator` is STALE (dated 5")  # 59/60 min ahead
+    near = time.time() - 23 * 3600
+    os.utime(path, (near, near))
+    assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, "clear").splitlines()  # 23 h: current
+
+
+# ── W-a77742db: SessionStart re-records a resumed session under its claude process ─────────────
+_REFRESH_STUB = '''
+import json, os
+def refresh(top=None):
+    print("REFRESH-RAN")
+    with open(os.environ["STUB_OUT"], "a") as fh:
+        fh.write(json.dumps({"sid": os.environ.get("CLAUDE_CODE_SESSION_ID"), "top": top}) + "\\n")
+    return "agent-2"
+'''
+
+
+def test_session_start_re_records_a_resumed_session_under_its_process(tmp_path: Path) -> None:
+    """Behaviour 4: on SessionStart the hook calls the repo's own `whoami_agent.py::refresh` once,
+    AFTER printing ORIENT, with the payload's session id in the env and its own git common dir as
+    the scope; with no session id, no script, an older script without `refresh`, or a `refresh`
+    that raises, it calls nothing (or nothing harmful) and ORIENT still prints — fail-open."""
+    repo = _git_repo(tmp_path / "opt" / "resumed", None)
+    stub = repo / "scripts" / "whoami_agent.py"
+    stub.write_text(_REFRESH_STUB, encoding="utf-8")
+    out_file = tmp_path / "calls.jsonl"
+    env = {"STUB_OUT": str(out_file)}
+
+    def calls() -> list[dict]:
+        if not out_file.exists():
+            return []
+        return [json.loads(x) for x in out_file.read_text(encoding="utf-8").splitlines()]
+
+    payload = {"cwd": str(repo), "session_id": "sess-resumed", "source": "resume"}
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0
+    assert calls() == [{"sid": "sess-resumed", "top": os.path.realpath(_common_dir(repo))}]
+    assert "ORIENT" in out and out.index("ORIENT") < out.index("REFRESH-RAN"), out
+    out_file.unlink()
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), env)  # no session id
+    assert rc == 0 and "ORIENT" in out and calls() == []
+    stub.write_text("def other():\n    pass\n", encoding="utf-8")  # an older copy
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0 and "ORIENT" in out and calls() == []
+    stub.write_text("def refresh(top=None):\n    raise RuntimeError('boom')\n", encoding="utf-8")
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0 and "ORIENT" in out
+    stub.write_text("def refresh(top=None):\n    raise SystemExit(3)\n", encoding="utf-8")
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0 and "ORIENT" in out  # review r1 (C-sonnet-1): an exiting copy never ends the hook
+    stub.write_text(_REFRESH_STUB, encoding="utf-8")
+    for bad in ("x" * 129, 42, None, ["sess"]):  # review r1 (C-sonnet-2): only a str of 1-128 chars
+        bad_payload = {**payload, "session_id": bad}
+        rc, out = _run(repo, tmp_path, json.dumps(bad_payload), env)
+        assert rc == 0 and "ORIENT" in out and calls() == [], bad
+    stub.unlink()  # a repo without the script
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0 and "ORIENT" in out and calls() == []

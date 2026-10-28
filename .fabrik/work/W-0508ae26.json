@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T15:06:05.063638Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0508ae26",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the over-scan rate (seat/coordinator commands carrying a case word plus a heredoc) before choosing a parser; also close the recorded residue from round 5: _CASE_WORD reads plain text, so a backslash-newline split keyword (ca\\<NL>se inside \"$(…)\" plus a later false-terminator line) still ends clean and hides a line — join continuations before every keyword/word check",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "seat_guard heredoc walk handles a case statement only by failing closed (any case word outside the bodies voids the strip — a false-deny cost); a case-aware walk or a real shell parser would restore stripping. Routed by W-223704c1's review scope-growth stop (rounds 1-4 chased case-pattern desyncs)"
+}

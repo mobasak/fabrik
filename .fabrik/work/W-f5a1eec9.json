@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T20:14:38.146929Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f5a1eec9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: blocks every agent's corpus commit for minutes (break/block on agents; operator merge-speed ask); LOW effort: one module, memoise or hash-skip, no spec",
+  "status": "open",
+  "title": "commands/command_rules.py losses() costs 168.9 s per call over the 63 live ledgers (_check -> _lint -> normalise/units; render 0.3 s, measure 3.7 s): every assemble_commands.py --check pays it (corpus pre-commit hook, the gate, kaizen runs). Memoise normalise/units per text or hash-skip unchanged ledgers. Profile: /opt/fabrik/.claude/worktrees/infra-uncapped/.tmp/runs/41b07f38-7c28-4208-b3f2-578084870883/fabrik-task-2026-10-28T22-54-54-0300/measure.md (infra, follow-up of W-bda24c48)"
+}

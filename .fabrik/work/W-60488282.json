@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra-3",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "agents_bat.py defaults the distro to $WSL_DISTRO_NAME, unset in systemd/tmux/code-server shells — the Deck fix (D-1137) reads it from wslpath -w /"
 }

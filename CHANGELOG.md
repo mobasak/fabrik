@@ -7,6 +7,66 @@ All notable changes to this project will be documented in this file.
 ### Added — New repos are born coordinator-ready (2026-10-28)
 
 `fabrik scaffold` now puts the coordinator model into a new repo's initial commit: a `MERGE OWNER: coordinator` row in `docs/DECISIONS.md`, the work store made by the hub's `work.py init` with `coordinator_mode`, `queue_floor` 1 and `autonomy` on, and a coordinator charter at `docs/reference/agents/coordinator.md` that names the repo's real path and how to launch and bind the window. Builders stay the spawn verb's (W-b9ad80ae). A failure prints one WARNING with its cause and leaves the repo as before, never breaking the scaffold. D-1305, W-a02d1c86.
+### Fixed — vps1 rotation step 3a re-owns GlitchTip's schema one object per transaction (2026-10-28)
+
+- The operator's run of `scripts/sysadmin/vps1_pg_scoped_logins.py` stopped at step 3a with "out of shared memory": the re-own of GlitchTip's log partitions ran in ONE transaction and overflowed `max_locks_per_transaction`. Step 3a now commits after every object, waits at most 5 s (`lock_timeout`) for a busy table instead of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, skips what `glitchtip` already owns so a re-run locks only the leftovers, tolerates a partition dropped mid-run, and gets its own 1800 s ssh bound. The runbook (`docs/reference/vps1-postgres-admin-rotation-runbook.md`) quotes the same block, tested to stay identical, and its rollback row now also revokes `postgres_exporter`'s CONNECT grants. Graders run the real SQL on a local PostgreSQL 16 cluster with a 100-slot lock table.
+
+### Changed — the renderer's gate tests stop running the rule-ledger LOSS pass (2026-10-28)
+
+`tests/test_assemble_dispatch_step.py` held 1,976 s of the hub merge leg's test time, and 11 of its 89 tests held ~1,950 s of that, up to 340 s each. Every one called `check()` with the rule-ledger LOSS pass live, and that pass takes 168.9 s of a single `check()` (profiled; the render takes 0.3 s and the size measure 3.7 s). None of the 11 grades that pass. A new helper, `_gate_at`, points `check()` at the scratch trees and replaces the LOSS pass and the size measure with spies. Each spy returns an empty result and goes red unless it is handed a temp render made during that same `check()` call (never an installed tree), the repo as root and the sources as `src_dir`. Six tests use it. `tests/test_command_measure.py`'s exit-order test ran the same live pass three times (441.5 s) and now points the rule ledgers at an empty path before step 1. Measured with the same 8-group probe: all 89 tests pass in 26 s summed (9 s wall), slowest 1.6 s; the exit-order test runs in 22.1 s. `check()`'s calls to both passes stay graded in `tests/test_command_rules.py` and `tests/test_command_measure.py`, and the live corpus's LOSS and ceiling state by `test_the_live_corpus_has_no_loss` and `test_live_corpus_within_ceiling`.
+
+### Fixed — the Lint Ratchet is green again on master (2026-10-28)
+
+`.claude/hooks/session_orient.py:950` called `"�".encode("utf-8")` (U+FFFD), which ruff flags as UP012; that one error raised the repo-wide ruff count from 0 to 1 and turned every branch's `final_gate` Lint Ratchet red. It now calls `.encode()`, which yields the same bytes in every locale (W-82034f59).
+
+### Changed — a heavy test file runs in pieces across the merge leg's shards (2026-10-28)
+
+The hub's merge-time test leg (`scripts/merge_test_select.py`) no longer lets one file set every merge's wall time. On
+master's last 20 merges the leg's slowest shard was 1,462 s on all 20, because `tests/test_assemble_dispatch_step.py`
+(a tree grader, selected by every non-ledger change) was always placed whole. A selected file heavier than its
+selection's per-shard share and 60 s now runs as node units: each test weighed by its recorded seconds once a leg has
+recorded them, else contiguous equal-count groups. Reds, the alone confirm, the base comparison and the duration record
+resolve node units (a test the base does not collect is NEW; a base that cannot collect the file runs it whole). Simulated
+over those 20 merges with the selector's own select/balance and recorded seconds: 1,462 s → 678-929 s. Measured on a real merge (master's bb6412ec9, the hub leg run three times in a shared clone, the box loaded by review seats): master's selector 2,542 s wall (slowest shard 1,792 s); the new one 1,037 s (equal-count groups, slowest shard 1,022 s) and 1,365 s (node-weighted, shards 769-890 s; the rest of the wall is the confirm and base re-runs of master's own pre-existing reds, which vary run to run).
+W-231f4695, W-3ba57940; D-1312.
+
+### Fixed — an API-key session is not sized against the plan quota (2026-10-28)
+
+`dispatch_headroom.py` printed SEATS 0 at the fleet wall, and held the floor in the drain band, for a session running on an Anthropic API key, whose seats draw the key, not the plan. It now calls the posture hook's own D-1243 predicate and skips every plan-quota cap when it answers True; a battery stamp, a second credential, a predicate that fails, or a hold with no stamp where the hook looks keep the caps (D-1303, W-3e924ccb).
+
+### Fixed — install_user_hooks.py refuses a settings shape it cannot repair instead of corrupting it (2026-10-28)
+
+`scripts/sysadmin/install_user_hooks.py` used to iterate an owned event's value, and each entry's `hooks`, as lists. A dict value kept only its keys and a string its characters, and a settings file whose top level was not a JSON object was replaced outright. Each such file is now reported as `MALFORMED <path>: <event> (<why>) — fix it by hand; not rewritten`. It counts as drift (exit 1 in `--check` and in install mode; the gate's `--check --warn` stays 0) and is never written, while the other account dirs are still installed. The `--check` summary names how many drifted files are malformed or unreadable. The `--warn` line names the hand fix, and names the installer only when a file it can repair drifted. A `NaN` timeout, which `json.loads` accepts, is now drift instead of passing `timeout < 10`. Found by fleet's deck review seat (mail 01M5HK0CH6). The non-atomic, unlocked write is filed as W-93bf0f2d.
+
+### Fixed — The hub declares a 2700 s merge-test leg (2026-10-28)
+
+The hub's merge-test leg ran past `merge_request.py`'s 1800 s default even on the base copy (exit 124),
+so every merge that selected the full suite was refused. `.fabrik/merge-tests` now carries
+`# merge-test-timeout: 2700` (read from the base only, clamped to the 3600 s budget), with its costs
+stated beside it: a rebuild after a failed CAS gets what is left of the budget (as little as ~900 s, after a first leg that used its full 2700 s), and
+`merge --queue` forks a leg only in its first 1080 s. `tests/test_merge_request_pretest.py::test_the_hub_declares_its_own_longer_leg` pins it
+(W-418c9d9f, D-1310; follow-up W-3ba57940 cuts the slow shard).
+
+### Added — Lean command program close-out: T46 receipt, board ticked, operator report (2026-10-28)
+- `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md`: the plan's T46 integration receipt. All 40 commands pass the rule check (0 LOSS over 63 ledgers, 5,425 entries); rendered words 596,988 → 579,853 (97.1%). Every file closed under the D-1254 floor ruling, so the 50% goal was missed (D-1259). On the spec's full measure (render + reads), 10 commands grew through docs outside `commands/`. L1 and the standing ledger gate are live; L2 (the `remove:` field, W-a9b5e763) has not landed.
+- The plan's Ticket Board: this change ticks T01d–T46, 51 ✅ (each but T46 naming its master commit) and T05a–c 🔴 (never started before the KILL).
+- `docs/development/reviews/2026-10-28-lean-program-final-report.md`: the operator's before/after report (W-ee67bd9f).
+
+### Added — operator_setup.py writes a keepalive for git pushes to github.com (2026-10-28)
+
+A fifth step puts a comment-marked `Host github.com` block (`ServerAliveInterval 15`, `ServerAliveCountMax 4`) before the first section of `~/.ssh/config`, so a push on a dead SSH connection is dropped within a minute instead of hanging. It plans and verifies by what `ssh -G` itself resolves for `git@github.com`, keeps a keepalive that is already as tight, and refuses at planning what it cannot write or override, before any other step is written (D-1314, W-030ac2fe; `docs/workstation/operator-setup.md`).
+
+### Added — Operator one-time setup script: hooks, tab wrapper, editor key and archive timer in one reviewed run (2026-10-28)
+
+`scripts/sysadmin/operator_setup.py` (W-d6726a65, D-1311) collects the settings steps Claude Code's safety check refuses agents into one script the operator runs once: a dry run diffs every change; `--apply` backs each file up, runs the session-archive installer first, writes the rest atomically, verifies (the archive from the loaded unit), and prints undo lines. `docs/workstation/operator-setup.md`.
+
+### Fixed — seat_guard: a `<<WORD` the shell never reads as a heredoc no longer hides the lines after it (2026-10-27)
+
+`.claude/hooks/seat_guard.py`'s `_strip_heredocs` dropped every line after any `<<WORD` match, so `echo 'x <<EOF'` followed by `git -C /opt/fabrik commit -m y` on the next line passed a review seat's git-write check, and the same shape hid a coordinator's sleep loop from the D-1296 wait guard (W-223704c1, found by the Fable critique of W-e57d2481). The strip now walks the whole command with a stack of contexts and opens a body only on a marker in shell code, at top level or inside `$(…)` (where bash resets quoting): never inside `'…'`, `"…"`, `$'…'`, a comment, a backtick, `${…}` or an arithmetic `((…))` or `$[…]`, and never on a `<<<` here-string or an escaped `<`. The delimiter is the whole shell word with its quoting removed, as bash reads it (`<<E-OF` waits for `E-OF`; `<<\EOF`, `<<E'OF'` and `<<$'EOF'` wait for `EOF`). A body ends only on a line exactly equal to it (an indented or space-trailed `EOF` no longer ends it early). The walk is trusted only when it ends where bash ends — top level, nothing left open, no body pending; a walk that lost bash's place (a `case` pattern's `)`, a spelling it misreads) returns the command whole, so every line stays in the scan, the safe direction. That end-state check replaced a `case`/`esac` keyword tracker the review found wrong three rounds running. Two `case` pattern `)` can still take the walk out of bash's quoting and back with a clean end, so any `case` word left outside the heredoc bodies also voids the strip; a command with a `case` and a heredoc is scanned whole, which can only cause a false deny. A `case` spelled across a backslash-newline still escapes that check, a stated limit routed with the case-aware rework to W-0508ae26. Graders: `test_a_marker_the_shell_does_not_read_as_a_heredoc_hides_nothing` (sixteen shapes, each one hid the next line on the old code), `test_review_round_one_markers_hide_nothing`, `test_a_line_that_only_looks_like_the_terminator_keeps_the_body_data` and `test_strip_heredocs_drops_each_body_and_keeps_what_follows` (the review's shapes), `test_a_walk_that_does_not_end_where_bash_ends_strips_nothing` (the end-state check, graded directly because the hook swallows a scanner exception), `test_real_heredoc_spellings_still_hold_data` (the commit-message heredoc inside `"$(…)"` included), and a quoted-marker sleep loop in `test_coordinator_wait_guard.py`'s `LONG_WAITS`. Stated limit, in the docstring: a body is data even where bash runs it as code (an unquoted body's `$(…)`, or a heredoc fed to a shell), W-b0aab70a.
+
+### Added — Coverage tests for eight fabrik modules, graded from the batch-4 drain branches (2026-10-28)
+
+Eight hermetic test files from the cloud drain branches (`claude/cov-*`) landed after a full `/fabrik-review` (`docs/development/reviews/2026-10-28-drain-grade-4-review.md`): monitor, dev_tools, orchestrator gpu_reaper and gpu_metrics, drivers uptime_kuma, ai tracker, notifications and health_app. The review fixed ten test-quality defects across three rounds. The strict xfails now pin their exception with `raises=`. The dev_tools smoke, tracker SQL-injection and zero-cost metrics tests now fail when the code under test breaks. Each source bug a test pins as a strict xfail has its own work item: W-236ddc00, W-78950fbf, W-6272445b, W-56c7cd74 and W-db048a29. W-97ad73b7 and W-1918b8ac track the health_app and gpu_reaper findings.
 
 ### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
 
@@ -19,6 +79,37 @@ All notable changes to this project will be documented in this file.
 ### Fixed — five cloud-drain fixes graded: .env key grammar, image_command quoting, renderer no-mkdir, library-name shadowing, parity ownership test (2026-10-27)
 
 A `.env` key outside `[A-Za-z_][A-Za-z0-9_.-]*` is refused before any write, and the refusal never prints the key itself. A docker-image `command` is one double-quoted YAML scalar; a NUL in it is a deploy error, and the apply validator refuses a non-string value. Building a `TemplateRenderer` no longer creates directories. A project named after a library a scaffolded project pins (fastapi, httpx, boto3, packaging and the rest) is refused, and a test keeps that list in step with `scaffold.py` and the template requirement files. `verify_prod_parity`'s ownership refusal has a test. Decision D-1299; review `docs/development/reviews/2026-10-27-drain-grade-review.md`.
+
+### Fixed — headless-spawner discovery sees call, tuple and shell argv shapes, never prose (2026-10-27)
+
+`tests/test_hooks_headless_guard.py::_files_that_build_a_claude_p_argv` walked only list literals, so a
+`claude -p` spawner written as a tuple, as a process call's positional args, or as a shell string escaped
+the real-tree guard (W-d45c790c). One argv rule now covers lists, tuples and the args of a process-running
+call: an element names claude and `-p` comes after it, so `timeout 60 claude -p` and
+`os.spawnlp(mode, "claude", …)` count. `_runs_a_process` covers the `subprocess`/`os`/`pty`/`asyncio`
+spawners. An ambiguous name (`run`, `call`, `system`, the `exec`/`spawn` family) counts only on a name bound
+to its module, an alias included, or bare when imported from it. A shell string matching `claude -p` (a
+literal, an f-string's literal parts, or the left side of `+`/`%`) counts as a process call's arg or as the
+element after a shell flag (`-c`, `-lc`). Everywhere else it is prose: docstrings, messages, help tables,
+`asyncio.run`, a method or local function named `run`. The skip list now reads the path relative to the root, so a checkout
+under a directory named `tests` no longer scans nothing. The real-tree test also asserts that every known
+spawner is still found. The cloud draft of this fix (c94564cc3) matched every string constant and so parked
+that test under `xfail(strict=True)`, which would also have hidden any new spawner. This change lands
+neither, and the test passes on the real tree with no new declarations. Graders: 18 planted shapes, 16
+prose cases and one planted spawn per process-call name (18); 37 matcher mutants are each killed. Also rewords the delegated-spawner docstring
+(W-423b9f14).
+
+### Fixed — secret files never leak their bytes on a decode error; six cloud-drain coverage suites graded (2026-10-27)
+
+`_load_secrets` now names a non-UTF-8 project `.env` by path and byte offset only, and a `from_file` secret that is not valid UTF-8 is logged the same way instead of quoting its bytes. Both files are read as UTF-8 whatever the locale. New hermetic coverage tests: `fabrik.portability`, `drivers.r2`, `drivers.cloudflare`, `orchestrator.gpu_state`, `orchestrator.gpu_checkpoint` and `compose_linter`. The review hardened them: an AWS-published SigV4 known answer for R2, the production Cloudflare base URL and auth header, no dependence on `PYTHON_DOTENV_DISABLED`, and every strict xfail pinned to its exception. The bugs they pin are open items (W-d52233ba, W-a95da418, W-6f5ea7ae, W-4667fab7, W-01d5baa2, W-0c377ac0, W-01e1ce2e), and so are the review's out-of-diff findings (W-fc5aee9a, a P1 security item, plus W-d484c3e2, W-0d2a7aab, W-5763d5f8, W-3b5893f8, W-33c62ed0, W-5021b4e4, W-2525d5aa). Review `docs/development/reviews/2026-10-27-drain-grade-2-review.md`.
+
+### Fixed — A resumed, then /cleared window re-binds its own name at the quota lane (2026-10-28)
+
+- The SessionStart hook now re-records a bound session under the claude process it runs in (`scripts/whoami_agent.py::refresh`), and the lane's window test in `.claude/hooks/quota_stop.py` no longer demands a row "written this boot" (WSL's boot time drifts forward with sleep); the hold texts name the git verbs that really pass and keep `git grep` held (W-a77742db, D-1307). Windows already live need one `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force` each.
+
+### Added — Rotation handoff file printed by the SessionStart hook (2026-10-28)
+
+- `.claude/hooks/session_orient.py --handoff-write <name>` stores a session's handoff (stdin) at `<git common dir>/fabrik-handoff/<name>.md`; on startup or `/clear` the hook prints it after ORIENT to the session `CLAUDE_AGENT` (else its whoami binding) names, within what the whole-stdout cap leaves after ORIENT, with STALE and ALREADY DELIVERED labels, never headless. Inert until a handoff is written (W-835894a6, D-1302).
 
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 

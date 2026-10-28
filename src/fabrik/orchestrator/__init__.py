@@ -432,10 +432,15 @@ class DeploymentOrchestrator:
         project_path = Path(f"/opt/{spec.get('id', spec.get('name'))}")
         env_file = project_path / ".env"
         if env_file.exists():
+            bad_offset: int | None = None
             try:
                 # compose's dotenv grammar (quotes, escapes, `export`, ` #` comments) — the same
                 # codec that writes the deployed file; `str()` makes the value a literal secret.
-                parsed = parse_env(env_file.read_text())
+                parsed = parse_env(env_file.read_text(encoding="utf-8"))
+            except UnicodeDecodeError as e:
+                # str(e) quotes the offending byte(s) of a secrets file; keep the offset only. The
+                # raise happens below, outside this handler, so `__context__` holds no payload either.
+                bad_offset = e.start
             except ValueError as e:
                 # Fail closed: one malformed line would otherwise drop EVERY from_env secret
                 # behind a warning and deploy without them. The message names key and line only.
@@ -443,6 +448,10 @@ class DeploymentOrchestrator:
             except Exception as e:
                 logger.warning("Failed to read .env file: %s", e)
                 parsed = {}
+            if bad_offset is not None:
+                raise ValidationError(
+                    f"cannot read {env_file}: not valid UTF-8 at byte offset {bad_offset}"
+                ) from None
             for key, value in parsed.items():
                 if key in from_env and key not in all_secrets:
                     all_secrets[key] = str(value)
@@ -461,9 +470,18 @@ class DeploymentOrchestrator:
                 try:
                     # One trailing newline is the file's, not the secret's (`echo secret > file`;
                     # read_text already turns CRLF into LF); any other whitespace is kept.
-                    all_secrets[env_var] = Path(file_path).read_text().removesuffix("\n")
+                    secret_text = Path(file_path).read_text(encoding="utf-8")
+                    all_secrets[env_var] = secret_text.removesuffix("\n")
                 except FileNotFoundError:
                     logger.warning("File not found for secret %s: %s", env_var, file_path)
+                except UnicodeDecodeError as e:
+                    # str(e) would quote the secret's own bytes into the log; the offset only.
+                    logger.warning(
+                        "Failed to read file for secret %s: %s is not valid UTF-8 at byte offset %d",
+                        env_var,
+                        file_path,
+                        e.start,
+                    )
                 except Exception as e:
                     logger.warning("Failed to read file for secret %s: %s", env_var, e)
 

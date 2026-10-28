@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T18:06:59.341115Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-88173de4",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after W-d6726a65 merges: decide (1) with a grader on is-enabled enabled-runtime; record (2) as accepted in the script docstring; route (3) to the operator via the coordinator (top up or re-key firecrawl)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "next-infra-2"
+  ],
+  "title": "operator_setup.py review residue (W-d6726a65 /fabrik-review, out of hop): (1) plan_archive's timer_was reads only 'enabled' as enabled, so enabled-runtime/linked would plan an installer run and an undo 'disable'; (2) the per-file re-check before os.replace leaves a microsecond window an editor save can still land in (no portable compare-and-swap); (3) mcp: firecrawl answered 'Insufficient credits' to the review's researcher seat 2026-10-28"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T14:21:57.972920Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-0d2a7aab",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "treat a corrupt meta like a missing one; paginate; quote the prefix; surface async failures; decide whether pickle from the shared bucket is acceptable (security review)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "gpu_checkpoint robustness: corrupt _meta.json raises JSONDecodeError in _update_meta (src/fabrik/orchestrator/gpu_checkpoint.py:272-276); list_objects ignores ListObjectsV2 continuation (:168-179) so >1000 checkpoints load an old one; prefix not URL-encoded (:171); async upload errors never reach the caller (:253-259); read_checkpoint_from_tarball pickle.loads bucket bytes (:368)"
+}

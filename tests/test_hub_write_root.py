@@ -309,6 +309,7 @@ CONVERTED_FILES = {
 ALLOWLIST: dict[str, str] = {
     # ── reads, not write roots ──
     "scripts/lane_replay_capture.py": "read: `/opt/fabrik` is the git repo whose history the lane replay fixture is captured FROM (`git -C` reads, :189-196) — nothing is written under it",
+    "scripts/sysadmin/operator_setup.py": "no-write: `/opt/fabrik` is the hub main checkout `--apply`'s guard requires the script to RUN from (its .git/HEAD is read; its install_user_hooks.py is imported and install_session_archive_timer.sh run) — the script writes under $HOME and its dry-run mirror in the system temp dir, never the repo",
     "scripts/sysadmin/kaizen_outcomes.py": "no-write: `/opt/fabrik/scripts/capped_run.sh` is the EXECUTABLE `_capped_run` falls back to after FABRIK_CAPPED_RUN and this tree's own copy (W-162398ef) — run, never written",
     # ── config: already follow fabrik.config.FABRIK_ROOT ──
     "scripts/audit_all_registrars.py": "config: `from fabrik.config import FABRIK_ROOT`",

@@ -51,6 +51,8 @@ LONG_WAITS = [
     # the `function NAME {` form: the name is no keyword
     "function f { while true; do sleep 5; done; }; f",
     "function f() { while true; do sleep 5; done; }; f",
+    # a quoted `<<WORD` is no heredoc: the loop on the next line is still scanned (W-223704c1)
+    "echo 'see <<EOF'\nwhile true; do sleep 5; done",
 ]
 
 

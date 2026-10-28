@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T13:32:47.474891Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d52233ba",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "treat a non-string image as absent or an error; flip the xfail in tests/test_cov_compose_linter.py",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "compose_linter.lint crashes with AttributeError on a service whose image: is null (src/fabrik/compose_linter.py:81, None.lower()) instead of reporting it"
+}

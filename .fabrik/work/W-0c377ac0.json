@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T13:32:49.242689Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-0c377ac0",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "build the request query with the same quote join _sign uses; flip the xfail in tests/test_cov_drivers_r2.py",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "r2 list_objects sends its query with urlencode ('+' for space, src/fabrik/drivers/r2.py:377) while _sign canonicalises with quote ('%20', :89-92), so a prefix with a space fails signature"
+}

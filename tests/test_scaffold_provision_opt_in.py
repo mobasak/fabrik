@@ -7,7 +7,9 @@ FABRIK_SCAFFOLD_OFFLINE. Now they run only inside ``create_project(provision=Tru
 Input domain: every scaffold type create_project emits (wordpress is refused), with use_database=True so the three
 types that have a dev-database step reach it. Every command scaffold code spawns goes through ``subprocess.run``; the
 ``spawned`` fixture fakes it, so nothing here can create a database, a venv or touch the hub even on a broken tree.
-A default call may spawn only git (``pre-commit install`` is stubbed): any other command, known kind or not, is a leak.
+A default call may spawn only git and the hub's ``work.py --repo <the new repo> init`` (``pre-commit install`` is
+stubbed): the coordinator model (D-1305) makes the new repo's own work store with it, a write inside the new repo
+like git's, never provisioning. Any other command, known kind or not, is a leak.
 """
 
 from __future__ import annotations
@@ -23,11 +25,20 @@ from fabrik.scaffold import SCAFFOLD_TYPES
 
 TYPES = sorted(t for t in SCAFFOLD_TYPES if t != "wordpress")
 DB_TYPES = {"python-api", "python-api-gpu", "chrome-extension"}
+LOCAL = {"git", "work_init"}  # what a default call may spawn: writes inside the new repo only
 
 
 def _kind(argv: list[str]) -> str:
     if argv[:1] == ["git"]:
         return "git"
+    if (
+        len(argv) == 7
+        and Path(argv[1]).name == "work.py"
+        and argv[2] == "--repo"
+        and Path(argv[3]).name.startswith("pv-")
+        and argv[4:6] == ["init", "--distributor"]
+    ):
+        return "work_init"
     if argv[:1] == ["sudo"]:
         return "sudo"
     if argv[1:3] == ["-m", "venv"]:
@@ -73,7 +84,7 @@ def _scaffold(tmp_path: Path, kind: str, **kw) -> Path:
 def test_default_call_provisions_nothing(tmp_path, spawned, kind) -> None:
     project = _scaffold(tmp_path, kind)
     assert (project / "project.yaml").exists(), "a default call still writes every file"
-    assert set(spawned) <= {"git"}, spawned
+    assert set(spawned) <= LOCAL, spawned
 
 
 def test_direct_helper_call_provisions_nothing(tmp_path, spawned) -> None:
@@ -85,20 +96,20 @@ def test_direct_helper_call_provisions_nothing(tmp_path, spawned) -> None:
     scaffold._scaffold_python_api(project, "direct", "d", use_database=True)
     scaffold._emit_mcp_config(project)
     scaffold._post_scaffold_sync(Path("/opt") / "never-created-provision-probe")
-    assert set(spawned) <= {"git"}, spawned
+    assert set(spawned) <= LOCAL, spawned
 
 
 @pytest.mark.parametrize("kind", TYPES)
 def test_opt_in_reaches_provisioning(tmp_path, spawned, kind) -> None:
     _scaffold(tmp_path, kind, provision=True)
     expected = {"sudo", "venv", "pip", "mcp_emitter"} if kind in DB_TYPES else {"mcp_emitter"}
-    assert set(spawned) - {"git"} == expected, spawned
+    assert set(spawned) - LOCAL == expected, spawned
 
 
 def test_env_switch_beats_opt_in(tmp_path, spawned, monkeypatch) -> None:
     monkeypatch.setenv("FABRIK_SCAFFOLD_OFFLINE", "1")
     _scaffold(tmp_path, "python-api", provision=True)
-    assert set(spawned) <= {"git"}, spawned
+    assert set(spawned) <= LOCAL, spawned
 
 
 def test_opt_in_is_scoped(tmp_path, spawned, monkeypatch) -> None:
@@ -134,7 +145,7 @@ def test_opt_in_is_scoped(tmp_path, spawned, monkeypatch) -> None:
     monkeypatch.setitem(scaffold._TYPE_SCAFFOLDERS, "python-api", real)
     for not_true in (0, None, "", "no", 1):
         _scaffold(tmp_path / f"f{not_true!r}", "python-api", provision=not_true)
-    assert set(spawned) <= {"git"}, spawned
+    assert set(spawned) <= LOCAL, spawned
 
 
 @pytest.fixture

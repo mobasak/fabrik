@@ -196,6 +196,91 @@ def test_a_list_shaped_hooks_value_is_replaced_not_a_traceback(tmp_path, monkeyp
     assert iuh.run([]) == 0 and isinstance(_entries(home / ".claude" / "settings.json"), dict)
 
 
+def test_a_non_list_event_value_is_refused_never_rewritten(tmp_path, monkeypatch, capsys):
+    """Mail 01M5HK0CH6 (fleet's deck review seat): the repair iterated `hooks[ev]` as a list, so
+    a dict value kept its KEYS as strings — `{"matcher": …}` became `["matcher", {…hook…}]` —
+    and a string value its characters. A shape the installer does not understand is named by
+    --check and left byte-for-byte as the user wrote it."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    f = home / ".claude" / "settings.json"
+    for bad in ({"matcher": "Bash"}, "oops"):
+        f.write_text(json.dumps({"hooks": {"PostToolUse": bad}}))
+        before = f.read_text()
+        assert iuh.run(["--check"]) == 1
+        assert "MALFORMED" in capsys.readouterr().out
+        assert iuh.run([]) == 1, "an install that cannot repair a file says so"
+        assert "MALFORMED" in capsys.readouterr().out, (
+            "install names it too (and clears the buffer)"
+        )
+        assert f.read_text() == before, f"{bad!r} rewritten"
+    assert iuh.run(["--check"]) == 1, "the refused file is still drift"
+    ob = home / ".claude-fleet" / "ob" / "settings.json"
+    assert "selfwatch_check.py" in ob.read_text(), "the healthy account dirs are still installed"
+
+
+def test_an_entry_whose_hooks_value_is_not_a_list_is_refused(tmp_path, monkeypatch, capsys):
+    """The same class one level down: an entry's `hooks` dict was rebuilt from its keys."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    f = home / ".claude" / "settings.json"
+    hook = {"type": "command", "command": "python3 /opt/OLD/selfwatch_check.py"}
+    f.write_text(json.dumps({"hooks": {"UserPromptSubmit": [{"hooks": hook}]}}))
+    before = f.read_text()
+    assert iuh.run(["--check"]) == 1
+    assert "MALFORMED" in capsys.readouterr().out
+    assert iuh.run([]) == 1 and f.read_text() == before
+
+
+def test_a_settings_file_that_is_not_an_object_is_refused(tmp_path, monkeypatch, capsys):
+    """Same class at the top: a non-object settings file was replaced by `{}` plus the hooks."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    f = home / ".claude" / "settings.json"
+    f.write_text(json.dumps(["keep", "me"]))
+    before = f.read_text()
+    assert iuh.run([]) == 1 and f.read_text() == before
+    assert "MALFORMED" in capsys.readouterr().out
+
+
+def test_the_gate_mode_names_a_malformed_file_as_a_hand_fix(tmp_path, monkeypatch, capsys):
+    """Review round 1: the summary called a MALFORMED file "missing entries" and the WARN told
+    the gate reader to run the installer, which refuses it."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    (home / ".claude" / "settings.json").write_text(json.dumps({"hooks": {"Stop": 0}}))
+    assert iuh.run(["--check", "--warn"]) == 0
+    out = capsys.readouterr().out
+    assert "1 file(s) not installed, 1 of them MALFORMED or unreadable" in out, out
+    assert "drifted on this box — fix the MALFORMED or unreadable file(s) by hand" in out, out
+
+
+def test_the_gate_mode_names_an_unreadable_file_as_a_hand_fix(tmp_path, monkeypatch, capsys):
+    """Review round 2: an unreadable file counted in `bad` only, so the WARN told the reader
+    to run the installer, which cannot read it either."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    (home / ".claude" / "settings.json").write_text("{not json")
+    assert iuh.run(["--check", "--warn"]) == 0
+    out = capsys.readouterr().out
+    assert "drifted on this box — fix the MALFORMED or unreadable file(s) by hand" in out, out
+    assert "run install_user_hooks.py" not in out, out
+
+
+def test_a_nan_timeout_is_drift(tmp_path, monkeypatch):
+    """Review round 1: `timeout < TIMEOUT_S` is False for NaN, which json.loads accepts, so a
+    NaN timeout read as conforming and --check said present."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    f = home / ".claude" / "settings.json"
+    f.write_text(f.read_text().replace(f'"timeout": {iuh.TIMEOUT_S}', '"timeout": NaN', 1))
+    assert "NaN" in f.read_text()
+    assert iuh.run(["--check"]) == 1
+
+
 def test_a_stale_duplicate_before_the_canonical_entry_is_still_caught(tmp_path, monkeypatch):
     """E4: `_stale` judged only the LAST entry carrying the script; a dead path registered
     before the canonical one kept firing on every prompt while --check said present."""

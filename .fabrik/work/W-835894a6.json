@@ -3,7 +3,7 @@
   "created": "2026-10-28T11:51:38.152915Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "42cff66da136403a0ad3f346b647759f72a73f9a",
   "id": "W-835894a6",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-2",
   "priority": 0,
   "score_reason": "URGENT: operator says NOW; every repo's coordinator loses state on /clear today; fleet-synced hook",
-  "status": "open",
+  "status": "done",
   "title": "Coordinator handoff without hand-pasting, ALL repos (operator 2026-10-28: 'ok make this happen for all repos NOW'): a coordinator writes its handoff text to one file before rotating; the SessionStart hook (session_orient.py) prints that file into the new session on clear/startup/compact; the coordinator window launches with CLAUDE_AGENT=coordinator so no bind step is needed; a /clear or crash then needs nothing from the operator"
 }

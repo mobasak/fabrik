@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra-3",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "D-1031 item 18: fabrik-lib session ids for the agents-up launcher; all three builders now in worktrees"
 }
