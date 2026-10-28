@@ -135,8 +135,12 @@ def test_add_http_monitor_creates(api):
     out = uk.UptimeKumaClient().add_http_monitor("Svc", "https://s/health", interval=30, retries=5)
     assert out == {"status": "created", "monitor": {"monitorID": 7}}
     api.add_monitor.assert_called_once_with(
-        type="http", name="Svc", url="https://s/health", interval=30,
-        retryInterval=20, maxretries=5,
+        type="http",
+        name="Svc",
+        url="https://s/health",
+        interval=30,
+        retryInterval=20,
+        maxretries=5,
     )
 
 
@@ -158,8 +162,13 @@ def test_add_tcp_monitor_creates(api):
     out = uk.UptimeKumaClient().add_tcp_monitor("PG", "postgres-main", 5432, interval=15)
     assert out["status"] == "created"
     api.add_monitor.assert_called_once_with(
-        type="port", name="PG", hostname="postgres-main", port=5432, interval=15,
-        retryInterval=20, maxretries=3,
+        type="port",
+        name="PG",
+        hostname="postgres-main",
+        port=5432,
+        interval=15,
+        retryInterval=20,
+        maxretries=3,
     )
 
 

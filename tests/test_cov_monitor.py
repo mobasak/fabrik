@@ -13,11 +13,11 @@ class _Error(Exception):
     pass
 
 
-class _NoSuchProcess(_Error):
+class _NoSuchProcessError(_Error):
     pass
 
 
-class _AccessDenied(_Error):
+class _AccessDeniedError(_Error):
     pass
 
 
@@ -66,8 +66,8 @@ def _io(r, w):
 @pytest.fixture
 def fake_psutil(monkeypatch):
     ps = types.SimpleNamespace(
-        NoSuchProcess=_NoSuchProcess,
-        AccessDenied=_AccessDenied,
+        NoSuchProcess=_NoSuchProcessError,
+        AccessDenied=_AccessDeniedError,
         Error=_Error,
         STATUS_SLEEPING="sleeping",
         STATUS_WAITING="waiting",
@@ -109,7 +109,7 @@ def test_init_without_psutil_raises(monkeypatch):
 
 
 def test_init_no_such_process(fake_psutil):
-    fake_psutil.Process.side_effect = _NoSuchProcess()
+    fake_psutil.Process.side_effect = _NoSuchProcessError()
     with pytest.raises(ValueError, match="Process 99 not found"):
         ProcessMonitor(99)
 
@@ -186,7 +186,7 @@ def test_check_open_files_counted(fake_psutil):
     assert mon._metrics_history[-1].memory_percent == 1.5
 
 
-@pytest.mark.parametrize("exc", [_AccessDenied, _Error])
+@pytest.mark.parametrize("exc", [_AccessDeniedError, _Error])
 def test_open_files_error_gives_zero(fake_psutil, exc):
     mon, proc = make(fake_psutil)
     proc.raise_on["open_files"] = exc()
@@ -196,7 +196,7 @@ def test_open_files_error_gives_zero(fake_psutil, exc):
 
 def test_check_no_such_process_midway(fake_psutil):
     mon, proc = make(fake_psutil)
-    proc.raise_on["cpu_percent"] = _NoSuchProcess()
+    proc.raise_on["cpu_percent"] = _NoSuchProcessError()
     assert mon.check() is ProcessState.UNKNOWN
 
 
@@ -226,7 +226,9 @@ def test_check_updates_last_check_time(fake_psutil):
 # ---- /proc readers ----
 
 
-@pytest.mark.parametrize("name,method", [("syscall", "_get_linux_syscall"), ("wchan", "_get_linux_wchan")])
+@pytest.mark.parametrize(
+    "name,method", [("syscall", "_get_linux_syscall"), ("wchan", "_get_linux_wchan")]
+)
 def test_proc_read_missing_returns_none(fake_psutil, monkeypatch, name, method):
     proc = FakeProc()
     fake_psutil.Process.return_value = proc
@@ -235,7 +237,9 @@ def test_proc_read_missing_returns_none(fake_psutil, monkeypatch, name, method):
     assert getattr(mon, method)() is None
 
 
-@pytest.mark.parametrize("name,method", [("syscall", "_get_linux_syscall"), ("wchan", "_get_linux_wchan")])
+@pytest.mark.parametrize(
+    "name,method", [("syscall", "_get_linux_syscall"), ("wchan", "_get_linux_wchan")]
+)
 def test_proc_read_returns_stripped(fake_psutil, monkeypatch, name, method):
     fake_psutil.Process.return_value = FakeProc()
     mon = ProcessMonitor(123)
@@ -284,15 +288,26 @@ def test_is_waiting_for_stdin(mon, status, syscall, expected):
     assert mon._is_waiting_for_stdin(metrics(status, syscall)) is expected
 
 
-@pytest.mark.xfail(strict=True, reason="monitor.py:182 parts[1] IndexError on a one-token syscall string")
+@pytest.mark.xfail(
+    strict=True, reason="monitor.py:182 parts[1] IndexError on a one-token syscall string"
+)
 def test_is_waiting_for_stdin_single_token_syscall(mon):
     assert mon._is_waiting_for_stdin(metrics("sleeping", "running")) is False
 
 
 @pytest.mark.parametrize(
     "chan",
-    ["hrtimer_nanosleep", "futex_wait_queue_me", "ep_poll", "do_select", "inet_csk_accept",
-     "sk_wait_data", "poll_schedule_timeout", "pipe_wait", "x_do_select_y"],
+    [
+        "hrtimer_nanosleep",
+        "futex_wait_queue_me",
+        "ep_poll",
+        "do_select",
+        "inet_csk_accept",
+        "sk_wait_data",
+        "poll_schedule_timeout",
+        "pipe_wait",
+        "x_do_select_y",
+    ],
 )
 def test_valid_sleep_wchans(mon, chan):
     assert mon._is_valid_sleep(metrics(wchan=chan)) is True

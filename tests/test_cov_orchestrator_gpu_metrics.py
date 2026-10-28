@@ -238,9 +238,7 @@ def test_render_infinite_age_uses_prometheus_spelling():
 
 
 def test_render_escapes_hostile_label_values():
-    text = gpu_metrics.render(
-        _metrics(active_per_provider={'we"ird\nname': 1})
-    )
+    text = gpu_metrics.render(_metrics(active_per_provider={'we"ird\nname': 1}))
     assert 'gpu_rent_active{provider="we\\"ird\\nname"} 1' in text
 
 
@@ -251,8 +249,18 @@ def test_render_none_calls_collect(monkeypatch):
 
 def test_render_end_to_end_from_collect(env):
     log, state = env
-    _write_log(log, [{"provider": "runpod", "kind": "pod", "workload": "w", "success": True,
-                      "cost_actual_usd": 2.0}])
+    _write_log(
+        log,
+        [
+            {
+                "provider": "runpod",
+                "kind": "pod",
+                "workload": "w",
+                "success": True,
+                "cost_actual_usd": 2.0,
+            }
+        ],
+    )
     state["sessions"] = {"a": {"provider": "runpod", "destroy_pending": True}}
     text = gpu_metrics.render()
     assert 'gpu_rent_cost_usd_total{provider="runpod",kind="pod",workload="w"} 2.0' in text

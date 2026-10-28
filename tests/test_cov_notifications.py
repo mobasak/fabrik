@@ -29,6 +29,7 @@ def calls(monkeypatch):
 
 # ---- _post ----
 
+
 def test_post_sends_json_with_default_timeout(calls):
     _post("http://h/x", {"event": "e"})
     assert calls == [("http://h/x", {"json": {"event": "e"}, "timeout": 5.0})]
@@ -47,7 +48,9 @@ def test_post_swallows_http_error_and_warns(monkeypatch, caplog):
     monkeypatch.setattr(httpx, "post", boom)
     with caplog.at_level(logging.WARNING, logger="fabrik.notifications"):
         _post("http://h/x", {"event": "e"})
-    assert any("Webhook delivery failed" in r.message and "down" in r.message for r in caplog.records)
+    assert any(
+        "Webhook delivery failed" in r.message and "down" in r.message for r in caplog.records
+    )
 
 
 def test_post_bad_timeout_env_is_swallowed(calls, monkeypatch, caplog):
@@ -77,6 +80,7 @@ def test_post_does_not_check_status(monkeypatch):
 
 
 # ---- notify_deploy ----
+
 
 def test_deploy_noop_without_env(calls):
     assert notify_deploy(project="p", domain="d", success=True) is None
@@ -141,6 +145,7 @@ def test_deploy_never_raises_on_network_failure(monkeypatch):
 
 
 # ---- notify_content ----
+
 
 def test_content_noop_without_env(calls):
     assert notify_content(domain="d", published=1, failed=0) is None

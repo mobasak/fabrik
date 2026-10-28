@@ -191,9 +191,7 @@ def test_reap_does_not_mark_live_session_with_other_resource(env):
 
 def test_reap_no_session_id_skips_state_lookup(env):
     client = MagicMock()
-    env.reconcile.return_value = _report(
-        destroy_pending=[{"type": "pod", "resource_id": "p1"}]
-    )
+    env.reconcile.return_value = _report(destroy_pending=[{"type": "pod", "resource_id": "p1"}])
     rep = gpu_reaper.reap(client, auto_destroy=True)
     env.get_session.assert_not_called()
     env.mark_destroyed.assert_not_called()

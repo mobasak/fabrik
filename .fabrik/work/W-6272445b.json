@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T15:18:57.780614Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6272445b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "treat a naive timestamp as UTC (or catch TypeError -> inf); flip the strict xfail in tests/test_cov_orchestrator_gpu_metrics.py:163",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "orchestrator/gpu_metrics.py:113 a naive last_reconciled timestamp makes aware-minus-naive subtraction raise TypeError (only ValueError is caught), crashing collect()"
+}

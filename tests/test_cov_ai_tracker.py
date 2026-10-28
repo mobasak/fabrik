@@ -227,7 +227,9 @@ def test_record_gpu_persists_across_instances(tracker, db_path):
     assert UsageTracker(db_path).get_usage()["total_cost"] == pytest.approx(0.7)
 
 
-@pytest.mark.xfail(strict=True, reason="tracker.py:127 `if duration_seconds` maps 0.0 to NULL, not 0 ms")
+@pytest.mark.xfail(
+    strict=True, reason="tracker.py:127 `if duration_seconds` maps 0.0 to NULL, not 0 ms"
+)
 def test_record_gpu_zero_duration_is_zero_ms(tracker, db_path):
     tracker.record_gpu(session_id="s", kind="k", workload="w", cost_usd=0.1, duration_seconds=0.0)
     assert _rows(db_path)[0]["duration_ms"] == 0

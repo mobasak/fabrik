@@ -223,7 +223,10 @@ def test_bundle_section_order(proj, monkeypatch):
     monkeypatch.setattr(dev_tools, "resolve_applicability", lambda d: {})
     monkeypatch.setattr(dev_tools, "format_resolved_summary", lambda r: "")
     body, _ = dev_tools.build_review_bundle(proj, "HEAD", spec)
-    order = [body.index(h) for h in ("# Review bundle", "## Diff", "## Spec", "## Preplan", "## Resolved")]
+    order = [
+        body.index(h)
+        for h in ("# Review bundle", "## Diff", "## Spec", "## Preplan", "## Resolved")
+    ]
     assert order == sorted(order)
 
 
