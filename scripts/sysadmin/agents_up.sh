@@ -14,7 +14,7 @@
 # worktree whose claude project folder holds the builder's session (W-456aa02a: Claude Code keeps the folder a pane
 # STARTED in as its CLAUDE_PROJECT_DIR — hooks, settings, permissions — after the session moves into another worktree,
 # so a pane started by name ran a stale tree's hooks), else `<name>`; a name with neither gets no pane (said on stderr),
-# and no builder left refuses (exit 2). It resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports
+# and no builder left refuses (exit 3, nothing to launch). It resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports
 # the grid and launches nothing: a `session <name>` line, a `slice <name> MemoryHigh=<v> MemoryMax=<v>` line, then per
 # builder `pane <name> <sid> <folder> <status>`, `cap <name> <TasksMax>` (or `cap <name> uncapped`) and `run <name>
 # <command>`. --detach builds the grid (or finds it up) and never attaches (the boot sweep and cron have no terminal);
@@ -104,7 +104,8 @@ SID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 ITEM_RE='^W-[0-9a-f]{8}$'
 bad_arg() { echo "agents_up: $1" >&2; exit 2; }
 # the first prompt's coordinator and item sentences name ONE builder (W-b9ad80ae PO1, PO2): --pane-cmd's flags, or the
-# FABRIK_SPAWN_* variables a caller that cannot pass flags (a cold start through --detach) sets
+# FABRIK_SPAWN_* variables a caller that cannot pass flags (a cold start through --detach) sets; those are checked by
+# spawn_vars_ok only when a new=1 prompt is built for the builder FABRIK_SPAWN_NAME names, so a stale one stops nothing else
 SP_NAME="${FABRIK_SPAWN_NAME:-}"
 SP_COORD="${FABRIK_SPAWN_COORDINATOR:-}"
 SP_ITEM="${FABRIK_SPAWN_ITEM:-}"
@@ -118,8 +119,14 @@ if [ "$panecmd" = 1 ]; then
   while [ $# -gt 0 ]; do
     case "$1" in
       --new) pane_new=1; shift ;;
-      --coordinator) [ $# -ge 2 ] || bad_arg "$usage"; SP_COORD="$2"; shift 2 ;;
-      --item) [ $# -ge 2 ] || bad_arg "$usage"; SP_ITEM="$2"; shift 2 ;;
+      --coordinator)
+        [ $# -ge 2 ] || bad_arg "$usage"
+        [[ "$2" =~ $NAME_RE ]] || bad_arg "the coordinator '$2' is not an agent name ([a-z0-9][a-z0-9-]{0,31})"
+        SP_COORD="$2"; shift 2 ;;
+      --item)
+        [ $# -ge 2 ] || bad_arg "$usage"
+        [[ "$2" =~ $ITEM_RE ]] || bad_arg "the item '$2' is not a work item id (W- and 8 lowercase hex)"
+        SP_ITEM="$2"; shift 2 ;;
       *) bad_arg "$usage" ;;
     esac
   done
@@ -127,9 +134,6 @@ if [ "$panecmd" = 1 ]; then
   [[ "$pane_sid" =~ $SID_RE ]] || bad_arg "'$pane_sid' is not a session id (a lowercase UUID)"
   set -- "$pane_repo"
 fi
-[ -z "$SP_NAME" ] || [[ "$SP_NAME" =~ $NAME_RE ]] || bad_arg "FABRIK_SPAWN_NAME '$SP_NAME' is not an agent name ([a-z0-9][a-z0-9-]{0,31})"
-[ -z "$SP_COORD" ] || [[ "$SP_COORD" =~ $NAME_RE ]] || bad_arg "the coordinator '$SP_COORD' is not an agent name ([a-z0-9][a-z0-9-]{0,31})"
-[ -z "$SP_ITEM" ] || [[ "$SP_ITEM" =~ $ITEM_RE ]] || bad_arg "the item '$SP_ITEM' is not a work item id (W- and 8 lowercase hex)"
 if [ $# -ne 1 ] || [ -z "$1" ]; then
   echo "usage: agents_up.sh [--print] [--detach] <repo>" >&2
   exit 2
@@ -390,12 +394,18 @@ def fresh(name, sid):  # 1: a spawner-bound session (`spawned: true` on its LAST
 for name in sorted(chosen):
     print("agent", name, chosen[name], folder[name], fresh(name, chosen[name]))
 for sid in sorted(set(reg) | {str(r.get("session_id")) for r in rows}):
-    print("known", sid)
+    if SID.fullmatch(sid):  # a newline in a store row's id would forge an `agent` line below
+        print("known", sid)
 PY
 )"
 # 3 = nothing to launch (a registry naming no builder, bindings with no worktree); every other refusal is 2
 case $? in 0) ;; 3) exit 3 ;; *) exit 2 ;; esac
 AGENTS="$(printf '%s\n' "$RESOLVED" | sed -n 's/^agent //p')"
+# each agent line reaches a shell command string: re-check its shape here, whatever the resolver printed
+AGENT_RE="^[a-z0-9][a-z0-9-]{0,31} [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z0-9][a-z0-9-]{0,31} [01]$"
+while IFS= read -r line; do
+  [[ "$line" =~ $AGENT_RE ]] || { echo "agents_up: the resolver printed a malformed builder line — not launching" >&2; exit 2; }
+done <<< "$AGENTS"
 KNOWN="$(printf '%s\n' "$RESOLVED" | sed -n 's/^known //p')"
 
 # tmux reads `.`, `:` and glob characters in a target, so the session name keeps [A-Za-z0-9_-] only
@@ -514,7 +524,7 @@ named_running() {  # $1 = name, $2 = the folder its pane starts in
   local pid args cwd
   while read -r pid args; do
     [[ "$pid" =~ ^[0-9]+$ ]] || continue
-    [[ " $args " == *" -n $1 "* ]] || continue
+    [[ " $args " == *" -n $1 "* || " $args " == *" --name $1 "* || " $args " == *" --name=$1 "* ]] || continue
     cwd="$(readlink "$PROC_ROOT/$pid/cwd" 2>/dev/null)"
     case "$cwd" in "$2" | "$2"/*) return 0 ;; esac
   done <<< "$RUNNING"
@@ -522,7 +532,7 @@ named_running() {  # $1 = name, $2 = the folder its pane starts in
 }
 
 status_of() {  # $1 = session id, $2 = the folder its pane starts in, $3 = the builder's name
-  if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "(--resume[= ]|-r )$1( |\$)" || named_running "$3" "$2"; then
+  if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "(^| )(--resume[= ]|-r |--session-id[= ])$1( |\$)" || named_running "$3" "$2"; then
     echo running
   elif [ ! -f "$(proj_of "$2")/$1.jsonl" ]; then
     echo no-transcript
@@ -539,13 +549,19 @@ squote() {  # $1 as ONE POSIX single-quoted word, read alike by every pane shell
 # one constant, on EVERY claude call this script builds, beside CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1 in every pane's env
 SETTINGS_JSON='{"skillOverrides":{"auto-mode-setup":"off"},"spinnerTipsEnabled":false}'
 
+spawn_vars_ok() {  # $1 = name, $2 = new: the FABRIK_SPAWN_* values matter only to the new builder they name
+  [ "$2" = 1 ] && [ "$1" = "$SP_NAME" ] || return 0
+  [ -z "$SP_COORD" ] || [[ "$SP_COORD" =~ $NAME_RE ]] || bad_arg "FABRIK_SPAWN_COORDINATOR '$SP_COORD' is not an agent name ([a-z0-9][a-z0-9-]{0,31})"
+  [ -z "$SP_ITEM" ] || [[ "$SP_ITEM" =~ $ITEM_RE ]] || bad_arg "FABRIK_SPAWN_ITEM '$SP_ITEM' is not a work item id (W- and 8 lowercase hex)"
+}
+
 first_prompt() {  # $1 = name, $2 = session id: a spawned builder's first turn, ONE line, nothing in it for a shell to read
   local coord item
   coord="the repo's merge owner (\`decisions.py --merge-owner\`)"
   [ "$1" = "$SP_NAME" ] && [ -n "$SP_COORD" ] && coord="$SP_COORD"
   item=""
   [ "$1" = "$SP_NAME" ] && [ -n "$SP_ITEM" ] && item=" Your item is $SP_ITEM."
-  printf '%s' "You were started by agents_up as $1 (\$CLAUDE_AGENT), session $2, in your own worktree. First arm your self-watch: run bash $HUB/scripts/sysadmin/selfwatch_arm.sh $2 in the background. Then re-bind: run python3 $HUB/scripts/whoami_agent.py --as $1 --force. Then read your charter (the SessionStart hook printed it; else docs/reference/agents/builder.md). Your coordinator is $coord.$item Run python3 scripts/work.py next and claim your item; when next shows nothing, message your coordinator and wait. Merge the repo's base branch only when the store or your coordinator says your item is committed there, then claim it. \"Every question goes to your coordinator by SendMessage - never to the operator.\""
+  printf '%s' "You were started by agents_up as $1 (\$CLAUDE_AGENT), session $2, in your own worktree. First arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then re-bind: run python3 \"$HUB/scripts/whoami_agent.py\" --as $1 --force. Then read your charter (the SessionStart hook printed it; else docs/reference/agents/builder.md). Your coordinator is $coord.$item Run python3 scripts/work.py next and claim your item; when next shows nothing, message your coordinator and wait. Merge the repo's base branch only when the store or your coordinator says your item is committed there, then claim it. \"Every question goes to your coordinator by SendMessage - never to the operator.\""
 }
 
 cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id launch); name and id are validated above
@@ -571,14 +587,17 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id
   fi
   # the pane keeps a CLEAN shell after claude exits (or instead of it), so a crash never closes the pane and the
   # resume hint it prints runs with the pane's own environment, never the server's
+  # a session with no transcript cannot be resumed: its hint and message name --session-id
+  local flag=--resume
+  [ "${4:-0}" = 1 ] && flag=--session-id
   if [ "$3" = running ]; then
-    inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $penv bash -l"
+    inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 $flag $2]\"; exec $penv bash -l"
   else
     # the paths are %q-escaped so the printed command pastes back safely, and the whole hint is single-quoted (POSIX,
     # read alike by every pane shell and locale) for the pane's printf, so a `$(...)`, a backtick or a `$NAME` in a
     # folder name is printed, never run or expanded
     local hint
-    hint="[$1 exited — run: claude -n $1 --resume $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]"
+    hint="[$1 exited — run: claude -n $1 $flag $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]"
     # the relaunch's first turn (L4): re-arm the self-watch (background tasks are not restored), then `woke`, resuming
     # only on exit 0 — so a daily relaunch outside any pause just carries on. No --permission-mode: the session's own
     # settings (permissions.defaultMode) decide. oom_score_adj 200 (raising needs no privilege) ranks a builder pane
@@ -589,7 +608,7 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id
       wake="$(first_prompt "$1" "$2")"
       claude="claude -n $1 --session-id $2"
     else
-      wake="You were relaunched by agents_up. First re-arm your self-watch: run bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh $2 in the background. Then carry on as usual."
+      wake="You were relaunched by agents_up. First re-arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then carry on as usual."
       claude="claude -n $1 --resume $2"
     fi
     # the `hibernate.py woke --self` step joins this prompt with W-6e656dac T01a: master's woke still answers 0 on
@@ -611,29 +630,6 @@ cap_of() {  # $1 = name
   if [ "$CAPPED" = 1 ]; then echo "cap $1 $TASKS_MAX"; else echo "cap $1 uncapped"; fi
 }
 
-# --pane-cmd: the one command the grid would run for ONE builder, through the same resolver and cmd_of, so a pane the
-# spawner launches differs from a relaunched one only in its session flag and prompt. --new asserts the resolver's own
-# <new> (a spawner-bound session with no transcript anywhere); nothing prints on a refusal.
-if [ "$panecmd" = 1 ]; then
-  found=0
-  while read -r name sid folder new; do
-    [ "$name" = "$SP_NAME" ] && [ "$sid" = "$pane_sid" ] || continue
-    found=1
-    if [ "$pane_new" = 1 ] && [ "$new" != 1 ]; then
-      if compgen -G "$CLAUDE_CONFIG_DIR/projects/*/$sid.jsonl" >/dev/null; then
-        bad_arg "$sid has a transcript — not a new session"
-      fi
-      bad_arg "$sid is not a spawner-bound session"
-    fi
-    dir="$(dir_of "$folder")"
-    [ -n "$dir" ] || exit 2
-    st="$(status_of "$sid" "$dir" "$name")"
-    cmd_of "$name" "$sid" "$st" "$new"
-  done <<< "$AGENTS"
-  [ "$found" = 1 ] || bad_arg "$SP_NAME with session $pane_sid is not a builder the resolver gives $ROOT"
-  exit 0
-fi
-
 if [ "$print" = 1 ]; then
   echo "session $S"
   [ "$CAPPED" = 1 ] && echo "slice $SLICE MemoryHigh=$SLICE_HIGH MemoryMax=$SLICE_MAX"
@@ -644,6 +640,7 @@ if [ "$print" = 1 ]; then
     newer_unbound "$name" "$sid" "$dir"
     echo "pane $name $sid $dir $st"
     cap_of "$name"
+    spawn_vars_ok "$name" "$new"
     echo "run $name $(cmd_of "$name" "$sid" "$st" "$new")"
   done <<< "$AGENTS"
   exit 0
@@ -664,6 +661,31 @@ slice_ceiling() {
   echo "agents_up: the user manager refused the $SLICE ceiling (MemoryHigh=$SLICE_HIGH MemoryMax=$SLICE_MAX) — not launching" >&2
   exit 2
 }
+
+# --pane-cmd: the one command the grid would run for ONE builder, through the same resolver and cmd_of, so a pane the
+# spawner launches differs from a relaunched one only in its session flag and prompt. --new asserts the resolver's own
+# <new> (a spawner-bound session with no transcript anywhere); nothing prints on a refusal.
+if [ "$panecmd" = 1 ]; then
+  # the same cap rules as the grid: no user manager refuses unless FABRIK_AGENTS_UNCAPPED=1, else the slice ceiling is asserted
+  slice_ceiling
+  found=0
+  while read -r name sid folder new; do
+    [ "$name" = "$SP_NAME" ] && [ "$sid" = "$pane_sid" ] || continue
+    found=1
+    if [ "$pane_new" = 1 ] && [ "$new" != 1 ]; then
+      if compgen -G "$CLAUDE_CONFIG_DIR/projects/*/$sid.jsonl" >/dev/null; then
+        bad_arg "$sid has a transcript — not a new session"
+      fi
+      bad_arg "$sid is not a spawner-bound session"
+    fi
+    dir="$(dir_of "$folder")"
+    [ -n "$dir" ] || exit 2
+    st="$(status_of "$sid" "$dir" "$name")"
+    cmd_of "$name" "$sid" "$st" "$new"
+  done <<< "$AGENTS"
+  [ "$found" = 1 ] || bad_arg "$SP_NAME with session $pane_sid is not a builder the resolver gives $ROOT"
+  exit 0
+fi
 
 # tmux 3.4 answers `no such session: =<name>` to an OPTION command (show-options / set-option) given the bare exact
 # target `=<name>` while has-session, list-panes and attach accept it (measured on a scratch `tmux -L` server, W-1961cc42);
@@ -724,6 +746,7 @@ else
     st="$(status_of "$sid" "$dir" "$name")"
     newer_unbound "$name" "$sid" "$dir"
     [ "$st" = no-transcript ] && [ "$new" != 1 ] && echo "agents_up: $name: no transcript for session $sid under $(proj_of "$dir") — the pane will try anyway" >&2
+    spawn_vars_ok "$name" "$new"
     cmd="$(cmd_of "$name" "$sid" "$st" "$new")"
     if [ "$first" = 1 ]; then
       if ! tmux new-session -d -s "$S" -n "$W" -c "$dir" -x 240 -y 60 "$cmd"; then

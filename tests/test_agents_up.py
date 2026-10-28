@@ -12,6 +12,8 @@ import pty
 import re
 import shutil
 import subprocess
+
+import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -88,7 +90,7 @@ def _home(
     # answers only the launcher's exact question: every claude process, full width (-ww), pid first. A line that
     # carries no pid of its own (`<digits> <args>`) is given an unused one.
     numbered = "\n".join(
-        ln if re.match(r"\d+ ", ln) else f"{9000 + i} {ln}" for i, ln in enumerate(ps_lines.splitlines())
+        ln if re.match(r"\s*\d+ ", ln) else f"{9000 + i} {ln}" for i, ln in enumerate(ps_lines.splitlines())
     )
     ps.write_text(
         '#!/bin/sh\n[ "$*" = "-ww -C claude -o pid=,args=" ] || exit 1\n'
@@ -1593,14 +1595,16 @@ def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_p
         got.stdout
     )
     prompt = args[6]
-    assert f"selfwatch_arm.sh {DEV1}" in prompt, prompt
+    hub = UP.resolve().parent.parent.parent  # $HUB: the checkout the launcher runs from, double-quoted in the prose (no /opt/fabrik literal)
+    assert f'bash "{hub}/scripts/sysadmin/selfwatch_arm.sh" {DEV1} in the background' in prompt, prompt
+    assert "/opt/fabrik/scripts" not in prompt or str(hub) == "/opt/fabrik", prompt
     assert "hibernate.py woke" not in prompt and "seed" not in prompt, prompt
     assert "carry on as usual" in prompt, prompt
     assert "CLAUDE_CODE_RETRY_WATCHDOG=1" in got.stdout, got.stdout
     assert re.search(r"^OOM=(200|[3-9]\d\d|1000)$", got.stdout, flags=re.M), got.stdout
     assert "--permission-mode" not in run and "--dangerously" not in run, run
     # the quoting survives the nested single quotes of the scope's `bash -c '<inner>'` for ANY folder name
-    assert '"' not in prompt and "'" not in prompt and "$" not in prompt, prompt
+    assert "'" not in prompt and "$" not in prompt, prompt
 
 
 def test_an_up_grid_with_no_readable_root_is_attached_on_a_real_server(tmp_path: Path) -> None:
@@ -1975,7 +1979,7 @@ def test_the_first_prompt_reaches_claude_byte_for_byte(tmp_path: Path) -> None:
     for label in ("capped", "uncapped"):
         if label == "uncapped":
             (home / "manager-down").write_text("", encoding="utf-8")
-        out = _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, **env)
+        out = _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, FABRIK_AGENTS_UNCAPPED="1", **env)
         assert out.returncode == 0, (label, out.stderr)
         args = _argv(home, out.stdout.strip())
         assert args[:5] == ["-n", "b2", "--session-id", B2, "--settings"] and args[5] == SETTINGS, (label, args)
@@ -1986,8 +1990,8 @@ def test_the_first_prompt_reaches_claude_byte_for_byte(tmp_path: Path) -> None:
         assert '"Every question goes to your coordinator by SendMessage - never to the operator."' in prompt, prompt
         assert "($CLAUDE_AGENT)" in prompt, (label, prompt)  # literal: not expanded by the pane's shell
         for part in (
-            f"selfwatch_arm.sh {B2} in the background",
-            "whoami_agent.py --as b2 --force",
+            f'selfwatch_arm.sh" {B2} in the background',
+            'whoami_agent.py" --as b2 --force',
             "python3 scripts/work.py next",
             "docs/reference/agents/builder.md",
         ):
@@ -2033,12 +2037,33 @@ def test_the_first_prompt_names_this_builders_coordinator_and_item_only(tmp_path
         ("--item", "w-1a2b3c4d"),
         ("--item", "W-1A2B3C4D"),
         ("--coordinator",),
+        ("--coordinator", ""),  # F5: an empty value given to the flag is malformed, not "unset"
+        ("--item", ""),
     ):
         bad = _run("--pane-cmd", str(repo), "b2", B2, "--new", *argv, home=home, **env)
         assert bad.returncode == 2 and bad.stdout == "", (argv, bad.stdout, bad.stderr)
-    for var, value in (("FABRIK_SPAWN_COORDINATOR", "x y"), ("FABRIK_SPAWN_ITEM", "nope"), ("FABRIK_SPAWN_NAME", "B 2")):
-        bad = _run("--print", str(repo), home=home, **{var: value}, **env)
-        assert bad.returncode == 2 and "pane " not in bad.stdout, (var, bad.stdout, bad.stderr)
+    # F6: a malformed value refuses the pane of the NEW builder FABRIK_SPAWN_NAME names...
+    for var, value in (("FABRIK_SPAWN_COORDINATOR", "x y"), ("FABRIK_SPAWN_ITEM", "nope")):
+        bad = _run("--print", str(repo), home=home, FABRIK_SPAWN_NAME="b2", **{var: value}, **env)
+        assert bad.returncode == 2 and var in bad.stderr, (var, bad.stdout, bad.stderr)
+    # ...and never a grid with no such builder: a stale variable (a name no builder has, a resumed-only grid) stops nothing
+    for var, value in (
+        ("FABRIK_SPAWN_COORDINATOR", "x y"),
+        ("FABRIK_SPAWN_ITEM", "nope"),
+        ("FABRIK_SPAWN_NAME", "B 2"),
+    ):
+        stale = _run("--print", str(repo), home=home, **{var: value}, **env)
+        assert stale.returncode == 0 and "pane b2 " in stale.stdout, (var, stale.stderr)
+    plain, pstore, _ = _spawn_repo(tmp_path / "resumed", spawned=False)
+    ok = _run(
+        "--print",
+        str(plain),
+        home=_home(tmp_path / "resumed"),
+        FABRIK_SPAWN_NAME="b2",
+        FABRIK_SPAWN_COORDINATOR="x y",
+        AGENT_IDENTITY_FILE=str(pstore),
+    )
+    assert ok.returncode == 0 and "pane b2 " in ok.stdout, ok.stderr  # b2 resumes: no first prompt, nothing to validate
 
 
 def test_an_empty_repo_exits_3_and_an_unreadable_store_exits_2(tmp_path: Path) -> None:
@@ -2063,14 +2088,7 @@ def test_an_empty_repo_exits_3_and_an_unreadable_store_exits_2(tmp_path: Path) -
     directory.mkdir()
     out = _run("--print", str(bare), home=home, AGENT_IDENTITY_FILE=str(directory))
     assert out.returncode == 2 and "refusing rather than reading no builders" in out.stderr, out.stderr
-    unreadable = _store(tmp_path, [], "locked.jsonl")
-    os.chmod(unreadable, 0)
-    try:
-        out = _run("--print", str(bare), home=home, AGENT_IDENTITY_FILE=str(unreadable))
-    finally:
-        os.chmod(unreadable, 0o644)
-    assert out.returncode == 2 and "refusing rather than reading no builders" in out.stderr, (out.returncode, out.stderr)
-    assert "pane " not in out.stdout
+    # (the mode-0 leg is its own test, skipped for root, which reads anything)
     # the same broken store in a repo WITH a registry still falls back to the registry (rc 0), as before
     reg = _repo(tmp_path / "reg", {DEV1: "dev1"})
     out = _run(
@@ -2131,3 +2149,213 @@ def test_a_claude_started_by_name_in_the_panes_folder_is_running(tmp_path: Path)
     (proc / "4002" / "cwd").symlink_to(Path(str(_wt(repo, "infra-2")) + "-x"))
     out = _run("--print", str(repo), home=home)
     assert [p.rsplit(" ", 1)[1] for p in _panes(out.stdout)] == ["ok", "ok"], out.stdout
+
+
+# --- W-b9ad80ae T02 review pass 1: the graders for F1-F9 and T-C1..T-C7 -----------------------------------------------
+
+
+def test_a_live_claude_on_the_session_id_reads_running_whatever_its_flags_and_cwd(tmp_path: Path) -> None:
+    """F1: the sid is unique, so ANY live claude carrying it — `--resume <sid>`, `--resume=<sid>`, `-r <sid>`,
+    `--session-id <sid>`, `--session-id=<sid>` — makes the pane `running`, with no name or cwd condition; `--name <name>`
+    in the folder counts like `-n`; a flag that merely ENDS in `-r`/`--resume` never matches, nor does a sid prefix."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2", SENT: "sentinel", NEW1: "four", NEW2: "five"})
+    cases = {
+        "dev1": f"claude --session-id {DEV1}",
+        "dev2": f"claude --session-id={DEV2} --name x",
+        "sentinel": f"claude -n sentinel --foo-r {SENT}",  # a look-alike flag: not a match
+        "four": f"claude --foo--resume {NEW1}",  # a look-alike flag: not a match
+        "five": f"claude --session-id {NEW2}0",  # a sid prefix: not a match
+    }
+    ps = "\n".join(cases.values())
+    home = _home(tmp_path, ps_lines=ps, transcripts=tuple((repo, s) for s in (DEV1, DEV2, SENT, NEW1, NEW2)))
+    out = _run("--print", str(repo), home=home)
+    got = {p.split()[1]: p.rsplit(" ", 1)[1] for p in _panes(out.stdout)}
+    assert got == {"dev1": "running", "dev2": "running", "sentinel": "ok", "four": "ok", "five": "ok"}, out.stdout
+    # `--name <name>` in the pane's folder is the named-process rule too
+    solo = _repo(tmp_path / "solo", {DEV1: "dev1"})
+    home = _home(tmp_path / "solo", ps_lines="4001 claude --name dev1", transcripts=((solo, DEV1),))
+    (home / "proc" / "4001").mkdir()
+    (home / "proc" / "4001" / "cwd").symlink_to(_wt(solo, "dev1"))
+    assert _panes(_run("--print", str(solo), home=home).stdout)[0].endswith(" running")
+
+
+def test_pane_cmd_applies_the_grids_cap_rules(tmp_path: Path) -> None:
+    """F4: `--pane-cmd` with no reachable user manager refuses (exit 2, nothing printed) unless FABRIK_AGENTS_UNCAPPED=1,
+    exactly as the grid does; with a manager it asserts the slice ceiling before printing (the fake systemctl logs it)."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    env = {"AGENT_IDENTITY_FILE": str(store)}
+    ok = _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, **env)
+    assert ok.returncode == 0, ok.stderr
+    assert "set-property --runtime fabrik-agents.slice" in (home / "systemctl.log").read_text(encoding="utf-8")
+    (home / "manager-down").write_text("", encoding="utf-8")
+    refused = _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, **env)
+    assert refused.returncode == 2 and refused.stdout == "", (refused.stdout, refused.stderr)
+    assert "no memory or task bound" in refused.stderr, refused.stderr
+    allowed = _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, FABRIK_AGENTS_UNCAPPED="1", **env)
+    assert allowed.returncode == 0 and allowed.stdout.startswith("echo '[UNCAPPED"), allowed.stderr
+    # a manager that answers but refuses the ceiling refuses the command too
+    (home / "manager-down").unlink()
+    (home / "slice-refused").write_text("", encoding="utf-8")
+    bad = _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, **env)
+    assert bad.returncode == 2 and bad.stdout == "", (bad.stdout, bad.stderr)
+
+
+def test_a_forged_agent_line_in_a_store_row_launches_nothing(tmp_path: Path) -> None:
+    """F7: a store row whose session_id carries a newline would print a forged `agent …` line that reaches a pane's shell
+    string. The resolver emits `known` only for a lowercase UUID, and no forged builder appears in the grid."""
+    repo, scope = _git_repo(tmp_path, {DEV1: "dev1"})
+    forged = f"{NEW1}\nagent evil {NEW2} dev1 1"
+    store = _store(
+        tmp_path,
+        [_bind(DEV1, "dev1", scope, NOW), {**_bind(NEW1, "zzz", scope, NOW), "session_id": forged}],
+    )
+    home = _home(tmp_path, transcripts=((repo, DEV1),))
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert [p.split()[1] for p in _panes(out.stdout)] == ["dev1"], out.stdout
+    assert "evil" not in out.stdout and NEW2 not in out.stdout, out.stdout
+
+
+def test_a_new_sessions_hint_and_running_message_say_session_id(tmp_path: Path) -> None:
+    """F8: a session with no transcript cannot be resumed, so the kept-shell hint (and the "already running" message)
+    of a new=1 pane name `--session-id <sid>`; a resumed pane still says `--resume <sid>`."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
+    assert f"[b2 exited — run: claude -n b2 --session-id {B2} (after a /clear" in _hint(run, tmp_path)
+    assert f"claude -n b2 --resume {B2} (after" not in _hint(run, tmp_path)
+    # running (a live claude on the sid): the message names the same flag
+    home2 = _home(tmp_path / "r", ps_lines=f"claude --session-id {B2}")
+    out = _run("--print", str(repo), home=home2, AGENT_IDENTITY_FILE=str(store))
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
+    assert f"close it there, then run: claude -n b2 --session-id {B2}]" in _inner(run), run
+    plain, pstore, _ = _spawn_repo(tmp_path / "plain", spawned=False)
+    out = _run("--print", str(plain), home=_home(tmp_path / "plain"), AGENT_IDENTITY_FILE=str(pstore))
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
+    assert f"claude -n b2 --resume {B2} (after" in _hint(run, tmp_path)
+
+
+def test_a_hub_path_with_a_space_reads_as_one_path_in_the_prompts(tmp_path: Path) -> None:
+    """F9/F2: the launcher's own checkout ($HUB) is double-quoted inside both prompts (the wake prompt has no /opt/fabrik
+    literal), so a checkout path with a space still reads as one path. The launcher is copied beside the scripts it needs
+    into a tree whose name carries a space."""
+    hub = tmp_path / "my hub"
+    (hub / "scripts" / "sysadmin").mkdir(parents=True)
+    shutil.copy(UP, hub / "scripts" / "sysadmin" / "agents_up.sh")  # the script under test, not a sibling copy
+    shutil.copy(UP.parent.parent / "decisions.py", hub / "scripts" / "decisions.py")
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    _fake_claude(home)
+    env = {"AGENT_IDENTITY_FILE": str(store)}
+    out = subprocess.run(
+        ["bash", str(hub / "scripts" / "sysadmin" / "agents_up.sh"), "--print", str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(home), "FABRIK_PROC_ROOT": str(home / "proc"), **env},
+    )
+    assert out.returncode == 0, out.stderr
+    runs = {ln.split()[1]: ln for ln in out.stdout.splitlines() if ln.startswith("run ")}
+    first = _argv(home, runs["b2"].split(" ", 2)[2])[6]
+    assert f'bash "{hub.resolve()}/scripts/sysadmin/selfwatch_arm.sh" {B2}' in first, first
+    assert f'python3 "{hub.resolve()}/scripts/whoami_agent.py" --as b2' in first, first
+    # a resumed builder's wake prompt: the same quoting, and the hub literal gone
+    plain, pstore, _ = _spawn_repo(tmp_path / "plain", spawned=False)
+    out = subprocess.run(
+        ["bash", str(hub / "scripts" / "sysadmin" / "agents_up.sh"), "--print", str(plain)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(home), "FABRIK_PROC_ROOT": str(home / "proc"), "AGENT_IDENTITY_FILE": str(pstore)},
+    )
+    wake_run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
+    wake = _argv(home, wake_run.split(" ", 2)[2])[6]
+    assert f'bash "{hub.resolve()}/scripts/sysadmin/selfwatch_arm.sh" {B2}' in wake, wake
+    assert "/opt/fabrik" not in wake, wake
+
+
+def test_pane_cmd_prints_the_resolvers_new_not_a_hard_coded_one(tmp_path: Path) -> None:
+    """T-C1: for a builder the resolver says is NOT new, the printed command part (before the kept-shell hint, which
+    legitimately says `--resume`) resumes and never carries `--session-id`; mutant `cmd_of … 1` fails this."""
+    prepo, pstore, _ = _spawn_repo(tmp_path / "plain", spawned=False)
+    out = _run(
+        "--pane-cmd", str(prepo), "b2", B2, home=_home(tmp_path / "plain"), AGENT_IDENTITY_FILE=str(pstore)
+    )
+    assert out.returncode == 0, out.stderr
+    command = _inner("run b2 " + out.stdout.strip()).split("; rc=")[0]
+    assert f"--resume {B2} --settings" in command and "--session-id" not in command, command
+
+
+def test_a_new_session_launch_does_not_warn_about_its_missing_transcript(tmp_path: Path) -> None:
+    """T-C2: the launch loop's "no transcript … the pane will try anyway" warning is skipped for a new=1 builder (a new
+    session has none, by design) and still said for a resumed builder."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run(str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert "no transcript for session" not in out.stderr, out.stderr
+    plain, pstore, _ = _spawn_repo(tmp_path / "plain", spawned=False)
+    phome = _tmux_home(tmp_path / "plain", plain, has=False, owner=None)
+    out = _run(str(plain), home=phome, AGENT_IDENTITY_FILE=str(pstore))
+    assert f"b2: no transcript for session {B2}" in out.stderr, out.stderr
+
+
+def test_pane_cmd_for_a_worktree_that_vanished_prints_nothing(tmp_path: Path) -> None:
+    """T-C3: `--pane-cmd` where `dir_of` prints nothing (the worktree's `.git` removed after the resolve) exits 2 with
+    empty stdout. The fake `ps`... runs after the resolver, so it removes the `.git` file."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    git = _wt(repo, "b2") / ".git"
+    ps = home / ".local" / "bin" / "ps"
+    ps.write_text(f"#!/bin/sh\nrm -f '{git}'\n", encoding="utf-8")
+    out = _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 2 and out.stdout == "", (out.stdout, out.stderr)
+    assert "no longer a linked git worktree" in out.stderr, out.stderr
+
+
+def test_a_process_named_infra_2_inside_infras_folder_is_not_infra(tmp_path: Path) -> None:
+    """T-C4: the name boundary is graded by itself (the cwd check alone cannot mask it): a `-n infra-2` process whose cwd
+    is inside infra's folder leaves `infra` not running."""
+    repo = _repo(tmp_path, {DEV1: "infra", DEV2: "infra-2"})
+    home = _home(tmp_path, ps_lines="4002 claude -n infra-2", transcripts=((repo, DEV1), (repo, DEV2)))
+    (home / "proc" / "4002").mkdir()
+    (home / "proc" / "4002" / "cwd").symlink_to(_wt(repo, "infra") / "sub")
+    out = _run("--print", str(repo), home=home)
+    assert [p.rsplit(" ", 1)[1] for p in _panes(out.stdout)] == ["ok", "ok"], out.stdout
+
+
+def test_a_sid_whose_last_row_names_another_builder_resumes(tmp_path: Path) -> None:
+    """T-C5: `fresh()` requires the sid's LAST in-scope row to name THIS builder: b2's sid last bound (spawned) to b3
+    in this scope is not b2's new session, so b2 resumes."""
+    # the registry gives b2 the sid; the store says its last row in this scope names b3, spawned
+    repo, scope = _git_repo(tmp_path, {B2: "b2"})
+    store = _store(tmp_path, [{**_bind(B2, "b3", scope, NOW), "pid": None, "force": False, "spawned": True}])
+    out = _run("--print", str(repo), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert "--session-id" not in out.stdout and f"claude -n b2 --resume {B2}" in out.stdout, out.stdout
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-0 file")
+def test_a_mode_zero_store_in_a_registry_less_repo_exits_2(tmp_path: Path) -> None:
+    """T-C6: the mode-0 leg of the unreadable-store check, skipped for root (which reads anything)."""
+    bare, _ = _bound_repo(tmp_path / "bare")
+    locked = _store(tmp_path, [], "locked2.jsonl")
+    os.chmod(locked, 0)
+    try:
+        out = _run("--print", str(bare), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(locked))
+    finally:
+        os.chmod(locked, 0o644)
+    assert out.returncode == 2 and "refusing rather than reading no builders" in out.stderr, out.stderr
+
+
+def test_a_padded_pid_in_ps_output_still_reads_running(tmp_path: Path) -> None:
+    """T-C7: real `ps -o pid=` right-aligns the pid (`  4002 claude …`); the launcher's `read -r pid args` tolerates the
+    padding, which the unpadded fakes never graded."""
+    repo = _repo(tmp_path, {DEV2: "infra-2"})
+    home = _home(tmp_path, ps_lines=f"{4002:>7} claude -n infra-2", transcripts=((repo, DEV2),))
+    (home / "proc" / "4002").mkdir()
+    (home / "proc" / "4002" / "cwd").symlink_to(_wt(repo, "infra-2"))
+    out = _run("--print", str(repo), home=home)
+    assert _panes(out.stdout) == [f"pane infra-2 {DEV2} {_wt(repo, 'infra-2')} running"], out.stdout
