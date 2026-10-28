@@ -11,7 +11,7 @@
   "links": {
     "decision": "D-1128",
     "plan": "",
-    "spec": ""
+    "spec": "docs/superpowers/specs/2026-10-28-dynamic-builders-design.md"
   },
   "next": "infra, after W-f975fee0: /fabrik-task (new mechanism, several files → full /fabrik-review); the hand launch recipe and prompt file are in the coordinator's scratch; test the classifier on each tmux call the verb makes (split-window and respawn-pane passed today, send-keys did not) LAYOUT RULE (D-1132, operator 2026-10-22): ≤4 panes per tab, side by side; overflow builders go to a second tmux WINDOW of the repo session and a GROUPED session <repo>-2 (new-session -t <repo> -s <repo>-2, current window 1) that the tab '<Repo> Agents 2' attaches; pane-border-status top with ' #{@agent} '. The add verb places a new builder in the first window with <4 panes or opens the next window + grouped session; agents_bat.py emits one tab per (repo, window); hibernate.py targets/agents_up.sh treat <repo>-N grouped sessions as the same repo. Applied by hand today: fabrik:0 (fleet, kaizen, intel, infra), fabrik:1 (infra-2, infra-3), session fabrik-2.",
   "note": "",
