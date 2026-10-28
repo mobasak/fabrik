@@ -4,7 +4,7 @@ Answers W-ee67bd9f (operator 2026-10-26: "when the command lean work finished, i
 
 ## The numbers
 
-- **Rules: the rule check passes on every ledgered file.** Across the 40 commands and 23 shared files there are 63 rule ledgers, holding 5,425 entries, and the check reports 0 LOSS. A ledger lists the rule-bearing lines of a file's starting text. Of those starting lines that no longer sit in their own file, 1,979 are rule text proven present in another file, 156 were classed as narrative (no rule) and 18 as duplicates.
+- **Rules: the rule check passes on every ledgered file.** Across the 40 commands and 23 shared files there are 63 rule ledgers, holding 5,425 entries, and the check reports 0 LOSS. A ledger lists the rule-bearing lines of a file's starting text. Of the starting lines that no longer appear as written, 1,979 are labelled as carried by a rule entry. Most were reworded in place, and the check proves each one's anchor tokens and key phrases sit inside that entry's section. Another 156 were classed as narrative (no rule) and 18 as duplicates.
 - **Rendered words (what an agent loads when it runs a command), all 40 commands:** 596,988 → 579,853, **97.1%** of the starting size.
 - **Own measure (the command, its seat definitions and the files under `commands/` it names; L1's quantity):** 919,518 → 888,817, **96.7%**. No command's own measure grew.
 - **Full measure (own measure plus every other doc the command orders read; the spec's quantity):** 3,772,913 → 3,765,568, **99.8%**. **Ten commands grew on it, by 13 to 793 words**, all through docs outside `commands/` that other work edited during the program (the table below marks them). The plan required that no command's full measure grow, so this requirement is not met.
@@ -12,11 +12,11 @@ Answers W-ee67bd9f (operator 2026-10-26: "when the command lean work finished, i
 
 ## The 50% goal was missed — and why
 
-The program's goal was every command at half its size or less with no rule lost. **No command and no shared file reached 50%.** Each closed instead under the coordinator's ruling D-1254, which reads: "0 LOSS under master's canonical loader + a self-audit pass with all-zero COUNTS + a per-file floor table whenever own text stays over 50%". Every file cites that ruling, but 13 of the 49 unit receipts record no per-file floor table. Several carry hand estimates instead (the close-out receipt lists them).
+The program's goal was every command at half its size or less with no rule lost. **No command and no shared file reached 50%.** Each closed instead under the coordinator's ruling D-1254, which reads: "0 LOSS under master's canonical loader + a self-audit pass with all-zero COUNTS + a per-file floor table whenever own text stays over 50%". Every file cites that ruling, but 13 of the 49 unit receipts record no per-file floor table. Several give hand-estimated word counts instead (the close-out receipt names examples).
 
 The reason was measured, not guessed (D-1259, 2026-10-26):
 - **The pilot.** /fabrik-review-scoped reached 89% of its own text against a 60% kill bar, before its re-ledger, which D-1259 notes "can only raise it". It ends at 97.8% (table below).
-- **The light units.** Across about 17 of them with independent audits, the results were 49.8–100% (median ~91%) once every rule an auditor flagged as cut had been restored. The low end is a mid-run figure: /fabrik-generate-tests stood at 49.8% before its restoration round and ends at 100.0%.
+- **The light units.** Across about 17 of them with independent audits, the results were 49.8–100% (median ~91%) once every rule an auditor flagged as cut had been restored. D-1259's low end, 49.8%, was /fabrik-generate-tests after its first audit round. The hub's second audit round restored more of its rules, and it ends at 100.0%.
 - **The cause.** The words in these commands are mostly rules, and the rules are what make them long.
 
 The pre-agreed KILL test therefore fired: no new rewrite unit started, and the 50% headline was retired in favour of per-file floors. You then ruled (D-1293, W-8d2815a8 answer A): finish the units already running, keep every rule, spend the API and cloud credits first, and rework the rules themselves in a later program.
@@ -83,9 +83,9 @@ The pre-agreed KILL test therefore fired: no new rewrite unit started, and the 5
 
 ## Every rule-ledgered file (40 commands and 23 shared files; the 10 unledgered fragments are listed after the table)
 
-Own text at the unit's start commit against master. 'Lines moved' counts baseline lines that left the file and are proven present elsewhere; 'narrative' and 'duplicate' count lines the ledger classed as carrying no rule. Every ledger currently reports 0 LOSS. The floor column names the ruling each file closed under; per-file floor arithmetic, where the unit recorded one, is in the unit's receipt under `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T*-receipt.md`.
+Own text at the unit's start commit against master. 'Vanished baseline lines' counts the starting lines that no longer appear as written. A line labelled as carried by a rule entry is proven by the check to have its anchor tokens and key phrases inside that entry's section, mostly reworded in the same file. 'Narrative' counts lines the ledger classed as carrying no rule, and 'duplicate' counts lines that restated a rule another entry carries. Every ledger currently reports 0 LOSS. The floor column names the ruling each file closed under; per-file floor arithmetic, where the unit recorded one, is in the unit's receipt under `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T*-receipt.md`.
 
-| File | Ledger | Baseline own words | Master own words | Ratio | Ledger entries | Lines moved (rule) / narrative / duplicate | Floor |
+| File | Ledger | Baseline own words | Master own words | Ratio | Ledger entries | Vanished baseline lines: carried by a rule entry / narrative / duplicate | Floor |
 |---|---|---:|---:|---:|---:|---|---|
 | `commands/_fragments/agent-feedback.md` | `commands/_rules/_shared/agent-feedback.yaml` | 475 | 461 | 97.1% | 20 | 2 / 2 / 0 | D-1254 |
 | `commands/_fragments/autonomy-run.md` | `commands/_rules/_shared/autonomy-run.yaml` | 1173 | 1151 | 98.1% | 38 | 20 / 0 / 0 | D-1254 |
