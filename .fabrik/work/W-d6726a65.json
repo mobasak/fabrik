@@ -15,7 +15,7 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra-3",
+  "owner": "infra-2",
   "priority": 1,
   "score_reason": "operator 1.1: one-time steps done by the operator once, then coordinators handle the rest",
   "status": "open",
