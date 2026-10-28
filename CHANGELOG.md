@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the corpus check's rule-ledger pass caches its text views: about 100 s to 33 s (2026-10-29)
+
+- `commands/command_rules.py` (W-f5a1eec9, D-1319): `losses()` re-split and re-normalised the same file and
+  section once per ledger entry, so every `assemble_commands.py --check` (the corpus pre-commit hook, the
+  gate, kaizen runs) paid about 100-120 s. `normalise`, `units` and two paragraph views are now cached by
+  their string arguments, and lint C compiles each phrase once. The output is identical to base on the live
+  corpus and on mutated renders with 1,668 and 2,777 LOSS lines; `test_the_live_corpus_has_no_loss` went
+  from 96 s to 41 s.
+- `tests/test_command_rules.py`: a cost guard (red on base), an identity test against the uncached functions,
+  a fresh-list test for `units()`, exact lint C counts, and an autouse fixture that empties the caches.
+
 ### Fixed — vps1 rotation step 3a re-owns GlitchTip's schema one object per transaction (2026-10-28)
 
 - The operator's run of `scripts/sysadmin/vps1_pg_scoped_logins.py` stopped at step 3a with "out of shared memory": the re-own of GlitchTip's log partitions ran in ONE transaction and overflowed `max_locks_per_transaction`. Step 3a now commits after every object, waits at most 5 s (`lock_timeout`) for a busy table instead of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, skips what `glitchtip` already owns so a re-run locks only the leftovers, tolerates a partition dropped mid-run, and gets its own 1800 s ssh bound. The runbook (`docs/reference/vps1-postgres-admin-rotation-runbook.md`) quotes the same block, tested to stay identical, and its rollback row now also revokes `postgres_exporter`'s CONNECT grants. Graders run the real SQL on a local PostgreSQL 16 cluster with a 100-slot lock table.

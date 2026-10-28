@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## An identity check on a corpus that produces nothing proves nothing (2026-10-29, W-f5a1eec9)
+
+**What happened:** to speed up `losses()`, the first probe compared the cached build's output with base over the live corpus and printed `identical True`. The live corpus produces zero LOSS lines, so the check only showed that an empty list stayed empty. The planned identity test also compared the build with itself (cold cache against warm cache). Both critique seats caught it. The real differential ran base and build over mutated renders that produce 1,668 and 2,777 LOSS lines.
+
+**Lesson:** before an equality check is evidence that a change preserved output, count what the reference produces. If it is empty or near-empty, perturb the input until the reference produces many results of every kind, then compare base against the build — never the build against itself.
+
 ## A stub guard keyed on a marker accepts whatever else carries the marker (2026-10-28, W-bda24c48)
 
 **What happened:** to stop 11 tests paying a 169 s LOSS pass, a spy replaced it and accepted only "check()'s temp render", identified by the `_agents` subdirectory only the render holds. Review round 1 found the source tree `commands/` holds `_agents` too, so a check() handing the pass its own sources stayed green. It also found that a neutral rename of the temp dir false-redded every test. The next two identity rules each failed once more: "the last render" false-redded a check() rendering twice, and "any render this test made" accepted an earlier call's deleted temp dir.
