@@ -34,7 +34,7 @@ file that is not plain JSON (comments, a trailing comma, a BOM, a duplicate key,
 to add by hand is printed), an unreachable user systemd manager, and linger off for the archive step (it prints
 `loginctl enable-linger <user>`). A file edited after planning is never overwritten: it is re-read before the backups
 and again right before its own write, and the run stops there. Once `--apply` has made its backup dir, a later stop —
-the archive installer failing, or that re-read — leaves the backups and whatever was already written, and prints the
+the archive installer failing, a backup that does not read back, or that re-read — leaves the backups and whatever was already written, and prints the
 undo lines for exactly that.
 
 `--apply`'s guard proves the script's location (`/opt/fabrik/scripts/sysadmin/`) and that the main checkout is on

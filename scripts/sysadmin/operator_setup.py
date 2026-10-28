@@ -23,8 +23,8 @@ what `--apply` writes. `--apply` refuses (exit 2) unless this file sits in the h
 guard proves location and branch, not a clean tree. `OPERATOR_SETUP_HUB` overrides the hub path for
 tests and says so loudly.
 
-Exit: 0 done (or nothing to do) · 1 a refusal or a failed verification, nothing written when it is a
-refusal · 2 `--apply` outside the hub main checkout on master.
+Exit: 0 done (or nothing to do) · 1 a refusal (nothing written when planning refused), a failed archive installer or
+a failed verification · 2 `--apply` outside the hub main checkout on master.
 
 COBRA (D-253): the cheapest way to make the run "succeed" is to plan nothing — a target the planner
 silently skips reads as already done. Counter: every skipped VS Code target is a missing PARENT dir (the
@@ -374,11 +374,14 @@ def _restore_lines(backup: Path | None, done: list[Change], ran: bool, timer_was
 
 
 def _changed(c: Change) -> bool:
-    """True when the target no longer holds the bytes planned for it."""
+    """True when the target no longer holds the bytes AND mode planned for it — a mode-only change (the installer's
+    0644 over a 0600 unit) counts. Never raises: a target that became a symlink, a non-file or unreadable counts as
+    changed, so its undo line is printed and an exception already in flight (an interrupt) is never replaced."""
     try:
-        return _read(c.path)[0] != c.before
-    except PlanError:  # it became a symlink or a non-file: changed, and its undo line restores the bytes
+        data, mode = _read(c.path)
+    except (PlanError, OSError):
         return True
+    return data != c.before or mode != c.old_mode
 
 
 def _run_archive_installer(p: Plan, done: list[Change]) -> int:
@@ -400,7 +403,11 @@ def apply(home: Path, p: Plan) -> int:
             print(f"operator_setup: {c.path} changed since it was planned — nothing written; run again", file=sys.stderr)
             return 1
     for name, planned in (p.archive_sources or {}).items() if p.archive_run else ():  # a hub pull since planning
-        if (HERE / "systemd" / name).read_bytes() != planned:
+        try:
+            now = (HERE / "systemd" / name).read_bytes()
+        except OSError:  # deleted or unreadable since planning
+            now = None
+        if now != planned:
             print(f"operator_setup: {HERE / 'systemd' / name} changed since it was planned — nothing written; run again",
                   file=sys.stderr)
             return 1
@@ -415,19 +422,19 @@ def apply(home: Path, p: Plan) -> int:
             print(f"operator_setup: {backup} already exists — nothing written; run again in a second", file=sys.stderr)
             return 1
         backup.chmod(0o700)
-    for c in changes:
-        if c.before is None:
-            continue
-        dst = backup / c.rel
-        _mkdir_private(dst.parent, backup)
-        dst.write_bytes(c.before)
-        dst.chmod(c.old_mode if c.old_mode is not None else 0o600)
-        if dst.read_bytes() != c.before:
-            print(f"operator_setup: the backup of {c.path} does not match — nothing written", file=sys.stderr)
-            return 1
     done: list[Change] = []
     ran = False
-    try:
+    try:  # from here on every exit prints where the backup is, and the undo lines for what was written
+        for c in changes:
+            if c.before is None:
+                continue
+            dst = backup / c.rel
+            _mkdir_private(dst.parent, backup)
+            dst.write_bytes(c.before)
+            dst.chmod(c.old_mode if c.old_mode is not None else 0o600)
+            if dst.read_bytes() != c.before:
+                print(f"operator_setup: the backup of {c.path} does not match — nothing written", file=sys.stderr)
+                return 1
         if p.archive_run:  # FIRST: a systemd refusal then leaves steps 1-3 unwritten
             ran = True
             rc = _run_archive_installer(p, done)

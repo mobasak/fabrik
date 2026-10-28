@@ -1,10 +1,10 @@
 """Behavior Contract — `scripts/sysadmin/operator_setup.py` (W-d6726a65, operator requirement 1.1).
 
-The operator runs the script once. Every test drives a copy of it from a scratch hub checkout — by
-subprocess, except the in-process interleavings in `test_settings_key_set_and_unparseable_file_refused`
-(an edit, a symlink or an interrupt between planning and writing), which load that same copy — (`<tmp>/hub/scripts/sysadmin/`, the script's only allowed home for `--apply`) against a
-scratch HOME, so no test reads or writes the real account dirs, the installed wrapper or the editor
-settings. `systemctl --user`, `loginctl` and `systemd-analyze --user` ignore HOME and would reach the
+The operator runs the script once. Every test drives a copy of it from a scratch hub checkout
+(`<tmp>/hub/scripts/sysadmin/`, the script's only allowed home for `--apply`) against a scratch HOME, so no
+test reads or writes the real account dirs, the installed wrapper or the editor settings. The copy runs by
+subprocess, except the in-process interleavings in `test_settings_key_set_and_unparseable_file_refused` (an
+edit, a symlink, an interrupt or a hub pull between planning and writing), which load that same copy. `systemctl --user`, `loginctl` and `systemd-analyze --user` ignore HOME and would reach the
 operator's real user manager, so every run puts the stateful stubs below first on PATH; their state
 lives in `<tmp>/stub-state/`, outside the scratch HOME, and every call is logged there.
 """
@@ -273,6 +273,7 @@ def test_apply_installs_the_wrapper_and_the_archive_timer(tmp_path):
     # unwritten, and the restore lines name exactly the units it changed
     h = _home(tmp_path / "reload-fails")
     (h.parent / "stub-state" / "fail-daemon-reload").touch()
+    (h / UNIT_DIR / "session-archive.timer").chmod(0o600)  # right bytes, wrong mode: the installer's 0644 is a change too
     steps_1_to_3 = (
         ".claude/settings.json",
         ".claude-fleet/api-can/settings.json",
@@ -286,7 +287,7 @@ def test_apply_installs_the_wrapper_and_the_archive_timer(tmp_path):
         assert (h / rel).read_bytes() == data, f"{rel} was written after a failed installer"
     assert not (h / ".vscode-server/data/Machine/settings.json").exists(), "step 3 created a file after a failed installer"
     named = sorted(ln.split("/")[-1].strip("'\"") for ln in r.stdout.splitlines() if ln.startswith(("cp -p ", "rm ")))
-    assert named == ["session-archive-alert.service", "session-archive.service"], r.stdout
+    assert named == ["session-archive-alert.service", "session-archive.service", "session-archive.timer"], r.stdout
     # the installer refuses before writing anything (its verify speaks): no file joins the undo lines
     h = _home(tmp_path / "verify-noise")
     (h.parent / "stub-state" / "verify-noise").touch()
@@ -406,26 +407,36 @@ def test_settings_key_set_and_unparseable_file_refused(tmp_path, monkeypatch):
     def dies_after_writing(argv, *a, **k):
         for u in UNITS:
             shutil.copy(SYSADMIN / "systemd" / u, h5 / UNIT_DIR / u)
+        (h5 / UNIT_DIR / UNITS[0]).chmod(0o000)  # a unit the undo set cannot read back: still listed, never raising
         raise KeyboardInterrupt
 
+    real_run = subprocess.run
     monkeypatch.setattr(mod.subprocess, "run", dies_after_writing)
     out = io.StringIO()
-    with contextlib.redirect_stdout(out), pytest.raises(KeyboardInterrupt):
-        mod.apply(h5, p5)
+    try:
+        with contextlib.redirect_stdout(out), pytest.raises(KeyboardInterrupt):
+            mod.apply(h5, p5)
+    finally:
+        (h5 / UNIT_DIR / UNITS[0]).chmod(0o644)
+        monkeypatch.setattr(mod.subprocess, "run", real_run)  # never monkeypatch.undo(): it would bring back XDG_CONFIG_HOME
     named = sorted(ln.split("/")[-1].strip("'\"") for ln in out.getvalue().splitlines() if ln.startswith(("cp -p ", "rm ")))
     assert named == ["session-archive-alert.service", "session-archive.service"], out.getvalue()
-    monkeypatch.undo()
-    # a source unit that changes between planning and the installer run (a hub pull): nothing written
-    h6 = _home(tmp_path / "source-moved")
-    for k, v in _env(h6).items():
-        monkeypatch.setenv(k, v)
-    monkeypatch.setitem(sys.modules, "operator_setup", mod)
-    p6 = mod.plan(h6)
-    src = hub / "scripts" / "sysadmin" / "systemd" / "session-archive.service"
-    src.write_bytes(src.read_bytes() + b"# pulled\n")
-    before = _digest(h6)
-    assert mod.apply(h6, p6) == 1
-    assert _digest(h6) == before, "a hub pull since planning still reached the installer, or a backup was made"
+    # a source unit that changes, or goes, between planning and the installer run (a hub pull): nothing written
+    for label, move in (("source-moved", "edit"), ("source-gone", "delete")):
+        h6 = _home(tmp_path / label)
+        for k, v in _env(h6).items():
+            monkeypatch.setenv(k, v)
+        p6 = mod.plan(h6)
+        src = hub / "scripts" / "sysadmin" / "systemd" / "session-archive.service"
+        kept = src.read_bytes()
+        if move == "edit":
+            src.write_bytes(kept + b"# pulled\n")
+        else:
+            src.unlink()
+        before = _digest(h6)
+        assert mod.apply(h6, p6) == 1, label
+        assert _digest(h6) == before, f"{label}: a hub pull since planning still reached the installer, or a backup was made"
+        src.write_bytes(kept)
 
 
 def test_apply_outside_the_hub_checkout_refuses(tmp_path):
