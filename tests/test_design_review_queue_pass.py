@@ -1,6 +1,5 @@
 """/design-review feedback queue answered in one pass (D-735, D-794)."""
 
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
