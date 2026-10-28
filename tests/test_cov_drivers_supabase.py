@@ -195,7 +195,13 @@ def test_query_default_url_and_result():
 
 def test_query_filters_order_limit_encoded():
     c = make()
-    c.query("t", select="id,name", filters={"email": "a&b=c d"}, order="priority.desc,created_at.asc", limit=5)
+    c.query(
+        "t",
+        select="id,name",
+        filters={"email": "a&b=c d"},
+        order="priority.desc,created_at.asc",
+        limit=5,
+    )
     url = c._client.calls[0][1]
     assert url == (
         f"{URL}/rest/v1/t?select=id,name&email=eq.a%26b%3Dc%20d"
@@ -363,7 +369,13 @@ def test_claim_next_job_falls_through_to_next_type_when_none_pending():
 
 
 def test_claim_next_job_lost_race_tries_next_type():
-    c = make([FakeResp(200, [{"id": "j1"}]), FakeResp(200, []), FakeResp(200, []), ])
+    c = make(
+        [
+            FakeResp(200, [{"id": "j1"}]),
+            FakeResp(200, []),
+            FakeResp(200, []),
+        ]
+    )
     assert c.claim_next_job(["a", "b"], "w") is None
     assert [m for m, *_ in c._client.calls] == ["GET", "PATCH", "GET"]
 

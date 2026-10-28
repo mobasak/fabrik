@@ -168,7 +168,9 @@ def test_ensure_site_returns_existing_without_registering(client, http):
 
 def test_ensure_site_creates_when_missing(client, http):
     http.resp.json.side_effect = [{"sites": []}, {"site_id": "new-1"}]
-    sid = client.ensure_site("my.example.com", "My", country_code="gb", language_code="en", category="saas")
+    sid = client.ensure_site(
+        "my.example.com", "My", country_code="gb", language_code="en", category="saas"
+    )
     assert sid == "new-1"
     assert http.request.call_count == 2
     p = http.request.call_args.kwargs["json"]
@@ -198,8 +200,12 @@ def test_create_job_minimal(client, http):
 
 def test_create_job_all_options(client, http):
     client.create_job(
-        "s1", ["a", "b"], country_code="de", language_code="de",
-        page_type_override="pricing", provider_config={"x": 1},
+        "s1",
+        ["a", "b"],
+        country_code="de",
+        language_code="de",
+        page_type_override="pricing",
+        provider_config={"x": 1},
     )
     assert http.request.call_args.kwargs["json"] == {
         "seed_topics": ["a", "b"],

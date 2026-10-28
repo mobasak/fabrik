@@ -201,14 +201,14 @@ def _with_creds(monkeypatch, tmp_path):
     _home_at(monkeypatch, tmp_path)
 
 
-def _R(stdout="", rc=0):
+def _run_result(stdout="", rc=0):
     return SimpleNamespace(stdout=stdout, returncode=rc)
 
 
 def test_g0_scp_failure_reports_rc(tmp_path, monkeypatch):
     _with_creds(monkeypatch, tmp_path)
-    monkeypatch.setattr(d, "_ssh_ozgur_drill", lambda *a, **k: _R())
-    monkeypatch.setattr(d.subprocess, "run", lambda *a, **k: _R(rc=5))
+    monkeypatch.setattr(d, "_ssh_ozgur_drill", lambda *a, **k: _run_result())
+    monkeypatch.setattr(d.subprocess, "run", lambda *a, **k: _run_result(rc=5))
     assert d._g0_creds_smoke("1.1.1.1") == {
         "attempted": True,
         "pass": False,
@@ -234,13 +234,13 @@ def test_g0_detects_rotation_and_missing_rc_marker(tmp_path, monkeypatch):
 
     def ssh(ip, cmd, *, timeout=60):
         if "sha256sum" in cmd:
-            return _R(next(hashes))
+            return _run_result(next(hashes))
         if cmd.startswith("claude -p"):
-            return _R("garbage")  # no RC= token -> 127
-        return _R()
+            return _run_result("garbage")  # no RC= token -> 127
+        return _run_result()
 
     monkeypatch.setattr(d, "_ssh_ozgur_drill", ssh)
-    monkeypatch.setattr(d.subprocess, "run", lambda *a, **k: _R())
+    monkeypatch.setattr(d.subprocess, "run", lambda *a, **k: _run_result())
     res = d._g0_creds_smoke("1.1.1.1")
     assert res["claude_p_rc"] == 127 and res["pass"] is False
     assert res["spoke_creds_rotated_on_first_use"] is True
@@ -251,11 +251,11 @@ def test_g0_unrotated_creds(tmp_path, monkeypatch):
 
     def ssh(ip, cmd, *, timeout=60):
         if "sha256sum" in cmd:
-            return _R("same  f")
-        return _R("RC=0") if cmd.startswith("claude -p") else _R()
+            return _run_result("same  f")
+        return _run_result("RC=0") if cmd.startswith("claude -p") else _run_result()
 
     monkeypatch.setattr(d, "_ssh_ozgur_drill", ssh)
-    monkeypatch.setattr(d.subprocess, "run", lambda *a, **k: _R())
+    monkeypatch.setattr(d.subprocess, "run", lambda *a, **k: _run_result())
     res = d._g0_creds_smoke("1.1.1.1")
     assert res["spoke_creds_rotated_on_first_use"] is False and res["pass"] is True
 
@@ -484,7 +484,8 @@ def test_drill_create_failure_leaves_no_destroy_and_logs():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="vultr_drill.py:541 reports kept_for_debug when create failed and nothing exists to keep",
+    raises=AssertionError,
+    reason="vultr_drill.py:550 sets keep without a resource id, so :561 reports kept_for_debug when create failed and nothing exists to keep",
 )
 def test_drill_create_failure_with_keep_flag_keeps_nothing():
     c = _client()

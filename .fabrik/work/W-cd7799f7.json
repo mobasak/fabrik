@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T16:22:12.350783Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-cd7799f7",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "use output.split()[:1] or a split-then-check, drop the xfail marker",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "preflight._vps_resolves crashes with IndexError on whitespace-only ssh output (src/fabrik/drivers/preflight.py:148: output is truthy, split() is empty); should return False. Guarded by strict xfail tests/test_cov_drivers_preflight.py::test_vps_resolves_whitespace_only_output_is_false_not_a_crash"
+}

@@ -93,7 +93,9 @@ def test_get_check_config_without_postconditions_key(tmp_path):
 
 
 @pytest.mark.xfail(
-    strict=True, reason="`postconditions:` with null value crashes with AttributeError"
+    strict=True,
+    raises=AttributeError,
+    reason="`postconditions:` with null value crashes with AttributeError",
 )
 def test_null_postconditions_section_is_tolerated(tmp_path):
     c = make_checker(tmp_path, "postconditions:\n")
@@ -489,14 +491,14 @@ def test_all_passed_false_when_no_results(tmp_path):
 
 def test_all_passed_matrix(tmp_path):
     c = make_checker(tmp_path, "a: 1\n")
-    P, F, S, W = CheckResult.PASS, CheckResult.FAIL, CheckResult.SKIP, CheckResult.WARN
+    p, f, s, w = CheckResult.PASS, CheckResult.FAIL, CheckResult.SKIP, CheckResult.WARN
     cases = [
-        ([P], True),
-        ([P, S, W], True),
-        ([P, F], False),
-        ([S], False),
-        ([W], False),
-        ([S, F], False),
+        ([p], True),
+        ([p, s, w], True),
+        ([p, f], False),
+        ([s], False),
+        ([w], False),
+        ([s, f], False),
     ]
     for results, expected in cases:
         c.results = [result_of(str(i), r) for i, r in enumerate(results)]

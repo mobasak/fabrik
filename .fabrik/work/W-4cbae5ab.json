@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T16:22:14.255142Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4cbae5ab",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "use self.spec.get(\"postconditions\") or {} at both sites, drop the xfail marker",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "verify.PostconditionChecker crashes with AttributeError on a spec whose postconditions: key is null (src/fabrik/verify.py:82 and :283 call .get/.items on None). Guarded by strict xfail tests/test_cov_verify.py::test_null_postconditions_section_is_tolerated"
+}

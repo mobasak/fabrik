@@ -83,7 +83,8 @@ def test_vps_resolves_ssh_runtime_error_is_false(monkeypatch):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="whitespace-only ssh output is truthy but split() is empty -> IndexError (preflight.py:146)",
+    raises=IndexError,
+    reason="whitespace-only ssh output is truthy but split() is empty -> IndexError (preflight.py:148)",
 )
 def test_vps_resolves_whitespace_only_output_is_false_not_a_crash(monkeypatch):
     monkeypatch.setattr(pf, "ssh", lambda *a, **k: "  \n")
@@ -357,7 +358,9 @@ def test_probe_network_shapes_detected(monkeypatch, line):
 
 
 def test_probe_permission_denied_is_not_network_shaped(monkeypatch):
-    ok, network, reason = _probe_with(monkeypatch, rc=255, stderr="Permission denied (publickey).\n")
+    ok, network, reason = _probe_with(
+        monkeypatch, rc=255, stderr="Permission denied (publickey).\n"
+    )
     assert (ok, network, reason) == (False, False, "Permission denied (publickey)")
 
 
@@ -555,7 +558,9 @@ def test_advise_is_silent_when_direct_still_dead(monkeypatch, caplog):
     assert caplog.text == ""
 
 
-@pytest.mark.parametrize("exc", [subprocess.TimeoutExpired("ssh", 5), OSError("no ssh"), ValueError("x")])
+@pytest.mark.parametrize(
+    "exc", [subprocess.TimeoutExpired("ssh", 5), OSError("no ssh"), ValueError("x")]
+)
 def test_advise_swallows_any_probe_error(monkeypatch, exc):
     def boom(*a, **k):
         raise exc

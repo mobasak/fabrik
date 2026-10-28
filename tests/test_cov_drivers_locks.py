@@ -174,7 +174,9 @@ class TestGitCommitConfigDryRun:
             result = git_commit_config(GATUS, "hello msg", dry_run=True)
         assert result is None
         mock_ssh.assert_not_called()
-        assert any("DRY RUN" in r.getMessage() and "hello msg" in r.getMessage() for r in caplog.records)
+        assert any(
+            "DRY RUN" in r.getMessage() and "hello msg" in r.getMessage() for r in caplog.records
+        )
         assert any(GATUS in r.getMessage() for r in caplog.records)
 
 
@@ -205,7 +207,7 @@ class TestGitCommitConfigCommands:
 
     @patch("fabrik.drivers.locks.ssh")
     def test_message_is_shell_quoted(self, mock_ssh):
-        msg = "it's \"odd\"; rm -rf / $(id)"
+        msg = 'it\'s "odd"; rm -rf / $(id)'
         git_commit_config(GATUS, msg)
         last = mock_ssh.call_args_list[-1].args[0]
         assert f"git commit -m {shlex.quote(msg)} " in last

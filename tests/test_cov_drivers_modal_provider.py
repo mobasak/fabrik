@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
-import types
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -79,7 +78,13 @@ def test_init_loads_sysadmin_env_file(fake_modal, monkeypatch, tmp_path):
     f.write_text("MODAL_TOKEN_ID=fid\nMODAL_TOKEN_SECRET=fsec\n")
     monkeypatch.setattr(mp, "SYSADMIN_ENV", f)
     seen = []
-    monkeypatch.setattr(mp, "load_dotenv", lambda p: seen.append(p) or monkeypatch.setenv("MODAL_TOKEN_ID", "fid") or monkeypatch.setenv("MODAL_TOKEN_SECRET", "fsec"))
+    monkeypatch.setattr(
+        mp,
+        "load_dotenv",
+        lambda p: seen.append(p)
+        or monkeypatch.setenv("MODAL_TOKEN_ID", "fid")
+        or monkeypatch.setenv("MODAL_TOKEN_SECRET", "fsec"),
+    )
     c = ModalClient()
     assert seen == [f]
     assert c.token_id == "fid"
@@ -227,7 +232,12 @@ def test_destroy_pod_cancels_and_exits(client, fake_modal):
     client.destroy_pod("fc-123")
     fc.cancel.assert_called_once()
     ctx.__exit__.assert_called_once_with(None, None, None)
-    assert (client._active_app_ctx, client._active_app, client._active_fc, client._active_fc_id) == (None,) * 4
+    assert (
+        client._active_app_ctx,
+        client._active_app,
+        client._active_fc,
+        client._active_fc_id,
+    ) == (None,) * 4
 
 
 def test_destroy_pod_without_active_uses_from_id(client, fake_modal):
@@ -357,7 +367,9 @@ def test_destroy_endpoint_idempotent_message_on_stdout(client, monkeypatch):
 
 
 def test_destroy_endpoint_real_failure(client, monkeypatch):
-    monkeypatch.setattr(mp.subprocess, "run", lambda *a, **k: _run_result(1, "", "permission denied"))
+    monkeypatch.setattr(
+        mp.subprocess, "run", lambda *a, **k: _run_result(1, "", "permission denied")
+    )
     with pytest.raises(ModalError, match="modal app stop app failed: permission denied"):
         client.destroy_endpoint("app")
 
@@ -398,19 +410,21 @@ def test_run_endpoint_sync_without_url(client):
 class _RedirectPath(type(Path())):
     """Path that redirects the hard-coded /opt/fabrik/templates/modal into a tmp dir."""
 
-    root: Path = Path()
+    # Not ``root``: that name shadows ``PurePath.root`` and corrupts str().
+    redirect_to: Path = Path()
 
-    def __new__(cls, *parts, **kw):
+    # Python >= 3.12 takes the segments in __init__; a __new__ rewrite is ignored.
+    def __init__(self, *parts):
         if parts and str(parts[0]) == "/opt/fabrik/templates/modal":
-            parts = (str(cls.root),) + parts[1:]
-        return super().__new__(cls, *parts, **kw)
+            parts = (str(type(self).redirect_to),) + parts[1:]
+        super().__init__(*parts)
 
 
 @pytest.fixture
 def tpl_dir(monkeypatch, tmp_path):
     d = tmp_path / "tpls"
     d.mkdir()
-    _RedirectPath.root = d
+    _RedirectPath.redirect_to = d
     monkeypatch.setattr(mp, "Path", _RedirectPath)
     out = tmp_path / "out"
     out.mkdir()
@@ -582,7 +596,9 @@ def test_create_endpoint_fallback_function_names(client, fake_modal, monkeypatch
 
 
 def test_create_endpoint_unresolvable_url_warns(client, fake_modal, monkeypatch, tmp_path, caplog):
-    path = _write_app_module(tmp_path, "class _App:\n    def deploy(self, name): pass\napp=_App()\n")
+    path = _write_app_module(
+        tmp_path, "class _App:\n    def deploy(self, name): pass\napp=_App()\n"
+    )
     _patch_render(client, monkeypatch, path)
     fake_modal.Function.from_name.side_effect = RuntimeError("nope")
     with caplog.at_level(logging.WARNING, logger=mp.logger.name):
@@ -592,7 +608,9 @@ def test_create_endpoint_unresolvable_url_warns(client, fake_modal, monkeypatch,
     assert client._endpoint_cache["svc"]["_endpoint_url"] is None
 
 
-def test_create_endpoint_registry_lookup_failure_is_nonfatal(client, fake_modal, monkeypatch, tmp_path):
+def test_create_endpoint_registry_lookup_failure_is_nonfatal(
+    client, fake_modal, monkeypatch, tmp_path
+):
     body = (
         "class _App:\n"
         "    @property\n"
