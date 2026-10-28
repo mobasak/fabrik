@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T14:21:58.944571Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3b5893f8",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide fail-closed for from_file (deploy-behaviour change — panel if contested); raise outside the handler in secrets.py like _load_secrets does; tests for both",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "_load_secrets fail-open siblings (W-29978425 follow-up): a from_file secret that cannot be read is dropped behind a warning and the deploy goes on (src/fabrik/orchestrator/__init__.py from_file loop), unlike the fail-closed .env path; secrets.py:51-53 raises ValidationError inside the except, so __context__ still holds the UnicodeDecodeError with the secret's byte"
+}
