@@ -309,6 +309,9 @@ a failed `text`, `ordered` or `forbidden` carrier; a baseline unit that vanished
 a malformed ledger; a vanished baseline line holding a ban word labelled `narrative`; or a ledger lint (below). `enforced:` is a load-time lint: the named test's own asserts must show a
 refusal, and a call that runs something (a subprocess or runner callee, never `print()` or a
 logger) must name the script the entry's `text` carrier names. `losses()` never raises.
+`normalise`, `units` and the two paragraph views lint reads (`_file_paras`, `_live_paras`) are cached by
+their string arguments (W-f5a1eec9; one `losses()` went from about 100 s to 33 s), so each must stay a
+pure function of its arguments: a lint that needs other state reads it outside them.
 
 - **Own text:** a command's source; an `{{include:…}}` line stays as a marker that `units()` skips,
   so the fragment's text is never the command's. A shared file is its own text.

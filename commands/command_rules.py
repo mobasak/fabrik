@@ -16,6 +16,7 @@ lint ties the test's own asserts to the script the ``text`` carrier names; the a
 from __future__ import annotations
 
 import ast
+import functools
 import hashlib
 import os
 import re
@@ -52,6 +53,10 @@ def _outside_code(s: str, fn) -> str:
     return "`".join(fn(p) if i % 2 == 0 else p for i, p in enumerate(parts))
 
 
+# W-f5a1eec9: `normalise`, `_units` and the two paragraph views are cached by their string arguments. Each is
+# pure (it reads only regexes compiled at import), so a cache hit returns what the call would compute; `_check`
+# re-reads the same file and section once per ledger entry, which made one `losses()` cost 121.9 s.
+@functools.lru_cache(maxsize=1 << 16)
 def normalise(s: str) -> str:
     # idempotent, because `_check` re-normalises a stored `current` (W-a9b5e763 slice C): emphasis is
     # stripped to a fixed point ("_**_" leaves "__"), then trailing periods AND the spaces before them
@@ -89,7 +94,13 @@ def units(text: str, front_matter: bool = True, splices: bool = False) -> list[t
     A leading ``---`` block is front matter only for a whole file (``front_matter``); a section
     body that opens with a ``---`` rule keeps every unit. An ``{{include:…}}`` line is no unit (the
     fragment's text is its own; inside a fence the line is blanked); with ``splices`` each line the
-    renderer splices also yields a ``splice`` unit, so a caller sees where a fragment lands."""
+    renderer splices also yields a ``splice`` unit, so a caller sees where a fragment lands. Each call gets a
+    fresh list, so a caller may change it without touching the cache."""
+    return list(_units(text, front_matter, splices))
+
+
+@functools.lru_cache(maxsize=256)
+def _units(text: str, front_matter: bool, splices: bool) -> tuple[tuple[str, str, str], ...]:
     lines = text.splitlines()
     if front_matter and lines and lines[0].strip() == "---":
         end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
@@ -150,7 +161,7 @@ def units(text: str, front_matter: bool = True, splices: bool = False) -> list[t
     if comment is not None:
         out.append((heading, "comment", " ".join(comment)))
     flush()
-    return [(h, k, n) for h, k, t in out if (n := normalise(t) if k != "fence" else t)]
+    return tuple((h, k, n) for h, k, t in out if (n := normalise(t) if k != "fence" else t))
 
 
 def keys(text: str) -> list[str]:
@@ -717,7 +728,19 @@ def _paras(scope: str) -> list[str]:
     return re.split(r"\n\s*\n|^[ \t]*(?:`{3,}|~{3,})[^`~\n]*$", scope, flags=re.M)
 
 
-def _verbatim(span: str, paras: list[str]) -> bool:
+@functools.lru_cache(maxsize=256)
+def _file_paras(text: str) -> tuple[str, ...]:
+    """A whole file's paragraphs, normalised: what lint C counts a phrase in."""
+    return tuple(normalise(p) for p in _paras(text))
+
+
+@functools.lru_cache(maxsize=256)
+def _live_paras(scope: str) -> tuple[str, ...]:
+    """A section's paragraphs as `_verbatim` reads them: normalised, de-emphasised, case folded."""
+    return tuple(normalise(_deemph(p)).casefold() for p in _paras(scope))
+
+
+def _verbatim(span: str, paras: tuple[str, ...]) -> bool:
     """``span`` stands in one live paragraph as written: whitespace and emphasis normalised, case folded
     (D-1238 matches ban words in any case), punctuation and word boundaries kept."""
     want = normalise(_deemph(span.replace(_FENCE_JOIN, " "))).casefold()
@@ -749,18 +772,18 @@ def _lint(e: dict, scope: str, text: str) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     phrases = e.get("text") or []
     cur = normalise(e["current"]) if e.get("current") else None
-    file_paras = [normalise(p) for p in _paras(text)]
+    file_paras = _file_paras(text)
     cls = entry_class(e)
     # C binds the carriers D-1236 lets be reworded (prose); a ban/grammar/behavioural pin is held by A, B and D
     for ph in phrases if cls == "prose" else []:
         whole_unit = cur is not None and normalise(ph) == cur  # exempt from the minimum only, never uniqueness
         if not whole_unit and len([w for w in normalise(ph).split() if re.search(r"[^\W_]", w)]) < 6:
             out.append(("C", f"text phrase under 6 words — {ph[:80]}"))
-        elif (n := sum(len(re.findall(_whole(normalise(ph.replace(_FENCE_JOIN, " "))), p)) for p in file_paras)) != 1:
+        elif (n := sum(len(pat.findall(p)) for pat in [re.compile(_whole(normalise(ph.replace(_FENCE_JOIN, " "))))] for p in file_paras)) != 1:
             out.append(("C", f"text phrase appears {n}x in its file, need exactly once — {ph[:80]}"))
     labels = {str(k): v for k, v in (e.get("clauses") or {}).items()}
     pw = [_words(p) for p in phrases]
-    live = [normalise(_deemph(p)).casefold() for p in _paras(scope)]
+    live = _live_paras(scope)
     for n, clause in enumerate(_baseline_clauses(e["baseline"]), 1):
         if not _words(clause):
             continue  # punctuation only: no word to carry

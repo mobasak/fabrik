@@ -8,6 +8,17 @@ All notable changes to this project will be documented in this file.
 
 - `fabrik export` promised a bundle with no private keys (`src/fabrik/portability.py` invariant 3), but its redactor matched key NAMES only, so Authelia's OIDC signing key (`identity_providers.oidc.jwks[].key`) and Backrest's `multihost.identity.ed25519priv` went into the bundle verbatim, and a non-string YAML key raised and dropped the whole Authelia section. The redactor now also redacts any value or mapping key carrying a PEM/OpenSSH/PGP/SSH2 private-key armour line (four dashes and at most four label words, so the search stays linear on any input), adds `^key$`, matches private-key names as `priv(ate)?[_-]?key` and `priv$` (so Authelia's `privacy_policy` survives), redacts the value under a non-string key with a warning instead of raising, and replaces any container other than a dict or list (YAML `!!set`, `!!omap`, `!!pairs`) whole. Over-redaction it accepts: any field named exactly `key` (Authelia `server.tls.key`, a client's public jwks key). Graders in `tests/test_portability.py::TestPrivateKeyRedaction`; the raw monitoring collectors and Backrest hook URLs are follow-up W-64cf1856.
 
+### Changed — the corpus check's rule-ledger pass caches its text views: about 100 s to 33 s (2026-10-29)
+
+- `commands/command_rules.py` (W-f5a1eec9, D-1319): `losses()` re-split and re-normalised the same file and
+  section once per ledger entry, so every `assemble_commands.py --check` (the corpus pre-commit hook, the
+  gate, kaizen runs) paid about 100-120 s. `normalise`, `units` and two paragraph views are now cached by
+  their string arguments, and lint C compiles each phrase once. The output is identical to base on the live
+  corpus and on mutated renders with 1,668 and 2,777 LOSS lines; `test_the_live_corpus_has_no_loss` went
+  from 96 s to 41 s.
+- `tests/test_command_rules.py`: a cost guard (red on base), an identity test against the uncached functions,
+  a fresh-list test for `units()`, exact lint C counts, and an autouse fixture that empties the caches.
+
 ### Fixed — vps1 rotation step 3a re-owns GlitchTip's schema one object per transaction (2026-10-28)
 
 - The operator's run of `scripts/sysadmin/vps1_pg_scoped_logins.py` stopped at step 3a with "out of shared memory": the re-own of GlitchTip's log partitions ran in ONE transaction and overflowed `max_locks_per_transaction`. Step 3a now commits after every object, waits at most 5 s (`lock_timeout`) for a busy table instead of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, skips what `glitchtip` already owns so a re-run locks only the leftovers, tolerates a partition dropped mid-run, and gets its own 1800 s ssh bound. The runbook (`docs/reference/vps1-postgres-admin-rotation-runbook.md`) quotes the same block, tested to stay identical, and its rollback row now also revokes `postgres_exporter`'s CONNECT grants. Graders run the real SQL on a local PostgreSQL 16 cluster with a 100-slot lock table.

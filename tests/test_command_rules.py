@@ -1447,3 +1447,83 @@ def test_superseded_fails_closed_without_git_history(tmp_path: Path) -> None:
     _ledger(t, [ENTRY], baseline_from=SOURCE, vanished={f"L{PIN}": {"superseded": "D-0002"}, f"L{PROBE}": "narrative"})
     lost = cr.losses(t["out"], t["root"], outside, rules=t["rules"])
     assert len(lost) == 1 and "is outside the repo" in lost[0], lost
+
+
+# ── W-f5a1eec9: losses() caches its pure text views; a cache never changes a LOSS line ───────────────────────
+_CACHED = ("normalise", "_units", "_file_paras", "_live_paras")
+
+
+@pytest.fixture(autouse=True)
+def _cold_caches():
+    """Every test starts on empty caches, so no test's result depends on which test warmed them."""
+    for n in _CACHED:
+        f = getattr(cr, n, None)
+        if hasattr(f, "cache_clear"):
+            f.cache_clear()
+
+
+def _many(tmp_path: Path, n: int = 4) -> dict[str, Path]:
+    """One file, ``n`` lintable entries under ONE section of it (a sectioned entry's scope is never the whole
+    text, so only lint C reads the whole file's paragraphs), and a render that yields several LOSS lines."""
+    src = SOURCE.replace("Stop at the pin.", f"Stop at the pin {tmp_path.name}.")
+    t = _tree(tmp_path, source=src, render=src.replace("Never stage a sibling's file.", "Stage carefully."))
+    entries = [{**ENTRY, "id": f"R{i}"} for i in range(1, n + 1)]
+    entries.append({"id": "P1", "section": "## Scope", "class": "prose", "baseline": "Run the probe on a copy.",
+                    "text": ["probe"]})
+    _ledger(t, entries, baseline_from=src)
+    return t
+
+
+def test_lint_builds_each_texts_paragraph_views_once(tmp_path: Path, monkeypatch) -> None:
+    t = _many(tmp_path)
+    text = (t["out"] / "demo.md").read_text(encoding="utf-8")
+    seen: list[str] = []
+    real = cr._paras
+
+    def spy(s: str) -> list[str]:
+        seen.append(s)
+        return real(s)
+
+    monkeypatch.setattr(cr, "_paras", spy)
+    assert _losses(t)
+    # five lintable entries on one file: its whole-text paragraphs are split once, never once per entry
+    assert seen.count(text) == 1, seen.count(text)
+
+
+def test_losses_identical_cold_warm_and_uncached(tmp_path: Path, monkeypatch) -> None:
+    t = _many(tmp_path)
+    with monkeypatch.context() as m:  # the reference: the same functions with every cache bypassed
+        for n in _CACHED:
+            m.setattr(cr, n, getattr(cr, n).__wrapped__)
+        want = _losses(t)
+    assert len(want) >= 3 and len(set(want)) == len(want), want
+    assert _losses(t) == want  # cold (the autouse fixture emptied the caches)
+    assert _losses(t) == want  # warm
+
+
+def test_units_returns_a_fresh_list() -> None:
+    text = "## S\n\nKeep going. Stop here.\n"
+    first = cr.units(text)
+    want = list(first)
+    first.append(("x", "prose", "y"))
+    first[0] = ("z", "heading", "z")
+    assert cr.units(text) == want
+
+
+def test_lint_c_counts_a_phrase_per_paragraph_over_the_whole_file() -> None:
+    once = "run the tests before you push"
+    p = {"id": "R", "class": "prose", "baseline": once, "text": [once]}
+
+    def c(text: str, e: dict = p) -> list[str]:
+        return [m for k, m in cr._lint(e, text, text) if k == "C"]
+
+    assert c("## A\n\nnothing here") == [f"text phrase appears 0x in its file, need exactly once — {once}"]
+    assert c(f"## A\n\n{once}\n\n## B\n\n{once}") == [f"text phrase appears 2x in its file, need exactly once — {once}"]
+    assert c(f"## A\n\n{once} and {once}, then {once}") == [f"text phrase appears 3x in its file, need exactly once — {once}"]
+    assert c(f"## A\n\n{once}") == []
+    assert c(f"## A\n\n{once}\n\n## B\n\n{once.capitalize()}") == []  # the count is case-sensitive
+    split = "## A\n\nrun the tests before\n\nyou push"  # a phrase across a paragraph break is not in the file
+    assert c(split) == [f"text phrase appears 0x in its file, need exactly once — {once}"]
+    # a `current`-equal phrase whose pattern normalises to nothing: the empty pattern counts per paragraph
+    empty = {"id": "R", "class": "prose", "baseline": "x", "current": " ⏎ ", "text": [" ⏎ "]}
+    assert c("ab\n\ncd", empty) == ["text phrase appears 6x in its file, need exactly once —  ⏎ "]
