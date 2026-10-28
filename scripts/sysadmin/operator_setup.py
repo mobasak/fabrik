@@ -3,7 +3,7 @@
 """The operator's ONE-TIME setup (W-d6726a65, docs/reference/operator-agent-requirements.md 1.1).
 
 Claude Code's safety check refuses agents the settings-file and home-dir writes below, so the operator
-runs this once; the coordinators do everything after it. Four steps:
+runs this once; the coordinators do everything after it. Five steps:
 
   hooks   — the user-level hook entries in every account dir (`install_user_hooks.py`'s own output)
   wrapper — the stage-2 `claude-agent-wrapper.sh` copied to ~/.claude/bin (mode 0755)
@@ -11,6 +11,11 @@ runs this once; the coordinators do everything after it. Four steps:
   archive — the nightly chat backup's systemd user units (W-36687f76): diffed and backed up here, then
             installed by `install_session_archive_timer.sh` itself, which runs FIRST so a systemd
             refusal leaves the other steps unwritten
+  ssh     — a keepalive for git pushes (W-030ac2fe): a `Host github.com` block setting ServerAliveInterval 15
+            and ServerAliveCountMax 4, put before the first section of ~/.ssh/config because ssh takes the
+            first value it reads; planned and verified by what `ssh -G` itself resolves for git@github.com — a
+            keepalive already as tight (interval <= 15 s, interval x count <= 60 s) is in place and kept.
+            `OPERATOR_SETUP_SSH_HOME=1` (tests only) lets a scratch HOME stand in for the passwd home ssh reads
 
     python3 /opt/fabrik/scripts/sysadmin/operator_setup.py           # dry run: a diff of every change, writes nothing
     python3 /opt/fabrik/scripts/sysadmin/operator_setup.py --apply   # back up, write, verify, print the undo lines
@@ -62,6 +67,16 @@ ARCHIVE_UNITS = ("session-archive-alert.service", "session-archive.service", "se
 ARCHIVE_ALERT = "session-archive-alert.service"
 ARCHIVE_TIMER = "session-archive.timer"
 NO_MANAGER = "cannot reach the user systemd manager"
+SSH_TARGET = "git@github.com"  # git's own identity: a `Match user git` resolves differently for a bare host
+SSH_WANT = ("15", "4")  # (ServerAliveInterval, ServerAliveCountMax) the block writes
+SSH_BLOCK = (
+    "# operator_setup (W-030ac2fe): git push keepalive — ssh takes the first value, keep this above other Host blocks",
+    "Host github.com",
+    "    ServerAliveInterval 15",
+    "    ServerAliveCountMax 4",
+    "",
+)
+SSH_SECTION = re.compile(rb"^[ \t]*(host|match)([ \t=]|$)", re.I | re.M)  # bytes: the file is never decoded
 
 
 class PlanError(Exception):
@@ -293,9 +308,89 @@ def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes]
     return changes, ", ".join(why), sources, (enabled == "enabled", active == "active")
 
 
+def _ssh_resolves(data: bytes) -> tuple[str | None, str | None]:
+    """(ServerAliveInterval, ServerAliveCountMax) ssh itself resolves for git@github.com from `data`, graded on a
+    0600 copy in a private temp dir: `-F` on the live path exits 255 when the file is absent. `-G` never connects,
+    but it runs the config's `Match exec` commands and may do DNS, as every push does; 30 s bounds a hang. Its
+    stderr is no error signal (it says "Pseudo-terminal will not be allocated" whenever stdin is not a tty)."""
+    with tempfile.TemporaryDirectory(prefix="operator-setup-ssh-") as tmp:
+        cfg = Path(tmp) / "config"
+        cfg.write_bytes(data)
+        cfg.chmod(0o600)
+        try:
+            r = subprocess.run(["ssh", "-G", "-F", str(cfg), SSH_TARGET], capture_output=True, text=True,
+                               errors="replace", stdin=subprocess.DEVNULL, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise PlanError(f"cannot grade ~/.ssh/config with `ssh -G` ({exc})") from None
+    if r.returncode:
+        said = (r.stderr.strip() or "no answer").splitlines()[-1]
+        raise PlanError(f"`ssh -G` refuses ~/.ssh/config ({said}) — fix it by hand")
+    vals = dict(line.split(" ", 1) for line in r.stdout.splitlines() if " " in line)
+    return vals.get("serveraliveinterval"), vals.get("serveralivecountmax")
+
+
+def _keepalive_ok(got: tuple[str | None, str | None]) -> bool:
+    """A keepalive at least as tight as the block's: a dead connection is dropped within 60 s. An operator's own
+    tighter value (10/3) is in place and is never overridden; ServerAliveInterval 0 is no keepalive at all."""
+    try:
+        interval, count = int(got[0] or ""), int(got[1] or "")
+    except ValueError:
+        return False
+    return 1 <= interval <= 15 and count >= 1 and interval * count <= 60
+
+
+def plan_ssh(home: Path) -> list[Change]:
+    if os.environ.get("OPERATOR_SETUP_SSH_HOME") == "1":  # the tests' scratch HOME; any other value is ignored
+        print("SSH HOME OVERRIDE in effect: ~/.ssh/config is planned under $HOME", file=sys.stderr)
+    else:  # ssh reads ~ from passwd, never $HOME: a config written elsewhere is never read
+        pw = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+        if home.resolve() != pw:
+            raise PlanError(f"HOME ({home}) is not the passwd home ssh reads ({pw}) — run it with your own HOME")
+    path = home / ".ssh" / "config"
+    rel = _rel(home, path)
+    sshdir = path.parent
+    try:
+        data, mode = _read(path)
+    except OSError as exc:  # unreadable, or a component that is not a directory
+        raise PlanError(f"cannot read {path} ({exc})") from None
+    if data is not None:  # ssh's own owner/permission check, which `-F` skips: a config ssh refuses is never "in place"
+        if path.lstat().st_uid not in (0, os.getuid()) or mode & 0o022:
+            raise PlanError(f"{path} is writable by others or owned by another user (mode {mode:o}) — ssh refuses "
+                            "such a config; chmod 600 it and run again")
+    current = data or b""
+    if _keepalive_ok(_ssh_resolves(current)):
+        return []  # nothing to write, so the directory needs nothing either
+    # a write is planned: where it lands must take it, or the run stops after the other steps are written
+    if sshdir.is_symlink() and not sshdir.exists():
+        raise PlanError(f"{sshdir} is a dangling symlink — refused; fix it by hand")
+    nearest = sshdir
+    while not nearest.exists():  # ~/.ssh absent: the directory it would be created in
+        nearest = nearest.parent
+    if not nearest.is_dir() or not os.access(nearest, os.W_OK | os.X_OK):
+        raise PlanError(f"{nearest} is not a directory this user can write, so {path} cannot be written — "
+                        "fix its mode (chmod 700) and run again")
+    nl = b"\r\n" if b"\r\n" in current else b"\n"
+    block = nl.join(line.encode("utf-8") for line in SSH_BLOCK) + nl
+    section = SSH_SECTION.search(current)
+    if section:  # before the first section, so its values are the first ssh reads for github.com
+        after = current[: section.start()] + block + current[section.start():]
+    elif current.strip():
+        after = current.rstrip(b"\r\n") + nl + nl + block
+    else:
+        after = current + block
+    got = _ssh_resolves(after)
+    if not _keepalive_ok(got):
+        raise PlanError(
+            f"ssh resolves ServerAliveInterval {got[0]}/ServerAliveCountMax {got[1]} for {SSH_TARGET} from a line read "
+            "before the inserted block — a global setting or an Include above the first Host/Match line; move it below, "
+            "or set it there to an interval of 15 s or less with interval x count at most 60 s"
+        )
+    return [Change("ssh", path, rel, data, mode, after, mode if mode is not None else 0o600)]
+
+
 def plan(home: Path) -> Plan:
     archive, why, sources, was = plan_archive(home)
-    return Plan(plan_hooks(home) + plan_wrapper(home) + plan_vscode(home) + archive, why, sources, was)
+    return Plan(plan_hooks(home) + plan_wrapper(home) + plan_vscode(home) + archive + plan_ssh(home), why, sources, was)
 
 
 def _show(changes: list[Change]) -> None:
@@ -340,7 +435,7 @@ def _mkdir_private(path: Path, root: Path) -> None:
 
 
 def _write_atomic(c: Change) -> None:
-    c.path.parent.mkdir(parents=True, exist_ok=True)
+    _mkdir_private(c.path.parent, Path(c.path.anchor))  # a missing ~/.ssh (or any parent) is made 0700, never at the umask
     fd, tmp = tempfile.mkstemp(dir=c.path.parent, prefix=f".{c.path.name}.operator-setup-")
     try:
         with os.fdopen(fd, "wb") as fh:
@@ -435,7 +530,7 @@ def apply(home: Path, p: Plan) -> int:
             if dst.read_bytes() != c.before:
                 print(f"operator_setup: the backup of {c.path} does not match — nothing written", file=sys.stderr)
                 return 1
-        if p.archive_run:  # FIRST: a systemd refusal then leaves steps 1-3 unwritten
+        if p.archive_run:  # FIRST: a systemd refusal then leaves the other steps unwritten
             ran = True
             rc = _run_archive_installer(p, done)
             if rc:
@@ -470,7 +565,7 @@ def verify(home: Path) -> list[str]:
         bad.append("hooks: install_user_hooks.py --check failed:\n" + out.getvalue())
     wrapper = home / ".claude" / "bin" / "claude-agent-wrapper.sh"
     for step, check in (("wrapper", lambda: _verify_wrapper(wrapper)), ("vscode", lambda: _verify_vscode(home)),
-                        ("archive", lambda: _verify_archive(home))):
+                        ("archive", lambda: _verify_archive(home)), ("ssh", lambda: _verify_ssh(home))):
         try:
             why = check()
         except PlanError as exc:
@@ -494,6 +589,10 @@ def _verify_vscode(home: Path) -> str | None:
 def _verify_archive(home: Path) -> str | None:
     _changes, why, _sources, _was = plan_archive(home)
     return f"not in place ({why})" if why else None
+
+
+def _verify_ssh(home: Path) -> str | None:
+    return "ssh does not resolve a keepalive of 15 s or tighter for git@github.com" if plan_ssh(home) else None
 
 
 def run(argv: list[str] | None = None) -> int:
