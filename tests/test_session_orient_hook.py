@@ -1637,63 +1637,95 @@ def _handoff_path(repo: Path, name: str) -> Path:
     return repo / ".git" / "fabrik-handoff" / f"{name}.md"
 
 
-def _start(repo: Path, home: Path, source: str | None, agent: str | None = "coordinator") -> str:
-    payload = {"session_id": "s-new", "cwd": str(repo)}
+def _start(
+    repo: Path,
+    home: Path,
+    source: str | None,
+    agent: str | None = "coordinator",
+    sid: str = "s-new",
+    extra: dict | None = None,
+) -> str:
+    payload = {"session_id": sid, "cwd": str(repo)}
     if source is not None:
         payload["source"] = source
     env = {"CLAUDE_AGENT": agent} if agent else {}
+    env.update(extra or {})
     rc, out = _run(repo, home, json.dumps(payload), env)
     assert rc == 0
     return out
+
+
+def _header_lines(out: str) -> list[str]:
+    return [ln for ln in out.splitlines() if ln.startswith("## HANDOFF")]
 
 
 def test_a_cleared_session_prints_its_agents_handoff(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     assert _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT).returncode == 0
     out = _start(repo, tmp_path, "clear")
-    assert "## HANDOFF" in out and _HANDOFF_TEXT.strip() in out
-    assert out.index("## ORIENT") < out.index("## HANDOFF")  # ORIENT first, untouched
-    assert _HANDOFF_TEXT.strip() not in _start(repo, tmp_path, "clear", agent="infra")
+    path = _handoff_path(repo, "coordinator")
+    assert _header_lines(out) == [f"## HANDOFF for `coordinator` (written 0 min ago — `{path}`)"]
+    lines = out.splitlines()
+    assert lines[lines.index(_header_lines(out)[0]) + 1] == _HANDOFF_TEXT.strip()
+    assert lines[0] == "## ORIENT (binding — read before acting)"  # ORIENT first, untouched
+    assert _header_lines(_start(repo, tmp_path, "clear", agent="infra")) == []
 
 
 def test_handoff_write_then_read_round_trip(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     res = _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
     path = _handoff_path(repo, "coordinator")
-    assert res.returncode == 0 and str(path) in res.stdout
+    assert res.returncode == 0 and res.stdout.strip() == str(path)
     assert path.stat().st_mode & 0o777 == 0o600
-    out = _start(repo, tmp_path, "startup")
-    assert "written" in out and "ago" in out and _HANDOFF_TEXT.strip() in out
+    assert path.read_text(encoding="utf-8") == _HANDOFF_TEXT
+    assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, "startup").splitlines()
 
 
-@pytest.mark.parametrize("source", ["compact", "resume", "fork"])
+@pytest.mark.parametrize("source", ["compact", "resume", "fork", "other"])
 def test_no_handoff_on_compact_resume_or_without_a_file(tmp_path: Path, source: str) -> None:
     repo = _repo(tmp_path)
-    assert "HANDOFF" not in _start(repo, tmp_path, "clear")  # no file: nothing new
+    bare = _start(repo, tmp_path, "clear")
+    assert _header_lines(bare) == []  # no file: nothing new
     _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
-    assert "HANDOFF" not in _start(repo, tmp_path, source)
-    assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, None)  # an absent source is a startup
+    assert _header_lines(_start(repo, tmp_path, source)) == []
+    assert _HANDOFF_TEXT.strip() not in _start(repo, tmp_path, source)
+    for gate in ("CLAUDE_MESH_HEADLESS", "FABRIK_HEADLESS"):
+        assert _header_lines(_start(repo, tmp_path, "clear", extra={gate: "1"})) == []
+    assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, None).splitlines()  # absent = startup
 
 
-def test_an_oversized_handoff_is_cut_under_the_cap(tmp_path: Path) -> None:
+@pytest.mark.parametrize("unit", ["ascii", "astral"])
+def test_an_oversized_handoff_is_cut_under_the_cap(tmp_path: Path, unit: str) -> None:
     repo = _repo(tmp_path)
-    big = "".join(f"line {i:05d} of the handoff\n" for i in range(2000))  # ~52k chars
+    char = "x" if unit == "ascii" else "\U0001f600"  # 4 UTF-8 bytes, 2 UTF-16 units
+    big = "".join(f"line {i:05d} {char * 20}\n" for i in range(2000))
     _write_handoff(repo, tmp_path, "coordinator", big)
     out = _start(repo, tmp_path, "clear")
-    assert len(out) <= 9500, len(out)
-    assert "line 00000 of the handoff" in out
-    assert str(_handoff_path(repo, "coordinator")) in out  # names the whole file
+    assert len(out.encode("utf-8")) <= 9500, len(out.encode("utf-8"))
+    assert f"line 00000 {char * 20}" in out.splitlines()
+    path = _handoff_path(repo, "coordinator")
+    assert out.splitlines()[-1] == f"… cut to fit the hook output cap — the whole text is `{path}`"
 
 
 def test_a_stale_handoff_prints_only_a_pointer(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
     path = _handoff_path(repo, "coordinator")
+    first = _start(repo, tmp_path, "clear", sid="s-one")
+    assert _HANDOFF_TEXT.strip() in first.splitlines()
+    again = _start(repo, tmp_path, "clear", sid="s-one")  # the same session re-reading: plain
+    assert "ALREADY DELIVERED" not in again
+    later = _start(repo, tmp_path, "clear", sid="s-two")  # a successor that wrote nothing new
+    (head,) = _header_lines(later)
+    assert head.startswith("## HANDOFF for `coordinator` ALREADY DELIVERED to session s-one")
     old = path.stat().st_mtime - 25 * 3600
     os.utime(path, (old, old))
-    out = _start(repo, tmp_path, "clear")
+    out = _start(repo, tmp_path, "clear", sid="s-three")
     assert _HANDOFF_TEXT.strip() not in out
-    assert str(path) in out and "stale" in out.lower()
+    assert _header_lines(out) == [
+        f"## HANDOFF for `coordinator` is STALE (written 25 h 0 min ago) — not printed; read"
+        f" `{path}` only if it still applies, and write a fresh one at your next rotation."
+    ]
 
 
 def test_an_unnamed_session_lists_waiting_handoffs(tmp_path: Path) -> None:
@@ -1701,17 +1733,27 @@ def test_an_unnamed_session_lists_waiting_handoffs(tmp_path: Path) -> None:
     _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
     out = _start(repo, tmp_path, "clear", agent=None)
     assert _HANDOFF_TEXT.strip() not in out
-    assert "coordinator" in out and str(_handoff_path(repo, "coordinator")) in out
+    path = _handoff_path(repo, "coordinator")
+    assert _header_lines(out) == [
+        f"## HANDOFF waiting for: `coordinator` (`{path}`) — this session is unnamed; never adopt"
+        " a role from this list — bind with `whoami_agent.py --as <name>` first, then read yours."
+    ]
 
 
 def test_handoff_write_refuses_bad_input(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
-    assert _write_handoff(repo, tmp_path, "Not A Name", _HANDOFF_TEXT).returncode != 0
-    assert _write_handoff(repo, tmp_path, "coordinator", "  \n").returncode != 0
+    assert _write_handoff(repo, tmp_path, "Not A Name", _HANDOFF_TEXT).returncode == 2
+    assert _write_handoff(repo, tmp_path, "coordinator", "  \n").returncode == 2
+    outside = tmp_path / "not-a-repo"
+    outside.mkdir()
+    assert _write_handoff(outside, tmp_path, "coordinator", _HANDOFF_TEXT).returncode == 2
     target = _handoff_path(repo, "coordinator")
     target.parent.mkdir(parents=True)
     (tmp_path / "elsewhere.md").write_text("theirs\n", encoding="utf-8")
     target.symlink_to(tmp_path / "elsewhere.md")
-    assert _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT).returncode != 0
+    assert _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT).returncode == 2
     assert (tmp_path / "elsewhere.md").read_text(encoding="utf-8") == "theirs\n"
     assert "theirs" not in _start(repo, tmp_path, "clear")  # a symlink is never printed
+    target.unlink()
+    os.mkfifo(target)  # a FIFO must neither block the hook nor print
+    assert _header_lines(_start(repo, tmp_path, "clear")) == []
