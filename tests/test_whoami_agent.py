@@ -975,6 +975,18 @@ def test_refresh_is_not_blocked_by_this_windows_own_row_in_another_repo(store, m
     )
     assert m.refresh() == "agent-2"
     assert m._rows(store)[-1]["toplevel"] == m._toplevel()
+    # review r3 (A-haiku-p3-1): only THIS window's row elsewhere is exempt — another live process's
+    # row in another repo still leaves the session alone
+    other = os.getppid()
+    store.write_text(
+        _bound_elsewhere(m)
+        + "\n"
+        + _bound_elsewhere(m, pid=other, start=m._pid_start(other), top="/elsewhere/.git")
+        + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
 
 
 def test_refresh_with_no_store_creates_nothing(tmp_path, monkeypatch):

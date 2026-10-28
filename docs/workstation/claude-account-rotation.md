@@ -153,9 +153,9 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   window's claude process (pid + start tick, D-748) held LAST in this repo, not re-taken by
   another window since, with no live foreign holder, from a cwd in this repo. A session resumed
   into a new claude process gets that row at SessionStart from `whoami_agent.py`'s `refresh()`
-  (W-a77742db) — unless the store lock was busy at that start, the name was re-taken, or the
-  session is live in another process, when it writes nothing and the next SessionStart tries
-  again; there is no boot-time test, because WSL2's btime moves forward with each host
+  (W-a77742db) — it writes nothing, among other cases, when the store lock was busy at that
+  start, the name was re-taken, or the session is live in another process (the whole list is
+  `refresh()`'s docstring), and the next SessionStart tries again; there is no boot-time test, because WSL2's btime moves forward with each host
   sleep and came to refuse a live window's own row.
   Any other name stays held until the lift — an earlier name of this window, and a name whose
   last row is another window's, even a dead one),
