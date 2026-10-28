@@ -308,9 +308,9 @@ def test_real_heredoc_spellings_still_hold_data() -> None:
         f"echo $((1+1)) && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
         f"echo $[1+1] && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
         f"echo $[1<<n ] && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
-        # a closed `case` (and a word merely ending in "case") leaves `)` closing "$(…)" again
-        f'x="$(case a in a) :;; esac)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
+        # a word merely ending in "case" is no `case`; "case" inside a body is data
         f'x="$(echo showcase)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
+        f"git -C {SCRATCH}/repo commit -m \"$(cat <<'EOF'\nthe edge case\ngit reset --hard\nEOF\n)\"",
         f'x="$(cases a)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
     ):
         assert not _denied(_run(cmd)), cmd
@@ -349,6 +349,7 @@ def test_review_round_one_markers_hide_nothing() -> None:
         'echo "$(case a in a) esac)<<EOF\n"\ngit reset --hard',
         f"cat > {SCRATCH}/n <<$'EOF'\nx\nEOF\ngit reset --hard",
         f"cat > {SCRATCH}/n <<E\\\nF\nx\nEF\ngit reset --hard",
+        'echo "$(case a in a) echo "x <<EOF y";; esac)"\ngit reset --hard\nEOF',
     ):
         assert _denied(_run(cmd)), cmd
 
@@ -366,6 +367,10 @@ def test_a_walk_that_does_not_end_where_bash_ends_strips_nothing() -> None:
         "x=$(cat <<EOF\nAFTER",  # an unclosed $( and a pending body
         "cat <<EOF\nBODY\nAFTER",  # a body bash's terminator never ends
         'cat <<EOF\nBODY\nEOF\necho "open',  # every body closed, but the walk ends in a quote
+        # review round 4: two pattern `)` flip the quoting and back, a later line closes the
+        # false body, the walk ends clean — so a `case` outside the bodies voids any strip
+        'echo "$(case a in a) echo "x <<EOF y";; esac)"\nAFTER\nEOF',
+        'x="$(case a in a) :;; esac)"; cat <<EOF\nBODY\nEOF',  # the price: an over-scan
     ):
         assert mod._strip_heredocs(cmd) == cmd, cmd
     assert mod._strip_heredocs("cat <<EOF\nBODY\nEOF\nAFTER") == "cat <<EOF\nAFTER"

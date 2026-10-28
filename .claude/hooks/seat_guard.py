@@ -161,6 +161,9 @@ def _unquote(m: re.Match) -> str:
     return re.sub(r'\\([\\"$`])', r"\1", m.group(4))  # "…" — only \\ \" \$ \` escape
 
 
+_CASE_WORD = re.compile(r"(?<![\w.$/-])case(?![\w.-])")
+
+
 def _heredoc_word(word: str) -> str:
     """The terminator a `<<WORD` waits for: WORD with its quoting removed."""
     return _DELIM_QUOTING.sub(_unquote, word)
@@ -204,7 +207,8 @@ def _strip_heredocs(command: str) -> str:
     The walk is trusted only when it ends where bash ends: top level, nothing left open, no body
     pending. A walk that lost bash's place — a `case` pattern's `)`, a spelling it misreads —
     never ends there, and the command is returned whole: every line stays in the scan, the safe
-    direction. Stated limit: a body is data even where bash runs it as code — an unquoted
+    direction. Two `case` pattern `)` can take the walk out of bash's quoting and back with a
+    clean end, so a `case` word left outside the bodies voids a strip too (an over-scan). Stated limit: a body is data even where bash runs it as code — an unquoted
     body's `$(…)`, or a heredoc fed to a shell (`bash <<EOF`) — W-b0aab70a."""
     out: list[str] = []
     pending: list[tuple[str, bool]] = []  # (delimiter, `<<-` strips leading tabs)
@@ -309,7 +313,13 @@ def _strip_heredocs(command: str) -> str:
     # has lost bash's place (a `case` pattern's `)`, a spelling it misreads): trust none of it
     if pending or stack != [["sh", 0]]:
         return command
-    return "".join(out)
+    stripped = "".join(out)
+    # a `case` pattern's `)` is the one `)` this walk cannot place, and two of them can take it
+    # out of bash's quoting and back again with a clean end (review round 4): wherever a `case`
+    # word is left outside the bodies, a strip is not trusted either
+    if stripped != command and _CASE_WORD.search(stripped):
+        return command
+    return stripped
 
 
 def _strip_comments(command: str) -> str:
