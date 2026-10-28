@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T20:46:31.118493Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-64cf1856",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the live shapes (redact-only probe), then run the YAML monitoring files through _redact_sensitive_fields and add userinfo-in-URL redaction for shoutrrrUrl; red-first graders. Also weigh (W-fc5aee9a review, 2 seats): an ALLOWLIST redactor keeping only known-safe Authelia/Backrest schema paths, which would close unarmoured keys under unmatched names (private_jwk, bare base64) by construction; needs the operator's restore workflow to decide",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "portability export ships monitoring configs raw and Backrest hook URLs unredacted: _collect_monitoring_remote (src/fabrik/portability.py) copies prometheus.yml/alertmanager.yml verbatim (smtp_auth_password, webhook URLs, basic_auth); Backrest hooks[].actionShoutrrr.shoutrrrUrl (smtp://user:PASS@) and actionCommand.command can carry credentials past the key-name redactor — invariant 1 (no plaintext secrets) exposed"
+}

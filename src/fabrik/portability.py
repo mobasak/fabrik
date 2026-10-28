@@ -71,13 +71,17 @@ _COOLIFY_UUID_RE = re.compile(r"^[a-z0-9]{24}$")
 # name (or path) matches one of these patterns has its value replaced with
 # the literal string ``"REDACTED"`` before the file enters the bundle.
 # Conservative bias: false-positive redactions are operator-recoverable
-# (re-populate on target); false-negative leaks are not.
+# (re-populate on target); false-negative leaks are not. The one value-level
+# exception is :data:`_PEM_PRIVATE_RE` (invariant 3: an armoured private key
+# under any name).
 _SENSITIVE_KEY_PATTERNS = (
     re.compile(r"password", re.IGNORECASE),
     re.compile(r"secret", re.IGNORECASE),
     re.compile(r"token", re.IGNORECASE),
     re.compile(r"api[_-]?key", re.IGNORECASE),
-    re.compile(r"private[_-]?key", re.IGNORECASE),
+    re.compile(r"priv(?:ate)?[_-]?key", re.IGNORECASE),  # private_key, privatekey, privkey
+    re.compile(r"priv$", re.IGNORECASE),  # Backrest multihost.identity.ed25519priv
+    re.compile(r"^key$", re.IGNORECASE),  # Authelia identity_providers.oidc.jwks[].key
     re.compile(r"encryption[_-]?key", re.IGNORECASE),
     re.compile(r"jwt[_-]?secret", re.IGNORECASE),
     re.compile(r"session[_-]?secret", re.IGNORECASE),
@@ -88,10 +92,27 @@ _SENSITIVE_KEY_PATTERNS = (
     re.compile(r"webhook", re.IGNORECASE),
 )
 
+# A PEM/OpenSSH/PGP/SSH2 private-key armour line (BEGIN or END), anywhere in a
+# value: four dashes (the last four of a five-dash armour), then up to four
+# label words before PRIVATE KEY (the longest real label, SSH2 ENCRYPTED, has
+# two), any whitespace between words (a re-wrapped value splits them), any
+# case. CERTIFICATE and PUBLIC KEY armour never matches. Both bounds keep the
+# search linear: an open-ended word loop re-scans to the end of the value from
+# every BEGIN/END, and an open-ended dash run is retried from every dash.
+_PEM_PRIVATE_RE = re.compile(
+    r"-{4}\s*(?:BEGIN|END)\s+(?:[^\s-]+\s+){0,4}PRIVATE\s+KEY", re.IGNORECASE
+)
+
 
 def _key_is_sensitive(key: str) -> bool:
     """Match a key name against the conservative sensitive-pattern list."""
     return any(p.search(key) for p in _SENSITIVE_KEY_PATTERNS)
+
+
+def _is_private_key_text(value: Any) -> bool:
+    if isinstance(value, bytes):
+        value = value.decode("latin-1")
+    return isinstance(value, str) and bool(_PEM_PRIVATE_RE.search(value))
 
 
 def _redact_sensitive_fields(obj: Any) -> Any:
@@ -99,21 +120,41 @@ def _redact_sensitive_fields(obj: Any) -> Any:
     KEY name matches one of :data:`_SENSITIVE_KEY_PATTERNS` with the
     literal string ``"REDACTED"``.
 
-    Important: redaction happens at the KEY level (not the value level) —
-    we don't try to heuristically detect "this string looks like a secret"
-    on values. That avoids false positives on URLs, paths, etc. The
-    matched-key approach catches all the surfaces the ticket's Pass-2
-    Lessons-Learnt hint flagged: nested Coolify UUIDs were one surface;
-    here we generalize to nested credentials in Authelia / Backrest /
-    arbitrary YAML configs.
+    Redaction happens at the KEY level — we don't heuristically detect
+    "this string looks like a secret" on values, which avoids false
+    positives on URLs, paths, etc. — with ONE value-level exception: a
+    str/bytes value or mapping key carrying a private-key armour line
+    (:data:`_PEM_PRIVATE_RE`) is redacted (such a key, str or bytes, becomes
+    the str ``"REDACTED"`` too), because invariant 3 promises no private
+    keys and an armour line is never a URL or path. A key-text test cannot
+    see a key with no armour line (a bare base64 body, a JWK, a PuTTY file)
+    under a name no pattern matches. Any other mapping key that is not a
+    string (YAML ints, bools, nulls, ``!!binary``) cannot spell a sensitive
+    name, so its value is redacted (fail closed) and the key kept with its
+    type. Any container
+    other than a dict or list (YAML ``!!set``, ``!!omap``, ``!!pairs``) is
+    replaced whole, since its entries are never walked.
     """
     if isinstance(obj, dict):
-        return {
-            k: ("REDACTED" if _key_is_sensitive(k) else _redact_sensitive_fields(v))
-            for k, v in obj.items()
-        }
+        out: dict[Any, Any] = {}
+        for k, v in obj.items():
+            if _is_private_key_text(k):
+                out["REDACTED"] = "REDACTED"
+            elif not isinstance(k, str):
+                logger.warning(
+                    "portability: redacting the value under a non-string %s mapping key",
+                    type(k).__name__,
+                )
+                out[k] = "REDACTED"
+            elif _key_is_sensitive(k):
+                out[k] = "REDACTED"
+            else:
+                out[k] = _redact_sensitive_fields(v)
+        return out
     if isinstance(obj, list):
         return [_redact_sensitive_fields(item) for item in obj]
+    if isinstance(obj, (tuple, set, frozenset)) or _is_private_key_text(obj):
+        return "REDACTED"
     return obj
 
 
