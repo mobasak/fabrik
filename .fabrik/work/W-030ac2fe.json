@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-28T16:52:29.394042Z",
   "creator": "infra-2",
-  "evidence": "",
+  "evidence": "06dce7f1635082e4f9f643bed58cd14d95ca47d2",
   "id": "W-030ac2fe",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "next-infra-2"
   ],
