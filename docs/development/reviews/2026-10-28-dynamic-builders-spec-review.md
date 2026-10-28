@@ -21,6 +21,30 @@
 | P4-1 | opus rule | Contract deltas omits the new "no builder" exit code; tests/test_agents_up.py:1198-1204 pins rc 2 | RECORDED — measured (own-fix residue after the scope-growth stop; destination W-14219e6f point 2) |
 | P4-2 | opus rule | D4's no-builder branch needs the UUID minted in D2 step 4 | RECORDED — measured (own-fix residue after the scope-growth stop; destination W-14219e6f point 1) |
 
+## Design-approval panel (critiques of md5 f7c7fdc5…)
+
+Opus: `VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-28-dynamic-builders-design.md`
+Fable: `VERDICT: sound-with-changes — docs/superpowers/specs/2026-10-28-dynamic-builders-design.md`
+
+Every concern executed and ACCEPTED; the revision is md5 c6d3ae64…, reviewed by the pass-5 delta round.
+
+| id | concern (quoted whole from the seat) | evidence executed | change (spec anchor) | counter-case it must still pass |
+|---|---|---|---|---|
+| PO1 | "a pane that dies before its first turn is resumed by the next relaunch" is false as the code stands | agents_up.sh:494 always `--resume`; a missing transcript only warns (agents_up.sh:600) | D2 step 4: `--session-id` + first prompt on `no-transcript` for a spawner-bound session | a builder WITH a transcript still relaunches with `--resume` and the wake prompt |
+| PO2 | the refusals from D3, D4 and D6 come after the worktree is created | D2's old order | D2 step 1 PREFLIGHT before any write | a healthy `add` still creates its worktree |
+| PO3 | the item is assigned after the pane is launched, so the builder can race it | D2's old steps 5/6 | D2 step 5 assign, step 6 launch | `add` with no `--item` still launches |
+| PO4/PF6 | the tabbed `.bat` is shared by every repo, but the lock is per repo; fixed `<name>.tmp` | agents_bat.py:245-248 | D5: box-wide `flock` + per-process temp | one coordinator alone regenerates as before |
+| PO5 | the 2 GB headroom check has no defined way of being measured | — (design gap) | D6: MemoryHigh − (memory.current − inactive_file); unreadable refuses | an idle box with room still spawns |
+| PO-m1/PF1 | `list-panes -a` lists grouped windows once per member | rotate_session.py:471-478 dedupes by pane id | D9: `list-panes -s -t =<S>` with `#{pane_id}` | a one-window grid reads its panes once |
+| PO-m2 | window naming after a gap is unstated | — | D4: lowest free name | a grid with no gap names `agents-<max+1>` |
+| PO-m3 | null-pid binding leaves the name unguarded until the re-bind | whoami_agent.py:149-150 | D2: preflight refuses a live-bound name; the re-bind follows on the first turn | re-`add` of a retired name still works |
+| PF2 | tmux destroys a window whose last pane is killed | tmux semantics | D4: emptied `agents` simply ceases; next `add` re-creates the lowest free name; D5 `--window` falls back to the current window | a grid whose first window keeps panes is untouched |
+| PF3 | `add` opening a new window switches tab 1 to it | tmux `new-window` without `-d` | D4: background window; the grouped session gets it as current | — |
+| PF4 | the stated reason for a null pid is false; the new form breaks `session_id()`'s invariant | whoami_agent.py:72-78, :146-166 | D2: holder reason stated; spawner-only subcommand, `spawned: true`, docstring amended | a builder's own `--as` bind is unchanged |
+| PF5 | the push check and fail-as-refusal contradict for a never-pushed branch; base is `master` | `git rev-parse origin/HEAD` exits 128 here | D2/D7: `<base>..HEAD` first, base resolved as `merge_request.py` does | a pushed branch with commits still retires |
+| PF7 | the new exit code is unnamed | agents_up.sh:104-106 (3 = undeclared) | D4 + Contract deltas: exit 3; test_agents_up.py:1199-1204 updated (also answers W-14219e6f point 2) | every other refusal still exits 2 |
+| PF8 | merge owner's charter can be inherited | agents_up.sh:202-210 | D8: never when `<role>` is the merge owner | `infra-4` still gets `infra.md` |
+
 ## Ask ↔ spec comparison (recomputed against the pass-3 text)
 
 | # | Operator's words | What the spec says | Anchor | Disposition |
