@@ -19,6 +19,16 @@
   inside the grace the sender gives. Measure that grace, then grade it with a real signal sent to the GROUP, a
   file sink and a SIGKILL at the end of the grace.
 
+## A guard's test case must reach the guarded branch, or its mutant survives (2026-10-27)
+
+- **What happened:** W-e57d2481's coordinator wait guard copies quota_stop's `common.name == ".git"`
+  check. Its test used a `--separate-git-dir` checkout as the "not `.git`" case and passed green. The
+  mutation pass showed the guard could be deleted with the test still green: `_git_common` returns
+  `None` for that layout, so the case never reached the guard. A worktree of a bare repo (common dir
+  `bare.git`) does reach it, and with the guard removed the hook read a ledger planted beside `bare.git`.
+- **Rule:** a negative case is proved only when its mutant dies. Before trusting one, print the value
+  the guard tests for that fixture; if an earlier branch already returns, the case is testing that branch.
+
 ## A parser built to match a consumer is probed on every character class it branches on (2026-10-27)
 
 - **What happened:** W-2ae286e2 measured docker compose's `.env` grammar in real containers before the
