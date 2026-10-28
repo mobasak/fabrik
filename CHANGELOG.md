@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Coverage tests for eight fabrik modules, graded from the batch-4 drain branches (2026-10-28)
+
+Eight hermetic test files from the cloud drain branches (`claude/cov-*`) landed after a full `/fabrik-review` (`docs/development/reviews/2026-10-28-drain-grade-4-review.md`): monitor, dev_tools, orchestrator gpu_reaper and gpu_metrics, drivers uptime_kuma, ai tracker, notifications and health_app. The review fixed ten test-quality defects across three rounds. The strict xfails now pin their exception with `raises=`. The dev_tools smoke, tracker SQL-injection and zero-cost metrics tests now fail when the code under test breaks. Each source bug a test pins as a strict xfail has its own work item: W-236ddc00, W-78950fbf, W-6272445b, W-56c7cd74 and W-db048a29. W-97ad73b7 and W-1918b8ac track the health_app and gpu_reaper findings.
+
 ### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
 
 `.claude/hooks/seat_guard.py` now enforces D-1296 for the lead of the session bound as its repo's merge owner. A foreground Bash call is denied when its tool timeout exceeds 120 s, or when it runs a `sleep` inside a while/until/for/select loop under a timeout over 60 s. The deny tells the coordinator to re-run with `run_in_background: true` and end the turn, not block on the output. Identity comes from `quota_stop.py`, loaded by file path; every identity doubt allows. Measured first: the hub coordinator held 736 minutes of foreground waits in one day, and a plain "any sleep" rule was rejected (19 fires on coordinator sessions in 3 days, none long). W-e57d2481.
