@@ -179,6 +179,7 @@ def run(argv: list[str] | None = None) -> int:
         except (OSError, ValueError):
             print(f"install_user_hooks: cannot read {path}", file=sys.stderr)
             bad += 1
+            by_hand += 1  # the installer cannot repair what it cannot read
             continue
         if not isinstance(d, dict):
             # a settings file that is not a JSON object was replaced by `{}` plus the hooks,
@@ -238,12 +239,16 @@ def run(argv: list[str] | None = None) -> int:
         print(
             "user-level hooks: "
             + ("present in every account dir" if not bad else f"{bad} file(s) not installed")
-            + (f", {by_hand} of them MALFORMED — fix by hand, install refuses them" if by_hand else "")
+            + (
+                f", {by_hand} of them MALFORMED or unreadable — fix by hand, install refuses them"
+                if by_hand
+                else ""
+            )
         )
     if bad and args.check and args.warn:
         fixes = ["run install_user_hooks.py"] if bad > by_hand else []
         if by_hand:
-            fixes.append("fix the MALFORMED file(s) by hand")
+            fixes.append("fix the MALFORMED or unreadable file(s) by hand")
         print(f"WARN: user-level hook registrations drifted on this box — {' and '.join(fixes)}")
         return 0
     return 1 if bad else 0

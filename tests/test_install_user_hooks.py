@@ -250,8 +250,21 @@ def test_the_gate_mode_names_a_malformed_file_as_a_hand_fix(tmp_path, monkeypatc
     (home / ".claude" / "settings.json").write_text(json.dumps({"hooks": {"Stop": 0}}))
     assert iuh.run(["--check", "--warn"]) == 0
     out = capsys.readouterr().out
-    assert "1 file(s) not installed, 1 of them MALFORMED" in out, out
-    assert "drifted on this box — fix the MALFORMED file(s) by hand" in out, out
+    assert "1 file(s) not installed, 1 of them MALFORMED or unreadable" in out, out
+    assert "drifted on this box — fix the MALFORMED or unreadable file(s) by hand" in out, out
+
+
+def test_the_gate_mode_names_an_unreadable_file_as_a_hand_fix(tmp_path, monkeypatch, capsys):
+    """Review round 2: an unreadable file counted in `bad` only, so the WARN told the reader
+    to run the installer, which cannot read it either."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    (home / ".claude" / "settings.json").write_text("{not json")
+    assert iuh.run(["--check", "--warn"]) == 0
+    out = capsys.readouterr().out
+    assert "drifted on this box — fix the MALFORMED or unreadable file(s) by hand" in out, out
+    assert "run install_user_hooks.py" not in out, out
 
 
 def test_a_nan_timeout_is_drift(tmp_path, monkeypatch):
