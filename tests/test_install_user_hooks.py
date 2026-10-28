@@ -210,6 +210,7 @@ def test_a_non_list_event_value_is_refused_never_rewritten(tmp_path, monkeypatch
         assert iuh.run(["--check"]) == 1
         assert "MALFORMED" in capsys.readouterr().out
         assert iuh.run([]) == 1, "an install that cannot repair a file says so"
+        assert "MALFORMED" in capsys.readouterr().out, "install names it too (and clears the buffer)"
         assert f.read_text() == before, f"{bad!r} rewritten"
     assert iuh.run(["--check"]) == 1, "the refused file is still drift"
     ob = home / ".claude-fleet" / "ob" / "settings.json"
@@ -251,6 +252,18 @@ def test_the_gate_mode_names_a_malformed_file_as_a_hand_fix(tmp_path, monkeypatc
     out = capsys.readouterr().out
     assert "1 file(s) not installed, 1 of them MALFORMED" in out, out
     assert "drifted on this box — fix the MALFORMED file(s) by hand" in out, out
+
+
+def test_a_nan_timeout_is_drift(tmp_path, monkeypatch):
+    """Review round 1: `timeout < TIMEOUT_S` is False for NaN, which json.loads accepts, so a
+    NaN timeout read as conforming and --check said present."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    f = home / ".claude" / "settings.json"
+    f.write_text(f.read_text().replace(f'"timeout": {iuh.TIMEOUT_S}', '"timeout": NaN', 1))
+    assert "NaN" in f.read_text()
+    assert iuh.run(["--check"]) == 1
 
 
 def test_a_stale_duplicate_before_the_canonical_entry_is_still_caught(tmp_path, monkeypatch):

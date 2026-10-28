@@ -125,7 +125,8 @@ def _stale(d: dict) -> list[tuple[str, str, str]]:
             for e, h in found:
                 if str(h.get("command", "")) != cmd:
                     out.append((ev, cmd, f"stale command `{h.get('command', '')}`"))
-                elif not isinstance(h.get("timeout"), (int, float)) or h["timeout"] < TIMEOUT_S:
+                # `not >=`, never `<`: a NaN timeout (json.loads accepts it) compares False both ways
+                elif not isinstance(h.get("timeout"), (int, float)) or not h["timeout"] >= TIMEOUT_S:
                     out.append((ev, cmd, f"timeout {h.get('timeout')!r} < {TIMEOUT_S}"))
                 elif ev == "PreToolUse" and not e.get("matcher"):
                     out.append((ev, cmd, "no matcher"))
