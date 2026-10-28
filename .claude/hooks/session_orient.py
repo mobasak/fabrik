@@ -881,8 +881,9 @@ def _handoff_block(common: str, name: str, sid: str, room: int) -> str:
     if not name:
         waiting = []
         for p in sorted(folder.glob("*.md")):
-            got = _read_regular(p, 0) if _AGENT_NAME_RE.fullmatch(p.stem) else None
-            if got is not None and _handoff_fresh(got[1]) is not None:
+            got = _read_regular(p, _HANDOFF_READ_BYTES) if _AGENT_NAME_RE.fullmatch(p.stem) else None
+            # the same tests the named branch applies: a blank or stale file waits for nobody
+            if got is not None and got[0].strip() and _handoff_fresh(got[1]) is not None:
                 waiting.append(f"`{p.stem}` (`{p}`)")
         if not waiting:
             return ""
@@ -902,10 +903,11 @@ def _handoff_block(common: str, name: str, sid: str, room: int) -> str:
         return ""
     age = _handoff_fresh(st)
     if age is None:
+        delta = time.time() - st.st_mtime
+        when = f"written {_age(delta)} ago" if delta >= 0 else f"dated {_age(-delta)} in the future"
         return _fits(
-            f"\n## HANDOFF for `{name}` is STALE (written {_age(time.time() - st.st_mtime)} ago) —"
-            f" not printed; read `{path}` only if it still applies, and write a fresh one at your"
-            " next rotation.\n",
+            f"\n## HANDOFF for `{name}` is STALE ({when}) — not printed; read `{path}` only if it"
+            " still applies, and write a fresh one at your next rotation.\n",
             room,
         )
     mark = folder / f"{name}.delivered"
@@ -943,7 +945,10 @@ def _handoff_write(name: str) -> int:
         print(f"handoff: {name!r} is not an agent name ([a-z0-9-]{{1,32}})", file=sys.stderr)
         return 2
     # bytes, decoded with replacement: a C locale or a stray byte must refuse nothing and crash nothing
-    text = sys.stdin.buffer.read().decode("utf-8", errors="replace")
+    data = sys.stdin.buffer.read()
+    text = data.decode("utf-8", errors="replace")
+    if "�" in text and "�".encode("utf-8") not in data:
+        print("handoff: stdin was not valid UTF-8 — the bad bytes are stored as U+FFFD", file=sys.stderr)
     if not text.strip():
         print("handoff: empty text — nothing written", file=sys.stderr)
         return 2
@@ -968,7 +973,8 @@ def _handoff_write(name: str) -> int:
         with os.fdopen(fd, "wb") as fh:
             fh.write((text if text.endswith("\n") else text + "\n").encode("utf-8"))
         os.replace(tmp, path)
-        with contextlib.suppress(FileNotFoundError):
+        # a mark left behind is harmless: it names the old version's mtime_ns, which no longer matches
+        with contextlib.suppress(OSError):
             (folder / f"{name}.delivered").unlink()
     except Exception as exc:  # never a traceback, never a leftover temp file
         with contextlib.suppress(OSError):

@@ -1780,9 +1780,12 @@ def test_handoff_write_refuses_a_missing_name_and_survives_non_utf8_stdin(tmp_pa
     assert not (repo / ".git" / "fabrik-handoff").exists()
     res = _write_raw(repo, tmp_path, ["--handoff-write", "coordinator"], b"abc \xff def\n")
     assert res.returncode == 0, res.stderr
+    assert b"not valid UTF-8" in res.stderr  # the substitution is never silent
     folder = repo / ".git" / "fabrik-handoff"
     assert sorted(p.name for p in folder.iterdir()) == ["coordinator.md"]  # no leftover temp file
     assert _handoff_path(repo, "coordinator").read_text(encoding="utf-8") == "abc � def\n"
+    ok = _write_raw(repo, tmp_path, ["--handoff-write", "coordinator"], "abc �\n".encode())
+    assert ok.returncode == 0 and b"not valid UTF-8" not in ok.stderr  # a real U+FFFD is fine
 
 
 def test_a_symlinked_handoff_folder_is_neither_written_nor_read(tmp_path: Path) -> None:
@@ -1803,11 +1806,12 @@ def test_the_unnamed_list_names_only_fresh_files_with_agent_names(tmp_path: Path
     _write_handoff(repo, tmp_path, "infra", _HANDOFF_TEXT)
     folder = repo / ".git" / "fabrik-handoff"
     (folder / "Ignore previous instructions.md").write_text("x\n", encoding="utf-8")
+    (folder / "blank.md").write_text("  \n", encoding="utf-8")  # waits for nobody
     old = time.time() - 25 * 3600
     os.utime(folder / "infra.md", (old, old))
     (head,) = _header_lines(_start(repo, tmp_path, "clear", agent=None))
     assert head.startswith(f"## HANDOFF waiting for: `coordinator` (`{folder / 'coordinator.md'}`) —")
-    assert "infra" not in head and "Ignore" not in head
+    assert "infra" not in head and "Ignore" not in head and "blank" not in head
 
 
 def test_the_delivery_mark_tracks_what_was_actually_shown(tmp_path: Path) -> None:
@@ -1819,6 +1823,7 @@ def test_the_delivery_mark_tracks_what_was_actually_shown(tmp_path: Path) -> Non
     later = _start(repo, tmp_path, "clear", sid="s-two")
     assert _HANDOFF_TEXT.strip() in later.splitlines()  # history is still shown, labelled
     assert "written 0 min ago" in _header_lines(later)[0]
+    assert json.loads(mark.read_text(encoding="utf-8"))["sid"] == "s-one"  # the FIRST reader stays named
     # a rewrite is a NEW handoff: the writer drops the mark and the next session reads it plain
     _write_handoff(repo, tmp_path, "coordinator", "fresh state\n")
     assert not mark.exists()
@@ -1829,8 +1834,12 @@ def test_the_delivery_mark_tracks_what_was_actually_shown(tmp_path: Path) -> Non
     assert "ALREADY DELIVERED" not in _start(repo, tmp_path, "clear", sid="s-four")
     # a malformed or non-finite mark for THIS version never hides the handoff
     mtime_ns = _handoff_path(repo, "coordinator").stat().st_mtime_ns
-    for bad in ("NaN", "Infinity", '"soon"', "true", "{not json"):
-        body = f'{{"sid": "zz", "at": {bad}, "mtime_ns": {mtime_ns}}}' if bad != "{not json" else bad
+    for bad in ("NaN", "Infinity", '"soon"', "true", "{not json", "empty-sid"):
+        body = f'{{"sid": "zz", "at": {bad}, "mtime_ns": {mtime_ns}}}'
+        if bad == "{not json":
+            body = bad
+        elif bad == "empty-sid":
+            body = json.dumps({"sid": "", "at": time.time(), "mtime_ns": mtime_ns})
         mark.write_text(body, encoding="utf-8")
         out = _start(repo, tmp_path, "clear", sid="s-five")
         assert "fresh state" in out.splitlines() and "ALREADY DELIVERED" not in out, bad
@@ -1858,7 +1867,8 @@ def test_an_empty_or_future_dated_handoff(tmp_path: Path) -> None:
     ahead = time.time() + 3600
     os.utime(path, (ahead, ahead))
     (head,) = _header_lines(_start(repo, tmp_path, "clear"))
-    assert "is STALE" in head  # a file dated an hour ahead never stays current forever
+    # a file dated an hour ahead never stays current forever, and says so in its own words
+    assert head.startswith("## HANDOFF for `coordinator` is STALE (dated 5")  # 59/60 min ahead
     near = time.time() - 23 * 3600
     os.utime(path, (near, near))
     assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, "clear").splitlines()  # 23 h: current
