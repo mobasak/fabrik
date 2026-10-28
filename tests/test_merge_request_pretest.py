@@ -317,7 +317,7 @@ def test_the_hub_declares_its_own_longer_leg(world):
     # tests/test_assemble_dispatch_step.py, cannot be split across shards — the duration record read 1,466 s
     # and later 1,248 s that day, since every leg rewrites it)
     script = (Path(__file__).resolve().parents[1] / ".fabrik" / "merge-tests").read_text(encoding="utf-8")
-    assert world.mod._declared_leg(script) == 3000
+    assert world.mod._declared_leg(script) == 2700
 
 
 def _limits(world, monkeypatch) -> list[int]:

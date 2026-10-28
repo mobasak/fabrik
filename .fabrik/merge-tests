@@ -1,7 +1,8 @@
 # The hub's merge-time test leg (W-4e756979): scripts/merge_test_select.py under the main checkout's
 # .venv, found through git's common dir (the build tree is a throwaway with no .venv of its own).
 # The leg outgrew merge_request.py's 1800 s default (W-418c9d9f, D-1310): read from the BASE only, clamped
-# to MERGE_TEST_BUDGET_S (3600). Costs, per D-1275: a rebuild after a failed CAS gets the 600 s left, so one
-# that re-tests in full refuses as budget-spent (retry); `merge --queue` forks a leg only in its first 780 s.
-# merge-test-timeout: 3000
+# to MERGE_TEST_BUDGET_S (3600). Costs, per D-1275: a rebuild after a failed CAS gets what is left (at least
+# 900 s), so one that re-tests in full may refuse as budget-spent (retry); `merge --queue` forks a leg only in
+# its first 1080 s. If a full-width leg still dies at 2700, raise it to 3000 (the coordinator's ruling).
+# merge-test-timeout: 2700
 exec "$(git rev-parse --path-format=absolute --git-common-dir)/../.venv/bin/python" scripts/merge_test_select.py
