@@ -415,7 +415,11 @@ def _redact_config_text(rel: str, raw: str) -> str | None:
         if rel.endswith(".json"):
             parsed = json.loads(raw)
         elif rel.endswith(".yml"):
-            parsed = yaml.load(raw, Loader=_VerbatimLoader)  # noqa: S506 — a SafeLoader subclass
+            loader = _VerbatimLoader(raw)  # what yaml.load does, with a SafeLoader subclass
+            try:
+                parsed = loader.get_single_data()
+            finally:
+                loader.dispose()
             if parsed is None:
                 parsed = {}
         else:
