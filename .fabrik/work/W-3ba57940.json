@@ -7,11 +7,11 @@
   "kind": "task",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1310",
     "plan": "",
     "spec": ""
   },
-  "next": "run capped_run.sh -- pytest --durations=25 tests/test_assemble_dispatch_step.py and name the slow cases",
+  "next": "run capped_run.sh -- pytest --durations=25 tests/test_assemble_dispatch_step.py and name the slow cases; when the line in .fabrik/merge-tests comes out, also correct its rebuild wording in D-1310/CHANGELOG (review residue: 'as little as ~900 s' holds for the FIRST rebuild only, a later one gets less, down to none — merge_request.py:1713 + :634-643)",
   "note": "",
   "owner": "",
   "priority": 2,
