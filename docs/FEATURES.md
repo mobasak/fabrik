@@ -959,7 +959,7 @@ Since the Coolify retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T0
 ### Security Invariants (test-enforced)
 
 1. **No plaintext secret values.** `_redact_env_keys` reads only up to the first `=` of each `.env` line. The test byte-scans the entire gzip stream for known values and asserts zero hits.
-   The SSH-pulled configs (monitoring, Authelia, Backrest) are parsed and every field under a secret-shaped key name (password, token, secret, `*_key`, headers, Authorization, webhook and API URLs, Backrest hook commands and shoutrrr URLs) becomes `REDACTED`, as does the userinfo of any URL (`scheme://REDACTED@host`); a file that does not parse into a mapping or list is left out. The bundled copies are a structural restore reference, not byte copies: comments are dropped, and monitoring YAML keeps YAML 1.2 scalars as written (`17:00`, `on`).
+   The SSH-pulled configs (monitoring, Authelia, Backrest) are parsed and every field under a secret-shaped key name (password, token, secret, `*_key`, headers, Authorization, webhook and API URLs, Backrest hook commands and shoutrrr URLs) becomes `REDACTED`, as does the userinfo of any URL (`scheme://REDACTED@host`); a file that does not parse into a mapping or list, or a YAML file using an alias, is left out. The bundled copies are a structural restore reference, not byte copies: comments are dropped, and every plain YAML scalar comes back exactly as written (`17:00`, `on`, `1.10`).
 2. **No legacy deploy UUIDs in state.** `_collect_state` pops `coolify_uuid` from every state file and `_strip_uuids` recurses the rest (the UUID-named keys and bare 24-alphanumeric string values), so a target cannot inherit the source host's old deploy identifiers.
 
 ### Why Import Is Shipped Untested
