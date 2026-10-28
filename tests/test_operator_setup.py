@@ -406,7 +406,7 @@ def _run_undo(home: Path, undo: list[str], **extra: str) -> None:
         subprocess.run(["bash", "-c", ln], env=env, check=True)
 
 
-@pytest.mark.parametrize("case", ["runtime", "alias", "link present", "foreign link"])
+@pytest.mark.parametrize("case", ["runtime", "alias", "link present", "foreign link", "dash link"])
 def test_the_undo_puts_the_timer_link_back_as_it_was(tmp_path, case):
     # W-88173de4, measured on systemd 255: `systemctl disable` also deletes an operator's alias to the unit (an alias
     # plus a runtime enable reads `enabled-runtime`), and `enable` REWRITES a `.wants` link that points elsewhere. So
@@ -415,10 +415,11 @@ def test_the_undo_puts_the_timer_link_back_as_it_was(tmp_path, case):
     home, hub = _home(tmp_path), _hub(tmp_path)
     state = home.parent / "stub-state"
     alias = home / UNIT_DIR / "session-archive-alias.timer"
-    if case in ("link present", "foreign link"):  # the units differ: the installer runs
-        if case == "foreign link":
+    old = "-elsewhere.timer" if case == "dash link" else "../elsewhere.timer"  # a leading '-' must not read as an option
+    if case in ("link present", "foreign link", "dash link"):  # the units differ: the installer runs
+        if case != "link present":
             _wants(home).unlink()
-            _wants(home).symlink_to("../elsewhere.timer")  # dangling, as an operator's stale link can be
+            _wants(home).symlink_to(old)  # dangling, as an operator's stale link can be
         r = _run(home, hub, "--apply")
         assert r.returncode == 0 and "installer exit 0" in r.stdout, r.stdout + r.stderr
         undo = _timer_undo(r.stdout)
@@ -427,9 +428,9 @@ def test_the_undo_puts_the_timer_link_back_as_it_was(tmp_path, case):
             assert not [ln for ln in undo if "timers.target.wants" in ln], r.stdout
             return
         assert os.readlink(_wants(home)) == "../session-archive.timer", "the stub's enable did not rewrite the link"
-        assert undo[0] == "ln -sfn ../elsewhere.timer " + LINK_UNDO.removeprefix("rm -f "), r.stdout
+        assert undo[0] == f"ln -sfn -- {old} " + LINK_UNDO.removeprefix("rm -f "), r.stdout
         _run_undo(home, undo)
-        assert os.readlink(_wants(home)) == "../elsewhere.timer", "the undo did not put the old link back"
+        assert os.readlink(_wants(home)) == old, "the undo did not put the old link back"
         return
     _archive_in_place(home)
     _wants(home).unlink()
@@ -446,7 +447,8 @@ def test_the_undo_puts_the_timer_link_back_as_it_was(tmp_path, case):
     assert undo == [LINK_UNDO, "systemctl --user daemon-reload"], r.stdout  # no stop: the timer was active
     _run_undo(home, undo)
     assert not os.path.lexists(_wants(home)), "the undo left the installer's link"
-    # the stub's `disable` deletes the alias as systemd 255 does, so this fails if the undo ever runs `disable`
+    # a second guard behind the undo equality above, which refuses a `disable` first: the stub's `disable` deletes
+    # the alias as systemd 255 does
     assert case != "alias" or alias.is_symlink(), "the undo deleted the operator's alias"
 
 

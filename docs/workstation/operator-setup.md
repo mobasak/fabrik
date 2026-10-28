@@ -45,8 +45,8 @@ file edited after planning is not overwritten: it is re-read before the backups
 and again right before its own write, and the run stops there. Two exceptions are accepted (W-88173de4), since no
 portable compare-and-swap on a path exists: a save landing between that last re-read and the replace (the new
 file's write and fsync included), and a save to one of the three archive units before the installer's own `install`
-lands — a unit that differed at planning is re-read only before the backups, and one that did not is never re-read or
-backed up. Once `--apply` has made its backup dir, a later stop —
+lands — a unit that differed at planning is re-checked as a guard only before the backups (the done list reads it
+again after the installer), and one that did not is never re-checked or backed up. Once `--apply` has made its backup dir, a later stop —
 the archive installer failing, a backup that does not read back, or that re-read — leaves the backups and whatever was already written, and prints the
 undo lines for exactly that.
 

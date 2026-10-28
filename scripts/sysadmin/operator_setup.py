@@ -25,8 +25,9 @@ refusal writes nothing. A file edited after planning is re-read before the backu
 own write, and the run stops there. Accepted residue (W-88173de4), since no portable compare-and-swap on a path
 exists and a RENAME_EXCHANGE swap-and-compare still leaves a window: a save landing between that last re-read
 and `os.replace` (the temp file's write and fsync included) is overwritten; and a save to an archive unit before
-the installer's own `install` lands is overwritten too — a unit that differed at planning is re-read only before
-the backups, and one that did not is never re-read or backed up.
+the installer's own `install` lands is overwritten too — a unit that differed at planning is re-checked as a guard
+only before the backups (the done list reads it again after the installer), and one that did not is never re-checked
+or backed up.
 The hooks step runs the installer's own `run([])` against a scratch mirror of HOME
 and takes its bytes, so there is no second copy of the installer's repair logic and the dry-run diff IS
 what `--apply` writes. `--apply` refuses (exit 2) unless this file sits in the hub MAIN checkout's
@@ -335,7 +336,7 @@ def _link_undo(home: Path, dest: Path) -> str | None:
         raise PlanError(f"{link} is not a symlink — refused; change it by hand")
     if os.path.realpath(link) == os.path.realpath(dest / ARCHIVE_TIMER):
         return None
-    return f"ln -sfn {shlex.quote(os.readlink(link))} {target}"
+    return f"ln -sfn -- {shlex.quote(os.readlink(link))} {target}"  # `--`: an old target may begin with "-"
 
 
 def _ssh_resolves(data: bytes) -> tuple[str | None, str | None]:
