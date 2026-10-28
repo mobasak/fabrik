@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — agent_role.py role-charter fallback + generic builder charter (2026-10-28)
+When `docs/reference/agents/<name>.md` is absent (a dangling symlink counts as present), a `<role>-<suffix>` session gets `<role>.md` under its own name (W-b9ad80ae, plan T04). Never for a coordinator name or a coordinator role (`coordinator-2`), a name missing either half, or the merge owner's role, which is read through the hub's `decisions.py --merge-owner` and fails closed. The new `docs/reference/agents/builder.md` is the generic builder charter and names no merger.
+
 ### Added — whoami spawner-only binding: `--spawned` with a held-lock caller proof (2026-10-28)
 `whoami_agent.py --spawned <name> --session-id <uuid> --repo <dir> --lock-fd <n>` binds a NEW session id for a spawner that holds `<common dir>/fabrik-agents.lock` (W-b9ad80ae, plan T01). The proof reads `/proc/self/fdinfo/<fd>` for an exclusive flock on the literal lock file and takes, converts or releases no lock, so a shared or POSIX holder, an unlocked copy and a symlinked lock are refused. The row carries `spawned: true` and a null pid; prefix-abbreviated flags are refused. Exits 0 written · 1 live holder · 2 refused (an unenterable `--repo` included) · 3 git could not run, or a crash. `--as`/`--who` are unchanged.
 

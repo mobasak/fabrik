@@ -57,7 +57,7 @@ Intake: 20 items — 19 IN, 1 OUT-OF-SCOPE (I4, already done), 0 ASK.
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01 | whoami spawner-only binding | — | ⚡ | ✅ | acceptance commit `feat(agents): T01` (wave-1 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T01-review.md`) |
-| T04 | Charters by role + builder.md | — | ⚡ | ⬜ | |
+| T04 | Charters by role + builder.md | — | ⚡ | ✅ | acceptance commit `feat(agents): T04` (wave-1 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T01-review.md`) |
 | T02 | agents_up.sh launch path | T01 | ⛓️ | ⬜ | |
 | T03 | agents_up.sh placement + --window | T02 | ⛓️ | ⬜ | |
 | T05 | agents_bat.py --tabbed | T03 | ⛓️ | ⬜ | |
