@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T12:46:47.490530Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-4d62ca83",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M616HSC5M3PG9N6WGZSBDM6Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: kaizen-lean-batch3"
+}
