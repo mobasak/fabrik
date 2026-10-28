@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T15:35:51.140194Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-56c7cd74",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "assign to a local, login, then set self._api; turn the strict xfail test_failed_login_is_retried_on_next_call (tests/test_cov_drivers_uptime_kuma.py) into a plain test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "drivers/uptime_kuma.py:41-42 _ensure_connected assigns self._api before login(): a failed login leaves a cached unauthenticated client, so later calls never log in again"
+}

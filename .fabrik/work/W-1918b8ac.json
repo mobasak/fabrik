@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T15:35:51.820068Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1918b8ac",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "call gpu_state.mark_destroy_pending on a destroy exception (grader: reaper destroy failure -> state destroy_pending true); reconcile the docstring with the report-only early return",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "orchestrator/gpu_reaper.py ~194-202: a failed provider destroy is appended to errors but never mark_destroy_pending(sid), so gpu_rent_destroy_pending stays 0 and the reconcile retry never fires; module docstring also promises one audit row per invocation but report-only runs write none"
+}
