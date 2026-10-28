@@ -32,12 +32,14 @@ that seat count; `--units` then defaults to the slice count.
 
 Every probe fails SOFT and says so: an unreadable /proc, a rotation script that raises, or an
 unidentifiable active account prints the floor with the reason — never a silent 20, and never
-"cool" by default.
+"cool" by default. The one exception is a session on an Anthropic API key (W-3e924ccb, D-1243):
+its seats draw the key, so no plan cap applies — see `_api_key_reading` for when it counts.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import math
 import os
@@ -242,7 +244,80 @@ def _hold_is_wall(hold: object) -> bool:
     return hold.get("tier", "walled") != "urgent-90"
 
 
+_POSTURE_HOOK = Path(__file__).resolve().parent / "quota_posture_hook.py"
+_hook_cache: dict = {}
+
+
+def _posture_hook():
+    """`quota_posture_hook.py`, loaded by PATH under a private name and never put in `sys.modules`
+    (a test's own `import quota_posture_hook` must not get this object, nor this one theirs);
+    cached per path after the first successful load. Raises when it cannot be loaded."""
+    path = Path(_POSTURE_HOOK)
+    if path not in _hook_cache:
+        spec = importlib.util.spec_from_file_location("_dispatch_headroom_posture_hook", path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"no loader for {path}")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _hook_cache[path] = mod
+    return _hook_cache[path]
+
+
+def _api_key_reading(hold: bool) -> dict:
+    """Is this session exempt from the PLAN quota because it runs on an Anthropic API key
+    (W-3e924ccb, D-1243)? The answer is the posture hook's own `_api_key_free()` — the key and none
+    of `_OTHER_AUTH` in THIS process's env, and no stamp or one whose line 2 plainly reads a quota
+    tier — CALLED, never copied a third time. Every unknown answers False (plan caps stand): a hook
+    that will not load or raises, and a picture that HOLDS — or could not be read, so may hide a
+    hold (`quota()` passes `hold=True` then) — while no regular file sits at the hook's stamp path — the tick may have written its stamp to its tmp fallback
+    (`claude_rotate._fleet_exhaustion_stamp`), which the hook never reads, and the hook answers
+    'free' when it finds no stamp, so a battery hold there would be exempted.
+    The env read is the CALLER's (normally claude's own, this script being a Bash child of it); a
+    caller that prefixes a key inline gets advice the hooks do not honour — `quota_stop.py` holds
+    its Agent calls at the wall on claude's own env — so the cheapest way past this read buys
+    nothing (COBRA, D-253). MIRROR (D-1243's): a key declined at the interactive prompt leaves the
+    window on its plan login while this reads exempt — the reason line names it."""
+    try:
+        hook = _posture_hook()
+        free = bool(hook._api_key_free())
+        if free and hold and not (hook._rotate_state_dir() / "fleet-exhausted").is_file():
+            return {
+                "api_key_free": False,
+                "api_key_why": "the picture holds (or could not be read) but no stamp sits where "
+                "the posture hook looks — the hold and the exemption read different files; plan "
+                "caps stand",
+            }
+        if not free and (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+            return {
+                "api_key_free": False,
+                "api_key_why": "the API key does not lift the plan caps — "
+                + (
+                    "another credential is set beside it"
+                    if not hook._api_key_session()
+                    else "the hold's stamp is the battery's, or its tier is unknown or unreadable"
+                ),
+            }
+    except Exception as exc:  # noqa: BLE001 — every failure keeps the plan caps
+        return {
+            "api_key_free": False,
+            "api_key_why": f"API-key exemption unreadable ({type(exc).__name__}: {exc}) — plan "
+            "caps stand",
+        }
+    return {"api_key_free": free}
+
+
 def quota() -> dict:
+    """The plan quota (`_plan_quota`) plus whether this session is exempt from it (`api_key_free`,
+    `_api_key_reading`): the seat budget skips every plan cap for an exempt session."""
+    out = _plan_quota()
+    # a picture that could not be read — or that claude_rotate itself failed to build — may hide
+    # a hold: it counts as holding for the stamp check
+    unread = not out.get("ok") or bool(out.get("picture_error"))
+    out.update(_api_key_reading(True if unread else bool(out.get("hold"))))
+    return out
+
+
+def _plan_quota() -> dict:
     """The active account's hottest window + eligible-standby count, via claude_rotate.py. The
     drain band is read from the picture, not re-hardcoded, so the two cannot drift."""
     try:
@@ -290,6 +365,8 @@ def quota() -> dict:
             "eligible_raw": eligible_raw,
             "active_in_band": bool(act.get("in_drain_band")) if act else None,
             "hold": _hold_is_wall(pic.get("hold")),
+            # `claude_rotate._safe_picture` degrades to `hold: None` without reading the stamp
+            "picture_error": bool(pic.get("error")),
             "drain_band": band,
         }
         # ⚠️ The posture WINS when it is fresh, and that is the point: the seat budget and the
@@ -704,7 +781,15 @@ def budget(
             "own-session id came from the env only (command_run.py not importable) — an id-less "
             "shell may be counting its own record as a sibling"
         )
-    if q.get("ok"):
+    if q.get("api_key_free") is True:
+        # W-3e924ccb: the seats this session dispatches draw its API key, not the plan, so no plan
+        # cap applies — wall, drain band, unknown picture and the no-standby caution alike
+        reasons.append(
+            "quota: this session runs on an Anthropic API key — the plan's hold and drain band do "
+            "not bind its seats (D-1243); the box and the CLI cap still do. If this window declined "
+            "the key at launch, these seats spend plan quota (W-bcd93b39)"
+        )
+    elif q.get("ok"):
         if q["hold"]:
             caps["quota_cap"] = 0
             reasons.append(
@@ -1114,8 +1199,12 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"  quota: active {q['active']} hottest {q['hottest_pct']}%, cool standbys "
             f"{q['eligible']} of {q.get('eligible_raw', q['eligible'])} eligible, hold={q['hold']}, "
-            f"drain band {q.get('drain_band')}%"
+            f"api_key_free={q.get('api_key_free')}, drain band {q.get('drain_band')}%"
         )
+    if q.get("api_key_free") is True:
+        print("  api key: exempt — the plan's hold and drain band do not bind these seats")
+    elif q.get("api_key_why"):
+        print(f"  api key: {q['api_key_why']}")
     if mix:
         shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())
         print(f"  COST: {priced['units']} haiku-units for {shown}{_mix_story(a, mix, full)}")
