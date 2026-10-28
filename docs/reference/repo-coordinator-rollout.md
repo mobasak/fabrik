@@ -22,13 +22,17 @@ launcher, and keeps the hub item open until the repo confirms each phase.
 
 ## A repo `fabrik scaffold` creates
 
-A new repo is born with the coordinator side of this runbook in its initial commit (hub D-1305): the merge-owner row
-`MERGE OWNER: coordinator` (its D-001), a work store with `coordinator_mode`, `queue_floor` 1, `autonomy` and a null
-`feedback_owner` whose `distributor` is `coordinator`, and the charter `docs/reference/agents/coordinator.md`. So
-phase 1 step 1 and phase 2 steps 6 (the coordinator's charter only) and 7 are already done; the pre-flight still runs,
-and every other step applies as written. The agent is named plain `coordinator`, never `<repo>-coordinator`: that
-name passes the 32-character agent-name rule only for repo names up to 20 characters, and names are per repo. When a
-scaffold could not write these pieces it printed one WARNING and left none of them, so the repo takes the full runbook.
+A new repo is born with the coordinator side of this runbook (hub D-1305): the merge-owner row
+`MERGE OWNER: coordinator` (its D-001), a work store whose `distributor` is `coordinator`, with `coordinator_mode`,
+`queue_floor` 1, `autonomy` and a null `feedback_owner`, and the charter `docs/reference/agents/coordinator.md`. With
+the scripts and `.claude/` hooks every scaffold copies, phase 1 steps 1, 3 and 4 and phase 2 step 7 are done, and
+step 6's coordinator charter exists but is still adapted as step 6 says (it is generic). The pre-flight still runs and
+every other step applies as written. Check that the pieces are committed (`git -C /opt/<repo> show --stat HEAD`):
+the scaffold does not check its initial commit, and with pre-commit installed that commit fails on the ledger hook
+until hub W-d93f2987 is fixed. When a scaffold could not write the pieces it printed one WARNING and left none of
+them, so the repo takes the full runbook. The coordinator's agent name (`CLAUDE_AGENT`) is plain `coordinator` (the
+reason is in D-1305); its window may keep the session name `<repo>-coordinator` that the scaffold prints, since the
+launcher resumes by session id.
 
 ## Before the first phase: what the hub coordinator reads (read-only)
 
@@ -115,7 +119,8 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 6. Write the charters in `docs/reference/agents/`, each starting with the line `# Agent charter` (otherwise
    `agent_role.py` ignores the file):
    - `<coordinator name>.md` (the agent the pre-flight's ledger check named; a newly named one is plain
-     `coordinator`, as in a scaffolded repo, § A repo `fabrik scaffold` creates), adapted from the hub's
+     `coordinator`, as in a scaffolded repo, § A repo `fabrik scaffold` creates; `<repo>-coordinator` fails the
+     32-character agent-name rule for repo names over 20 characters), adapted from the hub's
      `docs/reference/agents/coordinator.md`.
      - Keep: mail sorting, scoring, one major project in flight, merges, records, improving a request before routing
        it, never building, and the Opus + Fable panel for decisions.
