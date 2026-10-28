@@ -20,6 +20,16 @@ launcher, and keeps the hub item open until the repo confirms each phase.
 | The repo's coordinator | Runs phase 5 and then the repo, as the merge owner. Until it exists, an existing builder does phases 1–3. |
 | The repo's builders | Do phases 1–3 through the repo's own gate and review (step 11's settings file excepted), then work their queue. |
 
+## A repo `fabrik scaffold` creates
+
+A new repo is born with the coordinator side of this runbook in its initial commit (hub D-1305): the merge-owner row
+`MERGE OWNER: coordinator` (its D-001), a work store with `coordinator_mode`, `queue_floor` 1, `autonomy` and a null
+`feedback_owner` whose `distributor` is `coordinator`, and the charter `docs/reference/agents/coordinator.md`. So
+phase 1 step 1 and phase 2 steps 6 (the coordinator's charter only) and 7 are already done; the pre-flight still runs,
+and every other step applies as written. The agent is named plain `coordinator`, never `<repo>-coordinator`: that
+name passes the 32-character agent-name rule only for repo names up to 20 characters, and names are per repo. When a
+scaffold could not write these pieces it printed one WARNING and left none of them, so the repo takes the full runbook.
+
 ## Before the first phase: what the hub coordinator reads (read-only)
 
 Each answer below goes into the brief, so the repo's agents never have to guess it.
@@ -104,8 +114,9 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 
 6. Write the charters in `docs/reference/agents/`, each starting with the line `# Agent charter` (otherwise
    `agent_role.py` ignores the file):
-   - `<coordinator name>.md` (the agent the pre-flight's ledger check named; a newly named one is usually
-     `<repo>-coordinator`), adapted from the hub's `docs/reference/agents/coordinator.md`.
+   - `<coordinator name>.md` (the agent the pre-flight's ledger check named; a newly named one is plain
+     `coordinator`, as in a scaffolded repo, § A repo `fabrik scaffold` creates), adapted from the hub's
+     `docs/reference/agents/coordinator.md`.
      - Keep: mail sorting, scoring, one major project in flight, merges, records, improving a request before routing
        it, never building, and the Opus + Fable panel for decisions.
      - Drop what only the hub does: fleet sync, rendering commands, VPS and deploy gates.
