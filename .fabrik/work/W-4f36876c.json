@@ -1,0 +1,25 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T17:03:01.398202Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4f36876c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1087",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "board a deploy gate to the coordinator: the operator runs scripts/sync_prometheus_to_vps.sh --diff, then --push (D-1087's deferred deploy; Claude Code's classifier refuses fleet's vps1 commands, see W-45521ff3); then decide whether --diff runs on a schedule",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "monitoring",
+    "operator-window"
+  ],
+  "title": "vps1 Prometheus still runs the OLD memory alert rules a week after D-1087 was decided (2026-10-21; live reads 2026-10-28): the live /api/v1/rules shows ContainerHighMemory and ContainerMemoryHighOfHost on container_memory_usage_bytes, while master configs/prometheus/rules/alerts.yml:45 judges the working set. ContainerHighMemory fires on grafana, whose working set is 37% of its limit (the figure the master rule would judge). D-1087 left the deploy to the operator-gated scripts/sync_prometheus_to_vps.sh (--push ships the rules and reloads, --diff compares repo and vps1 files); nobody ran it and --diff runs on no schedule, so nothing owned the deploy"
+}
